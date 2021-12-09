@@ -6,6 +6,8 @@
 
 #define PAGE_SIZE 4096
 
+#define KERNEL_ADDR 0xfffff80000000000
+
 map_entry map[1024];
 unsigned int num_map_entries = 0;
 
@@ -16,8 +18,6 @@ static uint16_t* video = (uint16_t*)0xB8000;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
 extern char _image_base, ebss;
-
-bool load_pe(void* data, size_t size);
 
 static void putc(uint8_t x, uint8_t y,char c) {
     video[y * COLS + x] = (7 << 8) | c;
@@ -346,6 +346,8 @@ static bool parse_mmap(multiboot_info_t* mb) {
 }
 
 void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
+    uint64_t entry_point;
+
     __builtin_memset(video, 0, COLS * ROWS * sizeof(uint16_t));
 
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
@@ -392,7 +394,7 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
             return;
     }
 
-    if (!load_pe((void*)mods[0].mod_start, mods[0].mod_end - mods[0].mod_start))
+    if (!load_pe((void*)mods[0].mod_start, mods[0].mod_end - mods[0].mod_start, KERNEL_ADDR, &entry_point))
         return;
 
     for (unsigned int i = 0; i < num_map_entries; i++) {
@@ -404,6 +406,10 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
         print_hex(map[i].type);
         print("\n");
     }
+
+    print("Entry point: ");
+    print_hex(entry_point);
+    print("\n");
 
     // FIXME - set up paging tables (kernel high, bootloader identity)
     // FIXME - enable long mode

@@ -13,6 +13,12 @@
 #define IMAGE_NT_OPTIONAL_HDR32_MAGIC   0x10b
 #define IMAGE_NT_OPTIONAL_HDR64_MAGIC   0x20b
 
+#define IMAGE_DIRECTORY_ENTRY_BASERELOC     5
+
+#define IMAGE_REL_BASED_ABSOLUTE    0
+#define IMAGE_REL_BASED_HIGHLOW     3
+#define IMAGE_REL_BASED_DIR64       10
+
 typedef struct {
     uint16_t e_magic;
     uint16_t e_cblp;
@@ -143,6 +149,11 @@ typedef struct {
 
 #pragma pack(pop)
 
+typedef struct {
+    uint32_t VirtualAddress;
+    uint32_t SizeOfBlock;
+} IMAGE_BASE_RELOCATION;
+
 enum map_type {
     mem_free,
     mem_reserved,
@@ -166,4 +177,4 @@ void print_hex(uint64_t num);
 bool add_map_entry(uint64_t start, uint64_t len, enum map_type type);
 
 // pe.c
-bool load_pe(void* data, size_t size);
+bool load_pe(void* data, size_t size, uint64_t va, uint64_t* entry_point);
