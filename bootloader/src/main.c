@@ -2,13 +2,23 @@
 #include <stdbool.h>
 #include "multiboot.h"
 
-enum color {
-    BLACK = 0,
-    BRIGHT = 7
-};
-
 #define COLS 80
 #define ROWS 25
+
+enum map_type {
+    mem_free,
+    mem_reserved,
+    mem_bootloader
+};
+
+typedef struct {
+    uint64_t addr;
+    uint64_t len;
+    enum map_type type;
+} map_entry;
+
+static map_entry map[1024];
+static unsigned int num_map_entries = 0;
 
 static uint16_t* video = (uint16_t*)0xB8000;
 static unsigned int cursor_x = 0, cursor_y = 0;
@@ -78,20 +88,52 @@ static void print_hex(uint64_t num) {
     }
 }
 
-static void parse_mmap(multiboot_info_t* mb) {
+static bool parse_mmap(multiboot_info_t* mb) {
     multiboot_memory_map_t* m = (multiboot_memory_map_t*)mb->mmap_addr;
 
     while ((uintptr_t)m < mb->mmap_addr + mb->mmap_length) {
-        print("Entry: ");
-        print_hex(m->addr);
-        print(", ");
-        print_hex(m->len);
-        print(", ");
-        print_hex(m->type);
-        print("\n");
+
+
+        if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+            print("Too many map entries.\n");
+            return false;
+        }
+
+        map[num_map_entries].addr = m->addr;
+        map[num_map_entries].len = m->len;
+
+        switch (m->type) {
+            case MULTIBOOT_MEMORY_AVAILABLE:
+                map[num_map_entries].type = mem_free;
+                break;
+
+            default:
+                map[num_map_entries].type = mem_reserved;
+        }
+
+        num_map_entries++;
 
         m = (multiboot_memory_map_t*)((uint8_t*)m + sizeof(uint32_t) + m->size);
     }
+
+    // FIXME - sort
+    // FIXME - remove overlaps
+
+    // FIXME - round to page boundaries
+
+    // FIXME - memory currently used by bootloader
+
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        print("Entry: ");
+        print_hex(map[i].addr);
+        print(", ");
+        print_hex(map[i].len);
+        print(", ");
+        print_hex(map[i].type);
+        print("\n");
+    }
+
+    return true;
 }
 
 void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
@@ -114,7 +156,8 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     print_hex((uint32_t)&ebss);
     print("\n");
 
-    parse_mmap(mb);
+    if (!parse_mmap(mb))
+        return;
 
     while (1) {
     }
