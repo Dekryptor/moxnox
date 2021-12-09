@@ -104,6 +104,69 @@ static void remove_map_entry(int i) {
     num_map_entries--;
 }
 
+static bool add_map_entry(uint64_t start, uint64_t len, enum map_type type) {
+    if (start & (PAGE_SIZE - 1)) {
+        len += start & (PAGE_SIZE - 1);
+        start -= start & (PAGE_SIZE - 1);
+    }
+
+    if (len & (PAGE_SIZE - 1))
+        len += PAGE_SIZE - (len & (PAGE_SIZE - 1));
+
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        if (map[i].addr >= start && map[i].addr + map[i].len <= start + len) { // remove whole entry
+            remove_map_entry(i);
+            i--;
+        } else if (map[i].addr >= start && map[i].addr < start + len) { // remove start
+            map[i].len = map[i].addr + map[i].len - start - len;
+            map[i].addr = start + len;
+
+            if (map[i].len == 0) {
+                remove_map_entry(i);
+                i--;
+            }
+        } else if (map[i].addr + map[i].len > start && map[i].addr + map[i].len <= start + len) { // remove end
+            map[i].len = start - map[i].addr;
+
+            if (map[i].len == 0) {
+                remove_map_entry(i);
+                i--;
+            }
+        } else if (start > map[i].addr && start + len < map[i].addr + map[i].len) { // remove middle
+            if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+                print("Too many map entries.\n");
+                return false;
+            }
+
+            insert_map_entry(i);
+            num_map_entries++;
+
+            map[i].len = start - map[i].addr;
+            map[i+1].len = map[i+1].addr + map[i+1].len - start - len;
+            map[i+1].addr = start + len;
+        }
+    }
+
+    if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+        print("Too many map entries.\n");
+        return false;
+    }
+
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        if (map[i].addr + map[i].len == start) {
+            insert_map_entry(i+1);
+
+            map[i+1].addr = start;
+            map[i+1].len = len;
+            map[i+1].type = type;
+
+            num_map_entries++;
+        }
+    }
+
+    return true;
+}
+
 static bool parse_mmap(multiboot_info_t* mb) {
     multiboot_memory_map_t* m = (multiboot_memory_map_t*)mb->mmap_addr;
 
@@ -208,7 +271,8 @@ static bool parse_mmap(multiboot_info_t* mb) {
         }
     }
 
-    // FIXME - memory currently used by bootloader
+    if (!add_map_entry((uintptr_t)&_image_base, (uintptr_t)&ebss - (uintptr_t)&_image_base, mem_bootloader))
+        return false;
 
     for (unsigned int i = 0; i < num_map_entries; i++) {
         print("Entry: ");
