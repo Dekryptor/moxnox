@@ -130,10 +130,28 @@ static bool parse_mmap(multiboot_info_t* mb) {
         m = (multiboot_memory_map_t*)((uint8_t*)m + sizeof(uint32_t) + m->size);
     }
 
+    if (num_map_entries == 0) {
+        print("No map entries found.\n");
+        return false;
+    }
+
     // FIXME - sort
     // FIXME - remove overlaps
 
     // add missing entries
+    if (map[0].addr != 0) {
+        if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+            print("Too many map entries.\n");
+            return false;
+        }
+
+        insert_map_entry(0);
+
+        map[0].addr = 0;
+        map[0].len = map[1].addr;
+        map[0].type = mem_reserved;
+    }
+
     for (unsigned int i = 0; i < num_map_entries - 1; i++) {
         if (map[i].addr + map[i].len < map[i+1].addr) {
             if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
@@ -161,7 +179,35 @@ static bool parse_mmap(multiboot_info_t* mb) {
         }
     }
 
-    // FIXME - round to page boundaries
+    // round to page boundaries
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        if ((map[i].addr + map[i].len) & (PAGE_SIZE - 1)) {
+            if (map[i].type == mem_free) {
+                if (i < num_map_entries - 1) {
+                    map[i+1].addr -= (map[i].addr + map[i].len) & (PAGE_SIZE - 1);
+                    map[i+1].len += (map[i].addr + map[i].len) & (PAGE_SIZE - 1);
+                }
+
+                map[i].len -= (map[i].addr + map[i].len) & (PAGE_SIZE - 1);
+
+                if (map[i].len == 0) {
+                    remove_map_entry(i);
+                    i--;
+                }
+            } else {
+                if (i < num_map_entries - 1) {
+                    map[i+1].addr += PAGE_SIZE - ((map[i].addr + map[i].len) & (PAGE_SIZE - 1));
+                    map[i+1].len -= PAGE_SIZE - ((map[i].addr + map[i].len) & (PAGE_SIZE - 1));
+
+                    if (map[i+1].len == 0)
+                        remove_map_entry(i+1);
+                }
+
+                map[i].len += PAGE_SIZE - ((map[i].addr + map[i].len) & (PAGE_SIZE - 1));
+            }
+        }
+    }
+
     // FIXME - memory currently used by bootloader
 
     for (unsigned int i = 0; i < num_map_entries; i++) {
