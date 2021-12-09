@@ -54,6 +54,37 @@ void* memcpy(void* dest, const void* src, size_t n) {
     return dest;
 }
 
+void* memset(void* s, int c, size_t n) {
+    void* orig_s = s;
+
+    // FIXME - faster if we make sure we're aligned (also in memcpy)?
+
+    uint32_t v;
+
+    v = 0;
+
+    for (unsigned int i = 0; i < sizeof(uint32_t); i++) {
+        v <<= 8;
+        v |= c & 0xff;
+    }
+
+    while (n >= sizeof(uint32_t)) {
+        *(uint32_t*)s = v;
+
+        s = (uint8_t*)s + sizeof(uint32_t);
+        n -= sizeof(uint32_t);
+    }
+
+    while (n > 0) {
+        *(uint8_t*)s = c;
+
+        s = (uint8_t*)s + 1;
+        n--;
+    }
+
+    return orig_s;
+}
+
 static void overflow() {
     __builtin_memcpy(video, video + COLS, (ROWS - 1) * COLS * sizeof(uint16_t));
     cursor_y = ROWS - 1;
@@ -173,6 +204,16 @@ bool add_map_entry(uint64_t start, uint64_t len, enum map_type type) {
     if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
         print("Too many map entries.\n");
         return false;
+    }
+
+    if (start == 0) {
+        insert_map_entry(0);
+        map[0].addr = 0;
+        map[0].len = len;
+        map[0].type = type;
+        num_map_entries++;
+
+        return true;
     }
 
     for (unsigned int i = 0; i < num_map_entries; i++) {
@@ -363,8 +404,6 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
         print_hex(map[i].type);
         print("\n");
     }
-
-    // FIXME - load PE file
 
     // FIXME - set up paging tables (kernel high, bootloader identity)
     // FIXME - enable long mode

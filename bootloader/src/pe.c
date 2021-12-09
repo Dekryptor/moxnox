@@ -67,6 +67,7 @@ bool load_pe(void* data, size_t data_size) {
     IMAGE_NT_HEADERS* nt_header;
     uint8_t* addr;
     size_t size;
+    IMAGE_SECTION_HEADER* sections;
 
     print("Loading image\n");
 
@@ -88,8 +89,36 @@ bool load_pe(void* data, size_t data_size) {
     print_hex((uintptr_t)addr);
     print("\n");
 
-    // FIXME - copy sections
+    if (nt_header->OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        sections = (IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header->OptionalHeader64 + nt_header->FileHeader.SizeOfOptionalHeader);
+
+        // copy header
+        memcpy(addr, data, nt_header->OptionalHeader64.SizeOfHeaders);
+    } else {
+        sections = (IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header->OptionalHeader32 + nt_header->FileHeader.SizeOfOptionalHeader);
+
+        // copy header
+        memcpy(addr, data, nt_header->OptionalHeader32.SizeOfHeaders);
+    }
+
+    for (unsigned int i = 0; i < nt_header->FileHeader.NumberOfSections; i++) {
+        uint32_t section_size;
+
+        // FIXME - check no overruns
+
+        section_size = sections[i].VirtualSize;
+
+        if (sections[i].SizeOfRawData < section_size)
+            section_size = sections[i].SizeOfRawData;
+
+        if (section_size > 0 && sections[i].PointerToRawData != 0)
+            memcpy(data + sections[i].VirtualAddress, data + sections[i].PointerToRawData, section_size);
+
+        if (section_size < sections[i].VirtualSize) // if short, pad with zeroes
+            memset(data + sections[i].VirtualAddress + section_size, 0, sections[i].VirtualSize - section_size);
+    }
+
     // FIXME - relocations
 
-    return false;
+    return true;
 }
