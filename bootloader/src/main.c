@@ -1,7 +1,4 @@
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <string.h>
+#include "bootloader.h"
 #include "multiboot.h"
 
 #define COLS 80
@@ -9,20 +6,8 @@
 
 #define PAGE_SIZE 4096
 
-enum map_type {
-    mem_free,
-    mem_reserved,
-    mem_bootloader
-};
-
-typedef struct {
-    uint64_t addr;
-    uint64_t len;
-    enum map_type type;
-} map_entry;
-
-static map_entry map[1024];
-static unsigned int num_map_entries = 0;
+map_entry map[1024];
+unsigned int num_map_entries = 0;
 
 static multiboot_module_t mods[256];
 static unsigned int num_modules = 0;
@@ -31,6 +16,8 @@ static uint16_t* video = (uint16_t*)0xB8000;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
 extern char _image_base, ebss;
+
+bool load_pe(void* data, size_t size);
 
 static void putc(uint8_t x, uint8_t y,char c) {
     video[y * COLS + x] = (7 << 8) | c;
@@ -72,7 +59,7 @@ static void overflow() {
     cursor_y = ROWS - 1;
 }
 
-static void print(const char* s) {
+void print(const char* s) {
     while (*s != 0) {
         if (*s == '\n') {
             s++;
@@ -98,7 +85,7 @@ static void print(const char* s) {
     }
 }
 
-static void print_hex(uint64_t num) {
+void print_hex(uint64_t num) {
     bool first = true;
     char s[2];
 
@@ -140,7 +127,7 @@ static void remove_map_entry(int i) {
     num_map_entries--;
 }
 
-static bool add_map_entry(uint64_t start, uint64_t len, enum map_type type) {
+bool add_map_entry(uint64_t start, uint64_t len, enum map_type type) {
     if (start & (PAGE_SIZE - 1)) {
         len += start & (PAGE_SIZE - 1);
         start -= start & (PAGE_SIZE - 1);
@@ -307,6 +294,10 @@ static bool parse_mmap(multiboot_info_t* mb) {
         }
     }
 
+    // reserve first page, so we don't have addresses of 0
+    if (!add_map_entry(0, 0x1000, mem_reserved))
+        return false;
+
     if (!add_map_entry((uintptr_t)&_image_base, (uintptr_t)&ebss - (uintptr_t)&_image_base, mem_bootloader))
         return false;
 
@@ -359,6 +350,9 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
         if (!add_map_entry(mods[i].mod_start, mods[i].mod_end - mods[i].mod_start, mem_bootloader))
             return;
     }
+
+    if (!load_pe((void*)mods[0].mod_start, mods[0].mod_end - mods[0].mod_start))
+        return;
 
     for (unsigned int i = 0; i < num_map_entries; i++) {
         print("Entry: ");
