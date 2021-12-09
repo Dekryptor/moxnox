@@ -5,32 +5,52 @@ enum color {
     BRIGHT = 7
 };
 
-enum size {
-    COLS = 80,
-    ROWS = 25
-};
+#define COLS 80
+#define ROWS 25
 
-uint16_t *const video = (uint16_t*) 0xB8000;
+static uint16_t* video = (uint16_t*)0xB8000;
+static unsigned int cursor_x = 0, cursor_y = 0;
 
-void putc(uint8_t x, uint8_t y, enum color fg, enum color bg, char c) {
-    video[y * COLS + x] = (bg << 12) | (fg << 8) | c;
+static void putc(uint8_t x, uint8_t y,char c) {
+    video[y * COLS + x] = (7 << 8) | c;
 }
 
-void puts(uint8_t x, uint8_t y, enum color fg, enum color bg, const char *s) {
-    for (; *s; s++, x++)
-        putc(x, y, fg, bg, *s);
+static void overflow() {
+    __builtin_memcpy(video, video + COLS, (ROWS - 1) * COLS * sizeof(uint16_t));
+    cursor_y = ROWS - 1;
 }
 
-void clear(enum color bg) {
-    uint8_t x, y;
-    for (y = 0; y < ROWS; y++)
-        for (x = 0; x < COLS; x++)
-            putc(x, y, bg, bg, ' ');
+static void print(const char* s) {
+    while (*s != 0) {
+        if (*s == '\n') {
+            s++;
+            cursor_x = 0;
+            cursor_y++;
+
+            if (cursor_y == ROWS)
+                overflow();
+        } else {
+            putc(cursor_x, cursor_y, *s);
+
+            s++;
+            cursor_x++;
+
+            if (cursor_x == COLS) {
+                cursor_x = 0;
+                cursor_y++;
+
+                if (cursor_y == ROWS)
+                    overflow();
+            }
+        }
+    }
 }
 
+int __attribute__((noreturn, cdecl)) main(void* multiboot) {
+    __builtin_memset(video, 0, COLS * ROWS * sizeof(uint16_t));
 
-int __attribute__((noreturn)) main() {
-    clear(BLACK);
-    puts(0, 0, BRIGHT, BLACK, "hello world");
-    while (1);
+    print("A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ");
+
+    while (1) {
+    }
 }
