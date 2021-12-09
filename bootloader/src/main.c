@@ -13,6 +13,8 @@ enum color {
 static uint16_t* video = (uint16_t*)0xB8000;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
+extern char _image_base, ebss;
+
 static void putc(uint8_t x, uint8_t y,char c) {
     video[y * COLS + x] = (7 << 8) | c;
 }
@@ -104,6 +106,13 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
         print("Memory map not provided.\n");
         return;
     }
+
+    print("Image start: ");
+    print_hex((uint32_t)&_image_base);
+    print("\n");
+    print("Image end: ");
+    print_hex((uint32_t)&ebss);
+    print("\n");
 
     parse_mmap(mb);
 

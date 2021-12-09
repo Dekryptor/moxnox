@@ -2,6 +2,7 @@ ENTRY (loader)
 SECTIONS
 {
   . = 0x00100000;
+  _image_base = ABSOLUTE(.);
   .mbheader : {
     *(.mbheader)
   }
