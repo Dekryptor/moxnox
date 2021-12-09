@@ -1,5 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <string.h>
 #include "multiboot.h"
 
 #define COLS 80
@@ -22,6 +24,9 @@ typedef struct {
 static map_entry map[1024];
 static unsigned int num_map_entries = 0;
 
+static multiboot_module_t mods[256];
+static unsigned int num_modules = 0;
+
 static uint16_t* video = (uint16_t*)0xB8000;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
@@ -29,6 +34,37 @@ extern char _image_base, ebss;
 
 static void putc(uint8_t x, uint8_t y,char c) {
     video[y * COLS + x] = (7 << 8) | c;
+}
+
+void* memcpy(void* dest, const void* src, size_t n) {
+    while (n >= sizeof(uint32_t)) {
+        *(uint32_t*)dest = *(uint32_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint32_t);
+        src = (uint8_t*)src + sizeof(uint32_t);
+
+        n -= sizeof(uint32_t);
+    }
+
+    while (n >= sizeof(uint16_t)) {
+        *(uint16_t*)dest = *(uint16_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint16_t);
+        src = (uint8_t*)src + sizeof(uint16_t);
+
+        n -= sizeof(uint16_t);
+    }
+
+    while (n >= sizeof(uint8_t)) {
+        *(uint8_t*)dest = *(uint8_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint8_t);
+        src = (uint8_t*)src + sizeof(uint8_t);
+
+        n -= sizeof(uint8_t);
+    }
+
+    return dest;
 }
 
 static void overflow() {
@@ -274,16 +310,6 @@ static bool parse_mmap(multiboot_info_t* mb) {
     if (!add_map_entry((uintptr_t)&_image_base, (uintptr_t)&ebss - (uintptr_t)&_image_base, mem_bootloader))
         return false;
 
-    for (unsigned int i = 0; i < num_map_entries; i++) {
-        print("Entry: ");
-        print_hex(map[i].addr);
-        print(", ");
-        print_hex(map[i].len);
-        print(", ");
-        print_hex(map[i].type);
-        print("\n");
-    }
-
     return true;
 }
 
@@ -295,10 +321,24 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
         return;
     }
 
-    if (!(mb->flags & 0x40)) {
+    // FIXME - check multiboot checksum
+
+    if (!(mb->flags & MULTIBOOT_INFO_MODS)) {
+        print("Module list not provided.\n");
+        return;
+    }
+
+    if (mb->mods_count == 0) {
+        print("Kernel not specified.\n");
+        return;
+    }
+
+    if (!(mb->flags & MULTIBOOT_INFO_MEM_MAP)) {
         print("Memory map not provided.\n");
         return;
     }
+
+    // FIXME - do CPUID to make sure amd64
 
     print("Image start: ");
     print_hex((uint32_t)&_image_base);
@@ -309,6 +349,35 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
 
     if (!parse_mmap(mb))
         return;
+
+    num_modules = mb->mods_count;
+    __builtin_memcpy(&mods, (void*)mb->mods_addr, sizeof(multiboot_module_t) * num_modules);
+
+    mb = NULL;
+
+    for (unsigned int i = 0; i < num_modules; i++) {
+        if (!add_map_entry(mods[i].mod_start, mods[i].mod_end - mods[i].mod_start, mem_bootloader))
+            return;
+    }
+
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        print("Entry: ");
+        print_hex(map[i].addr);
+        print(", ");
+        print_hex(map[i].len);
+        print(", ");
+        print_hex(map[i].type);
+        print("\n");
+    }
+
+    // FIXME - load PE file
+
+    // FIXME - set up paging tables (kernel high, bootloader identity)
+    // FIXME - enable long mode
+    // FIXME - enable paging
+
+    // FIXME - GDT
+    // FIXME - jump to entry point
 
     while (1) {
     }
