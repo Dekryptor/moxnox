@@ -5,6 +5,8 @@
 #define COLS 80
 #define ROWS 25
 
+#define PAGE_SIZE 4096
+
 enum map_type {
     mem_free,
     mem_reserved,
@@ -119,8 +121,28 @@ static bool parse_mmap(multiboot_info_t* mb) {
     // FIXME - sort
     // FIXME - remove overlaps
 
-    // FIXME - round to page boundaries
+    // add missing entries
+    for (unsigned int i = 0; i < num_map_entries - 1; i++) {
+        if (map[i].addr + map[i].len < map[i+1].addr) {
+            if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+                print("Too many map entries.\n");
+                return false;
+            }
 
+            for (int j = num_map_entries - 1; j > (int)i; j--) {
+                __builtin_memcpy(&map[j+1], &map[j], sizeof(map_entry));
+            }
+
+            map[i+1].addr = map[i].addr + map[i].len;
+            map[i+1].len = map[i+2].addr - map[i+1].addr;
+            map[i+1].type = mem_reserved;
+
+            num_map_entries++;
+        }
+    }
+
+    // FIXME - merge runs
+    // FIXME - round to page boundaries
     // FIXME - memory currently used by bootloader
 
     for (unsigned int i = 0; i < num_map_entries; i++) {
