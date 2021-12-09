@@ -90,12 +90,24 @@ static void print_hex(uint64_t num) {
     }
 }
 
+static void insert_map_entry(int i) {
+    for (int j = num_map_entries - 1; j >= i; j--) {
+        __builtin_memcpy(&map[j+1], &map[j], sizeof(map_entry));
+    }
+}
+
+static void remove_map_entry(int i) {
+    for (unsigned int j = i; j < num_map_entries; j++) {
+        __builtin_memcpy(&map[j], &map[j+1], sizeof(map_entry));
+    }
+
+    num_map_entries--;
+}
+
 static bool parse_mmap(multiboot_info_t* mb) {
     multiboot_memory_map_t* m = (multiboot_memory_map_t*)mb->mmap_addr;
 
     while ((uintptr_t)m < mb->mmap_addr + mb->mmap_length) {
-
-
         if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
             print("Too many map entries.\n");
             return false;
@@ -129,9 +141,7 @@ static bool parse_mmap(multiboot_info_t* mb) {
                 return false;
             }
 
-            for (int j = num_map_entries - 1; j > (int)i; j--) {
-                __builtin_memcpy(&map[j+1], &map[j], sizeof(map_entry));
-            }
+            insert_map_entry(i+1);
 
             map[i+1].addr = map[i].addr + map[i].len;
             map[i+1].len = map[i+2].addr - map[i+1].addr;
@@ -141,7 +151,16 @@ static bool parse_mmap(multiboot_info_t* mb) {
         }
     }
 
-    // FIXME - merge runs
+    // merge runs
+    for (unsigned int i = 0; i < num_map_entries - 1; i++) {
+        if (map[i].addr + map[i].len == map[i+1].addr && map[i].type == map[i+1].type) {
+            map[i].len = map[i+1].addr + map[i+1].len - map[i].addr;
+
+            remove_map_entry(i+1);
+            i--;
+        }
+    }
+
     // FIXME - round to page boundaries
     // FIXME - memory currently used by bootloader
 
