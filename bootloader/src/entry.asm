@@ -2,8 +2,9 @@ global loader
 global stack_ptr
 
 extern main
-extern enable_paging
+extern go
 extern pml4t
+extern entry_point
 
 MODULEALIGN equ 1<<0
 MEMINFO equ 1<<1
@@ -35,7 +36,7 @@ hang:
     hlt
     jmp hang
 
-enable_paging:
+go:
     ; set PAE bit
     mov eax, cr4
     or eax, 0x20
@@ -56,10 +57,34 @@ enable_paging:
     or eax, 0x80000000
     mov cr0, eax
 
-    ret
+    ; load GDT
+    lgdt [gdt_ptr]
+
+    jmp 0x08:start_kernel
+
+bits 64
+start_kernel:
+    jmp [entry_point]
 
 section .bss
 align 4
 stack:
     resb STACKSIZE
 stack_ptr:
+
+section .rodata
+align 8
+gdt:
+     ; null GDT
+    dq 0
+    ; code GDT (64-bit)
+    dw 0xffff ; LimitLow
+    dw 0x0000 ; BaseLow
+    db 0x00 ; BaseMid
+    db 0x9a ; Type = 1a, Dpl = 0, Pres = 1
+    db 0xaf ; LimitHi = f, Sys = 0, Long = 1, Default_Big = 0, Granularity = 1
+    db 0x00 ; BaseHi
+gdt_ptr:
+    dw 15
+    dd gdt
+    dd 0

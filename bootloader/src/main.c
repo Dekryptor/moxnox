@@ -17,6 +17,8 @@ static unsigned int cursor_x = 0, cursor_y = 0;
 
 extern char _image_base, ebss;
 
+uint64_t entry_point;
+
 static void putc(uint8_t x, uint8_t y,char c) {
     video[y * COLS + x] = (7 << 8) | c;
 }
@@ -344,8 +346,6 @@ static bool parse_mmap(multiboot_info_t* mb) {
 }
 
 void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
-    uint64_t entry_point;
-
     __builtin_memset(video, 0, COLS * ROWS * sizeof(uint16_t));
 
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
@@ -412,11 +412,5 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     if (!setup_paging(KERNEL_ADDR))
         return;
 
-    enable_paging();
-
-    // FIXME - GDT
-    // FIXME - jump to entry point
-
-    while (1) {
-    }
+    go();
 }
