@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#define PAGE_SIZE 4096
+
 #define IMAGE_DOS_SIGNATURE             0x5a4d // "MZ"
 #define IMAGE_NT_SIGNATURE              0x00004550 // "PE\0\0"
 
@@ -158,7 +160,8 @@ enum map_type {
     mem_free,
     mem_reserved,
     mem_bootloader,
-    mem_image
+    mem_image,
+    mem_paging_table
 };
 
 typedef struct {
@@ -166,6 +169,25 @@ typedef struct {
     uint64_t len;
     enum map_type type;
 } map_entry;
+
+typedef struct {
+    uint64_t Valid:1;
+    uint64_t Write:1;
+    uint64_t Owner:1;
+    uint64_t WriteThrough:1;
+    uint64_t CacheDisable:1;
+    uint64_t Accessed:1;
+    uint64_t Dirty:1;
+    uint64_t LargePage:1;
+    uint64_t Global:1;
+    uint64_t CopyOnWrite:1;
+    uint64_t Prototype:1;
+    uint64_t reserved0:1;
+    uint64_t PageFrameNumber:28;
+    uint64_t reserved1:12;
+    uint64_t SoftwareWsIndex:11;
+    uint64_t NoExecute:1;
+} HARDWARE_PTE;
 
 // main.c
 
@@ -178,3 +200,6 @@ bool add_map_entry(uint64_t start, uint64_t len, enum map_type type);
 
 // pe.c
 bool load_pe(void* data, size_t size, uint64_t va, uint64_t* entry_point);
+
+// paging.c
+bool setup_paging(uint64_t va);

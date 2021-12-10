@@ -7,7 +7,8 @@ enable_language(ASM_NASM)
 
 set(SRC_FILES src/entry.asm
     src/main.c
-    src/pe.c)
+    src/pe.c
+    src/paging.c)
 
 add_executable(bootloader ${SRC_FILES})
 

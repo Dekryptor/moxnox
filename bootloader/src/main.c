@@ -4,11 +4,9 @@
 #define COLS 80
 #define ROWS 25
 
-#define PAGE_SIZE 4096
-
 #define KERNEL_ADDR 0xfffff80000000000
 
-map_entry map[1024];
+map_entry map[256];
 unsigned int num_map_entries = 0;
 
 static multiboot_module_t mods[256];
@@ -410,6 +408,9 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     print("Entry point: ");
     print_hex(entry_point);
     print("\n");
+
+    if (!setup_paging(KERNEL_ADDR))
+        return;
 
     // FIXME - set up paging tables (kernel high, bootloader identity)
     // FIXME - enable long mode
