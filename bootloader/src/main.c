@@ -19,6 +19,7 @@ static unsigned int cursor_x = 0, cursor_y = 0;
 extern char _image_base, ebss;
 
 uint64_t entry_point;
+loader_block lb;
 
 static void putc(uint8_t x, uint8_t y,char c) {
     video[y * COLS + x] = (7 << 8) | c;
@@ -437,6 +438,9 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     print("Entry point: ");
     print_hex(entry_point);
     print("\n");
+
+    lb.map = map;
+    lb.num_map_entries = num_map_entries;
 
     enable_sse();
 

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#include "loaderblock.h"
 
 #define PAGE_SIZE 4096
 
@@ -155,20 +156,6 @@ typedef struct {
     uint32_t VirtualAddress;
     uint32_t SizeOfBlock;
 } IMAGE_BASE_RELOCATION;
-
-enum map_type {
-    mem_free,
-    mem_reserved,
-    mem_bootloader,
-    mem_image,
-    mem_paging_table
-};
-
-typedef struct {
-    uint64_t addr;
-    uint64_t len;
-    enum map_type type;
-} map_entry;
 
 typedef struct {
     uint64_t Valid:1;

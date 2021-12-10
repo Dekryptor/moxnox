@@ -6,6 +6,7 @@ extern go
 extern pml4t
 extern entry_point
 extern enable_sse
+extern lb
 
 MODULEALIGN equ 1<<0
 MEMINFO equ 1<<1
@@ -78,6 +79,7 @@ go:
 
 bits 64
 start_kernel:
+    mov rdi, [rel lb]
     jmp [entry_point]
 
 section .bss
