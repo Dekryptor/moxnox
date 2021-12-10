@@ -412,9 +412,7 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     if (!setup_paging(KERNEL_ADDR))
         return;
 
-    // FIXME - set up paging tables (kernel high, bootloader identity)
-    // FIXME - enable long mode
-    // FIXME - enable paging
+    enable_paging();
 
     // FIXME - GDT
     // FIXME - jump to entry point

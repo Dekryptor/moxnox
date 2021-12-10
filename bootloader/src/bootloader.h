@@ -203,3 +203,6 @@ bool load_pe(void* data, size_t size, uint64_t va, uint64_t* entry_point);
 
 // paging.c
 bool setup_paging(uint64_t va);
+
+// entry.asm
+void enable_paging();

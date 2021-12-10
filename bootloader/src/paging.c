@@ -2,7 +2,7 @@
 
 #define PAGE_SIZE 4096
 
-static HARDWARE_PTE* pml4t;
+HARDWARE_PTE* pml4t;
 
 static map_entry map_copy[256];
 static unsigned int num_map_entries_copy;
