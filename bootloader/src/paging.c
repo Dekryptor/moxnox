@@ -2,6 +2,8 @@
 
 #define PAGE_SIZE 4096
 
+#define SELFMAP 0xfffff68000000000
+
 HARDWARE_PTE* pml4t;
 
 static map_entry map_copy[256];
@@ -135,6 +137,11 @@ bool setup_paging(uint64_t va) {
                 return false;
         }
     }
+
+    // add recursive mapping
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].PageFrameNumber = (uintptr_t)pml4t / PAGE_SIZE;
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
 
     return true;
 }

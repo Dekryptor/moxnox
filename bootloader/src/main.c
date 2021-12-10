@@ -440,8 +440,6 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
 
     enable_sse();
 
-    // FIXME - do recursive mapping of CR3
-
     if (!setup_paging(KERNEL_ADDR))
         return;
 
