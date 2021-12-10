@@ -5,6 +5,7 @@ extern main
 extern go
 extern pml4t
 extern entry_point
+extern enable_sse
 
 MODULEALIGN equ 1<<0
 MEMINFO equ 1<<1
@@ -35,6 +36,19 @@ loader:
 hang:
     hlt
     jmp hang
+
+enable_sse:
+    ; clear EM flag on CR0 and set MP flag
+    mov eax, cr0
+    and eax, 0xfffffffb
+    or eax, 0x2
+    mov cr0, eax
+
+    ; set OSFXSR and OSXMMEXCPT flags on CR4
+    mov eax, cr4
+    or ax, 0x600
+    mov cr4, eax
+    ret
 
 go:
     ; set PAE bit

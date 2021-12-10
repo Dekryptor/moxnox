@@ -438,7 +438,8 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     print_hex(entry_point);
     print("\n");
 
-    // FIXME - enable SSE
+    enable_sse();
+
     // FIXME - do recursive mapping of CR3
 
     if (!setup_paging(KERNEL_ADDR))

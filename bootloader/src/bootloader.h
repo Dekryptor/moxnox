@@ -206,3 +206,4 @@ bool setup_paging(uint64_t va);
 
 // entry.asm
 void go();
+void enable_sse();
