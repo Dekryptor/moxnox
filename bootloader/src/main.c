@@ -1,5 +1,6 @@
 #include "bootloader.h"
 #include "multiboot.h"
+#include <cpuid.h>
 
 #define COLS 80
 #define ROWS 25
@@ -345,6 +346,33 @@ static bool parse_mmap(multiboot_info_t* mb) {
     return true;
 }
 
+static bool check_cpu() {
+    uint32_t eax, ebx, ecx, edx;
+
+    __cpuid(0x80000000, eax, ebx, ecx, edx);
+
+    if (eax < 0x80000001) {
+        print("Long mode not supported.\n");
+        return false;
+    }
+
+    __cpuid(0x80000001, eax, ebx, ecx, edx);
+
+    if (!(edx & 0x20000000)) {
+        print("Long mode not supported.\n");
+        return false;
+    }
+
+    __cpuid(1, eax, ebx, ecx, edx);
+
+    if (!(edx & 0x2000000)) {
+        print("SSE not supported.\n");
+        return false;
+    }
+
+    return true;
+}
+
 void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     __builtin_memset(video, 0, COLS * ROWS * sizeof(uint16_t));
 
@@ -370,7 +398,8 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
         return;
     }
 
-    // FIXME - do CPUID to make sure amd64
+    if (!check_cpu())
+        return;
 
     print("Image start: ");
     print_hex((uint32_t)&_image_base);
@@ -408,6 +437,9 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     print("Entry point: ");
     print_hex(entry_point);
     print("\n");
+
+    // FIXME - enable SSE
+    // FIXME - do recursive mapping of CR3
 
     if (!setup_paging(KERNEL_ADDR))
         return;
