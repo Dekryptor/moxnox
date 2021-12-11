@@ -9,6 +9,8 @@ void startup(loader_block* lb) {
     if (!init_memory(*lb))
         goto hang;
 
+    lb = nullptr; // no longer valid
+
     // FIXME - map video memory at b8000
 
     // FIXME - calling global constructors?

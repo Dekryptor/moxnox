@@ -409,6 +409,42 @@ static bool copy_gdt() {
     return true;
 }
 
+static void free_lower_half_mappings() {
+    auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
+
+    for (unsigned int i = 0; i < 256; i++) {
+        auto& p1 = pml4[i];
+
+        if (p1.Valid) {
+            auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (i << PAGE_SHIFT)), 512);
+
+            for (unsigned int j = 0; j < pdpt.size(); j++) {
+                auto& p2 = pdpt[j];
+
+                if (p2.Valid) {
+                    auto pdt = span((HARDWARE_PTE*)(SELFMAP_PDT | (i << (PAGE_SHIFT + 9)) | (j << PAGE_SHIFT)), 512);
+
+                    for (unsigned int k = 0; k < pdt.size(); k++) {
+                        auto& p3 = pdt[k];
+
+                        if (p3.Valid) {
+                            auto pt = span((HARDWARE_PTE*)(SELFMAP | (i << (PAGE_SHIFT + 18)) | (j << (PAGE_SHIFT + 9)) | (k << PAGE_SHIFT)), 512);
+
+                            memset(pt.data(), 0, PAGE_SIZE);
+
+                            mark_mem_as_free((uint64_t)p3.PageFrameNumber << PAGE_SHIFT, PAGE_SIZE);
+                        }
+                    }
+
+                    mark_mem_as_free((uint64_t)p2.PageFrameNumber << PAGE_SHIFT, PAGE_SIZE);
+                }
+            }
+
+            mark_mem_as_free((uint64_t)p1.PageFrameNumber << PAGE_SHIFT, PAGE_SIZE);
+        }
+    }
+}
+
 bool init_memory(const loader_block& lb) {
     uint64_t total_pages, num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
@@ -465,8 +501,13 @@ bool init_memory(const loader_block& lb) {
 
     copy_gdt();
 
-    // FIXME - mark bootloader memory as free (inc. page tables)
-    // FIXME - free lower half mappings
+    // mark bootloader memory as free (inc. page tables)
+    for (auto& map : map_entries) {
+        if (map.type == map_type::mem_bootloader)
+            mark_mem_as_free(map.addr, map.len);
+    }
+
+    free_lower_half_mappings();
 
     // FIXME - protect pages of kernel sections correctly
 
