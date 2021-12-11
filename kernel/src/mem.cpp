@@ -33,6 +33,8 @@ typedef struct {
 } HARDWARE_PTE;
 
 uint8_t* memblock = (uint8_t*)0xfffffa0000000000;
+uint64_t memblock_size;
+void* gdt = (void*)0xfffffa8000000000;
 
 static bool treat_as_free(enum map_type type) {
     switch (type) {
@@ -44,6 +46,48 @@ static bool treat_as_free(enum map_type type) {
         default:
             return false;
     }
+}
+
+void* memcpy(void* dest, const void* src, size_t n) {
+    // FIXME - SSE version of this?
+
+    while (n >= sizeof(uint64_t)) {
+        *(uint64_t*)dest = *(uint64_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint64_t);
+        src = (uint8_t*)src + sizeof(uint64_t);
+
+        n -= sizeof(uint64_t);
+    }
+
+    while (n >= sizeof(uint32_t)) {
+        *(uint32_t*)dest = *(uint32_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint32_t);
+        src = (uint8_t*)src + sizeof(uint32_t);
+
+        n -= sizeof(uint32_t);
+    }
+
+    while (n >= sizeof(uint16_t)) {
+        *(uint16_t*)dest = *(uint16_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint16_t);
+        src = (uint8_t*)src + sizeof(uint16_t);
+
+        n -= sizeof(uint16_t);
+    }
+
+    while (n >= sizeof(uint8_t)) {
+        *(uint8_t*)dest = *(uint8_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint8_t);
+        src = (uint8_t*)src + sizeof(uint8_t);
+
+        n -= sizeof(uint8_t);
+    }
+
+    return dest;
 }
 
 void* memset(void* s, int c, size_t n) {
@@ -153,6 +197,103 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
     return true;
 }
 
+static uint64_t allocate_page() {
+    // FIXME - SSE?
+    // FIXME - BMI1 instruction set?
+
+    // FIXME - need spinlock
+
+    auto mb = span((uint64_t*)memblock, memblock_size / sizeof(uint64_t));
+
+    for (unsigned int i = 0; i < mb.size(); i++) {
+        if (mb[i] != 0) {
+            uint64_t v = mb[i];
+
+            for (uint64_t j = 0; j < 64; j++) {
+                if (v & 1) {
+                    mb[i] &= ~((uint64_t)1 << j);
+                    j = (j & ~7) + 7 - (j & 7);
+                    return ((i * 64) + j) << PAGE_SHIFT;
+                }
+
+                v >>= 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static bool map_page(uint64_t pa, uint64_t va) {
+    auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
+    auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((va & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
+    auto pdt = span((HARDWARE_PTE*)(SELFMAP_PDT | (((va & 0xffffc0000000) >> 30) << PAGE_SHIFT)), 512);
+    auto pt = span((HARDWARE_PTE*)(SELFMAP | (((va & 0xffffffe00000) >> 21) << PAGE_SHIFT)), 512);
+
+    auto& pml4_entry = pml4[(va & 0xff8000000000) >> 39];
+
+    if (!pml4_entry.Valid) {
+        uint64_t page = allocate_page();
+        if (page == 0)
+            return false;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pml4_entry.PageFrameNumber = page >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+        pml4_entry.Valid = 1;
+        pml4_entry.Write = 1;
+
+        memset(pdpt.data(), 0, PAGE_SIZE);
+    }
+
+    auto& pdpt_entry = pdpt[(va & 0x7fc0000000) >> 30];
+
+    if (!pdpt_entry.Valid) {
+        uint64_t page = allocate_page();
+        if (page == 0)
+            return false;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pdpt_entry.PageFrameNumber = page >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+        pdpt_entry.Valid = 1;
+        pdpt_entry.Write = 1;
+
+        memset(pdt.data(), 0, PAGE_SIZE);
+    }
+
+    auto& pdt_entry = pdt[(va & 0x3fe00000) >> 21];
+
+    if (!pdt_entry.Valid) {
+        uint64_t page = allocate_page();
+        if (page == 0)
+            return false;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pdt_entry.PageFrameNumber = page >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+        pdt_entry.Valid = 1;
+        pdt_entry.Write = 1;
+
+        memset(pt.data(), 0, PAGE_SIZE);
+    }
+
+    auto& pt_entry = pt[(va & 0x1ff000) >> PAGE_SHIFT];
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    pt_entry.PageFrameNumber = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    pt_entry.Valid = 1;
+    pt_entry.Write = 1;
+    // FIXME - option to set NX bit etc.
+
+    return true;
+}
+
 static bool map_memblock(uint64_t pa, uint64_t pages, uint64_t& scratch_pages) {
     uint64_t scratch_pa = pa + (pages << PAGE_SHIFT);
     uint64_t va = (uintptr_t)memblock;
@@ -235,6 +376,39 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     }
 }
 
+static bool copy_gdt() {
+    uint64_t pa;
+
+    struct {
+        uint16_t limit;
+        uint64_t base;
+    } __attribute__((packed)) gdt_ptr;
+
+    pa = allocate_page();
+    if (pa == 0)
+        return false;
+
+    if (!map_page(pa, (uintptr_t)gdt))
+        return false;
+
+    __asm__ __volatile__ (
+        "sgdt %0"
+        : "=m" (gdt_ptr)
+    );
+
+    memcpy(gdt, (void*)gdt_ptr.base, gdt_ptr.limit + 1);
+
+    gdt_ptr.base = (uintptr_t)gdt;
+
+    __asm__ __volatile__ (
+        "lgdt %0"
+        :
+        : "m" (gdt_ptr)
+    );
+
+    return true;
+}
+
 bool init_memory(const loader_block& lb) {
     uint64_t total_pages, num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
@@ -275,7 +449,8 @@ bool init_memory(const loader_block& lb) {
     if (!map_memblock(memblock_pa, num_memblock_pages, scratch_pages))
         return false;
 
-    memset(memblock, 0, num_memblock_pages << PAGE_SHIFT);
+    memblock_size = num_memblock_pages << PAGE_SHIFT;
+    memset(memblock, 0, memblock_size);
 
     // populate memblock from loader block
 
@@ -288,7 +463,7 @@ bool init_memory(const loader_block& lb) {
     // subtract memblock itself, and scratch that we've used
     mark_mem_as_used(memblock_pa, (num_memblock_pages + (orig_scratch_pages - scratch_pages)) << PAGE_SHIFT);
 
-    // FIXME - copy GDT to new page
+    copy_gdt();
 
     // FIXME - mark bootloader memory as free (inc. page tables)
     // FIXME - free lower half mappings
