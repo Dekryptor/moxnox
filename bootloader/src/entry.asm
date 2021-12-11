@@ -81,7 +81,7 @@ go:
 
 bits 64
 start_kernel:
-    mov rdi, [rel lb]
+    mov edi, lb ; clears high bits of rdi
     mov rsp, [rel KERNEL_STACK]
     add rsp, [rel STACK_SIZE]
     jmp [entry_point]
