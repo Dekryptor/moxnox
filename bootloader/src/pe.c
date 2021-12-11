@@ -194,7 +194,7 @@ bool load_pe(void* data, size_t data_size, uint64_t va, uint64_t* entry_point) {
             memset(addr + sections[i].VirtualAddress + section_size, 0, sections[i].VirtualSize - section_size);
     }
 
-    if (!do_relocations(data, va, nt_header))
+    if (!do_relocations(addr, va, nt_header))
         return false;
 
     if (nt_header->OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
