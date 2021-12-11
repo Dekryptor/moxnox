@@ -45,24 +45,6 @@ static bool check_header(uint8_t* data, size_t size, IMAGE_NT_HEADERS** nth) {
     return true;
 }
 
-static bool allocate_memory(size_t size, void** addr) {
-    // FIXME - make sure we only grab a physical address within first 4GB
-
-    for (unsigned int i = 0; i < num_map_entries; i++) {
-        if (map[i].type == mem_free && map[i].len >= size) {
-            *addr = (void*)(uintptr_t)map[i].addr;
-
-            return add_map_entry(map[i].addr, size, mem_image);
-        }
-    }
-
-    print("Could not find 0x");
-    print_hex(size);
-    print(" bytes free for kernel image.\n");
-
-    return false;
-}
-
 static bool do_relocations(uint8_t* data, uint64_t va, IMAGE_NT_HEADERS* nt_header) {
     IMAGE_BASE_RELOCATION* reloc;
     uint32_t size, count;
@@ -172,7 +154,12 @@ bool load_pe(void* data, size_t data_size, uint64_t va, uint64_t* entry_point) {
     print_hex(size);
     print(" bytes \n");
 
-    allocate_memory(size, (void**)&addr);
+    if (!allocate_memory(size, (void**)&addr, mem_image)) {
+        print("Could not find 0x");
+        print_hex(size);
+        print(" bytes free for kernel image.\n");
+        return false;
+    }
 
     print("Loading at physical address ");
     print_hex((uintptr_t)addr);

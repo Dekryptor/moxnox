@@ -180,10 +180,12 @@ typedef struct {
 
 extern map_entry map[];
 extern unsigned int num_map_entries;
+extern const uint64_t KERNEL_STACK;
 
 void print(const char* s);
 void print_hex(uint64_t num);
 bool add_map_entry(uint64_t start, uint64_t len, enum map_type type);
+bool allocate_memory(size_t size, void** addr, enum map_type type);
 
 // pe.c
 bool load_pe(void* data, size_t size, uint64_t va, uint64_t* entry_point);

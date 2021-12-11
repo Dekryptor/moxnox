@@ -129,12 +129,23 @@ bool setup_paging(uint64_t va) {
     num_map_entries_copy = num_map_entries;
 
     for (unsigned int i = 0; i < num_map_entries_copy; i++) {
-        if (map_copy[i].type == mem_bootloader) {
-            if (!do_map(map_copy[i].addr, map_copy[i].addr, map_copy[i].len)) // identity map
-                return false;
-        } else if (map_copy[i].type == mem_image) {
-            if (!do_map(va, map_copy[i].addr, map_copy[i].len)) // map to high part
-                return false;
+        switch (map_copy[i].type) {
+            case mem_bootloader:
+                if (!do_map(map_copy[i].addr, map_copy[i].addr, map_copy[i].len)) // identity map
+                    return false;
+            break;
+
+            case mem_image:
+                if (!do_map(va, map_copy[i].addr, map_copy[i].len)) // map to high part
+                    return false;
+            break;
+
+            case mem_stack:
+                if (!do_map(KERNEL_STACK, map_copy[i].addr, map_copy[i].len)) // map to high part
+                    return false;
+            break;
+
+            default:
         }
     }
 

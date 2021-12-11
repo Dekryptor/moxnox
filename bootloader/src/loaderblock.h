@@ -7,7 +7,8 @@ enum map_type {
     mem_reserved,
     mem_bootloader,
     mem_image,
-    mem_paging_table
+    mem_paging_table,
+    mem_stack
 };
 
 typedef struct {

@@ -16,6 +16,9 @@ static unsigned int num_modules = 0;
 static uint16_t* video = (uint16_t*)0xB8000;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
+const uint64_t KERNEL_STACK = 0xfffff90000000000;
+const uint64_t STACK_SIZE = 0x4000;
+
 extern char _image_base, ebss;
 
 uint64_t entry_point;
@@ -233,6 +236,20 @@ bool add_map_entry(uint64_t start, uint64_t len, enum map_type type) {
     return true;
 }
 
+bool allocate_memory(size_t size, void** addr, enum map_type type) {
+    // FIXME - make sure we only grab a physical address within first 4GB
+
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        if (map[i].type == mem_free && map[i].len >= size) {
+            *addr = (void*)(uintptr_t)map[i].addr;
+
+            return add_map_entry(map[i].addr, size, type);
+        }
+    }
+
+    return false;
+}
+
 static bool parse_mmap(multiboot_info_t* mb) {
     multiboot_memory_map_t* m = (multiboot_memory_map_t*)mb->mmap_addr;
 
@@ -374,6 +391,19 @@ static bool check_cpu() {
     return true;
 }
 
+static bool allocate_stack() {
+    void* addr;
+
+    if (!allocate_memory(STACK_SIZE, &addr, mem_stack)) {
+        print("Could not allocate 0x");
+        print_hex(STACK_SIZE);
+        print(" bytes for kernel stack.\n");
+        return false;
+    }
+
+    return true;
+}
+
 void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     __builtin_memset(video, 0, COLS * ROWS * sizeof(uint16_t));
 
@@ -425,6 +455,9 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     if (!load_pe((void*)mods[0].mod_start, mods[0].mod_end - mods[0].mod_start, KERNEL_ADDR, &entry_point))
         return;
 
+    if (!allocate_stack())
+        return;
+
     for (unsigned int i = 0; i < num_map_entries; i++) {
         print("Entry: ");
         print_hex(map[i].addr);
@@ -439,13 +472,13 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     print_hex(entry_point);
     print("\n");
 
-    lb.map = map;
-    lb.num_map_entries = num_map_entries;
-
     enable_sse();
 
     if (!setup_paging(KERNEL_ADDR))
         return;
+
+    lb.map = map;
+    lb.num_map_entries = num_map_entries;
 
     go();
 }
