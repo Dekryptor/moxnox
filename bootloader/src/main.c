@@ -477,7 +477,7 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     if (!setup_paging(KERNEL_ADDR))
         return;
 
-    lb.map = map;
+    lb.map = (uint64_t)(uintptr_t)map;
     lb.num_map_entries = num_map_entries;
 
     go();

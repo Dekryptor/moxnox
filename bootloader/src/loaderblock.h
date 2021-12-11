@@ -2,7 +2,12 @@
 
 #include <stdint.h>
 
-enum map_type {
+#ifdef __cplusplus
+enum class map_type
+#else
+enum map_type
+#endif
+{
     mem_free,
     mem_reserved,
     mem_bootloader,
@@ -10,6 +15,8 @@ enum map_type {
     mem_paging_table,
     mem_stack
 };
+
+#pragma pack(push,1)
 
 typedef struct {
     uint64_t addr;
@@ -19,7 +26,13 @@ typedef struct {
 
 // FIXME - add magic to loader block?
 
-typedef struct {
+typedef struct _loader_block {
+#ifdef __i386__
+    uint64_t map;
+#else
     map_entry* map;
+#endif
     unsigned int num_map_entries;
 } loader_block;
+
+#pragma pack(pop)
