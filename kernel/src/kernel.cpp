@@ -1,9 +1,21 @@
 #include "../../bootloader/src/loaderblock.h"
+#include "kernel.h"
 
 extern "C"
 __attribute((sysv_abi))
 void startup(loader_block* lb) {
-    // FIXME
+    // FIXME - should restart if anything fails before we can show error message
 
-    while (1) { }
+    if (!init_memory(*lb))
+        goto hang;
+
+    // FIXME - map video memory at b8000
+
+    // FIXME - calling global constructors?
+
+    // FIXME - interrupts
+    // FIXME - scheduler
+
+hang:
+    __asm("cli; hlt");
 }
