@@ -22,7 +22,8 @@ typedef struct {
     uint32_t zero;
 } idt_entry;
 
-static volatile uint8_t* apic = (uint8_t*)0xfffffab000000000;
+static volatile uint8_t* local_apic = (uint8_t*)0xfffffab000000000;
+static volatile uint8_t* io_apic = (uint8_t*)0xfffffae000000000;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
 
 static bool check_cpu_for_apic() {
@@ -124,20 +125,25 @@ static bool init_apic() {
 
     auto apic_base = rdmsr(IA32_APIC_BASE_MSR) & 0xfffff000;
 
-    if (!map_page(apic_base, (uintptr_t)apic)) {
-        print("map_page failed for APIC\n");
+    if (!map_page(apic_base, (uintptr_t)local_apic)) {
+        print("map_page failed for local APIC\n");
         return false;
     }
 
-    uint32_t volatile* spurious_interrupt_reg = (uint32_t*)&apic[0xf0];
+    uint32_t volatile* spurious_interrupt_reg = (uint32_t*)&local_apic[0xf0];
 
     *spurious_interrupt_reg = *spurious_interrupt_reg | 0x100;
 
-    auto io_apic = find_ioapic();
-    if (!io_apic)
+    auto io_apic_pa = find_ioapic();
+    if (!io_apic_pa)
         return false;
 
-    // FIXME - map and initialize
+    if (!map_page(io_apic_pa, (uintptr_t)io_apic)) {
+        print("map_page failed for I/O APIC\n");
+        return false;
+    }
+
+    // FIXME - initialize
 
     return true;
 }
