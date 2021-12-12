@@ -24,8 +24,8 @@ typedef struct {
     uint32_t zero;
 } idt_entry;
 
-static volatile uint8_t* local_apic = (uint8_t*)0xfffffab000000000;
-static volatile uint8_t* io_apic = (uint8_t*)0xfffffae000000000;
+static volatile uint8_t* const local_apic = (uint8_t*)0xfffffab000000000;
+static volatile uint8_t* const io_apic = (uint8_t*)0xfffffae000000000;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
 
 static bool check_cpu_for_apic() {
@@ -155,11 +155,11 @@ static bool init_apic() {
         *IOREGWIN = val;
     };
 
-    // FIXME - get local APIC ID
+    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     // IRQ 1 = keyboard
     write_reg(0x12, keyboard_interrupt);
-    write_reg(0x13, 0);
+    write_reg(0x13, local_apic_id);
 
     return true;
 }
