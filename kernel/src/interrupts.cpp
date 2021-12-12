@@ -143,7 +143,21 @@ static bool init_apic() {
         return false;
     }
 
-    // FIXME - initialize
+    // FIXME - check source overrides in MADT for source == 1
+
+    volatile uint32_t* IOREGSEL = (uint32_t*)io_apic;
+    volatile uint32_t* IOREGWIN = (uint32_t*)(io_apic + 0x10);
+
+    auto write_reg = [&](uint32_t reg, uint32_t val) {
+        *IOREGSEL = reg;
+        *IOREGWIN = val;
+    };
+
+    // FIXME - get local APIC ID
+
+    // IRQ 1 = keyboard
+    write_reg(0x12, 0x80);
+    write_reg(0x13, 0);
 
     return true;
 }
