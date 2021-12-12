@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <string_view>
 
 typedef struct _loader_block loader_block;
 
@@ -10,3 +11,4 @@ bool map_page(uint64_t pa, uint64_t va);
 
 // console.cpp
 bool init_console();
+void print(std::string_view s);
