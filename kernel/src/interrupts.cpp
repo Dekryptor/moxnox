@@ -38,6 +38,16 @@ bool init_interrupts() {
     if (!check_cpu_for_apic())
         return false;
 
+    // disable 8259 PIC
+    __asm __volatile (
+        "mov al, 0xff\n"
+        "out 0xa1, al\n"
+        "out 0x21, al\n"
+        :
+        :
+        : "al"
+    );
+
     auto apic_base = rdmsr(IA32_APIC_BASE_MSR) & 0xfffff000;
 
     if (!map_page(apic_base, (uintptr_t)apic)) {
