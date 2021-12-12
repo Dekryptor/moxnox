@@ -35,7 +35,9 @@ void startup(loader_block* lb) {
     if (!init_console())
         goto hang;
 
-    // FIXME - interrupts
+    if (!init_interrupts())
+        goto hang;
+
     // FIXME - scheduler
 
 hang:

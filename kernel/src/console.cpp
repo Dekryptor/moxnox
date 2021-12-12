@@ -78,6 +78,34 @@ void print(string_view s) {
     }
 }
 
+void print_hex(uint64_t num) {
+    bool first = true;
+    char s[2];
+
+    if (num == 0) {
+        print("0");
+        return;
+    }
+
+    s[1] = 0;
+
+    for (unsigned int i = 0; i < 16; i++) {
+        if (!first || num & 0xf000000000000000) {
+            uint64_t n = num >> 60;
+
+            if (n <= 9)
+                s[0] = (char)(n + '0');
+            else
+                s[0] = (char)(n - 0xa + 'a');
+
+            print(s);
+            first = false;
+        }
+
+        num <<= 4;
+    }
+}
+
 bool init_console() {
     if (!map_page(CONSOLE_PA, (uintptr_t)video.data()))
         return false;

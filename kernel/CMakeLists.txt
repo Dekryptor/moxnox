@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SRC_FILES src/kernel.cpp
     src/mem.cpp
-    src/console.cpp)
+    src/console.cpp
+    src/interrupts.cpp)
 
 add_executable(kernel ${SRC_FILES})
 
