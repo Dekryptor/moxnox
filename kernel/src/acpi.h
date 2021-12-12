@@ -14,6 +14,13 @@ typedef struct {
     uint32_t CreatorRevision;
 } ACPISDTHeader;
 
+typedef struct {
+    uint8_t id;
+    uint8_t reserved;
+    uint32_t address;
+    uint32_t interrupt_base;
+} madt_ioapic;
+
 #pragma pack(pop)
 
 extern void* acpi_tables;

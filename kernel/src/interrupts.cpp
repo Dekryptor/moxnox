@@ -1,6 +1,9 @@
 #include "kernel.h"
+#include "acpi.h"
 #include <cpuid.h>
 #include <span>
+#include <optional>
+#include <functional>
 
 using namespace std;
 
@@ -47,6 +50,62 @@ static inline uint64_t rdmsr(uint64_t msr) {
     return ((uint64_t)high << 32) | low;
 }
 
+static void find_acpi_table(uint32_t sig, invocable<const ACPISDTHeader&> auto func) {
+    auto ptr = (uint8_t*)acpi_tables;
+
+    for (unsigned int i = 0; i < acpi_count; i++) {
+        auto& tbl = *(ACPISDTHeader*)ptr;
+
+        if (tbl.Signature == sig)
+            func(tbl);
+
+        ptr += tbl.Length;
+    }
+}
+
+static uint64_t find_ioapic() {
+    optional<reference_wrapper<const ACPISDTHeader>> madtw;
+
+    find_acpi_table(0x43495041, [&](const ACPISDTHeader& tbl) { // "APIC"
+        if (madtw)
+            return;
+
+        madtw = tbl;
+    });
+
+    if (!madtw) {
+        print("MADT not found in ACPI tables.\n");
+        return 0;
+    }
+
+    auto& madt = madtw->get();
+
+    if (madt.Length < sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t)) {
+        print("MADT was shorter than expected.\n");
+        return 0;
+    }
+
+    auto data = span((uint8_t*)&madt + sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t),
+                     madt.Length - sizeof(ACPISDTHeader) - sizeof(uint32_t) - sizeof(uint32_t));
+
+    while (data.size() > 2) {
+        auto type = data[0];
+        auto length = data[1];
+
+        if (type == 1 && length >= 2 + sizeof(madt_ioapic)) { // I/O APIC
+            auto& ent = *(madt_ioapic*)&data[2];
+
+            return ent.address;
+        }
+
+        data = data.subspan(length);
+    }
+
+    print("Could not find address of I/O APIC.\n");
+
+    return 0;
+}
+
 static bool init_apic() {
     // FIXME - can we assume that nothing's disabled the APIC? (Check EFI specs?)
 
@@ -73,6 +132,12 @@ static bool init_apic() {
     uint32_t volatile* spurious_interrupt_reg = (uint32_t*)&apic[0xf0];
 
     *spurious_interrupt_reg = *spurious_interrupt_reg | 0x100;
+
+    auto io_apic = find_ioapic();
+    if (!io_apic)
+        return false;
+
+    // FIXME - map and initialize
 
     return true;
 }
