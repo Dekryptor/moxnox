@@ -13,7 +13,8 @@ enum map_type
     mem_bootloader,
     mem_image,
     mem_paging_table,
-    mem_stack
+    mem_stack,
+    mem_acpi
 };
 
 #pragma pack(push,1)
@@ -32,7 +33,8 @@ typedef struct _loader_block {
 #else
     map_entry* map;
 #endif
-    unsigned int num_map_entries;
+    uint32_t num_map_entries;
+    uint64_t rsdt_pa;
 } loader_block;
 
 #pragma pack(pop)

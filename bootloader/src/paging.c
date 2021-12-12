@@ -131,6 +131,7 @@ bool setup_paging(uint64_t va) {
     for (unsigned int i = 0; i < num_map_entries_copy; i++) {
         switch (map_copy[i].type) {
             case mem_bootloader:
+            case mem_acpi:
                 if (!do_map(map_copy[i].addr, map_copy[i].addr, map_copy[i].len)) // identity map
                     return false;
             break;

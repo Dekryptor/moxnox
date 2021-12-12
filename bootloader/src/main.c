@@ -404,7 +404,82 @@ static bool allocate_stack() {
     return true;
 }
 
+static bool load_rsdt(ACPISDTHeader* rsdt) {
+    uint8_t csum = 0;
+
+    if (rsdt->Signature != 0x54445352) {
+        print("RSDT signature was not \"RSDT\"\n");
+        return false;
+    }
+
+    for (unsigned int i = 0; i < rsdt->Length; i++) {
+        csum += ((uint8_t*)rsdt)[i];
+    }
+
+    if (csum != 0) {
+        print("Bad RSDT checksum\n");
+        return false;
+    }
+
+    if (!add_map_entry((uintptr_t)rsdt & ~0xfff,
+                       (((uintptr_t)rsdt + sizeof(ACPISDTHeader) - 1) & ~0xfff) - ((uintptr_t)rsdt & ~0xfff) + 1,
+                       mem_acpi)) {
+        print("add_map_entry failed\n");
+        return false;
+    }
+
+    uint32_t* entries = (uint32_t*)&rsdt[1];
+
+    for (unsigned int i = 0; i < (rsdt->Length - sizeof(ACPISDTHeader)) / sizeof(uint32_t); i++) {
+        ACPISDTHeader* entry = (ACPISDTHeader*)entries[i];
+
+        if (!add_map_entry((uintptr_t)entries[i] & ~0xfff,
+                           (((uintptr_t)entries[i] + entry->Length - 1) & ~0xfff) - ((uintptr_t)entries[i] & ~0xfff) + 1,
+                           mem_acpi)) {
+            print("add_map_entry failed\n");
+            return false;
+        }
+
+        print_hex(entries[i]);
+        print("\n");
+    }
+
+    return true;
+}
+
+static bool find_rsdp(uint64_t* rsdt_pa) {
+    uint8_t* addr;
+
+    // FIXME - XSDT (not supported in Qemu?)
+
+    for (addr = (uint8_t*)0xe0000; addr < (uint8_t*)0x100000; addr += 0x10) {
+        if (*(uint32_t*)addr == 0x20445352 && *(uint32_t*)(addr + 4) == 0x20525450) { // "RSD PTR "
+            RSDPDescriptor* rsdp = (RSDPDescriptor*)addr;
+            uint8_t csum = 0;
+
+            for (unsigned int i = 0; i < sizeof(RSDPDescriptor); i++) {
+                csum += addr[i];
+            }
+
+            if (csum == 0) {
+                if (!load_rsdt((ACPISDTHeader*)rsdp->RsdtAddress))
+                    return false;
+
+                *rsdt_pa = rsdp->RsdtAddress;
+
+                return true;
+            }
+        }
+    }
+
+    print("Could not find RSDP in memory.\n");
+
+    return false;
+}
+
 void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
+    uint64_t rsdt_pa;
+
     __builtin_memset(video, 0, COLS * ROWS * sizeof(uint16_t));
 
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
@@ -440,6 +515,9 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
     print("\n");
 
     if (!parse_mmap(mb))
+        return;
+
+    if (!find_rsdp(&rsdt_pa))
         return;
 
     num_modules = mb->mods_count;
@@ -479,6 +557,7 @@ void __attribute__((cdecl)) main(multiboot_info_t* mb, uint32_t magic) {
 
     lb.map = (uint64_t)(uintptr_t)map;
     lb.num_map_entries = num_map_entries;
+    lb.rsdt_pa = rsdt_pa;
 
     go();
 }

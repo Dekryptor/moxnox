@@ -176,6 +176,30 @@ typedef struct {
     uint64_t NoExecute:1;
 } HARDWARE_PTE;
 
+#pragma pack(push,1)
+
+typedef struct {
+    char Signature[8];
+    uint8_t Checksum;
+    char OEMID[6];
+    uint8_t Revision;
+    uint32_t RsdtAddress;
+} RSDPDescriptor;
+
+typedef struct {
+    uint32_t Signature;
+    uint32_t Length;
+    uint8_t Revision;
+    uint8_t Checksum;
+    char OEMID[6];
+    char OEMTableID[8];
+    uint32_t OEMRevision;
+    uint32_t CreatorID;
+    uint32_t CreatorRevision;
+} ACPISDTHeader;
+
+#pragma pack(pop)
+
 // main.c
 
 extern map_entry map[];
