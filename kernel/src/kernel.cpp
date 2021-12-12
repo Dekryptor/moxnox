@@ -41,5 +41,5 @@ void startup(loader_block* lb) {
     // FIXME - scheduler
 
 hang:
-    __asm("cli; hlt");
+    while (1) { }
 }

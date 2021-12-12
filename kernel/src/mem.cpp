@@ -197,7 +197,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
     return true;
 }
 
-static uint64_t allocate_page() {
+uint64_t allocate_page() {
     // FIXME - SSE?
     // FIXME - BMI1 instruction set?
 
