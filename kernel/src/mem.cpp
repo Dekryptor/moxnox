@@ -1,5 +1,6 @@
 #include "../../bootloader/src/loaderblock.h"
 #include "kernel.h"
+#include "acpi.h"
 #include <span>
 #include <cstring>
 
@@ -31,22 +32,6 @@ typedef struct {
     uint64_t SoftwareWsIndex:11;
     uint64_t NoExecute:1;
 } HARDWARE_PTE;
-
-#pragma pack(push,1)
-
-typedef struct {
-    uint32_t Signature;
-    uint32_t Length;
-    uint8_t Revision;
-    uint8_t Checksum;
-    char OEMID[6];
-    char OEMTableID[8];
-    uint32_t OEMRevision;
-    uint32_t CreatorID;
-    uint32_t CreatorRevision;
-} ACPISDTHeader;
-
-#pragma pack(pop)
 
 uint8_t* memblock = (uint8_t*)0xfffffa0000000000;
 uint64_t memblock_size;
