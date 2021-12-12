@@ -12,6 +12,8 @@ static const uint32_t IA32_APIC_BASE_MSR = 0x1b;
 
 static const uint16_t interrupt_cs = 0x8;
 
+static const uint8_t keyboard_interrupt = 0x21;
+
 typedef struct {
     uint16_t offset_1;
     uint16_t selector;
@@ -130,7 +132,7 @@ static bool init_apic() {
         return false;
     }
 
-    uint32_t volatile* spurious_interrupt_reg = (uint32_t*)&local_apic[0xf0];
+    auto spurious_interrupt_reg = (volatile uint32_t*)&local_apic[0xf0];
 
     *spurious_interrupt_reg = *spurious_interrupt_reg | 0x100;
 
@@ -156,7 +158,7 @@ static bool init_apic() {
     // FIXME - get local APIC ID
 
     // IRQ 1 = keyboard
-    write_reg(0x12, 0x80);
+    write_reg(0x12, keyboard_interrupt);
     write_reg(0x13, 0);
 
     return true;
@@ -213,6 +215,8 @@ static bool setup_idt() {
     // FIXME - int 13 (SIMD exception)
     // FIXME - int 14 (virtualization exception)
     // FIXME - int 15 (control protection exception)
+
+    init_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false);
 
     init_idt_entry(0x80, (void*)dummy_isr, false);
 
@@ -277,4 +281,17 @@ void general_protection_fault(uint64_t error_code) {
     print("General protection fault (error code = ");
     print_hex(error_code);
     print(")\n");
+}
+
+extern "C"
+__attribute((sysv_abi))
+void keyboard_isr_func() {
+    print("Keyboard\n");
+
+    // FIXME - get value and add to buffer
+    // FIXME - wake up any threads waiting for key press
+
+    auto eoi = (volatile uint32_t*)&local_apic[0xb0];
+
+    *eoi = 0;
 }

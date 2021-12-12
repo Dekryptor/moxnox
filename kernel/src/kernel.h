@@ -23,3 +23,4 @@ extern "C" void dummy_isr();
 extern "C" void page_fault_isr();
 extern "C" void double_fault_isr();
 extern "C" void general_protection_fault_isr();
+extern "C" void keyboard_isr();
