@@ -32,7 +32,8 @@ void startup(loader_block* lb) {
 
     call_global_constructors();
 
-    // FIXME - map video memory at b8000
+    if (!init_console())
+        goto hang;
 
     // FIXME - interrupts
     // FIXME - scheduler

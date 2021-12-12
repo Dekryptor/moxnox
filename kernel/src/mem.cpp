@@ -224,7 +224,7 @@ static uint64_t allocate_page() {
     return 0;
 }
 
-static bool map_page(uint64_t pa, uint64_t va) {
+bool map_page(uint64_t pa, uint64_t va) {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
     auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((va & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
     auto pdt = span((HARDWARE_PTE*)(SELFMAP_PDT | (((va & 0xffffc0000000) >> 30) << PAGE_SHIFT)), 512);
