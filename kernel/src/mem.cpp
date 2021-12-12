@@ -32,9 +32,28 @@ typedef struct {
     uint64_t NoExecute:1;
 } HARDWARE_PTE;
 
+#pragma pack(push,1)
+
+typedef struct {
+    uint32_t Signature;
+    uint32_t Length;
+    uint8_t Revision;
+    uint8_t Checksum;
+    char OEMID[6];
+    char OEMTableID[8];
+    uint32_t OEMRevision;
+    uint32_t CreatorID;
+    uint32_t CreatorRevision;
+} ACPISDTHeader;
+
+#pragma pack(pop)
+
 uint8_t* memblock = (uint8_t*)0xfffffa0000000000;
 uint64_t memblock_size;
 void* gdt = (void*)0xfffffa8000000000;
+
+void* acpi_tables = (void*)0xfffffad000000000;
+unsigned int acpi_count = 0;
 
 static bool treat_as_free(enum map_type type) {
     switch (type) {
@@ -415,6 +434,57 @@ static bool copy_gdt() {
     return true;
 }
 
+static bool copy_acpi(const loader_block& lb) {
+    auto& rsdt = *(ACPISDTHeader*)lb.rsdt_pa;
+    uint32_t needed = 0;
+
+    // checksum of RSDT already checked by bootloader
+
+    auto entries = span((uint32_t*)((uint8_t*)&rsdt + sizeof(ACPISDTHeader)), (rsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint32_t));
+
+    for (auto e : entries) {
+        auto& tbl = *(ACPISDTHeader*)(uintptr_t)e;
+        uint8_t csum = 0;
+
+        for (unsigned int i = 0; i < tbl.Length; i++) {
+            csum += ((uint8_t*)&tbl)[i];
+        }
+
+        if (csum == 0)
+            needed += tbl.Length;
+    }
+
+    uint32_t needed_pages = (needed + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+    auto pa = allocate_page();
+    if (pa == 0)
+        return false;
+
+    for (unsigned int i = 0; i < needed_pages; i++) {
+        if (!map_page(pa + (i << PAGE_SHIFT), ((uintptr_t)acpi_tables) + (i << PAGE_SHIFT)))
+            return false;
+    }
+
+    auto ptr = (uint8_t*)acpi_tables;
+
+    for (auto e : entries) {
+        auto& tbl = *(ACPISDTHeader*)(uintptr_t)e;
+        uint8_t csum = 0;
+
+        for (unsigned int i = 0; i < tbl.Length; i++) {
+            csum += ((uint8_t*)&tbl)[i];
+        }
+
+        if (csum == 0) {
+            memcpy(ptr, &tbl, tbl.Length);
+            ptr += tbl.Length;
+            acpi_count++;
+        }
+    }
+
+    return true;
+}
+
 static void free_lower_half_mappings() {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
 
@@ -506,6 +576,8 @@ bool init_memory(const loader_block& lb) {
     mark_mem_as_used(memblock_pa, (num_memblock_pages + (orig_scratch_pages - scratch_pages)) << PAGE_SHIFT);
 
     copy_gdt();
+
+    copy_acpi(lb);
 
     // mark bootloader memory as free (inc. page tables)
     for (auto& map : map_entries) {
