@@ -401,9 +401,15 @@ static bool copy_gdt() {
     gdt_ptr.base = (uintptr_t)gdt;
 
     __asm__ __volatile__ (
-        "lgdt %0"
+        "lgdt %0\n"
+        "push 0x8\n"
+        "lea rax, [rip+label]\n"
+        "push rax\n"
+        "retfq\n"
+        "label:\n"
         :
         : "m" (gdt_ptr)
+        : "rax"
     );
 
     return true;
