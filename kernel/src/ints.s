@@ -5,8 +5,6 @@ dummy_isr:
     push rax
     push rcx
     push rdx
-    push rsi
-    push rdi
     push r8
     push r9
     push r10
@@ -18,8 +16,6 @@ dummy_isr:
     pop r10
     pop r9
     pop r8
-    pop rdi
-    pop rsi
     pop rdx
     pop rcx
     pop rax
@@ -30,23 +26,19 @@ page_fault_isr:
     push rax
     push rcx
     push rdx
-    push rsi
-    push rdi
     push r8
     push r9
     push r10
     push r11
 
-    mov rdi, cr2
-    mov rsi, [rsp+0x48]
+    mov rcx, cr2
+    mov rdx, [rsp+0x38]
     call page_fault
 
     pop r11
     pop r10
     pop r9
     pop r8
-    pop rdi
-    pop rsi
     pop rdx
     pop rcx
     pop rax
@@ -60,8 +52,6 @@ double_fault_isr:
     push rax
     push rcx
     push rdx
-    push rsi
-    push rdi
     push r8
     push r9
     push r10
@@ -73,8 +63,6 @@ double_fault_isr:
     pop r10
     pop r9
     pop r8
-    pop rdi
-    pop rsi
     pop rdx
     pop rcx
     pop rax
@@ -88,22 +76,18 @@ general_protection_fault_isr:
     push rax
     push rcx
     push rdx
-    push rsi
-    push rdi
     push r8
     push r9
     push r10
     push r11
 
-    mov rdi, [rsp+0x48]
+    mov rcx, [rsp+0x38]
     call general_protection_fault
 
     pop r11
     pop r10
     pop r9
     pop r8
-    pop rdi
-    pop rsi
     pop rdx
     pop rcx
     pop rax
@@ -117,8 +101,6 @@ keyboard_isr:
     push rax
     push rcx
     push rdx
-    push rsi
-    push rdi
     push r8
     push r9
     push r10
@@ -130,8 +112,6 @@ keyboard_isr:
     pop r10
     pop r9
     pop r8
-    pop rdi
-    pop rsi
     pop rdx
     pop rcx
     pop rax

@@ -283,14 +283,12 @@ bool init_interrupts() {
 }
 
 extern "C"
-__attribute((sysv_abi))
 void dummy_isr_func() {
     // FIXME
     print("ISR\n");
 }
 
 extern "C"
-__attribute((sysv_abi))
 void page_fault(uint64_t address, uint64_t error_code) {
     // FIXME
     print("Page fault (address = ");
@@ -301,14 +299,12 @@ void page_fault(uint64_t address, uint64_t error_code) {
 }
 
 extern "C"
-__attribute((sysv_abi))
 void double_fault() {
     // FIXME
     print("Double fault\n");
 }
 
 extern "C"
-__attribute((sysv_abi))
 void general_protection_fault(uint64_t error_code) {
     // FIXME
     print("General protection fault (error code = ");
@@ -317,7 +313,6 @@ void general_protection_fault(uint64_t error_code) {
 }
 
 extern "C"
-__attribute((sysv_abi))
 void keyboard_isr_func() {
     print("Keyboard\n");
 
