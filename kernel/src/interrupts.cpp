@@ -66,7 +66,7 @@ static void find_acpi_table(uint32_t sig, invocable<const ACPISDTHeader&> auto f
     }
 }
 
-static uint64_t find_ioapic() {
+static span<uint8_t> find_madt() {
     optional<reference_wrapper<const ACPISDTHeader>> madtw;
 
     find_acpi_table(0x43495041, [&](const ACPISDTHeader& tbl) { // "APIC"
@@ -78,19 +78,21 @@ static uint64_t find_ioapic() {
 
     if (!madtw) {
         print("MADT not found in ACPI tables.\n");
-        return 0;
+        return span<uint8_t>();
     }
 
     auto& madt = madtw->get();
 
     if (madt.Length < sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t)) {
         print("MADT was shorter than expected.\n");
-        return 0;
+        return span<uint8_t>();
     }
 
-    auto data = span((uint8_t*)&madt + sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t),
-                     madt.Length - sizeof(ACPISDTHeader) - sizeof(uint32_t) - sizeof(uint32_t));
+    return span((uint8_t*)&madt + sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t),
+                madt.Length - sizeof(ACPISDTHeader) - sizeof(uint32_t) - sizeof(uint32_t));
+}
 
+static uint64_t find_ioapic(span<const uint8_t> data) {
     while (data.size() > 2) {
         auto type = data[0];
         auto length = data[1];
@@ -136,7 +138,11 @@ static bool init_apic() {
 
     *spurious_interrupt_reg = *spurious_interrupt_reg | 0x100;
 
-    auto io_apic_pa = find_ioapic();
+    auto madt = find_madt();
+    if (madt.empty())
+        return false;
+
+    auto io_apic_pa = find_ioapic(madt);
     if (!io_apic_pa)
         return false;
 
@@ -157,9 +163,36 @@ static bool init_apic() {
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
+    // FIXME - handle multiple I/O APICs (send to right one)
+
+    auto add_irq_handler = [&](uint8_t irq, uint8_t vec, uint32_t apic_id) {
+        auto data = madt;
+        uint32_t gsi = irq;
+
+        // check source overrides in MADT
+
+        while (data.size() > 2) {
+            auto type = data[0];
+            auto length = data[1];
+
+            if (type == 2 && length >= 2 + sizeof(madt_source_override)) { // source override
+                auto& ent = *(madt_source_override*)&data[2];
+
+                if (ent.bus_source == 0 && ent.irq_source == irq)
+                    gsi = ent.gsi;
+
+                break;
+            }
+
+            data = data.subspan(length);
+        }
+
+        write_reg(0x10 + (gsi * 2), vec);
+        write_reg(0x11 + (gsi * 2), apic_id);
+    };
+
     // IRQ 1 = keyboard
-    write_reg(0x12, keyboard_interrupt);
-    write_reg(0x13, local_apic_id);
+    add_irq_handler(1, keyboard_interrupt, local_apic_id);
 
     return true;
 }

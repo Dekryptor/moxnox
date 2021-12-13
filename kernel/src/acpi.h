@@ -21,6 +21,13 @@ typedef struct {
     uint32_t interrupt_base;
 } madt_ioapic;
 
+typedef struct {
+    uint8_t bus_source;
+    uint8_t irq_source;
+    uint32_t gsi;
+    uint16_t flags;
+} madt_source_override;
+
 #pragma pack(pop)
 
 extern void* acpi_tables;
