@@ -81,10 +81,11 @@ go:
 
 bits 64
 start_kernel:
-    mov edi, lb ; clears high bits of rdi
+    mov ecx, lb ; clears high bits of rcx
     mov rsp, [rel KERNEL_STACK]
     add rsp, [rel STACK_SIZE]
-    jmp [entry_point]
+    sub rsp, 0x20 ; MS calling convention needs 32 bytes above stack
+    call [entry_point]
 
 section .bss
 align 4

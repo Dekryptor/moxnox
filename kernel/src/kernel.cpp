@@ -23,7 +23,6 @@ static void call_global_constructors() {
 void test_pit();
 
 extern "C"
-__attribute((sysv_abi))
 void startup(loader_block* lb) {
     // FIXME - should restart if anything fails before we can show error message
 
