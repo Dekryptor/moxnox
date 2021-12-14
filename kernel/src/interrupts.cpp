@@ -24,9 +24,10 @@ typedef struct {
     uint32_t zero;
 } idt_entry;
 
-static volatile uint8_t* const local_apic = (uint8_t*)0xfffffab000000000;
+volatile uint8_t* const local_apic = (uint8_t*)0xfffffab000000000;
 static volatile uint8_t* const io_apic = (uint8_t*)0xfffffae000000000;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
+static span<uint8_t> madt;
 
 static bool check_cpu_for_apic() {
     uint32_t eax, ebx, ecx, edx;
@@ -111,6 +112,80 @@ static uint64_t find_ioapic(span<const uint8_t> data) {
     return 0;
 }
 
+static uint32_t get_irq_gsi(uint8_t irq) {
+    auto data = madt;
+
+    // check source overrides in MADT
+
+    while (data.size() > 2) {
+        auto type = data[0];
+        auto length = data[1];
+
+        if (type == 2 && length >= 2 + sizeof(madt_source_override)) { // source override
+            auto& ent = *(madt_source_override*)&data[2];
+
+            if (ent.bus_source == 0 && ent.irq_source == irq)
+                return ent.gsi;
+
+            break;
+        }
+
+        data = data.subspan(length);
+    }
+
+    return irq;
+}
+
+void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
+    // FIXME - handle multiple I/O APICs (send to right one)
+
+    volatile uint32_t* IOREGSEL = (uint32_t*)io_apic;
+    volatile uint32_t* IOREGWIN = (uint32_t*)(io_apic + 0x10);
+
+    auto write_reg = [&](uint32_t reg, uint32_t val) {
+        *IOREGSEL = reg;
+        *IOREGWIN = val;
+    };
+
+    auto gsi = get_irq_gsi(irq);
+
+    write_reg(0x10 + (gsi * 2), vec);
+    write_reg(0x11 + (gsi * 2), apic_id);
+};
+
+void enable_irq(uint8_t irq, bool enable) {
+    // FIXME - handle multiple I/O APICs (send to right one)
+
+    volatile uint32_t* IOREGSEL = (uint32_t*)io_apic;
+    volatile uint32_t* IOREGWIN = (uint32_t*)(io_apic + 0x10);
+
+    auto read_reg = [&](uint32_t reg) -> uint32_t {
+        *IOREGSEL = reg;
+
+        return *IOREGWIN;
+    };
+
+    auto write_reg = [&](uint32_t reg, uint32_t val) {
+        *IOREGSEL = reg;
+        *IOREGWIN = val;
+    };
+
+    auto gsi = get_irq_gsi(irq);
+
+    __asm __volatile("cli");
+
+    auto val = read_reg(0x10 + (gsi * 2));
+
+    if (enable)
+        val &= ~0x10000;
+    else
+        val |= 0x10000;
+
+    write_reg(0x10 + (gsi * 2), val);
+
+    __asm __volatile("sti");
+}
+
 static bool init_apic() {
     // FIXME - can we assume that nothing's disabled the APIC? (Check EFI specs?)
 
@@ -138,7 +213,7 @@ static bool init_apic() {
 
     *spurious_interrupt_reg = *spurious_interrupt_reg | 0x100;
 
-    auto madt = find_madt();
+    madt = find_madt();
     if (madt.empty())
         return false;
 
@@ -151,45 +226,7 @@ static bool init_apic() {
         return false;
     }
 
-    // FIXME - check source overrides in MADT for source == 1
-
-    volatile uint32_t* IOREGSEL = (uint32_t*)io_apic;
-    volatile uint32_t* IOREGWIN = (uint32_t*)(io_apic + 0x10);
-
-    auto write_reg = [&](uint32_t reg, uint32_t val) {
-        *IOREGSEL = reg;
-        *IOREGWIN = val;
-    };
-
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
-
-    // FIXME - handle multiple I/O APICs (send to right one)
-
-    auto add_irq_handler = [&](uint8_t irq, uint8_t vec, uint32_t apic_id) {
-        auto data = madt;
-        uint32_t gsi = irq;
-
-        // check source overrides in MADT
-
-        while (data.size() > 2) {
-            auto type = data[0];
-            auto length = data[1];
-
-            if (type == 2 && length >= 2 + sizeof(madt_source_override)) { // source override
-                auto& ent = *(madt_source_override*)&data[2];
-
-                if (ent.bus_source == 0 && ent.irq_source == irq)
-                    gsi = ent.gsi;
-
-                break;
-            }
-
-            data = data.subspan(length);
-        }
-
-        write_reg(0x10 + (gsi * 2), vec);
-        write_reg(0x11 + (gsi * 2), apic_id);
-    };
 
     // IRQ 1 = keyboard
     add_irq_handler(1, keyboard_interrupt, local_apic_id);
@@ -197,7 +234,7 @@ static bool init_apic() {
     return true;
 }
 
-static void init_idt_entry(uint8_t vector, void* func, bool trap) {
+void add_idt_entry(uint8_t vector, void* func, bool trap) {
     auto& i = idt[vector];
     auto addr = (uintptr_t)func;
 
@@ -235,13 +272,13 @@ static bool setup_idt() {
     // FIXME - int 5 (bound range exceeded)
     // FIXME - int 6 (#UD)
     // FIXME - int 7 (device not available)
-    init_idt_entry(0x8, (void*)double_fault_isr, true);
+    add_idt_entry(0x8, (void*)double_fault_isr, true);
     // FIXME - int 9 (coprocessor segment overrun)
     // FIXME - int a (invalid TSS)
     // FIXME - int b (segment not present)
     // FIXME - int c (stack-segment fault)
-    init_idt_entry(0xd, (void*)general_protection_fault_isr, true);
-    init_idt_entry(0xe, (void*)page_fault_isr, true);
+    add_idt_entry(0xd, (void*)general_protection_fault_isr, true);
+    add_idt_entry(0xe, (void*)page_fault_isr, true);
     // FIXME - int 10 (x87 exception)
     // FIXME - int 11 (alignment check)
     // FIXME - int 12 (machine check)
@@ -249,9 +286,9 @@ static bool setup_idt() {
     // FIXME - int 14 (virtualization exception)
     // FIXME - int 15 (control protection exception)
 
-    init_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false);
+    add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false);
 
-    init_idt_entry(0x80, (void*)dummy_isr, false);
+    add_idt_entry(0x80, (void*)dummy_isr, false);
 
     struct {
         uint16_t limit;

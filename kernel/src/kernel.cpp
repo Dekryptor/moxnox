@@ -20,6 +20,8 @@ static void call_global_constructors() {
     }
 }
 
+void test_pit();
+
 extern "C"
 __attribute((sysv_abi))
 void startup(loader_block* lb) {
@@ -37,6 +39,8 @@ void startup(loader_block* lb) {
 
     if (!init_interrupts())
         goto hang;
+
+    test_pit();
 
     // FIXME - scheduler
 

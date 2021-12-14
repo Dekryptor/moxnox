@@ -11,7 +11,9 @@ set(SRC_FILES src/kernel.cpp
     src/mem.cpp
     src/console.cpp
     src/interrupts.cpp
-    src/ints.s)
+    src/ints.s
+    src/pit.s
+    src/pit.cpp)
 
 add_executable(kernel ${SRC_FILES})
 
