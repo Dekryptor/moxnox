@@ -12,7 +12,7 @@ set(SRC_FILES src/kernel.cpp
     src/console.cpp
     src/interrupts.cpp
     src/ints.s
-    src/pit.s
+    src/timer.s
     src/timer.cpp)
 
 add_executable(kernel ${SRC_FILES})

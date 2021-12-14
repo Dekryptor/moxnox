@@ -13,3 +13,8 @@ pit_isr_end:
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
     pop rax
     iretq
+
+.global timer_isr
+timer_isr:
+    mov DWORD PTR [0xfffffab0000000b0], eax # EOI
+    iretq

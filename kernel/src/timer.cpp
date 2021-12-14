@@ -3,6 +3,9 @@
 #define PIT_SCALE 1193182
 
 static const uint8_t pit_interrupt = 0x20;
+static const uint8_t timer_interrupt = 0x70;
+
+static const unsigned int tick_rate = 1000; // Hz
 
 volatile uint64_t timer_count;
 
@@ -66,6 +69,11 @@ void init_timer() {
     print("\n");
 
     enable_irq(0, false);
+
+    add_idt_entry(timer_interrupt, (void*)timer_isr, false);
+
+    *lvt_timer = 0x20000 | timer_interrupt; // periodic
+    *timer_initial = apic_timer_freq / tick_rate;
 
     __asm __volatile("sti");
 }

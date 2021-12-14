@@ -30,8 +30,9 @@ extern "C" void general_protection_fault_isr();
 extern "C" void keyboard_isr();
 extern "C" void spurious_isr();
 
-// pit.s
+// timer.s
 extern "C" void pit_isr();
+extern "C" void timer_isr();
 
 // timer.cpp
 void init_timer();
