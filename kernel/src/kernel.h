@@ -28,6 +28,10 @@ extern "C" void page_fault_isr();
 extern "C" void double_fault_isr();
 extern "C" void general_protection_fault_isr();
 extern "C" void keyboard_isr();
+extern "C" void spurious_isr();
 
 // pit.s
 extern "C" void pit_isr();
+
+// timer.cpp
+void init_timer();

@@ -116,3 +116,7 @@ keyboard_isr:
     pop rcx
     pop rax
     iretq
+
+.global spurious_isr
+spurious_isr:
+    iretq

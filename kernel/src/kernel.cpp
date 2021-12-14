@@ -20,8 +20,6 @@ static void call_global_constructors() {
     }
 }
 
-void test_pit();
-
 extern "C"
 void startup(loader_block* lb) {
     // FIXME - should restart if anything fails before we can show error message
@@ -39,7 +37,7 @@ void startup(loader_block* lb) {
     if (!init_interrupts())
         goto hang;
 
-    test_pit();
+    init_timer();
 
     // FIXME - scheduler
 

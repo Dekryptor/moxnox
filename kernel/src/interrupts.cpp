@@ -290,6 +290,8 @@ static bool setup_idt() {
 
     add_idt_entry(0x80, (void*)dummy_isr, false);
 
+    add_idt_entry(0xff, (void*)spurious_isr, false);
+
     struct {
         uint16_t limit;
         uint64_t base;
