@@ -26,13 +26,15 @@ static constexpr uint64_t tid_to_thread_va(uint16_t tid) {
     return thread_address_block | (tid << 20);
 }
 
-static void insert_tail_list(list_entry& head, list_entry& entry) {
-    auto* last_tail = head.prev;
+static void terminate_thread() {
+    current_thread->status = thread_status::dead;
+    yield();
+}
 
-    entry.next = &head;
-    entry.prev = last_tail;
-    last_tail->next = &entry;
-    head.prev = &entry;
+static void kernel_thread_start(void (*func)(void*), void* param) {
+    func(param);
+
+    terminate_thread();
 }
 
 bool add_kernel_thread(void (*func)(void*), void* param) {
@@ -85,8 +87,9 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
         }
     }
 
-    t.context.rip = (uintptr_t)func;
-    t.context.rcx = (uintptr_t)param;
+    t.context.rip = (uintptr_t)kernel_thread_start;
+    t.context.rcx = (uintptr_t)func;
+    t.context.rdx = (uintptr_t)param;
     t.context.rsp = (uintptr_t)((uint8_t*)t.stack + (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
     t.context.rflags = 0x202; // IF, reserved flag
     t.context.cs = kernel_CS;
@@ -100,11 +103,6 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
     return true;
 }
 
-template<typename T>
-T& containing_record(list_entry* le) {
-    return *(T*)((uint8_t*)le - offsetof(T, le));
-}
-
 extern "C"
 void scheduler() {
     list_entry* le;
@@ -113,8 +111,15 @@ void scheduler() {
     // FIXME - for SMP, get thread_list spinlock (interrupts are disabled already)
 
     if (current_thread) {
-        current_thread->status = thread_status::runnable;
+        if (current_thread->status == thread_status::running)
+            current_thread->status = thread_status::runnable;
+
         memcpy(&current_thread->context, &thread_context, sizeof(thread_context));
+
+        if (current_thread->status == thread_status::dead) {
+            remove_entry_list(current_thread->le);
+            // FIXME - free pages
+        }
     }
 
     do {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "list.h"
 
 // FIXME - make compatible with NT version
 typedef struct {
@@ -53,13 +54,9 @@ static_assert(offsetof(amd64_context, ss) == 0x98);
 enum class thread_status {
     runnable,
     running,
-    waiting
+    waiting,
+    dead
 };
-
-typedef struct _list_entry {
-    struct _list_entry* prev;
-    struct _list_entry* next;
-} list_entry;
 
 typedef struct {
     list_entry le;

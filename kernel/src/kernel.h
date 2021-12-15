@@ -37,6 +37,7 @@ extern "C" void spurious_isr();
 // timer.s
 extern "C" void pit_isr();
 extern "C" void timer_isr();
+extern "C" void yield();
 
 // timer.cpp
 void init_timer();
