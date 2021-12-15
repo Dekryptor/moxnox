@@ -6,6 +6,7 @@ static uint16_t last_tid = 0; // FIXME - too small?
 static const unsigned int KERNEL_STACK_PAGES = 4; // 16KB
 static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_SS = 0x10;
+static const uint64_t time_slice = 50; // ticks
 
 static const uint64_t thread_address_block = 0xfffffaf000000000;
 static const uint64_t thread_stack_block = 0xfffffa1000000000;
@@ -15,6 +16,7 @@ list_entry thread_list = { &thread_list, &thread_list };
 // FIXME - SMP
 amd64_context thread_context;
 thread* current_thread = nullptr;
+uint64_t time_slice_left;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -103,6 +105,7 @@ T& containing_record(list_entry* le) {
     return *(T*)((uint8_t*)le - offsetof(T, le));
 }
 
+extern "C"
 void scheduler() {
     list_entry* le;
     thread* next_thread = nullptr;
@@ -133,6 +136,7 @@ void scheduler() {
         if (current_thread) {
             memcpy(&thread_context, &current_thread->context, sizeof(thread_context));
             current_thread->status = thread_status::running;
+            time_slice_left = time_slice;
             __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
         }
 

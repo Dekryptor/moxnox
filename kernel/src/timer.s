@@ -1,8 +1,5 @@
 .intel_syntax noprefix
 
-.global timer_count
-.global thread_context
-
 .global pit_isr
 pit_isr:
     cmp DWORD PTR [rip+timer_count], 0
@@ -44,10 +41,23 @@ pit_isr_end:
 
 .global timer_isr # FIXME - needs own stack
 timer_isr:
+    cmp QWORD PTR [rip+current_thread], 0
+    je timer_isr_nop
+
+    dec QWORD PTR [rip+time_slice_left]
+    cmp QWORD PTR [rip+time_slice_left], 0
+    jne timer_isr_nop
+
     save_context
     xor rax, rax
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
-    mov rax, [rip+thread_context]
+    jmp scheduler
+
+timer_isr_nop:
+    push rax
+    xor rax, rax
+    mov DWORD PTR [0xfffffab0000000b0], eax # EOI
+    pop rax
     iretq
 
 .global scheduler_restore
