@@ -43,3 +43,4 @@ void init_timer();
 
 // scheduler.cpp
 bool add_kernel_thread(void (*func)(void*), void* param);
+void scheduler();

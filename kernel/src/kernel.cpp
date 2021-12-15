@@ -55,7 +55,7 @@ void startup(loader_block* lb) {
     if (!add_kernel_thread(main_thread, nullptr))
         goto hang;
 
-    // FIXME - scheduler
+    scheduler(); // doesn't return
 
 hang:
     while (1) { }

@@ -2,9 +2,8 @@
 
 #include <cstdint>
 
+// FIXME - make compatible with NT version
 typedef struct {
-    // FIXME - segments
-    // FIXME - EFLAGS
     // FIXME - debug registers
     uint64_t rax;
     uint64_t rcx;
@@ -24,6 +23,10 @@ typedef struct {
     uint64_t r15;
     uint64_t rip;
     // FIXME - FXSAVE area
+    uint64_t rflags;
+    uint64_t cs;
+    uint64_t ss;
+    // FIXME - other segments
 } amd64_context;
 
 static_assert(offsetof(amd64_context, rax) == 0x00);
@@ -43,6 +46,9 @@ static_assert(offsetof(amd64_context, r13) == 0x68);
 static_assert(offsetof(amd64_context, r14) == 0x70);
 static_assert(offsetof(amd64_context, r15) == 0x78);
 static_assert(offsetof(amd64_context, rip) == 0x80);
+static_assert(offsetof(amd64_context, rflags) == 0x88);
+static_assert(offsetof(amd64_context, cs) == 0x90);
+static_assert(offsetof(amd64_context, ss) == 0x98);
 
 enum class thread_status {
     runnable,

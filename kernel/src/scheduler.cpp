@@ -4,12 +4,15 @@
 static uint16_t last_tid = 0; // FIXME - too small?
 
 static const unsigned int KERNEL_STACK_PAGES = 4; // 16KB
+static const uint16_t kernel_CS = 0x8;
+static const uint16_t kernel_SS = 0x10;
 
 static const uint64_t thread_address_block = 0xfffffaf000000000;
 static const uint64_t thread_stack_block = 0xfffffa1000000000;
 
 list_entry thread_list = { &thread_list, &thread_list };
 
+// FIXME - SMP
 amd64_context thread_context;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
@@ -82,8 +85,9 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
     t.context.rip = (uintptr_t)func;
     t.context.rcx = (uintptr_t)param;
     t.context.rsp = (uintptr_t)((uint8_t*)t.stack + (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
-    // FIXME - RFLAGS
-    // FIXME - segments
+    t.context.rflags = 0x202; // IF, reserved flag
+    t.context.cs = kernel_CS;
+    t.context.ss = kernel_SS;
 
     t.status = thread_status::runnable;
 
@@ -91,4 +95,41 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
     insert_tail_list(thread_list, t.le);
 
     return true;
+}
+
+template<typename T>
+T& containing_record(list_entry* le) {
+    return *(T*)((uint8_t*)le - offsetof(T, le));
+}
+
+void scheduler() {
+    list_entry* le;
+    thread* next_thread = nullptr;
+
+    // FIXME - get thread_list spinlock
+
+    __asm("cli");
+
+    // FIXME - mark current thread as not running
+    // FIXME - copy thread_context to current thread
+
+    le = thread_list.next;
+    while (le != &thread_list) {
+        auto& t = containing_record<thread>(le);
+
+        // FIXME - scheduling algorithm
+        if (t.status == thread_status::runnable) {
+            next_thread = &t;
+            break;
+        }
+
+        le = le->next;
+    }
+
+    if (next_thread) {
+        memcpy(&thread_context, &next_thread->context, sizeof(thread_context));
+        __asm("sti; jmp scheduler_restore");
+    }
+
+    __asm("sti; hlt");
 }

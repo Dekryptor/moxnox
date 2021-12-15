@@ -35,7 +35,11 @@ pit_isr_end:
     mov [rip+thread_context+0x78], r15
     mov rax, [rsp]
     mov [rip+thread_context+0x80], rax # old rip
-    # FIXME - segments, EFLAGS, debug registers, FXSAVE
+    pushfq
+    pop [rip+thread_context+0x88] # RFLAGS
+    mov [rip+thread_context+0x90], cs
+    mov [rip+thread_context+0x98], ss
+    # FIXME - other segments, debug registers, FXSAVE
 .endm
 
 .global timer_isr # FIXME - needs own stack
@@ -44,4 +48,29 @@ timer_isr:
     xor rax, rax
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
     mov rax, [rip+thread_context]
+    iretq
+
+.global scheduler_restore
+scheduler_restore:
+    mov rax, [rip+thread_context]
+    mov rcx, [rip+thread_context+0x08]
+    mov rdx, [rip+thread_context+0x10]
+    mov rbx, [rip+thread_context+0x18]
+    mov rbp, [rip+thread_context+0x28]
+    mov rsi, [rip+thread_context+0x30]
+    mov rdi, [rip+thread_context+0x38]
+    mov r8, [rip+thread_context+0x40]
+    mov r9, [rip+thread_context+0x48]
+    mov r10, [rip+thread_context+0x50]
+    mov r11, [rip+thread_context+0x58]
+    mov r12, [rip+thread_context+0x60]
+    mov r13, [rip+thread_context+0x68]
+    mov r14, [rip+thread_context+0x70]
+    mov r15, [rip+thread_context+0x78]
+    # FIXME - other segments, debug registers, FXSAVE
+    push [rip+thread_context+0x98] # ss
+    push [rip+thread_context+0x20] # rsp
+    push [rip+thread_context+0x88] # RFLAGS
+    push [rip+thread_context+0x90] # cs
+    push [rip+thread_context+0x80] # rip
     iretq
