@@ -48,12 +48,12 @@ void startup(loader_block* lb) {
     if (!init_interrupts())
         goto hang;
 
-    init_timer();
+    if (!add_kernel_thread(main_thread, nullptr))
+        goto hang;
 
     // FIXME - C++ exceptions
 
-    if (!add_kernel_thread(main_thread, nullptr))
-        goto hang;
+    init_timer(); // leaves interrupts disabled
 
     scheduler(); // doesn't return
 

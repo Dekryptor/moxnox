@@ -14,6 +14,7 @@ list_entry thread_list = { &thread_list, &thread_list };
 
 // FIXME - SMP
 amd64_context thread_context;
+thread* current_thread = nullptr;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -106,9 +107,7 @@ void scheduler() {
     list_entry* le;
     thread* next_thread = nullptr;
 
-    // FIXME - get thread_list spinlock
-
-    __asm("cli");
+    // FIXME - for SMP, get thread_list spinlock (interrupts are disabled already)
 
     // FIXME - mark current thread as not running
     // FIXME - copy thread_context to current thread
@@ -126,9 +125,11 @@ void scheduler() {
         le = le->next;
     }
 
+    current_thread = next_thread;
+
     if (next_thread) {
         memcpy(&thread_context, &next_thread->context, sizeof(thread_context));
-        __asm("sti; jmp scheduler_restore");
+        __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
     }
 
     __asm("sti; hlt");

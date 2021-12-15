@@ -74,6 +74,4 @@ void init_timer() {
 
     *lvt_timer = 0x20000 | timer_interrupt; // periodic
     *timer_initial = apic_timer_freq / tick_rate;
-
-    __asm __volatile("sti");
 }
