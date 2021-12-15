@@ -20,9 +20,20 @@ static void call_global_constructors() {
     }
 }
 
+void main_thread(void*) {
+    // FIXME
+
+    while (1) { }
+}
+
 extern "C"
 void startup(loader_block* lb) {
     // FIXME - should restart if anything fails before we can show error message
+
+    {
+        volatile int wait = 1;
+        while (wait) { }
+    }
 
     if (!init_memory(*lb))
         goto hang;
@@ -38,6 +49,11 @@ void startup(loader_block* lb) {
         goto hang;
 
     init_timer();
+
+    // FIXME - C++ exceptions
+
+    if (!add_kernel_thread(main_thread, nullptr))
+        goto hang;
 
     // FIXME - scheduler
 

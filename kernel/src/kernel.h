@@ -1,7 +1,11 @@
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 #include <string_view>
+#include <cstring>
+
+#define PAGE_SIZE 4096
+#define PAGE_SHIFT 12
 
 typedef struct _loader_block loader_block;
 
@@ -36,3 +40,6 @@ extern "C" void timer_isr();
 
 // timer.cpp
 void init_timer();
+
+// scheduler.cpp
+bool add_kernel_thread(void (*func)(void*), void* param);
