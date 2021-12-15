@@ -109,28 +109,33 @@ void scheduler() {
 
     // FIXME - for SMP, get thread_list spinlock (interrupts are disabled already)
 
-    // FIXME - mark current thread as not running
-    // FIXME - copy thread_context to current thread
+    if (current_thread) {
+        current_thread->status = thread_status::runnable;
+        memcpy(&current_thread->context, &thread_context, sizeof(thread_context));
+    }
 
-    le = thread_list.next;
-    while (le != &thread_list) {
-        auto& t = containing_record<thread>(le);
+    do {
+        le = thread_list.next;
+        while (le != &thread_list) {
+            auto& t = containing_record<thread>(le);
 
-        // FIXME - scheduling algorithm
-        if (t.status == thread_status::runnable) {
-            next_thread = &t;
-            break;
+            // FIXME - scheduling algorithm
+            if (t.status == thread_status::runnable) {
+                next_thread = &t;
+                break;
+            }
+
+            le = le->next;
         }
 
-        le = le->next;
-    }
+        current_thread = next_thread;
 
-    current_thread = next_thread;
+        if (current_thread) {
+            memcpy(&thread_context, &current_thread->context, sizeof(thread_context));
+            current_thread->status = thread_status::running;
+            __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
+        }
 
-    if (next_thread) {
-        memcpy(&thread_context, &next_thread->context, sizeof(thread_context));
-        __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
-    }
-
-    __asm("sti; hlt");
+        __asm("sti; hlt; cli");
+    } while (true);
 }
