@@ -26,6 +26,24 @@ typedef struct {
     // FIXME - FXSAVE area
 } amd64_context;
 
+static_assert(offsetof(amd64_context, rax) == 0x00);
+static_assert(offsetof(amd64_context, rcx) == 0x08);
+static_assert(offsetof(amd64_context, rdx) == 0x10);
+static_assert(offsetof(amd64_context, rbx) == 0x18);
+static_assert(offsetof(amd64_context, rsp) == 0x20);
+static_assert(offsetof(amd64_context, rbp) == 0x28);
+static_assert(offsetof(amd64_context, rsi) == 0x30);
+static_assert(offsetof(amd64_context, rdi) == 0x38);
+static_assert(offsetof(amd64_context, r8) == 0x40);
+static_assert(offsetof(amd64_context, r9) == 0x48);
+static_assert(offsetof(amd64_context, r10) == 0x50);
+static_assert(offsetof(amd64_context, r11) == 0x58);
+static_assert(offsetof(amd64_context, r12) == 0x60);
+static_assert(offsetof(amd64_context, r13) == 0x68);
+static_assert(offsetof(amd64_context, r14) == 0x70);
+static_assert(offsetof(amd64_context, r15) == 0x78);
+static_assert(offsetof(amd64_context, rip) == 0x80);
+
 enum class thread_status {
     runnable,
     running,

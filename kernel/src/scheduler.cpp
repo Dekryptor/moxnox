@@ -10,6 +10,8 @@ static const uint64_t thread_stack_block = 0xfffffa1000000000;
 
 list_entry thread_list = { &thread_list, &thread_list };
 
+amd64_context thread_context;
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
