@@ -43,5 +43,5 @@ extern "C" void yield();
 void init_timer();
 
 // scheduler.cpp
-bool add_kernel_thread(void (*func)(void*), void* param);
+bool add_kernel_thread(void (*func)(void*), void* param = nullptr);
 extern "C" void scheduler();

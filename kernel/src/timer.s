@@ -32,10 +32,12 @@ pit_isr_end:
     mov [rip+thread_context+0x78], r15
     mov rax, [rsp]
     mov [rip+thread_context+0x80], rax # old rip
-    pushfq
-    pop [rip+thread_context+0x88] # RFLAGS
-    mov [rip+thread_context+0x90], cs
-    mov [rip+thread_context+0x98], ss
+    mov rax, [rsp+0x10]
+    mov [rip+thread_context+0x88], rax # old RFLAGS
+    mov rax, [rsp+0x8]
+    mov [rip+thread_context+0x90], rax # old cs
+    mov rax, [rsp+0x20]
+    mov [rip+thread_context+0x98], rax # old ss
     # FIXME - other segments, debug registers, FXSAVE
 .endm
 

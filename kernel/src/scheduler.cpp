@@ -103,11 +103,50 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
     return true;
 }
 
+static thread* pick_runnable_thread(thread* current) {
+    list_entry* le;
+
+    // FIXME - proper scheduling algorithm (currently just loops through runnable threads)
+
+    auto consider = [](thread& t) -> thread* {
+        if (t.status == thread_status::runnable)
+            return &t;
+
+        return nullptr;
+    };
+
+    if (current) { // loop through list from current thread
+        le = current->le.next;
+        while (le != &thread_list) {
+            auto& t = containing_record<thread>(le);
+
+            auto ret = consider(t);
+            if (ret)
+                return ret;
+
+            le = le->next;
+        }
+    }
+
+    le = thread_list.next;
+    while (le != &thread_list) {
+        auto& t = containing_record<thread>(le);
+
+        auto ret = consider(t);
+        if (ret)
+            return ret;
+
+        if (&t == current_thread)
+            break;
+
+        le = le->next;
+    }
+
+    return nullptr;
+}
+
 extern "C"
 void scheduler() {
-    list_entry* le;
-    thread* next_thread = nullptr;
-
     // FIXME - for SMP, get thread_list spinlock (interrupts are disabled already)
 
     if (current_thread) {
@@ -119,24 +158,13 @@ void scheduler() {
         if (current_thread->status == thread_status::dead) {
             remove_entry_list(current_thread->le);
             // FIXME - free pages
+
+            current_thread = nullptr;
         }
     }
 
     do {
-        le = thread_list.next;
-        while (le != &thread_list) {
-            auto& t = containing_record<thread>(le);
-
-            // FIXME - scheduling algorithm
-            if (t.status == thread_status::runnable) {
-                next_thread = &t;
-                break;
-            }
-
-            le = le->next;
-        }
-
-        current_thread = next_thread;
+        current_thread = pick_runnable_thread(current_thread);
 
         if (current_thread) {
             memcpy(&thread_context, &current_thread->context, sizeof(thread_context));

@@ -23,6 +23,12 @@ static void call_global_constructors() {
 void main_thread(void*) {
     // FIXME
 
+    if (!add_kernel_thread([](void*) {
+        print("Hello from second thread\n");
+    })) {
+        print("add_kernel_thread failed\n");
+    }
+
     while (1) { }
 }
 
@@ -48,7 +54,7 @@ void startup(loader_block* lb) {
     if (!init_interrupts())
         goto hang;
 
-    if (!add_kernel_thread(main_thread, nullptr))
+    if (!add_kernel_thread(main_thread))
         goto hang;
 
     // FIXME - C++ exceptions
