@@ -702,3 +702,7 @@ void free(void* ptr) {
 
     ah->free = 1;
 }
+
+void* operator new(size_t count) noexcept {
+    return malloc(count);
+}

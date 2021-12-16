@@ -41,15 +41,14 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
     last_tid++;
     tid = last_tid;
 
-    auto ptr = malloc(sizeof(thread));
-    if (!ptr) {
-        print("malloc failed\n");
+    auto tptr = new thread;
+    if (!tptr) {
+        print("new failed\n");
         return false;
     }
 
-    auto& t = *new (ptr) thread;
+    auto& t = *tptr;
 
-    memset(&t, 0, sizeof(thread));
     t.tid = tid;
     t.stack = (void*)(thread_stack_block | (tid << 20));
 
