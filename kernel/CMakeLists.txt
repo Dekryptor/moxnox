@@ -11,8 +11,8 @@ set(SRC_FILES src/kernel.cpp
     src/mem.cpp
     src/console.cpp
     src/interrupts.cpp
-    src/ints.s
-    src/timer.s
+    src/ints.S
+    src/timer.S
     src/timer.cpp
     src/scheduler.cpp)
 

@@ -265,13 +265,15 @@ static bool setup_idt() {
         return false;
     }
 
+    memset(idt.data(), 0, PAGE_SIZE);
+
     // FIXME - int 0 (divide by zero)
     // FIXME - int 1 (debug)
     // FIXME - int 2 (NMI)
     // FIXME - int 3
     // FIXME - int 4 (overflow)
     // FIXME - int 5 (bound range exceeded)
-    // FIXME - int 6 (#UD)
+    add_idt_entry(0x6, (void*)invalid_opcode_isr, false);
     // FIXME - int 7 (device not available)
     add_idt_entry(0x8, (void*)double_fault_isr, true);
     // FIXME - int 9 (coprocessor segment overrun)
@@ -355,6 +357,29 @@ void general_protection_fault(uint64_t error_code) {
         print(", thread ");
         print_hex(current_thread->tid);
         print(")\n");
+    }
+
+    print_context(thread_context);
+
+    if (!current_thread) {
+        // FIXME - BSOD
+        while (1) { }
+    } else {
+        print("Thread killed\n");
+        terminate_thread();
+    }
+}
+
+extern "C"
+void invalid_opcode() {
+    print("Invalid opcode");
+
+    if (!current_thread) {
+        print(", not in thread\n");
+    } else {
+        print(", thread ");
+        print_hex(current_thread->tid);
+        print("\n");
     }
 
     print_context(thread_context);
