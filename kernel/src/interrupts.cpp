@@ -332,12 +332,30 @@ void dummy_isr_func() {
 
 extern "C"
 void page_fault(uint64_t address, uint64_t error_code) {
-    // FIXME
+    // FIXME - memory mapping etc.
+
     print("Page fault (address = ");
     print_hex(address);
     print(", error code = ");
     print_hex(error_code);
-    print(")\n");
+
+    if (!current_thread) {
+        print(", not in thread)\n");
+    } else {
+        print(", thread ");
+        print_hex(current_thread->tid);
+        print(")\n");
+    }
+
+    print_context(thread_context);
+
+    if (!current_thread) {
+        // FIXME - BSOD
+        while (1) { }
+    } else {
+        print("Thread killed\n");
+        terminate_thread();
+    }
 }
 
 extern "C"

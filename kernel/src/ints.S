@@ -25,28 +25,10 @@ dummy_isr:
 
 .global page_fault_isr
 page_fault_isr:
-    push rax
-    push rcx
-    push rdx
-    push r8
-    push r9
-    push r10
-    push r11
-
+    save_context_when_error_code
     mov rcx, cr2
-    mov rdx, [rsp+0x38]
-    call page_fault
-
-    pop r11
-    pop r10
-    pop r9
-    pop r8
     pop rdx
-    pop rcx
-    pop rax
-
-    add rsp, 0x8 # pop error code
-
+    call page_fault
     iretq
 
 .global double_fault_isr
