@@ -706,3 +706,11 @@ void free(void* ptr) {
 void* operator new(size_t count) noexcept {
     return malloc(count);
 }
+
+void operator delete(void* ptr) noexcept {
+    free(ptr);
+}
+
+void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
+}

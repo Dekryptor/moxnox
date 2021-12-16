@@ -50,22 +50,27 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
     auto& t = *tptr;
 
     t.tid = tid;
-    t.stack = (void*)(thread_stack_block | (tid << 20));
+
+    auto stack = (void*)(thread_stack_block | (tid << 20));
 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
         auto pa = allocate_page();
         if (!pa) {
             print("allocate_page failed\n");
             // FIXME - free other pages
+            delete &t;
             return false;
         }
 
-        if (!map_page(pa, (uintptr_t)t.stack + (i << PAGE_SHIFT))) {
+        if (!map_page(pa, (uintptr_t)stack + (i << PAGE_SHIFT))) {
             print("map_page failed\n");
             // FIXME - free other pages
+            delete &t;
             return false;
         }
     }
+
+    t.stack = stack;
 
     t.context.rip = (uintptr_t)kernel_thread_start;
     t.context.rcx = (uintptr_t)func;

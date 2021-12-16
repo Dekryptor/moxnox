@@ -63,5 +63,5 @@ typedef struct _thread {
     amd64_context context;
     enum thread_status status;
     uint32_t tid;
-    void* stack;
+    void* stack = nullptr;
 } thread;
