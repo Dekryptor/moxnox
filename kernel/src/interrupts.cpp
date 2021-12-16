@@ -277,7 +277,7 @@ static bool setup_idt() {
     // FIXME - int a (invalid TSS)
     // FIXME - int b (segment not present)
     // FIXME - int c (stack-segment fault)
-    add_idt_entry(0xd, (void*)general_protection_fault_isr, true);
+    add_idt_entry(0xd, (void*)general_protection_fault_isr, false);
     add_idt_entry(0xe, (void*)page_fault_isr, true);
     // FIXME - int 10 (x87 exception)
     // FIXME - int 11 (alignment check)
@@ -345,10 +345,20 @@ void double_fault() {
 
 extern "C"
 void general_protection_fault(uint64_t error_code) {
-    // FIXME
     print("General protection fault (error code = ");
     print_hex(error_code);
     print(")\n");
+
+    // FIXME - print registers
+
+    if (!current_thread) {
+        print("Not in thread\n");
+        // FIXME - BSOD
+        while (1) { }
+    } else {
+        print("Thread killed\n");
+        terminate_thread();
+    }
 }
 
 extern "C"

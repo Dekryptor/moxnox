@@ -26,7 +26,7 @@ static constexpr uint64_t tid_to_thread_va(uint16_t tid) {
     return thread_address_block | (tid << 20);
 }
 
-static void terminate_thread() {
+void terminate_thread() {
     current_thread->status = thread_status::dead;
     yield();
 }

@@ -8,6 +8,7 @@
 #define PAGE_SHIFT 12
 
 typedef struct _loader_block loader_block;
+typedef struct _thread thread;
 
 // mem.cpp
 bool init_memory(const loader_block& lb);
@@ -43,5 +44,7 @@ extern "C" void yield();
 void init_timer();
 
 // scheduler.cpp
+extern thread* current_thread;
 bool add_kernel_thread(void (*func)(void*), void* param = nullptr);
 extern "C" void scheduler();
+void terminate_thread();

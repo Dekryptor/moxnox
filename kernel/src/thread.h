@@ -58,7 +58,7 @@ enum class thread_status {
     dead
 };
 
-typedef struct {
+typedef struct _thread {
     list_entry le;
     amd64_context context;
     enum thread_status status;
