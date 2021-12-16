@@ -58,10 +58,13 @@ enum class thread_status {
     dead
 };
 
-typedef struct _thread {
+class thread {
+public:
+    ~thread();
+
     list_entry le;
     amd64_context context;
     enum thread_status status;
     uint32_t tid;
     void* stack = nullptr;
-} thread;
+};

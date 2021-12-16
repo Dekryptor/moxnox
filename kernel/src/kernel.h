@@ -8,7 +8,7 @@
 #define PAGE_SHIFT 12
 
 typedef struct _loader_block loader_block;
-typedef struct _thread thread;
+class thread;
 typedef struct _amd64_context amd64_context;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {

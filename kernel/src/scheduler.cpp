@@ -150,7 +150,7 @@ void scheduler() {
 
         if (current_thread->status == thread_status::dead) {
             remove_entry_list(current_thread->le);
-            // FIXME - free pages
+            delete current_thread;
 
             current_thread = nullptr;
         }
@@ -228,4 +228,12 @@ void print_context(const amd64_context& ctx) {
     print(" ss=");
     print_hex(ctx.ss, 4);
     print("\n");
+}
+
+thread::~thread() {
+    if (stack) {
+        for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
+            unmap_and_free_page((uintptr_t)stack | (i << PAGE_SHIFT));
+        }
+    }
 }
