@@ -499,6 +499,7 @@ static void free_lower_half_mappings() {
             }
 
             mark_mem_as_free((uint64_t)p1.PageFrameNumber << PAGE_SHIFT, PAGE_SIZE);
+            *(uint64_t*)&p1 = 0;
         }
     }
 }
