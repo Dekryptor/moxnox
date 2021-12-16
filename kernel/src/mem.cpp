@@ -695,3 +695,10 @@ void* malloc(size_t size) {
 
     return ptr;
 }
+
+extern "C"
+void free(void* ptr) {
+    auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
+
+    ah->free = 1;
+}
