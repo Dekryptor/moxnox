@@ -9,6 +9,7 @@
 
 typedef struct _loader_block loader_block;
 typedef struct _thread thread;
+typedef struct _amd64_context amd64_context;
 
 // mem.cpp
 bool init_memory(const loader_block& lb);
@@ -18,7 +19,7 @@ uint64_t allocate_page();
 // console.cpp
 bool init_console();
 void print(std::string_view s);
-void print_hex(uint64_t num);
+void print_hex(uint64_t num, unsigned int padding = 0);
 
 // interrupts.cpp
 extern volatile uint8_t* const local_apic;
@@ -45,6 +46,8 @@ void init_timer();
 
 // scheduler.cpp
 extern thread* current_thread;
+extern amd64_context thread_context;
 bool add_kernel_thread(void (*func)(void*), void* param = nullptr);
 extern "C" void scheduler();
 void terminate_thread();
+void print_context(const amd64_context& ctx);

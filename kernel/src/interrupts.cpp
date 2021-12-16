@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "acpi.h"
+#include "thread.h"
 #include <cpuid.h>
 #include <span>
 #include <optional>
@@ -347,12 +348,18 @@ extern "C"
 void general_protection_fault(uint64_t error_code) {
     print("General protection fault (error code = ");
     print_hex(error_code);
-    print(")\n");
-
-    // FIXME - print registers
 
     if (!current_thread) {
-        print("Not in thread\n");
+        print(", not in thread)\n");
+    } else {
+        print(", thread ");
+        print_hex(current_thread->tid);
+        print(")\n");
+    }
+
+    print_context(thread_context);
+
+    if (!current_thread) {
         // FIXME - BSOD
         while (1) { }
     } else {

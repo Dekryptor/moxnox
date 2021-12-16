@@ -4,7 +4,7 @@
 #include "list.h"
 
 // FIXME - make compatible with NT version
-typedef struct {
+typedef struct _amd64_context {
     // FIXME - debug registers
     uint64_t rax;
     uint64_t rcx;

@@ -176,3 +176,63 @@ void scheduler() {
         __asm("sti; hlt; cli");
     } while (true);
 }
+
+void print_context(const amd64_context& ctx) {
+    print("rax=");
+    print_hex(ctx.rax, 16);
+    print(" rcx=");
+    print_hex(ctx.rcx, 16);
+    print(" rdx=");
+    print_hex(ctx.rdx, 16);
+    print("\n");
+
+    print("rbx=");
+    print_hex(ctx.rbx, 16);
+    print(" rsp=");
+    print_hex(ctx.rsp, 16);
+    print(" rsi=");
+    print_hex(ctx.rsi, 16);
+    print("\n");
+
+    print("rbx=");
+    print_hex(ctx.rbx, 16);
+    print(" rsp=");
+    print_hex(ctx.rsp, 16);
+    print(" rsi=");
+    print_hex(ctx.rsi, 16);
+    print("\n");
+
+    print("rdi=");
+    print_hex(ctx.rdi, 16);
+    print("  r8=");
+    print_hex(ctx.r8, 16);
+    print("  r9=");
+    print_hex(ctx.r9, 16);
+    print("\n");
+
+    print("r10=");
+    print_hex(ctx.r10, 16);
+    print(" r11=");
+    print_hex(ctx.r11, 16);
+    print(" r12=");
+    print_hex(ctx.r12, 16);
+    print("\n");
+
+    print("r13=");
+    print_hex(ctx.r13, 16);
+    print(" r14=");
+    print_hex(ctx.r14, 16);
+    print(" r15=");
+    print_hex(ctx.r15, 16);
+    print("\n");
+
+    print("rip=");
+    print_hex(ctx.rip, 16);
+    print(" rflags=");
+    print_hex(ctx.rflags, 8);
+    print(" cs=");
+    print_hex(ctx.cs, 4);
+    print(" ss=");
+    print_hex(ctx.ss, 4);
+    print("\n");
+}

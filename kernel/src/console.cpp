@@ -78,11 +78,11 @@ void print(string_view s) {
     }
 }
 
-void print_hex(uint64_t num) {
+void print_hex(uint64_t num, unsigned int padding) {
     bool first = true;
     char s[2];
 
-    if (num == 0) {
+    if (num == 0 && padding == 0) {
         print("0");
         return;
     }
@@ -90,7 +90,7 @@ void print_hex(uint64_t num) {
     s[1] = 0;
 
     for (unsigned int i = 0; i < 16; i++) {
-        if (!first || num & 0xf000000000000000) {
+        if (!first || padding == 16 - i || num & 0xf000000000000000) {
             uint64_t n = num >> 60;
 
             if (n <= 9)
