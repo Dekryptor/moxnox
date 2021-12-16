@@ -150,7 +150,7 @@ void scheduler() {
 
         if (current_thread->status == thread_status::dead) {
             remove_entry_list(current_thread->le);
-            delete current_thread;
+            current_thread->release();
 
             current_thread = nullptr;
         }

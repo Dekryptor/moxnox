@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string_view>
 #include <cstring>
+#include <atomic>
 
 #define PAGE_SIZE 4096
 #define PAGE_SHIFT 12
@@ -14,6 +15,18 @@ typedef struct _amd64_context amd64_context;
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
+
+enum class object_type {
+    thread
+};
+
+class object {
+public:
+    object(enum object_type type) : type(type) { }
+
+    enum object_type type;
+    std::atomic<unsigned int> refcount = 1;
+};
 
 // mem.cpp
 bool init_memory(const loader_block& lb);

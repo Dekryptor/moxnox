@@ -58,9 +58,19 @@ enum class thread_status {
     dead
 };
 
-class thread {
+class thread : object {
 public:
+    thread() : object(object_type::thread) { }
     ~thread();
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
 
     list_entry le;
     amd64_context context;
