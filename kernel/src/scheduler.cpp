@@ -57,14 +57,22 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
         auto pa = allocate_page();
         if (!pa) {
             print("allocate_page failed\n");
-            // FIXME - free other pages
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_and_free_page((uintptr_t)stack + (j << PAGE_SHIFT));
+            }
+
             delete &t;
             return false;
         }
 
         if (!map_page(pa, (uintptr_t)stack + (i << PAGE_SHIFT))) {
             print("map_page failed\n");
-            // FIXME - free other pages
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_and_free_page((uintptr_t)stack + (j << PAGE_SHIFT));
+            }
+
             delete &t;
             return false;
         }

@@ -19,6 +19,7 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
 bool init_memory(const loader_block& lb);
 bool map_page(uint64_t pa, uint64_t va);
 uint64_t allocate_page();
+void unmap_and_free_page(uint64_t va);
 
 // console.cpp
 bool init_console();

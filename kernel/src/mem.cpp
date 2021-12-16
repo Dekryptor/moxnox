@@ -714,3 +714,27 @@ void operator delete(void* ptr) noexcept {
 void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
 }
+
+static void free_page(uint64_t pa) {
+    pa >>= PAGE_SHIFT;
+
+    // FIXME - need spinlock
+
+    auto mb = span((uint64_t*)memblock, memblock_size / sizeof(uint64_t));
+
+    uint64_t i = pa / 64;
+    uint64_t j = pa % 64;
+
+    mb[i] |= (uint64_t)1 << (((j >> 3) << 3) + 7 - (j & 7));
+}
+
+void unmap_and_free_page(uint64_t va) {
+    auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
+
+    if (!pt_entry.Valid)
+        return;
+
+    auto pa = ((uint64_t)pt_entry.PageFrameNumber) << PAGE_SHIFT;
+
+    free_page(pa);
+}
