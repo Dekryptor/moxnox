@@ -33,26 +33,9 @@ page_fault_isr:
 
 .global double_fault_isr
 double_fault_isr:
-    push rax
-    push rcx
-    push rdx
-    push r8
-    push r9
-    push r10
-    push r11
-
-    call double_fault
-
-    pop r11
-    pop r10
-    pop r9
-    pop r8
-    pop rdx
+    save_context_when_error_code
     pop rcx
-    pop rax
-
-    add rsp, 0x8 # pop error code
-
+    call double_fault
     iretq
 
 .global general_protection_fault_isr

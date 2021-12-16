@@ -275,13 +275,13 @@ static bool setup_idt() {
     // FIXME - int 5 (bound range exceeded)
     add_idt_entry(0x6, (void*)invalid_opcode_isr, false);
     // FIXME - int 7 (device not available)
-    add_idt_entry(0x8, (void*)double_fault_isr, true);
+    add_idt_entry(0x8, (void*)double_fault_isr, false);
     // FIXME - int 9 (coprocessor segment overrun)
     // FIXME - int a (invalid TSS)
     // FIXME - int b (segment not present)
     // FIXME - int c (stack-segment fault)
     add_idt_entry(0xd, (void*)general_protection_fault_isr, false);
-    add_idt_entry(0xe, (void*)page_fault_isr, true);
+    add_idt_entry(0xe, (void*)page_fault_isr, false);
     // FIXME - int 10 (x87 exception)
     // FIXME - int 11 (alignment check)
     // FIXME - int 12 (machine check)
@@ -339,9 +339,9 @@ void page_fault(uint64_t address, uint64_t error_code) {
     print(", error code = ");
     print_hex(error_code);
 
-    if (!current_thread) {
+    if (!current_thread)
         print(", not in thread)\n");
-    } else {
+    else {
         print(", thread ");
         print_hex(current_thread->tid);
         print(")\n");
@@ -360,8 +360,25 @@ void page_fault(uint64_t address, uint64_t error_code) {
 
 extern "C"
 void double_fault() {
-    // FIXME
-    print("Double fault\n");
+    print("Double fault, ");
+
+    if (!current_thread)
+        print("not in thread\n");
+    else {
+        print("thread ");
+        print_hex(current_thread->tid);
+        print("\n");
+    }
+
+    print_context(thread_context);
+
+    if (!current_thread) {
+        // FIXME - BSOD
+        while (1) { }
+    } else {
+        print("Thread killed\n");
+        terminate_thread();
+    }
 }
 
 extern "C"
@@ -369,9 +386,9 @@ void general_protection_fault(uint64_t error_code) {
     print("General protection fault (error code = ");
     print_hex(error_code);
 
-    if (!current_thread) {
+    if (!current_thread)
         print(", not in thread)\n");
-    } else {
+    else {
         print(", thread ");
         print_hex(current_thread->tid);
         print(")\n");
@@ -392,9 +409,9 @@ extern "C"
 void invalid_opcode() {
     print("Invalid opcode");
 
-    if (!current_thread) {
+    if (!current_thread)
         print(", not in thread\n");
-    } else {
+    else {
         print(", thread ");
         print_hex(current_thread->tid);
         print("\n");
