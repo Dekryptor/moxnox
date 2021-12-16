@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "thread.h"
+#include <cstdlib>
 
 static uint16_t last_tid = 0; // FIXME - too small?
 
@@ -8,7 +9,6 @@ static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_SS = 0x10;
 static const uint64_t time_slice = 50; // ticks
 
-static const uint64_t thread_address_block = 0xfffffaf000000000;
 static const uint64_t thread_stack_block = 0xfffffa1000000000;
 
 list_entry thread_list = { &thread_list, &thread_list };
@@ -17,14 +17,6 @@ list_entry thread_list = { &thread_list, &thread_list };
 amd64_context thread_context;
 thread* current_thread = nullptr;
 uint64_t time_slice_left;
-
-static constexpr uint32_t bytes_to_pages(size_t bytes) {
-    return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
-}
-
-static constexpr uint64_t tid_to_thread_va(uint16_t tid) {
-    return thread_address_block | (tid << 20);
-}
 
 void terminate_thread() {
     current_thread->status = thread_status::dead;
@@ -49,24 +41,13 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
     last_tid++;
     tid = last_tid;
 
-    // FIXME - use malloc instead?
-
-    for (unsigned int i = 0; i < bytes_to_pages(sizeof(thread)); i++) {
-        auto pa = allocate_page();
-        if (!pa) {
-            print("allocate_page failed\n");
-            // FIXME - free other pages
-            return false;
-        }
-
-        if (!map_page(pa, tid_to_thread_va(tid) + (i << PAGE_SHIFT))) {
-            print("map_page failed\n");
-            // FIXME - free other pages
-            return false;
-        }
+    auto ptr = malloc(sizeof(thread));
+    if (!ptr) {
+        print("malloc failed\n");
+        return false;
     }
 
-    auto& t = *(thread*)(uintptr_t)tid_to_thread_va(tid);
+    auto& t = *new (ptr) thread;
 
     memset(&t, 0, sizeof(thread));
     t.tid = tid;

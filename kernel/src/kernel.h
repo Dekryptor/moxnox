@@ -11,6 +11,10 @@ typedef struct _loader_block loader_block;
 typedef struct _thread thread;
 typedef struct _amd64_context amd64_context;
 
+static constexpr uint32_t bytes_to_pages(size_t bytes) {
+    return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
+}
+
 // mem.cpp
 bool init_memory(const loader_block& lb);
 bool map_page(uint64_t pa, uint64_t va);

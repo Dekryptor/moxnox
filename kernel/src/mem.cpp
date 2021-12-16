@@ -37,6 +37,16 @@ void* gdt = (void*)0xfffffa8000000000;
 void* acpi_tables = (void*)0xfffffad000000000;
 unsigned int acpi_count = 0;
 
+static const uint64_t heap_block = 0xfffffaf000000000;
+static unsigned int heap_pages = 0;
+
+struct alloc_header {
+    uint32_t size : 31;
+    uint32_t free : 1;
+};
+
+static_assert(sizeof(alloc_header) == 4);
+
 static bool treat_as_free(enum map_type type) {
     switch (type) {
         case map_type::mem_free:
@@ -573,4 +583,115 @@ bool init_memory(const loader_block& lb) {
     // FIXME - protect pages of kernel sections correctly
 
     return true;
+}
+
+extern "C"
+void* malloc(size_t size) {
+    // round to multiple of 4
+    if (size & 3)
+        size = ((size >> 2) + 1) << 2;
+
+    if (size == 0 || size >= 0x80000000)
+        return nullptr;
+
+    alloc_header* ah = nullptr;
+
+    // FIXME - spinlock
+
+    // allocate from existing pages if possible
+
+    if (heap_pages > 0) {
+        auto h = (alloc_header*)heap_block;
+        alloc_header* last = nullptr;
+
+        do {
+            if (h->free) {
+                if (last && last->free) { // merge adjacent free entries
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                    last->size += h->size + sizeof(alloc_header);
+#pragma GCC diagnostic pop
+                    h = last;
+                }
+
+                if (h->size == size) {
+                    h->free = 0;
+                    return (uint8_t*)h + sizeof(alloc_header);
+                }
+
+                if (h->size > size) {
+                    auto nh = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + size);
+
+                    if (nh < (void*)(heap_block | (heap_pages << PAGE_SHIFT))) {
+                        nh->free = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                        nh->size = h->size - size - sizeof(alloc_header);
+#pragma GCC diagnostic pop
+                    }
+
+                    h->free = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                    h->size = size;
+#pragma GCC diagnostic pop
+                    return (uint8_t*)h + sizeof(alloc_header);
+                }
+            }
+
+            last = h;
+            h = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + h->size);
+        } while (h < (void*)(heap_block | (heap_pages << PAGE_SHIFT)));
+    }
+
+    // allocate new pages
+
+    unsigned int new_pages = bytes_to_pages(sizeof(alloc_header) + size);
+
+    for (unsigned int i = 0; i < new_pages; i++) {
+        // FIXME - die if heap_pages too large for virtual address
+
+        auto pa = allocate_page();
+        if (!pa) {
+            print("allocate_page failed\n");
+            return nullptr;
+        }
+
+        auto va = (void*)(heap_block | (heap_pages << PAGE_SHIFT));
+
+        if (!map_page(pa, (uintptr_t)va)) {
+            print("map_page failed\n");
+            return nullptr;
+        }
+
+        if (ah) {
+            ah->size = (uint32_t)ah->size + PAGE_SIZE;
+            // FIXME - handle case when size would overflow 31 bits
+        } else {
+            ah = (alloc_header*)va;
+            ah->free = 1;
+            ah->size = PAGE_SIZE - sizeof(alloc_header);
+        }
+
+        heap_pages++;
+    }
+
+    auto ptr = (uint8_t*)ah + sizeof(alloc_header);
+    ah->free = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    ah->size = size;
+#pragma GCC diagnostic pop
+
+    auto ah2 = (alloc_header*)((uint8_t*)heap_block + sizeof(alloc_header) + size);
+
+    if ((uintptr_t)ah2 & (PAGE_SIZE - 1)) {
+        ah2->free = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        ah2->size = (uint32_t)((heap_block | (heap_pages << PAGE_SHIFT)) - (uintptr_t)ah2 - sizeof(alloc_header));
+#pragma GCC diagnostic pop
+    }
+
+    return ptr;
 }
