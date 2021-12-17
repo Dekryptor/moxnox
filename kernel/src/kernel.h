@@ -28,11 +28,14 @@ public:
     std::atomic<unsigned int> refcount = 1;
 };
 
+using handle_t = uint64_t;
+
 // mem.cpp
 bool init_memory(const loader_block& lb);
 bool map_page(uint64_t pa, uint64_t va);
 uint64_t allocate_page();
 void unmap_and_free_page(uint64_t va);
+void free_page(uint64_t pa);
 
 // console.cpp
 bool init_console();
@@ -66,7 +69,10 @@ void init_timer();
 // scheduler.cpp
 extern thread* current_thread;
 extern amd64_context thread_context;
-bool add_kernel_thread(void (*func)(void*), void* param = nullptr);
+bool add_kernel_thread(void (*func)(void*), void* param = nullptr, handle_t* handle = nullptr);
 extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);
+
+// handle.cpp
+handle_t add_handle(object& obj, uint32_t access_mask);

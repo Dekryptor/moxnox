@@ -29,7 +29,7 @@ static void kernel_thread_start(void (*func)(void*), void* param) {
     terminate_thread();
 }
 
-bool add_kernel_thread(void (*func)(void*), void* param) {
+bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
     uint16_t tid;
 
     // FIXME - spinlock for last_tid (or use atomics)
@@ -92,6 +92,9 @@ bool add_kernel_thread(void (*func)(void*), void* param) {
 
     // FIXME - need spinlock
     insert_tail_list(thread_list, t.le);
+
+    if (handle)
+        *handle = add_handle(t, 0); // FIXME - access mask
 
     return true;
 }

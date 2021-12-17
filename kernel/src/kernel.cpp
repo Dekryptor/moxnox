@@ -21,12 +21,18 @@ static void call_global_constructors() {
 }
 
 void main_thread(void*) {
+    handle_t h;
+
     // FIXME
 
     if (!add_kernel_thread([](void*) {
         print("Hello from second thread\n");
-    })) {
+    }, nullptr, &h)) {
         print("add_kernel_thread failed\n");
+    } else {
+        print("h = ");
+        print_hex(h);
+        print("\n");
     }
 
     while (1) { }

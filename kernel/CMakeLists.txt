@@ -14,7 +14,8 @@ set(SRC_FILES src/kernel.cpp
     src/ints.S
     src/timer.S
     src/timer.cpp
-    src/scheduler.cpp)
+    src/scheduler.cpp
+    src/handle.cpp)
 
 add_executable(kernel ${SRC_FILES})
 

@@ -715,7 +715,7 @@ void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
 }
 
-static void free_page(uint64_t pa) {
+void free_page(uint64_t pa) {
     pa >>= PAGE_SHIFT;
 
     // FIXME - need spinlock

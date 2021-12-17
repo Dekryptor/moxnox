@@ -58,7 +58,7 @@ enum class thread_status {
     dead
 };
 
-class thread : object {
+class thread : public object {
 public:
     thread() : object(object_type::thread) { }
     ~thread();
