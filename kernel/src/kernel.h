@@ -16,6 +16,8 @@ class thread;
 class object;
 typedef struct _amd64_context amd64_context;
 
+static const uint32_t PIT_HZ = 1193182;
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
@@ -28,6 +30,7 @@ bool map_page(uint64_t pa, uint64_t va);
 uint64_t allocate_page();
 void unmap_and_free_page(uint64_t va);
 void free_page(uint64_t pa);
+void unmap_page(uint64_t va);
 
 // console.cpp
 bool init_console();

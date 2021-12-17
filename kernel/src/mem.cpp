@@ -738,3 +738,9 @@ void unmap_and_free_page(uint64_t va) {
 
     free_page(pa);
 }
+
+void unmap_page(uint64_t va) {
+    auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
+
+    pt_entry.Valid = 0;
+}

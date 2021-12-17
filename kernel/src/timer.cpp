@@ -1,7 +1,5 @@
 #include "kernel.h"
 
-#define PIT_SCALE 1193182
-
 static const uint8_t timer_interrupt = 0x70;
 
 static const unsigned int tick_rate = 1000; // Hz
@@ -24,7 +22,7 @@ void init_timer() {
     auto timer_initial = (volatile uint32_t*)&local_apic[0x380];
     *timer_initial = 0xffffffff;
 
-    pit_delay(PIT_SCALE / 100);
+    pit_delay(PIT_HZ / 100);
 
     *lvt_timer = 0x10000; // disable
 
