@@ -53,6 +53,8 @@ extern "C" void spurious_isr();
 extern "C" void pit_isr();
 extern "C" void timer_isr();
 extern "C" void yield();
+extern "C" void acquire_sync_lock();
+extern "C" void release_sync_lock();
 
 // timer.cpp
 void init_timer();

@@ -89,3 +89,17 @@ yield:
     mov [rip+thread_context+0x98], ss
     # FIXME - other segments, debug registers, FXSAVE
     jmp scheduler
+
+.global acquire_sync_lock
+acquire_sync_lock:
+    mov rax, 1
+    xchg [rip+sync_lock], rax
+    test rax, rax
+    jnz acquire_sync_lock
+    ret
+
+.global release_sync_lock
+release_sync_lock:
+    xor rax, rax
+    xchg [rip+sync_lock], rax
+    ret

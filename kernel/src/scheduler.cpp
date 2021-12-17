@@ -21,6 +21,8 @@ amd64_context thread_context;
 thread* current_thread = nullptr;
 uint64_t time_slice_left;
 
+volatile uint64_t sync_lock = 0;
+
 void terminate_thread() {
     unsigned int release_count = 0;
 
@@ -28,8 +30,10 @@ void terminate_thread() {
     current_thread->signalled = true;
 
     {
-        // FIXME - spinlock
         auto obj = static_cast<object*>(current_thread);
+
+        acquire_sync_lock();
+
         auto le = thread_list.next;
 
         while (le != &thread_list) {
@@ -43,6 +47,8 @@ void terminate_thread() {
 
             le = le->next;
         }
+
+        release_sync_lock();
     }
 
     // out of spinlock
@@ -62,15 +68,6 @@ static void kernel_thread_start(void (*func)(void*), void* param) {
 bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
     uint16_t tid;
 
-    // FIXME - spinlock for last_tid (or use atomics)
-    if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-        print("Thread limit reached.\n");
-        return false;
-    }
-
-    last_tid++;
-    tid = last_tid;
-
     auto tptr = new thread;
     if (!tptr) {
         print("new failed\n");
@@ -78,6 +75,16 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
     }
 
     auto& t = *tptr;
+
+    // FIXME - spinlock for last_tid (or use atomics)
+    if (last_tid == 0xffff) { // FIXME - check for lowest unused number
+        print("Thread limit reached.\n");
+        delete &t;
+        return false;
+    }
+
+    last_tid++;
+    tid = last_tid;
 
     t.tid = tid;
 
@@ -120,8 +127,9 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
 
     t.status = thread_status::runnable;
 
-    // FIXME - need spinlock
+    acquire_sync_lock();
     insert_tail_list(thread_list, t.le);
+    release_sync_lock();
 
     if (handle)
         *handle = add_handle(t, 0); // FIXME - access mask
@@ -173,8 +181,6 @@ static thread* pick_runnable_thread(thread* current) {
 
 extern "C"
 void scheduler() {
-    // FIXME - for SMP, get thread_list spinlock (interrupts are disabled already)
-
     if (current_thread) {
         if (current_thread->status == thread_status::running)
             current_thread->status = thread_status::runnable;
@@ -182,7 +188,10 @@ void scheduler() {
         memcpy(&current_thread->context, &thread_context, sizeof(thread_context));
 
         if (current_thread->status == thread_status::dead) {
+            acquire_sync_lock();
             remove_entry_list(current_thread->le);
+            release_sync_lock();
+
             current_thread->release();
 
             current_thread = nullptr;
@@ -190,7 +199,9 @@ void scheduler() {
     }
 
     do {
+        acquire_sync_lock();
         current_thread = pick_runnable_thread(current_thread);
+        release_sync_lock();
 
         if (current_thread) {
             memcpy(&thread_context, &current_thread->context, sizeof(thread_context));
@@ -272,7 +283,6 @@ thread::~thread() {
 }
 
 void wait_for_object(handle_t h) {
-    // FIXME - spinlock
     __asm("cli");
 
     auto objrw = deref_handle(h);
@@ -306,8 +316,12 @@ void wait_for_object(handle_t h) {
     if (signalled)
         return;
 
+    acquire_sync_lock();
+
     current_thread->waiting_for = obj;
     current_thread->status = thread_status::waiting;
+
+    release_sync_lock();
 
     yield();
 }
