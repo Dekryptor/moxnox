@@ -50,11 +50,11 @@ extern "C" void keyboard_isr();
 extern "C" void spurious_isr();
 
 // timer.s
-extern "C" void pit_isr();
 extern "C" void timer_isr();
 extern "C" void yield();
 extern "C" void acquire_sync_lock();
 extern "C" void release_sync_lock();
+extern "C" void pit_delay(uint16_t delay);
 
 // timer.cpp
 void init_timer();

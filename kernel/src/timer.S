@@ -2,18 +2,6 @@
 
 #include "context.S"
 
-.global pit_isr
-pit_isr:
-    cmp DWORD PTR [rip+timer_count], 0
-    je pit_isr_end
-    dec QWORD PTR [rip+timer_count]
-pit_isr_end:
-    push rax
-    xor rax, rax
-    mov DWORD PTR [0xfffffab0000000b0], eax # EOI
-    pop rax
-    iretq
-
 .global timer_isr # FIXME - needs own stack
 timer_isr:
     cmp QWORD PTR [rip+current_thread], 0
@@ -102,4 +90,20 @@ acquire_sync_lock:
 release_sync_lock:
     xor rax, rax
     xchg [rip+sync_lock], rax
+    ret
+
+.global pit_delay
+pit_delay:
+    mov al, 0x30
+    out 0x43, al # initialize channel 0 of PIT
+    mov ax, cx
+    out 0x40, al # push lower byte of param
+    shr ax, 8
+    out 0x40, al # push higher byte of param
+0:
+    mov al, 0xe2
+    out 0x43, al # check PIT status
+    in al, 0x40
+    test al, 0x80
+    je 0b # loop again if not yet signalled
     ret
