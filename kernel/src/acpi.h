@@ -28,6 +28,12 @@ typedef struct {
     uint16_t flags;
 } madt_source_override;
 
+typedef struct {
+    uint8_t processor_id;
+    uint8_t apic_id;
+    uint32_t flags;
+} madt_local_apic;
+
 #pragma pack(pop)
 
 extern void* acpi_tables;

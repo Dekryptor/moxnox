@@ -20,10 +20,8 @@ static void call_global_constructors() {
     }
 }
 
-void main_thread(void*) {
+static void thread_test() {
     handle_t h;
-
-    // FIXME
 
     if (!add_kernel_thread([](void*) {
         print("Hello from second thread\n");
@@ -39,6 +37,12 @@ void main_thread(void*) {
 
         close_handle(h);
     }
+}
+
+void main_thread(void*) {
+    thread_test(); // FIXME
+
+    init_smp();
 
     while (1) { }
 }

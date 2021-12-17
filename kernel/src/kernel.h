@@ -6,6 +6,7 @@
 #include <atomic>
 #include <functional>
 #include <optional>
+#include <span>
 
 #define PAGE_SIZE 4096
 #define PAGE_SHIFT 12
@@ -39,6 +40,7 @@ bool init_interrupts();
 void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id);
 void add_idt_entry(uint8_t vector, void* func, bool trap);
 void enable_irq(uint8_t irq, bool enable);
+std::span<const uint8_t> find_madt();
 
 // ints.s
 extern "C" void dummy_isr();
@@ -72,3 +74,6 @@ void wait_for_object(handle_t h);
 handle_t add_handle(object& obj, uint32_t access_mask);
 void close_handle(handle_t h);
 std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
+
+// smp.cpp
+void init_smp();

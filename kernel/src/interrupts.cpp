@@ -28,7 +28,7 @@ typedef struct {
 volatile uint8_t* const local_apic = (uint8_t*)0xfffffab000000000;
 static volatile uint8_t* const io_apic = (uint8_t*)0xfffffae000000000;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
-static span<uint8_t> madt;
+static span<const uint8_t> madt;
 
 static bool check_cpu_for_apic() {
     uint32_t eax, ebx, ecx, edx;
@@ -68,7 +68,7 @@ static void find_acpi_table(uint32_t sig, invocable<const ACPISDTHeader&> auto f
     }
 }
 
-static span<uint8_t> find_madt() {
+span<const uint8_t> find_madt() {
     optional<reference_wrapper<const ACPISDTHeader>> madtw;
 
     find_acpi_table(0x43495041, [&](const ACPISDTHeader& tbl) { // "APIC"
