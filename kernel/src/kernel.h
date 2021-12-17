@@ -4,29 +4,20 @@
 #include <string_view>
 #include <cstring>
 #include <atomic>
+#include <functional>
+#include <optional>
 
 #define PAGE_SIZE 4096
 #define PAGE_SHIFT 12
 
 typedef struct _loader_block loader_block;
 class thread;
+class object;
 typedef struct _amd64_context amd64_context;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
-
-enum class object_type {
-    thread
-};
-
-class object {
-public:
-    object(enum object_type type) : type(type) { }
-
-    enum object_type type;
-    std::atomic<unsigned int> refcount = 1;
-};
 
 using handle_t = uint64_t;
 
@@ -73,7 +64,9 @@ bool add_kernel_thread(void (*func)(void*), void* param = nullptr, handle_t* han
 extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);
+void wait_for_object(handle_t h);
 
 // handle.cpp
 handle_t add_handle(object& obj, uint32_t access_mask);
 void close_handle(handle_t h);
+std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);

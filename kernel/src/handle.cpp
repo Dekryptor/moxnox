@@ -1,5 +1,7 @@
 #include "kernel.h"
-#include "thread.h"
+#include "objects.h"
+
+using namespace std;
 
 struct handle_obj {
     object* obj;
@@ -9,16 +11,6 @@ struct handle_obj {
 static unsigned int no_handles = 0;
 static handle_obj* const handle_arr = (handle_obj*)0xfffffa2000000000;
 static size_t handle_arr_pages = 0;
-
-// FIXME - concept to make sure func is invocable
-template<typename T>
-static void visit_obj(object& obj, const T& func) {
-    switch (obj.type) {
-        case object_type::thread:
-            func(static_cast<thread&>(obj));
-        break;
-    }
-}
 
 handle_t add_handle(object& obj, uint32_t access_mask) {
     // FIXME - spinlock
@@ -73,4 +65,22 @@ void close_handle(handle_t h) {
     visit_obj(*obj, [](auto&& o) {
         o.release();
     });
+}
+
+optional<reference_wrapper<object>> deref_handle(handle_t h) {
+    // FIXME - spinlock
+
+    if (h == 0 || h > no_handles)
+        return nullopt;
+
+    auto& ho = handle_arr[h - 1];
+
+    if (!ho.obj)
+        return nullopt;
+
+    visit_obj(*ho.obj, [](auto&& o) {
+        o.acquire();
+    });
+
+    return *ho.obj;
 }

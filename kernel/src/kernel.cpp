@@ -34,6 +34,9 @@ void main_thread(void*) {
         print_hex(h);
         print("\n");
 
+        wait_for_object(h);
+        print("second thread finished\n");
+
         close_handle(h);
     }
 

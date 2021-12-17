@@ -73,8 +73,12 @@ public:
     }
 
     list_entry le;
+    bool signalled = false;
     amd64_context context;
     enum thread_status status;
     uint32_t tid;
     void* stack = nullptr;
+    std::optional<std::reference_wrapper<object>> waiting_for; // FIXME - multiple objects
 };
+
+static_assert(is_sync_object<thread>);

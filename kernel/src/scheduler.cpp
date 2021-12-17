@@ -1,6 +1,9 @@
 #include "kernel.h"
-#include "thread.h"
+#include "objects.h"
 #include <cstdlib>
+#include <optional>
+
+using namespace std;
 
 static uint16_t last_tid = 0; // FIXME - too small?
 
@@ -19,7 +22,34 @@ thread* current_thread = nullptr;
 uint64_t time_slice_left;
 
 void terminate_thread() {
+    unsigned int release_count = 0;
+
     current_thread->status = thread_status::dead;
+    current_thread->signalled = true;
+
+    {
+        // FIXME - spinlock
+        auto obj = static_cast<object*>(current_thread);
+        auto le = thread_list.next;
+
+        while (le != &thread_list) {
+            auto& t = containing_record<thread>(le);
+
+            if (t.status == thread_status::waiting && t.waiting_for.has_value() && &t.waiting_for->get() == obj) {
+                t.status = thread_status::runnable;
+                t.waiting_for = nullopt;
+                release_count++;
+            }
+
+            le = le->next;
+        }
+    }
+
+    // out of spinlock
+    for (unsigned int i = 0; i < release_count; i++) {
+        current_thread->release();
+    }
+
     yield();
 }
 
@@ -239,4 +269,46 @@ thread::~thread() {
             unmap_and_free_page((uintptr_t)stack | (i << PAGE_SHIFT));
         }
     }
+}
+
+void wait_for_object(handle_t h) {
+    // FIXME - spinlock
+    __asm("cli");
+
+    auto objrw = deref_handle(h);
+    if (!objrw) {
+        // FIXME - exception
+        print("No such handle\n");
+        return;
+    }
+
+    // FIXME - check handle has SYNCHRONIZE access
+
+    auto& obj = objrw->get();
+
+    optional<bool> sigopt;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
+            sigopt = o.signalled;
+        else
+            o.release();
+    });
+
+    if (!sigopt.has_value()) {
+        // FIXME - exception
+        print("Not a sync object\n");
+        return;
+    }
+
+    auto signalled = *sigopt;
+
+    if (signalled)
+        return;
+
+    current_thread->waiting_for = obj;
+    current_thread->status = thread_status::waiting;
+
+    __asm("sti");
+    yield(); // FIXME - yield without setting interrupts again first (changes RFLAGS in context)
 }

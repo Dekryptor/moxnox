@@ -1,6 +1,6 @@
 #include "kernel.h"
 #include "acpi.h"
-#include "thread.h"
+#include "objects.h"
 #include <cpuid.h>
 #include <span>
 #include <optional>
