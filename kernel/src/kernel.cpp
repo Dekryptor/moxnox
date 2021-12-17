@@ -33,6 +33,8 @@ void main_thread(void*) {
         print("h = ");
         print_hex(h);
         print("\n");
+
+        close_handle(h);
     }
 
     while (1) { }

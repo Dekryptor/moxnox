@@ -76,3 +76,4 @@ void print_context(const amd64_context& ctx);
 
 // handle.cpp
 handle_t add_handle(object& obj, uint32_t access_mask);
+void close_handle(handle_t h);

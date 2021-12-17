@@ -57,3 +57,20 @@ handle_t add_handle(object& obj, uint32_t access_mask) {
 
     return h;
 }
+
+void close_handle(handle_t h) {
+    object* obj;
+
+    {
+        // FIXME - spinlock
+
+        auto& ho = handle_arr[h - 1];
+        obj = ho.obj;
+
+        ho.obj = nullptr;
+    }
+
+    visit_obj(*obj, [](auto&& o) {
+        o.release();
+    });
+}
