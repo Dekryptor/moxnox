@@ -309,6 +309,5 @@ void wait_for_object(handle_t h) {
     current_thread->waiting_for = obj;
     current_thread->status = thread_status::waiting;
 
-    __asm("sti");
-    yield(); // FIXME - yield without setting interrupts again first (changes RFLAGS in context)
+    yield();
 }

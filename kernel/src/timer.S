@@ -63,6 +63,7 @@ scheduler_restore:
 .global yield
 yield:
     pushfq
+    or QWORD PTR [rsp], 0x200 # set interrupt enable flag in stored RFLAGS
     cli
     mov [rip+thread_context], rax
     mov [rip+thread_context+0x08], rcx
