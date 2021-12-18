@@ -50,7 +50,9 @@ typedef struct {
 typedef struct {
     uint8_t processor_id;
     uint8_t apic_id;
-    uint32_t flags;
+    uint32_t enabled : 1;
+    uint32_t online_capable : 1;
+    uint32_t reserved : 30;
 } madt_local_apic;
 
 #pragma pack(pop)

@@ -74,7 +74,7 @@ void init_smp() {
         if (type == madt_type::local_apic && length >= 2 + sizeof(madt_local_apic)) {
             auto& ent = *(madt_local_apic*)&data[2];
 
-            if (ent.apic_id != bsp_id) {
+            if (ent.apic_id != bsp_id && (ent.enabled || ent.online_capable)) {
                 print("CPU found\n");
 
                 if (!trampoline_init) {
