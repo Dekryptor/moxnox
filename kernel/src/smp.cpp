@@ -4,6 +4,7 @@
 // in smp.S
 extern uint8_t ap_trampoline;
 extern uint8_t ap_trampoline_end;
+extern uint8_t ap_trampoline_cr3;
 
 static void start_ap(uint8_t i) {
     // FIXME - should we be disabling interrupts here?
@@ -82,7 +83,7 @@ void init_smp() {
                 print("CPU found\n");
 
                 if (!trampoline_init) {
-                    auto trampoline = (void*)0xfffffa3000000000;
+                    auto trampoline = (void*)0;
 
                     // we already reserved page 0 in the bootloader
                     if (!map_page(0, (uintptr_t)trampoline)) {
@@ -92,7 +93,15 @@ void init_smp() {
 
                     memcpy(trampoline, &ap_trampoline, &ap_trampoline_end - &ap_trampoline);
 
-                    unmap_page((uintptr_t)trampoline);
+                    uint32_t* ap_cr3 = (uint32_t*)((uint8_t*)trampoline + (&ap_trampoline_cr3 - &ap_trampoline));
+                    uint64_t cr3;
+
+                    __asm __volatile (
+                        "mov rax, cr3"
+                        : "=a" (cr3)
+                    );
+
+                    *ap_cr3 = (uint32_t)cr3; // FIXME - cr3 not guaranteed to be in first 4 GB(?)
 
                     trampoline_init = true;
                 }
@@ -103,4 +112,7 @@ void init_smp() {
 
         data = data.subspan(length);
     }
+
+    // FIXME - wait for APs to initialize
+    // FIXME - unmap VA 0
 }
