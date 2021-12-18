@@ -434,8 +434,4 @@ void keyboard_isr_func() {
 
     // FIXME - get value and add to buffer
     // FIXME - wake up any threads waiting for key press
-
-    auto eoi = (volatile uint32_t*)&local_apic[0xb0];
-
-    *eoi = 0;
 }

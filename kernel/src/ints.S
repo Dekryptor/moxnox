@@ -63,6 +63,9 @@ keyboard_isr:
 
     call keyboard_isr_func
 
+    xor rax, rax
+    mov DWORD PTR [0xfffffab0000000b0], eax # EOI
+
     pop r11
     pop r10
     pop r9
