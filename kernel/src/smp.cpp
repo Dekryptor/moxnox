@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "acpi.h"
 #include <atomic>
+#include <cpuid.h>
 
 using namespace std;
 
@@ -104,6 +105,14 @@ static void ap_startup() {
     while (1) { }
 }
 
+static uint8_t current_cpu_id() {
+    uint32_t eax, ebx, ecx, edx;
+
+    __cpuid(1, eax, ebx, ecx, edx);
+
+    return (uint8_t)((ebx >> 24) & 0xff);
+}
+
 void init_smp() {
     auto madt = find_madt();
     if (madt.empty()) {
@@ -111,17 +120,7 @@ void init_smp() {
         return;
     }
 
-    uint8_t bsp_id;
-
-    __asm __volatile (
-        "mov rax, 1\n"
-        "cpuid\n"
-        "shr ebx, 24\n"
-        : "=b" (bsp_id)
-        :
-        : "rax"
-    );
-
+    uint8_t bsp_id = current_cpu_id();
     unsigned int ap_count = 0;
 
     auto data = madt;
