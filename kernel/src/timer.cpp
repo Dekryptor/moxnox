@@ -8,6 +8,19 @@ volatile uint64_t timer_count;
 
 uint32_t apic_timer_freq;
 
+void init_lapic_timer(bool set_div) {
+    if (set_div) {
+        auto timer_div = (volatile uint32_t*)&local_apic[0x3e0];
+        *timer_div = 3; // 16
+    }
+
+    auto lvt_timer = (volatile uint32_t*)&local_apic[0x320];
+    auto timer_initial = (volatile uint32_t*)&local_apic[0x380];
+
+    *lvt_timer = 0x20000 | timer_interrupt; // periodic
+    *timer_initial = apic_timer_freq / tick_rate;
+}
+
 void init_timer() {
     __asm __volatile("cli");
 
@@ -36,6 +49,5 @@ void init_timer() {
 
     add_idt_entry(timer_interrupt, (void*)timer_isr, false);
 
-    *lvt_timer = 0x20000 | timer_interrupt; // periodic
-    *timer_initial = apic_timer_freq / tick_rate;
+    init_lapic_timer(false);
 }

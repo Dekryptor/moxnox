@@ -47,7 +47,7 @@ void add_idt_entry(uint8_t vector, void* func, bool trap);
 void enable_irq(uint8_t irq, bool enable);
 std::span<const uint8_t> find_madt();
 
-// ints.s
+// ints.S
 extern "C" void dummy_isr();
 extern "C" void page_fault_isr();
 extern "C" void double_fault_isr();
@@ -56,7 +56,7 @@ extern "C" void invalid_opcode_isr();
 extern "C" void keyboard_isr();
 extern "C" void spurious_isr();
 
-// timer.s
+// timer.S
 extern "C" void timer_isr();
 extern "C" void yield();
 extern "C" void acquire_sync_lock();
@@ -65,6 +65,7 @@ extern "C" void pit_delay(uint16_t delay);
 
 // timer.cpp
 void init_timer();
+void init_lapic_timer(bool set_div);
 
 // scheduler.cpp
 extern thread* current_thread;
