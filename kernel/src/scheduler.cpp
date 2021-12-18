@@ -206,11 +206,14 @@ void scheduler() {
     do {
         acquire_sync_lock();
         cb->current_thread = pick_runnable_thread(cb->current_thread);
+
+        if (cb->current_thread)
+            cb->current_thread->status = thread_status::running;
+
         release_sync_lock();
 
         if (cb->current_thread) {
             memcpy(&cb->thread_context, &cb->current_thread->context, sizeof(amd64_context));
-            cb->current_thread->status = thread_status::running;
             cb->time_slice_left = time_slice;
             __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
         }
