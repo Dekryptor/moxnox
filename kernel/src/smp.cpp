@@ -5,6 +5,9 @@
 extern uint8_t ap_trampoline;
 extern uint8_t ap_trampoline_end;
 extern uint8_t ap_trampoline_cr3;
+extern uint64_t ap_trampoline_start_func;
+
+static const uint64_t KERNEL_STACK = 0xfffff90000000000;
 
 static void start_ap(uint8_t i) {
     // FIXME - should we be disabling interrupts here?
@@ -52,6 +55,14 @@ static void start_ap(uint8_t i) {
     }
 }
 
+static void ap_startup() {
+    // FIXME - IDT
+    // FIXME - LAPIC timer
+    // FIXME - scheduler
+
+    while (1) { }
+}
+
 void init_smp() {
     auto madt = find_madt();
     if (madt.empty()) {
@@ -60,7 +71,6 @@ void init_smp() {
     }
 
     uint8_t bsp_id;
-    bool trampoline_init = false;
 
     __asm __volatile (
         "mov rax, 1\n"
@@ -71,6 +81,8 @@ void init_smp() {
         : "rax"
     );
 
+    unsigned int ap_count = 0;
+
     auto data = madt;
     while (data.size() > 2) {
         auto type = (enum madt_type)data[0];
@@ -80,31 +92,69 @@ void init_smp() {
             auto& ent = *(madt_local_apic*)&data[2];
 
             if (ent.apic_id != bsp_id && (ent.enabled || ent.online_capable)) {
-                print("CPU found\n");
+                uint64_t va = KERNEL_STACK | ((ent.apic_id * KERNEL_STACK_PAGES) << PAGE_SHIFT);
 
-                if (!trampoline_init) {
-                    auto trampoline = (void*)0;
-
-                    // we already reserved page 0 in the bootloader
-                    if (!map_page(0, (uintptr_t)trampoline)) {
-                        print("map_page failed\n");
+                for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
+                    auto pa = allocate_page();
+                    if (!pa) {
+                        print("allocate_page failed\n");
+                        // FIXME - deallocate what's already been allocated (or BSOD)
                         return;
                     }
 
-                    memcpy(trampoline, &ap_trampoline, &ap_trampoline_end - &ap_trampoline);
+                    if (!map_page(pa, va)) {
+                        print("map_page failed\n");
+                        // FIXME - deallocate what's already been allocated (or BSOD)
+                        return;
+                    }
 
-                    uint32_t* ap_cr3 = (uint32_t*)((uint8_t*)trampoline + (&ap_trampoline_cr3 - &ap_trampoline));
-                    uint64_t cr3;
-
-                    __asm __volatile (
-                        "mov rax, cr3"
-                        : "=a" (cr3)
-                    );
-
-                    *ap_cr3 = (uint32_t)cr3; // FIXME - cr3 not guaranteed to be in first 4 GB(?)
-
-                    trampoline_init = true;
+                    va += PAGE_SIZE;
                 }
+
+                ap_count++;
+            }
+        }
+
+        data = data.subspan(length);
+    }
+
+    if (ap_count == 0)
+        return;
+
+    auto trampoline = (void*)0;
+
+    // we already reserved page 0 in the bootloader
+    if (!map_page(0, (uintptr_t)trampoline)) {
+        print("map_page failed\n");
+        return;
+    }
+
+    memcpy(trampoline, &ap_trampoline, &ap_trampoline_end - &ap_trampoline);
+
+    uint32_t* ap_cr3 = (uint32_t*)((uint8_t*)trampoline + (&ap_trampoline_cr3 - &ap_trampoline));
+    uint64_t cr3;
+
+    __asm __volatile (
+        "mov rax, cr3"
+        : "=a" (cr3)
+    );
+
+    *ap_cr3 = (uint32_t)cr3; // FIXME - cr3 not guaranteed to be in first 4 GB(?)
+
+    uint64_t* ap_start_func = (uint64_t*)((uint8_t*)trampoline + ((uint8_t*)&ap_trampoline_start_func - &ap_trampoline));
+
+    *ap_start_func = (uintptr_t)ap_startup;
+
+    data = madt;
+    while (data.size() > 2) {
+        auto type = (enum madt_type)data[0];
+        auto length = data[1];
+
+        if (type == madt_type::local_apic && length >= 2 + sizeof(madt_local_apic)) {
+            auto& ent = *(madt_local_apic*)&data[2];
+
+            if (ent.apic_id != bsp_id && (ent.enabled || ent.online_capable)) {
+                print("CPU found\n");
 
                 start_ap(ent.apic_id);
             }

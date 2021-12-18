@@ -18,6 +18,8 @@ typedef struct _amd64_context amd64_context;
 
 static const uint32_t PIT_HZ = 1193182;
 
+static const unsigned int KERNEL_STACK_PAGES = 4; // 16KB
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }

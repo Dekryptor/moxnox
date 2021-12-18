@@ -7,7 +7,6 @@ using namespace std;
 
 static uint16_t last_tid = 0; // FIXME - too small?
 
-static const unsigned int KERNEL_STACK_PAGES = 4; // 16KB
 static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_SS = 0x10;
 static const uint64_t time_slice = 50; // ticks

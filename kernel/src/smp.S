@@ -4,6 +4,7 @@
 .global ap_trampoline
 .global ap_trampoline_end
 .global ap_trampoline_cr3
+.global ap_trampoline_start_func
 
 # FIXME - is A20 guaranteed to be already set?
 
@@ -43,6 +44,8 @@ Lgdt64_table:
     .long Lgdt64 - ap_trampoline
 
 ap_trampoline_cr3: # gets filled in by init_smp
+    .long 0
+ap_trampoline_start_func: # gets filled in by init_smp
     .long 0
 
 .align 64
@@ -89,7 +92,21 @@ Lenter_long_mode:
 
 .code64
 Llong_mode:
-    # FIXME
-    jmp $
+    # get CPU no.
+    mov rax, 1
+    cpuid
+    shr ebx, 24 # ebx = ap_id
+
+    # set stack (KERNEL_STACK | ((ap_id * KERNEL_STACK_PAGES) << PAGE_SHIFT))
+    and ebx, 0xff
+    movabs rsp, 0xfffff90000000000
+    shl rbx, 14 # ap_id *= 0x4000 (KERNEL_STACKPAGES << PAGE_SHIFT)
+    or rsp, rbx
+
+    # add (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20 (0x20 bytes for MS ABI)
+    add rsp, 0x3fe0
+
+    mov rax, [ap_trampoline_start_func - ap_trampoline]
+    jmp rax
 
 ap_trampoline_end:
