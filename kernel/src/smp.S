@@ -92,6 +92,17 @@ Lenter_long_mode:
 
 .code64
 Llong_mode:
+    # clear EM flag on CR0 and set MP flag
+    mov rax, cr0
+    and rax, 0xfffffffffffffffb
+    or rax, 0x2
+    mov cr0, rax
+
+    # set OSFXSR and OSXMMEXCPT flags on CR4
+    mov rax, cr4
+    or ax, 0x600
+    mov cr4, rax
+
     # get CPU no.
     mov rax, 1
     cpuid
