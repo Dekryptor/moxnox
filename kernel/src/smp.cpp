@@ -14,6 +14,13 @@ static const uint64_t KERNEL_STACK = 0xfffff90000000000;
 
 static atomic<unsigned int> ap_left;
 
+struct gdt_ptr {
+    uint16_t limit;
+    uint64_t base;
+} __attribute__((packed));
+
+static gdt_ptr bsp_gdt, bsp_idt;
+
 static void start_ap(uint8_t i) {
     // FIXME - should we be disabling interrupts here?
 
@@ -61,7 +68,15 @@ static void start_ap(uint8_t i) {
 }
 
 static void ap_startup() {
-    // FIXME - IDT
+    // load GDT and IDT
+    // FIXME - do we need to long jump for GDT to take effect?
+    __asm __volatile (
+        "lgdt %0\n"
+        "lidt %1\n"
+        :
+        : "m" (bsp_gdt), "m" (bsp_idt)
+    );
+
     // FIXME - LAPIC timer
     // FIXME - scheduler
 
@@ -151,6 +166,12 @@ void init_smp() {
     uint64_t* ap_start_func = (uint64_t*)((uint8_t*)trampoline + ((uint8_t*)&ap_trampoline_start_func - &ap_trampoline));
 
     *ap_start_func = (uintptr_t)ap_startup;
+
+    __asm __volatile (
+        "sgdt %0\n"
+        "sidt %1\n"
+        : "=m" (bsp_gdt), "=m" (bsp_idt)
+    );
 
     ap_left = ap_count;
 
