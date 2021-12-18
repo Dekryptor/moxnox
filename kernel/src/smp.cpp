@@ -1,6 +1,10 @@
 #include "kernel.h"
 #include "acpi.h"
 
+// in smp.S
+extern uint8_t ap_trampoline;
+extern uint8_t ap_trampoline_end;
+
 static void start_ap(uint8_t i) {
     // FIXME - should we be disabling interrupts here?
 
@@ -78,7 +82,7 @@ void init_smp() {
                 print("CPU found\n");
 
                 if (!trampoline_init) {
-                    auto trampoline = (void const*)0xfffffa3000000000;
+                    auto trampoline = (void*)0xfffffa3000000000;
 
                     // we already reserved page 0 in the bootloader
                     if (!map_page(0, (uintptr_t)trampoline)) {
@@ -86,8 +90,7 @@ void init_smp() {
                         return;
                     }
 
-                    // FIXME - proper trampoline code
-                    *(uint64_t*)trampoline = 0xe0ff66c03166; // xor eax, eax ; jmp eax
+                    memcpy(trampoline, &ap_trampoline, &ap_trampoline_end - &ap_trampoline);
 
                     unmap_page((uintptr_t)trampoline);
 
