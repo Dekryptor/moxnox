@@ -15,6 +15,7 @@ typedef struct _loader_block loader_block;
 class thread;
 class object;
 typedef struct _amd64_context amd64_context;
+struct cpu_block;
 
 static const uint32_t PIT_HZ = 1193182;
 
@@ -68,14 +69,13 @@ void init_timer();
 void init_lapic_timer(bool set_div);
 
 // scheduler.cpp
-extern thread* current_thread;
-extern amd64_context thread_context;
 bool add_kernel_thread(void (*func)(void*), void* param = nullptr, handle_t* handle = nullptr);
 extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);
 void wait_for_object(handle_t h);
 bool init_cpu_block();
+thread* get_current_thread();
 
 // handle.cpp
 handle_t add_handle(object& obj, uint32_t access_mask);

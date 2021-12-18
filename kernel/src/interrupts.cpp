@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "acpi.h"
 #include "objects.h"
+#include "cpu_block.h"
 #include <cpuid.h>
 #include <span>
 #include <optional>
@@ -332,6 +333,9 @@ void dummy_isr_func() {
 
 extern "C"
 void page_fault(uint64_t address, uint64_t error_code) {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
     // FIXME - memory mapping etc.
 
     print("Page fault (address = ");
@@ -347,7 +351,7 @@ void page_fault(uint64_t address, uint64_t error_code) {
         print(")\n");
     }
 
-    print_context(thread_context);
+    print_context(cb.thread_context);
 
     if (!current_thread) {
         // FIXME - BSOD
@@ -360,6 +364,9 @@ void page_fault(uint64_t address, uint64_t error_code) {
 
 extern "C"
 void double_fault() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
     print("Double fault, ");
 
     if (!current_thread)
@@ -370,7 +377,7 @@ void double_fault() {
         print("\n");
     }
 
-    print_context(thread_context);
+    print_context(cb.thread_context);
 
     if (!current_thread) {
         // FIXME - BSOD
@@ -383,6 +390,9 @@ void double_fault() {
 
 extern "C"
 void general_protection_fault(uint64_t error_code) {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
     print("General protection fault (error code = ");
     print_hex(error_code);
 
@@ -394,7 +404,7 @@ void general_protection_fault(uint64_t error_code) {
         print(")\n");
     }
 
-    print_context(thread_context);
+    print_context(cb.thread_context);
 
     if (!current_thread) {
         // FIXME - BSOD
@@ -407,6 +417,9 @@ void general_protection_fault(uint64_t error_code) {
 
 extern "C"
 void invalid_opcode() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
     print("Invalid opcode");
 
     if (!current_thread)
@@ -417,7 +430,7 @@ void invalid_opcode() {
         print("\n");
     }
 
-    print_context(thread_context);
+    print_context(cb.thread_context);
 
     if (!current_thread) {
         // FIXME - BSOD

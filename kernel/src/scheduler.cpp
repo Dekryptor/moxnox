@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "objects.h"
+#include "cpu_block.h"
 #include <cstdlib>
 #include <optional>
 #include <atomic>
@@ -18,18 +19,14 @@ static list_entry thread_list = { &thread_list, &thread_list };
 
 static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
-// FIXME - SMP
-amd64_context thread_context;
-thread* current_thread = nullptr;
-uint64_t time_slice_left;
-
-struct cpu_block {
-    cpu_block* self;
-};
-
 volatile uint64_t sync_lock = 0;
 
+thread* get_current_thread() {
+    return get_cpu_block()->current_thread;
+}
+
 void terminate_thread() {
+    auto current_thread = get_current_thread();
     unsigned int release_count = 0;
 
     current_thread->status = thread_status::dead;
@@ -176,7 +173,7 @@ static thread* pick_runnable_thread(thread* current) {
         if (ret)
             return ret;
 
-        if (&t == current_thread)
+        if (&t == current)
             break;
 
         le = le->next;
@@ -187,32 +184,34 @@ static thread* pick_runnable_thread(thread* current) {
 
 extern "C"
 void scheduler() {
-    if (current_thread) {
-        if (current_thread->status == thread_status::running)
-            current_thread->status = thread_status::runnable;
+    auto cb = get_cpu_block();
 
-        memcpy(&current_thread->context, &thread_context, sizeof(thread_context));
+    if (cb->current_thread) {
+        if (cb->current_thread->status == thread_status::running)
+            cb->current_thread->status = thread_status::runnable;
 
-        if (current_thread->status == thread_status::dead) {
+        memcpy(&cb->current_thread->context, &cb->thread_context, sizeof(amd64_context));
+
+        if (cb->current_thread->status == thread_status::dead) {
             acquire_sync_lock();
-            remove_entry_list(current_thread->le);
+            remove_entry_list(cb->current_thread->le);
             release_sync_lock();
 
-            current_thread->release();
+            cb->current_thread->release();
 
-            current_thread = nullptr;
+            cb->current_thread = nullptr;
         }
     }
 
     do {
         acquire_sync_lock();
-        current_thread = pick_runnable_thread(current_thread);
+        cb->current_thread = pick_runnable_thread(cb->current_thread);
         release_sync_lock();
 
-        if (current_thread) {
-            memcpy(&thread_context, &current_thread->context, sizeof(thread_context));
-            current_thread->status = thread_status::running;
-            time_slice_left = time_slice;
+        if (cb->current_thread) {
+            memcpy(&cb->thread_context, &cb->current_thread->context, sizeof(amd64_context));
+            cb->current_thread->status = thread_status::running;
+            cb->time_slice_left = time_slice;
             __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
         }
 
@@ -289,6 +288,8 @@ thread::~thread() {
 }
 
 void wait_for_object(handle_t h) {
+    auto current_thread = get_current_thread();
+
     __asm("cli");
 
     auto objrw = deref_handle(h);
@@ -353,6 +354,7 @@ bool init_cpu_block() {
     }
 
     cb.self = &cb;
+    cb.current_thread = nullptr;
 
     __asm __volatile(
         "mov ecx, 0xc0000101\n\t"

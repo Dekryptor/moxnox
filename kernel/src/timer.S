@@ -4,11 +4,11 @@
 
 .global timer_isr # FIXME - needs own stack
 timer_isr:
-    cmp QWORD PTR [rip+current_thread], 0
+    cmp QWORD PTR gs:0x8, 0 # current thread
     je timer_isr_nop
 
-    dec QWORD PTR [rip+time_slice_left]
-    cmp QWORD PTR [rip+time_slice_left], 0
+    dec QWORD PTR gs:0x10
+    cmp QWORD PTR gs:0x10, 0
     jne timer_isr_nop
 
     save_context
@@ -25,27 +25,27 @@ timer_isr_nop:
 
 .global scheduler_restore
 scheduler_restore:
-    mov rax, [rip+thread_context]
-    mov rcx, [rip+thread_context+0x08]
-    mov rdx, [rip+thread_context+0x10]
-    mov rbx, [rip+thread_context+0x18]
-    mov rbp, [rip+thread_context+0x28]
-    mov rsi, [rip+thread_context+0x30]
-    mov rdi, [rip+thread_context+0x38]
-    mov r8, [rip+thread_context+0x40]
-    mov r9, [rip+thread_context+0x48]
-    mov r10, [rip+thread_context+0x50]
-    mov r11, [rip+thread_context+0x58]
-    mov r12, [rip+thread_context+0x60]
-    mov r13, [rip+thread_context+0x68]
-    mov r14, [rip+thread_context+0x70]
-    mov r15, [rip+thread_context+0x78]
+    mov rax, gs:0x18
+    mov rcx, gs:0x20
+    mov rdx, gs:0x28
+    mov rbx, gs:0x30
+    mov rbp, gs:0x40
+    mov rsi, gs:0x48
+    mov rdi, gs:0x50
+    mov r8, gs:0x58
+    mov r9, gs:0x60
+    mov r10, gs:0x68
+    mov r11, gs:0x70
+    mov r12, gs:0x78
+    mov r13, gs:0x80
+    mov r14, gs:0x88
+    mov r15, gs:0x90
     # FIXME - other segments, debug registers, FXSAVE
-    push [rip+thread_context+0x98] # ss
-    push [rip+thread_context+0x20] # rsp
-    push [rip+thread_context+0x88] # RFLAGS
-    push [rip+thread_context+0x90] # cs
-    push [rip+thread_context+0x80] # rip
+    push gs:0xb0 # ss
+    push gs:0x38 # rsp
+    push gs:0xa0 # RFLAGS
+    push gs:0xa8 # cs
+    push gs:0x98 # rip
     iretq
 
 .global yield
@@ -53,28 +53,28 @@ yield:
     pushfq
     or QWORD PTR [rsp], 0x200 # set interrupt enable flag in stored RFLAGS
     cli
-    mov [rip+thread_context], rax
-    mov [rip+thread_context+0x08], rcx
-    mov [rip+thread_context+0x10], rdx
-    mov [rip+thread_context+0x18], rbx
+    mov gs:0x18, rax
+    mov gs:0x20, rcx
+    mov gs:0x28, rdx
+    mov gs:0x30, rbx
     lea rax, [rsp+0x10]
-    mov [rip+thread_context+0x20], rax # rsp
-    mov [rip+thread_context+0x28], rbp
-    mov [rip+thread_context+0x30], rsi
-    mov [rip+thread_context+0x38], rdi
-    mov [rip+thread_context+0x40], r8
-    mov [rip+thread_context+0x48], r9
-    mov [rip+thread_context+0x50], r10
-    mov [rip+thread_context+0x58], r11
-    mov [rip+thread_context+0x60], r12
-    mov [rip+thread_context+0x68], r13
-    mov [rip+thread_context+0x70], r14
-    mov [rip+thread_context+0x78], r15
+    mov gs:0x38, rax # rsp
+    mov gs:0x40, rbp
+    mov gs:0x48, rsi
+    mov gs:0x50, rdi
+    mov gs:0x58, r8
+    mov gs:0x60, r9
+    mov gs:0x68, r10
+    mov gs:0x70, r11
+    mov gs:0x78, r12
+    mov gs:0x80, r13
+    mov gs:0x88, r14
+    mov gs:0x90, r15
     mov rax, [rsp+0x8]
-    mov [rip+thread_context+0x80], rax # rip of instruction after call
-    pop [rip+thread_context+0x88] # RFLAGS
-    mov [rip+thread_context+0x90], cs
-    mov [rip+thread_context+0x98], ss
+    mov gs:0x98, rax # rip of instruction after call
+    pop gs:0xa0 # RFLAGS
+    mov gs:0xa8, cs
+    mov gs:0xb0, ss
     # FIXME - other segments, debug registers, FXSAVE
     jmp scheduler
 
@@ -106,4 +106,9 @@ pit_delay:
     in al, 0x40
     test al, 0x80
     je 0b # loop again if not yet signalled
+    ret
+
+.global get_cpu_block
+get_cpu_block:
+    mov rax, gs:0
     ret
