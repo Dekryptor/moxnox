@@ -96,13 +96,9 @@ static void ap_startup() {
 
     init_cpu_block();
 
-    // FIXME - scheduler
-
     ap_left--;
 
-    __asm("sti");
-
-    while (1) { }
+    scheduler(); // doesn't return
 }
 
 static uint8_t current_cpu_id() {
