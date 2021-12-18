@@ -96,10 +96,10 @@ span<const uint8_t> find_madt() {
 
 static uint64_t find_ioapic(span<const uint8_t> data) {
     while (data.size() > 2) {
-        auto type = data[0];
+        auto type = (enum madt_type)data[0];
         auto length = data[1];
 
-        if (type == 1 && length >= 2 + sizeof(madt_ioapic)) { // I/O APIC
+        if (type == madt_type::io_apic && length >= 2 + sizeof(madt_ioapic)) {
             auto& ent = *(madt_ioapic*)&data[2];
 
             return ent.address;
@@ -119,10 +119,10 @@ static uint32_t get_irq_gsi(uint8_t irq) {
     // check source overrides in MADT
 
     while (data.size() > 2) {
-        auto type = data[0];
+        auto type = (enum madt_type)data[0];
         auto length = data[1];
 
-        if (type == 2 && length >= 2 + sizeof(madt_source_override)) { // source override
+        if (type == madt_type::interrupt_source_override && length >= 2 + sizeof(madt_source_override)) {
             auto& ent = *(madt_source_override*)&data[2];
 
             if (ent.bus_source == 0 && ent.irq_source == irq)
