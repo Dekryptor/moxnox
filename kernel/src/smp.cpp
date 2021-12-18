@@ -1,5 +1,8 @@
 #include "kernel.h"
 #include "acpi.h"
+#include <atomic>
+
+using namespace std;
 
 // in smp.S
 extern uint8_t ap_trampoline;
@@ -8,6 +11,8 @@ extern uint8_t ap_trampoline_cr3;
 extern uint64_t ap_trampoline_start_func;
 
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
+
+static atomic<unsigned int> ap_left;
 
 static void start_ap(uint8_t i) {
     // FIXME - should we be disabling interrupts here?
@@ -59,6 +64,8 @@ static void ap_startup() {
     // FIXME - IDT
     // FIXME - LAPIC timer
     // FIXME - scheduler
+
+    ap_left--;
 
     while (1) { }
 }
@@ -145,6 +152,8 @@ void init_smp() {
 
     *ap_start_func = (uintptr_t)ap_startup;
 
+    ap_left = ap_count;
+
     data = madt;
     while (data.size() > 2) {
         auto type = (enum madt_type)data[0];
@@ -163,6 +172,10 @@ void init_smp() {
         data = data.subspan(length);
     }
 
-    // FIXME - wait for APs to initialize
-    // FIXME - unmap VA 0
+    while (ap_left > 0) {
+        __asm("pause");
+    }
+
+    unmap_page(0);
+    // FIXME - now mark PA page 0 as free?
 }
