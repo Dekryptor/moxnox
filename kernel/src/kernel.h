@@ -75,6 +75,7 @@ extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);
 void wait_for_object(handle_t h);
+bool init_cpu_block();
 
 // handle.cpp
 handle_t add_handle(object& obj, uint32_t access_mask);

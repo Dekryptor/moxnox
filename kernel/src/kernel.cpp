@@ -69,6 +69,9 @@ void startup(loader_block* lb) {
     if (!init_interrupts())
         goto hang;
 
+    if (!init_cpu_block())
+        goto hang;
+
     if (!add_kernel_thread(main_thread))
         goto hang;
 

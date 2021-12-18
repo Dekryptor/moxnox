@@ -2,6 +2,7 @@
 #include "objects.h"
 #include <cstdlib>
 #include <optional>
+#include <atomic>
 
 using namespace std;
 
@@ -13,12 +14,18 @@ static const uint64_t time_slice = 50; // ticks
 
 static const uint64_t thread_stack_block = 0xfffffa1000000000;
 
-list_entry thread_list = { &thread_list, &thread_list };
+static list_entry thread_list = { &thread_list, &thread_list };
+
+static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
 // FIXME - SMP
 amd64_context thread_context;
 thread* current_thread = nullptr;
 uint64_t time_slice_left;
+
+struct cpu_block {
+    cpu_block* self;
+};
 
 volatile uint64_t sync_lock = 0;
 
@@ -323,4 +330,40 @@ void wait_for_object(handle_t h) {
     release_sync_lock();
 
     yield();
+}
+
+bool init_cpu_block() {
+    auto pages = bytes_to_pages(sizeof(cpu_block));
+    auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);
+    auto& cb = *(cpu_block*)va;
+
+    for (unsigned int i = 0; i < pages; i++) {
+        auto pa = allocate_page();
+        if (!pa) {
+            print("allocate_page failed\n");
+            return false;
+        }
+
+        if (!map_page(pa, va)) {
+            print("map_page failed\n");
+            return false;
+        }
+
+        va += PAGE_SIZE;
+    }
+
+    cb.self = &cb;
+
+    __asm __volatile(
+        "mov ecx, 0xc0000101\n\t"
+        "mov rax, %0\n\t"
+        "mov rdx, %0\n\t"
+        "shr rdx, 32\n\t"
+        "wrmsr\n\t"
+        :
+        : "m" (&cb)
+        : "ecx", "rax", "rdx"
+    );
+
+    return true;
 }
