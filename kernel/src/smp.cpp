@@ -93,6 +93,8 @@ static void ap_startup() {
 
     init_lapic_timer(true);
 
+    init_cpu_block();
+
     // FIXME - scheduler
 
     ap_left--;
