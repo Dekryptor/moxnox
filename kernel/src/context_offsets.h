@@ -1,5 +1,6 @@
 #pragma once
 
+#define GS_HANDLE_TIMERS 0x18
 #define GS_CONTEXT 0x20
 
 #define CONTEXT_RAX 0x00
@@ -23,3 +24,6 @@
 #define CONTEXT_CS 0x90
 #define CONTEXT_SS 0x98
 #define CONTEXT_FXSAVE 0xa0
+
+#define TIMER_LE 0x10
+#define TIMER_TICKS_LEFT 0x20

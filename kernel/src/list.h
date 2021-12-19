@@ -1,9 +1,9 @@
 #pragma once
 
-typedef struct _list_entry {
-    struct _list_entry* prev;
-    struct _list_entry* next;
-} list_entry;
+struct list_entry {
+    struct list_entry* next;
+    struct list_entry* prev;
+};
 
 template<typename T>
 T& containing_record(list_entry* le) {

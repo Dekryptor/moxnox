@@ -4,19 +4,70 @@
 
 .global timer_isr # FIXME - needs own stack
 timer_isr:
+    # FIXME - different ISR for CPUs not handling timers?
+    cmp BYTE PTR gs:GS_HANDLE_TIMERS, 0 # only handle timers on one CPU
+    je Ltimer_isr_threads
+
+    push rax
+    push rcx
+    push rdx
+    call acquire_sync_lock
+
+    mov rax, [rip+active_timer_list] # set rax to active_timer_list.next
+    lea rcx, [rip+active_timer_list] # set rcx to &active_timer_list
+
+Ltimer_isr_loop_start:
+    cmp rax, rcx
+    je Ltimer_isr_loop_end
+
+    mov rdx, [rax] # set rdx to le->next
+    sub rax, TIMER_LE
+
+    dec QWORD PTR [rax+TIMER_TICKS_LEFT] # reduce ticks_left
+    cmp QWORD PTR [rax+TIMER_TICKS_LEFT], 0
+    jne Ltimer_isr_not_expired
+
+    push rax
+    push rcx
+    push rdx
+    push r8
+    push r9
+    push r10
+    push r11
+    mov rcx, rax
+    call timer_expired
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+
+Ltimer_isr_not_expired:
+    mov rax, rdx
+    jmp Ltimer_isr_loop_start
+
+Ltimer_isr_loop_end:
+    call release_sync_lock
+    pop rdx
+    pop rcx
+    pop rax
+
+Ltimer_isr_threads:
     cmp QWORD PTR gs:0x8, 0 # current thread
-    je timer_isr_nop
+    je Ltimer_isr_nop
 
     dec QWORD PTR gs:0x10 # time slice left
     cmp QWORD PTR gs:0x10, 0
-    jne timer_isr_nop
+    jne Ltimer_isr_nop
 
     save_context
     xor rax, rax
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
     jmp scheduler
 
-timer_isr_nop:
+Ltimer_isr_nop:
     push rax
     xor rax, rax
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
@@ -81,7 +132,7 @@ yield:
     jmp scheduler
 
 .global acquire_sync_lock
-acquire_sync_lock:
+acquire_sync_lock: # clobbers rax
     mov rax, 1
     xchg [rip+sync_lock], rax
     test rax, rax
@@ -89,7 +140,7 @@ acquire_sync_lock:
     ret
 
 .global release_sync_lock
-release_sync_lock:
+release_sync_lock: # clobbers rax
     xor rax, rax
     xchg [rip+sync_lock], rax
     ret

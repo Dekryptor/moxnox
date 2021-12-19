@@ -39,12 +39,33 @@ static void thread_test() {
     }
 }
 
+static void timer_test() {
+    handle_t h;
+
+    if (!create_timer(&h)) {
+        print("create_timer failed\n");
+        return;
+    }
+
+    print("Waiting...\n");
+
+    set_timer(h, 5000);
+
+    wait_for_object(h);
+
+    print("Timer fired.\n");
+
+    close_handle(h);
+}
+
 void main_thread(void*) {
     thread_test(); // FIXME
 
     init_smp();
 
     protect_kernel_pages();
+
+    timer_test(); // FIXME
 
     while (1) { }
 }
@@ -71,7 +92,7 @@ void startup(loader_block* lb) {
     if (!init_interrupts())
         goto hang;
 
-    if (!init_cpu_block())
+    if (!init_cpu_block(true))
         goto hang;
 
     if (!add_kernel_thread(main_thread))

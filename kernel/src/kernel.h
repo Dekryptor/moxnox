@@ -16,6 +16,7 @@ class thread;
 class object;
 typedef struct _amd64_context amd64_context;
 struct cpu_block;
+struct list_entry;
 
 static const uint32_t PIT_HZ = 1193182;
 
@@ -76,14 +77,17 @@ extern "C" void pit_delay(uint16_t delay);
 // timer.cpp
 void init_timer();
 void init_lapic_timer(bool set_div);
+bool create_timer(handle_t* h);
+void set_timer(handle_t h, uint64_t timeout);
 
 // scheduler.cpp
+extern list_entry thread_list;
 bool add_kernel_thread(void (*func)(void*), void* param = nullptr, handle_t* handle = nullptr);
 extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);
 void wait_for_object(handle_t h);
-bool init_cpu_block();
+bool init_cpu_block(bool handle_timers);
 thread* get_current_thread();
 
 // handle.cpp

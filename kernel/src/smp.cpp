@@ -84,7 +84,7 @@ static void ap_startup() {
 
     init_lapic_timer(true);
 
-    init_cpu_block();
+    init_cpu_block(false);
 
     ap_left--;
 

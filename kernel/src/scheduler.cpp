@@ -15,7 +15,7 @@ static const uint64_t time_slice = 50; // ticks
 
 static const uint64_t thread_stack_block = 0xfffffa1000000000;
 
-static list_entry thread_list = { &thread_list, &thread_list };
+list_entry thread_list = { &thread_list, &thread_list };
 
 static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
@@ -336,7 +336,7 @@ void wait_for_object(handle_t h) {
     yield();
 }
 
-bool init_cpu_block() {
+bool init_cpu_block(bool handle_timers) {
     auto pages = bytes_to_pages(sizeof(cpu_block));
     auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);
     auto& cb = *(cpu_block*)va;
@@ -358,6 +358,7 @@ bool init_cpu_block() {
 
     cb.self = &cb;
     cb.current_thread = nullptr;
+    cb.handle_timers = handle_timers;
 
     __asm __volatile(
         "mov ecx, 0xc0000101\n\t"
