@@ -1,0 +1,24 @@
+#pragma once
+
+#define GS_CONTEXT 0x18
+
+#define CONTEXT_RAX 0x00
+#define CONTEXT_RCX 0x08
+#define CONTEXT_RDX 0x10
+#define CONTEXT_RBX 0x18
+#define CONTEXT_RSP 0x20
+#define CONTEXT_RBP 0x28
+#define CONTEXT_RSI 0x30
+#define CONTEXT_RDI 0x38
+#define CONTEXT_R8 0x40
+#define CONTEXT_R9 0x48
+#define CONTEXT_R10 0x50
+#define CONTEXT_R11 0x58
+#define CONTEXT_R12 0x60
+#define CONTEXT_R13 0x68
+#define CONTEXT_R14 0x70
+#define CONTEXT_R15 0x78
+#define CONTEXT_RIP 0x80
+#define CONTEXT_RFLAGS 0x88
+#define CONTEXT_CS 0x90
+#define CONTEXT_SS 0x98

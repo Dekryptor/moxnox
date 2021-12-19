@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "list.h"
+#include "context_offsets.h"
 
 // FIXME - make compatible with NT version
 typedef struct _amd64_context {
@@ -30,26 +31,26 @@ typedef struct _amd64_context {
     // FIXME - other segments
 } amd64_context;
 
-static_assert(offsetof(amd64_context, rax) == 0x00);
-static_assert(offsetof(amd64_context, rcx) == 0x08);
-static_assert(offsetof(amd64_context, rdx) == 0x10);
-static_assert(offsetof(amd64_context, rbx) == 0x18);
-static_assert(offsetof(amd64_context, rsp) == 0x20);
-static_assert(offsetof(amd64_context, rbp) == 0x28);
-static_assert(offsetof(amd64_context, rsi) == 0x30);
-static_assert(offsetof(amd64_context, rdi) == 0x38);
-static_assert(offsetof(amd64_context, r8) == 0x40);
-static_assert(offsetof(amd64_context, r9) == 0x48);
-static_assert(offsetof(amd64_context, r10) == 0x50);
-static_assert(offsetof(amd64_context, r11) == 0x58);
-static_assert(offsetof(amd64_context, r12) == 0x60);
-static_assert(offsetof(amd64_context, r13) == 0x68);
-static_assert(offsetof(amd64_context, r14) == 0x70);
-static_assert(offsetof(amd64_context, r15) == 0x78);
-static_assert(offsetof(amd64_context, rip) == 0x80);
-static_assert(offsetof(amd64_context, rflags) == 0x88);
-static_assert(offsetof(amd64_context, cs) == 0x90);
-static_assert(offsetof(amd64_context, ss) == 0x98);
+static_assert(offsetof(amd64_context, rax) == CONTEXT_RAX);
+static_assert(offsetof(amd64_context, rcx) == CONTEXT_RCX);
+static_assert(offsetof(amd64_context, rdx) == CONTEXT_RDX);
+static_assert(offsetof(amd64_context, rbx) == CONTEXT_RBX);
+static_assert(offsetof(amd64_context, rsp) == CONTEXT_RSP);
+static_assert(offsetof(amd64_context, rbp) == CONTEXT_RBP);
+static_assert(offsetof(amd64_context, rsi) == CONTEXT_RSI);
+static_assert(offsetof(amd64_context, rdi) == CONTEXT_RDI);
+static_assert(offsetof(amd64_context, r8) == CONTEXT_R8);
+static_assert(offsetof(amd64_context, r9) == CONTEXT_R9);
+static_assert(offsetof(amd64_context, r10) == CONTEXT_R10);
+static_assert(offsetof(amd64_context, r11) == CONTEXT_R11);
+static_assert(offsetof(amd64_context, r12) == CONTEXT_R12);
+static_assert(offsetof(amd64_context, r13) == CONTEXT_R13);
+static_assert(offsetof(amd64_context, r14) == CONTEXT_R14);
+static_assert(offsetof(amd64_context, r15) == CONTEXT_R15);
+static_assert(offsetof(amd64_context, rip) == CONTEXT_RIP);
+static_assert(offsetof(amd64_context, rflags) == CONTEXT_RFLAGS);
+static_assert(offsetof(amd64_context, cs) == CONTEXT_CS);
+static_assert(offsetof(amd64_context, ss) == CONTEXT_SS);
 
 enum class thread_status {
     runnable,

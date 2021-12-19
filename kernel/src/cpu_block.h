@@ -1,5 +1,7 @@
 #pragma once
 
+#include "context_offsets.h"
+
 struct cpu_block {
     cpu_block* self;
     thread* current_thread;
@@ -9,7 +11,7 @@ struct cpu_block {
 
 static_assert(offsetof(cpu_block, current_thread) == 0x8);
 static_assert(offsetof(cpu_block, time_slice_left) == 0x10);
-static_assert(offsetof(cpu_block, thread_context) == 0x18);
+static_assert(offsetof(cpu_block, thread_context) == GS_CONTEXT);
 
 // timer.S
 extern "C" cpu_block* get_cpu_block();

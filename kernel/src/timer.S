@@ -7,7 +7,7 @@ timer_isr:
     cmp QWORD PTR gs:0x8, 0 # current thread
     je timer_isr_nop
 
-    dec QWORD PTR gs:0x10
+    dec QWORD PTR gs:0x10 # time slice left
     cmp QWORD PTR gs:0x10, 0
     jne timer_isr_nop
 
@@ -25,27 +25,27 @@ timer_isr_nop:
 
 .global scheduler_restore
 scheduler_restore:
-    mov rax, gs:0x18
-    mov rcx, gs:0x20
-    mov rdx, gs:0x28
-    mov rbx, gs:0x30
-    mov rbp, gs:0x40
-    mov rsi, gs:0x48
-    mov rdi, gs:0x50
-    mov r8, gs:0x58
-    mov r9, gs:0x60
-    mov r10, gs:0x68
-    mov r11, gs:0x70
-    mov r12, gs:0x78
-    mov r13, gs:0x80
-    mov r14, gs:0x88
-    mov r15, gs:0x90
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
+    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
+    mov rbx, gs:GS_CONTEXT + CONTEXT_RBX
+    mov rbp, gs:GS_CONTEXT + CONTEXT_RBP
+    mov rsi, gs:GS_CONTEXT + CONTEXT_RSI
+    mov rdi, gs:GS_CONTEXT + CONTEXT_RDI
+    mov r8, gs:GS_CONTEXT + CONTEXT_R8
+    mov r9, gs:GS_CONTEXT + CONTEXT_R9
+    mov r10, gs:GS_CONTEXT + CONTEXT_R10
+    mov r11, gs:GS_CONTEXT + CONTEXT_R11
+    mov r12, gs:GS_CONTEXT + CONTEXT_R12
+    mov r13, gs:GS_CONTEXT + CONTEXT_R13
+    mov r14, gs:GS_CONTEXT + CONTEXT_R14
+    mov r15, gs:GS_CONTEXT + CONTEXT_R15
     # FIXME - other segments, debug registers, FXSAVE
-    push gs:0xb0 # ss
-    push gs:0x38 # rsp
-    push gs:0xa0 # RFLAGS
-    push gs:0xa8 # cs
-    push gs:0x98 # rip
+    push gs:GS_CONTEXT + CONTEXT_SS # ss
+    push gs:GS_CONTEXT + CONTEXT_RSP # rsp
+    push gs:GS_CONTEXT + CONTEXT_RFLAGS # RFLAGS
+    push gs:GS_CONTEXT + CONTEXT_CS # cs
+    push gs:GS_CONTEXT + CONTEXT_RIP # rip
     iretq
 
 .global yield
@@ -53,28 +53,28 @@ yield:
     pushfq
     or QWORD PTR [rsp], 0x200 # set interrupt enable flag in stored RFLAGS
     cli
-    mov gs:0x18, rax
-    mov gs:0x20, rcx
-    mov gs:0x28, rdx
-    mov gs:0x30, rbx
+    mov gs:GS_CONTEXT + CONTEXT_RAX, rax
+    mov gs:GS_CONTEXT + CONTEXT_RCX, rcx
+    mov gs:GS_CONTEXT + CONTEXT_RDX, rdx
+    mov gs:GS_CONTEXT + CONTEXT_RBX, rbx
     lea rax, [rsp+0x10]
-    mov gs:0x38, rax # rsp
-    mov gs:0x40, rbp
-    mov gs:0x48, rsi
-    mov gs:0x50, rdi
-    mov gs:0x58, r8
-    mov gs:0x60, r9
-    mov gs:0x68, r10
-    mov gs:0x70, r11
-    mov gs:0x78, r12
-    mov gs:0x80, r13
-    mov gs:0x88, r14
-    mov gs:0x90, r15
+    mov gs:GS_CONTEXT + CONTEXT_RSP, rax # rsp
+    mov gs:GS_CONTEXT + CONTEXT_RBP, rbp
+    mov gs:GS_CONTEXT + CONTEXT_RSI, rsi
+    mov gs:GS_CONTEXT + CONTEXT_RDI, rdi
+    mov gs:GS_CONTEXT + CONTEXT_R8, r8
+    mov gs:GS_CONTEXT + CONTEXT_R9, r9
+    mov gs:GS_CONTEXT + CONTEXT_R10, r10
+    mov gs:GS_CONTEXT + CONTEXT_R11, r11
+    mov gs:GS_CONTEXT + CONTEXT_R12, r12
+    mov gs:GS_CONTEXT + CONTEXT_R13, r13
+    mov gs:GS_CONTEXT + CONTEXT_R14, r14
+    mov gs:GS_CONTEXT + CONTEXT_R15, r15
     mov rax, [rsp+0x8]
-    mov gs:0x98, rax # rip of instruction after call
-    pop gs:0xa0 # RFLAGS
-    mov gs:0xa8, cs
-    mov gs:0xb0, ss
+    mov gs:GS_CONTEXT + CONTEXT_RIP, rax # rip of instruction after call
+    pop gs:GS_CONTEXT + CONTEXT_RFLAGS # RFLAGS
+    mov gs:GS_CONTEXT + CONTEXT_CS, cs
+    mov gs:GS_CONTEXT + CONTEXT_SS, ss
     # FIXME - other segments, debug registers, FXSAVE
     jmp scheduler
 
