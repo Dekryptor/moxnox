@@ -68,6 +68,8 @@ bool create_timer(handle_t* h) {
 
     *h = add_handle(t, 0); // FIXME - access mask
 
+    t.release(); // add_handle increases refcount
+
     return true;
 }
 
@@ -84,6 +86,11 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
     if (obj.type != object_type::timer) {
         // FIXME - exception
         print("Not a timer\n");
+
+        visit_obj(obj, [](auto&& o) {
+            o.release();
+        });
+
         return;
     }
 
@@ -98,6 +105,7 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
     t.periodic = periodic;
 
     insert_tail_list(active_timer_list, t.le);
+    // no need to increase refcount, t already acquired by deref_handle
 
     release_sync_lock();
 }
@@ -138,6 +146,7 @@ void timer_expired(timer* tptr) {
 
     if (!t.periodic) {
         remove_entry_list(t.le);
+        t.release();
         return;
     }
 
