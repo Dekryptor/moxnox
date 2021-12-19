@@ -79,9 +79,9 @@ Lenter_long_mode:
     or eax, 0x900
     wrmsr
 
-    # enable paging
+    # enable paging and WP bit
     mov eax, cr0
-    or eax, 0x80000000
+    or eax, 0x80010000
     mov cr0, eax
 
     # load 64-bit GDT
