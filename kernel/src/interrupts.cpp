@@ -442,9 +442,11 @@ void invalid_opcode() {
 }
 
 extern "C"
-void keyboard_isr_func() {
-    print("Keyboard\n");
+void keyboard_isr_func(uint8_t code) {
+    print("Keyboard ");
+    print_hex(code);
+    print("\n");
 
-    // FIXME - get value and add to buffer
+    // FIXME - add to buffer
     // FIXME - wake up any threads waiting for key press
 }

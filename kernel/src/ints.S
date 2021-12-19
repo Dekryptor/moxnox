@@ -61,6 +61,8 @@ keyboard_isr:
     push r10
     push r11
 
+    in al, 0x60
+    mov cl, al
     call keyboard_isr_func
 
     xor rax, rax
