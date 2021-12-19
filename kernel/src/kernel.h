@@ -78,7 +78,7 @@ extern "C" void pit_delay(uint16_t delay);
 void init_timer();
 void init_lapic_timer(bool set_div);
 bool create_timer(handle_t* h);
-void set_timer(handle_t h, uint64_t timeout);
+void set_timer(handle_t h, uint64_t timeout, bool periodic);
 
 // scheduler.cpp
 extern list_entry thread_list;

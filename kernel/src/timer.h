@@ -18,6 +18,8 @@ public:
     bool signalled = false;
     list_entry le;
     uint64_t ticks_left;
+    uint64_t orig_ticks;
+    bool periodic;
 };
 
 static_assert(is_sync_object<timer>);

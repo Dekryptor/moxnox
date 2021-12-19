@@ -49,7 +49,7 @@ static void timer_test() {
 
     print("Waiting...\n");
 
-    set_timer(h, 5000);
+    set_timer(h, 5000, false);
 
     wait_for_object(h);
 

@@ -71,9 +71,7 @@ bool create_timer(handle_t* h) {
     return true;
 }
 
-void set_timer(handle_t h, uint64_t timeout) {
-    // FIXME - periodic timers
-
+void set_timer(handle_t h, uint64_t timeout, bool periodic) {
     auto objrw = deref_handle(h);
     if (!objrw) {
         // FIXME - exception
@@ -93,10 +91,14 @@ void set_timer(handle_t h, uint64_t timeout) {
 
     // FIXME - remove from list if already there
 
-    t.ticks_left = timeout; // FIXME - should be 100ns units (and floor at one)
-
     acquire_sync_lock();
+
+    t.ticks_left = t.orig_ticks = timeout; // FIXME - should be 100ns units (and floor at one)
+    t.signalled = false;
+    t.periodic = periodic;
+
     insert_tail_list(active_timer_list, t.le);
+
     release_sync_lock();
 }
 
@@ -125,12 +127,20 @@ void timer_expired(timer* tptr) {
         }
     }
 
+    // if periodic, only signal if nothing waiting when fired
+    if (!t.periodic || release_count == 0)
+        t.signalled = true;
+
     // FIXME - how can we do this outside of lock?
     for (unsigned int i = 0; i < release_count; i++) {
         t.release();
     }
 
-    // FIXME - start going again if periodic, and leave in list
+    if (!t.periodic) {
+        remove_entry_list(t.le);
+        return;
+    }
 
-    remove_entry_list(t.le);
+    t.ticks_left = t.orig_ticks;
+    t.signalled = false;
 }
