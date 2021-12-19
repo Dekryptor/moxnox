@@ -51,6 +51,7 @@ static void putc(uint8_t x, uint8_t y, char c) {
 
 static void overflow() {
     memcpy(video.data(), &video[COLS], (ROWS - 1) * COLS * sizeof(uint16_t));
+    memset(video.data() + ((ROWS - 1) * COLS), 0, COLS * sizeof(uint16_t));
     cursor_y = ROWS - 1;
 }
 
