@@ -203,7 +203,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 #pragma GCC diagnostic pop
     pt_entry.Valid = 1;
     pt_entry.Write = 1;
-//     pt_entry.NoExecute = 1; // FIXME - why doesn't NX let us write?
+    pt_entry.NoExecute = 1;
 
     return true;
 }
