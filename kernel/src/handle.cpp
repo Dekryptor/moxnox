@@ -25,7 +25,7 @@ handle_t add_handle(object& obj, uint32_t access_mask) {
             return 0;
         }
 
-        if (!map_page(pa, (uintptr_t)handle_arr + (handle_arr_pages << PAGE_SHIFT))) {
+        if (!map_page(pa, (uintptr_t)handle_arr + (handle_arr_pages << PAGE_SHIFT), mapping_type::read_write)) {
             // FIXME - exception
             print("map_page failed\n");
             free_page(pa);

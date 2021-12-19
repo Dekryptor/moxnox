@@ -107,7 +107,7 @@ void print_hex(uint64_t num, unsigned int padding) {
 }
 
 bool init_console() {
-    if (!map_page(CONSOLE_PA, (uintptr_t)video.data()))
+    if (!map_page(CONSOLE_PA, (uintptr_t)video.data(), mapping_type::read_write))
         return false;
 
     // clear console

@@ -106,7 +106,7 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
             return false;
         }
 
-        if (!map_page(pa, (uintptr_t)stack + (i << PAGE_SHIFT))) {
+        if (!map_page(pa, (uintptr_t)stack + (i << PAGE_SHIFT), mapping_type::read_write)) {
             print("map_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
@@ -348,7 +348,7 @@ bool init_cpu_block() {
             return false;
         }
 
-        if (!map_page(pa, va)) {
+        if (!map_page(pa, va, mapping_type::read_write)) {
             print("map_page failed\n");
             return false;
         }

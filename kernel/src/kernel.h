@@ -27,9 +27,16 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
 
 using handle_t = uint64_t;
 
+enum class mapping_type {
+    read_write,
+    read_only,
+    read_write_execute,
+    no_cache
+};
+
 // mem.cpp
 bool init_memory(const loader_block& lb);
-bool map_page(uint64_t pa, uint64_t va);
+bool map_page(uint64_t pa, uint64_t va, enum mapping_type type);
 uint64_t allocate_page();
 void unmap_and_free_page(uint64_t va);
 void free_page(uint64_t pa);

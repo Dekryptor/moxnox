@@ -73,10 +73,10 @@ Lenter_long_mode:
     mov eax, [ap_trampoline_cr3 - ap_trampoline]
     mov cr3, eax
 
-    # enable long mode
+    # enable long mode and NX bit
     mov ecx, 0xc0000080
     rdmsr
-    or eax, 0x100
+    or eax, 0x900
     wrmsr
 
     # enable paging

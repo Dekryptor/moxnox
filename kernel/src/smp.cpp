@@ -128,7 +128,7 @@ void init_smp() {
                         return;
                     }
 
-                    if (!map_page(pa, va)) {
+                    if (!map_page(pa, va, mapping_type::read_write)) {
                         print("map_page failed\n");
                         // FIXME - deallocate what's already been allocated (or BSOD)
                         return;
@@ -150,7 +150,7 @@ void init_smp() {
     auto trampoline = (void*)0;
 
     // we already reserved page 0 in the bootloader
-    if (!map_page(0, (uintptr_t)trampoline)) {
+    if (!map_page(0, (uintptr_t)trampoline, mapping_type::read_write_execute)) {
         print("map_page failed\n");
         return;
     }

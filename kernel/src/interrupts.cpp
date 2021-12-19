@@ -206,7 +206,7 @@ static bool init_apic() {
 
     auto apic_base = rdmsr(IA32_APIC_BASE_MSR) & 0xfffff000;
 
-    if (!map_page(apic_base, (uintptr_t)local_apic)) {
+    if (!map_page(apic_base, (uintptr_t)local_apic, mapping_type::no_cache)) {
         print("map_page failed for local APIC\n");
         return false;
     }
@@ -223,7 +223,7 @@ static bool init_apic() {
     if (!io_apic_pa)
         return false;
 
-    if (!map_page(io_apic_pa, (uintptr_t)io_apic)) {
+    if (!map_page(io_apic_pa, (uintptr_t)io_apic, mapping_type::no_cache)) {
         print("map_page failed for I/O APIC\n");
         return false;
     }
@@ -261,7 +261,7 @@ static bool setup_idt() {
         return false;
     }
 
-    if (!map_page(idt_page, (uintptr_t)idt.data())) {
+    if (!map_page(idt_page, (uintptr_t)idt.data(), mapping_type::read_write)) {
         print("map_page failed for IDT\n");
         return false;
     }

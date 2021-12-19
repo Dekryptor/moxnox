@@ -235,7 +235,7 @@ uint64_t allocate_page() {
     return 0;
 }
 
-bool map_page(uint64_t pa, uint64_t va) {
+bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
     auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((va & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
     auto pdt = span((HARDWARE_PTE*)(SELFMAP_PDT | (((va & 0xffffc0000000) >> 30) << PAGE_SHIFT)), 512);
@@ -294,13 +294,34 @@ bool map_page(uint64_t pa, uint64_t va) {
 
     auto& pt_entry = pt[(va & 0x1ff000) >> PAGE_SHIFT];
 
+    *(uint64_t*)&pt_entry = 0;
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
     pt_entry.PageFrameNumber = pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
     pt_entry.Valid = 1;
-    pt_entry.Write = 1;
-    // FIXME - option to set NX bit etc.
+
+    switch (type) {
+        case mapping_type::read_write:
+            pt_entry.NoExecute = 1;
+            pt_entry.Write = 1;
+        break;
+
+        case mapping_type::read_only:
+            pt_entry.NoExecute = 1;
+        break;
+
+        case mapping_type::read_write_execute:
+            pt_entry.Write = 1;
+        break;
+
+        case mapping_type::no_cache:
+            pt_entry.NoExecute = 1;
+            pt_entry.Write = 1;
+            pt_entry.CacheDisable = 1;
+        break;
+    }
 
     return true;
 }
@@ -399,7 +420,7 @@ static bool copy_gdt() {
     if (pa == 0)
         return false;
 
-    if (!map_page(pa, (uintptr_t)gdt))
+    if (!map_page(pa, (uintptr_t)gdt, mapping_type::read_write))
         return false;
 
     __asm__ __volatile__ (
@@ -453,7 +474,7 @@ static bool copy_acpi(const loader_block& lb) {
         return false;
 
     for (unsigned int i = 0; i < needed_pages; i++) {
-        if (!map_page(pa + (i << PAGE_SHIFT), ((uintptr_t)acpi_tables) + (i << PAGE_SHIFT)))
+        if (!map_page(pa + (i << PAGE_SHIFT), ((uintptr_t)acpi_tables) + (i << PAGE_SHIFT), mapping_type::read_write))
             return false;
     }
 
@@ -659,7 +680,7 @@ void* malloc(size_t size) {
 
         auto va = (void*)(heap_block | (heap_pages << PAGE_SHIFT));
 
-        if (!map_page(pa, (uintptr_t)va)) {
+        if (!map_page(pa, (uintptr_t)va, mapping_type::read_write)) {
             print("map_page failed\n");
             return nullptr;
         }
