@@ -40,12 +40,13 @@ scheduler_restore:
     mov r13, gs:GS_CONTEXT + CONTEXT_R13
     mov r14, gs:GS_CONTEXT + CONTEXT_R14
     mov r15, gs:GS_CONTEXT + CONTEXT_R15
-    # FIXME - other segments, debug registers, FXSAVE
+    # FIXME - other segments, debug registers
     push gs:GS_CONTEXT + CONTEXT_SS # ss
     push gs:GS_CONTEXT + CONTEXT_RSP # rsp
     push gs:GS_CONTEXT + CONTEXT_RFLAGS # RFLAGS
     push gs:GS_CONTEXT + CONTEXT_CS # cs
     push gs:GS_CONTEXT + CONTEXT_RIP # rip
+    fxrstor gs:GS_CONTEXT + CONTEXT_FXSAVE
     iretq
 
 .global yield
@@ -75,7 +76,8 @@ yield:
     pop gs:GS_CONTEXT + CONTEXT_RFLAGS # RFLAGS
     mov gs:GS_CONTEXT + CONTEXT_CS, cs
     mov gs:GS_CONTEXT + CONTEXT_SS, ss
-    # FIXME - other segments, debug registers, FXSAVE
+    fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
+    # FIXME - other segments, debug registers
     jmp scheduler
 
 .global acquire_sync_lock

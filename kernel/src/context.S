@@ -26,7 +26,8 @@
     mov gs:GS_CONTEXT + CONTEXT_CS, rax # old cs
     mov rax, [rsp+0x20]
     mov gs:GS_CONTEXT + CONTEXT_SS, rax # old ss
-    # FIXME - other segments, debug registers, FXSAVE
+    # FIXME - other segments, debug registers
+    fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
 .endm
 
 .macro save_context_when_error_code # clobbers rax
@@ -55,5 +56,6 @@
     mov gs:GS_CONTEXT + CONTEXT_CS, rax # old cs
     mov rax, [rsp+0x28]
     mov gs:GS_CONTEXT + CONTEXT_SS, rax # old ss
-    # FIXME - other segments, debug registers, FXSAVE
+    # FIXME - other segments, debug registers
+    fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
 .endm

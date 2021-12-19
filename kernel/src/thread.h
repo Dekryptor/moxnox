@@ -24,12 +24,12 @@ typedef struct _amd64_context {
     uint64_t r14;
     uint64_t r15;
     uint64_t rip;
-    // FIXME - FXSAVE area
     uint64_t rflags;
     uint64_t cs;
     uint64_t ss;
     // FIXME - other segments
-} amd64_context;
+    char fxsave_area[512]  __attribute__ ((aligned (16)));
+} amd64_context __attribute__ ((aligned (16)));
 
 static_assert(offsetof(amd64_context, rax) == CONTEXT_RAX);
 static_assert(offsetof(amd64_context, rcx) == CONTEXT_RCX);
@@ -51,6 +51,7 @@ static_assert(offsetof(amd64_context, rip) == CONTEXT_RIP);
 static_assert(offsetof(amd64_context, rflags) == CONTEXT_RFLAGS);
 static_assert(offsetof(amd64_context, cs) == CONTEXT_CS);
 static_assert(offsetof(amd64_context, ss) == CONTEXT_SS);
+static_assert(offsetof(amd64_context, fxsave_area) == CONTEXT_FXSAVE); // must be aligned on 16-byte boundary
 
 enum class thread_status {
     runnable,
