@@ -30,6 +30,7 @@ using handle_t = uint64_t;
 enum class mapping_type {
     read_write,
     read_only,
+    read_execute,
     read_write_execute,
     no_cache
 };
@@ -41,6 +42,7 @@ uint64_t allocate_page();
 void unmap_and_free_page(uint64_t va);
 void free_page(uint64_t pa);
 void unmap_page(uint64_t va);
+void protect_page(uint64_t va, enum mapping_type type);
 
 // console.cpp
 bool init_console();
@@ -91,3 +93,6 @@ std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
 
 // smp.cpp
 void init_smp();
+
+// pe.cpp
+void protect_kernel_pages();

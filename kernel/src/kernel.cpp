@@ -44,6 +44,8 @@ void main_thread(void*) {
 
     init_smp();
 
+    protect_kernel_pages();
+
     while (1) { }
 }
 

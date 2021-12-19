@@ -312,6 +312,9 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
             pt_entry.NoExecute = 1;
         break;
 
+        case mapping_type::read_execute:
+        break;
+
         case mapping_type::read_write_execute:
             pt_entry.Write = 1;
         break;
@@ -764,4 +767,40 @@ void unmap_page(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
     pt_entry.Valid = 0;
+}
+
+void protect_page(uint64_t va, enum mapping_type type) {
+    auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
+
+    switch (type) {
+        case mapping_type::read_write:
+            pt_entry.NoExecute = 1;
+            pt_entry.Write = 1;
+            pt_entry.CacheDisable = 0;
+        break;
+
+        case mapping_type::read_only:
+            pt_entry.NoExecute = 1;
+            pt_entry.Write = 0;
+            pt_entry.CacheDisable = 0;
+        break;
+
+        case mapping_type::read_execute:
+            pt_entry.NoExecute = 0;
+            pt_entry.Write = 0;
+            pt_entry.CacheDisable = 0;
+        break;
+
+        case mapping_type::read_write_execute:
+            pt_entry.NoExecute = 0;
+            pt_entry.Write = 1;
+            pt_entry.CacheDisable = 0;
+        break;
+
+        case mapping_type::no_cache:
+            pt_entry.NoExecute = 1;
+            pt_entry.Write = 1;
+            pt_entry.CacheDisable = 1;
+        break;
+    }
 }

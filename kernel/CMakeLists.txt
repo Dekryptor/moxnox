@@ -17,7 +17,8 @@ set(SRC_FILES src/kernel.cpp
     src/scheduler.cpp
     src/handle.cpp
     src/smp.cpp
-    src/smp.S)
+    src/smp.S
+    src/pe.cpp)
 
 add_executable(kernel ${SRC_FILES})
 
