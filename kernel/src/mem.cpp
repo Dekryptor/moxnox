@@ -40,6 +40,9 @@ unsigned int acpi_count = 0;
 static const uint64_t heap_block = 0xfffffaf000000000;
 static unsigned int heap_pages = 0;
 
+static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
+static uint64_t vablock_size;
+
 struct alloc_header {
     uint32_t size : 31;
     uint32_t free : 1;
@@ -802,5 +805,161 @@ void protect_page(uint64_t va, enum mapping_type type) {
             pt_entry.Write = 1;
             pt_entry.CacheDisable = 1;
         break;
+    }
+}
+
+static void mark_vamem_as_used(uint64_t off, size_t pages) {
+    if (off & 63) {
+        auto& b = vablock[off >> 6];
+
+        while (off & 63 && pages != 0) {
+            b &= ~((uint64_t)1 << (63 - (off & 63)));
+            off++;
+            pages--;
+        }
+    }
+
+    if (pages == 0)
+        return;
+
+    memset(vablock + (off >> 6), 0, (pages >> 6) * sizeof(uint64_t));
+
+    if (pages & 63) {
+        off += pages & ~63;
+        pages &= 63;
+
+        auto& b = vablock[off >> 6];
+
+        while (pages != 0) {
+            b &= ~((uint64_t)1 << (63 - (off & 63)));
+            off++;
+            pages--;
+        }
+    }
+}
+
+bool init_vablock() {
+    vablock_size = memblock_size * 2;
+
+    // VA block reserved is 64 GB, don't go over this
+    if (vablock_size > 0x200000)
+        vablock_size = 0x200000;
+
+    auto pages = vablock_size >> PAGE_SHIFT;
+    auto va = (uintptr_t)vablock;
+
+    for (unsigned int i = 0; i < pages; i++) {
+        auto pa = allocate_page();
+        if (!pa) {
+            print("allocate_page failed\n");
+            return false;
+        }
+
+        if (!map_page(pa, va, mapping_type::read_write)) {
+            print("map_page failed\n");
+            return false;
+        }
+
+        va += PAGE_SIZE;
+    }
+
+    // 0 = used, 1 = free
+    memset(vablock, 0xff, vablock_size);
+
+    mark_vamem_as_used(0, pages);
+
+    return true;
+}
+
+static uint64_t leading_ones(uint64_t n) {
+    uint64_t ret = 0;
+
+    while (n & 0x8000000000000000) {
+        ret++;
+        n <<= 1;
+    }
+
+    return ret;
+}
+
+static uint64_t trailing_ones(uint64_t n) {
+    uint64_t ret = 0;
+
+    while (n & 1) {
+        ret++;
+        n >>= 1;
+    }
+
+    return ret;
+}
+
+uint64_t allocate_va(uint32_t pages) {
+    // FIXME - spinlock
+
+    auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
+    uint64_t run_start = 0;
+    uint64_t run_length = 0;
+    uint64_t mask;
+
+    if (pages < 64)
+        mask = (((uint64_t)1 << pages) - 1) << (uint64_t)(64 - pages);
+
+    for (uint64_t i = 0; i < mb.size(); i++) {
+        if (mb[i] & 0x8000000000000000) {
+            if (run_length == 0)
+                run_start = i * 64;
+
+            run_length += leading_ones(mb[i]);
+
+            if (run_length >= pages) {
+                mark_vamem_as_used(run_start, pages);
+                return (uintptr_t)vablock + (run_start << PAGE_SHIFT);
+            }
+        } else
+            run_length = 0;
+
+        if (pages < 64) {
+            auto m = mask;
+            for (uint64_t j = 0; j < pages; j++) {
+                if ((mb[i] & m) == m) {
+                    mb[i] &= ~m;
+                    return (uintptr_t)vablock + (((i * 64) + j) << PAGE_SHIFT);
+                }
+
+                m >>= 1;
+            }
+        }
+
+        if (mb[i] == 0xffffffffffffffff)
+            continue;
+
+        auto t1 = trailing_ones(mb[i]);
+        run_length = t1;
+        run_start = ((i + 1) * 64) - t1;
+    }
+
+    if (run_length >= pages) {
+        mark_vamem_as_used(run_start, pages);
+        return (uintptr_t)vablock + (run_start << PAGE_SHIFT);
+    }
+
+    return 0;
+}
+
+void free_va(uint64_t va, uint32_t pages) {
+    va -= (uintptr_t)vablock;
+    va >>= PAGE_SHIFT;
+
+    // FIXME - spinlock
+
+    auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
+
+    for (unsigned int n = 0; n < pages; n++) {
+        uint64_t i = va / 64;
+        uint64_t j = 63 - (va % 64);
+
+        mb[i] |= (uint64_t)1 << j;
+
+        va++;
     }
 }

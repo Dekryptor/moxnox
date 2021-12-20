@@ -13,8 +13,6 @@ static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_SS = 0x10;
 static const uint64_t time_slice = 50; // ticks
 
-static const uint64_t thread_stack_block = 0xfffffa1000000000;
-
 list_entry thread_list = { &thread_list, &thread_list };
 
 static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
@@ -91,7 +89,12 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
 
     t.tid = tid;
 
-    auto stack = (void*)(thread_stack_block | (tid << 20));
+    auto stack = (void*)allocate_va(KERNEL_STACK_PAGES);
+    if (!stack) {
+        print("allocate_va failed\n");
+        delete &t;
+        return false;
+    }
 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
         auto pa = allocate_page();
