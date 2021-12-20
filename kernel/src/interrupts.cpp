@@ -2,6 +2,7 @@
 #include "acpi.h"
 #include "objects.h"
 #include "cpu_block.h"
+#include "mem.h"
 #include <cpuid.h>
 #include <span>
 #include <optional>
@@ -229,13 +230,13 @@ static bool init_apic() {
     return true;
 }
 
-void add_idt_entry(uint8_t vector, void* func, bool trap) {
+void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist) {
     auto& i = idt[vector];
     auto addr = (uintptr_t)func;
 
     i.offset_1 = addr & 0xffff;
     i.selector = interrupt_cs;
-    i.ist = 0;
+    i.ist = ist;
 
     if (trap)
         i.type_attr = 0x8f; // present = 1, DPL = 0, type = 0xf (trap gate)
@@ -267,15 +268,15 @@ static bool setup_idt() {
     // FIXME - int 3
     // FIXME - int 4 (overflow)
     // FIXME - int 5 (bound range exceeded)
-    add_idt_entry(0x6, (void*)invalid_opcode_isr, false);
+    add_idt_entry(0x6, (void*)invalid_opcode_isr, false, 0);
     // FIXME - int 7 (device not available)
-    add_idt_entry(0x8, (void*)double_fault_isr, false);
+    add_idt_entry(0x8, (void*)double_fault_isr, false, 0);
     // FIXME - int 9 (coprocessor segment overrun)
     // FIXME - int a (invalid TSS)
     // FIXME - int b (segment not present)
     // FIXME - int c (stack-segment fault)
-    add_idt_entry(0xd, (void*)general_protection_fault_isr, false);
-    add_idt_entry(0xe, (void*)page_fault_isr, false);
+    add_idt_entry(0xd, (void*)general_protection_fault_isr, false, 0);
+    add_idt_entry(0xe, (void*)page_fault_isr, false, 0);
     // FIXME - int 10 (x87 exception)
     // FIXME - int 11 (alignment check)
     // FIXME - int 12 (machine check)
@@ -283,9 +284,9 @@ static bool setup_idt() {
     // FIXME - int 14 (virtualization exception)
     // FIXME - int 15 (control protection exception)
 
-    add_idt_entry(0x80, (void*)dummy_isr, false);
+    add_idt_entry(0x80, (void*)dummy_isr, false, 0);
 
-    add_idt_entry(0xff, (void*)spurious_isr, false);
+    add_idt_entry(0xff, (void*)spurious_isr, false, 0);
 
     struct {
         uint16_t limit;
@@ -304,11 +305,193 @@ static bool setup_idt() {
     return true;
 }
 
+static task_state_segment* init_tss() {
+    auto pa = allocate_page();
+    if (!pa) {
+        print("allocate_page failed\n");
+        return nullptr;
+    }
+
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        free_page(pa);
+        return nullptr;
+    }
+
+    if (!map_page(pa, va, mapping_type::read_write)) {
+        print("map_page failed\n");
+        free_va(va, 1);
+        free_page(pa);
+        return nullptr;
+    }
+
+    auto& tss = *(task_state_segment*)va;
+    memset(&tss, 0, sizeof(tss));
+
+    auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+    if (!stack) {
+        print("allocate_va failed\n");
+        unmap_page(va);
+        free_va(va, 1);
+        free_page(pa);
+        return nullptr;
+    }
+
+    for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
+        auto pa = allocate_page();
+        if (!pa) {
+            print("allocate_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
+                auto pa = va_to_pa(va);
+
+                free_page(pa);
+                unmap_page(va);
+            }
+
+            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+
+            unmap_page(va);
+            free_va(va, 1);
+            free_page(pa);
+
+            return nullptr;
+        }
+
+        if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
+            print("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
+                auto pa = va_to_pa(va);
+
+                free_page(pa);
+                unmap_page(va);
+            }
+
+            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+
+            unmap_page(va);
+            free_va(va, 1);
+            free_page(pa);
+
+            return nullptr;
+        }
+    }
+
+    tss.ist1 = (uintptr_t)((uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT));
+
+    return &tss;
+}
+
+static bool setup_gdt(task_state_segment* tss) {
+    auto& cb = *get_cpu_block();
+    uint64_t pa;
+
+    struct {
+        uint16_t limit;
+        uint64_t base;
+    } __attribute__((packed)) gdt_ptr;
+
+    pa = allocate_page();
+    if (pa == 0)
+        return false;
+
+    cb.gdt = (void*)allocate_va(1);
+    if (!cb.gdt)
+        return false;
+
+    if (!map_page(pa, (uintptr_t)cb.gdt, mapping_type::read_write))
+        return false;
+
+    auto gdtarr = span((gdt_entry*)cb.gdt, 5);
+
+    *(uint64_t*)&gdtarr[0] = 0;
+
+    // code
+    gdtarr[1].LimitLow = 0xffff;
+    gdtarr[1].BaseLow = 0x0000;
+    gdtarr[1].BaseMid = 0x00;
+    gdtarr[1].Type = 0x1a;
+    gdtarr[1].Dpl = 0;
+    gdtarr[1].Pres = 1;
+    gdtarr[1].LimitHi = 0xf;
+    gdtarr[1].Sys = 0;
+    gdtarr[1].Long = 1;
+    gdtarr[1].Default_Big = 0;
+    gdtarr[1].Granularity = 1;
+    gdtarr[1].BaseHi = 0x00;
+
+    // data
+    gdtarr[2].LimitLow = 0xffff;
+    gdtarr[2].BaseLow = 0x0000;
+    gdtarr[2].BaseMid = 0x00;
+    gdtarr[2].Type = 0x12;
+    gdtarr[2].Dpl = 0;
+    gdtarr[2].Pres = 1;
+    gdtarr[2].LimitHi = 0xf;
+    gdtarr[2].Sys = 0;
+    gdtarr[2].Long = 1;
+    gdtarr[2].Default_Big = 0;
+    gdtarr[2].Granularity = 1;
+    gdtarr[2].BaseHi = 0x00;
+
+    // TSS
+    gdtarr[3].LimitLow = (uint16_t)sizeof(task_state_segment);
+    gdtarr[3].BaseLow = ((uintptr_t)tss & 0xffff);
+    gdtarr[3].BaseMid = ((uintptr_t)tss >> 16) & 0xff;
+    gdtarr[3].Type = 0x9;
+    gdtarr[3].Dpl = 0;
+    gdtarr[3].Pres = 1;
+    gdtarr[3].LimitHi = 0x0;
+    gdtarr[3].Sys = 0;
+    gdtarr[3].Long = 0;
+    gdtarr[3].Default_Big = 0;
+    gdtarr[3].Granularity = 0;
+    gdtarr[3].BaseHi = ((uintptr_t)tss >> 24) & 0xff;
+
+    *(uint64_t*)&gdtarr[4] = (uintptr_t)tss >> 32;
+
+    gdt_ptr.limit = (uint16_t)(gdtarr.size_bytes() - 1);
+    gdt_ptr.base = (uintptr_t)gdtarr.data();
+
+    __asm__ __volatile__ (
+        "lgdt %0\n"
+        "push 0x8\n"
+        "lea rax, [rip+label]\n"
+        "push rax\n"
+        "retfq\n"
+        "label:\n"
+        :
+        : "m" (gdt_ptr)
+        : "rax"
+    );
+
+    __asm__ __volatile__ (
+        "mov ax, %0\n"
+        "ltr ax\n"
+        :
+        : "i" (TSS_SEGMENT)
+        : "ax"
+    );
+
+    return true;
+}
+
 bool init_interrupts() {
     if (!setup_idt())
         return false;
 
     if (!init_apic())
+        return false;
+
+    auto tss = init_tss();
+    if (!tss)
+        return false;
+
+    if (!setup_gdt(tss))
         return false;
 
     __asm("sti; int 0x80");

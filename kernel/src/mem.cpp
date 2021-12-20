@@ -10,7 +10,6 @@ using namespace std;
 
 static uint8_t* memblock = (uint8_t*)0xfffffa0000000000;
 static uint64_t memblock_size;
-static void* gdt = (void*)0xfffffa8000000000;
 
 void* acpi_tables = (void*)0xfffffad000000000;
 unsigned int acpi_count = 0;
@@ -391,71 +390,6 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     }
 }
 
-static bool setup_gdt() {
-    uint64_t pa;
-
-    struct {
-        uint16_t limit;
-        uint64_t base;
-    } __attribute__((packed)) gdt_ptr;
-
-    pa = allocate_page();
-    if (pa == 0)
-        return false;
-
-    if (!map_page(pa, (uintptr_t)gdt, mapping_type::read_write))
-        return false;
-
-    auto gdtarr = span((gdt_entry*)gdt, 3);
-
-    *(uint64_t*)&gdtarr[0] = 0;
-
-    // code
-    gdtarr[1].LimitLow = 0xffff;
-    gdtarr[1].BaseLow = 0x0000;
-    gdtarr[1].BaseMid = 0x00;
-    gdtarr[1].Type = 0x1a;
-    gdtarr[1].Dpl = 0;
-    gdtarr[1].Pres = 1;
-    gdtarr[1].LimitHi = 0xf;
-    gdtarr[1].Sys = 0;
-    gdtarr[1].Long = 1;
-    gdtarr[1].Default_Big = 0;
-    gdtarr[1].Granularity = 1;
-    gdtarr[1].BaseHi = 0x00;
-
-    // data
-    gdtarr[2].LimitLow = 0xffff;
-    gdtarr[2].BaseLow = 0x0000;
-    gdtarr[2].BaseMid = 0x00;
-    gdtarr[2].Type = 0x12;
-    gdtarr[2].Dpl = 0;
-    gdtarr[2].Pres = 1;
-    gdtarr[2].LimitHi = 0xf;
-    gdtarr[2].Sys = 0;
-    gdtarr[2].Long = 1;
-    gdtarr[2].Default_Big = 0;
-    gdtarr[2].Granularity = 1;
-    gdtarr[2].BaseHi = 0x00;
-
-    gdt_ptr.limit = (uint16_t)(gdtarr.size_bytes() - 1);
-    gdt_ptr.base = (uintptr_t)gdt;
-
-    __asm__ __volatile__ (
-        "lgdt %0\n"
-        "push 0x8\n"
-        "lea rax, [rip+label]\n"
-        "push rax\n"
-        "retfq\n"
-        "label:\n"
-        :
-        : "m" (gdt_ptr)
-        : "rax"
-    );
-
-    return true;
-}
-
 static bool copy_acpi(const loader_block& lb) {
     auto& rsdt = *(ACPISDTHeader*)lb.rsdt_pa;
     uint32_t needed = 0;
@@ -507,7 +441,7 @@ static bool copy_acpi(const loader_block& lb) {
     return true;
 }
 
-static void free_lower_half_mappings() {
+void free_lower_half_mappings() {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
 
     for (unsigned int i = 0; i < 256; i++) {
@@ -598,8 +532,6 @@ bool init_memory(const loader_block& lb) {
     // subtract memblock itself, and scratch that we've used
     mark_mem_as_used(memblock_pa, (num_memblock_pages + (orig_scratch_pages - scratch_pages)) << PAGE_SHIFT);
 
-    setup_gdt();
-
     copy_acpi(lb);
 
     // mark bootloader memory as free (inc. page tables)
@@ -607,8 +539,6 @@ bool init_memory(const loader_block& lb) {
         if (map.type == map_type::mem_bootloader)
             mark_mem_as_free(map.addr, map.len);
     }
-
-    free_lower_half_mappings();
 
     return true;
 }

@@ -54,7 +54,7 @@ void init_timer() {
     print_hex(apic_timer_freq);
     print("\n");
 
-    add_idt_entry(timer_interrupt, (void*)timer_isr, false);
+    add_idt_entry(timer_interrupt, (void*)timer_isr, false, 1);
 
     init_lapic_timer(false);
 }

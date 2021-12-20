@@ -10,6 +10,7 @@ struct cpu_block {
     amd64_context thread_context;
     unsigned int cpu_no;
     uint64_t preempt_block;
+    void* gdt;
 };
 
 static_assert(offsetof(cpu_block, current_thread) == GS_CURRENT_THREAD);

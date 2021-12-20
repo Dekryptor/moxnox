@@ -10,7 +10,7 @@ unique_handle keyboard_event;
 optional<reference_wrapper<event>> keyboard_event_obj;
 
 void init_keyboard() {
-    add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false);
+    add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 0);
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 

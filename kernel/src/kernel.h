@@ -23,6 +23,7 @@ class event;
 static const uint32_t PIT_HZ = 1193182;
 
 static const unsigned int KERNEL_STACK_PAGES = 4; // 16KB
+static const unsigned int KERNEL_GUARD_PAGES = 1;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -50,6 +51,7 @@ bool init_vablock();
 uint64_t allocate_va(uint32_t pages);
 void free_va(uint64_t va, uint32_t pages);
 uint64_t va_to_pa(uint64_t va);
+void free_lower_half_mappings();
 
 // console.cpp
 bool init_console();
@@ -60,7 +62,7 @@ void print_hex(uint64_t num, unsigned int padding = 0);
 extern volatile uint8_t* const local_apic;
 bool init_interrupts();
 void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id);
-void add_idt_entry(uint8_t vector, void* func, bool trap);
+void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist);
 void enable_irq(uint8_t irq, bool enable);
 std::span<const uint8_t> find_madt();
 
