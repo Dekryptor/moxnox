@@ -17,3 +17,16 @@ public:
 private:
     std::atomic<uint64_t> v;
 };
+
+static const class {
+public:
+    static void lock() {
+        __asm("cli");
+        acquire_sync_lock();
+    }
+
+    static void unlock() {
+        release_sync_lock();
+        __asm("sti");
+    }
+} sync_lock;

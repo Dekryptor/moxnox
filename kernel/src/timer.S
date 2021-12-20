@@ -149,7 +149,7 @@ acquire_sync_lock: # clobbers rax
     inc QWORD PTR gs:GS_PREEMPT_BLOCK
 Lacquire_sync_lock_loop:
     mov rax, 1
-    xchg [rip+sync_lock], rax
+    xchg [rip+sync_lock_val], rax
     test rax, rax
     jnz Lacquire_sync_lock_loop
     ret
@@ -157,7 +157,7 @@ Lacquire_sync_lock_loop:
 .global release_sync_lock
 release_sync_lock: # clobbers rax
     xor rax, rax
-    xchg [rip+sync_lock], rax
+    xchg [rip+sync_lock_val], rax
     dec QWORD PTR gs:GS_PREEMPT_BLOCK
     ret
 

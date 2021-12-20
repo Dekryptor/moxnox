@@ -2,6 +2,7 @@
 #include "objects.h"
 #include "cpu_block.h"
 #include "unique_handle.h"
+#include "spinlock.h"
 #include <cstdlib>
 #include <optional>
 #include <atomic>
@@ -19,7 +20,7 @@ list_entry thread_list = { &thread_list, &thread_list };
 
 static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
-volatile uint64_t sync_lock = 0;
+volatile uint64_t sync_lock_val = 0;
 
 thread* get_current_thread() {
     return get_cpu_block()->current_thread;
@@ -35,7 +36,7 @@ void terminate_thread() {
     {
         auto obj = static_cast<object*>(current_thread);
 
-        acquire_sync_lock();
+        lock_guard lock(sync_lock);
 
         auto le = thread_list.next;
 
@@ -50,8 +51,6 @@ void terminate_thread() {
 
             le = le->next;
         }
-
-        release_sync_lock();
     }
 
     // out of spinlock
@@ -148,9 +147,10 @@ unique_handle add_kernel_thread(void (*func)(void*), void* param) {
 
     t.status = thread_status::runnable;
 
-    acquire_sync_lock();
-    insert_tail_list(thread_list, t.le);
-    release_sync_lock();
+    {
+        lock_guard lock(sync_lock);
+        insert_tail_list(thread_list, t.le);
+    }
 
     auto hv = add_handle(t, 0); // FIXME - access mask
 
@@ -335,48 +335,48 @@ void wait_for_object(handle_t h) {
 
     optional<bool> sigopt;
 
-    acquire_sync_lock();
-
-    visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
-            sigopt = o.signalled;
-        else
-            o.release();
-    });
-
-    if (!sigopt.has_value()) {
-        release_sync_lock();
-        // FIXME - exception
-        print("Not a sync object\n");
-        return;
-    }
-
-    auto signalled = *sigopt;
-
-    if (signalled) {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_same_v<remove_reference_t<decltype(o)>, timer>) {
-                if (o.periodic)
-                    o.signalled = false;
-            } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, event>) {
-                if (o.autoreset)
-                    o.signalled = false;
-            }
-        });
-
-        release_sync_lock();
+    {
+        optional<lock_guard<decltype(sync_lock)>> lock(sync_lock);
 
         visit_obj(obj, [&](auto&& o) {
-            o.release();
+            if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
+                sigopt = o.signalled;
+            else
+                o.release();
         });
 
-        return;
+        if (!sigopt.has_value()) {
+            lock.reset();
+            // FIXME - exception
+            print("Not a sync object\n");
+            return;
+        }
+
+        auto signalled = *sigopt;
+
+        if (signalled) {
+            visit_obj(obj, [&](auto&& o) {
+                if constexpr (is_same_v<remove_reference_t<decltype(o)>, timer>) {
+                    if (o.periodic)
+                        o.signalled = false;
+                } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, event>) {
+                    if (o.autoreset)
+                        o.signalled = false;
+                }
+            });
+
+            lock.reset();
+
+            visit_obj(obj, [&](auto&& o) {
+                o.release();
+            });
+
+            return;
+        }
+
+        current_thread->waiting_for = obj;
+        current_thread->status = thread_status::waiting;
     }
-
-    current_thread->waiting_for = obj;
-    current_thread->status = thread_status::waiting;
-
-    release_sync_lock();
 
     yield();
 }

@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
 #include "unique_handle.h"
+#include "spinlock.h"
 
 using namespace std;
 
@@ -47,34 +48,32 @@ void set_event(handle_t h) {
 
     // signal waiting threads
 
-    __asm("cli");
-    acquire_sync_lock();
-
     {
-        auto le = thread_list.next;
+        lock_guard lock(sync_lock);
 
-        while (le != &thread_list) {
-            auto& thr = containing_record<thread>(le);
+        {
+            auto le = thread_list.next;
 
-            if (thr.status == thread_status::waiting && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(&e)) {
-                thr.status = thread_status::runnable;
-                thr.waiting_for = nullopt;
-                release_count++;
+            while (le != &thread_list) {
+                auto& thr = containing_record<thread>(le);
 
-                if (e.autoreset)
-                    break;
+                if (thr.status == thread_status::waiting && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(&e)) {
+                    thr.status = thread_status::runnable;
+                    thr.waiting_for = nullopt;
+                    release_count++;
+
+                    if (e.autoreset)
+                        break;
+                }
+
+                le = le->next;
             }
-
-            le = le->next;
         }
+
+        // if autoreset, only signal if nothing waiting when fired
+        if (!e.autoreset || release_count == 0)
+            e.signalled = true;
     }
-
-    // if autoreset, only signal if nothing waiting when fired
-    if (!e.autoreset || release_count == 0)
-        e.signalled = true;
-
-    release_sync_lock();
-    __asm("sti");
 
     for (unsigned int i = 0; i < release_count; i++) {
         e.release();

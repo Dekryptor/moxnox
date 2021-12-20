@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
 #include "unique_handle.h"
+#include "spinlock.h"
 
 using namespace std;
 
@@ -99,8 +100,7 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
 
     // FIXME - remove from list if already there
 
-    __asm("cli");
-    acquire_sync_lock();
+    lock_guard lock(sync_lock);
 
     t.ticks_left = t.orig_ticks = timeout; // FIXME - should be 100ns units (and floor at one)
     t.signalled = false;
@@ -108,9 +108,6 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
 
     insert_tail_list(active_timer_list, t.le);
     // no need to increase refcount, t already acquired by deref_handle
-
-    release_sync_lock();
-    __asm("sti");
 }
 
 extern "C"
