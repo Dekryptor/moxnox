@@ -391,7 +391,7 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     }
 }
 
-static bool copy_gdt() {
+static bool setup_gdt() {
     uint64_t pa;
 
     struct {
@@ -406,13 +406,39 @@ static bool copy_gdt() {
     if (!map_page(pa, (uintptr_t)gdt, mapping_type::read_write))
         return false;
 
-    __asm__ __volatile__ (
-        "sgdt %0"
-        : "=m" (gdt_ptr)
-    );
+    auto gdtarr = span((gdt_entry*)gdt, 3);
 
-    memcpy(gdt, (void*)gdt_ptr.base, gdt_ptr.limit + 1);
+    *(uint64_t*)&gdtarr[0] = 0;
 
+    // code
+    gdtarr[1].LimitLow = 0xffff;
+    gdtarr[1].BaseLow = 0x0000;
+    gdtarr[1].BaseMid = 0x00;
+    gdtarr[1].Type = 0x1a;
+    gdtarr[1].Dpl = 0;
+    gdtarr[1].Pres = 1;
+    gdtarr[1].LimitHi = 0xf;
+    gdtarr[1].Sys = 0;
+    gdtarr[1].Long = 1;
+    gdtarr[1].Default_Big = 0;
+    gdtarr[1].Granularity = 1;
+    gdtarr[1].BaseHi = 0x00;
+
+    // data
+    gdtarr[2].LimitLow = 0xffff;
+    gdtarr[2].BaseLow = 0x0000;
+    gdtarr[2].BaseMid = 0x00;
+    gdtarr[2].Type = 0x12;
+    gdtarr[2].Dpl = 0;
+    gdtarr[2].Pres = 1;
+    gdtarr[2].LimitHi = 0xf;
+    gdtarr[2].Sys = 0;
+    gdtarr[2].Long = 1;
+    gdtarr[2].Default_Big = 0;
+    gdtarr[2].Granularity = 1;
+    gdtarr[2].BaseHi = 0x00;
+
+    gdt_ptr.limit = (uint16_t)(gdtarr.size_bytes() - 1);
     gdt_ptr.base = (uintptr_t)gdt;
 
     __asm__ __volatile__ (
@@ -572,7 +598,7 @@ bool init_memory(const loader_block& lb) {
     // subtract memblock itself, and scratch that we've used
     mark_mem_as_used(memblock_pa, (num_memblock_pages + (orig_scratch_pages - scratch_pages)) << PAGE_SHIFT);
 
-    copy_gdt();
+    setup_gdt();
 
     copy_acpi(lb);
 

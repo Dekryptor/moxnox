@@ -30,3 +30,20 @@ struct alloc_header {
 };
 
 static_assert(sizeof(alloc_header) == 4);
+
+typedef struct {
+    uint16_t LimitLow;
+    uint16_t BaseLow;
+    uint32_t BaseMid:8;
+    uint32_t Type:5;
+    uint32_t Dpl:2;
+    uint32_t Pres:1;
+    uint32_t LimitHi:4;
+    uint32_t Sys:1;
+    uint32_t Long:1;
+    uint32_t Default_Big:1;
+    uint32_t Granularity:1;
+    uint32_t BaseHi:8;
+} gdt_entry;
+
+static_assert(sizeof(gdt_entry) == 8);
