@@ -2,6 +2,7 @@
 #include "kernel.h"
 #include "acpi.h"
 #include "mem.h"
+#include "spinlock.h"
 #include <span>
 #include <cstring>
 
@@ -19,6 +20,8 @@ static unsigned int heap_pages = 0;
 
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
+
+static spinlock pa_spinlock;
 
 static bool treat_as_free(enum map_type type) {
     switch (type) {
@@ -185,9 +188,9 @@ uint64_t allocate_page() {
     // FIXME - SSE?
     // FIXME - BMI1 instruction set?
 
-    // FIXME - need spinlock
-
     auto mb = span((uint64_t*)memblock, memblock_size / sizeof(uint64_t));
+
+    lock_guard lock(pa_spinlock);
 
     for (unsigned int i = 0; i < mb.size(); i++) {
         if (mb[i] != 0) {
@@ -322,6 +325,8 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
     uint64_t off = pa >> PAGE_SHIFT;
     uint64_t pages = len >> PAGE_SHIFT;
 
+    lock_guard lock(pa_spinlock);
+
     if (off & 7) {
         auto& b = memblock[off >> 3];
 
@@ -354,6 +359,8 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
 static void mark_mem_as_used(uint64_t pa, size_t len) {
     uint64_t off = pa >> PAGE_SHIFT;
     uint64_t pages = len >> PAGE_SHIFT;
+
+    lock_guard lock(pa_spinlock);
 
     if (off & 7) {
         auto& b = memblock[off >> 3];
@@ -577,8 +584,6 @@ bool init_memory(const loader_block& lb) {
 
     free_lower_half_mappings();
 
-    // FIXME - protect pages of kernel sections correctly
-
     return true;
 }
 
@@ -715,7 +720,7 @@ void operator delete(void* ptr, size_t) noexcept {
 void free_page(uint64_t pa) {
     pa >>= PAGE_SHIFT;
 
-    // FIXME - need spinlock
+    lock_guard lock(pa_spinlock);
 
     auto mb = span((uint64_t*)memblock, memblock_size / sizeof(uint64_t));
 
