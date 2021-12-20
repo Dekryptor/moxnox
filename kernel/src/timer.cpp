@@ -99,6 +99,7 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
 
     // FIXME - remove from list if already there
 
+    __asm("cli");
     acquire_sync_lock();
 
     t.ticks_left = t.orig_ticks = timeout; // FIXME - should be 100ns units (and floor at one)
@@ -109,6 +110,7 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
     // no need to increase refcount, t already acquired by deref_handle
 
     release_sync_lock();
+    __asm("sti");
 }
 
 extern "C"
