@@ -18,6 +18,7 @@ typedef struct _amd64_context amd64_context;
 struct cpu_block;
 struct list_entry;
 class unique_handle;
+class event;
 
 static const uint32_t PIT_HZ = 1193182;
 
@@ -114,3 +115,4 @@ void init_keyboard();
 // event.cpp
 unique_handle create_event(bool autoreset);
 void set_event(handle_t h);
+void set_event(event& e);

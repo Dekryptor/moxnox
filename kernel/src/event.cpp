@@ -22,28 +22,7 @@ unique_handle create_event(bool autoreset) {
     return unique_handle{hv};
 }
 
-void set_event(handle_t h) {
-    auto objrw = deref_handle(h);
-    if (!objrw) {
-        // FIXME - exception
-        print("No such handle\n");
-        return;
-    }
-
-    auto& obj = objrw->get();
-
-    if (obj.type != object_type::event) {
-        // FIXME - exception
-        print("Not an event\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
-        return;
-    }
-
-    auto& e = static_cast<event&>(objrw->get());
+void set_event(event& e) {
     unsigned int release_count = 0;
 
     // signal waiting threads
@@ -78,6 +57,32 @@ void set_event(handle_t h) {
     for (unsigned int i = 0; i < release_count; i++) {
         e.release();
     }
+}
+
+void set_event(handle_t h) {
+    auto objrw = deref_handle(h);
+    if (!objrw) {
+        // FIXME - exception
+        print("No such handle\n");
+        return;
+    }
+
+    auto& obj = objrw->get();
+
+    if (obj.type != object_type::event) {
+        // FIXME - exception
+        print("Not an event\n");
+
+        visit_obj(obj, [](auto&& o) {
+            o.release();
+        });
+
+        return;
+    }
+
+    auto& e = static_cast<event&>(objrw->get());
+
+    set_event(e);
 
     e.release();
 }
