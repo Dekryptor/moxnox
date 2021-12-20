@@ -120,6 +120,7 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
 
     t.stack = stack;
 
+    memset(&t.context, 0, sizeof(t.context));
     t.context.rip = (uintptr_t)kernel_thread_start;
     t.context.rcx = (uintptr_t)func;
     t.context.rdx = (uintptr_t)param;
