@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "objects.h"
+#include "unique_handle.h"
 
 using namespace std;
 
@@ -57,7 +58,7 @@ void init_timer() {
     init_lapic_timer(false);
 }
 
-bool create_timer(handle_t* h) {
+bool create_timer(unique_handle& h) {
     auto tptr = new timer;
     if (!tptr) {
         print("new failed\n");
@@ -66,9 +67,11 @@ bool create_timer(handle_t* h) {
 
     auto& t = *tptr;
 
-    *h = add_handle(t, 0); // FIXME - access mask
+    auto hv = add_handle(t, 0); // FIXME - access mask
 
     t.release(); // add_handle increases refcount
+
+    h.reset(hv);
 
     return true;
 }

@@ -17,6 +17,7 @@ class object;
 typedef struct _amd64_context amd64_context;
 struct cpu_block;
 struct list_entry;
+class unique_handle;
 
 static const uint32_t PIT_HZ = 1193182;
 
@@ -81,7 +82,7 @@ extern "C" void pit_delay(uint16_t delay);
 // timer.cpp
 void init_timer();
 void init_lapic_timer(bool set_div);
-bool create_timer(handle_t* h);
+bool create_timer(unique_handle& h);
 void set_timer(handle_t h, uint64_t timeout, bool periodic);
 
 // scheduler.cpp

@@ -1,5 +1,6 @@
 #include "../../bootloader/src/loaderblock.h"
 #include "kernel.h"
+#include "unique_handle.h"
 #include <string_view>
 
 using namespace std;
@@ -43,22 +44,20 @@ static void thread_test() {
 }
 
 static void timer_test() {
-    handle_t h;
+    unique_handle h;
 
-    if (!create_timer(&h)) {
+    if (!create_timer(h)) {
         print("create_timer failed\n");
         return;
     }
 
     print("Waiting...\n");
 
-    set_timer(h, 5000, false);
+    set_timer(h.get(), 5000, false);
 
-    wait_for_object(h);
+    wait_for_object(h.get());
 
     print("Timer fired.\n");
-
-    close_handle(h);
 }
 
 void main_thread(void*) {
