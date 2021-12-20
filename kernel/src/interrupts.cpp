@@ -305,7 +305,7 @@ static bool setup_idt() {
     return true;
 }
 
-static task_state_segment* init_tss() {
+task_state_segment* init_tss() {
     auto pa = allocate_page();
     if (!pa) {
         print("allocate_page failed\n");

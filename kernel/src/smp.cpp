@@ -1,5 +1,8 @@
 #include "kernel.h"
 #include "acpi.h"
+#include "objects.h"
+#include "cpu_block.h"
+#include "mem.h"
 #include <atomic>
 #include <cpuid.h>
 
@@ -76,23 +79,92 @@ uint8_t current_cpu_id() {
     return (uint8_t)((ebx >> 24) & 0xff);
 }
 
-static void ap_startup() {
-    // load GDT and IDT
-    // FIXME - do we need to long jump for GDT to take effect?
-    __asm __volatile (
+static void setup_ap_gdt(task_state_segment* tss) {
+    auto& cb = *get_cpu_block();
+
+    // FIXME - BSOD if any of this fails
+
+    auto pa = allocate_page();
+    if (!pa) {
+        print("allocate_page failed\n");
+        return;
+    }
+
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return;
+    }
+
+    if (!map_page(pa, va, mapping_type::read_write)) {
+        print("map_page failed\n");
+        return;
+    }
+
+    cb.gdt = (void*)va;
+    memcpy(cb.gdt, (void*)bsp_gdt.base, bsp_gdt.limit + 1);
+
+    auto gdtarr = span((gdt_entry*)cb.gdt, 5);
+
+    // TSS
+    gdtarr[3].LimitLow = (uint16_t)sizeof(task_state_segment);
+    gdtarr[3].BaseLow = ((uintptr_t)tss & 0xffff);
+    gdtarr[3].BaseMid = ((uintptr_t)tss >> 16) & 0xff;
+    gdtarr[3].Type = 0x9;
+    gdtarr[3].Dpl = 0;
+    gdtarr[3].Pres = 1;
+    gdtarr[3].LimitHi = 0x0;
+    gdtarr[3].Sys = 0;
+    gdtarr[3].Long = 0;
+    gdtarr[3].Default_Big = 0;
+    gdtarr[3].Granularity = 0;
+    gdtarr[3].BaseHi = ((uintptr_t)tss >> 24) & 0xff;
+
+    *(uint64_t*)&gdtarr[4] = (uintptr_t)tss >> 32;
+
+    gdt_ptr gp;
+
+    gp.base = (uint64_t)cb.gdt;
+    gp.limit = bsp_gdt.limit;
+
+    __asm__ __volatile__ (
         "lgdt %0\n"
-        "lidt %1\n"
+        "push 0x8\n"
+        "lea rax, [rip+label]\n"
+        "push rax\n"
+        "retfq\n"
+        "label:\n"
         :
-        : "m" (bsp_gdt), "m" (bsp_idt)
+        : "m" (gp)
+        : "rax"
+    );
+
+    __asm__ __volatile__ (
+        "mov ax, %0\n"
+        "ltr ax\n"
+        :
+        : "i" (TSS_SEGMENT)
+        : "ax"
+    );
+}
+
+static void ap_startup() {
+    // load IDT
+    __asm __volatile (
+        "lidt %0\n"
+        :
+        : "m" (bsp_idt)
     );
 
     auto spurious_interrupt_reg = (volatile uint32_t*)&local_apic[0xf0];
 
     *spurious_interrupt_reg = *spurious_interrupt_reg | 0x100;
 
-    init_lapic_timer(true);
-
     init_cpu_block(false, current_cpu_id());
+
+    setup_ap_gdt(init_tss());
+
+    init_lapic_timer(true);
 
     ap_left--;
 
