@@ -47,6 +47,7 @@ void set_event(handle_t h) {
 
     // signal waiting threads
 
+    __asm("cli");
     acquire_sync_lock();
 
     {
@@ -73,6 +74,7 @@ void set_event(handle_t h) {
         e.signalled = true;
 
     release_sync_lock();
+    __asm("sti");
 
     for (unsigned int i = 0; i < release_count; i++) {
         e.release();
