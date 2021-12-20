@@ -335,6 +335,8 @@ void wait_for_object(handle_t h) {
 
     optional<bool> sigopt;
 
+    acquire_sync_lock();
+
     visit_obj(obj, [&](auto&& o) {
         if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
             sigopt = o.signalled;
@@ -343,6 +345,7 @@ void wait_for_object(handle_t h) {
     });
 
     if (!sigopt.has_value()) {
+        release_sync_lock();
         // FIXME - exception
         print("Not a sync object\n");
         return;
@@ -350,10 +353,25 @@ void wait_for_object(handle_t h) {
 
     auto signalled = *sigopt;
 
-    if (signalled)
-        return;
+    if (signalled) {
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_same_v<remove_reference_t<decltype(o)>, timer>) {
+                if (o.periodic)
+                    o.signalled = false;
+            } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, event>) {
+                if (o.autoreset)
+                    o.signalled = false;
+            }
+        });
 
-    acquire_sync_lock();
+        release_sync_lock();
+
+        visit_obj(obj, [&](auto&& o) {
+            o.release();
+        });
+
+        return;
+    }
 
     current_thread->waiting_for = obj;
     current_thread->status = thread_status::waiting;
