@@ -130,6 +130,9 @@ void timer_expired(timer* tptr) {
                 thr.status = thread_status::runnable;
                 thr.waiting_for = nullopt;
                 release_count++;
+
+                if (t.periodic)
+                    break;
             }
 
             le = le->next;
