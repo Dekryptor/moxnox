@@ -44,9 +44,8 @@ static void thread_test() {
 }
 
 static void timer_test() {
-    unique_handle h;
-
-    if (!create_timer(h)) {
+    auto h = create_timer();
+    if (!h) {
         print("create_timer failed\n");
         return;
     }

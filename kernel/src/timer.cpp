@@ -58,11 +58,11 @@ void init_timer() {
     init_lapic_timer(false);
 }
 
-bool create_timer(unique_handle& h) {
+unique_handle create_timer() {
     auto tptr = new timer;
     if (!tptr) {
         print("new failed\n");
-        return false;
+        return {};
     }
 
     auto& t = *tptr;
@@ -71,9 +71,7 @@ bool create_timer(unique_handle& h) {
 
     t.release(); // add_handle increases refcount
 
-    h.reset(hv);
-
-    return true;
+    return unique_handle{hv};
 }
 
 void set_timer(handle_t h, uint64_t timeout, bool periodic) {

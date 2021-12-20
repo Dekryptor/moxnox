@@ -39,6 +39,10 @@ public:
         h = new_h;
     }
 
+    explicit operator bool() noexcept {
+        return !!h;
+    }
+
 private:
     handle_t h;
 };

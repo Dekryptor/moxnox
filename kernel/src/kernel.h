@@ -82,7 +82,7 @@ extern "C" void pit_delay(uint16_t delay);
 // timer.cpp
 void init_timer();
 void init_lapic_timer(bool set_div);
-bool create_timer(unique_handle& h);
+unique_handle create_timer();
 void set_timer(handle_t h, uint64_t timeout, bool periodic);
 
 // scheduler.cpp
