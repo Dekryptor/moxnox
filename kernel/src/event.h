@@ -14,6 +14,7 @@ public:
     }
 
     bool signalled = false;
+    bool autoreset;
 };
 
 static_assert(is_sync_object<event>);

@@ -25,7 +25,7 @@ static void call_global_constructors() {
 }
 
 static void thread_test() {
-    auto ev = create_event();
+    auto ev = create_event(false);
 
     if (!ev) {
         print("create_event failed\n");

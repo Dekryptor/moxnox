@@ -111,5 +111,5 @@ void protect_kernel_pages();
 void init_keyboard();
 
 // event.cpp
-unique_handle create_event();
+unique_handle create_event(bool autoreset);
 void set_event(handle_t h);

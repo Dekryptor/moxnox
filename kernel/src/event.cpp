@@ -4,7 +4,7 @@
 
 using namespace std;
 
-unique_handle create_event() {
+unique_handle create_event(bool autoreset) {
     auto eptr = new event;
     if (!eptr) {
         print("new failed\n");
@@ -12,6 +12,7 @@ unique_handle create_event() {
     }
 
     auto& e = *eptr;
+    e.autoreset = autoreset;
 
     auto hv = add_handle(e, 0); // FIXME - access mask
 
@@ -58,13 +59,18 @@ void set_event(handle_t h) {
                 thr.status = thread_status::runnable;
                 thr.waiting_for = nullopt;
                 release_count++;
+
+                if (e.autoreset)
+                    break;
             }
 
             le = le->next;
         }
     }
 
-    e.signalled = true;
+    // if autoreset, only signal if nothing waiting when fired
+    if (!e.autoreset || release_count == 0)
+        e.signalled = true;
 
     release_sync_lock();
 
@@ -75,4 +81,4 @@ void set_event(handle_t h) {
     e.release();
 }
 
-// FIXME - reset_event (and auto-reset events)
+// FIXME - reset_event
