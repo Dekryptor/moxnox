@@ -47,6 +47,7 @@ void protect_page(uint64_t va, enum mapping_type type);
 bool init_vablock();
 uint64_t allocate_va(uint32_t pages);
 void free_va(uint64_t va, uint32_t pages);
+uint64_t va_to_pa(uint64_t va);
 
 // console.cpp
 bool init_console();

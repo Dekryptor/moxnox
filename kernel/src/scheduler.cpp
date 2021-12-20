@@ -288,8 +288,15 @@ void print_context(const amd64_context& ctx) {
 
 thread::~thread() {
     if (stack) {
+        auto va = (uintptr_t)stack;
         for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-            unmap_and_free_page((uintptr_t)stack | (i << PAGE_SHIFT));
+            auto pa = va_to_pa(va);
+
+            free_page(pa);
+            free_va(va, 1);
+            unmap_page(va);
+
+            va += PAGE_SIZE;
         }
     }
 }

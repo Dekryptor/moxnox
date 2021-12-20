@@ -963,3 +963,9 @@ void free_va(uint64_t va, uint32_t pages) {
         va++;
     }
 }
+
+uint64_t va_to_pa(uint64_t va) {
+    auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
+
+    return (uint64_t)pt_entry.PageFrameNumber << PAGE_SHIFT;
+}
