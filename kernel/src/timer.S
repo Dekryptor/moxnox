@@ -57,11 +57,14 @@ Ltimer_isr_loop_end:
     pop rax
 
 Ltimer_isr_threads:
-    cmp QWORD PTR gs:0x8, 0 # current thread
+    cmp QWORD PTR gs:GS_CURRENT_THREAD, 0
     je Ltimer_isr_nop
 
-    dec QWORD PTR gs:0x10 # time slice left
-    cmp QWORD PTR gs:0x10, 0
+    cmp QWORD PTR gs:GS_PREEMPT_BLOCK, 0
+    jne Ltimer_isr_blocked
+
+    dec QWORD PTR gs:GS_TIME_SLICE_LEFT
+    cmp QWORD PTR gs:GS_TIME_SLICE_LEFT, 0
     jne Ltimer_isr_nop
 
     save_context
@@ -75,6 +78,12 @@ Ltimer_isr_nop:
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
     pop rax
     iretq
+
+Ltimer_isr_blocked:
+    cmp QWORD PTR gs:GS_TIME_SLICE_LEFT, 0
+    je Ltimer_isr_nop
+    dec QWORD PTR gs:GS_TIME_SLICE_LEFT
+    jmp Ltimer_isr_nop
 
 .global scheduler_restore
 scheduler_restore:
@@ -135,16 +144,19 @@ yield:
 
 .global acquire_sync_lock
 acquire_sync_lock: # clobbers rax
+    inc QWORD PTR gs:GS_PREEMPT_BLOCK
+Lacquire_sync_lock_loop:
     mov rax, 1
     xchg [rip+sync_lock], rax
     test rax, rax
-    jnz acquire_sync_lock
+    jnz Lacquire_sync_lock_loop
     ret
 
 .global release_sync_lock
 release_sync_lock: # clobbers rax
     xor rax, rax
     xchg [rip+sync_lock], rax
+    dec QWORD PTR gs:GS_PREEMPT_BLOCK
     ret
 
 .global pit_delay

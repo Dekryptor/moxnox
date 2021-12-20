@@ -1,7 +1,10 @@
 #pragma once
 
+#define GS_CURRENT_THREAD 0x8
+#define GS_TIME_SLICE_LEFT 0x10
 #define GS_HANDLE_TIMERS 0x18
 #define GS_CONTEXT 0x20
+#define GS_PREEMPT_BLOCK 0x2c8
 
 #define CONTEXT_RAX 0x00
 #define CONTEXT_RCX 0x08
