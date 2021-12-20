@@ -87,7 +87,7 @@ extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);
 void wait_for_object(handle_t h);
-bool init_cpu_block(bool handle_timers);
+bool init_cpu_block(bool handle_timers, unsigned int cpu_no);
 thread* get_current_thread();
 
 // handle.cpp
@@ -97,6 +97,7 @@ std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
 
 // smp.cpp
 void init_smp();
+uint8_t current_cpu_id();
 
 // pe.cpp
 void protect_kernel_pages();

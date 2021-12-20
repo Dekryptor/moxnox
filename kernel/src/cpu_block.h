@@ -8,6 +8,7 @@ struct cpu_block {
     uint64_t time_slice_left;
     bool handle_timers;
     amd64_context thread_context;
+    unsigned int cpu_no;
 };
 
 static_assert(offsetof(cpu_block, current_thread) == 0x8);

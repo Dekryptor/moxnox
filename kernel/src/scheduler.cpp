@@ -336,7 +336,7 @@ void wait_for_object(handle_t h) {
     yield();
 }
 
-bool init_cpu_block(bool handle_timers) {
+bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
     auto pages = bytes_to_pages(sizeof(cpu_block));
     auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);
     auto& cb = *(cpu_block*)va;
@@ -359,6 +359,7 @@ bool init_cpu_block(bool handle_timers) {
     cb.self = &cb;
     cb.current_thread = nullptr;
     cb.handle_timers = handle_timers;
+    cb.cpu_no = cpu_no;
 
     __asm __volatile(
         "mov ecx, 0xc0000101\n\t"

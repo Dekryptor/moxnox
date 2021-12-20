@@ -68,6 +68,14 @@ static void start_ap(uint8_t i) {
     }
 }
 
+uint8_t current_cpu_id() {
+    uint32_t eax, ebx, ecx, edx;
+
+    __cpuid(1, eax, ebx, ecx, edx);
+
+    return (uint8_t)((ebx >> 24) & 0xff);
+}
+
 static void ap_startup() {
     // load GDT and IDT
     // FIXME - do we need to long jump for GDT to take effect?
@@ -84,19 +92,11 @@ static void ap_startup() {
 
     init_lapic_timer(true);
 
-    init_cpu_block(false);
+    init_cpu_block(false, current_cpu_id());
 
     ap_left--;
 
     scheduler(); // doesn't return
-}
-
-static uint8_t current_cpu_id() {
-    uint32_t eax, ebx, ecx, edx;
-
-    __cpuid(1, eax, ebx, ecx, edx);
-
-    return (uint8_t)((ebx >> 24) & 0xff);
 }
 
 void init_smp() {
