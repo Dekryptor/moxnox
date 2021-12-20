@@ -109,7 +109,7 @@ gdt:
     dw 0xffff ; LimitLow
     dw 0x0000 ; BaseLow
     db 0x00 ; BaseMid
-    db 0x92 ; Type = 2, Dpl = 0, Pres = 1
+    db 0x92 ; Type = 12, Dpl = 0, Pres = 1
     db 0xaf ; LimitHi = f, Sys = 0, Long = 1, Default_Big = 0, Granularity = 1
     db 0x00 ; BaseHi
 gdt_ptr:
