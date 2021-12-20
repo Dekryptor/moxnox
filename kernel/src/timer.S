@@ -142,6 +142,7 @@ yield:
     mov gs:GS_CONTEXT + CONTEXT_SS, ss
     fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
     # FIXME - other segments, debug registers
+    mov rsp, gs:GS_TIMER_STACK
     jmp scheduler
 
 .global acquire_sync_lock

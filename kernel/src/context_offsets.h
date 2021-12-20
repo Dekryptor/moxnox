@@ -5,6 +5,7 @@
 #define GS_HANDLE_TIMERS 0x18
 #define GS_CONTEXT 0x20
 #define GS_PREEMPT_BLOCK 0x2c8
+#define GS_TIMER_STACK 0x2d8
 
 #define CONTEXT_RAX 0x00
 #define CONTEXT_RCX 0x08
