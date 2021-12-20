@@ -100,3 +100,6 @@ void init_smp();
 
 // pe.cpp
 void protect_kernel_pages();
+
+// keyboard.cpp
+void init_keyboard();

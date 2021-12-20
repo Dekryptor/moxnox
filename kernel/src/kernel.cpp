@@ -59,6 +59,8 @@ static void timer_test() {
 }
 
 void main_thread(void*) {
+    init_keyboard();
+
     thread_test(); // FIXME
 
     init_smp();
