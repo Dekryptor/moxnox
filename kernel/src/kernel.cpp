@@ -61,15 +61,6 @@ static void timer_test() {
     close_handle(h);
 }
 
-static void bsod(string_view msg) {
-    // FIXME - do this properly
-
-    print(msg);
-    print("\n");
-
-    while (1) { }
-}
-
 void main_thread(void*) {
     init_keyboard();
 
@@ -100,6 +91,9 @@ void startup(loader_block* lb) {
 
     call_global_constructors();
 
+    if (!init_vablock())
+        goto hang;
+
     if (!init_console())
         goto hang;
 
@@ -109,8 +103,6 @@ void startup(loader_block* lb) {
     if (!init_cpu_block(true, current_cpu_id()))
         goto hang;
 
-    if (!init_vablock())
-        bsod("init_vablock failed");
 
     if (!add_kernel_thread(main_thread))
         goto hang;

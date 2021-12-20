@@ -32,7 +32,7 @@ static const enum console_colour bg_colour = console_colour::black;
 
 static const uint64_t CONSOLE_PA = 0xb8000;
 
-static auto video = span((uint16_t*)0xfffffaa000000000, COLS * ROWS);
+static span<uint16_t> video;
 static uint8_t cursor_x = 0, cursor_y = 0;
 
 size_t strlen(const char* s) {
@@ -108,6 +108,14 @@ void print_hex(uint64_t num, unsigned int padding) {
 }
 
 bool init_console() {
+    auto va = allocate_va(1);
+    if (!va) {
+        // FIXME - exception
+        return false;
+    }
+
+    video = span((uint16_t*)va, COLS * ROWS);
+
     if (!map_page(CONSOLE_PA, (uintptr_t)video.data(), mapping_type::read_write))
         return false;
 
