@@ -361,12 +361,15 @@ void double_fault() {
     print("Double fault, ");
 
     if (!current_thread)
-        print("not in thread\n");
+        print("not in thread");
     else {
         print("thread ");
         print_hex(current_thread->tid);
-        print("\n");
     }
+
+    print(", CPU ");
+    print_hex(cb.cpu_no);
+    print("\n");
 
     print_context(cb.thread_context);
 
