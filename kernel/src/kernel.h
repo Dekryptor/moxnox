@@ -109,3 +109,7 @@ void protect_kernel_pages();
 
 // keyboard.cpp
 void init_keyboard();
+
+// event.cpp
+unique_handle create_event();
+void set_event(handle_t h);

@@ -25,9 +25,20 @@ static void call_global_constructors() {
 }
 
 static void thread_test() {
-    auto h = add_kernel_thread([](void*) {
+    auto ev = create_event();
+
+    if (!ev) {
+        print("create_event failed\n");
+        return;
+    }
+
+    auto h = add_kernel_thread([](void* ctx) {
+        auto evv = (handle_t)ctx;
+
         print("Hello from second thread\n");
-    });
+
+        set_event(evv);
+    }, (void*)ev.get());
 
     if (!h) {
         print("add_kernel_thread failed\n");
@@ -38,7 +49,7 @@ static void thread_test() {
     print_hex(h.get());
     print("\n");
 
-    wait_for_object(h.get());
+    wait_for_object(ev.get());
     print("second thread finished\n");
 }
 
@@ -61,12 +72,11 @@ static void timer_test() {
 void main_thread(void*) {
     init_keyboard();
 
-    thread_test(); // FIXME
-
     init_smp();
 
     protect_kernel_pages();
 
+    thread_test(); // FIXME
     timer_test(); // FIXME
 
     while (1) { }

@@ -20,7 +20,8 @@ set(SRC_FILES src/kernel.cpp
     src/smp.S
     src/pe.cpp
     src/keyboard.cpp
-    src/keyboard.S)
+    src/keyboard.S
+    src/event.cpp)
 
 add_executable(kernel ${SRC_FILES})
 

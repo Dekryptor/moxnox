@@ -2,7 +2,8 @@
 
 enum class object_type {
     thread,
-    timer
+    timer,
+    event
 };
 
 class object {
@@ -18,6 +19,7 @@ concept is_sync_object = std::is_same_v<decltype(T::signalled), bool>;
 
 #include "thread.h"
 #include "timer.h"
+#include "event.h"
 
 // FIXME - concept to make sure func is invocable
 template<typename T>
@@ -29,6 +31,10 @@ static void visit_obj(object& obj, const T& func) {
 
         case object_type::timer:
             func(static_cast<timer&>(obj));
+        break;
+
+        case object_type::event:
+            func(static_cast<event&>(obj));
         break;
     }
 }
