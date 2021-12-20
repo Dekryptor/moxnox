@@ -21,7 +21,7 @@ static unsigned int heap_pages = 0;
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
 
-static spinlock pa_spinlock;
+static spinlock pa_spinlock, va_spinlock;
 
 static bool treat_as_free(enum map_type type) {
     switch (type) {
@@ -869,8 +869,6 @@ static uint64_t trailing_ones(uint64_t n) {
 }
 
 uint64_t allocate_va(uint32_t pages) {
-    // FIXME - spinlock
-
     auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
     uint64_t run_start = 0;
     uint64_t run_length = 0;
@@ -878,6 +876,8 @@ uint64_t allocate_va(uint32_t pages) {
 
     if (pages < 64)
         mask = (((uint64_t)1 << pages) - 1) << (uint64_t)(64 - pages);
+
+    lock_guard lock(va_spinlock);
 
     for (uint64_t i = 0; i < mb.size(); i++) {
         if (mb[i] & 0x8000000000000000) {
@@ -925,7 +925,7 @@ void free_va(uint64_t va, uint32_t pages) {
     va -= (uintptr_t)vablock;
     va >>= PAGE_SHIFT;
 
-    // FIXME - spinlock
+    lock_guard lock(va_spinlock);
 
     auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
 
