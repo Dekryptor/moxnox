@@ -7,6 +7,8 @@ timer_isr:
     # FIXME - different ISR for CPUs not handling timers?
     cmp BYTE PTR gs:GS_HANDLE_TIMERS, 0 # only handle timers on one CPU
     je Ltimer_isr_threads
+    cmp QWORD PTR gs:GS_PREEMPT_BLOCK, 0 # ignore timers if in spinlock
+    jne Ltimer_isr_threads
 
     push rax
     push rcx
