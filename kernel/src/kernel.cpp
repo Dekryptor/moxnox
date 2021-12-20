@@ -24,6 +24,12 @@ static void call_global_constructors() {
     }
 }
 
+extern "C"
+int atexit(void (*)(void)) {
+    // needed for linking when there are global objects with destructors
+    return 0;
+}
+
 static void thread_test() {
     auto ev = create_event(false);
 
@@ -53,6 +59,7 @@ static void thread_test() {
     print("second thread finished\n");
 }
 
+#if 0
 static void timer_test() {
     auto h = create_timer();
     if (!h) {
@@ -68,6 +75,7 @@ static void timer_test() {
 
     print("Timer fired.\n");
 }
+#endif
 
 void main_thread(void*) {
     init_keyboard();
@@ -77,9 +85,12 @@ void main_thread(void*) {
     protect_kernel_pages();
 
     thread_test(); // FIXME
-    timer_test(); // FIXME
+//     timer_test(); // FIXME
 
-    while (1) { }
+    while (1) {
+        wait_for_object(keyboard_event.get());
+        print("keyboard_event\n");
+    }
 }
 
 extern "C"

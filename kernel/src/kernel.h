@@ -108,6 +108,7 @@ uint8_t current_cpu_id();
 void protect_kernel_pages();
 
 // keyboard.cpp
+extern unique_handle keyboard_event;
 void init_keyboard();
 
 // event.cpp
