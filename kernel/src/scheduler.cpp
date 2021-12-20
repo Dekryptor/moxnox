@@ -12,6 +12,7 @@ static uint16_t last_tid = 0; // FIXME - too small?
 static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_SS = 0x10;
 static const uint64_t time_slice = 50; // ticks
+static const unsigned int guard_pages = 1;
 
 list_entry thread_list = { &thread_list, &thread_list };
 
@@ -89,7 +90,7 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
 
     t.tid = tid;
 
-    auto stack = (void*)allocate_va(KERNEL_STACK_PAGES);
+    auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + guard_pages);
     if (!stack) {
         print("allocate_va failed\n");
         delete &t;
@@ -102,19 +103,31 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
             print("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
-                unmap_and_free_page((uintptr_t)stack + (j << PAGE_SHIFT));
+                auto va = (uintptr_t)stack + ((j + guard_pages) << PAGE_SHIFT);
+                auto pa = va_to_pa(va);
+
+                free_page(pa);
+                unmap_page(va);
             }
+
+            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + guard_pages);
 
             delete &t;
             return false;
         }
 
-        if (!map_page(pa, (uintptr_t)stack + (i << PAGE_SHIFT), mapping_type::read_write)) {
+        if (!map_page(pa, (uintptr_t)stack + ((i + guard_pages) << PAGE_SHIFT), mapping_type::read_write)) {
             print("map_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
-                unmap_and_free_page((uintptr_t)stack + (j << PAGE_SHIFT));
+                auto va = (uintptr_t)stack + ((j + guard_pages) << PAGE_SHIFT);
+                auto pa = va_to_pa(va);
+
+                free_page(pa);
+                unmap_page(va);
             }
+
+            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + guard_pages);
 
             delete &t;
             return false;
@@ -127,7 +140,7 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
     t.context.rip = (uintptr_t)kernel_thread_start;
     t.context.rcx = (uintptr_t)func;
     t.context.rdx = (uintptr_t)param;
-    t.context.rsp = (uintptr_t)((uint8_t*)t.stack + (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
+    t.context.rsp = (uintptr_t)((uint8_t*)t.stack + ((KERNEL_STACK_PAGES + guard_pages) << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
     t.context.rflags = 0x202; // IF, reserved flag
     t.context.cs = kernel_CS;
     t.context.ss = kernel_SS;
@@ -288,16 +301,17 @@ void print_context(const amd64_context& ctx) {
 
 thread::~thread() {
     if (stack) {
-        auto va = (uintptr_t)stack;
+        auto va = (uintptr_t)stack + (guard_pages << PAGE_SHIFT);
         for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
             auto pa = va_to_pa(va);
 
             free_page(pa);
-            free_va(va, 1);
             unmap_page(va);
 
             va += PAGE_SIZE;
         }
+
+        free_va((uintptr_t)stack, KERNEL_STACK_PAGES + guard_pages);
     }
 }
 
