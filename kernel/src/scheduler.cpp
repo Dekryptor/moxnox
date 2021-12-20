@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
 #include "cpu_block.h"
+#include "unique_handle.h"
 #include <cstdlib>
 #include <optional>
 #include <atomic>
@@ -67,13 +68,13 @@ static void kernel_thread_start(void (*func)(void*), void* param) {
     terminate_thread();
 }
 
-bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
+unique_handle add_kernel_thread(void (*func)(void*), void* param) {
     uint16_t tid;
 
     auto tptr = new thread;
     if (!tptr) {
         print("new failed\n");
-        return false;
+        return {};
     }
 
     auto& t = *tptr;
@@ -82,7 +83,7 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
     if (last_tid == 0xffff) { // FIXME - check for lowest unused number
         print("Thread limit reached.\n");
         delete &t;
-        return false;
+        return {};
     }
 
     last_tid++;
@@ -94,7 +95,7 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
     if (!stack) {
         print("allocate_va failed\n");
         delete &t;
-        return false;
+        return {};
     }
 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
@@ -113,7 +114,7 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
             free_va((uintptr_t)stack, KERNEL_STACK_PAGES + guard_pages);
 
             delete &t;
-            return false;
+            return {};
         }
 
         if (!map_page(pa, (uintptr_t)stack + ((i + guard_pages) << PAGE_SHIFT), mapping_type::read_write)) {
@@ -130,7 +131,7 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
             free_va((uintptr_t)stack, KERNEL_STACK_PAGES + guard_pages);
 
             delete &t;
-            return false;
+            return {};
         }
     }
 
@@ -151,10 +152,11 @@ bool add_kernel_thread(void (*func)(void*), void* param, handle_t* handle) {
     insert_tail_list(thread_list, t.le);
     release_sync_lock();
 
-    if (handle)
-        *handle = add_handle(t, 0); // FIXME - access mask
+    auto hv = add_handle(t, 0); // FIXME - access mask
 
-    return true;
+    // we don't decrease the refcount after the handle is created, because of the active thread list
+
+    return unique_handle{hv};
 }
 
 static thread* pick_runnable_thread(thread* current) {

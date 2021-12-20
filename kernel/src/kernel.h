@@ -87,7 +87,7 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic);
 
 // scheduler.cpp
 extern list_entry thread_list;
-bool add_kernel_thread(void (*func)(void*), void* param = nullptr, handle_t* handle = nullptr);
+unique_handle add_kernel_thread(void (*func)(void*), void* param = nullptr);
 extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);

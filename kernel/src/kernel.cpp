@@ -25,22 +25,21 @@ static void call_global_constructors() {
 }
 
 static void thread_test() {
-    handle_t h;
-
-    if (!add_kernel_thread([](void*) {
+    auto h = add_kernel_thread([](void*) {
         print("Hello from second thread\n");
-    }, nullptr, &h)) {
+    });
+
+    if (!h) {
         print("add_kernel_thread failed\n");
-    } else {
-        print("h = ");
-        print_hex(h);
-        print("\n");
-
-        wait_for_object(h);
-        print("second thread finished\n");
-
-        close_handle(h);
+        return;
     }
+
+    print("h = ");
+    print_hex(h.get());
+    print("\n");
+
+    wait_for_object(h.get());
+    print("second thread finished\n");
 }
 
 static void timer_test() {
