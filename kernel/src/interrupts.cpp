@@ -343,7 +343,6 @@ void page_fault(uint64_t address, uint64_t error_code) {
 
     print(", CPU ");
     print_hex(cb.cpu_no);
-    print("\n");
     print(")\n");
 
     print_context(cb.thread_context);
