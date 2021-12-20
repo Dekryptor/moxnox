@@ -12,7 +12,9 @@ keyboard_isr:
 
     in al, 0x60
     mov cl, al
+    sub rsp, 0x20
     call keyboard_isr_func
+    add rsp, 0x20
 
     xor rax, rax
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI

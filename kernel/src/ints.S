@@ -12,7 +12,9 @@ dummy_isr:
     push r10
     push r11
 
+    sub rsp, 0x20
     call dummy_isr_func
+    add rsp, 0x20
 
     pop r11
     pop r10
@@ -28,27 +30,35 @@ page_fault_isr:
     save_context_when_error_code
     mov rcx, cr2
     pop rdx
+    sub rsp, 0x20
     call page_fault
+    add rsp, 0x20
     iretq
 
 .global double_fault_isr
 double_fault_isr:
     save_context_when_error_code
     pop rcx
+    sub rsp, 0x20
     call double_fault
+    add rsp, 0x20
     iretq
 
 .global general_protection_fault_isr
 general_protection_fault_isr:
     save_context_when_error_code
     pop rcx
+    sub rsp, 0x20
     call general_protection_fault
+    add rsp, 0x20
     iretq
 
 .global invalid_opcode_isr
 invalid_opcode_isr:
     save_context
+    sub rsp, 0x20
     call invalid_opcode
+    add rsp, 0x20
     iretq
 
 .global spurious_isr

@@ -35,7 +35,9 @@ Ltimer_isr_loop_start:
     push r10
     push r11
     mov rcx, rax
+    sub rsp, 0x20
     call timer_expired
+    add rsp, 0x20
     pop r11
     pop r10
     pop r9
