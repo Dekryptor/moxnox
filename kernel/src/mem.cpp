@@ -21,7 +21,7 @@ static unsigned int heap_pages = 0;
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
 
-static spinlock pa_spinlock, va_spinlock;
+static spinlock pa_spinlock, va_spinlock, heap_spinlock;
 
 static bool treat_as_free(enum map_type type) {
     switch (type) {
@@ -598,7 +598,7 @@ void* malloc(size_t size) {
 
     alloc_header* ah = nullptr;
 
-    // FIXME - spinlock
+    lock_guard lock(heap_spinlock);
 
     // allocate from existing pages if possible
 
