@@ -476,6 +476,15 @@ void free_lower_half_mappings() {
             *(uint64_t*)&p1 = 0;
         }
     }
+
+    // make sure mappings updated
+    __asm __volatile(
+        "mov rax, cr3\n"
+        "mov cr3, rax\n"
+        :
+        :
+        : "rax"
+    );
 }
 
 bool init_memory(const loader_block& lb) {
