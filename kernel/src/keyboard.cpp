@@ -1,21 +1,56 @@
 #include "kernel.h"
 #include "unique_handle.h"
 #include "objects.h"
+#include "spinlock.h"
 
 using namespace std;
 
-static const uint8_t keyboard_interrupt = 0x31;
+static const uint8_t keyboard_interrupt = 0x21;
 
 unique_handle keyboard_event;
 optional<reference_wrapper<event>> keyboard_event_obj;
 
+static spinlock keyboard_lock;
+static uint8_t* keyboard_buffer;
+static unsigned int keyboard_buffer_write_pos = 0;
+static unsigned int keyboard_buffer_read_pos = 0;
+
+static void keyboard_event_recv(void*) {
+    do {
+        wait_for_object(keyboard_event.get());
+
+        lock_guard lock(keyboard_lock);
+
+        while (keyboard_buffer_read_pos != keyboard_buffer_write_pos) {
+            print("keyboard_event ");
+            print_hex(keyboard_buffer[keyboard_buffer_read_pos]);
+            print("\n");
+
+            keyboard_buffer_read_pos++;
+            keyboard_buffer_read_pos &= 0xfff;
+        }
+    } while (true);
+}
+
 void init_keyboard() {
-    add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 0);
+    auto pa = allocate_page();
+    if (!pa) {
+        print("allocate_page failed\n");
+        return;
+    }
 
-    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return;
+    }
 
-    // IRQ 1 = keyboard
-    add_irq_handler(1, keyboard_interrupt, local_apic_id);
+    if (!map_page(pa, va, mapping_type::read_write)) {
+        print("map_page failed\n");
+        return;
+    }
+
+    keyboard_buffer = (uint8_t*)va;
 
     keyboard_event = create_event(true);
     if (!keyboard_event) {
@@ -25,11 +60,30 @@ void init_keyboard() {
 
     auto& obj = deref_handle(keyboard_event.get())->get();
     keyboard_event_obj = static_cast<event&>(obj);
+
+    if (!add_kernel_thread(keyboard_event_recv)) {
+        print("add_kernel_thread failed\n");
+        return;
+    }
+
+    add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 0);
+
+    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
+
+    // IRQ 1 = keyboard
+    add_irq_handler(1, keyboard_interrupt, local_apic_id);
 }
 
 extern "C"
 void keyboard_isr_func(uint8_t code) {
-    // FIXME - add to buffer
+    {
+        lock_guard lock(keyboard_lock);
+
+        keyboard_buffer[keyboard_buffer_write_pos] = code;
+
+        keyboard_buffer_write_pos++;
+        keyboard_buffer_write_pos &= 0xfff;
+    }
 
     set_event(keyboard_event_obj->get());
 }

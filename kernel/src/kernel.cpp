@@ -88,15 +88,7 @@ void main_thread(void*) {
     thread_test(); // FIXME
 //     timer_test(); // FIXME
 
-    unsigned int count = 0;
-    while (1) {
-        wait_for_object(keyboard_event.get());
-        print("keyboard_event ");
-        print_hex(count);
-        print("\n");
-
-        count++;
-    }
+    while (1) { }
 }
 
 extern "C"
