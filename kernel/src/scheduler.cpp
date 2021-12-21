@@ -205,9 +205,6 @@ void scheduler() {
     auto cb = get_cpu_block();
 
     if (cb->current_thread) {
-        if (cb->current_thread->status == thread_status::running)
-            cb->current_thread->status = thread_status::runnable;
-
         memcpy(&cb->current_thread->context, &cb->thread_context, sizeof(amd64_context));
 
         if (cb->current_thread->status == thread_status::dead) {
@@ -223,6 +220,10 @@ void scheduler() {
 
     do {
         acquire_sync_lock();
+
+        if (cb->current_thread && cb->current_thread->status == thread_status::running)
+            cb->current_thread->status = thread_status::runnable;
+
         cb->current_thread = pick_runnable_thread(cb->current_thread);
 
         if (cb->current_thread)
