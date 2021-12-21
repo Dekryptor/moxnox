@@ -2,8 +2,24 @@
 
 #include <string_view>
 
+static const uint8_t CODE_LCTRL = 0x1d;
 static const uint8_t CODE_LSHIFT = 0x2a;
 static const uint8_t CODE_RSHIFT = 0x36;
+static const uint8_t CODE_EXTD = 0xe0;
+
+static const uint8_t CODE_MODIFIED_ENTER = 0x1c;
+static const uint8_t CODE_MODIFIED_RCTRL = 0x1d;
+static const uint8_t CODE_MODIFIED_SLASH = 0x35;
+static const uint8_t CODE_MODIFIED_HOME = 0x47;
+static const uint8_t CODE_MODIFIED_UP = 0x48;
+static const uint8_t CODE_MODIFIED_PGUP = 0x49;
+static const uint8_t CODE_MODIFIED_LEFT = 0x4b;
+static const uint8_t CODE_MODIFIED_RIGHT = 0x4d;
+static const uint8_t CODE_MODIFIED_END = 0x4f;
+static const uint8_t CODE_MODIFIED_DOWN = 0x50;
+static const uint8_t CODE_MODIFIED_PGDN = 0x51;
+static const uint8_t CODE_MODIFIED_INS = 0x52;
+static const uint8_t CODE_MODIFIED_DEL = 0x53;
 
 static const std::u8string_view scan_codes[] = {
     // 00
