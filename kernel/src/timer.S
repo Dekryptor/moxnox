@@ -2,13 +2,11 @@
 
 #include "context.S"
 
-.global timer_isr # FIXME - needs own stack
+.global timer_isr
 timer_isr:
     # FIXME - different ISR for CPUs not handling timers?
     cmp BYTE PTR gs:GS_HANDLE_TIMERS, 0 # only handle timers on one CPU
     je Ltimer_isr_threads
-    cmp QWORD PTR gs:GS_PREEMPT_BLOCK, 0 # ignore timers if in spinlock
-    jne Ltimer_isr_threads
 
     push rax
     push rcx
@@ -62,9 +60,6 @@ Ltimer_isr_threads:
     cmp QWORD PTR gs:GS_CURRENT_THREAD, 0
     je Ltimer_isr_nop
 
-    cmp QWORD PTR gs:GS_PREEMPT_BLOCK, 0
-    jne Ltimer_isr_blocked
-
     dec QWORD PTR gs:GS_TIME_SLICE_LEFT
     cmp QWORD PTR gs:GS_TIME_SLICE_LEFT, 0
     jne Ltimer_isr_nop
@@ -81,12 +76,6 @@ Ltimer_isr_nop:
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
     pop rax
     iretq
-
-Ltimer_isr_blocked:
-    cmp QWORD PTR gs:GS_TIME_SLICE_LEFT, 0
-    je Ltimer_isr_nop
-    dec QWORD PTR gs:GS_TIME_SLICE_LEFT
-    jmp Ltimer_isr_nop
 
 .global scheduler_restore
 scheduler_restore:
@@ -158,7 +147,10 @@ yield:
 
 .global acquire_sync_lock
 acquire_sync_lock: # clobbers rax
-    inc QWORD PTR gs:GS_PREEMPT_BLOCK
+    mov rax, cr8
+    mov gs:GS_SYNC_LOCK_CR8, rax # FIXME - is this safe from pre-emption?
+    mov rax, 3
+    mov cr8, rax
 Lacquire_sync_lock_loop:
     mov rax, 1
     xchg [rip+sync_lock_val], rax
@@ -170,7 +162,8 @@ Lacquire_sync_lock_loop:
 release_sync_lock: # clobbers rax
     xor rax, rax
     xchg [rip+sync_lock_val], rax
-    dec QWORD PTR gs:GS_PREEMPT_BLOCK
+    mov rax, gs:GS_SYNC_LOCK_CR8
+    mov cr8, rax
     ret
 
 .global pit_delay

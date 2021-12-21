@@ -419,7 +419,7 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
     cb.current_thread = nullptr;
     cb.handle_timers = handle_timers;
     cb.cpu_no = cpu_no;
-    cb.preempt_block = 0;
+    cb.sync_lock_cr8 = 0;
 
     auto stack = allocate_stack();
     if (!stack)
