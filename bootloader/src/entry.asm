@@ -77,6 +77,8 @@ go:
     ; load GDT
     lgdt [gdt_ptr]
 
+    mov ax, 0x10
+    mov ss, ax
     jmp 0x08:start_kernel
 
 bits 64
