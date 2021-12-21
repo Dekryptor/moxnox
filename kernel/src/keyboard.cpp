@@ -29,10 +29,6 @@ void init_keyboard() {
 
 extern "C"
 void keyboard_isr_func(uint8_t code) {
-    print("Keyboard ");
-    print_hex(code);
-    print("\n");
-
     // FIXME - add to buffer
 
     set_event(keyboard_event_obj->get());
