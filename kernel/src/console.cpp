@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "spinlock.h"
 #include <span>
 #include <cstring>
 #include <bit>
@@ -34,6 +35,10 @@ static const uint64_t CONSOLE_PA = 0xb8000;
 
 static span<uint16_t> video;
 static uint8_t cursor_x = 0, cursor_y = 0;
+static spinlock console_lock;
+
+static void early_print(string_view s);
+decltype(&safe_print) print = early_print;
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -55,7 +60,7 @@ static void overflow() {
     cursor_y = ROWS - 1;
 }
 
-void print(string_view s) {
+static void early_print(string_view s) {
     for (auto c : s) {
         if (c == '\n') {
             cursor_x = 0;
@@ -77,6 +82,12 @@ void print(string_view s) {
             }
         }
     }
+}
+
+void safe_print(string_view s) {
+    lock_guard lock(console_lock);
+
+    early_print(s);
 }
 
 void print_hex(uint64_t num, unsigned int padding) {

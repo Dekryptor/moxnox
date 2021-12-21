@@ -56,7 +56,8 @@ void free_lower_half_mappings();
 
 // console.cpp
 bool init_console();
-void print(std::string_view s);
+void safe_print(std::string_view s);
+extern decltype(&safe_print) print;
 void print_hex(uint64_t num, unsigned int padding = 0);
 
 // interrupts.cpp
