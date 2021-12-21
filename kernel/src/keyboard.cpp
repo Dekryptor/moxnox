@@ -7,9 +7,11 @@
 using namespace std;
 
 static const uint8_t keyboard_interrupt = 0x21;
+static const unsigned int keyboard_buffer_pages = 1;
 
 unique_handle keyboard_event;
 optional<reference_wrapper<event>> keyboard_event_obj;
+optional<reference_wrapper<pipe>> keyboard_pipe;
 
 #define MODIFIER_LSHIFT     1
 #define MODIFIER_RSHIFT     2
@@ -24,6 +26,8 @@ static unsigned int keyboard_buffer_read_pos = 0;
 static unsigned int modifier = 0;
 
 static void keyboard_event_recv(void*) {
+    auto& p = keyboard_pipe->get();
+
     do {
         wait_for_object(keyboard_event.get());
 
@@ -150,7 +154,7 @@ static void keyboard_event_recv(void*) {
             }
 
             if (!sv.empty())
-                print(sv);
+                p.write(sv);
         }
     } while (true);
 }
@@ -187,6 +191,17 @@ void init_keyboard() {
     if (!add_kernel_thread(keyboard_event_recv)) {
         print("add_kernel_thread failed\n");
         return;
+    }
+
+    {
+        auto keyboard_pipe_handle = create_pipe(keyboard_buffer_pages);
+        if (!keyboard_pipe_handle) {
+            print("create_pipe failed\n");
+            return;
+        }
+
+        auto& obj = deref_handle(keyboard_pipe_handle.get())->get();
+        keyboard_pipe = static_cast<pipe&>(obj);
     }
 
     add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 0);
