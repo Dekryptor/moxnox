@@ -27,7 +27,11 @@
 #define CONTEXT_RIP 0x80
 #define CONTEXT_RFLAGS 0x88
 #define CONTEXT_CS 0x90
-#define CONTEXT_SS 0x98
+#define CONTEXT_DS 0x92
+#define CONTEXT_ES 0x94
+#define CONTEXT_FS 0x96
+#define CONTEXT_GS 0x98
+#define CONTEXT_SS 0x9a
 #define CONTEXT_FXSAVE 0xa0
 
 #define TIMER_LE 0x10

@@ -26,7 +26,11 @@
     mov gs:GS_CONTEXT + CONTEXT_CS, rax # old cs
     mov rax, [rsp+0x20]
     mov gs:GS_CONTEXT + CONTEXT_SS, rax # old ss
-    # FIXME - other segments, debug registers
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_DS, ds
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_ES, es
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_GS, gs
+    # FIXME - debug registers
     fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
 .endm
 
@@ -56,6 +60,10 @@
     mov gs:GS_CONTEXT + CONTEXT_CS, rax # old cs
     mov rax, [rsp+0x28]
     mov gs:GS_CONTEXT + CONTEXT_SS, rax # old ss
-    # FIXME - other segments, debug registers
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_DS, ds
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_ES, es
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_GS, gs
+    # FIXME - debug registers
     fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
 .endm

@@ -25,9 +25,12 @@ typedef struct _amd64_context {
     uint64_t r15;
     uint64_t rip;
     uint64_t rflags;
-    uint64_t cs;
-    uint64_t ss;
-    // FIXME - other segments
+    uint16_t cs;
+    uint16_t ds;
+    uint16_t es;
+    uint16_t fs;
+    uint16_t gs;
+    uint16_t ss;
     char fxsave_area[512]  __attribute__ ((aligned (16)));
 } amd64_context __attribute__ ((aligned (16)));
 
@@ -50,6 +53,10 @@ static_assert(offsetof(amd64_context, r15) == CONTEXT_R15);
 static_assert(offsetof(amd64_context, rip) == CONTEXT_RIP);
 static_assert(offsetof(amd64_context, rflags) == CONTEXT_RFLAGS);
 static_assert(offsetof(amd64_context, cs) == CONTEXT_CS);
+static_assert(offsetof(amd64_context, ds) == CONTEXT_DS);
+static_assert(offsetof(amd64_context, es) == CONTEXT_ES);
+static_assert(offsetof(amd64_context, fs) == CONTEXT_FS);
+static_assert(offsetof(amd64_context, gs) == CONTEXT_GS);
 static_assert(offsetof(amd64_context, ss) == CONTEXT_SS);
 static_assert(offsetof(amd64_context, fxsave_area) == CONTEXT_FXSAVE); // must be aligned on 16-byte boundary
 

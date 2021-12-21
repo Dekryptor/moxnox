@@ -90,6 +90,13 @@ Ltimer_isr_blocked:
 
 .global scheduler_restore
 scheduler_restore:
+    movzx rax, WORD PTR gs:GS_CONTEXT + CONTEXT_SS
+    push rax
+    push gs:GS_CONTEXT + CONTEXT_RSP
+    push gs:GS_CONTEXT + CONTEXT_RFLAGS
+    movzx rax, WORD PTR gs:GS_CONTEXT + CONTEXT_CS
+    push rax
+    push gs:GS_CONTEXT + CONTEXT_RIP
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
     mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
     mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
@@ -105,12 +112,11 @@ scheduler_restore:
     mov r13, gs:GS_CONTEXT + CONTEXT_R13
     mov r14, gs:GS_CONTEXT + CONTEXT_R14
     mov r15, gs:GS_CONTEXT + CONTEXT_R15
-    # FIXME - other segments, debug registers
-    push gs:GS_CONTEXT + CONTEXT_SS # ss
-    push gs:GS_CONTEXT + CONTEXT_RSP # rsp
-    push gs:GS_CONTEXT + CONTEXT_RFLAGS # RFLAGS
-    push gs:GS_CONTEXT + CONTEXT_CS # cs
-    push gs:GS_CONTEXT + CONTEXT_RIP # rip
+    mov ds, gs:GS_CONTEXT + CONTEXT_DS
+    mov es, gs:GS_CONTEXT + CONTEXT_ES
+    mov fs, gs:GS_CONTEXT + CONTEXT_FS
+    # setting gs nukes gsbase
+    # FIXME - debug registers
     fxrstor gs:GS_CONTEXT + CONTEXT_FXSAVE
     iretq
 
@@ -139,10 +145,14 @@ yield:
     mov rax, [rsp+0x8]
     mov gs:GS_CONTEXT + CONTEXT_RIP, rax # rip of instruction after call
     pop gs:GS_CONTEXT + CONTEXT_RFLAGS # RFLAGS
-    mov gs:GS_CONTEXT + CONTEXT_CS, cs
-    mov gs:GS_CONTEXT + CONTEXT_SS, ss
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_CS, cs
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_DS, ds
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_ES, es
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_GS, gs
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_SS, ss
     fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
-    # FIXME - other segments, debug registers
+    # FIXME - debug registers
     mov rsp, gs:GS_SCHEDULER_STACK
     jmp scheduler
 
