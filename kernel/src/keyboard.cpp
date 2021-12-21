@@ -33,7 +33,7 @@ static void keyboard_event_recv(void*) {
             keyboard_buffer_read_pos &= 0xfff;
 
             // FIXME - multi-byte codes (e0 etc.)
-            // FIXME - caps lock and num lock
+            // FIXME - caps lock and num lock (and lights?)
 
             switch (sc) {
                 case CODE_LSHIFT:
