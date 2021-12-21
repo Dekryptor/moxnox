@@ -92,6 +92,7 @@ void* memset(void* s, int c, size_t n) {
 
 static void overflow() {
     __builtin_memcpy(video, video + COLS, (ROWS - 1) * COLS * sizeof(uint16_t));
+    memset(video + ((ROWS - 1) * COLS), 0, COLS * sizeof(uint16_t));
     cursor_y = ROWS - 1;
 }
 
