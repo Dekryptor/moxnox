@@ -12,6 +12,7 @@ struct cpu_block {
     uint64_t preempt_block;
     void* gdt;
     void* timer_stack;
+    void* scheduler_stack;
 };
 
 static_assert(offsetof(cpu_block, current_thread) == GS_CURRENT_THREAD);
@@ -20,6 +21,7 @@ static_assert(offsetof(cpu_block, handle_timers) == GS_HANDLE_TIMERS);
 static_assert(offsetof(cpu_block, thread_context) == GS_CONTEXT);
 static_assert(offsetof(cpu_block, preempt_block) == GS_PREEMPT_BLOCK);
 static_assert(offsetof(cpu_block, timer_stack) == GS_TIMER_STACK);
+static_assert(offsetof(cpu_block, scheduler_stack) == GS_SCHEDULER_STACK);
 
 // timer.S
 extern "C" cpu_block* get_cpu_block();

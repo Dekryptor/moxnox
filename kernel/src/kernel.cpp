@@ -1,6 +1,7 @@
 #include "../../bootloader/src/loaderblock.h"
 #include "kernel.h"
 #include "unique_handle.h"
+#include "context_offsets.h"
 #include <string_view>
 
 using namespace std;
@@ -130,7 +131,12 @@ void startup(loader_block* lb) {
 
     init_timer(); // leaves interrupts disabled
 
-    scheduler(); // doesn't return
+    __asm __volatile ( // doesn't return
+        "mov rsp, gs:%0\n"
+        "jmp scheduler\n"
+        :
+        : "i" (GS_SCHEDULER_STACK)
+    );
 
 hang:
     while (1) { }

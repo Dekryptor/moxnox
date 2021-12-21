@@ -305,6 +305,51 @@ static bool setup_idt() {
     return true;
 }
 
+void* allocate_stack() {
+    auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+    if (!stack) {
+        print("allocate_va failed\n");
+        return nullptr;
+    }
+
+    for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
+        auto pa = allocate_page();
+        if (!pa) {
+            print("allocate_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
+                auto pa = va_to_pa(va);
+
+                free_page(pa);
+                unmap_page(va);
+            }
+
+            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+
+            return nullptr;
+        }
+
+        if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
+            print("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
+                auto pa = va_to_pa(va);
+
+                free_page(pa);
+                unmap_page(va);
+            }
+
+            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+
+            return nullptr;
+        }
+    }
+
+    return stack;
+}
+
 task_state_segment* init_tss() {
     auto& cb = *get_cpu_block();
 
@@ -331,56 +376,12 @@ task_state_segment* init_tss() {
     auto& tss = *(task_state_segment*)va;
     memset(&tss, 0, sizeof(tss));
 
-    auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+    auto stack = allocate_stack();
     if (!stack) {
-        print("allocate_va failed\n");
         unmap_page(va);
         free_va(va, 1);
         free_page(pa);
         return nullptr;
-    }
-
-    for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-        auto pa = allocate_page();
-        if (!pa) {
-            print("allocate_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
-                auto pa = va_to_pa(va);
-
-                free_page(pa);
-                unmap_page(va);
-            }
-
-            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-
-            unmap_page(va);
-            free_va(va, 1);
-            free_page(pa);
-
-            return nullptr;
-        }
-
-        if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
-            print("map_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
-                auto pa = va_to_pa(va);
-
-                free_page(pa);
-                unmap_page(va);
-            }
-
-            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-
-            unmap_page(va);
-            free_va(va, 1);
-            free_page(pa);
-
-            return nullptr;
-        }
     }
 
     tss.ist1 = (uintptr_t)((uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT));

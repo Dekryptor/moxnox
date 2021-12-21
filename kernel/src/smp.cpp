@@ -168,7 +168,12 @@ static void ap_startup() {
 
     ap_left--;
 
-    scheduler(); // doesn't return
+    __asm __volatile ( // doesn't return
+        "mov rsp, gs:%0\n"
+        "jmp scheduler\n"
+        :
+        : "i" (GS_SCHEDULER_STACK)
+    );
 }
 
 void init_smp() {

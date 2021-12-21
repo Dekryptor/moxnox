@@ -72,6 +72,7 @@ Ltimer_isr_threads:
     save_context
     xor rax, rax
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
+    mov rsp, gs:GS_SCHEDULER_STACK
     jmp scheduler
 
 Ltimer_isr_nop:
@@ -115,9 +116,9 @@ scheduler_restore:
 
 .global yield
 yield:
+    cli
     pushfq
     or QWORD PTR [rsp], 0x200 # set interrupt enable flag in stored RFLAGS
-    cli
     mov gs:GS_CONTEXT + CONTEXT_RAX, rax
     mov gs:GS_CONTEXT + CONTEXT_RCX, rcx
     mov gs:GS_CONTEXT + CONTEXT_RDX, rdx
@@ -142,7 +143,7 @@ yield:
     mov gs:GS_CONTEXT + CONTEXT_SS, ss
     fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
     # FIXME - other segments, debug registers
-    mov rsp, gs:GS_TIMER_STACK
+    mov rsp, gs:GS_SCHEDULER_STACK
     jmp scheduler
 
 .global acquire_sync_lock
