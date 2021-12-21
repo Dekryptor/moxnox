@@ -412,12 +412,12 @@ static bool copy_acpi(const loader_block& lb) {
 
     uint32_t needed_pages = (needed + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
-    auto pa = allocate_page();
-    if (pa == 0)
-        return false;
-
     for (unsigned int i = 0; i < needed_pages; i++) {
-        if (!map_page(pa + (i << PAGE_SHIFT), ((uintptr_t)acpi_tables) + (i << PAGE_SHIFT), mapping_type::read_write))
+        auto pa = allocate_page();
+        if (pa == 0)
+            return false;
+
+        if (!map_page(pa, ((uintptr_t)acpi_tables) + (i << PAGE_SHIFT), mapping_type::read_write))
             return false;
     }
 
