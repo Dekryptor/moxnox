@@ -79,6 +79,10 @@ go:
 
     mov ax, 0x10
     mov ss, ax
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
     jmp 0x08:start_kernel
 
 bits 64
