@@ -99,6 +99,7 @@ extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);
 void wait_for_object(handle_t h);
+void wait_for_object(object& obj);
 bool init_cpu_block(bool handle_timers, unsigned int cpu_no);
 thread* get_current_thread();
 

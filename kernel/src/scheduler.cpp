@@ -331,22 +331,8 @@ thread::~thread() {
     }
 }
 
-void wait_for_object(handle_t h) {
+void wait_for_object(object& obj) {
     auto current_thread = get_current_thread();
-
-    __asm("cli");
-
-    auto objrw = deref_handle(h);
-    if (!objrw) {
-        // FIXME - exception
-        print("No such handle\n");
-        return;
-    }
-
-    // FIXME - check handle has SYNCHRONIZE access
-
-    auto& obj = objrw->get();
-
     optional<bool> sigopt;
 
     {
@@ -393,6 +379,21 @@ void wait_for_object(handle_t h) {
     }
 
     yield();
+}
+
+void wait_for_object(handle_t h) {
+    __asm("cli");
+
+    auto objrw = deref_handle(h);
+    if (!objrw) {
+        // FIXME - exception
+        print("No such handle\n");
+        return;
+    }
+
+    // FIXME - check handle has SYNCHRONIZE access
+
+    wait_for_object(objrw->get());
 }
 
 bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
