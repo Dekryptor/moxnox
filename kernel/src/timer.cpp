@@ -5,7 +5,7 @@
 
 using namespace std;
 
-static const uint8_t timer_interrupt = 0x70;
+static const uint8_t timer_interrupt = 0x20;
 
 static const unsigned int tick_rate = 1000; // Hz
 
