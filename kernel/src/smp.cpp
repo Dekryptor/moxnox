@@ -166,7 +166,7 @@ static void ap_startup() {
 
     init_lapic_timer(true);
 
-    ap_left--;
+    ap_left.fetch_sub(1, memory_order_acq_rel);
 
     __asm __volatile ( // doesn't return
         "mov rsp, gs:%0\n"
@@ -254,7 +254,7 @@ void init_smp() {
         : "=m" (bsp_gdt), "=m" (bsp_idt)
     );
 
-    ap_left = ap_count;
+    ap_left.store(ap_count, memory_order_acq_rel);
 
     data = madt;
     while (data.size() > 2) {
@@ -274,10 +274,9 @@ void init_smp() {
         data = data.subspan(length);
     }
 
-    while (ap_left > 0) {
+    while (ap_left.load(memory_order_acq_rel) > 0) {
         __asm("pause");
     }
 
     unmap_page(0);
-    // FIXME - now mark PA page 0 as free?
 }
