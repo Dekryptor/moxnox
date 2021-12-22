@@ -87,34 +87,66 @@ pipe::~pipe() {
 }
 
 void pipe::write(span<const uint8_t> s) {
+    unsigned int release_count = 0;
+
     if (s.empty())
         return;
 
-    lock_guard l(lock);
+    {
+        lock_guard l(lock);
 
-    size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
-    size_t to_copy = min(s.size(), buf_left);
+        size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
+        size_t to_copy = min(s.size(), buf_left);
 
-    if (to_copy > 0) {
-        if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
-            auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
+        if (to_copy > 0) {
+            if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
+                auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
 
-            memcpy(&buf[buf_write_pos], s.data(), first_bit);
+                memcpy(&buf[buf_write_pos], s.data(), first_bit);
 
-            buf_write_pos = 0;
-            buf_unread += first_bit;
-            to_copy -= first_bit;
+                buf_write_pos = 0;
+                buf_unread += first_bit;
+                to_copy -= first_bit;
+                s = s.subspan(to_copy);
+            }
+
+            memcpy(&buf[buf_write_pos], s.data(), to_copy);
+            buf_write_pos += to_copy;
+            buf_unread += to_copy;
             s = s.subspan(to_copy);
         }
-
-        memcpy(&buf[buf_write_pos], s.data(), to_copy);
-        buf_write_pos += to_copy;
-        buf_unread += to_copy;
-        s = s.subspan(to_copy);
     }
 
-    // FIXME - wake up single waiting thread
-    // FIXME - otherwise, mark as signalled (make sure wait_for_object clears this)
+    // wake up waiting thread
+
+    {
+        lock_guard lock(sync_lock);
+
+        if (!signalled) {
+            signalled = true;
+
+            {
+                auto le = thread_list.next;
+
+                while (le != &thread_list) {
+                    auto& thr = containing_record<thread>(le);
+
+                    if (thr.status == thread_status::waiting && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(this)) {
+                        thr.status = thread_status::runnable;
+                        thr.waiting_for = nullopt;
+                        signalled = false;
+                        release_count = 1;
+                        break;
+                    }
+
+                    le = le->next;
+                }
+            }
+        }
+    }
+
+    if (release_count == 1)
+        release();
 
     if (s.empty())
         return;

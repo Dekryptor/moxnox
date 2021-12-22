@@ -2,6 +2,7 @@
 #include "kernel.h"
 #include "unique_handle.h"
 #include "context_offsets.h"
+#include "objects.h"
 #include <string_view>
 
 using namespace std;
@@ -78,6 +79,8 @@ static void timer_test() {
 }
 #endif
 
+extern optional<reference_wrapper<pipe>> keyboard_pipe; // FIXME
+
 void main_thread(void*) {
     init_keyboard();
 
@@ -88,7 +91,12 @@ void main_thread(void*) {
     thread_test(); // FIXME
 //     timer_test(); // FIXME
 
-    while (1) { }
+    while (1) {
+        // FIXME - do by handle instead, so we don't have to increase refcount
+        keyboard_pipe->get().acquire();
+        wait_for_object(keyboard_pipe->get());
+        print("pipe\n");
+    }
 }
 
 extern "C"

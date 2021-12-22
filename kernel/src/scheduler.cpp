@@ -362,7 +362,8 @@ void wait_for_object(object& obj) {
                 } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, event>) {
                     if (o.autoreset)
                         o.signalled = false;
-                }
+                } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, pipe>)
+                    o.signalled = false;
             });
 
             lock.reset();
