@@ -18,6 +18,8 @@ public:
             delete this;
     }
 
+    size_t read(std::span<uint8_t> s);
+
     void write(std::span<const uint8_t> s);
 
     void write(std::string_view sv) {
@@ -33,4 +35,5 @@ public:
 };
 
 static_assert(is_sync_object<pipe>);
+static_assert(is_readable_object<pipe>);
 static_assert(is_writable_object<pipe>);

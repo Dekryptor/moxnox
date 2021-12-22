@@ -23,6 +23,13 @@ concept is_writable_object = requires(T t, std::span<const uint8_t> s) {
     { t.write(s) };
 };
 
+// FIXME - version of this specifying offset
+// FIXME - async reads and writes (specifying event)
+template<typename T>
+concept is_readable_object = requires(T t, std::span<uint8_t> s) {
+    { t.read(s) } -> std::convertible_to<size_t>;
+};
+
 #include "thread.h"
 #include "timer.h"
 #include "event.h"

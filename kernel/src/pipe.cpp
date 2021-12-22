@@ -107,7 +107,7 @@ void pipe::write(span<const uint8_t> s) {
                 buf_write_pos = 0;
                 buf_unread += first_bit;
                 to_copy -= first_bit;
-                s = s.subspan(to_copy);
+                s = s.subspan(first_bit);
             }
 
             memcpy(&buf[buf_write_pos], s.data(), to_copy);
@@ -115,41 +115,85 @@ void pipe::write(span<const uint8_t> s) {
             buf_unread += to_copy;
             s = s.subspan(to_copy);
         }
-    }
 
-    // wake up waiting thread
+        // wake up waiting thread
 
-    {
-        lock_guard lock(sync_lock);
+        {
+            lock_guard lock(sync_lock);
 
-        if (!signalled) {
-            signalled = true;
+            if (!signalled) {
+                signalled = true;
 
-            {
-                auto le = thread_list.next;
+                {
+                    auto le = thread_list.next;
 
-                while (le != &thread_list) {
-                    auto& thr = containing_record<thread>(le);
+                    while (le != &thread_list) {
+                        auto& thr = containing_record<thread>(le);
 
-                    if (thr.status == thread_status::waiting && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(this)) {
-                        thr.status = thread_status::runnable;
-                        thr.waiting_for = nullopt;
-                        signalled = false;
-                        release_count = 1;
-                        break;
+                        if (thr.status == thread_status::waiting && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(this)) {
+                            thr.status = thread_status::runnable;
+                            thr.waiting_for = nullopt;
+                            release_count++;
+                        }
+
+                        le = le->next;
                     }
-
-                    le = le->next;
                 }
             }
         }
     }
 
-    if (release_count == 1)
+    for (unsigned int i = 0; i < release_count; i++) {
         release();
+    }
 
     if (s.empty())
         return;
 
     // FIXME - block while we wait for space to become available
+}
+
+size_t pipe::read(span<uint8_t> s) {
+    size_t copied = 0;
+
+    if (s.empty())
+        return 0;
+
+    {
+        lock_guard l(lock);
+
+        if (buf_unread == 0)
+            return 0;
+
+        size_t buf_read_pos = buf_write_pos + (buf_pages << PAGE_SHIFT) - buf_unread;
+
+        while (buf_read_pos >= buf_pages << PAGE_SHIFT) {
+            buf_read_pos -= buf_pages << PAGE_SHIFT;
+        }
+
+        size_t to_copy = min(s.size(), buf_unread);
+
+        if (buf_read_pos + to_copy > buf_pages << PAGE_SHIFT) {
+            auto first_bit = (buf_pages << PAGE_SHIFT) - buf_read_pos;
+
+            memcpy(s.data(), &buf[buf_read_pos], first_bit);
+
+            buf_read_pos = 0;
+            buf_unread -= first_bit;
+            to_copy -= first_bit;
+            s = s.subspan(first_bit);
+            copied = first_bit;
+        }
+
+        memcpy(s.data(), &buf[buf_read_pos], to_copy);
+        buf_unread -= to_copy;
+        copied += to_copy;
+
+        if (buf_unread == 0) {
+            lock_guard l2(sync_lock);
+            signalled = false;
+        }
+    }
+
+    return copied;
 }

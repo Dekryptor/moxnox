@@ -91,11 +91,17 @@ void main_thread(void*) {
     thread_test(); // FIXME
 //     timer_test(); // FIXME
 
+    auto& pipe = keyboard_pipe->get();
+
     while (1) {
+        uint8_t s[10];
+
         // FIXME - do by handle instead, so we don't have to increase refcount
-        keyboard_pipe->get().acquire();
-        wait_for_object(keyboard_pipe->get());
-        print("pipe\n");
+        pipe.acquire();
+        wait_for_object(pipe);
+
+        auto read = pipe.read(s);
+        print(string_view((char*)s, read));
     }
 }
 
