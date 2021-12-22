@@ -3,6 +3,23 @@
 
 using namespace std;
 
+struct pci_header {
+    uint16_t vendor_id;
+    uint16_t device_id;
+    uint16_t command;
+    uint16_t status;
+    uint8_t revision_id;
+    uint8_t prog_if;
+    uint8_t sub_class;
+    uint8_t class_code;
+    uint8_t cache_line_size;
+    uint8_t latency_timer;
+    uint8_t header_type;
+    uint8_t bist;
+} __attribute__((packed));
+
+static_assert(sizeof(pci_header) == 0x10);
+
 static span<const uint8_t> find_mcfg() {
     optional<reference_wrapper<const ACPISDTHeader>> mcfgw;
 
@@ -28,27 +45,108 @@ static span<const uint8_t> find_mcfg() {
     return span((const uint8_t*)&mcfg, mcfg.Length);
 }
 
+static constexpr uint64_t pci_pa(const apic_mcfg_item& item, uint8_t bus, uint8_t device, uint8_t function) {
+    return item.base_address | ((bus - item.start_number) << 20) | (device << 15) | (function << 12);
+}
+
+static void check_bus(uint8_t bus, const apic_mcfg_item& item, uint64_t va) {
+    const volatile auto& h = *(pci_header*)va;
+
+    for (uint8_t dev = 0; dev < 32; dev++) {
+        auto pa = pci_pa(item, bus, dev, 0);
+
+        if (!map_page(pa, va, mapping_type::no_cache)) {
+            print("map_page failed\n");
+            return;
+        }
+
+        if (h.vendor_id == 0xffff) {
+            unmap_page(va);
+            continue;
+        }
+
+        bool multifunction = h.header_type & 0x80;
+
+        print_hex(bus, 2);
+        print(":");
+        print_hex(dev, 2);
+        print(".0 ");
+
+        print_hex(h.vendor_id, 4);
+        print(":");
+        print_hex(h.device_id, 4);
+        print("\n");
+
+        unmap_page(va);
+
+        if (multifunction) {
+            for (uint8_t func = 1; func < 8; func++) {
+                pa = pci_pa(item, bus, dev, func);
+
+                if (!map_page(pa, va, mapping_type::no_cache)) {
+                    print("map_page failed\n");
+                    return;
+                }
+
+                if (h.vendor_id == 0xffff) {
+                    unmap_page(va);
+                    continue;
+                }
+
+                // FIXME
+                print_hex(bus, 2);
+                print(":");
+                print_hex(dev, 2);
+                print(".");
+                print_hex(func, 1);
+                print(" ");
+
+                print_hex(h.vendor_id, 4);
+                print(":");
+                print_hex(h.device_id, 4);
+                print("\n");
+
+                unmap_page(va);
+            }
+        }
+    }
+}
+
+static void check_buses(const apic_mcfg_item& item, uint64_t va) {
+    // FIXME - multiple PCI controllers
+    // FIXME - PCI-to-PCI bridges
+
+    check_bus(item.start_number, item, va);
+}
+
 void init_pci() {
     auto mcfg = find_mcfg();
 
-    if (mcfg.empty())
+    if (mcfg.empty()) {
+        print("Could not find MCFG ACPI entry.\n");
+        // FIXME - do it the traditional way if this is the case?
         return;
+    }
+
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return;
+    }
 
     const auto& tbl = *(apic_mcfg*)mcfg.data();
 
     auto items = span(tbl.items, (mcfg.size() - offsetof(apic_mcfg, items)) / sizeof(apic_mcfg_item));
 
-    for (const auto& i : items) {
-        print("base_address = ");
-        print_hex(i.base_address);
-        print(", segment_group_number = ");
-        print_hex(i.segment_group_number);
-        print(", start_number = ");
-        print_hex(i.start_number);
-        print(", end_number = ");
-        print_hex(i.end_number);
-        print("\n");
+    if (items.empty()) {
+        print("No apic_mcfg_items found\n");
+        free_va(va, 1);
+        return;
     }
 
-    // FIXME
+    for (const auto& item: items) {
+        check_buses(item, va);
+    }
+
+    free_va(va, 1);
 }
