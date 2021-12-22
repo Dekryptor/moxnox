@@ -44,4 +44,5 @@ struct pci_device {
     uint8_t device;
     uint8_t function;
     pci_header0 header;
+    std::span<volatile uint8_t> bar[6];
 };

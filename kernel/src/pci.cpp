@@ -58,13 +58,15 @@ static void device_found(const volatile pci_header& h, uint64_t pa, uint8_t bus,
         return;
     }
 
-    const volatile auto& h0 = *(pci_header0*)&h;
+    volatile auto& h0 = *(pci_header0*)&h;
 
     auto ppci_dev = new pci_device;
     if (!ppci_dev) {
         print("new failed\n");
         return;
     }
+
+    // FIXME - query capabilities
 
     auto& pci_dev = *ppci_dev;
     pci_dev.pa = pa;
@@ -73,7 +75,51 @@ static void device_found(const volatile pci_header& h, uint64_t pa, uint8_t bus,
     pci_dev.function = func;
     memcpy(&pci_dev.header, (void*)&h0, sizeof(pci_header0));
 
-    // FIXME - find size of BARs and map
+    for (unsigned int i = 0; i < 6; i++) {
+        volatile auto& b = h0.bar[i];
+
+        if (b != 0) {
+            uint32_t orig, changed, end;
+
+            orig = b;
+            b = 0xffffffff;
+            changed = b;
+            b = orig;
+
+            end = orig + ~changed + 1;
+
+            if (!(b & 1)) { // memory space
+                auto type = (orig >> 1) & 0x3;
+
+                // FIXME - type == 2 is 64-bit register
+
+                if (type == 0) {
+                    auto pa = orig & 0xfffffff0;
+                    auto pages = bytes_to_pages(end - pa);
+                    auto va = allocate_va(pages);
+
+                    if (!va) {
+                        print("allocate_va failed\n");
+                        return;
+                    }
+
+                    for (unsigned int j = 0; j < pages; j++) {
+                        // FIXME - if prefetchable, map as write-through (or write-combine if framebuffer)?
+                        if (!map_page(pa + (j << PAGE_SHIFT), va + (j << PAGE_SHIFT), mapping_type::no_cache)) {
+                            print("map_page failed\n");
+                            return;
+                        }
+                    }
+
+                    pci_dev.bar[i] = span((volatile uint8_t*)va, end - pa);
+                } else {
+                    print("Unhandled PCI BAR type ");
+                    print_hex(type);
+                    print("\n");
+                }
+            }
+        }
+    }
 
     insert_tail_list(pci_device_list, pci_dev.le);
 }
