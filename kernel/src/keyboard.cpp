@@ -11,8 +11,7 @@ static const unsigned int keyboard_buffer_pages = 1;
 
 static unique_handle keyboard_event;
 static optional<reference_wrapper<event>> keyboard_event_obj;
-static optional<reference_wrapper<pipe>> keyboard_pipe;
-static unique_handle keyboard_pipe_handle;
+static unique_handle keyboard_pipe;
 
 #define MODIFIER_LSHIFT     1
 #define MODIFIER_RSHIFT     2
@@ -27,8 +26,6 @@ static unsigned int keyboard_buffer_read_pos = 0;
 static unsigned int modifier = 0;
 
 static void keyboard_event_recv(void*) {
-    auto& p = keyboard_pipe->get();
-
     do {
         wait_for_object(keyboard_event.get());
 
@@ -155,7 +152,7 @@ static void keyboard_event_recv(void*) {
             }
 
             if (!sv.empty())
-                p.write(sv);
+                write(keyboard_pipe.get(), sv);
         }
     } while (true);
 }
@@ -194,20 +191,15 @@ void init_keyboard() {
         return;
     }
 
-    keyboard_pipe_handle = create_pipe(keyboard_buffer_pages);
-    if (!keyboard_pipe_handle) {
+    keyboard_pipe = create_pipe(keyboard_buffer_pages);
+    if (!keyboard_pipe) {
         print("create_pipe failed\n");
         return;
     }
 
-    if (!name_object(keyboard_pipe_handle.get(), "keyboard")) {
+    if (!name_object(keyboard_pipe.get(), "keyboard")) {
         print("name_object failed\n");
         return;
-    }
-
-    {
-        auto& obj = deref_handle(keyboard_pipe_handle.get())->get();
-        keyboard_pipe = static_cast<pipe&>(obj);
     }
 
     add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 0);

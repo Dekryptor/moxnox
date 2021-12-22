@@ -342,3 +342,7 @@ void write(handle_t h, span<const uint8_t> s) {
         o.release();
     });
 }
+
+void write(handle_t h, string_view s) {
+    write(h, span((uint8_t*)s.data(), s.size()));
+}
