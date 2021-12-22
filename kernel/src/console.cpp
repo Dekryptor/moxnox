@@ -50,7 +50,7 @@ size_t strlen(const char* s) {
     return i;
 }
 
-static void putc(uint8_t x, uint8_t y, char c) {
+static void putc(uint8_t x, uint8_t y, uint8_t c) {
     video[(y * COLS) + x] = (uint16_t)(((uint16_t)bg_colour << 12) | ((uint16_t)fg_colour << 8) | c);
 }
 
