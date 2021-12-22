@@ -63,6 +63,8 @@ handle_t add_handle(object& obj, uint32_t access_mask) {
         o.acquire();
     });
 
+    obj.handle_count++;
+
     return h;
 }
 
@@ -76,6 +78,38 @@ void close_handle(handle_t h) {
         obj = ho.obj;
 
         ho.obj = nullptr;
+    }
+
+    auto new_handle_count = --obj->handle_count;
+
+    // remove name if last handle closed
+    if (obj->named && new_handle_count == 0) {
+        name_entry* ne = nullptr;
+
+        {
+            lock_guard lock(name_lock);
+
+            auto le = name_list.next;
+            while (le != &name_list) {
+                auto& ne2 = containing_record<name_entry>(le);
+
+                if (ne2.obj == obj) {
+                    ne = &ne2;
+                    remove_entry_list(ne2.le);
+                    break;
+                }
+
+                le = le->next;
+            }
+        }
+
+        if (ne) {
+            free(ne);
+
+            visit_obj(*obj, [](auto&& o) {
+                o.release();
+            });
+        }
     }
 
     visit_obj(*obj, [](auto&& o) {

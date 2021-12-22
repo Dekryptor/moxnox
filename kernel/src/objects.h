@@ -13,6 +13,7 @@ public:
 
     enum object_type type;
     std::atomic<unsigned int> refcount = 1;
+    std::atomic<unsigned int> handle_count = 0;
     bool named = false;
 };
 
