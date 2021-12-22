@@ -24,6 +24,7 @@ static uint8_t* keyboard_buffer;
 static unsigned int keyboard_buffer_write_pos = 0;
 static unsigned int keyboard_buffer_read_pos = 0;
 static unsigned int modifier = 0;
+static unique_handle keyboard_pipe_handle;
 
 static void keyboard_event_recv(void*) {
     auto& p = keyboard_pipe->get();
@@ -193,13 +194,18 @@ void init_keyboard() {
         return;
     }
 
-    {
-        auto keyboard_pipe_handle = create_pipe(keyboard_buffer_pages);
-        if (!keyboard_pipe_handle) {
-            print("create_pipe failed\n");
-            return;
-        }
+    keyboard_pipe_handle = create_pipe(keyboard_buffer_pages);
+    if (!keyboard_pipe_handle) {
+        print("create_pipe failed\n");
+        return;
+    }
 
+    if (!name_object(keyboard_pipe_handle.get(), "keyboard")) {
+        print("name_object failed\n");
+        return;
+    }
+
+    {
         auto& obj = deref_handle(keyboard_pipe_handle.get())->get();
         keyboard_pipe = static_cast<pipe&>(obj);
     }

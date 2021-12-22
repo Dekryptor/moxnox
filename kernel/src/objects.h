@@ -13,6 +13,7 @@ public:
 
     enum object_type type;
     std::atomic<unsigned int> refcount = 1;
+    bool named = false;
 };
 
 template<typename T>
