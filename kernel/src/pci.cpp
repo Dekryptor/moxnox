@@ -1,24 +1,10 @@
 #include "kernel.h"
 #include "acpi.h"
+#include "pci.h"
 
 using namespace std;
 
-struct pci_header {
-    uint16_t vendor_id;
-    uint16_t device_id;
-    uint16_t command;
-    uint16_t status;
-    uint8_t revision_id;
-    uint8_t prog_if;
-    uint8_t sub_class;
-    uint8_t class_code;
-    uint8_t cache_line_size;
-    uint8_t latency_timer;
-    uint8_t header_type;
-    uint8_t bist;
-} __attribute__((packed));
-
-static_assert(sizeof(pci_header) == 0x10);
+static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
 
 static span<const uint8_t> find_mcfg() {
     optional<reference_wrapper<const ACPISDTHeader>> mcfgw;
@@ -49,6 +35,49 @@ static constexpr uint64_t pci_pa(const apic_mcfg_item& item, uint8_t bus, uint8_
     return item.base_address | ((bus - item.start_number) << 20) | (device << 15) | (function << 12);
 }
 
+static void device_found(const volatile pci_header& h, uint64_t pa, uint8_t bus, uint8_t dev, uint8_t func) {
+    print_hex(bus, 2);
+    print(":");
+    print_hex(dev, 2);
+    print(".");
+    print_hex(func, 1);
+    print(" ");
+
+    print_hex(h.vendor_id, 4);
+    print(":");
+    print_hex(h.device_id, 4);
+    print("\n");
+
+    // FIXME - header type 1 (PCI-to-PCI bridge)
+    // FIXME - header type 2 (PCI-to-CardBus bridge)
+
+    if ((h.header_type & 0x7f) != 0) {
+        print("Unhandled PCI header type ");
+        print_hex(h.header_type);
+        print("\n");
+        return;
+    }
+
+    const volatile auto& h0 = *(pci_header0*)&h;
+
+    auto ppci_dev = new pci_device;
+    if (!ppci_dev) {
+        print("new failed\n");
+        return;
+    }
+
+    auto& pci_dev = *ppci_dev;
+    pci_dev.pa = pa;
+    pci_dev.bus = bus;
+    pci_dev.device = dev;
+    pci_dev.function = func;
+    memcpy(&pci_dev.header, (void*)&h0, sizeof(pci_header0));
+
+    // FIXME - find size of BARs and map
+
+    insert_tail_list(pci_device_list, pci_dev.le);
+}
+
 static void check_bus(uint8_t bus, const apic_mcfg_item& item, uint64_t va) {
     const volatile auto& h = *(pci_header*)va;
 
@@ -60,6 +89,8 @@ static void check_bus(uint8_t bus, const apic_mcfg_item& item, uint64_t va) {
             return;
         }
 
+        invalidate_tlb();
+
         if (h.vendor_id == 0xffff) {
             unmap_page(va);
             continue;
@@ -67,15 +98,7 @@ static void check_bus(uint8_t bus, const apic_mcfg_item& item, uint64_t va) {
 
         bool multifunction = h.header_type & 0x80;
 
-        print_hex(bus, 2);
-        print(":");
-        print_hex(dev, 2);
-        print(".0 ");
-
-        print_hex(h.vendor_id, 4);
-        print(":");
-        print_hex(h.device_id, 4);
-        print("\n");
+        device_found(h, pa, bus, dev, 0);
 
         unmap_page(va);
 
@@ -88,23 +111,14 @@ static void check_bus(uint8_t bus, const apic_mcfg_item& item, uint64_t va) {
                     return;
                 }
 
+                invalidate_tlb();
+
                 if (h.vendor_id == 0xffff) {
                     unmap_page(va);
                     continue;
                 }
 
-                // FIXME
-                print_hex(bus, 2);
-                print(":");
-                print_hex(dev, 2);
-                print(".");
-                print_hex(func, 1);
-                print(" ");
-
-                print_hex(h.vendor_id, 4);
-                print(":");
-                print_hex(h.device_id, 4);
-                print("\n");
+                device_found(h, pa, bus, dev, func);
 
                 unmap_page(va);
             }
