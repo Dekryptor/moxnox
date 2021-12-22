@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
 #include "spinlock.h"
+#include "unique_handle.h"
 
 using namespace std;
 
@@ -211,4 +212,97 @@ bool name_object(handle_t h, string_view name) {
     insert_tail_list(name_list, ne->le);
 
     return true;
+}
+
+unique_handle open_object(string_view name) {
+    if (name.empty()) {
+        print("Invalid name\n");
+        return {};
+    }
+
+    object* obj = nullptr;
+
+    {
+        lock_guard lock(name_lock);
+
+        auto le = name_list.next;
+        while (le != &name_list) {
+            auto& ne = containing_record<name_entry>(le);
+
+            if (ne.name_len == name.length()) {
+                auto nesv = string_view(ne.name, ne.name_len);
+
+                if (nesv == name) {
+                    visit_obj(*ne.obj, [](auto&& o) {
+                        o.acquire();
+                    });
+
+                    obj = ne.obj;
+                    break;
+                }
+            }
+
+            le = le->next;
+        }
+    }
+
+    if (!obj) {
+        print("Not found\n");
+        return {};
+    }
+
+    auto hv = add_handle(*obj, 0); // FIXME - access mask
+
+    visit_obj(*obj, [](auto&& o) {
+        o.release();
+    });
+
+    if (!hv) {
+        print("add_handle failed\n");
+        return {};
+    }
+
+    return unique_handle{hv};
+}
+
+size_t read(handle_t h, span<uint8_t> s) {
+    auto objrw = deref_handle(h);
+
+    if (!objrw) {
+        // FIXME - exception
+        print("Invalid handle\n");
+        return 0;
+    }
+
+    auto& obj = objrw->get();
+    bool can_read = false;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_readable_object<remove_reference_t<decltype(o)>>)
+            can_read = true;
+    });
+
+    if (!can_read) {
+        // FIXME - exception
+        print("Not a readable object\n");
+
+        visit_obj(obj, [](auto&& o) {
+            o.release();
+        });
+
+        return 0;
+    }
+
+    size_t ret;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_readable_object<remove_reference_t<decltype(o)>>)
+            ret = o.read(s);
+        else
+            ret = 0; // can't happen - this is to make compiler happy
+
+        o.release();
+    });
+
+    return ret;
 }

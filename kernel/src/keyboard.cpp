@@ -9,9 +9,10 @@ using namespace std;
 static const uint8_t keyboard_interrupt = 0x21;
 static const unsigned int keyboard_buffer_pages = 1;
 
-unique_handle keyboard_event;
-optional<reference_wrapper<event>> keyboard_event_obj;
-optional<reference_wrapper<pipe>> keyboard_pipe;
+static unique_handle keyboard_event;
+static optional<reference_wrapper<event>> keyboard_event_obj;
+static optional<reference_wrapper<pipe>> keyboard_pipe;
+static unique_handle keyboard_pipe_handle;
 
 #define MODIFIER_LSHIFT     1
 #define MODIFIER_RSHIFT     2
@@ -24,7 +25,6 @@ static uint8_t* keyboard_buffer;
 static unsigned int keyboard_buffer_write_pos = 0;
 static unsigned int keyboard_buffer_read_pos = 0;
 static unsigned int modifier = 0;
-static unique_handle keyboard_pipe_handle;
 
 static void keyboard_event_recv(void*) {
     auto& p = keyboard_pipe->get();

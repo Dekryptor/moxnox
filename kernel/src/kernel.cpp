@@ -79,8 +79,6 @@ static void timer_test() {
 }
 #endif
 
-extern optional<reference_wrapper<pipe>> keyboard_pipe; // FIXME
-
 void main_thread(void*) {
     init_keyboard();
 
@@ -91,17 +89,19 @@ void main_thread(void*) {
     thread_test(); // FIXME
 //     timer_test(); // FIXME
 
-    auto& pipe = keyboard_pipe->get();
+    auto pipe = open_object("keyboard");
+    if (!pipe) {
+        print("Could not open keyboard object.\n");
+        return;
+    }
 
     while (1) {
         uint8_t s[10];
 
-        // FIXME - do by handle instead, so we don't have to increase refcount
-        pipe.acquire();
-        wait_for_object(pipe);
+        wait_for_object(pipe.get());
 
-        auto read = pipe.read(s);
-        print(string_view((char*)s, read));
+        auto read_bytes = read(pipe.get(), s);
+        print(string_view((char*)s, read_bytes));
     }
 }
 
