@@ -55,7 +55,39 @@ typedef struct {
     uint32_t reserved : 30;
 } madt_local_apic;
 
+struct apic_mcfg_item {
+    uint64_t base_address;
+    uint16_t segment_group_number;
+    uint8_t start_number;
+    uint8_t end_number;
+    uint32_t reserved;
+};
+
+struct apic_mcfg {
+    ACPISDTHeader header;
+    uint64_t reserved;
+    apic_mcfg_item items[1];
+};
+
 #pragma pack(pop)
 
 extern void* acpi_tables;
 extern unsigned int acpi_count;
+
+static const uint32_t ACPI_APIC = 0x43495041;
+static const uint32_t ACPI_MCFG = 0x4746434d;
+
+static void find_acpi_table(uint32_t sig, std::invocable<const ACPISDTHeader&> auto func) {
+    auto ptr = (uint8_t*)acpi_tables;
+
+    for (unsigned int i = 0; i < acpi_count; i++) {
+        auto& tbl = *(ACPISDTHeader*)ptr;
+
+        // FIXME - check checksums
+
+        if (tbl.Signature == sig)
+            func(tbl);
+
+        ptr += tbl.Length;
+    }
+}

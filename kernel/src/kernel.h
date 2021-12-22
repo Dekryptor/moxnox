@@ -130,3 +130,6 @@ void set_event(event& e);
 
 // pipe.cpp
 unique_handle create_pipe(unsigned int buffer_pages);
+
+// pci.cpp
+void init_pci();

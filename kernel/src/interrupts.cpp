@@ -55,23 +55,10 @@ static inline uint64_t rdmsr(uint64_t msr) {
     return ((uint64_t)high << 32) | low;
 }
 
-static void find_acpi_table(uint32_t sig, invocable<const ACPISDTHeader&> auto func) {
-    auto ptr = (uint8_t*)acpi_tables;
-
-    for (unsigned int i = 0; i < acpi_count; i++) {
-        auto& tbl = *(ACPISDTHeader*)ptr;
-
-        if (tbl.Signature == sig)
-            func(tbl);
-
-        ptr += tbl.Length;
-    }
-}
-
 span<const uint8_t> find_madt() {
     optional<reference_wrapper<const ACPISDTHeader>> madtw;
 
-    find_acpi_table(0x43495041, [&](const ACPISDTHeader& tbl) { // "APIC"
+    find_acpi_table(ACPI_APIC, [&](const ACPISDTHeader& tbl) {
         if (madtw)
             return;
 
@@ -80,14 +67,14 @@ span<const uint8_t> find_madt() {
 
     if (!madtw) {
         print("MADT not found in ACPI tables.\n");
-        return span<uint8_t>();
+        return span<const uint8_t>();
     }
 
     auto& madt = madtw->get();
 
     if (madt.Length < sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t)) {
         print("MADT was shorter than expected.\n");
-        return span<uint8_t>();
+        return span<const uint8_t>();
     }
 
     return span((uint8_t*)&madt + sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t),

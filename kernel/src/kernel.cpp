@@ -86,6 +86,8 @@ void main_thread(void*) {
 
     protect_kernel_pages();
 
+    init_pci();
+
     thread_test(); // FIXME
 //     timer_test(); // FIXME
 
