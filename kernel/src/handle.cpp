@@ -306,3 +306,39 @@ size_t read(handle_t h, span<uint8_t> s) {
 
     return ret;
 }
+
+void write(handle_t h, span<const uint8_t> s) {
+    auto objrw = deref_handle(h);
+
+    if (!objrw) {
+        // FIXME - exception
+        print("Invalid handle\n");
+        return;
+    }
+
+    auto& obj = objrw->get();
+    bool can_write = false;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_writable_object<remove_reference_t<decltype(o)>>)
+            can_write = true;
+    });
+
+    if (!can_write) {
+        // FIXME - exception
+        print("Not a writable object\n");
+
+        visit_obj(obj, [](auto&& o) {
+            o.release();
+        });
+
+        return;
+    }
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_writable_object<remove_reference_t<decltype(o)>>)
+            o.write(s);
+
+        o.release();
+    });
+}

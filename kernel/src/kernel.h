@@ -110,6 +110,7 @@ std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
 bool name_object(handle_t h, std::string_view name);
 unique_handle open_object(std::string_view name);
 size_t read(handle_t h, std::span<uint8_t> s);
+void write(handle_t h, std::span<const uint8_t> s);
 
 // smp.cpp
 void init_smp();
