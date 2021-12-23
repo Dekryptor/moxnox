@@ -5,6 +5,72 @@
 
 using namespace std;
 
+void sata_device::read_test() {
+    port.is = 0xffffffff; // clear interrupt bits
+
+    uint8_t slot = 0; // FIXME
+
+    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+
+    cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
+    cmd.w = 0; // read;
+    cmd.prdtl = 1; // no. of PRDT entries
+
+    print("cmd.ctba = ");
+    print_hex(cmd.ctba);
+    print("\n");
+
+    auto& cmdtbl = *cmd_tables[slot];
+
+    memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
+
+    cmdtbl.prdt_entry[0].dba = 0; // FIXME - buffer
+    cmdtbl.prdt_entry[0].dbau = 0; // FIXME - buffer
+    cmdtbl.prdt_entry[0].dbc = 511; // size
+    cmdtbl.prdt_entry[0].i = 1; // interrupt
+
+    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+
+    cmdfis.fis_type = FIS_TYPE::REG_H2D;
+    cmdfis.c = 1; // command
+    cmdfis.command = ATA_CMD_READ_DMA_EX;
+
+    uint64_t lba = 128; // FIXME - offset in sectors
+    uint64_t size = 1; // FIXME - number of sectors
+
+    cmdfis.lba0 = (uint8_t)lba;
+    cmdfis.lba1 = (uint8_t)(lba >> 8);
+    cmdfis.lba2 = (uint8_t)(lba >> 16);
+    cmdfis.device = 0x40; // LBA mode
+
+    cmdfis.lba3 = (uint8_t)(lba >> 24);
+    cmdfis.lba4 = (uint8_t)(lba >> 32);
+    cmdfis.lba5 = (uint8_t)(lba >> 40);
+
+    cmdfis.countl = (uint8_t)size;
+    cmdfis.counth = (uint8_t)(size >> 8);
+
+    while (port.tfd & (ATA_DEV_BUSY | ATA_DEV_DRQ)) {
+    }
+
+    port.ci = 1 << slot;
+
+    while (true) {
+        if (!(port.ci & (1 << slot)))
+            break;
+
+        if (port.is & HBA_PxIS_TFES) {
+            print("Error reading disk\n");
+            return;
+        }
+    }
+
+    if (port.is & HBA_PxIS_TFES) {
+        print("Error reading disk\n");
+        return;
+    }
+}
+
 sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     uint64_t clb_pa, fb_pa;
 
@@ -108,14 +174,10 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     memset((void*)va3, 0, cmdtbl_pages << PAGE_SHIFT);
 
     for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
-        cmd_tables[i] = (volatile HBA_CMD_TBL*)(va3 + (i * sizeof(HBA_CMD_TBL)));
+        cmd_tables[i] = (HBA_CMD_TBL*)(va3 + (i * sizeof(HBA_CMD_TBL)));
     }
 
-    print("clb = ");
-    print_hex(clb);
-    print(", fb = ");
-    print_hex(fb);
-    print("\n");
+    read_test();
 }
 
 static void init_sata_device(void* ctx) {

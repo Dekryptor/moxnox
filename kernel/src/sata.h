@@ -2,6 +2,13 @@
 
 static const unsigned int SATA_NUM_CMD_TABLES = 32;
 
+static const uint8_t ATA_CMD_READ_DMA_EX = 0x25;
+
+static const uint32_t ATA_DEV_BUSY = 0x80;
+static const uint32_t ATA_DEV_DRQ = 0x08;
+
+static const uint32_t HBA_PxIS_TFES = 0x40000000; // task file error status
+
 struct HBA_PORT {
     uint32_t clb;
     uint32_t clbu;
@@ -75,7 +82,7 @@ struct FIS_REG_H2D {
     uint8_t icc;
     uint8_t control;
     uint8_t rsv1[4];
-} FIS_REG_H2D;
+};
 
 static_assert(sizeof(FIS_REG_H2D) == 20);
 
@@ -120,7 +127,10 @@ class sata_device {
 public:
     sata_device(volatile HBA_PORT& port);
 
+    // FIXME
+    void read_test();
+
     volatile HBA_PORT& port;
     uint64_t clb, fb;
-    std::array<volatile HBA_CMD_TBL*, SATA_NUM_CMD_TABLES> cmd_tables;
+    std::array<HBA_CMD_TBL*, SATA_NUM_CMD_TABLES> cmd_tables;
 };
