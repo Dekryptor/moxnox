@@ -5,12 +5,11 @@
 
 using namespace std;
 
-static void init_sata_device(void* ctx) {
-    auto& p = *(volatile HBA_PORT*)ctx;
+sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     uint64_t clb_pa, fb_pa;
 
-    clb_pa = ((uint64_t)p.clbu << 32) | p.clb;
-    fb_pa = ((uint64_t)p.fbu << 32) | p.fb;
+    clb_pa = ((uint64_t)port.clbu << 32) | port.clb;
+    fb_pa = ((uint64_t)port.fbu << 32) | port.fb;
 
     auto va1 = allocate_va(1);
     if (!va1) {
@@ -42,14 +41,85 @@ static void init_sata_device(void* ctx) {
 
     // FIXME - can remap physical addresses, if BIOS hasn't set them up right?
 
-    uint64_t clb = va1 | (clb_pa & (PAGE_SIZE - 1));
-    uint64_t fb = va2 | (fb_pa & (PAGE_SIZE - 1));
+    clb = va1 | (clb_pa & (PAGE_SIZE - 1));
+    fb = va2 | (fb_pa & (PAGE_SIZE - 1));
+
+    unsigned int cmdtbl_pages = bytes_to_pages(SATA_NUM_CMD_TABLES * sizeof(HBA_CMD_TBL));
+
+    auto va3 = allocate_va(cmdtbl_pages);
+    if (!va3) {
+        print("allocate_va failed\n");
+        unmap_page(va2);
+        unmap_page(va1);
+        free_va(va2, 1);
+        free_va(va1, 1);
+    }
+
+    for (unsigned int i = 0; i < cmdtbl_pages; i++) {
+        auto pa = allocate_page();
+        if (!pa) {
+            print("allocate_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                auto pa = va_to_pa(va3 + (j << PAGE_SHIFT));
+
+                unmap_page(va3 + (j << PAGE_SHIFT));
+                free_page(pa);
+            }
+
+            free_va(va3, cmdtbl_pages);
+            unmap_page(va2);
+            unmap_page(va1);
+            free_va(va2, 1);
+            free_va(va1, 1);
+            return;
+        }
+
+        auto cmd_tbls = (HBA_CMD_HEADER*)clb;
+
+        for (unsigned int j = 0; j < PAGE_SIZE / sizeof(HBA_CMD_TBL); j++) {
+            volatile auto& tbl = cmd_tbls[(i * PAGE_SIZE / sizeof(HBA_CMD_TBL)) + j];
+
+            tbl.ctba = (uint32_t)(pa + (j * sizeof(HBA_CMD_TBL)));
+            tbl.ctbau = (uint32_t)(pa >> 32);
+        }
+
+        if (!map_page(pa, va3 + (i << PAGE_SHIFT), mapping_type::no_cache)) {
+            print("map_page failed\n");
+
+            free_page(pa);
+
+            for (unsigned int j = 0; j < i; j++) {
+                auto pa = va_to_pa(va3 + (j << PAGE_SHIFT));
+
+                unmap_page(va3 + (j << PAGE_SHIFT));
+                free_page(pa);
+            }
+
+            free_va(va3, cmdtbl_pages);
+            unmap_page(va2);
+            unmap_page(va1);
+            free_va(va2, 1);
+            free_va(va1, 1);
+            return;
+        }
+    }
+
+    memset((void*)va3, 0, cmdtbl_pages << PAGE_SHIFT);
+
+    for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
+        cmd_tables[i] = (volatile HBA_CMD_TBL*)(va3 + (i * sizeof(HBA_CMD_TBL)));
+    }
 
     print("clb = ");
     print_hex(clb);
     print(", fb = ");
     print_hex(fb);
     print("\n");
+}
+
+static void init_sata_device(void* ctx) {
+    sata_device dev(*(volatile HBA_PORT*)ctx);
 
     // FIXME
 }
