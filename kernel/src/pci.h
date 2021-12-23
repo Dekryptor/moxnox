@@ -2,6 +2,27 @@
 
 #include "list.h"
 
+enum class pci_class : uint8_t {
+    unclassified = 0,
+    mass_storage = 1,
+    network = 2,
+    display = 3,
+    multimedia = 4,
+    memory = 5,
+    bridge = 6,
+    simple_communication = 7,
+    base_system_peripheral = 8,
+    input_device = 9,
+    docking_station = 10,
+    processor = 11,
+    serial_bus = 12,
+    wireless = 13,
+    intelligent = 14,
+    satellite_communication = 15,
+    encryption = 16,
+    signal_processing = 17
+};
+
 struct pci_header {
     uint16_t vendor_id;
     uint16_t device_id;
@@ -10,7 +31,7 @@ struct pci_header {
     uint8_t revision_id;
     uint8_t prog_if;
     uint8_t sub_class;
-    uint8_t class_code;
+    enum pci_class class_code;
     uint8_t cache_line_size;
     uint8_t latency_timer;
     uint8_t header_type;
