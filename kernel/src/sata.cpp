@@ -33,7 +33,7 @@ void sata_device::read_test() {
 
     cmdfis.fis_type = FIS_TYPE::REG_H2D;
     cmdfis.c = 1; // command
-    cmdfis.command = ATA_CMD_READ_DMA_EX;
+    cmdfis.command = ata_command::READ_DMA_EX;
 
     uint64_t lba = 128; // FIXME - offset in sectors
     uint64_t size = 1; // FIXME - number of sectors
@@ -69,6 +69,82 @@ void sata_device::read_test() {
         print("Error reading disk\n");
         return;
     }
+}
+
+bool sata_device::identify() {
+    auto pa = allocate_page();
+    if (!pa) {
+        print("allocate_page failed\n");
+        return false;
+    }
+
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        free_page(pa);
+        return false;
+    }
+
+    if (!map_page(pa, va, mapping_type::read_write)) {
+        print("map_page failed\n");
+        free_page(pa);
+        free_va(va, 1);
+        return false;
+    }
+
+    port.is = 0xffffffff; // clear interrupt bits
+
+    uint8_t slot = 0; // FIXME
+
+    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+
+    cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
+    cmd.w = 0; // read;
+    cmd.prdtl = 1; // no. of PRDT entries
+
+    auto& cmdtbl = *cmd_tables[slot];
+
+    memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
+
+    cmdtbl.prdt_entry[0].dba = (uint32_t)pa;
+    cmdtbl.prdt_entry[0].dbau = (uint32_t)(pa >> 32);
+    cmdtbl.prdt_entry[0].dbc = PAGE_SIZE - 1;
+    cmdtbl.prdt_entry[0].i = 1; // interrupt
+
+    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+
+    cmdfis.fis_type = FIS_TYPE::REG_H2D;
+    cmdfis.c = 1; // command
+    cmdfis.command = ata_command::IDENTIFY;
+
+    while (port.tfd & (ATA_DEV_BUSY | ATA_DEV_DRQ)) {
+    }
+
+    port.ci = 1 << slot;
+
+    while (true) {
+        if (!(port.ci & (1 << slot)))
+            break;
+
+        if (port.is & HBA_PxIS_TFES) {
+            print("Error sending IDENTIFY DEVICE command to disk\n");
+            return false;
+        }
+    }
+
+    if (port.is & HBA_PxIS_TFES) {
+        print("Error sending IDENTIFY DEVICE command to disk\n");
+        return false;
+    }
+
+    memcpy(&identify_block, (void*)va, sizeof(ata_identify_device_block));
+
+    unmap_page(va);
+
+    free_va(va, 1);
+    free_page(pa);
+
+    return true;
 }
 
 sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
@@ -177,13 +253,16 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         cmd_tables[i] = (HBA_CMD_TBL*)(va3 + (i * sizeof(HBA_CMD_TBL)));
     }
 
-    read_test();
+//     read_test();
+    identify();
 }
 
 static void init_sata_device(void* ctx) {
-    sata_device dev(*(volatile HBA_PORT*)ctx);
+    auto dev = new sata_device(*(volatile HBA_PORT*)ctx);
 
-    // FIXME
+    // FIXME - add dev to list if successfully initialized
+    // FIXME - add volume objects
+    // FIXME - partitions (GPT and MBR)
 }
 
 void init_sata(const pci_device& dev) {
