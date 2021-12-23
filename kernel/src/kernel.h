@@ -20,6 +20,7 @@ struct list_entry;
 class unique_handle;
 class event;
 struct task_state_segment;
+struct pci_device;
 
 static const uint32_t PIT_HZ = 1193182;
 
@@ -134,3 +135,6 @@ unique_handle create_pipe(unsigned int buffer_pages);
 
 // pci.cpp
 void init_pci();
+
+// sata.cpp
+void init_sata(const pci_device& dev);

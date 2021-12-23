@@ -23,7 +23,8 @@ set(SRC_FILES src/kernel.cpp
     src/keyboard.S
     src/event.cpp
     src/pipe.cpp
-    src/pci.cpp)
+    src/pci.cpp
+    src/sata.cpp)
 
 add_executable(kernel ${SRC_FILES})
 

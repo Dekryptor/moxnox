@@ -187,7 +187,7 @@ static void pci_device_found(void* ctx) {
         case pci_class::mass_storage: {
             switch ((enum pci_mass_storage)dev.header.sub_class) {
                 case pci_mass_storage::sata:
-                    print("Found SATA device\n"); // FIXME
+                    init_sata(dev);
                 break;
 
                 default:
