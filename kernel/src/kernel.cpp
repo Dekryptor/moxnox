@@ -32,6 +32,7 @@ int atexit(void (*)(void)) {
     return 0;
 }
 
+#if 0
 static void thread_test() {
     auto ev = create_event(false);
 
@@ -61,7 +62,6 @@ static void thread_test() {
     print("second thread finished\n");
 }
 
-#if 0
 static void timer_test() {
     auto h = create_timer();
     if (!h) {
@@ -88,7 +88,7 @@ void main_thread(void*) {
 
     init_pci();
 
-    thread_test(); // FIXME
+//     thread_test(); // FIXME
 //     timer_test(); // FIXME
 
     auto pipe = open_object("keyboard");

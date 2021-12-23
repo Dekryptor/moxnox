@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "acpi.h"
 #include "pci.h"
+#include "unique_handle.h"
 
 using namespace std;
 
@@ -179,6 +180,28 @@ static void check_buses(const apic_mcfg_item& item, uint64_t va) {
     check_bus(item.start_number, item, va);
 }
 
+static void pci_device_found(void* ctx) {
+    auto& dev = *(pci_device*)ctx;
+
+    switch (dev.header.class_code) {
+        case pci_class::mass_storage: {
+            switch ((enum pci_mass_storage)dev.header.sub_class) {
+                case pci_mass_storage::sata:
+                    print("Found SATA device\n"); // FIXME
+                break;
+
+                default:
+                    break;
+            }
+
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
 void init_pci() {
     auto mcfg = find_mcfg();
 
@@ -209,4 +232,13 @@ void init_pci() {
     }
 
     free_va(va, 1);
+
+    auto le = pci_device_list.next;
+    while (le != &pci_device_list) {
+        auto& dev = containing_record<pci_device>(le);
+
+        add_kernel_thread(pci_device_found, &dev);
+
+        le = le->next;
+    }
 }

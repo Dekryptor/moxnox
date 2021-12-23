@@ -40,8 +40,7 @@ struct pci_header {
 
 static_assert(sizeof(pci_header) == 0x10);
 
-struct pci_header0 {
-    pci_header header;
+struct pci_header0 : pci_header {
     uint32_t bar[6];
     uint32_t cardbus_cis_pointer;
     uint16_t subsystem_vendor_id;
@@ -66,4 +65,16 @@ struct pci_device {
     uint8_t function;
     pci_header0 header;
     std::span<volatile uint8_t> bar[6];
+};
+
+enum class pci_mass_storage {
+    scsi_bus = 0,
+    ide = 1,
+    floppy_disk = 2,
+    ipi_bus = 3,
+    raid = 4,
+    ata = 5,
+    sata = 6,
+    serial_attached_scsi = 7,
+    nonvolatile_memory = 8
 };
