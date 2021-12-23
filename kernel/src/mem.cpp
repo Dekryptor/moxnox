@@ -663,6 +663,9 @@ void* malloc(size_t size) {
             last = h;
             h = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + h->size);
         } while (h < (void*)(heap_block | (heap_pages << PAGE_SHIFT)));
+
+        if (last && last->free)
+            ah = last;
     }
 
     // allocate new pages
@@ -704,7 +707,7 @@ void* malloc(size_t size) {
     ah->size = size;
 #pragma GCC diagnostic pop
 
-    auto ah2 = (alloc_header*)((uint8_t*)heap_block + sizeof(alloc_header) + size);
+    auto ah2 = (alloc_header*)((uint8_t*)ptr + size);
 
     if ((uintptr_t)ah2 & (PAGE_SIZE - 1)) {
         ah2->free = 1;
