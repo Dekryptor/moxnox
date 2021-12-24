@@ -67,14 +67,55 @@ static void device_found(const volatile pci_header& h, uint64_t pa, uint8_t bus,
         return;
     }
 
-    // FIXME - query capabilities
-
     auto& pci_dev = *ppci_dev;
     pci_dev.pa = pa;
     pci_dev.bus = bus;
     pci_dev.device = dev;
     pci_dev.function = func;
     memcpy(&pci_dev.header, (void*)&h0, sizeof(pci_header0));
+
+    if (h0.status & 0x10 && (h0.capabilities_pointer & ~0x3) != 0) {
+        auto ptr = (uint8_t*)((uint8_t*)&h0 + (h0.capabilities_pointer & ~0x3));
+
+        while (true) {
+            auto& cap = *(pci_capability*)ptr;
+
+            // FIXME - MSI-X if supported as well
+
+            if (cap.type == pci_capability_type::msi) {
+                volatile auto& msi = *(pci_msi*)ptr;
+
+                auto va = allocate_va(1);
+                if (!va) {
+                    print("allocate_va failed\n");
+                    return;
+                }
+
+                if (!map_page(pa, va, mapping_type::no_cache)) {
+                    print("map_page failed\n");
+                    free_va(va, 1);
+                    return;
+                }
+
+                size_t len;
+
+                if (msi.message_control & 0x80) { // 64-bit
+                    if (msi.message_control & 0x100) // per-vector masking
+                        len = sizeof(pci_msi);
+                    else
+                        len = offsetof(pci_msi, v64.reserved);
+                } else
+                    len = offsetof(pci_msi, v32.message_data) + sizeof(uint16_t);
+
+                pci_dev.msi = span((volatile uint8_t*)(va | ((uintptr_t)ptr & (PAGE_SIZE - 1))), len);
+            }
+
+            if (cap.next == 0)
+                break;
+
+            ptr = (uint8_t*)((uint8_t*)&h0 + (cap.next & ~0x3));
+        }
+    }
 
     for (unsigned int i = 0; i < 6; i++) {
         volatile auto& b = h0.bar[i];

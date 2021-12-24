@@ -65,6 +65,7 @@ struct pci_device {
     uint8_t function;
     pci_header0 header;
     std::span<volatile uint8_t> bar[6];
+    std::span<volatile uint8_t> msi;
 };
 
 enum class pci_mass_storage {
@@ -78,3 +79,54 @@ enum class pci_mass_storage {
     serial_attached_scsi = 7,
     nonvolatile_memory = 8
 };
+
+enum class pci_capability_type : uint8_t {
+    null = 0,
+    power_management = 1,
+    agp = 2,
+    vpd = 3,
+    slot_identification = 4,
+    msi = 5,
+    compactpci_hot_swap = 6,
+    pcix = 7,
+    hypertransport = 8,
+    vendor_specific = 9,
+    debug_port = 10,
+    compactpci_central_resource_control = 11,
+    pci_hotplug = 12,
+    pci_bridge_subsystem_vendor_id = 13,
+    agp8x = 14,
+    secure_device = 15,
+    pci_express = 16,
+    msix = 17,
+    sata_data_index_configuration = 18,
+    advanced_features = 19,
+    enhanced_allocation = 20,
+    flattening_portal_bridge = 21
+};
+
+struct pci_capability {
+    enum pci_capability_type type;
+    uint8_t next;
+} __attribute__((packed));
+
+static_assert(sizeof(pci_capability) == 2);
+
+struct pci_msi : pci_capability {
+    uint16_t message_control;
+    uint32_t message_address_low;
+    union {
+        struct {
+            uint16_t message_data;
+        } v32;
+        struct {
+            uint32_t message_address_high;
+            uint16_t message_data;
+            uint16_t reserved;
+            uint32_t mask;
+            uint32_t pending;
+        } v64;
+    };
+} __attribute__((packed));
+
+static_assert(sizeof(pci_msi) == 24);
