@@ -120,11 +120,13 @@ struct HBA_PRDT_ENTRY {
 
 static_assert(sizeof(HBA_PRDT_ENTRY) == 0x10);
 
+static const unsigned int NUM_PRDT_ENTRIES = 8;
+
 struct HBA_CMD_TBL {
     uint8_t cfis[64];
     uint8_t acmd[16];
     uint8_t rsv[48];
-    HBA_PRDT_ENTRY prdt_entry[8];
+    HBA_PRDT_ENTRY prdt_entry[NUM_PRDT_ENTRIES];
 };
 
 static_assert(sizeof(HBA_CMD_TBL) == 0x100);
@@ -440,7 +442,7 @@ public:
     bool identify();
     uint8_t get_slot();
     void release_slot(uint8_t slot);
-    void read_test(); // FIXME
+    bool read(uint64_t offset, std::span<uint8_t> data);
 
     list_entry le;
     volatile HBA_PORT& port;
@@ -453,4 +455,5 @@ public:
     unique_handle slot_semaphore;
     spinlock slot_lock;
     std::atomic<uint32_t> allocated_slots = 0;
+    unsigned int sector_size;
 };

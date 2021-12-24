@@ -11,70 +11,100 @@ static bool interrupt_added = false;
 static spinlock sata_dev_list_lock;
 static list_entry sata_dev_list = { &sata_dev_list, &sata_dev_list };
 
-void sata_device::read_test() {
-    port.is = 0xffffffff; // clear interrupt bits
-
-    uint8_t slot = 0; // FIXME
-
-    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
-
-    cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
-    cmd.w = 0; // read;
-    cmd.prdtl = 1; // no. of PRDT entries
-
-    print("cmd.ctba = ");
-    print_hex(cmd.ctba);
-    print("\n");
-
-    auto& cmdtbl = *cmd_tables[slot];
-
-    memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
-
-    cmdtbl.prdt_entry[0].dba = 0; // FIXME - buffer
-    cmdtbl.prdt_entry[0].dbau = 0; // FIXME - buffer
-    cmdtbl.prdt_entry[0].dbc = 511; // size
-    cmdtbl.prdt_entry[0].i = 1; // interrupt
-
-    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
-
-    cmdfis.fis_type = FIS_TYPE::REG_H2D;
-    cmdfis.c = 1; // command
-    cmdfis.command = ata_command::READ_DMA_EX;
-
-    uint64_t lba = 128; // FIXME - offset in sectors
-    uint64_t size = 1; // FIXME - number of sectors
-
-    cmdfis.lba0 = (uint8_t)lba;
-    cmdfis.lba1 = (uint8_t)(lba >> 8);
-    cmdfis.lba2 = (uint8_t)(lba >> 16);
-    cmdfis.device = 0x40; // LBA mode
-
-    cmdfis.lba3 = (uint8_t)(lba >> 24);
-    cmdfis.lba4 = (uint8_t)(lba >> 32);
-    cmdfis.lba5 = (uint8_t)(lba >> 40);
-
-    cmdfis.countl = (uint8_t)size;
-    cmdfis.counth = (uint8_t)(size >> 8);
-
-    while (port.tfd & (ATA_DEV_BUSY | ATA_DEV_DRQ)) {
+bool sata_device::read(uint64_t offset, span<uint8_t> data) {
+    if (offset & (sector_size - 1)) {
+        print("Invalid offset\n");
+        return false;
     }
 
-    port.ci = 1 << slot;
+    if (data.size() & (sector_size - 1)) {
+        print("Invalid length\n");
+        return false;
+    }
 
-    while (true) {
-        if (!(port.ci & (1 << slot)))
-            break;
+    // FIXME - proper error handling
+    // FIXME - asynchronous mode
+
+    while (!data.empty()) {
+        port.is = 0xffffffff; // clear interrupt bits
+
+        uint8_t slot = get_slot();
+
+        volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+
+        cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
+        cmd.w = 0; // read
+
+        auto& cmdtbl = *cmd_tables[slot];
+
+        memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
+
+        size_t to_read = 0;
+
+        auto buf = data;
+        uint16_t num_entries = 0;
+
+        for (auto& e : cmdtbl.prdt_entry) {
+            uint32_t left_in_page = ((uintptr_t)buf.data() & (PAGE_SIZE - 1)) ? (PAGE_SIZE - ((uintptr_t)buf.data() & (PAGE_SIZE - 1))) : PAGE_SIZE;
+            uint32_t r = min(left_in_page, (uint32_t)buf.size());
+            uint64_t pa = va_to_pa((uintptr_t)buf.data() & ~(PAGE_SIZE - 1)) + ((uintptr_t)buf.data() & (PAGE_SIZE - 1));
+
+            // FIXME - make sure device supports 64-bit PAs
+
+            e.dba = (uint32_t)pa;
+            e.dbau = (uint32_t)(pa >> 32);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            e.dbc = (unsigned int)(r - 1);
+#pragma GCC diagnostic pop
+            e.i = 1; // interrupt
+
+            buf = buf.subspan(r);
+            num_entries++;
+            to_read += r;
+
+            if (buf.empty())
+                break;
+        }
+
+        cmd.prdtl = num_entries;
+
+        volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+
+        cmdfis.fis_type = FIS_TYPE::REG_H2D;
+        cmdfis.c = 1; // command
+        cmdfis.command = ata_command::READ_DMA_EX;
+
+        uint64_t lba = offset / sector_size;
+        uint64_t size = to_read / sector_size;
+
+        cmdfis.lba0 = (uint8_t)lba;
+        cmdfis.lba1 = (uint8_t)(lba >> 8);
+        cmdfis.lba2 = (uint8_t)(lba >> 16);
+        cmdfis.device = 0x40; // LBA mode
+
+        cmdfis.lba3 = (uint8_t)(lba >> 24);
+        cmdfis.lba4 = (uint8_t)(lba >> 32);
+        cmdfis.lba5 = (uint8_t)(lba >> 40);
+
+        cmdfis.countl = (uint8_t)size;
+        cmdfis.counth = (uint8_t)(size >> 8);
+
+        port.ci = port.ci | (1 << slot);
+
+        wait_for_object(event.get());
 
         if (port.is & HBA_PxIS_TFES) {
             print("Error reading disk\n");
-            return;
+            release_slot(slot);
+            return false;
         }
+
+        offset += to_read;
+        data = data.subspan(to_read);
     }
 
-    if (port.is & HBA_PxIS_TFES) {
-        print("Error reading disk\n");
-        return;
-    }
+    return true;
 }
 
 uint8_t sata_device::get_slot() {
@@ -127,7 +157,7 @@ bool sata_device::identify() {
         return false;
     }
 
-    port.is = 0; // clear interrupt bits
+    port.is = 0xffffffff; // clear interrupt bits
 
     auto slot = get_slot();
 
@@ -152,10 +182,7 @@ bool sata_device::identify() {
     cmdfis.c = 1; // command
     cmdfis.command = ata_command::IDENTIFY;
 
-    while (port.tfd & (ATA_DEV_BUSY | ATA_DEV_DRQ)) {
-    }
-
-    port.ci = 1 << slot;
+    port.ci = port.ci | (1 << slot);
 
     wait_for_object(event.get());
 
@@ -321,7 +348,6 @@ static void init_sata_device(void* ctx) {
 
     // FIXME - return if IDENTIFY fails, and remove from list
     dev.identify();
-//     dev.read_test();
 
     fix_ata_string(span((uint16_t*)dev.identify_block.model_number, sizeof(dev.identify_block.model_number) / sizeof(uint16_t)), dev.model_number_buf);
 
@@ -332,6 +358,15 @@ static void init_sata_device(void* ctx) {
 
     print("Found disk: ");
     print(dev.model_number);
+    print("\n");
+
+    dev.sector_size = 512; // FIXME - get from identify block
+
+    uint8_t sect[4096];
+    if (!dev.read(0x10000, sect))
+        print("read failed\n");
+
+    print_hex(*(uint32_t*)sect);
     print("\n");
 
     // FIXME - add volume objects
