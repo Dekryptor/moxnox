@@ -362,6 +362,13 @@ void wait_for_object(object& obj) {
                 } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, event>) {
                     if (o.autoreset)
                         o.signalled = false;
+                } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, semaphore>) {
+                    lock_guard lock(o.lock);
+
+                    o.current_count++;
+
+                    if (o.current_count == o.maximum_count)
+                        o.signalled = false;
                 }
             });
 

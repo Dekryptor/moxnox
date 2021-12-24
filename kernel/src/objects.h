@@ -4,7 +4,8 @@ enum class object_type {
     thread,
     timer,
     event,
-    pipe
+    pipe,
+    semaphore
 };
 
 class object {
@@ -36,6 +37,7 @@ concept is_readable_object = requires(T t, std::span<uint8_t> s) {
 #include "timer.h"
 #include "event.h"
 #include "pipe.h"
+#include "semaphore.h"
 
 // FIXME - concept to make sure func is invocable
 template<typename T>
@@ -55,6 +57,10 @@ static void visit_obj(object& obj, const T& func) {
 
         case object_type::pipe:
             func(static_cast<pipe&>(obj));
+        break;
+
+        case object_type::semaphore:
+            func(static_cast<semaphore&>(obj));
         break;
     }
 }
