@@ -437,6 +437,8 @@ public:
     sata_device(volatile HBA_PORT& port);
 
     bool identify();
+    uint8_t get_slot();
+    void release_slot(uint8_t slot);
     void read_test(); // FIXME
 
     list_entry le;

@@ -77,6 +77,16 @@ void sata_device::read_test() {
     }
 }
 
+uint8_t sata_device::get_slot() {
+    // FIXME
+
+    return 0;
+}
+
+void sata_device::release_slot(uint8_t slot) {
+    // FIXME
+}
+
 bool sata_device::identify() {
     auto pa = allocate_page();
     if (!pa) {
@@ -100,7 +110,7 @@ bool sata_device::identify() {
 
     port.is = 0; // clear interrupt bits
 
-    uint8_t slot = 0; // FIXME
+    auto slot = get_slot();
 
     volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
 
@@ -132,10 +142,13 @@ bool sata_device::identify() {
 
     if (port.is & HBA_PxIS_TFES) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
+        release_slot(slot);
         return false;
     }
 
     memcpy(&identify_block, (void*)va, sizeof(ata_identify_device_block));
+
+    release_slot(slot);
 
     unmap_page(va);
 
