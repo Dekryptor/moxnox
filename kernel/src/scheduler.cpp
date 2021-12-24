@@ -389,8 +389,6 @@ void wait_for_object(object& obj) {
 }
 
 void wait_for_object(handle_t h) {
-    __asm("cli");
-
     auto objrw = deref_handle(h);
     if (!objrw) {
         // FIXME - exception
