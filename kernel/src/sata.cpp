@@ -90,9 +90,11 @@ bool sata_device::read(uint64_t offset, span<uint8_t> data) {
         cmdfis.countl = (uint8_t)size;
         cmdfis.counth = (uint8_t)(size >> 8);
 
+        pending_slots |= 1 << slot;
+
         port.ci = port.ci | (1 << slot);
 
-        wait_for_object(event.get());
+        wait_for_object(events[slot].get());
 
         if (port.is & HBA_PxIS_TFES) {
             print("Error reading disk\n");
@@ -182,9 +184,11 @@ bool sata_device::identify() {
     cmdfis.c = 1; // command
     cmdfis.command = ata_command::IDENTIFY;
 
+    pending_slots |= 1 << slot;
+
     port.ci = port.ci | (1 << slot);
 
-    wait_for_object(event.get());
+    wait_for_object(events[slot].get());
 
     if (port.is & HBA_PxIS_TFES) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
@@ -312,7 +316,9 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         cmd_tables[i] = (HBA_CMD_TBL*)(va3 + (i * sizeof(HBA_CMD_TBL)));
     }
 
-    event = create_event(true);
+    for (auto& ev : events) {
+        ev = create_event(true);
+    }
 
     slot_semaphore = create_semaphore(SATA_NUM_CMD_TABLES);
 }
@@ -382,7 +388,15 @@ void sata_isr_func() {
         auto& dev = containing_record<sata_device>(le);
 
         if (dev.port.is & 1) { // D2H FIS received
-            set_event(dev.event.get());
+            auto ci = dev.port.ci;
+            auto signalled = dev.pending_slots & ~ci;
+
+            for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
+                if (signalled & (1 << i)) {
+                    set_event(dev.events[i].get());
+                    dev.pending_slots &= ~(1 << i);
+                }
+            }
         }
 
         le = le->next;
