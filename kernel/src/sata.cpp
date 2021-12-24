@@ -78,13 +78,32 @@ void sata_device::read_test() {
 }
 
 uint8_t sata_device::get_slot() {
-    // FIXME
+    wait_for_object(slot_semaphore.get());
 
-    return 0;
+    lock_guard l(slot_lock);
+
+    uint32_t mask = 1;
+    uint8_t c = 0;
+
+    while (true) {
+        if (!(allocated_slots & mask)) {
+            allocated_slots |= mask;
+            return c;
+        }
+
+        mask <<= 1;
+        c++;
+    }
 }
 
 void sata_device::release_slot(uint8_t slot) {
-    // FIXME
+    {
+        lock_guard l(slot_lock);
+
+        allocated_slots &= ~(1 << (uint32_t)slot);
+    }
+
+    release_semaphore(slot_semaphore.get());
 }
 
 bool sata_device::identify() {
@@ -267,6 +286,8 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     }
 
     event = create_event(true);
+
+    slot_semaphore = create_semaphore(SATA_NUM_CMD_TABLES);
 }
 
 static void fix_ata_string(span<const uint16_t> in, span<char> out) {

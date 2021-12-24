@@ -1,6 +1,7 @@
 #pragma once
 
 #include "unique_handle.h"
+#include "spinlock.h"
 
 static const unsigned int SATA_NUM_CMD_TABLES = 32;
 
@@ -449,4 +450,7 @@ public:
     unique_handle event;
     char model_number_buf[40];
     std::string_view model_number;
+    unique_handle slot_semaphore;
+    spinlock slot_lock;
+    std::atomic<uint32_t> allocated_slots = 0;
 };
