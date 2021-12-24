@@ -1,5 +1,7 @@
 #pragma once
 
+#include "unique_handle.h"
+
 static const unsigned int SATA_NUM_CMD_TABLES = 32;
 
 static const uint32_t ATA_DEV_BUSY = 0x80;
@@ -437,8 +439,10 @@ public:
     bool identify();
     void read_test(); // FIXME
 
+    list_entry le;
     volatile HBA_PORT& port;
     uint64_t clb, fb;
     std::array<HBA_CMD_TBL*, SATA_NUM_CMD_TABLES> cmd_tables;
     ata_identify_device_block identify_block;
+    unique_handle event;
 };

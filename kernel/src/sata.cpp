@@ -2,11 +2,14 @@
 #include "pci.h"
 #include "sata.h"
 #include "unique_handle.h"
+#include "spinlock.h"
 
 using namespace std;
 
 static const uint8_t sata_interrupt = 0x22;
 static bool interrupt_added = false;
+static spinlock sata_dev_list_lock;
+static list_entry sata_dev_list = { &sata_dev_list, &sata_dev_list };
 
 void sata_device::read_test() {
     port.is = 0xffffffff; // clear interrupt bits
@@ -125,15 +128,7 @@ bool sata_device::identify() {
 
     port.ci = 1 << slot;
 
-    while (true) {
-        if (!(port.ci & (1 << slot)))
-            break;
-
-        if (port.is & HBA_PxIS_TFES) {
-            print("Error sending IDENTIFY DEVICE command to disk\n");
-            return false;
-        }
-    }
+    wait_for_object(event.get());
 
     if (port.is & HBA_PxIS_TFES) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
@@ -258,21 +253,42 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         cmd_tables[i] = (HBA_CMD_TBL*)(va3 + (i * sizeof(HBA_CMD_TBL)));
     }
 
-    identify();
-//     read_test();
+    event = create_event(true);
 }
 
 static void init_sata_device(void* ctx) {
-    auto dev = new sata_device(*(volatile HBA_PORT*)ctx);
+    auto pdev = new sata_device(*(volatile HBA_PORT*)ctx);
+    auto& dev = *pdev;
 
-    // FIXME - add dev to list if successfully initialized
+    // FIXME - return if not successfully initialized
+
+    {
+        lock_guard lock(sata_dev_list_lock);
+        insert_tail_list(sata_dev_list, dev.le);
+    }
+
+    // FIXME - return if IDENTIFY fails, and remove from list
+    dev.identify();
+//     dev.read_test();
+
     // FIXME - add volume objects
     // FIXME - partitions (GPT and MBR)
 }
 
 extern "C"
 void sata_isr_func() {
-    print("SATA\n");
+    lock_guard lock(sata_dev_list_lock);
+
+    auto le = sata_dev_list.next;
+    while (le != &sata_dev_list) {
+        auto& dev = containing_record<sata_device>(le);
+
+        if (dev.port.is & 1) { // D2H FIS received
+            set_event(dev.event.get());
+        }
+
+        le = le->next;
+    }
 }
 
 static constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
