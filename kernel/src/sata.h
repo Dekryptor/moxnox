@@ -445,4 +445,6 @@ public:
     std::array<HBA_CMD_TBL*, SATA_NUM_CMD_TABLES> cmd_tables;
     ata_identify_device_block identify_block;
     unique_handle event;
+    char model_number_buf[40];
+    std::string_view model_number;
 };

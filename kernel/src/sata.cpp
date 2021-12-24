@@ -256,6 +256,24 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     event = create_event(true);
 }
 
+static void fix_ata_string(span<const uint16_t> in, span<char> out) {
+    auto it = out.begin();
+
+    for (auto u : in) {
+        if (it == out.end())
+            break;
+
+        *it = (char)(u >> 8);
+        it++;
+
+        if (it == out.end())
+            break;
+
+        *it = (char)(u & 0xff);
+        it++;
+    }
+}
+
 static void init_sata_device(void* ctx) {
     auto pdev = new sata_device(*(volatile HBA_PORT*)ctx);
     auto& dev = *pdev;
@@ -270,6 +288,17 @@ static void init_sata_device(void* ctx) {
     // FIXME - return if IDENTIFY fails, and remove from list
     dev.identify();
 //     dev.read_test();
+
+    fix_ata_string(span((uint16_t*)dev.identify_block.model_number, sizeof(dev.identify_block.model_number) / sizeof(uint16_t)), dev.model_number_buf);
+
+    dev.model_number = dev.model_number_buf;
+    while (!dev.model_number.empty() && (dev.model_number.back() == 0 || dev.model_number.back() == ' ')) {
+        dev.model_number.remove_suffix(1);
+    }
+
+    print("Found disk: ");
+    print(dev.model_number);
+    print("\n");
 
     // FIXME - add volume objects
     // FIXME - partitions (GPT and MBR)
