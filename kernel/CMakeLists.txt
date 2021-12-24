@@ -24,7 +24,8 @@ set(SRC_FILES src/kernel.cpp
     src/event.cpp
     src/pipe.cpp
     src/pci.cpp
-    src/sata.cpp)
+    src/sata.cpp
+    src/sata.S)
 
 add_executable(kernel ${SRC_FILES})
 

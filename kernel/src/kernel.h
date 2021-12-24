@@ -78,7 +78,6 @@ extern "C" void page_fault_isr();
 extern "C" void double_fault_isr();
 extern "C" void general_protection_fault_isr();
 extern "C" void invalid_opcode_isr();
-extern "C" void keyboard_isr();
 extern "C" void spurious_isr();
 
 // timer.S
@@ -138,3 +137,9 @@ void init_pci();
 
 // sata.cpp
 void init_sata(const pci_device& dev);
+
+// keyboard.S
+extern "C" void keyboard_isr();
+
+// sata.S
+extern "C" void sata_isr();

@@ -5,6 +5,9 @@
 
 using namespace std;
 
+static const uint8_t sata_interrupt = 0x22;
+static bool interrupt_added = false;
+
 void sata_device::read_test() {
     port.is = 0xffffffff; // clear interrupt bits
 
@@ -92,7 +95,7 @@ bool sata_device::identify() {
         return false;
     }
 
-    port.is = 0xffffffff; // clear interrupt bits
+    port.is = 0; // clear interrupt bits
 
     uint8_t slot = 0; // FIXME
 
@@ -186,6 +189,8 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     clb = va1 | (clb_pa & (PAGE_SIZE - 1));
     fb = va2 | (fb_pa & (PAGE_SIZE - 1));
 
+    port.ie = 0xfdc000ff; // enable all interrupts
+
     unsigned int cmdtbl_pages = bytes_to_pages(SATA_NUM_CMD_TABLES * sizeof(HBA_CMD_TBL));
 
     auto va3 = allocate_va(cmdtbl_pages);
@@ -253,8 +258,8 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         cmd_tables[i] = (HBA_CMD_TBL*)(va3 + (i * sizeof(HBA_CMD_TBL)));
     }
 
-//     read_test();
     identify();
+//     read_test();
 }
 
 static void init_sata_device(void* ctx) {
@@ -265,8 +270,22 @@ static void init_sata_device(void* ctx) {
     // FIXME - partitions (GPT and MBR)
 }
 
+extern "C"
+void sata_isr_func() {
+    print("SATA\n");
+}
+
+static constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
+    return 0xfee00000 | (processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
+}
+
 void init_sata(const pci_device& dev) {
     auto abarmem = dev.bar[5];
+
+    if (dev.msi.empty()) {
+        print("MSI not available for SATA device\n");
+        return;
+    }
 
     if (abarmem.empty()) {
         print("ABAR not set for SATA device\n");
@@ -278,7 +297,27 @@ void init_sata(const pci_device& dev) {
         return;
     }
 
+    if (!interrupt_added) {
+        add_idt_entry(sata_interrupt, (void*)sata_isr, false, 0);
+        interrupt_added = true;
+    }
+
+    auto& msi = *(volatile pci_msi*)dev.msi.data();
+
+    msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+
+    if (msi.message_control & 0x80) { // 64-bit
+        msi.v64.message_address_high = 0;
+        msi.v64.message_data = sata_interrupt;
+    } else
+        msi.v32.message_data = sata_interrupt;
+
+    msi.message_control = msi.message_control | 1; // enable
+
     auto volatile& abar = *(HBA_MEM*)abarmem.data();
+
+    // FIXME - check upper bit of abar.ghc for whether AHCI or IDE
+    abar.ghc = abar.ghc | 0x2; // enable interrupts
 
     auto ports = span<volatile HBA_PORT>((HBA_PORT*)abar.ports, (abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT));
     uint32_t mask = abar.pi;
