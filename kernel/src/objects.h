@@ -22,6 +22,11 @@ template<typename T>
 concept is_sync_object = std::is_same_v<decltype(T::signalled), bool>;
 
 template<typename T>
+concept object_has_on_wake = requires(T t) {
+    { t.on_wake() };
+};
+
+template<typename T>
 concept is_writable_object = requires(T t, std::span<const uint8_t> s) {
     { t.write(s) };
 };

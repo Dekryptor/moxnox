@@ -88,3 +88,8 @@ void set_event(handle_t h) {
 }
 
 // FIXME - reset_event
+
+void event::on_wake() {
+    if (autoreset)
+        signalled = false;
+}

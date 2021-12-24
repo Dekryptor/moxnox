@@ -13,8 +13,11 @@ public:
             delete this;
     }
 
+    void on_wake();
+
     bool signalled = false;
     bool autoreset;
 };
 
 static_assert(is_sync_object<event>);
+static_assert(object_has_on_wake<timer>);

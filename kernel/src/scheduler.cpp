@@ -356,20 +356,8 @@ void wait_for_object(object& obj) {
 
         if (signalled) {
             visit_obj(obj, [&](auto&& o) {
-                if constexpr (is_same_v<remove_reference_t<decltype(o)>, timer>) {
-                    if (o.periodic)
-                        o.signalled = false;
-                } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, event>) {
-                    if (o.autoreset)
-                        o.signalled = false;
-                } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, semaphore>) {
-                    lock_guard lock(o.lock);
-
-                    o.current_count++;
-
-                    if (o.current_count == o.maximum_count)
-                        o.signalled = false;
-                }
+                if constexpr (object_has_on_wake<remove_reference_t<decltype(o)>>)
+                    o.on_wake();
             });
 
             lock.reset();

@@ -156,3 +156,8 @@ void timer_expired(timer* tptr) {
     t.ticks_left = t.orig_ticks;
     t.signalled = false;
 }
+
+void timer::on_wake() {
+    if (periodic)
+        signalled = false;
+}

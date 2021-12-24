@@ -15,6 +15,8 @@ public:
             delete this;
     }
 
+    void on_wake();
+
     bool signalled = false;
     list_entry le;
     uint64_t ticks_left;
@@ -23,6 +25,7 @@ public:
 };
 
 static_assert(is_sync_object<timer>);
+static_assert(object_has_on_wake<timer>);
 
 static_assert(offsetof(timer, le) == TIMER_LE);
 static_assert(offsetof(timer, ticks_left) == TIMER_TICKS_LEFT);

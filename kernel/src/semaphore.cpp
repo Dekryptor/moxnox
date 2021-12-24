@@ -93,3 +93,12 @@ void release_semaphore(handle_t h) {
 }
 
 // FIXME - reset_event
+
+void semaphore::on_wake() {
+    lock_guard l(lock);
+
+    current_count++;
+
+    if (current_count == maximum_count)
+        signalled = false;
+}

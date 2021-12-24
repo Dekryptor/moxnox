@@ -15,6 +15,8 @@ public:
             delete this;
     }
 
+    void on_wake();
+
     bool signalled = false;
     unsigned int maximum_count;
     unsigned int current_count;
@@ -22,3 +24,4 @@ public:
 };
 
 static_assert(is_sync_object<semaphore>);
+static_assert(object_has_on_wake<semaphore>);
