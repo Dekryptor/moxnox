@@ -11,7 +11,7 @@ static bool interrupt_added = false;
 static spinlock sata_dev_list_lock;
 static list_entry sata_dev_list = { &sata_dev_list, &sata_dev_list };
 
-bool sata_device::read(uint64_t offset, span<uint8_t> data) {
+bool sata_device::read(span<uint8_t> data, uint64_t offset) {
     if (offset & (sector_size - 1)) {
         print("Invalid offset\n");
         return false;
@@ -369,7 +369,7 @@ static void init_sata_device(void* ctx) {
     dev.sector_size = 512; // FIXME - get from identify block
 
     uint8_t sect[4096];
-    if (!dev.read(0x10000, sect))
+    if (!dev.read(sect, 0x10000))
         print("read failed\n");
 
     print_hex(*(uint32_t*)sect);

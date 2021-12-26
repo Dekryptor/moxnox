@@ -442,7 +442,7 @@ public:
     bool identify();
     uint8_t get_slot();
     void release_slot(uint8_t slot);
-    bool read(uint64_t offset, std::span<uint8_t> data);
+    bool read(std::span<uint8_t> data, uint64_t offset);
 
     list_entry le;
     volatile HBA_PORT& port;
