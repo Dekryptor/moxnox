@@ -552,14 +552,54 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) 
         if (k.obj_id != inode)
             return false;
 
-        if (k.obj_type == key_type::INODE_ITEM) {
-            if (data.size() < sizeof(inode_item)) {
-                print("INODE_ITEM was short\n");
-                return false;
+        switch (k.obj_type) {
+            case key_type::INODE_ITEM:
+                if (data.size() < sizeof(inode_item)) {
+                    print("INODE_ITEM was short\n");
+                    return false;
+                }
+
+                memcpy(&ii, data.data(), min(data.size(), sizeof(inode_item)));
+                found_inode_item = true;
+            break;
+
+            case key_type::DIR_ITEM: {
+                auto& di = *(dir_item*)data.data();
+
+                if (data.size() < offsetof(dir_item, name)) {
+                    print("DIR_ITEM was short\n");
+                    return false;
+                }
+
+                if (data.size() < offsetof(dir_item, name) + di.m + di.n) {
+                    print("DIR_ITEM was short\n");
+                    return false;
+                }
+
+                if (di.n > 255) {
+                    print("Skipping item with overly long name\n");
+                    return true;
+                }
+
+                auto deptr = (dirent*)malloc(offsetof(dirent, name) + di.n);
+                if (!deptr) {
+                    print("malloc failed\n");
+                    return false;
+                }
+
+                auto& de = *deptr;
+
+                de.inode = di.k.obj_id;
+                de.type = di.k.obj_type;
+                de.namelen = (uint8_t)di.n;
+                memcpy(de.name, di.name, di.n);
+                insert_tail_list(children, de.le);
+
+                break;
             }
 
-            memcpy(&ii, data.data(), min(data.size(), sizeof(inode_item)));
-            found_inode_item = true;
+            default:
+                break;
         }
 
         // FIXME - record other entries (extents etc.)
@@ -584,4 +624,13 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) 
     }
 
     valid = true;
+}
+
+btrfs_inode::~btrfs_inode() {
+    while (!is_list_empty(children)) {
+        auto& de = containing_record<dirent>(children.next);
+
+        remove_entry_list(de.le);
+        free(&de);
+    }
 }

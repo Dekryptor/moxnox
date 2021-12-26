@@ -268,6 +268,29 @@ struct root_item {
 
 static_assert(sizeof(root_item) == 439);
 
+enum class btrfs_inode_type : uint8_t {
+    unknown = 0,
+    file = 1,
+    directory = 2,
+    chardev = 3,
+    blockdev = 4,
+    fifo = 5,
+    socket = 6,
+    symlink = 7,
+    ea = 8
+};
+
+struct dir_item {
+    key k;
+    uint64_t transid;
+    uint16_t m;
+    uint16_t n;
+    btrfs_inode_type type;
+    char name[1];
+} __attribute__((packed));
+
+static_assert(offsetof(dir_item, name) == 30);
+
 struct chunk {
     uint64_t offset;
     list_entry le;
@@ -280,16 +303,26 @@ struct root {
     root_item ri;
 };
 
+struct dirent {
+    list_entry le;
+    uint64_t inode;
+    enum key_type type;
+    uint8_t namelen;
+    char name[1];
+};
+
 class btrfs_filesystem;
 
 class btrfs_inode {
 public:
     btrfs_inode(btrfs_filesystem& fs) : fs(fs) { }
     btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode);
+    ~btrfs_inode();
 
     btrfs_filesystem& fs;
     inode_item ii;
     bool valid = false;
+    list_entry children = { &children, &children };
 };
 
 class btrfs_filesystem {
