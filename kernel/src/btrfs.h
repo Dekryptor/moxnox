@@ -335,11 +335,16 @@ struct dirent {
 
 class btrfs_filesystem;
 
-class btrfs_inode {
+class btrfs_inode : public inode {
 public:
     btrfs_inode(btrfs_filesystem& fs) : fs(fs) { }
     btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode);
     ~btrfs_inode();
+
+    void release() override {
+        if (--refcount == 0)
+            delete this;
+    }
 
     btrfs_filesystem& fs;
     inode_item ii;

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "volume.h"
-
 class volume : public object {
 public:
     volume() : object(object_type::volume) { }
