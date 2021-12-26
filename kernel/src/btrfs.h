@@ -376,6 +376,7 @@ public:
     void release() override;
 
     std::optional<std::reference_wrapper<btrfs_inode>> open_child(std::string_view name);
+    size_t read(std::span<uint8_t> s, uint64_t offset) override;
 
     btrfs_filesystem& fs;
     list_entry le;
@@ -402,6 +403,7 @@ public:
     void walk_from(uint64_t subvol, const key& k, std::invocable<const key&, std::span<const uint8_t>> auto func);
     std::optional<std::reference_wrapper<btrfs_inode>> open_inode(uint64_t subvol, uint64_t inode);
     unique_handle open(std::string_view fn);
+    size_t read_extent(uint64_t address, uint64_t offset, uint64_t num_bytes, std::span<uint8_t> s);
 
     volume& vol;
     superblock sb;
@@ -421,4 +423,5 @@ private:
     bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
     bool walk_from2(uint64_t addr, uint8_t exp_level, const key& k,
                     std::invocable<const key&, std::span<const uint8_t>> auto func);
+    size_t read_extent_single(chunk& c, uint64_t address, uint64_t offset, uint64_t num_bytes, std::span<uint8_t> s);
 };

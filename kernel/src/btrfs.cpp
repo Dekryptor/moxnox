@@ -152,7 +152,7 @@ bool btrfs_probe(volume& vol) {
     return true;
 }
 
-bool btrfs_filesystem::read_metadata(uint64_t addr, std::span<uint8_t> data) {
+bool btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
     optional<reference_wrapper<chunk>> crw;
 
     {
@@ -316,7 +316,7 @@ bool btrfs_filesystem::load_chunks() {
     return true;
 }
 
-bool btrfs_filesystem::read_single(uint64_t addr, chunk& c, std::span<uint8_t> data) {
+bool btrfs_filesystem::read_single(uint64_t addr, chunk& c, span<uint8_t> data) {
     auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
 
     if (s < data.size()) {
@@ -541,6 +541,23 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) 
                     return false;
                 }
 
+                if (ed.encryption != 0) {
+                    print("Encryption not supported\n");
+                    return false;
+                }
+
+                if (ed.encoding != 0) {
+                    print("Other encodings not supported\n");
+                    return false;
+                }
+
+                if (ed.type == btrfs_extent_type::regular) {
+                    auto& ed2 = *(extent_data2*)ed.data;
+
+                    if (ed2.address == 0 || ed2.size == 0) // skip sparse extents
+                        return true;
+                }
+
                 auto ieptr = (inode_extent*)malloc(offsetof(inode_extent, ed) + data.size());
                 if (!ieptr) {
                     print("malloc failed\n");
@@ -595,7 +612,7 @@ btrfs_inode::~btrfs_inode() {
 
 void btrfs_inode::release() {
     {
-        std::lock_guard lock(fs.inode_lock);
+        lock_guard lock(fs.inode_lock);
 
         if (--refcount != 0)
             return;
@@ -606,7 +623,7 @@ void btrfs_inode::release() {
     delete this;
 }
 
-optional<reference_wrapper<btrfs_inode>> btrfs_inode::open_child(std::string_view name) {
+optional<reference_wrapper<btrfs_inode>> btrfs_inode::open_child(string_view name) {
     dirent* de = nullptr;
 
     // FIXME - fail straightaway if not directory
@@ -723,4 +740,192 @@ unique_handle btrfs_filesystem::open(string_view fn) {
         fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
         dirrw = obj;
     }
+}
+
+size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t offset, uint64_t num_bytes,
+                                            span<uint8_t> s) {
+    size_t to_read = min(num_bytes, s.size());
+
+    if (offset != 0) {
+        auto diff = (offset / sb.sector_size) * sb.sector_size;
+
+        address += diff;
+        offset -= diff;
+    }
+
+    // FIXME - write directly into s if possible?
+
+    auto pages = bytes_to_pages(num_bytes + offset);
+    auto va = allocate_va(pages);
+
+    for (size_t i = 0; i < pages; i++) {
+        auto pa = allocate_page();
+        if (!pa) {
+            print("allocate_page failed\n");
+
+            for (size_t j = 0; j < i; j++) {
+                auto pa = va_to_pa(va + (j << PAGE_SHIFT));
+                unmap_page(va + (j << PAGE_SHIFT));
+                free_page(pa);
+            }
+
+            return 0;
+        }
+
+        if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
+            print("map_page failed\n");
+            free_page(pa);
+
+            for (size_t j = 0; j < i; j++) {
+                auto pa = va_to_pa(va + (j << PAGE_SHIFT));
+                unmap_page(va + (j << PAGE_SHIFT));
+                free_page(pa);
+            }
+
+            return 0;
+        }
+    }
+
+    auto buf = (uint8_t*)va;
+
+    if (!read_single(address, c, span(buf, num_bytes + offset))) {
+        print("btrfs_filesystem::read_single failed\n");
+        to_read = 0;
+        goto end;
+    }
+
+    // FIXME - check checksum
+
+    memcpy(s.data(), buf + offset, to_read);
+
+end:
+    for (size_t i = 0; i < pages; i++) {
+        auto pa = va_to_pa(va + (i << PAGE_SHIFT));
+        unmap_page(va + (i << PAGE_SHIFT));
+        free_page(pa);
+    }
+
+    return to_read;
+}
+
+size_t btrfs_filesystem::read_extent(uint64_t address, uint64_t offset, uint64_t num_bytes, span<uint8_t> s) {
+    optional<reference_wrapper<chunk>> crw;
+
+    {
+        auto le = chunk_list.next;
+        while (le != &chunk_list) {
+            auto& c = containing_record<chunk>(le);
+
+            if (address >= c.offset && address < c.offset + c.ci.size) {
+                crw = c;
+                break;
+            }
+
+            le = le->next;
+        }
+    }
+
+    if (!crw) {
+        print("Could not find chunk for address ");
+        print_hex(address);
+        print(".\n");
+        return 0;
+    }
+
+    auto& c = crw->get();
+
+    if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
+        print("RAID not supported\n");
+        return 0;
+    } else if (c.ci.type & BLOCK_FLAG_DUPLICATE) {
+        print("FIXME - DUP\n");
+        return 0;
+    } else
+        return read_extent_single(c, address, offset, num_bytes, s);
+}
+
+size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
+    uint64_t lastoff = offset;
+    size_t read = 0;
+
+    if (offset > ii.st_size || s.empty())
+        return 0;
+
+    if (offset + s.size() > ii.st_size)
+        s = s.subspan(ii.st_size - offset);
+
+    auto le = extents.next;
+    while (le != &extents) {
+        auto& ie = containing_record<inode_extent>(le);
+
+        if (ie.offset + ie.ed.decoded_size < offset) {
+            le = le->next;
+            continue;
+        }
+
+        if (ie.ed.compression != 0) {
+            print("FIXME - compression\n"); // FIXME
+            return 0;
+        }
+
+        if (ie.offset > lastoff) {
+            auto to_zero = min(s.size(), ie.offset - lastoff);
+
+            memset(s.data(), 0, to_zero);
+            s = s.subspan(to_zero);
+            read += to_zero;
+
+            if (s.empty())
+                return read;
+        }
+
+        switch (ie.ed.type) {
+            case btrfs_extent_type::inline_extent:
+                print("FIXME - inline extents\n"); // FIXME
+                return 0;
+            break;
+
+            case btrfs_extent_type::regular: {
+                auto& ed2 = *(extent_data2*)ie.ed.data;
+                auto r = fs.read_extent(ed2.address, ed2.offset, ed2.num_bytes, s);
+
+                if (r == 0) {
+                    print("btrfs_filesystem::read_extent failed\n");
+                    return 0;
+                }
+
+                read += r;
+                s = s.subspan(read);
+
+                if (s.empty())
+                    return read;
+
+                break;
+            }
+
+            case btrfs_extent_type::prealloc: {
+                auto to_zero = min(s.size(), ie.ed.decoded_size);
+
+                memset(s.data(), 0, to_zero);
+                s = s.subspan(to_zero);
+                read += to_zero;
+
+                if (s.empty())
+                    return read;
+
+                break;
+            }
+        }
+
+        lastoff = ie.offset;
+
+        le = le->next;
+    }
+
+    if (!s.empty()) {
+        memset(s.data(), 0, s.size());
+        read += s.size();
+    }
+
+    return read;
 }
