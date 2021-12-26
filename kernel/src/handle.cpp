@@ -84,7 +84,7 @@ void close_handle(handle_t h) {
     auto new_handle_count = --obj->handle_count;
 
     // remove name if last handle closed
-    if (obj->named && new_handle_count == 0) {
+    if (obj->named && !obj->persistent && new_handle_count == 0) {
         name_entry* ne = nullptr;
 
         {
@@ -136,31 +136,17 @@ optional<reference_wrapper<object>> deref_handle(handle_t h) {
     return *ho.obj;
 }
 
-bool name_object(handle_t h, string_view name) {
+bool name_object(object& obj, string_view name, bool persistent) {
     if (name.empty()) {
         // FIXME - exception
         print("Invalid name\n");
         return false;
     }
 
-    auto objrw = deref_handle(h);
-    if (!objrw) {
-        // FIXME - exception
-        print("No such handle\n");
-        return false;
-    }
-
-    auto& obj = objrw->get();
-
     auto ne = (name_entry*)malloc(offsetof(name_entry, name) + name.size());
     if (!ne) {
         // FIXME - exception
         print("Out of memory\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
         return false;
     }
 
@@ -170,13 +156,7 @@ bool name_object(handle_t h, string_view name) {
         lock.reset();
         // FIXME - exception
         print("Object already has name\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
         free(ne);
-
         return false;
     }
 
@@ -191,13 +171,7 @@ bool name_object(handle_t h, string_view name) {
                 lock.reset();
                 // FIXME - exception
                 print("Name collision\n");
-
-                visit_obj(obj, [](auto&& o) {
-                    o.release();
-                });
-
                 free(ne);
-
                 return false;
             }
         }
@@ -206,12 +180,36 @@ bool name_object(handle_t h, string_view name) {
     }
 
     obj.named = true;
+    obj.persistent = persistent;
     ne->obj = &obj;
     ne->name_len = name.length();
     memcpy(ne->name, name.data(), name.length());
     insert_tail_list(name_list, ne->le);
 
+    visit_obj(obj, [](auto&& o) {
+        o.acquire();
+    });
+
     return true;
+}
+
+bool name_object(handle_t h, string_view name, bool persistent) {
+    auto objrw = deref_handle(h);
+    if (!objrw) {
+        // FIXME - exception
+        print("No such handle\n");
+        return false;
+    }
+
+    auto& obj = objrw->get();
+
+    auto ret = name_object(obj, name, persistent);
+
+    visit_obj(obj, [](auto&& o) {
+        o.release();
+    });
+
+    return ret;
 }
 
 unique_handle open_object(string_view name) {

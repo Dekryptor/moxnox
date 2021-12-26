@@ -17,6 +17,7 @@ public:
     std::atomic<unsigned int> refcount = 1;
     std::atomic<unsigned int> handle_count = 0;
     bool named = false;
+    bool persistent = false;
 };
 
 template<typename T>

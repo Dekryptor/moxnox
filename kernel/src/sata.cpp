@@ -11,6 +11,8 @@ static bool interrupt_added = false;
 static spinlock sata_dev_list_lock;
 static list_entry sata_dev_list = { &sata_dev_list, &sata_dev_list };
 
+atomic<unsigned int> num_sata_devices = 0;
+
 size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     size_t ret = 0;
 
@@ -372,6 +374,23 @@ static void init_sata_device(void* ctx) {
     print("\n");
 
     dev.sector_size = 512; // FIXME - get from identify block
+    dev.dev_num = num_sata_devices.fetch_add(1);
+
+    // FIXME - make sure SATA devices get numbered consistently
+
+    if (dev.dev_num < 26) {
+        char name[4];
+
+        name[0] = 's';
+        name[1] = 'd';
+        name[2] = (char)(dev.dev_num + 'a');
+        name[3] = 0;
+
+        if (!name_object(dev, name)) {
+            print("name_object failed\n");
+            return;
+        }
+    }
 
     uint8_t sect[4096];
     if (!dev.read(sect, 0x10000))
@@ -380,7 +399,6 @@ static void init_sata_device(void* ctx) {
     print_hex(*(uint32_t*)sect);
     print("\n");
 
-    // FIXME - add volume objects
     // FIXME - partitions (GPT and MBR)
 }
 
