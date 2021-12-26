@@ -123,9 +123,10 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : vol(vol) {
         return;
     }
 
-    print("FIXME - btrfs\n");
+    // FIXME - default subvol
+    new (&root_inode) btrfs_inode(*this, BTRFS_ROOT_FSTREE, SUBVOL_ROOT_INODE);
 
-    valid = true;
+    valid = root_inode.valid;
 }
 
 bool btrfs_probe(volume& vol) {
@@ -338,13 +339,6 @@ bool btrfs_filesystem::load_roots() {
         if (k.obj_type != key_type::ROOT_ITEM)
             return;
 
-        print_hex(k.obj_id);
-        print(",");
-        print_hex((uint8_t)k.obj_type);
-        print(",");
-        print_hex(k.offset);
-        print("\n");
-
         if (data.size() < sizeof(root_item)) {
             print("Root item truncated\n");
             return;
@@ -374,4 +368,107 @@ bool btrfs_filesystem::load_roots() {
     swap_lists(root_list, new_root_list);
 
     return true;
+}
+
+size_t btrfs_filesystem::find_item2(uint64_t addr, uint8_t exp_level, uint64_t obj_id, enum key_type obj_type,
+                                    uint64_t offset, span<uint8_t> data) {
+    size_t ret = 0;
+
+    auto bufptr = (uint8_t*)malloc(sb.node_size);
+    if (!bufptr) {
+        print("malloc failed\n");
+        return 0;
+    }
+
+    auto buf = span(bufptr, sb.node_size);
+
+    if (!read_metadata(addr, buf)) {
+        print("read_metadata failed\n");
+        free(bufptr);
+        return 0;
+    }
+
+    auto& th = *(tree_header*)buf.data();
+
+    if (th.level != exp_level) {
+        print("Tree level was incorrect\n");
+        free(bufptr);
+        return 0;
+    }
+
+    if (th.level == 0) {
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        for (const auto& i : items) {
+            if (i.k.obj_id < obj_id)
+                continue;
+            else if (i.k.obj_id > obj_id)
+                break;
+
+            if (i.k.obj_type < obj_type)
+                continue;
+            else if (i.k.obj_type > obj_type)
+                break;
+
+            if (i.k.offset < offset)
+                continue;
+            else if (i.k.offset > offset)
+                break;
+
+            ret = i.size;
+
+            if (!data.empty())
+                memcpy(data.data(), (uint8_t*)&th + sizeof(tree_header) + i.offset, min((size_t)i.size, data.size()));
+
+            break;
+        }
+    } else {
+        print("FIXME - recurse\n");
+        free(bufptr);
+        return 0;
+    }
+
+    free(bufptr);
+
+    return ret;
+}
+
+size_t btrfs_filesystem::find_item(uint64_t subvol, uint64_t obj_id, enum key_type obj_type, uint64_t offset, span<uint8_t> data) {
+    uint64_t addr = 0;
+    uint8_t level;
+
+    auto le = root_list.next;
+    while (le != &root_list) {
+        auto& r = containing_record<root>(le);
+
+        if (r.id == subvol) {
+            addr = r.ri.block_number;
+            level = r.ri.root_level;
+            break;
+        }
+
+        le = le->next;
+    }
+
+    if (addr == 0) {
+        print("Could not find address for root ");
+        print_hex(subvol);
+        print("\n");
+        return 0;
+    }
+
+    return find_item2(addr, level, obj_id, obj_type, offset, data);
+}
+
+btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) : fs(fs) {
+    if (!fs.find_item(subvol, inode, key_type::INODE_ITEM, 0, span((uint8_t*)&ii, sizeof(ii)))) {
+        print("INODE_ITEM for subvol ");
+        print_hex(subvol);
+        print(", inode ");
+        print_hex(inode);
+        print(" not found.\n");
+        return;
+    }
+
+    valid = true;
 }

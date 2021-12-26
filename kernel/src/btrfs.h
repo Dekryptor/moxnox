@@ -43,6 +43,8 @@ static const uint64_t BTRFS_ROOT_UUID = 0x9;
 static const uint64_t BTRFS_ROOT_FREE_SPACE = 0xa;
 static const uint64_t BTRFS_ROOT_DATA_RELOC = 0xfffffffffffffff7;
 
+static const uint64_t SUBVOL_ROOT_INODE = 0x100;
+
 struct dev_item {
     uint64_t dev_id;
     uint64_t num_bytes;
@@ -278,6 +280,18 @@ struct root {
     root_item ri;
 };
 
+class btrfs_filesystem;
+
+class btrfs_inode {
+public:
+    btrfs_inode(btrfs_filesystem& fs) : fs(fs) { }
+    btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode);
+
+    btrfs_filesystem& fs;
+    inode_item ii;
+    bool valid = false;
+};
+
 class btrfs_filesystem {
 public:
     btrfs_filesystem(volume& vol);
@@ -288,18 +302,23 @@ public:
         vol.release();
     }
 
-    bool load_chunks();
-    bool load_roots();
     bool read_metadata(uint64_t addr, std::span<uint8_t> data);
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
-    bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
-    bool read_single(uint64_t addr, chunk& c, std::span<uint8_t> data);
-    void free_chunk_list();
-    void free_root_list();
+    size_t find_item(uint64_t subvol, uint64_t obj_id, enum key_type obj_type, uint64_t offset, std::span<uint8_t> data);
 
     volume& vol;
     superblock sb;
     bool valid = false;
     list_entry chunk_list = { &chunk_list, &chunk_list };
     list_entry root_list = { &root_list, &root_list };
+    btrfs_inode root_inode{*this};
+
+private:
+    bool load_chunks();
+    bool load_roots();
+    bool read_single(uint64_t addr, chunk& c, std::span<uint8_t> data);
+    void free_chunk_list();
+    void free_root_list();
+    bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
+    size_t find_item2(uint64_t addr, uint8_t exp_level, uint64_t obj_id, enum key_type obj_type, uint64_t offset, std::span<uint8_t> data);
 };
