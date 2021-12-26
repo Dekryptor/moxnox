@@ -34,7 +34,12 @@ concept is_writable_object = requires(T t, std::span<const uint8_t> s) {
 // FIXME - version of this specifying offset
 // FIXME - async reads and writes (specifying event)
 template<typename T>
-concept is_readable_object = requires(T t, std::span<uint8_t> s) {
+concept is_readable_object_with_offset = requires(T t, std::span<uint8_t> s, size_t offset) {
+    { t.read(s, offset) } -> std::convertible_to<size_t>;
+};
+
+template<typename T>
+concept is_readable_object_without_offset = requires(T t, std::span<uint8_t> s) {
     { t.read(s) } -> std::convertible_to<size_t>;
 };
 

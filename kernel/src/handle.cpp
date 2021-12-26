@@ -265,7 +265,7 @@ unique_handle open_object(string_view name) {
     return unique_handle{hv};
 }
 
-size_t read(handle_t h, span<uint8_t> s) {
+size_t read(handle_t h, span<uint8_t> s, optional<size_t> offset) {
     auto objrw = deref_handle(h);
 
     if (!objrw) {
@@ -278,13 +278,18 @@ size_t read(handle_t h, span<uint8_t> s) {
     bool can_read = false;
 
     visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_readable_object<remove_reference_t<decltype(o)>>)
-            can_read = true;
+        if (offset) {
+            if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
+                can_read = true;
+        } else {
+            if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
+                can_read = true;
+        }
     });
 
     if (!can_read) {
         // FIXME - exception
-        print("Not a readable object\n");
+        print("Can't read from object\n");
 
         visit_obj(obj, [](auto&& o) {
             o.release();
@@ -296,10 +301,17 @@ size_t read(handle_t h, span<uint8_t> s) {
     size_t ret;
 
     visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_readable_object<remove_reference_t<decltype(o)>>)
-            ret = o.read(s);
-        else
-            ret = 0; // can't happen - this is to make compiler happy
+        if (offset) {
+            if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
+                ret = o.read(s, *offset);
+            else
+                ret = 0; // can't happen - this is to make compiler happy
+        } else {
+            if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
+                ret = o.read(s);
+            else
+                ret = 0;
+        }
 
         o.release();
     });
