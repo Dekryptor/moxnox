@@ -22,6 +22,7 @@ class event;
 struct task_state_segment;
 struct pci_device;
 class semaphore;
+class volume;
 
 static const uint32_t PIT_HZ = 1193182;
 
@@ -150,3 +151,6 @@ extern "C" void sata_isr();
 unique_handle create_semaphore(unsigned int maximum_count);
 void release_semaphore(handle_t h);
 void release_semaphore(semaphore& s);
+
+// btrfs.cpp
+bool btrfs_probe(volume& vol);

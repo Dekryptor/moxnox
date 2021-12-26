@@ -3,5 +3,7 @@
 
 void volume::probe() {
     // FIXME - partitions (GPT and MBR)
-    // FIXME - filesystems
+
+    // if no partitions found or is already partition, probe for filesystems
+    btrfs_probe(*this);
 }
