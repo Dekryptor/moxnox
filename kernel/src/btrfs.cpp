@@ -91,9 +91,24 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : vol(vol) {
         }
 
         auto& r = *rptr;
+        r.id = BTRFS_ROOT_ROOT;
+        r.ri.block_number = sb.root_tree_addr;
+        r.ri.root_level = sb.root_level;
+
+        insert_tail_list(root_list, r.le);
+    }
+
+    {
+        auto rptr = new root;
+        if (!rptr) {
+            print("new failed\n");
+            return;
+        }
+
+        auto& r = *rptr;
         r.id = BTRFS_ROOT_CHUNK;
-        r.addr = sb.chunk_tree_addr;
-        r.level = sb.chunk_root_level;
+        r.ri.block_number = sb.chunk_tree_addr;
+        r.ri.root_level = sb.chunk_root_level;
 
         insert_tail_list(root_list, r.le);
     }
@@ -103,7 +118,10 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : vol(vol) {
         return;
     }
 
-    // FIXME - load roots
+    if (!load_roots()) {
+        print("load_roots failed\n");
+        return;
+    }
 
     print("FIXME - btrfs\n");
 
@@ -215,8 +233,8 @@ bool btrfs_filesystem::walk_tree(uint64_t id, invocable<const key&, span<const u
         auto& r = containing_record<root>(le);
 
         if (r.id == id) {
-            addr = r.addr;
-            level = r.level;
+            addr = r.ri.block_number;
+            level = r.ri.root_level;
             break;
         }
 
@@ -239,15 +257,6 @@ bool btrfs_filesystem::load_chunks() {
     auto b = walk_tree(BTRFS_ROOT_CHUNK, [&](const key& k, span<const uint8_t> data) {
         if (k.obj_type != key_type::CHUNK_ITEM)
             return;
-
-        print_hex(k.obj_id);
-        print(",");
-        print_hex((uint8_t)k.obj_type);
-        print(",");
-        print_hex(k.offset);
-        print("\n");
-
-        // FIXME
 
         if (data.size() < offsetof(chunk_item, stripes)) {
             print("Chunk item truncated\n");
@@ -311,4 +320,58 @@ void btrfs_filesystem::free_chunk_list() {
         remove_entry_list(c.le);
         free(&c);
     }
+}
+
+void btrfs_filesystem::free_root_list() {
+    while (!is_list_empty(root_list)) {
+        auto& r = containing_record<root>(root_list.next);
+
+        remove_entry_list(r.le);
+        free(&r);
+    }
+}
+
+bool btrfs_filesystem::load_roots() {
+    list_entry new_root_list = { &new_root_list, &new_root_list };
+
+    auto b = walk_tree(BTRFS_ROOT_ROOT, [&](const key& k, span<const uint8_t> data) {
+        if (k.obj_type != key_type::ROOT_ITEM)
+            return;
+
+        print_hex(k.obj_id);
+        print(",");
+        print_hex((uint8_t)k.obj_type);
+        print(",");
+        print_hex(k.offset);
+        print("\n");
+
+        if (data.size() < sizeof(root_item)) {
+            print("Root item truncated\n");
+            return;
+        }
+
+        auto rptr = new root;
+        if (!rptr) {
+            print("new failed\n");
+            return;
+        }
+
+        auto& r = *rptr;
+
+        r.id = k.obj_id;
+        memcpy(&r.ri, data.data(), sizeof(root_item));
+        insert_tail_list(new_root_list, r.le);
+    });
+
+    if (!b) {
+        swap_lists(root_list, new_root_list);
+        free_root_list();
+        swap_lists(root_list, new_root_list);
+        return false;
+    }
+
+    free_root_list();
+    swap_lists(root_list, new_root_list);
+
+    return true;
 }

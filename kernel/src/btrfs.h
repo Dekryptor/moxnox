@@ -209,6 +209,63 @@ struct leaf_node {
 
 static_assert(sizeof(leaf_node) == 25);
 
+struct btrfs_time {
+    uint64_t seconds;
+    uint32_t nanoseconds;
+} __attribute__((packed));
+
+struct inode_item {
+    uint64_t generation;
+    uint64_t transid;
+    uint64_t st_size;
+    uint64_t st_blocks;
+    uint64_t block_group;
+    uint32_t st_nlink;
+    uint32_t st_uid;
+    uint32_t st_gid;
+    uint32_t st_mode;
+    uint64_t st_rdev;
+    uint64_t flags;
+    uint64_t sequence;
+    uint8_t reserved[32];
+    btrfs_time st_atime;
+    btrfs_time st_ctime;
+    btrfs_time st_mtime;
+    btrfs_time otime;
+} __attribute__((packed));
+
+static_assert(sizeof(inode_item) == 160);
+
+struct root_item {
+    inode_item inode;
+    uint64_t generation;
+    uint64_t objid;
+    uint64_t block_number;
+    uint64_t byte_limit;
+    uint64_t bytes_used;
+    uint64_t last_snapshot_generation;
+    uint64_t flags;
+    uint32_t num_references;
+    key drop_progress;
+    uint8_t drop_level;
+    uint8_t root_level;
+    uint64_t generation2;
+    btrfs_uuid uuid;
+    btrfs_uuid parent_uuid;
+    btrfs_uuid received_uuid;
+    uint64_t ctransid;
+    uint64_t otransid;
+    uint64_t stransid;
+    uint64_t rtransid;
+    btrfs_time ctime;
+    btrfs_time otime;
+    btrfs_time stime;
+    btrfs_time rtime;
+    uint64_t reserved[8];
+} __attribute__((packed));
+
+static_assert(sizeof(root_item) == 439);
+
 struct chunk {
     uint64_t offset;
     list_entry le;
@@ -218,8 +275,7 @@ struct chunk {
 struct root {
     list_entry le;
     uint64_t id;
-    uint64_t addr;
-    uint8_t level;
+    root_item ri;
 };
 
 class btrfs_filesystem {
@@ -228,16 +284,18 @@ public:
 
     ~btrfs_filesystem() {
         free_chunk_list();
-        // FIXME - free root_list
+        free_root_list();
         vol.release();
     }
 
     bool load_chunks();
+    bool load_roots();
     bool read_metadata(uint64_t addr, std::span<uint8_t> data);
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
     bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
     bool read_single(uint64_t addr, chunk& c, std::span<uint8_t> data);
     void free_chunk_list();
+    void free_root_list();
 
     volume& vol;
     superblock sb;
