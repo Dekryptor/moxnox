@@ -650,18 +650,34 @@ unique_handle btrfs_filesystem::open(string_view fn) {
         return unique_handle{hv};
     }
 
-    // FIXME - subdirectories
     // FIXME - die if anything in middle not directory
 
-    auto objrw = root_inode->open_child(fn);
-    if (!objrw)
-        return {};
+    reference_wrapper<btrfs_inode> dirrw = *root_inode;
+    dirrw.get().acquire();
 
-    auto& obj = objrw->get();
+    while (true) {
+        auto sl = fn.find("/");
+        auto& dir = dirrw.get();
 
-    auto hv = add_handle(obj, 0); // FIXME - access mask
+        auto objrw = dir.open_child(sl == string_view::npos ? fn : string_view(fn.data(), sl));
+        if (!objrw) {
+            dir.release();
+            return {};
+        }
 
-    obj.release();
+        auto& obj = objrw->get();
 
-    return unique_handle{hv};
+        dir.release();
+
+        if (sl == string_view::npos) {
+            auto hv = add_handle(obj, 0); // FIXME - access mask
+
+            obj.release();
+
+            return unique_handle{hv};
+        }
+
+        fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
+        dirrw = obj;
+    }
 }
