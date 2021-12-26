@@ -32,6 +32,17 @@ static const uint64_t BLOCK_FLAG_RAID6 = 0x100;
 static const uint64_t BLOCK_FLAG_RAID1C3 = 0x200;
 static const uint64_t BLOCK_FLAG_RAID1C4 = 0x400;
 
+static const uint64_t BTRFS_ROOT_ROOT = 0x1;
+static const uint64_t BTRFS_ROOT_EXTENT = 0x2;
+static const uint64_t BTRFS_ROOT_CHUNK = 0x3;
+static const uint64_t BTRFS_ROOT_DEVTREE = 0x4;
+static const uint64_t BTRFS_ROOT_FSTREE = 0x5;
+static const uint64_t BTRFS_ROOT_TREEDIR = 0x6;
+static const uint64_t BTRFS_ROOT_CHECKSUM = 0x7;
+static const uint64_t BTRFS_ROOT_UUID = 0x9;
+static const uint64_t BTRFS_ROOT_FREE_SPACE = 0xa;
+static const uint64_t BTRFS_ROOT_DATA_RELOC = 0xfffffffffffffff7;
+
 struct dev_item {
     uint64_t dev_id;
     uint64_t num_bytes;
@@ -176,10 +187,39 @@ struct chunk_item {
     chunk_item_stripe stripes[1];
 } __attribute__((packed));
 
+struct tree_header {
+    std::array<uint8_t, 32> csum;
+    btrfs_uuid fs_uuid;
+    uint64_t address;
+    uint64_t flags;
+    btrfs_uuid chunk_tree_uuid;
+    uint64_t generation;
+    uint64_t tree_id;
+    uint32_t num_items;
+    uint8_t level;
+} __attribute__((packed));
+
+static_assert(sizeof(tree_header) == 101);
+
+struct leaf_node {
+    key k;
+    uint32_t offset;
+    uint32_t size;
+} __attribute__((packed));
+
+static_assert(sizeof(leaf_node) == 25);
+
 struct chunk {
     uint64_t offset;
     list_entry le;
     chunk_item ci;
+};
+
+struct root {
+    list_entry le;
+    uint64_t id;
+    uint64_t addr;
+    uint8_t level;
 };
 
 class btrfs_filesystem {
@@ -187,11 +227,20 @@ public:
     btrfs_filesystem(volume& vol);
 
     ~btrfs_filesystem() {
+        // FIXME - free chunk_list
+        // FIXME - free root_list
         vol.release();
     }
+
+    bool load_chunks();
+    bool read_metadata(uint64_t addr, std::span<uint8_t> data);
+    bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
+    bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
+    bool read_single(uint64_t addr, chunk& c, std::span<uint8_t> data);
 
     volume& vol;
     superblock sb;
     bool valid = false;
     list_entry chunk_list = { &chunk_list, &chunk_list };
+    list_entry root_list = { &root_list, &root_list };
 };

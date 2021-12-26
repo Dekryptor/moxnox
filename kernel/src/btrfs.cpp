@@ -48,13 +48,6 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : vol(vol) {
             return;
         }
 
-        print_hex(k.obj_id);
-        print(",");
-        print_hex((uint8_t)k.obj_type);
-        print(",");
-        print_hex(k.offset);
-        print("\n");
-
         chunk_array = chunk_array.subspan(sizeof(key));
 
         if (chunk_array.size() < offsetof(chunk_item, stripes)) {
@@ -90,7 +83,28 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : vol(vol) {
         chunk_array = chunk_array.subspan(chunk_size);
     }
 
-    // FIXME - load chunks properly
+    {
+        auto rptr = new root;
+        if (!rptr) {
+            print("new failed\n");
+            return;
+        }
+
+        auto& r = *rptr;
+        r.id = BTRFS_ROOT_CHUNK;
+        r.addr = sb.chunk_tree_addr;
+        r.level = sb.chunk_root_level;
+
+        insert_tail_list(root_list, r.le);
+    }
+
+    if (!load_chunks()) {
+        print("load_chunks failed\n");
+        return;
+    }
+
+    // FIXME - load roots
+
     print("FIXME - btrfs\n");
 
     valid = true;
@@ -105,6 +119,147 @@ bool btrfs_probe(volume& vol) {
     }
 
     // FIXME - add fs to list
+
+    return true;
+}
+
+bool btrfs_filesystem::read_metadata(uint64_t addr, std::span<uint8_t> data) {
+    optional<reference_wrapper<chunk>> crw;
+
+    {
+        auto le = chunk_list.next;
+        while (le != &chunk_list) {
+            auto& c = containing_record<chunk>(le);
+
+            if (addr >= c.offset && addr < c.offset + c.ci.size) {
+                crw = c;
+                break;
+            }
+
+            le = le->next;
+        }
+    }
+
+    if (!crw) {
+        print("Could not find chunk for logical address ");
+        print_hex(addr);
+        print("\n");
+        return false;
+    }
+
+    auto& c = crw->get();
+
+    if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
+        print("RAID not supported\n");
+        return false;
+    } else if (c.ci.type & BLOCK_FLAG_DUPLICATE) {
+        print("FIXME - DUP\n");
+        return false;
+    } else {
+        if (!read_single(addr, c, data))
+            return false;
+    }
+
+    // FIXME - check checksum, address, level, and subvol ID
+    // FIXME - if duff, read from other version (and replace)
+
+    return true;
+}
+
+bool btrfs_filesystem::walk_tree2(uint64_t addr, uint8_t exp_level, invocable<const key&, span<const uint8_t>> auto func) {
+    auto bufptr = (uint8_t*)malloc(sb.node_size);
+    if (!bufptr) {
+        print("malloc failed\n");
+        return false;
+    }
+
+    auto buf = span(bufptr, sb.node_size);
+
+    if (!read_metadata(addr, buf)) {
+        print("read_metadata failed\n");
+        free(bufptr);
+        return false;
+    }
+
+    auto& th = *(tree_header*)buf.data();
+
+    if (th.level != exp_level) {
+        print("Tree level was incorrect\n");
+        free(bufptr);
+        return false;
+    }
+
+    if (th.level == 0) {
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        for (const auto& i : items) {
+            func(i.k, span<const uint8_t>((uint8_t*)&th + sizeof(tree_header) + i.offset, i.size));
+        }
+    } else {
+        print("FIXME - recurse\n");
+        free(bufptr);
+        return false;
+    }
+
+    free(bufptr);
+
+    return true;
+}
+
+bool btrfs_filesystem::walk_tree(uint64_t id, invocable<const key&, span<const uint8_t>> auto func) {
+    uint64_t addr = 0;
+    uint8_t level;
+
+    auto le = root_list.next;
+    while (le != &root_list) {
+        auto& r = containing_record<root>(le);
+
+        if (r.id == id) {
+            addr = r.addr;
+            level = r.level;
+            break;
+        }
+
+        le = le->next;
+    }
+
+    if (addr == 0) {
+        print("Could not find address for root ");
+        print_hex(id);
+        print("\n");
+        return false;
+    }
+
+    return walk_tree2(addr, level, func);
+}
+
+bool btrfs_filesystem::load_chunks() {
+    auto b = walk_tree(BTRFS_ROOT_CHUNK, [](const key& k, span<const uint8_t> data) {
+        print_hex(k.obj_id);
+        print(",");
+        print_hex((uint8_t)k.obj_type);
+        print(",");
+        print_hex(k.offset);
+        print("\n");
+
+        // FIXME
+    });
+
+    if (!b)
+        return false;
+
+    // FIXME
+
+    return true;
+}
+
+bool btrfs_filesystem::read_single(uint64_t addr, chunk& c, std::span<uint8_t> data) {
+    auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
+
+    if (s < data.size()) {
+        print("Short read\n");
+        return false;
+    }
 
     return true;
 }
