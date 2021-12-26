@@ -1,5 +1,6 @@
 #pragma once
 
+#include "objects.h"
 #include "unique_handle.h"
 #include "spinlock.h"
 
@@ -435,14 +436,19 @@ struct ata_identify_device_block {
 
 static_assert(sizeof(ata_identify_device_block) == 512);
 
-class sata_device {
+class sata_device : public volume {
 public:
     sata_device(volatile HBA_PORT& port);
+
+    void release() override {
+        if (--refcount == 0)
+            delete this;
+    }
 
     bool identify();
     uint8_t get_slot();
     void release_slot(uint8_t slot);
-    bool read(std::span<uint8_t> data, uint64_t offset);
+    size_t read(std::span<uint8_t> data, uint64_t offset);
 
     list_entry le;
     volatile HBA_PORT& port;

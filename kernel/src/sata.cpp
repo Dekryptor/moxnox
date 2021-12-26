@@ -11,16 +11,20 @@ static bool interrupt_added = false;
 static spinlock sata_dev_list_lock;
 static list_entry sata_dev_list = { &sata_dev_list, &sata_dev_list };
 
-bool sata_device::read(span<uint8_t> data, uint64_t offset) {
+size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
+    size_t ret = 0;
+
     if (offset & (sector_size - 1)) {
         print("Invalid offset\n");
-        return false;
+        return 0;
     }
 
     if (data.size() & (sector_size - 1)) {
         print("Invalid length\n");
-        return false;
+        return 0;
     }
+
+    // FIXME - trim data length if would overflow device
 
     // FIXME - proper error handling
     // FIXME - asynchronous mode
@@ -99,14 +103,15 @@ bool sata_device::read(span<uint8_t> data, uint64_t offset) {
         if (port.is & HBA_PxIS_TFES) {
             print("Error reading disk\n");
             release_slot(slot);
-            return false;
+            return 0;
         }
 
         offset += to_read;
         data = data.subspan(to_read);
+        ret += to_read;
     }
 
-    return true;
+    return ret;
 }
 
 uint8_t sata_device::get_slot() {
