@@ -520,6 +520,42 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) 
                 break;
             }
 
+            case key_type::EXTENT_DATA: {
+                auto& ed = *(extent_data*)data.data();
+
+                if (data.size() < offsetof(extent_data, data)) {
+                    print("EXTENT_DATA was short\n");
+                    return false;
+                }
+
+                if (ed.type == btrfs_extent_type::inline_extent) {
+                    print("FIXME - inline extents\n"); // FIXME
+                    return true;
+                } else if (ed.type != btrfs_extent_type::regular || ed.type != btrfs_extent_type::prealloc) {
+                    if (data.size() < offsetof(extent_data, data) + sizeof(extent_data2)) {
+                        print("EXTENT_DATA was short\n");
+                        return false;
+                    }
+                } else {
+                    print("Invalid extent type\n");
+                    return false;
+                }
+
+                auto ieptr = (inode_extent*)malloc(offsetof(inode_extent, ed) + data.size());
+                if (!ieptr) {
+                    print("malloc failed\n");
+                    return false;
+                }
+
+                auto& ie = *ieptr;
+
+                ie.offset = k.offset;
+                memcpy(&ie.ed, data.data(), data.size());
+                insert_tail_list(extents, ie.le);
+
+                break;
+            }
+
             default:
                 break;
         }
@@ -547,6 +583,13 @@ btrfs_inode::~btrfs_inode() {
 
         remove_entry_list(de.le);
         free(&de);
+    }
+
+    while (!is_list_empty(extents)) {
+        auto& ie = containing_record<inode_extent>(extents.next);
+
+        remove_entry_list(ie.le);
+        free(&ie);
     }
 }
 

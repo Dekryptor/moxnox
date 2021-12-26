@@ -314,6 +314,33 @@ struct dir_item {
 
 static_assert(offsetof(dir_item, name) == 30);
 
+enum class btrfs_extent_type : uint8_t {
+    inline_extent = 0,
+    regular = 1,
+    prealloc = 2
+};
+
+struct extent_data {
+    uint64_t generation;
+    uint64_t decoded_size;
+    uint8_t compression;
+    uint8_t encryption;
+    uint16_t encoding;
+    enum btrfs_extent_type type;
+    uint8_t data[1];
+} __attribute__((packed));
+
+static_assert(offsetof(extent_data, data) == 21);
+
+struct extent_data2 {
+    uint64_t address;
+    uint64_t size;
+    uint64_t offset;
+    uint64_t num_bytes;
+};
+
+static_assert(sizeof(extent_data2) == 32);
+
 struct chunk {
     uint64_t offset;
     list_entry le;
@@ -334,6 +361,12 @@ struct dirent {
     char name[1];
 };
 
+struct inode_extent {
+    list_entry le;
+    uint64_t offset;
+    extent_data ed;
+};
+
 class btrfs_filesystem;
 
 class btrfs_inode : public inode {
@@ -351,6 +384,7 @@ public:
     inode_item ii;
     bool valid = false;
     list_entry children = { &children, &children };
+    list_entry extents = { &extents, &extents };
 };
 
 class btrfs_filesystem {
