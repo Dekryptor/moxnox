@@ -215,9 +215,12 @@ bool btrfs_filesystem::walk_tree2(uint64_t addr, uint8_t exp_level, invocable<co
             func(i.k, span<const uint8_t>((uint8_t*)&th + sizeof(tree_header) + i.offset, i.size));
         }
     } else {
-        print("FIXME - recurse\n");
-        free(bufptr);
-        return false;
+        auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        for (const auto& i : items) {
+            if (!walk_tree2(i.address, exp_level - 1, func))
+                break;
+        }
     }
 
     free(bufptr);
