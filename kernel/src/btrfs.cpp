@@ -124,9 +124,19 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : vol(vol) {
     }
 
     // FIXME - default subvol
-    new (&root_inode) btrfs_inode(*this, BTRFS_ROOT_FSTREE, SUBVOL_ROOT_INODE);
 
-    valid = root_inode.valid;
+    root_inode = new btrfs_inode(*this, BTRFS_ROOT_FSTREE, SUBVOL_ROOT_INODE);
+    if (!root_inode) {
+        print("new failed\n");
+        return;
+    }
+
+    if (!root_inode->valid)
+        return;
+
+    insert_tail_list(inode_list, root_inode->le);
+
+    valid = true;
 }
 
 bool btrfs_probe(volume& vol) {
@@ -457,7 +467,7 @@ void btrfs_filesystem::walk_from(uint64_t subvol, const key& k, invocable<const 
     walk_from2(addr, level, k, func);
 }
 
-btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) : fs(fs) {
+btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) : fs(fs), subvol(subvol), inode(inode) {
     bool found_inode_item = false;
 
     fs.walk_from(subvol, key(inode, key_type::INODE_ITEM, 0), [&](const key& k, span<const uint8_t> data) {
@@ -516,13 +526,6 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) 
 
         // FIXME - record other entries (extents etc.)
 
-        print_hex(k.obj_id);
-        print(",");
-        print_hex((uint8_t)k.obj_type);
-        print(",");
-        print_hex(k.offset);
-        print("\n");
-
         return true;
     });
 
@@ -545,4 +548,120 @@ btrfs_inode::~btrfs_inode() {
         remove_entry_list(de.le);
         free(&de);
     }
+}
+
+void btrfs_inode::release() {
+    {
+        std::lock_guard lock(fs.inode_lock);
+
+        if (--refcount != 0)
+            return;
+
+        remove_entry_list(le);
+    }
+
+    delete this;
+}
+
+optional<reference_wrapper<btrfs_inode>> btrfs_inode::open_child(std::string_view name) {
+    dirent* de = nullptr;
+
+    // FIXME - fail straightaway if not directory
+
+    auto le = children.next;
+    while (le != &children) {
+        auto& de2 = containing_record<dirent>(le);
+
+        if (de2.namelen == name.length() && string_view(de2.name, de2.namelen) == name) {
+            de = &de2;
+            break;
+        }
+
+        le = le->next;
+    }
+
+    if (!de)
+        return nullopt;
+
+    if (de->type == key_type::ROOT_ITEM)
+        return fs.open_inode(de->inode, SUBVOL_ROOT_INODE);
+    else
+        return fs.open_inode(subvol, de->inode);
+}
+
+optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode) {
+    {
+        lock_guard lock(inode_lock);
+
+        auto le = inode_list.next;
+        while (le != &inode_list) {
+            auto& in = containing_record<btrfs_inode>(le);
+
+            if (in.subvol == subvol && in.inode == inode) {
+                in.acquire();
+                return in;
+            }
+
+            le = le->next;
+        }
+    }
+
+    auto ino = new btrfs_inode(*this, subvol, inode);
+
+    if (!ino) {
+        print("new failed\n");
+        return nullopt;
+    }
+
+    if (!ino->valid) {
+        delete ino;
+        return nullopt;
+    }
+
+    {
+        optional<lock_guard<spinlock>> lock(inode_lock);
+
+        auto le = inode_list.next;
+        while (le != &inode_list) {
+            auto& in = containing_record<btrfs_inode>(le);
+
+            if (in.subvol == subvol && in.inode == inode) {
+                in.acquire();
+                lock.reset();
+
+                delete ino;
+
+                return in;
+            }
+
+            le = le->next;
+        }
+
+        insert_tail_list(inode_list, ino->le);
+    }
+
+    return *ino;
+}
+
+unique_handle btrfs_filesystem::open(string_view fn) {
+    if (fn.empty()) { // root
+        auto hv = add_handle(*root_inode, 0); // FIXME - access mask
+
+        return unique_handle{hv};
+    }
+
+    // FIXME - subdirectories
+    // FIXME - die if anything in middle not directory
+
+    auto objrw = root_inode->open_child(fn);
+    if (!objrw)
+        return {};
+
+    auto& obj = objrw->get();
+
+    auto hv = add_handle(obj, 0); // FIXME - access mask
+
+    obj.release();
+
+    return unique_handle{hv};
 }

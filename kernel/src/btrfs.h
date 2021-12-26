@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include "unique_handle.h"
 
 using btrfs_uuid = std::array<uint8_t, 16>;
 
@@ -337,16 +338,16 @@ class btrfs_filesystem;
 
 class btrfs_inode : public inode {
 public:
-    btrfs_inode(btrfs_filesystem& fs) : fs(fs) { }
     btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode);
     ~btrfs_inode();
+    void release() override;
 
-    void release() override {
-        if (--refcount == 0)
-            delete this;
-    }
+    std::optional<std::reference_wrapper<btrfs_inode>> open_child(std::string_view name);
 
     btrfs_filesystem& fs;
+    list_entry le;
+    uint64_t subvol;
+    uint64_t inode;
     inode_item ii;
     bool valid = false;
     list_entry children = { &children, &children };
@@ -365,13 +366,17 @@ public:
     bool read_metadata(uint64_t addr, std::span<uint8_t> data);
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
     void walk_from(uint64_t subvol, const key& k, std::invocable<const key&, std::span<const uint8_t>> auto func);
+    std::optional<std::reference_wrapper<btrfs_inode>> open_inode(uint64_t subvol, uint64_t inode);
+    unique_handle open(std::string_view fn);
 
     volume& vol;
     superblock sb;
     bool valid = false;
     list_entry chunk_list = { &chunk_list, &chunk_list };
     list_entry root_list = { &root_list, &root_list };
-    btrfs_inode root_inode{*this};
+    btrfs_inode* root_inode = nullptr;
+    spinlock inode_lock;
+    list_entry inode_list = { &inode_list, &inode_list };
 
 private:
     bool load_chunks();
