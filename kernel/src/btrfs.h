@@ -23,6 +23,15 @@ static const uint64_t BTRFS_INCOMPAT_FLAGS_NO_HOLES = 0x0200;
 static const uint64_t BTRFS_INCOMPAT_FLAGS_METADATA_UUID = 0x0400;
 static const uint64_t BTRFS_INCOMPAT_FLAGS_RAID1C34 = 0x0800;
 
+static const uint64_t BLOCK_FLAG_RAID0 = 0x008;
+static const uint64_t BLOCK_FLAG_RAID1 = 0x010;
+static const uint64_t BLOCK_FLAG_DUPLICATE = 0x020;
+static const uint64_t BLOCK_FLAG_RAID10 = 0x040;
+static const uint64_t BLOCK_FLAG_RAID5 = 0x080;
+static const uint64_t BLOCK_FLAG_RAID6 = 0x100;
+static const uint64_t BLOCK_FLAG_RAID1C3 = 0x200;
+static const uint64_t BLOCK_FLAG_RAID1C4 = 0x400;
+
 struct dev_item {
     uint64_t dev_id;
     uint64_t num_bytes;
@@ -107,6 +116,72 @@ struct superblock {
 
 static_assert(sizeof(superblock) == 4096);
 
+enum class key_type : uint8_t {
+    INODE_ITEM = 0x01,
+    INODE_REF = 0x0c,
+    INODE_EXTREF = 0x0d,
+    XATTR_ITEM = 0x18,
+    ORPHAN_INODE = 0x30,
+    DIR_ITEM = 0x54,
+    DIR_INDEX = 0x60,
+    EXTENT_DATA = 0x6c,
+    EXTENT_CSUM = 0x80,
+    ROOT_ITEM = 0x84,
+    ROOT_BACKREF = 0x90,
+    ROOT_REF = 0x9c,
+    EXTENT_ITEM = 0xa8,
+    METADATA_ITEM = 0xa9,
+    TREE_BLOCK_REF = 0xb0,
+    EXTENT_DATA_REF = 0xb2,
+    EXTENT_REF_V0 = 0xb4,
+    SHARED_BLOCK_REF = 0xb6,
+    SHARED_DATA_REF = 0xb8,
+    BLOCK_GROUP_ITEM = 0xc0,
+    FREE_SPACE_INFO = 0xc6,
+    FREE_SPACE_EXTENT = 0xc7,
+    FREE_SPACE_BITMAP = 0xc8,
+    DEV_EXTENT = 0xcc,
+    DEV_ITEM = 0xd8,
+    CHUNK_ITEM = 0xe4,
+    TEMP_ITEM = 0xf8,
+    DEV_STATS = 0xf9,
+    SUBVOL_UUID = 0xfb,
+    SUBVOL_REC_UUID = 0xfc,
+};
+
+struct key {
+    uint64_t obj_id;
+    key_type obj_type;
+    uint64_t offset;
+} __attribute__((packed));
+
+static_assert(sizeof(key) == 17);
+
+struct chunk_item_stripe {
+    uint64_t dev_id;
+    uint64_t offset;
+    btrfs_uuid dev_uuid;
+} __attribute__((packed));
+
+struct chunk_item {
+    uint64_t size;
+    uint64_t root_id;
+    uint64_t stripe_length;
+    uint64_t type;
+    uint32_t opt_io_alignment;
+    uint32_t opt_io_width;
+    uint32_t sector_size;
+    uint16_t num_stripes;
+    uint16_t sub_stripes;
+    chunk_item_stripe stripes[1];
+} __attribute__((packed));
+
+struct chunk {
+    uint64_t offset;
+    list_entry le;
+    chunk_item ci;
+};
+
 class btrfs_filesystem {
 public:
     btrfs_filesystem(volume& vol);
@@ -118,4 +193,5 @@ public:
     volume& vol;
     superblock sb;
     bool valid = false;
+    list_entry chunk_list = { &chunk_list, &chunk_list };
 };
