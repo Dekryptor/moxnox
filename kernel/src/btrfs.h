@@ -227,7 +227,7 @@ public:
     btrfs_filesystem(volume& vol);
 
     ~btrfs_filesystem() {
-        // FIXME - free chunk_list
+        free_chunk_list();
         // FIXME - free root_list
         vol.release();
     }
@@ -237,6 +237,7 @@ public:
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
     bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
     bool read_single(uint64_t addr, chunk& c, std::span<uint8_t> data);
+    void free_chunk_list();
 
     volume& vol;
     superblock sb;

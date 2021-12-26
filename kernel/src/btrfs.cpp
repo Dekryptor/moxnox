@@ -234,7 +234,12 @@ bool btrfs_filesystem::walk_tree(uint64_t id, invocable<const key&, span<const u
 }
 
 bool btrfs_filesystem::load_chunks() {
-    auto b = walk_tree(BTRFS_ROOT_CHUNK, [](const key& k, span<const uint8_t> data) {
+    list_entry new_chunk_list = { &new_chunk_list, &new_chunk_list };
+
+    auto b = walk_tree(BTRFS_ROOT_CHUNK, [&](const key& k, span<const uint8_t> data) {
+        if (k.obj_type != key_type::CHUNK_ITEM)
+            return;
+
         print_hex(k.obj_id);
         print(",");
         print_hex((uint8_t)k.obj_type);
@@ -243,12 +248,47 @@ bool btrfs_filesystem::load_chunks() {
         print("\n");
 
         // FIXME
+
+        if (data.size() < offsetof(chunk_item, stripes)) {
+            print("Chunk item truncated\n");
+            return;
+        }
+
+        auto& ci = *(chunk_item*)data.data();
+        size_t chunk_size = offsetof(chunk_item, stripes) + (sizeof(chunk_item_stripe) * ci.num_stripes);
+
+        if (data.size() < chunk_size) {
+            print("Chunk array truncated\n");
+            return;
+        }
+
+        if (ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
+            print("RAID not supported\n");
+            return;
+        }
+
+        auto cptr = (chunk*)malloc(offsetof(chunk, ci) + chunk_size);
+        if (!cptr) {
+            print("malloc failed\n");
+            return;
+        }
+
+        auto& c = *cptr;
+
+        c.offset = k.offset;
+        memcpy(&c.ci, data.data(), chunk_size);
+        insert_tail_list(new_chunk_list, c.le);
     });
 
-    if (!b)
+    if (!b) {
+        swap_lists(chunk_list, new_chunk_list);
+        free_chunk_list();
+        swap_lists(chunk_list, new_chunk_list);
         return false;
+    }
 
-    // FIXME
+    free_chunk_list();
+    swap_lists(chunk_list, new_chunk_list);
 
     return true;
 }
@@ -262,4 +302,13 @@ bool btrfs_filesystem::read_single(uint64_t addr, chunk& c, std::span<uint8_t> d
     }
 
     return true;
+}
+
+void btrfs_filesystem::free_chunk_list() {
+    while (!is_list_empty(chunk_list)) {
+        auto& c = containing_record<chunk>(chunk_list.next);
+
+        remove_entry_list(c.le);
+        free(&c);
+    }
 }
