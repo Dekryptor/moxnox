@@ -166,6 +166,20 @@ struct key {
     uint64_t obj_id;
     key_type obj_type;
     uint64_t offset;
+
+    std::strong_ordering operator<=>(const key& k) const {
+        auto cmp = obj_id <=> k.obj_id;
+
+        if (cmp != std::strong_ordering::equal)
+            return cmp;
+
+        cmp = obj_type <=> k.obj_type;
+
+        if (cmp != std::strong_ordering::equal)
+            return cmp;
+
+        return offset <=> k.offset;
+    }
 } __attribute__((packed));
 
 static_assert(sizeof(key) == 17);
@@ -210,6 +224,14 @@ struct leaf_node {
 } __attribute__((packed));
 
 static_assert(sizeof(leaf_node) == 25);
+
+struct internal_node {
+    key k;
+    uint64_t address;
+    uint64_t generation;
+} __attribute__((packed));
+
+static_assert(sizeof(internal_node) == 33);
 
 struct btrfs_time {
     uint64_t seconds;
@@ -337,8 +359,7 @@ public:
 
     bool read_metadata(uint64_t addr, std::span<uint8_t> data);
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
-    bool walk_from(uint64_t subvol, uint64_t obj_id, enum key_type obj_type, uint64_t offset,
-                   std::invocable<const key&, std::span<const uint8_t>> auto func);
+    void walk_from(uint64_t subvol, const key& k, std::invocable<const key&, std::span<const uint8_t>> auto func);
     size_t find_item(uint64_t subvol, uint64_t obj_id, enum key_type obj_type, uint64_t offset, std::span<uint8_t> data);
 
     volume& vol;
@@ -356,6 +377,6 @@ private:
     void free_root_list();
     bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
     size_t find_item2(uint64_t addr, uint8_t exp_level, uint64_t obj_id, enum key_type obj_type, uint64_t offset, std::span<uint8_t> data);
-    bool walk_from2(uint64_t addr, uint8_t exp_level, uint64_t obj_id, enum key_type obj_type, uint64_t offset,
+    bool walk_from2(uint64_t addr, uint8_t exp_level, const key& k,
                     std::invocable<const key&, std::span<const uint8_t>> auto func);
 };

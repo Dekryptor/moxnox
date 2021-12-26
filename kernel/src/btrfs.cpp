@@ -460,9 +460,9 @@ size_t btrfs_filesystem::find_item(uint64_t subvol, uint64_t obj_id, enum key_ty
     return find_item2(addr, level, obj_id, obj_type, offset, data);
 }
 
-bool btrfs_filesystem::walk_from2(uint64_t addr, uint8_t exp_level, uint64_t obj_id, enum key_type obj_type, uint64_t offset,
+bool btrfs_filesystem::walk_from2(uint64_t addr, uint8_t exp_level, const key& k,
                                   invocable<const key&, span<const uint8_t>> auto func) {
-    size_t ret = 0;
+    bool ret = false;
 
     auto bufptr = (uint8_t*)malloc(sb.node_size);
     if (!bufptr) {
@@ -490,26 +490,26 @@ bool btrfs_filesystem::walk_from2(uint64_t addr, uint8_t exp_level, uint64_t obj
         auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
         for (const auto& i : items) {
-            if (i.k.obj_id < obj_id)
+            if (i.k < k)
                 continue;
 
-            if (i.k.obj_id == obj_id && i.k.obj_type < obj_type)
-                continue;
+            ret = func(i.k, span<const uint8_t>((uint8_t*)&th + sizeof(tree_header) + i.offset, i.size));
 
-            if (i.k.obj_id == obj_id && i.k.obj_type == obj_type && i.k.offset < offset)
-                continue;
-
-            auto b = func(i.k, span<const uint8_t>((uint8_t*)&th + sizeof(tree_header) + i.offset, i.size));
-
-            if (!b)
+            if (!ret)
                 break;
         }
-
-        // FIXME - carry on to next tree
     } else {
-        print("FIXME - recurse\n");
-        free(bufptr);
-        return 0;
+        auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        for (unsigned int i = 0; i < items.size(); i++) {
+            if (i != items.size() - 1 && items[i+1].k < k)
+                continue;
+
+            ret = walk_from2(items[i].address, exp_level - 1, k, func);
+
+            if (!ret)
+                break;
+        }
     }
 
     free(bufptr);
@@ -517,8 +517,7 @@ bool btrfs_filesystem::walk_from2(uint64_t addr, uint8_t exp_level, uint64_t obj
     return ret;
 }
 
-bool btrfs_filesystem::walk_from(uint64_t subvol, uint64_t obj_id, enum key_type obj_type, uint64_t offset,
-                                 invocable<const key&, span<const uint8_t>> auto func) {
+void btrfs_filesystem::walk_from(uint64_t subvol, const key& k, invocable<const key&, span<const uint8_t>> auto func) {
     uint64_t addr = 0;
     uint8_t level;
 
@@ -539,16 +538,16 @@ bool btrfs_filesystem::walk_from(uint64_t subvol, uint64_t obj_id, enum key_type
         print("Could not find address for root ");
         print_hex(subvol);
         print("\n");
-        return false;
+        return;
     }
 
-    return walk_from2(addr, level, obj_id, obj_type, offset, func);
+    walk_from2(addr, level, k, func);
 }
 
 btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) : fs(fs) {
     bool found_inode_item = false;
 
-    fs.walk_from(subvol, inode, key_type::INODE_ITEM, 0, [&](const key& k, span<const uint8_t> data) {
+    fs.walk_from(subvol, key(inode, key_type::INODE_ITEM, 0), [&](const key& k, span<const uint8_t> data) {
         if (k.obj_id != inode)
             return false;
 
