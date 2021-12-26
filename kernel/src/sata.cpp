@@ -392,14 +392,9 @@ static void init_sata_device(void* ctx) {
         }
     }
 
-    uint8_t sect[4096];
-    if (!dev.read(sect, 0x10000))
-        print("read failed\n");
+    dev.probe();
 
-    print_hex(*(uint32_t*)sect);
-    print("\n");
-
-    // FIXME - partitions (GPT and MBR)
+    dev.release();
 }
 
 extern "C"
