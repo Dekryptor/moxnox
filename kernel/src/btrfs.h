@@ -304,6 +304,8 @@ public:
 
     bool read_metadata(uint64_t addr, std::span<uint8_t> data);
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
+    bool walk_from(uint64_t subvol, uint64_t obj_id, enum key_type obj_type, uint64_t offset,
+                   std::invocable<const key&, std::span<const uint8_t>> auto func);
     size_t find_item(uint64_t subvol, uint64_t obj_id, enum key_type obj_type, uint64_t offset, std::span<uint8_t> data);
 
     volume& vol;
@@ -321,4 +323,6 @@ private:
     void free_root_list();
     bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
     size_t find_item2(uint64_t addr, uint8_t exp_level, uint64_t obj_id, enum key_type obj_type, uint64_t offset, std::span<uint8_t> data);
+    bool walk_from2(uint64_t addr, uint8_t exp_level, uint64_t obj_id, enum key_type obj_type, uint64_t offset,
+                    std::invocable<const key&, std::span<const uint8_t>> auto func);
 };

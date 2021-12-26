@@ -460,8 +460,121 @@ size_t btrfs_filesystem::find_item(uint64_t subvol, uint64_t obj_id, enum key_ty
     return find_item2(addr, level, obj_id, obj_type, offset, data);
 }
 
+bool btrfs_filesystem::walk_from2(uint64_t addr, uint8_t exp_level, uint64_t obj_id, enum key_type obj_type, uint64_t offset,
+                                  invocable<const key&, span<const uint8_t>> auto func) {
+    size_t ret = 0;
+
+    auto bufptr = (uint8_t*)malloc(sb.node_size);
+    if (!bufptr) {
+        print("malloc failed\n");
+        return 0;
+    }
+
+    auto buf = span(bufptr, sb.node_size);
+
+    if (!read_metadata(addr, buf)) {
+        print("read_metadata failed\n");
+        free(bufptr);
+        return 0;
+    }
+
+    auto& th = *(tree_header*)buf.data();
+
+    if (th.level != exp_level) {
+        print("Tree level was incorrect\n");
+        free(bufptr);
+        return 0;
+    }
+
+    if (th.level == 0) {
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        for (const auto& i : items) {
+            if (i.k.obj_id < obj_id)
+                continue;
+
+            if (i.k.obj_id == obj_id && i.k.obj_type < obj_type)
+                continue;
+
+            if (i.k.obj_id == obj_id && i.k.obj_type == obj_type && i.k.offset < offset)
+                continue;
+
+            auto b = func(i.k, span<const uint8_t>((uint8_t*)&th + sizeof(tree_header) + i.offset, i.size));
+
+            if (!b)
+                break;
+        }
+
+        // FIXME - carry on to next tree
+    } else {
+        print("FIXME - recurse\n");
+        free(bufptr);
+        return 0;
+    }
+
+    free(bufptr);
+
+    return ret;
+}
+
+bool btrfs_filesystem::walk_from(uint64_t subvol, uint64_t obj_id, enum key_type obj_type, uint64_t offset,
+                                 invocable<const key&, span<const uint8_t>> auto func) {
+    uint64_t addr = 0;
+    uint8_t level;
+
+    auto le = root_list.next;
+    while (le != &root_list) {
+        auto& r = containing_record<root>(le);
+
+        if (r.id == subvol) {
+            addr = r.ri.block_number;
+            level = r.ri.root_level;
+            break;
+        }
+
+        le = le->next;
+    }
+
+    if (addr == 0) {
+        print("Could not find address for root ");
+        print_hex(subvol);
+        print("\n");
+        return false;
+    }
+
+    return walk_from2(addr, level, obj_id, obj_type, offset, func);
+}
+
 btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) : fs(fs) {
-    if (!fs.find_item(subvol, inode, key_type::INODE_ITEM, 0, span((uint8_t*)&ii, sizeof(ii)))) {
+    bool found_inode_item = false;
+
+    fs.walk_from(subvol, inode, key_type::INODE_ITEM, 0, [&](const key& k, span<const uint8_t> data) {
+        if (k.obj_id != inode)
+            return false;
+
+        if (k.obj_type == key_type::INODE_ITEM) {
+            if (data.size() < sizeof(inode_item)) {
+                print("INODE_ITEM was short\n");
+                return false;
+            }
+
+            memcpy(&ii, data.data(), min(data.size(), sizeof(inode_item)));
+            found_inode_item = true;
+        }
+
+        // FIXME - record other entries (extents etc.)
+
+        print_hex(k.obj_id);
+        print(",");
+        print_hex((uint8_t)k.obj_type);
+        print(",");
+        print_hex(k.offset);
+        print("\n");
+
+        return true;
+    });
+
+    if (!found_inode_item) {
         print("INODE_ITEM for subvol ");
         print_hex(subvol);
         print(", inode ");
