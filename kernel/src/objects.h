@@ -5,7 +5,8 @@ enum class object_type {
     timer,
     event,
     pipe,
-    semaphore
+    semaphore,
+    volume
 };
 
 class object {
@@ -48,6 +49,7 @@ concept is_readable_object_without_offset = requires(T t, std::span<uint8_t> s) 
 #include "event.h"
 #include "pipe.h"
 #include "semaphore.h"
+#include "volume.h"
 
 // FIXME - concept to make sure func is invocable
 template<typename T>
@@ -71,6 +73,10 @@ static void visit_obj(object& obj, const T& func) {
 
         case object_type::semaphore:
             func(static_cast<semaphore&>(obj));
+        break;
+
+        case object_type::volume:
+            func(static_cast<volume&>(obj));
         break;
     }
 }
