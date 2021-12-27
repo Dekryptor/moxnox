@@ -4,34 +4,13 @@
 
 using namespace std;
 
-unique_handle create_section(handle_t h, bool image) {
-    if (!image) {
+unique_handle create_section(handle_t h, bool image, size_t size) {
+    if (h && !image) {
         print("FIXME - non-image sections\n");
         return {};
     }
 
     // FIXME - non-image sections
-    // FIXME - sections backed by page file
-
-    auto objrw = deref_handle(h);
-    if (!objrw) {
-        // FIXME - exception
-        print("No such handle\n");
-        return {};
-    }
-
-    auto& obj = objrw->get();
-
-    if (obj.type != object_type::inode) {
-        // FIXME - exception
-        print("Not an inode\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
-        return {};
-    }
 
     auto sptr = new section;
     if (!sptr) {
@@ -41,16 +20,60 @@ unique_handle create_section(handle_t h, bool image) {
 
     auto& s = *sptr;
 
-    s.ino = static_cast<inode&>(obj);
+    if (h) {
+        auto objrw = deref_handle(h);
+        if (!objrw) {
+            // FIXME - exception
+            print("No such handle\n");
+            s.release();
+            return {};
+        }
 
-    // FIXME - also work with ELFs
+        auto& obj = objrw->get();
 
-    s.type = section_type::image;
+        if (obj.type != object_type::inode) {
+            // FIXME - exception
+            print("Not an inode\n");
 
-    if (!s.load_image()) {
-        print("load_image failed\n");
-        s.release();
-        return {};
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            s.release();
+            return {};
+        }
+
+        s.ino = static_cast<inode&>(obj);
+        s.type = section_type::image;
+        // FIXME - also work with ELFs
+
+        if (!s.load_image()) {
+            print("load_image failed\n");
+            s.release();
+            return {};
+        }
+    } else {
+        s.type = section_type::anonymous;
+        s.num_pages = bytes_to_pages(size);
+
+        if (s.num_pages == 0) {
+            print("anonymous section must specify a size\n");
+            s.release();
+            return {};
+        }
+
+        s.size = s.num_pages << PAGE_SHIFT;
+
+        s.pa = (uint64_t*)malloc(sizeof(uint64_t) * s.num_pages);
+        if (!s.pa) {
+            print("malloc failed\n");
+            s.release();
+            return {};
+        }
+
+        memset(s.pa, 0, sizeof(uint64_t) * s.num_pages);
+
+        // FIXME - make sure allocate_page doesn't steal what we've reserved
     }
 
     auto hv = add_handle(s, 0); // FIXME - access mask
@@ -72,7 +95,8 @@ void section::free_pa() {
         return;
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        free_page(pa[i]);
+        if (pa[i])
+            free_page(pa[i]);
     }
 
     free(pa);
@@ -189,6 +213,7 @@ bool section::load_image() {
             size_of_headers = nt_header.OptionalHeader64.SizeOfHeaders;
             preferred_base = nt_header.OptionalHeader64.ImageBase;
             entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
+            stack_size = nt_header.OptionalHeader64.SizeOfStackReserve;
         } else {
             if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
                 print("SizeOfOptionalHeader was smaller than expected\n");
@@ -199,6 +224,7 @@ bool section::load_image() {
             size_of_headers = nt_header.OptionalHeader32.SizeOfHeaders;
             preferred_base = nt_header.OptionalHeader32.ImageBase;
             entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
+            stack_size = nt_header.OptionalHeader32.SizeOfStackReserve;
         }
 
         if (size == 0) {
@@ -305,10 +331,42 @@ bool section::load_image() {
 }
 
 bool section::map(uint32_t offset, uint64_t va) {
+    uint64_t page;
+    bool new_page = false;
+
     // FIXME - correct mapping type
 
-    if (!map_page(pa[offset >> PAGE_SHIFT], va, mapping_type::read_write_execute))
-        return false;
+    {
+        lock_guard lock(alloc_lock);
+
+        page = pa[offset >> PAGE_SHIFT];
+
+        if (!page) {
+            if (type != section_type::anonymous) {
+                print("page not set\n");
+                return false;
+            }
+
+            page = allocate_page();
+            if (!page) {
+                print("allocate_page failed\n");
+                return false;
+            }
+
+            pa[offset >> PAGE_SHIFT] = page;
+
+            new_page = true;
+        }
+    }
+
+    {
+        // FIXME - process mapping lock
+        if (!map_page(pa[offset >> PAGE_SHIFT], va, mapping_type::read_write_execute))
+            return false;
+
+        if (new_page) // FIXME - allocate zeroed page?
+            memset((void*)va, 0, PAGE_SIZE);
+    }
 
     return true;
 }

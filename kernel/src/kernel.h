@@ -167,4 +167,4 @@ unique_handle open_file(std::string_view fn);
 unique_handle create_process(std::string_view fn);
 
 // section.cpp
-unique_handle create_section(handle_t h, bool image);
+unique_handle create_section(handle_t h, bool image, size_t size);

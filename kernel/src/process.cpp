@@ -32,7 +32,9 @@ unique_handle create_process(string_view fn) {
 
     auto& p = *pptr;
 
-    auto imgh = create_section(file.get(), true);
+    // create section for image
+
+    auto imgh = create_section(file.get(), true, 0);
     if (!imgh) {
         print("create_section failed\n");
         p.release();
@@ -51,12 +53,36 @@ unique_handle create_process(string_view fn) {
         return {};
     }
 
+    // create section for stack
+
+    auto stack_size = max(img.stack_size, (uint64_t)PAGE_SIZE);
+
+    auto stackh = create_section(0, false, stack_size);
+    if (!stackh) {
+        print("create_section failed\n");
+        p.release();
+        return {};
+    }
+
+    auto& stacksect = static_cast<section&>(deref_handle(stackh.get())->get());
+
+    stackh.reset();
+
+    auto stackaddr = p.map_section(stacksect, 0x1000); // FIXME - don't specify address
+    if (!stackaddr) {
+        print("process::map_section failed\n");
+        stacksect.release();
+        p.release();
+        return {};
+    }
+
+    stacksect.release();
+
     // FIXME - map ntdll into process
     // FIXME - map time page into process
 
-    // FIXME - create user thread for process, with stack
     // FIXME - start point of thread should actually be in ntdll, so it can do relocations etc.
-    if (!p.add_thread(img.preferred_base + img.entry_point)) {
+    if (!p.add_thread(img.preferred_base + img.entry_point, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
         print("process::add_thread failed\n");
         p.release();
         return {};
@@ -94,22 +120,22 @@ process::~process() {
         img->get().release();
 }
 
-bool process::map_section(section& sect, uint64_t address) {
+uintptr_t process::map_section(section& sect, uintptr_t address) {
     // FIXME - make address optional, in which case we choose it
 
     if (address & 0x8000000000000000 || ((address + sect.size) & 0x8000000000000000)) { // don't allow in kernel space
         print("invalid address\n");
-        return false;
+        return 0;
     }
 
     if (address & (PAGE_SIZE - 1)) { // must be on page boundary
         print("invalid address\n");
-        return false;
+        return 0;
     }
 
     if (address & 0xffff000000000000 || (address + sect.size) & 0xffff000000000000) { // VAs limited to 48 bits
         print("invalid address\n");
-        return false;
+        return 0;
     }
 
     auto m = new mapping(sect);
@@ -124,12 +150,12 @@ bool process::map_section(section& sect, uint64_t address) {
 
         if (m2.address > m->address + m->size) { // insert before
             insert_head_list(*le->prev, m->le);
-            return true;
+            return m->address;
         }
 
         if (m->address < m2.address + m2.size && m->address + m->size > m2.address) { // collision
             delete m;
-            return false;
+            return 0;
         }
 
         le = le->next;
@@ -137,10 +163,10 @@ bool process::map_section(section& sect, uint64_t address) {
 
     insert_tail_list(mappings, m->le);
 
-    return true;
+    return m->address;
 }
 
-bool process::add_thread(uintptr_t entry_point) {
+bool process::add_thread(uintptr_t entry_point, uintptr_t stack) {
     uint16_t tid;
 
     auto tptr = new thread;
@@ -163,11 +189,11 @@ bool process::add_thread(uintptr_t entry_point) {
 
     t.tid = tid;
 
-    // FIXME - stack
+    // FIXME - TEB
 
     memset(&t.context, 0, sizeof(t.context));
     t.context.rip = entry_point;
-    // FIXME - rsp
+    t.context.rsp = stack - 0x20; // 0x20 for MS ABI
     t.context.rflags = 0x202; // IF, reserved flag
     t.context.cs = user_CS;
     t.context.ds = user_DS;

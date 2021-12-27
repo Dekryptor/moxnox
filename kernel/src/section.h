@@ -1,5 +1,7 @@
 #pragma once
 
+#include "spinlock.h"
+
 enum class section_type {
     anonymous,
     file,
@@ -31,4 +33,6 @@ public:
     uint64_t* pa = nullptr;
     uintptr_t preferred_base;
     uint32_t entry_point;
+    uint64_t stack_size;
+    spinlock alloc_lock;
 };

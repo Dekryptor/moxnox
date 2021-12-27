@@ -19,8 +19,8 @@ public:
             delete this;
     }
 
-    bool map_section(section& sect, uint64_t address);
-    bool add_thread(uintptr_t entry_point);
+    uintptr_t map_section(section& sect, uintptr_t address);
+    bool add_thread(uintptr_t entry_point, uintptr_t stack);
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
 
     bool signalled = false;
