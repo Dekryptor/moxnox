@@ -104,11 +104,15 @@ void main_thread() {
     protect_kernel_pages();
 
     init_pci();
+    // FIXME - NVMe
+    // FIXME - USB
+
+    add_kernel_thread(keyboard_echo, nullptr);
+
+    mount_root();
 
 //     thread_test(); // FIXME
 //     timer_test(); // FIXME
-
-    add_kernel_thread(keyboard_echo, nullptr);
 }
 
 extern "C"
