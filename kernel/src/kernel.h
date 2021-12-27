@@ -162,3 +162,6 @@ bool btrfs_probe(volume& vol);
 void add_fs_to_list(filesystem& fs);
 void mount_root();
 unique_handle open_file(std::string_view fn);
+
+// process.cpp
+unique_handle create_process(std::string_view fn);

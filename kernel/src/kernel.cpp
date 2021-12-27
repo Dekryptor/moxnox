@@ -111,6 +111,12 @@ void main_thread() {
 
     mount_root();
 
+    auto init = create_process("/init.exe");
+    if (!init)
+        print("Could not start init process.\n");
+
+    // FIXME - start process
+
 //     thread_test(); // FIXME
 //     timer_test(); // FIXME
 }

@@ -28,7 +28,8 @@ set(SRC_FILES src/kernel.cpp
     src/sata.S
     src/semaphore.cpp
     src/volume.cpp
-    src/btrfs.cpp)
+    src/btrfs.cpp
+    src/process.cpp)
 
 add_executable(kernel ${SRC_FILES})
 
