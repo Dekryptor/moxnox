@@ -79,18 +79,7 @@ static void timer_test() {
 }
 #endif
 
-void main_thread(void*) {
-    init_keyboard();
-
-    init_smp();
-
-    protect_kernel_pages();
-
-    init_pci();
-
-//     thread_test(); // FIXME
-//     timer_test(); // FIXME
-
+static void keyboard_echo(void*) {
     auto pipe = open_object("keyboard");
     if (!pipe) {
         print("Could not open keyboard object.\n");
@@ -105,6 +94,21 @@ void main_thread(void*) {
         auto read_bytes = read(pipe.get(), s);
         print(string_view((char*)s, read_bytes));
     }
+}
+
+void main_thread(void*) {
+    init_keyboard();
+
+    init_smp();
+
+    protect_kernel_pages();
+
+    init_pci();
+
+//     thread_test(); // FIXME
+//     timer_test(); // FIXME
+
+    add_kernel_thread(keyboard_echo, nullptr);
 }
 
 extern "C"
