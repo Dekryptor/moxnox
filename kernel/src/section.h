@@ -22,6 +22,7 @@ public:
 
     bool load_image();
     void free_pa();
+    bool map(uint32_t offset, uint64_t va);
 
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;

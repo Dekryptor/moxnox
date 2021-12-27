@@ -12,7 +12,6 @@ unique_handle create_section(handle_t h, bool image) {
 
     // FIXME - non-image sections
     // FIXME - sections backed by page file
-    // FIXME - page fault tricks
 
     auto objrw = deref_handle(h);
     if (!objrw) {
@@ -301,6 +300,15 @@ bool section::load_image() {
     }
 
     free_va(temp_va, num_pages);
+
+    return true;
+}
+
+bool section::map(uint32_t offset, uint64_t va) {
+    // FIXME - correct mapping type
+
+    if (!map_page(pa[offset >> PAGE_SHIFT], va, mapping_type::read_write_execute))
+        return false;
 
     return true;
 }

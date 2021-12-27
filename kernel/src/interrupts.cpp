@@ -504,11 +504,14 @@ void dummy_isr_func() {
 }
 
 extern "C"
-void page_fault(uint64_t address, uint64_t error_code) {
+void page_fault(uintptr_t address, uint64_t error_code) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
 
-    // FIXME - memory mapping etc.
+    if (current_thread && current_thread->proc) {
+        if (current_thread->proc->handle_page_fault(address, error_code))
+            return;
+    }
 
     print("Page fault (address = ");
     print_hex(address);

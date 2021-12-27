@@ -188,3 +188,50 @@ bool process::add_thread(uintptr_t entry_point) {
 
     return true;
 }
+
+union page_fault_error_code {
+    uint64_t value;
+    struct {
+        uint64_t present : 1;
+        uint64_t write : 1;
+        uint64_t user : 1;
+        uint64_t reserved_write : 1;
+        uint64_t instruction_fetch : 1;
+        uint64_t protection_key : 1;
+        uint64_t shadow_stack : 1;
+        uint64_t reserved1 : 8;
+        uint64_t sgx : 1;
+        uint64_t reserved2 : 48;
+    };
+};
+
+static_assert(sizeof(page_fault_error_code) == 8);
+
+bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
+    page_fault_error_code ec;
+
+    ec.value = error_code;
+
+    // FIXME - copy-on-write
+
+    if (ec.present) // NX violation etc.
+        return false;
+
+    address &= ~(PAGE_SIZE - 1);
+
+    {
+        lock_guard lock(mappings_lock);
+
+        auto le = mappings.next;
+        while (le != &mappings) {
+            auto& m = containing_record<mapping>(le);
+
+            if (m.address <= address && m.address + m.size > address)
+                return m.sect.map((uint32_t)(address - m.address), address);
+
+            le = le->next;
+        }
+    }
+
+    return false;
+}
