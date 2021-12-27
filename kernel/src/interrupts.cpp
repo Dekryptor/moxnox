@@ -338,8 +338,6 @@ void* allocate_stack() {
 }
 
 task_state_segment* init_tss() {
-    auto& cb = *get_cpu_block();
-
     auto pa = allocate_page();
     if (!pa) {
         print("allocate_page failed\n");
@@ -372,8 +370,6 @@ task_state_segment* init_tss() {
     }
 
     tss.ist1 = (uintptr_t)((uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT));
-
-    cb.timer_stack = (void*)(tss.ist1 - 0x20);
 
     return &tss;
 }
