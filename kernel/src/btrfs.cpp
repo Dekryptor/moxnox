@@ -887,7 +887,7 @@ size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
 
             case btrfs_extent_type::regular: {
                 auto& ed2 = *(extent_data2*)ie.ed.data;
-                auto r = fs.read_extent(ed2.address, ed2.offset, ed2.num_bytes, s);
+                auto r = fs.read_extent(ed2.address, ed2.offset + offset + read - ie.offset, ed2.num_bytes, s);
 
                 if (r == 0) {
                     print("btrfs_filesystem::read_extent failed\n");
