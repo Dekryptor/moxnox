@@ -39,6 +39,13 @@ public:
         h = new_h;
     }
 
+    void reset() noexcept {
+        if (h)
+            close_handle(h);
+
+        h = 0;
+    }
+
     explicit operator bool() noexcept {
         return !!h;
     }

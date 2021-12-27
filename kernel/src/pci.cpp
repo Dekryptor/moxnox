@@ -6,6 +6,8 @@
 using namespace std;
 
 static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
+atomic<unsigned int> devices_left = 0;
+static unique_handle init_device_event;
 
 static span<const uint8_t> find_mcfg() {
     optional<reference_wrapper<const ACPISDTHeader>> mcfgw;
@@ -241,6 +243,9 @@ static void pci_device_found(void* ctx) {
         default:
             break;
     }
+
+    if (--devices_left == 0)
+        set_event(init_device_event.get());
 }
 
 void init_pci() {
@@ -274,12 +279,30 @@ void init_pci() {
 
     free_va(va, 1);
 
-    auto le = pci_device_list.next;
-    while (le != &pci_device_list) {
-        auto& dev = containing_record<pci_device>(le);
-
-        add_kernel_thread(pci_device_found, &dev);
-
-        le = le->next;
+    {
+        auto le = pci_device_list.next;
+        while (le != &pci_device_list) {
+            devices_left++;
+            le = le->next;
+        }
     }
+
+    if (devices_left == 0)
+        return;
+
+    init_device_event = create_event(true);
+
+    {
+        auto le = pci_device_list.next;
+        while (le != &pci_device_list) {
+            auto& dev = containing_record<pci_device>(le);
+
+            add_kernel_thread(pci_device_found, &dev);
+
+            le = le->next;
+        }
+    }
+
+    wait_for_object(init_device_event.get());
+    init_device_event.reset();
 }
