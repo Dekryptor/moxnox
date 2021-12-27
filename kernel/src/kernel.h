@@ -100,6 +100,7 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic);
 extern list_entry thread_list;
 unique_handle add_kernel_thread(void (*func)());
 unique_handle add_kernel_thread(void (*func)(void*), void* param);
+unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);
 extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);

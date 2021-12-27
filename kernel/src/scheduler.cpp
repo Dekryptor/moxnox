@@ -60,13 +60,13 @@ void terminate_thread() {
     yield();
 }
 
-static void kernel_thread_start(void (*func)(void*), void* param) {
-    func(param);
+static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
+    func(param1, param2);
 
     terminate_thread();
 }
 
-unique_handle add_kernel_thread(void (*func)(void*), void* param) {
+unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
     uint16_t tid;
 
     auto tptr = new thread;
@@ -138,7 +138,8 @@ unique_handle add_kernel_thread(void (*func)(void*), void* param) {
     memset(&t.context, 0, sizeof(t.context));
     t.context.rip = (uintptr_t)kernel_thread_start;
     t.context.rcx = (uintptr_t)func;
-    t.context.rdx = (uintptr_t)param;
+    t.context.rdx = (uintptr_t)param1;
+    t.context.r8 = (uintptr_t)param2;
     t.context.rsp = (uintptr_t)((uint8_t*)t.stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
     t.context.rflags = 0x202; // IF, reserved flag
     t.context.cs = kernel_CS;
@@ -162,8 +163,15 @@ unique_handle add_kernel_thread(void (*func)(void*), void* param) {
     return unique_handle{hv};
 }
 
+unique_handle add_kernel_thread(void (*func)(void*), void* param) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+    return add_kernel_thread((void(*)(void*, void*))func, param, nullptr);
+#pragma GCC diagnostic pop
+}
+
 unique_handle add_kernel_thread(void (*func)()) {
-    return add_kernel_thread((void(*)(void*))func, nullptr);
+    return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 
 static thread* pick_runnable_thread(thread* current) {
