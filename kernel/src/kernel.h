@@ -23,6 +23,7 @@ struct task_state_segment;
 struct pci_device;
 class semaphore;
 class volume;
+class filesystem;
 
 static const uint32_t PIT_HZ = 1193182;
 
@@ -154,3 +155,6 @@ void release_semaphore(semaphore& s);
 
 // btrfs.cpp
 bool btrfs_probe(volume& vol);
+
+// volume.cpp
+void add_fs_to_list(filesystem& fs);

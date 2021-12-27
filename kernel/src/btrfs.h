@@ -388,7 +388,7 @@ public:
     list_entry extents = { &extents, &extents };
 };
 
-class btrfs_filesystem {
+class btrfs_filesystem : public filesystem {
 public:
     btrfs_filesystem(volume& vol);
 
@@ -405,7 +405,6 @@ public:
     unique_handle open(std::string_view fn);
     size_t read_extent(uint64_t address, uint64_t offset, uint64_t num_bytes, std::span<uint8_t> s);
 
-    volume& vol;
     superblock sb;
     bool valid = false;
     list_entry chunk_list = { &chunk_list, &chunk_list };

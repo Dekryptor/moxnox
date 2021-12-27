@@ -19,3 +19,11 @@ public:
 };
 
 static_assert(is_readable_object_with_offset<volume>);
+
+class filesystem {
+public:
+    filesystem(volume& vol) : vol(vol) { }
+
+    list_entry le;
+    volume& vol;
+};

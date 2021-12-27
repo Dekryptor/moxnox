@@ -10,7 +10,7 @@ static const uint64_t supported_incompat_flags = BTRFS_INCOMPAT_FLAGS_MIXED_BACK
                                                  BTRFS_INCOMPAT_FLAGS_BIG_METADATA | BTRFS_INCOMPAT_FLAGS_EXTENDED_IREF |
                                                  BTRFS_INCOMPAT_FLAGS_SKINNY_METADATA | BTRFS_INCOMPAT_FLAGS_NO_HOLES;
 
-btrfs_filesystem::btrfs_filesystem(volume& vol) : vol(vol) {
+btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     vol.acquire();
 
     if (!vol.read(span((uint8_t*)&sb, sizeof(superblock)), superblock_addrs[0]))
@@ -147,7 +147,7 @@ bool btrfs_probe(volume& vol) {
         return false;
     }
 
-    // FIXME - add fs to list
+    add_fs_to_list(*fs);
 
     return true;
 }
