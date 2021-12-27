@@ -9,7 +9,7 @@
 
 using namespace std;
 
-static uint16_t last_tid = 0; // FIXME - too small?
+uint16_t last_tid = 0; // FIXME - too small?
 
 static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_DS = 0x10;
@@ -341,6 +341,9 @@ thread::~thread() {
 
         free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     }
+
+    if (proc)
+        proc->release();
 }
 
 void wait_for_object(object& obj) {

@@ -4,7 +4,15 @@
 
 using namespace std;
 
+extern uint16_t last_tid; // FIXME
+
+static const uint16_t user_CS = 0x8; // FIXME
+static const uint16_t user_DS = 0x10; // FIXME
+
 // FIXME - make sure process signalled when it dies
+// FIXME - handle thread crashes
+// FIXME - kill process when last thread dies
+// FIXME - 32-bit processes
 
 unique_handle create_process(string_view fn) {
     auto file = open_file(fn);
@@ -38,7 +46,7 @@ unique_handle create_process(string_view fn) {
     auto& img = p.img->get();
 
     if (!p.map_section(img, img.preferred_base)) {
-        print("map_section failed\n");
+        print("process::map_section failed\n");
         p.release();
         return {};
     }
@@ -48,9 +56,15 @@ unique_handle create_process(string_view fn) {
 
     // FIXME - create user thread for process, with stack
     // FIXME - start point of thread should actually be in ntdll, so it can do relocations etc.
+    if (!p.add_thread(img.preferred_base + img.entry_point)) {
+        print("process::add_thread failed\n");
+        p.release();
+        return {};
+    }
 
     // FIXME - token for process
 
+    // FIXME - give process a PID
     // FIXME - add process to list
 
     auto hv = add_handle(p, 0); // FIXME - access mask
@@ -122,6 +136,55 @@ bool process::map_section(section& sect, uint64_t address) {
     }
 
     insert_tail_list(mappings, m->le);
+
+    return true;
+}
+
+bool process::add_thread(uintptr_t entry_point) {
+    uint16_t tid;
+
+    auto tptr = new thread;
+    if (!tptr) {
+        print("new failed\n");
+        return false;
+    }
+
+    auto& t = *tptr;
+
+    // FIXME - spinlock for last_tid (or use atomics)
+    if (last_tid == 0xffff) { // FIXME - check for lowest unused number
+        print("Thread limit reached.\n");
+        delete &t;
+        return false;
+    }
+
+    last_tid++;
+    tid = last_tid;
+
+    t.tid = tid;
+
+    // FIXME - stack
+
+    memset(&t.context, 0, sizeof(t.context));
+    t.context.rip = entry_point;
+    // FIXME - rsp
+    t.context.rflags = 0x202; // IF, reserved flag
+    t.context.cs = user_CS;
+    t.context.ds = user_DS;
+    t.context.es = user_DS;
+    t.context.fs = user_DS;
+    t.context.gs = user_DS;
+    t.context.ss = user_DS;
+
+    t.status = thread_status::runnable;
+
+    t.proc = this;
+    this->acquire();
+
+    {
+        lock_guard lock(sync_lock);
+        insert_tail_list(thread_list, t.le);
+    }
 
     return true;
 }

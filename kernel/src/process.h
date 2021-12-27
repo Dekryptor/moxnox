@@ -20,6 +20,7 @@ public:
     }
 
     bool map_section(section& sect, uint64_t address);
+    bool add_thread(uintptr_t entry_point);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;

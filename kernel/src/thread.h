@@ -67,6 +67,8 @@ enum class thread_status {
     dead
 };
 
+class process;
+
 class thread : public object {
 public:
     thread() : object(object_type::thread) { }
@@ -88,6 +90,7 @@ public:
     uint32_t tid;
     void* stack = nullptr;
     std::optional<std::reference_wrapper<object>> waiting_for; // FIXME - multiple objects
+    process* proc = nullptr;
 };
 
 static_assert(is_sync_object<thread>);
