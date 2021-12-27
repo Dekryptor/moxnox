@@ -94,3 +94,5 @@ public:
 };
 
 static_assert(is_sync_object<thread>);
+
+static_assert(offsetof(thread, proc) == THREAD_PROC);

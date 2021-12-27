@@ -5,6 +5,8 @@
 .global timer_isr
 timer_isr:
     # FIXME - different ISR for CPUs not handling timers?
+    load_kernel_cr3
+
     cmp BYTE PTR gs:GS_HANDLE_TIMERS, 0 # only handle timers on one CPU
     je Ltimer_isr_threads
 
@@ -75,6 +77,7 @@ Ltimer_isr_nop:
     xor rax, rax
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
     pop rax
+    load_process_cr3
     iretq
 
 .global scheduler_restore
@@ -107,11 +110,23 @@ scheduler_restore:
     # setting gs nukes gsbase
     # FIXME - debug registers
     fxrstor gs:GS_CONTEXT + CONTEXT_FXSAVE
+
+    push rax
+    mov rax, gs:GS_CURRENT_THREAD
+    mov rax, [rax+THREAD_PROC]
+    test rax, rax
+    je 0f
+    mov rax, [rax+PROCESS_CR3]
+    mov cr3, rax
+0:
+    pop rax
+
     iretq
 
 .global yield
 yield:
     cli
+    load_kernel_cr3
     pushfq
     or QWORD PTR [rsp], 0x200 # set interrupt enable flag in stored RFLAGS
     mov gs:GS_CONTEXT + CONTEXT_RAX, rax

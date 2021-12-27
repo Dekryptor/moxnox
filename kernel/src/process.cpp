@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
 #include "unique_handle.h"
+#include "mem.h"
 
 using namespace std;
 
@@ -81,9 +82,8 @@ unique_handle create_process(string_view fn) {
     // FIXME - map ntdll into process
     // FIXME - map time page into process
 
-    // FIXME - start point of thread should actually be in ntdll, so it can do relocations etc.
-    if (!p.add_thread(img.preferred_base + img.entry_point, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
-        print("process::add_thread failed\n");
+    if (!p.allocate_cr3()) {
+        print("process::allocate_cr3 failed\n");
         p.release();
         return {};
     }
@@ -92,6 +92,13 @@ unique_handle create_process(string_view fn) {
 
     // FIXME - give process a PID
     // FIXME - add process to list
+
+    // FIXME - start point of thread should actually be in ntdll, so it can do relocations etc.
+    if (!p.add_thread(img.preferred_base + img.entry_point, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
+        print("process::add_thread failed\n");
+        p.release();
+        return {};
+    }
 
     auto hv = add_handle(p, 0); // FIXME - access mask
 
@@ -118,6 +125,9 @@ process::~process() {
 
     if (img)
         img->get().release();
+
+    if (cr3)
+        free_page(cr3);
 }
 
 uintptr_t process::map_section(section& sect, uintptr_t address) {
@@ -260,4 +270,44 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     }
 
     return false;
+}
+
+bool process::allocate_cr3() {
+    cr3 = allocate_page();
+    if (!cr3) {
+        print("allocate_page failed\n");
+        return false;
+    }
+
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return false;
+    }
+
+    if (!map_page(cr3, va, mapping_type::read_write)) {
+        print("map_page failed\n");
+        free_va(va, 1);
+        return false;
+    }
+
+    // copy higher half mappings
+
+    memset((void*)va, 0, PAGE_SIZE >> 1);
+    memcpy((uint8_t*)va + (PAGE_SIZE >> 1), (uint8_t*)SELFMAP_PML4 + (PAGE_SIZE >> 1), PAGE_SIZE >> 1);
+
+    auto pml4t = (HARDWARE_PTE*)va;
+
+    // add recursive mapping
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].PageFrameNumber = cr3 >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
+
+    unmap_page(va);
+    free_va(va, 1);
+
+    return true;
 }

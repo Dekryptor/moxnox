@@ -436,6 +436,11 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
 
     cb.scheduler_stack = ((uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT)) - 0x20; // 0x20 for MS ABI
 
+    __asm __volatile (
+        "mov rax, cr3\n"
+        : "=a" (cb.kernel_cr3)
+    );
+
     __asm __volatile(
         "mov ecx, 0xc0000101\n\t"
         "mov rax, %0\n\t"

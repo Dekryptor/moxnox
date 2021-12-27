@@ -6,6 +6,7 @@
 #define GS_CONTEXT 0x20
 #define GS_SYNC_LOCK_CR8 0x2c8
 #define GS_SCHEDULER_STACK 0x2d8
+#define GS_KERNEL_CR3 0x2e0
 
 #define CONTEXT_RAX 0x00
 #define CONTEXT_RCX 0x08
@@ -35,3 +36,7 @@
 
 #define TIMER_LE 0x10
 #define TIMER_TICKS_LEFT 0x20
+
+#define THREAD_PROC 0x2f0
+
+#define PROCESS_CR3 0x40

@@ -67,3 +67,31 @@
     # FIXME - debug registers
     fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
 .endm
+
+.macro load_kernel_cr3
+    push rax
+    mov rax, gs:GS_CURRENT_THREAD
+    test rax, rax
+    je 0f
+    mov rax, [rax+THREAD_PROC]
+    test rax, rax
+    je 0f
+    mov rax, gs:GS_KERNEL_CR3
+    mov cr3, rax
+0:
+    pop rax
+.endm
+
+.macro load_process_cr3
+    push rax
+    mov rax, gs:GS_CURRENT_THREAD
+    test rax, rax
+    je 0f
+    mov rax, [rax+THREAD_PROC]
+    test rax, rax
+    je 0f
+    mov rax, [rax+PROCESS_CR3]
+    mov cr3, rax
+0:
+    pop rax
+.endm

@@ -1,7 +1,10 @@
 .intel_syntax noprefix
 
+#include "context.S"
+
 .global sata_isr
 sata_isr:
+    load_kernel_cr3
     push rax
     push rcx
     push rdx
@@ -24,4 +27,5 @@ sata_isr:
     pop rdx
     pop rcx
     pop rax
+    load_process_cr3
     iretq
