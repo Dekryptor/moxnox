@@ -255,15 +255,15 @@ static bool setup_idt() {
     // FIXME - int 3
     // FIXME - int 4 (overflow)
     // FIXME - int 5 (bound range exceeded)
-    add_idt_entry(0x6, (void*)invalid_opcode_isr, false, 0);
+    add_idt_entry(0x6, (void*)invalid_opcode_isr, false, 2);
     // FIXME - int 7 (device not available)
-    add_idt_entry(0x8, (void*)double_fault_isr, false, 0);
+    add_idt_entry(0x8, (void*)double_fault_isr, false, 2);
     // FIXME - int 9 (coprocessor segment overrun)
     // FIXME - int a (invalid TSS)
     // FIXME - int b (segment not present)
     // FIXME - int c (stack-segment fault)
-    add_idt_entry(0xd, (void*)general_protection_fault_isr, false, 0);
-    add_idt_entry(0xe, (void*)page_fault_isr, false, 0);
+    add_idt_entry(0xd, (void*)general_protection_fault_isr, false, 2);
+    add_idt_entry(0xe, (void*)page_fault_isr, false, 2);
     // FIXME - int 10 (x87 exception)
     // FIXME - int 11 (alignment check)
     // FIXME - int 12 (machine check)
@@ -271,9 +271,9 @@ static bool setup_idt() {
     // FIXME - int 14 (virtualization exception)
     // FIXME - int 15 (control protection exception)
 
-    add_idt_entry(0x80, (void*)dummy_isr, false, 0);
+    add_idt_entry(0x80, (void*)dummy_isr, false, 2);
 
-    add_idt_entry(0xff, (void*)spurious_isr, false, 0);
+    add_idt_entry(0xff, (void*)spurious_isr, false, 2);
 
     struct {
         uint16_t limit;
@@ -370,6 +370,16 @@ task_state_segment* init_tss() {
     }
 
     tss.ist1 = (uintptr_t)((uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT));
+
+    stack = allocate_stack();
+    if (!stack) {
+        unmap_page(va);
+        free_va(va, 1);
+        free_page(pa);
+        return nullptr;
+    }
+
+    tss.ist2 = (uintptr_t)((uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT)); // FIXME - make this rsp0 instead when we can
 
     return &tss;
 }
