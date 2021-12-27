@@ -392,7 +392,7 @@ class btrfs_filesystem : public filesystem {
 public:
     btrfs_filesystem(volume& vol);
 
-    ~btrfs_filesystem() {
+    ~btrfs_filesystem() override {
         free_chunk_list();
         free_root_list();
         vol.release();
@@ -402,7 +402,7 @@ public:
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
     void walk_from(uint64_t subvol, const key& k, std::invocable<const key&, std::span<const uint8_t>> auto func);
     std::optional<std::reference_wrapper<btrfs_inode>> open_inode(uint64_t subvol, uint64_t inode);
-    unique_handle open(std::string_view fn);
+    unique_handle open(std::string_view fn) override;
     size_t read_extent(uint64_t address, uint64_t offset, uint64_t num_bytes, std::span<uint8_t> s);
 
     superblock sb;

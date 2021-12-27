@@ -161,3 +161,4 @@ bool btrfs_probe(volume& vol);
 // volume.cpp
 void add_fs_to_list(filesystem& fs);
 void mount_root();
+unique_handle open_file(std::string_view fn);
