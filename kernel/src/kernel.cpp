@@ -96,7 +96,7 @@ static void keyboard_echo(void*) {
     }
 }
 
-void main_thread(void*) {
+void main_thread() {
     init_keyboard();
 
     init_smp();

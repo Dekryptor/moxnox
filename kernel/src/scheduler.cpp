@@ -162,6 +162,10 @@ unique_handle add_kernel_thread(void (*func)(void*), void* param) {
     return unique_handle{hv};
 }
 
+unique_handle add_kernel_thread(void (*func)()) {
+    return add_kernel_thread((void(*)(void*))func, nullptr);
+}
+
 static thread* pick_runnable_thread(thread* current) {
     list_entry* le;
 

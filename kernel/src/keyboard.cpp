@@ -25,7 +25,7 @@ static unsigned int keyboard_buffer_write_pos = 0;
 static unsigned int keyboard_buffer_read_pos = 0;
 static unsigned int modifier = 0;
 
-static void keyboard_event_recv(void*) {
+static void keyboard_event_recv() {
     do {
         wait_for_object(keyboard_event.get());
 
