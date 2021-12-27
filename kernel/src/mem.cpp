@@ -283,6 +283,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 #pragma GCC diagnostic pop
         pml4_entry.Valid = 1;
         pml4_entry.Write = 1;
+        pml4_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
         memset(pdpt.data(), 0, PAGE_SIZE);
     }
@@ -300,6 +301,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 #pragma GCC diagnostic pop
         pdpt_entry.Valid = 1;
         pdpt_entry.Write = 1;
+        pdpt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
         memset(pdt.data(), 0, PAGE_SIZE);
     }
@@ -317,6 +319,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 #pragma GCC diagnostic pop
         pdt_entry.Valid = 1;
         pdt_entry.Write = 1;
+        pdt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
         memset(pt.data(), 0, PAGE_SIZE);
     }
@@ -354,6 +357,8 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
             pt_entry.CacheDisable = 1;
         break;
     }
+
+    pt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
     return true;
 }
