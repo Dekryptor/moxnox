@@ -14,5 +14,11 @@ public:
             delete this;
     }
 
+    bool load_image();
+    void free_pa();
+
     std::optional<std::reference_wrapper<inode>> ino;
+    size_t size;
+    uint32_t num_pages;
+    uint64_t* pa = nullptr;
 };

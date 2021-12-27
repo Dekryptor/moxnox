@@ -52,7 +52,7 @@
 #define IMAGE_SCN_MEM_READ                  0x40000000
 #define IMAGE_SCN_MEM_WRITE                 0x80000000
 
-typedef struct {
+struct IMAGE_DOS_HEADER {
     uint16_t e_magic;
     uint16_t e_cblp;
     uint16_t e_cp;
@@ -72,9 +72,9 @@ typedef struct {
     uint16_t e_oeminfo;
     uint16_t e_res2[10];
     uint32_t e_lfanew;
-} IMAGE_DOS_HEADER;
+};
 
-typedef struct {
+struct IMAGE_FILE_HEADER {
     uint16_t Machine;
     uint16_t NumberOfSections;
     uint32_t TimeDateStamp;
@@ -82,14 +82,14 @@ typedef struct {
     uint32_t NumberOfSymbols;
     uint16_t SizeOfOptionalHeader;
     uint16_t Characteristics;
-} IMAGE_FILE_HEADER;
+};
 
-typedef struct {
+struct IMAGE_DATA_DIRECTORY {
     uint32_t VirtualAddress;
     uint32_t Size;
-} IMAGE_DATA_DIRECTORY;
+};
 
-typedef struct {
+struct IMAGE_OPTIONAL_HEADER32 {
     uint16_t Magic;
     uint8_t MajorLinkerVersion;
     uint8_t MinorLinkerVersion;
@@ -121,9 +121,9 @@ typedef struct {
     uint32_t LoaderFlags;
     uint32_t NumberOfRvaAndSizes;
     IMAGE_DATA_DIRECTORY DataDirectory[0];
-} IMAGE_OPTIONAL_HEADER32;
+};
 
-typedef struct {
+struct IMAGE_OPTIONAL_HEADER64 {
     uint16_t Magic;
     uint8_t MajorLinkerVersion;
     uint8_t MinorLinkerVersion;
@@ -154,20 +154,20 @@ typedef struct {
     uint32_t LoaderFlags;
     uint32_t NumberOfRvaAndSizes;
     IMAGE_DATA_DIRECTORY DataDirectory[0];
-} IMAGE_OPTIONAL_HEADER64;
+};
 
-typedef struct {
+struct IMAGE_NT_HEADERS {
     uint32_t Signature;
     IMAGE_FILE_HEADER FileHeader;
     union {
         IMAGE_OPTIONAL_HEADER32 OptionalHeader32;
         IMAGE_OPTIONAL_HEADER64 OptionalHeader64;
     };
-} IMAGE_NT_HEADERS;
+};
 
 #pragma pack(push,1)
 
-typedef struct {
+struct IMAGE_SECTION_HEADER {
     char Name[8];
     uint32_t VirtualSize;
     uint32_t VirtualAddress;
@@ -178,11 +178,11 @@ typedef struct {
     uint16_t NumberOfRelocations;
     uint16_t NumberOfLinenumbers;
     uint32_t Characteristics;
-} IMAGE_SECTION_HEADER;
+};
 
 #pragma pack(pop)
 
-typedef struct {
+struct IMAGE_BASE_RELOCATION {
     uint32_t VirtualAddress;
     uint32_t SizeOfBlock;
-} IMAGE_BASE_RELOCATION;
+};
