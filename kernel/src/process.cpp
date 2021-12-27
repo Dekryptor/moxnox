@@ -24,6 +24,13 @@ unique_handle create_process(string_view fn) {
 
     auto& p = *pptr;
 
+    p.img = create_section(file.get(), true);
+    if (!p.img) {
+        print("create_section failed\n");
+        p.release();
+        return {};
+    }
+
     // FIXME - map section into process
     // FIXME - map ntdll into process
     // FIXME - map time page into process
