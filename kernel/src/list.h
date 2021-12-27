@@ -19,6 +19,13 @@ static void __inline insert_tail_list(list_entry& head, list_entry& entry) {
     head.prev = &entry;
 }
 
+static void __inline insert_head_list(list_entry& head, list_entry& entry) {
+    head.next->prev = &entry;
+    entry.next = head.next;
+    entry.prev = &head;
+    head.next = &entry;
+}
+
 static void __inline remove_entry_list(list_entry& le) {
     list_entry* prev = le.prev;
     list_entry* next = le.next;

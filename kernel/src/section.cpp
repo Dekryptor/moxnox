@@ -46,6 +46,8 @@ unique_handle create_section(handle_t h, bool image) {
 
     // FIXME - also work with ELFs
 
+    s.type = section_type::image;
+
     if (!s.load_image()) {
         print("load_image failed\n");
         s.release();
@@ -186,6 +188,7 @@ bool section::load_image() {
 
             size = nt_header.OptionalHeader64.SizeOfImage;
             size_of_headers = nt_header.OptionalHeader64.SizeOfHeaders;
+            preferred_base = nt_header.OptionalHeader64.ImageBase;
         } else {
             if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
                 print("SizeOfOptionalHeader was smaller than expected\n");
@@ -194,6 +197,7 @@ bool section::load_image() {
 
             size = nt_header.OptionalHeader32.SizeOfImage;
             size_of_headers = nt_header.OptionalHeader32.SizeOfHeaders;
+            preferred_base = nt_header.OptionalHeader32.ImageBase;
         }
 
         if (size == 0) {
@@ -212,10 +216,7 @@ bool section::load_image() {
         }
 
         num_pages = bytes_to_pages(size);
-
-        print("size = ");
-        print_hex(size);
-        print("\n");
+        size = num_pages << PAGE_SHIFT;
 
         pa = (uint64_t*)malloc(sizeof(uint64_t) * num_pages);
         if (!pa) {
