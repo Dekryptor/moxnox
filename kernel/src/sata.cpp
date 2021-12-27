@@ -13,6 +13,11 @@ static list_entry sata_dev_list = { &sata_dev_list, &sata_dev_list };
 
 atomic<unsigned int> num_sata_devices = 0;
 
+struct sata_wait {
+    atomic<unsigned int> left = 0;
+    unique_handle event;
+};
+
 size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     size_t ret = 0;
 
@@ -348,8 +353,9 @@ static void fix_ata_string(span<const uint16_t> in, span<char> out) {
     }
 }
 
-static void init_sata_device(void* ctx) {
+static void init_sata_device(void* ctx, void* ctx2) {
     auto pdev = new sata_device(*(volatile HBA_PORT*)ctx);
+    auto& sw = *(sata_wait*)ctx2;
     auto& dev = *pdev;
 
     // FIXME - return if not successfully initialized
@@ -388,13 +394,17 @@ static void init_sata_device(void* ctx) {
 
         if (!name_object(dev, name)) {
             print("name_object failed\n");
-            return;
+            goto end;
         }
     }
 
     dev.probe();
 
     dev.release();
+
+end:
+    if (--sw.left == 0)
+        set_event(sw.event.get());
 }
 
 extern "C"
@@ -467,6 +477,12 @@ void init_sata(const pci_device& dev) {
 
     auto ports = span<volatile HBA_PORT>((HBA_PORT*)abar.ports, (abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT));
     uint32_t mask = abar.pi;
+    auto sw = new sata_wait;
+
+    if (!sw) {
+        print("new failed\n");
+        return;
+    }
 
     for (const auto& p : ports) {
         if (!(mask & 1)) {
@@ -477,8 +493,35 @@ void init_sata(const pci_device& dev) {
         // FIXME - SATA_SIG_ATAPI (CD drives etc.)
 
         if (p.sig == SATA_SIG_ATA)
-            add_kernel_thread(init_sata_device, (void*)&p);
+            sw->left++;
 
         mask >>= 1;
     }
+
+    if (sw->left == 0) {
+        delete sw;
+        return;
+    }
+
+    sw->event = create_event(true);
+
+    mask = abar.pi;
+
+    for (const auto& p : ports) {
+        if (!(mask & 1)) {
+            mask >>= 1;
+            continue;
+        }
+
+        // FIXME - SATA_SIG_ATAPI (CD drives etc.)
+
+        if (p.sig == SATA_SIG_ATA)
+            add_kernel_thread(init_sata_device, (void*)&p, sw);
+
+        mask >>= 1;
+    }
+
+    wait_for_object(sw->event.get());
+
+    delete sw;
 }
