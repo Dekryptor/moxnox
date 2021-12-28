@@ -116,6 +116,8 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         offset += to_read;
         data = data.subspan(to_read);
         ret += to_read;
+
+        release_slot(slot);
     }
 
     return ret;
