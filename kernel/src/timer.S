@@ -170,23 +170,17 @@ yield:
 
 .global acquire_sync_lock
 acquire_sync_lock: # clobbers rax
-    mov rax, cr8
-    mov gs:GS_SYNC_LOCK_CR8, rax # FIXME - is this safe from pre-emption?
-    mov rax, 3
-    mov cr8, rax
-Lacquire_sync_lock_loop:
     mov rax, 1
+0:
     xchg [rip+sync_lock_val], rax
     test rax, rax
-    jnz Lacquire_sync_lock_loop
+    jnz 0b
     ret
 
 .global release_sync_lock
 release_sync_lock: # clobbers rax
     xor rax, rax
     xchg [rip+sync_lock_val], rax
-    mov rax, gs:GS_SYNC_LOCK_CR8
-    mov cr8, rax
     ret
 
 .global pit_delay
