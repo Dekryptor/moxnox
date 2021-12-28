@@ -606,21 +606,25 @@ void general_protection_fault(uint64_t error_code) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
 
-    print("General protection fault (error code = ");
-    print_hex(error_code);
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = sp_strcpy(sp, "General protection fault (error code = ");
+    sp = sp_itoa_hex(sp, error_code);
 
     if (!current_thread)
-        print(", not in thread");
+        sp = sp_strcpy(sp, ", not in thread");
     else {
-        print(", thread ");
-        print_hex((uintptr_t)current_thread);
+        sp = sp_strcpy(sp, ", thread ");
+        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
     }
 
-    print(", CPU ");
-    print_hex(cb.cpu_no);
-    print(")\n");
+    sp = sp_strcpy(sp, ", CPU ");
+    sp = sp_itoa_hex(sp, cb.cpu_no);
+    sp = sp_strcpy(sp, ")\n");
 
-    print_context(cb.thread_context);
+    sp = sp_context(sp, cb.thread_context);
+    print(string_view(s, sp.data() - s));
 
     if (!current_thread) {
         // FIXME - BSOD
