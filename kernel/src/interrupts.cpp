@@ -553,7 +553,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
         sp = sp_strcpy(sp, ", not in thread");
     else {
         sp = sp_strcpy(sp, ", thread ");
-        sp = sp_itoa_hex(sp, current_thread->tid);
+        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
     }
 
     sp = sp_strcpy(sp, ", CPU ");
@@ -583,7 +583,7 @@ void double_fault() {
         print("not in thread");
     else {
         print("thread ");
-        print_hex(current_thread->tid);
+        print_hex((uintptr_t)current_thread);
     }
 
     print(", CPU ");
@@ -613,7 +613,7 @@ void general_protection_fault(uint64_t error_code) {
         print(", not in thread");
     else {
         print(", thread ");
-        print_hex(current_thread->tid);
+        print_hex((uintptr_t)current_thread);
     }
 
     print(", CPU ");
@@ -642,7 +642,7 @@ void invalid_opcode() {
         print(", not in thread");
     else {
         print(", thread ");
-        print_hex(current_thread->tid);
+        print_hex((uintptr_t)current_thread);
     }
 
     print(", CPU ");
