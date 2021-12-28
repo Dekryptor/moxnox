@@ -912,8 +912,12 @@ uint64_t allocate_va(uint32_t pages) {
 
     lock_guard lock(va_spinlock);
 
-    for (uint64_t i = 0; i < mb.size(); i++) {
-        if (mb[i] & 0x8000000000000000) {
+    // start from where we left off last time, to reduce TLB caching issues
+
+    static uint64_t last_i = 0, last_j = 0;
+
+    for (uint64_t i = last_i; i < mb.size(); i++) {
+        if (mb[i] & 0x8000000000000000 && last_j == 0) {
             if (run_length == 0)
                 run_start = i * 64;
 
@@ -921,6 +925,8 @@ uint64_t allocate_va(uint32_t pages) {
 
             if (run_length >= pages) {
                 mark_vamem_as_used(run_start, pages);
+                last_i = i;
+                last_j = ((run_start + pages) % 64) + 1;
                 return (uintptr_t)vablock + (run_start << PAGE_SHIFT);
             }
         } else
@@ -929,14 +935,18 @@ uint64_t allocate_va(uint32_t pages) {
         if (pages < 64) {
             auto m = mask;
             for (uint64_t j = 0; j < pages; j++) {
-                if ((mb[i] & m) == m) {
+                if (j >= last_j && (mb[i] & m) == m) {
                     mb[i] &= ~m;
+                    last_i = i;
+                    last_j = j + 1;
                     return (uintptr_t)vablock + (((i * 64) + j) << PAGE_SHIFT);
                 }
 
                 m >>= 1;
             }
         }
+
+        last_j = 0;
 
         if (mb[i] == 0xffffffffffffffff)
             continue;
@@ -945,6 +955,8 @@ uint64_t allocate_va(uint32_t pages) {
         run_length = t1;
         run_start = ((i + 1) * 64) - t1;
     }
+
+    // FIXME - if we reach the end, issue IPIs to clear TLBs on other CPUs, and start again from beginning
 
     if (run_length >= pages) {
         mark_vamem_as_used(run_start, pages);
