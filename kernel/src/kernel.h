@@ -86,6 +86,7 @@ extern "C" void spurious_isr();
 // timer.S
 extern "C" void timer_isr();
 extern "C" void yield();
+extern "C" void yield_and_wait();
 extern "C" void acquire_sync_lock();
 extern "C" void release_sync_lock();
 extern "C" void pit_delay(uint16_t delay);

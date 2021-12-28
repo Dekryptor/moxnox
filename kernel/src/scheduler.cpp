@@ -465,9 +465,7 @@ static void wait_for_object(object& obj) {
     current_thread->waiting_for = obj;
     current_thread->status = thread_status::waiting;
 
-    release_sync_lock();
-
-    yield();
+    yield_and_wait(); // releases sync_lock
 }
 
 void wait_for_object(handle_t h) {
