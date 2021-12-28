@@ -40,12 +40,31 @@ private:
 class sync_lock {
 public:
     void lock() {
-        __asm("cli");
+        __asm __volatile(
+            "mov rax, cr8\n"
+            "mov %0, rax\n"
+            "mov rax, 3\n"
+            "mov cr8, rax\n"
+            : "=m" (old_cr8)
+            :
+            : "rax"
+        );
+
         acquire_sync_lock();
     }
 
     void unlock() {
         release_sync_lock();
-        __asm("sti");
+
+        __asm __volatile(
+            "mov rax, %0\n"
+            "mov cr8, rax\n"
+            :
+            : "m" (old_cr8)
+            : "rax"
+        );
     }
+
+private:
+    uint64_t old_cr8;
 };
