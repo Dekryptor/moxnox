@@ -134,6 +134,7 @@ void init_keyboard();
 unique_handle create_event(bool autoreset);
 void set_event(handle_t h);
 void set_event(event& e);
+void reset_event(handle_t h);
 
 // pipe.cpp
 unique_handle create_pipe(unsigned int buffer_pages);

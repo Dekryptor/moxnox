@@ -88,7 +88,38 @@ void set_event(handle_t h) {
     e.release();
 }
 
-// FIXME - reset_event
+void reset_event(handle_t h) {
+    auto objrw = deref_handle(h);
+    if (!objrw) {
+        // FIXME - exception
+        print("No such handle\n");
+        return;
+    }
+
+    auto& obj = objrw->get();
+
+    if (obj.type != object_type::event) {
+        // FIXME - exception
+        print("Not an event\n");
+
+        visit_obj(obj, [](auto&& o) {
+            o.release();
+        });
+
+        return;
+    }
+
+    auto& e = static_cast<event&>(objrw->get());
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        e.signalled = false;
+    }
+
+    e.release();
+}
 
 void event::on_wake() {
     if (autoreset)
