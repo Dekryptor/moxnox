@@ -91,31 +91,12 @@ void safe_print(string_view s) {
 }
 
 void print_hex(uint64_t num, unsigned int padding) {
-    bool first = true;
-    char s[2];
+    char s[17];
+    span sp(s, sizeof(s));
 
-    if (num == 0 && padding == 0) {
-        print("0");
-        return;
-    }
+    sp = sp_itoa_hex(sp, num, padding);
 
-    s[1] = 0;
-
-    for (unsigned int i = 0; i < 16; i++) {
-        if (!first || padding == 16 - i || num & 0xf000000000000000) {
-            uint64_t n = num >> 60;
-
-            if (n <= 9)
-                s[0] = (char)(n + '0');
-            else
-                s[0] = (char)(n - 0xa + 'a');
-
-            print(s);
-            first = false;
-        }
-
-        num <<= 4;
-    }
+    print(string_view(s, sp.data() - s));
 }
 
 bool init_console() {
