@@ -772,6 +772,12 @@ void unmap_page(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
     pt_entry.Valid = 0;
+
+    __asm __volatile(
+        "invlpg %0"
+        :
+        : "m" (va)
+    );
 }
 
 void protect_page(uint64_t va, enum mapping_type type) {
