@@ -261,6 +261,78 @@ void scheduler() {
     } while (true);
 }
 
+span<char> sp_context(span<char>dest, const amd64_context& ctx) {
+    dest = sp_strcpy(dest, "rax=");
+    dest = sp_itoa_hex(dest, ctx.rax, 16);
+    dest = sp_strcpy(dest, " rcx=");
+    dest = sp_itoa_hex(dest, ctx.rcx, 16);
+    dest = sp_strcpy(dest, " rdx=");
+    dest = sp_itoa_hex(dest, ctx.rdx, 16);
+    dest = sp_strcpy(dest, "\n");
+
+    dest = sp_strcpy(dest, "rbx=");
+    dest = sp_itoa_hex(dest, ctx.rbx, 16);
+    dest = sp_strcpy(dest, " rsp=");
+    dest = sp_itoa_hex(dest, ctx.rsp, 16);
+    dest = sp_strcpy(dest, " rsi=");
+    dest = sp_itoa_hex(dest, ctx.rsi, 16);
+    dest = sp_strcpy(dest, "\n");
+
+    dest = sp_strcpy(dest, "rbx=");
+    dest = sp_itoa_hex(dest, ctx.rbx, 16);
+    dest = sp_strcpy(dest, " rsp=");
+    dest = sp_itoa_hex(dest, ctx.rsp, 16);
+    dest = sp_strcpy(dest, " rsi=");
+    dest = sp_itoa_hex(dest, ctx.rsi, 16);
+    dest = sp_strcpy(dest, "\n");
+
+    dest = sp_strcpy(dest, "rdi=");
+    dest = sp_itoa_hex(dest, ctx.rdi, 16);
+    dest = sp_strcpy(dest, "  r8=");
+    dest = sp_itoa_hex(dest, ctx.r8, 16);
+    dest = sp_strcpy(dest, "  r9=");
+    dest = sp_itoa_hex(dest, ctx.r9, 16);
+    dest = sp_strcpy(dest, "\n");
+
+    dest = sp_strcpy(dest, "r10=");
+    dest = sp_itoa_hex(dest, ctx.r10, 16);
+    dest = sp_strcpy(dest, " r11=");
+    dest = sp_itoa_hex(dest, ctx.r11, 16);
+    dest = sp_strcpy(dest, " r12=");
+    dest = sp_itoa_hex(dest, ctx.r12, 16);
+    dest = sp_strcpy(dest, "\n");
+
+    dest = sp_strcpy(dest, "r13=");
+    dest = sp_itoa_hex(dest, ctx.r13, 16);
+    dest = sp_strcpy(dest, " r14=");
+    dest = sp_itoa_hex(dest, ctx.r14, 16);
+    dest = sp_strcpy(dest, " r15=");
+    dest = sp_itoa_hex(dest, ctx.r15, 16);
+    dest = sp_strcpy(dest, "\n");
+
+    dest = sp_strcpy(dest, "rip=");
+    dest = sp_itoa_hex(dest, ctx.rip, 16);
+    dest = sp_strcpy(dest, " rflags=");
+    dest = sp_itoa_hex(dest, ctx.rflags, 8);
+    dest = sp_strcpy(dest, "\n");
+
+    dest = sp_strcpy(dest, "cs=");
+    dest = sp_itoa_hex(dest, ctx.cs, 4);
+    dest = sp_strcpy(dest, " ds=");
+    dest = sp_itoa_hex(dest, ctx.ds, 4);
+    dest = sp_strcpy(dest, " es=");
+    dest = sp_itoa_hex(dest, ctx.es, 4);
+    dest = sp_strcpy(dest, " fs=");
+    dest = sp_itoa_hex(dest, ctx.fs, 4);
+    dest = sp_strcpy(dest, " gs=");
+    dest = sp_itoa_hex(dest, ctx.gs, 4);
+    dest = sp_strcpy(dest, " ss=");
+    dest = sp_itoa_hex(dest, ctx.ss, 4);
+    dest = sp_strcpy(dest, "\n");
+
+    return dest;
+}
+
 void print_context(const amd64_context& ctx) {
     print("rax=");
     print_hex(ctx.rax, 16);

@@ -30,7 +30,8 @@ set(SRC_FILES src/kernel.cpp
     src/volume.cpp
     src/btrfs.cpp
     src/process.cpp
-    src/section.cpp)
+    src/section.cpp
+    src/string.cpp)
 
 add_executable(kernel ${SRC_FILES})
 

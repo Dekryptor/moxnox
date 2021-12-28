@@ -104,6 +104,7 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
 extern "C" void scheduler();
 void terminate_thread();
 void print_context(const amd64_context& ctx);
+std::span<char> sp_context(std::span<char>dest, const amd64_context& ctx);
 void wait_for_object(handle_t h);
 bool init_cpu_block(bool handle_timers, unsigned int cpu_no);
 thread* get_current_thread();
@@ -167,3 +168,7 @@ unique_handle create_process(std::string_view fn);
 
 // section.cpp
 unique_handle create_section(handle_t h, bool image, size_t size);
+
+// string.cpp
+std::span<char> sp_strcpy(std::span<char> dest, std::string_view src);
+std::span<char> sp_itoa_hex(std::span<char> dest, uint64_t num, unsigned int padding = 0);
