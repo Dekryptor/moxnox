@@ -39,6 +39,11 @@ unique_handle open_file(string_view fn) {
         return {};
     }
 
+    if (!root_fs) {
+        print("No root filesystem.\n");
+        return {};
+    }
+
     fn.remove_prefix(1);
 
     // FIXME - handle mount points
