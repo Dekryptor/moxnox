@@ -93,8 +93,6 @@ void release_semaphore(handle_t h) {
     s.release();
 }
 
-// FIXME - reset_event
-
 void semaphore::on_wake() {
     lock_guard l(lock);
 
