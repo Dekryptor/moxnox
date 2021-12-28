@@ -202,7 +202,7 @@ void init_keyboard() {
         return;
     }
 
-    add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 2);
+    add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 0);
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
