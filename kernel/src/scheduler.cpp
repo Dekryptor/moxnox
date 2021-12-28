@@ -426,44 +426,46 @@ static void wait_for_object(object& obj) {
     auto current_thread = get_current_thread();
     optional<bool> sigopt;
 
-    {
-        sync_lock sl;
-        optional<lock_guard<sync_lock>> lock(sl);
+    __asm("cli");
+    acquire_sync_lock();
 
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
+            sigopt = o.signalled;
+        else
+            o.release();
+    });
+
+    if (!sigopt.has_value()) {
+        release_sync_lock();
+        __asm("sti");
+        // FIXME - exception
+        print("Not a sync object\n");
+        return;
+    }
+
+    auto signalled = *sigopt;
+
+    if (signalled) {
         visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
-                sigopt = o.signalled;
-            else
-                o.release();
+            if constexpr (object_has_on_wake<remove_reference_t<decltype(o)>>)
+                o.on_wake();
         });
 
-        if (!sigopt.has_value()) {
-            lock.reset();
-            // FIXME - exception
-            print("Not a sync object\n");
-            return;
-        }
+        release_sync_lock();
+        __asm("sti");
 
-        auto signalled = *sigopt;
+        visit_obj(obj, [&](auto&& o) {
+            o.release();
+        });
 
-        if (signalled) {
-            visit_obj(obj, [&](auto&& o) {
-                if constexpr (object_has_on_wake<remove_reference_t<decltype(o)>>)
-                    o.on_wake();
-            });
-
-            lock.reset();
-
-            visit_obj(obj, [&](auto&& o) {
-                o.release();
-            });
-
-            return;
-        }
-
-        current_thread->waiting_for = obj;
-        current_thread->status = thread_status::waiting;
+        return;
     }
+
+    current_thread->waiting_for = obj;
+    current_thread->status = thread_status::waiting;
+
+    release_sync_lock();
 
     yield();
 }
