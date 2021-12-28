@@ -68,7 +68,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
 #pragma GCC diagnostic ignored "-Wconversion"
             e.dbc = (unsigned int)(r - 1);
 #pragma GCC diagnostic pop
-            e.i = 1; // interrupt
+            e.i = 0; // interrupt
 
             buf = buf.subspan(r);
             num_entries++;
@@ -77,6 +77,8 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
             if (buf.empty())
                 break;
         }
+
+        cmdtbl.prdt_entry[num_entries - 1].i = 1;
 
         cmd.prdtl = num_entries;
 
