@@ -7,8 +7,8 @@ using namespace std;
 
 extern uint16_t last_tid; // FIXME
 
-static const uint16_t user_CS = 0x8; // FIXME
-static const uint16_t user_DS = 0x10; // FIXME
+static const uint16_t user_CS = 0x2b;
+static const uint16_t user_DS = 0x33;
 
 // FIXME - make sure process signalled when it dies
 // FIXME - handle thread crashes

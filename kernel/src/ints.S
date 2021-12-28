@@ -4,6 +4,10 @@
 
 .global dummy_isr
 dummy_isr:
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 0f
+    swapgs
+0:
     load_kernel_cr3
     push rax
     push rcx
@@ -25,20 +29,38 @@ dummy_isr:
     pop rcx
     pop rax
     load_process_cr3
+
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 1f
+    swapgs
+1:
     iretq
 
 .global page_fault_isr
 page_fault_isr: # keeps process' cr3
+    cmp QWORD PTR [rsp+0x10], 0x8
+    je 0f
+    swapgs
+0:
     save_context_when_error_code
     mov rcx, cr2
     pop rdx
     sub rsp, 0x20
     call page_fault
     add rsp, 0x20
+
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 1f
+    swapgs
+1:
     iretq
 
 .global double_fault_isr
 double_fault_isr:
+    cmp QWORD PTR [rsp+0x10], 0x8
+    je 0f
+    swapgs
+0:
     load_kernel_cr3
     save_context_when_error_code
     pop rcx
@@ -46,10 +68,19 @@ double_fault_isr:
     call double_fault
     add rsp, 0x20
     load_process_cr3
+
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 1f
+    swapgs
+1:
     iretq
 
 .global general_protection_fault_isr
 general_protection_fault_isr:
+    cmp QWORD PTR [rsp+0x10], 0x8
+    je 0f
+    swapgs
+0:
     load_kernel_cr3
     save_context_when_error_code
     pop rcx
@@ -57,16 +88,30 @@ general_protection_fault_isr:
     call general_protection_fault
     add rsp, 0x20
     load_process_cr3
+
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 1f
+    swapgs
+1:
     iretq
 
 .global invalid_opcode_isr
 invalid_opcode_isr:
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 0f
+    swapgs
+0:
     load_kernel_cr3
     save_context
     sub rsp, 0x20
     call invalid_opcode
     add rsp, 0x20
     load_process_cr3
+
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 1f
+    swapgs
+1:
     iretq
 
 .global spurious_isr

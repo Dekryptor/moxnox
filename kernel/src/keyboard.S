@@ -4,6 +4,10 @@
 
 .global keyboard_isr
 keyboard_isr:
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 0f
+    swapgs
+0:
     load_kernel_cr3
     push rax
     push rcx
@@ -30,4 +34,9 @@ keyboard_isr:
     pop rcx
     pop rax
     load_process_cr3
+
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 1f
+    swapgs
+1:
     iretq
