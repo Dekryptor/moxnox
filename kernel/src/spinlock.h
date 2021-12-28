@@ -37,15 +37,15 @@ private:
     uint64_t old_cr8;
 };
 
-static const class {
+class sync_lock {
 public:
-    static void lock() {
+    void lock() {
         __asm("cli");
         acquire_sync_lock();
     }
 
-    static void unlock() {
+    void unlock() {
         release_sync_lock();
         __asm("sti");
     }
-} sync_lock;
+};

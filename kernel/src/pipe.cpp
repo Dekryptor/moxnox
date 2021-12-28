@@ -119,7 +119,8 @@ void pipe::write(span<const uint8_t> s) {
         // wake up waiting thread
 
         {
-            lock_guard lock(sync_lock);
+            sync_lock sl;
+            lock_guard lock(sl);
 
             if (!signalled) {
                 signalled = true;
@@ -190,7 +191,8 @@ size_t pipe::read(span<uint8_t> s) {
         copied += to_copy;
 
         if (buf_unread == 0) {
-            lock_guard l2(sync_lock);
+            sync_lock sl;
+            lock_guard l2(sl);
             signalled = false;
         }
     }

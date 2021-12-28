@@ -218,7 +218,8 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t stack) {
     this->acquire();
 
     {
-        lock_guard lock(sync_lock);
+        sync_lock sl;
+        lock_guard lock(sl);
         insert_tail_list(thread_list, t.le);
     }
 

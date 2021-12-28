@@ -28,7 +28,8 @@ void set_event(event& e) {
     // signal waiting threads
 
     {
-        lock_guard lock(sync_lock);
+        sync_lock sl;
+        lock_guard lock(sl);
 
         {
             auto le = thread_list.next;

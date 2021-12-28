@@ -35,7 +35,8 @@ void terminate_thread() {
     {
         auto obj = static_cast<object*>(current_thread);
 
-        lock_guard lock(sync_lock);
+        sync_lock sl;
+        lock_guard lock(sl);
 
         auto le = thread_list.next;
 
@@ -152,7 +153,8 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
     t.status = thread_status::runnable;
 
     {
-        lock_guard lock(sync_lock);
+        sync_lock sl;
+        lock_guard lock(sl);
         insert_tail_list(thread_list, t.le);
     }
 
@@ -351,7 +353,8 @@ void wait_for_object(object& obj) {
     optional<bool> sigopt;
 
     {
-        optional<lock_guard<decltype(sync_lock)>> lock(sync_lock);
+        sync_lock sl;
+        optional<lock_guard<sync_lock>> lock(sl);
 
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)

@@ -100,7 +100,8 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
 
     // FIXME - remove from list if already there
 
-    lock_guard lock(sync_lock);
+    sync_lock sl;
+    lock_guard lock(sl);
 
     t.ticks_left = t.orig_ticks = timeout; // FIXME - should be 100ns units (and floor at one)
     t.signalled = false;

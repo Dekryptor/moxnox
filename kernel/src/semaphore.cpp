@@ -32,7 +32,8 @@ void release_semaphore(semaphore& s) {
     // FIXME - what if not held by current thread?
 
     {
-        lock_guard l1(sync_lock);
+        sync_lock sl;
+        lock_guard l1(sl);
         lock_guard l2(s.lock);
 
         // signal waiting threads
