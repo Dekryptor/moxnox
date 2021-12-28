@@ -178,11 +178,13 @@ unique_handle add_kernel_thread(void (*func)()) {
 
 static thread* pick_runnable_thread(thread* current) {
     list_entry* le;
+    auto cb = get_cpu_block();
+    uint64_t mask = 1 << cb->cpu_no; // FIXME - is the local APIC ID guaranteed to start at 0?
 
     // FIXME - proper scheduling algorithm (currently just loops through runnable threads)
 
-    auto consider = [](thread& t) -> thread* {
-        if (t.status == thread_status::runnable)
+    auto consider = [&](thread& t) -> thread* {
+        if (t.status == thread_status::runnable && t.affinity & mask)
             return &t;
 
         return nullptr;
