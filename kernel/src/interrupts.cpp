@@ -520,7 +520,7 @@ bool init_interrupts() {
     if (!setup_gdt(tss))
         return false;
 
-    __asm("sti; int 0x80");
+    __asm("sti");
 
     return true;
 }
