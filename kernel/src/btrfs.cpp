@@ -182,8 +182,8 @@ bool btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
         print("RAID not supported\n");
         return false;
     } else if (c.ci.type & BLOCK_FLAG_DUPLICATE) {
-        print("FIXME - DUP\n");
-        return false;
+        if (!read_dup(addr, c, data))
+            return false;
     } else {
         if (!read_single(addr, c, data))
             return false;
@@ -323,6 +323,22 @@ bool btrfs_filesystem::read_single(uint64_t addr, chunk& c, span<uint8_t> data) 
         print("Short read\n");
         return false;
     }
+
+    // FIXME - checksums
+
+    return true;
+}
+
+bool btrfs_filesystem::read_dup(uint64_t addr, chunk& c, span<uint8_t> data) {
+    auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
+
+    if (s < data.size()) {
+        print("Short read\n");
+        return false;
+    }
+
+    // FIXME - alternate between two stripes
+    // FIXME - checksums
 
     return true;
 }

@@ -417,6 +417,7 @@ private:
     bool load_chunks();
     bool load_roots();
     bool read_single(uint64_t addr, chunk& c, std::span<uint8_t> data);
+    bool read_dup(uint64_t addr, chunk& c, std::span<uint8_t> data);
     void free_chunk_list();
     void free_root_list();
     bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
