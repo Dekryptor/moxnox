@@ -63,10 +63,10 @@ go:
     mov eax, [pml4t]
     mov cr3, eax
 
-    ; enable long mode and NX bit
+    ; enable long mode, NX bit, and System Call Extensions
     mov ecx, 0xc0000080
     rdmsr
-    or eax, 0x900
+    or eax, 0x901
     wrmsr
 
     ; enable paging and WP bit
