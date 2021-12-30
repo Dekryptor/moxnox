@@ -11,8 +11,6 @@ static filesystem* root_fs = nullptr;
 
 static const uint64_t read_sector_size = 0x1000;
 
-static const guid null_guid = { 0x00000000, 0x0000, 0x0000, { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
-
 void volume::probe() {
     bool has_parts = false;
 
@@ -175,9 +173,9 @@ bool volume::check_for_partitions() {
                 continue;
             }
 
-            // FIXME - pass partition GUID and type to diskpart
-
-            auto partdev = new diskpart(*this, i + 1, part.starting_lba * sector_size, (part.ending_lba - part.starting_lba + 1) * sector_size);
+            auto partdev = new diskpart(*this, i + 1, part.starting_lba * sector_size,
+                                        (part.ending_lba - part.starting_lba + 1) * sector_size,
+                                        part.unique_partition_guid, part.partition_type_guid);
             if (!partdev) {
                 print("new failed\n");
                 free(buf);
@@ -196,10 +194,12 @@ bool volume::check_for_partitions() {
     return false;
 }
 
-diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length) : parent(parent), disk_offset(disk_offset), length(length) {
+diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length, const guid& partition_guid, const guid& type_guid) : parent(parent), disk_offset(disk_offset), length(length) {
     parent.acquire();
 
     this->part_num = part_num;
+    this->partition_guid = partition_guid;
+    this->type_guid = type_guid;
 }
 
 diskpart::~diskpart() {

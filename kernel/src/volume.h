@@ -20,13 +20,16 @@ public:
 
     unsigned int part_num = 0;
     unsigned int sector_size;
+    guid partition_guid = null_guid;
+    guid type_guid = null_guid;
 };
 
 static_assert(is_readable_object_with_offset<volume>);
 
 class diskpart : public volume {
 public:
-    diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length);
+    diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length,
+             const guid& partition_guid, const guid& type_guid);
     ~diskpart();
 
     void release() override {
