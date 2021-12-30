@@ -37,5 +37,6 @@
 #define TIMER_TICKS_LEFT 0x20
 
 #define THREAD_PROC 0x2f0
+#define THREAD_SYSCALL_STACK 0x300
 
 #define PROCESS_CR3 0x40

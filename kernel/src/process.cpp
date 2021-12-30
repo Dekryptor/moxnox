@@ -214,6 +214,12 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t stack) {
 
     t.status = thread_status::runnable;
 
+    auto kernel_stack = allocate_stack();
+    if (!kernel_stack)
+        return false;
+
+    t.syscall_stack = ((uint8_t*)kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT)) - 0x20; // 0x20 for MS ABI
+
     t.proc = this;
     this->acquire();
 

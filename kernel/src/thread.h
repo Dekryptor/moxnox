@@ -92,8 +92,10 @@ public:
     std::optional<std::reference_wrapper<object>> waiting_for; // FIXME - multiple objects
     process* proc = nullptr;
     uint64_t affinity = 0xffffffffffffffff;
+    void* syscall_stack = nullptr;
 };
 
 static_assert(is_sync_object<thread>);
 
 static_assert(offsetof(thread, proc) == THREAD_PROC);
+static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
