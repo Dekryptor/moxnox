@@ -11,6 +11,8 @@ static filesystem* root_fs = nullptr;
 
 static const uint64_t read_sector_size = 0x1000;
 
+static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
+
 void volume::probe() {
     bool has_parts = false;
 
@@ -35,8 +37,29 @@ void mount_root() {
         return;
     }
 
-    // FIXME - choose root FS based on command line
-    root_fs = &containing_record<filesystem>(fs_list.next);
+    // FIXME - choosing root FS based on command line
+
+    // choose MN partition
+
+    auto le = fs_list.next;
+    while (le != &fs_list) {
+        auto& fs = containing_record<filesystem>(le);
+
+        if (fs.vol.type_guid == moxnox_partition_guid) {
+            if (root_fs) {
+                print("Multiple Moxnox partitions, not sure which to choose\n");
+                root_fs = nullptr;
+                return;
+            }
+
+            root_fs = &fs;
+        }
+
+        le = le->next;
+    }
+
+    if (!root_fs)
+        print("No Moxnox partition found\n");
 }
 
 unique_handle open_file(string_view fn) {
