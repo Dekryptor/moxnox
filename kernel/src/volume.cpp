@@ -58,14 +58,23 @@ unique_handle open_file(string_view fn) {
     return root_fs->open(fn);
 }
 
-static void partition_found(void* ctx) {
-    auto& part = *(diskpart*)ctx;
+struct part_wait {
+    atomic<unsigned int> left = 0;
+    unique_handle event;
+};
+
+static void partition_found(void* ctx1, void* ctx2) {
+    auto& part = *(diskpart*)ctx1;
+    auto& pw = *(part_wait*)ctx2;
 
     part.probe();
 
     // FIXME - give name if parent has one
 
     part.release();
+
+    if (--pw.left == 0)
+        set_event(pw.event.get());
 }
 
 bool volume::check_for_partitions() {
@@ -123,7 +132,7 @@ bool volume::check_for_partitions() {
 
     if (gpt.number_of_partition_entries == 0) {
         free(first_sect);
-        return false;
+        return true;
     }
 
     if (gpt.size_of_partition_entry < 128) {
@@ -163,12 +172,44 @@ bool volume::check_for_partitions() {
 
     // FIXME - check CRC32 of partition list
 
+    auto pw = new part_wait;
+    if (!pw) {
+        print("new failed\n");
+        free(buf);
+        return false;
+    }
+
+    pw->event = create_event(false);
+
     for (unsigned int i = 0; i < number_of_partition_entries; i++) {
         auto& part = *(efi_partition_entry*)ptr;
 
         if (part.partition_type_guid != null_guid) {
             if (part.ending_lba <= part.starting_lba) {
                 print("invalid GPT entry, skipping\n");
+                ptr += size_of_partition_entry;
+                continue;
+            }
+
+            pw->left++;
+        }
+
+        ptr += size_of_partition_entry;
+    }
+
+    if (pw->left == 0) {
+        delete pw;
+        free(buf);
+        return true;
+    }
+
+    ptr = buf + table_start - table_start_aligned;
+
+    for (unsigned int i = 0; i < number_of_partition_entries; i++) {
+        auto& part = *(efi_partition_entry*)ptr;
+
+        if (part.partition_type_guid != null_guid) {
+            if (part.ending_lba <= part.starting_lba) {
                 ptr += size_of_partition_entry;
                 continue;
             }
@@ -182,8 +223,7 @@ bool volume::check_for_partitions() {
                 return false;
             }
 
-            add_kernel_thread(partition_found, partdev);
-            // FIXME - at end, wait for these to complete
+            add_kernel_thread(partition_found, partdev, pw);
         }
 
         ptr += size_of_partition_entry;
@@ -191,7 +231,11 @@ bool volume::check_for_partitions() {
 
     free(buf);
 
-    return false;
+    wait_for_object(pw->event.get());
+
+    delete pw;
+
+    return true;
 }
 
 diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length, const guid& partition_guid, const guid& type_guid) : parent(parent), disk_offset(disk_offset), length(length) {
