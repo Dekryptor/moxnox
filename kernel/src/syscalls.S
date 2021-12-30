@@ -66,12 +66,13 @@ syscall_handler:
     # load kernel cr3
     mov rax, gs:GS_KERNEL_CR3
     mov cr3, rax
-    pop rax
 
     # load kernel ds segment
     mov ax, 0x10
     mov ds, ax
 
+    mov rcx, gs:GS_CONTEXT + CONTEXT_RAX
+    mov rdx, gs:GS_CONTEXT + CONTEXT_R10
     sti
     call syscall
     cli
