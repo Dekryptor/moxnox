@@ -211,6 +211,7 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t stack) {
     t.context.fs = user_DS;
     t.context.gs = user_DS;
     t.context.ss = user_DS;
+    t.kernel_mode = false;
 
     t.status = thread_status::runnable;
 

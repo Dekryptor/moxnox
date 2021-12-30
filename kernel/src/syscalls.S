@@ -55,7 +55,13 @@ syscall_handler:
 
     # change to kernel stack
     mov rax, gs:GS_CURRENT_THREAD
+    mov [rax + THREAD_RIP_BEFORE_SYSCALL], rcx
+    mov [rax + THREAD_RSP_BEFORE_SYSCALL], rsp
+    mov [rax + THREAD_RFLAGS_BEFORE_SYSCALL], r11
     mov rsp, [rax + THREAD_SYSCALL_STACK]
+
+    # mark thread as running kernel code
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 1
 
     # load kernel cr3
     mov rax, gs:GS_KERNEL_CR3
@@ -66,25 +72,35 @@ syscall_handler:
     mov ax, 0x10
     mov ds, ax
 
+    sti
     call syscall
+    cli
+
+    # mark thread as running user code
+    push rax
+    mov rax, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0
 
     # load user ds segment
-    push rax
     mov ax, 0x33
     mov ds, ax
 
     # load process cr3
     mov rax, gs:GS_CURRENT_THREAD
-    mov rax, [rax+THREAD_PROC]
-    mov rax, [rax+PROCESS_CR3]
+    mov rax, [rax + THREAD_PROC]
+    mov rax, [rax + PROCESS_CR3]
     mov cr3, rax
+
+    # load saved rip and rflags
+    mov rax, gs:GS_CURRENT_THREAD
+    mov rcx, [rax + THREAD_RIP_BEFORE_SYSCALL]
+    mov r11, [rax + THREAD_RFLAGS_BEFORE_SYSCALL]
     pop rax
 
     # change back to user stack
-    mov rsp, gs:GS_CONTEXT + CONTEXT_RSP
+    mov rsp, gs:GS_CURRENT_THREAD
+    mov rsp, [rsp + THREAD_RSP_BEFORE_SYSCALL]
 
-    mov rcx, gs:GS_CONTEXT + CONTEXT_RIP
-    mov r11, gs:GS_CONTEXT + CONTEXT_RFLAGS
     swapgs
 
     sysretq

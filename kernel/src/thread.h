@@ -93,9 +93,17 @@ public:
     process* proc = nullptr;
     uint64_t affinity = 0xffffffffffffffff;
     void* syscall_stack = nullptr;
+    bool kernel_mode;
+    void* rip_before_syscall;
+    void* rsp_before_syscall;
+    uint64_t rflags_before_syscall;
 };
 
 static_assert(is_sync_object<thread>);
 
 static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
+static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
+static_assert(offsetof(thread, rip_before_syscall) == THREAD_RIP_BEFORE_SYSCALL);
+static_assert(offsetof(thread, rsp_before_syscall) == THREAD_RSP_BEFORE_SYSCALL);
+static_assert(offsetof(thread, rflags_before_syscall) == THREAD_RFLAGS_BEFORE_SYSCALL);

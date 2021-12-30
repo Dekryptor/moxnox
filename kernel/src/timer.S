@@ -121,9 +121,9 @@ scheduler_restore:
 
     push rax
     mov rax, gs:GS_CURRENT_THREAD
+    cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+    jne 0f
     mov rax, [rax+THREAD_PROC]
-    test rax, rax
-    je 0f
     mov rax, [rax+PROCESS_CR3]
     mov cr3, rax
     swapgs
