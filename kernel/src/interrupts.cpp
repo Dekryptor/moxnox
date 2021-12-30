@@ -404,7 +404,7 @@ static bool setup_gdt(task_state_segment* tss) {
     if (!map_page(pa, (uintptr_t)cb.gdt, mapping_type::read_write))
         return false;
 
-    auto gdtarr = span((gdt_entry*)cb.gdt, 7);
+    auto gdtarr = span((gdt_entry*)cb.gdt, 8);
 
     *(uint64_t*)&gdtarr[0] = 0;
 
@@ -452,19 +452,7 @@ static bool setup_gdt(task_state_segment* tss) {
 
     *(uint64_t*)&gdtarr[4] = (uintptr_t)tss >> 32;
 
-    // user-mode code
-    gdtarr[5].LimitLow = 0xffff;
-    gdtarr[5].BaseLow = 0x0000;
-    gdtarr[5].BaseMid = 0x00;
-    gdtarr[5].Type = 0x1a;
-    gdtarr[5].Dpl = 3;
-    gdtarr[5].Pres = 1;
-    gdtarr[5].LimitHi = 0xf;
-    gdtarr[5].Sys = 0;
-    gdtarr[5].Long = 1;
-    gdtarr[5].Default_Big = 0;
-    gdtarr[5].Granularity = 1;
-    gdtarr[5].BaseHi = 0x00;
+    // FIXME - gdtarr[5] would be 32-bit user-mode code
 
     // user-mode data
     gdtarr[6].LimitLow = 0xffff;
@@ -479,6 +467,20 @@ static bool setup_gdt(task_state_segment* tss) {
     gdtarr[6].Default_Big = 0;
     gdtarr[6].Granularity = 1;
     gdtarr[6].BaseHi = 0x00;
+
+    // user-mode code
+    gdtarr[7].LimitLow = 0xffff;
+    gdtarr[7].BaseLow = 0x0000;
+    gdtarr[7].BaseMid = 0x00;
+    gdtarr[7].Type = 0x1a;
+    gdtarr[7].Dpl = 3;
+    gdtarr[7].Pres = 1;
+    gdtarr[7].LimitHi = 0xf;
+    gdtarr[7].Sys = 0;
+    gdtarr[7].Long = 1;
+    gdtarr[7].Default_Big = 0;
+    gdtarr[7].Granularity = 1;
+    gdtarr[7].BaseHi = 0x00;
 
     gdt_ptr.limit = (uint16_t)(gdtarr.size_bytes() - 1);
     gdt_ptr.base = (uintptr_t)gdtarr.data();

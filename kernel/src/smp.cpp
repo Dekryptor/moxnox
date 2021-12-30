@@ -164,6 +164,8 @@ static void ap_startup() {
 
     setup_ap_gdt(init_tss());
 
+    init_syscalls();
+
     init_lapic_timer(true);
 
     ap_left.fetch_sub(1, memory_order_acq_rel);

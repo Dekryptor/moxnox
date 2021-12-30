@@ -188,3 +188,6 @@ unique_handle create_section(handle_t h, bool image, size_t size);
 // string.cpp
 std::span<char> sp_strcpy(std::span<char> dest, std::string_view src);
 std::span<char> sp_itoa_hex(std::span<char> dest, uint64_t num, unsigned int padding = 0);
+
+// syscalls.S
+extern "C" void init_syscalls();

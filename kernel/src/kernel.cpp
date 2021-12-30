@@ -99,6 +99,8 @@ static void keyboard_echo(void*) {
 void main_thread() {
     init_keyboard();
 
+    init_syscalls();
+
     init_smp();
 
     protect_kernel_pages();
