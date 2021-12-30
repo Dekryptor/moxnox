@@ -462,6 +462,5 @@ public:
     spinlock slot_lock;
     std::atomic<uint32_t> allocated_slots = 0;
     std::atomic<uint32_t> pending_slots = 0;
-    unsigned int sector_size;
     unsigned int dev_num;
 };
