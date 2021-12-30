@@ -60,6 +60,16 @@ unique_handle open_file(string_view fn) {
     return root_fs->open(fn);
 }
 
+static void partition_found(void* ctx) {
+    auto& part = *(diskpart*)ctx;
+
+    part.probe();
+
+    // FIXME - give name if parent has one
+
+    part.release();
+}
+
 bool volume::check_for_partitions() {
     auto first_sect = (uint8_t*)malloc(read_sector_size);
     if (!first_sect) {
@@ -130,6 +140,8 @@ bool volume::check_for_partitions() {
     auto size_of_partition_entry = gpt.size_of_partition_entry;
     auto number_of_partition_entries = gpt.number_of_partition_entries;
 
+    // FIXME - store disk GUID
+
     free(first_sect);
 
     size_t table_start = partition_entry_lba * sector_size;
@@ -157,27 +169,23 @@ bool volume::check_for_partitions() {
         auto& part = *(efi_partition_entry*)ptr;
 
         if (part.partition_type_guid != null_guid) {
-            print("GPT partition found (");
-            print_hex(part.starting_lba);
-            print(", ");
-            print_hex(part.ending_lba);
-            print(")\n");
-            // FIXME
-
             if (part.ending_lba <= part.starting_lba) {
                 print("invalid GPT entry, skipping\n");
                 ptr += size_of_partition_entry;
                 continue;
             }
 
-            auto partdev = new diskpart(*this, part.starting_lba * sector_size, (part.ending_lba - part.starting_lba + 1) * sector_size);
+            // FIXME - pass partition GUID and type to diskpart
+
+            auto partdev = new diskpart(*this, i + 1, part.starting_lba * sector_size, (part.ending_lba - part.starting_lba + 1) * sector_size);
             if (!partdev) {
                 print("new failed\n");
                 free(buf);
                 return false;
             }
 
-            // FIXME - probe
+            add_kernel_thread(partition_found, partdev);
+            // FIXME - at end, wait for these to complete
         }
 
         ptr += size_of_partition_entry;
@@ -188,10 +196,10 @@ bool volume::check_for_partitions() {
     return false;
 }
 
-diskpart::diskpart(volume& parent, uint64_t disk_offset, uint64_t length) : parent(parent), disk_offset(disk_offset), length(length) {
+diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length) : parent(parent), disk_offset(disk_offset), length(length) {
     parent.acquire();
 
-    // FIXME - give name if parent has one
+    this->part_num = part_num;
 }
 
 diskpart::~diskpart() {
@@ -199,8 +207,16 @@ diskpart::~diskpart() {
 }
 
 size_t diskpart::read(span<uint8_t> s, uint64_t offset) {
-    // FIXME
-    print("FIXME - diskpart::read\n");
+    if (offset >= length)
+        return 0;
 
-    return 0;
+    if (offset + s.size() > length)
+        s = s.subspan(length - offset);
+
+    if (s.empty())
+        return 0;
+
+    offset += disk_offset;
+
+    return parent.read(s, offset);
 }

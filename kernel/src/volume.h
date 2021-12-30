@@ -26,7 +26,7 @@ static_assert(is_readable_object_with_offset<volume>);
 
 class diskpart : public volume {
 public:
-    diskpart(volume& parent, uint64_t disk_offset, uint64_t length);
+    diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length);
     ~diskpart();
 
     void release() override {
