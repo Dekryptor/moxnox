@@ -24,6 +24,22 @@ public:
 
 static_assert(is_readable_object_with_offset<volume>);
 
+class diskpart : public volume {
+public:
+    diskpart(volume& parent, uint64_t disk_offset, uint64_t length);
+    ~diskpart();
+
+    void release() override {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    size_t read(std::span<uint8_t> s, uint64_t offset);
+    volume& parent;
+    uint64_t disk_offset;
+    uint64_t length;
+};
+
 class filesystem {
 public:
     filesystem(volume& vol) : vol(vol) { }

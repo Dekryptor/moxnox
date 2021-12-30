@@ -163,6 +163,21 @@ bool volume::check_for_partitions() {
             print_hex(part.ending_lba);
             print(")\n");
             // FIXME
+
+            if (part.ending_lba <= part.starting_lba) {
+                print("invalid GPT entry, skipping\n");
+                ptr += size_of_partition_entry;
+                continue;
+            }
+
+            auto partdev = new diskpart(*this, part.starting_lba * sector_size, (part.ending_lba - part.starting_lba + 1) * sector_size);
+            if (!partdev) {
+                print("new failed\n");
+                free(buf);
+                return false;
+            }
+
+            // FIXME - probe
         }
 
         ptr += size_of_partition_entry;
@@ -171,4 +186,21 @@ bool volume::check_for_partitions() {
     free(buf);
 
     return false;
+}
+
+diskpart::diskpart(volume& parent, uint64_t disk_offset, uint64_t length) : parent(parent), disk_offset(disk_offset), length(length) {
+    parent.acquire();
+
+    // FIXME - give name if parent has one
+}
+
+diskpart::~diskpart() {
+    parent.release();
+}
+
+size_t diskpart::read(span<uint8_t> s, uint64_t offset) {
+    // FIXME
+    print("FIXME - diskpart::read\n");
+
+    return 0;
 }
