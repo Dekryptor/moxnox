@@ -2,6 +2,13 @@
 
 #include "context_offsets.h"
 
+.section .rdata
+syscalls:
+    .quad user_NtDisplayString
+end_syscalls:
+
+.section .text
+
 .global init_syscalls
 init_syscalls:
     mov ecx, 0xc0000082 # LSTAR
@@ -71,12 +78,22 @@ syscall_handler:
     mov ax, 0x10
     mov ds, ax
 
-    mov rcx, gs:GS_CONTEXT + CONTEXT_RAX
-    mov rdx, gs:GS_CONTEXT + CONTEXT_R10
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+    cmp rax, 0x1000
+    jl Lno_syscall
+    sub rax, 0x1000
+    cmp rax, (end_syscalls - syscalls) / 8
+    jge Lno_syscall
+
+    shl rax, 3
+    add rax, [rip+syscalls]
+    mov rcx, gs:GS_CONTEXT + CONTEXT_R10
+    # FIXME - syscalls with arguments on stack
     sti
-    call syscall
+    call rax
     cli
 
+Lafter_syscall:
     # mark thread as running user code
     push rax
     mov rax, gs:GS_CURRENT_THREAD
@@ -105,3 +122,7 @@ syscall_handler:
     swapgs
 
     sysretq
+
+Lno_syscall:
+    mov rax, 0xffffffffc0000002 # STATUS_NOT_IMPLEMENTED
+    jmp Lafter_syscall

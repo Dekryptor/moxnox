@@ -191,6 +191,3 @@ std::span<char> sp_itoa_hex(std::span<char> dest, uint64_t num, unsigned int pad
 
 // syscalls.S
 extern "C" void init_syscalls();
-
-// syscalls.cpp
-extern "C" void syscall(uint64_t index, uint64_t param1);
