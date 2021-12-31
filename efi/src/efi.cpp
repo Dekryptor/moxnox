@@ -31,8 +31,8 @@ static span<char16_t> sp_wcscpy(span<char16_t> dest, u16string_view src) {
     return dest.subspan(to_copy);
 }
 
-const u16string_view error_string(EFI_STATUS Status) {
-    switch (Status) {
+const u16string_view error_string(EFI_STATUS status) {
+    switch (status) {
         case EFI_SUCCESS:
             return u"EFI_SUCCESS";
 
@@ -134,35 +134,304 @@ const u16string_view error_string(EFI_STATUS Status) {
     }
 }
 
-void print_error(u16string_view func, EFI_STATUS Status) {
+void print_error(u16string_view func, EFI_STATUS status) {
     char16_t s[255];
     auto sp = span(s, (sizeof(s) / sizeof(char16_t)) - 1);
 
     sp = sp_wcscpy(sp, func);
     sp = sp_wcscpy(sp, u" returned ");
-    sp = sp_wcscpy(sp, error_string(Status));
+    sp = sp_wcscpy(sp, error_string(status));
     sp = sp_wcscpy(sp, u"\r\n");
 
     *sp.data() = 0;
     print(s);
 }
 
+static EFI_STATUS create_file_device_path(EFI_BOOT_SERVICES* bs, EFI_DEVICE_PATH* fs, u16string_view path,
+                                          EFI_DEVICE_PATH_PROTOCOL** pdp) {
+    EFI_STATUS status;
+    size_t path_len, fslen, fplen;
+    FILEPATH_DEVICE_PATH* fp;
+    EFI_DEVICE_PATH_PROTOCOL* dp;
+    EFI_DEVICE_PATH_PROTOCOL* end_dp;
+
+    path_len = path.size() * sizeof(WCHAR);
+    fplen = offsetof(FILEPATH_DEVICE_PATH, PathName[0]) + path_len + sizeof(WCHAR);
+
+    {
+        EFI_DEVICE_PATH_PROTOCOL* dpbit = fs;
+
+        fslen = 0;
+        do {
+            if (dpbit->Type == END_DEVICE_PATH_TYPE)
+                break;
+
+            fslen += *(uint16_t*)dpbit->Length;
+            dpbit = (EFI_DEVICE_PATH_PROTOCOL*)((uint8_t*)dpbit + *(uint16_t*)dpbit->Length);
+        } while (true);
+    }
+
+    status = bs->AllocatePool(EfiLoaderData, fslen + fplen + sizeof(EFI_DEVICE_PATH_PROTOCOL), (void**)&dp);
+    if (EFI_ERROR(status)) {
+        print_error(u"AllocatePool", status);
+        return status;
+    }
+
+    memcpy(dp, fs, fslen);
+
+    fp = (FILEPATH_DEVICE_PATH*)((uint8_t*)dp + fslen);
+
+    fp->Header.Type = MEDIA_DEVICE_PATH;
+    fp->Header.SubType = MEDIA_FILEPATH_DP;
+    *(uint16_t*)fp->Header.Length = (uint16_t)fplen;
+
+    memcpy(fp->PathName, path.data(), path_len + sizeof(WCHAR));
+
+    end_dp = (EFI_DEVICE_PATH_PROTOCOL*)&fp->PathName[(path_len / sizeof(WCHAR)) + 1];
+    SetDevicePathEndNode(end_dp);
+
+    *pdp = dp;
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS open_parent_dir(EFI_FILE_IO_INTERFACE* fs, FILEPATH_DEVICE_PATH* dp, EFI_FILE_HANDLE* dir) {
+    EFI_STATUS status;
+    unsigned int len;
+    WCHAR* name;
+    EFI_FILE_HANDLE root;
+
+    if (dp->Header.Type != MEDIA_DEVICE_PATH || dp->Header.SubType != MEDIA_FILEPATH_DP)
+        return EFI_INVALID_PARAMETER;
+
+    len = *(uint16_t*)dp->Header.Length / sizeof(CHAR16);
+
+    if (len == 0)
+        return EFI_INVALID_PARAMETER;
+
+    for (int i = len - 1; i >= 0; i--) {
+        if (dp->PathName[i] == '\\') {
+            len = i;
+            break;
+        }
+    }
+
+    if (len == 0) {
+        if (dp->PathName[0] == '\\')
+            len = 1;
+        else
+            return EFI_INVALID_PARAMETER;
+    }
+
+    status = systable->BootServices->AllocatePool(EfiLoaderData, (len + 1) * sizeof(WCHAR), (void**)&name);
+    if (EFI_ERROR(status)) {
+        print_error(u"AllocatePool", status);
+        return status;
+    }
+
+    memcpy(name, dp->PathName, len * sizeof(WCHAR));
+    name[len] = 0;
+
+    status = fs->OpenVolume(fs, &root);
+    if (EFI_ERROR(status)) {
+        print_error(u"OpenVolume", status);
+        systable->BootServices->FreePool(name);
+        return status;
+    }
+
+    status = root->Open(root, dir, name, EFI_FILE_MODE_READ, 0);
+
+    systable->BootServices->FreePool(name);
+    root->Close(root);
+
+    return status;
+}
+
+static EFI_STATUS load_efi_drivers(EFI_HANDLE image_handle) {
+    EFI_STATUS status;
+    EFI_GUID guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    EFI_GUID guid2 = SIMPLE_FILE_SYSTEM_PROTOCOL;
+    EFI_GUID guid3 = EFI_DEVICE_PATH_PROTOCOL_GUID;
+    EFI_LOADED_IMAGE_PROTOCOL* image;
+    EFI_FILE_IO_INTERFACE* fs;
+    EFI_FILE_HANDLE dir, drivers;
+    EFI_DEVICE_PATH* device_path;
+    bool drivers_loaded = false;
+    char buf[1024];
+
+    static const char16_t drivers_dir[] = u"drivers";
+
+    status = bs->OpenProtocol(image_handle, &guid, (void**)&image, image_handle, NULL,
+                              EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+    if (EFI_ERROR(status)) {
+        print_error(u"OpenProtocol", status);
+        return status;
+    }
+
+    if (!image->DeviceHandle)
+        goto end2;
+
+    status = bs->OpenProtocol(image->DeviceHandle, &guid2, (void**)&fs, image_handle, NULL,
+                              EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+    if (EFI_ERROR(status)) {
+        print_error(u"OpenProtocol", status);
+        goto end2;
+    }
+
+    status = open_parent_dir(fs, (FILEPATH_DEVICE_PATH*)image->FilePath, &dir);
+    if (EFI_ERROR(status)) {
+        print_error(u"open_parent_dir", status);
+        goto end;
+    }
+
+    status = bs->HandleProtocol(image->DeviceHandle, &guid3, (void**)&device_path);
+    if (EFI_ERROR(status)) {
+        print_error(u"HandleProtocol", status);
+        goto end;
+    }
+
+    status = dir->Open(dir, &drivers, (WCHAR*)drivers_dir, EFI_FILE_MODE_READ, 0);
+
+    dir->Close(dir);
+
+    if (status == EFI_NOT_FOUND) {
+        // drivers directory not found - return without error
+        status = EFI_SUCCESS;
+        goto end;
+    } else if (EFI_ERROR(status)) {
+        print(u"Error opening \"drivers\" directory.\r\n");
+        print_error(u"Open", status);
+        goto end;
+    }
+
+    do {
+        UINTN size;
+        EFI_HANDLE h;
+        EFI_DEVICE_PATH_PROTOCOL* dp;
+        char16_t path[260];
+
+        size = sizeof(buf);
+
+        status = drivers->Read(drivers, &size, buf);
+        if (EFI_ERROR(status)) {
+            print_error(u"Read", status);
+            drivers->Close(drivers);
+            goto end;
+        }
+
+        if (size == 0)
+            break;
+
+        auto fn = u16string_view((char16_t*)((EFI_FILE_INFO*)buf)->FileName);
+
+        // skip if not .efi file
+        if (fn.size() < 4 || (fn[fn.size() - 1] != 'i' && fn[fn.size() - 1] != 'I') || (fn[fn.size() - 2] != 'f' && fn[fn.size() - 2] != 'F') ||
+            (fn[fn.size() - 3] != 'e' && fn[fn.size() - 3] != 'E') || fn[fn.size() - 4] != '.')
+            continue;
+
+        {
+            char16_t s[255];
+            auto sp = span(s, (sizeof(s) / sizeof(char16_t)) - 1);
+
+            sp = sp_wcscpy(sp, u"Loading driver ");
+            sp = sp_wcscpy(sp, fn);
+            sp = sp_wcscpy(sp, u"... ");
+
+            *sp.data() = 0;
+
+            print(s);
+        }
+
+        auto path_name = u16string_view((char16_t*)((FILEPATH_DEVICE_PATH*)image->FilePath)->PathName, (*(uint16_t*)image->FilePath->Length) / sizeof(char16_t));
+        auto sp = span(path, (sizeof(path) / sizeof(char16_t)) - 1);
+
+        auto last_bs = path_name.find_last_of(u'\\');
+
+        if (last_bs != u16string_view::npos)
+            path_name = u16string_view(path_name.data(), last_bs);
+
+        sp = sp_wcscpy(sp, path_name);
+        sp = sp_wcscpy(sp, drivers_dir);
+        sp = sp_wcscpy(sp, u"\\");
+        sp = sp_wcscpy(sp, fn);
+
+        *sp.data() = 0;
+
+        status = create_file_device_path(bs, device_path, path, &dp);
+        if (EFI_ERROR(status)) {
+            print(u"FAILED\r\n");
+            print_error(u"create_file_device_path", status);
+            bs->FreePool(dp);
+            continue;
+        }
+
+        status = bs->LoadImage(false, image_handle, dp, NULL, 0, &h);
+        if (EFI_ERROR(status)) {
+            print(u"FAILED\r\n");
+            print_error(u"LoadImage", status);
+            bs->FreePool(dp);
+            continue;
+        }
+
+        bs->FreePool(dp);
+
+        status = bs->StartImage(h, NULL, NULL);
+        if (EFI_ERROR(status)) {
+            print(u"FAILED\r\n");
+            print_error(u"StartImage", status);
+            continue;
+        }
+
+        print(u"success\r\n");
+        drivers_loaded = true;
+    } while (true);
+
+    drivers->Close(drivers);
+
+    if (drivers_loaded) {
+        UINTN count;
+        EFI_HANDLE* handles;
+
+        status = bs->LocateHandleBuffer(AllHandles, NULL, NULL, &count, &handles);
+        if (EFI_ERROR(status)) {
+            print_error(u"LocateHandleBuffer", status);
+            goto end;
+        }
+
+        for (unsigned int i = 0; i < count; i++) {
+            bs->ConnectController(handles[i], NULL, NULL, true);
+        }
+
+        bs->FreePool(handles);
+    }
+
+    status = EFI_SUCCESS;
+
+end:
+    bs->CloseProtocol(image->DeviceHandle, &guid2, image_handle, NULL);
+
+end2:
+    bs->CloseProtocol(image_handle, &guid, image_handle, NULL);
+
+    return status;
+}
+
 static EFI_STATUS scan_partitions(EFI_HANDLE image_handle) {
     EFI_GUID guid = EFI_PARTITION_INFO_PROTOCOL_GUID;
     EFI_HANDLE* handles = nullptr;
     UINTN count;
-    EFI_STATUS Status;
+    EFI_STATUS status;
 
-    Status = bs->LocateHandleBuffer(ByProtocol, &guid, nullptr, &count, &handles);
-    if (EFI_ERROR(Status))
-        return Status;
+    status = bs->LocateHandleBuffer(ByProtocol, &guid, nullptr, &count, &handles);
+    if (EFI_ERROR(status))
+        return status;
 
     for (unsigned int i = 0; i < count; i++) {
         EFI_PARTITION_INFO_PROTOCOL* pip = nullptr;
 
-        Status = bs->OpenProtocol(handles[i], &guid, (void**)&pip, image_handle, nullptr,
+        status = bs->OpenProtocol(handles[i], &guid, (void**)&pip, image_handle, nullptr,
                                   EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
-        if (EFI_ERROR(Status))
+        if (EFI_ERROR(status))
             continue;
 
         if (pip->Revision != EFI_PARTITION_INFO_PROTOCOL_REVISION) {
@@ -204,10 +473,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     systable = SystemTable;
     bs = systable->BootServices;
 
-    // FIXME - load drivers
+    status = load_efi_drivers(ImageHandle);
+    if (EFI_ERROR(status)) {
+        print_error(u"load_efi_drivers", status);
+        goto end;
+    }
 
     status = scan_partitions(ImageHandle);
-    if (status != EFI_SUCCESS) {
+    if (EFI_ERROR(status)) {
         print_error(u"scan_partitions", status);
         goto end;
     }
