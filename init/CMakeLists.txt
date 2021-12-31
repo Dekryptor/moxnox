@@ -5,7 +5,10 @@ project(init)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(SRC_FILES src/init.cpp)
+enable_language(ASM)
+
+set(SRC_FILES src/init.cpp
+    src/syscalls.S)
 
 add_executable(init ${SRC_FILES})
 
