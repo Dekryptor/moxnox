@@ -1,6 +1,47 @@
 #include <stdint.h>
 
 extern "C"
+void* memcpy(void* dest, const void* src, size_t n) {
+    while (n >= sizeof(uint64_t)) {
+        *(uint64_t*)dest = *(uint64_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint64_t);
+        src = (uint8_t*)src + sizeof(uint64_t);
+
+        n -= sizeof(uint64_t);
+    }
+
+    while (n >= sizeof(uint32_t)) {
+        *(uint32_t*)dest = *(uint32_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint32_t);
+        src = (uint8_t*)src + sizeof(uint32_t);
+
+        n -= sizeof(uint32_t);
+    }
+
+    while (n >= sizeof(uint16_t)) {
+        *(uint16_t*)dest = *(uint16_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint16_t);
+        src = (uint8_t*)src + sizeof(uint16_t);
+
+        n -= sizeof(uint16_t);
+    }
+
+    while (n >= sizeof(uint8_t)) {
+        *(uint8_t*)dest = *(uint8_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint8_t);
+        src = (uint8_t*)src + sizeof(uint8_t);
+
+        n -= sizeof(uint8_t);
+    }
+
+    return dest;
+}
+
+extern "C"
 int memcmp(const void* s1, const void* s2, size_t n) {
     // FIXME - not completely accurate, as 1 or -1 is messed up by endianness
 
