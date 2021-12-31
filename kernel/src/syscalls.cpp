@@ -2,10 +2,24 @@
 #include "nt.h"
 #include "objects.h"
 
-static NTSTATUS NtDisplayString(const UNICODE_STRING* string) {
-    // FIXME
+using namespace std;
 
-    print("NtDisplayString\n");
+static NTSTATUS NtDisplayString(const UNICODE_STRING* string) {
+    auto u16sv = u16string_view(string->Buffer, string->Length / sizeof(char16_t));
+    auto buflen = utf16_to_utf8_len(u16sv);
+
+    if (buflen == 0)
+        return nt_status::SUCCESS;
+
+    auto buf = (char*)malloc(buflen);
+    if (!buf)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    utf16_to_utf8(span(buf, buflen), u16sv);
+
+    print(string_view(buf, buflen));
+
+    free(buf);
 
     return nt_status::SUCCESS;
 }
