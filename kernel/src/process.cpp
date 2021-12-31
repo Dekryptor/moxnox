@@ -319,3 +319,39 @@ bool process::allocate_cr3() {
 
     return true;
 }
+
+bool process::copy_from(const void* us_addr, void* ks_addr, size_t size) {
+    while (true) {
+        lock_guard lock(mappings_lock);
+        bool found = false;
+
+        auto le = mappings.next;
+        while (le != &mappings) {
+            auto& m = containing_record<mapping>(le);
+
+            if (m.address <= (uintptr_t)us_addr && m.address + m.size > (uintptr_t)us_addr) {
+                auto to_copy = min(size, m.address + m.size - (uintptr_t)us_addr);
+
+                if (!m.sect.copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                    return false;
+
+                if (size == to_copy)
+                    return true;
+
+                us_addr = (uint8_t*)us_addr + to_copy;
+                ks_addr = (uint8_t*)ks_addr + to_copy;
+                size -= to_copy;
+                found = true;
+
+                break;
+            }
+
+            le = le->next;
+        }
+
+        if (!found)
+            return false;
+    }
+
+    return false;
+}

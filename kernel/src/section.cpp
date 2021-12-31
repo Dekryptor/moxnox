@@ -370,3 +370,44 @@ bool section::map(uint32_t offset, uint64_t va) {
 
     return true;
 }
+
+bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return false;
+    }
+
+    lock_guard lock(alloc_lock);
+
+    while (true) {
+        auto page = pa[offset >> PAGE_SHIFT];
+
+        if (!page) {
+            // FIXME - handle missing page (load from disk if file, zero if anonymous)
+            free_va(va, 1);
+            return false;
+        }
+
+        if (!map_page(page, va, mapping_type::read_only)) {
+            print("map_page failed\n");
+            free_va(va, 1);
+            return false;
+        }
+
+        auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+
+        memcpy(ks_addr, (uint8_t*)va + (offset & (PAGE_SIZE - 1)), to_copy);
+
+        unmap_page(va);
+
+        if (to_copy == size) {
+            free_va(va, 1);
+            return true;
+        }
+
+        ks_addr = (uint8_t*)ks_addr + to_copy;
+        offset += to_copy;
+        size -= to_copy;
+    }
+}

@@ -25,6 +25,7 @@ public:
     bool load_image();
     void free_pa();
     bool map(uint32_t offset, uint64_t va);
+    bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
 
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;

@@ -2,7 +2,8 @@
 
 enum nt_status : uint32_t {
     SUCCESS = 0x00000000,
-    NOT_IMPLEMENTED = 0xc0000002
+    NOT_IMPLEMENTED = 0xc0000002,
+    ACCESS_VIOLATION = 0xc0000005
 };
 
 using NTSTATUS = enum nt_status;
