@@ -1,25 +1,15 @@
-#include <efibind.h>
-#include <efidef.h>
-#include <efierr.h>
-#include <efidevp.h>
-#include <efiprot.h>
-#include <eficon.h>
-#include <efiapi.h>
-#include <efipart.h>
-#include <efigpt.h>
-#include <string.h>
-#include <string_view>
-#include <span>
-#include "partinfo.h"
+#include "efi.h"
 
 using namespace std;
 
-static EFI_SYSTEM_TABLE* systable;
-static EFI_BOOT_SERVICES* bs;
+EFI_SYSTEM_TABLE* systable;
+EFI_BOOT_SERVICES* bs;
 
 static const EFI_GUID moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
-static void print(const char16_t* s) {
+#define KERNEL_ADDR 0xfffff80000000000
+
+void print(const char16_t* s) {
     systable->ConOut->OutputString(systable->ConOut, (CHAR16*)s);
 }
 
@@ -436,11 +426,6 @@ static EFI_STATUS scan_partitions(EFI_HANDLE image_handle, EFI_SIMPLE_FILE_SYSTE
         if (EFI_ERROR(status))
             continue;
 
-        if (pip->Revision != EFI_PARTITION_INFO_PROTOCOL_REVISION) {
-            print(u"unexpected Revision value for EFI_PARTITION_INFO_PROTOCOL\r\n");
-            goto next;
-        }
-
         if (pip->Type != PARTITION_TYPE_GPT)
             goto next;
 
@@ -479,10 +464,106 @@ static void wait_for_key() {
     bs->WaitForEvent(1, &systable->ConIn->WaitForKey, &event);
 }
 
+static EFI_STATUS get_file_size(EFI_FILE_PROTOCOL& f, uint64_t& size) {
+    EFI_STATUS status;
+    EFI_FILE_INFO file_info;
+    EFI_GUID info_type = EFI_FILE_INFO_ID;
+    UINTN file_info_size = sizeof(file_info);
+    EFI_FILE_INFO* file_info2;
+
+    status = f.GetInfo(&f, &info_type, &file_info_size, &file_info);
+    if (!EFI_ERROR(status)) {
+        size = file_info.FileSize;
+        return EFI_SUCCESS;
+    }
+
+    if (status != EFI_BUFFER_TOO_SMALL) {
+        print_error(u"GetInfo", status);
+        return status;
+    }
+
+    status = bs->AllocatePool(EfiLoaderData, file_info_size, (void**)&file_info2);
+    if (EFI_ERROR(status)) {
+        print_error(u"AllocatePool", status);
+        return status;
+    }
+
+    status = f.GetInfo(&f, &info_type, &file_info_size, file_info2);
+    if (EFI_ERROR(status)) {
+        print_error(u"GetInfo", status);
+        bs->FreePool(file_info2);
+        return status;
+    }
+
+    size = file_info2->FileSize;
+
+    bs->FreePool(file_info2);
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS load_kernel(EFI_FILE_PROTOCOL& root) {
+    EFI_STATUS status;
+    EFI_FILE_PROTOCOL* kernel;
+    EFI_PHYSICAL_ADDRESS addr;
+    uint64_t size;
+    UINTN read_size;
+    uint64_t entry_point;
+
+    status = root.Open(&root, &kernel, (CHAR16*)u"\\kernel.exe", EFI_FILE_MODE_READ, 0);
+    if (EFI_ERROR(status)) {
+        print_error(u"Open", status);
+        return status;
+    }
+
+    status = get_file_size(*kernel, size);
+    if (EFI_ERROR(status)) {
+        print_error(u"get_file_size", status);
+        goto end;
+    }
+
+    if (size == 0) {
+        print(u"Kernel size was 0.\r\n");
+        status = EFI_INVALID_PARAMETER;
+        goto end;
+    }
+
+    status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, bytes_to_pages(size), &addr);
+    if (EFI_ERROR(status)) {
+        print_error(u"AllocatePages", status);
+        goto end;
+    }
+
+    read_size = size;
+
+    status = kernel->Read(kernel, &read_size, (void*)addr);
+    if (EFI_ERROR(status)) {
+        print_error(u"Read", status);
+        goto end2;
+    }
+
+    status = load_pe((uint8_t*)addr, size, KERNEL_ADDR, &entry_point);
+    if (EFI_ERROR(status)) {
+        print_error(u"load_pe", status);
+        goto end2;
+    }
+
+    status = EFI_SUCCESS;
+
+end2:
+    bs->FreePages(addr, bytes_to_pages(size));
+
+end:
+    kernel->Close(kernel);
+
+    return status;
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     EFI_STATUS status;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
+    EFI_FILE_PROTOCOL* root;
 
     systable = SystemTable;
     bs = systable->BootServices;
@@ -500,7 +581,17 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     }
     // FIXME - if multiple found, show list
 
-    // FIXME - load kernel into memory
+    status = fs->OpenVolume(fs, &root);
+    if (EFI_ERROR(status)) {
+        print_error(u"OpenVolume", status);
+        goto end;
+    }
+
+    status = load_kernel(*root);
+    if (EFI_ERROR(status)) {
+        print_error(u"load_kernel", status);
+        goto end2;
+    }
 
     // FIXME - parse memory map
     // FIXME - create loader block
@@ -512,11 +603,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     // FIXME - GDT?
     // FIXME - jump to entry point
 
+    print(u"Lemon curry?\r\n");
 
     // FIXME - GOP
     // FIXME - pass runtime services list through to kernel
 
-    print(u"Lemon curry?\n");
+end2:
+    root->Close(root);
 
 end:
     wait_for_key();

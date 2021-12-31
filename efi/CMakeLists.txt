@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SRC_FILES src/efi.cpp
-    src/mem.cpp)
+    src/mem.cpp
+    src/pe.cpp)
 
 add_executable(efi ${SRC_FILES})
 
