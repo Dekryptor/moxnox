@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 
 project(moxnox)
 
-set(SRC_FILES src/efi.cpp)
+set(SRC_FILES src/efi.cpp
+    src/mem.cpp)
 
 add_executable(efi ${SRC_FILES})
 
