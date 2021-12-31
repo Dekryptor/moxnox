@@ -416,8 +416,9 @@ end2:
     return status;
 }
 
-static EFI_STATUS scan_partitions(EFI_HANDLE image_handle) {
+static EFI_STATUS scan_partitions(EFI_HANDLE image_handle, EFI_SIMPLE_FILE_SYSTEM_PROTOCOL** pfs) {
     EFI_GUID guid = EFI_PARTITION_INFO_PROTOCOL_GUID;
+    EFI_GUID fs_guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
     EFI_HANDLE* handles = nullptr;
     UINTN count;
     EFI_STATUS status;
@@ -428,6 +429,7 @@ static EFI_STATUS scan_partitions(EFI_HANDLE image_handle) {
 
     for (unsigned int i = 0; i < count; i++) {
         EFI_PARTITION_INFO_PROTOCOL* pip = nullptr;
+        EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs = nullptr;
 
         status = bs->OpenProtocol(handles[i], &guid, (void**)&pip, image_handle, nullptr,
                                   EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
@@ -435,7 +437,7 @@ static EFI_STATUS scan_partitions(EFI_HANDLE image_handle) {
             continue;
 
         if (pip->Revision != EFI_PARTITION_INFO_PROTOCOL_REVISION) {
-            print(u"unexpected Revision value for EFI_PARTITION_INFO_PROTOCOL\n");
+            print(u"unexpected Revision value for EFI_PARTITION_INFO_PROTOCOL\r\n");
             goto next;
         }
 
@@ -445,8 +447,19 @@ static EFI_STATUS scan_partitions(EFI_HANDLE image_handle) {
         if (memcmp(&pip->Info.Gpt.PartitionTypeGUID, &moxnox_partition_guid, sizeof(EFI_GUID)))
             goto next;
 
-        // FIXME
-        print(u"FIXME - GPT\r\n");
+        status = bs->OpenProtocol(handles[i], &fs_guid, (void**)&fs, image_handle, nullptr,
+                                  EFI_OPEN_PROTOCOL_GET_PROTOCOL);
+        if (EFI_ERROR(status)) {
+            print(u"Partition found, but can't open filesystem.\r\n");
+            print_error(u"OpenProtocol", status);
+            continue;
+        }
+
+        *pfs = fs;
+
+        bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
+        bs->FreePool(handles);
+        return EFI_SUCCESS;
 
 next:
         bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
@@ -469,6 +482,7 @@ static void wait_for_key() {
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     EFI_STATUS status;
+    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
 
     systable = SystemTable;
     bs = systable->BootServices;
@@ -479,7 +493,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end;
     }
 
-    status = scan_partitions(ImageHandle);
+    status = scan_partitions(ImageHandle, &fs);
     if (EFI_ERROR(status)) {
         print_error(u"scan_partitions", status);
         goto end;
