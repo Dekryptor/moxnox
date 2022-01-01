@@ -558,12 +558,56 @@ end:
     return status;
 }
 
+static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3) {
+    EFI_STATUS status;
+    UINTN size, key, descsize;
+    UINT32 version;
+    EFI_MEMORY_DESCRIPTOR* mapdesc;
+
+    // exit boot services
+
+    size = 0;
+
+    // get new key
+    status = bs->GetMemoryMap(&size, nullptr, &key, &descsize, &version);
+    if (EFI_ERROR(status) && status != EFI_BUFFER_TOO_SMALL) {
+        print_error(u"GetMemoryMap", status);
+        return status;
+    }
+
+    size *= 2;
+
+    status = bs->AllocatePool(EfiLoaderData, size, (void**)&mapdesc);
+    if (EFI_ERROR(status)) {
+        print_error(u"AllocatePool", status);
+        return status;
+    }
+
+    status = bs->GetMemoryMap(&size, mapdesc, &key, &descsize, &version);
+    if (EFI_ERROR(status)) {
+        print_error(u"GetMemoryMap", status);
+        return status;
+    }
+
+    status = bs->ExitBootServices(image_handle, key);
+    if (EFI_ERROR(status)) {
+        print_error(u"ExitBootServices", status);
+        return status;
+    }
+
+    // FIXME - SetVirtualAddressMap
+
+    start_kernel(entry_point, cr3);
+
+    return EFI_SUCCESS; // never reached
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     EFI_STATUS status;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
     EFI_FILE_PROTOCOL* root;
-    uint64_t entry_point;
+    uint64_t entry_point, cr3;
     size_t img_size;
 
     systable = SystemTable;
@@ -606,23 +650,17 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     root->Close(root);
 
-    status = setup_paging();
+    status = setup_paging(cr3);
     if (EFI_ERROR(status)) {
         print_error(u"setup_paging", status);
         goto end;
     }
 
-    // FIXME - change CR3, and remap boot services
-    // FIXME - exit boot services
-    // FIXME - set NX bit etc. (check spec for what is set for us)
-    // FIXME - stack
-    // FIXME - GDT?
-    // FIXME - jump to entry point
-
-    print(u"Lemon curry?\r\n");
-
     // FIXME - GOP
     // FIXME - pass runtime services list through to kernel
+
+    status = go(ImageHandle, entry_point, cr3); // doesn't return unless unsuccessful
+    print_error(u"go", status);
 
 end:
     wait_for_key();

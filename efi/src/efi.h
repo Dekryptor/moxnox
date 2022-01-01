@@ -193,4 +193,7 @@ EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t& entry
 
 // mem.cpp
 EFI_STATUS get_memory_map();
-EFI_STATUS setup_paging();
+EFI_STATUS setup_paging(uint64_t& cr3);
+
+// efi.S
+extern "C" void start_kernel(uint64_t entry_point, uint64_t pml4t);

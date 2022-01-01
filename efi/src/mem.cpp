@@ -470,7 +470,7 @@ static EFI_STATUS do_map(uint64_t va, uint64_t pa, uint64_t len) {
     return EFI_SUCCESS;
 }
 
-EFI_STATUS setup_paging() {
+EFI_STATUS setup_paging(uint64_t& cr3) {
     EFI_STATUS status;
     EFI_PHYSICAL_ADDRESS addr;
 
@@ -511,6 +511,8 @@ EFI_STATUS setup_paging() {
 #pragma GCC diagnostic pop
     pml4t[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
     pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
+
+    cr3 = (uintptr_t)pml4t;
 
     return EFI_SUCCESS;
 }

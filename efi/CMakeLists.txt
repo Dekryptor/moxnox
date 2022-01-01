@@ -5,9 +5,12 @@ project(moxnox)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+enable_language(ASM)
+
 set(SRC_FILES src/efi.cpp
     src/mem.cpp
-    src/pe.cpp)
+    src/pe.cpp
+    src/efi.S)
 
 add_executable(efi ${SRC_FILES})
 
