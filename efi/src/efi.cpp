@@ -7,6 +7,8 @@ EFI_BOOT_SERVICES* bs;
 
 static const EFI_GUID moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
+static loader_block lb;
+
 #define KERNEL_STACK_PAGES 4
 
 void print(const char16_t* s) {
@@ -564,6 +566,10 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     UINT32 version;
     EFI_MEMORY_DESCRIPTOR* mapdesc;
 
+    lb.map = map;
+    lb.num_map_entries = num_map_entries;
+    lb.rsdt_pa = 0; // FIXME
+
     // exit boot services
 
     size = 0;
@@ -597,7 +603,7 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
 
     // FIXME - SetVirtualAddressMap
 
-    start_kernel(entry_point, cr3);
+    start_kernel(entry_point, cr3, &lb);
 
     return EFI_SUCCESS; // never reached
 }
@@ -647,8 +653,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         print_error(u"AllocatePages", status);
         goto end;
     }
-
-    // FIXME - create loader block
 
     status = get_memory_map();
     if (EFI_ERROR(status)) {

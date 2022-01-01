@@ -202,6 +202,12 @@ struct map_entry { // FIXME - loaderblock.h
     enum map_type type;
 } __attribute__((packed));
 
+struct loader_block { // FIXME - loaderblock.h
+    map_entry* map;
+    uint32_t num_map_entries;
+    uint64_t rsdt_pa;
+} __attribute__((packed));
+
 // efi.cpp
 extern EFI_SYSTEM_TABLE* systable;
 extern EFI_BOOT_SERVICES* bs;
@@ -212,9 +218,11 @@ void print_error(std::u16string_view func, EFI_STATUS status);
 EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t& entry_point, uint64_t& img_pa, size_t& img_size);
 
 // mem.cpp
+extern map_entry map[256];
+extern unsigned int num_map_entries;
 EFI_STATUS get_memory_map();
 EFI_STATUS setup_paging(uint64_t& cr3);
 EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum map_type type);
 
 // efi.S
-extern "C" void start_kernel(uint64_t entry_point, uint64_t pml4t);
+extern "C" void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb);

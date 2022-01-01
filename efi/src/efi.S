@@ -4,6 +4,7 @@
 start_kernel:
     # rcx is entry_point
     # rdx is pml4t
+    # r8 is lb
 
     cli
 
@@ -16,7 +17,7 @@ start_kernel:
 
     # FIXME - GDT?
 
-    # FIXME - pass through loader block
-
     # jump to entry point
-    jmp rcx
+    mov rax, rcx
+    mov rcx, r8
+    jmp rax

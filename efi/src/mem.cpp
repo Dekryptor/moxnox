@@ -1,8 +1,8 @@
 #include <stdint.h>
 #include "efi.h"
 
-static map_entry map[256];
-static unsigned int num_map_entries = 0;
+map_entry map[256];
+unsigned int num_map_entries = 0;
 
 static const uint64_t SELFMAP = 0xfffff68000000000;
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
