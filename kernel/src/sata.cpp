@@ -364,6 +364,9 @@ static void init_sata_device(void* ctx, void* ctx2) {
 
     // FIXME - return if not successfully initialized
 
+    dev.port.cmd = dev.port.cmd | HBA_PxCMD_FRE;
+    dev.port.cmd = dev.port.cmd | HBA_PxCMD_ST;
+
     {
         lock_guard lock(sata_dev_list_lock);
         insert_tail_list(sata_dev_list, dev.le);

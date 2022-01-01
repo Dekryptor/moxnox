@@ -11,6 +11,9 @@ static const uint32_t ATA_DEV_DRQ = 0x08;
 
 static const uint32_t HBA_PxIS_TFES = 0x40000000; // task file error status
 
+static const uint32_t HBA_PxCMD_FRE = 0x00000010;
+static const uint32_t HBA_PxCMD_ST = 0x00000001;
+
 struct HBA_PORT {
     uint32_t clb;
     uint32_t clbu;
