@@ -139,7 +139,7 @@ void* memset(void* s, int c, size_t n) {
     return orig_s;
 }
 
-static void print_hex(uint64_t num) {
+void print_hex(uint64_t num) {
     bool first = true;
     char16_t s[2];
 

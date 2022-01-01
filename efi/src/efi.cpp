@@ -560,7 +560,7 @@ end:
     return status;
 }
 
-static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3) {
+static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3, uint64_t acpi_tables) {
     EFI_STATUS status;
     UINTN size, key, descsize;
     UINT32 version;
@@ -568,7 +568,7 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
 
     lb.map = map;
     lb.num_map_entries = num_map_entries;
-    lb.rsdt_pa = 0; // FIXME
+    lb.rsdt_pa = acpi_tables;
 
     // exit boot services
 
@@ -608,12 +608,55 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     return EFI_SUCCESS; // never reached
 }
 
+static EFI_STATUS find_acpi_tables(uint64_t& addr) {
+    EFI_GUID acpi1_guid = ACPI_TABLE_GUID;
+//     EFI_GUID acpi2_guid = ACPI_20_TABLE_GUID;
+    RSDP_DESCRIPTOR* rsdp = nullptr;
+
+    // FIXME - ACPI 2.0
+
+//     for (unsigned int i = 0; i < systable->NumberOfTableEntries; i++) {
+//         if (!memcmp(&systable->ConfigurationTable[i].VendorGuid, &acpi2_guid, sizeof(EFI_GUID))) {
+//             rsdp = (RSDP_DESCRIPTOR*)systable->ConfigurationTable[i].VendorTable;
+//             break;
+//         }
+//     }
+//
+//     if (!rsdp) {
+        for (unsigned int i = 0; i < systable->NumberOfTableEntries; i++) {
+            if (!memcmp(&systable->ConfigurationTable[i].VendorGuid, &acpi1_guid, sizeof(EFI_GUID))) {
+                rsdp = (RSDP_DESCRIPTOR*)systable->ConfigurationTable[i].VendorTable;
+                break;
+            }
+        }
+//     }
+
+    if (!rsdp) {
+        print(u"ACPI tables not found\r\n");
+        return EFI_NOT_FOUND;
+    }
+
+    if (rsdp->revision == 0) // ACPI 1.0
+        addr = rsdp->rsdt_physical_address;
+//     else if (rsdp->revision == 2) // ACPI 2.0
+//         addr = rsdp->xsdt_physical_address;
+    else {
+        print(u"Unrecognized ACPI revision ");
+        print_hex(rsdp->revision);
+        print(u"\r\n");
+
+        return EFI_INVALID_PARAMETER;
+    }
+
+    return EFI_SUCCESS;
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     EFI_STATUS status;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
     EFI_FILE_PROTOCOL* root;
-    uint64_t entry_point, cr3, img_pa;
+    uint64_t entry_point, cr3, img_pa, acpi_tables;
     size_t img_size;
     EFI_PHYSICAL_ADDRESS stack;
 
@@ -654,6 +697,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end;
     }
 
+    status = find_acpi_tables(acpi_tables);
+    if (EFI_ERROR(status)) {
+        print_error(u"find_acpi_tables", status);
+        goto end;
+    }
+
     status = get_memory_map();
     if (EFI_ERROR(status)) {
         print_error(u"get_memory_map", status);
@@ -681,7 +730,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     // FIXME - GOP
     // FIXME - pass runtime services list through to kernel
 
-    status = go(ImageHandle, entry_point, cr3); // doesn't return unless unsuccessful
+    status = go(ImageHandle, entry_point, cr3, acpi_tables); // doesn't return unless unsuccessful
     print_error(u"go", status);
 
 end:

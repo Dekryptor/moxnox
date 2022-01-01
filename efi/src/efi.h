@@ -180,6 +180,18 @@ struct HARDWARE_PTE {
     uint64_t NoExecute:1;
 } __attribute__((packed));
 
+struct RSDP_DESCRIPTOR {
+    char signature[8];
+    uint8_t checksum;
+    char oem_id [6];
+    uint8_t revision;
+    uint32_t rsdt_physical_address;
+    uint32_t length;
+    uint64_t xsdt_physical_address;
+    uint8_t extended_checksum;
+    char reserved[3];
+} __attribute__((packed));
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE);
 }
@@ -223,6 +235,7 @@ extern unsigned int num_map_entries;
 EFI_STATUS get_memory_map();
 EFI_STATUS setup_paging(uint64_t& cr3);
 EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum map_type type);
+void print_hex(uint64_t num);
 
 // efi.S
 extern "C" void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb);
