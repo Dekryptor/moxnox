@@ -11,13 +11,19 @@ start_kernel:
     # change to virtual addresses
     mov cr3, rdx
 
-    # FIXME - set NX bit, enable SSE, etc. (check spec for what is set for us)
+    # FIXME - enable SSE etc. (check spec for what is set for us)
 
     mov rsp, 0xfffff90000003fe0 # KERNEL_STACK + (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20 (0x20 for MS ABI)
 
     # FIXME - GDT?
 
+    # enable NX bit and System Call Extensions
+    mov rbx, rcx
+    mov ecx, 0xc0000080
+    rdmsr
+    or eax, 0x801
+    wrmsr
+
     # jump to entry point
-    mov rax, rcx
     mov rcx, r8
-    jmp rax
+    jmp rbx
