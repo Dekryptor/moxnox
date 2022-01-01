@@ -11,9 +11,12 @@ start_kernel:
     mov cr3, rdx
 
     # FIXME - set NX bit, enable SSE, etc. (check spec for what is set for us)
-    # FIXME - stack
+
+    mov rsp, 0xfffff90000003fe0 # KERNEL_STACK + (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20 (0x20 for MS ABI)
+
     # FIXME - GDT?
-    # FIXME - jump to entry point
 
     # FIXME - pass through loader block
+
+    # jump to entry point
     jmp rcx

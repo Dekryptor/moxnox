@@ -4,7 +4,8 @@
 static map_entry map[256];
 static unsigned int num_map_entries = 0;
 
-#define SELFMAP 0xfffff68000000000
+static const uint64_t SELFMAP = 0xfffff68000000000;
+static const uint64_t KERNEL_STACK = 0xfffff90000000000;
 
 static HARDWARE_PTE* pml4t;
 static map_entry map_copy[256];
@@ -479,13 +480,18 @@ EFI_STATUS setup_paging(uint64_t& cr3) {
                 break;
 
             case map_type::mem_image:
-                status = do_map(KERNEL_ADDR, map_copy[i].addr, map_copy[i].len); // identity map
+                status = do_map(KERNEL_ADDR, map_copy[i].addr, map_copy[i].len);
 
                 if (EFI_ERROR(status))
                     return status;
                 break;
 
-            // FIXME - mem_stack
+            case map_type::mem_stack:
+                status = do_map(KERNEL_STACK, map_copy[i].addr, map_copy[i].len);
+
+                if (EFI_ERROR(status))
+                    return status;
+                break;
 
             default:
                 break;

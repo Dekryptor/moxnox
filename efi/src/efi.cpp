@@ -7,6 +7,8 @@ EFI_BOOT_SERVICES* bs;
 
 static const EFI_GUID moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
+#define KERNEL_STACK_PAGES 4
+
 void print(const char16_t* s) {
     systable->ConOut->OutputString(systable->ConOut, (CHAR16*)s);
 }
@@ -607,6 +609,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_FILE_PROTOCOL* root;
     uint64_t entry_point, cr3, img_pa;
     size_t img_size;
+    EFI_PHYSICAL_ADDRESS stack;
 
     systable = SystemTable;
     bs = systable->BootServices;
@@ -637,18 +640,29 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end;
     }
 
+    root->Close(root);
+
+    status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, KERNEL_STACK_PAGES, &stack);
+    if (EFI_ERROR(status)) {
+        print_error(u"AllocatePages", status);
+        goto end;
+    }
+
     // FIXME - create loader block
 
     status = get_memory_map();
     if (EFI_ERROR(status)) {
         print_error(u"get_memory_map", status);
-        root->Close(root);
         goto end;
     }
 
-    root->Close(root);
-
     status = add_map_entry(img_pa, img_size, map_type::mem_image);
+    if (EFI_ERROR(status)) {
+        print_error(u"add_map_entry", status);
+        goto end;
+    }
+
+    status = add_map_entry(stack, KERNEL_STACK_PAGES << EFI_PAGE_SHIFT, map_type::mem_stack);
     if (EFI_ERROR(status)) {
         print_error(u"add_map_entry", status);
         goto end;
