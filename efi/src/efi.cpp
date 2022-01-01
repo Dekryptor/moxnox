@@ -593,7 +593,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end2;
     }
 
-    // FIXME - parse memory map
+    status = get_memory_map();
+    if (EFI_ERROR(status)) {
+        print_error(u"get_memory_map", status);
+        goto end2;
+    }
     // FIXME - create loader block
 
     // FIXME - change CR3, and remap boot services
