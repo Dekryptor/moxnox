@@ -1,6 +1,27 @@
 #include <stdint.h>
 #include "efi.h"
 
+enum class map_type { // FIXME - loaderblock.h
+    mem_free,
+    mem_reserved,
+    mem_bootloader,
+    mem_image,
+    mem_paging_table,
+    mem_stack,
+    mem_acpi,
+    mem_uefi_code,
+    mem_uefi_data
+};
+
+struct map_entry { // FIXME - loaderblock.h
+    uint64_t addr;
+    uint64_t len;
+    enum map_type type;
+} __attribute__((packed));
+
+static map_entry map[256];
+static unsigned int num_map_entries = 0;
+
 extern "C"
 void* memcpy(void* dest, const void* src, size_t n) {
     while (n >= sizeof(uint64_t)) {
@@ -157,15 +178,48 @@ static void print_hex(uint64_t num) {
     }
 }
 
+static enum map_type map_efi_type(EFI_MEMORY_TYPE Type) {
+    switch (Type) {
+        case EfiReservedMemoryType:
+        case EfiUnusableMemory:
+        case EfiACPIMemoryNVS:
+        case EfiMemoryMappedIO:
+        case EfiMemoryMappedIOPortSpace:
+        case EfiPalCode:
+            return map_type::mem_reserved;
+
+        case EfiLoaderCode:
+        case EfiLoaderData:
+            return map_type::mem_bootloader;
+
+        case EfiRuntimeServicesCode:
+            return map_type::mem_uefi_code;
+
+        case EfiRuntimeServicesData:
+            return map_type::mem_uefi_data;
+
+        case EfiBootServicesCode:
+        case EfiBootServicesData:
+        case EfiConventionalMemory:
+            return map_type::mem_free;
+
+        case EfiACPIReclaimMemory:
+            return map_type::mem_acpi;
+
+        default:
+            return map_type::mem_reserved;
+    }
+}
+
 EFI_STATUS get_memory_map() {
     EFI_STATUS status;
     UINTN map_size, key, descriptor_size;
     UINT32 descriptor_version;
-    EFI_MEMORY_DESCRIPTOR* map = nullptr;
+    EFI_MEMORY_DESCRIPTOR* memory_map = nullptr;
 
     map_size = 0;
 
-    status = bs->GetMemoryMap(&map_size, map, &key, &descriptor_size, &descriptor_version);
+    status = bs->GetMemoryMap(&map_size, memory_map, &key, &descriptor_size, &descriptor_version);
     if (status == EFI_SUCCESS) {
         print(u"GetMemoryMap did not return memory map.\r\n");
         return EFI_INVALID_PARAMETER;
@@ -176,34 +230,39 @@ EFI_STATUS get_memory_map() {
 
     map_size *= 2; // some leeway, because AllocatePool can change things
 
-    status = bs->AllocatePool(EfiBootServicesData, map_size, (void**)&map);
+    status = bs->AllocatePool(EfiBootServicesData, map_size, (void**)&memory_map);
     if (EFI_ERROR(status)) {
         print_error(u"AllocatePool", status);
         return status;
     }
 
-    status = bs->GetMemoryMap(&map_size, map, &key, &descriptor_size, &descriptor_version);
+    status = bs->GetMemoryMap(&map_size, memory_map, &key, &descriptor_size, &descriptor_version);
     if (EFI_ERROR(status)) {
         print_error(u"GetMemoryMap", status);
-        bs->FreePool(map);
+        bs->FreePool(memory_map);
         return status;
     }
 
-    auto ptr = (uint8_t*)map;
+    auto ptr = (uint8_t*)memory_map;
     auto left = map_size;
 
     while (left > descriptor_size) {
         auto& m = *(EFI_MEMORY_DESCRIPTOR*)ptr;
+        auto& me = map[num_map_entries];
+
+        if (num_map_entries == sizeof(map) / sizeof(map[0])) {
+            print(u"Too many entries in memory map.\r\n");
+            bs->FreePool(memory_map);
+            return EFI_INVALID_PARAMETER;
+        }
 
         // FIXME - map EFI type to our type
         // FIXME - add to mapping array
 
-        print_hex(m.Type);
-        print(u", ");
-        print_hex(m.PhysicalStart);
-        print(u", ");
-        print_hex(m.NumberOfPages);
-        print(u"; ");
+        me.addr = m.PhysicalStart;
+        me.len = m.NumberOfPages << EFI_PAGE_SHIFT;
+        me.type = map_efi_type((EFI_MEMORY_TYPE)m.Type);
+        num_map_entries++;
 
         if (left == descriptor_size)
             break;
@@ -212,13 +271,38 @@ EFI_STATUS get_memory_map() {
         left -= descriptor_size;
     }
 
-    print(u"\r\n");
+    bs->FreePool(memory_map);
+
+    // FIXME - do we need to order memory map, and resolve any overlaps?
 
     // FIXME - add missing entries to mapping array
-    // FIXME - merge entries with same type
+
+    // merge entries with same type
+    for (unsigned int i = 1; i < num_map_entries; i++) {
+        auto& me1 = map[i - 1];
+        auto& me2 = map[i];
+
+        if (me2.addr == me1.addr + me1.len && me2.type == me1.type) {
+            me1.len += me2.len;
+            memcpy(&map[i], &map[i+1], (num_map_entries - i - 1) * sizeof(map_entry));
+            i--;
+            num_map_entries--;
+        }
+    }
     // FIXME - remove final entry if inaccessible
 
-    bs->FreePool(map);
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        const auto& me = map[i];
+
+        print_hex(me.addr);
+        print(u", ");
+        print_hex(me.len);
+        print(u", ");
+        print_hex((uint64_t)me.type);
+        print(u"; ");
+    }
+
+    print(u"\r\n");
 
     return EFI_SUCCESS;
 }
