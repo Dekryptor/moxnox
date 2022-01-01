@@ -159,6 +159,25 @@ struct IMAGE_BASE_RELOCATION {
     uint32_t SizeOfBlock;
 };
 
+struct HARDWARE_PTE {
+    uint64_t Valid:1;
+    uint64_t Write:1;
+    uint64_t Owner:1;
+    uint64_t WriteThrough:1;
+    uint64_t CacheDisable:1;
+    uint64_t Accessed:1;
+    uint64_t Dirty:1;
+    uint64_t LargePage:1;
+    uint64_t Global:1;
+    uint64_t CopyOnWrite:1;
+    uint64_t Prototype:1;
+    uint64_t reserved0:1;
+    uint64_t PageFrameNumber:28;
+    uint64_t reserved1:12;
+    uint64_t SoftwareWsIndex:11;
+    uint64_t NoExecute:1;
+} __attribute__((packed));
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE);
 }
@@ -170,7 +189,8 @@ void print(const char16_t* s);
 void print_error(std::u16string_view func, EFI_STATUS status);
 
 // pe.cpp
-EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t* entry_point);
+EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t& entry_point, size_t& img_size);
 
 // mem.cpp
 EFI_STATUS get_memory_map();
+EFI_STATUS setup_paging();

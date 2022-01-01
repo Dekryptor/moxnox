@@ -22,6 +22,12 @@ struct map_entry { // FIXME - loaderblock.h
 static map_entry map[256];
 static unsigned int num_map_entries = 0;
 
+#define SELFMAP 0xfffff68000000000
+
+static HARDWARE_PTE* pml4t;
+static map_entry map_copy[256];
+static unsigned int num_map_entries_copy;
+
 extern "C"
 void* memcpy(void* dest, const void* src, size_t n) {
     while (n >= sizeof(uint64_t)) {
@@ -350,6 +356,161 @@ EFI_STATUS get_memory_map() {
     }
 
     print(u"\r\n");
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
+    EFI_STATUS status;
+    uint32_t pml4t_offset, pdpt_offset, pdt_offset, pt_offset;
+    HARDWARE_PTE *pdpt, *pdt, *pt;
+
+    pml4t_offset = (va >> 39) & 0x1ff;
+
+    if (!pml4t[pml4t_offset].Valid) {
+        EFI_PHYSICAL_ADDRESS new_page;
+
+        status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
+        if (EFI_ERROR(status)) {
+            print_error(u"AllocatePages", status);
+            return status;
+        }
+
+        memset((void*)new_page, 0, EFI_PAGE_SIZE);
+
+        pml4t[pml4t_offset].Valid = 1;
+        pml4t[pml4t_offset].Write = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pml4t[pml4t_offset].PageFrameNumber = ((uintptr_t)new_page) >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    }
+
+    pdpt = (HARDWARE_PTE*)((uintptr_t)pml4t[pml4t_offset].PageFrameNumber << EFI_PAGE_SHIFT);
+
+    pdpt_offset = (va >> 30) & 0x1ff;
+
+    if (!pdpt[pdpt_offset].Valid) {
+        EFI_PHYSICAL_ADDRESS new_page;
+
+        status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
+        if (EFI_ERROR(status)) {
+            print_error(u"AllocatePages", status);
+            return status;
+        }
+
+        memset((void*)new_page, 0, EFI_PAGE_SIZE);
+
+        pdpt[pdpt_offset].Valid = 1;
+        pdpt[pdpt_offset].Write = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pdpt[pdpt_offset].PageFrameNumber = ((uintptr_t)new_page) >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    }
+
+    pdt = (HARDWARE_PTE*)((uintptr_t)pdpt[pdpt_offset].PageFrameNumber << EFI_PAGE_SHIFT);
+
+    pdt_offset = (va >> 21) & 0x1ff;
+
+    if (!pdt[pdt_offset].Valid) {
+        EFI_PHYSICAL_ADDRESS new_page;
+
+        status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
+        if (EFI_ERROR(status)) {
+            print_error(u"AllocatePages", status);
+            return status;
+        }
+
+        memset((void*)new_page, 0, EFI_PAGE_SIZE);
+
+        pdt[pdt_offset].Valid = 1;
+        pdt[pdt_offset].Write = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pdt[pdt_offset].PageFrameNumber = ((uintptr_t)new_page) >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    }
+
+    pt = (HARDWARE_PTE*)((uintptr_t)pdt[pdt_offset].PageFrameNumber << EFI_PAGE_SHIFT);
+
+    pt_offset = (va >> EFI_PAGE_SHIFT) & 0x1ff;
+
+    if (pt[pt_offset].Valid) {
+        print(u"Mapping for ");
+        print_hex(va);
+        print(u" already set.\r\n");
+        return EFI_INVALID_PARAMETER;
+    }
+
+    pt[pt_offset].Valid = 1;
+    pt[pt_offset].Write = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    pt[pt_offset].PageFrameNumber = pa >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS do_map(uint64_t va, uint64_t pa, uint64_t len) {
+    EFI_STATUS status;
+
+    while (len > 0) {
+        status = map_page(va, pa);
+
+        if (EFI_ERROR(status))
+            return status;
+
+        va += EFI_PAGE_SIZE;
+        pa += EFI_PAGE_SIZE;
+        len -= EFI_PAGE_SIZE;
+    }
+
+    return EFI_SUCCESS;
+}
+
+EFI_STATUS setup_paging() {
+    EFI_STATUS status;
+    EFI_PHYSICAL_ADDRESS addr;
+
+    status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
+    if (EFI_ERROR(status)) {
+        print_error(u"AllocatePages", status);
+        return status;
+    }
+
+    pml4t = (HARDWARE_PTE*)addr;
+    memset(pml4t, 0, EFI_PAGE_SIZE);
+
+    memcpy(map_copy, map, sizeof(map_entry) * num_map_entries);
+    num_map_entries_copy = num_map_entries;
+
+    for (unsigned int i = 0; i < num_map_entries_copy; i++) {
+        switch (map_copy[i].type) {
+            case map_type::mem_bootloader:
+            case map_type::mem_acpi:
+                status = do_map(map_copy[i].addr, map_copy[i].addr, map_copy[i].len); // identity map
+
+                if (EFI_ERROR(status))
+                    return status;
+                break;
+
+            // FIXME - mem_image
+            // FIXME - mem_stack
+
+            default:
+                break;
+        }
+    }
+
+    // add recursive mapping
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].PageFrameNumber = (uintptr_t)pml4t >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
 
     return EFI_SUCCESS;
 }

@@ -502,13 +502,12 @@ static EFI_STATUS get_file_size(EFI_FILE_PROTOCOL& f, uint64_t& size) {
     return EFI_SUCCESS;
 }
 
-static EFI_STATUS load_kernel(EFI_FILE_PROTOCOL& root) {
+static EFI_STATUS load_kernel(EFI_FILE_PROTOCOL& root, uint64_t& entry_point, size_t& img_size) {
     EFI_STATUS status;
     EFI_FILE_PROTOCOL* kernel;
     EFI_PHYSICAL_ADDRESS addr;
     uint64_t size;
     UINTN read_size;
-    uint64_t entry_point;
 
     status = root.Open(&root, &kernel, (CHAR16*)u"\\kernel.exe", EFI_FILE_MODE_READ, 0);
     if (EFI_ERROR(status)) {
@@ -542,7 +541,7 @@ static EFI_STATUS load_kernel(EFI_FILE_PROTOCOL& root) {
         goto end2;
     }
 
-    status = load_pe((uint8_t*)addr, size, KERNEL_ADDR, &entry_point);
+    status = load_pe((uint8_t*)addr, size, KERNEL_ADDR, entry_point, img_size);
     if (EFI_ERROR(status)) {
         print_error(u"load_pe", status);
         goto end2;
@@ -564,6 +563,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_STATUS status;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
     EFI_FILE_PROTOCOL* root;
+    uint64_t entry_point;
+    size_t img_size;
 
     systable = SystemTable;
     bs = systable->BootServices;
@@ -587,10 +588,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end;
     }
 
-    status = load_kernel(*root);
+    status = load_kernel(*root, entry_point, img_size);
     if (EFI_ERROR(status)) {
         print_error(u"load_kernel", status);
-        goto end2;
+        root->Close(root);
+        goto end;
     }
 
     // FIXME - create loader block
@@ -598,7 +600,16 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     status = get_memory_map();
     if (EFI_ERROR(status)) {
         print_error(u"get_memory_map", status);
-        goto end2;
+        root->Close(root);
+        goto end;
+    }
+
+    root->Close(root);
+
+    status = setup_paging();
+    if (EFI_ERROR(status)) {
+        print_error(u"setup_paging", status);
+        goto end;
     }
 
     // FIXME - change CR3, and remap boot services
@@ -612,9 +623,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
 
     // FIXME - GOP
     // FIXME - pass runtime services list through to kernel
-
-end2:
-    root->Close(root);
 
 end:
     wait_for_key();

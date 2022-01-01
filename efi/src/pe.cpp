@@ -132,7 +132,7 @@ static bool do_relocations(uint8_t* data, uint64_t va, IMAGE_NT_HEADERS* nt_head
     return true;
 }
 
-EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t* entry_point) {
+EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t& entry_point, size_t& img_size) {
     EFI_STATUS status;
     IMAGE_NT_HEADERS* nt_header;
     size_t size;
@@ -191,11 +191,12 @@ EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t* entry
         return EFI_INVALID_PARAMETER;
 
     if (nt_header->OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
-        *entry_point = nt_header->OptionalHeader64.AddressOfEntryPoint;
+        entry_point = nt_header->OptionalHeader64.AddressOfEntryPoint;
     else
-        *entry_point = nt_header->OptionalHeader32.AddressOfEntryPoint;
+        entry_point = nt_header->OptionalHeader32.AddressOfEntryPoint;
 
-    *entry_point += va;
+    entry_point += va;
+    img_size = size;
 
     return EFI_SUCCESS;
 }
