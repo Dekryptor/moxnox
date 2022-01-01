@@ -132,7 +132,7 @@ static bool do_relocations(uint8_t* data, uint64_t va, IMAGE_NT_HEADERS* nt_head
     return true;
 }
 
-EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t& entry_point, size_t& img_size) {
+EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t& entry_point, uint64_t& img_pa, size_t& img_size) {
     EFI_STATUS status;
     IMAGE_NT_HEADERS* nt_header;
     size_t size;
@@ -196,6 +196,7 @@ EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t& entry
         entry_point = nt_header->OptionalHeader32.AddressOfEntryPoint;
 
     entry_point += va;
+    img_pa = pa;
     img_size = size;
 
     return EFI_SUCCESS;

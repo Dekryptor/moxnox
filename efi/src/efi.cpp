@@ -7,8 +7,6 @@ EFI_BOOT_SERVICES* bs;
 
 static const EFI_GUID moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
-#define KERNEL_ADDR 0xfffff80000000000
-
 void print(const char16_t* s) {
     systable->ConOut->OutputString(systable->ConOut, (CHAR16*)s);
 }
@@ -502,7 +500,7 @@ static EFI_STATUS get_file_size(EFI_FILE_PROTOCOL& f, uint64_t& size) {
     return EFI_SUCCESS;
 }
 
-static EFI_STATUS load_kernel(EFI_FILE_PROTOCOL& root, uint64_t& entry_point, size_t& img_size) {
+static EFI_STATUS load_kernel(EFI_FILE_PROTOCOL& root, uint64_t& entry_point, uint64_t& img_pa, size_t& img_size) {
     EFI_STATUS status;
     EFI_FILE_PROTOCOL* kernel;
     EFI_PHYSICAL_ADDRESS addr;
@@ -541,7 +539,7 @@ static EFI_STATUS load_kernel(EFI_FILE_PROTOCOL& root, uint64_t& entry_point, si
         goto end2;
     }
 
-    status = load_pe((uint8_t*)addr, size, KERNEL_ADDR, entry_point, img_size);
+    status = load_pe((uint8_t*)addr, size, KERNEL_ADDR, entry_point, img_pa, img_size);
     if (EFI_ERROR(status)) {
         print_error(u"load_pe", status);
         goto end2;
@@ -607,7 +605,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     EFI_STATUS status;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
     EFI_FILE_PROTOCOL* root;
-    uint64_t entry_point, cr3;
+    uint64_t entry_point, cr3, img_pa;
     size_t img_size;
 
     systable = SystemTable;
@@ -632,7 +630,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end;
     }
 
-    status = load_kernel(*root, entry_point, img_size);
+    status = load_kernel(*root, entry_point, img_pa, img_size);
     if (EFI_ERROR(status)) {
         print_error(u"load_kernel", status);
         root->Close(root);
@@ -649,6 +647,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     }
 
     root->Close(root);
+
+    status = add_map_entry(img_pa, img_size, map_type::mem_image);
+    if (EFI_ERROR(status)) {
+        print_error(u"add_map_entry", status);
+        goto end;
+    }
 
     status = setup_paging(cr3);
     if (EFI_ERROR(status)) {

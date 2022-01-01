@@ -14,6 +14,8 @@
 #include <span>
 #include <string_view>
 
+#define KERNEL_ADDR 0xfffff80000000000
+
 #define IMAGE_DOS_SIGNATURE             0x5a4d // "MZ"
 #define IMAGE_NT_SIGNATURE              0x00004550 // "PE\0\0"
 
@@ -182,6 +184,24 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE);
 }
 
+enum class map_type { // FIXME - loaderblock.h
+    mem_free,
+    mem_reserved,
+    mem_bootloader,
+    mem_image,
+    mem_paging_table,
+    mem_stack,
+    mem_acpi,
+    mem_uefi_code,
+    mem_uefi_data
+};
+
+struct map_entry { // FIXME - loaderblock.h
+    uint64_t addr;
+    uint64_t len;
+    enum map_type type;
+} __attribute__((packed));
+
 // efi.cpp
 extern EFI_SYSTEM_TABLE* systable;
 extern EFI_BOOT_SERVICES* bs;
@@ -189,11 +209,12 @@ void print(const char16_t* s);
 void print_error(std::u16string_view func, EFI_STATUS status);
 
 // pe.cpp
-EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t& entry_point, size_t& img_size);
+EFI_STATUS load_pe(uint8_t* data, size_t data_size, uint64_t va, uint64_t& entry_point, uint64_t& img_pa, size_t& img_size);
 
 // mem.cpp
 EFI_STATUS get_memory_map();
 EFI_STATUS setup_paging(uint64_t& cr3);
+EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum map_type type);
 
 // efi.S
 extern "C" void start_kernel(uint64_t entry_point, uint64_t pml4t);

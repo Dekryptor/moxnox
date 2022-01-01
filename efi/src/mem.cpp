@@ -1,24 +1,6 @@
 #include <stdint.h>
 #include "efi.h"
 
-enum class map_type { // FIXME - loaderblock.h
-    mem_free,
-    mem_reserved,
-    mem_bootloader,
-    mem_image,
-    mem_paging_table,
-    mem_stack,
-    mem_acpi,
-    mem_uefi_code,
-    mem_uefi_data
-};
-
-struct map_entry { // FIXME - loaderblock.h
-    uint64_t addr;
-    uint64_t len;
-    enum map_type type;
-} __attribute__((packed));
-
 static map_entry map[256];
 static unsigned int num_map_entries = 0;
 
@@ -496,7 +478,13 @@ EFI_STATUS setup_paging(uint64_t& cr3) {
                     return status;
                 break;
 
-            // FIXME - mem_image
+            case map_type::mem_image:
+                status = do_map(KERNEL_ADDR, map_copy[i].addr, map_copy[i].len); // identity map
+
+                if (EFI_ERROR(status))
+                    return status;
+                break;
+
             // FIXME - mem_stack
 
             default:
@@ -513,6 +501,76 @@ EFI_STATUS setup_paging(uint64_t& cr3) {
     pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
 
     cr3 = (uintptr_t)pml4t;
+
+    return EFI_SUCCESS;
+}
+
+static void remove_map_entry(int i) {
+    memcpy(&map[i], &map[i+1], (num_map_entries - i - 1) * sizeof(map_entry));
+    num_map_entries--;
+}
+
+EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum map_type type) {
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        if (map[i].addr >= start && map[i].addr + map[i].len <= start + len) { // remove whole entry
+            remove_map_entry(i);
+            i--;
+        } else if (map[i].addr >= start && map[i].addr < start + len) { // remove start
+            map[i].len = map[i].addr + map[i].len - start - len;
+            map[i].addr = start + len;
+
+            if (map[i].len == 0) {
+                remove_map_entry(i);
+                i--;
+            }
+        } else if (map[i].addr + map[i].len > start && map[i].addr + map[i].len <= start + len) { // remove end
+            map[i].len = start - map[i].addr;
+
+            if (map[i].len == 0) {
+                remove_map_entry(i);
+                i--;
+            }
+        } else if (start > map[i].addr && start + len < map[i].addr + map[i].len) { // remove middle
+            if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+                print(u"Too many map entries.\r\n");
+                return EFI_INVALID_PARAMETER;
+            }
+
+            insert_map_entry(i);
+            num_map_entries++;
+
+            map[i].len = start - map[i].addr;
+            map[i+1].len = map[i+1].addr + map[i+1].len - start - len;
+            map[i+1].addr = start + len;
+        }
+    }
+
+    if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+        print(u"Too many map entries.\r\n");
+        return EFI_INVALID_PARAMETER;
+    }
+
+    if (start == 0) {
+        insert_map_entry(0);
+        map[0].addr = 0;
+        map[0].len = len;
+        map[0].type = type;
+        num_map_entries++;
+
+        return EFI_SUCCESS;
+    }
+
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        if (map[i].addr + map[i].len == start) {
+            insert_map_entry(i+1);
+
+            map[i+1].addr = start;
+            map[i+1].len = len;
+            map[i+1].type = type;
+
+            num_map_entries++;
+        }
+    }
 
     return EFI_SUCCESS;
 }
