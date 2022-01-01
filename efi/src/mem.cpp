@@ -211,6 +211,13 @@ static enum map_type map_efi_type(EFI_MEMORY_TYPE Type) {
     }
 }
 
+static void insert_map_entry(int i) {
+    // FIXME - memmove?
+    for (int j = num_map_entries - 1; j >= i; j--) {
+        memcpy(&map[j+1], &map[j], sizeof(map_entry));
+    }
+}
+
 EFI_STATUS get_memory_map() {
     EFI_STATUS status;
     UINTN map_size, key, descriptor_size;
@@ -256,9 +263,6 @@ EFI_STATUS get_memory_map() {
             return EFI_INVALID_PARAMETER;
         }
 
-        // FIXME - map EFI type to our type
-        // FIXME - add to mapping array
-
         me.addr = m.PhysicalStart;
         me.len = m.NumberOfPages << EFI_PAGE_SHIFT;
         me.type = map_efi_type((EFI_MEMORY_TYPE)m.Type);
@@ -275,7 +279,47 @@ EFI_STATUS get_memory_map() {
 
     // FIXME - do we need to order memory map, and resolve any overlaps?
 
-    // FIXME - add missing entries to mapping array
+    // add missing entries
+    if (map[0].addr != 0) {
+        if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+            print(u"Too many entries in memory map.\r\n");
+            return EFI_INVALID_PARAMETER;
+        }
+
+        insert_map_entry(0);
+
+        map[0].addr = 0;
+        map[0].len = map[1].addr;
+        map[0].type = map_type::mem_reserved;
+    } else {
+        if (map[0].type != map_type::mem_reserved) { // snatch first page
+            insert_map_entry(0);
+
+            map[0].addr = 0;
+            map[0].len = EFI_PAGE_SIZE;
+            map[0].type = map_type::mem_reserved;
+
+            map[1].addr += EFI_PAGE_SIZE;
+            map[1].len -= EFI_PAGE_SIZE;
+        }
+    }
+
+    for (unsigned int i = 0; i < num_map_entries - 1; i++) {
+        if (map[i].addr + map[i].len < map[i+1].addr) {
+            if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+                print(u"Too many entries in memory map.\r\n");
+                return EFI_INVALID_PARAMETER;
+            }
+
+            insert_map_entry(i+1);
+
+            map[i+1].addr = map[i].addr + map[i].len;
+            map[i+1].len = map[i+2].addr - map[i+1].addr;
+            map[i+1].type = map_type::mem_reserved;
+
+            num_map_entries++;
+        }
+    }
 
     // merge entries with same type
     for (unsigned int i = 1; i < num_map_entries; i++) {
@@ -289,7 +333,10 @@ EFI_STATUS get_memory_map() {
             num_map_entries--;
         }
     }
-    // FIXME - remove final entry if inaccessible
+
+    // remove final entry if inaccessible
+    if (map[num_map_entries - 1].type == map_type::mem_reserved)
+        num_map_entries--;
 
     for (unsigned int i = 0; i < num_map_entries; i++) {
         const auto& me = map[i];
