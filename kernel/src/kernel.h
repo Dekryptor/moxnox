@@ -194,3 +194,10 @@ void utf16_to_utf8(std::span<char> buf, std::u16string_view u16sv);
 
 // syscalls.S
 extern "C" void init_syscalls();
+
+// serial.cpp
+bool init_serial();
+
+// serial.S
+extern "C" bool init_serial_port(uint16_t port);
+extern "C" void serial_isr();

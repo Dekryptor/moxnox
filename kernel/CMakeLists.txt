@@ -33,7 +33,9 @@ set(SRC_FILES src/kernel.cpp
     src/section.cpp
     src/string.cpp
     src/syscalls.S
-    src/syscalls.cpp)
+    src/syscalls.cpp
+    src/serial.cpp
+    src/serial.S)
 
 add_executable(kernel ${SRC_FILES})
 

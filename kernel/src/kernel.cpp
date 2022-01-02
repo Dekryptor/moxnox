@@ -103,6 +103,8 @@ void main_thread() {
 
     init_smp();
 
+    init_serial();
+
     protect_kernel_pages();
 
     init_pci();
@@ -148,10 +150,10 @@ void startup(loader_block* lb) {
     if (!init_cpu_block(true, current_cpu_id()))
         goto hang;
 
-    print = safe_print;
-
     if (!init_console_pipe())
         goto hang;
+
+    print = safe_print;
 
     if (!init_interrupts())
         goto hang;
