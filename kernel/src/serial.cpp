@@ -17,8 +17,9 @@ public:
     uint16_t port;
 };
 
-static unique_handle com1_pipe_handle;
 static serial_pipe* com1_pipe = nullptr;
+
+unique_handle com1_pipe_handle;
 
 static unique_handle create_serial_pipe(unsigned int buffer_pages, uint16_t port) {
     auto pptr = new serial_pipe(buffer_pages, port);
@@ -71,8 +72,6 @@ bool init_serial() {
 
     // IRQ 4 = COM1 and COM3
     add_irq_handler(4, serial_interrupt, local_apic_id);
-
-    write(com1_pipe_handle.get(), "hello");
 
     return true;
 }

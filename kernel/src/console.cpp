@@ -89,6 +89,9 @@ static void early_print(string_view s) {
 
 void safe_print(string_view s) {
     write(console_pipe.get(), s);
+
+    if (com1_pipe_handle)
+        write(com1_pipe_handle.get(), s);
 }
 
 void print_hex(uint64_t num, unsigned int padding) {
