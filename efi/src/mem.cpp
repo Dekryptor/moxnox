@@ -327,19 +327,6 @@ EFI_STATUS get_memory_map() {
     if (map[num_map_entries - 1].type == map_type::mem_reserved)
         num_map_entries--;
 
-    for (unsigned int i = 0; i < num_map_entries; i++) {
-        const auto& me = map[i];
-
-        print_hex(me.addr);
-        print(u", ");
-        print_hex(me.len);
-        print(u", ");
-        print_hex((uint64_t)me.type);
-        print(u"; ");
-    }
-
-    print(u"\r\n");
-
     return EFI_SUCCESS;
 }
 
