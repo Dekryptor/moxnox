@@ -150,6 +150,9 @@ void startup(loader_block* lb) {
 
     print = safe_print;
 
+    if (!init_console_pipe())
+        goto hang;
+
     if (!init_interrupts())
         goto hang;
 

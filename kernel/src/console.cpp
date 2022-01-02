@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "spinlock.h"
+#include "unique_handle.h"
 #include <span>
 #include <cstring>
 #include <bit>
@@ -35,10 +36,12 @@ static const uint64_t CONSOLE_PA = 0xb8000;
 
 static span<uint16_t> video;
 static uint8_t cursor_x = 0, cursor_y = 0;
-static spinlock console_lock;
 
 static void early_print(string_view s);
 decltype(&safe_print) print = early_print;
+
+static unique_handle console_pipe;
+static const unsigned int console_buffer_pages = 4;
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -85,9 +88,7 @@ static void early_print(string_view s) {
 }
 
 void safe_print(string_view s) {
-    lock_guard lock(console_lock);
-
-    early_print(s);
+    write(console_pipe.get(), s);
 }
 
 void print_hex(uint64_t num, unsigned int padding) {
@@ -115,6 +116,40 @@ bool init_console() {
     memset(video.data(), 0, video.size_bytes());
 
     print("Hello\nworld\n");
+
+    return true;
+}
+
+static void console_event_recv() {
+    do {
+        uint8_t s[255];
+        wait_for_object(console_pipe.get());
+
+        auto ret = read(console_pipe.get(), s);
+
+        // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
+
+        if (ret != 0)
+            early_print(string_view((char*)s, ret));
+    } while (true);
+}
+
+bool init_console_pipe() {
+    console_pipe = create_pipe(console_buffer_pages);
+    if (!console_pipe) {
+        print("create_pipe failed\n");
+        return false;
+    }
+
+    if (!name_object(console_pipe.get(), "tty")) {
+        print("name_object failed\n");
+        return false;
+    }
+
+    if (!add_kernel_thread(console_event_recv)) {
+        print("add_kernel_thread failed\n");
+        return false;
+    }
 
     return true;
 }
