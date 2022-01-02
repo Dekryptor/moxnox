@@ -7,7 +7,7 @@
 class pipe : public object {
 public:
     pipe(unsigned int buffer_pages);
-    ~pipe();
+    virtual ~pipe();
 
     void acquire() {
         refcount++;
@@ -20,7 +20,7 @@ public:
 
     size_t read(std::span<uint8_t> s);
 
-    void write(std::span<const uint8_t> s);
+    virtual void write(std::span<const uint8_t> s);
 
     void write(std::string_view sv) {
         write(std::span((uint8_t*)sv.data(), sv.length()));
