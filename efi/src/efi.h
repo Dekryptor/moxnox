@@ -205,7 +205,8 @@ enum class map_type { // FIXME - loaderblock.h
     mem_stack,
     mem_acpi,
     mem_uefi_code,
-    mem_uefi_data
+    mem_uefi_data,
+    mem_framebuffer
 };
 
 struct map_entry { // FIXME - loaderblock.h

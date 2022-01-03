@@ -701,8 +701,6 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
             goto end;
         }
 
-        // FIXME - reserve memory
-
         lb.fb_pa = (void*)(uintptr_t)gop->Mode->FrameBufferBase;
         lb.fb_width = gop->Mode->Info->HorizontalResolution;
         lb.fb_height = gop->Mode->Info->VerticalResolution;
@@ -793,6 +791,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     }
 
     status = add_map_entry(stack, KERNEL_STACK_PAGES << EFI_PAGE_SHIFT, map_type::mem_stack);
+    if (EFI_ERROR(status)) {
+        print_error(u"add_map_entry", status);
+        goto end;
+    }
+
+    status = add_map_entry((uintptr_t)lb.fb_pa, bytes_to_pages(lb.fb_pixels_per_scan_line * lb.fb_height * 4) << EFI_PAGE_SHIFT, map_type::mem_framebuffer);
     if (EFI_ERROR(status)) {
         print_error(u"add_map_entry", status);
         goto end;
