@@ -11,6 +11,7 @@
 #include <efigpt.h>
 #include <string.h>
 #include "partinfo.h"
+#include "loaderblock.h"
 #include <span>
 #include <string_view>
 
@@ -195,35 +196,6 @@ struct RSDP_DESCRIPTOR {
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE);
 }
-
-enum class map_type { // FIXME - loaderblock.h
-    mem_free,
-    mem_reserved,
-    mem_bootloader,
-    mem_image,
-    mem_paging_table,
-    mem_stack,
-    mem_acpi,
-    mem_uefi_code,
-    mem_uefi_data,
-    mem_framebuffer
-};
-
-struct map_entry { // FIXME - loaderblock.h
-    uint64_t addr;
-    uint64_t len;
-    enum map_type type;
-} __attribute__((packed));
-
-struct loader_block { // FIXME - loaderblock.h
-    map_entry* map;
-    uint32_t num_map_entries;
-    uint64_t rsdt_pa;
-    void* fb_pa;
-    uint32_t fb_width;
-    uint32_t fb_height;
-    uint32_t fb_pixels_per_scan_line;
-} __attribute__((packed));
 
 // efi.cpp
 extern EFI_SYSTEM_TABLE* systable;
