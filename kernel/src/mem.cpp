@@ -1,4 +1,4 @@
-#include "../../bootloader/src/loaderblock.h"
+#include "../../efi/src/loaderblock.h"
 #include "kernel.h"
 #include "acpi.h"
 #include "mem.h"

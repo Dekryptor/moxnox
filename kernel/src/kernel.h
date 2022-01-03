@@ -11,7 +11,7 @@
 #define PAGE_SIZE 4096
 #define PAGE_SHIFT 12
 
-typedef struct _loader_block loader_block;
+struct loader_block;
 class thread;
 class object;
 typedef struct _amd64_context amd64_context;
