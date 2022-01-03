@@ -164,6 +164,8 @@ bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per
         fb_width = width;
         fb_height = height;
         fb_pixels_per_scan_line = pixels_per_scan_line;
+
+        memset(framebuffer.data(), 0, framebuffer.size_bytes());
     }
 
     print("Hello\nworld\n");
@@ -252,26 +254,45 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y) {
     FT_Error error;
 
     // FIXME - colour
+    // FIXME - fb_y should be baseline?
+
+    if (fb_y >= fb_height)
+        return;
 
     error = FT_Load_Char(face, cp, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
     if (error)
         return; // FIXME - if not found, print Unicode replacement character?
 
-    // FIXME - don't overflow screen (left or right)
-
     auto& bitmap = face->glyph->bitmap;
     auto buf = bitmap.buffer;
     auto base = framebuffer.data() + (fb_y * fb_pixels_per_scan_line) + fb_x;
 
-    for (unsigned int y = 0; y < bitmap.rows; y++) {
-        for (unsigned int x = 0; x < bitmap.width; x++) {
+    auto width = bitmap.width;
+    if (fb_x + face->glyph->bitmap_left + width > fb_width)
+        width = fb_width - fb_x - face->glyph->bitmap_left;
+
+    unsigned int y = fb_y;
+
+    if ((int)fb_y < face->glyph->bitmap_top) {
+        y += face->glyph->bitmap_top - fb_y;
+        buf += bitmap.width * (face->glyph->bitmap_top - fb_y);
+    }
+
+    while (y < min(fb_y + bitmap.rows, fb_height)) {
+        if (y - face->glyph->bitmap_top >= fb_height)
+            break;
+
+        for (unsigned int x = 0; x < width; x++) {
             if (*buf != 0)
                 base[x] = (*buf << 16) | (*buf << 8) | *buf;
 
             buf++;
         }
 
+        buf += bitmap.width - width;
+
         base += fb_pixels_per_scan_line;
+        y++;
     }
 }
 
@@ -367,9 +388,9 @@ bool init_fb_console() {
     // FIXME - work out monospace width and height of framebuffer console
 
     // FIXME
-    draw_ft_char('A', 50, 50);
-    draw_ft_char('B', 90, 50);
-    draw_ft_char('C', 130, 50);
+    draw_ft_char('A', 0, 50);
+    draw_ft_char('B', 2552, 100);
+    draw_ft_char('C', 130, 1592);
 
     return true;
 }
