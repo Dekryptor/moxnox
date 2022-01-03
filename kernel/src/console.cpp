@@ -248,6 +248,33 @@ void FT_Done_Memory(FT_Memory memory) {
     free(memory);
 }
 
+static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y) {
+    FT_Error error;
+
+    // FIXME - colour
+
+    error = FT_Load_Char(face, cp, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
+    if (error)
+        return; // FIXME - if not found, print Unicode replacement character?
+
+    // FIXME - don't overflow screen (left or right)
+
+    auto& bitmap = face->glyph->bitmap;
+    auto buf = bitmap.buffer;
+    auto base = framebuffer.data() + (fb_y * fb_pixels_per_scan_line) + fb_x;
+
+    for (unsigned int y = 0; y < bitmap.rows; y++) {
+        for (unsigned int x = 0; x < bitmap.width; x++) {
+            if (*buf != 0)
+                base[x] = (*buf << 16) | (*buf << 8) | *buf;
+
+            buf++;
+        }
+
+        base += fb_pixels_per_scan_line;
+    }
+}
+
 bool init_fb_console() {
     FT_Error error;
 
@@ -326,7 +353,7 @@ bool init_fb_console() {
     free(font_data);
 
     // FIXME - font size
-    error = FT_Set_Char_Size(face, 12 * 64, 0, 72, 0); // FIXME - get DPI from EDID
+    error = FT_Set_Char_Size(face, 24 * 64, 0, 72, 0); // FIXME - get DPI from EDID
     if (error) {
         print("FT_Set_Char_Size failed (");
         print_hex(error);
@@ -336,6 +363,13 @@ bool init_fb_console() {
     }
 
     font_height = face->size->metrics.height / 64;
+
+    // FIXME - work out monospace width and height of framebuffer console
+
+    // FIXME
+    draw_ft_char('A', 50, 50);
+    draw_ft_char('B', 90, 50);
+    draw_ft_char('C', 130, 50);
 
     return true;
 }
