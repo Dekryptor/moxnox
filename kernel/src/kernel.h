@@ -75,7 +75,7 @@ void free_lower_half_mappings();
 void invalidate_tlb();
 
 // console.cpp
-bool init_console();
+bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per_scan_line);
 bool init_console_pipe();
 void safe_print(std::string_view s);
 extern decltype(&safe_print) print;

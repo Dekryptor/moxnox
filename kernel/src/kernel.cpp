@@ -127,12 +127,16 @@ void main_thread() {
 
 extern "C"
 void startup(loader_block* lb) {
+    decltype(lb->framebuffer) fb;
+
     // FIXME - should restart if anything fails before we can show error message
 
     {
         volatile int wait = 1;
         while (wait) { }
     }
+
+    memcpy(&fb, &lb->framebuffer, sizeof(fb));
 
     if (!init_memory(*lb))
         goto hang;
@@ -144,7 +148,7 @@ void startup(loader_block* lb) {
     if (!init_vablock())
         goto hang;
 
-    if (!init_console())
+    if (!init_console(fb.pa, fb.width, fb.height, fb.pixels_per_scan_line))
         goto hang;
 
     if (!init_cpu_block(true, current_cpu_id()))
