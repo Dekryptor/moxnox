@@ -50,6 +50,7 @@ static span<uint32_t> framebuffer;
 static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static FT_Face face = nullptr;
+static unsigned int font_height;
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -323,6 +324,18 @@ bool init_fb_console() {
     }
 
     free(font_data);
+
+    // FIXME - font size
+    error = FT_Set_Char_Size(face, 12 * 64, 0, 72, 0); // FIXME - get DPI from EDID
+    if (error) {
+        print("FT_Set_Char_Size failed (");
+        print_hex(error);
+        print(")\n");
+
+        return false;
+    }
+
+    font_height = face->size->metrics.height / 64;
 
     return true;
 }
