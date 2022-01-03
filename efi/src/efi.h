@@ -218,6 +218,10 @@ struct loader_block { // FIXME - loaderblock.h
     map_entry* map;
     uint32_t num_map_entries;
     uint64_t rsdt_pa;
+    void* fb_pa;
+    uint32_t fb_width;
+    uint32_t fb_height;
+    uint32_t fb_pixels_per_scan_line;
 } __attribute__((packed));
 
 // efi.cpp

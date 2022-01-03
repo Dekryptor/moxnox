@@ -651,6 +651,77 @@ static EFI_STATUS find_acpi_tables(uint64_t& addr) {
     return EFI_SUCCESS;
 }
 
+static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
+    EFI_GUID guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+    EFI_HANDLE* handles = NULL;
+    UINTN count;
+    EFI_STATUS status;
+
+    status = bs->LocateHandleBuffer(ByProtocol, &guid, NULL, &count, &handles);
+    if (EFI_ERROR(status))
+        return status;
+
+    for (unsigned int i = 0; i < count; i++) {
+        EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = NULL;
+        unsigned int mode = 0;
+        unsigned int pixels = 0;
+
+        status = bs->OpenProtocol(handles[i], &guid, (void**)&gop, image_handle, NULL,
+                                  EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+        if (EFI_ERROR(status)) {
+            print_error(u"OpenProtocol", status);
+            continue;
+        }
+
+        for (unsigned int j = 0; j < gop->Mode->MaxMode; j++) {
+            UINTN size;
+            EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info;
+
+            status = gop->QueryMode(gop, j, &size, &info);
+            if (EFI_ERROR(status)) {
+                print_error(u"QueryMode", status);
+                continue;
+            }
+
+            // choose the best mode
+            // FIXME - allow user to override this?
+
+            if (info->PixelFormat == PixelBlueGreenRedReserved8BitPerColor &&
+                info->HorizontalResolution != info->VerticalResolution && // ignore the square resolutions that Qemu offers
+                info->HorizontalResolution * info->VerticalResolution > pixels) {
+                mode = j;
+                pixels = info->HorizontalResolution * info->VerticalResolution;
+            }
+        }
+
+        status = gop->SetMode(gop, mode);
+        if (EFI_ERROR(status)) {
+            print_error(u"SetMode", status);
+            bs->CloseProtocol(handles[i], &guid, image_handle, NULL);
+            goto end;
+        }
+
+        // FIXME - reserve memory
+
+        lb.fb_pa = (void*)(uintptr_t)gop->Mode->FrameBufferBase;
+        lb.fb_width = gop->Mode->Info->HorizontalResolution;
+        lb.fb_height = gop->Mode->Info->VerticalResolution;
+        lb.fb_pixels_per_scan_line = gop->Mode->Info->PixelsPerScanLine;
+
+        bs->CloseProtocol(handles[i], &guid, image_handle, NULL);
+
+        status = EFI_SUCCESS;
+        goto end;
+    }
+
+    status = EFI_NOT_FOUND;
+
+end:
+    bs->FreePool(handles);
+
+    return status;
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable) {
     EFI_STATUS status;
@@ -700,6 +771,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     status = find_acpi_tables(acpi_tables);
     if (EFI_ERROR(status)) {
         print_error(u"find_acpi_tables", status);
+        goto end;
+    }
+
+    status = init_framebuffer(ImageHandle);
+    if (EFI_ERROR(status)) {
+        print_error(u"init_framebuffer", status);
         goto end;
     }
 
