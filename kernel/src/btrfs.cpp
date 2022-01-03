@@ -607,6 +607,8 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) 
         return;
     }
 
+    file_size = ii.st_size;
+
     valid = true;
 }
 
@@ -864,11 +866,11 @@ size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
     uint64_t lastoff = offset;
     size_t read = 0;
 
-    if (offset > ii.st_size || s.empty())
+    if (offset > file_size || s.empty())
         return 0;
 
-    if (offset + s.size() > ii.st_size)
-        s = s.subspan(ii.st_size - offset);
+    if (offset + s.size() > file_size)
+        s = s.subspan(file_size - offset);
 
     auto le = extents.next;
     while (le != &extents) {
