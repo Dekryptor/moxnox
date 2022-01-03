@@ -111,11 +111,11 @@ Llong_mode:
     # set stack (KERNEL_STACK | ((ap_id * KERNEL_STACK_PAGES) << PAGE_SHIFT))
     and ebx, 0xff
     movabs rsp, 0xfffff90000000000
-    shl rbx, 14 # ap_id *= 0x4000 (KERNEL_STACKPAGES << PAGE_SHIFT)
+    shl rbx, 15 # ap_id *= 0x8000 (KERNEL_STACK_PAGES << PAGE_SHIFT)
     or rsp, rbx
 
     # add (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20 (0x20 bytes for MS ABI)
-    add rsp, 0x3fe0
+    add rsp, 0x7fe0
 
     mov rax, [ap_trampoline_start_func - ap_trampoline]
     jmp rax

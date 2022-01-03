@@ -27,7 +27,7 @@ class filesystem;
 
 static const uint32_t PIT_HZ = 1193182;
 
-static const unsigned int KERNEL_STACK_PAGES = 4; // 16KB
+static const unsigned int KERNEL_STACK_PAGES = 8; // 32KB
 static const unsigned int KERNEL_GUARD_PAGES = 1;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
