@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "spinlock.h"
 #include "unique_handle.h"
+#include "objects.h"
 #include <span>
 #include <cstring>
 #include <bit>
@@ -46,7 +47,9 @@ static unique_handle console_pipe;
 static const unsigned int console_buffer_pages = 4;
 
 static span<uint32_t> framebuffer;
+static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
+static FT_Face face = nullptr;
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -156,6 +159,10 @@ bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per
                 return false;
             }
         }
+
+        fb_width = width;
+        fb_height = height;
+        fb_pixels_per_scan_line = pixels_per_scan_line;
     }
 
     print("Hello\nworld\n");
@@ -243,8 +250,6 @@ void FT_Done_Memory(FT_Memory memory) {
 bool init_fb_console() {
     FT_Error error;
 
-    // FIXME - load console.ttf to memory
-
     error = FT_Init_FreeType(&ft);
     if (error) {
         print("FT_Init_FreeType failed (");
@@ -253,6 +258,71 @@ bool init_fb_console() {
 
         return false;
     }
+
+    // load console.ttf to memory
+
+    auto file = open_file("/console.ttf");
+    if (!file) {
+        print("open_file failed\n");
+        return false;
+    }
+
+    optional<uint64_t> file_size;
+
+    {
+        auto objrw = deref_handle(file.get());
+        if (!objrw) {
+            // FIXME - exception
+            print("No such handle\n");
+            return false;
+        }
+
+        auto& obj = objrw->get();
+
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_same_v<remove_reference_t<decltype(o)>, inode>)
+                file_size = o.file_size;
+
+            o.release();
+        });
+    }
+
+    if (!file_size) {
+        print("Could not get size of font file\n");
+        return false;
+    }
+
+    if (file_size == 0) {
+        print("Font file was empty\n");
+        return false;
+    }
+
+    auto font_data = malloc(*file_size);
+    if (!font_data) {
+        print("malloc failed\n");
+        return false;
+    }
+
+    if (read(file.get(), span((uint8_t*)font_data, *file_size), 0) < *file_size) {
+        free(font_data);
+        print("read failed\n");
+        return false;
+    }
+
+    file.reset();
+
+    error = FT_New_Memory_Face(ft, (uint8_t*)font_data, (FT_Long)*file_size, 0, &face);
+    if (error) {
+        free(font_data);
+
+        print("FT_New_Memory_Face failed (");
+        print_hex(error);
+        print(")\n");
+
+        return false;
+    }
+
+    free(font_data);
 
     return true;
 }
