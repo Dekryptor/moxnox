@@ -38,7 +38,7 @@ static const enum console_colour bg_colour = console_colour::black;
 static const uint64_t CONSOLE_PA = 0xb8000;
 
 static span<uint16_t> text_console;
-static uint8_t cursor_x = 0, cursor_y = 0;
+static unsigned int cursor_x = 0, cursor_y = 0;
 
 static void early_print(string_view s);
 decltype(&safe_print) print = early_print;
@@ -46,7 +46,7 @@ decltype(&safe_print) print = early_print;
 static unique_handle console_pipe;
 static const unsigned int console_buffer_pages = 4;
 
-static span<uint32_t> framebuffer;
+static span<uint32_t> framebuffer, shadow_framebuffer;
 static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static FT_Face face = nullptr;
@@ -84,7 +84,7 @@ static void text_console_print(string_view s) {
             if (cursor_y == ROWS)
                 text_console_overflow();
         } else {
-            text_console_putc(cursor_x, cursor_y, c);
+            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c);
 
             cursor_x++;
 
@@ -96,6 +96,19 @@ static void text_console_print(string_view s) {
                     text_console_overflow();
             }
         }
+    }
+}
+
+static void blit(unsigned int x, unsigned int y, unsigned int w, unsigned int h) {
+    auto src = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + x;
+    auto dst = framebuffer.data() + (y * fb_pixels_per_scan_line) + x;
+
+    while (h > 0) {
+        memcpy(dst, src, w * sizeof(uint32_t));
+
+        src += fb_pixels_per_scan_line;
+        dst += fb_pixels_per_scan_line;
+        h--;
     }
 }
 
@@ -129,7 +142,8 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y) {
     if (bottom > (int)fb_height)
         bottom = fb_height;
 
-    auto base = framebuffer.data() + (y * fb_pixels_per_scan_line) + fb_x + face->glyph->bitmap_left;
+    auto orig_y = y;
+    auto base = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + fb_x + face->glyph->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
@@ -144,6 +158,20 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y) {
         base += fb_pixels_per_scan_line;
         y++;
     }
+
+    blit(fb_x + face->glyph->bitmap_left, orig_y, width, bottom - orig_y);
+}
+
+static void fb_console_overflow() {
+    auto src = shadow_framebuffer.data() + (fb_pixels_per_scan_line * font_height);
+    auto dest = shadow_framebuffer.data();
+
+    memcpy(dest, src, fb_pixels_per_scan_line * (fb_height - font_height) * sizeof(uint32_t));
+    dest += fb_pixels_per_scan_line * (fb_height - font_height);
+
+    memset(dest, 0, fb_pixels_per_scan_line * font_height * sizeof(uint32_t)); // black
+
+    memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 }
 
 static void early_print(string_view s) {
@@ -160,10 +188,10 @@ static void early_print(string_view s) {
             cursor_x = 0;
             cursor_y++;
 
-            // FIXME - overflow
-
-//             if (cursor_y == fb_console_rows)
-//                 text_console_overflow();
+            if (cursor_y == fb_console_rows) {
+                fb_console_overflow();
+                cursor_y = fb_console_rows - 1;
+            }
         } else {
             // FIXME - UTF-8
 
@@ -175,10 +203,10 @@ static void early_print(string_view s) {
                 cursor_x = 0;
                 cursor_y++;
 
-                // FIXME - overflow
-
-//                 if (cursor_y == fb_console_rows)
-//                     text_console_overflow();
+                if (cursor_y == fb_console_rows) {
+                    fb_console_overflow();
+                    cursor_y = fb_console_rows - 1;
+                }
             }
         }
     }
@@ -240,11 +268,33 @@ bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per
             }
         }
 
+        va = allocate_va(pages);
+        if (!va) {
+            print("allocate_va failed\n");
+            return false;
+        }
+
+        shadow_framebuffer = span((uint32_t*)va, pixels_per_scan_line * height);
+
+        for (unsigned int i = 0; i < pages; i++) {
+            auto pa = allocate_page();
+            if (!pa) {
+                print("allocate_page failed\n");
+                return false;
+            }
+
+            if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
+                print("map_page failed\n");
+                return false;
+            }
+        }
+
         fb_width = width;
         fb_height = height;
         fb_pixels_per_scan_line = pixels_per_scan_line;
 
         memset(framebuffer.data(), 0, framebuffer.size_bytes());
+        memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());
     }
 
     print("Hello\nworld\n");
@@ -428,8 +478,8 @@ bool init_fb_console() {
     font_width = face->glyph->bitmap.width;
     font_height = face->size->metrics.height / 64;
 
-    fb_console_rows = fb_width / font_width;
-    fb_console_cols = fb_height / font_height;
+    fb_console_cols = fb_width / font_width;
+    fb_console_rows = fb_height / font_height;
 
     cursor_x = cursor_y = 0;
 
