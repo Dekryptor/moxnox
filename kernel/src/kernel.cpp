@@ -111,9 +111,12 @@ void main_thread() {
     // FIXME - NVMe
     // FIXME - USB
 
-    add_kernel_thread(keyboard_echo, nullptr);
-
     mount_root();
+
+    if (!init_fb_console())
+        print("init_fb_console failed\n");
+
+    add_kernel_thread(keyboard_echo, nullptr);
 
     auto init = create_process("/init.exe");
     if (!init)

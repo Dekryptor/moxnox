@@ -39,6 +39,7 @@ set(SRC_FILES src/kernel.cpp
 
 add_definitions(-DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 add_subdirectory(freetype)
+target_compile_options(freetype PRIVATE -mno-stack-arg-probe)
 
 add_executable(kernel ${SRC_FILES})
 include_directories(freetype/include)

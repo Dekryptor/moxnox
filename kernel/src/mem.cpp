@@ -1012,3 +1012,123 @@ void* memchr(const void* ptr, int ch, size_t count) {
 
     return nullptr;
 }
+
+int strcmp(const char* s1, const char* s2) {
+    size_t i = 0;
+
+    while (true) {
+        char c1 = s1[i];
+        char c2 = s2[i];
+
+        if (c1 == 0 && c2 == 0)
+            return 0;
+        else if (c1 == 0)
+            return -1;
+        else if (c2 == 0)
+            return 1;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        i++;
+    }
+}
+
+char* strcpy(char* dest, const char* src) {
+    char* orig_dest = dest;
+
+    while (*src != 0) {
+        *dest = *src;
+        src++;
+        dest++;
+    }
+
+    *dest = 0;
+
+    return orig_dest;
+}
+
+long int strtol(const char* nptr, char** endptr, int base) {
+    long int val;
+
+    while (*nptr == ' ' || *nptr == '\t') {
+        nptr++;
+    }
+
+    val = 0;
+
+    while (true) {
+        if (*nptr >= '0' && *nptr <= '9') {
+            val *= base;
+            val += *nptr - '0';
+        } else {
+            if (endptr)
+                *endptr = (char*)nptr;
+
+            return val;
+        }
+
+        nptr++;
+    }
+}
+
+char* strstr(const char* haystack, const char* needle) {
+    size_t len = strlen(needle);
+
+    while (true) {
+        bool found = true;
+
+        for (size_t i = 0; i < len; i++) {
+            if (haystack[i] == 0)
+                return nullptr;
+
+            if (haystack[i] != needle[i]) {
+                found = false;
+                break;
+            }
+        }
+
+        if (found)
+            return (char*)haystack;
+
+        haystack++;
+    }
+
+    return nullptr;
+}
+
+void* memmove(void* dest, const void* src, size_t n) {
+    auto orig_dest = dest;
+
+    while (n > 0) {
+        *(uint8_t*)dest = *(uint8_t*)src;
+
+        dest = (uint8_t*)dest + 1;
+        src = (uint8_t*)src + 1;
+
+        n--;
+    }
+
+    return orig_dest;
+}
+
+int strncmp(const char* s1, const char* s2, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        char c1 = s1[i];
+        char c2 = s2[i];
+
+        if (c1 == 0 && c2 == 0)
+            return 0;
+        else if (c1 == 0)
+            return -1;
+        else if (c2 == 0)
+            return 1;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        i++;
+    }
+
+    return 0;
+}

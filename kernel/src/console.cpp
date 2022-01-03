@@ -4,6 +4,8 @@
 #include <span>
 #include <cstring>
 #include <bit>
+#include <ft2build.h>
+#include <freetype/freetype.h>
 
 using namespace std;
 
@@ -44,6 +46,7 @@ static unique_handle console_pipe;
 static const unsigned int console_buffer_pages = 4;
 
 static span<uint32_t> framebuffer;
+static FT_Library ft = nullptr;
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -188,6 +191,66 @@ bool init_console_pipe() {
 
     if (!add_kernel_thread(console_event_recv)) {
         print("add_kernel_thread failed\n");
+        return false;
+    }
+
+    return true;
+}
+
+static void* ft_alloc(FT_Memory, long size) {
+    return malloc(size);
+}
+
+static void* ft_realloc(FT_Memory, long cur_size, long new_size, void* block) {
+    void* ret;
+
+    ret = malloc(new_size);
+    if (!ret)
+        return nullptr;
+
+    memcpy(ret, block, cur_size < new_size ? new_size : cur_size);
+
+    free(block);
+
+    return ret;
+}
+
+static void ft_free(FT_Memory, void* block) {
+    free(block);
+}
+
+extern "C"
+FT_Memory FT_New_Memory() {
+    auto ptr = (FT_MemoryRec_*)malloc(sizeof(FT_MemoryRec_));
+    if (!ptr)
+        return nullptr;
+
+    auto& memory = *ptr;
+
+    memory.user = nullptr;
+    memory.alloc = ft_alloc;
+    memory.realloc = ft_realloc;
+    memory.free = ft_free;
+
+    return &memory;
+}
+
+extern "C"
+void FT_Done_Memory(FT_Memory memory) {
+    free(memory);
+}
+
+bool init_fb_console() {
+    FT_Error error;
+
+    // FIXME - load console.ttf to memory
+
+    error = FT_Init_FreeType(&ft);
+    if (error) {
+        print("FT_Init_FreeType failed (");
+        print_hex(error);
+        print(")\n");
+
         return false;
     }
 

@@ -80,6 +80,7 @@ bool init_console_pipe();
 void safe_print(std::string_view s);
 extern decltype(&safe_print) print;
 void print_hex(uint64_t num, unsigned int padding = 0);
+bool init_fb_console();
 
 // interrupts.cpp
 extern volatile uint8_t* const local_apic;
