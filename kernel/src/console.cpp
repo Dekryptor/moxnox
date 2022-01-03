@@ -54,6 +54,8 @@ static void* font_data;
 static unsigned int font_width, font_height;
 static unsigned int fb_console_rows, fb_console_cols;
 static bool fb_console_started = false;
+static uint8_t utf8_buf[5];
+static unsigned int utf8_chars = 0;
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -174,6 +176,32 @@ static void fb_console_overflow() {
     memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 }
 
+static void print_char(char32_t c) {
+    if (c == '\n') {
+        cursor_x = 0;
+        cursor_y++;
+
+        if (cursor_y == fb_console_rows) {
+            fb_console_overflow();
+            cursor_y = fb_console_rows - 1;
+        }
+    } else {
+        draw_ft_char(c, cursor_x * font_width, (cursor_y + 1) * font_height);
+
+        cursor_x++;
+
+        if (cursor_x == fb_console_cols) {
+            cursor_x = 0;
+            cursor_y++;
+
+            if (cursor_y == fb_console_rows) {
+                fb_console_overflow();
+                cursor_y = fb_console_rows - 1;
+            }
+        }
+    }
+}
+
 static void early_print(string_view s) {
     if (framebuffer.empty()) {
         text_console_print(s);
@@ -184,31 +212,87 @@ static void early_print(string_view s) {
         return;
 
     for (auto c : s) {
-        if (c == '\n') {
-            cursor_x = 0;
-            cursor_y++;
-
-            if (cursor_y == fb_console_rows) {
-                fb_console_overflow();
-                cursor_y = fb_console_rows - 1;
+        if (utf8_chars != 0) {
+            if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
+                print_char(0xfffd);
+                print_char(c);
+                utf8_chars = 0;
+                continue;
             }
-        } else {
-            // FIXME - UTF-8
 
-            draw_ft_char(c, cursor_x * font_width, (cursor_y + 1) * font_height);
+            utf8_buf[utf8_chars] = c;
+            utf8_chars++;
 
-            cursor_x++;
-
-            if (cursor_x == fb_console_cols) {
-                cursor_x = 0;
-                cursor_y++;
-
-                if (cursor_y == fb_console_rows) {
-                    fb_console_overflow();
-                    cursor_y = fb_console_rows - 1;
+            if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
+                if ((utf8_buf[1] & 0xc0) != 0x80) {
+                    print_char(0xfffd);
+                    utf8_chars = 0;
+                    continue;
                 }
+
+                char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
+
+                print_char(c);
+                utf8_chars = 0;
+                continue;
+            } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
+                if (utf8_chars == 2) {
+                    if ((utf8_buf[1] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else {
+                    if ((utf8_buf[2] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                        continue;
+                    }
+
+                    char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
+
+                    print_char(c);
+                    utf8_chars = 0;
+                }
+
+                continue;
+            } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
+                if (utf8_chars == 2) {
+                    if ((utf8_buf[1] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else if (utf8_chars == 3) {
+                    if ((utf8_buf[2] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else {
+                    if ((utf8_buf[3] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                        continue;
+                    }
+
+                    char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
+
+                    print_char(c);
+                    utf8_chars = 0;
+                }
+
+                continue;
             }
         }
+
+        if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
+            utf8_buf[0] = c;
+            utf8_chars = 1;
+            continue;
+        } else if (c & 0x80) {
+            print_char(0xfffd);
+            continue;
+        }
+
+        print_char(c);
     }
 }
 
@@ -296,8 +380,6 @@ bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per
         memset(framebuffer.data(), 0, framebuffer.size_bytes());
         memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());
     }
-
-    print("Hello\nworld\n");
 
     return true;
 }
