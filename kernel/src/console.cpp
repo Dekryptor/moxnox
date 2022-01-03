@@ -50,7 +50,10 @@ static span<uint32_t> framebuffer;
 static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static FT_Face face = nullptr;
-static unsigned int font_height;
+static void* font_data;
+static unsigned int font_width, font_height;
+static unsigned int fb_console_rows, fb_console_cols;
+static bool fb_console_started = false;
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -96,13 +99,89 @@ static void text_console_print(string_view s) {
     }
 }
 
+static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y) {
+    FT_Error error;
+
+    // FIXME - colour
+
+    if (fb_y >= fb_height)
+        return;
+
+    error = FT_Load_Char(face, cp, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
+    if (error)
+        return; // FIXME - if not found, print Unicode replacement character?
+
+    auto& bitmap = face->glyph->bitmap;
+    auto buf = bitmap.buffer;
+
+    auto width = bitmap.width;
+    if (fb_x + face->glyph->bitmap_left + width > fb_width)
+        width = fb_width - fb_x - face->glyph->bitmap_left;
+
+    int y = fb_y - face->glyph->bitmap_top;
+    int bottom = y + bitmap.rows;
+
+    if (y < 0) {
+        buf += bitmap.width * (face->glyph->bitmap_top - fb_y);
+        y = 0;
+    }
+
+    if (bottom > (int)fb_height)
+        bottom = fb_height;
+
+    auto base = framebuffer.data() + (y * fb_pixels_per_scan_line) + fb_x + face->glyph->bitmap_left;
+
+    while (y < bottom) {
+        for (unsigned int x = 0; x < width; x++) {
+            if (*buf != 0)
+                base[x] = (*buf << 16) | (*buf << 8) | *buf;
+
+            buf++;
+        }
+
+        buf += bitmap.width - width;
+
+        base += fb_pixels_per_scan_line;
+        y++;
+    }
+}
+
 static void early_print(string_view s) {
     if (framebuffer.empty()) {
         text_console_print(s);
         return;
     }
 
-    // FIXME
+    if (!fb_console_started)
+        return;
+
+    for (auto c : s) {
+        if (c == '\n') {
+            cursor_x = 0;
+            cursor_y++;
+
+            // FIXME - overflow
+
+//             if (cursor_y == fb_console_rows)
+//                 text_console_overflow();
+        } else {
+            // FIXME - UTF-8
+
+            draw_ft_char(c, cursor_x * font_width, (cursor_y + 1) * font_height);
+
+            cursor_x++;
+
+            if (cursor_x == fb_console_cols) {
+                cursor_x = 0;
+                cursor_y++;
+
+                // FIXME - overflow
+
+//                 if (cursor_y == fb_console_rows)
+//                     text_console_overflow();
+            }
+        }
+    }
 }
 
 void safe_print(string_view s) {
@@ -199,9 +278,11 @@ bool init_console_pipe() {
         return false;
     }
 
-    if (!add_kernel_thread(console_event_recv)) {
-        print("add_kernel_thread failed\n");
-        return false;
+    if (framebuffer.empty()) { // gets started later if we have framebuffer
+        if (!add_kernel_thread(console_event_recv)) {
+            print("add_kernel_thread failed\n");
+            return false;
+        }
     }
 
     return true;
@@ -248,52 +329,6 @@ FT_Memory FT_New_Memory() {
 extern "C"
 void FT_Done_Memory(FT_Memory memory) {
     free(memory);
-}
-
-static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y) {
-    FT_Error error;
-
-    // FIXME - colour
-    // FIXME - fb_y should be baseline?
-
-    if (fb_y >= fb_height)
-        return;
-
-    error = FT_Load_Char(face, cp, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
-    if (error)
-        return; // FIXME - if not found, print Unicode replacement character?
-
-    auto& bitmap = face->glyph->bitmap;
-    auto buf = bitmap.buffer;
-    auto base = framebuffer.data() + (fb_y * fb_pixels_per_scan_line) + fb_x;
-
-    auto width = bitmap.width;
-    if (fb_x + face->glyph->bitmap_left + width > fb_width)
-        width = fb_width - fb_x - face->glyph->bitmap_left;
-
-    unsigned int y = fb_y;
-
-    if ((int)fb_y < face->glyph->bitmap_top) {
-        y += face->glyph->bitmap_top - fb_y;
-        buf += bitmap.width * (face->glyph->bitmap_top - fb_y);
-    }
-
-    while (y < min(fb_y + bitmap.rows, fb_height)) {
-        if (y - face->glyph->bitmap_top >= fb_height)
-            break;
-
-        for (unsigned int x = 0; x < width; x++) {
-            if (*buf != 0)
-                base[x] = (*buf << 16) | (*buf << 8) | *buf;
-
-            buf++;
-        }
-
-        buf += bitmap.width - width;
-
-        base += fb_pixels_per_scan_line;
-        y++;
-    }
 }
 
 bool init_fb_console() {
@@ -346,7 +381,7 @@ bool init_fb_console() {
         return false;
     }
 
-    auto font_data = malloc(*file_size);
+    font_data = malloc(*file_size);
     if (!font_data) {
         print("malloc failed\n");
         return false;
@@ -371,8 +406,6 @@ bool init_fb_console() {
         return false;
     }
 
-    free(font_data);
-
     // FIXME - font size
     error = FT_Set_Char_Size(face, 24 * 64, 0, 72, 0); // FIXME - get DPI from EDID
     if (error) {
@@ -383,14 +416,29 @@ bool init_fb_console() {
         return false;
     }
 
+    error = FT_Load_Char(face, 'M', FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
+    if (error) {
+        print("FT_Set_Char_Size failed (");
+        print_hex(error);
+        print(")\n");
+
+        return false;
+    }
+
+    font_width = face->glyph->bitmap.width;
     font_height = face->size->metrics.height / 64;
 
-    // FIXME - work out monospace width and height of framebuffer console
+    fb_console_rows = fb_width / font_width;
+    fb_console_cols = fb_height / font_height;
 
-    // FIXME
-    draw_ft_char('A', 0, 50);
-    draw_ft_char('B', 2552, 100);
-    draw_ft_char('C', 130, 1592);
+    cursor_x = cursor_y = 0;
+
+    if (!add_kernel_thread(console_event_recv)) {
+        print("add_kernel_thread failed\n");
+        return false;
+    }
+
+    fb_console_started = true;
 
     return true;
 }
