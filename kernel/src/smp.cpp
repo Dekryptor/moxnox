@@ -25,6 +25,9 @@ struct gdt_ptr {
 
 static gdt_ptr bsp_gdt, bsp_idt;
 
+uint8_t* apic_ids;
+unsigned int num_cpus;
+
 static void start_ap(uint8_t i) {
     // FIXME - should we be disabling interrupts here?
 
@@ -160,7 +163,9 @@ static void ap_startup() {
 
     *spurious_interrupt_reg = spurious_interrupt | 0x100;
 
-    init_cpu_block(false, current_cpu_id());
+    auto apic_id = current_cpu_id();
+
+    init_cpu_block(false, apic_id);
 
     setup_ap_gdt(init_tss());
 
@@ -168,7 +173,9 @@ static void ap_startup() {
 
     init_lapic_timer(true);
 
-    ap_left.fetch_sub(1, memory_order_acq_rel);
+    auto num = ap_left.fetch_sub(1, memory_order_acq_rel);
+
+    apic_ids[num_cpus - num] = apic_id;
 
     __asm __volatile ( // doesn't return
         "mov rsp, gs:%0\n"
@@ -222,6 +229,17 @@ void init_smp() {
 
         data = data.subspan(length);
     }
+
+    apic_ids = (uint8_t*)malloc(ap_count + 1);
+    if (!apic_ids) {
+        print("malloc failed\n");
+        return;
+    }
+
+    apic_ids[0] = current_cpu_id();
+    memset(apic_ids + 1, 0, sizeof(uint8_t) * ap_count);
+
+    num_cpus = ap_count + 1;
 
     if (ap_count == 0)
         return;
