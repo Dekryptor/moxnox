@@ -24,7 +24,7 @@ struct map_entry {
 struct loader_block {
     map_entry* map;
     uint32_t num_map_entries;
-    uint64_t rsdt_pa;
+    uint64_t xsdt_pa;
 
     struct {
         void* pa;

@@ -568,7 +568,7 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
 
     lb.map = map;
     lb.num_map_entries = num_map_entries;
-    lb.rsdt_pa = acpi_tables;
+    lb.xsdt_pa = acpi_tables;
 
     // exit boot services
 
@@ -609,37 +609,23 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
 }
 
 static EFI_STATUS find_acpi_tables(uint64_t& addr) {
-    EFI_GUID acpi1_guid = ACPI_TABLE_GUID;
-//     EFI_GUID acpi2_guid = ACPI_20_TABLE_GUID;
+    EFI_GUID acpi2_guid = ACPI_20_TABLE_GUID;
     RSDP_DESCRIPTOR* rsdp = nullptr;
 
-    // FIXME - ACPI 2.0
-
-//     for (unsigned int i = 0; i < systable->NumberOfTableEntries; i++) {
-//         if (!memcmp(&systable->ConfigurationTable[i].VendorGuid, &acpi2_guid, sizeof(EFI_GUID))) {
-//             rsdp = (RSDP_DESCRIPTOR*)systable->ConfigurationTable[i].VendorTable;
-//             break;
-//         }
-//     }
-//
-//     if (!rsdp) {
-        for (unsigned int i = 0; i < systable->NumberOfTableEntries; i++) {
-            if (!memcmp(&systable->ConfigurationTable[i].VendorGuid, &acpi1_guid, sizeof(EFI_GUID))) {
-                rsdp = (RSDP_DESCRIPTOR*)systable->ConfigurationTable[i].VendorTable;
-                break;
-            }
+    for (unsigned int i = 0; i < systable->NumberOfTableEntries; i++) {
+        if (!memcmp(&systable->ConfigurationTable[i].VendorGuid, &acpi2_guid, sizeof(EFI_GUID))) {
+            rsdp = (RSDP_DESCRIPTOR*)systable->ConfigurationTable[i].VendorTable;
+            break;
         }
-//     }
+    }
 
     if (!rsdp) {
-        print(u"ACPI tables not found\r\n");
+        print(u"ACPI 2.0 tables not found\r\n");
         return EFI_NOT_FOUND;
     }
 
-    if (rsdp->revision == 0) // ACPI 1.0
-        addr = rsdp->rsdt_physical_address;
-//     else if (rsdp->revision == 2) // ACPI 2.0
-//         addr = rsdp->xsdt_physical_address;
+    if (rsdp->revision == 2)
+        addr = rsdp->xsdt_physical_address;
     else {
         print(u"Unrecognized ACPI revision ");
         print_hex(rsdp->revision);
