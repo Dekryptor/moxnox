@@ -35,7 +35,8 @@ set(SRC_FILES src/kernel.cpp
     src/syscalls.S
     src/syscalls.cpp
     src/serial.cpp
-    src/serial.S)
+    src/serial.S
+    src/mem.S)
 
 add_definitions(-DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 add_subdirectory(freetype)
