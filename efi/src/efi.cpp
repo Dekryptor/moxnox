@@ -340,7 +340,7 @@ static EFI_STATUS load_efi_drivers(EFI_HANDLE image_handle) {
         auto last_bs = path_name.find_last_of(u'\\');
 
         if (last_bs != u16string_view::npos)
-            path_name = u16string_view(path_name.data(), last_bs);
+            path_name = u16string_view(path_name.data(), last_bs + 1);
 
         sp = sp_wcscpy(sp, path_name);
         sp = sp_wcscpy(sp, drivers_dir);
