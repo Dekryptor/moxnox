@@ -450,12 +450,12 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
 }
 
 static bool copy_acpi(const loader_block& lb) {
-    auto& rsdt = *(ACPISDTHeader*)lb.rsdt_pa;
+    auto& xsdt = *(ACPISDTHeader*)lb.xsdt_pa;
     uint32_t needed = 0;
 
-    // checksum of RSDT already checked by bootloader
+    // checksum of XSDT already checked by bootloader
 
-    auto entries = span((uint32_t*)((uint8_t*)&rsdt + sizeof(ACPISDTHeader)), (rsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint32_t));
+    auto entries = span((uint64_t*)((uint8_t*)&xsdt + sizeof(ACPISDTHeader)), (xsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint64_t));
 
     for (auto e : entries) {
         auto& tbl = *(ACPISDTHeader*)(uintptr_t)e;
