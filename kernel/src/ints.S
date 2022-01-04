@@ -124,4 +124,8 @@ invalid_opcode_isr:
 
 .global spurious_isr
 spurious_isr:
+    push rax
+    xor rax, rax
+    mov DWORD PTR [0xfffffab0000000b0], eax # EOI
+    pop rax
     iretq

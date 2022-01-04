@@ -30,6 +30,8 @@ static const uint32_t PIT_HZ = 1193182;
 static const unsigned int KERNEL_STACK_PAGES = 8; // 32KB
 static const unsigned int KERNEL_GUARD_PAGES = 1;
 
+static const uint8_t spurious_interrupt = 0xff;
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }

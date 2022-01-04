@@ -199,7 +199,7 @@ static bool init_apic() {
 
     auto spurious_interrupt_reg = (volatile uint32_t*)&local_apic[0xf0];
 
-    *spurious_interrupt_reg = *spurious_interrupt_reg | 0x100;
+    *spurious_interrupt_reg = spurious_interrupt | 0x100;
 
     madt = find_madt();
     if (madt.empty())
@@ -273,7 +273,7 @@ static bool setup_idt() {
 
     add_idt_entry(0x80, (void*)dummy_isr, false, 0);
 
-    add_idt_entry(0xff, (void*)spurious_isr, false, 0);
+    add_idt_entry(spurious_interrupt, (void*)spurious_isr, false, 0);
 
     struct {
         uint16_t limit;
