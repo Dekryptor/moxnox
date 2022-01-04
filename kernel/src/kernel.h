@@ -30,6 +30,7 @@ static const uint32_t PIT_HZ = 1193182;
 static const unsigned int KERNEL_STACK_PAGES = 8; // 32KB
 static const unsigned int KERNEL_GUARD_PAGES = 1;
 
+static const uint8_t halt_interrupt = 0xfe;
 static const uint8_t spurious_interrupt = 0xff;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
@@ -83,6 +84,7 @@ void safe_print(std::string_view s);
 extern decltype(&safe_print) print;
 void print_hex(uint64_t num, unsigned int padding = 0);
 bool init_fb_console();
+void bsod(std::string_view msg);
 
 // interrupts.cpp
 extern volatile uint8_t* const local_apic;
@@ -101,6 +103,7 @@ extern "C" void double_fault_isr();
 extern "C" void general_protection_fault_isr();
 extern "C" void invalid_opcode_isr();
 extern "C" void spurious_isr();
+extern "C" void halt_isr();
 
 // timer.S
 extern "C" void timer_isr();

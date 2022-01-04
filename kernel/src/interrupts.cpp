@@ -273,6 +273,7 @@ static bool setup_idt() {
 
     add_idt_entry(0x80, (void*)dummy_isr, false, 0);
 
+    add_idt_entry(halt_interrupt, (void*)halt_isr, false, 0);
     add_idt_entry(spurious_interrupt, (void*)spurious_isr, false, 0);
 
     struct {

@@ -129,3 +129,8 @@ spurious_isr:
     mov DWORD PTR [0xfffffab0000000b0], eax # EOI
     pop rax
     iretq
+
+.global halt_isr
+halt_isr:
+    hlt
+    jmp halt_isr

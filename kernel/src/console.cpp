@@ -574,3 +574,58 @@ bool init_fb_console() {
 
     return true;
 }
+
+static void fill_framebuffer(uint32_t colour) {
+    auto buf = shadow_framebuffer.data();
+
+    for (unsigned int y = 0; y < fb_height; y++) {
+        for (unsigned int x = 0; x < fb_width; x++) {
+            *buf = colour;
+            buf++;
+        }
+
+        buf += fb_pixels_per_scan_line - fb_width;
+    }
+}
+
+void bsod(string_view msg) {
+    __asm("cli");
+
+    // stop other cores
+
+    auto this_cpu = current_cpu_id();
+
+    auto icr1 = (volatile uint32_t*)&local_apic[0x300];
+    auto icr2 = (volatile uint32_t*)&local_apic[0x310];
+
+    for (unsigned int i = 0; i < num_cpus; i++) {
+        if (apic_ids[i] == this_cpu)
+            continue;
+
+        *icr2 = apic_ids[i] << 24;
+        *icr1 = 0x5000 | 0xfe;
+
+        while (*icr1 & 0x1000) { }
+    }
+
+    // clear screen to blue
+    fill_framebuffer(0x000080);
+
+    // FIXME - set colour to white
+
+    // print message
+
+    cursor_x = 0;
+    cursor_y = 0;
+
+    for (auto c : msg) {
+        print_char(c); // FIXME - UTF-8 etc.
+    }
+
+    // FIXME - print context
+    // FIXME - print stacktrace (go through DWARF sections?)
+
+    memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
+
+    __asm("jmp halt_isr");
+}
