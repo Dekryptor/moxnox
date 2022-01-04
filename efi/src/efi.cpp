@@ -408,47 +408,212 @@ end2:
     return status;
 }
 
-static EFI_STATUS scan_partitions(EFI_HANDLE image_handle, EFI_SIMPLE_FILE_SYSTEM_PROTOCOL** pfs) {
-    EFI_GUID guid = EFI_PARTITION_INFO_PROTOCOL_GUID;
+static bool try_disk(EFI_BLOCK_IO_PROTOCOL* biop, EFI_GUID* sig) {
+    EFI_STATUS status;
+    char first_sect[4096];
+
+    static const uint8_t gpt_protective = 0xee;
+    static const uint64_t gpt_signature = 0x5452415020494645; // "EFI PART"
+    static const unsigned int read_sector_size = 4096;
+
+    status = biop->ReadBlocks(biop, biop->Media->MediaId, 0, sizeof(first_sect), first_sect);
+    if (EFI_ERROR(status)) {
+        print_error(u"ReadBlocks", status);
+        return false;
+    }
+
+    auto& mbr = *(MASTER_BOOT_RECORD*)first_sect;
+
+    if (mbr.Signature != MBR_SIGNATURE)
+        return false;
+
+    bool has_gpt = false;
+
+    for (const auto& part : mbr.Partition) {
+        if (part.OSIndicator == gpt_protective) {
+            has_gpt = true;
+            break;
+        }
+    }
+
+    if (!has_gpt)
+        return false;
+
+    auto& gpt = *(EFI_PARTITION_TABLE_HEADER*)(first_sect + 0x200);
+
+    // FIXME - if GPT not valid, get alternative version from end of disk
+
+    if (gpt.Header.Signature != gpt_signature) {
+        print(u"Invalid GPT signature\r\n");
+        return false;
+    }
+
+    // FIXME - check header CRC32
+
+    if (gpt.MyLBA != 1) {
+        print(u"Invalid LBA value in GPT\r\n");
+        return false;
+    }
+
+    if (gpt.NumberOfPartitionEntries == 0)
+        return false;
+
+    if (gpt.SizeOfPartitionEntry < 0x80) {
+        print(u"partition entry size was 0x");
+        print_hex(gpt.SizeOfPartitionEntry);
+        print(u", expected at least 0x80\r\n");
+        return false;
+    }
+
+    size_t table_start = gpt.PartitionEntryLBA * biop->Media->BlockSize;
+    size_t table_end = table_start + (gpt.SizeOfPartitionEntry * gpt.NumberOfPartitionEntries);
+    size_t table_start_aligned = table_start & ~(read_sector_size - 1);
+    size_t table_end_aligned = table_end & ~(read_sector_size - 1) ? ((table_end & ~(read_sector_size - 1)) + read_sector_size) : table_end;
+
+    uint8_t* buf;
+
+    status = bs->AllocatePool(EfiLoaderData, table_end_aligned - table_start_aligned, (void**)&buf);
+    if (EFI_ERROR(status)) {
+        print_error(u"AllocatePool", status);
+        return false;
+    }
+
+    status = biop->ReadBlocks(biop, biop->Media->MediaId, table_start_aligned / biop->Media->BlockSize,
+                              table_end_aligned - table_start_aligned, buf);
+    if (EFI_ERROR(status)) {
+        print_error(u"ReadBlocks", status);
+        bs->FreePool(buf);
+        return false;
+    }
+
+    auto ptr = buf + table_start - table_start_aligned;
+
+    // FIXME - check CRC32 of partition list
+
+    bool found = false;
+
+    for (unsigned int i = 0; i < gpt.NumberOfPartitionEntries; i++) {
+        auto& part = *(EFI_PARTITION_ENTRY*)ptr;
+
+        if (!memcmp(&part.PartitionTypeGUID, &moxnox_partition_guid, sizeof(EFI_GUID))) {
+            memcpy(sig, &part.UniquePartitionGUID, sizeof(EFI_GUID));
+            found = true;
+            break;
+        }
+
+        ptr += gpt.SizeOfPartitionEntry;
+    }
+
+    bs->FreePool(buf);
+
+    return found;
+}
+
+static EFI_STATUS select_partition(EFI_HANDLE image_handle, EFI_GUID* sig) {
+    EFI_GUID guid = EFI_BLOCK_IO_PROTOCOL_GUID;
+    EFI_HANDLE* handles = nullptr;
+    UINTN count;
+    EFI_STATUS status;
+
+    status = bs->LocateHandleBuffer(ByProtocol, &guid, nullptr, &count, &handles);
+    if (EFI_ERROR(status)) {
+        print_error(u"LocateHandleBuffer", status);
+        return status;
+    }
+
+    // FIXME - if multiple found, allow user to select from list
+
+    for (unsigned int i = 0; i < count; i++) {
+        EFI_BLOCK_IO_PROTOCOL* biop = nullptr;
+
+        status = bs->OpenProtocol(handles[i], &guid, (void**)&biop, image_handle, nullptr,
+                                  EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+        if (EFI_ERROR(status)) {
+            print_error(u"OpenProtocool", status);
+            continue;
+        }
+
+        if (biop->Media->MediaPresent && !biop->Media->LogicalPartition) {
+            if (try_disk(biop, sig)) {
+                bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
+                bs->FreePool(handles);
+                return EFI_SUCCESS;
+            }
+        }
+
+        bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
+    }
+
+    bs->FreePool(handles);
+
+    if (count == 0)
+        print(u"No disks found.\r\n");
+
+    return EFI_NOT_FOUND;
+}
+
+static EFI_STATUS find_partition(EFI_HANDLE image_handle, EFI_GUID* sig, EFI_SIMPLE_FILE_SYSTEM_PROTOCOL** pfs) {
+    EFI_GUID guid = EFI_BLOCK_IO_PROTOCOL_GUID;
+    EFI_GUID devp_guid = EFI_DEVICE_PATH_PROTOCOL_GUID;
     EFI_GUID fs_guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
     EFI_HANDLE* handles = nullptr;
     UINTN count;
     EFI_STATUS status;
 
     status = bs->LocateHandleBuffer(ByProtocol, &guid, nullptr, &count, &handles);
-    if (EFI_ERROR(status))
+    if (EFI_ERROR(status)) {
+        print_error(u"LocateHandleBuffer", status);
         return status;
+    }
 
     for (unsigned int i = 0; i < count; i++) {
-        EFI_PARTITION_INFO_PROTOCOL* pip = nullptr;
-        EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs = nullptr;
+        EFI_DEVICE_PATH_PROTOCOL* dpp = nullptr;
+        EFI_GUID* part_sig = nullptr;
 
-        status = bs->OpenProtocol(handles[i], &guid, (void**)&pip, image_handle, nullptr,
+        status = bs->OpenProtocol(handles[i], &devp_guid, (void**)&dpp, image_handle, nullptr,
                                   EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
-        if (EFI_ERROR(status))
-            continue;
-
-        if (pip->Type != PARTITION_TYPE_GPT)
-            goto next;
-
-        if (memcmp(&pip->Info.Gpt.PartitionTypeGUID, &moxnox_partition_guid, sizeof(EFI_GUID)))
-            goto next;
-
-        status = bs->OpenProtocol(handles[i], &fs_guid, (void**)&fs, image_handle, nullptr,
-                                  EFI_OPEN_PROTOCOL_GET_PROTOCOL);
         if (EFI_ERROR(status)) {
-            print(u"Partition found, but can't open filesystem.\r\n");
             print_error(u"OpenProtocol", status);
             continue;
         }
 
-        *pfs = fs;
+        while (true) {
+            if (dpp->Type == MEDIA_DEVICE_PATH && dpp->SubType == MEDIA_HARDDRIVE_DP) {
+                auto& hddp = *(HARDDRIVE_DEVICE_PATH*)dpp;
 
-        bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
-        bs->FreePool(handles);
-        return EFI_SUCCESS;
+                if (hddp.SignatureType == SIGNATURE_TYPE_GUID) {
+                    part_sig = (EFI_GUID*)hddp.Signature;
+                    break;
+                }
+            }
 
-next:
+            if (dpp->Type == END_DEVICE_PATH_TYPE)
+                break;
+
+            dpp = (EFI_DEVICE_PATH_PROTOCOL*)((uint8_t*)dpp + *(uint16_t*)(dpp->Length));
+        }
+
+        if (part_sig && !memcmp(part_sig, sig, sizeof(EFI_GUID))) {
+            EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs = nullptr;
+
+            bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
+
+            status = bs->OpenProtocol(handles[i], &fs_guid, (void**)&fs, image_handle, nullptr,
+                                      EFI_OPEN_PROTOCOL_GET_PROTOCOL);
+            if (EFI_ERROR(status)) {
+                print(u"Partition found, but can't open filesystem.\r\n");
+                print_error(u"OpenProtocol", status);
+                bs->FreePool(handles);
+                return status;
+            }
+
+            *pfs = fs;
+
+            bs->FreePool(handles);
+
+            return EFI_SUCCESS;
+        }
+
         bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
     }
 
@@ -714,6 +879,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
     uint64_t entry_point, cr3, img_pa, acpi_tables;
     size_t img_size;
     EFI_PHYSICAL_ADDRESS stack;
+    EFI_GUID part_sig;
 
     systable = SystemTable;
     bs = systable->BootServices;
@@ -724,12 +890,17 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end;
     }
 
-    status = scan_partitions(ImageHandle, &fs);
+    status = select_partition(ImageHandle, &part_sig);
     if (EFI_ERROR(status)) {
-        print_error(u"scan_partitions", status);
+        print_error(u"select_partition", status);
         goto end;
     }
-    // FIXME - if multiple found, show list
+
+    status = find_partition(ImageHandle, &part_sig, &fs);
+    if (EFI_ERROR(status)) {
+        print_error(u"find_partition", status);
+        goto end;
+    }
 
     status = fs->OpenVolume(fs, &root);
     if (EFI_ERROR(status)) {
