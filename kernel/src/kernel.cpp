@@ -101,7 +101,15 @@ void main_thread() {
 
     init_syscalls();
 
-    init_smp();
+    if (!init_smp()) {
+        apic_ids = (uint8_t*)malloc(1);
+        if (!apic_ids) {
+            print("malloc failed\n");
+            return;
+        }
+
+        apic_ids[0] = current_cpu_id();
+    }
 
     init_serial();
 

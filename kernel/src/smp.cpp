@@ -185,11 +185,11 @@ static void ap_startup() {
     );
 }
 
-void init_smp() {
+bool init_smp() {
     auto madt = find_madt();
     if (madt.empty()) {
         print("MADT not found\n");
-        return;
+        return false;
     }
 
     uint8_t bsp_id = current_cpu_id();
@@ -211,13 +211,13 @@ void init_smp() {
                     if (!pa) {
                         print("allocate_page failed\n");
                         // FIXME - deallocate what's already been allocated (or BSOD)
-                        return;
+                        return false;
                     }
 
                     if (!map_page(pa, va, mapping_type::read_write)) {
                         print("map_page failed\n");
                         // FIXME - deallocate what's already been allocated (or BSOD)
-                        return;
+                        return false;
                     }
 
                     va += PAGE_SIZE;
@@ -233,7 +233,7 @@ void init_smp() {
     apic_ids = (uint8_t*)malloc(ap_count + 1);
     if (!apic_ids) {
         print("malloc failed\n");
-        return;
+        return false;
     }
 
     apic_ids[0] = current_cpu_id();
@@ -242,14 +242,14 @@ void init_smp() {
     num_cpus = ap_count + 1;
 
     if (ap_count == 0)
-        return;
+        return true;
 
     auto trampoline = (void*)0;
 
     // we already reserved page 0 in the bootloader
     if (!map_page(0, (uintptr_t)trampoline, mapping_type::read_write_execute)) {
         print("map_page failed\n");
-        return;
+        return false;
     }
 
     memcpy(trampoline, &ap_trampoline, &ap_trampoline_end - &ap_trampoline);
@@ -299,4 +299,6 @@ void init_smp() {
     }
 
     unmap_page(0);
+
+    return true;
 }

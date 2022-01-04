@@ -140,7 +140,9 @@ void write(handle_t h, std::span<const uint8_t> s);
 void write(handle_t h, std::string_view s);
 
 // smp.cpp
-void init_smp();
+extern uint8_t* apic_ids;
+extern unsigned int num_cpus;
+bool init_smp();
 uint8_t current_cpu_id();
 
 // pe.cpp
