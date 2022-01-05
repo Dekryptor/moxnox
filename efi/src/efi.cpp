@@ -965,7 +965,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end;
     }
 
-    // FIXME - GOP
     // FIXME - pass runtime services list through to kernel
 
     status = go(ImageHandle, entry_point, cr3, acpi_tables); // doesn't return unless unsuccessful
