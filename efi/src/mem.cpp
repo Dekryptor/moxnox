@@ -8,8 +8,6 @@ static const uint64_t SELFMAP = 0xfffff68000000000;
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
 
 static HARDWARE_PTE* pml4t;
-static map_entry map_copy[256];
-static unsigned int num_map_entries_copy;
 
 extern "C"
 void* memcpy(void* dest, const void* src, size_t n) {
@@ -443,6 +441,8 @@ static EFI_STATUS do_map(uint64_t va, uint64_t pa, uint64_t len) {
 EFI_STATUS setup_paging(uint64_t& cr3) {
     EFI_STATUS status;
     EFI_PHYSICAL_ADDRESS addr;
+    map_entry* map_copy;
+    unsigned int num_map_entries_copy;
 
     status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
     if (EFI_ERROR(status)) {
@@ -451,10 +451,18 @@ EFI_STATUS setup_paging(uint64_t& cr3) {
     }
 
     pml4t = (HARDWARE_PTE*)addr;
-    memset(pml4t, 0, EFI_PAGE_SIZE);
+
+    num_map_entries_copy = num_map_entries;
+
+    status = bs->AllocatePool(EfiLoaderData, sizeof(map_entry) * num_map_entries_copy, (void**)&map_copy);
+    if (EFI_ERROR(status)) {
+        print_error(u"AllocatePool", status);
+        return status;
+    }
 
     memcpy(map_copy, map, sizeof(map_entry) * num_map_entries);
-    num_map_entries_copy = num_map_entries;
+
+    memset(pml4t, 0, EFI_PAGE_SIZE);
 
     for (unsigned int i = 0; i < num_map_entries_copy; i++) {
         switch (map_copy[i].type) {
