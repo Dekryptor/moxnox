@@ -29,12 +29,12 @@ void add_fs_to_list(filesystem& fs) {
     insert_tail_list(fs_list, fs.le);
 }
 
-void mount_root() {
+bool mount_root() {
     lock_guard lock(fs_lock);
 
     if (is_list_empty(fs_list)) {
         print("No filesytems found.\n");
-        return;
+        return false;
     }
 
     // FIXME - choosing root FS based on command line
@@ -49,7 +49,7 @@ void mount_root() {
             if (root_fs) {
                 print("Multiple Moxnox partitions, not sure which to choose\n");
                 root_fs = nullptr;
-                return;
+                return false;
             }
 
             root_fs = &fs;
@@ -58,8 +58,12 @@ void mount_root() {
         le = le->next;
     }
 
-    if (!root_fs)
+    if (!root_fs) {
         print("No Moxnox partition found\n");
+        return false;
+    }
+
+    return true;
 }
 
 unique_handle open_file(string_view fn) {

@@ -119,7 +119,8 @@ void main_thread() {
     // FIXME - NVMe
     // FIXME - USB
 
-    mount_root();
+    if (!mount_root())
+        bsod("mount_root failed");
 
     if (!init_fb_console())
         print("init_fb_console failed\n");
