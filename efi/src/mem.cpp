@@ -169,7 +169,6 @@ static enum map_type map_efi_type(EFI_MEMORY_TYPE Type) {
     switch (Type) {
         case EfiReservedMemoryType:
         case EfiUnusableMemory:
-        case EfiACPIMemoryNVS:
         case EfiMemoryMappedIO:
         case EfiMemoryMappedIOPortSpace:
         case EfiPalCode:
@@ -190,6 +189,7 @@ static enum map_type map_efi_type(EFI_MEMORY_TYPE Type) {
         case EfiConventionalMemory:
             return map_type::mem_free;
 
+        case EfiACPIMemoryNVS:
         case EfiACPIReclaimMemory:
             return map_type::mem_acpi;
 
