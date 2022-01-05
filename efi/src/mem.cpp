@@ -176,6 +176,8 @@ static enum map_type map_efi_type(EFI_MEMORY_TYPE Type) {
 
         case EfiLoaderCode:
         case EfiLoaderData:
+        case EfiBootServicesCode:
+        case EfiBootServicesData:
             return map_type::mem_bootloader;
 
         case EfiRuntimeServicesCode:
@@ -184,8 +186,6 @@ static enum map_type map_efi_type(EFI_MEMORY_TYPE Type) {
         case EfiRuntimeServicesData:
             return map_type::mem_uefi_data;
 
-        case EfiBootServicesCode:
-        case EfiBootServicesData:
         case EfiConventionalMemory:
             return map_type::mem_free;
 
