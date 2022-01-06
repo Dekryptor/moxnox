@@ -51,3 +51,17 @@ memcpy:
 4:
     pop rax
     ret
+
+# void memcpy_aligned(void* dest, const void* src, size_t n)
+# requires src and dest both to be aligned to 16 bytes
+.global memcpy_aligned
+memcpy_aligned:
+    # rcx = dest, rdx = src, r8 = n
+    cmp r8, 16
+    jl memcpy
+    movaps xmm0, [rdx]
+    movaps [rcx], xmm0
+    add rdx, 16
+    add rcx, 16
+    sub r8, 16
+    jmp memcpy_aligned

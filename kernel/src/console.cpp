@@ -173,7 +173,7 @@ static void fb_console_overflow() {
 
     memset(dest, 0, fb_pixels_per_scan_line * font_height * sizeof(uint32_t)); // black
 
-    memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
+    memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 }
 
 static void print_char(char32_t c) {

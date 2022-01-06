@@ -210,3 +210,6 @@ bool init_serial();
 // serial.S
 extern "C" bool init_serial_port(uint16_t port);
 extern "C" void serial_isr();
+
+// mem.S
+extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
