@@ -38,7 +38,7 @@ static constexpr uint64_t pci_pa(const apic_mcfg_item& item, uint8_t bus, uint8_
     return item.base_address | ((bus - item.start_number) << 20) | (device << 15) | (function << 12);
 }
 
-static void device_found(const volatile pci_header& h, uint64_t pa, uint8_t bus, uint8_t dev, uint8_t func) {
+static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
     print_hex(bus, 2);
     print(":");
     print_hex(dev, 2);
@@ -70,11 +70,10 @@ static void device_found(const volatile pci_header& h, uint64_t pa, uint8_t bus,
     }
 
     auto& pci_dev = *ppci_dev;
-    pci_dev.pa = pa;
+    pci_dev.header = &h0;
     pci_dev.bus = bus;
     pci_dev.device = dev;
     pci_dev.function = func;
-    memcpy(&pci_dev.header, (void*)&h0, sizeof(pci_header0));
 
     if (h0.status & 0x10 && (h0.capabilities_pointer & ~0x3) != 0) {
         auto ptr = (uint8_t*)((uint8_t*)&h0 + (h0.capabilities_pointer & ~0x3));
@@ -86,19 +85,6 @@ static void device_found(const volatile pci_header& h, uint64_t pa, uint8_t bus,
 
             if (cap.type == pci_capability_type::msi) {
                 volatile auto& msi = *(pci_msi*)ptr;
-
-                auto va = allocate_va(1);
-                if (!va) {
-                    print("allocate_va failed\n");
-                    return;
-                }
-
-                if (!map_page(pa, va, mapping_type::no_cache)) {
-                    print("map_page failed\n");
-                    free_va(va, 1);
-                    return;
-                }
-
                 size_t len;
 
                 if (msi.message_control & 0x80) { // 64-bit
@@ -109,7 +95,7 @@ static void device_found(const volatile pci_header& h, uint64_t pa, uint8_t bus,
                 } else
                     len = offsetof(pci_msi, v32.message_data) + sizeof(uint16_t);
 
-                pci_dev.msi = span((volatile uint8_t*)(va | ((uintptr_t)ptr & (PAGE_SIZE - 1))), len);
+                pci_dev.msi = span((volatile uint8_t*)((uintptr_t)&h | ((uintptr_t)ptr & (PAGE_SIZE - 1))), len);
             }
 
             if (cap.next == 0)
@@ -168,67 +154,75 @@ static void device_found(const volatile pci_header& h, uint64_t pa, uint8_t bus,
     insert_tail_list(pci_device_list, pci_dev.le);
 }
 
-static void check_bus(uint8_t bus, const apic_mcfg_item& item, uint64_t va) {
-    const volatile auto& h = *(pci_header*)va;
-
+static void check_bus(uint8_t bus, const apic_mcfg_item& item) {
     for (uint8_t dev = 0; dev < 32; dev++) {
         auto pa = pci_pa(item, bus, dev, 0);
 
-        if (!map_page(pa, va, mapping_type::no_cache)) {
-            print("map_page failed\n");
+        auto va = allocate_va(1);
+        if (!va) {
+            print("allocate_va failed\n");
             return;
         }
 
-        invalidate_tlb();
+        if (!map_page(pa, va, mapping_type::no_cache)) {
+            print("map_page failed\n");
+            free_va(va, 1);
+            return;
+        }
+
+        const volatile auto& h = *(pci_header*)va;
 
         if (h.vendor_id == 0xffff) {
             unmap_page(va);
+            free_va(va, 1);
             continue;
         }
 
         bool multifunction = h.header_type & 0x80;
 
-        device_found(h, pa, bus, dev, 0);
-
-        unmap_page(va);
+        device_found(h, bus, dev, 0);
 
         if (multifunction) {
             for (uint8_t func = 1; func < 8; func++) {
                 pa = pci_pa(item, bus, dev, func);
 
-                if (!map_page(pa, va, mapping_type::no_cache)) {
-                    print("map_page failed\n");
+                va = allocate_va(1);
+                if (!va) {
+                    print("allocate_va failed\n");
                     return;
                 }
 
-                invalidate_tlb();
+                if (!map_page(pa, va, mapping_type::no_cache)) {
+                    print("map_page failed\n");
+                    free_va(va, 1);
+                    return;
+                }
 
                 if (h.vendor_id == 0xffff) {
                     unmap_page(va);
+                    free_va(va, 1);
                     continue;
                 }
 
-                device_found(h, pa, bus, dev, func);
-
-                unmap_page(va);
+                device_found(h, bus, dev, func);
             }
         }
     }
 }
 
-static void check_buses(const apic_mcfg_item& item, uint64_t va) {
+static void check_buses(const apic_mcfg_item& item) {
     // FIXME - multiple PCI controllers
     // FIXME - PCI-to-PCI bridges
 
-    check_bus(item.start_number, item, va);
+    check_bus(item.start_number, item);
 }
 
 static void pci_device_found(void* ctx) {
     auto& dev = *(pci_device*)ctx;
 
-    switch (dev.header.class_code) {
+    switch (dev.header->class_code) {
         case pci_class::mass_storage: {
-            switch ((enum pci_mass_storage)dev.header.sub_class) {
+            switch ((enum pci_mass_storage)dev.header->sub_class) {
                 case pci_mass_storage::sata:
                     init_sata(dev);
                 break;
@@ -257,27 +251,18 @@ void init_pci() {
         return;
     }
 
-    auto va = allocate_va(1);
-    if (!va) {
-        print("allocate_va failed\n");
-        return;
-    }
-
     const auto& tbl = *(apic_mcfg*)mcfg.data();
 
     auto items = span(tbl.items, (mcfg.size() - offsetof(apic_mcfg, items)) / sizeof(apic_mcfg_item));
 
     if (items.empty()) {
         print("No apic_mcfg_items found\n");
-        free_va(va, 1);
         return;
     }
 
     for (const auto& item: items) {
-        check_buses(item, va);
+        check_buses(item);
     }
-
-    free_va(va, 1);
 
     {
         auto le = pci_device_list.next;

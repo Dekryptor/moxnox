@@ -59,11 +59,10 @@ static_assert(sizeof(pci_header0) == 0x40);
 
 struct pci_device {
     list_entry le;
-    uint64_t pa;
+    volatile pci_header0* header;
     uint8_t bus;
     uint8_t device;
     uint8_t function;
-    pci_header0 header;
     std::span<volatile uint8_t> bar[6];
     std::span<volatile uint8_t> msi;
 };
