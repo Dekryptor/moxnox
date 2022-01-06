@@ -225,43 +225,62 @@ bool sata_device::identify() {
 }
 
 sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
-    uint64_t clb_pa, fb_pa;
+    port.cmd = port.cmd & ~HBA_PxCMD_ST;
+    port.cmd = port.cmd & ~HBA_PxCMD_FRE;
 
-    clb_pa = ((uint64_t)port.clbu << 32) | port.clb;
-    fb_pa = ((uint64_t)port.fbu << 32) | port.fb;
+    while (port.cmd & (HBA_PxCMD_FR | HBA_PxCMD_CR)) { }
 
-    auto va1 = allocate_va(1);
-    if (!va1) {
+    auto clb_pa = allocate_page();
+    if (!clb_pa) {
+        print("allocate_page failed\n");
+        return;
+    }
+
+    auto fb_pa = allocate_page();
+    if (!fb_pa) {
+        print("allocate_page failed\n");
+        free_page(clb_pa);
+        return;
+    }
+
+    clb = allocate_va(1);
+    if (!clb) {
         print("allocate_va failed\n");
+        free_page(fb_pa);
+        free_page(clb_pa);
         return;
     }
 
-    auto va2 = allocate_va(1);
-    if (!va2) {
+    fb = allocate_va(1);
+    if (!fb) {
         print("allocate_va failed\n");
-        free_va(va1, 1);
+        free_va(clb, 1);
+        free_page(fb_pa);
+        free_page(clb_pa);
         return;
     }
 
-    if (!map_page(clb_pa & ~(PAGE_SIZE - 1), va1, mapping_type::no_cache)) {
+    if (!map_page(clb_pa, clb, mapping_type::no_cache)) {
         print("map_page failed\n");
-        free_va(va2, 1);
-        free_va(va1, 1);
+        free_va(fb, 1);
+        free_va(clb, 1);
+        free_page(fb_pa);
+        free_page(clb_pa);
         return;
     }
 
-    if (!map_page(fb_pa & ~(PAGE_SIZE - 1), va2, mapping_type::no_cache)) {
+    if (!map_page(fb_pa, fb, mapping_type::no_cache)) {
         print("map_page failed\n");
-        unmap_page(va1);
-        free_va(va2, 1);
-        free_va(va1, 1);
+        unmap_page(clb);
+        free_va(fb, 1);
+        free_va(clb, 1);
+        free_page(fb_pa);
+        free_page(clb_pa);
         return;
     }
 
-    // FIXME - can remap physical addresses, if BIOS hasn't set them up right?
-
-    clb = va1 | (clb_pa & (PAGE_SIZE - 1));
-    fb = va2 | (fb_pa & (PAGE_SIZE - 1));
+    memset((void*)clb, 0, PAGE_SIZE);
+    memset((void*)fb, 0, PAGE_SIZE);
 
     port.ie = 0xfdc000ff; // enable all interrupts
 
@@ -270,10 +289,13 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     auto va3 = allocate_va(cmdtbl_pages);
     if (!va3) {
         print("allocate_va failed\n");
-        unmap_page(va2);
-        unmap_page(va1);
-        free_va(va2, 1);
-        free_va(va1, 1);
+        unmap_page(fb);
+        unmap_page(clb);
+        free_va(fb, 1);
+        free_va(clb, 1);
+        free_page(fb_pa);
+        free_page(clb_pa);
+        return;
     }
 
     for (unsigned int i = 0; i < cmdtbl_pages; i++) {
@@ -289,10 +311,12 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
             }
 
             free_va(va3, cmdtbl_pages);
-            unmap_page(va2);
-            unmap_page(va1);
-            free_va(va2, 1);
-            free_va(va1, 1);
+            unmap_page(fb);
+            unmap_page(clb);
+            free_va(fb, 1);
+            free_va(clb, 1);
+            free_page(fb_pa);
+            free_page(clb_pa);
             return;
         }
 
@@ -318,13 +342,20 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
             }
 
             free_va(va3, cmdtbl_pages);
-            unmap_page(va2);
-            unmap_page(va1);
-            free_va(va2, 1);
-            free_va(va1, 1);
+            unmap_page(fb);
+            unmap_page(clb);
+            free_va(fb, 1);
+            free_va(clb, 1);
+            free_page(fb_pa);
+            free_page(clb_pa);
             return;
         }
     }
+
+    port.clb = clb_pa & 0xffffffff;
+    port.clbu = (uint32_t)(clb_pa >> 32);
+    port.fb = fb_pa & 0xffffffff;
+    port.fbu = (uint32_t)(fb_pa >> 32);
 
     memset((void*)va3, 0, cmdtbl_pages << PAGE_SHIFT);
 
@@ -337,6 +368,13 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     }
 
     slot_semaphore = create_semaphore(SATA_NUM_CMD_TABLES);
+
+    while (port.cmd & HBA_PxCMD_CR) { }
+
+    port.cmd = port.cmd | HBA_PxCMD_FRE;
+    port.cmd = port.cmd | HBA_PxCMD_ST;
+
+    valid = true;
 }
 
 static void fix_ata_string(span<const uint16_t> in, span<char> out) {
@@ -362,10 +400,14 @@ static void init_sata_device(void* ctx, void* ctx2) {
     auto& sw = *(sata_wait*)ctx2;
     auto& dev = *pdev;
 
-    // FIXME - return if not successfully initialized
+    if (!dev.valid) {
+        delete &dev;
 
-    dev.port.cmd = dev.port.cmd | HBA_PxCMD_FRE;
-    dev.port.cmd = dev.port.cmd | HBA_PxCMD_ST;
+        if (--sw.left == 0)
+            set_event(sw.event.get());
+
+        return;
+    }
 
     {
         lock_guard lock(sata_dev_list_lock);
