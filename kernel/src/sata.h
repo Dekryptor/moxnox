@@ -480,4 +480,6 @@ public:
     volatile HBA_MEM* abar;
     unique_handle init_event;
     std::atomic<unsigned int> init_left = 0;
+    spinlock port_list_lock;
+    list_entry port_list = { &port_list, &port_list };
 };

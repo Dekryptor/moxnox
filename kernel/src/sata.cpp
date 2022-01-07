@@ -8,8 +8,6 @@ using namespace std;
 
 static const uint8_t sata_interrupt = 0x22;
 static bool interrupt_added = false;
-static spinlock sata_dev_list_lock;
-static list_entry sata_dev_list = { &sata_dev_list, &sata_dev_list };
 
 static spinlock sata_list_lock;
 static list_entry sata_list = { &sata_list, &sata_list };
@@ -408,8 +406,8 @@ static void init_sata_device(void* ctx, void* ctx2) {
     }
 
     {
-        lock_guard lock(sata_dev_list_lock);
-        insert_tail_list(sata_dev_list, dev.le);
+        lock_guard lock(sc.port_list_lock);
+        insert_tail_list(sc.port_list, dev.le);
     }
 
     // FIXME - return if IDENTIFY fails, and remove from list
@@ -456,21 +454,36 @@ end:
 
 extern "C"
 void sata_isr_func() {
-    lock_guard lock(sata_dev_list_lock);
+    lock_guard lock(sata_list_lock);
 
-    auto le = sata_dev_list.next;
-    while (le != &sata_dev_list) {
-        auto& dev = containing_record<sata_device>(le);
+    auto le = sata_list.next;
+    while (le != &sata_list) {
+        auto& sc = containing_record<sata_card>(le);
 
-        if (dev.port.is & 1) { // D2H FIS received
-            auto ci = dev.port.ci;
-            auto signalled = dev.pending_slots & ~ci;
+        {
+            lock_guard lock2(sc.port_list_lock);
 
-            for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
-                if (signalled & (1 << i)) {
-                    set_event(dev.events[i].get());
-                    dev.pending_slots &= ~(1 << i);
+            auto le2 = sc.port_list.next;
+            while (le2 != &sc.port_list) {
+                auto& dev = containing_record<sata_device>(le2);
+
+                auto is = dev.port.is;
+
+                dev.port.is = is;
+
+                if (is & 1) { // D2H FIS received
+                    auto ci = dev.port.ci;
+                    auto signalled = dev.pending_slots & ~ci;
+
+                    for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
+                        if (signalled & (1 << i)) {
+                            set_event(dev.events[i].get());
+                            dev.pending_slots &= ~(1 << i);
+                        }
+                    }
                 }
+
+                le2 = le2->next;
             }
         }
 
