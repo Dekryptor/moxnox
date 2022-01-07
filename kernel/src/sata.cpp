@@ -11,12 +11,10 @@ static bool interrupt_added = false;
 static spinlock sata_dev_list_lock;
 static list_entry sata_dev_list = { &sata_dev_list, &sata_dev_list };
 
-atomic<unsigned int> num_sata_devices = 0;
+static spinlock sata_list_lock;
+static list_entry sata_list = { &sata_list, &sata_list };
 
-struct sata_wait {
-    atomic<unsigned int> left = 0;
-    unique_handle event;
-};
+atomic<unsigned int> num_sata_devices = 0;
 
 size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     size_t ret = 0;
@@ -397,14 +395,14 @@ static void fix_ata_string(span<const uint16_t> in, span<char> out) {
 
 static void init_sata_device(void* ctx, void* ctx2) {
     auto pdev = new sata_device(*(volatile HBA_PORT*)ctx);
-    auto& sw = *(sata_wait*)ctx2;
+    auto& sc = *(sata_card*)ctx2;
     auto& dev = *pdev;
 
     if (!dev.valid) {
         delete &dev;
 
-        if (--sw.left == 0)
-            set_event(sw.event.get());
+        if (--sc.init_left == 0)
+            set_event(sc.init_event.get());
 
         return;
     }
@@ -452,8 +450,8 @@ static void init_sata_device(void* ctx, void* ctx2) {
     dev.release();
 
 end:
-    if (--sw.left == 0)
-        set_event(sw.event.get());
+    if (--sc.init_left == 0)
+        set_event(sc.init_event.get());
 }
 
 extern "C"
@@ -502,6 +500,12 @@ void init_sata(const pci_device& dev) {
         return;
     }
 
+    auto sc = new sata_card(dev);
+    if (!sc) {
+        print("new failed\n");
+        return;
+    }
+
     if (!interrupt_added) {
         add_idt_entry(sata_interrupt, (void*)sata_isr, false, 0);
         interrupt_added = true;
@@ -519,19 +523,13 @@ void init_sata(const pci_device& dev) {
 
     msi.message_control = msi.message_control | 1; // enable
 
-    auto volatile& abar = *(HBA_MEM*)abarmem.data();
+    sc->abar = (HBA_MEM*)abarmem.data();
 
     // FIXME - check upper bit of abar.ghc for whether AHCI or IDE
-    abar.ghc = abar.ghc | 0x2; // enable interrupts
+    sc->abar->ghc = sc->abar->ghc | 0x2; // enable interrupts
 
-    auto ports = span<volatile HBA_PORT>((HBA_PORT*)abar.ports, (abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT));
-    uint32_t mask = abar.pi;
-    auto sw = new sata_wait;
-
-    if (!sw) {
-        print("new failed\n");
-        return;
-    }
+    auto ports = span<volatile HBA_PORT>((HBA_PORT*)sc->abar->ports, (abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT));
+    uint32_t mask = sc->abar->pi;
 
     for (const auto& p : ports) {
         if (!(mask & 1)) {
@@ -542,19 +540,24 @@ void init_sata(const pci_device& dev) {
         // FIXME - SATA_SIG_ATAPI (CD drives etc.)
 
         if (p.sig == SATA_SIG_ATA)
-            sw->left++;
+            sc->init_left++;
 
         mask >>= 1;
     }
 
-    if (sw->left == 0) {
-        delete sw;
+    if (sc->init_left == 0) {
+        delete sc;
         return;
     }
 
-    sw->event = create_event(true);
+    {
+        lock_guard lock(sata_list_lock);
+        insert_tail_list(sata_list, sc->le);
+    }
 
-    mask = abar.pi;
+    sc->init_event = create_event(true);
+
+    mask = sc->abar->pi;
 
     for (const auto& p : ports) {
         if (!(mask & 1)) {
@@ -565,12 +568,10 @@ void init_sata(const pci_device& dev) {
         // FIXME - SATA_SIG_ATAPI (CD drives etc.)
 
         if (p.sig == SATA_SIG_ATA)
-            add_kernel_thread(init_sata_device, (void*)&p, sw);
+            add_kernel_thread(init_sata_device, (void*)&p, sc);
 
         mask >>= 1;
     }
 
-    wait_for_object(sw->event.get());
-
-    delete sw;
+    wait_for_object(sc->init_event.get());
 }

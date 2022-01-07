@@ -470,3 +470,14 @@ public:
     unsigned int dev_num;
     bool valid = false;
 };
+
+class sata_card {
+public:
+    sata_card(const pci_device& dev) : dev(dev) { }
+
+    const pci_device& dev;
+    list_entry le;
+    volatile HBA_MEM* abar;
+    unique_handle init_event;
+    std::atomic<unsigned int> init_left = 0;
+};
