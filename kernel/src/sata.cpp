@@ -104,6 +104,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         port.ci = port.ci | (1 << slot);
 
         wait_for_object(events[slot].get());
+        reset_event(events[slot].get());
 
         if (port.is & HBA_PxIS_TFES) {
             print("Error reading disk\n");
@@ -200,7 +201,11 @@ bool sata_device::identify() {
 
     port.ci = port.ci | (1 << slot);
 
-    wait_for_object(events[slot].get());
+    // IDENTIFY doesn't necessarily lead to an interrupt on real hardware
+
+    while (port.ci & 1 << slot) { }
+
+    reset_event(events[slot].get());
 
     if (port.is & HBA_PxIS_TFES) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
@@ -278,6 +283,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     memset((void*)clb, 0, PAGE_SIZE);
     memset((void*)fb, 0, PAGE_SIZE);
 
+    port.is = 0xffffffff;
     port.ie = 0xfdc000ff; // enable all interrupts
 
     unsigned int cmdtbl_pages = bytes_to_pages(SATA_NUM_CMD_TABLES * sizeof(HBA_CMD_TBL));
@@ -360,7 +366,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     }
 
     for (auto& ev : events) {
-        ev = create_event(true);
+        ev = create_event(false);
     }
 
     slot_semaphore = create_semaphore(SATA_NUM_CMD_TABLES);
@@ -460,7 +466,11 @@ void sata_isr_func() {
     while (le != &sata_list) {
         auto& sc = containing_record<sata_card>(le);
 
-        {
+        auto abar_is = sc.abar->is;
+
+        sc.abar->is = abar_is;
+
+        if (abar_is != 0) {
             lock_guard lock2(sc.port_list_lock);
 
             auto le2 = sc.port_list.next;
