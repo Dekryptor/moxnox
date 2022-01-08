@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.15)
 project(moxnox)
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
+set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 
 add_subdirectory(kernel)
 add_subdirectory(efi)
