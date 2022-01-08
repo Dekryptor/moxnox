@@ -109,19 +109,23 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
         volatile auto& b = h0.bar[i];
 
         if (b != 0) {
-            uint32_t orig, changed, end;
-
-            orig = b;
-            b = 0xffffffff;
-            changed = b;
-            b = orig;
-
-            end = orig + ~changed + 1;
+            uint32_t orig = b;
 
             if (!(b & 1)) { // memory space
                 auto type = (orig >> 1) & 0x3;
 
-                // FIXME - type == 2 is 64-bit register
+                if (type != 0 && type != 2) {
+                    print("Unhandled PCI BAR type ");
+                    print_hex(type);
+                    print("\n");
+                    continue;
+                }
+
+                b = 0xffffffff;
+                uint32_t changed = b;
+                b = orig;
+
+                uint64_t end = orig + ~changed + 1;
 
                 if (type == 0) {
                     auto pa = orig & 0xfffffff0;
@@ -142,10 +146,38 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
                     }
 
                     pci_dev.bar[i] = span((volatile uint8_t*)va, end - pa);
-                } else {
-                    print("Unhandled PCI BAR type ");
-                    print_hex(type);
-                    print("\n");
+                } else { // 64-bit register
+                    if (i == 5) {
+                        print("64-bit PCI register cannot occupy BAR slot 5.\n");
+                        continue;
+                    }
+
+                    // FIXME - what if BAR crosses 32-bit boundary?
+
+                    uint64_t pa = orig & 0xfffffff0;
+
+                    pa |= (uint64_t)h0.bar[i+1] << 32;
+                    end |= (uint64_t)h0.bar[i+1] << 32;
+
+                    auto pages = bytes_to_pages(end - pa);
+                    auto va = allocate_va(pages);
+
+                    if (!va) {
+                        print("allocate_va failed\n");
+                        return;
+                    }
+
+                    for (unsigned int j = 0; j < pages; j++) {
+                        // FIXME - if prefetchable, map as write-through (or write-combine if framebuffer)?
+                        if (!map_page(pa + (j << PAGE_SHIFT), va + (j << PAGE_SHIFT), mapping_type::no_cache)) {
+                            print("map_page failed\n");
+                            return;
+                        }
+                    }
+
+                    pci_dev.bar[i] = span((volatile uint8_t*)va, end - pa);
+
+                    i++;
                 }
             }
         }
