@@ -149,8 +149,10 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y) {
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
-            if (*buf != 0)
+            if (*buf != 0) {
+                // FIXME - alpha blending
                 base[x] = (*buf << 16) | (*buf << 8) | *buf;
+            }
 
             buf++;
         }
