@@ -141,6 +141,10 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 
 bool btrfs_probe(volume& vol) {
     auto fs = new btrfs_filesystem(vol);
+    if (!fs) {
+        print("new failed\n");
+        return false;
+    }
 
     if (!fs->valid) {
         delete fs;
