@@ -10,6 +10,8 @@ extern uint16_t last_tid; // FIXME
 static const uint16_t user_CS = 0x3b;
 static const uint16_t user_DS = 0x33;
 
+section* ntdll = nullptr;
+
 // FIXME - make sure process signalled when it dies
 // FIXME - handle thread crashes
 // FIXME - kill process when last thread dies
@@ -21,9 +23,6 @@ unique_handle create_process(string_view fn) {
         print("open_file failed\n");
         return {};
     }
-
-    // FIXME - create section from file
-    // FIXME - make sure section refers to PE file
 
     auto pptr = new process;
     if (!pptr) {
@@ -79,7 +78,13 @@ unique_handle create_process(string_view fn) {
 
     stacksect.release();
 
-    // FIXME - map ntdll into process
+    auto ntdll_addr = p.map_section(*ntdll, 0x400000); // FIXME - don't specify address
+    if (!ntdll_addr) {
+        print("process::map_section failed\n");
+        p.release();
+        return {};
+    }
+
     // FIXME - map time page into process
 
     if (!p.allocate_cr3()) {
@@ -164,6 +169,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
         }
 
         if (m->address < m2.address + m2.size && m->address + m->size > m2.address) { // collision
+            print("collision\n");
             delete m;
             return 0;
         }
@@ -354,4 +360,24 @@ bool process::copy_from(const void* us_addr, void* ks_addr, size_t size) {
     }
 
     return false;
+}
+
+void load_ntdll() {
+    auto file = open_file("/ntdll.dll");
+    if (!file) {
+        bsod("open_file failed for ntdll.dll");
+        return;
+    }
+
+    auto ntdllh = create_section(file.get(), true, 0);
+    if (!ntdllh) {
+        print("create_section failed for ntdll.dll\n");
+        return;
+    }
+
+    ntdll = static_cast<section*>(&deref_handle(ntdllh.get())->get());
+
+    ntdllh.reset();
+
+    // FIXME - find address of mn_start_process
 }

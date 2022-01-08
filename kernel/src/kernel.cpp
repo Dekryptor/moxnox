@@ -127,6 +127,8 @@ void main_thread() {
 
     add_kernel_thread(keyboard_echo, nullptr);
 
+    load_ntdll();
+
     auto init = create_process("/init.exe");
     if (!init)
         print("Could not start init process.\n");
