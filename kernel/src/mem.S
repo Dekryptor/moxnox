@@ -1,5 +1,7 @@
 .intel_syntax noprefix
 
+.equ IA32_PAT_MSR, 0x277
+
 # void* memcpy(void* dest, const void* src, size_t n)
 .global memcpy
 memcpy:
@@ -65,3 +67,20 @@ memcpy_aligned:
     add rcx, 16
     sub r8, 16
     jmp memcpy_aligned
+
+.global init_pat
+init_pat:
+    # FIXME - do we need to check this is available, or is it there for all amd64 CPUs?
+
+    # set PA4 to write-combine
+    mov ecx, IA32_PAT_MSR
+    rdmsr
+    and edx, ~0x7
+    or edx, 1
+    wrmsr
+
+    # force refresh
+    mov rax, cr3
+    mov cr3, rax
+
+    ret

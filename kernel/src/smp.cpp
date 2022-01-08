@@ -169,6 +169,8 @@ static void ap_startup() {
 
     setup_ap_gdt(init_tss());
 
+    init_pat();
+
     init_syscalls();
 
     init_lapic_timer(true);

@@ -44,7 +44,8 @@ enum class mapping_type {
     read_only,
     read_execute,
     read_write_execute,
-    no_cache
+    no_cache,
+    write_combine
 };
 
 struct guid {
@@ -213,3 +214,4 @@ extern "C" void serial_isr();
 
 // mem.S
 extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
+extern "C" void init_pat();

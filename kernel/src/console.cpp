@@ -346,7 +346,7 @@ bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per
         framebuffer = span((uint32_t*)va, pixels_per_scan_line * height);
 
         for (unsigned int i = 0; i < pages; i++) {
-            if (!map_page((uintptr_t)pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::no_cache)) { // FIXME - should be write-combine (but needs MTRR)
+            if (!map_page((uintptr_t)pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
                 print("map_page failed\n");
                 return false;
             }

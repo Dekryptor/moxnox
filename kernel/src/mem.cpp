@@ -314,6 +314,13 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
             pt_entry.Write = 1;
             pt_entry.CacheDisable = 1;
         break;
+
+        case mapping_type::write_combine:
+            pt_entry.NoExecute = 1;
+            pt_entry.Write = 1;
+            pt_entry.LargePage = 1;
+            pt_entry.CacheDisable = 1;
+        break;
     }
 
     pt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
@@ -508,6 +515,8 @@ bool init_memory(const loader_block& lb) {
     uint64_t total_pages, num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
     uint64_t memblock_pa;
+
+    init_pat();
 
     // ignore any non-free entries at end of table
     while (num_map_entries > 0 && !treat_as_free(lb.map[num_map_entries - 1].type)) {
@@ -745,31 +754,49 @@ void protect_page(uint64_t va, enum mapping_type type) {
         case mapping_type::read_write:
             pt_entry.NoExecute = 1;
             pt_entry.Write = 1;
+            pt_entry.LargePage = 0;
             pt_entry.CacheDisable = 0;
+            pt_entry.WriteThrough = 0;
         break;
 
         case mapping_type::read_only:
             pt_entry.NoExecute = 1;
             pt_entry.Write = 0;
+            pt_entry.LargePage = 0;
             pt_entry.CacheDisable = 0;
+            pt_entry.WriteThrough = 0;
         break;
 
         case mapping_type::read_execute:
             pt_entry.NoExecute = 0;
             pt_entry.Write = 0;
+            pt_entry.LargePage = 0;
             pt_entry.CacheDisable = 0;
+            pt_entry.WriteThrough = 0;
         break;
 
         case mapping_type::read_write_execute:
             pt_entry.NoExecute = 0;
             pt_entry.Write = 1;
+            pt_entry.LargePage = 0;
             pt_entry.CacheDisable = 0;
+            pt_entry.WriteThrough = 0;
         break;
 
         case mapping_type::no_cache:
             pt_entry.NoExecute = 1;
             pt_entry.Write = 1;
+            pt_entry.LargePage = 0;
             pt_entry.CacheDisable = 1;
+            pt_entry.WriteThrough = 0;
+        break;
+
+        case mapping_type::write_combine:
+            pt_entry.NoExecute = 1;
+            pt_entry.Write = 1;
+            pt_entry.LargePage = 1;
+            pt_entry.CacheDisable = 1;
+            pt_entry.WriteThrough = 0;
         break;
     }
 }
