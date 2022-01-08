@@ -56,7 +56,7 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
 
     if ((h.header_type & 0x7f) != 0) {
         print("Unhandled PCI header type ");
-        print_hex(h.header_type);
+        print_hex(h.header_type & 0x7f);
         print("\n");
         return;
     }
