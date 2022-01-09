@@ -212,7 +212,6 @@ bool section::load_image() {
             size = nt_header.OptionalHeader64.SizeOfImage;
             size_of_headers = nt_header.OptionalHeader64.SizeOfHeaders;
             preferred_base = nt_header.OptionalHeader64.ImageBase;
-            entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
             stack_size = nt_header.OptionalHeader64.SizeOfStackReserve;
         } else {
             if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
@@ -223,7 +222,6 @@ bool section::load_image() {
             size = nt_header.OptionalHeader32.SizeOfImage;
             size_of_headers = nt_header.OptionalHeader32.SizeOfHeaders;
             preferred_base = nt_header.OptionalHeader32.ImageBase;
-            entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
             stack_size = nt_header.OptionalHeader32.SizeOfStackReserve;
         }
 

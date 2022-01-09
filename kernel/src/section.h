@@ -34,7 +34,6 @@ public:
     uint32_t num_pages;
     uint64_t* pa = nullptr;
     uintptr_t preferred_base;
-    uint32_t entry_point;
     uint64_t stack_size;
     spinlock alloc_lock;
 };

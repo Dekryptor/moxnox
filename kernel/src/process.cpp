@@ -48,7 +48,8 @@ unique_handle create_process(string_view fn) {
 
     auto& img = p.img->get();
 
-    if (!p.map_section(img, img.preferred_base)) {
+    auto img_base = p.map_section(img, img.preferred_base);
+    if (!img_base) {
         print("process::map_section failed\n");
         p.release();
         return {};
@@ -99,7 +100,7 @@ unique_handle create_process(string_view fn) {
     // FIXME - give process a PID
     // FIXME - add process to list
 
-    if (!p.add_thread(ntdll_addr + mn_start_process, img.preferred_base + img.entry_point, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
+    if (!p.add_thread(ntdll_addr + mn_start_process, img_base, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
         print("process::add_thread failed\n");
         p.release();
         return {};
