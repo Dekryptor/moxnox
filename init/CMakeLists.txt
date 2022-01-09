@@ -7,10 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
-set(SRC_FILES src/init.cpp
-    src/syscalls.S)
+set(SRC_FILES src/init.cpp)
 
 add_executable(init ${SRC_FILES})
 
 target_compile_options(init PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe)
 target_link_options(init PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(init ntdll)
