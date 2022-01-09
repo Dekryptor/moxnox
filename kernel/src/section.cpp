@@ -411,3 +411,148 @@ bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
         size -= to_copy;
     }
 }
+
+static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view name) {
+    const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)dir.data();
+
+    if (ied.NumberOfNames == 0)
+        return 0;
+
+    auto names = span((uint32_t*)(dir.data() + ied.AddressOfNames - offset), ied.NumberOfNames);
+
+    if ((uint8_t*)names.data() + names.size_bytes() > dir.data() + dir.size()) {
+        print("invalid export directory\n");
+        return 0;
+    }
+
+    auto name_ordinals = span((uint16_t*)(dir.data() + ied.AddressOfNameOrdinals - offset), ied.NumberOfNames);
+
+    if ((uint8_t*)name_ordinals.data() + name_ordinals.size_bytes() > dir.data() + dir.size()) {
+        print("invalid export directory\n");
+        return 0;
+    }
+
+    auto funcs = span((uint32_t*)(dir.data() + ied.AddressOfFunctions - offset), ied.NumberOfFunctions);
+
+    if ((uint8_t*)funcs.data() + funcs.size_bytes() > dir.data() + dir.size()) {
+        print("invalid export directory\n");
+        return 0;
+    }
+
+    optional<uint16_t> ord;
+
+    for (unsigned int i = 0; i < names.size(); i++) {
+        auto n = names[i];
+
+        if (dir.data() + n - offset > dir.data() + dir.size()) {
+            print("invalid export directory\n");
+            return 0;
+        }
+
+        auto sv = string_view((char*)dir.data() + n - offset, dir.size() + offset - n);
+
+        auto nulpos = sv.find_first_of((char)0);
+
+        if (nulpos != string_view::npos)
+            sv = string_view(sv.data(), nulpos);
+
+        if (sv == name) {
+            ord = name_ordinals[i];
+            break;
+        }
+    }
+
+    if (!ord)
+        return 0;
+
+    if (*ord >= ied.NumberOfFunctions) {
+        print("Function ordinal out of range.\n");
+        return 0;
+    }
+
+    return funcs[*ord];
+}
+
+uint64_t section::find_export(string_view name) {
+    if (type != section_type::image) {
+        print("Not an image.\n");
+        return 0;
+    }
+
+    // map first page
+
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return 0;
+    }
+
+    if (!map(0, va)) {
+        print("section::map failed\n");
+        free_va(va, 1);
+        return 0;
+    }
+
+    IMAGE_DATA_DIRECTORY exp_dir;
+    bool found = false;
+
+    const auto& dos_header = *(IMAGE_DOS_HEADER*)va;
+    const auto& nt_header = *(IMAGE_NT_HEADERS*)(va + dos_header.e_lfanew);
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_EXPORT) {
+            exp_dir = nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+            found = true;
+        }
+    } else {
+        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_EXPORT) {
+            exp_dir = nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+            found = true;
+        }
+    }
+
+    unmap_page(va);
+    free_va(va, 1);
+
+    if (!found) {
+        print("image has no export directory\n");
+        return 0;
+    }
+
+    if (exp_dir.VirtualAddress == 0 || exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
+        print("invalid export directory\n");
+        return 0;
+    }
+
+    uint64_t exp_dir_start = exp_dir.VirtualAddress & ~(PAGE_SIZE - 1);
+    uint64_t exp_dir_end = bytes_to_pages(exp_dir.VirtualAddress + exp_dir.Size) << PAGE_SHIFT;
+    auto exp_dir_pages = bytes_to_pages(exp_dir_end - exp_dir_start);
+
+    va = allocate_va(exp_dir_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return 0;
+    }
+
+    for (unsigned int i = 0; i < exp_dir_pages; i++) {
+        if (!map((uint32_t)(exp_dir_start + (i << PAGE_SHIFT)), va + (i << PAGE_SHIFT))) {
+            print("section::map failed\n");
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+            free_va(va, exp_dir_pages);
+            return 0;
+        }
+    }
+
+    auto ret = search_exports(span((uint8_t*)va + exp_dir.VirtualAddress - exp_dir_start, exp_dir.Size),
+                              exp_dir.VirtualAddress, name);
+
+    for (unsigned int i = 0; i < exp_dir_pages; i++) {
+        unmap_page(va + (i << PAGE_SHIFT));
+    }
+
+    free_va(va, exp_dir_pages);
+
+    return ret;
+}

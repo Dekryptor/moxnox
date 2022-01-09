@@ -10,6 +10,7 @@
 #define IMAGE_NT_OPTIONAL_HDR32_MAGIC   0x10b
 #define IMAGE_NT_OPTIONAL_HDR64_MAGIC   0x20b
 
+#define IMAGE_DIRECTORY_ENTRY_EXPORT        0
 #define IMAGE_DIRECTORY_ENTRY_BASERELOC     5
 
 #define IMAGE_REL_BASED_ABSOLUTE    0
@@ -186,3 +187,17 @@ struct IMAGE_BASE_RELOCATION {
     uint32_t VirtualAddress;
     uint32_t SizeOfBlock;
 };
+
+struct IMAGE_EXPORT_DIRECTORY {
+    uint32_t Characteristics;
+    uint32_t TimeDateStamp;
+    uint16_t MajorVersion;
+    uint16_t MinorVersion;
+    uint32_t Name;
+    uint32_t Base;
+    uint32_t NumberOfFunctions;
+    uint32_t NumberOfNames;
+    uint32_t AddressOfFunctions;
+    uint32_t AddressOfNames;
+    uint32_t AddressOfNameOrdinals;
+} __attribute__((packed));

@@ -10,7 +10,8 @@ extern uint16_t last_tid; // FIXME
 static const uint16_t user_CS = 0x3b;
 static const uint16_t user_DS = 0x33;
 
-section* ntdll = nullptr;
+static section* ntdll = nullptr;
+static uintptr_t mn_start_process;
 
 // FIXME - make sure process signalled when it dies
 // FIXME - handle thread crashes
@@ -98,8 +99,7 @@ unique_handle create_process(string_view fn) {
     // FIXME - give process a PID
     // FIXME - add process to list
 
-    // FIXME - start point of thread should actually be in ntdll, so it can do relocations etc.
-    if (!p.add_thread(img.preferred_base + img.entry_point, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
+    if (!p.add_thread(ntdll_addr + mn_start_process, img.preferred_base + img.entry_point, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
         print("process::add_thread failed\n");
         p.release();
         return {};
@@ -182,7 +182,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
     return m->address;
 }
 
-bool process::add_thread(uintptr_t entry_point, uintptr_t stack) {
+bool process::add_thread(uintptr_t entry_point, uintptr_t param, uintptr_t stack) {
     uint16_t tid;
 
     auto tptr = new thread;
@@ -209,6 +209,7 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t stack) {
 
     memset(&t.context, 0, sizeof(t.context));
     t.context.rip = entry_point;
+    t.context.rcx = param;
     t.context.rsp = stack - 0x20; // 0x20 for MS ABI
     t.context.rflags = 0x202; // IF, reserved flag
     t.context.cs = user_CS;
@@ -371,7 +372,7 @@ void load_ntdll() {
 
     auto ntdllh = create_section(file.get(), true, 0);
     if (!ntdllh) {
-        print("create_section failed for ntdll.dll\n");
+        bsod("create_section failed for ntdll.dll");
         return;
     }
 
@@ -379,5 +380,9 @@ void load_ntdll() {
 
     ntdllh.reset();
 
-    // FIXME - find address of mn_start_process
+    mn_start_process = ntdll->find_export("mn_start_process");
+    if (!mn_start_process) {
+        bsod("Could not find export mn_start_process in ntdll.dll");
+        return;
+    }
 }
