@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
-set(SRC_FILES src/ntdll.cpp)
+set(SRC_FILES src/ntdll.cpp
+    src/syscalls.S)
 
 add_library(ntdll SHARED ${SRC_FILES})
 
