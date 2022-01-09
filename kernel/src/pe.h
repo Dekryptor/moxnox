@@ -11,6 +11,7 @@
 #define IMAGE_NT_OPTIONAL_HDR64_MAGIC   0x20b
 
 #define IMAGE_DIRECTORY_ENTRY_EXPORT        0
+#define IMAGE_DIRECTORY_ENTRY_IMPORT        1
 #define IMAGE_DIRECTORY_ENTRY_BASERELOC     5
 
 #define IMAGE_REL_BASED_ABSOLUTE    0
@@ -200,4 +201,12 @@ struct IMAGE_EXPORT_DIRECTORY {
     uint32_t AddressOfFunctions;
     uint32_t AddressOfNames;
     uint32_t AddressOfNameOrdinals;
+} __attribute__((packed));
+
+struct IMAGE_IMPORT_DESCRIPTOR {
+    uint32_t Characteristics;
+    uint32_t TimeDateStamp;
+    uint32_t ForwarderChain;
+    uint32_t Name;
+    uint32_t FirstThunk;
 } __attribute__((packed));
