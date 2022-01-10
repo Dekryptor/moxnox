@@ -571,7 +571,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
         while (1) { }
     } else {
         print("Thread killed\n");
-        terminate_thread();
+        current_thread->terminate();
     }
 }
 
@@ -604,7 +604,7 @@ void double_fault() {
         while (1) { }
     } else {
         print("Thread killed\n");
-        terminate_thread();
+        current_thread->terminate();
     }
 }
 
@@ -638,7 +638,7 @@ void general_protection_fault(uint64_t error_code) {
         while (1) { }
     } else {
         print("Thread killed\n");
-        terminate_thread();
+        current_thread->terminate();
     }
 }
 
@@ -671,6 +671,6 @@ void invalid_opcode() {
         while (1) { }
     } else {
         print("Thread killed\n");
-        terminate_thread();
+        current_thread->terminate();
     }
 }

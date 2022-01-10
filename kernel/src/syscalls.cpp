@@ -25,9 +25,7 @@ static NTSTATUS NtDisplayString(const UNICODE_STRING* string) {
 }
 
 static bool copy_from_process(const void* us_addr, void* ks_addr, size_t size) {
-    __asm("cli");
     auto t = get_current_thread();
-    __asm("sti");
 
     return t->proc->copy_from(us_addr, ks_addr, size);
 }

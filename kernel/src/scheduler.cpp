@@ -22,49 +22,47 @@ static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 volatile uint64_t sync_lock_val = 0;
 
 thread* get_current_thread() {
-    return get_cpu_block()->current_thread;
+    __asm __volatile("cli");
+    auto t = get_cpu_block()->current_thread;
+    __asm __volatile("sti");
+
+    return t;
 }
 
-void terminate_thread() {
-    auto current_thread = get_current_thread();
+void thread::terminate() {
     unsigned int release_count = 0;
 
-    current_thread->status = thread_status::dead;
-    current_thread->signalled = true;
+    status = thread_status::dead;
+    signalled = true;
 
-    {
-        auto obj = static_cast<object*>(current_thread);
+    __asm("cli");
+    acquire_sync_lock();
 
-        sync_lock sl;
-        lock_guard lock(sl);
+    auto le = thread_list.next;
 
-        auto le = thread_list.next;
+    while (le != &thread_list) {
+        auto& t = containing_record<thread>(le);
 
-        while (le != &thread_list) {
-            auto& t = containing_record<thread>(le);
-
-            if (t.status == thread_status::waiting && t.waiting_for.has_value() && &t.waiting_for->get() == obj) {
-                t.status = thread_status::runnable;
-                t.waiting_for = nullopt;
-                release_count++;
-            }
-
-            le = le->next;
+        if (t.status == thread_status::waiting && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
+            t.status = thread_status::runnable;
+            t.waiting_for = nullopt;
+            release_count++;
         }
+
+        le = le->next;
     }
 
-    // out of spinlock
     for (unsigned int i = 0; i < release_count; i++) {
-        current_thread->release();
+        release();
     }
 
-    yield();
+    yield(); // releases sync_lock
 }
 
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
 
-    terminate_thread();
+    get_current_thread()->terminate();
 }
 
 unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
@@ -402,7 +400,7 @@ static void wait_for_object(object& obj) {
     current_thread->waiting_for = obj;
     current_thread->status = thread_status::waiting;
 
-    yield_and_wait(); // releases sync_lock
+    yield(); // releases sync_lock
 }
 
 void wait_for_object(handle_t h) {

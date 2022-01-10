@@ -83,6 +83,8 @@ public:
             delete this;
     }
 
+    void terminate();
+
     list_entry le;
     bool signalled = false;
     amd64_context context;

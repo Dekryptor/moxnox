@@ -134,42 +134,6 @@ scheduler_restore:
 
 .global yield
 yield:
-    cli
-    pushfq
-    or QWORD PTR [rsp], 0x200 # set interrupt enable flag in stored RFLAGS
-    mov gs:GS_CONTEXT + CONTEXT_RAX, rax
-    mov gs:GS_CONTEXT + CONTEXT_RCX, rcx
-    mov gs:GS_CONTEXT + CONTEXT_RDX, rdx
-    mov gs:GS_CONTEXT + CONTEXT_RBX, rbx
-    lea rax, [rsp+0x10]
-    mov gs:GS_CONTEXT + CONTEXT_RSP, rax # rsp
-    mov gs:GS_CONTEXT + CONTEXT_RBP, rbp
-    mov gs:GS_CONTEXT + CONTEXT_RSI, rsi
-    mov gs:GS_CONTEXT + CONTEXT_RDI, rdi
-    mov gs:GS_CONTEXT + CONTEXT_R8, r8
-    mov gs:GS_CONTEXT + CONTEXT_R9, r9
-    mov gs:GS_CONTEXT + CONTEXT_R10, r10
-    mov gs:GS_CONTEXT + CONTEXT_R11, r11
-    mov gs:GS_CONTEXT + CONTEXT_R12, r12
-    mov gs:GS_CONTEXT + CONTEXT_R13, r13
-    mov gs:GS_CONTEXT + CONTEXT_R14, r14
-    mov gs:GS_CONTEXT + CONTEXT_R15, r15
-    mov rax, [rsp+0x8]
-    mov gs:GS_CONTEXT + CONTEXT_RIP, rax # rip of instruction after call
-    pop gs:GS_CONTEXT + CONTEXT_RFLAGS # RFLAGS
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_CS, cs
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_DS, ds
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_ES, es
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_GS, gs
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_SS, ss
-    fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
-    # FIXME - debug registers
-    mov rsp, gs:GS_SCHEDULER_STACK
-    jmp scheduler
-
-.global yield_and_wait
-yield_and_wait:
     pushfq
     or QWORD PTR [rsp], 0x200 # set interrupt enable flag in stored RFLAGS
     mov gs:GS_CONTEXT + CONTEXT_RAX, rax
