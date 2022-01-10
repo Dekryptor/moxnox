@@ -7,6 +7,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include "nt.h"
 
 #define PAGE_SIZE 4096
 #define PAGE_SHIFT 12
@@ -131,6 +132,7 @@ std::span<char> sp_context(std::span<char>dest, const amd64_context& ctx);
 void wait_for_object(handle_t h);
 bool init_cpu_block(bool handle_timers, unsigned int cpu_no);
 thread* get_current_thread();
+NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status);
 
 // handle.cpp
 handle_t add_handle(object& obj, uint32_t access_mask);

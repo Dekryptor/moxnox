@@ -14,3 +14,5 @@ struct UNICODE_STRING {
     uint16_t MaximumLength;
     char16_t* Buffer;
 };
+
+using HANDLE = uintptr_t;

@@ -5,6 +5,7 @@
 .section .rdata
 syscalls:
     .quad user_NtDisplayString
+    .quad user_NtTerminateThread
 end_syscalls:
 
 .section .text

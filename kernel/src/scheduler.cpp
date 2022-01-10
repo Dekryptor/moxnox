@@ -468,3 +468,15 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
 
     return true;
 }
+
+NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
+    print("FIXME - NtTerminateThread(");
+    print_hex(thread_handle);
+    print(", ");
+    print_hex(exit_status);
+    print(")\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

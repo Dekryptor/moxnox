@@ -66,3 +66,10 @@ NTSTATUS user_NtDisplayString(const UNICODE_STRING* string) {
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
+    // FIXME - check not kernel handle
+
+    return NtTerminateThread(thread_handle, exit_status);
+}
