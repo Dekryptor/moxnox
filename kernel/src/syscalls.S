@@ -87,7 +87,9 @@ syscall_handler:
     jge Lno_syscall
 
     shl rax, 3
-    add rax, [rip+syscalls]
+    lea rcx, [rip+syscalls]
+    add rax, rcx
+    mov rax, [rax]
     mov rcx, gs:GS_CONTEXT + CONTEXT_R10
     # FIXME - syscalls with arguments on stack
     sti
