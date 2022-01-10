@@ -1,22 +1,9 @@
 #include "ntdll.h"
 #include "../../kernel/src/pe.h"
 #include <optional>
+#include <nt.h>
 
 using namespace std;
-
-// FIXME - syscall header file
-
-using NTSTATUS = int32_t;
-using USHORT = uint16_t;
-using PWSTR = char16_t*;
-
-typedef struct _UNICODE_STRING {
-    USHORT Length;
-    USHORT MaximumLength;
-    PWSTR Buffer;
-} UNICODE_STRING, *PUNICODE_STRING;
-
-extern "C" NTSTATUS NtDisplayString(PUNICODE_STRING String);
 
 extern uint8_t __image_base__;
 
