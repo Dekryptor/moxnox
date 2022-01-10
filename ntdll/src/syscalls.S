@@ -1,13 +1,17 @@
 .intel_syntax noprefix
 
-.text
-
-.global NtDisplayString
-NtDisplayString:
+.macro do_syscall name, num
+    .text
+    .global "\name"
+    "\name":
     mov r10, rcx
-    mov eax, 0x1000
+    mov eax, \num
     syscall
     ret
 
-.section .drectve
-    .ascii " -export:\"NtDisplayString\""
+    .section .drectve
+    .ascii " -export:\"\name\""
+.endm
+
+do_syscall "NtDisplayString", 0x1000
+do_syscall "NtTerminateThread", 0x1001
