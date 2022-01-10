@@ -1,22 +1,5 @@
 #include <stdint.h>
-
-using NTSTATUS = int32_t;
-using USHORT = uint16_t;
-using PWSTR = char16_t*;
-using HANDLE = uintptr_t;
-
-typedef struct _UNICODE_STRING {
-    USHORT Length;
-    USHORT MaximumLength;
-    PWSTR Buffer;
-} UNICODE_STRING, *PUNICODE_STRING;
-
-extern "C" NTSTATUS NtDisplayString(PUNICODE_STRING String);
-extern "C" NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status);
-
-static constexpr HANDLE NtCurrentThread() {
-    return (HANDLE)-2;
-}
+#include <nt.h>
 
 extern "C"
 void startup() {
@@ -28,5 +11,5 @@ void startup() {
 
     NtDisplayString(&us);
 
-    NtTerminateThread(NtCurrentThread(), 42);
+    NtTerminateThread(NtCurrentThread(), (NTSTATUS)42);
 }

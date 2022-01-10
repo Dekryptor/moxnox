@@ -5,6 +5,8 @@ project(moxnox)
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 
+include_directories(include)
+
 add_subdirectory(kernel)
 add_subdirectory(efi)
 add_subdirectory(init)
