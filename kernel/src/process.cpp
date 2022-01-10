@@ -100,7 +100,7 @@ unique_handle create_process(string_view fn) {
     // FIXME - give process a PID
     // FIXME - add process to list
 
-    if (!p.add_thread(ntdll_addr + mn_start_process, img_base, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
+    if (!p.add_thread(ntdll_addr + mn_start_process, img_base, ntdll_addr, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
         print("process::add_thread failed\n");
         p.release();
         return {};
@@ -183,7 +183,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
     return m->address;
 }
 
-bool process::add_thread(uintptr_t entry_point, uintptr_t param, uintptr_t stack) {
+bool process::add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t param2, uintptr_t stack) {
     uint16_t tid;
 
     auto tptr = new thread;
@@ -210,7 +210,8 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t param, uintptr_t stack
 
     memset(&t.context, 0, sizeof(t.context));
     t.context.rip = entry_point;
-    t.context.rcx = param;
+    t.context.rcx = param1;
+    t.context.rdx = param2;
     t.context.rsp = stack - 0x20; // 0x20 for MS ABI
     t.context.rflags = 0x202; // IF, reserved flag
     t.context.cs = user_CS;
