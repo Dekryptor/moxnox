@@ -45,3 +45,5 @@ target_compile_options(kernel PRIVATE -Wall -Wextra -Wno-address-of-packed-membe
 target_link_options(kernel PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup -Wl,--image-base=0xfffff80000000000)
 
 target_link_libraries(kernel freetype)
+
+target_compile_definitions(kernel PUBLIC -DNO_NT_SYSCALLS)

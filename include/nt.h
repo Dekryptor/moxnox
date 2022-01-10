@@ -26,5 +26,9 @@ struct UNICODE_STRING {
 
 using PUNICODE_STRING = UNICODE_STRING*;
 
+#ifndef NO_NT_SYSCALLS
+
 extern "C" NTSTATUS NtDisplayString(const UNICODE_STRING* string);
 extern "C" NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status);
+
+#endif
