@@ -282,11 +282,11 @@ static void resolve_relocations(void* base) {
 }
 
 extern "C" __declspec(dllexport)
-void mn_start_process(void* img_base) {
+void mn_start_process(void* img_base, void* ntdll_base) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)img_base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_base + dos_header.e_lfanew);
 
-    resolve_relocations((void*)0x400000); // FIXME - get kernel to tell us the base of ntdll
+    resolve_relocations(ntdll_base);
     resolve_relocations(img_base);
 
     // FIXME - load DLLs (recursively) (with relocations)
