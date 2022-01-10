@@ -35,6 +35,23 @@ void thread::terminate() {
     status = thread_status::dead;
     signalled = true;
 
+    if (proc) {
+        bool last_thread;
+
+        {
+            lock_guard lock(proc->threads_lock);
+
+            remove_entry_list(process_le);
+
+            last_thread = is_list_empty(proc->threads);
+        }
+
+        if (last_thread) {
+            proc->exit_status = exit_status;
+            proc->terminate();
+        }
+    }
+
     __asm("cli");
     acquire_sync_lock();
 

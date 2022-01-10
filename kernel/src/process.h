@@ -25,12 +25,16 @@ public:
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
     bool allocate_cr3();
     bool copy_from(const void* us_addr, void* ks_addr, size_t size);
+    void terminate();
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
     spinlock mappings_lock;
     list_entry mappings = { &mappings, &mappings };
     uint64_t cr3;
+    spinlock threads_lock;
+    list_entry threads = { &threads, &threads };
+    enum nt_status exit_status = nt_status::PENDING;
 };
 
 static_assert(is_sync_object<process>);

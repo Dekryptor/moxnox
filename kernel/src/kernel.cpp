@@ -131,9 +131,11 @@ void main_thread() {
 
     auto init = create_process("/init.exe");
     if (!init)
-        print("Could not start init process.\n");
+        bsod("Could not start init process.\n");
 
-    // FIXME - start process
+    wait_for_object(init.get());
+
+    print("init process finished\n");
 
 //     thread_test(); // FIXME
 //     timer_test(); // FIXME

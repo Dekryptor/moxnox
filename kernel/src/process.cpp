@@ -234,6 +234,11 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t para
     this->acquire();
 
     {
+        lock_guard lock(threads_lock);
+        insert_tail_list(this->threads, t.process_le);
+    }
+
+    {
         sync_lock sl;
         lock_guard lock(sl);
         insert_tail_list(thread_list, t.le);
@@ -386,5 +391,32 @@ void load_ntdll() {
     if (!mn_start_process) {
         bsod("Could not find export mn_start_process in ntdll.dll");
         return;
+    }
+}
+
+void process::terminate() {
+    unsigned int release_count = 0;
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        auto le = thread_list.next;
+
+        while (le != &thread_list) {
+            auto& t = containing_record<thread>(le);
+
+            if (t.status == thread_status::waiting && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
+                t.status = thread_status::runnable;
+                t.waiting_for = nullopt;
+                release_count++;
+            }
+
+            le = le->next;
+        }
+    }
+
+    for (unsigned int i = 0; i < release_count; i++) {
+        release();
     }
 }

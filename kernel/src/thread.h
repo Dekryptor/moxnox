@@ -100,6 +100,7 @@ public:
     void* rsp_before_syscall;
     uint64_t rflags_before_syscall;
     enum nt_status exit_status = nt_status::PENDING;
+    list_entry process_le;
 };
 
 static_assert(is_sync_object<thread>);
