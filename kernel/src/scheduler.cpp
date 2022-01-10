@@ -468,13 +468,42 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
 }
 
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
-    print("FIXME - NtTerminateThread(");
-    print_hex(thread_handle);
-    print(", ");
-    print_hex(exit_status);
-    print(")\n");
+    thread* t;
 
-    // FIXME
+    if (thread_handle == NtCurrentThread()) {
+        t = get_current_thread();
+        t->acquire();
+    } else {
+        auto objrw = deref_handle(thread_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
 
-    return nt_status::NOT_IMPLEMENTED;
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::thread) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        t = static_cast<thread*>(&objrw->get());
+    }
+
+    if (t != get_current_thread()) {
+        // FIXME
+        print("FIXME - terminating other threads\n");
+        t->release();
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    t->exit_status = exit_status;
+
+    t->release();
+    t->terminate(); // doesn't return
+
+    return nt_status::SUCCESS;
 }
