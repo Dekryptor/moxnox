@@ -18,6 +18,8 @@ typedef struct _UNICODE_STRING {
 
 extern "C" NTSTATUS NtDisplayString(PUNICODE_STRING String);
 
+extern uint8_t __image_base__;
+
 extern "C"
 bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
@@ -45,6 +47,15 @@ static void print(string_view s) {
     us.Buffer = (PWSTR)buf;
 
     NtDisplayString(&us);
+}
+
+static void print_hex(uint64_t num, unsigned int padding = 0) {
+    char s[17];
+    span sp(s, sizeof(s));
+
+    sp = sp_itoa_hex(sp, num, padding);
+
+    print(string_view(s, sp.data() - s));
 }
 
 static optional<uintptr_t> find_export(void* base, string_view name) {
@@ -111,7 +122,7 @@ static void resolve_imports_dll(void* base, string_view name, T* lookup_table, T
         return;
     }
 
-    void* dll_base = (void*)0x400000; // FIXME
+    auto dll_base = (void*)&__image_base__;
 
     while (*lookup_table) {
         auto v = *lookup_table;
@@ -187,13 +198,98 @@ static void resolve_imports(void* base) {
     }
 }
 
+static void resolve_relocations(void* base) {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)base;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
+
+    uint64_t header_base;
+    span<uint8_t> dir;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_BASERELOC ||
+            nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress == 0 ||
+            nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size < sizeof(IMAGE_BASE_RELOCATION)) {
+            return;
+        }
+
+        dir = span((uint8_t*)base + nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress,
+                   nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size);
+
+        header_base = nt_header.OptionalHeader64.ImageBase;
+    } else {
+        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_BASERELOC ||
+            nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress == 0 ||
+            nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size < sizeof(IMAGE_BASE_RELOCATION)) {
+            return;
+        }
+
+        dir = span((uint8_t*)base + nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress,
+                   nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size);
+
+        header_base = nt_header.OptionalHeader32.ImageBase;
+    }
+
+    if ((uintptr_t)base == header_base) // not relocated
+        return;
+
+    do {
+        auto& reloc = *(IMAGE_BASE_RELOCATION*)dir.data();
+
+        if (dir.size() < reloc.SizeOfBlock)
+            break;
+
+        auto rs = span((uint16_t*)((uint8_t*)&reloc + sizeof(IMAGE_BASE_RELOCATION)), (reloc.SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(uint16_t));
+
+        for (const auto& r : rs) {
+            uint16_t offset = r & 0xfff;
+            uint16_t type = r >> 12;
+
+            switch (type) {
+                case IMAGE_REL_BASED_ABSOLUTE:
+                    // nop
+                break;
+
+                case IMAGE_REL_BASED_HIGHLOW: {
+                    uint32_t* ptr2 = (uint32_t*)((uint8_t*)base + reloc.VirtualAddress + offset);
+
+                    *ptr2 = (uint32_t)(*ptr2 - header_base + (uintptr_t)base);
+                    break;
+                }
+
+                case IMAGE_REL_BASED_DIR64: {
+                    uint64_t* ptr2 = (uint64_t*)((uint8_t*)base + reloc.VirtualAddress + offset);
+
+                    *ptr2 = *ptr2 - header_base + (uintptr_t)base;
+                    break;
+                }
+
+                default:
+                    print(u"Unsupported relocation type ");
+                    print_hex(type);
+                    print(u".\n");
+                    // FIXME - terminate process
+                    return;
+            }
+        }
+
+        dir = dir.subspan(reloc.SizeOfBlock);
+
+        if (dir.size() < sizeof(IMAGE_BASE_RELOCATION))
+            break;
+    } while (true);
+
+    // FIXME - do we need to update the base in the header?
+}
+
 extern "C" __declspec(dllexport)
 void mn_start_process(void* img_base) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)img_base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_base + dos_header.e_lfanew);
 
-    // FIXME - load DLLs (recursively)
-    // FIXME - relocations
+    resolve_relocations((void*)0x400000); // FIXME - get kernel to tell us the base of ntdll
+    resolve_relocations(img_base);
+
+    // FIXME - load DLLs (recursively) (with relocations)
 
     resolve_imports(img_base);
 
