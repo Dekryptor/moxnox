@@ -250,7 +250,7 @@ static bool setup_idt() {
     memset(idt.data(), 0, PAGE_SIZE);
 
     // FIXME - int 0 (divide by zero)
-    // FIXME - int 1 (debug)
+    add_idt_entry(0x1, (void*)spurious_isr, false, 0); // FIXME - single-step debug interrupt
     // FIXME - int 2 (NMI)
     // FIXME - int 3
     // FIXME - int 4 (overflow)
