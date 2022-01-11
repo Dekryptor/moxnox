@@ -8,6 +8,7 @@ syscalls:
     .quad user_NtTerminateThread
     .quad user_NtTerminateProcess
     .quad user_NtWriteFile
+    .quad user_NtResumeProcess
 end_syscalls:
 
 .section .text

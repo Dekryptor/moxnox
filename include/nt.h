@@ -67,5 +67,6 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status);
 NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
                      void* apc_context, IO_STATUS_BLOCK* io_status_block, const void* buffer,
                      uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t* key);
+NTSTATUS NtResumeProcess(HANDLE proc_handle);
 
 };

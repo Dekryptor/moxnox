@@ -161,3 +161,10 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtResumeProcess(HANDLE proc_handle) {
+    // FIXME - make sure not kernel handle
+
+    return NtResumeProcess(proc_handle);
+}

@@ -512,3 +512,9 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtResumeProcess(HANDLE proc_handle) {
+    print("NtResumeProcess: FIXME\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
