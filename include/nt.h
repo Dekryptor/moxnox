@@ -17,6 +17,10 @@ using USHORT = uint16_t;
 using PWSTR = char16_t*;
 using HANDLE = uintptr_t;
 
+static constexpr HANDLE NtCurrentProcess() {
+    return (HANDLE)-1;
+}
+
 static constexpr HANDLE NtCurrentThread() {
     return (HANDLE)-2;
 }
@@ -31,7 +35,12 @@ using PUNICODE_STRING = UNICODE_STRING*;
 
 #ifndef NO_NT_SYSCALLS
 
-extern "C" NTSTATUS NtDisplayString(const UNICODE_STRING* string);
-extern "C" NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status);
+extern "C" {
+
+NTSTATUS NtDisplayString(const UNICODE_STRING* string);
+NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status);
+NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status);
+
+};
 
 #endif

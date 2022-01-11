@@ -71,3 +71,10 @@ NTSTATUS user_NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
 
     return NtTerminateThread(thread_handle, exit_status);
 }
+
+extern "C"
+NTSTATUS user_NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
+    // FIXME - check not kernel handle
+
+    return NtTerminateProcess(process_handle, exit_status);
+}

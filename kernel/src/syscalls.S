@@ -6,6 +6,7 @@
 syscalls:
     .quad user_NtDisplayString
     .quad user_NtTerminateThread
+    .quad user_NtTerminateProcess
 end_syscalls:
 
 .section .text

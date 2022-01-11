@@ -420,3 +420,14 @@ void process::terminate() {
         release();
     }
 }
+
+NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
+    // FIXME
+    print("FIXME - NtTerminateProcess(");
+    print_hex(process_handle);
+    print(", ");
+    print_hex(exit_status);
+    print(")\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
