@@ -147,10 +147,10 @@ void startup(loader_block* lb) {
 
     // FIXME - should restart if anything fails before we can show error message
 
-    {
-        volatile int wait = 1;
-        while (wait) { }
-    }
+//     {
+//         volatile int wait = 1;
+//         while (wait) { }
+//     }
 
     memcpy(&fb, &lb->framebuffer, sizeof(fb));
 
