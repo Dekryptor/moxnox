@@ -24,7 +24,7 @@ public:
     bool add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t param2, uintptr_t stack);
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
     bool allocate_cr3();
-    bool copy_from(const void* us_addr, void* ks_addr, size_t size);
+    bool copy_from(void* ks_addr, const void* us_addr, size_t size);
     bool copy_to(void* us_addr, const void* ks_addr, size_t size);
     void terminate();
 

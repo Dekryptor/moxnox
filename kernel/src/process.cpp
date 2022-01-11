@@ -334,7 +334,7 @@ bool process::allocate_cr3() {
     return true;
 }
 
-bool process::copy_from(const void* us_addr, void* ks_addr, size_t size) {
+bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
     while (true) {
         lock_guard lock(mappings_lock);
         bool found = false;

@@ -24,10 +24,10 @@ NTSTATUS NtDisplayString(const UNICODE_STRING* string) {
     return nt_status::SUCCESS;
 }
 
-static bool copy_from_process(const void* us_addr, void* ks_addr, size_t size) {
+static bool copy_from_process(void* ks_addr, const void* us_addr, size_t size) {
     auto t = get_current_thread();
 
-    return t->proc->copy_from(us_addr, ks_addr, size);
+    return t->proc->copy_from(ks_addr, us_addr, size);
 }
 
 static bool copy_to_process(void* us_addr, const void* ks_addr, size_t size) {
@@ -37,7 +37,7 @@ static bool copy_to_process(void* us_addr, const void* ks_addr, size_t size) {
 }
 
 static bool copy_unicode_string_from_process(const UNICODE_STRING* us_us, UNICODE_STRING& ks_us) {
-    if (!copy_from_process(us_us, &ks_us, sizeof(UNICODE_STRING)))
+    if (!copy_from_process(&ks_us, us_us, sizeof(UNICODE_STRING)))
         return false;
 
     if (ks_us.Buffer) {
@@ -45,7 +45,7 @@ static bool copy_unicode_string_from_process(const UNICODE_STRING* us_us, UNICOD
         if (!buf)
             return false;
 
-        if (!copy_from_process(ks_us.Buffer, buf, ks_us.Length)) {
+        if (!copy_from_process(buf, ks_us.Buffer, ks_us.Length)) {
             free(buf);
             return false;
         }
@@ -88,8 +88,8 @@ NTSTATUS user_NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
 template<size_t N>
 static bool copy_stack_args(thread& t, array<uintptr_t, N>& args) {
     // 1 uint64_t for return address, followed by 4 for shadow store
-    return copy_from_process((void*)((uintptr_t)t.rsp_before_syscall + (5 * sizeof(uint64_t))),
-                             args.data(), args.size() * sizeof(uintptr_t));
+    return copy_from_process(args.data(), (void*)((uintptr_t)t.rsp_before_syscall + (5 * sizeof(uint64_t))),
+                             args.size() * sizeof(uintptr_t));
 }
 
 extern "C"
@@ -124,14 +124,14 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
         if (!buf)
             return nt_status::INSUFFICIENT_RESOURCES;
 
-        if (!copy_from_process(us_buf, buf, length)) {
+        if (!copy_from_process(buf, us_buf, length)) {
             free(buf);
             return nt_status::ACCESS_VIOLATION;
         }
     }
 
     if (us_byte_offset) {
-        if (!copy_from_process(us_byte_offset, &byte_offset, sizeof(LARGE_INTEGER))) {
+        if (!copy_from_process(&byte_offset, us_byte_offset, sizeof(LARGE_INTEGER))) {
             if (buf)
                 free(buf);
 
@@ -140,7 +140,7 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
     }
 
     if (us_key) {
-        if (!copy_from_process(us_key, &key, sizeof(uint32_t))) {
+        if (!copy_from_process(&key, us_key, sizeof(uint32_t))) {
             if (buf)
                 free(buf);
 
