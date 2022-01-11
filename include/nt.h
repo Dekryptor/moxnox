@@ -17,6 +17,11 @@ using NTSTATUS = enum nt_status;
 using USHORT = uint16_t;
 using PWSTR = char16_t*;
 using HANDLE = uintptr_t;
+using ULONG = uint32_t;
+using LONG = int32_t;
+using PVOID = void*;
+using ULONG_PTR = uintptr_t;
+using LONGLONG = int64_t;
 
 static consteval HANDLE NtCurrentProcess() {
     return (HANDLE)-1;
@@ -26,22 +31,41 @@ static consteval HANDLE NtCurrentThread() {
     return (HANDLE)-2;
 }
 
+static constexpr bool success(NTSTATUS val) {
+    return !((uint32_t)val & 0x80000000);
+}
+
 struct UNICODE_STRING {
     uint16_t Length;
     uint16_t MaximumLength;
     char16_t* Buffer;
 };
 
-using PUNICODE_STRING = UNICODE_STRING*;
+struct IO_STATUS_BLOCK {
+    union {
+        NTSTATUS Status;
+        PVOID Pointer;
+    };
+    ULONG_PTR Information;
+};
 
-#ifndef NO_NT_SYSCALLS
+using PIO_APC_ROUTINE = void (*)(PVOID, const IO_STATUS_BLOCK*, ULONG);
+
+union LARGE_INTEGER {
+    struct {
+        ULONG LowPart;
+        LONG HighPart;
+    };
+    LONGLONG QuadPart;
+};
 
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status);
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status);
+NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
+                     void* apc_context, IO_STATUS_BLOCK* io_status_block, const void* buffer,
+                     uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t* key);
 
 };
-
-#endif

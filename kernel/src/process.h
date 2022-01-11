@@ -25,6 +25,7 @@ public:
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
     bool allocate_cr3();
     bool copy_from(const void* us_addr, void* ks_addr, size_t size);
+    bool copy_to(void* us_addr, const void* ks_addr, size_t size);
     void terminate();
 
     bool signalled = false;

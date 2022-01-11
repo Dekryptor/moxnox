@@ -410,6 +410,47 @@ bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     }
 }
 
+bool section::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
+    lock_guard lock(alloc_lock);
+
+    while (true) {
+        auto page = pa[offset >> PAGE_SHIFT];
+
+        if (!page) {
+            // FIXME - handle missing page (load from disk if file, zero if anonymous)
+            return false;
+        }
+
+        // FIXME - page protection (copy-on-write etc.)
+
+        auto va = allocate_va(1);
+        if (!va) {
+            print("allocate_va failed\n");
+            return false;
+        }
+
+        if (!map_page(page, va, mapping_type::read_only)) {
+            print("map_page failed\n");
+            free_va(va, 1);
+            return false;
+        }
+
+        auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+
+        memcpy((uint8_t*)va + (offset & (PAGE_SIZE - 1)), ks_addr, to_copy);
+
+        unmap_page(va);
+        free_va(va, 1);
+
+        if (to_copy == size)
+            return true;
+
+        ks_addr = (uint8_t*)ks_addr + to_copy;
+        offset += to_copy;
+        size -= to_copy;
+    }
+}
+
 static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view name) {
     const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)dir.data();
 

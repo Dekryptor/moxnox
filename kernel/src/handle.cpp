@@ -356,3 +356,12 @@ void write(handle_t h, span<const uint8_t> s) {
 void write(handle_t h, string_view s) {
     write(h, span((uint8_t*)s.data(), s.size()));
 }
+
+NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
+                     void* apc_context, IO_STATUS_BLOCK* io_status_block, const void* buffer,
+                     uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t* key) {
+    // FIXME
+    print("NtWriteFile: FIXME\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

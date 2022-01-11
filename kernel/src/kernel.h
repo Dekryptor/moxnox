@@ -130,7 +130,6 @@ std::span<char> sp_context(std::span<char>dest, const amd64_context& ctx);
 void wait_for_object(handle_t h);
 bool init_cpu_block(bool handle_timers, unsigned int cpu_no);
 thread* get_current_thread();
-NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status);
 
 // handle.cpp
 handle_t add_handle(object& obj, uint32_t access_mask);
@@ -192,7 +191,6 @@ unique_handle open_file(std::string_view fn);
 // process.cpp
 unique_handle create_process(std::string_view fn);
 void load_ntdll();
-NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status);
 
 // section.cpp
 unique_handle create_section(handle_t h, bool image, size_t size);
