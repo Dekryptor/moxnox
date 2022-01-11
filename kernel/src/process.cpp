@@ -422,12 +422,57 @@ void process::terminate() {
 }
 
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
-    // FIXME
-    print("FIXME - NtTerminateProcess(");
-    print_hex(process_handle);
-    print(", ");
-    print_hex(exit_status);
-    print(")\n");
+    process* p;
+    bool this_process;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (process_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+
+        this_process = true;
+    } else {
+        auto objrw = deref_handle(process_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&objrw->get());
+
+        this_process = get_current_thread()->proc;
+    }
+
+    if (!this_process) {
+        // FIXME
+        print("FIXME - terminating other processes\n");
+        p->release();
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    // FIXME - kill other threads
+
+    auto t = get_current_thread();
+
+    t->exit_status = exit_status;
+
+    t->release();
+    p->release();
+    t->terminate(); // doesn't return
+
+    return nt_status::SUCCESS;
 }
