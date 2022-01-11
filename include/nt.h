@@ -17,11 +17,11 @@ using USHORT = uint16_t;
 using PWSTR = char16_t*;
 using HANDLE = uintptr_t;
 
-static constexpr HANDLE NtCurrentProcess() {
+static consteval HANDLE NtCurrentProcess() {
     return (HANDLE)-1;
 }
 
-static constexpr HANDLE NtCurrentThread() {
+static consteval HANDLE NtCurrentThread() {
     return (HANDLE)-2;
 }
 
