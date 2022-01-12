@@ -20,10 +20,10 @@ public:
 
     size_t read(std::span<uint8_t> s);
 
-    virtual void write(std::span<const uint8_t> s);
+    virtual size_t write(std::span<const uint8_t> s);
 
-    void write(std::string_view sv) {
-        write(std::span((uint8_t*)sv.data(), sv.length()));
+    size_t write(std::string_view sv) {
+        return write(std::span((uint8_t*)sv.data(), sv.length()));
     }
 
     bool signalled = false;
@@ -36,4 +36,4 @@ public:
 
 static_assert(is_sync_object<pipe>);
 static_assert(is_readable_object_without_offset<pipe>);
-static_assert(is_writable_object<pipe>);
+static_assert(is_writable_object_without_offset<pipe>);

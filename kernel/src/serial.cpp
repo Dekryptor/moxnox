@@ -11,7 +11,7 @@ static const unsigned int serial_buffer_pages = 1;
 class serial_pipe : public pipe {
 public:
     serial_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
-    void write(span<const uint8_t> s) override;
+    size_t write(span<const uint8_t> s) override;
 
     bool ready = true;
     uint16_t port;
@@ -76,9 +76,11 @@ bool init_serial() {
     return true;
 }
 
-void serial_pipe::write(span<const uint8_t> s) {
+size_t serial_pipe::write(span<const uint8_t> s) {
+    auto size = s.size();
+
     if (s.empty())
-        return;
+        return 0;
 
     lock_guard l(lock);
 
@@ -94,7 +96,7 @@ void serial_pipe::write(span<const uint8_t> s) {
         s = s.subspan(1);
 
         if (s.empty())
-            return;
+            return size;
     }
 
     size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
@@ -117,6 +119,8 @@ void serial_pipe::write(span<const uint8_t> s) {
         buf_unread += to_copy;
         s = s.subspan(to_copy);
     }
+
+    return size;
 }
 
 extern "C"

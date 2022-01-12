@@ -86,11 +86,12 @@ pipe::~pipe() {
     free_va((uintptr_t)buf, buf_pages);
 }
 
-void pipe::write(span<const uint8_t> s) {
+size_t pipe::write(span<const uint8_t> s) {
     unsigned int release_count = 0;
+    auto size = s.size();
 
     if (s.empty())
-        return;
+        return 0;
 
     {
         lock_guard l(lock);
@@ -149,9 +150,11 @@ void pipe::write(span<const uint8_t> s) {
     }
 
     if (s.empty())
-        return;
+        return size;
 
     // FIXME - block while we wait for space to become available
+
+    return size;
 }
 
 size_t pipe::read(span<uint8_t> s) {

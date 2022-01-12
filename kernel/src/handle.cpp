@@ -297,7 +297,7 @@ void write(handle_t h, span<const uint8_t> s) {
     bool can_write = false;
 
     visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_writable_object<remove_reference_t<decltype(o)>>)
+        if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
             can_write = true;
     });
 
@@ -313,7 +313,7 @@ void write(handle_t h, span<const uint8_t> s) {
     }
 
     visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_writable_object<remove_reference_t<decltype(o)>>)
+        if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
             o.write(s);
 
         o.release();
@@ -324,13 +324,65 @@ void write(handle_t h, string_view s) {
     write(h, span((uint8_t*)s.data(), s.size()));
 }
 
-NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
-                     void* apc_context, IO_STATUS_BLOCK* io_status_block, const void* buffer,
-                     uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t* key) {
-    // FIXME
-    print("NtWriteFile: FIXME\n");
+NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
+                     IO_STATUS_BLOCK* io_status_block, const void* buffer,
+                     uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
+    auto buf = span((const uint8_t*)buffer, length);
 
-    return nt_status::NOT_IMPLEMENTED;
+    auto objrw = deref_handle(file_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    // FIXME - async (event)
+    // FIXME - async (APC)
+
+    auto& obj = objrw->get();
+    bool can_write = false;
+
+    if (byte_offset) {
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
+                can_write = true;
+        });
+    } else {
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
+                can_write = true;
+        });
+    }
+
+    if (!can_write) {
+        visit_obj(obj, [&](auto&& o) {
+            o.release();
+        });
+
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    size_t written;
+
+    if (byte_offset) {
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
+                written = o.write(buf, byte_offset->QuadPart);
+
+            o.release();
+        });
+    } else {
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
+                written = o.write(buf);
+
+            o.release();
+        });
+    }
+
+    // FIXME - propagating errors from write function
+
+    io_status_block->Status = nt_status::SUCCESS;
+    io_status_block->Information = written;
+
+    return nt_status::SUCCESS;
 }
 
 void handle_closed(object& obj) {
