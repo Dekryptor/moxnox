@@ -133,6 +133,11 @@ void main_thread() {
     if (!init)
         bsod("Could not start init process.\n");
 
+    // FIXME - add handles to init process
+
+    if (!success(NtResumeProcess(init.get())))
+        bsod("NtResumeProcess failed for init process.\n");
+
     wait_for_object(init.get());
 
     print("init process finished\n");

@@ -106,6 +106,8 @@ unique_handle create_process(string_view fn) {
         return {};
     }
 
+    p.suspend_count = 1;
+
     auto hv = add_handle(p, 0); // FIXME - access mask
 
     p.release(); // add_handle increases refcount
@@ -222,6 +224,7 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t para
     t.context.ss = user_DS;
     t.kernel_mode = false;
 
+    t.suspend_count = 1;
     t.status = thread_status::runnable;
 
     auto kernel_stack = allocate_stack();
@@ -513,8 +516,59 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtResumeProcess(HANDLE proc_handle) {
-    print("NtResumeProcess: FIXME\n");
+void process::resume() {
+    if (--suspend_count != 0)
+        return;
 
-    return nt_status::NOT_IMPLEMENTED;
+    sync_lock sl;
+
+    lock_guard lock1(sl);
+    lock_guard lock2(threads_lock);
+
+    auto le = threads.next;
+
+    while (le != &threads) {
+        auto& t = *(thread*)((uint8_t*)le - offsetof(thread, process_le));
+
+        t.suspend_count--;
+
+        le = le->next;
+    }
+}
+
+NTSTATUS NtResumeProcess(HANDLE proc_handle) {
+    process* p;
+
+    if (proc_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+    } else {
+        auto objrw = deref_handle(proc_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&objrw->get());
+    }
+
+    p->resume();
+    p->release();
+
+    return nt_status::SUCCESS;
 }

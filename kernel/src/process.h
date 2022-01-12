@@ -27,6 +27,7 @@ public:
     bool copy_from(void* ks_addr, const void* us_addr, size_t size);
     bool copy_to(void* us_addr, const void* ks_addr, size_t size);
     void terminate();
+    void resume();
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
@@ -36,6 +37,7 @@ public:
     spinlock threads_lock;
     list_entry threads = { &threads, &threads };
     enum nt_status exit_status = nt_status::PENDING;
+    std::atomic<unsigned int> suspend_count;
 };
 
 static_assert(is_sync_object<process>);
