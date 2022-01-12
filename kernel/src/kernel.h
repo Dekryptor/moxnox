@@ -66,6 +66,11 @@ static_assert(sizeof(guid) == 16);
 
 static const guid null_guid = { 0x00000000, 0x0000, 0x0000, { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
 
+struct handle_obj {
+    object* obj;
+    uint32_t access_mask;
+};
+
 // mem.cpp
 bool init_memory(const loader_block& lb);
 bool map_page(uint64_t pa, uint64_t va, enum mapping_type type);

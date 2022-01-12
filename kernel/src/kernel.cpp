@@ -96,6 +96,43 @@ static void keyboard_echo(void*) {
     }
 }
 
+static unique_handle start_init_process() {
+    auto init = create_process("/init.exe");
+    if (!init)
+        bsod("Could not start init process.\n");
+
+    auto objrw = deref_handle(init.get());
+    if (!objrw)
+        bsod("No such handle\n");
+
+    auto& p = static_cast<process&>(objrw->get());
+
+    {
+        auto initout = open_object("tty");
+        if (!initout)
+            bsod("Could not open tty object.\n");
+
+        auto objrw = deref_handle(initout.get());
+        if (!objrw)
+            bsod("No such handle\n");
+
+        p.add_handle(objrw->get(), 0); // FIXME - access mask
+
+        visit_obj(objrw->get(), [&](auto&& o) {
+            o.release();
+        });
+    }
+
+    // FIXME - set tty as stdout in process PEB
+
+    p.release();
+
+    if (!success(NtResumeProcess(init.get())))
+        bsod("NtResumeProcess failed for init process.\n");
+
+    return init;
+}
+
 void main_thread() {
     init_keyboard();
 
@@ -129,18 +166,11 @@ void main_thread() {
 
     load_ntdll();
 
-    auto init = create_process("/init.exe");
-    if (!init)
-        bsod("Could not start init process.\n");
-
-    // FIXME - add handles to init process
-
-    if (!success(NtResumeProcess(init.get())))
-        bsod("NtResumeProcess failed for init process.\n");
+    auto init = start_init_process();
 
     wait_for_object(init.get());
 
-    print("init process finished\n");
+    print("init process finished\n"); // FIXME - BSOD?
 
 //     thread_test(); // FIXME
 //     timer_test(); // FIXME

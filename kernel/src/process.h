@@ -28,6 +28,7 @@ public:
     bool copy_to(void* us_addr, const void* ks_addr, size_t size);
     void terminate();
     void resume();
+    handle_t add_handle(object& obj, uint32_t access_mask);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
@@ -38,6 +39,10 @@ public:
     list_entry threads = { &threads, &threads };
     enum nt_status exit_status = nt_status::PENDING;
     std::atomic<unsigned int> suspend_count;
+    spinlock handle_lock;
+    unsigned int no_handles = 0;
+    unsigned int handle_arr_pages = 0;
+    handle_obj* handle_arr = nullptr;
 };
 
 static_assert(is_sync_object<process>);

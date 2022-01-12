@@ -5,11 +5,6 @@
 
 using namespace std;
 
-struct handle_obj {
-    object* obj;
-    uint32_t access_mask;
-};
-
 static unsigned int no_handles = 0;
 static handle_obj* const handle_arr = (handle_obj*)0xfffffa2000000000;
 static size_t handle_arr_pages = 0;
@@ -27,6 +22,8 @@ static list_entry name_list = { &name_list, &name_list };
 
 handle_t add_kernel_handle(object& obj, uint32_t access_mask) {
     handle_t h;
+
+    // FIXME - reusing handles?
 
     {
         lock_guard lock(handle_spinlock);

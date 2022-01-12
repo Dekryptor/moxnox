@@ -572,3 +572,93 @@ NTSTATUS NtResumeProcess(HANDLE proc_handle) {
 
     return nt_status::SUCCESS;
 }
+
+handle_t process::add_handle(object& obj, uint32_t access_mask) {
+    handle_t h;
+
+    // FIXME - reusing handles?
+
+    {
+        lock_guard lock(handle_lock);
+
+        auto needed_pages = bytes_to_pages((no_handles + 1) * sizeof(handle_obj));
+
+        if (needed_pages > handle_arr_pages) {
+            auto pa = allocate_page();
+            if (!pa) {
+                // FIXME - should be exception
+                print("allocate_page failed\n");
+                return 0;
+            }
+
+            auto va = allocate_va(needed_pages);
+            if (!va) {
+                print("allocate_page failed\n");
+                free_page(pa);
+                return 0;
+            }
+
+            if (handle_arr) {
+                // remap pages
+
+                for (unsigned int i = 0; i < handle_arr_pages; i++) {
+                    auto pa = va_to_pa((uintptr_t)handle_arr + (i << PAGE_SHIFT));
+
+                    if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
+                        print("map_page failed\n");
+
+                        for (unsigned int j = 0; j < i; j++) {
+                            unmap_page(va + (j << PAGE_SHIFT));
+                        }
+
+                        free_va(va, needed_pages);
+
+                        return 0;
+                    }
+                }
+            }
+
+            if (!map_page(pa, va + (handle_arr_pages << PAGE_SHIFT), mapping_type::read_write)) {
+                // FIXME - exception
+                print("map_page failed\n");
+                free_page(pa);
+
+                for (unsigned int i = 0; i < handle_arr_pages; i++) {
+                    unmap_page(va + (i << PAGE_SHIFT));
+                }
+
+                free_va(va, needed_pages);
+
+                return 0;
+            }
+
+            for (unsigned int i = 0; i < handle_arr_pages; i++) {
+                unmap_page((uintptr_t)handle_arr + (i << PAGE_SHIFT));
+            }
+
+            if (handle_arr)
+                free_va((uintptr_t)handle_arr, handle_arr_pages);
+
+            handle_arr = (handle_obj*)va;
+            handle_arr_pages++;
+        }
+
+        no_handles++;
+
+        // FIXME - handles should be multiples of 4
+
+        h = no_handles;
+
+        auto& ho = handle_arr[h - 1];
+        ho.obj = &obj;
+        ho.access_mask = access_mask;
+    }
+
+    visit_obj(obj, [](auto&& o) {
+        o.acquire();
+    });
+
+    obj.handle_count++;
+
+    return h;
+}
