@@ -78,37 +78,7 @@ void close_handle(handle_t h) {
         ho.obj = nullptr;
     }
 
-    auto new_handle_count = --obj->handle_count;
-
-    // remove name if last handle closed
-    if (obj->named && !obj->persistent && new_handle_count == 0) {
-        name_entry* ne = nullptr;
-
-        {
-            lock_guard lock(name_lock);
-
-            auto le = name_list.next;
-            while (le != &name_list) {
-                auto& ne2 = containing_record<name_entry>(le);
-
-                if (ne2.obj == obj) {
-                    ne = &ne2;
-                    remove_entry_list(ne2.le);
-                    break;
-                }
-
-                le = le->next;
-            }
-        }
-
-        if (ne) {
-            free(ne);
-
-            visit_obj(*obj, [](auto&& o) {
-                o.release();
-            });
-        }
-    }
+    handle_closed(*obj);
 
     visit_obj(*obj, [](auto&& o) {
         o.release();
@@ -361,4 +331,39 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routi
     print("NtWriteFile: FIXME\n");
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+void handle_closed(object& obj) {
+    auto new_handle_count = --obj.handle_count;
+
+    // remove name if last handle closed
+
+    if (obj.named && !obj.persistent && new_handle_count == 0) {
+        name_entry* ne = nullptr;
+
+        {
+            lock_guard lock(name_lock);
+
+            auto le = name_list.next;
+            while (le != &name_list) {
+                auto& ne2 = containing_record<name_entry>(le);
+
+                if (ne2.obj == &obj) {
+                    ne = &ne2;
+                    remove_entry_list(ne2.le);
+                    break;
+                }
+
+                le = le->next;
+            }
+        }
+
+        if (ne) {
+            free(ne);
+
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+        }
+    }
 }

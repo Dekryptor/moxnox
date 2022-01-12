@@ -436,6 +436,8 @@ void load_ntdll() {
 void process::terminate() {
     unsigned int release_count = 0;
 
+    // wake up threads waiting for process to terminate
+
     {
         sync_lock sl;
         lock_guard lock(sl);
@@ -457,6 +459,24 @@ void process::terminate() {
 
     for (unsigned int i = 0; i < release_count; i++) {
         release();
+    }
+
+    // close open handles
+
+    lock_guard lock(handle_lock);
+    auto handles = span(handle_arr, no_handles);
+
+    for (auto& ho : handles) {
+        auto obj = ho.obj;
+
+        if (!obj)
+            continue;
+
+        handle_closed(*obj);
+
+        visit_obj(*obj, [](auto&& o) {
+            o.release();
+        });
     }
 }
 
