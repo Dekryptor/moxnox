@@ -13,9 +13,9 @@ unique_handle create_pipe(unsigned int buffer_pages) {
 
     auto& p = *pptr;
 
-    auto hv = add_handle(p, 0); // FIXME - access mask
+    auto hv = add_kernel_handle(p, 0); // FIXME - access mask
 
-    p.release(); // add_handle increases refcount
+    p.release(); // add_kernel_handle increases refcount
 
     return unique_handle{hv};
 }

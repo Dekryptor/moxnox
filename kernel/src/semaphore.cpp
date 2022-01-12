@@ -17,9 +17,9 @@ unique_handle create_semaphore(unsigned int maximum_count) {
     s.current_count = 0;
     s.signalled = true;
 
-    auto hv = add_handle(s, 0); // FIXME - access mask
+    auto hv = add_kernel_handle(s, 0); // FIXME - access mask
 
-    s.release(); // add_handle increases refcount
+    s.release(); // add_kernel_handle increases refcount
 
     // FIXME - what happens if a thread dies before calling release_semaphore?
 

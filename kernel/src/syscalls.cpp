@@ -73,14 +73,16 @@ NTSTATUS user_NtDisplayString(const UNICODE_STRING* string) {
 
 extern "C"
 NTSTATUS user_NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
-    // FIXME - check not kernel handle
+    if (thread_handle & kernel_handle_mask && thread_handle != NtCurrentThread())
+        return nt_status::INVALID_HANDLE;
 
     return NtTerminateThread(thread_handle, exit_status);
 }
 
 extern "C"
 NTSTATUS user_NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
-    // FIXME - check not kernel handle
+    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
 
     return NtTerminateProcess(process_handle, exit_status);
 }
@@ -101,7 +103,8 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
     LARGE_INTEGER byte_offset;
     uint32_t key;
 
-    // FIXME - make sure file_handle or event not kernel hanadles
+    if (file_handle & kernel_handle_mask || event & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
 
     if (!copy_stack_args(t, args))
         return nt_status::ACCESS_VIOLATION;
@@ -164,7 +167,8 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
 
 extern "C"
 NTSTATUS user_NtResumeProcess(HANDLE proc_handle) {
-    // FIXME - make sure not kernel handle
+    if (proc_handle & kernel_handle_mask && proc_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
 
     return NtResumeProcess(proc_handle);
 }

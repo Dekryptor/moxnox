@@ -76,9 +76,9 @@ unique_handle create_section(handle_t h, bool image, size_t size) {
         // FIXME - make sure allocate_page doesn't steal what we've reserved
     }
 
-    auto hv = add_handle(s, 0); // FIXME - access mask
+    auto hv = add_kernel_handle(s, 0); // FIXME - access mask
 
-    s.release(); // add_handle increases refcount
+    s.release(); // add_kernel_handle increases refcount
 
     return unique_handle{hv};
 }

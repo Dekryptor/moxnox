@@ -15,9 +15,9 @@ unique_handle create_event(bool autoreset) {
     auto& e = *eptr;
     e.autoreset = autoreset;
 
-    auto hv = add_handle(e, 0); // FIXME - access mask
+    auto hv = add_kernel_handle(e, 0); // FIXME - access mask
 
-    e.release(); // add_handle increases refcount
+    e.release(); // add_kernel_handle increases refcount
 
     return unique_handle{hv};
 }

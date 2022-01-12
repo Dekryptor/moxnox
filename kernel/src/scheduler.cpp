@@ -174,7 +174,7 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
         insert_tail_list(thread_list, t.le);
     }
 
-    auto hv = add_handle(t, 0); // FIXME - access mask
+    auto hv = add_kernel_handle(t, 0); // FIXME - access mask
 
     // we don't decrease the refcount after the handle is created, because of the active thread list
 

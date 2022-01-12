@@ -727,7 +727,7 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
 
 unique_handle btrfs_filesystem::open(string_view fn) {
     if (fn.empty()) { // root
-        auto hv = add_handle(*root_inode, 0); // FIXME - access mask
+        auto hv = add_kernel_handle(*root_inode, 0); // FIXME - access mask
 
         return unique_handle{hv};
     }
@@ -752,7 +752,7 @@ unique_handle btrfs_filesystem::open(string_view fn) {
         dir.release();
 
         if (sl == string_view::npos) {
-            auto hv = add_handle(obj, 0); // FIXME - access mask
+            auto hv = add_kernel_handle(obj, 0); // FIXME - access mask
 
             obj.release();
 

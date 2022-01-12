@@ -108,9 +108,9 @@ unique_handle create_process(string_view fn) {
 
     p.suspend_count = 1;
 
-    auto hv = add_handle(p, 0); // FIXME - access mask
+    auto hv = add_kernel_handle(p, 0); // FIXME - access mask
 
-    p.release(); // add_handle increases refcount
+    p.release(); // add_kernel_handle increases refcount
 
     return unique_handle{hv};
 }

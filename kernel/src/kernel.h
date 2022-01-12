@@ -34,6 +34,8 @@ static const unsigned int KERNEL_GUARD_PAGES = 1;
 static const uint8_t halt_interrupt = 0xfe;
 static const uint8_t spurious_interrupt = 0xff;
 
+static const uint64_t kernel_handle_mask = 0x8000000000000000;
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
@@ -132,7 +134,7 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no);
 thread* get_current_thread();
 
 // handle.cpp
-handle_t add_handle(object& obj, uint32_t access_mask);
+handle_t add_kernel_handle(object& obj, uint32_t access_mask);
 void close_handle(handle_t h);
 std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
 bool name_object(handle_t h, std::string_view name, bool persistent = false);

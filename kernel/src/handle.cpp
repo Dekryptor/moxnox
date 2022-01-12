@@ -25,7 +25,7 @@ struct name_entry {
 static spinlock name_lock;
 static list_entry name_list = { &name_list, &name_list };
 
-handle_t add_handle(object& obj, uint32_t access_mask) {
+handle_t add_kernel_handle(object& obj, uint32_t access_mask) {
     handle_t h;
 
     {
@@ -53,7 +53,7 @@ handle_t add_handle(object& obj, uint32_t access_mask) {
 
         no_handles++;
 
-        h = no_handles;
+        h = kernel_handle_mask | no_handles;
 
         auto& ho = handle_arr[h - 1];
         ho.obj = &obj;
@@ -75,7 +75,7 @@ void close_handle(handle_t h) {
     {
         lock_guard lock(handle_spinlock);
 
-        auto& ho = handle_arr[h - 1];
+        auto& ho = handle_arr[(h & ~kernel_handle_mask) - 1];
         obj = ho.obj;
 
         ho.obj = nullptr;
@@ -121,10 +121,10 @@ void close_handle(handle_t h) {
 optional<reference_wrapper<object>> deref_handle(handle_t h) {
     lock_guard lock(handle_spinlock);
 
-    if (h == 0 || h > no_handles)
+    if (h == 0 || (h & ~kernel_handle_mask) > no_handles)
         return nullopt;
 
-    auto& ho = handle_arr[h - 1];
+    auto& ho = handle_arr[(h & ~kernel_handle_mask) - 1];
 
     if (!ho.obj)
         return nullopt;
@@ -249,14 +249,14 @@ unique_handle open_object(string_view name) {
         return {};
     }
 
-    auto hv = add_handle(*obj, 0); // FIXME - access mask
+    auto hv = add_kernel_handle(*obj, 0); // FIXME - access mask
 
     visit_obj(*obj, [](auto&& o) {
         o.release();
     });
 
     if (!hv) {
-        print("add_handle failed\n");
+        print("add_kernel_handle failed\n");
         return {};
     }
 

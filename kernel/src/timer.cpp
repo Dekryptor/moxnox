@@ -68,9 +68,9 @@ unique_handle create_timer() {
 
     auto& t = *tptr;
 
-    auto hv = add_handle(t, 0); // FIXME - access mask
+    auto hv = add_kernel_handle(t, 0); // FIXME - access mask
 
-    t.release(); // add_handle increases refcount
+    t.release(); // add_kernel_handle increases refcount
 
     return unique_handle{hv};
 }
