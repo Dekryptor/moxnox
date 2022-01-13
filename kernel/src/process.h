@@ -31,6 +31,7 @@ public:
     handle_t add_handle(object& obj, uint32_t access_mask);
     NTSTATUS allocate_vm(void** base_address, uintptr_t zero_bits, size_t* region_size,
                          uint32_t allocation_type, uint32_t protect);
+    NTSTATUS free_vm(void** base_address, size_t* region_size, uint32_t free_type);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;

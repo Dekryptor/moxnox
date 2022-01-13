@@ -731,11 +731,49 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
     return ret;
 }
 
-NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
-                             uint32_t free_type) {
+NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t free_type) {
     // FIXME
 
-    print("FIXME: NtFreeVirtualMemory stub\n");
+    print("FIXME: process::free_vm stub\n");
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
+                             uint32_t free_type) {
+    process* p;
+
+    if (proc_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+    } else {
+        auto objrw = deref_handle(proc_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&objrw->get());
+    }
+
+    auto ret = p->free_vm(base_address, region_size, free_type);
+
+    p->release();
+
+    return ret;
 }
