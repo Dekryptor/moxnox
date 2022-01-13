@@ -683,13 +683,52 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
     return h;
 }
 
-NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
-                                 size_t* region_size, uint32_t allocation_type, uint32_t protect) {
+NTSTATUS process::allocate_vm(void** base_address, uintptr_t zero_bits, size_t* region_size,
+                              uint32_t allocation_type, uint32_t protect) {
     // FIXME
 
-    print("FIXME: NtAllocateVirtualMemory stub\n");
+    print("FIXME: process::allocate_vm stub\n");
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
+                                 size_t* region_size, uint32_t allocation_type, uint32_t protect) {
+    process* p;
+
+    if (proc_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+    } else {
+        auto objrw = deref_handle(proc_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&objrw->get());
+    }
+
+    auto ret = p->allocate_vm(base_address, zero_bits, region_size, allocation_type, protect);
+
+    p->release();
+
+    return ret;
 }
 
 NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
