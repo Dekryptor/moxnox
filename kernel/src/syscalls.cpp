@@ -158,7 +158,7 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
         free(buf);
 
     if (success(ret)) {
-        if (!copy_to_process(&iosb, us_iosb, sizeof(IO_STATUS_BLOCK)))
+        if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
             ret = nt_status::ACCESS_VIOLATION;
     }
 
@@ -171,4 +171,43 @@ NTSTATUS user_NtResumeProcess(HANDLE proc_handle) {
         return nt_status::INVALID_HANDLE;
 
     return NtResumeProcess(proc_handle);
+}
+
+extern "C"
+NTSTATUS user_NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
+                                      size_t* region_size) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 2> args;
+
+    if (!region_size || !base_address)
+        return nt_status::INVALID_PARAMETER;
+
+    if (proc_handle & kernel_handle_mask && proc_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto allocation_type = (uint32_t)args[0];
+    auto protect = (uint32_t)args[1];
+    void* addr;
+    size_t size;
+
+    if (!copy_from_process(&addr, base_address, sizeof(void*)))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (!copy_from_process(&size, region_size, sizeof(size_t)))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto ret = NtAllocateVirtualMemory(proc_handle, &addr, zero_bits, &size, allocation_type, protect);
+
+    if (success(ret)) {
+        if (!copy_to_process(base_address, &addr, sizeof(void*)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(region_size, &size, sizeof(size_t)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
 }

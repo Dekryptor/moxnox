@@ -682,3 +682,12 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
 
     return h;
 }
+
+NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
+                                 size_t* region_size, uint32_t allocation_type, uint32_t protect) {
+    // FIXME
+
+    print("FIXME: NtAllocateVirtualMemory stub\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

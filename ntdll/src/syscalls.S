@@ -18,3 +18,4 @@ do_syscall "NtTerminateThread", 0x1001
 do_syscall "NtTerminateProcess", 0x1002
 do_syscall "NtWriteFile", 0x1003
 do_syscall "NtResumeProcess", 0x1004
+do_syscall "NtAllocateVirtualMemory", 0x1005

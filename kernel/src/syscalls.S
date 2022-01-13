@@ -9,6 +9,7 @@ syscalls:
     .quad user_NtTerminateProcess
     .quad user_NtWriteFile
     .quad user_NtResumeProcess
+    .quad user_NtAllocateVirtualMemory
 end_syscalls:
 
 .section .text
