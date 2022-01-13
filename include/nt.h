@@ -70,5 +70,7 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routi
 NTSTATUS NtResumeProcess(HANDLE proc_handle);
 NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
                                  size_t* region_size, uint32_t allocation_type, uint32_t protect);
+NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
+                             uint32_t free_type);
 
 };

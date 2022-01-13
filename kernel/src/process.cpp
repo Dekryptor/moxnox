@@ -691,3 +691,12 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
 
     return nt_status::NOT_IMPLEMENTED;
 }
+
+NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
+                             uint32_t free_type) {
+    // FIXME
+
+    print("FIXME: NtFreeVirtualMemory stub\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

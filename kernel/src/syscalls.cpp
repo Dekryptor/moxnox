@@ -211,3 +211,34 @@ NTSTATUS user_NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, u
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
+                                  uint32_t free_type) {
+    if (!region_size || !base_address)
+        return nt_status::INVALID_PARAMETER;
+
+    if (proc_handle & kernel_handle_mask && proc_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    void* addr;
+    size_t size;
+
+    if (!copy_from_process(&addr, base_address, sizeof(void*)))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (!copy_from_process(&size, region_size, sizeof(size_t)))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto ret = NtFreeVirtualMemory(proc_handle, &addr, &size, free_type);
+
+    if (success(ret)) {
+        if (!copy_to_process(base_address, &addr, sizeof(void*)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(region_size, &size, sizeof(size_t)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
