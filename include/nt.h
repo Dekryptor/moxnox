@@ -59,6 +59,190 @@ union LARGE_INTEGER {
     LONGLONG QuadPart;
 };
 
+static const uint32_t MEM_COMMIT  = 0x00001000;
+static const uint32_t MEM_RESERVE  = 0x00002000;
+static const uint32_t MEM_DECOMMIT = 0x00004000;
+static const uint32_t MEM_RELEASE = 0x00008000;
+static const uint32_t MEM_RESET = 0x00080000;
+static const uint32_t MEM_TOP_DOWN  = 0x00100000;
+static const uint32_t MEM_PHYSICAL = 0x00400000;
+static const uint32_t MEM_RESET_UNDO  = 0x01000000;
+static const uint32_t MEM_LARGE_PAGES  = 0x20000000;
+
+static const uint32_t PAGE_NOACCESS = 0x01;
+static const uint32_t PAGE_READONLY = 0x02;
+static const uint32_t PAGE_READWRITE = 0x04;
+static const uint32_t PAGE_WRITECOPY = 0x08;
+static const uint32_t PAGE_EXECUTE = 0x10;
+static const uint32_t PAGE_EXECUTE_READ = 0x20;
+static const uint32_t PAGE_EXECUTE_READWRITE = 0x40;
+static const uint32_t PAGE_EXECUTE_WRITECOPY = 0x80;
+static const uint32_t PAGE_GUARD = 0x100;
+static const uint32_t PAGE_NOCACHE = 0x200;
+static const uint32_t PAGE_WRITECOMBINE = 0x400;
+
+struct EXCEPTION_REGISTRATION_RECORD;
+
+struct NT_TIB {
+    EXCEPTION_REGISTRATION_RECORD* ExceptionList;
+    void* StackBase;
+    void* StackLimit;
+    void* SubSystemTib;
+    union {
+        void* FiberData;
+        uint32_t Version;
+    };
+    void* ArbitraryUserPointer;
+    NT_TIB* Self;
+};
+
+struct CLIENT_ID {
+    void* UniqueProcess;
+    void* UniqueThread;
+};
+
+struct GDI_TEB_BATCH {
+    uint32_t Offset : 31;
+    uint32_t HasRenderingCommand : 1;
+    uint64_t HDC;
+    uint32_t Buffer[310];
+};
+
+struct LIST_ENTRY {
+    LIST_ENTRY* Flink;
+    LIST_ENTRY* Blink;
+};
+
+struct GUID {
+    uint32_t Data1;
+    uint16_t Data2;
+    uint16_t Data3;
+    uint8_t Data4[8];
+};
+
+struct PEB; // FIXME
+struct ACTIVATION_CONTEXT_STACK;
+struct TEB_ACTIVE_FRAME;
+
+struct TEB {
+    NT_TIB NtTib;
+    void* EnvironmentPointer;
+    CLIENT_ID ClientId;
+    void* ActiveRpcHandle;
+    void* ThreadLocalStoragePointer;
+    PEB* ProcessEnvironmentBlock;
+    uint32_t LastErrorValue;
+    uint32_t CountOfOwnedCriticalSections;
+    void* CsrClientThread;
+    void* Win32ThreadInfo;
+    uint32_t User32Reserved[26];
+    uint32_t UserReserved[5];
+    void* WOW32Reserved;
+    uint32_t CurrentLocale;
+    uint32_t FpSoftwareStatusRegister;
+    void* SystemReserved1[54];
+    int32_t ExceptionCode;
+    uint8_t Padding0[4];
+    ACTIVATION_CONTEXT_STACK* ActivationContextStackPointer;
+    uint8_t SpareBytes[24];
+    uint32_t TxFsContext;
+    uint8_t Padding1[4];
+    GDI_TEB_BATCH GdiTebBatch;
+    CLIENT_ID RealClientId;
+    void* GdiCachedProcessHandle;
+    uint32_t GdiClientPID;
+    uint32_t GdiClientTID;
+    void* GdiThreadLocalInfo;
+    uintptr_t Win32ClientInfo[62];
+    void* glDispatchTable[233];
+    uintptr_t glReserved1[29];
+    void* glReserved2;
+    void* glSectionInfo;
+    void* glSection;
+    void* glTable;
+    void* glCurrentRC;
+    void* glContext;
+    uint32_t LastStatusValue;
+    uint8_t Padding2[4];
+    UNICODE_STRING StaticUnicodeString;
+    char16_t StaticUnicodeBuffer[261];
+    uint8_t Padding3[6];
+    void* DeallocationStack;
+    void* TlsSlots[64];
+    LIST_ENTRY TlsLinks;
+    void* Vdm;
+    void* ReservedForNtRpc;
+    HANDLE DbgSsReserved[2];
+    uint32_t HardErrorMode;
+    uint8_t Padding4[4];
+    void* Instrumentation[11];
+    GUID ActivityId;
+    void* SubProcessTag;
+    void* PerflibData;
+    void* EtwTraceData;
+    void* WinSockData;
+    uint32_t GdiBatchCount;
+    struct {
+        uint8_t ReservedPad0;
+        uint8_t ReservedPad1;
+        uint8_t ReservedPad2;
+        uint8_t IdealProcessor;
+    };
+    uint32_t GuaranteedStackBytes;
+    uint8_t Padding5[4];
+    void* ReservedForPerf;
+    void* ReservedForOle;
+    uint32_t WaitingOnLoaderLock;
+    uint8_t Padding6[4];
+    void* SavedPriorityState;
+    uintptr_t ReservedForCodeCoverage;
+    void* ThreadPoolData;
+    void** TlsExpansionSlots;
+    void* DeallocationBStore;
+    void* BStoreLimit;
+    uint32_t MuiGeneration;
+    uint32_t IsImpersonating;
+    void* NlsCache;
+    void* pShimData;
+    uint16_t HeapVirtualAffinity;
+    uint16_t LowFragHeapDataSlot;
+    uint8_t Padding7[4];
+    void* CurrentTransactionHandle;
+    TEB_ACTIVE_FRAME* ActiveFrame;
+    void* FlsData;
+    void* PreferredLanguages;
+    void* UserPrefLanguages;
+    void* MergedPrefLanguages;
+    uint32_t MuiImpersonation;
+    uint16_t CrossTebFlags;
+    union {
+        uint16_t SameTebFlags;
+        struct {
+            uint16_t SafeThunkCall : 1;
+            uint16_t InDebugPrint : 1;
+            uint16_t HasFiberData : 1;
+            uint16_t SkipThreadAttach : 1;
+            uint16_t WerInShipAssertCode : 1;
+            uint16_t RanProcessInit : 1;
+            uint16_t ClonedThread : 1;
+            uint16_t SuppressDebugMsg : 1;
+            uint16_t DisableUserStackWalk : 1;
+            uint16_t RtlExceptionAttached : 1;
+            uint16_t InitialThread : 1;
+            uint16_t SessionAware : 1;
+            uint16_t LoadOwner : 1;
+            uint16_t LoaderWorker : 1;
+            uint16_t SpareSameTebBits : 2;
+        };
+    };
+    void* TxnScopeEnterCallback;
+    void* TxnScopeExitCallback;
+    void* TxnScopeContext;
+    uint32_t LockCount;
+    uint32_t SpareUlong0;
+    void* ResourceRetValue;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);

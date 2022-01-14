@@ -13,6 +13,8 @@ static const uint16_t user_DS = 0x33;
 static section* ntdll = nullptr;
 static uintptr_t mn_start_process;
 
+static_assert(sizeof(TEB) == 0x1818);
+
 // FIXME - make sure process signalled when it dies
 // FIXME - handle thread crashes
 // FIXME - kill process when last thread dies
