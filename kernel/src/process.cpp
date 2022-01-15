@@ -195,7 +195,16 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t para
 
     t.tid = tid;
 
-    // FIXME - TEB
+    t.teb = nullptr;
+    size_t teb_size = sizeof(TEB);
+
+    if (!success(allocate_vm((void**)&t.teb, 0, &teb_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
+        print("process::allocate_vm failed\n");
+        delete &t;
+        return false;
+    }
+
+    // FIXME - populate TEB (including pointer to PEB)
 
     memset(&t.context, 0, sizeof(t.context));
     t.context.rip = entry_point;
@@ -210,7 +219,6 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t para
     t.context.gs = user_DS;
     t.context.ss = user_DS;
     t.kernel_mode = false;
-    t.teb = (TEB*)0x123456789abc; // FIXME
 
     t.suspend_count = 1;
     t.status = thread_status::runnable;
