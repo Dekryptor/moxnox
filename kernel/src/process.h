@@ -52,13 +52,21 @@ static_assert(is_sync_object<process>);
 
 static_assert(offsetof(process, cr3) == PROCESS_CR3);
 
+enum class proc_map_type {
+    section,
+    reserved
+};
+
 class mapping {
 public:
+    mapping() = default;
     mapping(section& sect);
+
     ~mapping();
 
     list_entry le;
+    enum proc_map_type type;
     uint64_t address;
     uint32_t size;
-    section& sect;
+    section* sect;
 };

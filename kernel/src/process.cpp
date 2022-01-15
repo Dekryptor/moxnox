@@ -117,12 +117,13 @@ unique_handle create_process(string_view fn) {
     return unique_handle{hv};
 }
 
-mapping::mapping(section& sect) : sect(sect) {
+mapping::mapping(section& sect) : type(proc_map_type::section), sect(&sect) {
     sect.acquire();
 }
 
 mapping::~mapping() {
-    sect.release();
+    if (sect)
+        sect->release();
 }
 
 process::~process() {
@@ -289,8 +290,17 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
         while (le != &mappings) {
             auto& m = containing_record<mapping>(le);
 
-            if (m.address <= address && m.address + m.size > address)
-                return m.sect.map((uint32_t)(address - m.address), address);
+            if (m.address <= address && m.address + m.size > address) {
+                switch (m.type) {
+                    case proc_map_type::section:
+                        return m.sect->map((uint32_t)(address - m.address), address);
+
+                    case proc_map_type::reserved:
+                        return false;
+
+                    // FIXME - committed
+                }
+            }
 
             le = le->next;
         }
@@ -351,8 +361,17 @@ bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
             if (m.address <= (uintptr_t)us_addr && m.address + m.size > (uintptr_t)us_addr) {
                 auto to_copy = min(size, m.address + m.size - (uintptr_t)us_addr);
 
-                if (!m.sect.copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
-                    return false;
+                switch (m.type) {
+                    case proc_map_type::section:
+                        if (!m.sect->copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                            return false;
+                        break;
+
+                    case proc_map_type::reserved:
+                        return false;
+
+                    // FIXME - committed
+                }
 
                 if (size == to_copy)
                     return true;
@@ -387,8 +406,17 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
             if (m.address <= (uintptr_t)us_addr && m.address + m.size > (uintptr_t)us_addr) {
                 auto to_copy = min(size, m.address + m.size - (uintptr_t)us_addr);
 
-                if (!m.sect.copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
-                    return false;
+                switch (m.type) {
+                    case proc_map_type::section:
+                        if (!m.sect->copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                            return false;
+                        break;
+
+                    case proc_map_type::reserved:
+                        return false;
+
+                    // FIXME - committed
+                }
 
                 if (size == to_copy)
                     return true;
