@@ -17,10 +17,10 @@ static section* ntdll = nullptr;
 static uintptr_t mn_start_process;
 
 static_assert(sizeof(TEB) == 0x1818);
+static_assert(sizeof(PEB) == 0x388);
+static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
-// FIXME - make sure process signalled when it dies
 // FIXME - handle thread crashes
-// FIXME - kill process when last thread dies
 // FIXME - 32-bit processes
 
 unique_handle create_process(string_view fn) {

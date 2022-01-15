@@ -55,10 +55,18 @@ using PIO_APC_ROUTINE = void (*)(PVOID, const IO_STATUS_BLOCK*, ULONG);
 
 union LARGE_INTEGER {
     struct {
-        ULONG LowPart;
-        LONG HighPart;
+        uint32_t LowPart;
+        int32_t HighPart;
     };
-    LONGLONG QuadPart;
+    int64_t QuadPart;
+};
+
+union ULARGE_INTEGER {
+    struct {
+        uint32_t LowPart;
+        uint32_t HighPart;
+    };
+    uint64_t QuadPart;
 };
 
 static const uint32_t MEM_COMMIT  = 0x00001000;
@@ -122,7 +130,189 @@ struct GUID {
     uint8_t Data4[8];
 };
 
-struct PEB; // FIXME
+struct PEB_LDR_DATA;
+struct RTL_USER_PROCESS_PARAMETERS;
+struct RTL_CRITICAL_SECTION;
+struct ACTIVATION_CONTEXT_DATA;
+struct ASSEMBLY_STORAGE_MAP;
+
+struct CURDIR {
+    UNICODE_STRING DosPath;
+    void* Handle;
+};
+
+struct STRING {
+    uint16_t Length;
+    uint16_t MaximumLength;
+    char* Buffer;
+};
+
+struct RTL_DRIVE_LETTER_CURDIR {
+    uint16_t Flags;
+    uint16_t Length;
+    uint32_t TimeStamp;
+    STRING DosPath;
+};
+
+struct RTL_USER_PROCESS_PARAMETERS {
+    uint32_t MaximumLength;
+    uint32_t Length;
+    uint32_t Flags;
+    uint32_t DebugFlags;
+    void* ConsoleHandle;
+    uint32_t ConsoleFlags;
+    void* StandardInput;
+    void* StandardOutput;
+    void* StandardError;
+    CURDIR CurrentDirectory;
+    UNICODE_STRING DllPath;
+    UNICODE_STRING ImagePathName;
+    UNICODE_STRING CommandLine;
+    void* Environment;
+    uint32_t StartingX;
+    uint32_t StartingY;
+    uint32_t CountX;
+    uint32_t CountY;
+    uint32_t CountCharsX;
+    uint32_t CountCharsY;
+    uint32_t FillAttribute;
+    uint32_t WindowFlags;
+    uint32_t ShowWindowFlags;
+    UNICODE_STRING WindowTitle;
+    UNICODE_STRING DesktopInfo;
+    UNICODE_STRING ShellInfo;
+    UNICODE_STRING RuntimeData;
+    RTL_DRIVE_LETTER_CURDIR CurrentDirectories[32];
+    uint64_t EnvironmentSize;
+    uint64_t EnvironmentVersion;
+    void* PackageDependencyData;
+    uint32_t ProcessGroupId;
+    uint32_t LoaderThreads;
+    UNICODE_STRING RedirectionDllName;
+    UNICODE_STRING HeapPartitionName;
+    uint64_t* DefaultThreadpoolCpuSetMasks;
+    uint32_t DefaultThreadpoolCpuSetMaskCount;
+    uint32_t DefaultThreadpoolThreadMaximum;
+};
+
+struct PEB {
+    bool InheritedAddressSpace;
+    bool ReadImageFileExecOptions;
+    bool BeingDebugged;
+    union {
+        uint8_t BitField;
+        struct {
+            uint8_t ImageUsedLargePages : 1;
+            uint8_t IsProtectedProcess : 1;
+            uint8_t IsImageDynamicallyRelocated : 1;
+            uint8_t SkipPatchingUser32Forwarders : 1;
+            uint8_t IsPackagedProcess : 1;
+            uint8_t IsAppContainer: 1;
+            uint8_t IsProtectedProcessLight : 1;
+            uint8_t IsLongPathAwareProcess : 1;
+        };
+    };
+    uint8_t Padding0[4];
+    HANDLE Mutant;
+    void* ImageBaseAddress;
+    PEB_LDR_DATA* Ldr;
+    RTL_USER_PROCESS_PARAMETERS *ProcessParameters;
+    void* SubSystemData;
+    HANDLE ProcessHeap;
+    RTL_CRITICAL_SECTION *FastPebLock;
+    void* AtlThunkSListPtr;
+    void* IFEOKey;
+    union {
+        uint32_t CrossProcessFlags;
+        struct {
+            uint32_t ProcessInJob : 1;
+            uint32_t ProcessInitializing : 1;
+            uint32_t ProcessUsingVEH : 1;
+            uint32_t ProcessUsingVCH : 1;
+            uint32_t ProcessUsingFTH : 1;
+            uint32_t ProcessPreviouslyThrottled : 1;
+            uint32_t ProcessCurrentlyThrottled : 1;
+            uint32_t ProcessImagesHotPatched : 1;
+            uint32_t ReservedBits0 : 24;
+        };
+    };
+    uint8_t Padding1[4];
+    union {
+        void* KernelCallbackTable;
+        void* UserSharedInfoPtr;
+    };
+    uint32_t SystemReserved;
+    uint32_t AtlThunkSListPtr32;
+    void* ApiSetMap;
+    uint32_t TlsExpansionCounter;
+    uint8_t Padding2[4];
+    void* TlsBitmap;
+    uint32_t TlsBitmapBits[2];
+    void* ReadOnlySharedMemoryBase;
+    void* SharedData;
+    void** ReadOnlyStaticServerData;
+    void* AnsiCodePageData;
+    void* OemCodePageData;
+    void* UnicodeCaseTableData;
+    uint32_t NumberOfProcessors;
+    uint32_t NtGlobalFlag;
+    LARGE_INTEGER CriticalSectionTimeout;
+    uintptr_t HeapSegmentReserve;
+    uintptr_t HeapSegmentCommit;
+    uintptr_t HeapDeCommitTotalFreeThreshold;
+    uintptr_t HeapDeCommitFreeBlockThreshold;
+    uint32_t NumberOfHeaps;
+    uint32_t MaximumNumberOfHeaps;
+    void**ProcessHeaps;
+    void* GdiSharedHandleTable;
+    void* ProcessStarterHelper;
+    uint32_t GdiDCAttributeList;
+    uint8_t Padding3[4];
+    RTL_CRITICAL_SECTION* LoaderLock;
+    uint32_t OSMajorVersion;
+    uint32_t OSMinorVersion;
+    uint16_t OSBuildNumber;
+    uint16_t OSCSDVersion;
+    uint32_t OSPlatformId;
+    uint32_t ImageSubsystem;
+    uint32_t ImageSubsystemMajorVersion;
+    uint32_t ImageSubsystemMinorVersion;
+    uint8_t Padding4[4];
+    uintptr_t ActiveProcessAffinityMask;
+    uint32_t GdiHandleBuffer[60];
+    void* PostProcessInitRoutine;
+    void* TlsExpansionBitmap;
+    uint32_t TlsExpansionBitmapBits[32];
+    uint32_t SessionId;
+    uint8_t Padding5[4];
+    ULARGE_INTEGER AppCompatFlags;
+    ULARGE_INTEGER AppCompatFlagsUser;
+    void* pShimData;
+    void* AppCompatInfo;
+    UNICODE_STRING CSDVersion;
+    const ACTIVATION_CONTEXT_DATA* ActivationContextData;
+    ASSEMBLY_STORAGE_MAP* ProcessAssemblyStorageMap;
+    const ACTIVATION_CONTEXT_DATA* SystemDefaultActivationContextData;
+    ASSEMBLY_STORAGE_MAP* SystemAssemblyStorageMap;
+    uintptr_t MinimumStackCommit;
+    void* SparePointers[4];
+    uint32_t SpareUlongs[5];
+    void* WerRegistrationData;
+    void* WerShipAssertPtr;
+    void* pUnused;
+    void* pImageHeaderHash;
+    union {
+        uint32_t TracingFlags;
+        struct {
+            uint32_t HeapTracingEnabled : 1;
+            uint32_t CritSecTracingEnabled : 1;
+            uint32_t LibLoaderTracingEnabled : 1;
+            uint32_t SpareTracingBits : 29;
+        };
+    };
+    uint64_t CsrServerReadOnlySharedMemoryBase;
+};
+
 struct ACTIVATION_CONTEXT_STACK;
 struct TEB_ACTIVE_FRAME;
 
