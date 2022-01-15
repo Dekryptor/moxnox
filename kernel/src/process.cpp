@@ -2,6 +2,7 @@
 #include "objects.h"
 #include "unique_handle.h"
 #include "mem.h"
+#include <limits>
 
 using namespace std;
 
@@ -9,6 +10,8 @@ extern uint16_t last_tid; // FIXME
 
 static const uint16_t user_CS = 0x3b;
 static const uint16_t user_DS = 0x33;
+
+static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
 static section* ntdll = nullptr;
 static uintptr_t mn_start_process;
@@ -57,30 +60,16 @@ unique_handle create_process(string_view fn) {
         return {};
     }
 
-    // create section for stack
+    // create stack
 
-    auto stack_size = max(img.stack_size, (uint64_t)PAGE_SIZE);
+    size_t stack_size = max(img.stack_size, (uint64_t)PAGE_SIZE);
+    void* stackaddr = nullptr;
 
-    auto stackh = create_section(0, false, stack_size);
-    if (!stackh) {
-        print("create_section failed\n");
-        p.release();
-        return {};
-    }
-
-    auto& stacksect = static_cast<section&>(deref_handle(stackh.get())->get());
-
-    stackh.reset();
-
-    auto stackaddr = p.map_section(stacksect, 0x1000); // FIXME - don't specify address
-    if (!stackaddr) {
+    if (!success(p.allocate_vm(&stackaddr, 0, &stack_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
         print("process::map_section failed\n");
-        stacksect.release();
         p.release();
         return {};
     }
-
-    stacksect.release();
 
     auto ntdll_addr = p.map_section(*ntdll, 0x400000); // FIXME - don't specify address
     if (!ntdll_addr) {
@@ -102,7 +91,7 @@ unique_handle create_process(string_view fn) {
     // FIXME - give process a PID
     // FIXME - add process to list
 
-    if (!p.add_thread(ntdll_addr + mn_start_process, img_base, ntdll_addr, stackaddr + stack_size)) { // FIXME - don't start until process finished initializing
+    if (!p.add_thread(ntdll_addr + mn_start_process, img_base, ntdll_addr, (uintptr_t)stackaddr + stack_size)) {
         print("process::add_thread failed\n");
         p.release();
         return {};
@@ -127,12 +116,7 @@ mapping::~mapping() {
 }
 
 process::~process() {
-    while (!is_list_empty(mappings)) {
-        auto& m = containing_record<mapping>(mappings.next);
-
-        remove_entry_list(m.le);
-        delete &m;
-    }
+    free_mappings();
 
     if (img)
         img->get().release();
@@ -298,7 +282,8 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                     case proc_map_type::reserved:
                         return false;
 
-                    // FIXME - committed
+                    case proc_map_type::committed:
+                        return static_cast<mapping_committed&>(m).map((uint32_t)(address - m.address), address);
                 }
             }
 
@@ -370,7 +355,10 @@ bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
                     case proc_map_type::reserved:
                         return false;
 
-                    // FIXME - committed
+                    case proc_map_type::committed: // FIXME
+                        if (!static_cast<mapping_committed&>(m).copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                            return false;
+                        break;
                 }
 
                 if (size == to_copy)
@@ -415,7 +403,10 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
                     case proc_map_type::reserved:
                         return false;
 
-                    // FIXME - committed
+                    case proc_map_type::committed:
+                        if (!static_cast<mapping_committed&>(m).copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                            return false;
+                        break;
                 }
 
                 if (size == to_copy)
@@ -507,6 +498,30 @@ void process::terminate() {
         visit_obj(*obj, [](auto&& o) {
             o.release();
         });
+    }
+
+    free_mappings();
+}
+
+void process::free_mappings() {
+    while (!is_list_empty(mappings)) {
+        auto& m = containing_record<mapping>(mappings.next);
+
+        remove_entry_list(m.le);
+
+        if (m.type == proc_map_type::committed) {
+            auto& mc = static_cast<mapping_committed&>(m);
+
+            auto num_pages = mc.size >> PAGE_SHIFT;
+
+            for (unsigned int i = 0; i < num_pages; i++) {
+                if (mc.pages[i].pa)
+                    free_page(mc.pages[i].pa);
+            }
+
+            delete &mc;
+        } else
+            delete &m;
     }
 }
 
@@ -713,18 +728,138 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
     return h;
 }
 
-NTSTATUS process::allocate_vm(void** base_address, uintptr_t zero_bits, size_t* region_size,
-                              uint32_t allocation_type, uint32_t protect) {
-    // FIXME
+NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_size,
+                              uint32_t allocation_type, enum mapping_type protect) {
+    // FIXME - MEM_RESERVE alone
+    // FIXME - MEM_COMMIT alone
 
-    print("FIXME: process::allocate_vm stub\n");
+    // FIXME - what are we supposed to do with zero_bits?
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (!(allocation_type & (MEM_RESERVE | MEM_COMMIT | MEM_RESET)))
+        return nt_status::INVALID_PAGE_PROTECTION;
+
+    if (allocation_type & MEM_RESET) {
+        print("FIXME: process::allocate_vm MEM_RESET\n"); // FIXME
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    if (allocation_type & MEM_RESERVE && !(allocation_type & MEM_COMMIT)) {
+        print("FIXME: process::allocate_vm MEM_RESERVE\n"); // FIXME
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    if (allocation_type & MEM_COMMIT && !(allocation_type & MEM_RESERVE)) {
+        print("FIXME: process::allocate_vm MEM_COMMIT\n"); // FIXME
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    auto addr = (uintptr_t)*base_address;
+    auto size = *region_size;
+
+    auto end = addr + size;
+
+    // FIXME - if address is not 0 but gets rounded down to 0, do we still choose value ourselves?
+
+    addr &= ~(PAGE_SIZE - 1); // round down
+
+    auto num_pages = bytes_to_pages(end - addr);
+    size = num_pages << PAGE_SHIFT;
+
+    if (size == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    if (size > numeric_limits<uint32_t>::max())
+        return nt_status::INVALID_PARAMETER;
+
+    auto pm = malloc(offsetof(mapping_committed, pages) + (sizeof(page_info) * num_pages));
+    if (!pm)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto& m = *new (pm) mapping_committed;
+
+    m.type = proc_map_type::committed;
+    m.size = (uint32_t)size;
+
+    auto pages = span(m.pages, num_pages);
+
+    for (auto& p : pages) {
+        p.pa = 0;
+        p.protect = protect;
+    }
+
+    // FIXME - allocate array of pages
+
+    uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
+    lock_guard lock(mappings_lock);
+
+    // FIXME - specifying address
+    // FIXME - protection type
+
+    auto le = mappings.next;
+    while (le != &mappings) {
+        auto& m2 = containing_record<mapping>(le);
+
+        if (m2.address > last_addr + m.size) { // insert before
+            insert_head_list(*le->prev, m.le);
+            m.address = last_addr;
+            *base_address = (void*)m.address;
+            *region_size = m.size;
+            return nt_status::SUCCESS;
+        }
+
+        // FIXME - if specifying address, handle collisions
+
+        last_addr = m.address + m.size;
+
+        le = le->next;
+    }
+
+    if (last_addr < MAX_USERSPACE_ADDRESS - m.size) {
+        insert_tail_list(mappings, m.le);
+        m.address = last_addr;
+        *base_address = (void*)m.address;
+        *region_size = m.size;
+        return nt_status::SUCCESS;
+    }
+
+    delete &m;
+
+    return nt_status::NO_MEMORY;
 }
 
 NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
                                  size_t* region_size, uint32_t allocation_type, uint32_t protect) {
     process* p;
+    enum mapping_type prot;
+
+    switch (protect) {
+        // FIXME - PAGE_NOACCESS
+        // FIXME - PAGE_GUARD
+
+        case PAGE_READONLY:
+            prot = mapping_type::read_only;
+            break;
+
+        case PAGE_READWRITE:
+            prot = mapping_type::read_write;
+            break;
+
+        case PAGE_EXECUTE:
+        case PAGE_EXECUTE_READ:
+            prot = mapping_type::read_execute;
+            break;
+
+        case PAGE_NOCACHE:
+            prot = mapping_type::no_cache;
+            break;
+
+        case PAGE_WRITECOMBINE:
+            prot = mapping_type::write_combine;
+            break;
+
+        default:
+            return nt_status::INVALID_PARAMETER;
+    }
 
     if (proc_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
@@ -754,7 +889,7 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
         p = static_cast<process*>(&objrw->get());
     }
 
-    auto ret = p->allocate_vm(base_address, zero_bits, region_size, allocation_type, protect);
+    auto ret = p->allocate_vm(base_address, zero_bits, region_size, allocation_type, prot);
 
     p->release();
 
@@ -806,4 +941,130 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
     p->release();
 
     return ret;
+}
+
+bool mapping_committed::map(uint32_t offset, uint64_t va) {
+    bool new_page = false;
+
+    auto& p = pages[offset >> PAGE_SHIFT];
+
+    lock_guard l(lock);
+
+    if (!p.pa) {
+        p.pa = allocate_page();
+        if (!p.pa) {
+            print("allocate_page failed\n");
+            return false;
+        }
+
+        new_page = true;
+    }
+
+    if (!map_page(p.pa, va, p.protect))
+        return false;
+
+    if (new_page) // FIXME - allocate zeroed page?
+        memset((void*)va, 0, PAGE_SIZE);
+
+    return true;
+}
+
+bool mapping_committed::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
+    while (true) {
+        auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+
+        {
+            lock_guard l(lock);
+            auto& p = pages[offset >> PAGE_SHIFT];
+
+            if (!p.pa)
+                memset(ks_addr, 0, to_copy);
+            else {
+                auto va = allocate_va(1);
+                if (!va) {
+                    print("allocate_va failed\n");
+                    return false;
+                }
+
+                if (!map_page(p.pa, va, mapping_type::read_only)) {
+                    print("map_page failed\n");
+                    free_va(va, 1);
+                    return false;
+                }
+
+                memcpy(ks_addr, (uint8_t*)va + (offset & (PAGE_SIZE - 1)), to_copy);
+
+                unmap_page(va);
+                free_va(va, 1);
+            }
+        }
+
+        if (to_copy == size)
+            return true;
+
+        ks_addr = (uint8_t*)ks_addr + to_copy;
+        offset += to_copy;
+        size -= to_copy;
+    }
+}
+
+bool mapping_committed::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
+    while (true) {
+        auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+
+        {
+            lock_guard l(lock);
+
+            auto& p = pages[offset >> PAGE_SHIFT];
+
+            bool new_page = false;
+
+            switch (p.protect) {
+                case mapping_type::read_only:
+                case mapping_type::read_execute:
+                    return false;
+
+                default:
+                    break;
+            }
+
+            auto va = allocate_va(1);
+            if (!va) {
+                print("allocate_va failed\n");
+                return false;
+            }
+
+            if (!p.pa) {
+                p.pa = allocate_page();
+                if (!p.pa) {
+                    print("allocate_page failed\n");
+                    free_va(va, 1);
+                    return false;
+                }
+
+                new_page = true;
+            }
+
+            if (!map_page(p.pa, va, mapping_type::read_write)) {
+                print("map_page failed\n");
+                free_va(va, 1);
+                return false;
+            }
+
+            if (new_page)
+                memset((void*)va, 0, PAGE_SIZE);
+
+            memcpy((uint8_t*)va + (offset & (PAGE_SIZE - 1)), ks_addr, to_copy);
+
+            unmap_page(va);
+            free_va(va, 1);
+        }
+
+        if (to_copy == size)
+            return true;
+
+        ks_addr = (uint8_t*)ks_addr + to_copy;
+        offset += to_copy;
+        size -= to_copy;
+    }
 }

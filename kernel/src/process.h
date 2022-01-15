@@ -30,8 +30,9 @@ public:
     void resume();
     handle_t add_handle(object& obj, uint32_t access_mask);
     NTSTATUS allocate_vm(void** base_address, uintptr_t zero_bits, size_t* region_size,
-                         uint32_t allocation_type, uint32_t protect);
+                         uint32_t allocation_type, enum mapping_type protect);
     NTSTATUS free_vm(void** base_address, size_t* region_size, uint32_t free_type);
+    void free_mappings();
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
@@ -54,7 +55,13 @@ static_assert(offsetof(process, cr3) == PROCESS_CR3);
 
 enum class proc_map_type {
     section,
-    reserved
+    reserved,
+    committed
+};
+
+struct page_info {
+    uint64_t pa;
+    enum mapping_type protect;
 };
 
 class mapping {
@@ -68,5 +75,15 @@ public:
     enum proc_map_type type;
     uint64_t address;
     uint32_t size;
-    section* sect;
+    section* sect = nullptr;
+};
+
+class mapping_committed : public mapping {
+public:
+    spinlock lock;
+    page_info pages[0];
+
+    bool map(uint32_t offset, uint64_t va);
+    bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
+    bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
 };
