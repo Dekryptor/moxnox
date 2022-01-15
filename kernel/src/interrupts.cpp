@@ -539,7 +539,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
 
-    if (current_thread && current_thread->proc) {
+    if (current_thread && current_thread->proc && !current_thread->kernel_mode) {
         if (current_thread->proc->handle_page_fault(address, error_code))
             return;
     }
