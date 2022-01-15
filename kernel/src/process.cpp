@@ -210,6 +210,7 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t para
     t.context.gs = user_DS;
     t.context.ss = user_DS;
     t.kernel_mode = false;
+    t.teb = (TEB*)0x123456789abc; // FIXME
 
     t.suspend_count = 1;
     t.status = thread_status::runnable;

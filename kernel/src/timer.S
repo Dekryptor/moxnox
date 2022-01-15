@@ -2,6 +2,8 @@
 
 #include "context.S"
 
+.equ IA32_KERNEL_GS_BASE, 0xc0000102
+
 .global timer_isr
 timer_isr:
     # FIXME - different ISR for CPUs not handling timers?
@@ -120,6 +122,21 @@ scheduler_restore:
     fxrstor gs:GS_CONTEXT + CONTEXT_FXSAVE
 
     push rax
+
+    # set GS base to TEB
+    push rcx
+    push rdx
+    mov rax, gs:GS_CURRENT_THREAD
+    mov rax, [rax+THREAD_TEB]
+    mov rdx, rax
+    shr rdx, 32
+    and eax, 0xffffffff
+    mov ecx, IA32_KERNEL_GS_BASE
+    wrmsr
+    pop rdx
+    pop rcx
+
+    # change cr3 and swap GS, if currently in user mode
     mov rax, gs:GS_CURRENT_THREAD
     cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
     jne 0f

@@ -102,6 +102,7 @@ public:
     enum nt_status exit_status = nt_status::PENDING;
     list_entry process_le;
     std::atomic<unsigned int> suspend_count = 0;
+    TEB* teb;
 };
 
 static_assert(is_sync_object<thread>);
@@ -112,3 +113,4 @@ static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(thread, rip_before_syscall) == THREAD_RIP_BEFORE_SYSCALL);
 static_assert(offsetof(thread, rsp_before_syscall) == THREAD_RSP_BEFORE_SYSCALL);
 static_assert(offsetof(thread, rflags_before_syscall) == THREAD_RFLAGS_BEFORE_SYSCALL);
+static_assert(offsetof(thread, teb) == THREAD_TEB);
