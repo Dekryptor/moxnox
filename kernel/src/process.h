@@ -33,6 +33,7 @@ public:
                          uint32_t allocation_type, enum mapping_type protect);
     NTSTATUS free_vm(void** base_address, size_t* region_size, uint32_t free_type);
     void free_mappings();
+    void unmap_proc_page(uint64_t va);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;

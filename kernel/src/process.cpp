@@ -905,12 +905,80 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
     return ret;
 }
 
-NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t free_type) {
+void process::unmap_proc_page(uint64_t va) {
     // FIXME
+}
 
-    print("FIXME: process::free_vm stub\n");
+NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t free_type) {
+    if (!(free_type & (MEM_DECOMMIT | MEM_RELEASE)))
+        return nt_status::INVALID_PARAMETER;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (free_type & MEM_DECOMMIT) {
+        print("FIXME: process::free_vm MEM_DECOMMIT\n"); // FIXME
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    if (*region_size != 0)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - what happens if this is called for section mapping?
+
+    mapping* m = nullptr;
+
+    {
+        lock_guard lock(mappings_lock);
+
+        auto le = mappings.next;
+        while (le != &mappings) {
+            auto& m2 = containing_record<mapping>(le);
+
+            if (m2.address == (uintptr_t)*base_address) {
+                // FIXME - MEM_RELEASE with reserved memory block
+                if (m2.type == proc_map_type::committed) {
+                    auto& mc = static_cast<mapping_committed&>(m2);
+
+                    auto num_pages = mc.size >> PAGE_SHIFT;
+
+                    for (unsigned int i = 0; i < num_pages; i++) {
+                        if (mc.pages[i].pa)
+                            unmap_proc_page(m2.address + (i << PAGE_SHIFT));
+                    }
+                } else
+                    return nt_status::INVALID_PARAMETER;
+
+                remove_entry_list(m2.le);
+                m = &m2;
+                break;
+            } else if (m2.address > (uintptr_t)*base_address)
+                break;
+
+            le = le->next;
+        }
+    }
+
+    if (!m)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - if current process running on other cores and mapping changed, send IPI to clear TLB
+
+    *base_address = (void*)m->address;
+    *region_size = m->size;
+
+    if (m->type == proc_map_type::committed) {
+        auto& mc = *static_cast<mapping_committed*>(m);
+
+        auto num_pages = mc.size >> PAGE_SHIFT;
+
+        for (unsigned int i = 0; i < num_pages; i++) {
+            if (mc.pages[i].pa)
+                free_page(mc.pages[i].pa);
+        }
+
+        delete &mc;
+    } else
+        delete m;
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,

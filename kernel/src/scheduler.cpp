@@ -37,6 +37,7 @@ void thread::terminate() {
 
     if (proc) {
         bool last_thread;
+        size_t region_size = 0;
 
         {
             lock_guard lock(proc->threads_lock);
@@ -45,6 +46,8 @@ void thread::terminate() {
 
             last_thread = is_list_empty(proc->threads);
         }
+
+        proc->free_vm((void**)&teb, &region_size, MEM_RELEASE);
 
         if (last_thread) {
             proc->exit_status = exit_status;
