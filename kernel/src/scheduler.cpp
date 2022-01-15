@@ -149,14 +149,14 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
         }
     }
 
-    t.stack = stack;
+    t.kernel_stack = stack;
 
     memset(&t.context, 0, sizeof(t.context));
     t.context.rip = (uintptr_t)kernel_thread_start;
     t.context.rcx = (uintptr_t)func;
     t.context.rdx = (uintptr_t)param1;
     t.context.r8 = (uintptr_t)param2;
-    t.context.rsp = (uintptr_t)((uint8_t*)t.stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
+    t.context.rsp = (uintptr_t)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
     t.context.rflags = 0x202; // IF, reserved flag
     t.context.cs = kernel_CS;
     t.context.ds = kernel_DS;
@@ -356,8 +356,8 @@ span<char> sp_context(span<char>dest, const amd64_context& ctx) {
 }
 
 thread::~thread() {
-    if (stack) {
-        auto va = (uintptr_t)stack + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
+    if (kernel_stack) {
+        auto va = (uintptr_t)kernel_stack + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
         for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
             auto pa = va_to_pa(va);
 
@@ -367,7 +367,7 @@ thread::~thread() {
             va += PAGE_SIZE;
         }
 
-        free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+        free_va((uintptr_t)kernel_stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     }
 
     if (proc)

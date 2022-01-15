@@ -90,7 +90,7 @@ public:
     amd64_context context;
     enum thread_status status;
     uint32_t tid;
-    void* stack = nullptr;
+    void* kernel_stack = nullptr;
     std::optional<std::reference_wrapper<object>> waiting_for; // FIXME - multiple objects
     process* proc = nullptr;
     uint64_t affinity = 0xffffffffffffffff;
