@@ -32,8 +32,6 @@ public:
     NTSTATUS allocate_vm(void** base_address, uintptr_t zero_bits, size_t* region_size,
                          uint32_t allocation_type, enum mapping_type protect);
     NTSTATUS free_vm(void** base_address, size_t* region_size, uint32_t free_type);
-    void free_mappings();
-    void unmap_proc_page(uint64_t va);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
@@ -48,6 +46,12 @@ public:
     unsigned int no_handles = 0;
     unsigned int handle_arr_pages = 0;
     handle_obj* handle_arr = nullptr;
+
+private:
+    void free_mappings();
+    void unmap_proc_page(uint64_t va);
+    bool populate_teb(thread& t);
+    bool map_to_kernel_space(void* us, void* ks, unsigned int num_pages);
 };
 
 static_assert(is_sync_object<process>);
@@ -84,7 +88,7 @@ public:
     spinlock lock;
     page_info pages[0];
 
-    bool map(uint32_t offset, uint64_t va);
+    bool map(uint32_t offset, uint64_t va, std::optional<enum mapping_type> prot);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
 };
