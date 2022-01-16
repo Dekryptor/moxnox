@@ -161,9 +161,9 @@ struct RTL_USER_PROCESS_PARAMETERS {
     uint32_t DebugFlags;
     void* ConsoleHandle;
     uint32_t ConsoleFlags;
-    void* StandardInput;
-    void* StandardOutput;
-    void* StandardError;
+    HANDLE StandardInput;
+    HANDLE StandardOutput;
+    HANDLE StandardError;
     CURDIR CurrentDirectory;
     UNICODE_STRING DllPath;
     UNICODE_STRING ImagePathName;
@@ -434,6 +434,17 @@ struct TEB {
     uint32_t SpareUlong0;
     void* ResourceRetValue;
 };
+
+static __inline TEB* NtCurrentTeb() {
+    TEB* ret;
+
+    __asm("mov %0, gs:%1"
+        : "=a" (ret)
+        : "i" (offsetof(TEB, NtTib.Self))
+    );
+
+    return ret;
+}
 
 extern "C" {
 
