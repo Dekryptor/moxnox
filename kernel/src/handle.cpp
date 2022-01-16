@@ -86,6 +86,15 @@ void close_handle(handle_t h) {
 }
 
 optional<reference_wrapper<object>> deref_handle(handle_t h) {
+    if (!(h & kernel_handle_mask)) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nullopt;
+
+        return t->proc->deref_handle(h);
+    }
+
     lock_guard lock(handle_spinlock);
 
     if (h == 0 || (h & ~kernel_handle_mask) > no_handles)
