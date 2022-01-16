@@ -80,7 +80,7 @@ unique_handle create_process(string_view fn) {
 
     // FIXME - map time page into process
 
-    if (!p.allocate_peb(img_base)) {
+    if (!p.allocate_peb(img_base, 0, 1, 1)) { // FIXME - correct handles
         print("process::allocate_peb failed\n");
         p.release();
         return {};
@@ -1247,10 +1247,54 @@ bool mapping_committed::copy_to(uint32_t offset, const void* ks_addr, uint32_t s
     }
 }
 
-bool process::allocate_peb(uintptr_t base_address) {
+bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh) {
+    static const auto num_pages = bytes_to_pages(sizeof(RTL_USER_PROCESS_PARAMETERS));
+
+    // FIXME - also include space for command line, environment, etc.
+
+    size_t size = sizeof(RTL_USER_PROCESS_PARAMETERS);
+
+    if (!success(allocate_vm((void**)&proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
+        print("process::allocate_vm failed\n");
+        return false;
+    }
+
+    auto va = allocate_va(num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return false;
+    }
+
+    if (!map_to_kernel_space(proc_params, (void*)va, num_pages)) {
+        print("map_to_kernel_space failed\n");
+        free_va(va, num_pages);
+        return false;
+    }
+
+    auto& ks_proc_params = *(RTL_USER_PROCESS_PARAMETERS*)va;
+
+    ks_proc_params.StandardInput = stdinh;
+    ks_proc_params.StandardOutput = stdouth;
+    ks_proc_params.StandardError = stderrh;
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        unmap_page(va + (i << PAGE_SHIFT));
+    }
+
+    free_va(va, num_pages);
+
+    return true;
+}
+
+bool process::allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh) {
     static const auto num_pages = bytes_to_pages(sizeof(PEB));
 
     size_t peb_size = sizeof(PEB);
+
+    if (!allocate_proc_params(stdinh, stdouth, stderrh)) {
+        print("process::allocate_proc_params failed\n");
+        return false;
+    }
 
     if (!success(allocate_vm((void**)&peb, 0, &peb_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
         print("process::allocate_vm failed\n");
@@ -1272,7 +1316,7 @@ bool process::allocate_peb(uintptr_t base_address) {
     auto& ks_peb = *(PEB*)va;
 
     ks_peb.ImageBaseAddress = (void*)base_address;
-    // FIXME - ProcessParameters
+    ks_peb.ProcessParameters = proc_params;
 
     for (unsigned int i = 0; i < num_pages; i++) {
         unmap_page(va + (i << PAGE_SHIFT));
