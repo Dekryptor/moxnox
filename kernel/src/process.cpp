@@ -245,7 +245,13 @@ bool process::populate_teb(thread& t) {
         return false;
     }
 
-    // FIXME - populate TEB (including pointer to PEB)
+    auto& teb = *(TEB*)va;
+
+    teb.NtTib.Self = &t.teb->NtTib;
+    // FIXME - StackBase
+    // FIXME - StackLimit
+    // FIXME - ClientId
+    // FIXME - pointer to PEB
 
     for (unsigned int i = 0; i < num_pages; i++) {
         unmap_page(va + (i << PAGE_SHIFT));
