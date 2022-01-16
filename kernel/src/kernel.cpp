@@ -97,40 +97,26 @@ static void keyboard_echo(void*) {
 }
 
 static unique_handle start_init_process() {
-    auto init = create_process("/init.exe");
-    if (!init)
-        bsod("Could not start init process.\n");
+    auto initout = open_object("tty");
+    if (!initout)
+        bsod("Could not open tty object.\n");
 
-    auto objrw = deref_handle(init.get());
-    if (!objrw)
+    auto initout_objrw = deref_handle(initout.get());
+    if (!initout_objrw)
         bsod("No such handle\n");
 
-    auto& p = static_cast<process&>(objrw->get());
+    auto proc_handle = create_process("/init.exe", nullopt, initout_objrw, initout_objrw);
+    if (!proc_handle)
+        bsod("Could not start init process.\n");
 
-    {
-        auto initout = open_object("tty");
-        if (!initout)
-            bsod("Could not open tty object.\n");
+    visit_obj(initout_objrw->get(), [&](auto&& o) {
+        o.release();
+    });
 
-        auto objrw = deref_handle(initout.get());
-        if (!objrw)
-            bsod("No such handle\n");
-
-        p.add_handle(objrw->get(), 0); // FIXME - access mask
-
-        visit_obj(objrw->get(), [&](auto&& o) {
-            o.release();
-        });
-    }
-
-    // FIXME - set tty as stdout in process PEB
-
-    p.release();
-
-    if (!success(NtResumeProcess(init.get())))
+    if (!success(NtResumeProcess(proc_handle.get())))
         bsod("NtResumeProcess failed for init process.\n");
 
-    return init;
+    return proc_handle;
 }
 
 void main_thread() {

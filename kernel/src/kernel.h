@@ -197,7 +197,9 @@ bool mount_root();
 unique_handle open_file(std::string_view fn);
 
 // process.cpp
-unique_handle create_process(std::string_view fn);
+unique_handle create_process(std::string_view fn, std::optional<std::reference_wrapper<object>> stdinobj,
+                             std::optional<std::reference_wrapper<object>> stdoutobj,
+                             std::optional<std::reference_wrapper<object>> stderrobj);
 void load_ntdll();
 
 // section.cpp

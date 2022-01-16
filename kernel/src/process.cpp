@@ -23,7 +23,9 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 // FIXME - handle thread crashes
 // FIXME - 32-bit processes
 
-unique_handle create_process(string_view fn) {
+unique_handle create_process(string_view fn, optional<reference_wrapper<object>> stdinobj,
+                             optional<reference_wrapper<object>> stdoutobj,
+                             optional<reference_wrapper<object>> stderrobj) {
     auto file = open_file(fn);
     if (!file) {
         print("open_file failed\n");
@@ -80,7 +82,18 @@ unique_handle create_process(string_view fn) {
 
     // FIXME - map time page into process
 
-    if (!p.allocate_peb(img_base, 0, 1, 1)) { // FIXME - correct handles
+    handle_t stdinh = 0, stdouth = 0, stderrh = 0;
+
+    if (stdinobj)
+        stdinh = p.add_handle(stdinobj->get(), 0); // FIXME - access mask
+
+    if (stdoutobj)
+        stdouth = p.add_handle(stdoutobj->get(), 0); // FIXME - access mask
+
+    if (stderrobj)
+        stderrh = p.add_handle(stderrobj->get(), 0); // FIXME - access mask
+
+    if (!p.allocate_peb(img_base, stdinh, stdouth, stderrh)) {
         print("process::allocate_peb failed\n");
         p.release();
         return {};
