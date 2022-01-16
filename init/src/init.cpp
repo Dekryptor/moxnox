@@ -11,5 +11,12 @@ void startup() {
 
     NtDisplayString(&us);
 
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+
+    IO_STATUS_BLOCK iosb;
+
+    NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr, &iosb, "hello\n", 6, nullptr, nullptr);
+
     NtTerminateThread(NtCurrentThread(), (NTSTATUS)42);
 }
