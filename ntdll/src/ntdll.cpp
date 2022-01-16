@@ -12,28 +12,13 @@ bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
 }
 
-static void print(u16string_view s) {
-    // FIXME - print to stderr instead
-
-    UNICODE_STRING us;
-    us.Length = us.MaximumLength = (uint16_t)(s.size() * sizeof(char16_t));
-    us.Buffer = (PWSTR)s.data();
-
-    NtDisplayString(&us);
-}
-
 static void print(string_view s) {
-    UNICODE_STRING us;
-    char16_t buf[255];
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
 
-    // FIXME - print to stderr instead
-
-    utf8_to_utf16(buf, s);
-
-    us.Length = us.MaximumLength = (uint16_t)(min(sizeof(buf), utf8_to_utf16_len(s)) * sizeof(char16_t));
-    us.Buffer = (PWSTR)buf;
-
-    NtDisplayString(&us);
+    NtWriteFile(peb->ProcessParameters->StandardError, 0, nullptr, nullptr, &iosb, s.data(),
+                (uint32_t)s.size(), nullptr, nullptr);
 }
 
 static void print_hex(uint64_t num, unsigned int padding = 0) {
@@ -68,7 +53,7 @@ static optional<uintptr_t> find_export(void* base, string_view name) {
         return nullopt;
 
     if (exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
-        print(u"invalid export directory\n");
+        print("invalid export directory\n");
         return nullopt;
     }
 
@@ -105,7 +90,7 @@ static optional<uintptr_t> find_export(void* base, string_view name) {
 template<typename T>
 static void resolve_imports_dll(void* base, string_view name, T* lookup_table, T* thunks) {
     if (name != "ntdll.dll") { // FIXME - case-insensitive match
-        print(u"FIXME - load DLLs\n"); // FIXME - die if can't find
+        print("FIXME - load DLLs\n"); // FIXME - die if can't find
         return;
     }
 
@@ -115,7 +100,7 @@ static void resolve_imports_dll(void* base, string_view name, T* lookup_table, T
         auto v = *lookup_table;
 
         if (v & ((T)1 << ((sizeof(T) * 8) - 1))) {
-            print(u"FIXME - imports by ordinal\n"); // FIXME
+            print("FIXME - imports by ordinal\n"); // FIXME
             lookup_table++;
             thunks++;
             continue;
@@ -126,11 +111,11 @@ static void resolve_imports_dll(void* base, string_view name, T* lookup_table, T
 
         auto addr = find_export(dll_base, func);
         if (!addr) {
-            print(u"Could not resolve ");
+            print("Could not resolve ");
             print(func);
-            print(u" in ");
+            print(" in ");
             print(name);
-            print(u".\n");
+            print(".\n");
             // FIXME - terminate process
             return;
         }
@@ -251,9 +236,9 @@ static void resolve_relocations(void* base) {
                 }
 
                 default:
-                    print(u"Unsupported relocation type ");
+                    print("Unsupported relocation type ");
                     print_hex(type);
-                    print(u".\n");
+                    print(".\n");
                     // FIXME - terminate process
                     return;
             }
