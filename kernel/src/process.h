@@ -24,6 +24,7 @@ public:
     bool add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t param2, uintptr_t stack);
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
     bool allocate_cr3();
+    bool allocate_peb(uintptr_t base_address);
     bool copy_from(void* ks_addr, const void* us_addr, size_t size);
     bool copy_to(void* us_addr, const void* ks_addr, size_t size);
     void terminate();
@@ -46,6 +47,7 @@ public:
     unsigned int no_handles = 0;
     unsigned int handle_arr_pages = 0;
     handle_obj* handle_arr = nullptr;
+    PEB* peb = nullptr;
 
 private:
     void free_mappings();

@@ -80,6 +80,12 @@ unique_handle create_process(string_view fn) {
 
     // FIXME - map time page into process
 
+    if (!p.allocate_peb(img_base)) {
+        print("process::allocate_peb failed\n");
+        p.release();
+        return {};
+    }
+
     if (!p.allocate_cr3()) {
         print("process::allocate_cr3 failed\n");
         p.release();
@@ -251,7 +257,7 @@ bool process::populate_teb(thread& t) {
     // FIXME - StackBase
     // FIXME - StackLimit
     // FIXME - ClientId
-    // FIXME - pointer to PEB
+    teb.ProcessEnvironmentBlock = peb;
 
     for (unsigned int i = 0; i < num_pages; i++) {
         unmap_page(va + (i << PAGE_SHIFT));
@@ -1239,4 +1245,40 @@ bool mapping_committed::copy_to(uint32_t offset, const void* ks_addr, uint32_t s
         offset += to_copy;
         size -= to_copy;
     }
+}
+
+bool process::allocate_peb(uintptr_t base_address) {
+    static const auto num_pages = bytes_to_pages(sizeof(PEB));
+
+    size_t peb_size = sizeof(PEB);
+
+    if (!success(allocate_vm((void**)&peb, 0, &peb_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
+        print("process::allocate_vm failed\n");
+        return false;
+    }
+
+    auto va = allocate_va(num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return false;
+    }
+
+    if (!map_to_kernel_space(peb, (void*)va, num_pages)) {
+        print("map_to_kernel_space failed\n");
+        free_va(va, num_pages);
+        return false;
+    }
+
+    auto& ks_peb = *(PEB*)va;
+
+    ks_peb.ImageBaseAddress = (void*)base_address;
+    // FIXME - ProcessParameters
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        unmap_page(va + (i << PAGE_SHIFT));
+    }
+
+    free_va(va, num_pages);
+
+    return true;
 }
