@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-enum nt_status : uint32_t {
+enum class nt_status : uint32_t {
     SUCCESS = 0x00000000,
     PENDING = 0x00000103,
     NOT_IMPLEMENTED = 0xc0000002,
