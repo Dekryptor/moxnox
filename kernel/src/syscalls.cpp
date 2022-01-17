@@ -242,3 +242,72 @@ NTSTATUS user_NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
+                         void* apc_context) {
+    auto& t = *get_current_thread();
+    IO_STATUS_BLOCK iosb;
+    array<uintptr_t, 5> args;
+    LARGE_INTEGER byte_offset;
+    uint32_t key;
+
+    if (file_handle & kernel_handle_mask || event & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto us_iosb = (IO_STATUS_BLOCK*)args[0];
+    auto us_buf = (void*)args[1];
+    auto length = (uint32_t)args[2];
+    auto us_byte_offset = (LARGE_INTEGER*)args[3];
+    auto us_key = (uint32_t*)args[4];
+
+    if (!us_iosb)
+        return nt_status::INVALID_PARAMETER;
+
+    void* buf = nullptr;
+
+    // FIXME - can we map buffer directly rather than copying?
+
+    if (length > 0) {
+        buf = malloc(length);
+        if (!buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    if (us_byte_offset) {
+        if (!copy_from_process(&byte_offset, us_byte_offset, sizeof(LARGE_INTEGER))) {
+            if (buf)
+                free(buf);
+
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (us_key) {
+        if (!copy_from_process(&key, us_key, sizeof(uint32_t))) {
+            if (buf)
+                free(buf);
+
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    auto ret = NtReadFile(file_handle, event, apc_routine, apc_context, &iosb, buf, length,
+                          us_byte_offset ? &byte_offset : nullptr, us_key ? &key : nullptr);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_buf, buf, length))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    if (buf)
+        free(buf);
+
+    return ret;
+}

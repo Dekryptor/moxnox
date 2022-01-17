@@ -11,6 +11,7 @@ syscalls:
     .quad user_NtResumeProcess
     .quad user_NtAllocateVirtualMemory
     .quad user_NtFreeVirtualMemory
+    .quad user_NtReadFile
 end_syscalls:
 
 .section .text
