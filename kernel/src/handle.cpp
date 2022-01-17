@@ -429,10 +429,63 @@ void handle_closed(object& obj) {
     }
 }
 
-NTSTATUS NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
-                    void* apc_context, IO_STATUS_BLOCK* io_status_block, void* buffer,
-                    uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t* key) {
-    print("FIXME: NtReadFile\n");
+NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
+                    IO_STATUS_BLOCK* io_status_block, void* buffer,
+                    uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
+    auto buf = span((uint8_t*)buffer, length);
 
-    return nt_status::NOT_IMPLEMENTED;
+    auto objrw = deref_handle(file_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    // FIXME - async (event)
+    // FIXME - async (APC)
+
+    auto& obj = objrw->get();
+    bool can_read = false;
+
+    if (byte_offset) {
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
+                can_read = true;
+        });
+    } else {
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
+                can_read = true;
+        });
+    }
+
+    if (!can_read) {
+        visit_obj(obj, [&](auto&& o) {
+            o.release();
+        });
+
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    size_t read;
+
+    if (byte_offset) {
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
+                read = o.read(buf, byte_offset->QuadPart);
+
+            o.release();
+        });
+    } else {
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
+                read = o.read(buf);
+
+            o.release();
+        });
+    }
+
+    // FIXME - propagating errors from reada function
+
+    io_status_block->Status = nt_status::SUCCESS;
+    io_status_block->Information = read;
+
+    return nt_status::SUCCESS;
 }
