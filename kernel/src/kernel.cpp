@@ -105,11 +105,23 @@ static unique_handle start_init_process() {
     if (!initout_objrw)
         bsod("No such handle\n");
 
-    auto proc_handle = create_process("/init.exe", nullopt, initout_objrw, initout_objrw);
+    auto initin = open_object("keyboard");
+    if (!initin)
+        bsod("Could not open keyboard object.\n");
+
+    auto initin_objrw = deref_handle(initin.get());
+    if (!initin_objrw)
+        bsod("No such handle\n");
+
+    auto proc_handle = create_process("/init.exe", initin_objrw, initout_objrw, initout_objrw);
     if (!proc_handle)
         bsod("Could not start init process.\n");
 
     visit_obj(initout_objrw->get(), [&](auto&& o) {
+        o.release();
+    });
+
+    visit_obj(initin_objrw->get(), [&](auto&& o) {
         o.release();
     });
 
