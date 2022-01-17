@@ -299,8 +299,10 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
                           us_byte_offset ? &byte_offset : nullptr, us_key ? &key : nullptr);
 
     if (success(ret)) {
-        if (!copy_to_process(us_buf, buf, length))
-            ret = nt_status::ACCESS_VIOLATION;
+        if (iosb.Information > 0) {
+            if (!copy_to_process(us_buf, buf, iosb.Information))
+                ret = nt_status::ACCESS_VIOLATION;
+        }
 
         if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
             ret = nt_status::ACCESS_VIOLATION;
