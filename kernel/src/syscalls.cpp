@@ -60,6 +60,8 @@ extern "C"
 NTSTATUS user_NtDisplayString(const UNICODE_STRING* string) {
     UNICODE_STRING us;
 
+    // FIXME - needs TCB privilege
+
     if (!copy_unicode_string_from_process(string, us))
         return nt_status::ACCESS_VIOLATION;
 
