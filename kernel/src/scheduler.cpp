@@ -377,7 +377,7 @@ thread::~thread() {
         proc->release();
 }
 
-static void wait_for_object(object& obj) {
+void wait_for_object(object& obj) {
     auto current_thread = get_current_thread();
     optional<bool> sigopt;
 

@@ -135,6 +135,7 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
 extern "C" void scheduler();
 std::span<char> sp_context(std::span<char>dest, const amd64_context& ctx);
 void wait_for_object(handle_t h);
+void wait_for_object(object& obj);
 bool init_cpu_block(bool handle_timers, unsigned int cpu_no);
 thread* get_current_thread();
 

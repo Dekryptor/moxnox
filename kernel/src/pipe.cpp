@@ -163,6 +163,9 @@ size_t pipe::read(span<uint8_t> s) {
     if (s.empty())
         return 0;
 
+    acquire();
+    wait_for_object(*this);
+
     {
         lock_guard l(lock);
 
