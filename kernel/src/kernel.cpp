@@ -79,23 +79,6 @@ static void timer_test() {
 }
 #endif
 
-static void keyboard_echo(void*) {
-    auto pipe = open_object("keyboard");
-    if (!pipe) {
-        print("Could not open keyboard object.\n");
-        return;
-    }
-
-    while (1) {
-        uint8_t s[10];
-
-        wait_for_object(pipe.get());
-
-        auto read_bytes = read(pipe.get(), s);
-        print(string_view((char*)s, read_bytes));
-    }
-}
-
 static unique_handle start_init_process() {
     auto initout = open_object("tty");
     if (!initout)
@@ -159,8 +142,6 @@ void main_thread() {
 
     if (!init_fb_console())
         print("init_fb_console failed\n");
-
-    add_kernel_thread(keyboard_echo, nullptr);
 
     load_ntdll();
 
