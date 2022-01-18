@@ -1357,3 +1357,10 @@ optional<reference_wrapper<object>> process::deref_handle(handle_t h) {
 
     return *ho.obj;
 }
+
+NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
+                                uint32_t new_prot, uint32_t* old_prot) {
+    print("FIXME: NtProtectVirtualMemory\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

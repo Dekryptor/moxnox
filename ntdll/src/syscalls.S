@@ -21,3 +21,4 @@ do_syscall "NtResumeProcess", 0x1004
 do_syscall "NtAllocateVirtualMemory", 0x1005
 do_syscall "NtFreeVirtualMemory", 0x1006
 do_syscall "NtReadFile", 0x1007
+do_syscall "NtProtectVirtualMemory", 0x1008

@@ -461,5 +461,7 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
 NTSTATUS NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
                     void* apc_context, IO_STATUS_BLOCK* io_status_block, void* buffer,
                     uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t* key);
+NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
+                                uint32_t new_prot, uint32_t* old_prot);
 
 };

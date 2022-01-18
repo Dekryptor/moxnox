@@ -313,3 +313,49 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
+                                     uint32_t new_prot) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+
+    if (proc_handle & kernel_handle_mask && proc_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    if (!region_size || !base_address)
+        return nt_status::INVALID_PARAMETER;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto us_old_prot = (uint32_t*)args[0];
+
+    if (!us_old_prot)
+        return nt_status::ACCESS_VIOLATION;
+
+    void* addr;
+    size_t size;
+    uint32_t old_prot;
+
+    if (!copy_from_process(&addr, base_address, sizeof(void*)))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (!copy_from_process(&size, region_size, sizeof(size_t)))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto ret = NtProtectVirtualMemory(proc_handle, &addr, &size, new_prot, &old_prot);
+
+    if (success(ret)) {
+        if (!copy_to_process(base_address, &addr, sizeof(void*)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(region_size, &size, sizeof(size_t)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(us_old_prot, &old_prot, sizeof(uint32_t)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}

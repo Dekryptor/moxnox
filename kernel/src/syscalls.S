@@ -12,6 +12,7 @@ syscalls:
     .quad user_NtAllocateVirtualMemory
     .quad user_NtFreeVirtualMemory
     .quad user_NtReadFile
+    .quad user_NtProtectVirtualMemory
 end_syscalls:
 
 .section .text
