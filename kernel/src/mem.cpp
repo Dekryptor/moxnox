@@ -923,7 +923,7 @@ uint64_t allocate_va(uint32_t pages) {
                 if (j >= last_j && (mb[i] & m) == m) {
                     mb[i] &= ~m;
                     last_i = i;
-                    last_j = j + 1;
+                    last_j = j + pages;
                     return (uintptr_t)vablock + (((i * 64) + j) << PAGE_SHIFT);
                 }
 
