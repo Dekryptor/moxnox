@@ -955,8 +955,10 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
     enum mapping_type prot;
 
     switch (protect) {
-        // FIXME - PAGE_NOACCESS
-        // FIXME - PAGE_GUARD
+        case PAGE_NOACCESS:
+        case PAGE_GUARD:
+            prot = mapping_type::no_access;
+            break;
 
         case PAGE_READONLY:
             prot = mapping_type::read_only;

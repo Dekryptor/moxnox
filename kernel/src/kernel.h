@@ -43,6 +43,7 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
 using handle_t = uint64_t;
 
 enum class mapping_type {
+    no_access,
     read_write,
     read_only,
     read_execute,
