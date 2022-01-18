@@ -971,6 +971,10 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
             prot = mapping_type::read_execute;
             break;
 
+        case PAGE_EXECUTE_READWRITE:
+            prot = mapping_type::read_write_execute;
+            break;
+
         case PAGE_NOCACHE:
             prot = mapping_type::no_cache;
             break;
