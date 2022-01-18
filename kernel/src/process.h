@@ -53,7 +53,7 @@ public:
 
 private:
     void free_mappings();
-    void unmap_proc_page(uint64_t va);
+    NTSTATUS unmap_proc_page(uint64_t va);
     bool populate_teb(thread& t);
     bool map_to_kernel_space(void* us, void* ks, unsigned int num_pages);
     bool allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh);
