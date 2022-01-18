@@ -10,7 +10,7 @@ static void print(string_view s) {
     auto peb = teb->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
 
-    NtWriteFile(peb->ProcessParameters->StandardError, 0, nullptr, nullptr, &iosb, s.data(),
+    NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr, &iosb, s.data(),
                 (uint32_t)s.size(), nullptr, nullptr);
 }
 
@@ -91,11 +91,14 @@ void startup() {
                                  s, sizeof(s), nullptr, nullptr);
 
         if (!success(status)) {
-            print("NtReadFile returned ");
+            print("NtReadFile returned "); // FIXME - should be to stderr
             print_hex((uint32_t)status, 8);
             print("\n");
             break;
         }
+
+        if (iosb.Information != 0)
+            print(string_view(s, iosb.Information));
     }
 
     NtTerminateThread(NtCurrentThread(), (NTSTATUS)42);
