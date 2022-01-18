@@ -6,7 +6,7 @@ using namespace std;
 
 extern uint8_t __image_base__;
 
-static enum mapping_type characteristics_to_mapping_type(uint32_t c) {
+enum mapping_type characteristics_to_mapping_type(uint32_t c) {
     if (c & IMAGE_SCN_MEM_WRITE && !(c & IMAGE_SCN_MEM_EXECUTE))
         return mapping_type::read_write;
     else if (c & IMAGE_SCN_MEM_WRITE && c & IMAGE_SCN_MEM_EXECUTE)

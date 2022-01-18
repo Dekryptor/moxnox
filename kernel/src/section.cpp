@@ -267,8 +267,6 @@ bool section::load_image() {
 
                 return false;
             }
-
-            // FIXME - protection
         }
 
         temp_va = allocate_va(num_pages);
@@ -305,6 +303,8 @@ bool section::load_image() {
     else
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
 
+    pages[0].protect = mapping_type::read_only;
+
     for (const auto& sect : sections) {
         auto section_size = min(sect.VirtualSize, sect.SizeOfRawData);
 
@@ -324,6 +324,15 @@ bool section::load_image() {
             free_va(temp_va, num_pages);
             free_pa();
             return false;
+        }
+
+        auto page_start = bytes_to_pages(sect.VirtualAddress);
+        auto page_end = bytes_to_pages(sect.VirtualAddress + section_size - 1);
+
+        auto prot = characteristics_to_mapping_type(sect.Characteristics);
+
+        for (auto i = page_start; i < page_end; i++) {
+            pages[i].protect = prot;
         }
     }
 
@@ -363,7 +372,7 @@ bool section::map(uint32_t offset, uint64_t va) {
 
     {
         // FIXME - process mapping lock
-        if (!map_page(pages[offset >> PAGE_SHIFT].pa, va, mapping_type::read_write_execute))
+        if (!map_page(pages[offset >> PAGE_SHIFT].pa, va, pages[offset >> PAGE_SHIFT].protect))
             return false;
 
         if (new_page) // FIXME - allocate zeroed page?
