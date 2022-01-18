@@ -33,7 +33,7 @@ public:
     enum section_type type;
     uint32_t size;
     uint32_t num_pages;
-    uint64_t* pa = nullptr;
+    page_info* pages = nullptr;
     uintptr_t preferred_base;
     uint64_t stack_size;
     spinlock alloc_lock;

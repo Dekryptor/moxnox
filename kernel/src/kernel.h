@@ -71,6 +71,11 @@ struct handle_obj {
     uint32_t access_mask;
 };
 
+struct page_info {
+    uint64_t pa;
+    enum mapping_type protect;
+};
+
 // mem.cpp
 bool init_memory(const loader_block& lb);
 bool map_page(uint64_t pa, uint64_t va, enum mapping_type type);

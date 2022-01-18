@@ -69,11 +69,6 @@ enum class proc_map_type {
     committed
 };
 
-struct page_info {
-    uint64_t pa;
-    enum mapping_type protect;
-};
-
 class mapping {
 public:
     mapping() = default;

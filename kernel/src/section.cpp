@@ -64,14 +64,16 @@ unique_handle create_section(handle_t h, bool image, size_t size) {
 
         s.size = s.num_pages << PAGE_SHIFT;
 
-        s.pa = (uint64_t*)malloc(sizeof(uint64_t) * s.num_pages);
-        if (!s.pa) {
+        s.pages = (page_info*)malloc(sizeof(page_info) * s.num_pages);
+        if (!s.pages) {
             print("malloc failed\n");
             s.release();
             return {};
         }
 
-        memset(s.pa, 0, sizeof(uint64_t) * s.num_pages);
+        memset(s.pages, 0, sizeof(page_info) * s.num_pages);
+
+        // FIXME - protection
 
         // FIXME - make sure allocate_page doesn't steal what we've reserved
     }
@@ -91,16 +93,16 @@ section::~section() {
 }
 
 void section::free_pa() {
-    if (!pa)
+    if (!pages)
         return;
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        if (pa[i])
-            free_page(pa[i]);
+        if (pages[i].pa)
+            free_page(pages[i].pa);
     }
 
-    free(pa);
-    pa = nullptr;
+    free(pages);
+    pages = nullptr;
 }
 
 class scratch {
@@ -243,8 +245,8 @@ bool section::load_image() {
         num_pages = bytes_to_pages(size);
         size = num_pages << PAGE_SHIFT;
 
-        pa = (uint64_t*)malloc(sizeof(uint64_t) * num_pages);
-        if (!pa) {
+        pages = (page_info*)malloc(sizeof(page_info) * num_pages);
+        if (!pages) {
             print("malloc failed\n");
             return false;
         }
@@ -252,19 +254,21 @@ bool section::load_image() {
         // FIXME - allocate zeroed pages?
 
         for (unsigned int i = 0; i < num_pages; i++) {
-            pa[i] = allocate_page();
-            if (!pa[i]) {
+            pages[i].pa = allocate_page();
+            if (!pages[i].pa) {
                 print("allocate_page failed\n");
 
                 for (unsigned int j = 0; j < i; j++) {
-                    free_page(pa[j]);
+                    free_page(pages[j].pa);
                 }
 
-                free(pa);
-                pa = nullptr;
+                free(pages);
+                pages = nullptr;
 
                 return false;
             }
+
+            // FIXME - protection
         }
 
         temp_va = allocate_va(num_pages);
@@ -275,7 +279,7 @@ bool section::load_image() {
         }
 
         for (unsigned int i = 0; i < num_pages; i++) {
-            if (!map_page(pa[i], temp_va + (i << PAGE_SHIFT), mapping_type::read_write)) {
+            if (!map_page(pages[i].pa, temp_va + (i << PAGE_SHIFT), mapping_type::read_write)) {
                 print("map_page failed\n");
 
                 for (unsigned int j = 0; j < i; j++) {
@@ -337,7 +341,7 @@ bool section::map(uint32_t offset, uint64_t va) {
     {
         lock_guard lock(alloc_lock);
 
-        page = pa[offset >> PAGE_SHIFT];
+        page = pages[offset >> PAGE_SHIFT].pa;
 
         if (!page) {
             if (type != section_type::anonymous) {
@@ -351,7 +355,7 @@ bool section::map(uint32_t offset, uint64_t va) {
                 return false;
             }
 
-            pa[offset >> PAGE_SHIFT] = page;
+            pages[offset >> PAGE_SHIFT].pa = page;
 
             new_page = true;
         }
@@ -359,7 +363,7 @@ bool section::map(uint32_t offset, uint64_t va) {
 
     {
         // FIXME - process mapping lock
-        if (!map_page(pa[offset >> PAGE_SHIFT], va, mapping_type::read_write_execute))
+        if (!map_page(pages[offset >> PAGE_SHIFT].pa, va, mapping_type::read_write_execute))
             return false;
 
         if (new_page) // FIXME - allocate zeroed page?
@@ -379,7 +383,7 @@ bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     lock_guard lock(alloc_lock);
 
     while (true) {
-        auto page = pa[offset >> PAGE_SHIFT];
+        auto page = pages[offset >> PAGE_SHIFT].pa;
 
         if (!page) {
             // FIXME - handle missing page (load from disk if file, zero if anonymous)
@@ -414,7 +418,7 @@ bool section::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     lock_guard lock(alloc_lock);
 
     while (true) {
-        auto page = pa[offset >> PAGE_SHIFT];
+        auto page = pages[offset >> PAGE_SHIFT].pa;
 
         if (!page) {
             // FIXME - handle missing page (load from disk if file, zero if anonymous)
