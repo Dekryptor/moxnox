@@ -608,3 +608,18 @@ uint64_t section::find_export(string_view name) {
 
     return ret;
 }
+
+NTSTATUS section::protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
+                          enum mapping_type& old_prot) {
+    auto p = &pages[offset >> PAGE_SHIFT];
+
+    for (unsigned int i = 0; i < page_count; i++) {
+        if (i == 0)
+            old_prot = p->protect;
+
+        p->protect = prot;
+        p++;
+    }
+
+    return nt_status::SUCCESS;
+}

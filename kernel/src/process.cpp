@@ -1439,11 +1439,155 @@ optional<reference_wrapper<object>> process::deref_handle(handle_t h) {
     return *ho.obj;
 }
 
+NTSTATUS process::change_proc_page_protection(uint64_t va, enum mapping_type prot) {
+    NTSTATUS status;
+    span<HARDWARE_PTE> pml4, pdpt, pdt, pt;
+
+    auto buf = allocate_va(5);
+    if (!buf) {
+        print("allocate_va failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    if (!map_page(cr3, buf, mapping_type::read_only)) {
+        print("map_page failed\n");
+        status = nt_status::INSUFFICIENT_RESOURCES;
+        goto end;
+    }
+
+    pml4 = span((HARDWARE_PTE*)buf, 512);
+
+    if (!pml4[(va & 0xff8000000000) >> 39].Valid) {
+        status = nt_status::SUCCESS;
+        goto end2;
+    }
+
+    if (!map_page((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT, buf + PAGE_SIZE, mapping_type::read_only)) {
+        print("map_page failed\n");
+        status = nt_status::INSUFFICIENT_RESOURCES;
+        goto end2;
+    }
+
+    pdpt = span((HARDWARE_PTE*)(buf + PAGE_SIZE), 512);
+
+    if (!pdpt[(va & 0x7fc0000000) >> 30].Valid) {
+        status = nt_status::SUCCESS;
+        goto end3;
+    }
+
+    if (!map_page((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT, buf + (2 * PAGE_SIZE), mapping_type::read_only)) {
+        print("map_page failed\n");
+        status = nt_status::INSUFFICIENT_RESOURCES;
+        goto end3;
+    }
+
+    pdt = span((HARDWARE_PTE*)(buf + (2 * PAGE_SIZE)), 512);
+
+    if (!pdt[(va & 0x3fe00000) >> 21].Valid) {
+        status = nt_status::SUCCESS;
+        goto end4;
+    }
+
+    if (!map_page((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT, buf + (3 * PAGE_SIZE), mapping_type::read_write)) {
+        print("map_page failed\n");
+        status = nt_status::INSUFFICIENT_RESOURCES;
+        goto end4;
+    }
+
+    pt = span((HARDWARE_PTE*)(buf + (3 * PAGE_SIZE)), 512);
+
+    protect_page2(pt[(va & 0x1ff000) >> 12], prot, false);
+
+    status = nt_status::SUCCESS;
+
+    unmap_page(buf + (3 * PAGE_SIZE));
+
+end4:
+    unmap_page(buf + (2 * PAGE_SIZE));
+
+end3:
+    unmap_page(buf + PAGE_SIZE);
+
+end2:
+    unmap_page(buf);
+
+end:
+    free_va(buf, 5);
+
+    return status;
+}
+
 NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
                              enum mapping_type& old_prot) {
-    print("FIXME: process::protect_vm\n"); // FIXME
+    auto addr = (uintptr_t)*base_address;
+    auto addr_end = addr + *region_size;
 
-    return nt_status::NOT_IMPLEMENTED;
+    addr &= ~(PAGE_SIZE - 1);
+
+    auto pages = bytes_to_pages(addr_end - addr);
+
+    if (pages == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    *base_address = (void*)addr;
+    *region_size = pages << PAGE_SHIFT;
+
+    lock_guard lock(mappings_lock);
+
+    auto le = mappings.next;
+    while (le != &mappings) {
+        auto& m = containing_record<mapping>(le);
+
+        if (m.address > addr + (pages << PAGE_SHIFT))
+            return nt_status::NO_MEMORY;
+
+        if (m.address + m.size > addr && m.address < addr + (pages << PAGE_SHIFT)) {
+            auto num_pages = min(pages, (uint32_t)((m.address + m.size - addr) >> PAGE_SHIFT));
+
+            switch (m.type) {
+                case proc_map_type::section: {
+                    // FIXME - mapping might be offset in section
+                    // FIXME - should be private to process
+                    // FIXME - section might not have been opened read-write, etc.
+                    auto ret = m.sect->protect((uint32_t)(addr - m.address), num_pages, prot, old_prot);
+                    if (!success(ret))
+                        return ret;
+
+                    break;
+                }
+
+                case proc_map_type::committed:
+                    print("FIXME - protecting committed VM\n"); // FIXME
+                    return nt_status::INTERNAL_ERROR;
+
+                case proc_map_type::reserved:
+                    return nt_status::NO_MEMORY;
+            }
+
+            for (unsigned int i = 0; i < num_pages; i++) {
+                // FIXME - would be quicker if we could do multiple pages at once
+                auto ret = change_proc_page_protection(addr + (i << PAGE_SHIFT), prot);
+                if (!success(ret))
+                    return ret;
+            }
+
+            pages -= num_pages;
+
+            if (pages == 0)
+                break;
+
+            addr += num_pages << PAGE_SHIFT;
+        }
+
+        le = le->next;
+    }
+
+    if (pages != 0)
+        return nt_status::NO_MEMORY;
+
+    // FIXME - if mappings changed and process running on other cores, send IPI to clear TLB
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,

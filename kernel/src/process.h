@@ -59,6 +59,7 @@ private:
     bool populate_teb(thread& t);
     bool map_to_kernel_space(void* us, void* ks, unsigned int num_pages);
     bool allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh);
+    NTSTATUS change_proc_page_protection(uint64_t va, enum mapping_type prot);
 };
 
 static_assert(is_sync_object<process>);

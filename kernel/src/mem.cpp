@@ -751,9 +751,7 @@ void unmap_page(uint64_t va) {
     );
 }
 
-void protect_page(uint64_t va, enum mapping_type type) {
-    auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
-
+void protect_page2(HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
     switch (type) {
         case mapping_type::read_write:
             pt_entry.NoExecute = 1;
@@ -805,7 +803,13 @@ void protect_page(uint64_t va, enum mapping_type type) {
         break;
     }
 
-    pt_entry.Owner = (type == mapping_type::no_access || va & 0x8000000000000000) ? 0 : 1;
+    pt_entry.Owner = (type == mapping_type::no_access || ks) ? 0 : 1;
+}
+
+void protect_page(uint64_t va, enum mapping_type type) {
+    auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
+
+    protect_page2(pt_entry, type, va & 0x8000000000000000);
 }
 
 static void mark_vamem_as_used(uint64_t off, size_t pages) {

@@ -25,6 +25,7 @@ struct pci_device;
 class semaphore;
 class volume;
 class filesystem;
+struct HARDWARE_PTE;
 
 static const uint32_t PIT_HZ = 1193182;
 
@@ -85,6 +86,7 @@ void unmap_and_free_page(uint64_t va);
 void free_page(uint64_t pa);
 void unmap_page(uint64_t va);
 void protect_page(uint64_t va, enum mapping_type type);
+void protect_page2(HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks);
 bool init_vablock();
 uint64_t allocate_va(uint32_t pages);
 void free_va(uint64_t va, uint32_t pages);
