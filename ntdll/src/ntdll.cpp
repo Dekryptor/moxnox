@@ -253,10 +253,46 @@ static void resolve_relocations(void* base) {
     // FIXME - do we need to update the base in the header?
 }
 
+static void disable_protections(void* base) {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)base;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
+    span<IMAGE_SECTION_HEADER> sections;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+    else
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+
+    for (const auto& sect : sections) {
+        auto section_size = min(sect.VirtualSize, sect.SizeOfRawData);
+
+        if (section_size == 0 || sect.PointerToRawData == 0)
+            continue;
+
+        void* addr = (uint8_t*)base + sect.VirtualAddress;
+        size_t size = section_size;
+        uint32_t new_prot, old_prot;
+
+        new_prot = sect.Characteristics & IMAGE_SCN_MEM_EXECUTE ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE;
+
+        auto ret = NtProtectVirtualMemory(NtCurrentProcess(), &addr, &size, new_prot, &old_prot);
+
+        if (!success(ret)) {
+            print("NtProtectVirtualMemory returned ");
+            print_hex((uint32_t)ret);
+            print(".\n");
+            NtTerminateProcess(NtCurrentProcess(), ret);
+        }
+    }
+}
+
 extern "C" __declspec(dllexport)
 void mn_start_process(void* img_base, void* ntdll_base) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)img_base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_base + dos_header.e_lfanew);
+
+    disable_protections(ntdll_base);
+    disable_protections(img_base);
 
     resolve_relocations(ntdll_base);
     resolve_relocations(img_base);
@@ -264,6 +300,8 @@ void mn_start_process(void* img_base, void* ntdll_base) {
     // FIXME - load DLLs (recursively) (with relocations)
 
     resolve_imports(img_base);
+
+    // FIXME - re-enable protections
 
     uint32_t entry_point;
 
