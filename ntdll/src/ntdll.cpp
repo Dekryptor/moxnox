@@ -253,7 +253,7 @@ static void resolve_relocations(void* base) {
     // FIXME - do we need to update the base in the header?
 }
 
-static void disable_protections(void* base) {
+static void toggle_protections(void* base, bool enable) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
     span<IMAGE_SECTION_HEADER> sections;
@@ -273,7 +273,17 @@ static void disable_protections(void* base) {
         size_t size = section_size;
         uint32_t new_prot, old_prot;
 
-        new_prot = sect.Characteristics & IMAGE_SCN_MEM_EXECUTE ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE;
+        if (enable) {
+            if (sect.Characteristics & IMAGE_SCN_MEM_WRITE && !(sect.Characteristics & IMAGE_SCN_MEM_EXECUTE))
+                new_prot = PAGE_READWRITE;
+            else if (sect.Characteristics & IMAGE_SCN_MEM_WRITE && sect.Characteristics & IMAGE_SCN_MEM_EXECUTE)
+                new_prot = PAGE_EXECUTE_READWRITE;
+            else if (!(sect.Characteristics & IMAGE_SCN_MEM_WRITE) && !(sect.Characteristics & IMAGE_SCN_MEM_EXECUTE))
+                new_prot = PAGE_READONLY;
+            else if (!(sect.Characteristics & IMAGE_SCN_MEM_WRITE) && sect.Characteristics & IMAGE_SCN_MEM_EXECUTE)
+                new_prot = PAGE_EXECUTE_READ;
+        } else
+            new_prot = sect.Characteristics & IMAGE_SCN_MEM_EXECUTE ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE;
 
         auto ret = NtProtectVirtualMemory(NtCurrentProcess(), &addr, &size, new_prot, &old_prot);
 
@@ -291,8 +301,8 @@ void mn_start_process(void* img_base, void* ntdll_base) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)img_base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_base + dos_header.e_lfanew);
 
-    disable_protections(ntdll_base);
-    disable_protections(img_base);
+    toggle_protections(ntdll_base, false);
+    toggle_protections(img_base, false);
 
     resolve_relocations(ntdll_base);
     resolve_relocations(img_base);
@@ -301,7 +311,8 @@ void mn_start_process(void* img_base, void* ntdll_base) {
 
     resolve_imports(img_base);
 
-    // FIXME - re-enable protections
+    toggle_protections(ntdll_base, true);
+    toggle_protections(img_base, true);
 
     uint32_t entry_point;
 
