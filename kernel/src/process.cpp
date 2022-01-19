@@ -1439,9 +1439,118 @@ optional<reference_wrapper<object>> process::deref_handle(handle_t h) {
     return *ho.obj;
 }
 
-NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
-                                uint32_t new_prot, uint32_t* old_prot) {
-    print("FIXME: NtProtectVirtualMemory\n");
+NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
+                             enum mapping_type& old_prot) {
+    print("FIXME: process::protect_vm\n"); // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
+                                uint32_t new_prot, uint32_t* old_prot) {
+    enum mapping_type prot;
+    process* p;
+
+    switch (new_prot) {
+        case PAGE_NOACCESS:
+        case PAGE_GUARD:
+            prot = mapping_type::no_access;
+            break;
+
+        case PAGE_READONLY:
+            prot = mapping_type::read_only;
+            break;
+
+        case PAGE_READWRITE:
+            prot = mapping_type::read_write;
+            break;
+
+        case PAGE_EXECUTE:
+        case PAGE_EXECUTE_READ:
+            prot = mapping_type::read_execute;
+            break;
+
+        case PAGE_EXECUTE_READWRITE:
+            prot = mapping_type::read_write_execute;
+            break;
+
+        case PAGE_NOCACHE:
+            prot = mapping_type::no_cache;
+            break;
+
+        case PAGE_WRITECOMBINE:
+            prot = mapping_type::write_combine;
+            break;
+
+        default:
+            return nt_status::INVALID_PARAMETER;
+    }
+
+    if (proc_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+    } else {
+        auto objrw = deref_handle(proc_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&objrw->get());
+    }
+
+    enum mapping_type old_type;
+
+    auto ret = p->protect_vm(base_address, region_size, prot, old_type);
+
+    p->release();
+
+    if (success(ret)) {
+        switch (old_type) {
+            case mapping_type::no_access:
+                *old_prot = PAGE_NOACCESS;
+                break;
+
+            case mapping_type::read_write:
+                *old_prot = PAGE_READWRITE;
+                break;
+
+            case mapping_type::read_only:
+                *old_prot = PAGE_READONLY;
+                break;
+
+            case mapping_type::read_execute:
+                *old_prot = PAGE_EXECUTE_READ;
+                break;
+
+            case mapping_type::read_write_execute:
+                *old_prot = PAGE_EXECUTE_READWRITE;
+                break;
+
+            case mapping_type::no_cache:
+                *old_prot = PAGE_NOCACHE;
+                break;
+
+            case mapping_type::write_combine:
+                *old_prot = PAGE_WRITECOMBINE;
+                break;
+        }
+    }
+
+    return ret;
 }

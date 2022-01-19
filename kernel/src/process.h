@@ -34,6 +34,8 @@ public:
                          uint32_t allocation_type, enum mapping_type protect);
     NTSTATUS free_vm(void** base_address, size_t* region_size, uint32_t free_type);
     std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
+    NTSTATUS protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
+                        enum mapping_type& old_prot);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
