@@ -696,7 +696,6 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
 
     t->exit_status = exit_status;
 
-    t->release();
     p->release();
     t->terminate(); // doesn't return
 
