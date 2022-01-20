@@ -1058,7 +1058,7 @@ NTSTATUS process::unmap_proc_page(uint64_t va) {
     NTSTATUS status;
     span<HARDWARE_PTE> pml4, pdpt, pdt, pt;
 
-    auto buf = allocate_va(5);
+    auto buf = allocate_va(4);
     if (!buf) {
         print("allocate_va failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -1127,7 +1127,7 @@ end2:
     unmap_page(buf);
 
 end:
-    free_va(buf, 5);
+    free_va(buf, 4);
 
     return status;
 }
