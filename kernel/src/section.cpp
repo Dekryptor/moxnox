@@ -383,16 +383,16 @@ bool section::map(uint32_t offset, uint64_t va) {
 }
 
 bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
-    auto va = allocate_va(1);
-    if (!va) {
-        print("allocate_va failed\n");
-        return false;
-    }
-
     lock_guard lock(alloc_lock);
 
     while (true) {
         auto page = pages[offset >> PAGE_SHIFT].pa;
+
+        auto va = allocate_va(1);
+        if (!va) {
+            print("allocate_va failed\n");
+            return false;
+        }
 
         if (!page) {
             // FIXME - handle missing page (load from disk if file, zero if anonymous)
@@ -411,11 +411,10 @@ bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
         memcpy(ks_addr, (uint8_t*)va + (offset & (PAGE_SIZE - 1)), to_copy);
 
         unmap_page(va);
+        free_va(va, 1);
 
-        if (to_copy == size) {
-            free_va(va, 1);
+        if (to_copy == size)
             return true;
-        }
 
         ks_addr = (uint8_t*)ks_addr + to_copy;
         offset += to_copy;
