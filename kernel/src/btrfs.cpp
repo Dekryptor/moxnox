@@ -778,7 +778,12 @@ size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t
     // FIXME - write directly into s if possible?
 
     auto pages = bytes_to_pages(num_bytes + offset);
+
     auto va = allocate_va(pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return 0;
+    }
 
     for (size_t i = 0; i < pages; i++) {
         auto pa = allocate_page();
@@ -790,6 +795,8 @@ size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t
                 unmap_page(va + (j << PAGE_SHIFT));
                 free_page(pa);
             }
+
+            free_va(va, pages);
 
             return 0;
         }
@@ -803,6 +810,8 @@ size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t
                 unmap_page(va + (j << PAGE_SHIFT));
                 free_page(pa);
             }
+
+            free_va(va, pages);
 
             return 0;
         }
@@ -826,6 +835,8 @@ end:
         unmap_page(va + (i << PAGE_SHIFT));
         free_page(pa);
     }
+
+    free_va(va, pages);
 
     return to_read;
 }
