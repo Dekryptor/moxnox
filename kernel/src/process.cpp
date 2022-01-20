@@ -639,6 +639,17 @@ void process::terminate() {
         });
     }
 
+    if (handle_arr_pages != 0) {
+        for (unsigned int i = 0; i < handle_arr_pages; i++) {
+            auto pa = va_to_pa((uintptr_t)handle_arr + (i << PAGE_SHIFT));
+
+            unmap_page((uintptr_t)handle_arr + (i << PAGE_SHIFT));
+            free_page(pa);
+        }
+
+        free_va((uintptr_t)handle_arr, handle_arr_pages);
+    }
+
     free_mappings();
 }
 
