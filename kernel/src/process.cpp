@@ -399,9 +399,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
     ec.value = error_code;
 
-    // FIXME - copy-on-write
-
-    if (ec.present) // NX violation etc.
+    if (ec.present && !ec.write) // NX violation etc.
         return false;
 
     address &= ~(PAGE_SIZE - 1);
@@ -415,13 +413,22 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
             if (m.address <= address && m.address + m.size > address) {
                 switch (m.type) {
-                    case proc_map_type::section:
-                        return static_cast<mapping_section&>(m).map((uint32_t)(address - m.address), address);
+                    case proc_map_type::section: {
+                        auto& ms = static_cast<mapping_section&>(m);
+
+                        if (ec.present) // COW
+                            return ms.cow((uint32_t)(address - m.address), address);
+                        else
+                            return ms.map((uint32_t)(address - m.address), address);
+                    }
 
                     case proc_map_type::reserved:
                         return false;
 
                     case proc_map_type::committed:
+                        if (ec.present)
+                            return false;
+
                         return static_cast<mapping_committed&>(m).map((uint32_t)(address - m.address), address, nullopt);
                 }
             }
@@ -1842,12 +1849,83 @@ NTSTATUS mapping_section::protect(uint32_t offset, uint32_t page_count, enum map
 }
 
 bool mapping_section::map(uint32_t offset, uint64_t va) {
+    uint64_t pa;
+
     {
         lock_guard l(lock);
 
-        if (pages[offset >> PAGE_SHIFT].pa) // have local copy of COW'd page
-            return map_page(pages[offset >> PAGE_SHIFT].pa, va, pages[offset >> PAGE_SHIFT].protect);
+        pa = pages[offset >> PAGE_SHIFT].pa;
     }
 
+    if (pa) // have local copy of COW'd page
+        return map_page(pa, va, pages[offset >> PAGE_SHIFT].protect);
+
     return sect.map(offset, va, true);
+}
+
+bool mapping_section::cow(uint32_t offset, uint64_t va) {
+    uint64_t pa;
+
+    {
+        lock_guard l(lock);
+
+        pa = pages[offset >> PAGE_SHIFT].pa;
+    }
+
+    if (pa) // have local copy of COW'd page
+        return map_page(pa, va, pages[offset >> PAGE_SHIFT].protect);
+
+    auto va2 = allocate_va(2);
+    if (!va2) {
+        print("allocate_va failed\n");
+        return false;
+    }
+
+    if (!sect.map(offset, va2, true)) {
+        print("section::map failed\n");
+        free_va(va2, 2);
+        return false;
+    }
+
+    auto pa_new = allocate_page();
+    if (!pa_new) {
+        print("allocate_page failed\n");
+        unmap_page(va2);
+        free_va(va2, 2);
+        return false;
+    }
+
+    if (!map_page(pa_new, va2 + PAGE_SIZE, mapping_type::read_write)) {
+        print("map_page failed\n");
+        unmap_page(va2);
+        free_va(va2, 2);
+        free_page(pa_new);
+        return false;
+    }
+
+    memcpy((void*)(va2 + PAGE_SIZE), (void*)va2, PAGE_SIZE);
+
+    unmap_page(va2);
+    unmap_page(va2 + PAGE_SIZE);
+    free_va(va2, 2);
+
+    bool beaten_to_it = false;
+
+    {
+        lock_guard l(lock);
+
+        pa = pages[offset >> PAGE_SHIFT].pa;
+
+        if (pa)
+            beaten_to_it = true;
+        else {
+            pages[offset >> PAGE_SHIFT].pa = pa_new;
+            pa = pa_new;
+        }
+    }
+
+    if (beaten_to_it)
+        free_page(pa_new);
+
+    return map_page(pa, va, pages[offset >> PAGE_SHIFT].protect);
 }
