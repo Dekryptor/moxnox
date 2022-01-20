@@ -89,6 +89,9 @@ public:
     section& sect;
     page_info pages[0];
 
+    NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
+                     enum mapping_type& old_prot);
+    bool map(uint32_t offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
 };
 

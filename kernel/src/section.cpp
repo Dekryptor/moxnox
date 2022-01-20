@@ -341,11 +341,9 @@ bool section::load_image() {
     return true;
 }
 
-bool section::map(uint32_t offset, uint64_t va) {
+bool section::map(uint32_t offset, uint64_t va, bool readonly) {
     uint64_t page;
     bool new_page = false;
-
-    // FIXME - correct mapping type
 
     {
         lock_guard lock(alloc_lock);
@@ -372,7 +370,26 @@ bool section::map(uint32_t offset, uint64_t va) {
 
     {
         // FIXME - process mapping lock
-        if (!map_page(pages[offset >> PAGE_SHIFT].pa, va, pages[offset >> PAGE_SHIFT].protect))
+        auto prot = pages[offset >> PAGE_SHIFT].protect;
+
+        if (readonly) {
+            switch (prot) {
+                case mapping_type::read_write:
+                case mapping_type::write_combine:
+                case mapping_type::no_cache:
+                    prot = mapping_type::read_only;
+                    break;
+
+                case mapping_type::read_write_execute:
+                    prot = mapping_type::read_execute;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        if (!map_page(pages[offset >> PAGE_SHIFT].pa, va, prot))
             return false;
 
         if (new_page) // FIXME - allocate zeroed page?
@@ -538,7 +555,7 @@ uint64_t section::find_export(string_view name) {
         return 0;
     }
 
-    if (!map(0, va)) {
+    if (!map(0, va, true)) {
         print("section::map failed\n");
         free_va(va, 1);
         return 0;
@@ -586,7 +603,7 @@ uint64_t section::find_export(string_view name) {
     }
 
     for (unsigned int i = 0; i < exp_dir_pages; i++) {
-        if (!map((uint32_t)(exp_dir_start + (i << PAGE_SHIFT)), va + (i << PAGE_SHIFT))) {
+        if (!map((uint32_t)(exp_dir_start + (i << PAGE_SHIFT)), va + (i << PAGE_SHIFT), true)) {
             print("section::map failed\n");
             for (unsigned int j = 0; j < i; j++) {
                 unmap_page(va + (j << PAGE_SHIFT));

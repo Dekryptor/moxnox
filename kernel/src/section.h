@@ -24,7 +24,7 @@ public:
 
     bool load_image();
     void free_pa();
-    bool map(uint32_t offset, uint64_t va);
+    bool map(uint32_t offset, uint64_t va, bool readonly);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     uint64_t find_export(std::string_view name);

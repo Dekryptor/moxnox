@@ -416,7 +416,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
             if (m.address <= address && m.address + m.size > address) {
                 switch (m.type) {
                     case proc_map_type::section:
-                        return static_cast<mapping_section&>(m).sect.map((uint32_t)(address - m.address), address);
+                        return static_cast<mapping_section&>(m).map((uint32_t)(address - m.address), address);
 
                     case proc_map_type::reserved:
                         return false;
@@ -1645,12 +1645,47 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
 
             switch (m.type) {
                 case proc_map_type::section: {
+                    auto& ms = static_cast<mapping_section&>(m);
+
                     // FIXME - mapping might be offset in section
                     // FIXME - should be private to process
                     // FIXME - section might not have been opened read-write, etc.
-                    auto ret = static_cast<mapping_section&>(m).sect.protect((uint32_t)(addr - m.address), num_pages, prot, old_prot);
+
+                    auto ret = ms.protect((uint32_t)(addr - m.address), num_pages, prot, old_prot);
                     if (!success(ret))
                         return ret;
+
+                    auto p = &ms.pages[(addr - m.address) >> PAGE_SHIFT];
+
+                    for (unsigned int i = 0; i < num_pages; i++) {
+                        auto prot2 = prot;
+
+                        if (!p->pa) { // COW
+                            // FIXME - don't do COW unless we ought to
+
+                            switch (prot) {
+                                case mapping_type::read_write:
+                                case mapping_type::write_combine:
+                                case mapping_type::no_cache:
+                                    prot2 = mapping_type::read_only;
+                                    break;
+
+                                case mapping_type::read_write_execute:
+                                    prot2 = mapping_type::read_execute;
+                                    break;
+
+                                default:
+                                    break;
+                            }
+                        }
+
+                        // FIXME - would be quicker if we could do multiple pages at once
+                        auto ret = change_proc_page_protection(addr + (i << PAGE_SHIFT), prot2);
+                        if (!success(ret))
+                            return ret;
+
+                        p++;
+                    }
 
                     break;
                 }
@@ -1661,13 +1696,6 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
 
                 case proc_map_type::reserved:
                     return nt_status::NO_MEMORY;
-            }
-
-            for (unsigned int i = 0; i < num_pages; i++) {
-                // FIXME - would be quicker if we could do multiple pages at once
-                auto ret = change_proc_page_protection(addr + (i << PAGE_SHIFT), prot);
-                if (!success(ret))
-                    return ret;
             }
 
             pages -= num_pages;
@@ -1796,4 +1824,30 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
     }
 
     return ret;
+}
+
+NTSTATUS mapping_section::protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
+                                  enum mapping_type& old_prot) {
+    auto p = &pages[offset >> PAGE_SHIFT];
+
+    for (unsigned int i = 0; i < page_count; i++) {
+        if (i == 0)
+            old_prot = p->protect;
+
+        p->protect = prot;
+        p++;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+bool mapping_section::map(uint32_t offset, uint64_t va) {
+    {
+        lock_guard l(lock);
+
+        if (pages[offset >> PAGE_SHIFT].pa) // have local copy of COW'd page
+            return map_page(pages[offset >> PAGE_SHIFT].pa, va, pages[offset >> PAGE_SHIFT].protect);
+    }
+
+    return sect.map(offset, va, true);
 }
