@@ -146,7 +146,6 @@ process::~process() {
 
 uintptr_t process::map_section(section& sect, uintptr_t address) {
     // FIXME - offset and mapping size
-    // FIXME - make address optional, in which case we choose it
 
     if (address & 0x8000000000000000 || ((address + sect.size) & 0x8000000000000000)) { // don't allow in kernel space
         print("invalid address\n");
@@ -183,25 +182,46 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
         pages[i].protect = sect.pages[i].protect;
     }
 
+    uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
+
     lock_guard lock(mappings_lock);
 
     auto le = mappings.next;
     while (le != &mappings) {
         auto& m2 = containing_record<mapping>(le);
 
-        if (m2.address > m.address + m.size) { // insert before
-            insert_head_list(*le->prev, m.le);
-            return m.address;
-        }
+        if (address == 0) {
+            if (m2.address > last_addr + m.size) { // insert before
+                m.address = last_addr;
+                insert_head_list(*le->prev, m.le);
+                return m.address;
+            }
 
-        if (m.address < m2.address + m2.size && m.address + m.size > m2.address) { // collision
-            print("collision\n");
-            delete &m;
-            return 0;
+            last_addr = m2.address + m2.size;
+        } else {
+            if (m2.address > address + m.size) { // insert before
+                m.address = address;
+                insert_head_list(*le->prev, m.le);
+                return m.address;
+            }
+
+            if (address < m2.address + m2.size && address + m.size > m2.address) { // collision
+                print("collision\n");
+                delete &m;
+                return 0;
+            }
         }
 
         le = le->next;
     }
+
+    if (address == 0) {
+        if (last_addr >= MAX_USERSPACE_ADDRESS - m.size)
+            return 0;
+
+        m.address = last_addr;
+    } else
+        m.address = address;
 
     insert_tail_list(mappings, m.le);
 
