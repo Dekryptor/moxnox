@@ -86,6 +86,7 @@ public:
     ~mapping_section();
 
     section& sect;
+    page_info pages[0];
 };
 
 class mapping_committed : public mapping {

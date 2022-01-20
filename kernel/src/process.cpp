@@ -145,6 +145,7 @@ process::~process() {
 }
 
 uintptr_t process::map_section(section& sect, uintptr_t address) {
+    // FIXME - offset and mapping size
     // FIXME - make address optional, in which case we choose it
 
     if (address & 0x8000000000000000 || ((address + sect.size) & 0x8000000000000000)) { // don't allow in kernel space
@@ -162,14 +163,25 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
         return 0;
     }
 
-    auto m = new mapping_section(sect);
-    if (!m) {
+    auto num_pages = sect.size >> PAGE_SHIFT;
+
+    auto pm = malloc(offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages));
+    if (!pm) {
         print("out of memory\n");
         return 0;
     }
 
-    m->address = address;
-    m->size = sect.size;
+    auto& m = *new (pm) mapping_section(sect);
+
+    m.address = address;
+    m.size = sect.size;
+
+    auto pages = span(m.pages, num_pages);
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        pages[i].pa = 0;
+        pages[i].protect = sect.pages[i].protect;
+    }
 
     lock_guard lock(mappings_lock);
 
@@ -177,23 +189,23 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
     while (le != &mappings) {
         auto& m2 = containing_record<mapping>(le);
 
-        if (m2.address > m->address + m->size) { // insert before
-            insert_head_list(*le->prev, m->le);
-            return m->address;
+        if (m2.address > m.address + m.size) { // insert before
+            insert_head_list(*le->prev, m.le);
+            return m.address;
         }
 
-        if (m->address < m2.address + m2.size && m->address + m->size > m2.address) { // collision
+        if (m.address < m2.address + m2.size && m.address + m.size > m2.address) { // collision
             print("collision\n");
-            delete m;
+            delete &m;
             return 0;
         }
 
         le = le->next;
     }
 
-    insert_tail_list(mappings, m->le);
+    insert_tail_list(mappings, m.le);
 
-    return m->address;
+    return m.address;
 }
 
 bool process::map_to_kernel_space(void* us, void* ks, unsigned int num_pages) {
