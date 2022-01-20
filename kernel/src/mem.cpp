@@ -930,7 +930,7 @@ uint64_t allocate_va(uint32_t pages) {
 
         if (pages < 64) {
             auto m = mask;
-            for (uint64_t j = 0; j < pages; j++) {
+            for (uint64_t j = 0; j < 64 - pages; j++) {
                 if (j >= last_j && (mb[i] & m) == m) {
                     mb[i] &= ~m;
                     last_i = i;
