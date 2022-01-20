@@ -187,6 +187,8 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
 }
 
 static void check_bus(uint8_t bus, const apic_mcfg_item& item) {
+    // FIXME - handle VA leaks?
+
     for (uint8_t dev = 0; dev < 32; dev++) {
         auto pa = pci_pa(item, bus, dev, 0);
 
