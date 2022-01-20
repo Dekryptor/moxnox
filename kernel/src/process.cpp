@@ -487,7 +487,7 @@ bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
 
                 switch (m.type) {
                     case proc_map_type::section:
-                        if (!static_cast<mapping_section&>(m).sect.copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                        if (!static_cast<mapping_section&>(m).copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
                             return false;
                         break;
 
@@ -1326,6 +1326,47 @@ bool mapping_committed::copy_from(uint32_t offset, void* ks_addr, uint32_t size)
         size -= to_copy;
     }
 }
+
+bool mapping_section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
+    while (true) {
+        auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+
+        {
+            lock_guard l(lock);
+            auto& p = pages[offset >> PAGE_SHIFT];
+
+            if (!p.pa) {
+                if (!sect.copy_from(offset, ks_addr, (uint32_t)to_copy))
+                    return false;
+            } else {
+                auto va = allocate_va(1);
+                if (!va) {
+                    print("allocate_va failed\n");
+                    return false;
+                }
+
+                if (!map_page(p.pa, va, mapping_type::read_only)) {
+                    print("map_page failed\n");
+                    free_va(va, 1);
+                    return false;
+                }
+
+                memcpy(ks_addr, (uint8_t*)va + (offset & (PAGE_SIZE - 1)), to_copy);
+
+                unmap_page(va);
+                free_va(va, 1);
+            }
+        }
+
+        if (to_copy == size)
+            return true;
+
+        ks_addr = (uint8_t*)ks_addr + to_copy;
+        offset += to_copy;
+        size -= to_copy;
+    }
+}
+
 
 bool mapping_committed::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     while (true) {

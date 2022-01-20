@@ -78,6 +78,7 @@ public:
     enum proc_map_type type;
     uint64_t address;
     uint32_t size;
+    spinlock lock;
 };
 
 class mapping_section : public mapping {
@@ -87,11 +88,12 @@ public:
 
     section& sect;
     page_info pages[0];
+
+    bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
 };
 
 class mapping_committed : public mapping {
 public:
-    spinlock lock;
     page_info pages[0];
 
     bool map(uint32_t offset, uint64_t va, std::optional<enum mapping_type> prot);
