@@ -41,7 +41,7 @@ public:
     std::optional<std::reference_wrapper<section>> img;
     spinlock mappings_lock;
     list_entry mappings = { &mappings, &mappings };
-    uint64_t cr3;
+    uint64_t cr3 = 0;
     spinlock threads_lock;
     list_entry threads = { &threads, &threads };
     enum nt_status exit_status = nt_status::PENDING;
