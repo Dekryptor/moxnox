@@ -125,13 +125,13 @@ unique_handle create_process(string_view fn, optional<reference_wrapper<object>>
     return unique_handle{hv};
 }
 
-mapping::mapping(section& sect) : type(proc_map_type::section), sect(&sect) {
+mapping_section::mapping_section(section& sect) : sect(sect) {
+    type = proc_map_type::section;
     sect.acquire();
 }
 
-mapping::~mapping() {
-    if (sect)
-        sect->release();
+mapping_section::~mapping_section() {
+    sect.release();
 }
 
 process::~process() {
@@ -162,7 +162,12 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
         return 0;
     }
 
-    auto m = new mapping(sect);
+    auto m = new mapping_section(sect);
+    if (!m) {
+        print("out of memory\n");
+        return 0;
+    }
+
     m->address = address;
     m->size = sect.size;
 
@@ -399,7 +404,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
             if (m.address <= address && m.address + m.size > address) {
                 switch (m.type) {
                     case proc_map_type::section:
-                        return m.sect->map((uint32_t)(address - m.address), address);
+                        return static_cast<mapping_section&>(m).sect.map((uint32_t)(address - m.address), address);
 
                     case proc_map_type::reserved:
                         return false;
@@ -470,7 +475,7 @@ bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
 
                 switch (m.type) {
                     case proc_map_type::section:
-                        if (!m.sect->copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                        if (!static_cast<mapping_section&>(m).sect.copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
                             return false;
                         break;
 
@@ -518,7 +523,7 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 
                 switch (m.type) {
                     case proc_map_type::section:
-                        if (!m.sect->copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                        if (!static_cast<mapping_section&>(m).sect.copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
                             return false;
                         break;
 
@@ -631,19 +636,33 @@ void process::free_mappings() {
 
         remove_entry_list(m.le);
 
-        if (m.type == proc_map_type::committed) {
-            auto& mc = static_cast<mapping_committed&>(m);
+        switch (m.type) {
+            case proc_map_type::committed: {
+                auto& mc = static_cast<mapping_committed&>(m);
 
-            auto num_pages = mc.size >> PAGE_SHIFT;
+                auto num_pages = mc.size >> PAGE_SHIFT;
 
-            for (unsigned int i = 0; i < num_pages; i++) {
-                if (mc.pages[i].pa)
-                    free_page(mc.pages[i].pa);
+                for (unsigned int i = 0; i < num_pages; i++) {
+                    if (mc.pages[i].pa)
+                        free_page(mc.pages[i].pa);
+                }
+
+                delete &mc;
+
+                break;
             }
 
-            delete &mc;
-        } else
-            delete &m;
+            case proc_map_type::section: {
+                auto& ms = static_cast<mapping_section&>(m);
+
+                delete &ms;
+
+                break;
+            }
+
+            default:
+                delete &m;
+        }
     }
 }
 
@@ -1115,7 +1134,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
 
     // FIXME - what happens if this is called for section mapping?
 
-    mapping* m = nullptr;
+    mapping* pm = nullptr;
 
     {
         lock_guard lock(mappings_lock);
@@ -1142,7 +1161,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
                     return nt_status::INVALID_PARAMETER;
 
                 remove_entry_list(m2.le);
-                m = &m2;
+                pm = &m2;
                 break;
             } else if (m2.address > (uintptr_t)*base_address)
                 break;
@@ -1151,27 +1170,43 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
         }
     }
 
-    if (!m)
+    if (!pm)
         return nt_status::INVALID_PARAMETER;
+
+    auto& m = *pm;
 
     // FIXME - if current process running on other cores and mapping changed, send IPI to clear TLB
 
-    *base_address = (void*)m->address;
-    *region_size = m->size;
+    *base_address = (void*)m.address;
+    *region_size = m.size;
 
-    if (m->type == proc_map_type::committed) {
-        auto& mc = *static_cast<mapping_committed*>(m);
+    switch (m.type) {
+        case proc_map_type::committed: {
+            auto& mc = static_cast<mapping_committed&>(m);
 
-        auto num_pages = mc.size >> PAGE_SHIFT;
+            auto num_pages = mc.size >> PAGE_SHIFT;
 
-        for (unsigned int i = 0; i < num_pages; i++) {
-            if (mc.pages[i].pa)
-                free_page(mc.pages[i].pa);
+            for (unsigned int i = 0; i < num_pages; i++) {
+                if (mc.pages[i].pa)
+                    free_page(mc.pages[i].pa);
+            }
+
+            delete &mc;
+
+            break;
         }
 
-        delete &mc;
-    } else
-        delete m;
+        case proc_map_type::section: {
+            auto& ms = static_cast<mapping_section&>(m);
+
+            delete &ms;
+
+            break;
+        }
+
+        default:
+            delete &m;
+    }
 
     return nt_status::SUCCESS;
 }
@@ -1549,7 +1584,7 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
                     // FIXME - mapping might be offset in section
                     // FIXME - should be private to process
                     // FIXME - section might not have been opened read-write, etc.
-                    auto ret = m.sect->protect((uint32_t)(addr - m.address), num_pages, prot, old_prot);
+                    auto ret = static_cast<mapping_section&>(m).sect.protect((uint32_t)(addr - m.address), num_pages, prot, old_prot);
                     if (!success(ret))
                         return ret;
 

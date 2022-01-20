@@ -74,16 +74,18 @@ enum class proc_map_type {
 
 class mapping {
 public:
-    mapping() = default;
-    mapping(section& sect);
-
-    ~mapping();
-
     list_entry le;
     enum proc_map_type type;
     uint64_t address;
     uint32_t size;
-    section* sect = nullptr;
+};
+
+class mapping_section : public mapping {
+public:
+    mapping_section(section& sect);
+    ~mapping_section();
+
+    section& sect;
 };
 
 class mapping_committed : public mapping {
