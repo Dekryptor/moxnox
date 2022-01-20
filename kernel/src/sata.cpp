@@ -210,6 +210,9 @@ bool sata_device::identify() {
     if (port.is & HBA_PxIS_TFES) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
         release_slot(slot);
+        unmap_page(va);
+        free_va(va, 1);
+        free_page(pa);
         return false;
     }
 
