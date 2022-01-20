@@ -55,7 +55,7 @@ unique_handle create_process(string_view fn, optional<reference_wrapper<object>>
 
     auto& img = p.img->get();
 
-    auto img_base = p.map_section(img, img.preferred_base);
+    auto img_base = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
     if (!img_base) {
         print("process::map_section failed\n");
         p.release();
@@ -73,7 +73,9 @@ unique_handle create_process(string_view fn, optional<reference_wrapper<object>>
         return {};
     }
 
-    auto ntdll_addr = p.map_section(*ntdll, 0x400000); // FIXME - don't specify address
+    // FIXME - if ntdll would have collision, choose another address
+
+    auto ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base);
     if (!ntdll_addr) {
         print("process::map_section failed\n");
         p.release();
