@@ -964,38 +964,54 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
     lock_guard lock(mappings_lock);
 
-    // FIXME - specifying address
-
     auto le = mappings.next;
     while (le != &mappings) {
         auto& m2 = containing_record<mapping>(le);
 
-        if (m2.address > last_addr + m.size) { // insert before
-            insert_head_list(*le->prev, m.le);
-            m.address = last_addr;
-            *base_address = (void*)m.address;
-            *region_size = m.size;
-            return nt_status::SUCCESS;
+        if (addr == 0) {
+            if (m2.address > last_addr + m.size) { // insert before
+                insert_head_list(*le->prev, m.le);
+                m.address = last_addr;
+                *base_address = (void*)m.address;
+                *region_size = m.size;
+                return nt_status::SUCCESS;
+            }
+
+            last_addr = m2.address + m2.size;
+        } else {
+            if (m2.address > addr + m.size) { // insert before
+                insert_head_list(*le->prev, m.le);
+                m.address = addr;
+                *base_address = (void*)m.address;
+                *region_size = m.size;
+                return nt_status::SUCCESS;
+            }
+
+            if (addr < m2.address + m2.size && addr + m.size > m2.address) { // collision
+                print("collision\n");
+                delete &m;
+                return nt_status::NO_MEMORY;
+            }
         }
-
-        // FIXME - if specifying address, handle collisions
-
-        last_addr = m2.address + m2.size;
 
         le = le->next;
     }
 
-    if (last_addr < MAX_USERSPACE_ADDRESS - m.size) {
-        insert_tail_list(mappings, m.le);
+    if (addr == 0) {
+        if (last_addr >= MAX_USERSPACE_ADDRESS - m.size) {
+            delete &m;
+            return nt_status::NO_MEMORY;
+        }
+
         m.address = last_addr;
-        *base_address = (void*)m.address;
-        *region_size = m.size;
-        return nt_status::SUCCESS;
-    }
+    } else
+        m.address = addr;
 
-    delete &m;
+    *base_address = (void*)m.address;
+    *region_size = m.size;
+    insert_tail_list(mappings, m.le);
 
-    return nt_status::NO_MEMORY;
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
