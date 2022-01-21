@@ -921,11 +921,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         return nt_status::INVALID_PARAMETER;
     }
 
-    if (allocation_type & MEM_COMMIT && !(allocation_type & MEM_RESERVE)) {
-        print("FIXME: process::allocate_vm MEM_COMMIT\n"); // FIXME
-        return nt_status::INVALID_PARAMETER;
-    }
-
     auto addr = (uintptr_t)*base_address;
     auto size = *region_size;
 
@@ -941,6 +936,50 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
     if (size > numeric_limits<uint32_t>::max())
         return nt_status::INVALID_PARAMETER;
+
+    if (allocation_type & MEM_COMMIT && !(allocation_type & MEM_RESERVE)) {
+        if (addr == 0)
+            return nt_status::INVALID_PARAMETER;
+
+        *base_address = (void*)addr;
+        *region_size = size;
+
+        lock_guard lock(mappings_lock);
+
+        auto le = mappings.next;
+        while (le != &mappings) {
+            auto& m = containing_record<mapping>(le);
+
+            if (addr < m.address + m.size && addr + size > m.address) {
+                switch (m.type) {
+                    case proc_map_type::vm: {
+                        auto& mv = static_cast<mapping_vm&>(m);
+
+                        auto to_commit = min(size, m.address + m.size - addr);
+
+                        auto ret = mv.commit((uint32_t)(addr - m.address), (uint32_t)to_commit, protect);
+                        if (!success(ret))
+                            return ret;
+
+                        if (to_commit == size)
+                            return nt_status::SUCCESS;
+
+                        addr += to_commit;
+                        size -= to_commit;
+
+                        break;
+                    }
+
+                    case proc_map_type::section:
+                        return nt_status::NO_MEMORY;
+                }
+            }
+
+            le = le->next;
+        }
+
+        return nt_status::NO_MEMORY;
+    }
 
     auto pm = malloc(offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages));
     if (!pm)
@@ -1959,4 +1998,19 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
         free_page(pa_new);
 
     return map_page(pa, va, pages[offset >> PAGE_SHIFT].protect);
+}
+
+NTSTATUS mapping_vm::commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot) {
+    auto num_pages = commit_size >> PAGE_SHIFT;
+
+    lock_guard l(lock);
+
+    auto p = &pages[offset >> PAGE_SHIFT];
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        p->protect = prot;
+        p++;
+    }
+
+    return nt_status::SUCCESS;
 }

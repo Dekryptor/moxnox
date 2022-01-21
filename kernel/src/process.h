@@ -102,4 +102,5 @@ public:
     bool map(uint32_t offset, uint64_t va, std::optional<enum mapping_type> prot);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
+    NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
 };
