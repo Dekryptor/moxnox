@@ -68,8 +68,7 @@ static_assert(offsetof(process, cr3) == PROCESS_CR3);
 
 enum class proc_map_type {
     section,
-    reserved,
-    committed
+    vm
 };
 
 class mapping {
@@ -96,7 +95,7 @@ public:
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
 };
 
-class mapping_committed : public mapping {
+class mapping_vm : public mapping {
 public:
     page_info pages[0];
 

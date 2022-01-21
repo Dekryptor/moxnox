@@ -251,14 +251,10 @@ bool process::map_to_kernel_space(void* us, void* ks, unsigned int num_pages) {
                         succeeded = false;
                         break;
 
-                    case proc_map_type::reserved:
-                        succeeded = false;
-                        break;
-
-                    case proc_map_type::committed:
-                        succeeded = static_cast<mapping_committed&>(m).map(offset_pages << PAGE_SHIFT, (uint64_t)ks, mapping_type::read_write);
+                    case proc_map_type::vm:
+                        succeeded = static_cast<mapping_vm&>(m).map(offset_pages << PAGE_SHIFT, (uint64_t)ks, mapping_type::read_write);
                         if (!succeeded)
-                            print("mapping_committed::map failed\n");
+                            print("mapping_vm::map failed\n");
                         break;
                 }
 
@@ -444,14 +440,11 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                             return ms.map((uint32_t)(address - m.address), address);
                     }
 
-                    case proc_map_type::reserved:
-                        return false;
-
-                    case proc_map_type::committed:
+                    case proc_map_type::vm:
                         if (ec.present)
                             return false;
 
-                        return static_cast<mapping_committed&>(m).map((uint32_t)(address - m.address), address, nullopt);
+                        return static_cast<mapping_vm&>(m).map((uint32_t)(address - m.address), address, nullopt);
                 }
             }
 
@@ -520,11 +513,8 @@ bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
                             return false;
                         break;
 
-                    case proc_map_type::reserved:
-                        return false;
-
-                    case proc_map_type::committed:
-                        if (!static_cast<mapping_committed&>(m).copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                    case proc_map_type::vm:
+                        if (!static_cast<mapping_vm&>(m).copy_from((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
                             return false;
                         break;
                 }
@@ -568,11 +558,8 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
                             return false;
                         break;
 
-                    case proc_map_type::reserved:
-                        return false;
-
-                    case proc_map_type::committed:
-                        if (!static_cast<mapping_committed&>(m).copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                    case proc_map_type::vm:
+                        if (!static_cast<mapping_vm&>(m).copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
                             return false;
                         break;
                 }
@@ -689,17 +676,17 @@ void process::free_mappings() {
         remove_entry_list(m.le);
 
         switch (m.type) {
-            case proc_map_type::committed: {
-                auto& mc = static_cast<mapping_committed&>(m);
+            case proc_map_type::vm: {
+                auto& mv = static_cast<mapping_vm&>(m);
 
-                auto num_pages = mc.size >> PAGE_SHIFT;
+                auto num_pages = mv.size >> PAGE_SHIFT;
 
                 for (unsigned int i = 0; i < num_pages; i++) {
-                    if (mc.pages[i].pa)
-                        free_page(mc.pages[i].pa);
+                    if (mv.pages[i].pa)
+                        free_page(mv.pages[i].pa);
                 }
 
-                delete &mc;
+                delete &mv;
 
                 break;
             }
@@ -963,13 +950,13 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     if (size > numeric_limits<uint32_t>::max())
         return nt_status::INVALID_PARAMETER;
 
-    auto pm = malloc(offsetof(mapping_committed, pages) + (sizeof(page_info) * num_pages));
+    auto pm = malloc(offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages));
     if (!pm)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    auto& m = *new (pm) mapping_committed;
+    auto& m = *new (pm) mapping_vm;
 
-    m.type = proc_map_type::committed;
+    m.type = proc_map_type::vm;
     m.size = (uint32_t)size;
 
     auto pages = span(m.pages, num_pages);
@@ -1197,13 +1184,13 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
 
             if (m2.address == (uintptr_t)*base_address) {
                 // FIXME - MEM_RELEASE with reserved memory block
-                if (m2.type == proc_map_type::committed) {
-                    auto& mc = static_cast<mapping_committed&>(m2);
+                if (m2.type == proc_map_type::vm) {
+                    auto& mv = static_cast<mapping_vm&>(m2);
 
-                    auto num_pages = mc.size >> PAGE_SHIFT;
+                    auto num_pages = mv.size >> PAGE_SHIFT;
 
                     for (unsigned int i = 0; i < num_pages; i++) {
-                        if (mc.pages[i].pa) {
+                        if (mv.pages[i].pa) {
                             auto status = unmap_proc_page(m2.address + (i << PAGE_SHIFT));
                             if (!success(status))
                                 return status;
@@ -1233,17 +1220,17 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
     *region_size = m.size;
 
     switch (m.type) {
-        case proc_map_type::committed: {
-            auto& mc = static_cast<mapping_committed&>(m);
+        case proc_map_type::vm: {
+            auto& mv = static_cast<mapping_vm&>(m);
 
-            auto num_pages = mc.size >> PAGE_SHIFT;
+            auto num_pages = mv.size >> PAGE_SHIFT;
 
             for (unsigned int i = 0; i < num_pages; i++) {
-                if (mc.pages[i].pa)
-                    free_page(mc.pages[i].pa);
+                if (mv.pages[i].pa)
+                    free_page(mv.pages[i].pa);
             }
 
-            delete &mc;
+            delete &mv;
 
             break;
         }
@@ -1302,7 +1289,7 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
     return ret;
 }
 
-bool mapping_committed::map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot) {
+bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot) {
     bool new_page = false;
 
     auto& p = pages[offset >> PAGE_SHIFT];
@@ -1328,7 +1315,7 @@ bool mapping_committed::map(uint32_t offset, uint64_t va, optional<enum mapping_
     return true;
 }
 
-bool mapping_committed::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
+bool mapping_vm::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     while (true) {
         auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
 
@@ -1407,8 +1394,7 @@ bool mapping_section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     }
 }
 
-
-bool mapping_committed::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
+bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     while (true) {
         auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
 
@@ -1719,12 +1705,9 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
                     break;
                 }
 
-                case proc_map_type::committed:
-                    print("FIXME - protecting committed VM\n"); // FIXME
+                case proc_map_type::vm:
+                    print("FIXME - protecting VM\n"); // FIXME
                     return nt_status::INTERNAL_ERROR;
-
-                case proc_map_type::reserved:
-                    return nt_status::NO_MEMORY;
             }
 
             pages -= num_pages;
