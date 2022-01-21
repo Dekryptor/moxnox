@@ -301,6 +301,15 @@ void mn_start_process(void* img_base, void* ntdll_base) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)img_base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_base + dos_header.e_lfanew);
 
+    auto heap = RtlCreateHeap(HEAP_GROWABLE, nullptr, 0, 0, nullptr, nullptr);
+
+    if (!heap) {
+        print("RtlCreateHeap failed\n");
+        NtTerminateProcess(NtCurrentProcess(), nt_status::NO_MEMORY);
+    }
+
+    NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap = (HANDLE)heap;
+
     toggle_protections(ntdll_base, false);
     toggle_protections(img_base, false);
 
