@@ -59,13 +59,51 @@ memcpy:
 .global memcpy_aligned
 memcpy_aligned:
     # rcx = dest, rdx = src, r8 = n
-    cmp r8, 16
+    cmp r8, 0x100
     jl memcpy
-    movaps xmm0, [rdx]
-    movaps [rcx], xmm0
-    add rdx, 16
-    add rcx, 16
-    sub r8, 16
+    prefetchnta [rdx+0x100]
+    prefetchnta [rdx+0x120]
+    prefetchnta [rdx+0x140]
+    prefetchnta [rdx+0x160]
+    prefetchnta [rdx+0x180]
+    prefetchnta [rdx+0x1a0]
+    prefetchnta [rdx+0x1c0]
+    prefetchnta [rdx+0x1e0]
+    movdqa xmm0, [rdx]
+    movdqa xmm1, [rdx+0x10]
+    movdqa xmm2, [rdx+0x20]
+    movdqa xmm3, [rdx+0x30]
+    movdqa xmm4, [rdx+0x40]
+    movdqa xmm5, [rdx+0x50]
+    movdqa xmm6, [rdx+0x60]
+    movdqa xmm7, [rdx+0x70]
+    movdqa xmm8, [rdx+0x80]
+    movdqa xmm9, [rdx+0x90]
+    movdqa xmm10, [rdx+0xa0]
+    movdqa xmm11, [rdx+0xb0]
+    movdqa xmm12, [rdx+0xc0]
+    movdqa xmm13, [rdx+0xd0]
+    movdqa xmm14, [rdx+0xe0]
+    movdqa xmm15, [rdx+0xf0]
+    movntdq [rcx], xmm0
+    movntdq [rcx+0x10], xmm1
+    movntdq [rcx+0x20], xmm2
+    movntdq [rcx+0x30], xmm3
+    movntdq [rcx+0x40], xmm4
+    movntdq [rcx+0x50], xmm5
+    movntdq [rcx+0x60], xmm6
+    movntdq [rcx+0x70], xmm7
+    movntdq [rcx+0x80], xmm8
+    movntdq [rcx+0x90], xmm9
+    movntdq [rcx+0xa0], xmm10
+    movntdq [rcx+0xb0], xmm11
+    movntdq [rcx+0xc0], xmm12
+    movntdq [rcx+0xd0], xmm13
+    movntdq [rcx+0xe0], xmm14
+    movntdq [rcx+0xf0], xmm15
+    add rdx, 0x100
+    add rcx, 0x100
+    sub r8, 0x100
     jmp memcpy_aligned
 
 .global init_pat
