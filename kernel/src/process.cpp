@@ -922,11 +922,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         return nt_status::INVALID_PARAMETER;
     }
 
-    if (allocation_type & MEM_RESERVE && !(allocation_type & MEM_COMMIT)) {
-        print("FIXME: process::allocate_vm MEM_RESERVE\n"); // FIXME
-        return nt_status::INVALID_PARAMETER;
-    }
-
     if (allocation_type & MEM_COMMIT && !(allocation_type & MEM_RESERVE)) {
         print("FIXME: process::allocate_vm MEM_COMMIT\n"); // FIXME
         return nt_status::INVALID_PARAMETER;
@@ -960,6 +955,9 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     m.size = (uint32_t)size;
 
     auto pages = span(m.pages, num_pages);
+
+    if (!(allocation_type & MEM_COMMIT))
+        protect = mapping_type::reserved;
 
     for (auto& p : pages) {
         p.pa = 0;
@@ -1296,6 +1294,9 @@ bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> p
 
     lock_guard l(lock);
 
+    if (p.protect == mapping_type::reserved)
+        return false;
+
     if (!p.pa) {
         p.pa = allocate_page();
         if (!p.pa) {
@@ -1322,6 +1323,9 @@ bool mapping_vm::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
         {
             lock_guard l(lock);
             auto& p = pages[offset >> PAGE_SHIFT];
+
+            if (p.protect == mapping_type::reserved)
+                return false;
 
             if (!p.pa)
                 memset(ks_addr, 0, to_copy);
@@ -1408,6 +1412,7 @@ bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             switch (p.protect) {
                 case mapping_type::read_only:
                 case mapping_type::read_execute:
+                case mapping_type::reserved:
                     return false;
 
                 default:
@@ -1806,6 +1811,7 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
     if (success(ret)) {
         switch (old_type) {
             case mapping_type::no_access:
+            case mapping_type::reserved:
                 *old_prot = PAGE_NOACCESS;
                 break;
 

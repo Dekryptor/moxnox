@@ -50,7 +50,8 @@ enum class mapping_type {
     read_execute,
     read_write_execute,
     no_cache,
-    write_combine
+    write_combine,
+    reserved
 };
 
 struct guid {

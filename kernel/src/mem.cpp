@@ -325,6 +325,9 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
             pt_entry.LargePage = 1;
             pt_entry.CacheDisable = 1;
         break;
+
+        case mapping_type::reserved:
+            return false;
     }
 
     pt_entry.Owner = (type == mapping_type::no_access || va & 0x8000000000000000) ? 0 : 1;
@@ -800,6 +803,9 @@ void protect_page2(HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
             pt_entry.LargePage = 1;
             pt_entry.CacheDisable = 1;
             pt_entry.WriteThrough = 0;
+        break;
+
+        case mapping_type::reserved:
         break;
     }
 
