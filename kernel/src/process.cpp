@@ -909,7 +909,6 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
 
 NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_size,
                               uint32_t allocation_type, enum mapping_type protect) {
-    // FIXME - MEM_RESERVE alone
     // FIXME - MEM_COMMIT alone
 
     // FIXME - what are we supposed to do with zero_bits?
@@ -931,8 +930,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     auto size = *region_size;
 
     auto end = addr + size;
-
-    // FIXME - if address is not 0 but gets rounded down to 0, do we still choose value ourselves?
 
     addr &= ~(PAGE_SIZE - 1); // round down
 
@@ -964,13 +961,10 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         p.protect = protect;
     }
 
-    // FIXME - allocate array of pages
-
     uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
     lock_guard lock(mappings_lock);
 
     // FIXME - specifying address
-    // FIXME - protection type
 
     auto le = mappings.next;
     while (le != &mappings) {
