@@ -10,7 +10,8 @@ enable_language(ASM)
 set(SRC_FILES src/ntdll.cpp
     src/syscalls.S
     src/string.cpp
-    src/mem.cpp)
+    src/mem.cpp
+    src/heap.cpp)
 
 add_library(ntdll SHARED ${SRC_FILES})
 

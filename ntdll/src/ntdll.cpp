@@ -1,4 +1,4 @@
-#include "ntdll.h"
+#include "ntdll_private.h"
 #include "../../kernel/src/pe.h"
 #include <optional>
 #include <nt.h>
@@ -12,7 +12,7 @@ bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
 }
 
-static void print(string_view s) {
+void print(string_view s) {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
@@ -21,7 +21,7 @@ static void print(string_view s) {
                 (uint32_t)s.size(), nullptr, nullptr);
 }
 
-static void print_hex(uint64_t num, unsigned int padding = 0) {
+void print_hex(uint64_t num, unsigned int padding) {
     char s[17];
     span sp(s, sizeof(s));
 

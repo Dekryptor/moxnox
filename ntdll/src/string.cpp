@@ -1,4 +1,4 @@
-#include "ntdll.h"
+#include "ntdll_private.h"
 
 using namespace std;
 
