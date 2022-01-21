@@ -1891,6 +1891,16 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
     {
         lock_guard l(lock);
 
+        switch (pages[offset >> PAGE_SHIFT].protect) {
+            case mapping_type::no_access:
+            case mapping_type::read_only:
+            case mapping_type::read_execute:
+                return false;
+
+            default:
+                break;
+        }
+
         pa = pages[offset >> PAGE_SHIFT].pa;
     }
 
