@@ -149,14 +149,16 @@ void* heap::allocate(uint32_t, size_t size) {
     return ptr;
 }
 
-bool heap::free(uint32_t flags, void* base_address) {
-    print("FIXME - heap::free(");
-    print_hex(flags);
-    print(", ");
-    print_hex((uintptr_t)base_address);
-    print(")\n");
+bool heap::free(uint32_t, void* base_address) {
+    // FIXME - flags
 
-    // FIXME
+    // FIXME - lock
+
+    auto ah = (alloc_header*)((uint8_t*)base_address - sizeof(alloc_header));
+
+    ah->free = 1;
+
+    // FIXME - decommit part of heap if last page(s) now clear?
 
     return true;
 }
