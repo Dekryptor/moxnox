@@ -5,15 +5,31 @@ static const uint64_t PAGE_SHIFT = 12;
 
 class heap {
 public:
-    heap();
+    heap(size_t reserve_size, size_t commit_size);
 
     void* allocate(uint32_t flags, size_t size);
     bool free(uint32_t flags, void* base_address);
+
+    size_t reserve_size;
+    size_t commit_size;
+    uint8_t data[0];
 };
 
-heap::heap() {
-    print("FIXME - heap::heap()\n");
-    // FIXME
+struct alloc_header {
+    uint32_t size : 31;
+    uint32_t free : 1;
+};
+
+static_assert(sizeof(alloc_header) == 4);
+
+heap::heap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size), commit_size(commit_size) {
+    auto& ah = *(alloc_header*)data;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    ah.size = (uint32_t)(commit_size - offsetof(heap, data) - sizeof(alloc_header));
+#pragma GCC diagnostic pop
+    ah.free = 1;
 }
 
 void* heap::allocate(uint32_t flags, size_t size) {
@@ -23,7 +39,68 @@ void* heap::allocate(uint32_t flags, size_t size) {
     print_hex(size);
     print(")\n");
 
-    // FIXME
+    // round to multiple of 4
+    if (size & 3)
+        size = ((size >> 2) + 1) << 2;
+
+    if (size == 0 || size >= 0x80000000)
+        return nullptr;
+
+    alloc_header* ah = nullptr;
+
+    // FIXME - lock (critical section?)
+
+    // FIXME - if subheap full, allocate new one
+    // FIXME - separate subheap for allocations larger than 1 page?
+
+    // allocate from existing pages if possible
+
+    auto h = (alloc_header*)data;
+    alloc_header* last = nullptr;
+
+    do {
+        if (h->free) {
+            if (last && last->free) { // merge adjacent free entries
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                last->size += h->size + sizeof(alloc_header);
+#pragma GCC diagnostic pop
+                h = last;
+            }
+
+            if (h->size == size) {
+                h->free = 0;
+                return (uint8_t*)h + sizeof(alloc_header);
+            }
+
+            if (h->size > size) {
+                auto nh = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + size);
+
+                if (nh < (void*)((uint8_t*)this + commit_size)) {
+                    nh->free = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                    nh->size = h->size - size - sizeof(alloc_header);
+#pragma GCC diagnostic pop
+                }
+
+                h->free = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                h->size = size;
+#pragma GCC diagnostic pop
+                return (uint8_t*)h + sizeof(alloc_header);
+            }
+        }
+
+        last = h;
+        h = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + h->size);
+    } while (h < (void*)((uint8_t*)this + commit_size));
+
+    if (last && last->free)
+        ah = last;
+
+    // FIXME - extend committed memory
 
     return nullptr;
 }
@@ -96,7 +173,7 @@ void* RtlCreateHeap(uint32_t, void*, size_t reserve_size, size_t commit_size,
         return nullptr;
     }
 
-    auto h = new (addr) heap;
+    auto h = new (addr) heap(reserve_size, commit_size);
 
     return h;
 }
