@@ -361,3 +361,12 @@ NTSTATUS user_NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, si
 
     return ret;
 }
+
+extern "C"
+void unimplemented_syscall(const char* name) {
+    print("Unimplemented syscall ");
+    print(name);
+    print(".\n");
+
+    NtTerminateProcess(NtCurrentProcess(), nt_status::NOT_IMPLEMENTED);
+}
