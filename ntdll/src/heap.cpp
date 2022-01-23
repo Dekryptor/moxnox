@@ -1,8 +1,5 @@
 #include "ntdll_private.h"
 
-static const size_t PAGE_SIZE = 4096;
-static const uint64_t PAGE_SHIFT = 12;
-
 class heap {
 public:
     heap(size_t reserve_size, size_t commit_size);
@@ -32,12 +29,8 @@ heap::heap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size)
     ah.free = 1;
 }
 
-void* heap::allocate(uint32_t flags, size_t size) {
-    print("FIXME - heap::allocate(");
-    print_hex(flags);
-    print(", ");
-    print_hex(size);
-    print(")\n");
+void* heap::allocate(uint32_t, size_t size) {
+    // FIXME - flags (especially HEAP_ZERO_MEMORY)
 
     // round to multiple of 4
     if (size & 3)
@@ -100,9 +93,60 @@ void* heap::allocate(uint32_t flags, size_t size) {
     if (last && last->free)
         ah = last;
 
-    // FIXME - extend committed memory
+    // allocate new pages
 
-    return nullptr;
+    unsigned int new_pages = bytes_to_pages(sizeof(alloc_header) + size);
+
+    if (new_pages << PAGE_SHIFT > reserve_size - commit_size) {
+        print("FIXME - allocate new subheap (current subheap exhausted)\n");
+        return nullptr;
+    }
+
+    void* addr = (uint8_t*)this + commit_size;
+    size_t new_commit_size = new_pages << PAGE_SHIFT;
+
+    auto ret = NtAllocateVirtualMemory(NtCurrentProcess(), &addr, 0, &new_commit_size,
+                                       MEM_COMMIT, PAGE_READWRITE);
+
+    if (!success(ret)) {
+        print("NtAllocateVirtualMemory returned ");
+        print_hex((uint32_t)ret);
+        print("\n");
+        return nullptr;
+    }
+
+    if (ah) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        ah->size += new_commit_size;
+#pragma GCC diagnostic pop
+        // FIXME - handle case when size would overflow 31 bits
+    } else {
+        ah = (alloc_header*)((uint8_t*)this + commit_size);
+        ah->free = 1;
+        ah->size = PAGE_SIZE - sizeof(alloc_header);
+    }
+
+    commit_size += new_commit_size;
+
+    auto ptr = (uint8_t*)ah + sizeof(alloc_header);
+    ah->free = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    ah->size = size;
+#pragma GCC diagnostic pop
+
+    auto ah2 = (alloc_header*)((uint8_t*)ptr + size);
+
+    if ((uintptr_t)ah2 & (PAGE_SIZE - 1)) {
+        ah2->free = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        ah2->size = (uint32_t)(((uintptr_t)this + commit_size) - (uintptr_t)ah2 - sizeof(alloc_header));
+#pragma GCC diagnostic pop
+    }
+
+    return ptr;
 }
 
 bool heap::free(uint32_t flags, void* base_address) {
