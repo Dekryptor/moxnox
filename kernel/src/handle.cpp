@@ -489,3 +489,13 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
+                      const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block,
+                      const LARGE_INTEGER* allocation_size, uint32_t file_attributes,
+                      uint32_t share_access, uint32_t create_disposition, uint32_t create_options,
+                      void* ea_buffer, uint32_t ea_length) {
+    print("FIXME - NtCreateFile\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

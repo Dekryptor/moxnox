@@ -25,6 +25,7 @@ using LONG = int32_t;
 using PVOID = void*;
 using ULONG_PTR = uintptr_t;
 using LONGLONG = int64_t;
+using ACCESS_MASK = uint32_t;
 
 static consteval HANDLE NtCurrentProcess() {
     return (HANDLE)-1;
@@ -446,6 +447,18 @@ static __inline TEB* NtCurrentTeb() {
     return ret;
 }
 
+struct SECURITY_DESCRIPTOR;
+struct SECURITY_QUALITY_OF_SERVICE;
+
+struct OBJECT_ATTRIBUTES {
+    uint32_t Length;
+    HANDLE RootDirectory;
+    UNICODE_STRING* ObjectName;
+    uint32_t Attributes;
+    SECURITY_DESCRIPTOR* SecurityDescriptor;
+    SECURITY_QUALITY_OF_SERVICE* SecurityQualityOfService;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -464,5 +477,10 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routin
                     uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t* key);
 NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
                                 uint32_t new_prot, uint32_t* old_prot);
+NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
+                      const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block,
+                      const LARGE_INTEGER* allocation_size, uint32_t file_attributes,
+                      uint32_t share_access, uint32_t create_disposition, uint32_t create_options,
+                      void* ea_buffer, uint32_t ea_length);
 
 };

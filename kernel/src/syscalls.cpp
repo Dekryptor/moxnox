@@ -370,3 +370,122 @@ void unimplemented_syscall(const char* name) {
 
     NtTerminateProcess(NtCurrentProcess(), nt_status::NOT_IMPLEMENTED);
 }
+
+static NTSTATUS copy_object_attributes(OBJECT_ATTRIBUTES& oa, UNICODE_STRING& us, const OBJECT_ATTRIBUTES* us_oa) {
+    if (!copy_from_process(&oa, us_oa, sizeof(OBJECT_ATTRIBUTES)))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (oa.Length < sizeof(OBJECT_ATTRIBUTES))
+        return nt_status::INVALID_PARAMETER;
+
+    if (oa.RootDirectory & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (oa.ObjectName) {
+        if (!copy_from_process(&us, oa.ObjectName, sizeof(UNICODE_STRING)))
+            return nt_status::ACCESS_VIOLATION;
+
+        // FIXME - make sure no denial of service if us.Length is ludicrous value (max value?)
+
+        if (us.Length == 0)
+            us.Buffer = nullptr;
+        else {
+            auto buf = (char16_t*)malloc(us.Length);
+            if (!buf)
+                return nt_status::INSUFFICIENT_RESOURCES;
+
+            if (!copy_from_process(buf, us.Buffer, us.Length)) {
+                free(buf);
+                return nt_status::ACCESS_VIOLATION;
+            }
+
+            us.Buffer = buf;
+        }
+
+        oa.ObjectName = &us;
+    }
+
+    // FIXME - SecurityDescriptor
+    // FIXME - SecurityQualityOfService
+
+    return nt_status::SUCCESS;
+}
+
+static void free_object_attributes(OBJECT_ATTRIBUTES& oa) {
+    if (oa.ObjectName && oa.ObjectName->Buffer)
+        free(oa.ObjectName->Buffer);
+
+    // FIXME - SecurityDescriptor
+    // FIXME - SecurityQualityOfService
+}
+
+extern "C"
+NTSTATUS user_NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
+                           const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 7> args;
+    HANDLE h;
+    IO_STATUS_BLOCK iosb;
+    LARGE_INTEGER alloc;
+    void* eabuf = nullptr;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS ret;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (!file_handle || !io_status_block)
+        return nt_status::INVALID_PARAMETER;
+
+    auto allocation_size = (const LARGE_INTEGER*)args[0];
+    auto file_attributes = (uint32_t)args[1];
+    auto share_access = (uint32_t)args[2];
+    auto create_disposition = (uint32_t)args[3];
+    auto create_options = (uint32_t)args[4];
+    auto ea_buffer = (void*)args[5];
+    auto ea_length = (uint32_t)args[6];
+
+    if (allocation_size) {
+        if (!copy_from_process(&alloc, allocation_size, sizeof(LARGE_INTEGER)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    if (ea_length > 0) {
+        eabuf = malloc(ea_length);
+        if (!eabuf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        if (!copy_from_process(eabuf, ea_buffer, ea_length)) {
+            free(eabuf);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    ret = copy_object_attributes(oa, us, object_attributes);
+    if (!success(ret)) {
+        if (eabuf)
+            free(eabuf);
+
+        return ret;
+    }
+
+    ret = NtCreateFile(&h, desired_access, &oa, &iosb, allocation_size ? &alloc : nullptr,
+                       file_attributes, share_access, create_disposition, create_options,
+                       eabuf, ea_length);
+
+    if (eabuf)
+        free(eabuf);
+
+    free_object_attributes(oa);
+
+    if (success(ret)) {
+        if (!copy_to_process(file_handle, &h, sizeof(HANDLE)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(io_status_block, &iosb, sizeof(IO_STATUS_BLOCK)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
