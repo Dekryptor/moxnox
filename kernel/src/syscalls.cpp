@@ -546,3 +546,66 @@ NTSTATUS user_NtCreateSection(HANDLE* section_handle, ACCESS_MASK desired_access
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void** base_address,
+                                 uintptr_t zero_bits) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 5> args;
+    void* addr;
+    LARGE_INTEGER offset;
+    size_t size;
+
+    if (section_handle & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    if (!base_address)
+        return nt_status::INVALID_PARAMETER;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto commit_size = (size_t)args[0];
+    auto section_offset = (LARGE_INTEGER*)args[1];
+    auto view_size = (size_t*)args[2];
+    auto inherit_disposition = (enum SECTION_INHERIT)args[3];
+    auto allocation_type = (uint32_t)args[4];
+    auto win32_protect = (uint32_t)args[5];
+
+    if (!view_size)
+        return nt_status::INVALID_PARAMETER;
+
+    if (!copy_from_process(&addr, base_address, sizeof(void*)))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (section_offset) {
+        if (!copy_from_process(&offset, section_offset, sizeof(LARGE_INTEGER)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    if (!copy_from_process(&size, view_size, sizeof(size_t)))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto ret = NtMapViewOfSection(section_handle, process_handle, &addr, zero_bits,
+                                  commit_size, section_offset ? &offset : nullptr,
+                                  &size, inherit_disposition,
+                                  allocation_type, win32_protect);
+
+    if (success(ret)) {
+        if (!copy_to_process(base_address, &addr, sizeof(void*)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (section_offset) {
+            if (!copy_to_process(section_offset, &offset, sizeof(LARGE_INTEGER)))
+                ret = nt_status::ACCESS_VIOLATION;
+        }
+
+        if (!copy_to_process(view_size, &size, sizeof(size_t)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}

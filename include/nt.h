@@ -459,6 +459,11 @@ struct OBJECT_ATTRIBUTES {
     SECURITY_QUALITY_OF_SERVICE* SecurityQualityOfService;
 };
 
+enum class SECTION_INHERIT {
+    ViewShare = 1,
+    ViewUnmap = 2
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -487,5 +492,9 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK desired_access,
                          const OBJECT_ATTRIBUTES* object_attributes, const LARGE_INTEGER* maximum_size,
                          uint32_t section_page_protection, uint32_t allocation_attributes,
                          HANDLE file_handle);
+NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void** base_address,
+                            uintptr_t zero_bits, size_t commit_size, LARGE_INTEGER* section_offset,
+                            size_t* view_size, enum SECTION_INHERIT inherit_disposition,
+                            uint32_t allocation_type, uint32_t win32_protect);
 
 };
