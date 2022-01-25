@@ -657,3 +657,9 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
 
     return nt_status::NOT_IMPLEMENTED;
 }
+
+NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
+    print("FIXME - NtUnmapViewOfSection\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

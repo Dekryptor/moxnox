@@ -609,3 +609,11 @@ NTSTATUS user_NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, v
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
+    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    return NtUnmapViewOfSection(process_handle, base_address);
+}
