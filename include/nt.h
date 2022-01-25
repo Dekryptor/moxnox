@@ -11,8 +11,11 @@ enum class nt_status : uint32_t {
     INVALID_PARAMETER = 0xc000000d,
     NO_MEMORY = 0xc0000017,
     OBJECT_TYPE_MISMATCH = 0xc0000024,
+    OBJECT_NAME_NOT_FOUND = 0xc0000034,
+    OBJECT_PATH_NOT_FOUND = 0xc000003a,
     INVALID_PAGE_PROTECTION = 0xc0000045,
     INSUFFICIENT_RESOURCES = 0xc000009a,
+    NOT_SUPPORTED = 0xc00000bb,
     INTERNAL_ERROR = 0xc00000e5
 };
 
@@ -463,6 +466,20 @@ enum class SECTION_INHERIT {
     ViewShare = 1,
     ViewUnmap = 2
 };
+
+static const uint32_t FILE_SUPERSEDE = 0x00000000;
+static const uint32_t FILE_OPEN = 0x00000001;
+static const uint32_t FILE_CREATE = 0x00000002;
+static const uint32_t FILE_OPEN_IF = 0x00000003;
+static const uint32_t FILE_OVERWRITE = 0x00000004;
+static const uint32_t FILE_OVERWRITE_IF = 0x00000005;
+
+static const uint32_t FILE_SUPERSEDED = 0x00000000;
+static const uint32_t FILE_OPENED = 0x00000001;
+static const uint32_t FILE_CREATED = 0x00000002;
+static const uint32_t FILE_OVERWRITTEN = 0x00000003;
+static const uint32_t FILE_EXISTS = 0x00000004;
+static const uint32_t FILE_DOES_NOT_EXIST = 0x00000005;
 
 extern "C" {
 

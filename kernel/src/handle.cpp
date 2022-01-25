@@ -490,14 +490,80 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
+NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
                       const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block,
-                      const LARGE_INTEGER* allocation_size, uint32_t file_attributes,
-                      uint32_t share_access, uint32_t create_disposition, uint32_t create_options,
-                      void* ea_buffer, uint32_t ea_length) {
-    print("FIXME - NtCreateFile\n");
+                      const LARGE_INTEGER*, uint32_t, uint32_t, uint32_t create_disposition,
+                      uint32_t, void*, uint32_t) {
+    auto t = get_current_thread();
+    auto p = t->proc;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (!p) // FIXME - allow creating kernel handles?
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - object_attributes->RootDirectory
+
+    if (!object_attributes->ObjectName)
+        return nt_status::INVALID_PARAMETER;
+
+    if (create_disposition != FILE_OPEN) {
+        print("FIXME - creating files\n");
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    // FIXME - check permissions (whether valid, and against SD)
+    // FIXME - create_options
+    // FIXME - creating files
+    // FIXME - allocation_size
+    // FIXME - file_attributes
+    // FIXME - share_access
+    // FIXME - EAs
+
+    auto u16name = u16string_view(object_attributes->ObjectName->Buffer, object_attributes->ObjectName->Length / sizeof(char16_t));
+
+    if (u16name.empty())
+        return nt_status::INVALID_PARAMETER;
+
+    auto namelen = utf16_to_utf8_len(u16name);
+
+    if (namelen == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    auto name = (char*)malloc(namelen);
+    if (!name)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    utf16_to_utf8(span(name, namelen), u16name);
+
+    for (unsigned int i = 0; i < namelen; i++) {
+        if (name[i] == '\\')
+            name[i] = '/';
+    }
+
+    auto inode = open_file(string_view(name, namelen));
+
+    free(name);
+
+    if (!inode) {
+        // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+    }
+
+    // FIXME - encapsulate inode in file object
+
+    auto objrw = deref_handle(inode.get());
+
+    if (!objrw)
+        return nt_status::INTERNAL_ERROR;
+
+    auto h = p->add_handle(objrw->get(), 0); // FIXME - access mask
+
+    if (!h)
+        return nt_status::INTERNAL_ERROR;
+
+    *file_handle = h;
+    io_status_block->Information = FILE_OPENED;
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtClose(HANDLE handle) {
