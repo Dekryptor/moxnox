@@ -2016,7 +2016,32 @@ NTSTATUS mapping_vm::commit(uint32_t offset, uint32_t commit_size, enum mapping_
 }
 
 NTSTATUS process::close_handle(handle_t h) {
-    print("FIXME - process::close_handle\n");
+    if (!h)
+        return nt_status::INVALID_HANDLE;
 
-    return nt_status::NOT_IMPLEMENTED;
+    object* obj;
+
+    {
+        lock_guard lock(handle_lock);
+
+        if (h > no_handles)
+            return nt_status::INVALID_HANDLE;
+
+        auto& ho = handle_arr[h - 1];
+
+        if (!ho.obj)
+            return nt_status::INVALID_HANDLE;
+
+        obj = ho.obj;
+        ho.obj = nullptr;
+
+        if (h == no_handles)
+            no_handles--;
+    }
+
+    visit_obj(*obj, [](auto&& o) {
+        o.release();
+    });
+
+    return nt_status::SUCCESS;
 }
