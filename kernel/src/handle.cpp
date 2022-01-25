@@ -567,7 +567,16 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
 }
 
 NTSTATUS NtClose(HANDLE handle) {
-    print("FIXME - NtClose\n");
+    if (handle & kernel_handle_mask) {
+        close_handle(handle);
+        return nt_status::SUCCESS;
+    }
 
-    return nt_status::NOT_IMPLEMENTED;
+    auto t = get_current_thread();
+    auto p = t->proc;
+
+    if (!p)
+        return nt_status::INVALID_PARAMETER;
+
+    return p->close_handle(handle);
 }

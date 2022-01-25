@@ -36,6 +36,7 @@ public:
     std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
     NTSTATUS protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
                         enum mapping_type& old_prot);
+    NTSTATUS close_handle(handle_t h);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;

@@ -2014,3 +2014,9 @@ NTSTATUS mapping_vm::commit(uint32_t offset, uint32_t commit_size, enum mapping_
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS process::close_handle(handle_t h) {
+    print("FIXME - process::close_handle\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
