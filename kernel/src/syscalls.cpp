@@ -489,3 +489,11 @@ NTSTATUS user_NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtClose(HANDLE handle) {
+    if (handle & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    return NtClose(handle);
+}

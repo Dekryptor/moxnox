@@ -499,3 +499,9 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     return nt_status::NOT_IMPLEMENTED;
 }
+
+NTSTATUS NtClose(HANDLE handle) {
+    print("FIXME - NtClose\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

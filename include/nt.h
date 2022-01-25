@@ -482,5 +482,6 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                       const LARGE_INTEGER* allocation_size, uint32_t file_attributes,
                       uint32_t share_access, uint32_t create_disposition, uint32_t create_options,
                       void* ea_buffer, uint32_t ea_length);
+NTSTATUS NtClose(HANDLE handle);
 
 };
