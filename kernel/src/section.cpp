@@ -639,3 +639,12 @@ NTSTATUS section::protect(uint32_t offset, uint32_t page_count, enum mapping_typ
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK desired_access,
+                         const OBJECT_ATTRIBUTES* object_attributes, const LARGE_INTEGER* maximum_size,
+                         uint32_t section_page_protection, uint32_t allocation_attributes,
+                         HANDLE file_handle) {
+    print("FIXME - NtCreateSection\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

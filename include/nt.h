@@ -483,5 +483,9 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                       uint32_t share_access, uint32_t create_disposition, uint32_t create_options,
                       void* ea_buffer, uint32_t ea_length);
 NTSTATUS NtClose(HANDLE handle);
+NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK desired_access,
+                         const OBJECT_ATTRIBUTES* object_attributes, const LARGE_INTEGER* maximum_size,
+                         uint32_t section_page_protection, uint32_t allocation_attributes,
+                         HANDLE file_handle);
 
 };

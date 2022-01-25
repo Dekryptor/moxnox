@@ -497,3 +497,52 @@ NTSTATUS user_NtClose(HANDLE handle) {
 
     return NtClose(handle);
 }
+
+extern "C"
+NTSTATUS user_NtCreateSection(HANDLE* section_handle, ACCESS_MASK desired_access,
+                              const OBJECT_ATTRIBUTES* object_attributes, const LARGE_INTEGER* maximum_size) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 3> args;
+    LARGE_INTEGER size;
+    HANDLE h;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (!section_handle)
+        return nt_status::INVALID_PARAMETER;
+
+    auto section_page_protection = (uint32_t)args[0];
+    auto allocation_attributes = (uint32_t)args[1];
+    auto file_handle = (HANDLE)args[2];
+
+    if (file_handle & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (maximum_size) {
+        if (!copy_from_process(&size, maximum_size, sizeof(LARGE_INTEGER)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    if (object_attributes) {
+        auto ret = copy_object_attributes(oa, us, object_attributes);
+        if (!success(ret))
+            return ret;
+    }
+
+    auto ret = NtCreateSection(&h, desired_access, object_attributes ? &oa : nullptr,
+                               maximum_size ? &size : nullptr, section_page_protection,
+                               allocation_attributes, file_handle);
+
+    if (object_attributes)
+        free_object_attributes(oa);
+
+    if (success(ret)) {
+        if (!copy_to_process(section_handle, &h, sizeof(HANDLE)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
