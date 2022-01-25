@@ -539,26 +539,36 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
             name[i] = '/';
     }
 
-    auto inode = open_file(string_view(name, namelen));
+    auto inoh = open_file(string_view(name, namelen));
 
     free(name);
 
-    if (!inode) {
+    if (!inoh) {
         // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
         return nt_status::OBJECT_NAME_NOT_FOUND;
     }
 
-    // FIXME - encapsulate inode in file object
-
-    auto objrw = deref_handle(inode.get());
+    auto objrw = deref_handle(inoh.get());
 
     if (!objrw)
         return nt_status::INTERNAL_ERROR;
 
-    auto h = p->add_handle(objrw->get(), 0); // FIXME - access mask
+    auto& ino = static_cast<inode&>(objrw->get());
 
-    if (!h)
+    auto f = new file(ino);
+    if (!f) {
+        ino.release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    ino.release();
+
+    auto h = p->add_handle(*f, 0); // FIXME - access mask
+
+    if (!h) {
+        delete f;
         return nt_status::INTERNAL_ERROR;
+    }
 
     *file_handle = h;
     io_status_block->Information = FILE_OPENED;
