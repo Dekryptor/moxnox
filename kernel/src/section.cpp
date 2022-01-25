@@ -31,19 +31,32 @@ unique_handle create_section(handle_t h, bool image, size_t size) {
 
         auto& obj = objrw->get();
 
-        if (obj.type != object_type::inode) {
-            // FIXME - exception
-            print("Not an inode\n");
+        switch (obj.type) {
+            case object_type::inode:
+                s.ino = static_cast<inode&>(obj);
+            break;
 
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
+            case object_type::file: {
+                auto& f = static_cast<file&>(obj);
+                s.ino = f.ino;
+                f.ino.acquire();
+                f.release();
+                break;
+            }
 
-            s.release();
-            return {};
+            default: {
+                // FIXME - exception
+                print("Not an inode\n");
+
+                visit_obj(obj, [](auto&& o) {
+                    o.release();
+                });
+
+                s.release();
+                return {};
+            }
         }
 
-        s.ino = static_cast<inode&>(obj);
         s.type = section_type::image;
         // FIXME - also work with ELFs
 
