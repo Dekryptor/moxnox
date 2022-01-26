@@ -37,6 +37,10 @@ public:
     NTSTATUS protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
                         enum mapping_type& old_prot);
     NTSTATUS close_handle(handle_t h);
+    NTSTATUS map_view_of_section(section& sect, void** base_address,
+                                 uintptr_t zero_bits, size_t commit_size, LARGE_INTEGER* section_offset,
+                                 size_t* view_size, enum SECTION_INHERIT inherit_disposition,
+                                 uint32_t allocation_type, uint32_t win32_protect);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;

@@ -2045,3 +2045,14 @@ NTSTATUS process::close_handle(handle_t h) {
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS process::map_view_of_section(section& sect, void** base_address,
+                                      uintptr_t zero_bits, size_t commit_size, LARGE_INTEGER* section_offset,
+                                      size_t* view_size, enum SECTION_INHERIT inherit_disposition,
+                                      uint32_t allocation_type, uint32_t win32_protect) {
+    print("FIXME - process::map_view_of_section\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
