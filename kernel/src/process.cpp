@@ -2073,9 +2073,46 @@ NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintpt
 }
 
 NTSTATUS process::unmap_view_of_section(void* base_address) {
-    print("FIXME - process::unmap_view_of_section\n");
+    auto addr = (uintptr_t)base_address;
 
-    // FIXME
+    mapping_section* ms2 = nullptr;
 
-    return nt_status::NOT_IMPLEMENTED;
+    {
+        lock_guard lock(mappings_lock);
+
+        auto le = mappings.next;
+        while (le != &mappings) {
+            auto& m = containing_record<mapping>(le);
+
+            if (m.address <= addr && m.address + m.size > addr) {
+                if (m.type != proc_map_type::section)
+                    return nt_status::INVALID_PARAMETER;
+
+                auto& ms = static_cast<mapping_section&>(m);
+
+                auto num_pages = ms.size >> PAGE_SHIFT;
+
+                for (unsigned int i = 0; i < num_pages; i++) {
+                    // FIXME - unmap_proc_page should take range
+                    auto status = unmap_proc_page(m.address + (i << PAGE_SHIFT));
+                    if (!success(status))
+                        return status;
+                }
+
+                remove_entry_list(m.le);
+                ms2 = &ms;
+                break;
+            } else if (m.address > addr)
+                break;
+
+            le = le->next;
+        }
+    }
+
+    if (!ms2)
+        return nt_status::NO_MEMORY;
+
+    delete ms2;
+
+    return nt_status::SUCCESS;
 }
