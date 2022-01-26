@@ -177,16 +177,16 @@ static void resolve_imports_img(void* base) {
 
         utf8_to_utf16(span(u16buf, u16len), name);
 
-        auto u16sv = u16string_view(u16buf, u16len);
+        auto u16sv = u16string_view_ci(u16buf, u16len);
 
         {
             auto le = ldr_data.InLoadOrderModuleList.Flink;
 
             while (le != &ldr_data.InLoadOrderModuleList) {
                 auto& ent2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-                auto base_name = u16string_view(ent2.BaseDllName.Buffer, ent2.BaseDllName.Length / sizeof(char16_t));
+                auto base_name = u16string_view_ci(ent2.BaseDllName.Buffer, ent2.BaseDllName.Length / sizeof(char16_t));
 
-                if (base_name == u16sv) { // FIXME - should be case-insensitive
+                if (base_name == u16sv) {
                     ent = &ent2;
                     break;
                 }
@@ -536,16 +536,16 @@ static bool load_dll(string_view name) {
 
     utf8_to_utf16(span(u16buf, u16len), name);
 
-    auto u16sv = u16string_view(u16buf, u16len);
+    auto u16sv = u16string_view_ci(u16buf, u16len);
 
     {
         auto le = ldr_data.InLoadOrderModuleList.Flink;
 
         while (le != &ldr_data.InLoadOrderModuleList) {
             auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-            auto base_name = u16string_view(ent.BaseDllName.Buffer, ent.BaseDllName.Length / sizeof(char16_t));
+            auto base_name = u16string_view_ci(ent.BaseDllName.Buffer, ent.BaseDllName.Length / sizeof(char16_t));
 
-            if (base_name == u16sv) { // FIXME - should be case-insensitive
+            if (base_name == u16sv) {
                 free(u16buf);
                 return true;
             }
@@ -556,7 +556,7 @@ static bool load_dll(string_view name) {
 
     // FIXME - directories to search (same directory as image, then PATH?)
 
-    if (try_load_dll(u"\\", u16sv)) {
+    if (try_load_dll(u"\\", u16string_view(u16sv.data(), u16sv.size()))) {
         free(u16buf);
         return true;
     }

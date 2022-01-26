@@ -242,3 +242,12 @@ span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding) {
 
     return dest;
 }
+
+int toupper(int c) {
+    // FIXME
+
+    if (c >= 'a' && c <= 'z')
+        return c - 'a' + 'A';
+
+    return c;
+}
