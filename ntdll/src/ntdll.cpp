@@ -37,12 +37,16 @@ void print_hex(uint64_t num, unsigned int padding) {
     print(string_view(s, sp.data() - s));
 }
 
-static optional<uintptr_t> find_export(void* base, string_view name) {
+template<typename T>
+static void resolve_imports_dll(void* base, void* dll_base, string_view name, T* lookup_table, T* thunks) {
     IMAGE_DATA_DIRECTORY exp_dir;
     bool found = false;
 
-    const auto& dos_header = *(IMAGE_DOS_HEADER*)base;
-    const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
+    if (!*lookup_table)
+        return;
+
+    const auto& dos_header = *(IMAGE_DOS_HEADER*)dll_base;
+    const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)dll_base + dos_header.e_lfanew);
 
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         if (nt_header.OptionalHeader64.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_EXPORT) {
@@ -56,85 +60,78 @@ static optional<uintptr_t> find_export(void* base, string_view name) {
         }
     }
 
-    if (!found || exp_dir.VirtualAddress == 0)
-        return nullopt;
+    if (!found || exp_dir.VirtualAddress == 0) {
+        print("no export directory in ");
+        print(name);
+        print("\n");
+        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
+    }
 
     if (exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
-        print("invalid export directory\n");
-        return nullopt;
+        print("invalid export directory in ");
+        print(name);
+        print("\n");
+        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
     }
 
-    const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)base + exp_dir.VirtualAddress);
+    const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)dll_base + exp_dir.VirtualAddress);
 
-    if (ied.NumberOfNames == 0)
-        return nullopt;
-
-    auto names = span((uint32_t*)((uint8_t*)base + ied.AddressOfNames), ied.NumberOfNames);
-
-    auto name_ordinals = span((uint16_t*)((uint8_t*)base + ied.AddressOfNameOrdinals), ied.NumberOfNames);
-
-    auto funcs = span((uint32_t*)((uint8_t*)base + ied.AddressOfFunctions), ied.NumberOfFunctions);
-
-    optional<uint16_t> ord;
-
-    for (unsigned int i = 0; i < names.size(); i++) {
-        auto n = names[i];
-
-        auto sv = string_view((char*)base + n);
-
-        if (sv == name) {
-            ord = name_ordinals[i];
-            break;
-        }
+    if (ied.NumberOfNames == 0) {
+        print("no exports in ");
+        print(name);
+        print("\n");
+        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
     }
 
-    if (!ord)
-        return nullopt;
+    auto names = span((uint32_t*)((uint8_t*)dll_base + ied.AddressOfNames), ied.NumberOfNames);
 
-    return funcs[*ord];
-}
+    auto name_ordinals = span((uint16_t*)((uint8_t*)dll_base + ied.AddressOfNameOrdinals), ied.NumberOfNames);
 
-template<typename T>
-static void resolve_imports_dll(void* base, string_view name, T* lookup_table, T* thunks) {
-    if (name != "ntdll.dll") { // FIXME - case-insensitive match
-        print("FIXME - load DLLs\n"); // FIXME - die if can't find
-        return;
-    }
-
-    auto dll_base = (void*)&__image_base__;
+    auto funcs = span((uint32_t*)((uint8_t*)dll_base + ied.AddressOfFunctions), ied.NumberOfFunctions);
 
     while (*lookup_table) {
         auto v = *lookup_table;
 
         if (v & ((T)1 << ((sizeof(T) * 8) - 1))) {
             print("FIXME - imports by ordinal\n"); // FIXME
-            lookup_table++;
-            thunks++;
-            continue;
+            NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
         }
 
         // FIXME - don't ignore hint
         auto func = string_view((char*)base + (v & 0x7fffffff) + sizeof(char16_t));
 
-        auto addr = find_export(dll_base, func);
-        if (!addr) {
+        optional<uint16_t> ord;
+
+        for (unsigned int i = 0; i < names.size(); i++) {
+            auto n = names[i];
+
+            auto sv = string_view((char*)dll_base + n);
+
+            if (sv == func) {
+                ord = name_ordinals[i];
+                break;
+            }
+        }
+
+        if (!ord) {
             print("Could not resolve ");
             print(func);
             print(" in ");
             print(name);
             print(".\n");
-            // FIXME - terminate process
-            return;
+            NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
         }
 
-        *thunks = (T)((uintptr_t)dll_base + *addr);
+        auto addr = funcs[*ord];
+
+        *thunks = (T)((uintptr_t)dll_base + addr);
 
         lookup_table++;
         thunks++;
     }
 }
 
-static void resolve_imports(void* base) {
+static void resolve_imports_img(void* base) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
 
@@ -163,17 +160,70 @@ static void resolve_imports(void* base) {
         if (iid.Characteristics == 0)
             break;
 
-        auto name = string_view((char*)base + iid.Name);
+        auto name = string_view((char*)base + iid.Name); // FIXME - to UTF-16
+        LDR_DATA_TABLE_ENTRY* ent = nullptr;
+
+        auto u16len = utf8_to_utf16_len(name);
+
+        if (u16len == 0) {
+            print("DLL name is empty.\n");
+            NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+        }
+
+        auto u16buf = (char16_t*)malloc(u16len * sizeof(char16_t));
+
+        if (!u16buf)
+            NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+
+        utf8_to_utf16(span(u16buf, u16len), name);
+
+        auto u16sv = u16string_view(u16buf, u16len);
+
+        {
+            auto le = ldr_data.InLoadOrderModuleList.Flink;
+
+            while (le != &ldr_data.InLoadOrderModuleList) {
+                auto& ent2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+                auto base_name = u16string_view(ent2.BaseDllName.Buffer, ent2.BaseDllName.Length / sizeof(char16_t));
+
+                if (base_name == u16sv) { // FIXME - should be case-insensitive
+                    ent = &ent2;
+                    break;
+                }
+
+                le = le->Flink;
+            }
+        }
+
+        free(u16buf);
+
+        if (!ent) {
+            print(name);
+            print(" not loaded.\n");
+            NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+        }
 
         if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-            resolve_imports_dll(base, name,
+            resolve_imports_dll(base, ent->DllBase, name,
                                 (uint64_t*)((uint8_t*)base + iid.Characteristics),
                                 (uint64_t*)((uint8_t*)base + iid.FirstThunk));
         } else {
-            resolve_imports_dll(base, name,
+            resolve_imports_dll(base, ent->DllBase, name,
                                 (uint32_t*)((uint8_t*)base + iid.Characteristics),
                                 (uint32_t*)((uint8_t*)base + iid.FirstThunk));
         }
+    }
+}
+
+static void resolve_imports() {
+    auto le = ldr_data.InLoadOrderModuleList.Flink;
+
+    while (le != &ldr_data.InLoadOrderModuleList) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        resolve_imports_img(ent.DllBase);
+
+        le = le->Flink;
     }
 }
 
@@ -597,7 +647,7 @@ void mn_start_process(void* img_base, void* ntdll_base) {
 
     resolve_relocations();
 
-    resolve_imports(img_base);
+    resolve_imports();
 
     toggle_protections(true);
 
