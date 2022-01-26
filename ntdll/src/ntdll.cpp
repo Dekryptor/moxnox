@@ -1,6 +1,6 @@
 #include "ntdll_private.h"
 #include "list.h"
-#include "../../kernel/src/pe.h"
+#include <pe.h>
 #include <optional>
 #include <nt.h>
 #include <stdlib.h>
