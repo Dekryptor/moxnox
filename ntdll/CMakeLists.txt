@@ -11,7 +11,8 @@ set(SRC_FILES src/ntdll.cpp
     src/syscalls.S
     src/string.cpp
     src/mem.cpp
-    src/heap.cpp)
+    src/heap.cpp
+    src/mem.S)
 
 add_library(ntdll SHARED ${SRC_FILES})
 

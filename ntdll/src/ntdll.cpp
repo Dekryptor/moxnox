@@ -1,4 +1,5 @@
 #include "ntdll_private.h"
+#include "list.h"
 #include "../../kernel/src/pe.h"
 #include <optional>
 #include <nt.h>
@@ -6,6 +7,11 @@
 using namespace std;
 
 extern uint8_t __image_base__;
+
+static_assert(sizeof(PEB_LDR_DATA) == 0x58);
+static_assert(sizeof(LDR_DATA_TABLE_ENTRY) == 0x88);
+
+static PEB_LDR_DATA ldr_data; // zero-initialized
 
 extern "C"
 bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
@@ -296,8 +302,86 @@ static void toggle_protections(void* base, bool enable) {
     }
 }
 
+static void add_ldr_entry(void* base, u16string_view full_name, u16string_view base_name) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto size = sizeof(LDR_DATA_TABLE_ENTRY) + ((full_name.size() + 1) * sizeof(char16_t)) + ((base_name.size() + 1) * sizeof(char16_t));
+    auto ptr = RtlAllocateHeap((void*)peb.ProcessHeap, HEAP_ZERO_MEMORY, size);
+
+    if (!ptr) {
+        print("RtlAllocateHeap failed.\n");
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+    }
+
+    auto& ent = *(LDR_DATA_TABLE_ENTRY*)ptr;
+
+    auto& dos_header = *(IMAGE_DOS_HEADER*)base;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
+
+    ent.DllBase = base;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        ent.EntryPoint = (uint8_t*)base + nt_header.OptionalHeader64.AddressOfEntryPoint;
+        ent.SizeOfImage = nt_header.OptionalHeader64.SizeOfImage;
+    } else {
+        ent.EntryPoint = (uint8_t*)base + nt_header.OptionalHeader32.AddressOfEntryPoint;
+        ent.SizeOfImage = nt_header.OptionalHeader32.SizeOfImage;
+    }
+
+    ent.FullDllName.Length = (uint16_t)(full_name.size() * sizeof(char16_t));
+    ent.FullDllName.MaximumLength = ent.FullDllName.Length + sizeof(char16_t);
+    ent.FullDllName.Buffer = (char16_t*)((uint8_t*)ptr + sizeof(LDR_DATA_TABLE_ENTRY));
+
+    ent.BaseDllName.Length = (uint16_t)(base_name.size() * sizeof(char16_t));
+    ent.BaseDllName.MaximumLength = ent.BaseDllName.Length + sizeof(char16_t);
+    ent.BaseDllName.Buffer = (char16_t*)((uint8_t*)ent.FullDllName.Buffer + ent.FullDllName.MaximumLength);
+
+    // FIXME - Flags
+    ent.LoadCount = 1;
+    // FIXME - HashLinks
+
+    memcpy(ent.FullDllName.Buffer, full_name.data(), ent.FullDllName.Length);
+    ent.FullDllName.Buffer[full_name.size()] = 0;
+
+    memcpy(ent.BaseDllName.Buffer, base_name.data(), ent.BaseDllName.Length);
+    ent.BaseDllName.Buffer[base_name.size()] = 0;
+
+    InsertTailList(&ldr_data.InLoadOrderModuleList, &ent.InLoadOrderLinks);
+
+    {
+        auto le = ldr_data.InMemoryOrderModuleList.Flink;
+        bool done = false;
+
+        while (le != &ldr_data.InMemoryOrderModuleList) {
+            auto ent2 = CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+            if (ent2->DllBase > ent.DllBase) {
+                InsertHeadList(le->Blink, &ent.InMemoryOrderLinks);
+                done = true;
+                break;
+            }
+
+            le = le->Flink;
+        }
+
+        if (!done)
+            InsertTailList(&ldr_data.InMemoryOrderModuleList, &ent.InMemoryOrderLinks);
+    }
+}
+
+static void init_ldr_data(void* img_base, void* ntdll_base) {
+    ldr_data.Length = sizeof(ldr_data);
+    ldr_data.Initialized = true;
+    InitializeListHead(&ldr_data.InLoadOrderModuleList);
+    InitializeListHead(&ldr_data.InMemoryOrderModuleList);
+    InitializeListHead(&ldr_data.InInitializationOrderModuleList);
+
+    add_ldr_entry(ntdll_base, u"/ntdll.dll", u"ntdll.dll"); // FIXME - name and path
+    add_ldr_entry(img_base, u"/init.exe", u"init.exe"); // FIXME - name and path
+}
+
 extern "C" __declspec(dllexport)
 void mn_start_process(void* img_base, void* ntdll_base) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto& dos_header = *(IMAGE_DOS_HEADER*)img_base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_base + dos_header.e_lfanew);
 
@@ -308,7 +392,10 @@ void mn_start_process(void* img_base, void* ntdll_base) {
         NtTerminateProcess(NtCurrentProcess(), nt_status::NO_MEMORY);
     }
 
-    NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap = (HANDLE)heap;
+    peb.ProcessHeap = (HANDLE)heap;
+    peb.Ldr = &ldr_data;
+
+    init_ldr_data(peb.ImageBaseAddress, ntdll_base);
 
     toggle_protections(ntdll_base, false);
     toggle_protections(img_base, false);
