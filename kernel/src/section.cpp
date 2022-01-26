@@ -4,8 +4,8 @@
 
 using namespace std;
 
-unique_handle create_section(handle_t h, bool image, size_t size) {
-    if (h && !image) {
+static unique_handle create_section(optional<reference_wrapper<inode>> ino, bool image, size_t size) {
+    if (ino && !image) {
         print("FIXME - non-image sections\n");
         return {};
     }
@@ -20,42 +20,9 @@ unique_handle create_section(handle_t h, bool image, size_t size) {
 
     auto& s = *sptr;
 
-    if (h) {
-        auto objrw = deref_handle(h);
-        if (!objrw) {
-            // FIXME - exception
-            print("No such handle\n");
-            s.release();
-            return {};
-        }
-
-        auto& obj = objrw->get();
-
-        switch (obj.type) {
-            case object_type::inode:
-                s.ino = static_cast<inode&>(obj);
-            break;
-
-            case object_type::file: {
-                auto& f = static_cast<file&>(obj);
-                s.ino = f.ino;
-                f.ino.acquire();
-                f.release();
-                break;
-            }
-
-            default: {
-                // FIXME - exception
-                print("Not an inode\n");
-
-                visit_obj(obj, [](auto&& o) {
-                    o.release();
-                });
-
-                s.release();
-                return {};
-            }
-        }
+    if (ino) {
+        s.ino = ino;
+        ino->get().acquire();
 
         s.type = section_type::image;
         // FIXME - also work with ELFs
@@ -96,6 +63,52 @@ unique_handle create_section(handle_t h, bool image, size_t size) {
     s.release(); // add_kernel_handle increases refcount
 
     return unique_handle{hv};
+}
+
+unique_handle create_section(handle_t h, bool image, size_t size) {
+    if (!h)
+        return create_section(nullopt, image, size);
+
+    auto objrw = deref_handle(h);
+    if (!objrw) {
+        // FIXME - exception
+        print("No such handle\n");
+        return {};
+    }
+
+    optional<reference_wrapper<inode>> ino;
+    auto& obj = objrw->get();
+
+    switch (obj.type) {
+        case object_type::inode:
+            ino = static_cast<inode&>(obj);
+            break;
+
+        case object_type::file: {
+            auto& f = static_cast<file&>(obj);
+            ino = f.ino;
+            f.ino.acquire();
+            f.release();
+            break;
+        }
+
+        default: {
+            // FIXME - exception
+            print("Not an inode\n");
+
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return {};
+        }
+    }
+
+    auto ret = create_section(ino, image, size);
+
+    ino->get().release();
+
+    return ret;
 }
 
 section::~section() {
@@ -653,13 +666,62 @@ NTSTATUS section::protect(uint32_t offset, uint32_t page_count, enum mapping_typ
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK desired_access,
-                         const OBJECT_ATTRIBUTES* object_attributes, const LARGE_INTEGER* maximum_size,
-                         uint32_t section_page_protection, uint32_t allocation_attributes,
-                         HANDLE file_handle) {
-    print("FIXME - NtCreateSection\n");
+NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
+                         const LARGE_INTEGER* maximum_size, uint32_t,
+                         uint32_t allocation_attributes, HANDLE file_handle) {
+    auto t = get_current_thread();
+    auto p = t->proc;
+    uint64_t size = maximum_size ? maximum_size->QuadPart : 0;
+    optional<reference_wrapper<inode>> ino;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - desired_access
+    // FIXME - object_attributes
+    // FIXME - section_page_protection
+    // FIXME - allocation_attributes that aren't SEC_IMAGE
+
+    if (file_handle) {
+        auto objrw = deref_handle(file_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_same_v<remove_reference_t<decltype(o)>, inode>)
+                ino = o;
+            else if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
+                ino = o.ino;
+                o.ino.acquire();
+                o.release();
+            } else
+                o.release();
+        });
+
+        if (!ino)
+            return nt_status::INVALID_HANDLE;
+    }
+
+    auto secth = create_section(ino, allocation_attributes & SEC_IMAGE, size);
+
+    if (ino)
+        ino->get().release();
+
+    if (!secth)
+        return nt_status::INTERNAL_ERROR;
+
+    auto objrw = deref_handle(secth.get());
+
+    if (!objrw)
+        return nt_status::INTERNAL_ERROR;
+
+    auto h = p->add_handle(*objrw, 0); // FIXME - access mask
+
+    if (!h)
+        return nt_status::INTERNAL_ERROR;
+
+    *section_handle = h;
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void** base_address,

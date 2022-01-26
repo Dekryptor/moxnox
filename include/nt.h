@@ -481,6 +481,17 @@ static const uint32_t FILE_OVERWRITTEN = 0x00000003;
 static const uint32_t FILE_EXISTS = 0x00000004;
 static const uint32_t FILE_DOES_NOT_EXIST = 0x00000005;
 
+static const uint32_t SEC_PARTITION_OWNER_HANDLE = 0x00040000;
+static const uint32_t SEC_64K_PAGES = 0x00080000;
+static const uint32_t SEC_FILE = 0x00800000;
+static const uint32_t SEC_IMAGE = 0x01000000;
+static const uint32_t SEC_PROTECTED_IMAGE = 0x02000000;
+static const uint32_t SEC_RESERVE = 0x04000000;
+static const uint32_t SEC_COMMIT = 0x08000000;
+static const uint32_t SEC_NOCACHE = 0x10000000;
+static const uint32_t SEC_WRITECOMBINE = 0x40000000;
+static const uint32_t SEC_LARGE_PAGES = 0x80000000;
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
