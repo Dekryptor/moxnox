@@ -26,9 +26,9 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 unique_handle create_process(string_view fn, optional<reference_wrapper<object>> stdinobj,
                              optional<reference_wrapper<object>> stdoutobj,
                              optional<reference_wrapper<object>> stderrobj) {
-    auto file = open_file(fn);
+    auto file = open_inode(fn);
     if (!file) {
-        print("open_file failed\n");
+        print("open_inode failed\n");
         return {};
     }
 
@@ -586,9 +586,9 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 }
 
 void load_ntdll() {
-    auto file = open_file("/ntdll.dll");
+    auto file = open_inode("/ntdll.dll");
     if (!file) {
-        bsod("open_file failed for ntdll.dll");
+        bsod("open_inode failed for ntdll.dll");
         return;
     }
 

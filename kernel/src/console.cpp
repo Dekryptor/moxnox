@@ -479,9 +479,9 @@ bool init_fb_console() {
 
     // load console.ttf to memory
 
-    auto file = open_file("/console.ttf");
+    auto file = open_inode("/console.ttf");
     if (!file) {
-        print("open_file failed\n");
+        print("open_inode failed\n");
         return false;
     }
 

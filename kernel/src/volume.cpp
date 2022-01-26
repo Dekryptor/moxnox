@@ -66,7 +66,7 @@ bool mount_root() {
     return true;
 }
 
-unique_handle open_file(string_view fn) {
+unique_handle open_inode(string_view fn) {
     if (fn.empty() || fn[0] != '/') {
         print("Not an absolute path.\n");
         return {};

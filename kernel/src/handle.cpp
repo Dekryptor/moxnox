@@ -539,7 +539,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
             name[i] = '/';
     }
 
-    auto inoh = open_file(string_view(name, namelen));
+    auto inoh = open_inode(string_view(name, namelen));
 
     free(name);
 

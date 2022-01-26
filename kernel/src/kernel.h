@@ -205,7 +205,7 @@ bool btrfs_probe(volume& vol);
 // volume.cpp
 void add_fs_to_list(filesystem& fs);
 bool mount_root();
-unique_handle open_file(std::string_view fn);
+unique_handle open_inode(std::string_view fn);
 
 // process.cpp
 unique_handle create_process(std::string_view fn, std::optional<std::reference_wrapper<object>> stdinobj,
