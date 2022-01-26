@@ -1,4 +1,5 @@
 #include "ntdll_private.h"
+#include <string.h>
 
 class heap {
 public:
@@ -29,8 +30,8 @@ heap::heap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size)
     ah.free = 1;
 }
 
-void* heap::allocate(uint32_t, size_t size) {
-    // FIXME - flags (especially HEAP_ZERO_MEMORY)
+void* heap::allocate(uint32_t flags, size_t size) {
+    // FIXME - flags
 
     // round to multiple of 4
     if (size & 3)
@@ -63,7 +64,13 @@ void* heap::allocate(uint32_t, size_t size) {
 
             if (h->size == size) {
                 h->free = 0;
-                return (uint8_t*)h + sizeof(alloc_header);
+
+                auto ret = (uint8_t*)h + sizeof(alloc_header);
+
+                if (flags & HEAP_ZERO_MEMORY)
+                    memset(ret, 0, size);
+
+                return ret;
             }
 
             if (h->size > size) {
@@ -82,7 +89,13 @@ void* heap::allocate(uint32_t, size_t size) {
 #pragma GCC diagnostic ignored "-Wconversion"
                 h->size = size;
 #pragma GCC diagnostic pop
-                return (uint8_t*)h + sizeof(alloc_header);
+
+                auto ret = (uint8_t*)h + sizeof(alloc_header);
+
+                if (flags & HEAP_ZERO_MEMORY)
+                    memset(ret, 0, size);
+
+                return ret;
             }
         }
 
@@ -145,6 +158,8 @@ void* heap::allocate(uint32_t, size_t size) {
         ah2->size = (uint32_t)(((uintptr_t)this + commit_size) - (uintptr_t)ah2 - sizeof(alloc_header));
 #pragma GCC diagnostic pop
     }
+
+    // NtAllocateVirtualMemory guarantees initialized to 0
 
     return ptr;
 }
