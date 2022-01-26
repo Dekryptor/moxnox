@@ -32,6 +32,34 @@ static const uint32_t HEAP_CREATE_ALIGN_16 = 0x00010000;
 static const uint32_t HEAP_CREATE_ENABLE_TRACING = 0x00020000;
 static const uint32_t HEAP_CREATE_ENABLE_EXECUTE = 0x00040000;
 
+struct PEB_LDR_DATA {
+    uint32_t Length;
+    bool Initialized;
+    void* SsHandle;
+    LIST_ENTRY InLoadOrderModuleList;
+    LIST_ENTRY InMemoryOrderModuleList;
+    LIST_ENTRY InInitializationOrderModuleList;
+    void* EntryInProgress;
+    bool ShutdownInProgress;
+    HANDLE ShutdownThreadId;
+};
+
+struct LDR_DATA_TABLE_ENTRY {
+    LIST_ENTRY InLoadOrderLinks;
+    LIST_ENTRY InMemoryOrderLinks;
+    LIST_ENTRY InProgressLinks;
+    void* DllBase;
+    void* EntryPoint;
+    uint32_t SizeOfImage;
+    UNICODE_STRING FullDllName;
+    UNICODE_STRING BaseDllName;
+    uint32_t Flags;
+    uint16_t LoadCount;
+    uint16_t TlsIndex;
+    LIST_ENTRY HashLinks;
+    uint32_t TimeDateStamp;
+};
+
 extern "C" {
 
 void* RtlCreateHeap(uint32_t flags, void* heap_base, size_t reserve_size, size_t commit_size,
