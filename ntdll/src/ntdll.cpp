@@ -177,7 +177,7 @@ static void resolve_imports(void* base) {
     }
 }
 
-static void resolve_relocations(void* base) {
+static void resolve_relocations_img(void* base) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
 
@@ -260,7 +260,19 @@ static void resolve_relocations(void* base) {
     // FIXME - do we need to update the base in the header?
 }
 
-static void toggle_protections(void* base, bool enable) {
+static void resolve_relocations() {
+    auto le = ldr_data.InLoadOrderModuleList.Flink;
+
+    while (le != &ldr_data.InLoadOrderModuleList) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        resolve_relocations_img(ent.DllBase);
+
+        le = le->Flink;
+    }
+}
+
+static void toggle_protections_img(void* base, bool enable) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
     span<IMAGE_SECTION_HEADER> sections;
@@ -300,6 +312,18 @@ static void toggle_protections(void* base, bool enable) {
             print(".\n");
             NtTerminateProcess(NtCurrentProcess(), ret);
         }
+    }
+}
+
+static void toggle_protections(bool enable) {
+    auto le = ldr_data.InLoadOrderModuleList.Flink;
+
+    while (le != &ldr_data.InLoadOrderModuleList) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        toggle_protections_img(ent.DllBase, enable);
+
+        le = le->Flink;
     }
 }
 
@@ -569,16 +593,13 @@ void mn_start_process(void* img_base, void* ntdll_base) {
 
     load_dlls();
 
-    toggle_protections(ntdll_base, false);
-    toggle_protections(img_base, false);
+    toggle_protections(false);
 
-    resolve_relocations(ntdll_base);
-    resolve_relocations(img_base);
+    resolve_relocations();
 
     resolve_imports(img_base);
 
-    toggle_protections(ntdll_base, true);
-    toggle_protections(img_base, true);
+    toggle_protections(true);
 
     // FIXME - call DllMain in DLLs
 
