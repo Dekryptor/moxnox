@@ -3,6 +3,7 @@
 #include "../../kernel/src/pe.h"
 #include <optional>
 #include <nt.h>
+#include <stdlib.h>
 
 using namespace std;
 
@@ -375,8 +376,177 @@ static void init_ldr_data(void* img_base, void* ntdll_base) {
     InitializeListHead(&ldr_data.InMemoryOrderModuleList);
     InitializeListHead(&ldr_data.InInitializationOrderModuleList);
 
-    add_ldr_entry(ntdll_base, u"/ntdll.dll", u"ntdll.dll"); // FIXME - name and path
-    add_ldr_entry(img_base, u"/init.exe", u"init.exe"); // FIXME - name and path
+    add_ldr_entry(ntdll_base, u"\\ntdll.dll", u"ntdll.dll"); // FIXME - name and path
+    add_ldr_entry(img_base, u"\\init.exe", u"init.exe"); // FIXME - name and path
+}
+
+static bool try_load_dll(u16string_view dir, u16string_view name) {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+    HANDLE h, sect;
+    IO_STATUS_BLOCK iosb;
+    void* addr = nullptr;
+    size_t size = 0;
+
+    us.Length = us.MaximumLength = (uint16_t)((dir.size() + name.size()) * sizeof(char16_t));
+    us.Buffer = (char16_t*)malloc(us.Length);
+
+    if (!us.Buffer)
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+
+    memcpy(us.Buffer, dir.data(), dir.size() * sizeof(char16_t));
+    memcpy(us.Buffer + dir.size(), name.data(), name.size() * sizeof(char16_t));
+
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtCreateFile(&h, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0, nullptr, 0);
+
+    if (!success(status)) {
+        free(us.Buffer);
+        return false;
+    }
+
+    status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, h);
+
+    NtClose(h);
+
+    if (!success(status)) {
+        free(us.Buffer);
+        return false;
+    }
+
+    status = NtMapViewOfSection(sect, NtCurrentProcess(), &addr, 0, 0, nullptr, &size,
+                                SECTION_INHERIT::ViewUnmap, 0, PAGE_READONLY);
+
+    NtClose(sect);
+
+    if (!success(status)) {
+        free(us.Buffer);
+        return false;
+    }
+
+    auto& dos_header = *(IMAGE_DOS_HEADER*)addr;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)addr + dos_header.e_lfanew);
+
+    if (nt_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
+        NtUnmapViewOfSection(NtCurrentProcess(), addr);
+        free(us.Buffer);
+        return false;
+    }
+
+    if (!(nt_header.FileHeader.Characteristics & IMAGE_FILE_DLL)) {
+        NtUnmapViewOfSection(NtCurrentProcess(), addr);
+        free(us.Buffer);
+        return false;
+    }
+
+    add_ldr_entry(addr, u16string_view(us.Buffer, us.Length / sizeof(char16_t)), name);
+
+    free(us.Buffer);
+
+    return true;
+}
+
+static bool load_dll(string_view name) {
+    auto u16len = utf8_to_utf16_len(name);
+
+    if (u16len == 0)
+        return false;
+
+    auto u16buf = (char16_t*)malloc(u16len * sizeof(char16_t));
+
+    if (!u16buf)
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+
+    utf8_to_utf16(span(u16buf, u16len), name);
+
+    auto u16sv = u16string_view(u16buf, u16len);
+
+    {
+        auto le = ldr_data.InLoadOrderModuleList.Flink;
+
+        while (le != &ldr_data.InLoadOrderModuleList) {
+            auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+            auto base_name = u16string_view(ent.BaseDllName.Buffer, ent.BaseDllName.Length / sizeof(char16_t));
+
+            if (base_name == u16sv) { // FIXME - should be case-insensitive
+                free(u16buf);
+                return true;
+            }
+
+            le = le->Flink;
+        }
+    }
+
+    // FIXME - directories to search (same directory as image, then PATH?)
+
+    if (try_load_dll(u"\\", u16sv)) {
+        free(u16buf);
+        return true;
+    }
+
+    free(u16buf);
+
+    return false;
+}
+
+static void load_dlls_img(LDR_DATA_TABLE_ENTRY& ent) {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)ent.DllBase;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)ent.DllBase + dos_header.e_lfanew);
+
+    IMAGE_DATA_DIRECTORY exp_dir;
+    bool found = false;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_IMPORT) {
+            exp_dir = nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+            found = true;
+        }
+    } else {
+        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_IMPORT) {
+            exp_dir = nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+            found = true;
+        }
+    }
+
+    if (!found || exp_dir.VirtualAddress == 0 || exp_dir.Size < sizeof(IMAGE_IMPORT_DESCRIPTOR))
+        return;
+
+    auto iids = span((IMAGE_IMPORT_DESCRIPTOR*)((uint8_t*)ent.DllBase + exp_dir.VirtualAddress),
+                     exp_dir.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR));
+
+    for (auto& iid : iids) {
+        if (iid.Characteristics == 0)
+            break;
+
+        auto name = string_view((char*)ent.DllBase + iid.Name);
+
+        if (name.empty()) {
+            print("DLL with empty name.\n");
+            NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+        }
+
+        if (!load_dll(name)) {
+            print("Could not load ");
+            print(name);
+            print(".\n");
+            NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+        }
+    }
+}
+
+static void load_dlls() {
+    auto le = ldr_data.InLoadOrderModuleList.Flink;
+
+    while (le != &ldr_data.InLoadOrderModuleList) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        load_dlls_img(ent);
+
+        le = le->Flink;
+    }
 }
 
 extern "C" __declspec(dllexport)
@@ -397,18 +567,20 @@ void mn_start_process(void* img_base, void* ntdll_base) {
 
     init_ldr_data(peb.ImageBaseAddress, ntdll_base);
 
+    load_dlls();
+
     toggle_protections(ntdll_base, false);
     toggle_protections(img_base, false);
 
     resolve_relocations(ntdll_base);
     resolve_relocations(img_base);
 
-    // FIXME - load DLLs (recursively) (with relocations)
-
     resolve_imports(img_base);
 
     toggle_protections(ntdll_base, true);
     toggle_protections(img_base, true);
+
+    // FIXME - call DllMain in DLLs
 
     uint32_t entry_point;
 

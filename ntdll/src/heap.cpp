@@ -272,3 +272,13 @@ void* RtlDestroyHeap(void* heap_handle) {
 
     return nullptr;
 }
+
+extern "C"
+void* malloc(size_t size) {
+    return RtlAllocateHeap((void*)NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap, 0, size);
+}
+
+extern "C"
+void free(void* ptr) {
+    RtlFreeHeap((void*)NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap, 0, ptr);
+}

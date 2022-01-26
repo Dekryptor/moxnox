@@ -54,6 +54,8 @@
 #define IMAGE_SCN_MEM_READ                  0x40000000
 #define IMAGE_SCN_MEM_WRITE                 0x80000000
 
+#define IMAGE_FILE_DLL              0x2000
+
 struct IMAGE_DOS_HEADER {
     uint16_t e_magic;
     uint16_t e_cblp;
