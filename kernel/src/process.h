@@ -41,6 +41,7 @@ public:
                                  uintptr_t zero_bits, size_t commit_size, LARGE_INTEGER* section_offset,
                                  size_t& view_size, enum SECTION_INHERIT inherit_disposition,
                                  uint32_t allocation_type, uint32_t win32_protect);
+    NTSTATUS unmap_view_of_section(void* base_address);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;

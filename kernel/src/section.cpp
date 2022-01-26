@@ -789,7 +789,39 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
 }
 
 NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
-    print("FIXME - NtUnmapViewOfSection\n");
+    process* p;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (process_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+    } else {
+        auto objrw = deref_handle(process_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&objrw->get());
+    }
+
+    auto ret = p->unmap_view_of_section(base_address);
+
+    p->release();
+
+    return ret;
 }

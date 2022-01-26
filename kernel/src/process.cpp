@@ -2071,3 +2071,11 @@ NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintpt
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS process::unmap_view_of_section(void* base_address) {
+    print("FIXME - process::unmap_view_of_section\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
