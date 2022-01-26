@@ -2046,13 +2046,28 @@ NTSTATUS process::close_handle(handle_t h) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS process::map_view_of_section(section& sect, void** base_address,
-                                      uintptr_t zero_bits, size_t commit_size, LARGE_INTEGER* section_offset,
-                                      size_t* view_size, enum SECTION_INHERIT inherit_disposition,
-                                      uint32_t allocation_type, uint32_t win32_protect) {
-    print("FIXME - process::map_view_of_section\n");
+NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintptr_t, size_t, LARGE_INTEGER*,
+                                      size_t& view_size, enum SECTION_INHERIT, uint32_t, uint32_t) {
+    // FIXME - zero_bits
+    // FIXME - commit_size
+    // FIXME - section_offset
+    // FIXME - view_size
+    // FIXME - inherit_disposition
+    // FIXME - allocation_type
+    // FIXME - win32_protect
 
-    // FIXME
+    auto addr = (uintptr_t)*base_address;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (addr & (PAGE_SIZE - 1))
+        addr &= ~(PAGE_SIZE - 1);
+
+    addr = map_section(sect, addr);
+
+    if (addr == 0)
+        return nt_status::INTERNAL_ERROR;
+
+    *base_address = (void*)addr;
+    view_size = sect.size; // FIXME
+
+    return nt_status::SUCCESS;
 }

@@ -779,7 +779,7 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
     auto& sect = static_cast<section&>(obj);
 
     auto ret = p->map_view_of_section(sect, base_address, zero_bits, commit_size, section_offset,
-                                      view_size, inherit_disposition, allocation_type,
+                                      *view_size, inherit_disposition, allocation_type,
                                       win32_protect);
 
     sect.release();
