@@ -53,12 +53,49 @@ struct LDR_DATA_TABLE_ENTRY {
     uint32_t SizeOfImage;
     UNICODE_STRING FullDllName;
     UNICODE_STRING BaseDllName;
-    uint32_t Flags;
+    union {
+        uint32_t Flags;
+        struct {
+            uint32_t PackagedBinary : 1;
+            uint32_t MarkedForRemoval : 1;
+            uint32_t ImageDll : 1;
+            uint32_t LoadNotificationsSent : 1;
+            uint32_t TelemetryEntryProcessed : 1;
+            uint32_t ProcessStaticImport : 1;
+            uint32_t InLegacyLists : 1;
+            uint32_t InIndexes : 1;
+            uint32_t ShimDll : 1;
+            uint32_t InExceptionTable : 1;
+            uint32_t ReservedFlags1 : 2;
+            uint32_t LoadInProgress : 1;
+            uint32_t LoadConfigProcessed : 1;
+            uint32_t EntryProcessed : 1;
+            uint32_t ProtectDelayLoad : 1;
+            uint32_t ReservedFlags3 : 2;
+            uint32_t DontCallForThreads : 1;
+            uint32_t ProcessAttachCalled : 1;
+            uint32_t ProcessAttachFailed : 1;
+            uint32_t CorDeferredValidate : 1;
+            uint32_t CorImage : 1;
+            uint32_t DontRelocate : 1;
+            uint32_t CorILOnly : 1;
+            uint32_t ChpeImage : 1;
+            uint32_t ReservedFlags5 : 2;
+            uint32_t Redirected : 1;
+            uint32_t ReservedFlags6 : 2;
+            uint32_t CompatDatabaseProcessed : 1;
+        };
+    };
     uint16_t LoadCount;
     uint16_t TlsIndex;
     LIST_ENTRY HashLinks;
     uint32_t TimeDateStamp;
 };
+
+static const uint32_t DLL_PROCESS_DETACH = 0;
+static const uint32_t DLL_PROCESS_ATTACH = 1;
+static const uint32_t DLL_THREAD_ATTACH = 2;
+static const uint32_t DLL_THREAD_DETACH = 3;
 
 extern "C" {
 

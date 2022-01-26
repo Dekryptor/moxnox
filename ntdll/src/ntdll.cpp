@@ -12,6 +12,8 @@ extern uint8_t __image_base__;
 static_assert(sizeof(PEB_LDR_DATA) == 0x58);
 static_assert(sizeof(LDR_DATA_TABLE_ENTRY) == 0x88);
 
+using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
+
 static PEB_LDR_DATA ldr_data; // zero-initialized
 
 extern "C"
@@ -377,7 +379,7 @@ static void toggle_protections(bool enable) {
     }
 }
 
-static void add_ldr_entry(void* base, u16string_view full_name, u16string_view base_name) {
+static void add_ldr_entry(void* base, u16string_view full_name, u16string_view base_name, bool no_dll_main) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto size = sizeof(LDR_DATA_TABLE_ENTRY) + ((full_name.size() + 1) * sizeof(char16_t)) + ((base_name.size() + 1) * sizeof(char16_t));
     auto ptr = RtlAllocateHeap((void*)peb.ProcessHeap, HEAP_ZERO_MEMORY, size);
@@ -410,9 +412,11 @@ static void add_ldr_entry(void* base, u16string_view full_name, u16string_view b
     ent.BaseDllName.MaximumLength = ent.BaseDllName.Length + sizeof(char16_t);
     ent.BaseDllName.Buffer = (char16_t*)((uint8_t*)ent.FullDllName.Buffer + ent.FullDllName.MaximumLength);
 
-    // FIXME - Flags
     ent.LoadCount = 1;
     // FIXME - HashLinks
+
+    if (no_dll_main)
+        ent.ProcessAttachCalled = 1;
 
     memcpy(ent.FullDllName.Buffer, full_name.data(), ent.FullDllName.Length);
     ent.FullDllName.Buffer[full_name.size()] = 0;
@@ -450,8 +454,8 @@ static void init_ldr_data(void* img_base, void* ntdll_base) {
     InitializeListHead(&ldr_data.InMemoryOrderModuleList);
     InitializeListHead(&ldr_data.InInitializationOrderModuleList);
 
-    add_ldr_entry(ntdll_base, u"\\ntdll.dll", u"ntdll.dll"); // FIXME - name and path
-    add_ldr_entry(img_base, u"\\init.exe", u"init.exe"); // FIXME - name and path
+    add_ldr_entry(ntdll_base, u"\\ntdll.dll", u"ntdll.dll", true); // FIXME - name and path
+    add_ldr_entry(img_base, u"\\init.exe", u"init.exe", true); // FIXME - name and path
 }
 
 static bool try_load_dll(u16string_view dir, u16string_view name) {
@@ -516,7 +520,7 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
         return false;
     }
 
-    add_ldr_entry(addr, u16string_view(us.Buffer, us.Length / sizeof(char16_t)), name);
+    add_ldr_entry(addr, u16string_view(us.Buffer, us.Length / sizeof(char16_t)), name, false);
 
     free(us.Buffer);
 
@@ -623,6 +627,38 @@ static void load_dlls() {
     }
 }
 
+static void process_attach(LDR_DATA_TABLE_ENTRY& ent) {
+    if (ent.LoadInProgress || ent.ProcessAttachCalled)
+        return;
+
+    ent.LoadInProgress = 1;
+
+    // FIXME - call process_attach for dependencies
+
+    auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+    // FIXME - calling DLL_PROCESS_DETACH when process dies
+
+    if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1))
+        NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
+
+    ent.ProcessAttachCalled = 1;
+}
+
+static void call_dll_main() {
+    // FIXME - send in correct order (bottom of tree to top)
+
+    auto le = ldr_data.InLoadOrderModuleList.Flink;
+
+    while (le != &ldr_data.InLoadOrderModuleList) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        process_attach(ent);
+
+        le = le->Flink;
+    }
+}
+
 extern "C" __declspec(dllexport)
 void mn_start_process(void* img_base, void* ntdll_base) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -651,7 +687,7 @@ void mn_start_process(void* img_base, void* ntdll_base) {
 
     toggle_protections(true);
 
-    // FIXME - call DllMain in DLLs
+    call_dll_main();
 
     uint32_t entry_point;
 
