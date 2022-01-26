@@ -332,9 +332,9 @@ bool section::load_image() {
     pages[0].protect = mapping_type::read_only;
 
     for (const auto& sect : sections) {
-        auto section_size = min(sect.VirtualSize, sect.SizeOfRawData);
+        auto section_size = max(sect.VirtualSize, sect.SizeOfRawData);
 
-        if (section_size == 0 || sect.PointerToRawData == 0)
+        if (section_size == 0)
             continue;
 
         if (sect.VirtualAddress + section_size > size) {
@@ -344,12 +344,14 @@ bool section::load_image() {
             return false;
         }
 
-        auto read = f.read(span((uint8_t*)(temp_va + sect.VirtualAddress), section_size), sect.PointerToRawData);
-        if (read < section_size) {
-            print("short read\n");
-            free_va(temp_va, num_pages);
-            free_pa();
-            return false;
+        if (sect.PointerToRawData != 0) {
+            auto read = f.read(span((uint8_t*)(temp_va + sect.VirtualAddress), section_size), sect.PointerToRawData);
+            if (read < section_size) {
+                print("short read\n");
+                free_va(temp_va, num_pages);
+                free_pa();
+                return false;
+            }
         }
 
         auto page_start = bytes_to_pages(sect.VirtualAddress);
