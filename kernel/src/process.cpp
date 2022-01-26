@@ -738,7 +738,7 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
 
         p = static_cast<process*>(&objrw->get());
 
-        this_process = get_current_thread()->proc;
+        this_process = p == get_current_thread()->proc;
     }
 
     if (!this_process) {
