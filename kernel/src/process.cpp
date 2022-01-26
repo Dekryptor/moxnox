@@ -133,6 +133,13 @@ mapping_section::mapping_section(section& sect) : sect(sect) {
 }
 
 mapping_section::~mapping_section() {
+    auto num_pages = size >> PAGE_SHIFT;
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (pages[i].pa)
+            free_page(pages[i].pa);
+    }
+
     sect.release();
 }
 
