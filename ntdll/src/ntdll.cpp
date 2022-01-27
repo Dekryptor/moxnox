@@ -464,7 +464,9 @@ static void add_ldr_entry(void* base, u16string_view full_name, u16string_view b
     }
 }
 
-static void init_ldr_data(void* img_base, void* ntdll_base) {
+static void init_ldr_data(void* ntdll_base) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+
     ldr_data.Length = sizeof(ldr_data);
     ldr_data.Initialized = true;
     InitializeListHead(&ldr_data.InLoadOrderModuleList);
@@ -472,7 +474,7 @@ static void init_ldr_data(void* img_base, void* ntdll_base) {
     InitializeListHead(&ldr_data.InInitializationOrderModuleList);
 
     add_ldr_entry(ntdll_base, u"\\ntdll.dll", u"ntdll.dll", true); // FIXME - name and path
-    add_ldr_entry(img_base, u"\\init.exe", u"init.exe", true); // FIXME - name and path
+    add_ldr_entry(peb.ImageBaseAddress, u"\\init.exe", u"init.exe", true); // FIXME - name and path
 }
 
 static bool try_load_dll(u16string_view dir, u16string_view name) {
@@ -677,10 +679,10 @@ static void call_dll_main() {
 }
 
 extern "C" __declspec(dllexport)
-void mn_start_process(void* img_base, void* ntdll_base) {
+void mn_start_process(void* ntdll_base) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
-    auto& dos_header = *(IMAGE_DOS_HEADER*)img_base;
-    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_base + dos_header.e_lfanew);
+    auto& dos_header = *(IMAGE_DOS_HEADER*)peb.ImageBaseAddress;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)peb.ImageBaseAddress + dos_header.e_lfanew);
 
     auto heap = RtlCreateHeap(HEAP_GROWABLE, nullptr, 0, 0, nullptr, nullptr);
 
@@ -692,7 +694,7 @@ void mn_start_process(void* img_base, void* ntdll_base) {
     peb.ProcessHeap = (HANDLE)heap;
     peb.Ldr = &ldr_data;
 
-    init_ldr_data(peb.ImageBaseAddress, ntdll_base);
+    init_ldr_data(ntdll_base);
 
     load_dlls();
 
@@ -716,6 +718,6 @@ void mn_start_process(void* img_base, void* ntdll_base) {
     __asm __volatile(
         "jmp %0"
         :
-        : "a" ((uint8_t*)img_base + entry_point)
+        : "a" ((uint8_t*)peb.ImageBaseAddress + entry_point)
     );
 }
