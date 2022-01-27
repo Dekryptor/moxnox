@@ -315,7 +315,7 @@ static void resolve_relocations_img(void* base) {
                     print("Unsupported relocation type ");
                     print_hex(type);
                     print(".\n");
-                    // FIXME - terminate process
+                    NtTerminateProcess(NtCurrentProcess(), nt_status::ILLEGAL_DLL_RELOCATION);
                     return;
             }
         }
