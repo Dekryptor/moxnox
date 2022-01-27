@@ -19,6 +19,7 @@ enum class nt_status : uint32_t {
     NOT_SUPPORTED = 0xc00000bb,
     INTERNAL_ERROR = 0xc00000e5,
     DLL_NOT_FOUND = 0xc0000135,
+    ORDINAL_NOT_FOUND = 0xc0000138,
     DLL_INIT_FAILED = 0xc0000142
 };
 

@@ -78,7 +78,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
 
     const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)dll_base + exp_dir.VirtualAddress);
 
-    if (ied.NumberOfNames == 0) {
+    if (ied.NumberOfFunctions == 0) {
         print("no exports in ");
         print(name);
         print("\n");
@@ -95,8 +95,25 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
         auto v = *lookup_table;
 
         if (v & ((T)1 << ((sizeof(T) * 8) - 1))) {
-            print("FIXME - imports by ordinal\n"); // FIXME
-            NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
+            auto ord = (uint16_t)(v & 0xffff);
+
+            if (ord < ied.Base || ord >= ied.Base + ied.NumberOfFunctions || funcs[ord - ied.Base] == 0) {
+                print("Ordinal ");
+                print_hex(ord); // FIXME - decimal
+                print(" in ");
+                print(name);
+                print(" not found.\n");
+                NtTerminateProcess(NtCurrentProcess(), nt_status::ORDINAL_NOT_FOUND);
+            }
+
+            auto addr = funcs[ord - ied.Base];
+
+            *thunks = (T)((uintptr_t)dll_base + addr);
+
+            lookup_table++;
+            thunks++;
+
+            continue;
         }
 
         // FIXME - don't ignore hint
@@ -115,7 +132,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
             }
         }
 
-        if (!ord) {
+        if (!ord || funcs[*ord] == 0) {
             print("Could not resolve ");
             print(func);
             print(" in ");
