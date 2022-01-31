@@ -617,3 +617,74 @@ NTSTATUS user_NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
 
     return NtUnmapViewOfSection(process_handle, base_address);
 }
+
+extern "C"
+NTSTATUS user_NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
+                                   void* apc_context) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 7> args;
+    IO_STATUS_BLOCK iosb;
+    void* info;
+    UNICODE_STRING file_name;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto us_iosb = (IO_STATUS_BLOCK*)args[0];
+    auto us_file_information = (void*)args[1];
+    auto length = (uint32_t)args[2];
+    auto fic = (FILE_INFORMATION_CLASS)args[3];
+    auto return_single_entry = (bool)args[4];
+    auto us_file_name = (const UNICODE_STRING*)args[5];
+    auto restart_scan = (bool)args[6];
+
+    if (!file_handle)
+        return nt_status::INVALID_PARAMETER;
+
+    if (file_handle & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (event & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (!us_iosb || !us_file_information)
+        return nt_status::INVALID_PARAMETER;
+
+    if (us_file_name) {
+        if (!copy_unicode_string_from_process(us_file_name, file_name))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    if (length > 0) {
+        info = malloc(length);
+        if (!info) {
+            if (us_file_name && file_name.Buffer)
+                free(file_name.Buffer);
+
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+    } else
+        info = nullptr;
+
+    auto ret = NtQueryDirectoryFile(file_handle, event, apc_routine, apc_context, &iosb, info, length,
+                                    fic, return_single_entry, us_file_name ? &file_name : nullptr,
+                                    restart_scan);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (iosb.Information > 0) {
+            if (!copy_to_process(us_file_information, info, iosb.Information))
+                ret = nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (info)
+        free(info);
+
+    if (us_file_name && file_name.Buffer)
+        free(file_name.Buffer);
+
+    return ret;
+}

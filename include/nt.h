@@ -147,7 +147,7 @@ struct ASSEMBLY_STORAGE_MAP;
 
 struct CURDIR {
     UNICODE_STRING DosPath;
-    void* Handle;
+    HANDLE Handle;
 };
 
 struct STRING {
@@ -168,7 +168,7 @@ struct RTL_USER_PROCESS_PARAMETERS {
     uint32_t Length;
     uint32_t Flags;
     uint32_t DebugFlags;
-    void* ConsoleHandle;
+    HANDLE ConsoleHandle;
     uint32_t ConsoleFlags;
     HANDLE StandardInput;
     HANDLE StandardOutput;
@@ -225,7 +225,7 @@ struct PEB {
     HANDLE Mutant;
     void* ImageBaseAddress;
     PEB_LDR_DATA* Ldr;
-    RTL_USER_PROCESS_PARAMETERS *ProcessParameters;
+    RTL_USER_PROCESS_PARAMETERS* ProcessParameters;
     void* SubSystemData;
     HANDLE ProcessHeap;
     RTL_CRITICAL_SECTION *FastPebLock;
@@ -497,6 +497,85 @@ static const uint32_t SEC_NOCACHE = 0x10000000;
 static const uint32_t SEC_WRITECOMBINE = 0x40000000;
 static const uint32_t SEC_LARGE_PAGES = 0x80000000;
 
+enum class FILE_INFORMATION_CLASS {
+    DirectoryInformation = 1,
+    FullDirectoryInformation,
+    BothDirectoryInformation,
+    BasicInformation,
+    StandardInformation,
+    InternalInformation,
+    EaInformation,
+    AccessInformation,
+    NameInformation,
+    RenameInformation,
+    LinkInformation,
+    NamesInformation,
+    DispositionInformation,
+    PositionInformation,
+    FullEaInformation,
+    ModeInformation,
+    AlignmentInformation,
+    AllInformation,
+    AllocationInformation,
+    EndOfFileInformation,
+    AlternateNameInformation,
+    StreamInformation,
+    PipeInformation,
+    PipeLocalInformation,
+    PipeRemoteInformation,
+    MailslotQueryInformation,
+    MailslotSetInformation,
+    CompressionInformation,
+    ObjectIdInformation,
+    CompletionInformation,
+    MoveClusterInformation,
+    QuotaInformation,
+    ReparsePointInformation,
+    NetworkOpenInformation,
+    AttributeTagInformation,
+    TrackingInformation,
+    IdBothDirectoryInformation,
+    IdFullDirectoryInformation,
+    ValidDataLengthInformation,
+    ShortNameInformation,
+    IoCompletionNotificationInformation,
+    IoStatusBlockRangeInformation,
+    IoPriorityHintInformation,
+    SfioReserveInformation,
+    SfioVolumeInformation,
+    HardLinkInformation,
+    ProcessIdsUsingFileInformation,
+    NormalizedNameInformation,
+    NetworkPhysicalNameInformation,
+    IdGlobalTxDirectoryInformation,
+    IsRemoteDeviceInformation,
+    UnusedInformation,
+    NumaNodeInformation,
+    StandardLinkInformation,
+    RemoteProtocolInformation,
+    RenameInformationBypassAccessCheck,
+    LinkInformationBypassAccessCheck,
+    VolumeNameInformation,
+    IdInformation,
+    IdExtdDirectoryInformation,
+    ReplaceCompletionInformation,
+    HardLinkFullIdInformation,
+    IdExtdBothDirectoryInformation,
+    DispositionInformationEx,
+    RenameInformationEx,
+    RenameInformationExBypassAccessCheck,
+    DesiredStorageClassInformation,
+    StatInformation,
+    MemoryPartitionInformation,
+    StatLxInformation,
+    CaseSensitiveInformation,
+    LinkInformationEx,
+    LinkInformationExBypassAccessCheck,
+    StorageReserveIdInformation,
+    CaseSensitiveInformationForceAccessCheck,
+    MaximumInformation
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -530,5 +609,10 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
                             size_t* view_size, enum SECTION_INHERIT inherit_disposition,
                             uint32_t allocation_type, uint32_t win32_protect);
 NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address);
+NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
+                              void* apc_context, IO_STATUS_BLOCK* io_status_block,
+                              void* file_information, uint32_t length,
+                              FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
+                              const UNICODE_STRING* file_name, bool restart_scan);
 
 };
