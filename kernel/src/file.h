@@ -22,11 +22,12 @@ public:
     inode& ino;
     spinlock lock;
     uint64_t file_offset = 0;
+    uint64_t query_dir_index = 0;
 
     size_t read(std::span<uint8_t> s);
     size_t read(std::span<uint8_t> s, uint64_t offset);
     NTSTATUS query_directory(HANDLE event, PIO_APC_ROUTINE apc_routine,
-                             void* apc_context, IO_STATUS_BLOCK* io_status_block,
+                             void* apc_context, IO_STATUS_BLOCK& io_status_block,
                              void* file_information, uint32_t length,
                              FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
                              const UNICODE_STRING* file_name, bool restart_scan);

@@ -962,3 +962,10 @@ size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
 
     return read;
 }
+
+NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
+                                      uint64_t& index) {
+    print("FIXME - btrfs_inode::query_directory\n");
+
+    return nt_status::NOT_SUPPORTED;
+}

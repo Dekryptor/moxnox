@@ -46,7 +46,7 @@ NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE 
 
     auto& f = static_cast<file&>(obj);
 
-    auto ret = f.query_directory(event, apc_routine, apc_context, io_status_block, file_information,
+    auto ret = f.query_directory(event, apc_routine, apc_context, *io_status_block, file_information,
                                  length, file_information_class, return_single_entry,
                                  file_name, restart_scan);
 
@@ -55,14 +55,29 @@ NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE 
     return ret;
 }
 
-NTSTATUS file::query_directory(HANDLE event, PIO_APC_ROUTINE apc_routine,
-                               void* apc_context, IO_STATUS_BLOCK* io_status_block,
+NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& io_status_block,
                                void* file_information, uint32_t length,
-                               FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
-                               const UNICODE_STRING* file_name, bool restart_scan) {
-    print("FIXME - file::query_directory\n");
+                               FILE_INFORMATION_CLASS file_information_class, bool,
+                               const UNICODE_STRING*, bool restart_scan) {
+    // FIXME - event
+    // FIXME - APC
+    // FIXME - filename
 
-    // FIXME
+    if (restart_scan)
+        query_dir_index = 0;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - returning multiple entries
+
+    auto index = query_dir_index;
+    auto sp = span((uint8_t*)file_information, length);
+
+    auto ret = ino.query_directory(sp, file_information_class, index);
+
+    if (!success(ret))
+        return ret;
+
+    query_dir_index = index;
+    io_status_block.Information = sp.size();
+
+    return ret;
 }
