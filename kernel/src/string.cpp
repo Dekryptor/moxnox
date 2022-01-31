@@ -136,3 +136,106 @@ void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
         }
     }
 }
+
+size_t utf8_to_utf16_len(string_view sv) {
+    size_t ret = 0;
+
+    if (sv.empty())
+        return 0;
+
+    for (unsigned int i = 0; i < sv.size(); i++) {
+        uint32_t cp;
+
+        if (!(sv[i] & 0x80))
+            cp = sv[i];
+        else if ((sv[i] & 0xe0) == 0xc0) {
+            if (i == sv.size() - 1 || (sv[i+1] & 0xc0) != 0x80)
+                cp = 0xfffd;
+            else {
+                cp = ((sv[i] & 0x1f) << 6) | (sv[i+1] & 0x3f);
+                i++;
+            }
+        } else if ((sv[i] & 0xf0) == 0xe0) {
+            if (i >= sv.size() - 2 || (sv[i+1] & 0xc0) != 0x80 || (sv[i+2] & 0xc0) != 0x80)
+                cp = 0xfffd;
+            else {
+                cp = ((sv[i] & 0xf) << 12) | ((sv[i+1] & 0x3f) << 6) | (sv[i+2] & 0x3f);
+                i += 2;
+            }
+        } else if ((sv[i] & 0xf8) == 0xf0) {
+            if (i >= sv.size() - 3 || (sv[i+1] & 0xc0) != 0x80 || (sv[i+2] & 0xc0) != 0x80 || (sv[i+3] & 0xc0) != 0x80)
+                cp = 0xfffd;
+            else {
+                cp = ((sv[i] & 0x7) << 18) | ((sv[i+1] & 0x3f) << 12) | ((sv[i+2] & 0x3f) << 6) | (sv[i+3] & 0x3f);
+                i += 3;
+            }
+        } else
+            cp = 0xfffd;
+
+        if (cp > 0x10ffff)
+            cp = 0xfffd;
+
+        if (cp <= 0xffff)
+            ret++;
+        else
+            ret += 2;
+    }
+
+    return ret;
+}
+
+void utf8_to_utf16(span<char16_t> buf, string_view sv) {
+    if (buf.empty())
+        return;
+
+    for (unsigned int i = 0; i < sv.size(); i++) {
+        uint32_t cp;
+
+        if (!(sv[i] & 0x80))
+            cp = sv[i];
+        else if ((sv[i] & 0xe0) == 0xc0) {
+            if (i == sv.size() - 1 || (sv[i+1] & 0xc0) != 0x80)
+                cp = 0xfffd;
+            else {
+                cp = ((sv[i] & 0x1f) << 6) | (sv[i+1] & 0x3f);
+                i++;
+            }
+        } else if ((sv[i] & 0xf0) == 0xe0) {
+            if (i >= sv.size() - 2 || (sv[i+1] & 0xc0) != 0x80 || (sv[i+2] & 0xc0) != 0x80)
+                cp = 0xfffd;
+            else {
+                cp = ((sv[i] & 0xf) << 12) | ((sv[i+1] & 0x3f) << 6) | (sv[i+2] & 0x3f);
+                i += 2;
+            }
+        } else if ((sv[i] & 0xf8) == 0xf0) {
+            if (i >= sv.size() - 3 || (sv[i+1] & 0xc0) != 0x80 || (sv[i+2] & 0xc0) != 0x80 || (sv[i+3] & 0xc0) != 0x80)
+                cp = 0xfffd;
+            else {
+                cp = ((sv[i] & 0x7) << 18) | ((sv[i+1] & 0x3f) << 12) | ((sv[i+2] & 0x3f) << 6) | (sv[i+3] & 0x3f);
+                i += 3;
+            }
+        } else
+            cp = 0xfffd;
+
+        if (cp > 0x10ffff)
+            cp = 0xfffd;
+
+        if (cp <= 0xffff) {
+            buf[0] = (uint16_t)cp;
+            buf = buf.subspan(1);
+        } else {
+            if (buf.size() < 2)
+                return;
+
+            cp -= 0x10000;
+
+            buf[0] = (char16_t)(0xd800 | ((cp & 0xffc00) >> 10));
+            buf[1] = (char16_t)(0xdc00 | (cp & 0x3ff));
+
+            buf = buf.subspan(2);
+        }
+
+        if (buf.empty())
+            return;
+    }
+}

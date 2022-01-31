@@ -1538,18 +1538,50 @@ bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     }
 }
 
+static size_t dos_path_len(string_view s) {
+    // FIXME - resolve paths to DOS paths properly
+
+    auto len = utf8_to_utf16_len(s);
+
+    len += 2; // for "C:"
+
+    return len;
+}
+
+static void create_dos_path(span<char16_t> buf, string_view s) {
+    // FIXME - resolve paths to DOS paths properly
+
+    if (!buf.empty()) {
+        buf[0] = 'C';
+        buf = buf.subspan(1);
+    }
+
+    if (!buf.empty()) {
+        buf[0] = ':';
+        buf = buf.subspan(1);
+    }
+
+    utf8_to_utf16(buf, s);
+
+    for (auto& c : buf) {
+        if (c == '/')
+            c = '\\';
+    }
+}
+
 bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
                                    string_view curdir) {
-    static const auto num_pages = bytes_to_pages(sizeof(RTL_USER_PROCESS_PARAMETERS));
-
     // FIXME - also include space for command line, environment, etc.
 
-    size_t size = sizeof(RTL_USER_PROCESS_PARAMETERS);
+    auto curdir_len = dos_path_len(curdir);
+    size_t size = sizeof(RTL_USER_PROCESS_PARAMETERS) + ((curdir_len + 1) * sizeof(char16_t));
 
     if (!success(allocate_vm((void**)&proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
         print("process::allocate_vm failed\n");
         return false;
     }
+
+    auto num_pages = bytes_to_pages(size);
 
     auto va = allocate_va(num_pages);
     if (!va) {
@@ -1569,7 +1601,13 @@ bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh
     ks_proc_params.StandardOutput = stdouth;
     ks_proc_params.StandardError = stderrh;
     ks_proc_params.CurrentDirectory.Handle = curdirh;
-    // FIXME - CurrentDirectory.DosPath
+
+    ks_proc_params.CurrentDirectory.DosPath.Length = (uint16_t)(curdir_len * sizeof(char16_t));
+    ks_proc_params.CurrentDirectory.DosPath.MaximumLength = ks_proc_params.CurrentDirectory.DosPath.Length + sizeof(char16_t);
+    ks_proc_params.CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
+
+    auto ks_dos_path = span((char16_t*)(va + sizeof(RTL_USER_PROCESS_PARAMETERS)), ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
+    create_dos_path(ks_dos_path, curdir);
 
     for (unsigned int i = 0; i < num_pages; i++) {
         unmap_page(va + (i << PAGE_SHIFT));
