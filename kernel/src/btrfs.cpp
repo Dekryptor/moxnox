@@ -125,7 +125,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 
     // FIXME - default subvol
 
-    root_inode = new btrfs_inode(*this, BTRFS_ROOT_FSTREE, SUBVOL_ROOT_INODE);
+    root_inode = new btrfs_inode(*this, BTRFS_ROOT_FSTREE, SUBVOL_ROOT_INODE, btrfs_inode_type::directory);
     if (!root_inode) {
         print("new failed\n");
         return;
@@ -487,7 +487,7 @@ void btrfs_filesystem::walk_from(uint64_t subvol, const key& k, invocable<const 
     walk_from2(addr, level, k, func);
 }
 
-btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) : fs(fs), subvol(subvol), inode(inode) {
+btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : fs(fs), subvol(subvol), inode(inode), inode_type(inode_type) {
     bool found_inode_item = false;
 
     fs.walk_from(subvol, key(inode, key_type::INODE_ITEM, 0), [&](const key& k, span<const uint8_t> data) {
@@ -613,6 +613,41 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode) 
 
     file_size = ii.st_size;
 
+    if (inode_type == btrfs_inode_type::unknown) {
+        switch ((ii.st_mode & 0xf000) >> 12) {
+            case 1:
+                inode_type = btrfs_inode_type::fifo;
+                break;
+
+            case 2:
+                inode_type = btrfs_inode_type::chardev;
+                break;
+
+            case 4:
+                inode_type = btrfs_inode_type::directory;
+                break;
+
+            case 6:
+                inode_type = btrfs_inode_type::blockdev;
+                break;
+
+            case 8:
+                inode_type = btrfs_inode_type::file;
+                break;
+
+            case 0xa:
+                inode_type = btrfs_inode_type::symlink;
+                break;
+
+            case 0xc:
+                inode_type = btrfs_inode_type::socket;
+                break;
+
+            default:
+                break;
+        }
+    }
+
     valid = true;
 }
 
@@ -688,7 +723,7 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
         }
     }
 
-    auto ino = new btrfs_inode(*this, subvol, inode);
+    auto ino = new btrfs_inode(*this, subvol, inode, btrfs_inode_type::unknown);
 
     if (!ino) {
         print("new failed\n");
@@ -966,6 +1001,9 @@ size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
 NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                                       uint64_t& index) {
     print("FIXME - btrfs_inode::query_directory\n");
+
+    if (inode_type != btrfs_inode_type::directory)
+        return nt_status::NOT_A_DIRECTORY;
 
     return nt_status::NOT_SUPPORTED;
 }

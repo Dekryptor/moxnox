@@ -371,7 +371,7 @@ class btrfs_filesystem;
 
 class btrfs_inode : public inode {
 public:
-    btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode);
+    btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type);
     ~btrfs_inode();
     void release() override;
 
@@ -388,6 +388,7 @@ public:
     bool valid = false;
     list_entry children = { &children, &children };
     list_entry extents = { &extents, &extents };
+    btrfs_inode_type inode_type;
 };
 
 class btrfs_filesystem : public filesystem {
