@@ -96,7 +96,7 @@ static unique_handle start_init_process() {
     if (!initin_objrw)
         bsod("No such handle\n");
 
-    auto proc_handle = create_process("/init.exe", initin_objrw, initout_objrw, initout_objrw);
+    auto proc_handle = create_process("/init.exe", "/", initin_objrw, initout_objrw, initout_objrw);
     if (!proc_handle)
         bsod("Could not start init process.\n");
 

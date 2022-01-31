@@ -23,11 +23,18 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 // FIXME - handle thread crashes
 // FIXME - 32-bit processes
 
-unique_handle create_process(string_view fn, optional<reference_wrapper<object>> stdinobj,
+unique_handle create_process(string_view fn, string_view curdir,
+                             optional<reference_wrapper<object>> stdinobj,
                              optional<reference_wrapper<object>> stdoutobj,
                              optional<reference_wrapper<object>> stderrobj) {
-    auto file = open_inode(fn);
-    if (!file) {
+    auto img_file = open_inode(fn);
+    if (!img_file) {
+        print("open_inode failed\n");
+        return {};
+    }
+
+    auto curdir_inode = open_inode(curdir);
+    if (!curdir_inode) {
         print("open_inode failed\n");
         return {};
     }
@@ -42,7 +49,7 @@ unique_handle create_process(string_view fn, optional<reference_wrapper<object>>
 
     // create section for image
 
-    auto imgh = create_section(file.get(), true, 0);
+    auto imgh = create_section(img_file.get(), true, 0);
     if (!imgh) {
         print("create_section failed\n");
         p.release();
@@ -95,7 +102,23 @@ unique_handle create_process(string_view fn, optional<reference_wrapper<object>>
     if (stderrobj)
         stderrh = p.add_handle(stderrobj->get(), 0); // FIXME - access mask
 
-    if (!p.allocate_peb(img_base, stdinh, stdouth, stderrh)) {
+    auto& curdir_inode_obj = static_cast<inode&>(deref_handle(curdir_inode.get())->get());
+
+    auto curdir_file = new file(curdir_inode_obj);
+    if (!curdir_file) {
+        print("new failed\n");
+        curdir_inode_obj.release();
+        p.release();
+        return {};
+    }
+
+    curdir_inode_obj.release();
+
+    auto curdirh = p.add_handle(*curdir_file, 0); // FIXME - access mask
+
+    curdir_file->release();
+
+    if (!p.allocate_peb(img_base, stdinh, stdouth, stderrh, curdirh, curdir)) {
         print("process::allocate_peb failed\n");
         p.release();
         return {};
@@ -1515,7 +1538,8 @@ bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     }
 }
 
-bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh) {
+bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
+                                   string_view curdir) {
     static const auto num_pages = bytes_to_pages(sizeof(RTL_USER_PROCESS_PARAMETERS));
 
     // FIXME - also include space for command line, environment, etc.
@@ -1544,6 +1568,8 @@ bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh
     ks_proc_params.StandardInput = stdinh;
     ks_proc_params.StandardOutput = stdouth;
     ks_proc_params.StandardError = stderrh;
+    ks_proc_params.CurrentDirectory.Handle = curdirh;
+    // FIXME - CurrentDirectory.DosPath
 
     for (unsigned int i = 0; i < num_pages; i++) {
         unmap_page(va + (i << PAGE_SHIFT));
@@ -1554,12 +1580,13 @@ bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh
     return true;
 }
 
-bool process::allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh) {
+bool process::allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh,
+                           HANDLE curdirh, string_view curdir) {
     static const auto num_pages = bytes_to_pages(sizeof(PEB));
 
     size_t peb_size = sizeof(PEB);
 
-    if (!allocate_proc_params(stdinh, stdouth, stderrh)) {
+    if (!allocate_proc_params(stdinh, stdouth, stderrh, curdirh, curdir)) {
         print("process::allocate_proc_params failed\n");
         return false;
     }

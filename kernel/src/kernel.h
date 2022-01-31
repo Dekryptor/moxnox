@@ -208,7 +208,8 @@ bool mount_root();
 unique_handle open_inode(std::string_view fn);
 
 // process.cpp
-unique_handle create_process(std::string_view fn, std::optional<std::reference_wrapper<object>> stdinobj,
+unique_handle create_process(std::string_view fn, std::string_view curdir,
+                             std::optional<std::reference_wrapper<object>> stdinobj,
                              std::optional<std::reference_wrapper<object>> stdoutobj,
                              std::optional<std::reference_wrapper<object>> stderrobj);
 void load_ntdll();
