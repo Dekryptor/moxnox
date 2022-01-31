@@ -106,3 +106,7 @@ bool RtlFreeHeap(void* heap_handle, uint32_t flags, void* base_address);
 void* RtlDestroyHeap(void* heap_handle);
 
 }
+
+static __inline void* GetProcessHeap() {
+    return (void*)NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap;
+}

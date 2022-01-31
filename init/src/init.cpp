@@ -1,9 +1,14 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <nt.h>
+#include <ntdll.h>
 #include <string_view>
 #include <span>
 
 using namespace std;
+
+char* buf = nullptr;
+unsigned int buflen = 0;
 
 static void print(string_view s) {
     auto teb = NtCurrentTeb();
@@ -57,14 +62,59 @@ static void print_hex(uint64_t num, unsigned int padding = 0) {
 }
 
 extern "C"
-size_t strlen(const char* s) {
-    size_t i = 0;
+void* malloc(size_t size) {
+    return RtlAllocateHeap(GetProcessHeap(), 0, size);
+}
 
-    while (s[i] != 0) {
-        i++;
+extern "C"
+void free(void* ptr) {
+    RtlFreeHeap(GetProcessHeap(), 0, ptr);
+}
+
+static void process_line(string_view sv) {
+    // FIXME
+
+    print("line: \"");
+    print(sv);
+    print("\"\n");
+}
+
+static void process_lines() {
+    while (true) {
+        bool found = false;
+        auto sv = string_view(buf, buflen);
+
+        for (unsigned int i = 0; i < sv.size(); i++) {
+            if (sv[i] == '\n') {
+                process_line(string_view(sv.data(), i));
+
+                auto newsv = string_view(sv.data() + i + 1, sv.size() - i - 1);
+
+                if (newsv.size() > 0) {
+                    auto buf2 = (char*)malloc(newsv.size());
+                    if (!buf2) {
+                        print("out of memory\n");
+                        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+                    }
+
+                    memcpy(buf2, newsv.data(), newsv.size());
+                    free(buf);
+                    buf = buf2;
+                } else {
+                    free(buf);
+                    buf = nullptr;
+                }
+
+                buflen = (unsigned int)newsv.size();
+
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+            return;
     }
-
-    return i;
 }
 
 extern "C"
@@ -97,9 +147,39 @@ void startup() {
             break;
         }
 
-        if (iosb.Information != 0)
-            print(string_view(s, iosb.Information));
+        if (iosb.Information == 0)
+            continue;
+
+        auto sv = string_view(s, iosb.Information);
+
+        print(sv);
+
+        auto buf2 = (char*)malloc(buflen + iosb.Information);
+        if (!buf2) {
+            print("out of memory\n");
+            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        }
+
+        if (buf) {
+            memcpy(buf2, buf, buflen);
+            free(buf);
+        }
+
+        memcpy(buf2 + buflen, s, iosb.Information);
+        buflen += (unsigned int)iosb.Information;
+        buf = buf2;
+
+        bool nl = false;
+        for (auto c : sv) {
+            if (c == '\n') {
+                nl = true;
+                break;
+            }
+        }
+
+        if (nl)
+            process_lines();
     }
 
-    NtTerminateThread(NtCurrentThread(), (NTSTATUS)42);
+    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
 }
