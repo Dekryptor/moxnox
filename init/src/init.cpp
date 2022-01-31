@@ -2,15 +2,15 @@
 #include <stdlib.h>
 #include <nt.h>
 #include <ntdll.h>
-#include <string_view>
 #include <span>
+#include "init.h"
 
 using namespace std;
 
 char* buf = nullptr;
 unsigned int buflen = 0;
 
-static void print(string_view s) {
+void print(string_view s) {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
@@ -72,11 +72,36 @@ void free(void* ptr) {
 }
 
 static void process_line(string_view sv) {
-    // FIXME
+    if (!sv.empty() && sv.back() == '\r')
+        sv = string_view(sv.data(), sv.size() - 1);
 
-    print("line: \"");
-    print(sv);
-    print("\"\n");
+    if (sv.empty())
+        return;
+
+    auto cmd = sv;
+    auto param = string_view();
+
+    bool quotes = false;
+    for (unsigned int i = 0; i < sv.size(); i++) {
+        if (sv[i] == '"') // FIXME - escaped quotes
+            quotes = !quotes;
+        else if (sv[i] == ' ' && !quotes) {
+            cmd = string_view(sv.data(), i);
+            param = string_view(sv.data() + i + 1, sv.size() - i - 1);
+            break;
+        }
+    }
+
+    if (cmd.front() == '"' && cmd.back() == '"')
+        cmd = string_view(cmd.data() + 1, cmd.size() - 2);
+
+    if (cmd == "ls")
+        ls(param);
+    else {
+        print(cmd); // FIXME - stderr
+        print(": command not found\n");
+        return;
+    }
 }
 
 static void process_lines() {
@@ -153,6 +178,8 @@ void startup() {
         auto sv = string_view(s, iosb.Information);
 
         print(sv);
+
+        // FIXME - backspaces
 
         auto buf2 = (char*)malloc(buflen + iosb.Information);
         if (!buf2) {
