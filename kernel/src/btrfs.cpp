@@ -535,7 +535,11 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
                 de.type = di.k.obj_type;
                 de.namelen = (uint8_t)di.n;
                 memcpy(de.name, di.name, di.n);
-                insert_tail_list(children, de.le);
+
+                {
+                    lock_guard lock(children_lock);
+                    insert_tail_list(children, de.le);
+                }
 
                 break;
             }
@@ -652,11 +656,15 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 }
 
 btrfs_inode::~btrfs_inode() {
-    while (!is_list_empty(children)) {
-        auto& de = containing_record<dirent>(children.next);
+    {
+        lock_guard lock(children_lock);
 
-        remove_entry_list(de.le);
-        free(&de);
+        while (!is_list_empty(children)) {
+            auto& de = containing_record<dirent>(children.next);
+
+            remove_entry_list(de.le);
+            free(&de);
+        }
     }
 
     while (!is_list_empty(extents)) {
@@ -683,18 +691,23 @@ void btrfs_inode::release() {
 optional<reference_wrapper<btrfs_inode>> btrfs_inode::open_child(string_view name) {
     dirent* de = nullptr;
 
-    // FIXME - fail straightaway if not directory
+    if (inode_type != btrfs_inode_type::directory)
+        return nullopt;
 
-    auto le = children.next;
-    while (le != &children) {
-        auto& de2 = containing_record<dirent>(le);
+    {
+        lock_guard lock(children_lock);
 
-        if (de2.namelen == name.length() && string_view(de2.name, de2.namelen) == name) {
-            de = &de2;
-            break;
+        auto le = children.next;
+        while (le != &children) {
+            auto& de2 = containing_record<dirent>(le);
+
+            if (de2.namelen == name.length() && string_view(de2.name, de2.namelen) == name) {
+                de = &de2;
+                break;
+            }
+
+            le = le->next;
         }
-
-        le = le->next;
     }
 
     if (!de)

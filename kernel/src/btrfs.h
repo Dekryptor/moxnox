@@ -386,6 +386,7 @@ public:
     uint64_t inode;
     inode_item ii;
     bool valid = false;
+    spinlock children_lock;
     list_entry children = { &children, &children };
     list_entry extents = { &extents, &extents };
     btrfs_inode_type inode_type;
