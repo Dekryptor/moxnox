@@ -2,7 +2,7 @@
 
 using namespace std;
 
-extern "C"
+extern "C" __declspec(dllexport)
 size_t strlen(const char* s) {
     size_t i = 0;
 
