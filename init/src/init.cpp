@@ -52,7 +52,7 @@ span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding) {
     return dest;
 }
 
-static void print_hex(uint64_t num, unsigned int padding = 0) {
+void print_hex(uint64_t num, unsigned int padding) {
     char s[17];
     span sp(s, sizeof(s));
 
@@ -144,22 +144,11 @@ static void process_lines() {
 
 extern "C"
 void startup() {
-    static const char16_t msg[] = u"hello, world\n";
-
-    UNICODE_STRING us;
-    us.Length = us.MaximumLength = sizeof(msg) - sizeof(char16_t);
-    us.Buffer = (PWSTR)msg;
-
-    NtDisplayString(&us);
-
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
-    IO_STATUS_BLOCK iosb;
-
-    NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr, &iosb, "hello\n", 6, nullptr, nullptr);
-
     while (true) {
+        IO_STATUS_BLOCK iosb;
         char s[10];
 
         auto status = NtReadFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr, &iosb,

@@ -8,7 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_language(ASM)
 
 set(SRC_FILES src/init.cpp
-    src/ls.cpp)
+    src/ls.cpp
+    src/string.cpp)
 
 add_executable(init ${SRC_FILES})
 
