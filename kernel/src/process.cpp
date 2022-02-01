@@ -15,6 +15,7 @@ static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
 static section* ntdll = nullptr;
 static uintptr_t mn_start_process;
+uintptr_t mn_signal;
 
 static_assert(sizeof(TEB) == 0x1818);
 static_assert(sizeof(PEB) == 0x388);
@@ -82,8 +83,8 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     // FIXME - if ntdll would have collision, choose another address
 
-    auto ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base);
-    if (!ntdll_addr) {
+    p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base);
+    if (!p.ntdll_addr) {
         print("process::map_section failed\n");
         p.release();
         return {};
@@ -135,7 +136,7 @@ unique_handle create_process(string_view fn, string_view curdir,
     // FIXME - give process a PID
     // FIXME - add process to list
 
-    if (!p.add_thread(ntdll_addr + mn_start_process, ntdll_addr, (uintptr_t)stackaddr + stack_size)) {
+    if (!p.add_thread(p.ntdll_addr + mn_start_process, p.ntdll_addr, (uintptr_t)stackaddr + stack_size)) {
         print("process::add_thread failed\n");
         p.release();
         return {};
@@ -634,6 +635,12 @@ void load_ntdll() {
     mn_start_process = ntdll->find_export("mn_start_process");
     if (!mn_start_process) {
         bsod("Could not find export mn_start_process in ntdll.dll");
+        return;
+    }
+
+    mn_signal = ntdll->find_export("mn_signal");
+    if (!mn_signal) {
+        bsod("Could not find export mn_signal in ntdll.dll");
         return;
     }
 }

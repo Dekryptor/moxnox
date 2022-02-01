@@ -540,8 +540,45 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     auto current_thread = cb.current_thread;
 
     if (current_thread && current_thread->proc && !current_thread->kernel_mode) {
-        if (current_thread->proc->handle_page_fault(address, error_code))
+        auto& p = *current_thread->proc;
+
+        if (p.handle_page_fault(address, error_code))
             return;
+
+        uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
+
+        if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
+            print("Unable to copy thread context to stack.\n");
+            current_thread->terminate();
+            return;
+        }
+
+        EXCEPTION_RECORD er;
+
+        er.ExceptionCode = (uint32_t)nt_status::ACCESS_VIOLATION;
+        er.ExceptionFlags = 0;
+        er.ExceptionRecord = nullptr;
+        er.ExceptionAddress = (void*)cb.thread_context.Rip;
+        er.NumberParameters = 2;
+        er.ExceptionInformation[0] = (error_code & 0x12) >> 1;
+        er.ExceptionInformation[1] = address;
+
+        size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
+        uintptr_t us_er = us_context - er_size;
+
+        if (!p.copy_to((void*)us_er, &er, er_size)) {
+            print("Unable to copy exception record to stack.\n");
+            current_thread->terminate();
+            return;
+        }
+
+        cb.thread_context.Rip = p.ntdll_addr + mn_signal;
+        cb.thread_context.Rcx = us_er;
+        cb.thread_context.Rdx = us_context;
+        cb.thread_context.Rsp -= sizeof(CONTEXT);
+        cb.thread_context.Rsp -= er_size;
+
+        return;
     }
 
     char s[1024];

@@ -207,6 +207,7 @@ bool mount_root();
 unique_handle open_inode(std::string_view fn);
 
 // process.cpp
+extern uintptr_t mn_signal;
 unique_handle create_process(std::string_view fn, std::string_view curdir,
                              std::optional<std::reference_wrapper<object>> stdinobj,
                              std::optional<std::reference_wrapper<object>> stdoutobj,
