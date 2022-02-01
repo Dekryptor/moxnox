@@ -21,7 +21,7 @@
     mov rax, [rsp]
     mov gs:GS_CONTEXT + CONTEXT_RIP, rax # old rip
     mov rax, [rsp+0x10]
-    mov gs:GS_CONTEXT + CONTEXT_RFLAGS, rax # old RFLAGS
+    mov gs:GS_CONTEXT + CONTEXT_EFLAGS, eax # old RFLAGS
     mov rax, [rsp+0x8]
     mov gs:GS_CONTEXT + CONTEXT_CS, rax # old cs
     mov rax, [rsp+0x20]
@@ -55,7 +55,7 @@
     mov rax, [rsp+0x8]
     mov gs:GS_CONTEXT + CONTEXT_RIP, rax # old rip
     mov rax, [rsp+0x18]
-    mov gs:GS_CONTEXT + CONTEXT_RFLAGS, rax # old RFLAGS
+    mov gs:GS_CONTEXT + CONTEXT_EFLAGS, eax # old RFLAGS
     mov rax, [rsp+0x10]
     mov gs:GS_CONTEXT + CONTEXT_CS, rax # old cs
     mov rax, [rsp+0x28]

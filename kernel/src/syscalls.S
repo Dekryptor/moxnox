@@ -448,7 +448,7 @@ syscall_handler:
     mov gs:GS_CONTEXT + CONTEXT_R14, r14
     mov gs:GS_CONTEXT + CONTEXT_R15, r15
     mov gs:GS_CONTEXT + CONTEXT_RIP, rcx
-    mov gs:GS_CONTEXT + CONTEXT_RFLAGS, r11
+    mov gs:GS_CONTEXT + CONTEXT_EFLAGS, r11d
     # cs and ss have been clobbered
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_DS, ds
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_ES, es

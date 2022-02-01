@@ -459,6 +459,103 @@ static __inline TEB* NtCurrentTeb() {
     return ret;
 }
 
+struct M128A {
+    uint64_t Low;
+    int64_t High;
+} __attribute__ ((aligned (16)));
+
+struct XSAVE_FORMAT {
+    uint16_t ControlWord;
+    uint16_t StatusWord;
+    uint8_t TagWord;
+    uint8_t Reserved1;
+    uint16_t ErrorOpcode;
+    uint32_t ErrorOffset;
+    uint16_t ErrorSelector;
+    uint16_t Reserved2;
+    uint32_t DataOffset;
+    uint16_t DataSelector;
+    uint16_t Reserved3;
+    uint32_t MxCsr;
+    uint32_t MxCsr_Mask;
+    M128A FloatRegisters[8];
+    M128A XmmRegisters[16];
+    uint8_t Reserved4[96];
+} __attribute__ ((aligned (16)));
+
+struct CONTEXT_AMD64 {
+    uint64_t P1Home;
+    uint64_t P2Home;
+    uint64_t P3Home;
+    uint64_t P4Home;
+    uint64_t P5Home;
+    uint64_t P6Home;
+    uint32_t ContextFlags;
+    uint32_t MxCsr;
+    uint16_t SegCs;
+    uint16_t SegDs;
+    uint16_t SegEs;
+    uint16_t SegFs;
+    uint16_t SegGs;
+    uint16_t SegSs;
+    uint32_t EFlags;
+    uint64_t Dr0;
+    uint64_t Dr1;
+    uint64_t Dr2;
+    uint64_t Dr3;
+    uint64_t Dr6;
+    uint64_t Dr7;
+    uint64_t Rax;
+    uint64_t Rcx;
+    uint64_t Rdx;
+    uint64_t Rbx;
+    uint64_t Rsp;
+    uint64_t Rbp;
+    uint64_t Rsi;
+    uint64_t Rdi;
+    uint64_t R8;
+    uint64_t R9;
+    uint64_t R10;
+    uint64_t R11;
+    uint64_t R12;
+    uint64_t R13;
+    uint64_t R14;
+    uint64_t R15;
+    uint64_t Rip;
+    union {
+        XSAVE_FORMAT FltSave;
+        struct {
+            M128A Header[2];
+            M128A Legacy[8];
+            M128A Xmm0;
+            M128A Xmm1;
+            M128A Xmm2;
+            M128A Xmm3;
+            M128A Xmm4;
+            M128A Xmm5;
+            M128A Xmm6;
+            M128A Xmm7;
+            M128A Xmm8;
+            M128A Xmm9;
+            M128A Xmm10;
+            M128A Xmm11;
+            M128A Xmm12;
+            M128A Xmm13;
+            M128A Xmm14;
+            M128A Xmm15;
+        };
+    };
+    M128A VectorRegister[26];
+    uint64_t VectorControl;
+    uint64_t DebugControl;
+    uint64_t LastBranchToRip;
+    uint64_t LastBranchFromRip;
+    uint64_t LastExceptionToRip;
+    uint64_t LastExceptionFromRip;
+} __attribute__ ((aligned (16)));
+
+using CONTEXT = CONTEXT_AMD64;
+
 struct SECURITY_DESCRIPTOR;
 struct SECURITY_QUALITY_OF_SERVICE;
 

@@ -7,7 +7,7 @@ struct cpu_block {
     thread* current_thread;
     uint64_t time_slice_left;
     bool handle_timers;
-    amd64_context thread_context;
+    CONTEXT thread_context;
     unsigned int cpu_no;
     void* gdt;
     void* scheduler_stack;

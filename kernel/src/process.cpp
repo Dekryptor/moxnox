@@ -385,16 +385,16 @@ bool process::add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t stac
     }
 
     memset(&t.context, 0, sizeof(t.context));
-    t.context.rip = entry_point;
-    t.context.rcx = param1;
-    t.context.rsp = stack - 0x20; // 0x20 for MS ABI
-    t.context.rflags = 0x202; // IF, reserved flag
-    t.context.cs = user_CS;
-    t.context.ds = user_DS;
-    t.context.es = user_DS;
-    t.context.fs = user_DS;
-    t.context.gs = user_DS;
-    t.context.ss = user_DS;
+    t.context.Rip = entry_point;
+    t.context.Rcx = param1;
+    t.context.Rsp = stack - 0x20; // 0x20 for MS ABI
+    t.context.EFlags = 0x202; // IF, reserved flag
+    t.context.SegCs = user_CS;
+    t.context.SegSs = user_DS;
+    t.context.SegEs = user_DS;
+    t.context.SegFs = user_DS;
+    t.context.SegGs = user_DS;
+    t.context.SegSs = user_DS;
     t.kernel_mode = false;
 
     t.suspend_count = 1;

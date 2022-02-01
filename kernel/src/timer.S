@@ -95,7 +95,8 @@ scheduler_restore:
     movzx rax, WORD PTR gs:GS_CONTEXT + CONTEXT_SS
     push rax
     push gs:GS_CONTEXT + CONTEXT_RSP
-    push gs:GS_CONTEXT + CONTEXT_RFLAGS
+    mov eax, gs:GS_CONTEXT + CONTEXT_EFLAGS
+    push rax
     movzx rax, WORD PTR gs:GS_CONTEXT + CONTEXT_CS
     push rax
     push gs:GS_CONTEXT + CONTEXT_RIP
@@ -172,7 +173,8 @@ yield:
     mov gs:GS_CONTEXT + CONTEXT_R15, r15
     mov rax, [rsp+0x8]
     mov gs:GS_CONTEXT + CONTEXT_RIP, rax # rip of instruction after call
-    pop gs:GS_CONTEXT + CONTEXT_RFLAGS # RFLAGS
+    mov rax, [rsp] # RFLAGS
+    mov gs:GS_CONTEXT + CONTEXT_EFLAGS, eax
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_CS, cs
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_DS, ds
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_ES, es

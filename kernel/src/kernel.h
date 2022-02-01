@@ -15,7 +15,6 @@
 struct loader_block;
 class thread;
 class object;
-typedef struct _amd64_context amd64_context;
 struct cpu_block;
 struct list_entry;
 class unique_handle;
@@ -142,7 +141,7 @@ unique_handle add_kernel_thread(void (*func)());
 unique_handle add_kernel_thread(void (*func)(void*), void* param);
 unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);
 extern "C" void scheduler();
-std::span<char> sp_context(std::span<char>dest, const amd64_context& ctx);
+std::span<char> sp_context(std::span<char>dest, const CONTEXT& ctx);
 void wait_for_object(handle_t h);
 void wait_for_object(object& obj);
 bool init_cpu_block(bool handle_timers, unsigned int cpu_no);

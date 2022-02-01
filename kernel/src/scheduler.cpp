@@ -156,18 +156,18 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
     t.kernel_stack = stack;
 
     memset(&t.context, 0, sizeof(t.context));
-    t.context.rip = (uintptr_t)kernel_thread_start;
-    t.context.rcx = (uintptr_t)func;
-    t.context.rdx = (uintptr_t)param1;
-    t.context.r8 = (uintptr_t)param2;
-    t.context.rsp = (uintptr_t)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
-    t.context.rflags = 0x202; // IF, reserved flag
-    t.context.cs = kernel_CS;
-    t.context.ds = kernel_DS;
-    t.context.es = kernel_DS;
-    t.context.fs = kernel_DS;
-    t.context.gs = kernel_DS;
-    t.context.ss = kernel_DS;
+    t.context.Rip = (uintptr_t)kernel_thread_start;
+    t.context.Rcx = (uintptr_t)func;
+    t.context.Rdx = (uintptr_t)param1;
+    t.context.R8 = (uintptr_t)param2;
+    t.context.Rsp = (uintptr_t)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
+    t.context.EFlags = 0x202; // IF, reserved flag
+    t.context.SegCs = kernel_CS;
+    t.context.SegDs = kernel_DS;
+    t.context.SegEs = kernel_DS;
+    t.context.SegFs = kernel_DS;
+    t.context.SegGs = kernel_DS;
+    t.context.SegSs = kernel_DS;
     t.kernel_mode = true;
 
     t.status = thread_status::runnable;
@@ -249,7 +249,7 @@ void scheduler() {
 
         acquire_sync_lock();
 
-        memcpy(&cb->current_thread->context, &cb->thread_context, sizeof(amd64_context));
+        memcpy(&cb->current_thread->context, &cb->thread_context, sizeof(CONTEXT));
 
         if (cb->current_thread->status == thread_status::dead) {
             remove_entry_list(cb->current_thread->le);
@@ -278,7 +278,7 @@ void scheduler() {
         release_sync_lock();
 
         if (cb->current_thread) {
-            memcpy(&cb->thread_context, &cb->current_thread->context, sizeof(amd64_context));
+            memcpy(&cb->thread_context, &cb->current_thread->context, sizeof(CONTEXT));
             cb->time_slice_left = time_slice;
             __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
         }
@@ -287,73 +287,73 @@ void scheduler() {
     } while (true);
 }
 
-span<char> sp_context(span<char>dest, const amd64_context& ctx) {
+span<char> sp_context(span<char>dest, const CONTEXT_AMD64& ctx) {
     dest = sp_strcpy(dest, "rax=");
-    dest = sp_itoa_hex(dest, ctx.rax, 16);
+    dest = sp_itoa_hex(dest, ctx.Rax, 16);
     dest = sp_strcpy(dest, " rcx=");
-    dest = sp_itoa_hex(dest, ctx.rcx, 16);
+    dest = sp_itoa_hex(dest, ctx.Rcx, 16);
     dest = sp_strcpy(dest, " rdx=");
-    dest = sp_itoa_hex(dest, ctx.rdx, 16);
+    dest = sp_itoa_hex(dest, ctx.Rdx, 16);
     dest = sp_strcpy(dest, "\n");
 
     dest = sp_strcpy(dest, "rbx=");
-    dest = sp_itoa_hex(dest, ctx.rbx, 16);
+    dest = sp_itoa_hex(dest, ctx.Rbx, 16);
     dest = sp_strcpy(dest, " rsp=");
-    dest = sp_itoa_hex(dest, ctx.rsp, 16);
+    dest = sp_itoa_hex(dest, ctx.Rsp, 16);
     dest = sp_strcpy(dest, " rsi=");
-    dest = sp_itoa_hex(dest, ctx.rsi, 16);
+    dest = sp_itoa_hex(dest, ctx.Rsi, 16);
     dest = sp_strcpy(dest, "\n");
 
     dest = sp_strcpy(dest, "rbx=");
-    dest = sp_itoa_hex(dest, ctx.rbx, 16);
+    dest = sp_itoa_hex(dest, ctx.Rbx, 16);
     dest = sp_strcpy(dest, " rsp=");
-    dest = sp_itoa_hex(dest, ctx.rsp, 16);
+    dest = sp_itoa_hex(dest, ctx.Rsp, 16);
     dest = sp_strcpy(dest, " rsi=");
-    dest = sp_itoa_hex(dest, ctx.rsi, 16);
+    dest = sp_itoa_hex(dest, ctx.Rsi, 16);
     dest = sp_strcpy(dest, "\n");
 
     dest = sp_strcpy(dest, "rdi=");
-    dest = sp_itoa_hex(dest, ctx.rdi, 16);
+    dest = sp_itoa_hex(dest, ctx.Rdi, 16);
     dest = sp_strcpy(dest, "  r8=");
-    dest = sp_itoa_hex(dest, ctx.r8, 16);
+    dest = sp_itoa_hex(dest, ctx.R8, 16);
     dest = sp_strcpy(dest, "  r9=");
-    dest = sp_itoa_hex(dest, ctx.r9, 16);
+    dest = sp_itoa_hex(dest, ctx.R9, 16);
     dest = sp_strcpy(dest, "\n");
 
     dest = sp_strcpy(dest, "r10=");
-    dest = sp_itoa_hex(dest, ctx.r10, 16);
+    dest = sp_itoa_hex(dest, ctx.R10, 16);
     dest = sp_strcpy(dest, " r11=");
-    dest = sp_itoa_hex(dest, ctx.r11, 16);
+    dest = sp_itoa_hex(dest, ctx.R11, 16);
     dest = sp_strcpy(dest, " r12=");
-    dest = sp_itoa_hex(dest, ctx.r12, 16);
+    dest = sp_itoa_hex(dest, ctx.R12, 16);
     dest = sp_strcpy(dest, "\n");
 
     dest = sp_strcpy(dest, "r13=");
-    dest = sp_itoa_hex(dest, ctx.r13, 16);
+    dest = sp_itoa_hex(dest, ctx.R13, 16);
     dest = sp_strcpy(dest, " r14=");
-    dest = sp_itoa_hex(dest, ctx.r14, 16);
+    dest = sp_itoa_hex(dest, ctx.R14, 16);
     dest = sp_strcpy(dest, " r15=");
-    dest = sp_itoa_hex(dest, ctx.r15, 16);
+    dest = sp_itoa_hex(dest, ctx.R15, 16);
     dest = sp_strcpy(dest, "\n");
 
     dest = sp_strcpy(dest, "rip=");
-    dest = sp_itoa_hex(dest, ctx.rip, 16);
-    dest = sp_strcpy(dest, " rflags=");
-    dest = sp_itoa_hex(dest, ctx.rflags, 8);
+    dest = sp_itoa_hex(dest, ctx.Rip, 16);
+    dest = sp_strcpy(dest, " eflags=");
+    dest = sp_itoa_hex(dest, ctx.EFlags, 8);
     dest = sp_strcpy(dest, "\n");
 
     dest = sp_strcpy(dest, "cs=");
-    dest = sp_itoa_hex(dest, ctx.cs, 4);
+    dest = sp_itoa_hex(dest, ctx.SegCs, 4);
     dest = sp_strcpy(dest, " ds=");
-    dest = sp_itoa_hex(dest, ctx.ds, 4);
+    dest = sp_itoa_hex(dest, ctx.SegDs, 4);
     dest = sp_strcpy(dest, " es=");
-    dest = sp_itoa_hex(dest, ctx.es, 4);
+    dest = sp_itoa_hex(dest, ctx.SegEs, 4);
     dest = sp_strcpy(dest, " fs=");
-    dest = sp_itoa_hex(dest, ctx.fs, 4);
+    dest = sp_itoa_hex(dest, ctx.SegFs, 4);
     dest = sp_strcpy(dest, " gs=");
-    dest = sp_itoa_hex(dest, ctx.gs, 4);
+    dest = sp_itoa_hex(dest, ctx.SegGs, 4);
     dest = sp_strcpy(dest, " ss=");
-    dest = sp_itoa_hex(dest, ctx.ss, 4);
+    dest = sp_itoa_hex(dest, ctx.SegSs, 4);
     dest = sp_strcpy(dest, "\n");
 
     return dest;
