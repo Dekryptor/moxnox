@@ -12,7 +12,8 @@ set(SRC_FILES src/ntdll.cpp
     src/string.cpp
     src/mem.cpp
     src/heap.cpp
-    src/mem.S)
+    src/mem.S
+    src/except.cpp)
 
 add_library(ntdll SHARED ${SRC_FILES})
 

@@ -556,6 +556,17 @@ struct CONTEXT_AMD64 {
 
 using CONTEXT = CONTEXT_AMD64;
 
+static const unsigned int EXCEPTION_MAXIMUM_PARAMETERS = 15;
+
+struct EXCEPTION_RECORD {
+    uint32_t ExceptionCode;
+    uint32_t ExceptionFlags;
+    EXCEPTION_RECORD* ExceptionRecord;
+    void* ExceptionAddress;
+    uint32_t NumberParameters;
+    uintptr_t ExceptionInformation[EXCEPTION_MAXIMUM_PARAMETERS];
+};
+
 struct SECURITY_DESCRIPTOR;
 struct SECURITY_QUALITY_OF_SERVICE;
 
