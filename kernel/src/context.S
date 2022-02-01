@@ -23,9 +23,9 @@
     mov rax, [rsp+0x10]
     mov gs:GS_CONTEXT + CONTEXT_EFLAGS, eax # old RFLAGS
     mov rax, [rsp+0x8]
-    mov gs:GS_CONTEXT + CONTEXT_CS, rax # old cs
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_CS, ax # old cs
     mov rax, [rsp+0x20]
-    mov gs:GS_CONTEXT + CONTEXT_SS, rax # old ss
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_SS, ax # old ss
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_DS, ds
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_ES, es
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
@@ -57,9 +57,9 @@
     mov rax, [rsp+0x18]
     mov gs:GS_CONTEXT + CONTEXT_EFLAGS, eax # old RFLAGS
     mov rax, [rsp+0x10]
-    mov gs:GS_CONTEXT + CONTEXT_CS, rax # old cs
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_CS, ax # old cs
     mov rax, [rsp+0x28]
-    mov gs:GS_CONTEXT + CONTEXT_SS, rax # old ss
+    mov WORD PTR gs:GS_CONTEXT + CONTEXT_SS, ax # old ss
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_DS, ds
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_ES, es
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
