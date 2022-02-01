@@ -357,6 +357,7 @@ struct dirent {
     list_entry le;
     uint64_t inode;
     enum key_type type;
+    uint64_t index;
     uint8_t namelen;
     char name[1];
 };
@@ -408,6 +409,8 @@ public:
     std::optional<std::reference_wrapper<btrfs_inode>> open_inode(uint64_t subvol, uint64_t inode);
     unique_handle open(std::string_view fn) override;
     size_t read_extent(uint64_t address, uint64_t offset, uint64_t num_bytes, std::span<uint8_t> s);
+    NTSTATUS query_directory_dirent(const dirent& de, std::span<uint8_t> buf,
+                                    FILE_INFORMATION_CLASS file_information_class);
 
     superblock sb;
     bool valid = false;

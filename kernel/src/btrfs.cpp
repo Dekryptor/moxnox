@@ -505,7 +505,7 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
                 found_inode_item = true;
             break;
 
-            case key_type::DIR_ITEM: {
+            case key_type::DIR_INDEX: {
                 auto& di = *(dir_item*)data.data();
 
                 if (data.size() < offsetof(dir_item, name)) {
@@ -533,6 +533,7 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 
                 de.inode = di.k.obj_id;
                 de.type = di.k.obj_type;
+                de.index = k.offset;
                 de.namelen = (uint8_t)di.n;
                 memcpy(de.name, di.name, di.n);
 
@@ -1011,12 +1012,82 @@ size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
     return read;
 }
 
+NTSTATUS btrfs_filesystem::query_directory_dirent(const dirent& de, span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
+    switch (file_information_class) {
+        case FILE_INFORMATION_CLASS::DirectoryInformation: {
+            if (buf.size() < offsetof(FILE_DIRECTORY_INFORMATION, FileName))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto sv = string_view(de.name, de.namelen);
+            auto utf16len = utf8_to_utf16_len(sv);
+            auto len = offsetof(FILE_DIRECTORY_INFORMATION, FileName) + (utf16len * sizeof(char16_t));
+
+            if (buf.size() < len)
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
+
+            // FIXME - get info from inode
+
+            fdi.NextEntryOffset = 0;
+            fdi.FileIndex = 0;
+            fdi.CreationTime.QuadPart = 0; // FIXME
+            fdi.LastAccessTime.QuadPart = 0; // FIXME
+            fdi.LastWriteTime.QuadPart = 0; // FIXME
+            fdi.ChangeTime.QuadPart = 0; // FIXME
+            fdi.EndOfFile.QuadPart = 0; // FIXME
+            fdi.AllocationSize.QuadPart = 0; // FIXME
+            fdi.FileAttributes = 0; // FIXME
+            fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
+            utf8_to_utf16(span(fdi.FileName, utf16len), sv);
+
+            buf = buf.subspan(0, len);
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            print("btrfs_filesystem::query_directory_dirent: unhandled info class\n");
+            return nt_status::INVALID_INFO_CLASS;
+    }
+}
+
 NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                                       uint64_t& index) {
-    print("FIXME - btrfs_inode::query_directory\n");
-
     if (inode_type != btrfs_inode_type::directory)
         return nt_status::NOT_A_DIRECTORY;
 
-    return nt_status::NOT_SUPPORTED;
+    dirent* de = nullptr;
+
+    {
+        lock_guard lock(children_lock);
+
+        auto le = children.next;
+        while (le != &children) {
+            auto& de2 = containing_record<dirent>(le);
+
+            if (de2.index > index) {
+                auto delen = offsetof(dirent, name) + de2.namelen;
+                de = (dirent*)malloc(delen);
+                if (!de)
+                    return nt_status::INSUFFICIENT_RESOURCES;
+
+                memcpy(de, &de2, delen);
+
+                break;
+            }
+
+            le = le->next;
+        }
+    }
+
+    if (!de)
+        return nt_status::NO_MORE_FILES;
+
+    auto ret = fs.query_directory_dirent(*de, buf, file_information_class);
+
+    index = de->index;
+    free(de);
+
+    return ret;
 }

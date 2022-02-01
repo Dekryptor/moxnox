@@ -5,11 +5,14 @@
 enum class nt_status : uint32_t {
     SUCCESS = 0x00000000,
     PENDING = 0x00000103,
+    NO_MORE_FILES = 0x80000006,
     NOT_IMPLEMENTED = 0xc0000002,
+    INVALID_INFO_CLASS = 0xc0000003,
     ACCESS_VIOLATION = 0xc0000005,
     INVALID_HANDLE = 0xc0000008,
     INVALID_PARAMETER = 0xc000000d,
     NO_MEMORY = 0xc0000017,
+    BUFFER_TOO_SMALL = 0xc0000023,
     OBJECT_TYPE_MISMATCH = 0xc0000024,
     OBJECT_NAME_NOT_FOUND = 0xc0000034,
     OBJECT_PATH_NOT_FOUND = 0xc000003a,
@@ -575,6 +578,20 @@ enum class FILE_INFORMATION_CLASS {
     StorageReserveIdInformation,
     CaseSensitiveInformationForceAccessCheck,
     MaximumInformation
+};
+
+struct FILE_DIRECTORY_INFORMATION {
+    uint32_t NextEntryOffset;
+    uint32_t FileIndex;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER EndOfFile;
+    LARGE_INTEGER AllocationSize;
+    uint32_t FileAttributes;
+    uint32_t FileNameLength;
+    char16_t FileName[1];
 };
 
 extern "C" {
