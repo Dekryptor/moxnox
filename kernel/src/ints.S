@@ -138,3 +138,34 @@ spurious_isr:
 halt_isr:
     hlt
     jmp halt_isr
+
+.global divide_by_zero_isr
+divide_by_zero_isr:
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 0f
+    swapgs
+0:
+    load_kernel_cr3
+    save_context
+    sub rsp, 0x20
+    call divide_by_zero
+    add rsp, 0x20
+    load_process_cr3
+
+    mov r11, gs:GS_CONTEXT + CONTEXT_R11
+    mov r10, gs:GS_CONTEXT + CONTEXT_R10
+    mov r9, gs:GS_CONTEXT + CONTEXT_R9
+    mov r8, gs:GS_CONTEXT + CONTEXT_R8
+    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
+    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
+    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
+    mov QWORD PTR [rsp], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
+    mov QWORD PTR [rsp+0x18], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 1f
+    swapgs
+1:
+    iretq
