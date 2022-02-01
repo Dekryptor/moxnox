@@ -120,6 +120,18 @@ invalid_opcode_isr:
     add rsp, 0x20
     load_process_cr3
 
+    mov r11, gs:GS_CONTEXT + CONTEXT_R11
+    mov r10, gs:GS_CONTEXT + CONTEXT_R10
+    mov r9, gs:GS_CONTEXT + CONTEXT_R9
+    mov r8, gs:GS_CONTEXT + CONTEXT_R8
+    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
+    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
+    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
+    mov QWORD PTR [rsp], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
+    mov QWORD PTR [rsp+0x18], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+
     cmp QWORD PTR [rsp+0x8], 0x8
     je 1f
     swapgs
