@@ -485,7 +485,7 @@ struct XSAVE_FORMAT {
     uint8_t Reserved4[96];
 } __attribute__ ((aligned (16)));
 
-struct CONTEXT_AMD64 {
+struct AMD64_CONTEXT {
     uint64_t P1Home;
     uint64_t P2Home;
     uint64_t P3Home;
@@ -556,7 +556,14 @@ struct CONTEXT_AMD64 {
     uint64_t LastExceptionFromRip;
 } __attribute__ ((aligned (16)));
 
-using CONTEXT = CONTEXT_AMD64;
+using CONTEXT = AMD64_CONTEXT;
+
+static const uint32_t CONTEXT_AMD64 = 0x00100000;
+static const uint32_t CONTEXT_CONTROL = CONTEXT_AMD64 | 0x00000001;
+static const uint32_t CONTEXT_INTEGER = CONTEXT_AMD64 | 0x00000002;
+static const uint32_t CONTEXT_SEGMENTS = CONTEXT_AMD64 | 0x00000004;
+static const uint32_t CONTEXT_FLOATING_POINT = CONTEXT_AMD64 | 0x00000008;
+static const uint32_t CONTEXT_DEBUG_REGISTERS = CONTEXT_AMD64 | 0x00000010;
 
 static const unsigned int EXCEPTION_MAXIMUM_PARAMETERS = 15;
 
@@ -704,6 +711,52 @@ struct FILE_DIRECTORY_INFORMATION {
     char16_t FileName[1];
 };
 
+struct INITIAL_TEB {
+    void* OldStackBase;
+    void* OldStackLimit;
+    void* StackBase;
+    void* StackLimit;
+    void* StackAllocationBase;
+};
+
+static const ACCESS_MASK DELETE = 0x00010000;
+static const ACCESS_MASK READ_CONTROL = 0x00020000;
+static const ACCESS_MASK WRITE_DAC = 0x00040000;
+static const ACCESS_MASK WRITE_OWNER = 0x00080000;
+static const ACCESS_MASK STANDARD_RIGHTS_REQUIRED = DELETE | READ_CONTROL | WRITE_DAC | WRITE_OWNER;
+static const ACCESS_MASK SYNCHRONIZE = 0x00100000;
+static const ACCESS_MASK ACCESS_SYSTEM_SECURITY = 0x01000000;
+static const ACCESS_MASK MAXIMUM_ALLOWED = 0x02000000;
+static const ACCESS_MASK GENERIC_ALL = 0x10000000;
+static const ACCESS_MASK GENERIC_EXECUTE = 0x20000000;
+static const ACCESS_MASK GENERIC_WRITE = 0x40000000;
+static const ACCESS_MASK GENERIC_READ = 0x80000000;
+
+static const ACCESS_MASK THREAD_TERMINATE = 0x0001;
+static const ACCESS_MASK THREAD_SUSPEND_RESUME = 0x0002;
+static const ACCESS_MASK THREAD_ALERT = 0x0004;
+static const ACCESS_MASK THREAD_GET_CONTEXT = 0x0008;
+static const ACCESS_MASK THREAD_SET_CONTEXT = 0x0010;
+static const ACCESS_MASK THREAD_SET_INFORMATION = 0x0020;
+static const ACCESS_MASK THREAD_QUERY_INFORMATION = 0x0040;
+static const ACCESS_MASK THREAD_SET_THREAD_TOKEN = 0x0080;
+static const ACCESS_MASK THREAD_IMPERSONATE = 0x0100;
+static const ACCESS_MASK THREAD_DIRECT_IMPERSONATION = 0x0200;
+static const ACCESS_MASK THREAD_SET_LIMITED_INFORMATION = 0x0400;
+static const ACCESS_MASK THREAD_QUERY_LIMITED_INFORMATION = 0x0800;
+static const ACCESS_MASK THREAD_RESUME = 0x1000;
+static const ACCESS_MASK THREAD_RESERVED1 = 0x2000;
+static const ACCESS_MASK THREAD_RESERVED2 = 0x4000;
+static const ACCESS_MASK THREAD_RESERVED3 = 0x8000;
+
+static const ACCESS_MASK THREAD_ALL_ACCESS = THREAD_TERMINATE | THREAD_SUSPEND_RESUME | THREAD_ALERT |
+                                             THREAD_GET_CONTEXT | THREAD_SET_CONTEXT | THREAD_QUERY_INFORMATION |
+                                             THREAD_SET_INFORMATION | THREAD_SET_THREAD_TOKEN | THREAD_IMPERSONATE |
+                                             THREAD_DIRECT_IMPERSONATION | THREAD_SET_LIMITED_INFORMATION |
+                                             THREAD_QUERY_LIMITED_INFORMATION | THREAD_RESUME | THREAD_RESERVED1 |
+                                             THREAD_RESERVED2 | THREAD_RESERVED3 | DELETE | READ_CONTROL |
+                                             WRITE_DAC | WRITE_OWNER | SYNCHRONIZE;
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -742,5 +795,10 @@ NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE 
                               void* file_information, uint32_t length,
                               FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
                               const UNICODE_STRING* file_name, bool restart_scan);
+NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
+                        const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle,
+                        CLIENT_ID* client_id, const CONTEXT* thread_context,
+                        const INITIAL_TEB* initial_teb, bool create_suspended);
+NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count);
 
 };

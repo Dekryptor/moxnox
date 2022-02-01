@@ -260,7 +260,7 @@ span<char> sp_strcpy(span<char> dest, string_view src) {
     return dest.subspan(to_copy);
 }
 
-span<char> sp_context(span<char>dest, const CONTEXT_AMD64& ctx) {
+span<char> sp_context(span<char>dest, const AMD64_CONTEXT& ctx) {
     dest = sp_strcpy(dest, "rax=");
     dest = sp_itoa_hex(dest, ctx.Rax, 16);
     dest = sp_strcpy(dest, " rcx=");
