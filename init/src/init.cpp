@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <nt.h>
 #include <ntdll.h>
 #include <span>
@@ -97,6 +98,8 @@ static void process_line(string_view sv) {
 
     if (cmd == "ls")
         ls(param);
+    else if (cmd == "exit")
+        NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
     else {
         print(cmd); // FIXME - stderr
         print(": command not found\n");
@@ -142,10 +145,74 @@ static void process_lines() {
     }
 }
 
+static void thread_func() {
+    print("Hello from second thread\n");
+
+    // FIXME
+
+    while (1) { }
+}
+
+static void thread_test() {
+    NTSTATUS status;
+    HANDLE h;
+    CLIENT_ID client_id;
+    CONTEXT context;
+    INITIAL_TEB initial_teb;
+
+    memset(&initial_teb, 0, sizeof(initial_teb));
+
+    void* stack = nullptr;
+    size_t stack_size = 0x100000;
+
+    status = NtAllocateVirtualMemory(NtCurrentProcess(), &stack, 0, &stack_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned "); // FIXME - should be to stderr
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    initial_teb.OldStackBase = nullptr;
+    initial_teb.OldStackLimit = nullptr;
+    initial_teb.StackBase = (uint8_t*)stack + stack_size;
+    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
+    initial_teb.StackAllocationBase = stack;
+
+    memset(&context, 0, sizeof(context));
+    context.Rip = (uintptr_t)thread_func;
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
+    context.EFlags = 0x200;
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
+
+    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, NtCurrentProcess(), &client_id, &context,
+                            &initial_teb, true);
+
+    if (!success(status)) {
+        print("NtCreateThread returned "); // FIXME - should be to stderr
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    print("UniqueProcess = ");
+    print_hex((uintptr_t)client_id.UniqueProcess);
+    print(", UniqueThread = ");
+    print_hex((uintptr_t)client_id.UniqueThread);
+    print("\n");
+
+    NtResumeThread(h, nullptr);
+
+    NtClose(h);
+}
+
 extern "C"
 void startup() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
+
+    thread_test();
 
     while (true) {
         IO_STATUS_BLOCK iosb;
