@@ -650,6 +650,45 @@ void general_protection_fault(uint64_t error_code) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
 
+    if (current_thread && current_thread->proc && !current_thread->kernel_mode) {
+        auto& p = *current_thread->proc;
+
+        uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
+
+        if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
+            print("Unable to copy thread context to stack.\n");
+            current_thread->terminate();
+            return;
+        }
+
+        EXCEPTION_RECORD er;
+
+        er.ExceptionCode = (uint32_t)nt_status::ACCESS_VIOLATION; // sic
+        er.ExceptionFlags = 0;
+        er.ExceptionRecord = nullptr;
+        er.ExceptionAddress = (void*)cb.thread_context.Rip;
+        er.NumberParameters = 2;
+        er.ExceptionInformation[0] = 0;
+        er.ExceptionInformation[1] = 0xffffffffffffffff;
+
+        size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
+        uintptr_t us_er = us_context - er_size;
+
+        if (!p.copy_to((void*)us_er, &er, er_size)) {
+            print("Unable to copy exception record to stack.\n");
+            current_thread->terminate();
+            return;
+        }
+
+        cb.thread_context.Rip = p.ntdll_addr + mn_signal;
+        cb.thread_context.Rcx = us_er;
+        cb.thread_context.Rdx = us_context;
+        cb.thread_context.Rsp -= sizeof(CONTEXT);
+        cb.thread_context.Rsp -= er_size;
+
+        return;
+    }
+
     char s[1024];
     auto sp = span(s, sizeof(s));
 
