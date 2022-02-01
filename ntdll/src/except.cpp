@@ -25,6 +25,10 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
             sp = sp_strcpy(sp, "Divide by zero\n");
         break;
 
+        case nt_status::ILLEGAL_INSTRUCTION:
+            sp = sp_strcpy(sp, "Invalid opcode\n");
+        break;
+
         default:
             sp = sp_strcpy(sp, "Unhandled exception ");
             sp = sp_itoa_hex(sp, exception->ExceptionCode, 8);
