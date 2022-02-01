@@ -14,6 +14,8 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
 
 // string.cpp
 int toupper(int c);
+std::span<char> sp_strcpy(std::span<char> dest, std::string_view src);
+std::span<char> sp_context(std::span<char>dest, const CONTEXT_AMD64& ctx);
 
 struct ci_char_traits : public std::char_traits<char16_t> {
     static bool eq(char16_t c1, char16_t c2) {
@@ -61,7 +63,7 @@ using u16string_view_ci = std::basic_string_view<char16_t, ci_char_traits>;
 // string.cpp
 size_t utf8_to_utf16_len(std::string_view sv);
 void utf8_to_utf16(std::span<char16_t> buf, std::string_view sv);
-std::span<char> sp_itoa_hex(std::span<char> dest, uint64_t num, unsigned int padding);
+std::span<char> sp_itoa_hex(std::span<char> dest, uint64_t num, unsigned int padding = 0);
 
 // ntdll.cpp
 void print(std::string_view s);
