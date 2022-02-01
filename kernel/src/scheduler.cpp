@@ -300,43 +300,37 @@ span<char> sp_context(span<char>dest, const CONTEXT_AMD64& ctx) {
     dest = sp_itoa_hex(dest, ctx.Rbx, 16);
     dest = sp_strcpy(dest, " rsp=");
     dest = sp_itoa_hex(dest, ctx.Rsp, 16);
-    dest = sp_strcpy(dest, " rsi=");
-    dest = sp_itoa_hex(dest, ctx.Rsi, 16);
+    dest = sp_strcpy(dest, " rbp=");
+    dest = sp_itoa_hex(dest, ctx.Rbp, 16);
     dest = sp_strcpy(dest, "\n");
 
-    dest = sp_strcpy(dest, "rbx=");
-    dest = sp_itoa_hex(dest, ctx.Rbx, 16);
-    dest = sp_strcpy(dest, " rsp=");
-    dest = sp_itoa_hex(dest, ctx.Rsp, 16);
-    dest = sp_strcpy(dest, " rsi=");
+    dest = sp_strcpy(dest, "rsi=");
     dest = sp_itoa_hex(dest, ctx.Rsi, 16);
-    dest = sp_strcpy(dest, "\n");
-
-    dest = sp_strcpy(dest, "rdi=");
+    dest = sp_strcpy(dest, " rdi=");
     dest = sp_itoa_hex(dest, ctx.Rdi, 16);
     dest = sp_strcpy(dest, "  r8=");
     dest = sp_itoa_hex(dest, ctx.R8, 16);
-    dest = sp_strcpy(dest, "  r9=");
-    dest = sp_itoa_hex(dest, ctx.R9, 16);
     dest = sp_strcpy(dest, "\n");
 
-    dest = sp_strcpy(dest, "r10=");
+    dest = sp_strcpy(dest, " r9=");
+    dest = sp_itoa_hex(dest, ctx.R9, 16);
+    dest = sp_strcpy(dest, " r10=");
     dest = sp_itoa_hex(dest, ctx.R10, 16);
     dest = sp_strcpy(dest, " r11=");
     dest = sp_itoa_hex(dest, ctx.R11, 16);
-    dest = sp_strcpy(dest, " r12=");
-    dest = sp_itoa_hex(dest, ctx.R12, 16);
     dest = sp_strcpy(dest, "\n");
 
-    dest = sp_strcpy(dest, "r13=");
+    dest = sp_strcpy(dest, "r12=");
+    dest = sp_itoa_hex(dest, ctx.R12, 16);
+    dest = sp_strcpy(dest, " r13=");
     dest = sp_itoa_hex(dest, ctx.R13, 16);
     dest = sp_strcpy(dest, " r14=");
     dest = sp_itoa_hex(dest, ctx.R14, 16);
-    dest = sp_strcpy(dest, " r15=");
-    dest = sp_itoa_hex(dest, ctx.R15, 16);
     dest = sp_strcpy(dest, "\n");
 
-    dest = sp_strcpy(dest, "rip=");
+    dest = sp_strcpy(dest, "r15=");
+    dest = sp_itoa_hex(dest, ctx.R15, 16);
+    dest = sp_strcpy(dest, " rip=");
     dest = sp_itoa_hex(dest, ctx.Rip, 16);
     dest = sp_strcpy(dest, " eflags=");
     dest = sp_itoa_hex(dest, ctx.EFlags, 8);
