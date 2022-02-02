@@ -43,6 +43,9 @@ public:
                                  size_t& view_size, enum SECTION_INHERIT inherit_disposition,
                                  uint32_t allocation_type, uint32_t win32_protect);
     NTSTATUS unmap_view_of_section(void* base_address);
+    NTSTATUS create_thread(handle_t& thread_handle, ACCESS_MASK desired_access, const OBJECT_ATTRIBUTES* object_attributes,
+                           CLIENT_ID& client_id, const CONTEXT& thread_context, const INITIAL_TEB& initial_teb,
+                           bool create_suspended);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;

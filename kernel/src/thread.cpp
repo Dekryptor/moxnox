@@ -123,13 +123,53 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     return nt_status::SUCCESS;
 }
 
+NTSTATUS process::create_thread(handle_t& thread_handle, ACCESS_MASK desired_access,
+                                const OBJECT_ATTRIBUTES* object_attributes,
+                                CLIENT_ID& client_id, const CONTEXT& thread_context,
+                                const INITIAL_TEB& initial_teb, bool create_suspended) {
+    print("FIXME - process::create_thread\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
 NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
                         const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle,
                         CLIENT_ID* client_id, const CONTEXT* thread_context,
                         const INITIAL_TEB* initial_teb, bool create_suspended) {
-    print("FIXME - NtCreateThread\n");
+    process* p;
 
-    // FIXME
+    if (process_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
 
-    return nt_status::NOT_IMPLEMENTED;
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+    } else {
+        auto objrw = deref_handle(process_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&objrw->get());
+    }
+
+    auto ret = p->create_thread(*thread_handle, desired_access, object_attributes, *client_id,
+                                *thread_context, *initial_teb, create_suspended);
+
+    p->release();
+
+    return ret;
 }
