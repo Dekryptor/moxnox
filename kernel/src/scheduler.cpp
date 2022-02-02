@@ -21,65 +21,6 @@ static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
 volatile uint64_t sync_lock_val = 0;
 
-thread* get_current_thread() {
-    __asm __volatile("cli");
-    auto t = get_cpu_block()->current_thread;
-    __asm __volatile("sti");
-
-    return t;
-}
-
-void thread::terminate() {
-    unsigned int release_count = 0;
-
-    status = thread_status::dead;
-    signalled = true;
-
-    if (proc) {
-        bool last_thread;
-        size_t region_size = 0;
-
-        {
-            lock_guard lock(proc->threads_lock);
-
-            remove_entry_list(process_le);
-
-            last_thread = is_list_empty(proc->threads);
-        }
-
-        if (last_thread) {
-            proc->exit_status = exit_status;
-            proc->terminate();
-        } else {
-            proc->free_vm((void**)&teb, &region_size, MEM_RELEASE);
-            // FIXME - free userspace stack
-        }
-    }
-
-    __asm("cli");
-    acquire_sync_lock();
-
-    auto le = thread_list.next;
-
-    while (le != &thread_list) {
-        auto& t = containing_record<thread>(le);
-
-        if (t.status == thread_status::waiting && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
-            t.status = thread_status::runnable;
-            t.waiting_for = nullopt;
-            release_count++;
-        }
-
-        le = le->next;
-    }
-
-    for (unsigned int i = 0; i < release_count; i++) {
-        release();
-    }
-
-    yield(); // releases sync_lock
-}
-
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
 
@@ -353,25 +294,6 @@ span<char> sp_context(span<char>dest, const AMD64_CONTEXT& ctx) {
     return dest;
 }
 
-thread::~thread() {
-    if (kernel_stack) {
-        auto va = (uintptr_t)kernel_stack + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
-        for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-            auto pa = va_to_pa(va);
-
-            free_page(pa);
-            unmap_page(va);
-
-            va += PAGE_SIZE;
-        }
-
-        free_va((uintptr_t)kernel_stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-    }
-
-    if (proc)
-        proc->release();
-}
-
 void wait_for_object(object& obj) {
     auto current_thread = get_current_thread();
     optional<bool> sigopt;
@@ -480,45 +402,4 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
     );
 
     return true;
-}
-
-NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
-    thread* t;
-
-    if (thread_handle == NtCurrentThread()) {
-        t = get_current_thread();
-        t->acquire();
-    } else {
-        auto objrw = deref_handle(thread_handle);
-        if (!objrw)
-            return nt_status::INVALID_HANDLE;
-
-        auto& obj = objrw->get();
-
-        if (obj.type != object_type::thread) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
-            return nt_status::OBJECT_TYPE_MISMATCH;
-        }
-
-        // FIXME - check access rights
-
-        t = static_cast<thread*>(&objrw->get());
-    }
-
-    if (t != get_current_thread()) {
-        // FIXME
-        print("FIXME - terminating other threads\n");
-        t->release();
-        return nt_status::NOT_IMPLEMENTED;
-    }
-
-    t->exit_status = exit_status;
-
-    t->release();
-    t->terminate(); // doesn't return
-
-    return nt_status::SUCCESS;
 }

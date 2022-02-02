@@ -146,7 +146,6 @@ std::span<char> sp_context(std::span<char>dest, const CONTEXT& ctx);
 void wait_for_object(handle_t h);
 void wait_for_object(object& obj);
 bool init_cpu_block(bool handle_timers, unsigned int cpu_no);
-thread* get_current_thread();
 
 // handle.cpp
 handle_t add_kernel_handle(object& obj, uint32_t access_mask);
@@ -240,3 +239,6 @@ extern "C" void serial_isr();
 // mem.S
 extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
 extern "C" void init_pat();
+
+// thread.cpp
+thread* get_current_thread();
