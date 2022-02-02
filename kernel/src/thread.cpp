@@ -207,8 +207,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     // FIXME - copy client_id into TEB
 
     if (thread_handle) {
-        auto& t = *get_current_thread();
-        auto& p = *t.proc;
+        auto& p = *get_current_thread()->proc;
 
         auto h = p.add_handle(t, 0); // FIXME - access mask
 
