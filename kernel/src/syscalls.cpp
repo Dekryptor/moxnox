@@ -688,3 +688,59 @@ NTSTATUS user_NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROU
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtCreateThread(HANDLE* us_thread_handle, ACCESS_MASK desired_access,
+                             const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 4> args;
+    NTSTATUS status;
+    HANDLE h;
+    CLIENT_ID client_id;
+    CONTEXT thread_context;
+    INITIAL_TEB initial_teb;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto us_client_id = (CLIENT_ID*)args[0];
+    auto us_thread_context = (const CONTEXT*)args[1];
+    auto us_initial_teb = (const INITIAL_TEB*)args[2];
+    auto create_suspended = (bool)args[3];
+
+    if (!us_thread_handle || !us_client_id || !us_thread_context || !us_initial_teb)
+        return nt_status::INVALID_PARAMETER;
+
+    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    if (!copy_from_process(&thread_context, us_thread_context, sizeof(CONTEXT)))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (!copy_from_process(&initial_teb, us_initial_teb, sizeof(INITIAL_TEB)))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (object_attributes) {
+        status = copy_object_attributes(oa, us, object_attributes);
+        if (!success(status))
+            return status;
+    }
+
+    status = NtCreateThread(&h, desired_access, object_attributes ? &oa : nullptr, process_handle,
+                            &client_id, &thread_context, &initial_teb, create_suspended);
+
+    if (success(status)) {
+        if (!copy_to_process(us_thread_handle, &h, sizeof(HANDLE)))
+            status = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(us_client_id, &client_id, sizeof(CLIENT_ID)))
+            status = nt_status::ACCESS_VIOLATION;
+    }
+
+    if (object_attributes)
+        free_object_attributes(oa);
+
+    return status;
+}

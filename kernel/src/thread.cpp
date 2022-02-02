@@ -122,3 +122,14 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
+                        const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle,
+                        CLIENT_ID* client_id, const CONTEXT* thread_context,
+                        const INITIAL_TEB* initial_teb, bool create_suspended) {
+    print("FIXME - NtCreateThread\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
