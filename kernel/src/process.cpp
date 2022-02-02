@@ -6,8 +6,6 @@
 
 using namespace std;
 
-extern uint16_t last_tid; // FIXME
-
 static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
 static section* ntdll = nullptr;
@@ -133,8 +131,26 @@ unique_handle create_process(string_view fn, string_view curdir,
     // FIXME - give process a PID
     // FIXME - add process to list
 
-    if (!p.add_thread(p.ntdll_addr + mn_start_process, p.ntdll_addr, (uintptr_t)stackaddr + stack_size)) {
-        print("process::add_thread failed\n");
+    CONTEXT context;
+    CLIENT_ID client_id;
+    INITIAL_TEB initial_teb;
+
+    initial_teb.OldStackBase = nullptr;
+    initial_teb.OldStackLimit = nullptr;
+    initial_teb.StackBase = (uint8_t*)stackaddr + stack_size;
+    initial_teb.StackLimit = (uint8_t*)stackaddr + stack_size;
+    initial_teb.StackAllocationBase = stackaddr;
+
+    memset(&context, 0, sizeof(context));
+    context.Rip = p.ntdll_addr + mn_start_process;
+    context.Rcx = p.ntdll_addr;
+    context.Rsp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
+
+    auto status = p.create_thread(nullopt, 0, nullptr, client_id, context, initial_teb, true);
+    if (!success(status)) {
+        print("process::create_thread returned ");
+        print_hex((uint32_t)status);
+        print("\n");
         p.release();
         return {};
     }
@@ -340,83 +356,6 @@ bool process::populate_teb(thread& t) {
     }
 
     free_va(va, num_pages);
-
-    return true;
-}
-
-bool process::add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t stack) {
-    uint16_t tid;
-
-    auto tptr = new thread;
-    if (!tptr) {
-        print("new failed\n");
-        return false;
-    }
-
-    auto& t = *tptr;
-
-    // FIXME - spinlock for last_tid (or use atomics)
-    if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-        print("Thread limit reached.\n");
-        delete &t;
-        return false;
-    }
-
-    last_tid++;
-    tid = last_tid;
-
-    t.tid = tid;
-
-    t.teb = nullptr;
-    size_t teb_size = sizeof(TEB);
-
-    if (!success(allocate_vm((void**)&t.teb, 0, &teb_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
-        print("process::allocate_vm failed\n");
-        delete &t;
-        return false;
-    }
-
-    if (!populate_teb(t)) {
-        print("populate_teb failed\n");
-        delete &t;
-        return false;
-    }
-
-    memset(&t.context, 0, sizeof(t.context));
-    t.context.Rip = entry_point;
-    t.context.Rcx = param1;
-    t.context.Rsp = stack - 0x20; // 0x20 for MS ABI
-    t.context.EFlags = 0x202; // IF, reserved flag
-    t.context.SegCs = user_CS;
-    t.context.SegSs = user_DS;
-    t.context.SegEs = user_DS;
-    t.context.SegFs = user_DS;
-    t.context.SegGs = user_DS;
-    t.context.SegSs = user_DS;
-    t.kernel_mode = false;
-
-    t.suspend_count = 1;
-    t.status = thread_status::runnable;
-
-    t.kernel_stack = allocate_stack();
-    if (!t.kernel_stack)
-        return false;
-
-    t.syscall_stack = ((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT)) - 0x20; // 0x20 for MS ABI
-
-    t.proc = this;
-    this->acquire();
-
-    {
-        lock_guard lock(threads_lock);
-        insert_tail_list(this->threads, t.process_le);
-    }
-
-    {
-        sync_lock sl;
-        lock_guard lock(sl);
-        insert_tail_list(thread_list, t.le);
-    }
 
     return true;
 }

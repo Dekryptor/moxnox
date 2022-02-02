@@ -21,7 +21,6 @@ public:
     }
 
     uintptr_t map_section(section& sect, uintptr_t address);
-    bool add_thread(uintptr_t entry_point, uintptr_t param1, uintptr_t stack);
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
     bool allocate_cr3();
     bool allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh,

@@ -131,7 +131,6 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
                                 const INITIAL_TEB& initial_teb, bool create_suspended) {
     uint16_t tid;
 
-    // FIXME - merge process::add_thread into this
     // FIXME - desired_access
     // FIXME - object_attributes
 
