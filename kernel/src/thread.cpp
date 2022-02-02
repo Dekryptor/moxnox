@@ -4,6 +4,8 @@
 
 using namespace std;
 
+extern uint16_t last_tid; // FIXME
+
 thread* get_current_thread() {
     __asm __volatile("cli");
     auto t = get_cpu_block()->current_thread;
@@ -123,13 +125,101 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS process::create_thread(handle_t& thread_handle, ACCESS_MASK desired_access,
-                                const OBJECT_ATTRIBUTES* object_attributes,
-                                CLIENT_ID& client_id, const CONTEXT& thread_context,
+NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_handle, ACCESS_MASK,
+                                const OBJECT_ATTRIBUTES*, CLIENT_ID& client_id,
+                                const CONTEXT& thread_context,
                                 const INITIAL_TEB& initial_teb, bool create_suspended) {
-    print("FIXME - process::create_thread\n");
+    uint16_t tid;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - merge process::add_thread into this
+    // FIXME - desired_access
+    // FIXME - object_attributes
+
+    auto tptr = new thread;
+    if (!tptr)
+        return nt_status::INSUFFICIENT_RESOURCES;;
+
+    auto& t = *tptr;
+
+    // FIXME - spinlock for last_tid (or use atomics)
+    if (last_tid == 0xffff) { // FIXME - check for lowest unused number
+        print("Thread limit reached.\n");
+        delete &t;
+        return nt_status::INTERNAL_ERROR; // FIXME
+    }
+
+    last_tid++;
+    tid = last_tid;
+
+    t.tid = tid;
+
+    t.teb = nullptr;
+    size_t teb_size = sizeof(TEB);
+
+    if (!success(allocate_vm((void**)&t.teb, 0, &teb_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
+        delete &t;
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    if (!populate_teb(t)) {
+        delete &t;
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    memcpy(&t.context, &thread_context, sizeof(CONTEXT));
+    t.context.EFlags |= 0x202; // IF, reserved flag
+    t.context.SegCs = user_CS;
+    t.context.SegSs = user_DS;
+    t.context.SegEs = user_DS;
+    t.context.SegFs = user_DS;
+    t.context.SegGs = user_DS;
+    t.context.SegSs = user_DS;
+    t.kernel_mode = false;
+
+    t.suspend_count = create_suspended ? 1 : 0;
+    t.status = thread_status::runnable;
+
+    t.kernel_stack = allocate_stack();
+    if (!t.kernel_stack) {
+        delete &t;
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    t.syscall_stack = ((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT)) - 0x20; // 0x20 for MS ABI
+
+    t.proc = this;
+    this->acquire();
+
+    {
+        lock_guard lock(threads_lock);
+        insert_tail_list(this->threads, t.process_le);
+    }
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        insert_tail_list(thread_list, t.le);
+    }
+
+    client_id.UniqueProcess = 0; // FIXME - PID
+    client_id.UniqueThread = tid;
+
+    // FIXME - copy initial_teb into TEB
+    // FIXME - copy client_id into TEB
+
+    if (thread_handle) {
+        auto& t = *get_current_thread();
+        auto& p = *t.proc;
+
+        auto h = p.add_handle(t, 0); // FIXME - access mask
+
+        if (!h)
+            return nt_status::INTERNAL_ERROR;
+
+        thread_handle->get() = h;
+    }
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,

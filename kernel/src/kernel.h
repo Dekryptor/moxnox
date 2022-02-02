@@ -36,6 +36,9 @@ static const uint8_t spurious_interrupt = 0xff;
 
 static const uint64_t kernel_handle_mask = 0x8000000000000000;
 
+static const uint16_t user_CS = 0x3b;
+static const uint16_t user_DS = 0x33;
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }

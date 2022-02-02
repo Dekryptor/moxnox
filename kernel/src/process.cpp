@@ -8,9 +8,6 @@ using namespace std;
 
 extern uint16_t last_tid; // FIXME
 
-static const uint16_t user_CS = 0x3b;
-static const uint16_t user_DS = 0x33;
-
 static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
 static section* ntdll = nullptr;

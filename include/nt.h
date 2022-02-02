@@ -123,8 +123,8 @@ struct NT_TIB {
 };
 
 struct CLIENT_ID {
-    void* UniqueProcess;
-    void* UniqueThread;
+    HANDLE UniqueProcess;
+    HANDLE UniqueThread;
 };
 
 struct GDI_TEB_BATCH {
