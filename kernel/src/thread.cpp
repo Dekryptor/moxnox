@@ -262,3 +262,11 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
 
     return ret;
 }
+
+NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
+    print("FIXME - NtResumeThread\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

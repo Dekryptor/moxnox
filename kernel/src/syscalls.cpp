@@ -744,3 +744,22 @@ NTSTATUS user_NtCreateThread(HANDLE* us_thread_handle, ACCESS_MASK desired_acces
 
     return status;
 }
+
+extern "C"
+NTSTATUS user_NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
+    uint32_t count;
+
+    if (thread_handle & kernel_handle_mask && thread_handle != NtCurrentThread())
+        return nt_status::INVALID_HANDLE;
+
+    auto status = NtResumeThread(thread_handle, suspend_count ? &count : 0);
+
+    if (success(status)) {
+        if (suspend_count) {
+            if (!copy_to_process(suspend_count, &count, sizeof(uint32_t)))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    return status;
+}
