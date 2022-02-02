@@ -263,9 +263,47 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
 }
 
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
-    print("FIXME - NtResumeThread\n");
+    thread* t;
 
-    // FIXME
+    if (thread_handle == NtCurrentThread()) {
+        t = get_current_thread();
+        t->acquire();
+    } else {
+        auto objrw = deref_handle(thread_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
 
-    return nt_status::NOT_IMPLEMENTED;
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::thread) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        t = static_cast<thread*>(&objrw->get());
+    }
+
+    uint32_t count;
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        count = t->suspend_count;
+
+        if (count > 0)
+            t->suspend_count--;
+    }
+
+    if (suspend_count)
+        *suspend_count = count;
+
+    t->release();
+
+    return nt_status::SUCCESS;
 }
