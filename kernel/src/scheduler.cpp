@@ -415,8 +415,17 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
     return true;
 }
 
-NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE_INTEGER* time_out) {
-    print("FIXME - NtWaitForSingleObject\n");
+NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool, const LARGE_INTEGER*) {
+    // FIXME - alertable
+    // FIXME - time_out
 
-    return nt_status::NOT_IMPLEMENTED;
+    auto objrw = deref_handle(object_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    // FIXME - check handle has SYNCHRONIZE access
+
+    wait_for_object(objrw->get());
+
+    return nt_status::SUCCESS;
 }
