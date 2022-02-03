@@ -296,46 +296,49 @@ span<char> sp_context(span<char>dest, const AMD64_CONTEXT& ctx) {
 
 void wait_for_object(object& obj) {
     auto current_thread = get_current_thread();
-    optional<bool> sigopt;
 
     __asm("cli");
     acquire_sync_lock();
 
-    visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
-            sigopt = o.signalled;
-        else
-            o.release();
-    });
-
-    if (!sigopt.has_value()) {
-        release_sync_lock();
-        __asm("sti");
-        // FIXME - exception
-        print("Not a sync object\n");
-        return;
-    }
-
-    auto signalled = *sigopt;
-
-    if (signalled) {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (object_has_on_wake<remove_reference_t<decltype(o)>>)
-                o.on_wake();
-        });
-
-        release_sync_lock();
-        __asm("sti");
+    if (current_thread->status != thread_status::dead) {
+        optional<bool> sigopt;
 
         visit_obj(obj, [&](auto&& o) {
-            o.release();
+            if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
+                sigopt = o.signalled;
+            else
+                o.release();
         });
 
-        return;
-    }
+        if (!sigopt.has_value()) {
+            release_sync_lock();
+            __asm("sti");
+            // FIXME - exception
+            print("Not a sync object\n");
+            return;
+        }
 
-    current_thread->waiting_for = obj;
-    current_thread->status = thread_status::waiting;
+        auto signalled = *sigopt;
+
+        if (signalled) {
+            visit_obj(obj, [&](auto&& o) {
+                if constexpr (object_has_on_wake<remove_reference_t<decltype(o)>>)
+                    o.on_wake();
+            });
+
+            release_sync_lock();
+            __asm("sti");
+
+            visit_obj(obj, [&](auto&& o) {
+                o.release();
+            });
+
+            return;
+        }
+
+        current_thread->waiting_for = obj;
+        current_thread->status = thread_status::waiting;
+    }
 
     yield(); // releases sync_lock
 }

@@ -17,9 +17,6 @@ thread* get_current_thread() {
 void thread::terminate() {
     unsigned int release_count = 0;
 
-    status = thread_status::dead;
-    signalled = true;
-
     if (proc) {
         bool last_thread;
         size_t region_size = 0;
@@ -44,6 +41,9 @@ void thread::terminate() {
     __asm("cli");
     acquire_sync_lock();
 
+    status = thread_status::dead;
+    signalled = true;
+
     auto le = thread_list.next;
 
     while (le != &thread_list) {
@@ -60,6 +60,12 @@ void thread::terminate() {
 
     for (unsigned int i = 0; i < release_count; i++) {
         release();
+    }
+
+    if (this != get_current_thread()) {
+        release_sync_lock();
+        __asm("sti");
+        return;
     }
 
     yield(); // releases sync_lock
@@ -110,17 +116,24 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
         t = static_cast<thread*>(&objrw->get());
     }
 
-    if (t != get_current_thread()) {
-        // FIXME
-        print("FIXME - terminating other threads\n");
-        t->release();
-        return nt_status::NOT_IMPLEMENTED;
-    }
-
     t->exit_status = exit_status;
 
-    t->release();
-    t->terminate(); // doesn't return
+    if (t != get_current_thread()) {
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+
+            // FIXME - send IPI if currently running, to force it to yield
+
+            t->status = thread_status::dead;
+        }
+
+        t->terminate();
+        t->release();
+    } else {
+        t->release();
+        t->terminate(); // doesn't return
+    }
 
     return nt_status::SUCCESS;
 }
