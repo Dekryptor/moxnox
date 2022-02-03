@@ -605,7 +605,7 @@ void bsod(string_view msg) {
             continue;
 
         *icr2 = apic_ids[i] << 24;
-        *icr1 = 0x5000 | 0xfe;
+        *icr1 = 0x5000 | halt_interrupt;
 
         while (*icr1 & 0x1000) { }
     }
