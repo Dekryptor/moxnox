@@ -800,5 +800,6 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
                         CLIENT_ID* client_id, const CONTEXT* thread_context,
                         const INITIAL_TEB* initial_teb, bool create_suspended);
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count);
+NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE_INTEGER* time_out);
 
 };

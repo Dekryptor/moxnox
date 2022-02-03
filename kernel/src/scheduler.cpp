@@ -414,3 +414,9 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
 
     return true;
 }
+
+NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE_INTEGER* time_out) {
+    print("FIXME - NtWaitForSingleObject\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

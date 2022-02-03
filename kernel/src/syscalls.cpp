@@ -763,3 +763,19 @@ NTSTATUS user_NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
 
     return status;
 }
+
+extern "C"
+NTSTATUS user_NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE_INTEGER* us_time_out) {
+    LARGE_INTEGER time_out;
+
+    // FIXME - are NtCurrentProcess() or NtThreadProcess() valid values for object_handle?
+    if (object_handle & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (us_time_out) {
+        if (!copy_from_process(&time_out, us_time_out, sizeof(LARGE_INTEGER)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    return NtWaitForSingleObject(object_handle, alertable, us_time_out ? &time_out : nullptr);
+}
