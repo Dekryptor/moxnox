@@ -90,6 +90,49 @@ thread::~thread() {
         proc->release();
 }
 
+void thread::kill(NTSTATUS exit_status) {
+    this->exit_status = exit_status;
+
+    if (this != get_current_thread()) {
+        bool sent_ipi = false;
+
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+
+            if (status != thread_status::dead) {
+                status = thread_status::dead;
+
+                if (current_cpu != 0xffffffff) {
+                    // send IPI if currently running, to force it to yield
+
+                    auto icr1 = (volatile uint32_t*)&local_apic[0x300];
+                    auto icr2 = (volatile uint32_t*)&local_apic[0x310];
+
+                    *icr2 = current_cpu << 24;
+                    *icr1 = 0x5000 | yield_interrupt;
+
+                    while (*icr1 & 0x1000) { }
+
+                    sent_ipi = true;
+                }
+            }
+        }
+
+        if (sent_ipi) { // wait for it to die
+            while (true) {
+                sync_lock sl;
+                lock_guard lock(sl);
+
+                if (current_cpu == 0xffffffff)
+                    break;
+            }
+        }
+    }
+
+    terminate();
+}
+
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     thread* t;
 
@@ -116,50 +159,11 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
         t = static_cast<thread*>(&objrw->get());
     }
 
-    t->exit_status = exit_status;
-
-    if (t != get_current_thread()) {
-        bool sent_ipi = false;
-
-        {
-            sync_lock sl;
-            lock_guard lock(sl);
-
-            if (t->status != thread_status::dead) {
-                t->status = thread_status::dead;
-
-                if (t->current_cpu != 0xffffffff) {
-                    // send IPI if currently running, to force it to yield
-
-                    auto icr1 = (volatile uint32_t*)&local_apic[0x300];
-                    auto icr2 = (volatile uint32_t*)&local_apic[0x310];
-
-                    *icr2 = t->current_cpu << 24;
-                    *icr1 = 0x5000 | yield_interrupt;
-
-                    while (*icr1 & 0x1000) { }
-
-                    sent_ipi = true;
-                }
-            }
-        }
-
-        if (sent_ipi) { // wait for it to die
-            while (true) {
-                sync_lock sl;
-                lock_guard lock(sl);
-
-                if (t->current_cpu == 0xffffffff)
-                    break;
-            }
-        }
-
-        t->terminate();
+    if (t == get_current_thread())
         t->release();
-    } else {
-        t->release();
-        t->terminate(); // doesn't return
-    }
+
+    t->kill(exit_status); // if this thread, doesn't return
+    t->release();
 
     return nt_status::SUCCESS;
 }

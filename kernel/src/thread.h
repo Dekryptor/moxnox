@@ -56,6 +56,7 @@ public:
     }
 
     void terminate();
+    void kill(NTSTATUS exit_status);
 
     list_entry le;
     bool signalled = false;
