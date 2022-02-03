@@ -713,16 +713,37 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
         this_process = p == get_current_thread()->proc;
     }
 
-    if (!this_process) {
-        // FIXME
-        print("FIXME - terminating other processes\n");
-        p->release();
-        return nt_status::NOT_IMPLEMENTED;
+    auto t = get_current_thread();
+
+    while (true) {
+        thread* t2;
+
+        {
+            lock_guard lock(p->threads_lock);
+
+            if (is_list_empty(p->threads))
+                break;
+
+            t2 = (thread*)((uint8_t*)p->threads.next - offsetof(thread, process_le));
+
+            if (t2 == t) { // skip current thread
+                if (t2->process_le.next == &p->threads)
+                    break;
+
+                t2 = (thread*)((uint8_t*)t2->process_le.next - offsetof(thread, process_le));
+            }
+
+            t2->acquire();
+        }
+
+        t2->kill(exit_status);
+        t2->release();
     }
 
-    // FIXME - kill other threads
-
-    auto t = get_current_thread();
+    if (!this_process) {
+        p->release();
+        return nt_status::SUCCESS;
+    }
 
     t->exit_status = exit_status;
 
