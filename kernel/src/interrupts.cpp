@@ -275,6 +275,7 @@ static bool setup_idt() {
 
     add_idt_entry(halt_interrupt, (void*)halt_isr, false, 0);
     add_idt_entry(spurious_interrupt, (void*)spurious_isr, false, 0);
+    add_idt_entry(yield_interrupt, (void*)yield_isr, false, 0);
 
     struct {
         uint16_t limit;

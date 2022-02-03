@@ -183,44 +183,52 @@ static thread* pick_runnable_thread(thread* current) {
 
 extern "C"
 void scheduler() {
-    auto cb = get_cpu_block();
+    auto& cb = *get_cpu_block();
 
-    if (cb->current_thread) {
+    if (cb.current_thread) {
         bool dead = false;
 
         acquire_sync_lock();
 
-        memcpy(&cb->current_thread->context, &cb->thread_context, sizeof(CONTEXT));
+        memcpy(&cb.current_thread->context, &cb.thread_context, sizeof(CONTEXT));
+        cb.current_thread->current_cpu = 0xffffffff;
 
-        if (cb->current_thread->status == thread_status::dead) {
-            remove_entry_list(cb->current_thread->le);
+        if (cb.current_thread->status == thread_status::dead) {
+            remove_entry_list(cb.current_thread->le);
             dead = true;
-        } else if (cb->current_thread->status == thread_status::running)
-            cb->current_thread->status = thread_status::runnable;
+        } else if (cb.current_thread->status == thread_status::running)
+            cb.current_thread->status = thread_status::runnable;
         else
-            cb->current_thread = nullptr;
+            cb.current_thread = nullptr;
 
         release_sync_lock();
 
         if (dead) {
-            cb->current_thread->release();
-            cb->current_thread = nullptr;
+            cb.current_thread->release();
+            cb.current_thread = nullptr;
         }
     }
 
     do {
         acquire_sync_lock();
 
-        cb->current_thread = pick_runnable_thread(cb->current_thread);
+        if (cb.current_thread && cb.current_thread->status == thread_status::dead) {
+            cb.current_thread->release();
+            cb.current_thread = nullptr;
+        }
 
-        if (cb->current_thread)
-            cb->current_thread->status = thread_status::running;
+        cb.current_thread = pick_runnable_thread(cb.current_thread);
+
+        if (cb.current_thread) {
+            cb.current_thread->status = thread_status::running;
+            cb.current_thread->current_cpu = cb.cpu_no;
+        }
 
         release_sync_lock();
 
-        if (cb->current_thread) {
-            memcpy(&cb->thread_context, &cb->current_thread->context, sizeof(CONTEXT));
-            cb->time_slice_left = time_slice;
+        if (cb.current_thread) {
+            memcpy(&cb.thread_context, &cb.current_thread->context, sizeof(CONTEXT));
+            cb.time_slice_left = time_slice;
             __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
         }
 

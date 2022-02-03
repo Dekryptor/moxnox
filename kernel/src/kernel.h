@@ -33,6 +33,7 @@ static const unsigned int KERNEL_GUARD_PAGES = 1;
 
 static const uint8_t halt_interrupt = 0xfe;
 static const uint8_t spurious_interrupt = 0xff;
+static const uint8_t yield_interrupt = 0x30;
 
 static const uint64_t kernel_handle_mask = 0x8000000000000000;
 
@@ -125,6 +126,7 @@ extern "C" void invalid_opcode_isr();
 extern "C" void spurious_isr();
 extern "C" void halt_isr();
 extern "C" void divide_by_zero_isr();
+extern "C" void yield_isr();
 
 // timer.S
 extern "C" void timer_isr();

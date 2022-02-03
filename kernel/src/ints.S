@@ -193,3 +193,17 @@ divide_by_zero_isr:
     swapgs
 1:
     iretq
+
+.global yield_isr
+yield_isr:
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 0f
+    swapgs
+0:
+    push rax
+    xor rax, rax
+    mov DWORD PTR [0xfffffab0000000b0], eax # EOI
+    pop rax
+
+    mov rsp, gs:GS_SCHEDULER_STACK
+    jmp scheduler

@@ -75,6 +75,7 @@ public:
     list_entry process_le;
     std::atomic<unsigned int> suspend_count = 0;
     TEB* teb;
+    uint32_t current_cpu = 0xffffffff;
 };
 
 static_assert(is_sync_object<thread>);
