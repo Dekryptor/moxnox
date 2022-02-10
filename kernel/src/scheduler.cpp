@@ -110,6 +110,7 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
     t.context.SegGs = kernel_DS;
     t.context.SegSs = kernel_DS;
     t.kernel_mode = true;
+    t.teb = nullptr;
 
     t.status = thread_status::runnable;
 
