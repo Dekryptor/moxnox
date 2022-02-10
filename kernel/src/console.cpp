@@ -57,6 +57,14 @@ static bool fb_console_started = false;
 static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
 
+struct console_info {
+    enum console_colour bg;
+    enum console_colour fg;
+    char32_t c;
+};
+
+static console_info* console;
+
 size_t strlen(const char* s) {
     size_t i = 0;
 
@@ -176,6 +184,16 @@ static void fb_console_overflow() {
     memset(dest, 0, fb_pixels_per_scan_line * font_height * sizeof(uint32_t)); // black
 
     memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
+
+    memcpy(console, &console[fb_console_cols], (fb_console_rows - 1) * fb_console_cols * sizeof(console_info));
+
+    auto c = &console[(fb_console_rows - 1) * fb_console_cols];
+
+    for (unsigned int i = 0; i < fb_console_cols; i++) {
+        // FIXME - set fg and bg to current colour
+        c->c = 0;
+        c++;
+    }
 }
 
 static void print_char(char32_t c) {
@@ -189,6 +207,8 @@ static void print_char(char32_t c) {
         }
     } else {
         draw_ft_char(c, cursor_x * font_width, (cursor_y + 1) * font_height);
+
+        console[(cursor_y * fb_console_cols) + cursor_x].c = c;
 
         cursor_x++;
 
@@ -566,6 +586,18 @@ bool init_fb_console() {
     fb_console_rows = fb_height / font_height;
 
     cursor_x = cursor_y = 0;
+
+    console = (console_info*)malloc(fb_console_cols * fb_console_rows * sizeof(console_info));
+    if (!console) {
+        print("out of memory\n");
+        return false;
+    }
+
+    for (unsigned int i = 0; i < fb_console_cols * fb_console_rows; i++) {
+        console[i].bg = console_colour::black;
+        console[i].fg = console_colour::light_grey;
+        console[i].c = 0;
+    }
 
     if (!add_kernel_thread(console_event_recv)) {
         print("add_kernel_thread failed\n");
