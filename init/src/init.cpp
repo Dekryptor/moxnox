@@ -248,8 +248,26 @@ void startup() {
             free(buf);
         }
 
-        memcpy(buf2 + buflen, s, iosb.Information);
-        buflen += (unsigned int)iosb.Information;
+        for (unsigned int i = 0; i < iosb.Information; i++) {
+            if (s[i] == '\b') {
+                if (buflen >= 1 && !(buf2[buflen - 1] & 0x80))
+                    buflen--;
+                else if (buflen >= 2 && (buf2[buflen - 1] & 0xc0) == 0x80) {
+                    if ((buf2[buflen - 2] & 0xe0) == 0xc0)
+                        buflen -= 2;
+                    else if (buflen >= 3 && (buf2[buflen - 2] & 0xc0) == 0x80) {
+                        if ((buf2[buflen - 3] & 0xf0) == 0xe0)
+                            buflen -= 3;
+                        else if (buflen >= 4 && (buf2[buflen - 3] & 0xc0) == 0x80 && (buf2[buflen - 4] & 0xf8) == 0xf0)
+                            buflen -= 4;
+                    }
+                }
+            } else {
+                buf2[buflen] = s[i];
+                buflen++;
+            }
+        }
+
         buf = buf2;
 
         bool nl = false;
