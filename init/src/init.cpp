@@ -231,12 +231,6 @@ void startup() {
         if (iosb.Information == 0)
             continue;
 
-        auto sv = string_view(s, iosb.Information);
-
-        print(sv);
-
-        // FIXME - backspaces
-
         auto buf2 = (char*)malloc(buflen + iosb.Information);
         if (!buf2) {
             print("out of memory\n");
@@ -248,33 +242,41 @@ void startup() {
             free(buf);
         }
 
-        for (unsigned int i = 0; i < iosb.Information; i++) {
-            if (s[i] == '\b') {
-                if (buflen >= 1 && !(buf2[buflen - 1] & 0x80))
-                    buflen--;
-                else if (buflen >= 2 && (buf2[buflen - 1] & 0xc0) == 0x80) {
-                    if ((buf2[buflen - 2] & 0xe0) == 0xc0)
-                        buflen -= 2;
-                    else if (buflen >= 3 && (buf2[buflen - 2] & 0xc0) == 0x80) {
-                        if ((buf2[buflen - 3] & 0xf0) == 0xe0)
-                            buflen -= 3;
-                        else if (buflen >= 4 && (buf2[buflen - 3] & 0xc0) == 0x80 && (buf2[buflen - 4] & 0xf8) == 0xf0)
-                            buflen -= 4;
-                    }
-                }
-            } else {
-                buf2[buflen] = s[i];
-                buflen++;
-            }
-        }
-
         buf = buf2;
 
         bool nl = false;
-        for (auto c : sv) {
-            if (c == '\n') {
-                nl = true;
-                break;
+
+        for (unsigned int i = 0; i < iosb.Information; i++) {
+            if (s[i] == '\b') {
+                bool ignore_bs = true;
+
+                if (buflen >= 1 && !(buf[buflen - 1] & 0x80)) {
+                    buflen--;
+                    ignore_bs = false;
+                } else if (buflen >= 2 && (buf[buflen - 1] & 0xc0) == 0x80) {
+                    if ((buf[buflen - 2] & 0xe0) == 0xc0) {
+                        buflen -= 2;
+                        ignore_bs = false;
+                    } else if (buflen >= 3 && (buf[buflen - 2] & 0xc0) == 0x80) {
+                        if ((buf[buflen - 3] & 0xf0) == 0xe0) {
+                            buflen -= 3;
+                            ignore_bs = false;
+                        } else if (buflen >= 4 && (buf[buflen - 3] & 0xc0) == 0x80 && (buf[buflen - 4] & 0xf8) == 0xf0) {
+                            buflen -= 4;
+                            ignore_bs = false;
+                        }
+                    }
+                }
+
+                if (!ignore_bs)
+                    print(string_view(&s[i], 1));
+            } else {
+                if (s[i] == '\n')
+                    nl = true;
+
+                buf[buflen] = s[i];
+                buflen++;
+                print(string_view(&s[i], 1));
             }
         }
 
