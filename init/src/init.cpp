@@ -145,6 +145,7 @@ static void process_lines() {
     }
 }
 
+#if 0
 static void thread_func() {
     print("Hello from second thread\n");
 
@@ -206,13 +207,16 @@ static void thread_test() {
 
     NtClose(h);
 }
+#endif
 
 extern "C"
 void startup() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
-    thread_test();
+//     thread_test();
+
+    print("> ");
 
     while (true) {
         IO_STATUS_BLOCK iosb;
@@ -280,8 +284,10 @@ void startup() {
             }
         }
 
-        if (nl)
+        if (nl) {
             process_lines();
+            print("> ");
+        }
     }
 
     NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
