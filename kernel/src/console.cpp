@@ -196,8 +196,27 @@ static void fb_console_overflow() {
     }
 }
 
+static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h, uint32_t col) {
+    auto dest = shadow_framebuffer.data() + (fb_pixels_per_scan_line * y) + x;
+
+    for (unsigned int i = 0; i < h; i++) {
+        for (unsigned int j = 0; j < w; j++) {
+            *dest = col;
+            dest++;
+        }
+
+        dest += fb_pixels_per_scan_line - w;
+    }
+
+    blit(x, y, w, h);
+}
+
 static void print_char(char32_t c) {
     if (c == '\n') {
+        for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
+            console[(cursor_y * fb_console_cols) + i].c = 0;
+        }
+
         cursor_x = 0;
         cursor_y++;
 
@@ -205,6 +224,26 @@ static void print_char(char32_t c) {
             fb_console_overflow();
             cursor_y = fb_console_rows - 1;
         }
+    } else if (c == '\b') {
+        if (cursor_x == 0 && cursor_y == 0)
+            return;
+
+        if (cursor_x > 0)
+            cursor_x--;
+        else {
+            cursor_x = fb_console_cols - 1;
+            cursor_y--;
+
+            while (cursor_x > 0 && console[(cursor_y * fb_console_cols) + cursor_x].c == 0) {
+                cursor_x--;
+            }
+
+            if (cursor_x != fb_console_cols - 1)
+                cursor_x++;
+        }
+
+        console[(cursor_y * fb_console_cols) + cursor_x].c = 0;
+        rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, 0x000000);
     } else {
         draw_ft_char(c, cursor_x * font_width, (cursor_y + 1) * font_height);
 
