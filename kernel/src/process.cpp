@@ -16,13 +16,14 @@ static_assert(sizeof(TEB) == 0x1818);
 static_assert(sizeof(PEB) == 0x388);
 static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
-// FIXME - handle thread crashes
 // FIXME - 32-bit processes
 
 unique_handle create_process(string_view fn, string_view curdir,
                              optional<reference_wrapper<object>> stdinobj,
                              optional<reference_wrapper<object>> stdoutobj,
                              optional<reference_wrapper<object>> stderrobj) {
+    // FIXME - merge with NtCreateProcess
+
     auto img_file = open_inode(fn);
     if (!img_file) {
         print("open_inode failed\n");
@@ -2152,13 +2153,104 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
-                         const OBJECT_ATTRIBUTES* object_attributes, HANDLE parent_process,
-                         bool inherit_object_table, HANDLE section_handle,
-                         HANDLE debug_port, HANDLE exception_port) {
-    print("FIXME - NtCreateProcess\n");
+NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
+                         HANDLE, bool, HANDLE section_handle, HANDLE, HANDLE) {
+    optional<reference_wrapper<section>> sect;
 
-    // FIXME
+    // FIXME - desired_access
+    // FIXME - object_attributes
+    // FIXME - parent_process
+    // FIXME - inherit_object_table
+    // FIXME - debug_port
+    // FIXME - exception_port
 
-    return nt_status::NOT_IMPLEMENTED;
+    {
+        auto objrw = deref_handle(section_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        visit_obj(obj, [&](auto&& o) {
+            if constexpr (is_same_v<remove_reference_t<decltype(o)>, section>)
+                sect = o;
+        });
+
+        if (!sect) {
+            visit_obj(obj, [&](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+    }
+
+    auto& img = sect->get();
+
+    if (img.type != section_type::image) {
+        img.release();
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    auto pptr = new process;
+    if (!pptr) {
+        img.release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto& p = *pptr;
+
+    p.img = img;
+
+    auto img_base = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
+    if (!img_base) {
+        print("process::map_section failed\n");
+        p.release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    // FIXME - if ntdll would have collision, choose another address
+
+    p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base);
+    if (!p.ntdll_addr) {
+        print("process::map_section failed\n");
+        p.release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    // FIXME - map time page into process
+
+    if (!p.allocate_peb(img_base, 0, 0, 0, 0, "")) {
+        print("process::allocate_peb failed\n");
+        p.release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    if (!p.allocate_cr3()) {
+        print("process::allocate_cr3 failed\n");
+        p.release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    // FIXME - token for process
+
+    // FIXME - give process a PID
+    // FIXME - add process to list
+
+    p.suspend_count = 0;
+
+    auto& curproc = *get_current_thread()->proc;
+
+    auto h = curproc.add_handle(p, 0); // FIXME - access mask
+
+    if (!h) {
+        p.release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    p.release(); // add_handle increases refcount
+
+    *process_handle = h;
+
+    return nt_status::SUCCESS;
 }
