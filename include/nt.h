@@ -757,6 +757,10 @@ static const ACCESS_MASK THREAD_ALL_ACCESS = THREAD_TERMINATE | THREAD_SUSPEND_R
                                              THREAD_RESERVED2 | THREAD_RESERVED3 | DELETE | READ_CONTROL |
                                              WRITE_DAC | WRITE_OWNER | SYNCHRONIZE;
 
+static const uint32_t DUPLICATE_CLOSE_SOURCE = 0x00000001;
+static const uint32_t DUPLICATE_SAME_ACCESS = 0x00000002;
+static const uint32_t DUPLICATE_SAME_ATTRIBUTES = 0x00000004;
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -804,5 +808,8 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE
 NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access, const OBJECT_ATTRIBUTES* object_attributes,
                          HANDLE parent_process, bool inherit_object_table, HANDLE section_handle,
                          HANDLE debug_port, HANDLE exception_port);
+NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
+                           HANDLE* target_handle, ACCESS_MASK desired_access, uint32_t handle_attributes,
+                           uint32_t options);
 
 };

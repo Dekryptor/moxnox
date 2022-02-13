@@ -2254,3 +2254,13 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
+                           HANDLE* target_handle, ACCESS_MASK desired_access, uint32_t handle_attributes,
+                           uint32_t options) {
+    print("FIXME - NtDuplicateObject\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

@@ -832,3 +832,40 @@ NTSTATUS user_NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access
 
     return status;
 }
+
+extern "C"
+NTSTATUS user_NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
+                                HANDLE* target_handle) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 3> args;
+    NTSTATUS status;
+    HANDLE h;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto desired_access = (ACCESS_MASK)args[0];
+    auto handle_attributes = (uint32_t)args[1];
+    auto options = (uint32_t)args[2];
+
+    if (source_process_handle & kernel_handle_mask && source_process_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    if (source_handle & kernel_handle_mask && source_handle != NtCurrentProcess() && source_handle != NtCurrentThread())
+        return nt_status::INVALID_HANDLE;
+
+    if (target_process_handle & kernel_handle_mask && target_process_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    status = NtDuplicateObject(source_process_handle, source_handle, target_process_handle, target_handle ? &h : nullptr,
+                               desired_access, handle_attributes, options);
+
+    if (success(status)) {
+        if (target_handle) {
+            if (!copy_to_process(target_handle, &h, sizeof(HANDLE)))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    return status;
+}
