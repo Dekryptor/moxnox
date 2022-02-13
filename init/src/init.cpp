@@ -72,6 +72,120 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
+static void run_program(u16string_view fn) {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+    HANDLE file, sect, proc, thread;
+    IO_STATUS_BLOCK iosb;
+    CLIENT_ID client_id;
+    CONTEXT context;
+    INITIAL_TEB initial_teb;
+
+    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)malloc(us.Length);
+
+    if (!us.Buffer) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memcpy(us.Buffer, fn.data(), fn.size() * sizeof(char16_t));
+
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0, nullptr, 0);
+
+    free(us.Buffer);
+
+    if (!success(status)) {
+        print("NtCreateFile returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, file);
+
+    NtClose(file);
+
+    if (!success(status)) {
+        print("NtCreateSection returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    status = NtCreateProcess(&proc, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(), false, sect,
+                             0, 0);
+
+    NtClose(sect);
+
+    if (!success(status)) {
+        print("NtCreateProcess returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    memset(&initial_teb, 0, sizeof(initial_teb));
+
+    void* stack = nullptr;
+    size_t stack_size = 0x100000;
+
+    status = NtAllocateVirtualMemory(proc, &stack, 0, &stack_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    initial_teb.OldStackBase = nullptr;
+    initial_teb.OldStackLimit = nullptr;
+    initial_teb.StackBase = (uint8_t*)stack + stack_size;
+    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
+    initial_teb.StackAllocationBase = stack;
+
+    memset(&context, 0, sizeof(context));
+//     context.Rip = (uintptr_t)thread_func; // FIXME
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
+    context.EFlags = 0x200;
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
+
+    status = NtCreateThread(&thread, THREAD_ALL_ACCESS, nullptr, proc, &client_id, &context,
+                            &initial_teb, true);
+
+    if (!success(status)) {
+        print("NtCreateThread returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    NtResumeThread(thread, nullptr);
+
+    NtClose(thread);
+
+    status = NtWaitForSingleObject(proc, false, nullptr);
+
+    if (!success(status)) {
+        print("NtWaitForSingleObject returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    print("finished\n");
+
+    NtClose(proc);
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -100,6 +214,8 @@ static void process_line(string_view sv) {
         ls(param);
     else if (cmd == "exit")
         NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+    else if (cmd == "run")
+        run_program(u"\\run.exe");
     else {
         print(cmd); // FIXME - stderr
         print(": command not found\n");
