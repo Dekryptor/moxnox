@@ -779,3 +779,56 @@ NTSTATUS user_NtWaitForSingleObject(HANDLE object_handle, bool alertable, const 
 
     return NtWaitForSingleObject(object_handle, alertable, us_time_out ? &time_out : nullptr);
 }
+
+extern "C"
+NTSTATUS user_NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
+                              const OBJECT_ATTRIBUTES* object_attributes, HANDLE parent_process) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 4> args;
+    HANDLE h;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto inherit_object_table = (bool)args[0];
+    auto section_handle = (HANDLE)args[1];
+    auto debug_port = (HANDLE)args[2];
+    auto exception_port = (HANDLE)args[3];
+
+    if (!process_handle)
+        return nt_status::INVALID_PARAMETER;
+
+    if (parent_process & kernel_handle_mask && parent_process != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    if (section_handle & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (debug_port & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (exception_port & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (object_attributes) {
+        status = copy_object_attributes(oa, us, object_attributes);
+        if (!success(status))
+            return status;
+    }
+
+    status = NtCreateProcess(&h, desired_access, object_attributes ? &oa : nullptr, parent_process,
+                             inherit_object_table, section_handle, debug_port, exception_port);
+
+    if (success(status)) {
+        if (!copy_to_process(process_handle, &h, sizeof(HANDLE)))
+            status = nt_status::ACCESS_VIOLATION;
+    }
+
+    if (object_attributes)
+        free_object_attributes(oa);
+
+    return status;
+}

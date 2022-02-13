@@ -2151,3 +2151,14 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
+                         const OBJECT_ATTRIBUTES* object_attributes, HANDLE parent_process,
+                         bool inherit_object_table, HANDLE section_handle,
+                         HANDLE debug_port, HANDLE exception_port) {
+    print("FIXME - NtCreateProcess\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
