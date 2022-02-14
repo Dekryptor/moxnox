@@ -2256,13 +2256,101 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 }
 
 NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
-                           HANDLE* target_handle, ACCESS_MASK desired_access, uint32_t handle_attributes,
-                           uint32_t options) {
-    print("FIXME - NtDuplicateObject\n");
+                           HANDLE* target_handle, ACCESS_MASK, uint32_t, uint32_t) {
+    process* srcproc;
+    process* destproc;
 
-    // FIXME
+    // FIXME - desired_access
+    // FIXME - handle_attributes
+    // FIXME - options (DUPLICATE_SAME_ATTRIBUTES, DUPLICATE_SAME_ACCESS, DUPLICATE_CLOSE_SOURCE)
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (source_process_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        srcproc = t->proc;
+        srcproc->acquire();
+    } else {
+        auto objrw = deref_handle(source_process_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        srcproc = static_cast<process*>(&objrw->get());
+    }
+
+    if (target_process_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc) {
+            srcproc->release();
+            return nt_status::INVALID_PARAMETER;
+        }
+
+        destproc = t->proc;
+        destproc->acquire();
+    } else {
+        auto objrw = deref_handle(target_process_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            srcproc->release();
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        destproc = static_cast<process*>(&objrw->get());
+    }
+
+    // FIXME - source_handle of NtCurrentProcess() or NtCurrentThread() (what if source_process_handle points to different process?)
+
+    auto objrw = srcproc->deref_handle(source_handle);
+
+    if (!objrw) {
+        destproc->release();
+        srcproc->release();
+        return nt_status::INVALID_HANDLE;
+    }
+
+    auto& obj = objrw->get();
+
+    auto h = destproc->add_handle(obj, 0); // FIXME - access mask
+
+    if (!h) {
+        destproc->release();
+        srcproc->release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    if (target_handle)
+        *target_handle = h;
+
+    destproc->release();
+    srcproc->release();
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
