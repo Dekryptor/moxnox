@@ -2264,3 +2264,12 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
     return nt_status::NOT_IMPLEMENTED;
 }
+
+NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
+                             uint32_t* number_of_bytes_read) {
+    print("FIXME - NtReadVirtualMemory\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

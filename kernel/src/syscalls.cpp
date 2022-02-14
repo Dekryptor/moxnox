@@ -869,3 +869,49 @@ NTSTATUS user_NtDuplicateObject(HANDLE source_process_handle, HANDLE source_hand
 
     return status;
 }
+
+extern "C"
+NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+    NTSTATUS status;
+    void* buf;
+    uint32_t read;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto number_of_bytes_read = (uint32_t*)args[0];
+
+    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    if (!buffer)
+        return nt_status::INVALID_PARAMETER;
+
+    if (buffer_size > 0) {
+        buf = malloc(buffer_size);
+        if (!buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    status = NtReadVirtualMemory(process_handle, base_address, buffer_size > 0 ? buf : nullptr, buffer_size,
+                                 number_of_bytes_read ? &read : nullptr);
+
+    if (success(status)) {
+        if (buffer_size > 0) {
+            if (!copy_to_process(buffer, buf, buffer_size))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+
+        if (number_of_bytes_read) {
+            if (!copy_to_process(number_of_bytes_read, &read, sizeof(uint32_t)))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (buffer_size > 0)
+        free(buf);
+
+    return status;
+}

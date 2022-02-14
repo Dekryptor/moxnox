@@ -811,5 +811,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access, con
 NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
                            HANDLE* target_handle, ACCESS_MASK desired_access, uint32_t handle_attributes,
                            uint32_t options);
+NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
+                             uint32_t* number_of_bytes_read);
 
 };
