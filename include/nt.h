@@ -813,5 +813,7 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
                            uint32_t options);
 NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
                              uint32_t* number_of_bytes_read);
+NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
+                              uint32_t* number_of_bytes_written);
 
 };

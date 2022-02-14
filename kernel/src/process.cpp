@@ -2273,3 +2273,12 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
 
     return nt_status::NOT_IMPLEMENTED;
 }
+
+NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
+                              uint32_t* number_of_bytes_written) {
+    print("FIXME - NtWriteVirtualMemory\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

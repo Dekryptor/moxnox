@@ -190,7 +190,6 @@ syscall_stub "NtWaitHighEventPair"
 syscall_stub "NtWaitLowEventPair"
 syscall_stub "NtWriteFileGather"
 syscall_stub "NtWriteRequestData"
-syscall_stub "NtWriteVirtualMemory"
 syscall_stub "NtYieldExecution"
 
 .section .rdata

@@ -915,3 +915,49 @@ NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address, voi
 
     return status;
 }
+
+extern "C"
+NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+    NTSTATUS status;
+    void* buf;
+    uint32_t written;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto number_of_bytes_written = (uint32_t*)args[0];
+
+    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    if (!buffer)
+        return nt_status::INVALID_PARAMETER;
+
+    if (buffer_size > 0) {
+        buf = malloc(buffer_size);
+        if (!buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        if (!copy_from_process(buf, buffer, buffer_size)) {
+            free(buf);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    status = NtWriteVirtualMemory(process_handle, base_address, buffer_size > 0 ? buf : nullptr, buffer_size,
+                                  number_of_bytes_written ? &written : nullptr);
+
+    if (success(status)) {
+        if (number_of_bytes_written) {
+            if (!copy_to_process(number_of_bytes_written, &written, sizeof(uint32_t)))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (buffer_size > 0)
+        free(buf);
+
+    return status;
+}
