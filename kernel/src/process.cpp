@@ -2371,12 +2371,52 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* b
     return nt_status::NOT_IMPLEMENTED;
 }
 
-NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
-                                   void* process_information, uint32_t process_information_length,
-                                   uint32_t* return_length) {
-    print("FIXME - NtQueryInformationProcess\n");
+NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, span<uint8_t> buf,
+                             uint32_t* return_length) {
+    print("FIXME - process::query_info\n");
 
     // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
+                                   void* process_information, uint32_t process_information_length,
+                                   uint32_t* return_length) {
+    process* p;
+
+    if (process_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+    } else {
+        auto objrw = deref_handle(process_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw->get();
+
+        if (obj.type != object_type::process) {
+            visit_obj(obj, [](auto&& o) {
+                o.release();
+            });
+
+            return nt_status::OBJECT_TYPE_MISMATCH;
+        }
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&objrw->get());
+    }
+
+    auto ret = p->query_info(process_information_class, span((uint8_t*)process_information, process_information_length),
+                             return_length);
+
+    p->release();
+
+    return ret;
 }
