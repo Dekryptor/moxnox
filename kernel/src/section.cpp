@@ -828,11 +828,41 @@ NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
     return ret;
 }
 
-NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
-                        void* section_information, size_t section_information_length, size_t* return_length) {
-    print("FIXME - NtQuerySection\n");
+NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_class, span<uint8_t> buf,
+                             size_t* return_length) {
+    print("FIXME - section::query_info\n");
 
     // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
+                        void* section_information, size_t section_information_length, size_t* return_length) {
+    section* s;
+
+    auto objrw = deref_handle(section_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    auto& obj = objrw->get();
+
+    if (obj.type != object_type::section) {
+        visit_obj(obj, [](auto&& o) {
+            o.release();
+        });
+
+        return nt_status::OBJECT_TYPE_MISMATCH;
+    }
+
+    // FIXME - check access rights
+
+    s = static_cast<section*>(&objrw->get());
+
+    auto ret = s->query_info(section_information_class, span((uint8_t*)section_information, section_information_length),
+                             return_length);
+
+    s->release();
+
+    return ret;
 }

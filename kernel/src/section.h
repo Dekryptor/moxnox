@@ -30,6 +30,8 @@ public:
     uint64_t find_export(std::string_view name);
     NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
                      enum mapping_type& old_prot);
+    NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class, std::span<uint8_t> buf,
+                        size_t* return_length);
 
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;
