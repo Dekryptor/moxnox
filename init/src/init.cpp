@@ -85,6 +85,7 @@ static void run_program(u16string_view fn) {
     PROCESS_BASIC_INFORMATION pbi;
     PEB newpeb;
     RTL_USER_PROCESS_PARAMETERS params;
+    SECTION_IMAGE_INFORMATION sii;
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
@@ -124,6 +125,19 @@ static void run_program(u16string_view fn) {
         print("NtCreateSection returned ");
         print_hex((uint32_t)status, 8);
         print("\n");
+        return;
+    }
+
+    // get entry point
+
+    status = NtQuerySection(sect, SECTION_INFORMATION_CLASS::ImageInformation, &sii,
+                            sizeof(SECTION_IMAGE_INFORMATION), nullptr);
+
+    if (!success(status)) {
+        print("NtQuerySection returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(sect);
         return;
     }
 
@@ -272,7 +286,7 @@ static void run_program(u16string_view fn) {
     initial_teb.StackAllocationBase = stack;
 
     memset(&context, 0, sizeof(context));
-//     context.Rip = (uintptr_t)thread_func; // FIXME - get entry point
+    context.Rip = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
     context.EFlags = 0x200;
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
