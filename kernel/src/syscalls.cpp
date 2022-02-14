@@ -1009,3 +1009,51 @@ NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOC
 
     return status;
 }
+
+extern "C"
+NTSTATUS user_NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
+                             void* section_information, size_t section_information_length) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+    NTSTATUS status;
+    void* buf;
+    size_t retlen;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto return_length = (size_t*)args[0];
+
+    if (section_handle & kernel_handle_mask)
+        return nt_status::INVALID_HANDLE;
+
+    if (!section_information)
+        return nt_status::INVALID_PARAMETER;
+
+    if (section_information_length > 0) {
+        buf = malloc(section_information_length);
+        if (!buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    status = NtQuerySection(section_handle, section_information_class,
+                            section_information_length > 0 ? buf : nullptr,
+                            section_information_length, &retlen);
+
+    if (success(status)) {
+        if (retlen > 0) {
+            if (!copy_to_process(section_information, buf, retlen))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+
+        if (return_length) {
+            if (!copy_to_process(return_length, &retlen, sizeof(size_t)))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (section_information_length > 0)
+        free(buf);
+
+    return status;
+}

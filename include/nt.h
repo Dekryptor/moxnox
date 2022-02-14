@@ -849,6 +849,14 @@ struct PROCESS_BASIC_INFORMATION {
     uintptr_t InheritedFromUniqueProcessId;
 };
 
+enum class SECTION_INFORMATION_CLASS {
+    SectionBasicInformation,
+    SectionImageInformation,
+    SectionRelocationInformation,
+    SectionOriginalBaseInformation,
+    SectionInternalImageInformation
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -906,5 +914,7 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* b
 NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
                                    void* process_information, uint32_t process_information_length,
                                    uint32_t* return_length);
+NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
+                        void* section_information, size_t section_information_length, size_t* return_length);
 
 };

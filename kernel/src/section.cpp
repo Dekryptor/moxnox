@@ -827,3 +827,12 @@ NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
 
     return ret;
 }
+
+NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
+                        void* section_information, size_t section_information_length, size_t* return_length) {
+    print("FIXME - NtQuerySection\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
