@@ -81,6 +81,14 @@ static void run_program(u16string_view fn) {
     CLIENT_ID client_id;
     CONTEXT context;
     INITIAL_TEB initial_teb;
+    HANDLE stdinh = 0, stdouth = 0, stderrh = 0, curdirh = 0;
+    PROCESS_BASIC_INFORMATION pbi;
+    PEB newpeb;
+    RTL_USER_PROCESS_PARAMETERS params;
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+
+    // open file
 
     us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)malloc(us.Length);
@@ -106,6 +114,8 @@ static void run_program(u16string_view fn) {
         return;
     }
 
+    // create section
+
     status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, file);
 
     NtClose(file);
@@ -116,6 +126,8 @@ static void run_program(u16string_view fn) {
         print("\n");
         return;
     }
+
+    // create process
 
     status = NtCreateProcess(&proc, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(), false, sect,
                              0, 0);
@@ -128,6 +140,115 @@ static void run_program(u16string_view fn) {
         print("\n");
         return;
     }
+
+    // duplicate handles
+
+    if (peb->ProcessParameters->StandardInput) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardInput, proc,
+                                   &stdinh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
+    }
+
+    if (peb->ProcessParameters->StandardOutput) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardOutput, proc,
+                                   &stdouth, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
+    }
+
+    if (peb->ProcessParameters->StandardError) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardError, proc,
+                                   &stderrh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
+    }
+
+    if (peb->ProcessParameters->CurrentDirectory.Handle) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle, proc,
+                                   &curdirh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
+    }
+
+    // take copy of PEB
+
+    status = NtQueryInformationProcess(proc, PROCESSINFOCLASS::BasicInformation, &pbi, sizeof(pbi),
+                                       nullptr);
+    if (!success(status)) {
+        print("NtQueryInformationProcess returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    status = NtReadVirtualMemory(proc, pbi.PebBaseAddress, &newpeb, sizeof(PEB), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    // take copy of ProcessParameters
+
+    status = NtReadVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    // change handles
+
+    params.StandardInput = stdinh;
+    params.StandardOutput = stdouth;
+    params.StandardError = stderrh;
+    params.CurrentDirectory.Handle = curdirh;
+
+    // FIXME - copy current directory string
+    // FIXME - environment variables
+
+    // write ProcessParameters back
+
+    status = NtWriteVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    // create thread
 
     memset(&initial_teb, 0, sizeof(initial_teb));
 
@@ -151,7 +272,7 @@ static void run_program(u16string_view fn) {
     initial_teb.StackAllocationBase = stack;
 
     memset(&context, 0, sizeof(context));
-//     context.Rip = (uintptr_t)thread_func; // FIXME
+//     context.Rip = (uintptr_t)thread_func; // FIXME - get entry point
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
     context.EFlags = 0x200;
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
