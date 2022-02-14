@@ -2455,11 +2455,59 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
 
 NTSTATUS process::write_vm(void* base_address, void* buffer, uint32_t buffer_size,
                            uint32_t* number_of_bytes_written) {
-    print("FIXME - process::write_vm\n");
+    uint32_t copied = 0;
 
-    // FIXME
+    while (true) {
+        lock_guard lock(mappings_lock);
+        bool found = false;
 
-    return nt_status::NOT_IMPLEMENTED;
+        auto le = mappings.next;
+        while (le != &mappings) {
+            auto& m = containing_record<mapping>(le);
+
+            if (m.address <= (uintptr_t)base_address && m.address + m.size > (uintptr_t)base_address) {
+                auto to_copy = min(buffer_size, (uint32_t)(m.address + m.size - (uintptr_t)base_address));
+
+                switch (m.type) {
+                    case proc_map_type::section:
+                        if (!static_cast<mapping_section&>(m).sect.copy_to((uint32_t)((uintptr_t)base_address - m.address), buffer, (uint32_t)to_copy))
+                            return nt_status::INTERNAL_ERROR;
+                        break;
+
+                    case proc_map_type::vm:
+                        if (!static_cast<mapping_vm&>(m).copy_to((uint32_t)((uintptr_t)base_address - m.address), buffer, (uint32_t)to_copy))
+                            return nt_status::INTERNAL_ERROR;
+                        break;
+                }
+
+                copied += to_copy;
+
+                if (buffer_size == to_copy)
+                    goto end;
+
+                base_address = (uint8_t*)base_address + to_copy;
+                buffer = (uint8_t*)buffer + to_copy;
+                buffer_size -= to_copy;
+                found = true;
+
+                break;
+            }
+
+            le = le->next;
+        }
+
+        if (!found)
+            break;
+    }
+
+end:
+    if (copied == 0)
+        return nt_status::NO_MEMORY;
+
+    if (number_of_bytes_written)
+        *number_of_bytes_written = copied;
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
