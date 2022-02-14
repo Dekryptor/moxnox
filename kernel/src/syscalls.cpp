@@ -961,3 +961,51 @@ NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address, vo
 
     return status;
 }
+
+extern "C"
+NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
+                                        void* process_information, uint32_t process_information_length) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+    NTSTATUS status;
+    void* buf;
+    uint32_t retlen;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto return_length = (uint32_t*)args[0];
+
+    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
+        return nt_status::INVALID_HANDLE;
+
+    if (!process_information)
+        return nt_status::INVALID_PARAMETER;
+
+    if (process_information_length > 0) {
+        buf = malloc(process_information_length);
+        if (!buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    status = NtQueryInformationProcess(process_handle, process_information_class,
+                                       process_information_length > 0 ? buf : nullptr,
+                                       process_information_length, &retlen);
+
+    if (success(status)) {
+        if (retlen > 0) {
+            if (!copy_to_process(process_information, buf, retlen))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+
+        if (return_length) {
+            if (!copy_to_process(return_length, &retlen, sizeof(uint32_t)))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (process_information_length > 0)
+        free(buf);
+
+    return status;
+}

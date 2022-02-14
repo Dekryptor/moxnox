@@ -2282,3 +2282,13 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* b
 
     return nt_status::NOT_IMPLEMENTED;
 }
+
+NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
+                                   void* process_information, uint32_t process_information_length,
+                                   uint32_t* return_length) {
+    print("FIXME - NtQueryInformationProcess\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
