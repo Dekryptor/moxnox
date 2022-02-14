@@ -850,11 +850,45 @@ struct PROCESS_BASIC_INFORMATION {
 };
 
 enum class SECTION_INFORMATION_CLASS {
-    SectionBasicInformation,
-    SectionImageInformation,
-    SectionRelocationInformation,
-    SectionOriginalBaseInformation,
-    SectionInternalImageInformation
+    BasicInformation,
+    ImageInformation,
+    RelocationInformation,
+    OriginalBaseInformation,
+    InternalImageInformation
+};
+
+struct SECTION_IMAGE_INFORMATION {
+    void* TransferAddress;
+    uint32_t ZeroBits;
+    size_t MaximumStackSize;
+    size_t CommittedStackSize;
+    uint32_t SubSystemType;
+    union {
+        struct {
+            uint16_t SubSystemMinorVersion;
+            uint16_t SubSystemMajorVersion;
+        };
+        uint32_t SubSystemVersion;
+    };
+    uint32_t GpValue;
+    uint16_t ImageCharacteristics;
+    uint16_t DllCharacteristics;
+    uint16_t Machine;
+    bool ImageContainsCode;
+    union {
+        uint8_t ImageFlags;
+        struct {
+            uint8_t ComPlusNativeReady : 1;
+            uint8_t ComPlusILOnly : 1;
+            uint8_t ImageDynamicallyRelocated : 1;
+            uint8_t ImageMappedFlat : 1;
+            uint8_t BaseBelow4gb : 1;
+            uint8_t Reserved : 3;
+        };
+    };
+    uint32_t LoaderFlags;
+    uint32_t ImageFileSize;
+    uint32_t CheckSum;
 };
 
 extern "C" {

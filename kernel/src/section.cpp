@@ -241,6 +241,7 @@ bool section::load_image() {
             size_of_headers = nt_header.OptionalHeader64.SizeOfHeaders;
             preferred_base = nt_header.OptionalHeader64.ImageBase;
             stack_size = nt_header.OptionalHeader64.SizeOfStackReserve;
+            entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
         } else {
             if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
                 print("SizeOfOptionalHeader was smaller than expected\n");
@@ -251,6 +252,7 @@ bool section::load_image() {
             size_of_headers = nt_header.OptionalHeader32.SizeOfHeaders;
             preferred_base = nt_header.OptionalHeader32.ImageBase;
             stack_size = nt_header.OptionalHeader32.SizeOfStackReserve;
+            entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
         }
 
         if (size == 0) {
@@ -830,11 +832,45 @@ NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
 
 NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_class, span<uint8_t> buf,
                              size_t* return_length) {
-    print("FIXME - section::query_info\n");
+    switch (section_information_class) {
+        case SECTION_INFORMATION_CLASS::ImageInformation: {
+            if (buf.size() < sizeof(SECTION_IMAGE_INFORMATION))
+                return nt_status::INFO_LENGTH_MISMATCH;
 
-    // FIXME
+            if (type != section_type::image)
+                return nt_status::INVALID_PARAMETER;
 
-    return nt_status::NOT_IMPLEMENTED;
+            auto& sii = *(SECTION_IMAGE_INFORMATION*)buf.data();
+
+            sii.TransferAddress = (void*)(preferred_base + entry_point);
+            sii.ZeroBits = 0; // FIXME
+            sii.MaximumStackSize = 0; // FIXME
+            sii.CommittedStackSize = 0; // FIXME
+            sii.SubSystemType = 0; // FIXME
+            sii.SubSystemMinorVersion = 0; // FIXME
+            sii.SubSystemMajorVersion = 0; // FIXME
+            sii.GpValue = 0; // FIXME
+            sii.ImageCharacteristics = 0; // FIXME
+            sii.DllCharacteristics = 0; // FIXME
+            sii.Machine = 0; // FIXME
+            sii.ImageContainsCode = false; // FIXME
+            sii.ImageFlags = 0; // FIXME
+            sii.LoaderFlags = 0; // FIXME
+            sii.ImageFileSize = 0; // FIXME
+            sii.CheckSum = 0; // FIXME
+
+            if (return_length)
+                *return_length = sizeof(SECTION_IMAGE_INFORMATION);
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            print("section::query_info: unhandled info class ");
+            print_hex((unsigned int)section_information_class);
+            print("\n");
+            return nt_status::INVALID_INFO_CLASS;
+    }
 }
 
 NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,

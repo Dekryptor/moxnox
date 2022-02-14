@@ -38,7 +38,7 @@ public:
     uint32_t size;
     uint32_t num_pages;
     page_info* pages = nullptr;
-    uintptr_t preferred_base;
+    uintptr_t preferred_base, entry_point;
     uint64_t stack_size;
     spinlock alloc_lock;
 };
