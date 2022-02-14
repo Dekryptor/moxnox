@@ -2338,6 +2338,10 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
     auto h = destproc->add_handle(obj, 0); // FIXME - access mask
 
+    visit_obj(obj, [](auto&& o) { // deref_handle increased refcount
+        o.release();
+    });
+
     if (!h) {
         destproc->release();
         srcproc->release();
