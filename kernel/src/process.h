@@ -48,6 +48,8 @@ public:
                            bool create_suspended);
     NTSTATUS query_info(enum PROCESSINFOCLASS process_information_class, std::span<uint8_t> buf,
                         uint32_t* return_length);
+    NTSTATUS read_vm(void* base_address, void* buffer, uint32_t buffer_size,
+                     uint32_t* number_of_bytes_read);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
