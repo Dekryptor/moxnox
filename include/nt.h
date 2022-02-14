@@ -8,6 +8,7 @@ enum class nt_status : uint32_t {
     NO_MORE_FILES = 0x80000006,
     NOT_IMPLEMENTED = 0xc0000002,
     INVALID_INFO_CLASS = 0xc0000003,
+    INFO_LENGTH_MISMATCH = 0xc0000004,
     ACCESS_VIOLATION = 0xc0000005,
     INVALID_HANDLE = 0xc0000008,
     INVALID_PARAMETER = 0xc000000d,
@@ -40,6 +41,7 @@ using PVOID = void*;
 using ULONG_PTR = uintptr_t;
 using LONGLONG = int64_t;
 using ACCESS_MASK = uint32_t;
+using KPRIORITY = int32_t;
 
 static consteval HANDLE NtCurrentProcess() {
     return (HANDLE)-1;
@@ -836,6 +838,15 @@ enum class PROCESSINFOCLASS {
     SubsystemInformation = 75,
     Win32kSyscallFilterInformation = 79,
     EnergyTrackingState = 82
+};
+
+struct PROCESS_BASIC_INFORMATION {
+    NTSTATUS ExitStatus;
+    PEB* PebBaseAddress;
+    uintptr_t AffinityMask;
+    KPRIORITY BasePriority;
+    uintptr_t UniqueProcessId;
+    uintptr_t InheritedFromUniqueProcessId;
 };
 
 extern "C" {

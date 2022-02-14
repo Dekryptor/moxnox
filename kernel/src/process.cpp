@@ -2373,11 +2373,32 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* b
 
 NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
-    print("FIXME - process::query_info\n");
+    switch (process_information_class) {
+        case PROCESSINFOCLASS::BasicInformation: {
+            if (buf.size() < sizeof(PROCESS_BASIC_INFORMATION))
+                return nt_status::INFO_LENGTH_MISMATCH;
 
-    // FIXME
+            auto& pbi = *(PROCESS_BASIC_INFORMATION*)buf.data();
 
-    return nt_status::NOT_IMPLEMENTED;
+            pbi.ExitStatus = exit_status;
+            pbi.PebBaseAddress = peb;
+            pbi.AffinityMask = 0xffffffff; // FIXME
+            pbi.BasePriority = 0; // FIXME
+            pbi.UniqueProcessId = 0; // FIXME - PID
+            pbi.InheritedFromUniqueProcessId = 0; // FIXME
+
+            if (return_length)
+                *return_length = sizeof(PROCESS_BASIC_INFORMATION);
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            print("process::query_info: unhandled info class ");
+            print_hex((unsigned int)process_information_class);
+            print("\n");
+            return nt_status::INVALID_INFO_CLASS;
+    }
 }
 
 NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
