@@ -585,8 +585,7 @@ bool init_memory(const loader_block& lb) {
     return true;
 }
 
-extern "C"
-void* malloc(size_t size) {
+static void* malloc_aligned(size_t size, size_t align) {
     // round to multiple of 4
     if (size & 3)
         size = ((size >> 2) + 1) << 2;
@@ -614,12 +613,14 @@ void* malloc(size_t size) {
                     h = last;
                 }
 
-                if (h->size == size) {
+                auto ptr = (uint8_t*)h + sizeof(alloc_header);
+
+                if (h->size == size && !((uintptr_t)ptr & (align - 1))) {
                     h->free = 0;
-                    return (uint8_t*)h + sizeof(alloc_header);
+                    return ptr;
                 }
 
-                if (h->size > size) {
+                if (h->size > size && !((uintptr_t)ptr & (align - 1))) {
                     auto nh = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + size);
 
                     if (nh < (void*)(heap_block | (heap_pages << PAGE_SHIFT))) {
@@ -635,7 +636,41 @@ void* malloc(size_t size) {
 #pragma GCC diagnostic ignored "-Wconversion"
                     h->size = size;
 #pragma GCC diagnostic pop
-                    return (uint8_t*)h + sizeof(alloc_header);
+                    return ptr;
+                }
+
+                if (align != 1) {
+                    auto padding = ((uintptr_t)ptr & ~(align - 1)) + align - (uintptr_t)ptr;
+
+                    if (h->size >= size + padding) {
+                        auto h_size = h->size;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                        h->size = padding - sizeof(alloc_header);
+#pragma GCC diagnostic pop
+
+                        h = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + h->size);
+                        ptr = (uint8_t*)h + sizeof(alloc_header);
+
+                        h->free = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                        h->size = size;
+#pragma GCC diagnostic pop
+
+                        auto nh = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + size);
+
+                        if (nh < (void*)(heap_block | (heap_pages << PAGE_SHIFT))) {
+                            nh->free = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                            nh->size = h_size - size - sizeof(alloc_header) - padding;
+#pragma GCC diagnostic pop
+                        }
+
+                        return ptr;
+                    }
                 }
             }
 
@@ -649,7 +684,7 @@ void* malloc(size_t size) {
 
     // allocate new pages
 
-    unsigned int new_pages = bytes_to_pages(sizeof(alloc_header) + size);
+    unsigned int new_pages = bytes_to_pages(sizeof(alloc_header) + size + align - 1);
 
     for (unsigned int i = 0; i < new_pages; i++) {
         // FIXME - die if heap_pages too large for virtual address
@@ -680,6 +715,20 @@ void* malloc(size_t size) {
     }
 
     auto ptr = (uint8_t*)ah + sizeof(alloc_header);
+
+    if ((uintptr_t)ptr & (align - 1)) {
+        auto padding = ((uintptr_t)ptr & ~(align - 1)) + align - (uintptr_t)ptr;
+
+        ah->free = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        ah->size = padding - sizeof(alloc_header);
+#pragma GCC diagnostic pop
+
+        ah = (alloc_header*)((uint8_t*)ah + sizeof(alloc_header) + ah->size);
+        ptr = (uint8_t*)ah + sizeof(alloc_header);
+    }
+
     ah->free = 0;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -700,6 +749,11 @@ void* malloc(size_t size) {
 }
 
 extern "C"
+void* malloc(size_t size) {
+    return malloc_aligned(size, 1);
+}
+
+extern "C"
 void free(void* ptr) {
     auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
 
@@ -707,7 +761,11 @@ void free(void* ptr) {
 }
 
 void* operator new(size_t count) noexcept {
-    return malloc(count);
+    return malloc_aligned(count, 1);
+}
+
+void* operator new(size_t count, align_val_t al) noexcept {
+    return malloc_aligned(count, (size_t)al);
 }
 
 void operator delete(void* ptr) noexcept {
