@@ -177,7 +177,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     // FIXME - desired_access
     // FIXME - object_attributes
 
-    auto tptr = new thread;
+    auto tptr = new (align_val_t(16)) thread;
     if (!tptr)
         return nt_status::INSUFFICIENT_RESOURCES;;
 

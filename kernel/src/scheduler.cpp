@@ -30,7 +30,7 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
 unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
     uint16_t tid;
 
-    auto tptr = new thread;
+    auto tptr = new (align_val_t(16)) thread;
     if (!tptr) {
         print("new failed\n");
         return {};

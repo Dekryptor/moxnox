@@ -77,7 +77,7 @@ public:
     std::atomic<unsigned int> suspend_count = 0;
     TEB* teb;
     uint32_t current_cpu = 0xffffffff;
-};
+} __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);
 
