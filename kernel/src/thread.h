@@ -69,14 +69,12 @@ public:
     uint64_t affinity = 0xffffffffffffffff;
     void* syscall_stack = nullptr;
     bool kernel_mode;
-    void* rip_before_syscall;
-    void* rsp_before_syscall;
-    uint64_t rflags_before_syscall;
     enum nt_status exit_status = nt_status::PENDING;
     list_entry process_le;
     std::atomic<unsigned int> suspend_count = 0;
     TEB* teb;
     uint32_t current_cpu = 0xffffffff;
+    CONTEXT syscall_context;
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);
@@ -85,7 +83,5 @@ static_assert(offsetof(thread, context) == THREAD_CONTEXT);
 static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
-static_assert(offsetof(thread, rip_before_syscall) == THREAD_RIP_BEFORE_SYSCALL);
-static_assert(offsetof(thread, rsp_before_syscall) == THREAD_RSP_BEFORE_SYSCALL);
-static_assert(offsetof(thread, rflags_before_syscall) == THREAD_RFLAGS_BEFORE_SYSCALL);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
+static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
