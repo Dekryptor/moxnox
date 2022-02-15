@@ -10,6 +10,7 @@ include_directories(include)
 add_subdirectory(kernel)
 add_subdirectory(efi)
 add_subdirectory(init)
+add_subdirectory(shell)
 add_subdirectory(ntdll)
 
 add_definitions(-DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)

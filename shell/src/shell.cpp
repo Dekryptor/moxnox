@@ -1,0 +1,545 @@
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <nt.h>
+#include <ntdll.h>
+#include <span>
+#include "shell.h"
+
+using namespace std;
+
+char* buf = nullptr;
+unsigned int buflen = 0;
+
+void print(string_view s) {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
+
+    NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr, &iosb, s.data(),
+                (uint32_t)s.size(), nullptr, nullptr);
+}
+
+span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding) {
+    bool first = true;
+
+    if (dest.empty())
+        return dest;
+
+    if (num == 0 && padding == 0) {
+        dest[0] = '0';
+        return dest.subspan(1);
+    }
+
+    for (unsigned int i = 0; i < 16; i++) {
+        if (!first || padding == 16 - i || num & 0xf000000000000000) {
+            uint64_t n = num >> 60;
+
+            if (n <= 9)
+                dest[0] = (char)(n + '0');
+            else
+                dest[0] = (char)(n - 0xa + 'a');
+
+            dest = dest.subspan(1);
+            first = false;
+
+            if (dest.empty())
+                return dest;
+        }
+
+        num <<= 4;
+    }
+
+    return dest;
+}
+
+void print_hex(uint64_t num, unsigned int padding) {
+    char s[17];
+    span sp(s, sizeof(s));
+
+    sp = sp_itoa_hex(sp, num, padding);
+
+    print(string_view(s, sp.data() - s));
+}
+
+extern "C"
+void* malloc(size_t size) {
+    return RtlAllocateHeap(GetProcessHeap(), 0, size);
+}
+
+extern "C"
+void free(void* ptr) {
+    RtlFreeHeap(GetProcessHeap(), 0, ptr);
+}
+
+static void run_program(u16string_view fn) {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+    HANDLE file, sect, proc, thread;
+    IO_STATUS_BLOCK iosb;
+    CLIENT_ID client_id;
+    CONTEXT context;
+    INITIAL_TEB initial_teb;
+    HANDLE stdinh = 0, stdouth = 0, stderrh = 0, curdirh = 0;
+    PROCESS_BASIC_INFORMATION pbi;
+    PEB newpeb;
+    RTL_USER_PROCESS_PARAMETERS params;
+    SECTION_IMAGE_INFORMATION sii;
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+
+    // open file
+
+    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)malloc(us.Length);
+
+    if (!us.Buffer) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memcpy(us.Buffer, fn.data(), fn.size() * sizeof(char16_t));
+
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0, nullptr, 0);
+
+    free(us.Buffer);
+
+    if (!success(status)) {
+        print("NtCreateFile returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    // create section
+
+    status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, file);
+
+    NtClose(file);
+
+    if (!success(status)) {
+        print("NtCreateSection returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    // get entry point
+
+    status = NtQuerySection(sect, SECTION_INFORMATION_CLASS::ImageInformation, &sii,
+                            sizeof(SECTION_IMAGE_INFORMATION), nullptr);
+
+    if (!success(status)) {
+        print("NtQuerySection returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(sect);
+        return;
+    }
+
+    // create process
+
+    status = NtCreateProcess(&proc, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(), false, sect,
+                             0, 0);
+
+    NtClose(sect);
+
+    if (!success(status)) {
+        print("NtCreateProcess returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    // duplicate handles
+
+    if (peb->ProcessParameters->StandardInput) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardInput, proc,
+                                   &stdinh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
+    }
+
+    if (peb->ProcessParameters->StandardOutput) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardOutput, proc,
+                                   &stdouth, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
+    }
+
+    if (peb->ProcessParameters->StandardError) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardError, proc,
+                                   &stderrh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
+    }
+
+    if (peb->ProcessParameters->CurrentDirectory.Handle) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle, proc,
+                                   &curdirh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
+    }
+
+    // take copy of PEB
+
+    status = NtQueryInformationProcess(proc, PROCESSINFOCLASS::BasicInformation, &pbi, sizeof(pbi),
+                                       nullptr);
+    if (!success(status)) {
+        print("NtQueryInformationProcess returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    status = NtReadVirtualMemory(proc, pbi.PebBaseAddress, &newpeb, sizeof(PEB), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    // take copy of ProcessParameters
+
+    status = NtReadVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    // change handles
+
+    params.StandardInput = stdinh;
+    params.StandardOutput = stdouth;
+    params.StandardError = stderrh;
+    params.CurrentDirectory.Handle = curdirh;
+
+    // FIXME - copy current directory string
+    // FIXME - environment variables
+
+    // write ProcessParameters back
+
+    status = NtWriteVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    // create thread
+
+    memset(&initial_teb, 0, sizeof(initial_teb));
+
+    void* stack = nullptr;
+    size_t stack_size = 0x100000;
+
+    status = NtAllocateVirtualMemory(proc, &stack, 0, &stack_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    initial_teb.OldStackBase = nullptr;
+    initial_teb.OldStackLimit = nullptr;
+    initial_teb.StackBase = (uint8_t*)stack + stack_size;
+    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
+    initial_teb.StackAllocationBase = stack;
+
+    memset(&context, 0, sizeof(context));
+    context.Rip = (uintptr_t)sii.TransferAddress;
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
+    context.EFlags = 0x200;
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
+
+    status = NtCreateThread(&thread, THREAD_ALL_ACCESS, nullptr, proc, &client_id, &context,
+                            &initial_teb, true);
+
+    if (!success(status)) {
+        print("NtCreateThread returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    NtResumeThread(thread, nullptr);
+
+    NtClose(thread);
+
+    status = NtWaitForSingleObject(proc, false, nullptr);
+
+    if (!success(status)) {
+        print("NtWaitForSingleObject returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    print("finished\n");
+
+    NtClose(proc);
+}
+
+static void process_line(string_view sv) {
+    if (!sv.empty() && sv.back() == '\r')
+        sv = string_view(sv.data(), sv.size() - 1);
+
+    if (sv.empty())
+        return;
+
+    auto cmd = sv;
+    auto param = string_view();
+
+    bool quotes = false;
+    for (unsigned int i = 0; i < sv.size(); i++) {
+        if (sv[i] == '"') // FIXME - escaped quotes
+            quotes = !quotes;
+        else if (sv[i] == ' ' && !quotes) {
+            cmd = string_view(sv.data(), i);
+            param = string_view(sv.data() + i + 1, sv.size() - i - 1);
+            break;
+        }
+    }
+
+    if (cmd.front() == '"' && cmd.back() == '"')
+        cmd = string_view(cmd.data() + 1, cmd.size() - 2);
+
+    if (cmd == "ls")
+        ls(param);
+    else if (cmd == "exit")
+        NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+    else if (cmd == "run")
+        run_program(u"\\run.exe");
+    else {
+        print(cmd); // FIXME - stderr
+        print(": command not found\n");
+        return;
+    }
+}
+
+static void process_lines() {
+    while (true) {
+        bool found = false;
+        auto sv = string_view(buf, buflen);
+
+        for (unsigned int i = 0; i < sv.size(); i++) {
+            if (sv[i] == '\n') {
+                process_line(string_view(sv.data(), i));
+
+                auto newsv = string_view(sv.data() + i + 1, sv.size() - i - 1);
+
+                if (newsv.size() > 0) {
+                    auto buf2 = (char*)malloc(newsv.size());
+                    if (!buf2) {
+                        print("out of memory\n");
+                        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+                    }
+
+                    memcpy(buf2, newsv.data(), newsv.size());
+                    free(buf);
+                    buf = buf2;
+                } else {
+                    free(buf);
+                    buf = nullptr;
+                }
+
+                buflen = (unsigned int)newsv.size();
+
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+            return;
+    }
+}
+
+#if 0
+static void thread_func() {
+    print("Hello from second thread\n");
+
+    // FIXME
+
+    while (1) { }
+}
+
+static void thread_test() {
+    NTSTATUS status;
+    HANDLE h;
+    CLIENT_ID client_id;
+    CONTEXT context;
+    INITIAL_TEB initial_teb;
+
+    memset(&initial_teb, 0, sizeof(initial_teb));
+
+    void* stack = nullptr;
+    size_t stack_size = 0x100000;
+
+    status = NtAllocateVirtualMemory(NtCurrentProcess(), &stack, 0, &stack_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned "); // FIXME - should be to stderr
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    initial_teb.OldStackBase = nullptr;
+    initial_teb.OldStackLimit = nullptr;
+    initial_teb.StackBase = (uint8_t*)stack + stack_size;
+    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
+    initial_teb.StackAllocationBase = stack;
+
+    memset(&context, 0, sizeof(context));
+    context.Rip = (uintptr_t)thread_func;
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
+    context.EFlags = 0x200;
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
+
+    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, NtCurrentProcess(), &client_id, &context,
+                            &initial_teb, true);
+
+    if (!success(status)) {
+        print("NtCreateThread returned "); // FIXME - should be to stderr
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    print("UniqueProcess = ");
+    print_hex((uintptr_t)client_id.UniqueProcess);
+    print(", UniqueThread = ");
+    print_hex((uintptr_t)client_id.UniqueThread);
+    print("\n");
+
+    NtResumeThread(h, nullptr);
+
+    NtClose(h);
+}
+#endif
+
+extern "C"
+void startup() {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+
+//     thread_test();
+
+    print("> ");
+
+    while (true) {
+        IO_STATUS_BLOCK iosb;
+        char s[10];
+
+        auto status = NtReadFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr, &iosb,
+                                 s, sizeof(s), nullptr, nullptr);
+
+        if (!success(status)) {
+            print("NtReadFile returned "); // FIXME - should be to stderr
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            break;
+        }
+
+        if (iosb.Information == 0)
+            continue;
+
+        auto buf2 = (char*)malloc(buflen + iosb.Information);
+        if (!buf2) {
+            print("out of memory\n");
+            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        }
+
+        if (buf) {
+            memcpy(buf2, buf, buflen);
+            free(buf);
+        }
+
+        buf = buf2;
+
+        bool nl = false;
+
+        for (unsigned int i = 0; i < iosb.Information; i++) {
+            if (s[i] == '\b') {
+                bool ignore_bs = true;
+
+                if (buflen >= 1 && !(buf[buflen - 1] & 0x80)) {
+                    buflen--;
+                    ignore_bs = false;
+                } else if (buflen >= 2 && (buf[buflen - 1] & 0xc0) == 0x80) {
+                    if ((buf[buflen - 2] & 0xe0) == 0xc0) {
+                        buflen -= 2;
+                        ignore_bs = false;
+                    } else if (buflen >= 3 && (buf[buflen - 2] & 0xc0) == 0x80) {
+                        if ((buf[buflen - 3] & 0xf0) == 0xe0) {
+                            buflen -= 3;
+                            ignore_bs = false;
+                        } else if (buflen >= 4 && (buf[buflen - 3] & 0xc0) == 0x80 && (buf[buflen - 4] & 0xf8) == 0xf0) {
+                            buflen -= 4;
+                            ignore_bs = false;
+                        }
+                    }
+                }
+
+                if (!ignore_bs)
+                    print(string_view(&s[i], 1));
+            } else {
+                if (s[i] == '\n')
+                    nl = true;
+
+                buf[buflen] = s[i];
+                buflen++;
+                print(string_view(&s[i], 1));
+            }
+        }
+
+        if (nl) {
+            process_lines();
+            print("> ");
+        }
+    }
+
+    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+}
