@@ -350,3 +350,11 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert) {
+    print("FIXME - NtContinue\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

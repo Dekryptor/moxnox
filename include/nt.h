@@ -950,5 +950,6 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
                                    uint32_t* return_length);
 NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
                         void* section_information, size_t section_information_length, size_t* return_length);
+NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert);
 
 };
