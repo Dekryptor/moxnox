@@ -81,6 +81,7 @@ public:
 
 static_assert(is_sync_object<thread>);
 
+static_assert(offsetof(thread, context) == THREAD_CONTEXT);
 static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);

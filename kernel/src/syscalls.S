@@ -422,30 +422,32 @@ syscall_handler:
 
     # save thread context
     mov gs:GS_CONTEXT + CONTEXT_RAX, rax
+    mov rax, gs:GS_CURRENT_THREAD
+    # rax is going to be clobbered
     # rcx has been clobbered
-    mov gs:GS_CONTEXT + CONTEXT_RDX, rdx
-    mov gs:GS_CONTEXT + CONTEXT_RBX, rbx
-    mov gs:GS_CONTEXT + CONTEXT_RSP, rsp
-    mov gs:GS_CONTEXT + CONTEXT_RBP, rbp
-    mov gs:GS_CONTEXT + CONTEXT_RSI, rsi
-    mov gs:GS_CONTEXT + CONTEXT_RDI, rdi
-    mov gs:GS_CONTEXT + CONTEXT_R8, r8
-    mov gs:GS_CONTEXT + CONTEXT_R9, r9
-    mov gs:GS_CONTEXT + CONTEXT_R10, r10
+    mov [rax + THREAD_CONTEXT + CONTEXT_RDX], rdx
+    mov [rax + THREAD_CONTEXT + CONTEXT_RBX], rbx
+    mov [rax + THREAD_CONTEXT + CONTEXT_RSP], rsp
+    mov [rax + THREAD_CONTEXT + CONTEXT_RBP], rbp
+    mov [rax + THREAD_CONTEXT + CONTEXT_RSI], rsi
+    mov [rax + THREAD_CONTEXT + CONTEXT_RDI], rdi
+    mov [rax + THREAD_CONTEXT + CONTEXT_R8], r8
+    mov [rax + THREAD_CONTEXT + CONTEXT_R9], r9
+    mov [rax + THREAD_CONTEXT + CONTEXT_R10], r10
     # r11 has been clobbered
-    mov gs:GS_CONTEXT + CONTEXT_R12, r12
-    mov gs:GS_CONTEXT + CONTEXT_R13, r13
-    mov gs:GS_CONTEXT + CONTEXT_R14, r14
-    mov gs:GS_CONTEXT + CONTEXT_R15, r15
-    mov gs:GS_CONTEXT + CONTEXT_RIP, rcx
-    mov gs:GS_CONTEXT + CONTEXT_EFLAGS, r11d
+    mov [rax + THREAD_CONTEXT + CONTEXT_R12], r12
+    mov [rax + THREAD_CONTEXT + CONTEXT_R13], r13
+    mov [rax + THREAD_CONTEXT + CONTEXT_R14], r14
+    mov [rax + THREAD_CONTEXT + CONTEXT_R15], r15
+    mov [rax + THREAD_CONTEXT + CONTEXT_RIP], rcx
+    mov [rax + THREAD_CONTEXT + CONTEXT_EFLAGS], r11d
     # cs and ss have been clobbered
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_DS, ds
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_ES, es
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
-    mov WORD PTR gs:GS_CONTEXT + CONTEXT_GS, gs
+    mov WORD PTR [rax + THREAD_CONTEXT + CONTEXT_DS], ds
+    mov WORD PTR [rax + THREAD_CONTEXT + CONTEXT_ES], es
+    mov WORD PTR [rax + THREAD_CONTEXT + CONTEXT_FS], fs
+    mov WORD PTR [rax + THREAD_CONTEXT + CONTEXT_GS], gs
     # FIXME - debug registers
-    fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
+    fxsave [rax + THREAD_CONTEXT + CONTEXT_FXSAVE]
 
     # change to kernel stack
     mov rax, gs:GS_CURRENT_THREAD
@@ -476,8 +478,10 @@ syscall_handler:
     lea rcx, [rip+syscalls]
     add rax, rcx
     mov rax, [rax]
-    mov rcx, gs:GS_CONTEXT + CONTEXT_R10
-    # FIXME - syscalls with arguments on stack
+
+    mov rcx, gs:GS_CURRENT_THREAD
+    mov rcx, [rcx + THREAD_CONTEXT + CONTEXT_R10]
+
     sti
     call rax
     cli
@@ -485,12 +489,10 @@ syscall_handler:
 Lafter_syscall:
     # mark thread as running user code
     push rax
-    mov rax, gs:GS_CURRENT_THREAD
-    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0
 
-    # load user ds segment
-    mov ax, 0x33
-    mov ds, ax
+    mov rcx, gs:GS_CURRENT_THREAD
+    mov [rcx + THREAD_CONTEXT + CONTEXT_RAX], rax
+    mov BYTE PTR [rcx + THREAD_KERNEL_MODE], 0
 
     # load process cr3
     mov rax, gs:GS_CURRENT_THREAD
@@ -498,19 +500,42 @@ Lafter_syscall:
     mov rax, [rax + PROCESS_CR3]
     mov cr3, rax
 
-    # load saved rip and rflags
+    # restore context
     mov rax, gs:GS_CURRENT_THREAD
-    mov rcx, [rax + THREAD_RIP_BEFORE_SYSCALL]
-    mov r11, [rax + THREAD_RFLAGS_BEFORE_SYSCALL]
-    pop rax
+    mov rdx, [rax + THREAD_CONTEXT + CONTEXT_RDX]
+    mov rbx, [rax + THREAD_CONTEXT + CONTEXT_RBX]
+    mov rbp, [rax + THREAD_CONTEXT + CONTEXT_RBP]
+    mov rsi, [rax + THREAD_CONTEXT + CONTEXT_RSI]
+    mov rdi, [rax + THREAD_CONTEXT + CONTEXT_RDI]
+    mov r8, [rax + THREAD_CONTEXT + CONTEXT_R8]
+    mov r9, [rax + THREAD_CONTEXT + CONTEXT_R9]
+    mov r10, [rax + THREAD_CONTEXT + CONTEXT_R10]
+    mov r11, [rax + THREAD_CONTEXT + CONTEXT_R11]
+    mov r12, [rax + THREAD_CONTEXT + CONTEXT_R12]
+    mov r13, [rax + THREAD_CONTEXT + CONTEXT_R13]
+    mov r14, [rax + THREAD_CONTEXT + CONTEXT_R14]
+    mov r15, [rax + THREAD_CONTEXT + CONTEXT_R15]
+    mov ds, [rax + THREAD_CONTEXT + CONTEXT_DS]
+    mov es, [rax + THREAD_CONTEXT + CONTEXT_ES]
+    mov fs, [rax + THREAD_CONTEXT + CONTEXT_FS]
+    # FIXME - debug registers
+    fxrstor [rax + THREAD_CONTEXT + CONTEXT_FXSAVE]
 
-    # change back to user stack
-    mov rsp, gs:GS_CURRENT_THREAD
-    mov rsp, [rsp + THREAD_RSP_BEFORE_SYSCALL]
+    movzx rcx, WORD PTR [rax + THREAD_CONTEXT + CONTEXT_SS]
+    push rcx
+    push [rax + THREAD_CONTEXT + CONTEXT_RSP]
+    mov ecx, [rax + THREAD_CONTEXT + CONTEXT_EFLAGS]
+    push rcx
+    movzx rcx, WORD PTR [rax + THREAD_CONTEXT + CONTEXT_CS]
+    push rcx
+    push [rax + THREAD_CONTEXT + CONTEXT_RIP]
+
+    mov rcx, [rax + THREAD_CONTEXT + CONTEXT_RCX]
+    mov rax, [rax + THREAD_CONTEXT + CONTEXT_RAX]
 
     swapgs
 
-    sysretq
+    iretq
 
 Lno_syscall:
     mov rax, 0xffffffffc0000002 # STATUS_NOT_IMPLEMENTED
