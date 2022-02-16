@@ -15,6 +15,7 @@ static_assert(sizeof(LDR_DATA_TABLE_ENTRY) == 0x88);
 using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
 
 static PEB_LDR_DATA ldr_data; // zero-initialized
+static bool initialized = false;
 
 extern "C"
 bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
@@ -680,31 +681,37 @@ static void call_dll_main() {
 
 extern "C" __declspec(dllexport)
 void mn_start_thread(void* ntdll_base, CONTEXT* context) {
-    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    if (!initialized) {
+        auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
-    auto heap = RtlCreateHeap(HEAP_GROWABLE, nullptr, 0, 0, nullptr, nullptr);
+        auto heap = RtlCreateHeap(HEAP_GROWABLE, nullptr, 0, 0, nullptr, nullptr);
 
-    if (!heap) {
-        print("RtlCreateHeap failed\n");
-        NtTerminateProcess(NtCurrentProcess(), nt_status::NO_MEMORY);
+        if (!heap) {
+            print("RtlCreateHeap failed\n");
+            NtTerminateProcess(NtCurrentProcess(), nt_status::NO_MEMORY);
+        }
+
+        peb.ProcessHeap = (HANDLE)heap;
+        peb.Ldr = &ldr_data;
+
+        init_ldr_data(ntdll_base);
+
+        load_dlls();
+
+        toggle_protections(false);
+
+        resolve_relocations();
+
+        resolve_imports();
+
+        toggle_protections(true);
+
+        call_dll_main();
+
+        initialized = true;
     }
 
-    peb.ProcessHeap = (HANDLE)heap;
-    peb.Ldr = &ldr_data;
-
-    init_ldr_data(ntdll_base);
-
-    load_dlls();
-
-    toggle_protections(false);
-
-    resolve_relocations();
-
-    resolve_imports();
-
-    toggle_protections(true);
-
-    call_dll_main();
+    // FIXME - call DllMain for modules if starting another thread
 
     NtContinue(context, false);
 }
