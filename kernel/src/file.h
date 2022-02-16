@@ -2,12 +2,16 @@
 
 class file : public object {
 public:
-    file(inode& ino) : object(object_type::file), ino(ino) {
-        ino.acquire();
+    file(object& ino) : object(object_type::file), ino(ino) {
+        visit_obj(ino, [](auto&& o) {
+            o.acquire();
+        });
     }
 
     ~file() {
-        ino.release();
+        visit_obj(ino, [](auto&& o) {
+            o.release();
+        });
     }
 
     void acquire() {
@@ -19,7 +23,7 @@ public:
             delete this;
     }
 
-    inode& ino;
+    object& ino;
     spinlock lock;
     uint64_t file_offset = 0;
     uint64_t query_dir_index = 0;

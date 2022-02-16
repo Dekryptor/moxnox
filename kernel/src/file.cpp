@@ -4,18 +4,34 @@
 using namespace std;
 
 size_t file::read(span<uint8_t> s) {
-    auto ret = ino.read(s, file_offset);
+    size_t ret;
 
-    if (ret > 0) {
-        lock_guard l(lock);
-        file_offset += ret;
-    }
+    visit_obj(ino, [&](auto&& o) {
+        if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>) {
+            ret = o.read(s);
+        } else if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>) {
+            ret = o.read(s, file_offset);
+
+            if (ret > 0) {
+                lock_guard l(lock);
+                file_offset += ret;
+            }
+        } else
+            ret = 0;
+    });
 
     return ret;
 }
 
 size_t file::read(span<uint8_t> s, uint64_t offset) {
-    auto ret = ino.read(s, offset);
+    size_t ret;
+
+    visit_obj(ino, [&](auto&& o) {
+        if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
+            ret = o.read(s, offset);
+        else
+            ret = 0;
+    });
 
     if (ret > 0) {
         lock_guard l(lock);
@@ -71,7 +87,10 @@ NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& 
     auto index = query_dir_index;
     auto sp = span((uint8_t*)file_information, length);
 
-    auto ret = ino.query_directory(sp, file_information_class, index);
+    if (ino.type != object_type::inode)
+        return nt_status::INVALID_PARAMETER;
+
+    auto ret = static_cast<inode&>(ino).query_directory(sp, file_information_class, index);
 
     if (!success(ret))
         return ret;

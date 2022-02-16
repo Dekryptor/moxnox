@@ -86,9 +86,21 @@ unique_handle create_section(handle_t h, bool image, size_t size) {
 
         case object_type::file: {
             auto& f = static_cast<file&>(obj);
-            ino = f.ino;
-            f.ino.acquire();
-            f.release();
+
+            if (f.ino.type == object_type::inode) {
+                ino = static_cast<inode&>(f.ino);
+                ino->get().acquire();
+                f.release();
+            } else {
+                print("Not an inode\n");
+
+                visit_obj(obj, [](auto&& o) {
+                    o.release();
+                });
+
+                return {};
+            }
+
             break;
         }
 
@@ -694,8 +706,11 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
             if constexpr (is_same_v<remove_reference_t<decltype(o)>, inode>)
                 ino = o;
             else if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
-                ino = o.ino;
-                o.ino.acquire();
+                if (o.ino.type == object_type::inode) {
+                    ino = static_cast<inode&>(o.ino);
+                    ino->get().acquire();
+                }
+
                 o.release();
             } else
                 o.release();

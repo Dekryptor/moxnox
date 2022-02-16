@@ -54,6 +54,9 @@ concept is_readable_object_without_offset = requires(T t, std::span<uint8_t> s) 
     { t.read(s) } -> std::convertible_to<size_t>;
 };
 
+template<typename T>
+static void visit_obj(object& obj, const T& func);
+
 #include "thread.h"
 #include "timer.h"
 #include "event.h"
