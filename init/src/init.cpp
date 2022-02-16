@@ -69,7 +69,7 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-static void run_program(u16string_view fn) {
+static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
@@ -78,7 +78,7 @@ static void run_program(u16string_view fn) {
     CLIENT_ID client_id;
     CONTEXT context;
     INITIAL_TEB initial_teb;
-    HANDLE stdinh = 0, stdouth = 0, stderrh = 0, curdirh = 0;
+    HANDLE proc_stdinh = 0, proc_stdouth = 0, proc_stderrh = 0, curdirh = 0;
     PROCESS_BASIC_INFORMATION pbi;
     PEB newpeb;
     RTL_USER_PROCESS_PARAMETERS params;
@@ -154,9 +154,9 @@ static void run_program(u16string_view fn) {
 
     // duplicate handles
 
-    if (peb->ProcessParameters->StandardInput) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardInput, proc,
-                                   &stdinh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    if (stdinh) {
+        status = NtDuplicateObject(NtCurrentProcess(), stdinh, proc, &proc_stdinh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
             print("NtDuplicateObject returned ");
@@ -167,9 +167,9 @@ static void run_program(u16string_view fn) {
         }
     }
 
-    if (peb->ProcessParameters->StandardOutput) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardOutput, proc,
-                                   &stdouth, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    if (stdouth) {
+        status = NtDuplicateObject(NtCurrentProcess(), stdouth, proc, &proc_stdouth, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
             print("NtDuplicateObject returned ");
@@ -180,9 +180,9 @@ static void run_program(u16string_view fn) {
         }
     }
 
-    if (peb->ProcessParameters->StandardError) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardError, proc,
-                                   &stderrh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    if (stderrh) {
+        status = NtDuplicateObject(NtCurrentProcess(), stderrh, proc, &proc_stderrh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
             print("NtDuplicateObject returned ");
@@ -240,9 +240,9 @@ static void run_program(u16string_view fn) {
 
     // change handles
 
-    params.StandardInput = stdinh;
-    params.StandardOutput = stdouth;
-    params.StandardError = stderrh;
+    params.StandardInput = proc_stdinh;
+    params.StandardOutput = proc_stdouth;
+    params.StandardError = proc_stderrh;
     params.CurrentDirectory.Handle = curdirh;
 
     // FIXME - copy current directory string
@@ -316,16 +316,109 @@ static void run_program(u16string_view fn) {
     NtClose(proc);
 }
 
+static void do_serial() {
+    NTSTATUS status;
+    UNICODE_STRING us;
+    OBJECT_ATTRIBUTES oa;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+
+    static const char16_t dev[] = u"\\dev\\ttyS0";
+
+    us.Length = us.MaximumLength = (uint16_t)(sizeof(dev) - sizeof(char16_t));
+    us.Buffer = (char16_t*)dev;
+
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtCreateFile(&h, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0, nullptr, 0);
+
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+        return;
+    }
+
+    if (!success(status)) {
+        print("NtCreateFile returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+        return;
+    }
+
+    while (true) {
+        run_program(u"\\shell.exe", h, h, h);
+    }
+
+    NtClose(h);
+
+    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+}
+
+static void create_thread(void(*func)()) {
+    NTSTATUS status;
+    HANDLE h;
+    CLIENT_ID client_id;
+    CONTEXT context;
+    INITIAL_TEB initial_teb;
+
+    memset(&initial_teb, 0, sizeof(initial_teb));
+
+    void* stack = nullptr;
+    size_t stack_size = 0x100000;
+
+    status = NtAllocateVirtualMemory(NtCurrentProcess(), &stack, 0, &stack_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned "); // FIXME - should be to stderr
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    initial_teb.OldStackBase = nullptr;
+    initial_teb.OldStackLimit = nullptr;
+    initial_teb.StackBase = (uint8_t*)stack + stack_size;
+    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
+    initial_teb.StackAllocationBase = stack;
+
+    memset(&context, 0, sizeof(context));
+    context.Rip = (uintptr_t)func;
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
+    context.EFlags = 0x200;
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
+
+    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, NtCurrentProcess(), &client_id, &context,
+                            &initial_teb, true);
+
+    if (!success(status)) {
+        print("NtCreateThread returned "); // FIXME - should be to stderr
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    NtResumeThread(h, nullptr);
+
+    NtClose(h);
+}
+
 extern "C"
 void startup() {
     // FIXME - start services etc.
 
+    create_thread(do_serial);
+
     while (true) {
+        auto teb = NtCurrentTeb();
+        auto peb = teb->ProcessEnvironmentBlock;
+
         // FIXME - solicit username and password
         // FIXME - also launch shell on serial port if available
 
         print("\nWelcome to Moxnox\n\n");
 
-        run_program(u"\\shell.exe");
+        run_program(u"\\shell.exe", peb->ProcessParameters->StandardInput,
+                    peb->ProcessParameters->StandardOutput, peb->ProcessParameters->StandardError);
     }
 }
