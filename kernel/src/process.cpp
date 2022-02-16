@@ -132,7 +132,7 @@ unique_handle create_process(string_view fn, string_view curdir,
     // FIXME - give process a PID
     // FIXME - add process to list
 
-    CONTEXT context;
+    CONTEXT context, entry_point_context;
     CLIENT_ID client_id;
     INITIAL_TEB initial_teb;
 
@@ -142,10 +142,23 @@ unique_handle create_process(string_view fn, string_view curdir,
     initial_teb.StackLimit = (uint8_t*)stackaddr + stack_size;
     initial_teb.StackAllocationBase = stackaddr;
 
+    uintptr_t entry_point_ctx_addr = (uintptr_t)stackaddr + stack_size - sizeof(CONTEXT) - 0x20;
+
+    memset(&entry_point_context, 0, sizeof(entry_point_context));
+    entry_point_context.Rip = img_base + img.entry_point;
+    entry_point_context.Rsp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
+
+    if (!p.copy_to((void*)entry_point_ctx_addr, &entry_point_context, sizeof(entry_point_context))) {
+        print("process::copy_to failed\n");
+        p.release();
+        return {};
+    }
+
     memset(&context, 0, sizeof(context));
     context.Rip = p.ntdll_addr + mn_start_process;
     context.Rcx = p.ntdll_addr;
-    context.Rsp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
+    context.Rdx = entry_point_ctx_addr;
+    context.Rsp = (uintptr_t)stackaddr + stack_size - sizeof(CONTEXT) - 0x20; // 0x20 for MS ABI
 
     auto status = p.create_thread(nullopt, 0, nullptr, client_id, context, initial_teb, true);
     if (!success(status)) {
