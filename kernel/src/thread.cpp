@@ -362,3 +362,13 @@ NTSTATUS NtContinue(const CONTEXT* thread_context, bool) {
 
     return (NTSTATUS)thread_context->Rax;
 }
+
+NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
+                                  void* thread_information, uint32_t thread_information_length,
+                                  uint32_t* return_length) {
+    print("FIXME - NtQueryInformationThread\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

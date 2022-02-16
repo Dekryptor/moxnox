@@ -891,6 +891,60 @@ struct SECTION_IMAGE_INFORMATION {
     uint32_t CheckSum;
 };
 
+enum class THREAD_INFORMATION_CLASS {
+    BasicInformation,
+    Times,
+    Priority,
+    BasePriority,
+    AffinityMask,
+    ImpersonationToken,
+    DescriptorTableEntry,
+    EnableAlignmentFaultFixup,
+    EventPair_Reusable,
+    QuerySetWin32StartAddress,
+    ZeroTlsCell,
+    PerformanceCount,
+    AmILastThread,
+    IdealProcessor,
+    PriorityBoost,
+    SetTlsArrayAddress,
+    IsIoPending,
+    HideFromDebugger,
+    BreakOnTermination,
+    SwitchLegacyState,
+    IsTerminated,
+    LastSystemCall,
+    IoPriority,
+    CycleTime,
+    PagePriority,
+    ActualBasePriority,
+    TebInformation,
+    CSwitchMon,
+    CSwitchPmu,
+    Wow64Context,
+    GroupInformation,
+    UmsInformation,
+    CounterProfiling,
+    IdealProcessorEx,
+    CpuAccountingInformation,
+    SuspendCount,
+    HeterogeneousCpuPolicy,
+    ContainerId,
+    NameInformation,
+    SelectedCpuSets,
+    SystemThreadInformation,
+    ActualGroupAffinity,
+    DynamicCodePolicyInfo,
+    ExplicitCaseSensitivity,
+    WorkOnBehalfTicket,
+    SubsystemInformation,
+    DbgkWerReportActive,
+    AttachContainer,
+    ManageWritesToExecutableMemory,
+    PowerThrottlingState,
+    WorkloadClass
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -951,5 +1005,8 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
 NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
                         void* section_information, size_t section_information_length, size_t* return_length);
 NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert);
+NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
+                                  void* thread_information, uint32_t thread_information_length,
+                                  uint32_t* return_length);
 
 };

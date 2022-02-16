@@ -1070,3 +1070,51 @@ NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool raise_alert) {
 
     return NtContinue(&ctx, raise_alert);
 }
+
+extern "C"
+NTSTATUS user_NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
+                                       void* thread_information, uint32_t thread_information_length) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+    NTSTATUS status;
+    void* buf;
+    uint32_t retlen;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto return_length = (uint32_t*)args[0];
+
+    if (thread_handle & kernel_handle_mask && thread_handle != NtCurrentThread())
+        return nt_status::INVALID_HANDLE;
+
+    if (!thread_information)
+        return nt_status::INVALID_PARAMETER;
+
+    if (thread_information_length > 0) {
+        buf = malloc(thread_information_length);
+        if (!buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    status = NtQueryInformationThread(thread_handle, thread_information_class,
+                                      thread_information_length > 0 ? buf : nullptr,
+                                      thread_information_length, &retlen);
+
+    if (success(status)) {
+        if (retlen > 0) {
+            if (!copy_to_process(thread_information, buf, retlen))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+
+        if (return_length) {
+            if (!copy_to_process(return_length, &retlen, sizeof(uint32_t)))
+                status = nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (thread_information_length > 0)
+        free(buf);
+
+    return status;
+}
