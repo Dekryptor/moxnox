@@ -679,7 +679,7 @@ static void call_dll_main() {
 }
 
 extern "C" __declspec(dllexport)
-void mn_start_process(void* ntdll_base, CONTEXT* context) {
+void mn_start_thread(void* ntdll_base, CONTEXT* context) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
     auto heap = RtlCreateHeap(HEAP_GROWABLE, nullptr, 0, 0, nullptr, nullptr);
