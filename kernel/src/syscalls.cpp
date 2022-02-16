@@ -551,7 +551,7 @@ extern "C"
 NTSTATUS user_NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void** base_address,
                                  uintptr_t zero_bits) {
     auto& t = *get_current_thread();
-    array<uintptr_t, 5> args;
+    array<uintptr_t, 6> args;
     void* addr;
     LARGE_INTEGER offset;
     size_t size;
