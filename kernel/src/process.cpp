@@ -9,7 +9,7 @@ using namespace std;
 static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
 static section* ntdll = nullptr;
-static uintptr_t mn_start_process;
+static uintptr_t mn_start_thread;
 uintptr_t mn_signal;
 
 static_assert(sizeof(TEB) == 0x1818);
@@ -155,7 +155,7 @@ unique_handle create_process(string_view fn, string_view curdir,
     }
 
     memset(&context, 0, sizeof(context));
-    context.Rip = p.ntdll_addr + mn_start_process;
+    context.Rip = p.ntdll_addr + mn_start_thread;
     context.Rcx = p.ntdll_addr;
     context.Rdx = entry_point_ctx_addr;
     context.Rsp = (uintptr_t)stackaddr + stack_size - sizeof(CONTEXT) - 0x20; // 0x20 for MS ABI
@@ -582,9 +582,9 @@ void load_ntdll() {
 
     ntdllh.reset();
 
-    mn_start_process = ntdll->find_export("mn_start_process");
-    if (!mn_start_process) {
-        bsod("Could not find export mn_start_process in ntdll.dll");
+    mn_start_thread = ntdll->find_export("mn_start_thread");
+    if (!mn_start_thread) {
+        bsod("Could not find export mn_start_thread in ntdll.dll");
         return;
     }
 
