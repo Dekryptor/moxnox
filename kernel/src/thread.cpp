@@ -173,6 +173,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
                                 const CONTEXT& thread_context,
                                 const INITIAL_TEB& initial_teb, bool create_suspended) {
     uint16_t tid;
+    CONTEXT start_context;
 
     // FIXME - desired_access
     // FIXME - object_attributes
@@ -208,14 +209,35 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    memcpy(&t.context, &thread_context, sizeof(CONTEXT));
+    memcpy(&start_context, &thread_context, sizeof(CONTEXT));
+    start_context.EFlags |= 0x202; // IF, reserved flag
+    start_context.SegCs = user_CS;
+    start_context.SegSs = user_DS;
+    start_context.SegEs = user_DS;
+    start_context.SegFs = user_DS;
+    start_context.SegGs = user_DS;
+
+    auto ctx_addr = (uintptr_t)initial_teb.StackBase - sizeof(CONTEXT);
+
+    if (!copy_to((void*)ctx_addr, &start_context, sizeof(start_context))) {
+        print("process::copy_to failed\n");
+        delete &t;
+        return nt_status::NO_MEMORY;
+    }
+
+    memset(&t.context, 0, sizeof(CONTEXT));
+
     t.context.EFlags |= 0x202; // IF, reserved flag
     t.context.SegCs = user_CS;
     t.context.SegSs = user_DS;
     t.context.SegEs = user_DS;
     t.context.SegFs = user_DS;
     t.context.SegGs = user_DS;
-    t.context.SegSs = user_DS;
+    t.context.Rip = ntdll_addr + mn_start_thread;
+    t.context.Rcx = ntdll_addr;
+    t.context.Rdx = ctx_addr;
+    t.context.Rsp = (uintptr_t)initial_teb.StackBase - sizeof(CONTEXT) - 0x20; // 0x20 for MS ABI
+
     t.kernel_mode = false;
 
     t.suspend_count = create_suspended ? 1 : 0;

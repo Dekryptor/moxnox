@@ -9,8 +9,7 @@ using namespace std;
 static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
 static section* ntdll = nullptr;
-static uintptr_t mn_start_thread;
-uintptr_t mn_signal;
+uintptr_t mn_start_thread, mn_signal;
 
 static_assert(sizeof(TEB) == 0x1818);
 static_assert(sizeof(PEB) == 0x388);
@@ -132,7 +131,7 @@ unique_handle create_process(string_view fn, string_view curdir,
     // FIXME - give process a PID
     // FIXME - add process to list
 
-    CONTEXT context, entry_point_context;
+    CONTEXT entry_point_context;
     CLIENT_ID client_id;
     INITIAL_TEB initial_teb;
 
@@ -154,13 +153,7 @@ unique_handle create_process(string_view fn, string_view curdir,
         return {};
     }
 
-    memset(&context, 0, sizeof(context));
-    context.Rip = p.ntdll_addr + mn_start_thread;
-    context.Rcx = p.ntdll_addr;
-    context.Rdx = entry_point_ctx_addr;
-    context.Rsp = (uintptr_t)stackaddr + stack_size - sizeof(CONTEXT) - 0x20; // 0x20 for MS ABI
-
-    auto status = p.create_thread(nullopt, 0, nullptr, client_id, context, initial_teb, true);
+    auto status = p.create_thread(nullopt, 0, nullptr, client_id, entry_point_context, initial_teb, true);
     if (!success(status)) {
         print("process::create_thread returned ");
         print_hex((uint32_t)status);
