@@ -679,10 +679,8 @@ static void call_dll_main() {
 }
 
 extern "C" __declspec(dllexport)
-void mn_start_process(void* ntdll_base) {
+void mn_start_process(void* ntdll_base, CONTEXT* context) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
-    auto& dos_header = *(IMAGE_DOS_HEADER*)peb.ImageBaseAddress;
-    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)peb.ImageBaseAddress + dos_header.e_lfanew);
 
     auto heap = RtlCreateHeap(HEAP_GROWABLE, nullptr, 0, 0, nullptr, nullptr);
 
@@ -708,16 +706,5 @@ void mn_start_process(void* ntdll_base) {
 
     call_dll_main();
 
-    uint32_t entry_point;
-
-    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
-        entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
-    else
-        entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
-
-    __asm __volatile(
-        "jmp %0"
-        :
-        : "a" ((uint8_t*)peb.ImageBaseAddress + entry_point)
-    );
+    NtContinue(context, false);
 }
