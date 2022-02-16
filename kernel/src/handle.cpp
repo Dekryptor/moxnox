@@ -539,7 +539,15 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
             name[i] = '/';
     }
 
-    auto inoh = open_inode(string_view(name, namelen));
+    // FIXME - proper VFS system
+
+    static const string_view dev_prefix = "/dev/";
+    unique_handle inoh;
+
+    if (namelen > dev_prefix.size() && string_view(name, dev_prefix.size()) == dev_prefix)
+        inoh = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
+    else
+        inoh = open_inode(string_view(name, namelen));
 
     free(name);
 
@@ -553,15 +561,14 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     if (!objrw)
         return nt_status::INTERNAL_ERROR;
 
-    auto& ino = static_cast<inode&>(objrw->get());
+    auto f = new file(objrw->get());
 
-    auto f = new file(ino);
-    if (!f) {
-        ino.release();
+    visit_obj(objrw->get(), [](auto&& o) {
+        o.release();
+    });
+
+    if (!f)
         return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    ino.release();
 
     auto h = p->add_handle(*f, 0); // FIXME - access mask
 
