@@ -149,7 +149,7 @@ void main_thread() {
 
     wait_for_object(init.get());
 
-    print("init process finished\n"); // FIXME - BSOD?
+    bsod("init process died\n");
 
 //     thread_test(); // FIXME
 //     timer_test(); // FIXME
