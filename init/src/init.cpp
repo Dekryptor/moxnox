@@ -313,8 +313,6 @@ static void run_program(u16string_view fn) {
         return;
     }
 
-    print("finished\n");
-
     NtClose(proc);
 }
 
@@ -325,6 +323,9 @@ void startup() {
     while (true) {
         // FIXME - solicit username and password
         // FIXME - also launch shell on serial port if available
+
+        print("\nWelcome to Moxnox\n\n");
+
         run_program(u"\\shell.exe");
     }
 }
