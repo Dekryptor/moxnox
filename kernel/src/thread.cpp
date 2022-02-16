@@ -351,10 +351,14 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert) {
-    print("FIXME - NtContinue\n");
+NTSTATUS NtContinue(const CONTEXT* thread_context, bool) {
+    auto& t = *get_current_thread();
 
-    // FIXME
+    // FIXME - raise_alert
 
-    return nt_status::NOT_IMPLEMENTED;
+    memcpy(&t.syscall_context, thread_context, sizeof(CONTEXT));
+
+    t.syscall_context.EFlags |= 0x202; // IF, reserved flag
+
+    return (NTSTATUS)thread_context->Rax;
 }
