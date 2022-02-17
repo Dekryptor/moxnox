@@ -62,7 +62,7 @@ void thread::terminate() {
         release();
     }
 
-    if (this != get_current_thread()) {
+    if (this != get_cpu_block()->current_thread) {
         release_sync_lock();
         __asm("sti");
         return;
