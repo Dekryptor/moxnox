@@ -213,8 +213,10 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
 
 static void print_char(char32_t c) {
     if (c == '\n') {
-        for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
-            console[(cursor_y * fb_console_cols) + i].c = 0;
+        if (console) {
+            for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
+                console[(cursor_y * fb_console_cols) + i].c = 0;
+            }
         }
 
         cursor_x = 0;
@@ -234,20 +236,25 @@ static void print_char(char32_t c) {
             cursor_x = fb_console_cols - 1;
             cursor_y--;
 
-            while (cursor_x > 0 && console[(cursor_y * fb_console_cols) + cursor_x].c == 0) {
-                cursor_x--;
+            if (console) {
+                while (cursor_x > 0 && console[(cursor_y * fb_console_cols) + cursor_x].c == 0) {
+                    cursor_x--;
+                }
             }
 
             if (cursor_x != fb_console_cols - 1)
                 cursor_x++;
         }
 
-        console[(cursor_y * fb_console_cols) + cursor_x].c = 0;
+        if (console)
+            console[(cursor_y * fb_console_cols) + cursor_x].c = 0;
+
         rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, 0x000000);
     } else {
         draw_ft_char(c, cursor_x * font_width, (cursor_y + 1) * font_height);
 
-        console[(cursor_y * fb_console_cols) + cursor_x].c = c;
+        if (console)
+            console[(cursor_y * fb_console_cols) + cursor_x].c = c;
 
         cursor_x++;
 
