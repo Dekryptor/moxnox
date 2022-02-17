@@ -1006,12 +1006,22 @@ uint64_t allocate_va(uint32_t pages) {
             }
         }
 
+        auto val = mb[i];
+
+        if (i == last_i && last_j != 0) { // clear first last_j bits
+            auto mask = (uint64_t)1 << last_j;
+
+            mask--;
+            mask <<= 64 - last_j;
+            val &= ~mask;
+        }
+
         last_j = 0;
 
-        if (mb[i] == 0xffffffffffffffff)
+        if (val == 0xffffffffffffffff)
             continue;
 
-        auto t1 = trailing_ones(mb[i]);
+        auto t1 = trailing_ones(val);
         run_length = t1;
         run_start = ((i + 1) * 64) - t1;
     }
