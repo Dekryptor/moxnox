@@ -24,6 +24,7 @@ struct pci_device;
 class semaphore;
 class volume;
 class filesystem;
+class pipe;
 struct HARDWARE_PTE;
 
 static const uint32_t PIT_HZ = 1193182;
@@ -185,6 +186,7 @@ void reset_event(handle_t h);
 
 // pipe.cpp
 unique_handle create_pipe(unsigned int buffer_pages);
+unique_handle create_duplex_pipe(pipe& recv_pipe, pipe& send_pipe);
 
 // pci.cpp
 void init_pci();

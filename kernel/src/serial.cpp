@@ -20,6 +20,7 @@ public:
 static serial_pipe* com1_pipe = nullptr;
 
 unique_handle com1_pipe_handle;
+static unique_handle com1_recv_handle, duplex_pipe;
 
 static unique_handle create_serial_pipe(unsigned int buffer_pages, uint16_t port) {
     auto pptr = new serial_pipe(buffer_pages, port);
@@ -45,26 +46,30 @@ bool init_serial() {
 
     com1_pipe_handle = create_serial_pipe(serial_buffer_pages, com1_port);
     if (!com1_pipe_handle) {
+        print("create_serial_pipe failed\n");
+        return false;
+    }
+
+    com1_recv_handle = create_pipe(serial_buffer_pages);
+    if (!com1_recv_handle) {
         print("create_pipe failed\n");
         return false;
     }
 
-    if (!name_object(com1_pipe_handle.get(), "ttyS0")) {
+    com1_pipe = &static_cast<serial_pipe&>(deref_handle(com1_pipe_handle.get())->get());
+
+    auto& com1_recv_pipe = static_cast<pipe&>(deref_handle(com1_recv_handle.get())->get());
+
+    duplex_pipe = create_duplex_pipe(com1_recv_pipe, *com1_pipe);
+    if (!duplex_pipe) {
+        print("create_duplex_pipe failed\n");
+        return false;
+    }
+
+    if (!name_object(duplex_pipe.get(), "ttyS0")) {
         print("name_object failed\n");
         return false;
     }
-
-    auto objrw = deref_handle(com1_pipe_handle.get());
-    if (!objrw) {
-        // FIXME - exception
-        print("No such handle\n");
-        return false;
-    }
-
-    visit_obj(objrw->get(), [](auto&& o) {
-        if constexpr (is_same_v<remove_reference_t<decltype(o)>, pipe>)
-            com1_pipe = static_cast<serial_pipe*>(&o);
-    });
 
     add_idt_entry(serial_interrupt, (void*)serial_isr, false, 0);
 
