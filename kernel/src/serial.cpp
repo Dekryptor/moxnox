@@ -156,5 +156,26 @@ void serial_isr_func(uint8_t iir) {
         );
 
         pipe.buf_unread--;
+    } else if ((iir & 0xe) == 0x4 || (iir & 0xe) == 0xc) { // data available or character timeout
+        uint8_t c;
+
+        __asm __volatile (
+            "in al, dx\n"
+            : "=a" (c)
+            : "d" (com1_port)
+        );
+
+        auto& p = static_cast<pipe&>(deref_handle(com1_recv_handle.get())->get());
+
+        // FIXME - VT100 weirdness
+
+        if (c == '\r')
+            c = '\n';
+        else if (c == 0x7f)
+            c = '\b';
+
+        p.write(span(&c, 1));
+
+        p.release();
     }
 }

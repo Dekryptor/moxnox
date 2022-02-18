@@ -62,10 +62,10 @@ init_serial_port:
     mov al, 0x0f
     out dx, al
 
-    # send IRQ when transmit buffer is empty
+    # send IRQ when transmit buffer is empty or data available
     mov dx, cx
     inc dx
-    mov al, 0x02
+    mov al, 0x03
     out dx, al
 
     mov rax, 1
