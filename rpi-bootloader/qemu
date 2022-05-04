@@ -1,0 +1,4 @@
+#!/bin/bash
+
+qemu-system-aarch64 -M raspi3b -kernel build/kernel8.img -dtb bcm2837-rpi-3-b.dtb -serial stdio
+
