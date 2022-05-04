@@ -1,7 +1,7 @@
 #include "mbox.h"
 
 static unsigned int width, height, pitch, isrgb;
-static unsigned char* fb;
+static uint32_t* fb;
 
 static void init_framebuffer() {
     // FIXME
@@ -51,16 +51,17 @@ static void init_framebuffer() {
 
     // Check call is successful and we have a pointer with depth 32
     if (mbox_call(MBOX_CH::PROP) && mbox[20] == 32 && mbox[28] != 0) {
-        mbox[28] &= 0x3FFFFFFF; // Convert GPU address to ARM address
+        uintptr_t fb_addr = mbox[28];
+
+        fb_addr &= 0x3fffffff; // Convert GPU address to ARM address
         width = mbox[10];       // Actual physical width
         height = mbox[11];      // Actual physical height
         pitch = mbox[33];       // Number of bytes per line
         isrgb = mbox[24];       // Pixel order
-        fb = (unsigned char *)((uintptr_t)mbox[28]);
 
-        fb[0] = 0xff;
-        fb[1] = 0xff;
-        fb[2] = 0xff;
+        fb = (uint32_t*)fb_addr;
+
+        fb[0] = 0xffffff;
     }
 }
 
