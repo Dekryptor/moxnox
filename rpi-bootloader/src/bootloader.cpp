@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 static volatile unsigned int __attribute__((aligned(16))) mbox[36];
 
 static unsigned int width, height, pitch, isrgb;
@@ -22,16 +24,16 @@ enum {
     MBOX_REQUEST  = 0
 };
 
-enum {
-    MBOX_CH_POWER = 0,
-    MBOX_CH_FB    = 1,
-    MBOX_CH_VUART = 2,
-    MBOX_CH_VCHIQ = 3,
-    MBOX_CH_LEDS  = 4,
-    MBOX_CH_BTNS  = 5,
-    MBOX_CH_TOUCH = 6,
-    MBOX_CH_COUNT = 7,
-    MBOX_CH_PROP  = 8 // Request from ARM for response by VideoCore
+enum class MBOX_CH : uint8_t {
+    POWER = 0,
+    FB = 1,
+    VUART = 2,
+    VCHIQ = 3,
+    LEDS = 4,
+    BTNS = 5,
+    TOUCH = 6,
+    COUNT = 7,
+    PROP = 8
 };
 
 enum {
@@ -52,10 +54,9 @@ enum {
 void mmio_write(long reg, unsigned int val) { *(volatile unsigned int *)reg = val; }
 unsigned int mmio_read(long reg) { return *(volatile unsigned int *)reg; }
 
-unsigned int mbox_call(unsigned char ch)
-{
+static unsigned int mbox_call(enum MBOX_CH ch) {
     // 28-bit address (MSB) and 4-bit value (LSB)
-    unsigned int r = ((unsigned int)((long) &mbox) &~ 0xF) | (ch & 0xF);
+    unsigned int r = ((unsigned int)((long) &mbox) &~ 0xF) | (uint8_t)ch;
 
     // Wait until we can write
     while (mmio_read(MBOX_STATUS) & MBOX_FULL);
@@ -121,7 +122,7 @@ static void init_framebuffer() {
     mbox[34] = MBOX_TAG_LAST;
 
     // Check call is successful and we have a pointer with depth 32
-    if (mbox_call(MBOX_CH_PROP) && mbox[20] == 32 && mbox[28] != 0) {
+    if (mbox_call(MBOX_CH::PROP) && mbox[20] == 32 && mbox[28] != 0) {
         mbox[28] &= 0x3FFFFFFF; // Convert GPU address to ARM address
         width = mbox[10];       // Actual physical width
         height = mbox[11];      // Actual physical height
