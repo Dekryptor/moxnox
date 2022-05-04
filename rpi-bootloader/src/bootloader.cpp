@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-static volatile unsigned int __attribute__((aligned(16))) mbox[36];
+static volatile uint32_t __attribute__((aligned(16))) mbox[36];
 
 static unsigned int width, height, pitch, isrgb;
 static unsigned char* fb;
@@ -51,28 +51,22 @@ enum {
     MBOX_TAG_LAST       = 0
 };
 
-void mmio_write(long reg, unsigned int val) { *(volatile unsigned int *)reg = val; }
-unsigned int mmio_read(long reg) { return *(volatile unsigned int *)reg; }
+void mmio_write(uintptr_t reg, uint32_t val) { *(volatile uint32_t*)reg = val; }
+uint32_t mmio_read(uintptr_t reg) { return *(volatile uint32_t*)reg; }
 
-static unsigned int mbox_call(enum MBOX_CH ch) {
-    // 28-bit address (MSB) and 4-bit value (LSB)
-    unsigned int r = ((unsigned int)((long) &mbox) &~ 0xF) | (uint8_t)ch;
+static bool mbox_call(enum MBOX_CH ch) {
+    uint32_t r = ((uint32_t)((uintptr_t)&mbox) &~ 0xF) | (uint8_t)ch;
 
-    // Wait until we can write
     while (mmio_read(MBOX_STATUS) & MBOX_FULL);
 
-    // Write the address of our buffer to the mailbox with the channel appended
     mmio_write(MBOX_WRITE, r);
 
     while (1) {
-        // Is there a reply?
-        while (mmio_read(MBOX_STATUS) & MBOX_EMPTY);
+        while (mmio_read(MBOX_STATUS) & MBOX_EMPTY) { }
 
-        // Is it a reply to our message?
-        if (r == mmio_read(MBOX_READ)) return mbox[1]==MBOX_RESPONSE; // Is it successful?
-
+        if (r == mmio_read(MBOX_READ))
+            return mbox[1] == MBOX_RESPONSE;
     }
-    return 0;
 }
 
 static void init_framebuffer() {
@@ -128,7 +122,7 @@ static void init_framebuffer() {
         height = mbox[11];      // Actual physical height
         pitch = mbox[33];       // Number of bytes per line
         isrgb = mbox[24];       // Pixel order
-        fb = (unsigned char *)((long)mbox[28]);
+        fb = (unsigned char *)((uintptr_t)mbox[28]);
 
         fb[0] = 0xff;
         fb[1] = 0xff;
