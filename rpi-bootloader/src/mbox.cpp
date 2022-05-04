@@ -1,6 +1,8 @@
 #include "mbox.h"
 
-volatile uint32_t __attribute__((aligned(16))) mbox[36];
+using namespace std;
+
+alignas(16) array<volatile uint32_t, 36> mbox;
 
 static void mmio_write(uintptr_t reg, uint32_t val) {
     *(volatile uint32_t*)reg = val;

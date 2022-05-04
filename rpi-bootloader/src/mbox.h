@@ -1,8 +1,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <array>
 
-extern volatile uint32_t mbox[36];
+extern std::array<volatile uint32_t, 36> mbox;
 
 static const uintptr_t PERIPHERAL_BASE = 0x3f000000;
 static const uintptr_t VIDEOCORE_MBOX = PERIPHERAL_BASE + 0xb880;
