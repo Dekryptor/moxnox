@@ -4,21 +4,18 @@
 
 extern volatile uint32_t mbox[36];
 
-#define PERIPHERAL_BASE 0x3f000000
+static const uintptr_t PERIPHERAL_BASE = 0x3f000000;
+static const uintptr_t VIDEOCORE_MBOX = PERIPHERAL_BASE + 0xb880;
+static const uintptr_t MBOX_READ = VIDEOCORE_MBOX;
+static const uintptr_t MBOX_POLL = VIDEOCORE_MBOX + 0x10;
+static const uintptr_t MBOX_SENDER = VIDEOCORE_MBOX + 0x14;
+static const uintptr_t MBOX_STATUS = VIDEOCORE_MBOX + 0x18;
+static const uintptr_t MBOX_CONFIG = VIDEOCORE_MBOX + 0x1c;
+static const uintptr_t MBOX_WRITE = VIDEOCORE_MBOX + 0x20;
 
-enum {
-    VIDEOCORE_MBOX = (PERIPHERAL_BASE + 0x0000B880),
-    MBOX_READ      = (VIDEOCORE_MBOX + 0x0),
-    MBOX_POLL      = (VIDEOCORE_MBOX + 0x10),
-    MBOX_SENDER    = (VIDEOCORE_MBOX + 0x14),
-    MBOX_STATUS    = (VIDEOCORE_MBOX + 0x18),
-    MBOX_CONFIG    = (VIDEOCORE_MBOX + 0x1C),
-    MBOX_WRITE     = (VIDEOCORE_MBOX + 0x20),
-    MBOX_RESPONSE  = 0x80000000,
-    MBOX_FULL      = 0x80000000,
-    MBOX_EMPTY     = 0x40000000
-};
-
+static const uint32_t MBOX_RESPONSE = 0x80000000;
+static const uint32_t MBOX_FULL = 0x80000000;
+static const uint32_t MBOX_EMPTY = 0x40000000;
 static const uint32_t MBOX_REQUEST = 0;
 
 enum class MBOX_CH : uint8_t {
