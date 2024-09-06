@@ -50,4 +50,5 @@ start:
 .long	0 # FIXME - handover_offset (ad4a09)
 
 start_of_setup:
-jmp start_of_setup
+# FIXME - set up stack etc.
+jmp real_mode_main
