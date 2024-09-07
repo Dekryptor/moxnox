@@ -3,8 +3,12 @@ SECTIONS
 {
     .boot 0 : AT(0) {
         boot.o(.boot)
-/*         . = ALIGN(4096); */
-        
+        . = ALIGN(4096);
+    }
+    .data : AT(data) {
+        data = .;
+        *(.data)
+        . = ALIGN(4096);
     }
     .text : AT(text) {
         text = .;
