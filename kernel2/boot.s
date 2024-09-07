@@ -62,7 +62,13 @@ mov	ss, ax
 movzx	esp, dx
 sti
 
-# FIXME - zero BSS
+# zero BSS
+mov	di, OFFSET __bss_start
+mov	cx, OFFSET _end + 3
+xor	eax, eax
+sub	cx, di
+shr	cx, 2
+rep stosd
 
 push	ds
 push	OFFSET 1f

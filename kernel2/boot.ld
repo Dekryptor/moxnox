@@ -8,8 +8,17 @@ SECTIONS
     .data : AT(data) {
         data = .;
         *(.data)
-        . = ALIGN(4096);
     }
+
+    . = ALIGN(16);
+    .bss : {
+        __bss_start = .;
+        *(.bss)
+        __bss_end  = .;
+    }
+    . = ALIGN(16);
+    _end = .;
+
     .text : AT(text) {
         text = .;
         *(.text)
