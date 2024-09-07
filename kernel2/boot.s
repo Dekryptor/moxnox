@@ -23,7 +23,7 @@ start:
 .short	0x204 # FIXME - version (20f)
 .long	0 # realmode_swtch
 .short	0x1000 # start_sys_seg (SYSSEG)
-.short	0 # FIXME - kernel_version (38c0)
+.short	kernel_version - start
 .byte	0 # type_of_loader
 .byte	1 # loadflags (LOADED_HIGH)
 .short	0x8000 # setup_move_size
@@ -75,4 +75,7 @@ push	OFFSET 1f
 lret
 
 1:
-jmp real_mode_main
+jmp	real_mode_main
+
+kernel_version:
+.ascii	"Moxnox v0.0.1"
