@@ -1,4 +1,5 @@
 .intel_syntax noprefix
+.code16
 
 .section ".boot", "a"
 
@@ -50,5 +51,22 @@ start:
 .long	0 # FIXME - handover_offset (ad4a09)
 
 start_of_setup:
-# FIXME - set up stack etc.
+
+mov	ax, ds
+mov	es, ax
+cld
+
+mov	dx, sp
+and	dx, ~3
+mov	ss, ax
+movzx	esp, dx
+sti
+
+# FIXME - zero BSS
+
+push	ds
+push	OFFSET 1f
+lret
+
+1:
 jmp real_mode_main
