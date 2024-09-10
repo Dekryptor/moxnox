@@ -1,8 +1,10 @@
 OUTPUT_FORMAT("binary")
+OUTPUT_ARCH("i386")
+TARGET("pe-i386")
 SECTIONS
 {
     .boot 0 : AT(0) {
-        boot.o(.boot)
+        *(.boot)
         . = ALIGN(4096);
     }
     .data : AT(data) {
@@ -11,11 +13,17 @@ SECTIONS
     }
 
     . = ALIGN(16);
+    .rdata : {
+        *(.rdata)
+    }
+
+    . = ALIGN(16);
     .bss : {
         __bss_start = .;
         *(.bss)
         __bss_end  = .;
     }
+
     . = ALIGN(16);
     _end = .;
 
