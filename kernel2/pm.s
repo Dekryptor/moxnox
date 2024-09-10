@@ -17,9 +17,12 @@ enter_protected_mode:
     or al, 1
     mov cr0, eax
 
-    jmp 0x08:1f
+    # long jump
+    .byte 0x66
+    .byte 0xea
+    .long OFFSET 1f + 0x10000 # FIXME
+    .short 0x8
 
 .code32
 1:
-    jmp 1b # FIXME
-    # jmp protected_mode_main
+    jmp protected_mode_main
