@@ -17,11 +17,16 @@ enter_protected_mode:
     or al, 1
     mov cr0, eax
 
-    # long jump
+    mov ax, cs
+    shl eax, 4
+    or eax, OFFSET 1f
+
+    push 0x8
+    push eax
+
+    # 32-bit retf
     .byte 0x66
-    .byte 0xea
-    .long OFFSET 1f + 0x10000 # FIXME
-    .short 0x8
+    .byte 0xcb
 
 .code32
 1:
