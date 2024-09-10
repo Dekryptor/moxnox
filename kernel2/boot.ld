@@ -27,24 +27,19 @@ SECTIONS
     . = ALIGN(16);
     _end = .;
 
-    .text : AT(text) {
-        text = .;
-        *(.text)
+    .rm_text : AT(rm_text) {
+        rm_text = .;
+        *(.rm_text)
         . = ALIGN(4096);
         setup_size = ABSOLUTE(.);
         setup_sects = ABSOLUTE(setup_size / 512);
     }
 
-/*    .entrytext : AT(entry_text) {
-        entry_text = .;
-        boot.o(.entrytext)
-    }*/
-    
-/*     .boot phys : SUBALIGN(0) { */
-/*         boot.o( .boot ) */
-/*     } */
-/*     .entrytext 100 : { */
-/*         boot.o( .entrytext ) */
-/*         . = ALIGN(4096); */
-/*     } */
+    .text 0x100000 : AT(setup_size) {
+        text = 0x100000;
+        *(.text)
+        . = ALIGN(4096);
+        text_end = ABSOLUTE(.);
+        syssize = (text_end - ABSOLUTE(text)) / 16;
+    }
 }

@@ -7,7 +7,7 @@
 
 .byte	setup_sects - 1
 .short	1 # root_flags (ROOT_RDONLY)
-.long	0 # FIXME - syssize (adb40)
+.long	syssize
 .short	0 # ram_size (0)
 .short	0xffff # vid_mode (SVGA_MODE)
 .short	0 # root_dev (0)

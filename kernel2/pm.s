@@ -1,6 +1,7 @@
 .intel_syntax noprefix
 .code16
 
+.section rm_text
 .globl enter_protected_mode
 enter_protected_mode:
     cli
@@ -34,4 +35,6 @@ enter_protected_mode:
     mov ds, ax
     mov es, ax
     mov ss, ax
-    jmp protected_mode_main
+
+    mov eax, OFFSET protected_mode_main
+    jmp eax
