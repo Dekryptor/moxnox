@@ -30,4 +30,8 @@ enter_protected_mode:
 
 .code32
 1:
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
     jmp protected_mode_main
