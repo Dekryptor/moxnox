@@ -63,7 +63,7 @@ movzx	esp, dx
 sti
 
 # zero BSS
-mov	di, OFFSET __bss_start
+mov	di, OFFSET __rm_bss_start
 mov	cx, OFFSET _end + 3
 xor	eax, eax
 sub	cx, di

@@ -13,15 +13,15 @@ SECTIONS
     }
 
     . = ALIGN(16);
-    .rdata : {
-        *(.rdata)
+    .rm_rdata : {
+        *rm-main.o(.rdata)
     }
 
     . = ALIGN(16);
-    .bss : {
-        __bss_start = .;
-        *(.bss)
-        __bss_end  = .;
+    .rm_bss : {
+        __rm_bss_start = .;
+        *rm-main.o(.bss)
+        __rm_bss_end = .;
     }
 
     . = ALIGN(16);
@@ -37,9 +37,22 @@ SECTIONS
 
     .text 0x100000 : AT(setup_size) {
         text = 0x100000;
-        *(.text)
+        *pm-main.o(.text)
         . = ALIGN(4096);
         text_end = ABSOLUTE(.);
-        syssize = (text_end - ABSOLUTE(text)) / 16;
     }
+
+    .bss : {
+        _bss_start = .;
+        *pm-main.o(.bss)
+        _bss_end = .;
+        . = ALIGN(16);
+    }
+
+    .rdata : {
+        *pm-main.o(.rdata)
+        . = ALIGN(16);
+    }
+
+    syssize = (text_end - ABSOLUTE(text)) / 16;
 }
