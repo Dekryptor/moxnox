@@ -1,5 +1,5 @@
 #!/bin/bash
 
-qemu-system-i386 -enable-kvm -cpu host -kernel boot \
+qemu-system-x86_64 -enable-kvm -cpu host -kernel boot \
 -monitor stdio \
 -s

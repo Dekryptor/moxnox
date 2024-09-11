@@ -7,9 +7,9 @@ SECTIONS
         *(.boot)
         . = ALIGN(4096);
     }
-    .data : AT(data) {
-        data = .;
-        *(.data)
+    .rm_data : AT(rm_data) {
+        rm_data = .;
+        *rm-main.o(.data)
     }
 
     . = ALIGN(16);
@@ -36,10 +36,9 @@ SECTIONS
     }
 
     .text 0x100000 : AT(setup_size) {
-        text = 0x100000;
+        text = .;
         *pm-main.o(.text)
         . = ALIGN(4096);
-        text_end = ABSOLUTE(.);
     }
 
     .bss : {
@@ -54,5 +53,11 @@ SECTIONS
         . = ALIGN(16);
     }
 
-    syssize = (text_end - ABSOLUTE(text)) / 16;
+    .data : ALIGN(4096) {
+        *pm-main.o(.data)
+        . = ALIGN(4096);
+        pm_end = .;
+    }
+
+    syssize = (ABSOLUTE(pm_end) - ABSOLUTE(text)) / 16;
 }

@@ -1,7 +1,7 @@
 .intel_syntax noprefix
 .code16
 
-.section rm_text
+.section .rm_text
 .globl enter_protected_mode
 enter_protected_mode:
     cli
