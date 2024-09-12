@@ -40,11 +40,12 @@ struct GDTIDT {
 } __attribute__((packed));
 
 struct idt_entry {
-    uint16_t Offset;
-    uint16_t Selector;
-    uint16_t Access;
-    uint16_t ExtendedOffset;
-};
+    uint16_t offset_1;
+    uint16_t selector;
+    uint8_t zero;
+    uint8_t type_attributes;
+    uint16_t offset_2;
+} __attribute__((packed));
 
 using pte_span = span<HARDWARE_PTE_PAE, PAGE_SIZE / sizeof(HARDWARE_PTE_PAE)>;
 
@@ -163,12 +164,27 @@ static void enable_paging() {
     __writecr0(__readcr0() | CR0_PG);
 }
 
+void double_fault() { // FIXME
+    while (true) { }
+}
+
+static void setup_idt_entry(idt_entry& i, void* isr, uint16_t access) {
+    i.offset_1 = (uintptr_t)isr & 0xffff;
+    i.selector = 0x8;
+    i.type_attributes = access;
+    i.offset_2 = (uintptr_t)isr >> 16;
+}
+
 static void setup_idt() {
     GDTIDT desc;
 
     auto page = get_page();
 
     memset((void*)(uintptr_t)page, 0, PAGE_SIZE);
+
+    span idt((idt_entry*)(uintptr_t)page, NUM_IDT);
+
+    setup_idt_entry(idt[8], (void*)double_fault, 0x8f);
 
     desc.Base = (uintptr_t)page;
     desc.Limit = (NUM_IDT * sizeof(idt_entry)) - 1;
