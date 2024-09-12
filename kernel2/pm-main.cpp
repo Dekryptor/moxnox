@@ -47,6 +47,21 @@ struct idt_entry {
     uint16_t offset_2;
 } __attribute__((packed));
 
+struct gdt_entry {
+    uint16_t LimitLow;
+    uint16_t BaseLow;
+    uint32_t BaseMid:8;
+    uint32_t Type:5;
+    uint32_t Dpl:2;
+    uint32_t Pres:1;
+    uint32_t LimitHi:4;
+    uint32_t Sys:1;
+    uint32_t Long:1;
+    uint32_t Default_Big:1;
+    uint32_t Granularity:1;
+    uint32_t BaseHi:8;
+} __attribute__((packed));
+
 using pte_span = span<HARDWARE_PTE_PAE, PAGE_SIZE / sizeof(HARDWARE_PTE_PAE)>;
 
 static uint32_t next_page = 0x200000; // FIXME - do this properly
@@ -115,7 +130,6 @@ static void map_page(pte_span pt2, uint32_t phys, uint32_t virt) {
 
     if (!pt2_ent.Valid) {
         pt2_ent.Valid = 1;
-        pt2_ent.Write = 1;
         pt2_ent.PageFrameNumber = get_page() >> PAGE_SHIFT;
 
         memset((void*)(uintptr_t)(pt2_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
@@ -150,7 +164,7 @@ static void enable_paging() {
     // FIXME - identity-map protected mode code and everything before it
     // FIXME - don't hardcode image base here
 
-    for (uint32_t page = 0; page < 0x200000; page += PAGE_SIZE) { // FIXME
+    for (uint32_t page = 0; page < next_page; page += PAGE_SIZE) { // FIXME
         map_page(pd, page, page);
     }
 
@@ -166,6 +180,57 @@ static void enable_paging() {
 
 void double_fault() { // FIXME
     while (true) { }
+}
+
+static consteval gdt_entry make_gdt_entry(uint32_t base, uint32_t limit, uint8_t type,
+                                          uint8_t dpl, bool pres, bool sys, bool long_mode,
+                                          bool default_big, bool granularity) {
+    gdt_entry g;
+
+    g.LimitLow = limit & 0xffff;
+    g.LimitHi = (limit >> 16) & 0xf;
+
+    g.BaseLow = base & 0xffff;
+    g.BaseMid = (base >> 16) & 0xff;
+    g.BaseHi = (base >> 24) & 0xff;
+
+    g.Type = type;
+    g.Dpl = dpl;
+    g.Pres = pres ? 1 : 0;
+
+    g.Sys = sys;
+    g.Long = long_mode;
+    g.Default_Big = default_big;
+    g.Granularity = granularity;
+
+    return g;
+}
+
+static void setup_gdt() {
+    GDTIDT desc;
+
+    auto page = get_page();
+
+    memset((void*)(uintptr_t)page, 0, PAGE_SIZE);
+
+    span gdt((gdt_entry*)(uintptr_t)page, 3);
+
+    gdt[0] = make_gdt_entry(0, 0, 0, 0, false, false, false, false, false); // null descriptor
+    gdt[1] = make_gdt_entry(0, 0xfffff, 0x1a, 0, true, false, false, true, true); // kernel-mode code
+    gdt[2] = make_gdt_entry(0, 0xfffff, 0x12, 0, true, false, false, true, true); // kernel-mode data
+
+    desc.Base = (uintptr_t)page;
+    desc.Limit = gdt.size_bytes() - 1;
+
+    __asm__ __volatile__ (
+        "lgdt %0\n\t"
+        "push 0x8\n\t"
+        "push OFFSET 1f\n\t"
+        "retf\n\t"
+        "1:\n\t"
+        :
+        : "m" (desc)
+    );
 }
 
 static void setup_idt_entry(idt_entry& i, void* isr, uint16_t access) {
@@ -198,6 +263,7 @@ static void setup_idt() {
 
 extern "C"
 void protected_mode_main() {
+    setup_gdt();
     setup_idt();
 
     enable_paging();
