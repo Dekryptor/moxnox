@@ -13,23 +13,26 @@ using namespace std;
 
 #define CR4_PAE     0x00000020
 
-struct HARDWARE_PTE {
-    uint32_t Valid:1;
-    uint32_t Write:1;
-    uint32_t Owner:1;
-    uint32_t WriteThrough:1;
-    uint32_t CacheDisable:1;
-    uint32_t Accessed:1;
-    uint32_t Dirty:1;
-    uint32_t LargePage:1;
-    uint32_t Global:1;
-    uint32_t CopyOnWrite:1;
-    uint32_t Prototype:1;
-    uint32_t Reserved:1;
-    uint32_t PageFrameNumber:20;
+struct HARDWARE_PTE_PAE {
+    uint64_t Valid:1;
+    uint64_t Write:1;
+    uint64_t Owner:1;
+    uint64_t WriteThrough:1;
+    uint64_t CacheDisable:1;
+    uint64_t Accessed:1;
+    uint64_t Dirty:1;
+    uint64_t LargePage:1;
+    uint64_t Global:1;
+    uint64_t CopyOnWrite:1;
+    uint64_t Prototype:1;
+    uint64_t reserved0:1;
+    uint64_t PageFrameNumber:28;
+    uint64_t reserved1:12;
+    uint64_t SoftwareWsIndex:11;
+    uint64_t NoExecute:1;
 };
 
-using pte_span = span<HARDWARE_PTE, PAGE_SIZE / sizeof(HARDWARE_PTE)>;
+using pte_span = span<HARDWARE_PTE_PAE, PAGE_SIZE / sizeof(HARDWARE_PTE_PAE)>;
 
 static uint32_t next_page = 0x200000; // FIXME - do this properly
 
@@ -92,26 +95,40 @@ static uint32_t get_page() {
     return ret;
 }
 
-static void map_page(pte_span pd, uint32_t phys, uint32_t virt) {
-    auto& pd_ent = pd[virt >> 22];
+static void map_page(pte_span pt2, uint32_t phys, uint32_t virt) {
+    auto& pt2_ent = pt2[virt >> 30];
 
-    if (!pd_ent.Valid) {
-        pd_ent.Valid = 1;
-        pd_ent.Write = 1;
-        pd_ent.PageFrameNumber = get_page() >> PAGE_SHIFT;
+    if (!pt2_ent.Valid) {
+        pt2_ent.Valid = 1;
+        pt2_ent.Write = 1;
+        pt2_ent.PageFrameNumber = get_page() >> PAGE_SHIFT;
+
+        memset((void*)(uintptr_t)(pt2_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
     }
 
-    pte_span pt((HARDWARE_PTE*)(uintptr_t)(pd_ent.PageFrameNumber << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE));
+    pte_span pt1((HARDWARE_PTE_PAE*)(uintptr_t)(pt2_ent.PageFrameNumber << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
 
-    auto &pt_ent = pt[(virt >> 12) & 0x3ff];
+    auto &pt1_ent = pt1[(virt >> 21) & 0x1ff];
 
-    pt_ent.Valid = 1;
-    pt_ent.Write = 1;
-    pt_ent.PageFrameNumber = phys >> PAGE_SHIFT;
+    if (!pt1_ent.Valid) {
+        pt1_ent.Valid = 1;
+        pt1_ent.Write = 1;
+        pt1_ent.PageFrameNumber = get_page() >> PAGE_SHIFT;
+
+        memset((void*)(uintptr_t)(pt1_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
+    }
+
+    pte_span pt0((HARDWARE_PTE_PAE*)(uintptr_t)(pt1_ent.PageFrameNumber << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
+
+    auto &pt0_ent = pt0[(virt >> 12) & 0x1ff];
+
+    pt0_ent.Valid = 1;
+    pt0_ent.Write = 1;
+    pt0_ent.PageFrameNumber = phys >> PAGE_SHIFT;
 }
 
 static void enable_paging() {
-    pte_span pd((HARDWARE_PTE*)(uintptr_t)get_page(), PAGE_SIZE / sizeof(HARDWARE_PTE));
+    pte_span pd((HARDWARE_PTE_PAE*)(uintptr_t)get_page(), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
 
     memset(pd.data(), 0, pd.size_bytes());
 
@@ -122,8 +139,8 @@ static void enable_paging() {
         map_page(pd, page, page);
     }
 
-    // disable PAE
-    __writecr4(__readcr4() & ~CR4_PAE);
+    // enable PAE
+    __writecr4(__readcr4() | CR4_PAE);
 
     // set cr3
     __writecr3((uintptr_t)pd.data());
