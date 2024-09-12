@@ -32,6 +32,20 @@ struct HARDWARE_PTE_PAE {
     uint64_t NoExecute:1;
 };
 
+#define NUM_IDT 256
+
+struct GDTIDT {
+    uint16_t Limit;
+    uint32_t Base;
+} __attribute__((packed));
+
+struct idt_entry {
+    uint16_t Offset;
+    uint16_t Selector;
+    uint16_t Access;
+    uint16_t ExtendedOffset;
+};
+
 using pte_span = span<HARDWARE_PTE_PAE, PAGE_SIZE / sizeof(HARDWARE_PTE_PAE)>;
 
 static uint32_t next_page = 0x200000; // FIXME - do this properly
@@ -149,8 +163,27 @@ static void enable_paging() {
     __writecr0(__readcr0() | CR0_PG);
 }
 
+static void setup_idt() {
+    GDTIDT desc;
+
+    auto page = get_page();
+
+    memset((void*)(uintptr_t)page, 0, PAGE_SIZE);
+
+    desc.Base = (uintptr_t)page;
+    desc.Limit = (NUM_IDT * sizeof(idt_entry)) - 1;
+
+    __asm__ __volatile__ (
+        "lidt %0\n\t"
+        :
+        : "m" (desc)
+    );
+}
+
 extern "C"
 void protected_mode_main() {
+    setup_idt();
+
     enable_paging();
 
     while (true) {

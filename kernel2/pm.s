@@ -35,6 +35,8 @@ enter_protected_mode:
     mov ds, ax
     mov es, ax
     mov ss, ax
+    mov fs, ax
+    mov gs, ax
 
     mov eax, OFFSET protected_mode_main
     jmp eax
