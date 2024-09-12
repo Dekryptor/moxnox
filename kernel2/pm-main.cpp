@@ -92,8 +92,8 @@ static uint32_t get_page() {
     return ret;
 }
 
-static void identity_map_page(pte_span pd, uint32_t page) {
-    auto& pd_ent = pd[page >> 22];
+static void map_page(pte_span pd, uint32_t phys, uint32_t virt) {
+    auto& pd_ent = pd[virt >> 22];
 
     if (!pd_ent.Valid) {
         pd_ent.Valid = 1;
@@ -103,11 +103,11 @@ static void identity_map_page(pte_span pd, uint32_t page) {
 
     pte_span pt((HARDWARE_PTE*)(uintptr_t)(pd_ent.PageFrameNumber << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE));
 
-    auto &pt_ent = pt[(page >> 12) & 0x3ff];
+    auto &pt_ent = pt[(virt >> 12) & 0x3ff];
 
     pt_ent.Valid = 1;
     pt_ent.Write = 1;
-    pt_ent.PageFrameNumber = page >> PAGE_SHIFT;
+    pt_ent.PageFrameNumber = phys >> PAGE_SHIFT;
 }
 
 static void enable_paging() {
@@ -119,7 +119,7 @@ static void enable_paging() {
     // FIXME - don't hardcode image base here
 
     for (uint32_t page = 0; page < 0x200000; page += PAGE_SIZE) { // FIXME
-        identity_map_page(pd, page);
+        map_page(pd, page, page);
     }
 
     // disable PAE
