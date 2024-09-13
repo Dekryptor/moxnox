@@ -130,8 +130,6 @@ static uint32_t get_page() {
 }
 
 static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
-    // FIXME - top half addresses
-
     auto& pt3_ent = pt3[(virt >> 39) & 0x1ff];
 
     if (!pt3_ent.Valid) {
@@ -288,6 +286,9 @@ void protected_mode_main() {
     setup_idt();
 
     enable_paging();
+
+    // FIXME - rm 32-bit IDT
+    // FIXME - load PE payload into memory
 
     __asm__ __volatile__ (
         "push 0x18\n\t"
