@@ -13,6 +13,10 @@ using namespace std;
 
 #define CR4_PAE     0x00000020
 
+#define EFER_MSR    0xc0000080
+
+#define EFER_LME    (1 << 8)
+
 struct HARDWARE_PTE_PAE {
     uint64_t Valid:1;
     uint64_t Write:1;
@@ -125,11 +129,25 @@ static uint32_t get_page() {
     return ret;
 }
 
-static void map_page(pte_span pt2, uint32_t phys, uint32_t virt) {
-    auto& pt2_ent = pt2[virt >> 30];
+static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
+    // FIXME - top half addresses
+
+    auto& pt3_ent = pt3[(virt >> 39) & 0x1ff];
+
+    if (!pt3_ent.Valid) {
+        pt3_ent.Valid = 1;
+        pt3_ent.PageFrameNumber = get_page() >> PAGE_SHIFT;
+
+        memset((void*)(uintptr_t)(pt3_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
+    }
+
+    pte_span pt2((HARDWARE_PTE_PAE*)(uintptr_t)(pt3_ent.PageFrameNumber << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
+
+    auto& pt2_ent = pt2[(virt >> 30) & 0x1ff];
 
     if (!pt2_ent.Valid) {
         pt2_ent.Valid = 1;
+        pt2_ent.Write = 1;
         pt2_ent.PageFrameNumber = get_page() >> PAGE_SHIFT;
 
         memset((void*)(uintptr_t)(pt2_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
@@ -173,6 +191,8 @@ static void enable_paging() {
 
     // set cr3
     __writecr3((uintptr_t)pd.data());
+
+    __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_LME);
 
     // enable paging
     __writecr0(__readcr0() | CR0_PG);
