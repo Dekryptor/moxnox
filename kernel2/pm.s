@@ -42,3 +42,9 @@ enter_protected_mode:
 
     mov eax, OFFSET protected_mode_main
     jmp eax
+
+.code64
+.section .text
+.globl long_mode_start
+long_mode_start:
+    jmp long_mode_start

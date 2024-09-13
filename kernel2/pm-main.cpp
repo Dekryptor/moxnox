@@ -233,11 +233,12 @@ static void setup_gdt() {
 
     memset((void*)(uintptr_t)page, 0, PAGE_SIZE);
 
-    span gdt((gdt_entry*)(uintptr_t)page, 3);
+    span gdt((gdt_entry*)(uintptr_t)page, 4);
 
     gdt[0] = make_gdt_entry(0, 0, 0, 0, false, false, false, false, false); // null descriptor
-    gdt[1] = make_gdt_entry(0, 0xfffff, 0x1a, 0, true, false, false, true, true); // kernel-mode code
+    gdt[1] = make_gdt_entry(0, 0xfffff, 0x1a, 0, true, false, false, true, true); // kernel-mode 32-bit code
     gdt[2] = make_gdt_entry(0, 0xfffff, 0x12, 0, true, false, false, true, true); // kernel-mode data
+    gdt[3] = make_gdt_entry(0, 0xfffff, 0x1a, 0, true, false, true, false, true); // kernel-mode 64-bit code
 
     desc.Base = (uintptr_t)page;
     desc.Limit = gdt.size_bytes() - 1;
@@ -288,6 +289,9 @@ void protected_mode_main() {
 
     enable_paging();
 
-    while (true) {
-    }
+    __asm__ __volatile__ (
+        "push 0x18\n\t"
+        "push OFFSET long_mode_start\n\t"
+        "retf\n\t"
+    );
 }
