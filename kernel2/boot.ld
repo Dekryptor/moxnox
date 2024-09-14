@@ -10,11 +10,13 @@ SECTIONS
     .rm_data : AT(rm_data) {
         rm_data = .;
         *rm-main.o(.data)
+        *boot.o(.data)
     }
 
     . = ALIGN(16);
     .rm_rdata : {
         *rm-main.o(.rdata)
+        *boot.o(.rdata)
     }
 
     . = ALIGN(16);

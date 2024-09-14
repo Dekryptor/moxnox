@@ -1,6 +1,9 @@
 .intel_syntax noprefix
 .code16
 
+.equ E820_COUNT, 128
+.equ E820_SIZE, 20
+
 .section ".boot", "a"
 
 .space  0x1f1
@@ -75,7 +78,40 @@ push	OFFSET 1f
 lret
 
 1:
+detect_memory:
+mov	di, OFFSET e820_entries
+xor	ebx, ebx
+
+.loop:
+mov	edx, 0x534d4150
+mov	eax, 0xe820
+mov	ecx, E820_SIZE
+int	0x15
+
+cmp	eax, 0x534d4150
+jne	.out # failed, eax not 534d4150
+inc	DWORD PTR [e820_count]
+jc	.out # end, carry bit set
+test	ebx, ebx
+je	.out # end, ebx is 0
+cmp	DWORD PTR [e820_count], E820_SIZE # end of array
+jge	.out
+
+add	di, E820_SIZE
+jmp	.loop
+
+.out:
 jmp	real_mode_main
 
+.section .rdata
 kernel_version:
 .ascii	"Moxnox v0.0.1"
+
+.section .data
+.global e820_entries
+e820_entries:
+.space	E820_SIZE * E820_COUNT
+
+.global e820_count
+e820_count:
+.long	0

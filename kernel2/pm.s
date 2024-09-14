@@ -7,6 +7,7 @@ enter_protected_mode:
     cli
 
     # change GDT pointer to flat address
+    xor eax, eax
     mov ax, ds
     shl eax, 4
     or eax, DWORD PTR [gdt_descriptor + 2]
