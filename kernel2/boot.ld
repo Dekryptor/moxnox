@@ -58,6 +58,7 @@ SECTIONS
 
     .data : ALIGN(4096) {
         *pm-main.o(.data)
+        *pm.o(.data)
         . = ALIGN(4096);
         pm_end = .;
     }
