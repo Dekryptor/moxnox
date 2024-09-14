@@ -55,9 +55,14 @@ SECTIONS
 
     .data : ALIGN(4096) {
         *pm-main.o(.data)
+        *payload.o(.data)
         . = ALIGN(4096);
         pm_end = .;
     }
 
     syssize = (ABSOLUTE(pm_end) - ABSOLUTE(text)) / 16;
+
+    .payload : {
+        *payload.o(.payload)
+    }
 }
