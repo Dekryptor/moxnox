@@ -316,7 +316,25 @@ static void sanitize_mem_entries() {
             m.length = (m.length & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
     }
 
-    // FIXME - sort
+    // sort
+    while (true) {
+        bool changed = false;
+
+        for (unsigned int i = 0; i < mem_entries_count - 1; i++) {
+            auto& a = mem_entries[i];
+            auto& b = mem_entries[i + 1];
+
+            if (a.address > b.address) {
+                swap(a, b);
+                changed = true;
+                i--;
+            }
+        }
+
+        if (!changed)
+            break;
+    }
+
     // FIXME - remove any with size 0
     // FIXME - change unknown types to mem_type::reserved
     // FIXME - combine adjacent
