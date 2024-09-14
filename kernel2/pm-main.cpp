@@ -73,7 +73,8 @@ enum class mem_type : uint32_t {
     reserved = 2,
     acpi_reclaimable = 3,
     acpi_nvs = 4,
-    bad = 5
+    bad = 5,
+    max_bios = bad
 };
 
 struct e820_entry {
@@ -316,12 +317,13 @@ static void sanitize_mem_entries() {
             m.length = (m.length & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
     }
 
-    // remove any with size 0
+    // remove any with size 0, and change unknown types to mem_type::reserved
     for (unsigned int i = 0; i < mem_entries_count; i++) {
         if (mem_entries[i].length == 0) {
             swap(mem_entries[i], mem_entries[mem_entries_count - 1]);
             mem_entries_count--;
-        }
+        } else if (mem_entries[i].type > mem_type::max_bios)
+            mem_entries[i].type = mem_type::reserved;
     }
 
     // sort
@@ -343,7 +345,6 @@ static void sanitize_mem_entries() {
             break;
     }
 
-    // FIXME - change unknown types to mem_type::reserved
     // FIXME - combine adjacent
     // FIXME - handle overlaps
     // FIXME - add any missing
