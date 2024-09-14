@@ -316,6 +316,14 @@ static void sanitize_mem_entries() {
             m.length = (m.length & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
     }
 
+    // remove any with size 0
+    for (unsigned int i = 0; i < mem_entries_count; i++) {
+        if (mem_entries[i].length == 0) {
+            swap(mem_entries[i], mem_entries[mem_entries_count - 1]);
+            mem_entries_count--;
+        }
+    }
+
     // sort
     while (true) {
         bool changed = false;
@@ -335,7 +343,6 @@ static void sanitize_mem_entries() {
             break;
     }
 
-    // FIXME - remove any with size 0
     // FIXME - change unknown types to mem_type::reserved
     // FIXME - combine adjacent
     // FIXME - handle overlaps
