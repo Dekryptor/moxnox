@@ -105,7 +105,7 @@ jmp	real_mode_main
 
 .section .rdata
 kernel_version:
-.ascii	"Moxnox v0.0.1"
+.asciz	"Moxnox v0.0.1"
 
 .section .data
 .global e820_entries
