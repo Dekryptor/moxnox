@@ -7,7 +7,7 @@ payload_data:
 
 payload_end:
 
-.section .data
+.section .rdata
 .globl payload_size
 payload_size:
 .quad payload_end - payload_data

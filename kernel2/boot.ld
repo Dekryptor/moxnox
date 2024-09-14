@@ -50,12 +50,12 @@ SECTIONS
 
     .rdata : {
         *pm-main.o(.rdata)
+        *payload.o(.rdata)
         . = ALIGN(16);
     }
 
     .data : ALIGN(4096) {
         *pm-main.o(.data)
-        *payload.o(.data)
         . = ALIGN(4096);
         pm_end = .;
     }
