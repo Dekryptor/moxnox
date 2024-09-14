@@ -68,6 +68,26 @@ struct gdt_entry {
 
 using pte_span = span<HARDWARE_PTE_PAE, PAGE_SIZE / sizeof(HARDWARE_PTE_PAE)>;
 
+enum class mem_type : uint32_t {
+    free = 1,
+    reserved = 2,
+    acpi_reclaimable = 3,
+    acpi_nvs = 4,
+    bad = 5
+};
+
+struct e820_entry {
+    uint64_t address;
+    uint64_t length;
+    mem_type type;
+} __attribute__((packed));
+
+extern e820_entry* ptr_e820_entries;
+extern uint32_t* ptr_e820_count;
+
+static e820_entry* mem_entries;
+static uint32_t mem_entries_count;
+
 static uint32_t next_page = 0x200000; // FIXME - do this properly
 
 // FIXME - move to another file?
@@ -280,8 +300,38 @@ static void setup_idt() {
     );
 }
 
+static void sanitize_mem_entries() {
+    span mem(mem_entries, mem_entries_count);
+
+    // align to pages
+    for (auto& m : mem) {
+        if (m.address & (PAGE_SIZE - 1)) {
+            uint64_t new_addr = m.address & ~(PAGE_SIZE - 1);
+
+            m.length += m.address - new_addr;
+            m.address = new_addr;
+        }
+
+        if (m.length & (PAGE_SIZE - 1))
+            m.length = (m.length & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
+    }
+
+    // FIXME - sort
+    // FIXME - remove any with size 0
+    // FIXME - change unknown types to mem_type::reserved
+    // FIXME - combine adjacent
+    // FIXME - handle overlaps
+    // FIXME - add any missing
+    // FIXME - watch out for last page
+}
+
 extern "C"
 void protected_mode_main() {
+    mem_entries = ptr_e820_entries;
+    mem_entries_count = *ptr_e820_count;
+
+    sanitize_mem_entries();
+
     setup_gdt();
     setup_idt();
 
