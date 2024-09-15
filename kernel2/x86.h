@@ -72,7 +72,8 @@ enum class mem_type : uint32_t {
     bad = 5,
     max_bios = bad,
     bootloader,
-    page_table
+    page_table,
+    image
 };
 
 struct e820_entry {

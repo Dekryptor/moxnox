@@ -79,7 +79,7 @@ static void remove_mem_entry(unsigned int pos) {
     mem_entries_count--;
 }
 
-static uint64_t get_page(enum mem_type type = mem_type::bootloader) {
+static uint64_t get_pages(enum mem_type type, unsigned int num_pages) {
     uint64_t ret = 0;
 
     // FIXME - make sure in first 4GB
@@ -88,16 +88,16 @@ static uint64_t get_page(enum mem_type type = mem_type::bootloader) {
     for (unsigned int i = 0; i < mem_entries_count; i++) {
         auto& m = mem_entries[i];
 
-        if (m.type != mem_type::free)
+        if (m.type != mem_type::free || m.length < num_pages * PAGE_SIZE)
             continue;
 
         ret = m.address;
 
         // extending previous entry
         if (i > 0 && mem_entries[i - 1].type == type) {
-            mem_entries[i - 1].length += PAGE_SIZE;
-            m.address += PAGE_SIZE;
-            m.length -= PAGE_SIZE;
+            mem_entries[i - 1].length += num_pages * PAGE_SIZE;
+            m.address += num_pages * PAGE_SIZE;
+            m.length -= num_pages * PAGE_SIZE;
 
             if (m.length == 0)
                 remove_mem_entry(i);
@@ -105,8 +105,8 @@ static uint64_t get_page(enum mem_type type = mem_type::bootloader) {
             break;
         }
 
-        // free block of only one page
-        if (m.length == PAGE_SIZE) {
+        // free block of same size
+        if (m.length == num_pages * PAGE_SIZE) {
             m.type = type;
             break;
         }
@@ -114,17 +114,21 @@ static uint64_t get_page(enum mem_type type = mem_type::bootloader) {
         // add new entry
         add_new_mem_entry(i + 1);
 
-        mem_entries[i + 1].address = ret + PAGE_SIZE;
-        mem_entries[i + 1].length = m.length - PAGE_SIZE;
+        mem_entries[i + 1].address = ret + (num_pages * PAGE_SIZE);
+        mem_entries[i + 1].length = m.length - (num_pages * PAGE_SIZE);
         mem_entries[i + 1].type = mem_type::free;
 
-        m.length = PAGE_SIZE;
+        m.length = num_pages * PAGE_SIZE;
         m.type = type;
 
         break;
     }
 
     return ret;
+}
+
+static uint64_t get_page(enum mem_type type = mem_type::bootloader) {
+    return get_pages(type, 1);
 }
 
 static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
@@ -491,7 +495,13 @@ static bool load_payload() {
     if (pe_header.OptionalHeader64.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
         return false;
 
-    // FIXME - reserve contiguous space for PE image
+    auto size = pe_header.OptionalHeader64.SizeOfImage;
+
+    if (size & (PAGE_SIZE - 1))
+        size = (size & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
+
+    auto addr = get_pages(mem_type::image, size / PAGE_SIZE);
+
     // FIXME - copy sections into space, padding with zeroes if necessary
     // FIXME - do relocations
 
