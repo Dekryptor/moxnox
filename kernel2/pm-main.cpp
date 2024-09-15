@@ -142,6 +142,21 @@ void* memset(void* s, int c, size_t n) {
     return orig_s;
 }
 
+void* memmove(void* dest, const void* src, size_t n) {
+    auto orig_dest = dest;
+
+    while (n > 0) {
+        *(uint8_t*)dest = *(uint8_t*)src;
+
+        dest = (uint8_t*)dest + 1;
+        src = (uint8_t*)src + 1;
+
+        n--;
+    }
+
+    return orig_dest;
+}
+
 static uint32_t get_page() {
     uint32_t ret = next_page;
 
@@ -301,6 +316,43 @@ static void setup_idt() {
     );
 }
 
+weak_ordering operator<=>(enum mem_type m1, enum mem_type m2) {
+    if ((unsigned int)m1 == (unsigned int)m2)
+        return weak_ordering::equivalent;
+
+    if (m1 == mem_type::free)
+        return weak_ordering::less;
+
+    if (m2 == mem_type::free)
+        return weak_ordering::greater;
+
+    if (m1 == mem_type::reserved)
+        return weak_ordering::greater;
+
+    if (m2 == mem_type::reserved)
+        return weak_ordering::less;
+
+    if (m1 == mem_type::bad)
+        return weak_ordering::greater;
+
+    if (m2 == mem_type::bad)
+        return weak_ordering::less;
+
+    return weak_ordering::equivalent;
+}
+
+static void add_new_mem_entry(unsigned int pos) {
+    memmove(&mem_entries[pos + 1], &mem_entries[pos],
+            (mem_entries_count - pos) * sizeof(e820_entry));
+    mem_entries_count++;
+}
+
+static void remove_mem_entry(unsigned int pos) {
+    memmove(&mem_entries[pos], &mem_entries[pos + 1],
+            (mem_entries_count - pos - 1) * sizeof(e820_entry));
+    mem_entries_count--;
+}
+
 static void sanitize_mem_entries() {
     span mem(mem_entries, mem_entries_count);
 
@@ -345,9 +397,56 @@ static void sanitize_mem_entries() {
             break;
     }
 
-    // FIXME - combine adjacent
-    // FIXME - handle overlaps
+    // handle overlaps
+    for (unsigned int i = 0; i < mem_entries_count - 1; i++) {
+        auto& a = mem_entries[i];
+        auto& b = mem_entries[i + 1];
+
+        if (b.address >= a.address && b.address < a.address + a.length) {
+            auto cmp = a.type <=> b.type;
+
+            if (b.address + b.length < a.address + a.length) {
+                // second entirely within first
+
+                if (cmp == weak_ordering::less) {
+                    uint64_t a_end = a.address + a.length;
+
+                    a.length = b.address - a.address;
+
+                    // FIXME - check for overflow
+                    add_new_mem_entry(i + 2);
+
+                    auto& c = mem_entries[i + 2];
+                    c.address = b.address + b.length;
+                    c.length = a_end - c.address;
+                    c.type = a.type;
+                } else
+                    b.length = 0;
+            } else {
+                if (cmp == weak_ordering::less)
+                    a.length = b.address - a.address;
+                else {
+                    b.length -= a.address + a.length - b.address;
+                    b.address = a.address + a.length;
+                }
+            }
+
+            auto new_i = i;
+
+            if (b.length == 0) {
+                remove_mem_entry(i + 1);
+                new_i--;
+            }
+
+            if (a.length == 0)
+                remove_mem_entry(i);
+
+            i = new_i;
+        }
+    }
+
     // FIXME - add any missing
+    // FIXME - combine adjacent
     // FIXME - watch out for last page
 }
 
