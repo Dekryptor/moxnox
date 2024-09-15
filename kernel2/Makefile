@@ -22,7 +22,7 @@ pm-main.o: pm-main.cpp
 	$(CC) -c -std=c++20 -march=i386 -m32 -fno-ident -fno-pic -ffreestanding -fno-leading-underscore -fno-exceptions -masm=intel $? -o $@
 
 payload.exe: payload.cpp
-	$(CC) $? -nostdlib -Wl,-e start -Wl,--image-base 0xffff800000000000 -o $@
+	$(CC) $? -g -O0 -nostdlib -Wl,-e start -Wl,--image-base 0xffff800000000000 -o $@
 
 payload.o: payload.s payload.exe
 	$(AS) --32 $< -o $@
