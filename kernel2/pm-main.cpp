@@ -342,8 +342,9 @@ weak_ordering operator<=>(enum mem_type m1, enum mem_type m2) {
 }
 
 static void add_new_mem_entry(unsigned int pos) {
-    memmove(&mem_entries[pos + 1], &mem_entries[pos],
-            (mem_entries_count - pos) * sizeof(e820_entry));
+    for (int i = mem_entries_count; i >= pos; i--) {
+        mem_entries[i + 1] = mem_entries[i];
+    }
     mem_entries_count++;
 }
 
@@ -445,7 +446,24 @@ static void sanitize_mem_entries() {
         }
     }
 
-    // FIXME - add any missing
+    // add any missing
+    for (unsigned int i = 0; i < mem_entries_count - 1; i++) {
+        auto& a = mem_entries[i];
+        auto& b = mem_entries[i + 1];
+
+        if (b.address > a.address + a.length) {
+            uint64_t new_address = a.address + a.length;
+            uint64_t new_length = b.address - a.address - a.length;
+
+            add_new_mem_entry(i + 1);
+            mem_entries[i + 1].address = new_address;
+            mem_entries[i + 1].length = new_length;
+            mem_entries[i + 1].type = mem_type::reserved;
+
+            i--;
+        }
+    }
+
     // FIXME - combine adjacent
     // FIXME - watch out for last page
 }
