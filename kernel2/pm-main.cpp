@@ -462,7 +462,11 @@ static void sanitize_mem_entries() {
         }
     }
 
-    // FIXME - watch out for last page
+    // remove bad or reserved bits at end
+    while (mem_entries_count > 0 && (mem_entries[mem_entries_count - 1].type == mem_type::bad ||
+         mem_entries[mem_entries_count - 1].type == mem_type::reserved)) {
+        mem_entries_count--;
+    }
 }
 
 extern "C"
