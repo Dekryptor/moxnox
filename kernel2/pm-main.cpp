@@ -14,6 +14,8 @@ extern const uint64_t payload_size;
 static e820_entry* mem_entries;
 static uint32_t mem_entries_count;
 
+static const uint64_t img_addr = 0xffff800000000000;
+
 // FIXME - move to another file?
 extern "C"
 void* memset(void* s, int c, size_t n) {
@@ -63,6 +65,51 @@ void* memset(void* s, int c, size_t n) {
     }
 
     return orig_s;
+}
+
+extern "C"
+void* memcpy(void* dest, const void* src, size_t n) {
+    void* orig_dest = dest;
+
+#if __INTPTR_WIDTH__ == 64
+    while (n >= sizeof(uint64_t)) {
+        *(uint64_t*)dest = *(uint64_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint64_t);
+        src = (uint8_t*)src + sizeof(uint64_t);
+
+        n -= sizeof(uint64_t);
+    }
+#endif
+
+    while (n >= sizeof(uint32_t)) {
+        *(uint32_t*)dest = *(uint32_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint32_t);
+        src = (uint8_t*)src + sizeof(uint32_t);
+
+        n -= sizeof(uint32_t);
+    }
+
+    while (n >= sizeof(uint16_t)) {
+        *(uint16_t*)dest = *(uint16_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint16_t);
+        src = (uint8_t*)src + sizeof(uint16_t);
+
+        n -= sizeof(uint16_t);
+    }
+
+    while (n >= sizeof(uint8_t)) {
+        *(uint8_t*)dest = *(uint8_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint8_t);
+        src = (uint8_t*)src + sizeof(uint8_t);
+
+        n -= sizeof(uint8_t);
+    }
+
+    return orig_dest;
 }
 
 static void add_new_mem_entry(unsigned int pos) {
@@ -183,11 +230,22 @@ static void enable_paging() {
 
     for (unsigned int i = 0; i < mem_entries_count; i++) {
         auto& m = mem_entries[i];
-        if (m.type != mem_type::bootloader)
-            continue;
 
-        for (uint64_t j = 0; j < m.length; j += PAGE_SIZE) {
-            map_page(pd, m.address + j, m.address + j);
+        switch (m.type) {
+            case mem_type::bootloader:
+                for (uint64_t j = 0; j < m.length; j += PAGE_SIZE) {
+                    map_page(pd, m.address + j, m.address + j);
+                }
+            break;
+
+            case mem_type::image:
+                for (uint64_t j = 0; j < m.length; j += PAGE_SIZE) {
+                    map_page(pd, m.address + j, img_addr + j);
+                }
+            break;
+
+            default:
+            break;
         }
     }
 
@@ -495,14 +553,40 @@ static bool load_payload() {
     if (pe_header.OptionalHeader64.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
         return false;
 
-    auto size = pe_header.OptionalHeader64.SizeOfImage;
+    auto img_size = pe_header.OptionalHeader64.SizeOfImage;
 
-    if (size & (PAGE_SIZE - 1))
-        size = (size & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
+    if (img_size & (PAGE_SIZE - 1))
+        img_size = (img_size & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
 
-    auto addr = get_pages(mem_type::image, size / PAGE_SIZE);
+    auto addr = (uint8_t*)get_pages(mem_type::image, img_size / PAGE_SIZE);
 
-    // FIXME - copy sections into space, padding with zeroes if necessary
+    // copy header
+    memcpy(addr, &dos_header, pe_header.OptionalHeader64.SizeOfHeaders);
+
+    if (pe_header.OptionalHeader64.SizeOfHeaders < PAGE_SIZE) {
+        memset(addr + pe_header.OptionalHeader64.SizeOfHeaders, 0,
+               PAGE_SIZE - pe_header.OptionalHeader64.SizeOfHeaders);
+    }
+
+    // copy sections
+    span sects((IMAGE_SECTION_HEADER*)((uint8_t*)&pe_header.OptionalHeader64 + pe_header.FileHeader.SizeOfOptionalHeader),
+               pe_header.FileHeader.NumberOfSections);
+
+    for (const auto& s : sects) {
+        uint32_t section_size;
+
+        section_size = s.VirtualSize;
+
+        if (s.SizeOfRawData < section_size)
+            section_size = s.SizeOfRawData;
+
+        if (section_size > 0 && s.PointerToRawData != 0)
+            memcpy(addr + s.VirtualAddress, (uint8_t*)&dos_header + s.PointerToRawData, section_size);
+
+        if (section_size < s.VirtualSize) // if short, pad with zeroes
+            memset(addr + s.VirtualAddress + section_size, 0, s.VirtualSize - section_size);
+    }
+
     // FIXME - do relocations
 
     return true;
