@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <intrin.h>
 #include "x86.h"
+#include "pe.h"
 
 using namespace std;
 
@@ -473,6 +474,30 @@ static void mark_bootloader_memory() {
     }
 }
 
+static bool load_payload() {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)&payload_data;
+
+    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+
+    auto& pe_header = *(IMAGE_NT_HEADERS*)((uint8_t*)&dos_header + dos_header.e_lfanew);
+
+    if (pe_header.Signature != IMAGE_NT_SIGNATURE)
+        return false;
+
+    if (pe_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64)
+        return false;
+
+    if (pe_header.OptionalHeader64.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        return false;
+
+    // FIXME - reserve contiguous space for PE image
+    // FIXME - copy sections into space, padding with zeroes if necessary
+    // FIXME - do relocations
+
+    return true;
+}
+
 extern "C"
 void protected_mode_main() {
     mem_entries = ptr_e820_entries;
@@ -484,10 +509,16 @@ void protected_mode_main() {
     setup_gdt();
     setup_idt();
 
+    if (!load_payload()) {
+        // FIXME - display error message
+        while (true) { }
+    }
+
     enable_paging();
 
     // FIXME - rm 32-bit IDT
-    // FIXME - load PE payload into memory
+
+    // FIXME - jump to entry point of image
 
     __asm__ __volatile__ (
         "push 0x18\n\t"
