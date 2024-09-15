@@ -74,7 +74,8 @@ enum class mem_type : uint32_t {
     acpi_reclaimable = 3,
     acpi_nvs = 4,
     bad = 5,
-    max_bios = bad
+    max_bios = bad,
+    bootloader
 };
 
 struct e820_entry {
@@ -85,6 +86,8 @@ struct e820_entry {
 
 extern e820_entry* ptr_e820_entries;
 extern uint32_t* ptr_e820_count;
+extern uint8_t* payload_data;
+extern const uint64_t payload_size;
 
 static e820_entry* mem_entries;
 static uint32_t mem_entries_count;
@@ -469,12 +472,50 @@ static void sanitize_mem_entries() {
     }
 }
 
+static void mark_bootloader_memory() {
+    uint64_t bootloader_end;
+
+    bootloader_end = (uintptr_t)&payload_data + payload_size;
+
+    if (bootloader_end & (PAGE_SIZE - 1))
+        bootloader_end = (bootloader_end & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
+
+    span mem(mem_entries, mem_entries_count);
+
+    for (unsigned int i = 0; i < mem_entries_count; i++) {
+        auto& m = mem_entries[i];
+
+        if (m.type != mem_type::free)
+            continue;
+
+        if (m.address >= bootloader_end)
+            break;
+
+        if (m.address + m.length <= bootloader_end) {
+            m.type = mem_type::bootloader;
+            continue;
+        }
+
+        add_new_mem_entry(i + 1);
+
+        auto& m2 = mem_entries[i + 1];
+        m2.address = bootloader_end;
+        m2.length = m.address + m.length - bootloader_end;
+        m2.type = m.type;
+
+        m.length = bootloader_end - m.address;
+        m.type = mem_type::bootloader;
+        break;
+    }
+}
+
 extern "C"
 void protected_mode_main() {
     mem_entries = ptr_e820_entries;
     mem_entries_count = *ptr_e820_count;
 
     sanitize_mem_entries();
+    mark_bootloader_memory();
 
     setup_gdt();
     setup_idt();
