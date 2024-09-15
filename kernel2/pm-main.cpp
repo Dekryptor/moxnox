@@ -142,21 +142,6 @@ void* memset(void* s, int c, size_t n) {
     return orig_s;
 }
 
-void* memmove(void* dest, const void* src, size_t n) {
-    auto orig_dest = dest;
-
-    while (n > 0) {
-        *(uint8_t*)dest = *(uint8_t*)src;
-
-        dest = (uint8_t*)dest + 1;
-        src = (uint8_t*)src + 1;
-
-        n--;
-    }
-
-    return orig_dest;
-}
-
 static uint32_t get_page() {
     uint32_t ret = next_page;
 
@@ -316,7 +301,7 @@ static void setup_idt() {
     );
 }
 
-weak_ordering operator<=>(enum mem_type m1, enum mem_type m2) {
+weak_ordering cmp_mem_type(enum mem_type m1, enum mem_type m2) {
     if ((unsigned int)m1 == (unsigned int)m2)
         return weak_ordering::equivalent;
 
@@ -349,8 +334,9 @@ static void add_new_mem_entry(unsigned int pos) {
 }
 
 static void remove_mem_entry(unsigned int pos) {
-    memmove(&mem_entries[pos], &mem_entries[pos + 1],
-            (mem_entries_count - pos - 1) * sizeof(e820_entry));
+    for (unsigned int i = pos; i < mem_entries_count; i++) {
+        mem_entries[i] = mem_entries[i + 1];
+    }
     mem_entries_count--;
 }
 
@@ -383,7 +369,7 @@ static void sanitize_mem_entries() {
     while (true) {
         bool changed = false;
 
-        for (unsigned int i = 0; i < mem_entries_count - 1; i++) {
+        for (unsigned i = 0; i < mem_entries_count - 1; i++) {
             auto& a = mem_entries[i];
             auto& b = mem_entries[i + 1];
 
@@ -404,7 +390,7 @@ static void sanitize_mem_entries() {
         auto& b = mem_entries[i + 1];
 
         if (b.address >= a.address && b.address < a.address + a.length) {
-            auto cmp = a.type <=> b.type;
+            auto cmp = cmp_mem_type(a.type, b.type);
 
             if (b.address + b.length < a.address + a.length) {
                 // second entirely within first
@@ -464,7 +450,18 @@ static void sanitize_mem_entries() {
         }
     }
 
-    // FIXME - combine adjacent
+    // combine adjacent
+    for (unsigned int i = 0; i < mem_entries_count - 1; i++) {
+        auto& a = mem_entries[i];
+        auto& b = mem_entries[i + 1];
+
+        if (a.type == b.type) {
+            a.length = b.address + b.length - a.address;
+            remove_mem_entry(i + 1);
+            i--;
+        }
+    }
+
     // FIXME - watch out for last page
 }
 
