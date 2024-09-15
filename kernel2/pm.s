@@ -60,7 +60,9 @@ enter_protected_mode:
 .section .text
 .globl long_mode_start
 long_mode_start:
-    jmp long_mode_start
+    lea rax, entry_point[rip]
+    mov rax, [rax]
+    jmp rax
 
 .section .data
 .globl ptr_e820_entries
