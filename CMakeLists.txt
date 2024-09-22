@@ -8,6 +8,7 @@ set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 include_directories(include)
 
 add_subdirectory(kernel)
+add_subdirectory(kernel2)
 add_subdirectory(efi)
 add_subdirectory(init)
 add_subdirectory(shell)
