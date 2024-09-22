@@ -9,20 +9,20 @@ SECTIONS
     }
     .rm_data : AT(rm_data) {
         rm_data = .;
-        *rm-main.o(.data)
-        *boot.o(.data)
+        *rm-main.cpp.obj(.data)
+        *boot.s.obj(.data)
     }
 
     . = ALIGN(16);
     .rm_rdata : {
-        *rm-main.o(.rdata)
-        *boot.o(.rdata)
+        *rm-main.cpp.obj(.rdata)
+        *boot.s.obj(.rdata)
     }
 
     . = ALIGN(16);
     .rm_bss : {
         __rm_bss_start = .;
-        *rm-main.o(.bss)
+        *rm-main.cpp.obj(.bss)
         __rm_bss_end = .;
     }
 
