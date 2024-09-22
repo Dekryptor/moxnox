@@ -2,6 +2,7 @@
 
 #include <string_view>
 #include <span>
+#include <stdint.h>
 
 // shell.cpp
 void print(std::string_view s);
