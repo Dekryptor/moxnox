@@ -12,11 +12,8 @@ boot.o: boot.s
 pm.o: pm.s
 	$(AS) --32 $< -o $@
 
-rm-main.s: rm-main.cpp
-	$(CC) -c -std=c++20 -march=i386 -m16 -fno-ident -fno-pic -ffreestanding -fno-leading-underscore -fno-exceptions $? -masm=intel -S -o $@
-
-rm-main.o: rm-main.s
-	$(AS) --32 $< -o $@
+rm-main.o: rm-main.cpp
+	$(CC) -c -std=c++20 -march=i386 -m16 -Wa,--32 -fno-ident -fno-pic -ffreestanding -fno-leading-underscore -fno-exceptions $? -masm=intel -o $@
 
 pm-main.o: pm-main.cpp
 	$(CC) -c -std=c++20 -march=i386 -m32 -fno-ident -fno-pic -ffreestanding -fno-leading-underscore -fno-exceptions -masm=intel $? -o $@
@@ -28,4 +25,4 @@ payload.o: payload.s payload.exe
 	$(AS) --32 $< -o $@
 
 clean:
-	rm *.o boot rm-main.s payload.exe
+	rm *.o boot payload.exe
