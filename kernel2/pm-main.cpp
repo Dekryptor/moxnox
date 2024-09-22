@@ -538,6 +538,72 @@ static void mark_bootloader_memory() {
     }
 }
 
+static bool do_relocations(IMAGE_NT_HEADERS& pe_header, uint8_t* data, uint64_t va) {
+    if (pe_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_BASERELOC ||
+        pe_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress == 0 ||
+        pe_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size < sizeof(IMAGE_BASE_RELOCATION)) {
+        return true;
+    }
+
+    auto size = pe_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
+
+    auto reloc = (IMAGE_BASE_RELOCATION*)(data + pe_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
+
+    auto base = pe_header.OptionalHeader64.ImageBase;
+
+    do {
+        if (size < reloc->SizeOfBlock)
+            return true;
+
+        // FIXME - check not out of bounds
+        auto ptr = (uint32_t*)(data + reloc->VirtualAddress);
+
+        auto addr = (uint16_t*)((uint8_t*)reloc + sizeof(IMAGE_BASE_RELOCATION));
+        auto count = (reloc->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(uint16_t);
+
+        for (unsigned int i = 0; i < count; i++) {
+            uint16_t offset = addr[i] & 0xfff;
+            uint16_t type = addr[i] >> 12;
+
+            switch (type) {
+                case IMAGE_REL_BASED_ABSOLUTE:
+                    // nop
+                break;
+
+                case IMAGE_REL_BASED_HIGHLOW:
+                {
+                    uint32_t* ptr2 = (uint32_t*)((uint8_t*)ptr + offset);
+
+                    *ptr2 = *ptr2 - base + va;
+                    break;
+                }
+
+                case IMAGE_REL_BASED_DIR64:
+                {
+                    uint64_t* ptr2 = (uint64_t*)((uint8_t*)ptr + offset);
+
+                    *ptr2 = *ptr2 - base + va;
+                    break;
+                }
+
+                default: {
+                    // FIXME - show error for unsupported relocation type
+                    return false;
+                }
+            }
+        }
+
+        size -= reloc->SizeOfBlock;
+
+        if (size < sizeof(IMAGE_BASE_RELOCATION))
+            break;
+
+        reloc = (IMAGE_BASE_RELOCATION*)((uint8_t*)reloc + reloc->SizeOfBlock);
+    } while (true);
+
+    return true;
+}
+
 static bool load_payload() {
     auto& dos_header = *(IMAGE_DOS_HEADER*)&payload_data;
 
@@ -563,6 +629,7 @@ static bool load_payload() {
     auto addr = (uint8_t*)get_pages(mem_type::image, img_size / PAGE_SIZE);
 
     // copy header
+
     memcpy(addr, &dos_header, pe_header.OptionalHeader64.SizeOfHeaders);
 
     if (pe_header.OptionalHeader64.SizeOfHeaders < PAGE_SIZE) {
@@ -571,6 +638,7 @@ static bool load_payload() {
     }
 
     // copy sections
+
     span sects((IMAGE_SECTION_HEADER*)((uint8_t*)&pe_header.OptionalHeader64 + pe_header.FileHeader.SizeOfOptionalHeader),
                pe_header.FileHeader.NumberOfSections);
 
@@ -591,7 +659,8 @@ static bool load_payload() {
 
     entry_point = img_addr + pe_header.OptionalHeader64.AddressOfEntryPoint;
 
-    // FIXME - do relocations
+    if (!do_relocations(pe_header, addr, img_addr))
+        return false;
 
     return true;
 }

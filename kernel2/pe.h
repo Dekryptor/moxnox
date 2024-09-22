@@ -96,3 +96,14 @@ struct IMAGE_SECTION_HEADER {
     uint16_t NumberOfLinenumbers;
     uint32_t Characteristics;
 } __attribute__((packed));
+
+static const unsigned int IMAGE_DIRECTORY_ENTRY_BASERELOC = 5;
+
+static const uint16_t IMAGE_REL_BASED_ABSOLUTE = 0;
+static const uint16_t IMAGE_REL_BASED_HIGHLOW = 3;
+static const uint16_t IMAGE_REL_BASED_DIR64 = 10;
+
+struct IMAGE_BASE_RELOCATION {
+    uint32_t VirtualAddress;
+    uint32_t SizeOfBlock;
+} __attribute__((packed));
