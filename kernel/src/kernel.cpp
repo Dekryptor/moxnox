@@ -1,4 +1,4 @@
-#include "../../efi/src/loaderblock.h"
+#include <loaderblock.h>
 #include "kernel.h"
 #include "unique_handle.h"
 #include "context_offsets.h"
