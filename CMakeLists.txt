@@ -14,6 +14,6 @@ add_subdirectory(init)
 add_subdirectory(shell)
 add_subdirectory(ntdll)
 
-add_definitions(-DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 add_subdirectory(freetype)
+target_compile_definitions(freetype PRIVATE -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 target_compile_options(freetype PRIVATE -mno-stack-arg-probe)
