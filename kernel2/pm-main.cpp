@@ -699,10 +699,10 @@ void protected_mode_main() {
         while (true) { }
     }
 
+    enable_paging();
+
     lb.map_ptr = (uintptr_t)mem_entries;
     lb.num_map_entries = mem_entries_count;
-
-    enable_paging();
 
     // FIXME - rm 32-bit IDT
 
