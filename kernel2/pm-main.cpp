@@ -20,6 +20,7 @@ static uint32_t mem_entries_count;
 static const uint64_t img_addr = 0xffff800000000000;
 
 uint64_t entry_point;
+loader_block lb;
 
 // FIXME - move to another file?
 extern "C"
@@ -697,6 +698,9 @@ void protected_mode_main() {
         // FIXME - display error message
         while (true) { }
     }
+
+    lb.map_ptr = (uintptr_t)mem_entries;
+    lb.num_map_entries = mem_entries_count;
 
     enable_paging();
 

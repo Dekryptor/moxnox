@@ -62,6 +62,7 @@ enter_protected_mode:
 long_mode_start:
     lea rax, entry_point[rip]
     mov rax, [rax]
+    lea rcx, lb[rip]
     jmp rax
 
 .section .data
