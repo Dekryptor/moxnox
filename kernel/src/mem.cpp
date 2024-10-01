@@ -522,18 +522,19 @@ bool init_memory(const loader_block& lb) {
     uint64_t total_pages, num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
     uint64_t memblock_pa;
+    auto lb_map = (map_entry*)lb.map_ptr;
 
     init_pat();
 
     // ignore any non-free entries at end of table
-    while (num_map_entries > 0 && !treat_as_free(lb.map[num_map_entries - 1].type)) {
+    while (num_map_entries > 0 && !treat_as_free(lb_map[num_map_entries - 1].type)) {
         num_map_entries--;
     }
 
     if (num_map_entries == 0)
         return false;
 
-    auto map_entries = span(lb.map, num_map_entries);
+    auto map_entries = span(lb_map, num_map_entries);
 
     auto& m = map_entries[num_map_entries - 1];
     total_pages = (m.addr + m.len) >> PAGE_SHIFT;

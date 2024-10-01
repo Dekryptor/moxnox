@@ -22,7 +22,7 @@ struct map_entry {
 } __attribute__((packed));
 
 struct loader_block {
-    map_entry* map;
+    uint64_t map_ptr;
     uint32_t num_map_entries;
     uint64_t xsdt_pa;
 
