@@ -265,7 +265,8 @@ static void enable_paging() {
     // set cr3
     __writecr3((uintptr_t)pd.data());
 
-    __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_LME);
+    // enable long mode and NX bit
+    __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_LME | EFER_NX);
 
     // enable paging
     __writecr0(__readcr0() | CR0_PG);

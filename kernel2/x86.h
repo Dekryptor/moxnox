@@ -12,6 +12,7 @@
 #define EFER_MSR    0xc0000080
 
 #define EFER_LME    (1 << 8)
+#define EFER_NX     (1 << 11)
 
 struct HARDWARE_PTE_PAE {
     uint64_t Valid:1;
