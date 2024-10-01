@@ -19,6 +19,10 @@ static uint32_t mem_entries_count;
 
 static const uint64_t img_addr = 0xfffff80000000000;
 
+static const uint64_t CONSOLE_PA = 0xb8000;
+static const unsigned int COLS = 80;
+static const unsigned int ROWS = 25;
+
 uint64_t entry_point;
 loader_block lb;
 
@@ -689,8 +693,16 @@ static void copy_e820_entries() {
     mem_entries_count = *ptr_e820_count;
 }
 
+static void clear_console() {
+    auto text_console = span((uint16_t*)CONSOLE_PA, COLS * ROWS);
+
+    memset(text_console.data(), 0, text_console.size_bytes());
+}
+
 extern "C"
 void protected_mode_main() {
+    clear_console();
+
     copy_e820_entries();
 
     sanitize_mem_entries();
