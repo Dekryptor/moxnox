@@ -3,7 +3,7 @@
 .section .payload
 .globl payload_data
 payload_data:
-.incbin "payload.exe"
+.incbin "${CMAKE_BINARY_DIR}/kernel/kernel.exe"
 
 payload_end:
 
