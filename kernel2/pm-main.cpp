@@ -783,7 +783,7 @@ void protected_mode_main() {
     setup_idt();
 
     if (!load_payload()) {
-        // FIXME - display error message
+        print("load_payload failed\n");
         while (true) { }
     }
 
