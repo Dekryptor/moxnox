@@ -255,6 +255,10 @@ static void enable_paging() {
         }
     }
 
+    pd[(SELFMAP & 0xff8000000000) >> 39].PageFrameNumber = (uintptr_t)pd.data() >> PAGE_SHIFT;
+    pd[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
+    pd[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
+
     // enable PAE
     __writecr4(__readcr4() | CR4_PAE);
 

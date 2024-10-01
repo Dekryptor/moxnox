@@ -34,3 +34,5 @@ struct loader_block {
     uint64_t xsdt_pa;
     loader_block_framebuffer framebuffer;
 } __attribute__((packed));
+
+static const uint64_t SELFMAP = 0xfffff68000000000;

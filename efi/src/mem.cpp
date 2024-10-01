@@ -4,7 +4,6 @@
 map_entry map[256];
 unsigned int num_map_entries = 0;
 
-static const uint64_t SELFMAP = 0xfffff68000000000;
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
 
 static HARDWARE_PTE* pml4t;

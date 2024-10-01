@@ -1,6 +1,5 @@
 #pragma once
 
-#define SELFMAP                 0xfffff68000000000
 #define SELFMAP_PDT             0xfffff6fb40000000
 #define SELFMAP_PDPT            0xfffff6fb7da00000
 #define SELFMAP_PML4            0xfffff6fb7dbed000
