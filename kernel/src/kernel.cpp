@@ -157,7 +157,7 @@ void main_thread() {
 
 extern "C"
 void startup(loader_block* lb) {
-    decltype(lb->framebuffer) fb;
+    loader_block_framebuffer fb;
 
     // FIXME - should restart if anything fails before we can show error message
 
@@ -178,7 +178,7 @@ void startup(loader_block* lb) {
     if (!init_vablock())
         goto hang;
 
-    if (!init_console(fb.pa, fb.width, fb.height, fb.pixels_per_scan_line))
+    if (!init_console(fb))
         goto hang;
 
     if (!init_cpu_block(true, current_cpu_id()))

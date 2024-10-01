@@ -7,6 +7,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <loaderblock.h>
 #include "nt.h"
 
 #define PAGE_SIZE 4096
@@ -100,7 +101,7 @@ void free_lower_half_mappings();
 void invalidate_tlb();
 
 // console.cpp
-bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per_scan_line);
+bool init_console(const loader_block_framebuffer& fb);
 bool init_console_pipe();
 void safe_print(std::string_view s);
 extern decltype(&safe_print) print;

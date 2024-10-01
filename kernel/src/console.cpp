@@ -380,8 +380,8 @@ void print_hex(uint64_t num, unsigned int padding) {
     print(string_view(s, sp.data() - s));
 }
 
-bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per_scan_line) {
-    if (!pa) {
+bool init_console(const loader_block_framebuffer& fb) {
+    if (!fb.pa) {
         auto va = allocate_va(1);
         if (!va) {
             // FIXME - exception
@@ -397,7 +397,7 @@ bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per
         // clear console
         memset(text_console.data(), 0, text_console.size_bytes());
     } else {
-        uint32_t size = pixels_per_scan_line * height * sizeof(uint32_t);
+        uint32_t size = fb.pixels_per_scan_line * fb.height * sizeof(uint32_t);
 
         if (size == 0) {
             print("Framebuffer size was 0.\n");
@@ -411,10 +411,10 @@ bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per
             return false;
         }
 
-        framebuffer = span((uint32_t*)va, pixels_per_scan_line * height);
+        framebuffer = span((uint32_t*)va, fb.pixels_per_scan_line * fb.height);
 
         for (unsigned int i = 0; i < pages; i++) {
-            if (!map_page((uintptr_t)pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
+            if (!map_page((uintptr_t)fb.pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
                 print("map_page failed\n");
                 return false;
             }
@@ -426,7 +426,7 @@ bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per
             return false;
         }
 
-        shadow_framebuffer = span((uint32_t*)va, pixels_per_scan_line * height);
+        shadow_framebuffer = span((uint32_t*)va, fb.pixels_per_scan_line * fb.height);
 
         for (unsigned int i = 0; i < pages; i++) {
             auto pa = allocate_page();
@@ -441,9 +441,9 @@ bool init_console(void* pa, uint32_t width, uint32_t height, uint32_t pixels_per
             }
         }
 
-        fb_width = width;
-        fb_height = height;
-        fb_pixels_per_scan_line = pixels_per_scan_line;
+        fb_width = fb.width;
+        fb_height = fb.height;
+        fb_pixels_per_scan_line = fb.pixels_per_scan_line;
 
         memset(framebuffer.data(), 0, framebuffer.size_bytes());
         memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());

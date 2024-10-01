@@ -21,15 +21,16 @@ struct map_entry {
     enum mem_type type;
 } __attribute__((packed));
 
+struct loader_block_framebuffer {
+    void* pa;
+    uint32_t width;
+    uint32_t height;
+    uint32_t pixels_per_scan_line;
+};
+
 struct loader_block {
     uint64_t map_ptr;
     uint32_t num_map_entries;
     uint64_t xsdt_pa;
-
-    struct {
-        void* pa;
-        uint32_t width;
-        uint32_t height;
-        uint32_t pixels_per_scan_line;
-    } framebuffer;
+    loader_block_framebuffer framebuffer;
 } __attribute__((packed));
