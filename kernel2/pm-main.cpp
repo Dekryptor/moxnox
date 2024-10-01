@@ -128,7 +128,7 @@ static void remove_mem_entry(unsigned int pos) {
     mem_entries_count--;
 }
 
-static uint64_t get_pages(enum mem_type type, unsigned int num_pages) {
+static uint64_t get_pages(enum e820_mem_type type, unsigned int num_pages) {
     uint64_t ret = 0;
 
     // FIXME - make sure in first 4GB
@@ -137,7 +137,7 @@ static uint64_t get_pages(enum mem_type type, unsigned int num_pages) {
     for (unsigned int i = 0; i < mem_entries_count; i++) {
         auto& m = mem_entries[i];
 
-        if (m.type != mem_type::free || m.length < num_pages * PAGE_SIZE)
+        if (m.type != e820_mem_type::free || m.length < num_pages * PAGE_SIZE)
             continue;
 
         ret = m.address;
@@ -165,7 +165,7 @@ static uint64_t get_pages(enum mem_type type, unsigned int num_pages) {
 
         mem_entries[i + 1].address = ret + (num_pages * PAGE_SIZE);
         mem_entries[i + 1].length = m.length - (num_pages * PAGE_SIZE);
-        mem_entries[i + 1].type = mem_type::free;
+        mem_entries[i + 1].type = e820_mem_type::free;
 
         m.length = num_pages * PAGE_SIZE;
         m.type = type;
@@ -176,7 +176,7 @@ static uint64_t get_pages(enum mem_type type, unsigned int num_pages) {
     return ret;
 }
 
-static uint64_t get_page(enum mem_type type = mem_type::bootloader) {
+static uint64_t get_page(enum e820_mem_type type = e820_mem_type::bootloader) {
     return get_pages(type, 1);
 }
 
@@ -185,7 +185,7 @@ static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
 
     if (!pt3_ent.Valid) {
         pt3_ent.Valid = 1;
-        pt3_ent.PageFrameNumber = get_page(mem_type::page_table) >> PAGE_SHIFT;
+        pt3_ent.PageFrameNumber = get_page(e820_mem_type::page_table) >> PAGE_SHIFT;
 
         memset((void*)(uintptr_t)(pt3_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
     }
@@ -197,7 +197,7 @@ static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
     if (!pt2_ent.Valid) {
         pt2_ent.Valid = 1;
         pt2_ent.Write = 1;
-        pt2_ent.PageFrameNumber = get_page(mem_type::page_table) >> PAGE_SHIFT;
+        pt2_ent.PageFrameNumber = get_page(e820_mem_type::page_table) >> PAGE_SHIFT;
 
         memset((void*)(uintptr_t)(pt2_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
     }
@@ -209,7 +209,7 @@ static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
     if (!pt1_ent.Valid) {
         pt1_ent.Valid = 1;
         pt1_ent.Write = 1;
-        pt1_ent.PageFrameNumber = get_page(mem_type::page_table) >> PAGE_SHIFT;
+        pt1_ent.PageFrameNumber = get_page(e820_mem_type::page_table) >> PAGE_SHIFT;
 
         memset((void*)(uintptr_t)(pt1_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
     }
@@ -224,7 +224,7 @@ static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
 }
 
 static void enable_paging() {
-    pte_span pd((HARDWARE_PTE_PAE*)(uintptr_t)get_page(mem_type::page_table), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
+    pte_span pd((HARDWARE_PTE_PAE*)(uintptr_t)get_page(e820_mem_type::page_table), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
 
     memset(pd.data(), 0, pd.size_bytes());
 
@@ -234,13 +234,13 @@ static void enable_paging() {
         auto& m = mem_entries[i];
 
         switch (m.type) {
-            case mem_type::bootloader:
+            case e820_mem_type::bootloader:
                 for (uint64_t j = 0; j < m.length; j += PAGE_SIZE) {
                     map_page(pd, m.address + j, m.address + j);
                 }
             break;
 
-            case mem_type::image:
+            case e820_mem_type::image:
                 for (uint64_t j = 0; j < m.length; j += PAGE_SIZE) {
                     map_page(pd, m.address + j, img_addr + j);
                 }
@@ -347,26 +347,26 @@ static void setup_idt() {
     );
 }
 
-weak_ordering cmp_mem_type(enum mem_type m1, enum mem_type m2) {
+weak_ordering cmp_e820_mem_type(enum e820_mem_type m1, enum e820_mem_type m2) {
     if ((unsigned int)m1 == (unsigned int)m2)
         return weak_ordering::equivalent;
 
-    if (m1 == mem_type::free)
+    if (m1 == e820_mem_type::free)
         return weak_ordering::less;
 
-    if (m2 == mem_type::free)
+    if (m2 == e820_mem_type::free)
         return weak_ordering::greater;
 
-    if (m1 == mem_type::reserved)
+    if (m1 == e820_mem_type::reserved)
         return weak_ordering::greater;
 
-    if (m2 == mem_type::reserved)
+    if (m2 == e820_mem_type::reserved)
         return weak_ordering::less;
 
-    if (m1 == mem_type::bad)
+    if (m1 == e820_mem_type::bad)
         return weak_ordering::greater;
 
-    if (m2 == mem_type::bad)
+    if (m2 == e820_mem_type::bad)
         return weak_ordering::less;
 
     return weak_ordering::equivalent;
@@ -388,13 +388,13 @@ static void sanitize_mem_entries() {
             m.length = (m.length & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
     }
 
-    // remove any with size 0, and change unknown types to mem_type::reserved
+    // remove any with size 0, and change unknown types to e820_mem_type::reserved
     for (unsigned int i = 0; i < mem_entries_count; i++) {
         if (mem_entries[i].length == 0) {
             swap(mem_entries[i], mem_entries[mem_entries_count - 1]);
             mem_entries_count--;
-        } else if (mem_entries[i].type > mem_type::max_bios)
-            mem_entries[i].type = mem_type::reserved;
+        } else if (mem_entries[i].type > e820_mem_type::max_bios)
+            mem_entries[i].type = e820_mem_type::reserved;
     }
 
     // sort
@@ -422,7 +422,7 @@ static void sanitize_mem_entries() {
         auto& b = mem_entries[i + 1];
 
         if (b.address >= a.address && b.address < a.address + a.length) {
-            auto cmp = cmp_mem_type(a.type, b.type);
+            auto cmp = cmp_e820_mem_type(a.type, b.type);
 
             if (b.address + b.length < a.address + a.length) {
                 // second entirely within first
@@ -476,7 +476,7 @@ static void sanitize_mem_entries() {
             add_new_mem_entry(i + 1);
             mem_entries[i + 1].address = new_address;
             mem_entries[i + 1].length = new_length;
-            mem_entries[i + 1].type = mem_type::reserved;
+            mem_entries[i + 1].type = e820_mem_type::reserved;
 
             i--;
         }
@@ -495,8 +495,8 @@ static void sanitize_mem_entries() {
     }
 
     // remove bad or reserved bits at end
-    while (mem_entries_count > 0 && (mem_entries[mem_entries_count - 1].type == mem_type::bad ||
-         mem_entries[mem_entries_count - 1].type == mem_type::reserved)) {
+    while (mem_entries_count > 0 && (mem_entries[mem_entries_count - 1].type == e820_mem_type::bad ||
+         mem_entries[mem_entries_count - 1].type == e820_mem_type::reserved)) {
         mem_entries_count--;
     }
 }
@@ -514,14 +514,14 @@ static void mark_bootloader_memory() {
     for (unsigned int i = 0; i < mem_entries_count; i++) {
         auto& m = mem_entries[i];
 
-        if (m.type != mem_type::free)
+        if (m.type != e820_mem_type::free)
             continue;
 
         if (m.address >= bootloader_end)
             break;
 
         if (m.address + m.length <= bootloader_end) {
-            m.type = mem_type::bootloader;
+            m.type = e820_mem_type::bootloader;
             continue;
         }
 
@@ -533,7 +533,7 @@ static void mark_bootloader_memory() {
         m2.type = m.type;
 
         m.length = bootloader_end - m.address;
-        m.type = mem_type::bootloader;
+        m.type = e820_mem_type::bootloader;
         break;
     }
 }
@@ -626,7 +626,7 @@ static bool load_payload() {
     if (img_size & (PAGE_SIZE - 1))
         img_size = (img_size & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
 
-    auto addr = (uint8_t*)get_pages(mem_type::image, img_size / PAGE_SIZE);
+    auto addr = (uint8_t*)get_pages(e820_mem_type::image, img_size / PAGE_SIZE);
 
     // copy header
 

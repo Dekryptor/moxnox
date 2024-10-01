@@ -64,7 +64,7 @@ struct gdt_entry {
 
 using pte_span = std::span<HARDWARE_PTE_PAE, PAGE_SIZE / sizeof(HARDWARE_PTE_PAE)>;
 
-enum class mem_type : uint32_t {
+enum class e820_mem_type : uint32_t {
     free = 1,
     reserved = 2,
     acpi_reclaimable = 3,
@@ -79,5 +79,5 @@ enum class mem_type : uint32_t {
 struct e820_entry {
     uint64_t address;
     uint64_t length;
-    mem_type type;
+    enum e820_mem_type type;
 } __attribute__((packed));
