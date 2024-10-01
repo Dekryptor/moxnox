@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <intrin.h>
 #include <loaderblock.h>
+#include <string_view>
 #include "x86.h"
 #include "pe.h"
 
@@ -19,9 +20,33 @@ static uint32_t mem_entries_count;
 
 static const uint64_t img_addr = 0xfffff80000000000;
 
+static span<uint16_t> text_console;
+enum class console_colour : uint8_t {
+    black = 0,
+    blue = 1,
+    green = 2,
+    cyan = 3,
+    red = 4,
+    magenta = 5,
+    brown = 6,
+    light_grey = 7,
+    dark_grey = 8,
+    light_blue = 9,
+    light_green = 10,
+    light_cyan = 11,
+    light_red = 12,
+    light_magenta = 13,
+    yellow = 14,
+    white = 15
+};
+
 static const uint64_t CONSOLE_PA = 0xb8000;
 static const unsigned int COLS = 80;
 static const unsigned int ROWS = 25;
+static unsigned int cursor_x = 0;
+static unsigned int cursor_y = 0;
+static const enum console_colour fg_colour = console_colour::light_grey;
+static const enum console_colour bg_colour = console_colour::black;
 
 uint64_t entry_point;
 loader_block lb;
@@ -120,6 +145,17 @@ void* memcpy(void* dest, const void* src, size_t n) {
     }
 
     return orig_dest;
+}
+
+extern "C"
+size_t strlen(const char* s) {
+    size_t i = 0;
+
+    while (s[i] != 0) {
+        i++;
+    }
+
+    return i;
 }
 
 static void add_new_mem_entry(unsigned int pos) {
@@ -693,15 +729,50 @@ static void copy_e820_entries() {
     mem_entries_count = *ptr_e820_count;
 }
 
-static void clear_console() {
-    auto text_console = span((uint16_t*)CONSOLE_PA, COLS * ROWS);
+static void init_console() {
+    text_console = span((uint16_t*)CONSOLE_PA, COLS * ROWS);
 
     memset(text_console.data(), 0, text_console.size_bytes());
 }
 
+static void text_console_overflow() {
+    memcpy(text_console.data(), &text_console[COLS], (ROWS - 1) * COLS * sizeof(uint16_t));
+    memset(text_console.data() + ((ROWS - 1) * COLS), 0, COLS * sizeof(uint16_t));
+    cursor_y = ROWS - 1;
+}
+
+static void text_console_putc(uint8_t x, uint8_t y, uint8_t c) {
+    text_console[(y * COLS) + x] = (uint16_t)(((uint16_t)bg_colour << 12) | ((uint16_t)fg_colour << 8) | c);
+}
+
+static void print(string_view s) {
+    for (auto c : s) {
+        if (c == '\n') {
+            cursor_x = 0;
+            cursor_y++;
+
+            if (cursor_y == ROWS)
+                text_console_overflow();
+        } else {
+            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c);
+
+            cursor_x++;
+
+            if (cursor_x == COLS) {
+                cursor_x = 0;
+                cursor_y++;
+
+                if (cursor_y == ROWS)
+                    text_console_overflow();
+            }
+        }
+    }
+}
+
 extern "C"
 void protected_mode_main() {
-    clear_console();
+    init_console();
+    print("Starting bootloader\n");
 
     copy_e820_entries();
 
