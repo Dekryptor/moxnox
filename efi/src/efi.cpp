@@ -733,7 +733,7 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
 
     lb.map_ptr = (uintptr_t)map;
     lb.num_map_entries = num_map_entries;
-    lb.xsdt_pa = acpi_tables;
+    lb.rsdt_pa = acpi_tables;
 
     // exit boot services
 

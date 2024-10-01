@@ -422,7 +422,7 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
 }
 
 static bool copy_acpi(const loader_block& lb) {
-    auto& xsdt = *(ACPISDTHeader*)lb.xsdt_pa;
+    auto& xsdt = *(ACPISDTHeader*)lb.rsdt_pa;
     uint32_t needed = 0;
 
     // checksum of XSDT already checked by bootloader

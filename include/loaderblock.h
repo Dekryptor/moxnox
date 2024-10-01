@@ -31,7 +31,7 @@ struct loader_block_framebuffer {
 struct loader_block {
     uint64_t map_ptr;
     uint32_t num_map_entries;
-    uint64_t xsdt_pa;
+    uint64_t rsdt_pa;
     loader_block_framebuffer framebuffer;
 } __attribute__((packed));
 

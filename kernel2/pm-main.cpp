@@ -48,7 +48,29 @@ static unsigned int cursor_y = 0;
 static const enum console_colour fg_colour = console_colour::light_grey;
 static const enum console_colour bg_colour = console_colour::black;
 
-uint64_t entry_point;
+static const uint64_t RSD_PTR = 0x2052545020445352; // "RSD PTR "
+
+struct RSDPDescriptor {
+    char Signature[8];
+    uint8_t Checksum;
+    char OEMID[6];
+    uint8_t Revision;
+    uint32_t RsdtAddress;
+} __attribute__((packed));
+
+struct XSDPDescriptor {
+    char Signature[8];
+    uint8_t Checksum;
+    char OEMID[6];
+    uint8_t Revision;
+    uint32_t RsdtAddress;
+    uint32_t Length;
+    uint64_t XsdtAddress;
+    uint8_t ExtendedChecksum;
+    uint8_t reserved[3];
+} __attribute__ ((packed));
+
+uint64_t entry_point, rsdt_address;
 loader_block lb;
 
 // FIXME - move to another file?
@@ -769,6 +791,61 @@ static void print(string_view s) {
     }
 }
 
+static bool search_for_acpi(span<uint8_t> data) {
+    // FIXME - if both version 1 and version 2 present, should prefer version 2?
+
+    while (data.size() >= 16) {
+        if (*(uint64_t*)data.data() == RSD_PTR) {
+            auto& rsdp = *(RSDPDescriptor*)data.data();
+
+            if (rsdp.Revision != 0 && rsdp.Revision != 2)
+                goto next;
+
+            uint8_t sum = 0;
+
+            for (unsigned int i = 0; i < sizeof(RSDPDescriptor); i++) {
+                sum += data[i];
+            }
+
+            if (sum != 0)
+                goto next;
+
+            if (rsdp.Revision == 2) {
+                auto& xsdp = *(XSDPDescriptor*)data.data();
+
+                for (unsigned int i = sizeof(RSDPDescriptor); i <= sizeof(XSDPDescriptor); i++) {
+                    sum += data[i];
+                }
+
+                if (sum != 0)
+                    goto next;
+
+                rsdt_address = xsdp.XsdtAddress;
+            } else
+                rsdt_address = rsdp.RsdtAddress;
+
+            return true;
+        }
+
+next:
+        data = data.subspan(16);
+    }
+
+    return false;
+}
+
+static bool find_acpi() {
+    auto ebda = (uint8_t*)(*(uint16_t*)0x40e * 0x10);
+
+    if (search_for_acpi(span(ebda, 1024)))
+        return true;
+
+    if (search_for_acpi(span((uint8_t*)0xe0000, 0x20000)))
+        return true;
+
+    return false;
+}
+
 extern "C"
 void protected_mode_main() {
     init_console();
@@ -782,15 +859,21 @@ void protected_mode_main() {
     setup_gdt();
     setup_idt();
 
+    if (!find_acpi()) {
+        print("Unable to find ACPI tables\n");
+        goto halt;
+    }
+
     if (!load_payload()) {
         print("load_payload failed\n");
-        while (true) { }
+        goto halt;
     }
 
     enable_paging();
 
     lb.map_ptr = (uintptr_t)mem_entries;
     lb.num_map_entries = mem_entries_count;
+    lb.rsdt_pa = rsdt_address;
 
     // FIXME - rm 32-bit IDT
 
@@ -801,4 +884,7 @@ void protected_mode_main() {
         "push OFFSET long_mode_start\n\t"
         "retf\n\t"
     );
+
+halt:
+    while (true) { }
 }
