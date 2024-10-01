@@ -210,7 +210,7 @@ extern map_entry map[256];
 extern unsigned int num_map_entries;
 EFI_STATUS get_memory_map();
 EFI_STATUS setup_paging(uint64_t& cr3);
-EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum map_type type);
+EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type);
 void print_hex(uint64_t num);
 
 // efi.S

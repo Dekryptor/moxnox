@@ -2,23 +2,23 @@
 
 #include <stdint.h>
 
-enum class map_type {
-    mem_free,
-    mem_reserved,
-    mem_bootloader,
-    mem_image,
-    mem_paging_table,
-    mem_stack,
-    mem_acpi,
-    mem_uefi_code,
-    mem_uefi_data,
-    mem_framebuffer
+enum class mem_type {
+    free,
+    reserved,
+    bootloader,
+    image,
+    paging_table,
+    stack,
+    acpi,
+    uefi_code,
+    uefi_data,
+    framebuffer
 };
 
 struct map_entry {
     uint64_t addr;
     uint64_t len;
-    enum map_type type;
+    enum mem_type type;
 } __attribute__((packed));
 
 struct loader_block {

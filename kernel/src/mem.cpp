@@ -22,11 +22,11 @@ static uint64_t vablock_size;
 
 static spinlock pa_spinlock, va_spinlock, heap_spinlock;
 
-static bool treat_as_free(enum map_type type) {
+static bool treat_as_free(enum mem_type type) {
     switch (type) {
-        case map_type::mem_free:
-        case map_type::mem_bootloader:
-        case map_type::mem_paging_table:
+        case mem_type::free:
+        case mem_type::bootloader:
+        case mem_type::paging_table:
             return true;
 
         default:
@@ -549,7 +549,7 @@ bool init_memory(const loader_block& lb) {
 
     memblock_pa = 0;
     for (auto& map : map_entries) {
-        if (map.type == map_type::mem_free && map.len >= (needed_pages << PAGE_SHIFT)) {
+        if (map.type == mem_type::free && map.len >= (needed_pages << PAGE_SHIFT)) {
             memblock_pa = map.addr;
             break;
         }
@@ -568,7 +568,7 @@ bool init_memory(const loader_block& lb) {
 
     // 0 = reserved, 1 = free
     for (auto& map : map_entries) {
-        if (map.type == map_type::mem_free)
+        if (map.type == mem_type::free)
             mark_mem_as_free(map.addr, map.len);
     }
 
@@ -579,7 +579,7 @@ bool init_memory(const loader_block& lb) {
 
     // mark bootloader memory as free (inc. page tables)
     for (auto& map : map_entries) {
-        if (map.type == map_type::mem_bootloader)
+        if (map.type == mem_type::bootloader)
             mark_mem_as_free(map.addr, map.len);
     }
 

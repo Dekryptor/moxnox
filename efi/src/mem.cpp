@@ -165,36 +165,36 @@ void print_hex(uint64_t num) {
     }
 }
 
-static enum map_type map_efi_type(EFI_MEMORY_TYPE Type) {
+static enum mem_type map_efi_type(EFI_MEMORY_TYPE Type) {
     switch (Type) {
         case EfiReservedMemoryType:
         case EfiUnusableMemory:
         case EfiMemoryMappedIO:
         case EfiMemoryMappedIOPortSpace:
         case EfiPalCode:
-            return map_type::mem_reserved;
+            return mem_type::reserved;
 
         case EfiLoaderCode:
         case EfiLoaderData:
         case EfiBootServicesCode:
         case EfiBootServicesData:
-            return map_type::mem_bootloader;
+            return mem_type::bootloader;
 
         case EfiRuntimeServicesCode:
-            return map_type::mem_uefi_code;
+            return mem_type::uefi_code;
 
         case EfiRuntimeServicesData:
-            return map_type::mem_uefi_data;
+            return mem_type::uefi_data;
 
         case EfiConventionalMemory:
-            return map_type::mem_free;
+            return mem_type::free;
 
         case EfiACPIMemoryNVS:
         case EfiACPIReclaimMemory:
-            return map_type::mem_acpi;
+            return mem_type::acpi;
 
         default:
-            return map_type::mem_reserved;
+            return mem_type::reserved;
     }
 }
 
@@ -277,14 +277,14 @@ EFI_STATUS get_memory_map() {
 
         map[0].addr = 0;
         map[0].len = map[1].addr;
-        map[0].type = map_type::mem_reserved;
+        map[0].type = mem_type::reserved;
     } else {
-        if (map[0].type != map_type::mem_reserved) { // snatch first page
+        if (map[0].type != mem_type::reserved) { // snatch first page
             insert_map_entry(0);
 
             map[0].addr = 0;
             map[0].len = EFI_PAGE_SIZE;
-            map[0].type = map_type::mem_reserved;
+            map[0].type = mem_type::reserved;
 
             map[1].addr += EFI_PAGE_SIZE;
             map[1].len -= EFI_PAGE_SIZE;
@@ -302,7 +302,7 @@ EFI_STATUS get_memory_map() {
 
             map[i+1].addr = map[i].addr + map[i].len;
             map[i+1].len = map[i+2].addr - map[i+1].addr;
-            map[i+1].type = map_type::mem_reserved;
+            map[i+1].type = mem_type::reserved;
 
             num_map_entries++;
         }
@@ -322,7 +322,7 @@ EFI_STATUS get_memory_map() {
     }
 
     // remove final entry if inaccessible
-    if (map[num_map_entries - 1].type == map_type::mem_reserved)
+    if (map[num_map_entries - 1].type == mem_type::reserved)
         num_map_entries--;
 
     return EFI_SUCCESS;
@@ -466,22 +466,22 @@ EFI_STATUS setup_paging(uint64_t& cr3) {
 
     for (unsigned int i = 0; i < num_map_entries_copy; i++) {
         switch (map_copy[i].type) {
-            case map_type::mem_bootloader:
-            case map_type::mem_acpi:
+            case mem_type::bootloader:
+            case mem_type::acpi:
                 status = do_map(map_copy[i].addr, map_copy[i].addr, map_copy[i].len); // identity map
 
                 if (EFI_ERROR(status))
                     return status;
                 break;
 
-            case map_type::mem_image:
+            case mem_type::image:
                 status = do_map(KERNEL_ADDR, map_copy[i].addr, map_copy[i].len);
 
                 if (EFI_ERROR(status))
                     return status;
                 break;
 
-            case map_type::mem_stack:
+            case mem_type::stack:
                 status = do_map(KERNEL_STACK, map_copy[i].addr, map_copy[i].len);
 
                 if (EFI_ERROR(status))
@@ -511,7 +511,7 @@ static void remove_map_entry(int i) {
     num_map_entries--;
 }
 
-EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum map_type type) {
+EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type) {
     for (unsigned int i = 0; i < num_map_entries; i++) {
         if (map[i].addr >= start && map[i].addr + map[i].len <= start + len) { // remove whole entry
             remove_map_entry(i);

@@ -941,19 +941,19 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end;
     }
 
-    status = add_map_entry(img_pa, img_size, map_type::mem_image);
+    status = add_map_entry(img_pa, img_size, mem_type::image);
     if (EFI_ERROR(status)) {
         print_error(u"add_map_entry", status);
         goto end;
     }
 
-    status = add_map_entry(stack, KERNEL_STACK_PAGES << EFI_PAGE_SHIFT, map_type::mem_stack);
+    status = add_map_entry(stack, KERNEL_STACK_PAGES << EFI_PAGE_SHIFT, mem_type::stack);
     if (EFI_ERROR(status)) {
         print_error(u"add_map_entry", status);
         goto end;
     }
 
-    status = add_map_entry((uintptr_t)lb.framebuffer.pa, bytes_to_pages(lb.framebuffer.pixels_per_scan_line * lb.framebuffer.height * 4) << EFI_PAGE_SHIFT, map_type::mem_framebuffer);
+    status = add_map_entry((uintptr_t)lb.framebuffer.pa, bytes_to_pages(lb.framebuffer.pixels_per_scan_line * lb.framebuffer.height * 4) << EFI_PAGE_SHIFT, mem_type::framebuffer);
     if (EFI_ERROR(status)) {
         print_error(u"add_map_entry", status);
         goto end;
