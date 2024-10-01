@@ -70,10 +70,6 @@ enum class e820_mem_type : uint32_t {
     acpi_reclaimable = 3,
     acpi_nvs = 4,
     bad = 5,
-    max_bios = bad,
-    bootloader,
-    page_table,
-    image
 };
 
 struct e820_entry {
