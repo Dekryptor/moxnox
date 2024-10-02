@@ -14,6 +14,9 @@ static uint64_t memblock_size;
 void* acpi_tables = (void*)0xfffffad000000000;
 unsigned int acpi_count = 0;
 
+static const uint32_t RSDT = 0x54445352; // "RSDT"
+static const uint32_t XSDT = 0x54445358; // "XSDT"
+
 static const uint64_t heap_block = 0xfffffaf000000000;
 static unsigned int heap_pages = 0;
 
@@ -422,54 +425,73 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
 }
 
 static bool copy_acpi(const loader_block& lb) {
-    auto& xsdt = *(ACPISDTHeader*)lb.rsdt_pa;
-    uint32_t needed = 0;
+    auto& rsdt = *(ACPISDTHeader*)lb.rsdt_pa;
 
-    // checksum of XSDT already checked by bootloader
+    // checksum of RSDT / XSDT already checked by bootloader
 
-    auto entries = span((uint64_t*)((uint8_t*)&xsdt + sizeof(ACPISDTHeader)), (xsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint64_t));
+    auto func = []<typename T>(span<T> entries) -> bool {
+        uint32_t needed = 0;
 
-    for (auto e : entries) {
-        auto& tbl = *(ACPISDTHeader*)(uintptr_t)e;
-        uint8_t csum = 0;
+        for (auto e : entries) {
+            auto& tbl = *(ACPISDTHeader*)(uintptr_t)e;
+            uint8_t csum = 0;
 
-        for (unsigned int i = 0; i < tbl.Length; i++) {
-            csum += ((uint8_t*)&tbl)[i];
+            for (unsigned int i = 0; i < tbl.Length; i++) {
+                csum += ((uint8_t*)&tbl)[i];
+            }
+
+            if (csum == 0)
+                needed += tbl.Length;
         }
 
-        if (csum == 0)
-            needed += tbl.Length;
-    }
+        uint32_t needed_pages = (needed + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
-    uint32_t needed_pages = (needed + PAGE_SIZE - 1) >> PAGE_SHIFT;
+        for (unsigned int i = 0; i < needed_pages; i++) {
+            auto pa = allocate_page();
+            if (pa == 0)
+                return false;
 
-    for (unsigned int i = 0; i < needed_pages; i++) {
-        auto pa = allocate_page();
-        if (pa == 0)
+            if (!map_page(pa, ((uintptr_t)acpi_tables) + (i << PAGE_SHIFT), mapping_type::read_write))
+                return false;
+        }
+
+        auto ptr = (uint8_t*)acpi_tables;
+
+        for (auto e : entries) {
+            auto& tbl = *(ACPISDTHeader*)(uintptr_t)e;
+            uint8_t csum = 0;
+
+            for (unsigned int i = 0; i < tbl.Length; i++) {
+                csum += ((uint8_t*)&tbl)[i];
+            }
+
+            if (csum == 0) {
+                memcpy(ptr, &tbl, tbl.Length);
+                ptr += tbl.Length;
+                acpi_count++;
+            }
+        }
+
+        return true;
+    };
+
+    switch (rsdt.Signature) {
+        case RSDT: {
+            auto entries = span((uint32_t*)((uint8_t*)&rsdt + sizeof(ACPISDTHeader)), (rsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint32_t));
+
+            return func(entries);
+        }
+
+        case XSDT: {
+            auto entries = span((uint64_t*)((uint8_t*)&rsdt + sizeof(ACPISDTHeader)), (rsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint64_t));
+
+            return func(entries);
+        }
+
+        default:
+            print("Could not parse ACPI table\n");
             return false;
-
-        if (!map_page(pa, ((uintptr_t)acpi_tables) + (i << PAGE_SHIFT), mapping_type::read_write))
-            return false;
     }
-
-    auto ptr = (uint8_t*)acpi_tables;
-
-    for (auto e : entries) {
-        auto& tbl = *(ACPISDTHeader*)(uintptr_t)e;
-        uint8_t csum = 0;
-
-        for (unsigned int i = 0; i < tbl.Length; i++) {
-            csum += ((uint8_t*)&tbl)[i];
-        }
-
-        if (csum == 0) {
-            memcpy(ptr, &tbl, tbl.Length);
-            ptr += tbl.Length;
-            acpi_count++;
-        }
-    }
-
-    return true;
 }
 
 void free_lower_half_mappings() {
@@ -575,7 +597,8 @@ bool init_memory(const loader_block& lb) {
     // subtract memblock itself, and scratch that we've used
     mark_mem_as_used(memblock_pa, (num_memblock_pages + (orig_scratch_pages - scratch_pages)) << PAGE_SHIFT);
 
-    copy_acpi(lb);
+    if (!copy_acpi(lb))
+        return false;
 
     // mark bootloader memory as free (inc. page tables)
     for (auto& map : map_entries) {
