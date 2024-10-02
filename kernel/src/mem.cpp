@@ -606,6 +606,8 @@ bool init_memory(const loader_block& lb) {
             mark_mem_as_free(map.addr, map.len);
     }
 
+    mark_mem_as_used(0, PAGE_SIZE);
+
     return true;
 }
 
