@@ -32,9 +32,6 @@ enum class console_colour : uint8_t {
     white = 15
 };
 
-static const enum console_colour fg_colour = console_colour::light_grey;
-static const enum console_colour bg_colour = console_colour::black;
-
 static const uint64_t CONSOLE_PA = 0xb8000;
 
 static span<uint16_t> text_console;
@@ -75,8 +72,9 @@ size_t strlen(const char* s) {
     return i;
 }
 
-static void text_console_putc(uint8_t x, uint8_t y, uint8_t c) {
-    text_console[(y * COLS) + x] = (uint16_t)(((uint16_t)bg_colour << 12) | ((uint16_t)fg_colour << 8) | c);
+static void text_console_putc(uint8_t x, uint8_t y, uint8_t c, enum console_colour bg,
+                              enum console_colour fg) {
+    text_console[(y * COLS) + x] = (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
 }
 
 static void text_console_overflow() {
@@ -85,7 +83,8 @@ static void text_console_overflow() {
     cursor_y = ROWS - 1;
 }
 
-static void text_console_print(string_view s) {
+static void text_console_print(string_view s, enum console_colour bg = console_colour::black,
+                               enum console_colour fg = console_colour::light_grey) {
     for (auto c : s) {
         if (c == '\n') {
             cursor_x = 0;
@@ -94,7 +93,7 @@ static void text_console_print(string_view s) {
             if (cursor_y == ROWS)
                 text_console_overflow();
         } else {
-            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c);
+            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c, bg, fg);
 
             cursor_x++;
 
@@ -694,27 +693,28 @@ void bsod(string_view msg) {
         while (*icr1 & 0x1000) { }
     }
 
-    // clear screen to blue
-    if (framebuffer.empty())
-        fill_text_console(console_colour::blue, console_colour::white);
-    else
-        fill_framebuffer(0x000080);
-
-    // FIXME - set colour to white
-
-    // print message
-
     cursor_x = 0;
     cursor_y = 0;
 
-    for (auto c : msg) {
-        print_char(c); // FIXME - UTF-8 etc.
+    // clear screen to blue and print message
+
+    if (framebuffer.empty()) {
+        fill_text_console(console_colour::blue, console_colour::white);
+        text_console_print(msg, console_colour::blue, console_colour::white);
+    } else {
+        fill_framebuffer(0x000080);
+
+        // FIXME - set colour to white
+
+        for (auto c : msg) {
+            print_char(c); // FIXME - UTF-8 etc.
+        }
+
+        memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
     }
 
     // FIXME - print context
     // FIXME - print stacktrace (go through DWARF sections?)
-
-    memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 
     __asm("jmp halt_isr");
 }
