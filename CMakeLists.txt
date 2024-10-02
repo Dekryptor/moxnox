@@ -47,5 +47,8 @@ add_library(freetype freetype/src/autofit/autofit.c
     freetype/src/winfonts/winfnt.c)
 
 target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
+target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
+target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
 target_compile_options(freetype PRIVATE -mno-stack-arg-probe)
+target_include_directories(freetype PRIVATE include)
 target_include_directories(freetype PRIVATE freetype/include)
