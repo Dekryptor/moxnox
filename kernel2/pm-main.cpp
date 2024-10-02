@@ -49,6 +49,8 @@ static const enum console_colour fg_colour = console_colour::light_grey;
 static const enum console_colour bg_colour = console_colour::black;
 
 static const uint64_t RSD_PTR = 0x2052545020445352; // "RSD PTR "
+static const uint32_t RSDT = 0x54445352; // "RSDT"
+static const uint32_t XSDT = 0x54445358; // "XSDT"
 
 struct RSDPDescriptor {
     char Signature[8];
@@ -68,6 +70,18 @@ struct XSDPDescriptor {
     uint64_t XsdtAddress;
     uint8_t ExtendedChecksum;
     uint8_t reserved[3];
+} __attribute__ ((packed));
+
+struct ACPISDTHeader {
+    uint32_t Signature;
+    uint32_t Length;
+    uint8_t Revision;
+    uint8_t Checksum;
+    char OEMID[6];
+    char OEMTableID[8];
+    uint32_t OEMRevision;
+    uint32_t CreatorID;
+    uint32_t CreatorRevision;
 } __attribute__ ((packed));
 
 uint64_t entry_point, rsdt_address;
@@ -289,6 +303,43 @@ static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
     pt0_ent.PageFrameNumber = phys >> PAGE_SHIFT;
 }
 
+static void map_acpi_table(pte_span pd, const ACPISDTHeader& rsdt) {
+    uint64_t start_page = rsdt_address & ~(PAGE_SHIFT - 1);
+    uint64_t end_page = (rsdt_address + rsdt.Length - 1) & ~(PAGE_SHIFT - 1);
+
+    for (uint64_t i = start_page; i <= end_page; i++) {
+        map_page(pd, i, i);
+    }
+}
+
+static void map_acpi(pte_span pd) {
+    const auto& rsdt = *(ACPISDTHeader*)rsdt_address;
+
+    map_acpi_table(pd, rsdt);
+
+    switch (rsdt.Signature) {
+        case RSDT: {
+            span entries((uint32_t*)((uint8_t*)&rsdt + sizeof(ACPISDTHeader)), (rsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint32_t));
+
+            for (auto e : entries) {
+                map_acpi_table(pd, *(ACPISDTHeader*)e);
+            }
+
+            break;
+        }
+
+        case XSDT: {
+            span entries((uint64_t*)((uint8_t*)&rsdt + sizeof(ACPISDTHeader)), (rsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint64_t));
+
+            for (auto e : entries) {
+                map_acpi_table(pd, *(ACPISDTHeader*)e);
+            }
+
+            break;
+        }
+    }
+}
+
 static void enable_paging() {
     pte_span pd((HARDWARE_PTE_PAE*)(uintptr_t)get_page(mem_type::paging_table), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
 
@@ -316,6 +367,8 @@ static void enable_paging() {
             break;
         }
     }
+
+    map_acpi(pd);
 
     pd[(SELFMAP & 0xff8000000000) >> 39].PageFrameNumber = (uintptr_t)pd.data() >> PAGE_SHIFT;
     pd[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
