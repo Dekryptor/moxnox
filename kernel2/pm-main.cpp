@@ -265,6 +265,7 @@ static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
 
     if (!pt3_ent.Valid) {
         pt3_ent.Valid = 1;
+        pt3_ent.Write = 1;
         pt3_ent.PageFrameNumber = get_page(mem_type::paging_table) >> PAGE_SHIFT;
 
         memset((void*)(uintptr_t)(pt3_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
@@ -374,8 +375,8 @@ static void enable_paging() {
     pd[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
     pd[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
 
-    // enable PAE
-    __writecr4(__readcr4() | CR4_PAE);
+    // enable PAE, and set OXFSXR and OSXMMEXCPT bits on cr4
+    __writecr4(__readcr4() | CR4_PAE | CR4_OSFXSR | CR4_OSXMMEXCPT);
 
     // set cr3
     __writecr3((uintptr_t)pd.data());
@@ -383,8 +384,8 @@ static void enable_paging() {
     // enable long mode and NX bit
     __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_LME | EFER_NX);
 
-    // enable paging
-    __writecr0(__readcr0() | CR0_PG);
+    // enable paging and set MP and WP bits
+    __writecr0(__readcr0() | CR0_PG | CR0_MP | CR0_WP);
 }
 
 void double_fault() { // FIXME
