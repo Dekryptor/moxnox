@@ -655,6 +655,12 @@ bool init_fb_console() {
     return true;
 }
 
+static void fill_text_console(enum console_colour bg, enum console_colour fg) {
+    for (auto& c : text_console) {
+        c = (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | ' ');
+    }
+}
+
 static void fill_framebuffer(uint32_t colour) {
     auto buf = shadow_framebuffer.data();
 
@@ -689,7 +695,10 @@ void bsod(string_view msg) {
     }
 
     // clear screen to blue
-    fill_framebuffer(0x000080);
+    if (framebuffer.empty())
+        fill_text_console(console_colour::blue, console_colour::white);
+    else
+        fill_framebuffer(0x000080);
 
     // FIXME - set colour to white
 
