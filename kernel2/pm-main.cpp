@@ -443,34 +443,6 @@ static void setup_gdt() {
     );
 }
 
-static void setup_idt_entry(idt_entry& i, void* isr, uint16_t access) {
-    i.offset_1 = (uintptr_t)isr & 0xffff;
-    i.selector = 0x8;
-    i.type_attributes = access;
-    i.offset_2 = (uintptr_t)isr >> 16;
-}
-
-static void setup_idt() {
-    GDTIDT desc;
-
-    auto page = get_page();
-
-    memset((void*)(uintptr_t)page, 0, PAGE_SIZE);
-
-    span idt((idt_entry*)(uintptr_t)page, NUM_IDT);
-
-    setup_idt_entry(idt[8], (void*)double_fault, 0x8f);
-
-    desc.Base = (uintptr_t)page;
-    desc.Limit = (NUM_IDT * sizeof(idt_entry)) - 1;
-
-    __asm__ __volatile__ (
-        "lidt %0\n\t"
-        :
-        : "m" (desc)
-    );
-}
-
 weak_ordering cmp_mem_type(enum mem_type m1, enum mem_type m2) {
     if ((unsigned int)m1 == (unsigned int)m2)
         return weak_ordering::equivalent;
@@ -910,7 +882,6 @@ void protected_mode_main() {
     mark_bootloader_memory();
 
     setup_gdt();
-    setup_idt();
 
     if (!find_acpi()) {
         print("Unable to find ACPI tables\n");
@@ -927,8 +898,6 @@ void protected_mode_main() {
     lb.map_ptr = (uintptr_t)mem_entries;
     lb.num_map_entries = mem_entries_count;
     lb.rsdt_pa = rsdt_address;
-
-    // FIXME - rm 32-bit IDT
 
     // jump to entry point of image
 

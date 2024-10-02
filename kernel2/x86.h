@@ -33,19 +33,9 @@ struct HARDWARE_PTE_PAE {
     uint64_t NoExecute:1;
 };
 
-#define NUM_IDT 256
-
 struct GDTIDT {
     uint16_t Limit;
     uint32_t Base;
-} __attribute__((packed));
-
-struct idt_entry {
-    uint16_t offset_1;
-    uint16_t selector;
-    uint8_t zero;
-    uint8_t type_attributes;
-    uint16_t offset_2;
 } __attribute__((packed));
 
 struct gdt_entry {
