@@ -285,7 +285,7 @@ static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
 
     pte_span pt1((HARDWARE_PTE_PAE*)(uintptr_t)(pt2_ent.PageFrameNumber << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
 
-    auto &pt1_ent = pt1[(virt >> 21) & 0x1ff];
+    auto& pt1_ent = pt1[(virt >> 21) & 0x1ff];
 
     if (!pt1_ent.Valid) {
         pt1_ent.Valid = 1;
