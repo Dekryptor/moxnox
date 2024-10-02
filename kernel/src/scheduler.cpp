@@ -101,7 +101,10 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
     t.context.Rcx = (uintptr_t)func;
     t.context.Rdx = (uintptr_t)param1;
     t.context.R8 = (uintptr_t)param2;
-    t.context.Rsp = (uintptr_t)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x20); // 0x20 because of MS ABI
+
+    // 0x20 because of MS ABI, minus 8 for return address
+    t.context.Rsp = (uintptr_t)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x28);
+
     t.context.EFlags = 0x202; // IF, reserved flag
     t.context.SegCs = kernel_CS;
     t.context.SegDs = kernel_DS;
