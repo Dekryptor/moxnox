@@ -5,6 +5,7 @@
 #include <span>
 #include <cstring>
 #include <bit>
+#include <charconv>
 #include <ft2build.h>
 #include <freetype/freetype.h>
 
@@ -687,7 +688,7 @@ static void disable_cursor() {
     );
 }
 
-void bsod(string_view msg) {
+void bsod(string_view msg, source_location sl) {
     __asm("cli");
 
     // stop other cores
@@ -713,13 +714,28 @@ void bsod(string_view msg) {
     // clear screen to blue and print message
 
     if (framebuffer.empty()) {
+        char line_no[10];
+
         disable_cursor();
         fill_text_console(console_colour::blue, console_colour::white);
+
         text_console_print(msg, console_colour::blue, console_colour::white);
+        text_console_print("\n", console_colour::blue, console_colour::white);
+        text_console_print(sl.file_name(), console_colour::blue, console_colour::white);
+        text_console_print(":", console_colour::blue, console_colour::white);
+
+        auto [ptr, ec] = to_chars(line_no, line_no + sizeof(line_no), sl.line());
+        text_console_print(string_view(line_no, ptr - line_no),
+                           console_colour::blue, console_colour::white);
+
+        text_console_print(", ", console_colour::blue, console_colour::white);
+        text_console_print(sl.function_name(), console_colour::blue, console_colour::white);
+        text_console_print("\n", console_colour::blue, console_colour::white);
     } else {
         fill_framebuffer(0x000080);
 
         // FIXME - set colour to white
+        // FIXME - also print source_location info to framebuffer
 
         for (auto c : msg) {
             print_char(c); // FIXME - UTF-8 etc.

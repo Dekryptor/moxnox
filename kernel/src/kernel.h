@@ -7,6 +7,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <source_location>
 #include <loaderblock.h>
 #include "nt.h"
 
@@ -107,7 +108,7 @@ void safe_print(std::string_view s);
 extern decltype(&safe_print) print;
 void print_hex(uint64_t num, unsigned int padding = 0);
 bool init_fb_console();
-void bsod(std::string_view msg);
+void bsod(std::string_view msg, std::source_location sl = std::source_location::current());
 
 // interrupts.cpp
 extern volatile uint8_t* const local_apic;
