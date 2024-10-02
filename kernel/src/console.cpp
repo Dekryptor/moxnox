@@ -109,6 +109,14 @@ static void text_console_print(string_view s, enum console_colour bg = console_c
     }
 }
 
+static void text_console_print(integral auto i, enum console_colour bg = console_colour::black,
+                               enum console_colour fg = console_colour::light_grey) {
+    char s[21];
+
+    auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
+    text_console_print(string_view(s, ptr - s), bg, fg);
+}
+
 static void blit(unsigned int x, unsigned int y, unsigned int w, unsigned int h) {
     auto src = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + x;
     auto dst = framebuffer.data() + (y * fb_pixels_per_scan_line) + x;
@@ -714,8 +722,6 @@ void bsod(string_view msg, source_location sl) {
     // clear screen to blue and print message
 
     if (framebuffer.empty()) {
-        char line_no[10];
-
         disable_cursor();
         fill_text_console(console_colour::blue, console_colour::white);
 
@@ -723,11 +729,7 @@ void bsod(string_view msg, source_location sl) {
         text_console_print("\n", console_colour::blue, console_colour::white);
         text_console_print(sl.file_name(), console_colour::blue, console_colour::white);
         text_console_print(":", console_colour::blue, console_colour::white);
-
-        auto [ptr, ec] = to_chars(line_no, line_no + sizeof(line_no), sl.line());
-        text_console_print(string_view(line_no, ptr - line_no),
-                           console_colour::blue, console_colour::white);
-
+        text_console_print(sl.line(), console_colour::blue, console_colour::white);
         text_console_print(", ", console_colour::blue, console_colour::white);
         text_console_print(sl.function_name(), console_colour::blue, console_colour::white);
         text_console_print("\n", console_colour::blue, console_colour::white);
