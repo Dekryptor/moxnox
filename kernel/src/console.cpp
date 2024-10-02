@@ -673,6 +673,20 @@ static void fill_framebuffer(uint32_t colour) {
     }
 }
 
+static void disable_cursor() {
+    __asm __volatile (
+        "mov al, 0xa\n"
+        "mov dx, 0x3d4\n"
+        "out dx, al\n"
+        "mov al, 0x20\n"
+        "mov dx, 0x3d5\n"
+        "out dx, al\n"
+        :
+        :
+        : "al", "dx"
+    );
+}
+
 void bsod(string_view msg) {
     __asm("cli");
 
@@ -699,6 +713,7 @@ void bsod(string_view msg) {
     // clear screen to blue and print message
 
     if (framebuffer.empty()) {
+        disable_cursor();
         fill_text_console(console_colour::blue, console_colour::white);
         text_console_print(msg, console_colour::blue, console_colour::white);
     } else {
