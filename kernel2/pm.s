@@ -60,10 +60,13 @@ enter_protected_mode:
 .section .text
 .globl long_mode_start
 long_mode_start:
+    mov rsp, 0xfffff90000003fe0 # KERNEL_STACK + (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20 (0x20 for MS ABI)
+    xor rbp, rbp
+
     lea rax, entry_point[rip]
     mov rax, [rax]
     lea rcx, lb[rip]
-    jmp rax
+    call rax
 
 .section .data
 .globl ptr_e820_entries

@@ -19,6 +19,8 @@ static struct map_entry mem_entries[MAX_MAP_ENTRIES];
 static uint32_t mem_entries_count;
 
 static const uint64_t img_addr = 0xfffff80000000000;
+static const uint64_t KERNEL_STACK = 0xfffff90000000000;
+static const unsigned int KERNEL_STACK_PAGES = 4;
 
 static span<uint16_t> text_console;
 enum class console_colour : uint8_t {
@@ -361,6 +363,12 @@ static void enable_paging() {
             case mem_type::image:
                 for (uint64_t j = 0; j < m.len; j += PAGE_SIZE) {
                     map_page(pd, m.addr + j, img_addr + j);
+                }
+            break;
+
+            case mem_type::stack:
+                for (uint64_t j = 0; j < m.len; j += PAGE_SIZE) {
+                    map_page(pd, m.addr + j, KERNEL_STACK + j);
                 }
             break;
 
@@ -893,6 +901,8 @@ void protected_mode_main() {
         print("load_payload failed\n");
         goto halt;
     }
+
+    get_pages(mem_type::stack, KERNEL_STACK_PAGES);
 
     enable_paging();
 
