@@ -489,7 +489,7 @@ static bool copy_acpi(const loader_block& lb) {
         }
 
         default:
-            print("Could not parse ACPI table\n");
+            printk("Could not parse ACPI table\n");
             return false;
     }
 }
@@ -715,14 +715,14 @@ static void* malloc_aligned(size_t size, size_t align) {
 
         auto pa = allocate_page();
         if (!pa) {
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
             return nullptr;
         }
 
         auto va = (void*)(heap_block | (heap_pages << PAGE_SHIFT));
 
         if (!map_page(pa, (uintptr_t)va, mapping_type::read_write)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
             return nullptr;
         }
 
@@ -943,12 +943,12 @@ bool init_vablock() {
     for (unsigned int i = 0; i < pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
             return false;
         }
 
         if (!map_page(pa, va, mapping_type::read_write)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
             return false;
         }
 

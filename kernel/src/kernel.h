@@ -105,7 +105,7 @@ void invalidate_tlb();
 bool init_console(const loader_block_framebuffer& fb);
 bool init_console_pipe();
 void safe_print(std::string_view s);
-extern decltype(&safe_print) print;
+extern decltype(&safe_print) printk;
 void print_hex(uint64_t num, unsigned int padding = 0);
 bool init_fb_console();
 void bsod(std::string_view msg, std::source_location sl = std::source_location::current());

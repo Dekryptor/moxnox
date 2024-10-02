@@ -39,7 +39,7 @@ static span<uint16_t> text_console;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
 static void early_print(string_view s);
-decltype(&safe_print) print = early_print;
+decltype(&safe_print) printk = early_print;
 
 static unique_handle console_pipe;
 static const unsigned int console_buffer_pages = 4;
@@ -385,7 +385,7 @@ void print_hex(uint64_t num, unsigned int padding) {
 
     sp = sp_itoa_hex(sp, num, padding);
 
-    print(string_view(s, sp.data() - s));
+    printk(string_view(s, sp.data() - s));
 }
 
 bool init_console(const loader_block_framebuffer& fb) {
@@ -393,7 +393,7 @@ bool init_console(const loader_block_framebuffer& fb) {
         auto va = allocate_va(1);
         if (!va) {
             // FIXME - exception
-            print("allocate_va failed\n");
+            printk("allocate_va failed\n");
             return false;
         }
 
@@ -408,14 +408,14 @@ bool init_console(const loader_block_framebuffer& fb) {
         uint32_t size = fb.pixels_per_scan_line * fb.height * sizeof(uint32_t);
 
         if (size == 0) {
-            print("Framebuffer size was 0.\n");
+            printk("Framebuffer size was 0.\n");
             return false;
         }
 
         auto pages = bytes_to_pages(size);
         auto va = allocate_va(pages);
         if (!va) {
-            print("allocate_va failed\n");
+            printk("allocate_va failed\n");
             return false;
         }
 
@@ -423,14 +423,14 @@ bool init_console(const loader_block_framebuffer& fb) {
 
         for (unsigned int i = 0; i < pages; i++) {
             if (!map_page((uintptr_t)fb.pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
-                print("map_page failed\n");
+                printk("map_page failed\n");
                 return false;
             }
         }
 
         va = allocate_va(pages);
         if (!va) {
-            print("allocate_va failed\n");
+            printk("allocate_va failed\n");
             return false;
         }
 
@@ -439,12 +439,12 @@ bool init_console(const loader_block_framebuffer& fb) {
         for (unsigned int i = 0; i < pages; i++) {
             auto pa = allocate_page();
             if (!pa) {
-                print("allocate_page failed\n");
+                printk("allocate_page failed\n");
                 return false;
             }
 
             if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-                print("map_page failed\n");
+                printk("map_page failed\n");
                 return false;
             }
         }
@@ -477,18 +477,18 @@ static void console_event_recv() {
 bool init_console_pipe() {
     console_pipe = create_pipe(console_buffer_pages);
     if (!console_pipe) {
-        print("create_pipe failed\n");
+        printk("create_pipe failed\n");
         return false;
     }
 
     if (!name_object(console_pipe.get(), "tty")) {
-        print("name_object failed\n");
+        printk("name_object failed\n");
         return false;
     }
 
     if (framebuffer.empty()) { // gets started later if we have framebuffer
         if (!add_kernel_thread(console_event_recv)) {
-            print("add_kernel_thread failed\n");
+            printk("add_kernel_thread failed\n");
             return false;
         }
     }
@@ -544,9 +544,9 @@ bool init_fb_console() {
 
     error = FT_Init_FreeType(&ft);
     if (error) {
-        print("FT_Init_FreeType failed (");
+        printk("FT_Init_FreeType failed (");
         print_hex(error);
-        print(")\n");
+        printk(")\n");
 
         return false;
     }
@@ -555,7 +555,7 @@ bool init_fb_console() {
 
     auto file = open_inode("/console.ttf");
     if (!file) {
-        print("open_inode failed\n");
+        printk("open_inode failed\n");
         return false;
     }
 
@@ -565,7 +565,7 @@ bool init_fb_console() {
         auto objrw = deref_handle(file.get());
         if (!objrw) {
             // FIXME - exception
-            print("No such handle\n");
+            printk("No such handle\n");
             return false;
         }
 
@@ -580,24 +580,24 @@ bool init_fb_console() {
     }
 
     if (!file_size) {
-        print("Could not get size of font file\n");
+        printk("Could not get size of font file\n");
         return false;
     }
 
     if (file_size == 0) {
-        print("Font file was empty\n");
+        printk("Font file was empty\n");
         return false;
     }
 
     font_data = malloc(*file_size);
     if (!font_data) {
-        print("malloc failed\n");
+        printk("malloc failed\n");
         return false;
     }
 
     if (read(file.get(), span((uint8_t*)font_data, *file_size), 0) < *file_size) {
         free(font_data);
-        print("read failed\n");
+        printk("read failed\n");
         return false;
     }
 
@@ -607,9 +607,9 @@ bool init_fb_console() {
     if (error) {
         free(font_data);
 
-        print("FT_New_Memory_Face failed (");
+        printk("FT_New_Memory_Face failed (");
         print_hex(error);
-        print(")\n");
+        printk(")\n");
 
         return false;
     }
@@ -617,18 +617,18 @@ bool init_fb_console() {
     // FIXME - font size
     error = FT_Set_Char_Size(face, 24 * 64, 0, 72, 0); // FIXME - get DPI from EDID
     if (error) {
-        print("FT_Set_Char_Size failed (");
+        printk("FT_Set_Char_Size failed (");
         print_hex(error);
-        print(")\n");
+        printk(")\n");
 
         return false;
     }
 
     error = FT_Load_Char(face, 'M', FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
     if (error) {
-        print("FT_Set_Char_Size failed (");
+        printk("FT_Set_Char_Size failed (");
         print_hex(error);
-        print(")\n");
+        printk(")\n");
 
         return false;
     }
@@ -643,7 +643,7 @@ bool init_fb_console() {
 
     console = (console_info*)malloc(fb_console_cols * fb_console_rows * sizeof(console_info));
     if (!console) {
-        print("out of memory\n");
+        printk("out of memory\n");
         return false;
     }
 
@@ -654,7 +654,7 @@ bool init_fb_console() {
     }
 
     if (!add_kernel_thread(console_event_recv)) {
-        print("add_kernel_thread failed\n");
+        printk("add_kernel_thread failed\n");
         return false;
     }
 

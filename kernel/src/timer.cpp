@@ -50,9 +50,9 @@ void init_timer() {
 
     apic_timer_freq = (0xffffffff - *timer_current) * 100;
 
-    print("apic_timer_freq = ");
+    printk("apic_timer_freq = ");
     print_hex(apic_timer_freq);
-    print("\n");
+    printk("\n");
 
     add_idt_entry(timer_interrupt, (void*)timer_isr, false, 1);
 
@@ -62,7 +62,7 @@ void init_timer() {
 unique_handle create_timer() {
     auto tptr = new timer;
     if (!tptr) {
-        print("new failed\n");
+        printk("new failed\n");
         return {};
     }
 
@@ -79,7 +79,7 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
     auto objrw = deref_handle(h);
     if (!objrw) {
         // FIXME - exception
-        print("No such handle\n");
+        printk("No such handle\n");
         return;
     }
 
@@ -87,7 +87,7 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
 
     if (obj.type != object_type::timer) {
         // FIXME - exception
-        print("Not a timer\n");
+        printk("Not a timer\n");
 
         visit_obj(obj, [](auto&& o) {
             o.release();

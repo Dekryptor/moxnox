@@ -18,12 +18,12 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     size_t ret = 0;
 
     if (offset & (sector_size - 1)) {
-        print("Invalid offset\n");
+        printk("Invalid offset\n");
         return 0;
     }
 
     if (data.size() & (sector_size - 1)) {
-        print("Invalid length\n");
+        printk("Invalid length\n");
         return 0;
     }
 
@@ -107,7 +107,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         reset_event(events[slot].get());
 
         if (port.is & HBA_PxIS_TFES) {
-            print("Error reading disk\n");
+            printk("Error reading disk\n");
             release_slot(slot);
             return 0;
         }
@@ -154,19 +154,19 @@ void sata_device::release_slot(uint8_t slot) {
 bool sata_device::identify() {
     auto pa = allocate_page();
     if (!pa) {
-        print("allocate_page failed\n");
+        printk("allocate_page failed\n");
         return false;
     }
 
     auto va = allocate_va(1);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         free_page(pa);
         return false;
     }
 
     if (!map_page(pa, va, mapping_type::read_write)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         free_page(pa);
         free_va(va, 1);
         return false;
@@ -208,7 +208,7 @@ bool sata_device::identify() {
     reset_event(events[slot].get());
 
     if (port.is & HBA_PxIS_TFES) {
-        print("Error sending IDENTIFY DEVICE command to disk\n");
+        printk("Error sending IDENTIFY DEVICE command to disk\n");
         release_slot(slot);
         unmap_page(va);
         free_va(va, 1);
@@ -236,20 +236,20 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
 
     auto clb_pa = allocate_page();
     if (!clb_pa) {
-        print("allocate_page failed\n");
+        printk("allocate_page failed\n");
         return;
     }
 
     auto fb_pa = allocate_page();
     if (!fb_pa) {
-        print("allocate_page failed\n");
+        printk("allocate_page failed\n");
         free_page(clb_pa);
         return;
     }
 
     clb = allocate_va(1);
     if (!clb) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         free_page(fb_pa);
         free_page(clb_pa);
         return;
@@ -257,7 +257,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
 
     fb = allocate_va(1);
     if (!fb) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         free_va(clb, 1);
         free_page(fb_pa);
         free_page(clb_pa);
@@ -265,7 +265,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     }
 
     if (!map_page(clb_pa, clb, mapping_type::no_cache)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         free_va(fb, 1);
         free_va(clb, 1);
         free_page(fb_pa);
@@ -274,7 +274,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     }
 
     if (!map_page(fb_pa, fb, mapping_type::no_cache)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         unmap_page(clb);
         free_va(fb, 1);
         free_va(clb, 1);
@@ -293,7 +293,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
 
     auto va3 = allocate_va(cmdtbl_pages);
     if (!va3) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         unmap_page(fb);
         unmap_page(clb);
         free_va(fb, 1);
@@ -306,7 +306,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     for (unsigned int i = 0; i < cmdtbl_pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto pa = va_to_pa(va3 + (j << PAGE_SHIFT));
@@ -335,7 +335,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         }
 
         if (!map_page(pa, va3 + (i << PAGE_SHIFT), mapping_type::no_cache)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
 
             free_page(pa);
 
@@ -429,9 +429,9 @@ static void init_sata_device(void* ctx, void* ctx2) {
         dev.model_number.remove_suffix(1);
     }
 
-    print("Found disk: ");
-    print(dev.model_number);
-    print("\n");
+    printk("Found disk: ");
+    printk(dev.model_number);
+    printk("\n");
 
     dev.sector_size = 512; // FIXME - get from identify block
     dev.dev_num = num_sata_devices.fetch_add(1);
@@ -447,7 +447,7 @@ static void init_sata_device(void* ctx, void* ctx2) {
         name[3] = 0;
 
         if (!name_object(dev, name)) {
-            print("name_object failed\n");
+            printk("name_object failed\n");
             goto end;
         }
     }
@@ -512,23 +512,23 @@ void init_sata(const pci_device& dev) {
     auto abarmem = dev.bar[5];
 
     if (dev.msi.empty()) {
-        print("MSI not available for SATA device\n");
+        printk("MSI not available for SATA device\n");
         return;
     }
 
     if (abarmem.empty()) {
-        print("ABAR not set for SATA device\n");
+        printk("ABAR not set for SATA device\n");
         return;
     }
 
     if (abarmem.size() < offsetof(HBA_MEM, ports)) {
-        print("ABAR was shorter than expected\n");
+        printk("ABAR was shorter than expected\n");
         return;
     }
 
     auto sc = new sata_card(dev);
     if (!sc) {
-        print("new failed\n");
+        printk("new failed\n");
         return;
     }
 
@@ -554,14 +554,18 @@ void init_sata(const pci_device& dev) {
     // FIXME - check upper bit of abar.ghc for whether AHCI or IDE
     sc->abar->ghc = sc->abar->ghc | 0x2; // enable interrupts
 
-    auto ports = span<volatile HBA_PORT>((HBA_PORT*)sc->abar->ports, (abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT));
+    auto ports_ptr = (volatile HBA_PORT*)sc->abar->ports;
+    size_t ports_count = (abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT);
+
     uint32_t mask = sc->abar->pi;
 
-    for (const auto& p : ports) {
+    for (size_t i = 0; i < ports_count; i++) {
         if (!(mask & 1)) {
             mask >>= 1;
             continue;
         }
+
+        const auto& p = ports_ptr[i];
 
         // FIXME - SATA_SIG_ATAPI (CD drives etc.)
 
@@ -585,11 +589,13 @@ void init_sata(const pci_device& dev) {
 
     mask = sc->abar->pi;
 
-    for (const auto& p : ports) {
+    for (size_t i = 0; i < ports_count; i++) {
         if (!(mask & 1)) {
             mask >>= 1;
             continue;
         }
+
+        const auto& p = ports_ptr[i];
 
         // FIXME - SATA_SIG_ATAPI (CD drives etc.)
 

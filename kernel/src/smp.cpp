@@ -89,18 +89,18 @@ static void setup_ap_gdt(task_state_segment* tss) {
 
     auto pa = allocate_page();
     if (!pa) {
-        print("allocate_page failed\n");
+        printk("allocate_page failed\n");
         return;
     }
 
     auto va = allocate_va(1);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return;
     }
 
     if (!map_page(pa, va, mapping_type::read_write)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         return;
     }
 
@@ -190,7 +190,7 @@ static void ap_startup() {
 bool init_smp() {
     auto madt = find_madt();
     if (madt.empty()) {
-        print("MADT not found\n");
+        printk("MADT not found\n");
         return false;
     }
 
@@ -211,13 +211,13 @@ bool init_smp() {
                 for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
                     auto pa = allocate_page();
                     if (!pa) {
-                        print("allocate_page failed\n");
+                        printk("allocate_page failed\n");
                         // FIXME - deallocate what's already been allocated (or BSOD)
                         return false;
                     }
 
                     if (!map_page(pa, va, mapping_type::read_write)) {
-                        print("map_page failed\n");
+                        printk("map_page failed\n");
                         // FIXME - deallocate what's already been allocated (or BSOD)
                         return false;
                     }
@@ -234,7 +234,7 @@ bool init_smp() {
 
     apic_ids = (uint8_t*)malloc(ap_count + 1);
     if (!apic_ids) {
-        print("malloc failed\n");
+        printk("malloc failed\n");
         return false;
     }
 
@@ -250,7 +250,7 @@ bool init_smp() {
 
     // we already reserved page 0 in the bootloader
     if (!map_page(0, (uintptr_t)trampoline, mapping_type::read_write_execute)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         return false;
     }
 
@@ -287,7 +287,7 @@ bool init_smp() {
             auto& ent = *(madt_local_apic*)&data[2];
 
             if (ent.apic_id != bsp_id && (ent.enabled || ent.online_capable)) {
-                print("CPU found\n");
+                printk("CPU found\n");
 
                 start_ap(ent.apic_id);
             }

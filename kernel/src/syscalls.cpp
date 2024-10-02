@@ -17,7 +17,7 @@ NTSTATUS NtDisplayString(const UNICODE_STRING* string) {
 
     utf16_to_utf8(span(buf, buflen), u16sv);
 
-    print(string_view(buf, buflen));
+    printk(string_view(buf, buflen));
 
     free(buf);
 
@@ -364,9 +364,9 @@ NTSTATUS user_NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, si
 
 extern "C"
 void unimplemented_syscall(const char* name) {
-    print("Unimplemented syscall ");
-    print(name);
-    print(".\n");
+    printk("Unimplemented syscall ");
+    printk(name);
+    printk(".\n");
 
     NtTerminateProcess(NtCurrentProcess(), nt_status::NOT_IMPLEMENTED);
 }

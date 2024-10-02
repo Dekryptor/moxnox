@@ -23,14 +23,14 @@ void protect_kernel_pages() {
     const auto& dos_header = *(IMAGE_DOS_HEADER*)&__image_base__;
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
-        print("Incorrect DOS signature.\n");
+        printk("Incorrect DOS signature.\n");
         return;
     }
 
     const auto& nt_header = *(IMAGE_NT_HEADERS*)(&__image_base__ + dos_header.e_lfanew);
 
     if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
-        print("Incorrect PE signature.\n");
+        printk("Incorrect PE signature.\n");
         return;
     }
 
@@ -41,7 +41,7 @@ void protect_kernel_pages() {
     else if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
     else {
-        print("Unrecognized optional header signature.\n");
+        printk("Unrecognized optional header signature.\n");
         return;
     }
 

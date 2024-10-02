@@ -32,7 +32,7 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
 
     auto tptr = new (align_val_t(16)) thread;
     if (!tptr) {
-        print("new failed\n");
+        printk("new failed\n");
         return {};
     }
 
@@ -40,7 +40,7 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
 
     // FIXME - spinlock for last_tid (or use atomics)
     if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-        print("Thread limit reached.\n");
+        printk("Thread limit reached.\n");
         delete &t;
         return {};
     }
@@ -52,7 +52,7 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
 
     auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     if (!stack) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         delete &t;
         return {};
     }
@@ -60,7 +60,7 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
@@ -77,7 +77,7 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
         }
 
         if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
@@ -326,7 +326,7 @@ void wait_for_object(object& obj) {
             release_sync_lock();
             __asm("sti");
             // FIXME - exception
-            print("Not a sync object\n");
+            printk("Not a sync object\n");
             return;
         }
 
@@ -359,7 +359,7 @@ void wait_for_object(handle_t h) {
     auto objrw = deref_handle(h);
     if (!objrw) {
         // FIXME - exception
-        print("No such handle\n");
+        printk("No such handle\n");
         return;
     }
 
@@ -376,12 +376,12 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
     for (unsigned int i = 0; i < pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
             return false;
         }
 
         if (!map_page(pa, va, mapping_type::read_write)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
             return false;
         }
 

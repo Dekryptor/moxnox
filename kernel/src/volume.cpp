@@ -33,7 +33,7 @@ bool mount_root() {
     lock_guard lock(fs_lock);
 
     if (is_list_empty(fs_list)) {
-        print("No filesytems found.\n");
+        printk("No filesytems found.\n");
         return false;
     }
 
@@ -47,7 +47,7 @@ bool mount_root() {
 
         if (fs.vol.type_guid == moxnox_partition_guid) {
             if (root_fs) {
-                print("Multiple Moxnox partitions, not sure which to choose\n");
+                printk("Multiple Moxnox partitions, not sure which to choose\n");
                 root_fs = nullptr;
                 return false;
             }
@@ -59,7 +59,7 @@ bool mount_root() {
     }
 
     if (!root_fs) {
-        print("No Moxnox partition found\n");
+        printk("No Moxnox partition found\n");
         return false;
     }
 
@@ -68,12 +68,12 @@ bool mount_root() {
 
 unique_handle open_inode(string_view fn) {
     if (fn.empty() || fn[0] != '/') {
-        print("Not an absolute path.\n");
+        printk("Not an absolute path.\n");
         return {};
     }
 
     if (!root_fs) {
-        print("No root filesystem.\n");
+        printk("No root filesystem.\n");
         return {};
     }
 
@@ -107,12 +107,12 @@ static void partition_found(void* ctx1, void* ctx2) {
 bool volume::check_for_partitions() {
     auto first_sect = (uint8_t*)malloc(read_sector_size);
     if (!first_sect) {
-        print("malloc failed\n");
+        printk("malloc failed\n");
         return false;
     }
 
     if (read(span(first_sect, read_sector_size), 0) < read_sector_size) {
-        print("volume::read failed\n");
+        printk("volume::read failed\n");
         free(first_sect);
         return false;
     }
@@ -144,7 +144,7 @@ bool volume::check_for_partitions() {
     // FIXME - if GPT not valid, get alternative version from end of disk
 
     if (gpt.signature != gpt_signature) {
-        print("Invalid GPT signature\n");
+        printk("Invalid GPT signature\n");
         free(first_sect);
         return false;
     }
@@ -152,7 +152,7 @@ bool volume::check_for_partitions() {
     // FIXME - check header CRC32
 
     if (gpt.this_lba != 1) {
-        print("Invalid LBA value in GPT\n");
+        printk("Invalid LBA value in GPT\n");
         free(first_sect);
         return false;
     }
@@ -163,9 +163,9 @@ bool volume::check_for_partitions() {
     }
 
     if (gpt.size_of_partition_entry < 128) {
-        print("partition entry size was 0x");
+        printk("partition entry size was 0x");
         print_hex(gpt.size_of_partition_entry);
-        print(", expected at least 0x80\n");
+        printk(", expected at least 0x80\n");
         free(first_sect);
         return false;
     }
@@ -185,12 +185,12 @@ bool volume::check_for_partitions() {
 
     auto buf = (uint8_t*)malloc(table_end_aligned - table_start_aligned);
     if (!buf) {
-        print("malloc failed\n");
+        printk("malloc failed\n");
         return false;
     }
 
     if (read(span(buf, table_end_aligned - table_start_aligned), table_start_aligned) < table_end_aligned - table_start_aligned) {
-        print("volume::read failed\n");
+        printk("volume::read failed\n");
         free(buf);
         return false;
     }
@@ -201,7 +201,7 @@ bool volume::check_for_partitions() {
 
     auto pw = new part_wait;
     if (!pw) {
-        print("new failed\n");
+        printk("new failed\n");
         free(buf);
         return false;
     }
@@ -213,7 +213,7 @@ bool volume::check_for_partitions() {
 
         if (part.partition_type_guid != null_guid) {
             if (part.ending_lba <= part.starting_lba) {
-                print("invalid GPT entry, skipping\n");
+                printk("invalid GPT entry, skipping\n");
                 ptr += size_of_partition_entry;
                 continue;
             }
@@ -245,7 +245,7 @@ bool volume::check_for_partitions() {
                                         (part.ending_lba - part.starting_lba + 1) * sector_size,
                                         part.unique_partition_guid, part.partition_type_guid);
             if (!partdev) {
-                print("new failed\n");
+                printk("new failed\n");
                 free(buf);
                 return false;
             }

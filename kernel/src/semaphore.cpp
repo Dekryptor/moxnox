@@ -8,7 +8,7 @@ using namespace std;
 unique_handle create_semaphore(unsigned int maximum_count) {
     auto sptr = new semaphore;
     if (!sptr) {
-        print("new failed\n");
+        printk("new failed\n");
         return {};
     }
 
@@ -69,7 +69,7 @@ void release_semaphore(handle_t h) {
     auto objrw = deref_handle(h);
     if (!objrw) {
         // FIXME - exception
-        print("No such handle\n");
+        printk("No such handle\n");
         return;
     }
 
@@ -77,7 +77,7 @@ void release_semaphore(handle_t h) {
 
     if (obj.type != object_type::semaphore) {
         // FIXME - exception
-        print("Not a semaphore\n");
+        printk("Not a semaphore\n");
 
         visit_obj(obj, [](auto&& o) {
             o.release();

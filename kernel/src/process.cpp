@@ -25,19 +25,19 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     auto img_file = open_inode(fn);
     if (!img_file) {
-        print("open_inode failed\n");
+        printk("open_inode failed\n");
         return {};
     }
 
     auto curdir_inode = open_inode(curdir);
     if (!curdir_inode) {
-        print("open_inode failed\n");
+        printk("open_inode failed\n");
         return {};
     }
 
     auto pptr = new process;
     if (!pptr) {
-        print("new failed\n");
+        printk("new failed\n");
         return {};
     }
 
@@ -47,7 +47,7 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     auto imgh = create_section(img_file.get(), true, 0);
     if (!imgh) {
-        print("create_section failed\n");
+        printk("create_section failed\n");
         p.release();
         return {};
     }
@@ -60,7 +60,7 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     auto img_base = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
     if (!img_base) {
-        print("process::map_section failed\n");
+        printk("process::map_section failed\n");
         p.release();
         return {};
     }
@@ -71,7 +71,7 @@ unique_handle create_process(string_view fn, string_view curdir,
     void* stackaddr = nullptr;
 
     if (!success(p.allocate_vm(&stackaddr, 0, &stack_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
-        print("process::map_section failed\n");
+        printk("process::map_section failed\n");
         p.release();
         return {};
     }
@@ -80,7 +80,7 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base);
     if (!p.ntdll_addr) {
-        print("process::map_section failed\n");
+        printk("process::map_section failed\n");
         p.release();
         return {};
     }
@@ -102,7 +102,7 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     auto curdir_file = new file(curdir_inode_obj);
     if (!curdir_file) {
-        print("new failed\n");
+        printk("new failed\n");
         curdir_inode_obj.release();
         p.release();
         return {};
@@ -115,13 +115,13 @@ unique_handle create_process(string_view fn, string_view curdir,
     curdir_file->release();
 
     if (!p.allocate_peb(img_base, stdinh, stdouth, stderrh, curdirh, curdir)) {
-        print("process::allocate_peb failed\n");
+        printk("process::allocate_peb failed\n");
         p.release();
         return {};
     }
 
     if (!p.allocate_cr3()) {
-        print("process::allocate_cr3 failed\n");
+        printk("process::allocate_cr3 failed\n");
         p.release();
         return {};
     }
@@ -148,16 +148,16 @@ unique_handle create_process(string_view fn, string_view curdir,
     entry_point_context.Rsp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
 
     if (!p.copy_to((void*)entry_point_ctx_addr, &entry_point_context, sizeof(entry_point_context))) {
-        print("process::copy_to failed\n");
+        printk("process::copy_to failed\n");
         p.release();
         return {};
     }
 
     auto status = p.create_thread(nullopt, 0, nullptr, client_id, entry_point_context, initial_teb, true);
     if (!success(status)) {
-        print("process::create_thread returned ");
+        printk("process::create_thread returned ");
         print_hex((uint32_t)status);
-        print("\n");
+        printk("\n");
         p.release();
         return {};
     }
@@ -201,17 +201,17 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
     // FIXME - offset and mapping size
 
     if (address & 0x8000000000000000 || ((address + sect.size) & 0x8000000000000000)) { // don't allow in kernel space
-        print("invalid address\n");
+        printk("invalid address\n");
         return 0;
     }
 
     if (address & (PAGE_SIZE - 1)) { // must be on page boundary
-        print("invalid address\n");
+        printk("invalid address\n");
         return 0;
     }
 
     if (address & 0xffff000000000000 || (address + sect.size) & 0xffff000000000000) { // VAs limited to 48 bits
-        print("invalid address\n");
+        printk("invalid address\n");
         return 0;
     }
 
@@ -219,7 +219,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
 
     auto pm = malloc(offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages));
     if (!pm) {
-        print("out of memory\n");
+        printk("out of memory\n");
         return 0;
     }
 
@@ -259,7 +259,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
             }
 
             if (address < m2.address + m2.size && address + m.size > m2.address) { // collision
-                print("collision\n");
+                printk("collision\n");
                 delete &m;
                 return 0;
             }
@@ -298,14 +298,14 @@ bool process::map_to_kernel_space(void* us, void* ks, unsigned int num_pages) {
 
                 switch (m.type) {
                     case proc_map_type::section:
-                        print("FIXME process::map_to_kernel_space: work with section mappings\n"); // FIXME
+                        printk("FIXME process::map_to_kernel_space: work with section mappings\n"); // FIXME
                         succeeded = false;
                         break;
 
                     case proc_map_type::vm:
                         succeeded = static_cast<mapping_vm&>(m).map(offset_pages << PAGE_SHIFT, (uint64_t)ks, mapping_type::read_write);
                         if (!succeeded)
-                            print("mapping_vm::map failed\n");
+                            printk("mapping_vm::map failed\n");
                         break;
                 }
 
@@ -340,12 +340,12 @@ bool process::populate_teb(thread& t) {
 
     auto va = allocate_va(num_pages);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return false;
     }
 
     if (!map_to_kernel_space(t.teb, (void*)va, num_pages)) {
-        print("map_to_kernel_space failed\n");
+        printk("map_to_kernel_space failed\n");
         free_va(va, num_pages);
         return false;
     }
@@ -431,18 +431,18 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 bool process::allocate_cr3() {
     cr3 = allocate_page();
     if (!cr3) {
-        print("allocate_page failed\n");
+        printk("allocate_page failed\n");
         return false;
     }
 
     auto va = allocate_va(1);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return false;
     }
 
     if (!map_page(cr3, va, mapping_type::read_write)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         free_va(va, 1);
         return false;
     }
@@ -831,13 +831,13 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
             auto pa = allocate_page();
             if (!pa) {
                 // FIXME - should be exception
-                print("allocate_page failed\n");
+                printk("allocate_page failed\n");
                 return 0;
             }
 
             auto va = allocate_va(needed_pages);
             if (!va) {
-                print("allocate_page failed\n");
+                printk("allocate_page failed\n");
                 free_page(pa);
                 return 0;
             }
@@ -849,7 +849,7 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
                     auto pa = va_to_pa((uintptr_t)handle_arr + (i << PAGE_SHIFT));
 
                     if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-                        print("map_page failed\n");
+                        printk("map_page failed\n");
 
                         for (unsigned int j = 0; j < i; j++) {
                             unmap_page(va + (j << PAGE_SHIFT));
@@ -864,7 +864,7 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
 
             if (!map_page(pa, va + (handle_arr_pages << PAGE_SHIFT), mapping_type::read_write)) {
                 // FIXME - exception
-                print("map_page failed\n");
+                printk("map_page failed\n");
                 free_page(pa);
 
                 for (unsigned int i = 0; i < handle_arr_pages; i++) {
@@ -917,7 +917,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         return nt_status::INVALID_PAGE_PROTECTION;
 
     if (allocation_type & MEM_RESET) {
-        print("FIXME: process::allocate_vm MEM_RESET\n"); // FIXME
+        printk("FIXME: process::allocate_vm MEM_RESET\n"); // FIXME
         return nt_status::INVALID_PARAMETER;
     }
 
@@ -1027,7 +1027,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
             }
 
             if (addr < m2.address + m2.size && addr + m.size > m2.address) { // collision
-                print("collision\n");
+                printk("collision\n");
                 delete &m;
                 return nt_status::NO_MEMORY;
             }
@@ -1134,12 +1134,12 @@ NTSTATUS process::unmap_proc_page(uint64_t va) {
 
     auto buf = allocate_va(4);
     if (!buf) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     if (!map_page(cr3, buf, mapping_type::read_only)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end;
     }
@@ -1152,7 +1152,7 @@ NTSTATUS process::unmap_proc_page(uint64_t va) {
     }
 
     if (!map_page((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT, buf + PAGE_SIZE, mapping_type::read_only)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end2;
     }
@@ -1165,7 +1165,7 @@ NTSTATUS process::unmap_proc_page(uint64_t va) {
     }
 
     if (!map_page((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT, buf + (2 * PAGE_SIZE), mapping_type::read_only)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end3;
     }
@@ -1178,7 +1178,7 @@ NTSTATUS process::unmap_proc_page(uint64_t va) {
     }
 
     if (!map_page((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT, buf + (3 * PAGE_SIZE), mapping_type::read_write)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end4;
     }
@@ -1211,7 +1211,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
         return nt_status::INVALID_PARAMETER;
 
     if (free_type & MEM_DECOMMIT) {
-        print("FIXME: process::free_vm MEM_DECOMMIT\n"); // FIXME
+        printk("FIXME: process::free_vm MEM_DECOMMIT\n"); // FIXME
         return nt_status::INVALID_PARAMETER;
     }
 
@@ -1349,7 +1349,7 @@ bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> p
     if (!p.pa) {
         p.pa = allocate_page();
         if (!p.pa) {
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
             return false;
         }
 
@@ -1381,12 +1381,12 @@ bool mapping_vm::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
             else {
                 auto va = allocate_va(1);
                 if (!va) {
-                    print("allocate_va failed\n");
+                    printk("allocate_va failed\n");
                     return false;
                 }
 
                 if (!map_page(p.pa, va, mapping_type::read_only)) {
-                    print("map_page failed\n");
+                    printk("map_page failed\n");
                     free_va(va, 1);
                     return false;
                 }
@@ -1421,12 +1421,12 @@ bool mapping_section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
             } else {
                 auto va = allocate_va(1);
                 if (!va) {
-                    print("allocate_va failed\n");
+                    printk("allocate_va failed\n");
                     return false;
                 }
 
                 if (!map_page(p.pa, va, mapping_type::read_only)) {
-                    print("map_page failed\n");
+                    printk("map_page failed\n");
                     free_va(va, 1);
                     return false;
                 }
@@ -1470,14 +1470,14 @@ bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
             auto va = allocate_va(1);
             if (!va) {
-                print("allocate_va failed\n");
+                printk("allocate_va failed\n");
                 return false;
             }
 
             if (!p.pa) {
                 p.pa = allocate_page();
                 if (!p.pa) {
-                    print("allocate_page failed\n");
+                    printk("allocate_page failed\n");
                     free_va(va, 1);
                     return false;
                 }
@@ -1486,7 +1486,7 @@ bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             }
 
             if (!map_page(p.pa, va, mapping_type::read_write)) {
-                print("map_page failed\n");
+                printk("map_page failed\n");
                 free_va(va, 1);
                 return false;
             }
@@ -1548,7 +1548,7 @@ bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh
     size_t size = sizeof(RTL_USER_PROCESS_PARAMETERS) + ((curdir_len + 1) * sizeof(char16_t));
 
     if (!success(allocate_vm((void**)&proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
-        print("process::allocate_vm failed\n");
+        printk("process::allocate_vm failed\n");
         return false;
     }
 
@@ -1556,12 +1556,12 @@ bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh
 
     auto va = allocate_va(num_pages);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return false;
     }
 
     if (!map_to_kernel_space(proc_params, (void*)va, num_pages)) {
-        print("map_to_kernel_space failed\n");
+        printk("map_to_kernel_space failed\n");
         free_va(va, num_pages);
         return false;
     }
@@ -1596,23 +1596,23 @@ bool process::allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth
     size_t peb_size = sizeof(PEB);
 
     if (!allocate_proc_params(stdinh, stdouth, stderrh, curdirh, curdir)) {
-        print("process::allocate_proc_params failed\n");
+        printk("process::allocate_proc_params failed\n");
         return false;
     }
 
     if (!success(allocate_vm((void**)&peb, 0, &peb_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
-        print("process::allocate_vm failed\n");
+        printk("process::allocate_vm failed\n");
         return false;
     }
 
     auto va = allocate_va(num_pages);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return false;
     }
 
     if (!map_to_kernel_space(peb, (void*)va, num_pages)) {
-        print("map_to_kernel_space failed\n");
+        printk("map_to_kernel_space failed\n");
         free_va(va, num_pages);
         return false;
     }
@@ -1655,12 +1655,12 @@ NTSTATUS process::change_proc_page_protection(uint64_t va, enum mapping_type pro
 
     auto buf = allocate_va(4);
     if (!buf) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     if (!map_page(cr3, buf, mapping_type::read_only)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end;
     }
@@ -1673,7 +1673,7 @@ NTSTATUS process::change_proc_page_protection(uint64_t va, enum mapping_type pro
     }
 
     if (!map_page((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT, buf + PAGE_SIZE, mapping_type::read_only)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end2;
     }
@@ -1686,7 +1686,7 @@ NTSTATUS process::change_proc_page_protection(uint64_t va, enum mapping_type pro
     }
 
     if (!map_page((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT, buf + (2 * PAGE_SIZE), mapping_type::read_only)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end3;
     }
@@ -1699,7 +1699,7 @@ NTSTATUS process::change_proc_page_protection(uint64_t va, enum mapping_type pro
     }
 
     if (!map_page((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT, buf + (3 * PAGE_SIZE), mapping_type::read_write)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end4;
     }
@@ -1802,7 +1802,7 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
                 }
 
                 case proc_map_type::vm:
-                    print("FIXME - protecting VM\n"); // FIXME
+                    printk("FIXME - protecting VM\n"); // FIXME
                     return nt_status::INTERNAL_ERROR;
             }
 
@@ -1989,26 +1989,26 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
 
     auto va2 = allocate_va(2);
     if (!va2) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return false;
     }
 
     if (!sect.map(offset, va2, true)) {
-        print("section::map failed\n");
+        printk("section::map failed\n");
         free_va(va2, 2);
         return false;
     }
 
     auto pa_new = allocate_page();
     if (!pa_new) {
-        print("allocate_page failed\n");
+        printk("allocate_page failed\n");
         unmap_page(va2);
         free_va(va2, 2);
         return false;
     }
 
     if (!map_page(pa_new, va2 + PAGE_SIZE, mapping_type::read_write)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         unmap_page(va2);
         free_va(va2, 2);
         free_page(pa_new);
@@ -2210,7 +2210,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     auto img_base = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
     if (!img_base) {
-        print("process::map_section failed\n");
+        printk("process::map_section failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
     }
@@ -2219,7 +2219,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base);
     if (!p.ntdll_addr) {
-        print("process::map_section failed\n");
+        printk("process::map_section failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
     }
@@ -2227,13 +2227,13 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     // FIXME - map time page into process
 
     if (!p.allocate_peb(img_base, 0, 0, 0, 0, "")) {
-        print("process::allocate_peb failed\n");
+        printk("process::allocate_peb failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
     }
 
     if (!p.allocate_cr3()) {
-        print("process::allocate_cr3 failed\n");
+        printk("process::allocate_cr3 failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
     }
@@ -2578,9 +2578,9 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
         }
 
         default:
-            print("process::query_info: unhandled info class ");
+            printk("process::query_info: unhandled info class ");
             print_hex((unsigned int)process_information_class);
-            print("\n");
+            printk("\n");
             return nt_status::INVALID_INFO_CLASS;
     }
 }

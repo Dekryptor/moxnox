@@ -186,7 +186,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
 
     // FIXME - spinlock for last_tid (or use atomics)
     if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-        print("Thread limit reached.\n");
+        printk("Thread limit reached.\n");
         delete &t;
         return nt_status::INTERNAL_ERROR; // FIXME
     }
@@ -220,7 +220,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     auto ctx_addr = (uintptr_t)initial_teb.StackBase - sizeof(CONTEXT);
 
     if (!copy_to((void*)ctx_addr, &start_context, sizeof(start_context))) {
-        print("process::copy_to failed\n");
+        printk("process::copy_to failed\n");
         delete &t;
         return nt_status::NO_MEMORY;
     }
@@ -388,7 +388,7 @@ NTSTATUS NtContinue(const CONTEXT* thread_context, bool) {
 NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
                                   void* thread_information, uint32_t thread_information_length,
                                   uint32_t* return_length) {
-    print("FIXME - NtQueryInformationThread\n");
+    printk("FIXME - NtQueryInformationThread\n");
 
     // FIXME
 

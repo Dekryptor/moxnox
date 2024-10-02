@@ -34,13 +34,13 @@ handle_t add_kernel_handle(object& obj, uint32_t access_mask) {
             auto pa = allocate_page();
             if (!pa) {
                 // FIXME - should be exception
-                print("allocate_page failed\n");
+                printk("allocate_page failed\n");
                 return 0;
             }
 
             if (!map_page(pa, (uintptr_t)handle_arr + (handle_arr_pages << PAGE_SHIFT), mapping_type::read_write)) {
                 // FIXME - exception
-                print("map_page failed\n");
+                printk("map_page failed\n");
                 free_page(pa);
                 return 0;
             }
@@ -115,14 +115,14 @@ optional<reference_wrapper<object>> deref_handle(handle_t h) {
 bool name_object(object& obj, string_view name, bool persistent) {
     if (name.empty()) {
         // FIXME - exception
-        print("Invalid name\n");
+        printk("Invalid name\n");
         return false;
     }
 
     auto ne = (name_entry*)malloc(offsetof(name_entry, name) + name.size());
     if (!ne) {
         // FIXME - exception
-        print("Out of memory\n");
+        printk("Out of memory\n");
         return false;
     }
 
@@ -131,7 +131,7 @@ bool name_object(object& obj, string_view name, bool persistent) {
     if (obj.named) {
         lock.reset();
         // FIXME - exception
-        print("Object already has name\n");
+        printk("Object already has name\n");
         free(ne);
         return false;
     }
@@ -146,7 +146,7 @@ bool name_object(object& obj, string_view name, bool persistent) {
             if (ne2sv == name) {
                 lock.reset();
                 // FIXME - exception
-                print("Name collision\n");
+                printk("Name collision\n");
                 free(ne);
                 return false;
             }
@@ -173,7 +173,7 @@ bool name_object(handle_t h, string_view name, bool persistent) {
     auto objrw = deref_handle(h);
     if (!objrw) {
         // FIXME - exception
-        print("No such handle\n");
+        printk("No such handle\n");
         return false;
     }
 
@@ -190,7 +190,7 @@ bool name_object(handle_t h, string_view name, bool persistent) {
 
 unique_handle open_object(string_view name) {
     if (name.empty()) {
-        print("Invalid name\n");
+        printk("Invalid name\n");
         return {};
     }
 
@@ -221,7 +221,7 @@ unique_handle open_object(string_view name) {
     }
 
     if (!obj) {
-        print("Not found\n");
+        printk("Not found\n");
         return {};
     }
 
@@ -232,7 +232,7 @@ unique_handle open_object(string_view name) {
     });
 
     if (!hv) {
-        print("add_kernel_handle failed\n");
+        printk("add_kernel_handle failed\n");
         return {};
     }
 
@@ -244,7 +244,7 @@ size_t read(handle_t h, span<uint8_t> s, optional<size_t> offset) {
 
     if (!objrw) {
         // FIXME - exception
-        print("Invalid handle\n");
+        printk("Invalid handle\n");
         return 0;
     }
 
@@ -263,7 +263,7 @@ size_t read(handle_t h, span<uint8_t> s, optional<size_t> offset) {
 
     if (!can_read) {
         // FIXME - exception
-        print("Can't read from object\n");
+        printk("Can't read from object\n");
 
         visit_obj(obj, [](auto&& o) {
             o.release();
@@ -298,7 +298,7 @@ void write(handle_t h, span<const uint8_t> s) {
 
     if (!objrw) {
         // FIXME - exception
-        print("Invalid handle\n");
+        printk("Invalid handle\n");
         return;
     }
 
@@ -312,7 +312,7 @@ void write(handle_t h, span<const uint8_t> s) {
 
     if (!can_write) {
         // FIXME - exception
-        print("Not a writable object\n");
+        printk("Not a writable object\n");
 
         visit_obj(obj, [](auto&& o) {
             o.release();
@@ -506,7 +506,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
         return nt_status::INVALID_PARAMETER;
 
     if (create_disposition != FILE_OPEN) {
-        print("FIXME - creating files\n");
+        printk("FIXME - creating files\n");
         return nt_status::NOT_SUPPORTED;
     }
 

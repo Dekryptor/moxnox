@@ -36,7 +36,7 @@ static bool check_cpu_for_apic() {
     __cpuid(1, eax, ebx, ecx, edx);
 
     if (!(edx & CPUID_FEAT_EDX_APIC)) {
-        print("APIC disabled or not supported by CPU.\n");
+        printk("APIC disabled or not supported by CPU.\n");
         return false;
     }
 
@@ -66,14 +66,14 @@ span<const uint8_t> find_madt() {
     });
 
     if (!madtw) {
-        print("MADT not found in ACPI tables.\n");
+        printk("MADT not found in ACPI tables.\n");
         return span<const uint8_t>();
     }
 
     auto& madt = madtw->get();
 
     if (madt.Length < sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t)) {
-        print("MADT was shorter than expected.\n");
+        printk("MADT was shorter than expected.\n");
         return span<const uint8_t>();
     }
 
@@ -95,7 +95,7 @@ static uint64_t find_ioapic(span<const uint8_t> data) {
         data = data.subspan(length);
     }
 
-    print("Could not find address of I/O APIC.\n");
+    printk("Could not find address of I/O APIC.\n");
 
     return 0;
 }
@@ -193,7 +193,7 @@ static bool init_apic() {
     auto apic_base = rdmsr(IA32_APIC_BASE_MSR) & 0xfffff000;
 
     if (!map_page(apic_base, (uintptr_t)local_apic, mapping_type::no_cache)) {
-        print("map_page failed for local APIC\n");
+        printk("map_page failed for local APIC\n");
         return false;
     }
 
@@ -210,7 +210,7 @@ static bool init_apic() {
         return false;
 
     if (!map_page(io_apic_pa, (uintptr_t)io_apic, mapping_type::no_cache)) {
-        print("map_page failed for I/O APIC\n");
+        printk("map_page failed for I/O APIC\n");
         return false;
     }
 
@@ -238,12 +238,12 @@ void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist) {
 static bool setup_idt() {
     auto idt_page = allocate_page();
     if (idt_page == 0) {
-        print("Could not allocate page for IDT.\n");
+        printk("Could not allocate page for IDT.\n");
         return false;
     }
 
     if (!map_page(idt_page, (uintptr_t)idt.data(), mapping_type::read_write)) {
-        print("map_page failed for IDT\n");
+        printk("map_page failed for IDT\n");
         return false;
     }
 
@@ -297,14 +297,14 @@ static bool setup_idt() {
 void* allocate_stack() {
     auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     if (!stack) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return nullptr;
     }
 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
@@ -320,7 +320,7 @@ void* allocate_stack() {
         }
 
         if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
@@ -342,19 +342,19 @@ void* allocate_stack() {
 task_state_segment* init_tss() {
     auto pa = allocate_page();
     if (!pa) {
-        print("allocate_page failed\n");
+        printk("allocate_page failed\n");
         return nullptr;
     }
 
     auto va = allocate_va(1);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         free_page(pa);
         return nullptr;
     }
 
     if (!map_page(pa, va, mapping_type::read_write)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         free_va(va, 1);
         free_page(pa);
         return nullptr;
@@ -532,7 +532,7 @@ bool init_interrupts() {
 extern "C"
 void dummy_isr_func() {
     // FIXME
-    print("ISR\n");
+    printk("ISR\n");
 }
 
 extern "C"
@@ -549,7 +549,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
         uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
-            print("Unable to copy thread context to stack.\n");
+            printk("Unable to copy thread context to stack.\n");
             current_thread->terminate();
             return;
         }
@@ -568,7 +568,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
         uintptr_t us_er = us_context - er_size;
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
-            print("Unable to copy exception record to stack.\n");
+            printk("Unable to copy exception record to stack.\n");
             current_thread->terminate();
             return;
         }
@@ -602,13 +602,13 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     sp = sp_strcpy(sp, ")\n");
 
     sp = sp_context(sp, cb.thread_context);
-    print(string_view(s, sp.data() - s));
+    printk(string_view(s, sp.data() - s));
 
     if (!current_thread) {
         // FIXME - BSOD
         while (1) { }
     } else {
-        print("Thread killed\n");
+        printk("Thread killed\n");
         current_thread->terminate();
     }
 }
@@ -635,13 +635,13 @@ void double_fault() {
     sp = sp_strcpy(sp, "\n");
 
     sp = sp_context(sp, cb.thread_context);
-    print(string_view(s, sp.data() - s));
+    printk(string_view(s, sp.data() - s));
 
     if (!current_thread) {
         // FIXME - BSOD
         while (1) { }
     } else {
-        print("Thread killed\n");
+        printk("Thread killed\n");
         current_thread->terminate();
     }
 }
@@ -657,7 +657,7 @@ void general_protection_fault(uint64_t error_code) {
         uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
-            print("Unable to copy thread context to stack.\n");
+            printk("Unable to copy thread context to stack.\n");
             current_thread->terminate();
             return;
         }
@@ -676,7 +676,7 @@ void general_protection_fault(uint64_t error_code) {
         uintptr_t us_er = us_context - er_size;
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
-            print("Unable to copy exception record to stack.\n");
+            printk("Unable to copy exception record to stack.\n");
             current_thread->terminate();
             return;
         }
@@ -708,13 +708,13 @@ void general_protection_fault(uint64_t error_code) {
     sp = sp_strcpy(sp, ")\n");
 
     sp = sp_context(sp, cb.thread_context);
-    print(string_view(s, sp.data() - s));
+    printk(string_view(s, sp.data() - s));
 
     if (!current_thread) {
         // FIXME - BSOD
         while (1) { }
     } else {
-        print("Thread killed\n");
+        printk("Thread killed\n");
         current_thread->terminate();
     }
 }
@@ -730,7 +730,7 @@ void invalid_opcode() {
         uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
-            print("Unable to copy thread context to stack.\n");
+            printk("Unable to copy thread context to stack.\n");
             current_thread->terminate();
             return;
         }
@@ -747,7 +747,7 @@ void invalid_opcode() {
         uintptr_t us_er = us_context - er_size;
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
-            print("Unable to copy exception record to stack.\n");
+            printk("Unable to copy exception record to stack.\n");
             current_thread->terminate();
             return;
         }
@@ -778,13 +778,13 @@ void invalid_opcode() {
     sp = sp_strcpy(sp, "\n");
 
     sp = sp_context(sp, cb.thread_context);
-    print(string_view(s, sp.data() - s));
+    printk(string_view(s, sp.data() - s));
 
     if (!current_thread) {
         // FIXME - BSOD
         while (1) { }
     } else {
-        print("Thread killed\n");
+        printk("Thread killed\n");
         current_thread->terminate();
     }
 }
@@ -800,7 +800,7 @@ void divide_by_zero() {
         uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
-            print("Unable to copy thread context to stack.\n");
+            printk("Unable to copy thread context to stack.\n");
             current_thread->terminate();
             return;
         }
@@ -817,7 +817,7 @@ void divide_by_zero() {
         uintptr_t us_er = us_context - er_size;
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
-            print("Unable to copy exception record to stack.\n");
+            printk("Unable to copy exception record to stack.\n");
             current_thread->terminate();
             return;
         }
@@ -848,13 +848,13 @@ void divide_by_zero() {
     sp = sp_strcpy(sp, ")\n");
 
     sp = sp_context(sp, cb.thread_context);
-    print(string_view(s, sp.data() - s));
+    printk(string_view(s, sp.data() - s));
 
     if (!current_thread) {
         // FIXME - BSOD
         while (1) { }
     } else {
-        print("Thread killed\n");
+        printk("Thread killed\n");
         current_thread->terminate();
     }
 }

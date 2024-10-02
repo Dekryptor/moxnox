@@ -7,7 +7,7 @@ using namespace std;
 unique_handle create_pipe(unsigned int buffer_pages) {
     auto pptr = new pipe(buffer_pages);
     if (!pptr) {
-        print("new failed\n");
+        printk("new failed\n");
         return {};
     }
 
@@ -23,14 +23,14 @@ unique_handle create_pipe(unsigned int buffer_pages) {
 pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buffer_pages) {
     if (buffer_pages == 0) {
         // FIXME - exception
-        print("Invalid value for buffer_pages\n");
+        printk("Invalid value for buffer_pages\n");
         return;
     }
 
     auto va = allocate_va(buffer_pages);
     if (!va) {
         // FIXME - exception
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return;
     }
 
@@ -38,7 +38,7 @@ pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buf
         auto pa = allocate_page();
         if (!pa) {
             // FIXME - exception
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto pa = va_to_pa(va + (j << PAGE_SHIFT));
@@ -53,7 +53,7 @@ pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buf
 
         if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
             // FIXME - exception
-            print("map_page failed\n");
+            printk("map_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto pa = va_to_pa(va + (j << PAGE_SHIFT));
@@ -209,7 +209,7 @@ size_t pipe::read(span<uint8_t> s) {
 unique_handle create_duplex_pipe(pipe& recv_pipe, pipe& send_pipe) {
     auto pptr = new duplex_pipe(recv_pipe, send_pipe);
     if (!pptr) {
-        print("new failed\n");
+        printk("new failed\n");
         return {};
     }
 

@@ -23,12 +23,12 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     // FIXME - check other superblock addresses, and choose one with highest generation
 
     if (sb.incompat_flags & ~supported_incompat_flags) {
-        print("Unsupported incompat flags\n");
+        printk("Unsupported incompat flags\n");
         return;
     }
 
     if (sb.num_devices != 1) {
-        print("Multiple devices not supported\n");
+        printk("Multiple devices not supported\n");
         return;
     }
 
@@ -37,21 +37,21 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 
     while (!chunk_array.empty()) {
         if (chunk_array.size() < sizeof(key)) {
-            print("Chunk array truncated\n");
+            printk("Chunk array truncated\n");
             return;
         }
 
         auto& k = *(key*)chunk_array.data();
 
         if (k.obj_type != key_type::CHUNK_ITEM) {
-            print("Unexpected item in chunk array\n");
+            printk("Unexpected item in chunk array\n");
             return;
         }
 
         chunk_array = chunk_array.subspan(sizeof(key));
 
         if (chunk_array.size() < offsetof(chunk_item, stripes)) {
-            print("Chunk array truncated\n");
+            printk("Chunk array truncated\n");
             return;
         }
 
@@ -59,18 +59,18 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         size_t chunk_size = offsetof(chunk_item, stripes) + (sizeof(chunk_item_stripe) * ci.num_stripes);
 
         if (chunk_array.size() < chunk_size) {
-            print("Chunk array truncated\n");
+            printk("Chunk array truncated\n");
             return;
         }
 
         if (ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
-            print("RAID not supported\n");
+            printk("RAID not supported\n");
             return;
         }
 
         auto cptr = (chunk*)malloc(offsetof(chunk, ci) + chunk_size);
         if (!cptr) {
-            print("malloc failed\n");
+            printk("malloc failed\n");
             return;
         }
 
@@ -86,7 +86,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     {
         auto rptr = new root;
         if (!rptr) {
-            print("new failed\n");
+            printk("new failed\n");
             return;
         }
 
@@ -101,7 +101,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     {
         auto rptr = new root;
         if (!rptr) {
-            print("new failed\n");
+            printk("new failed\n");
             return;
         }
 
@@ -114,12 +114,12 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     }
 
     if (!load_chunks()) {
-        print("load_chunks failed\n");
+        printk("load_chunks failed\n");
         return;
     }
 
     if (!load_roots()) {
-        print("load_roots failed\n");
+        printk("load_roots failed\n");
         return;
     }
 
@@ -127,7 +127,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 
     root_inode = new btrfs_inode(*this, BTRFS_ROOT_FSTREE, SUBVOL_ROOT_INODE, btrfs_inode_type::directory);
     if (!root_inode) {
-        print("new failed\n");
+        printk("new failed\n");
         return;
     }
 
@@ -142,7 +142,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 bool btrfs_probe(volume& vol) {
     auto fs = new btrfs_filesystem(vol);
     if (!fs) {
-        print("new failed\n");
+        printk("new failed\n");
         return false;
     }
 
@@ -174,16 +174,16 @@ bool btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
     }
 
     if (!crw) {
-        print("Could not find chunk for logical address ");
+        printk("Could not find chunk for logical address ");
         print_hex(addr);
-        print("\n");
+        printk("\n");
         return false;
     }
 
     auto& c = crw->get();
 
     if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
-        print("RAID not supported\n");
+        printk("RAID not supported\n");
         return false;
     } else if (c.ci.type & BLOCK_FLAG_DUPLICATE) {
         if (!read_dup(addr, c, data))
@@ -202,14 +202,14 @@ bool btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
 bool btrfs_filesystem::walk_tree2(uint64_t addr, uint8_t exp_level, invocable<const key&, span<const uint8_t>> auto func) {
     auto bufptr = (uint8_t*)malloc(sb.node_size);
     if (!bufptr) {
-        print("malloc failed\n");
+        printk("malloc failed\n");
         return false;
     }
 
     auto buf = span(bufptr, sb.node_size);
 
     if (!read_metadata(addr, buf)) {
-        print("read_metadata failed\n");
+        printk("read_metadata failed\n");
         free(bufptr);
         return false;
     }
@@ -217,7 +217,7 @@ bool btrfs_filesystem::walk_tree2(uint64_t addr, uint8_t exp_level, invocable<co
     auto& th = *(tree_header*)buf.data();
 
     if (th.level != exp_level) {
-        print("Tree level was incorrect\n");
+        printk("Tree level was incorrect\n");
         free(bufptr);
         return false;
     }
@@ -260,9 +260,9 @@ bool btrfs_filesystem::walk_tree(uint64_t id, invocable<const key&, span<const u
     }
 
     if (addr == 0) {
-        print("Could not find address for root ");
+        printk("Could not find address for root ");
         print_hex(id);
-        print("\n");
+        printk("\n");
         return false;
     }
 
@@ -277,7 +277,7 @@ bool btrfs_filesystem::load_chunks() {
             return;
 
         if (data.size() < offsetof(chunk_item, stripes)) {
-            print("Chunk item truncated\n");
+            printk("Chunk item truncated\n");
             return;
         }
 
@@ -285,18 +285,18 @@ bool btrfs_filesystem::load_chunks() {
         size_t chunk_size = offsetof(chunk_item, stripes) + (sizeof(chunk_item_stripe) * ci.num_stripes);
 
         if (data.size() < chunk_size) {
-            print("Chunk array truncated\n");
+            printk("Chunk array truncated\n");
             return;
         }
 
         if (ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
-            print("RAID not supported\n");
+            printk("RAID not supported\n");
             return;
         }
 
         auto cptr = (chunk*)malloc(offsetof(chunk, ci) + chunk_size);
         if (!cptr) {
-            print("malloc failed\n");
+            printk("malloc failed\n");
             return;
         }
 
@@ -324,7 +324,7 @@ bool btrfs_filesystem::read_single(uint64_t addr, chunk& c, span<uint8_t> data) 
     auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
 
     if (s < data.size()) {
-        print("Short read\n");
+        printk("Short read\n");
         return false;
     }
 
@@ -337,7 +337,7 @@ bool btrfs_filesystem::read_dup(uint64_t addr, chunk& c, span<uint8_t> data) {
     auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
 
     if (s < data.size()) {
-        print("Short read\n");
+        printk("Short read\n");
         return false;
     }
 
@@ -373,13 +373,13 @@ bool btrfs_filesystem::load_roots() {
             return;
 
         if (data.size() < sizeof(root_item)) {
-            print("Root item truncated\n");
+            printk("Root item truncated\n");
             return;
         }
 
         auto rptr = new root;
         if (!rptr) {
-            print("new failed\n");
+            printk("new failed\n");
             return;
         }
 
@@ -409,14 +409,14 @@ bool btrfs_filesystem::walk_from2(uint64_t addr, uint8_t exp_level, const key& k
 
     auto bufptr = (uint8_t*)malloc(sb.node_size);
     if (!bufptr) {
-        print("malloc failed\n");
+        printk("malloc failed\n");
         return 0;
     }
 
     auto buf = span(bufptr, sb.node_size);
 
     if (!read_metadata(addr, buf)) {
-        print("read_metadata failed\n");
+        printk("read_metadata failed\n");
         free(bufptr);
         return 0;
     }
@@ -424,7 +424,7 @@ bool btrfs_filesystem::walk_from2(uint64_t addr, uint8_t exp_level, const key& k
     auto& th = *(tree_header*)buf.data();
 
     if (th.level != exp_level) {
-        print("Tree level was incorrect\n");
+        printk("Tree level was incorrect\n");
         free(bufptr);
         return 0;
     }
@@ -478,9 +478,9 @@ void btrfs_filesystem::walk_from(uint64_t subvol, const key& k, invocable<const 
     }
 
     if (addr == 0) {
-        print("Could not find address for root ");
+        printk("Could not find address for root ");
         print_hex(subvol);
-        print("\n");
+        printk("\n");
         return;
     }
 
@@ -497,7 +497,7 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
         switch (k.obj_type) {
             case key_type::INODE_ITEM:
                 if (data.size() < sizeof(inode_item)) {
-                    print("INODE_ITEM was short\n");
+                    printk("INODE_ITEM was short\n");
                     return false;
                 }
 
@@ -509,23 +509,23 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
                 auto& di = *(dir_item*)data.data();
 
                 if (data.size() < offsetof(dir_item, name)) {
-                    print("DIR_ITEM was short\n");
+                    printk("DIR_ITEM was short\n");
                     return false;
                 }
 
                 if (data.size() < offsetof(dir_item, name) + di.m + di.n) {
-                    print("DIR_ITEM was short\n");
+                    printk("DIR_ITEM was short\n");
                     return false;
                 }
 
                 if (di.n > 255) {
-                    print("Skipping item with overly long name\n");
+                    printk("Skipping item with overly long name\n");
                     return true;
                 }
 
                 auto deptr = (dirent*)malloc(offsetof(dirent, name) + di.n);
                 if (!deptr) {
-                    print("malloc failed\n");
+                    printk("malloc failed\n");
                     return false;
                 }
 
@@ -549,30 +549,30 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
                 auto& ed = *(extent_data*)data.data();
 
                 if (data.size() < offsetof(extent_data, data)) {
-                    print("EXTENT_DATA was short\n");
+                    printk("EXTENT_DATA was short\n");
                     return false;
                 }
 
                 if (ed.type == btrfs_extent_type::inline_extent) {
-                    print("FIXME - inline extents\n"); // FIXME
+                    printk("FIXME - inline extents\n"); // FIXME
                     return true;
                 } else if (ed.type != btrfs_extent_type::regular || ed.type != btrfs_extent_type::prealloc) {
                     if (data.size() < offsetof(extent_data, data) + sizeof(extent_data2)) {
-                        print("EXTENT_DATA was short\n");
+                        printk("EXTENT_DATA was short\n");
                         return false;
                     }
                 } else {
-                    print("Invalid extent type\n");
+                    printk("Invalid extent type\n");
                     return false;
                 }
 
                 if (ed.encryption != 0) {
-                    print("Encryption not supported\n");
+                    printk("Encryption not supported\n");
                     return false;
                 }
 
                 if (ed.encoding != 0) {
-                    print("Other encodings not supported\n");
+                    printk("Other encodings not supported\n");
                     return false;
                 }
 
@@ -585,7 +585,7 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 
                 auto ieptr = (inode_extent*)malloc(offsetof(inode_extent, ed) + data.size());
                 if (!ieptr) {
-                    print("malloc failed\n");
+                    printk("malloc failed\n");
                     return false;
                 }
 
@@ -608,11 +608,11 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
     });
 
     if (!found_inode_item) {
-        print("INODE_ITEM for subvol ");
+        printk("INODE_ITEM for subvol ");
         print_hex(subvol);
-        print(", inode ");
+        printk(", inode ");
         print_hex(inode);
-        print(" not found.\n");
+        printk(" not found.\n");
         return;
     }
 
@@ -740,7 +740,7 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
     auto ino = new btrfs_inode(*this, subvol, inode, btrfs_inode_type::unknown);
 
     if (!ino) {
-        print("new failed\n");
+        printk("new failed\n");
         return nullopt;
     }
 
@@ -830,14 +830,14 @@ size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t
 
     auto va = allocate_va(pages);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return 0;
     }
 
     for (size_t i = 0; i < pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
 
             for (size_t j = 0; j < i; j++) {
                 auto pa = va_to_pa(va + (j << PAGE_SHIFT));
@@ -851,7 +851,7 @@ size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t
         }
 
         if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
             free_page(pa);
 
             for (size_t j = 0; j < i; j++) {
@@ -869,7 +869,7 @@ size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t
     auto buf = (uint8_t*)va;
 
     if (!read_single(address, c, span(buf, num_bytes + offset))) {
-        print("btrfs_filesystem::read_single failed\n");
+        printk("btrfs_filesystem::read_single failed\n");
         to_read = 0;
         goto end;
     }
@@ -908,19 +908,19 @@ size_t btrfs_filesystem::read_extent(uint64_t address, uint64_t offset, uint64_t
     }
 
     if (!crw) {
-        print("Could not find chunk for address ");
+        printk("Could not find chunk for address ");
         print_hex(address);
-        print(".\n");
+        printk(".\n");
         return 0;
     }
 
     auto& c = crw->get();
 
     if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
-        print("RAID not supported\n");
+        printk("RAID not supported\n");
         return 0;
     } else if (c.ci.type & BLOCK_FLAG_DUPLICATE) {
-        print("FIXME - DUP\n");
+        printk("FIXME - DUP\n");
         return 0;
     } else
         return read_extent_single(c, address, offset, num_bytes, s);
@@ -946,7 +946,7 @@ size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
         }
 
         if (ie.ed.compression != 0) {
-            print("FIXME - compression\n"); // FIXME
+            printk("FIXME - compression\n"); // FIXME
             return 0;
         }
 
@@ -963,7 +963,7 @@ size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
 
         switch (ie.ed.type) {
             case btrfs_extent_type::inline_extent:
-                print("FIXME - inline extents\n"); // FIXME
+                printk("FIXME - inline extents\n"); // FIXME
                 return 0;
             break;
 
@@ -972,7 +972,7 @@ size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
                 auto r = fs.read_extent(ed2.address, ed2.offset + offset + read - ie.offset, ed2.num_bytes, s);
 
                 if (r == 0) {
-                    print("btrfs_filesystem::read_extent failed\n");
+                    printk("btrfs_filesystem::read_extent failed\n");
                     return 0;
                 }
 
@@ -1047,7 +1047,7 @@ NTSTATUS btrfs_filesystem::query_directory_dirent(const dirent& de, span<uint8_t
         }
 
         default:
-            print("btrfs_filesystem::query_directory_dirent: unhandled info class\n");
+            printk("btrfs_filesystem::query_directory_dirent: unhandled info class\n");
             return nt_status::INVALID_INFO_CLASS;
     }
 }

@@ -20,14 +20,14 @@ static span<const uint8_t> find_mcfg() {
     });
 
     if (!mcfgw) {
-        print("MCFG not found in ACPI tables.\n");
+        printk("MCFG not found in ACPI tables.\n");
         return span<const uint8_t>();
     }
 
     auto& mcfg = mcfgw->get();
 
     if (mcfg.Length < offsetof(apic_mcfg, items)) {
-        print("MCFG was shorter than expected.\n");
+        printk("MCFG was shorter than expected.\n");
         return span<const uint8_t>();
     }
 
@@ -40,24 +40,24 @@ static constexpr uint64_t pci_pa(const apic_mcfg_item& item, uint8_t bus, uint8_
 
 static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
     print_hex(bus, 2);
-    print(":");
+    printk(":");
     print_hex(dev, 2);
-    print(".");
+    printk(".");
     print_hex(func, 1);
-    print(" ");
+    printk(" ");
 
     print_hex(h.vendor_id, 4);
-    print(":");
+    printk(":");
     print_hex(h.device_id, 4);
-    print("\n");
+    printk("\n");
 
     // FIXME - header type 1 (PCI-to-PCI bridge)
     // FIXME - header type 2 (PCI-to-CardBus bridge)
 
     if ((h.header_type & 0x7f) != 0) {
-        print("Unhandled PCI header type ");
+        printk("Unhandled PCI header type ");
         print_hex(h.header_type & 0x7f);
-        print("\n");
+        printk("\n");
         return;
     }
 
@@ -65,7 +65,7 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
 
     auto ppci_dev = new pci_device;
     if (!ppci_dev) {
-        print("new failed\n");
+        printk("new failed\n");
         return;
     }
 
@@ -115,9 +115,9 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
                 auto type = (orig >> 1) & 0x3;
 
                 if (type != 0 && type != 2) {
-                    print("Unhandled PCI BAR type ");
+                    printk("Unhandled PCI BAR type ");
                     print_hex(type);
-                    print("\n");
+                    printk("\n");
                     continue;
                 }
 
@@ -133,14 +133,14 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
                     auto va = allocate_va(pages);
 
                     if (!va) {
-                        print("allocate_va failed\n");
+                        printk("allocate_va failed\n");
                         return;
                     }
 
                     for (unsigned int j = 0; j < pages; j++) {
                         // FIXME - if prefetchable, map as write-through (or write-combine if framebuffer)?
                         if (!map_page(pa + (j << PAGE_SHIFT), va + (j << PAGE_SHIFT), mapping_type::no_cache)) {
-                            print("map_page failed\n");
+                            printk("map_page failed\n");
                             return;
                         }
                     }
@@ -148,7 +148,7 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
                     pci_dev.bar[i] = span((volatile uint8_t*)va, end - pa);
                 } else { // 64-bit register
                     if (i == 5) {
-                        print("64-bit PCI register cannot occupy BAR slot 5.\n");
+                        printk("64-bit PCI register cannot occupy BAR slot 5.\n");
                         continue;
                     }
 
@@ -163,14 +163,14 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
                     auto va = allocate_va(pages);
 
                     if (!va) {
-                        print("allocate_va failed\n");
+                        printk("allocate_va failed\n");
                         return;
                     }
 
                     for (unsigned int j = 0; j < pages; j++) {
                         // FIXME - if prefetchable, map as write-through (or write-combine if framebuffer)?
                         if (!map_page(pa + (j << PAGE_SHIFT), va + (j << PAGE_SHIFT), mapping_type::no_cache)) {
-                            print("map_page failed\n");
+                            printk("map_page failed\n");
                             return;
                         }
                     }
@@ -194,12 +194,12 @@ static void check_bus(uint8_t bus, const apic_mcfg_item& item) {
 
         auto va = allocate_va(1);
         if (!va) {
-            print("allocate_va failed\n");
+            printk("allocate_va failed\n");
             return;
         }
 
         if (!map_page(pa, va, mapping_type::no_cache)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
             free_va(va, 1);
             return;
         }
@@ -222,12 +222,12 @@ static void check_bus(uint8_t bus, const apic_mcfg_item& item) {
 
                 va = allocate_va(1);
                 if (!va) {
-                    print("allocate_va failed\n");
+                    printk("allocate_va failed\n");
                     return;
                 }
 
                 if (!map_page(pa, va, mapping_type::no_cache)) {
-                    print("map_page failed\n");
+                    printk("map_page failed\n");
                     free_va(va, 1);
                     return;
                 }
@@ -280,7 +280,7 @@ void init_pci() {
     auto mcfg = find_mcfg();
 
     if (mcfg.empty()) {
-        print("Could not find MCFG ACPI entry.\n");
+        printk("Could not find MCFG ACPI entry.\n");
         // FIXME - do it the traditional way if this is the case?
         return;
     }
@@ -290,7 +290,7 @@ void init_pci() {
     auto items = span(tbl.items, (mcfg.size() - offsetof(apic_mcfg, items)) / sizeof(apic_mcfg_item));
 
     if (items.empty()) {
-        print("No apic_mcfg_items found\n");
+        printk("No apic_mcfg_items found\n");
         return;
     }
 

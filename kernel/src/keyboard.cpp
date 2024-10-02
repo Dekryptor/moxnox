@@ -160,18 +160,18 @@ static void keyboard_event_recv() {
 void init_keyboard() {
     auto pa = allocate_page();
     if (!pa) {
-        print("allocate_page failed\n");
+        printk("allocate_page failed\n");
         return;
     }
 
     auto va = allocate_va(1);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return;
     }
 
     if (!map_page(pa, va, mapping_type::read_write)) {
-        print("map_page failed\n");
+        printk("map_page failed\n");
         return;
     }
 
@@ -179,7 +179,7 @@ void init_keyboard() {
 
     keyboard_event = create_event(true);
     if (!keyboard_event) {
-        print("create_event failed\n");
+        printk("create_event failed\n");
         return;
     }
 
@@ -187,18 +187,18 @@ void init_keyboard() {
     keyboard_event_obj = static_cast<event&>(obj);
 
     if (!add_kernel_thread(keyboard_event_recv)) {
-        print("add_kernel_thread failed\n");
+        printk("add_kernel_thread failed\n");
         return;
     }
 
     keyboard_pipe = create_pipe(keyboard_buffer_pages);
     if (!keyboard_pipe) {
-        print("create_pipe failed\n");
+        printk("create_pipe failed\n");
         return;
     }
 
     if (!name_object(keyboard_pipe.get(), "keyboard")) {
-        print("name_object failed\n");
+        printk("name_object failed\n");
         return;
     }
 

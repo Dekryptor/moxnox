@@ -6,7 +6,7 @@ using namespace std;
 
 static unique_handle create_section(optional<reference_wrapper<inode>> ino, bool image, size_t size) {
     if (ino && !image) {
-        print("FIXME - non-image sections\n");
+        printk("FIXME - non-image sections\n");
         return {};
     }
 
@@ -14,7 +14,7 @@ static unique_handle create_section(optional<reference_wrapper<inode>> ino, bool
 
     auto sptr = new section;
     if (!sptr) {
-        print("new failed\n");
+        printk("new failed\n");
         return {};
     }
 
@@ -28,7 +28,7 @@ static unique_handle create_section(optional<reference_wrapper<inode>> ino, bool
         // FIXME - also work with ELFs
 
         if (!s.load_image()) {
-            print("load_image failed\n");
+            printk("load_image failed\n");
             s.release();
             return {};
         }
@@ -37,7 +37,7 @@ static unique_handle create_section(optional<reference_wrapper<inode>> ino, bool
         s.num_pages = bytes_to_pages(size);
 
         if (s.num_pages == 0) {
-            print("anonymous section must specify a size\n");
+            printk("anonymous section must specify a size\n");
             s.release();
             return {};
         }
@@ -46,7 +46,7 @@ static unique_handle create_section(optional<reference_wrapper<inode>> ino, bool
 
         s.pages = (page_info*)malloc(sizeof(page_info) * s.num_pages);
         if (!s.pages) {
-            print("malloc failed\n");
+            printk("malloc failed\n");
             s.release();
             return {};
         }
@@ -72,7 +72,7 @@ unique_handle create_section(handle_t h, bool image, size_t size) {
     auto objrw = deref_handle(h);
     if (!objrw) {
         // FIXME - exception
-        print("No such handle\n");
+        printk("No such handle\n");
         return {};
     }
 
@@ -92,7 +92,7 @@ unique_handle create_section(handle_t h, bool image, size_t size) {
                 ino->get().acquire();
                 f.release();
             } else {
-                print("Not an inode\n");
+                printk("Not an inode\n");
 
                 visit_obj(obj, [](auto&& o) {
                     o.release();
@@ -106,7 +106,7 @@ unique_handle create_section(handle_t h, bool image, size_t size) {
 
         default: {
             // FIXME - exception
-            print("Not an inode\n");
+            printk("Not an inode\n");
 
             visit_obj(obj, [](auto&& o) {
                 o.release();
@@ -148,19 +148,19 @@ public:
     scratch() {
         pa = allocate_page();
         if (!pa) {
-            print("allocate_page failed\n");
+            printk("allocate_page failed\n");
             return;
         }
 
         va = allocate_va(1);
         if (!va) {
-            print("allocate_va failed\n");
+            printk("allocate_va failed\n");
             free_page(pa);
             return;
         }
 
         if (!map_page(pa, va, mapping_type::read_write)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
             free_va(va, 1);
             free_page(pa);
             return;
@@ -184,7 +184,7 @@ public:
 
 bool section::load_image() {
     if (!ino) {
-        print("inode was NULL\n");
+        printk("inode was NULL\n");
         return false;
     }
 
@@ -198,42 +198,42 @@ bool section::load_image() {
 
         auto ret = f.read(span(buf, PAGE_SIZE), 0);
         if (ret == 0) {
-            print("inode read failed\n");
+            printk("inode read failed\n");
             return false;
         }
 
         if (ret < PAGE_SIZE) {
-            print("read less than 1 page\n");
+            printk("read less than 1 page\n");
             return false;
         }
 
         auto& dos_header = *(IMAGE_DOS_HEADER*)buf;
 
         if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
-            print("invalid image header\n");
+            printk("invalid image header\n");
             return false;
         }
 
         if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS)) {
-            print("invalid e_lfanew value\n");
+            printk("invalid e_lfanew value\n");
             return false;
         }
 
         auto& nt_header = *(IMAGE_NT_HEADERS*)(buf + dos_header.e_lfanew);
 
         if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
-            print("incorrect PE signature\n");
+            printk("incorrect PE signature\n");
             return false;
         }
 
         if (nt_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
-            print("unsupported architecture\n");
+            printk("unsupported architecture\n");
             return false;
         }
 
         if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
             nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-            print("unrecognized optional header signature\n");
+            printk("unrecognized optional header signature\n");
             return false;
         }
 
@@ -245,7 +245,7 @@ bool section::load_image() {
 
         if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
             if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64)) {
-                print("SizeOfOptionalHeader was smaller than expected\n");
+                printk("SizeOfOptionalHeader was smaller than expected\n");
                 return false;
             }
 
@@ -256,7 +256,7 @@ bool section::load_image() {
             entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
         } else {
             if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
-                print("SizeOfOptionalHeader was smaller than expected\n");
+                printk("SizeOfOptionalHeader was smaller than expected\n");
                 return false;
             }
 
@@ -268,17 +268,17 @@ bool section::load_image() {
         }
 
         if (size == 0) {
-            print("size of image was 0\n");
+            printk("size of image was 0\n");
             return false;
         }
 
         if (size_of_headers > size) {
-            print("SizeOfHeaders was more than SizeOfImage\n");
+            printk("SizeOfHeaders was more than SizeOfImage\n");
             return false;
         }
 
         if (size_of_headers > PAGE_SIZE) {
-            print("SizeOfHeaders was more than 1 page\n");
+            printk("SizeOfHeaders was more than 1 page\n");
             return false;
         }
 
@@ -287,7 +287,7 @@ bool section::load_image() {
 
         pages = (page_info*)malloc(sizeof(page_info) * num_pages);
         if (!pages) {
-            print("malloc failed\n");
+            printk("malloc failed\n");
             return false;
         }
 
@@ -296,7 +296,7 @@ bool section::load_image() {
         for (unsigned int i = 0; i < num_pages; i++) {
             pages[i].pa = allocate_page();
             if (!pages[i].pa) {
-                print("allocate_page failed\n");
+                printk("allocate_page failed\n");
 
                 for (unsigned int j = 0; j < i; j++) {
                     free_page(pages[j].pa);
@@ -311,14 +311,14 @@ bool section::load_image() {
 
         temp_va = allocate_va(num_pages);
         if (!temp_va) {
-            print("allocate_va failed\n");
+            printk("allocate_va failed\n");
             free_pa();
             return false;
         }
 
         for (unsigned int i = 0; i < num_pages; i++) {
             if (!map_page(pages[i].pa, temp_va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-                print("map_page failed\n");
+                printk("map_page failed\n");
 
                 for (unsigned int j = 0; j < i; j++) {
                     unmap_page(temp_va + (j << PAGE_SHIFT));
@@ -352,7 +352,7 @@ bool section::load_image() {
             continue;
 
         if (sect.VirtualAddress + section_size > size) {
-            print("section overflow\n");
+            printk("section overflow\n");
             free_va(temp_va, num_pages);
             free_pa();
             return false;
@@ -361,7 +361,7 @@ bool section::load_image() {
         if (sect.PointerToRawData != 0) {
             auto read = f.read(span((uint8_t*)(temp_va + sect.VirtualAddress), section_size), sect.PointerToRawData);
             if (read < section_size) {
-                print("short read\n");
+                printk("short read\n");
                 free_va(temp_va, num_pages);
                 free_pa();
                 return false;
@@ -394,13 +394,13 @@ bool section::map(uint32_t offset, uint64_t va, bool readonly) {
 
         if (!page) {
             if (type != section_type::anonymous) {
-                print("page not set\n");
+                printk("page not set\n");
                 return false;
             }
 
             page = allocate_page();
             if (!page) {
-                print("allocate_page failed\n");
+                printk("allocate_page failed\n");
                 return false;
             }
 
@@ -449,7 +449,7 @@ bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 
         auto va = allocate_va(1);
         if (!va) {
-            print("allocate_va failed\n");
+            printk("allocate_va failed\n");
             return false;
         }
 
@@ -460,7 +460,7 @@ bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
         }
 
         if (!map_page(page, va, mapping_type::read_only)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
             free_va(va, 1);
             return false;
         }
@@ -496,12 +496,12 @@ bool section::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
         auto va = allocate_va(1);
         if (!va) {
-            print("allocate_va failed\n");
+            printk("allocate_va failed\n");
             return false;
         }
 
         if (!map_page(page, va, mapping_type::read_only)) {
-            print("map_page failed\n");
+            printk("map_page failed\n");
             free_va(va, 1);
             return false;
         }
@@ -531,21 +531,21 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
     auto names = span((uint32_t*)(dir.data() + ied.AddressOfNames - offset), ied.NumberOfNames);
 
     if ((uint8_t*)names.data() + names.size_bytes() > dir.data() + dir.size()) {
-        print("invalid export directory\n");
+        printk("invalid export directory\n");
         return 0;
     }
 
     auto name_ordinals = span((uint16_t*)(dir.data() + ied.AddressOfNameOrdinals - offset), ied.NumberOfNames);
 
     if ((uint8_t*)name_ordinals.data() + name_ordinals.size_bytes() > dir.data() + dir.size()) {
-        print("invalid export directory\n");
+        printk("invalid export directory\n");
         return 0;
     }
 
     auto funcs = span((uint32_t*)(dir.data() + ied.AddressOfFunctions - offset), ied.NumberOfFunctions);
 
     if ((uint8_t*)funcs.data() + funcs.size_bytes() > dir.data() + dir.size()) {
-        print("invalid export directory\n");
+        printk("invalid export directory\n");
         return 0;
     }
 
@@ -555,7 +555,7 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
         auto n = names[i];
 
         if (dir.data() + n - offset > dir.data() + dir.size()) {
-            print("invalid export directory\n");
+            printk("invalid export directory\n");
             return 0;
         }
 
@@ -576,7 +576,7 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
         return 0;
 
     if (*ord >= ied.NumberOfFunctions) {
-        print("Function ordinal out of range.\n");
+        printk("Function ordinal out of range.\n");
         return 0;
     }
 
@@ -585,7 +585,7 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
 
 uint64_t section::find_export(string_view name) {
     if (type != section_type::image) {
-        print("Not an image.\n");
+        printk("Not an image.\n");
         return 0;
     }
 
@@ -593,12 +593,12 @@ uint64_t section::find_export(string_view name) {
 
     auto va = allocate_va(1);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return 0;
     }
 
     if (!map(0, va, true)) {
-        print("section::map failed\n");
+        printk("section::map failed\n");
         free_va(va, 1);
         return 0;
     }
@@ -625,12 +625,12 @@ uint64_t section::find_export(string_view name) {
     free_va(va, 1);
 
     if (!found) {
-        print("image has no export directory\n");
+        printk("image has no export directory\n");
         return 0;
     }
 
     if (exp_dir.VirtualAddress == 0 || exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
-        print("invalid export directory\n");
+        printk("invalid export directory\n");
         return 0;
     }
 
@@ -640,13 +640,13 @@ uint64_t section::find_export(string_view name) {
 
     va = allocate_va(exp_dir_pages);
     if (!va) {
-        print("allocate_va failed\n");
+        printk("allocate_va failed\n");
         return 0;
     }
 
     for (unsigned int i = 0; i < exp_dir_pages; i++) {
         if (!map((uint32_t)(exp_dir_start + (i << PAGE_SHIFT)), va + (i << PAGE_SHIFT), true)) {
-            print("section::map failed\n");
+            printk("section::map failed\n");
             for (unsigned int j = 0; j < i; j++) {
                 unmap_page(va + (j << PAGE_SHIFT));
             }
@@ -881,9 +881,9 @@ NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_
         }
 
         default:
-            print("section::query_info: unhandled info class ");
+            printk("section::query_info: unhandled info class ");
             print_hex((unsigned int)section_information_class);
-            print("\n");
+            printk("\n");
             return nt_status::INVALID_INFO_CLASS;
     }
 }

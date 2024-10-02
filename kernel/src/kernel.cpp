@@ -37,45 +37,45 @@ static void thread_test() {
     auto ev = create_event(false);
 
     if (!ev) {
-        print("create_event failed\n");
+        printk("create_event failed\n");
         return;
     }
 
     auto h = add_kernel_thread([](void* ctx) {
         auto evv = (handle_t)ctx;
 
-        print("Hello from second thread\n");
+        printk("Hello from second thread\n");
 
         set_event(evv);
     }, (void*)ev.get());
 
     if (!h) {
-        print("add_kernel_thread failed\n");
+        printk("add_kernel_thread failed\n");
         return;
     }
 
-    print("h = ");
+    printk("h = ");
     print_hex(h.get());
-    print("\n");
+    printk("\n");
 
     wait_for_object(ev.get());
-    print("second thread finished\n");
+    printk("second thread finished\n");
 }
 
 static void timer_test() {
     auto h = create_timer();
     if (!h) {
-        print("create_timer failed\n");
+        printk("create_timer failed\n");
         return;
     }
 
-    print("Waiting...\n");
+    printk("Waiting...\n");
 
     set_timer(h.get(), 5000, false);
 
     wait_for_object(h.get());
 
-    print("Timer fired.\n");
+    printk("Timer fired.\n");
 }
 #endif
 
@@ -122,7 +122,7 @@ void main_thread() {
     if (!init_smp()) {
         apic_ids = (uint8_t*)malloc(1);
         if (!apic_ids) {
-            print("malloc failed\n");
+            printk("malloc failed\n");
             return;
         }
 
@@ -141,7 +141,7 @@ void main_thread() {
         bsod("mount_root failed");
 
     if (!init_fb_console())
-        print("init_fb_console failed\n");
+        printk("init_fb_console failed\n");
 
     load_ntdll();
 
@@ -187,7 +187,7 @@ void startup(loader_block* lb) {
     if (!init_console_pipe())
         goto hang;
 
-    print = safe_print;
+    printk = safe_print;
 
     if (!init_interrupts())
         goto hang;

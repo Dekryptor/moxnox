@@ -8,7 +8,7 @@ using namespace std;
 unique_handle create_event(bool autoreset) {
     auto eptr = new event;
     if (!eptr) {
-        print("new failed\n");
+        printk("new failed\n");
         return {};
     }
 
@@ -64,7 +64,7 @@ void set_event(handle_t h) {
     auto objrw = deref_handle(h);
     if (!objrw) {
         // FIXME - exception
-        print("No such handle\n");
+        printk("No such handle\n");
         return;
     }
 
@@ -72,7 +72,7 @@ void set_event(handle_t h) {
 
     if (obj.type != object_type::event) {
         // FIXME - exception
-        print("Not an event\n");
+        printk("Not an event\n");
 
         visit_obj(obj, [](auto&& o) {
             o.release();
@@ -92,7 +92,7 @@ void reset_event(handle_t h) {
     auto objrw = deref_handle(h);
     if (!objrw) {
         // FIXME - exception
-        print("No such handle\n");
+        printk("No such handle\n");
         return;
     }
 
@@ -100,7 +100,7 @@ void reset_event(handle_t h) {
 
     if (obj.type != object_type::event) {
         // FIXME - exception
-        print("Not an event\n");
+        printk("Not an event\n");
 
         visit_obj(obj, [](auto&& o) {
             o.release();
