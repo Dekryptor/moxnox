@@ -116,8 +116,39 @@ static unique_handle start_init_process() {
     return proc_handle;
 }
 
+static void keywait() {
+    auto keybh = open_object("keyboard");
+
+    if (!keybh) {
+        printk("/dev/keyboard not found\n");
+        return;
+    }
+
+    auto keyb_objrw = deref_handle(keybh.get());
+    if (!keyb_objrw) {
+        printk("Could not deference /dev/keyboard handle\n");
+        return;
+    }
+
+    auto& keyb = keyb_objrw->get();
+
+    if (keyb.type != object_type::pipe) {
+        printk("/dev/keyboard did not point to a pipe\n");
+        return;
+    }
+
+    auto& p = *static_cast<pipe*>(&keyb);
+    uint8_t c;
+
+    printk("Press any key to continue...\n");
+
+    while (p.read(span(&c, 1)) == 0) { }
+}
+
 void main_thread() {
     init_keyboard();
+
+    keywait();
 
     init_syscalls();
 
