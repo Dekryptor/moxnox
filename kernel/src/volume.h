@@ -1,5 +1,7 @@
 #pragma once
 
+class filesystem;
+
 class volume : public object {
 public:
     volume() : object(object_type::volume) { }
@@ -22,6 +24,9 @@ public:
     unsigned int sector_size;
     guid partition_guid = null_guid;
     guid type_guid = null_guid;
+
+    spinlock mount_lock;
+    std::optional<std::reference_wrapper<filesystem>> filesystem;
 };
 
 static_assert(is_readable_object_with_offset<volume>);

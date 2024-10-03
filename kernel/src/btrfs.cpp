@@ -153,6 +153,11 @@ bool btrfs_probe(volume& vol) {
 
     add_fs_to_list(*fs);
 
+    {
+        lock_guard lg(vol.mount_lock);
+        vol.filesystem = *fs;
+    }
+
     return true;
 }
 
