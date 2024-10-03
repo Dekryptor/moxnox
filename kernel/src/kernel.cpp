@@ -9,7 +9,8 @@ using namespace std;
 
 extern uint64_t __CTOR_LIST__;
 
-char cmdline[255];
+static char cmdline_arr[255];
+string_view cmdline;
 
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
@@ -116,7 +117,48 @@ static unique_handle start_init_process() {
     return proc_handle;
 }
 
+template<typename T>
+concept cmdline_func = invocable<T, string_view> &&
+    requires(T t, string_view s) { { t(s) } -> convertible_to<bool>; };
+
+static void loop_through_cmdline(cmdline_func auto func) {
+    string_view s = cmdline;
+
+    while (true) {
+        if (auto c = s.find_first_not_of(' '); c != string_view::npos) {
+            s.remove_prefix(c);
+        }
+
+        if (s.empty())
+            break;
+
+        if (auto c = s.find_first_of(' '); c != string_view::npos) {
+            if (!func(string_view(s.data(), c)))
+                break;
+
+            s.remove_prefix(c);
+        } else {
+            func(s);
+            break;
+        }
+    }
+}
+
 static void keywait() {
+    bool do_wait = false;
+
+    loop_through_cmdline([&](string_view s) {
+        if (s == "keywait") {
+            do_wait = true;
+            return false;
+        }
+
+        return true;
+    });
+
+    if (!do_wait)
+        return;
+
     auto keybh = open_object("keyboard");
 
     if (!keybh) {
@@ -194,21 +236,17 @@ void startup(loader_block* lb) {
 
     // FIXME - should restart if anything fails before we can show error message
 
-//     {
-//         volatile int wait = 1;
-//         while (wait) { }
-//     }
-
     memcpy(&fb, &lb->framebuffer, sizeof(fb));
 
     if (lb->cmdline) {
         size_t len = strlen((char*)lb->cmdline);
 
-        if (len >= sizeof(cmdline))
-            len = sizeof(cmdline) - 1;
+        if (len >= sizeof(cmdline_arr))
+            len = sizeof(cmdline_arr) - 1;
 
-        memcpy(cmdline, (char*)lb->cmdline, len);
-        cmdline[len] = 0;
+        memcpy(cmdline_arr, (char*)lb->cmdline, len);
+        cmdline_arr[len] = 0;
+        cmdline = string_view(cmdline_arr, len);
     }
 
     if (!init_memory(*lb))
