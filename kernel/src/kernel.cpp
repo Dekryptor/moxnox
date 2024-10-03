@@ -184,6 +184,7 @@ static void keywait() {
 
     printk("Press any key to continue...\n");
 
+    // FIXME - make sure this behaves properly if user presses a multi-character key (clear buffer?)
     while (p.read(span(&c, 1)) == 0) { }
 }
 
