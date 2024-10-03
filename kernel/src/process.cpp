@@ -25,13 +25,17 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     auto img_file = open_inode(fn);
     if (!img_file) {
-        printk("open_inode failed\n");
+        printk("open_inode failed for ");
+        printk(fn);
+        printk("\n");
         return {};
     }
 
     auto curdir_inode = open_inode(curdir);
     if (!curdir_inode) {
-        printk("open_inode failed\n");
+        printk("open_inode failed for ");
+        printk(curdir);
+        printk("\n");
         return {};
     }
 
