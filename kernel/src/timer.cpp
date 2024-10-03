@@ -51,7 +51,7 @@ void init_timer() {
     apic_timer_freq = (0xffffffff - *timer_current) * 100;
 
     printk("apic_timer_freq = ");
-    print_hex(apic_timer_freq);
+    printk(apic_timer_freq);
     printk("\n");
 
     add_idt_entry(timer_interrupt, (void*)timer_isr, false, 1);

@@ -272,7 +272,7 @@ void startup(loader_block* lb) {
     if (!init_console_pipe())
         goto hang;
 
-    printk = safe_print;
+    _printk = safe_print;
 
     if (!init_interrupts())
         goto hang;

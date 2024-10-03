@@ -5,7 +5,6 @@
 #include <span>
 #include <cstring>
 #include <bit>
-#include <charconv>
 #include <ft2build.h>
 #include <freetype/freetype.h>
 
@@ -39,7 +38,7 @@ static span<uint16_t> text_console;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
 static void early_print(string_view s);
-decltype(&safe_print) printk = early_print;
+decltype(&safe_print) _printk = early_print;
 
 static unique_handle console_pipe;
 static const unsigned int console_buffer_pages = 4;

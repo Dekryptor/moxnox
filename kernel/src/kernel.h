@@ -8,6 +8,7 @@
 #include <optional>
 #include <span>
 #include <source_location>
+#include <charconv>
 #include <loaderblock.h>
 #include "nt.h"
 
@@ -105,10 +106,21 @@ void invalidate_tlb();
 bool init_console(const loader_block_framebuffer& fb);
 bool init_console_pipe();
 void safe_print(std::string_view s);
-extern decltype(&safe_print) printk;
+extern decltype(&safe_print) _printk;
 void print_hex(uint64_t num, unsigned int padding = 0);
 bool init_fb_console();
 void bsod(std::string_view msg, std::source_location sl = std::source_location::current());
+
+static void printk(std::convertible_to<std::string_view> auto s) {
+    _printk(s);
+}
+
+static void printk(std::integral auto i) {
+    char s[21];
+
+    auto [ptr, ec] = std::to_chars(s, s + sizeof(s), i);
+    _printk(std::string_view(s, ptr));
+}
 
 // interrupts.cpp
 extern volatile uint8_t* const local_apic;
