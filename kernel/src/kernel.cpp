@@ -1,4 +1,5 @@
 #include <loaderblock.h>
+#include <version.h>
 #include "kernel.h"
 #include "unique_handle.h"
 #include "context_offsets.h"
@@ -262,6 +263,8 @@ void startup(loader_block* lb) {
 
     if (!init_console(fb))
         goto hang;
+
+    printk(MOXNOX_VERSION_STRING "\n");
 
     if (!init_cpu_block(true, current_cpu_id()))
         goto hang;
