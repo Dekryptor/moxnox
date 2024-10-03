@@ -1,3 +1,5 @@
+#include <version.h>
+
 .intel_syntax noprefix
 .code16
 
@@ -106,7 +108,7 @@ jmp	real_mode_main
 
 .section .rdata
 kernel_version:
-.asciz	"Moxnox v0.0.1"
+.asciz	MOXNOX_VERSION_STRING
 
 .section .data
 .global e820_entries

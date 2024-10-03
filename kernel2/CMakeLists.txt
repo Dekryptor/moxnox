@@ -16,7 +16,7 @@ set(CMAKE_C_LINK_EXECUTABLE "g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OB
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
-set(SRC_FILES boot.s
+set(SRC_FILES boot.S
     pm.s
     rm-main.cpp
     pm-main.cpp
