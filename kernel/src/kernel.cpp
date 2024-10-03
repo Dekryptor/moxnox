@@ -86,23 +86,23 @@ static void timer_test() {
 static unique_handle start_init_process() {
     auto initout = open_object("tty");
     if (!initout)
-        bsod("Could not open tty object.\n");
+        bsod("Could not open tty object.");
 
     auto initout_objrw = deref_handle(initout.get());
     if (!initout_objrw)
-        bsod("No such handle\n");
+        bsod("No such handle");
 
     auto initin = open_object("keyboard");
     if (!initin)
-        bsod("Could not open keyboard object.\n");
+        bsod("Could not open keyboard object.");
 
     auto initin_objrw = deref_handle(initin.get());
     if (!initin_objrw)
-        bsod("No such handle\n");
+        bsod("No such handle");
 
     auto proc_handle = create_process("/init.exe", "/", initin_objrw, initout_objrw, initout_objrw);
     if (!proc_handle)
-        bsod("Could not start init process.\n");
+        bsod("Could not start init process.");
 
     visit_obj(initout_objrw->get(), [&](auto&& o) {
         o.release();
@@ -113,7 +113,7 @@ static unique_handle start_init_process() {
     });
 
     if (!success(NtResumeProcess(proc_handle.get())))
-        bsod("NtResumeProcess failed for init process.\n");
+        bsod("NtResumeProcess failed for init process.");
 
     return proc_handle;
 }
@@ -226,7 +226,7 @@ void main_thread() {
 
     wait_for_object(init.get());
 
-    bsod("init process died\n");
+    bsod("init process died");
 
 //     thread_test(); // FIXME
 //     timer_test(); // FIXME
