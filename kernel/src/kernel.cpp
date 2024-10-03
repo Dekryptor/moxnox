@@ -226,7 +226,18 @@ void main_thread() {
 
     wait_for_object(init.get());
 
-    bsod("init process died");
+    auto initrw = deref_handle(init.get());
+    auto& init_process = *static_cast<process*>(&initrw->get());
+
+    {
+        char s[255];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "init process died (exit code ");
+        sp = sp_itoa_hex(sp, (uint64_t)init_process.exit_status);
+        sp = sp_strcpy(sp, ")");
+        bsod(string_view(s, sp.data() - s));
+    }
 
 //     thread_test(); // FIXME
 //     timer_test(); // FIXME

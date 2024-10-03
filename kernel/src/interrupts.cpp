@@ -550,6 +550,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
             printk("Unable to copy thread context to stack.\n");
+            current_thread->exit_status = nt_status::ACCESS_VIOLATION;
             current_thread->terminate();
             return;
         }
@@ -569,6 +570,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
             printk("Unable to copy exception record to stack.\n");
+            current_thread->exit_status = nt_status::ACCESS_VIOLATION;
             current_thread->terminate();
             return;
         }
@@ -609,6 +611,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
         while (1) { }
     } else {
         printk("Thread killed\n");
+        current_thread->exit_status = nt_status::ACCESS_VIOLATION;
         current_thread->terminate();
     }
 }
@@ -642,6 +645,7 @@ void double_fault() {
         while (1) { }
     } else {
         printk("Thread killed\n");
+        // FIXME - set exit_status (what should it be for a double fault?)
         current_thread->terminate();
     }
 }
@@ -658,6 +662,7 @@ void general_protection_fault(uint64_t error_code) {
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
             printk("Unable to copy thread context to stack.\n");
+            current_thread->exit_status = nt_status::ACCESS_VIOLATION;
             current_thread->terminate();
             return;
         }
@@ -677,6 +682,7 @@ void general_protection_fault(uint64_t error_code) {
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
             printk("Unable to copy exception record to stack.\n");
+            current_thread->exit_status = nt_status::ACCESS_VIOLATION;
             current_thread->terminate();
             return;
         }
@@ -715,6 +721,7 @@ void general_protection_fault(uint64_t error_code) {
         while (1) { }
     } else {
         printk("Thread killed\n");
+        current_thread->exit_status = nt_status::ACCESS_VIOLATION;
         current_thread->terminate();
     }
 }
@@ -731,6 +738,7 @@ void invalid_opcode() {
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
             printk("Unable to copy thread context to stack.\n");
+            current_thread->exit_status = nt_status::ILLEGAL_INSTRUCTION;
             current_thread->terminate();
             return;
         }
@@ -748,6 +756,7 @@ void invalid_opcode() {
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
             printk("Unable to copy exception record to stack.\n");
+            current_thread->exit_status = nt_status::ILLEGAL_INSTRUCTION;
             current_thread->terminate();
             return;
         }
@@ -785,6 +794,7 @@ void invalid_opcode() {
         while (1) { }
     } else {
         printk("Thread killed\n");
+        current_thread->exit_status = nt_status::ILLEGAL_INSTRUCTION;
         current_thread->terminate();
     }
 }
@@ -801,6 +811,7 @@ void divide_by_zero() {
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
             printk("Unable to copy thread context to stack.\n");
+            current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
             current_thread->terminate();
             return;
         }
@@ -818,6 +829,7 @@ void divide_by_zero() {
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
             printk("Unable to copy exception record to stack.\n");
+            current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
             current_thread->terminate();
             return;
         }
@@ -855,6 +867,7 @@ void divide_by_zero() {
         while (1) { }
     } else {
         printk("Thread killed\n");
+        current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
         current_thread->terminate();
     }
 }
