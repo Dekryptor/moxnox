@@ -12,6 +12,7 @@ extern e820_entry* ptr_e820_entries;
 extern uint32_t* ptr_e820_count;
 extern uint8_t* payload_data;
 extern const uint64_t payload_size;
+extern char* ptr_cmdline;
 
 static const unsigned int MAX_MAP_ENTRIES = 128; // same as E820_COUNT
 
@@ -909,6 +910,7 @@ void protected_mode_main() {
     lb.map_ptr = (uintptr_t)mem_entries;
     lb.num_map_entries = mem_entries_count;
     lb.rsdt_pa = rsdt_address;
+    lb.cmdline = (uintptr_t)ptr_cmdline;
 
     // jump to entry point of image
 

@@ -22,7 +22,7 @@ struct map_entry {
 } __attribute__((packed));
 
 struct loader_block_framebuffer {
-    void* pa;
+    uint64_t pa;
     uint32_t width;
     uint32_t height;
     uint32_t pixels_per_scan_line;
@@ -33,6 +33,7 @@ struct loader_block {
     uint32_t num_map_entries;
     uint64_t rsdt_pa;
     loader_block_framebuffer framebuffer;
+    uint64_t cmdline;
 } __attribute__((packed));
 
 static const uint64_t SELFMAP = 0xfffff68000000000;

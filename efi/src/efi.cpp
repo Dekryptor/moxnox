@@ -734,6 +734,7 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     lb.map_ptr = (uintptr_t)map;
     lb.num_map_entries = num_map_entries;
     lb.rsdt_pa = acpi_tables;
+    lb.cmdline = 0; // FIXME
 
     // exit boot services
 
@@ -852,7 +853,7 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
             goto end;
         }
 
-        lb.framebuffer.pa = (void*)(uintptr_t)gop->Mode->FrameBufferBase;
+        lb.framebuffer.pa = (uintptr_t)gop->Mode->FrameBufferBase;
         lb.framebuffer.width = gop->Mode->Info->HorizontalResolution;
         lb.framebuffer.height = gop->Mode->Info->VerticalResolution;
         lb.framebuffer.pixels_per_scan_line = gop->Mode->Info->PixelsPerScanLine;

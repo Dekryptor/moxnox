@@ -37,6 +37,7 @@ start:
 .short	0 # heap_end_ptr (51c0)
 .byte	0 # ext_loader_ver
 .byte	0 # ext_loader_type
+.cmd_line_ptr:
 .long	0 # cmd_line_ptr
 .long	0x7fffffff # initrd_addr_max
 .long	0x1000000 # kernel_alignment (CONFIG_PHYSICAL_ALIGN)
@@ -115,3 +116,7 @@ e820_entries:
 .global e820_count
 e820_count:
 .long	0
+
+.global cmdline
+cmdline:
+.long	.cmd_line_ptr - start + 0x200

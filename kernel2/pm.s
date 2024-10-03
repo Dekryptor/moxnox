@@ -45,6 +45,17 @@ enter_protected_mode:
     or eax, DWORD PTR [ptr_e820_count]
     mov DWORD PTR [ptr_e820_count], eax
 
+    mov eax, ebx
+    shl eax, 4
+    mov ecx, DWORD PTR [ptr_cmdline]
+    or eax, ecx
+    mov ecx, DWORD PTR [eax]
+    mov eax, ebx
+    shl eax, 4
+    or eax, ecx
+    mov eax, DWORD PTR [eax]
+    mov DWORD PTR [ptr_cmdline], eax
+
     mov ax, 0x10
     mov es, ax
     mov ss, ax
@@ -75,3 +86,6 @@ ptr_e820_entries:
 .globl ptr_e820_count
 ptr_e820_count:
 .long e820_count
+.globl ptr_cmdline
+ptr_cmdline:
+.long cmdline
