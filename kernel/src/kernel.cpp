@@ -9,6 +9,8 @@ using namespace std;
 
 extern uint64_t __CTOR_LIST__;
 
+char cmdline[255];
+
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
 
@@ -167,6 +169,16 @@ void startup(loader_block* lb) {
 //     }
 
     memcpy(&fb, &lb->framebuffer, sizeof(fb));
+
+    if (lb->cmdline) {
+        size_t len = strlen((char*)lb->cmdline);
+
+        if (len >= sizeof(cmdline))
+            len = sizeof(cmdline) - 1;
+
+        memcpy(cmdline, (char*)lb->cmdline, len);
+        cmdline[len] = 0;
+    }
 
     if (!init_memory(*lb))
         goto hang;

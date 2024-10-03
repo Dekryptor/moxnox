@@ -3,5 +3,6 @@
 qemu-system-x86_64 -enable-kvm -cpu host \
 -smp cores=4,threads=1 \
 -kernel build/kernel2/boot \
+-append "root=/dev/sda" \
 -monitor stdio \
 -s
