@@ -56,6 +56,7 @@ public:
 
     list_entry le;
     volume& vol;
+    std::atomic<unsigned int> refcount = 0;
 };
 
 struct mbr_partition_record {

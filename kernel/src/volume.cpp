@@ -30,14 +30,92 @@ void add_fs_to_list(filesystem& fs) {
 }
 
 bool mount_root() {
+    string_view cmdline_root;
+
+    loop_through_cmdline([&](string_view s) {
+        static const char root_option[] = "root=";
+
+        if (s.size() < sizeof(root_option) - 1)
+            return true;
+
+        if (string_view(s.data(), sizeof(root_option) - 1) != root_option)
+            return true;
+
+        cmdline_root = string_view(s.data() + sizeof(root_option) - 1,
+                                   s.size() - sizeof(root_option) + 1);
+
+        return false;
+    });
+
+    // FIXME - make sure partitions get names as well as disks
+
+    if (!cmdline_root.empty()) {
+        static const char prefix[] = "/dev/";
+
+        if (cmdline_root.size() <= sizeof(prefix) - 1 ||
+            string_view(cmdline_root.data(), sizeof(prefix) - 1) != prefix) {
+            char s[255];
+            auto sp = span(s, sizeof(s));
+
+            sp = sp_strcpy(sp, "malformed root option ");
+            sp = sp_strcpy(sp, cmdline_root);
+            bsod(string_view(s, sp.data() - s));
+        }
+
+        cmdline_root = string_view(cmdline_root.data() + sizeof(prefix) - 1,
+                                   cmdline_root.size() - sizeof(prefix) + 1);
+
+        auto h = open_object(cmdline_root);
+        if (!h) {
+            char s[255];
+            auto sp = span(s, sizeof(s));
+
+            sp = sp_strcpy(sp, "could not find root volume /dev/");
+            sp = sp_strcpy(sp, cmdline_root);
+            bsod(string_view(s, sp.data() - s));
+        }
+
+        auto& obj = deref_handle(h.get())->get();
+
+        if (obj.type != object_type::volume) {
+            char s[255];
+            auto sp = span(s, sizeof(s));
+
+            sp = sp_strcpy(sp, "root volume /dev/");
+            sp = sp_strcpy(sp, cmdline_root);
+            sp = sp_strcpy(sp, " is not a block device");
+            bsod(string_view(s, sp.data() - s));
+        }
+
+        auto& vol = *static_cast<volume*>(&obj);
+
+        {
+            lock_guard lock(vol.mount_lock);
+
+            if (!vol.filesystem) {
+                char s[255];
+                auto sp = span(s, sizeof(s));
+
+                sp = sp_strcpy(sp, "no recognized filesystem found on /dev/");
+                sp = sp_strcpy(sp, cmdline_root);
+                bsod(string_view(s, sp.data() - s));
+            }
+
+            root_fs = &vol.filesystem->get();
+            root_fs->refcount++;
+
+            return true;
+        }
+    }
+
+    // search for MN partition if no option
+
     lock_guard lock(fs_lock);
 
     if (is_list_empty(fs_list)) {
         printk("No filesytems found.\n");
         return false;
     }
-
-    // FIXME - choosing root FS based on command line
 
     // choose MN partition
 

@@ -86,6 +86,9 @@ struct page_info {
     enum mapping_type protect;
 };
 
+// kernel.cpp
+extern std::string_view cmdline;
+
 // mem.cpp
 bool init_memory(const loader_block& lb);
 bool map_page(uint64_t pa, uint64_t va, enum mapping_type type);
@@ -263,3 +266,30 @@ extern "C" void init_pat();
 
 // thread.cpp
 thread* get_current_thread();
+
+template<typename T>
+concept cmdline_func = std::invocable<T, std::string_view> &&
+requires(T t, std::string_view s) { { t(s) } -> std::convertible_to<bool>; };
+
+static void loop_through_cmdline(cmdline_func auto func) {
+    std::string_view s = cmdline;
+
+    while (true) {
+        if (auto c = s.find_first_not_of(' '); c != std::string_view::npos) {
+            s.remove_prefix(c);
+        }
+
+        if (s.empty())
+            break;
+
+        if (auto c = s.find_first_of(' '); c != std::string_view::npos) {
+            if (!func(std::string_view(s.data(), c)))
+                break;
+
+            s.remove_prefix(c);
+        } else {
+            func(s);
+            break;
+        }
+    }
+}
