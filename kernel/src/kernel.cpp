@@ -13,6 +13,8 @@ extern uint64_t __CTOR_LIST__;
 static char cmdline_arr[255];
 string_view cmdline;
 
+static bool has_framebuffer;
+
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
 
@@ -190,7 +192,7 @@ void main_thread() {
     if (!mount_root())
         bsod("mount_root failed");
 
-    if (!init_fb_console())
+    if (has_framebuffer && !init_fb_console())
         printk("init_fb_console failed\n");
 
     load_ntdll();
@@ -234,6 +236,8 @@ void startup(loader_block* lb) {
         cmdline_arr[len] = 0;
         cmdline = string_view(cmdline_arr, len);
     }
+
+    has_framebuffer = !!fb.pa;
 
     if (!init_memory(*lb))
         goto hang;
