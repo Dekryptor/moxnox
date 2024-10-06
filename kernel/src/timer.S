@@ -68,6 +68,9 @@ Ltimer_isr_threads:
     cmp QWORD PTR gs:GS_CURRENT_THREAD, 0
     je Ltimer_isr_nop
 
+    cmp QWORD PTR gs:GS_DISABLE_PREEMPT, 0
+    jne Ltimer_isr_nop
+
     dec QWORD PTR gs:GS_TIME_SLICE_LEFT
     cmp QWORD PTR gs:GS_TIME_SLICE_LEFT, 0
     jne Ltimer_isr_nop

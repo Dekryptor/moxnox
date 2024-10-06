@@ -169,6 +169,8 @@ std::span<char> sp_context(std::span<char>dest, const CONTEXT& ctx);
 void wait_for_object(handle_t h);
 void wait_for_object(object& obj);
 bool init_cpu_block(bool handle_timers, unsigned int cpu_no);
+void disable_preempt();
+void enable_preempt();
 
 // handle.cpp
 handle_t add_kernel_handle(object& obj, uint32_t access_mask);

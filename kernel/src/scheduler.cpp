@@ -388,6 +388,8 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
         va += PAGE_SIZE;
     }
 
+    new (&cb) cpu_block;
+
     cb.self = &cb;
     cb.current_thread = nullptr;
     cb.handle_timers = handle_timers;
@@ -432,4 +434,16 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool, const LARGE_INTEGER*)
     wait_for_object(objrw->get());
 
     return nt_status::SUCCESS;
+}
+
+void disable_preempt() {
+    auto& cb = *get_cpu_block();
+
+    cb.disable_preempt++;
+}
+
+void enable_preempt() {
+    auto& cb = *get_cpu_block();
+
+    cb.disable_preempt--;
 }
