@@ -603,6 +603,14 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     sp = sp_itoa_hex(sp, cb.cpu_no);
     sp = sp_strcpy(sp, ")\n");
 
+    if (address & ((uint64_t)1 << 63)) {
+        uint64_t pte = SELFMAP | ((address & 0xfffffffff000) >> 9);
+
+        sp = sp_strcpy(sp, "pte ");
+        sp = sp_itoa_hex(sp, pte);
+        sp = sp_strcpy(sp, "\n");
+    }
+
     sp = sp_context(sp, cb.thread_context);
     printk(string_view(s, sp.data() - s));
 
