@@ -24,6 +24,7 @@ static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
 
 static spinlock pa_spinlock, va_spinlock, heap_spinlock;
+static spinlock pml4_spinlock, pdpt_spinlock, pdt_spinlock;
 
 static bool treat_as_free(enum mem_type type) {
     switch (type) {
@@ -231,61 +232,82 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
     auto pdt = span((HARDWARE_PTE*)(SELFMAP_PDT | (((va & 0xffffc0000000) >> 30) << PAGE_SHIFT)), 512);
     auto pt = span((HARDWARE_PTE*)(SELFMAP | (((va & 0xffffffe00000) >> 21) << PAGE_SHIFT)), 512);
 
-    auto& pml4_entry = pml4[(va & 0xff8000000000) >> 39];
+    volatile auto& pml4_entry = pml4[(va & 0xff8000000000) >> 39];
 
     if (!pml4_entry.Valid) {
-        uint64_t page = allocate_page();
+        uint64_t page = allocate_page(); // FIXME - should there be an allocate_zeroed_page?
         if (page == 0)
             return false;
 
+        {
+            lock_guard lock(pml4_spinlock);
+
+            if (!pml4_entry.Valid) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pml4_entry.PageFrameNumber = page >> PAGE_SHIFT;
+                pml4_entry.PageFrameNumber = page >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-        pml4_entry.Valid = 1;
-        pml4_entry.Write = 1;
-        pml4_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
+                pml4_entry.Valid = 1;
+                pml4_entry.Write = 1;
+                pml4_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
-        memset(pdpt.data(), 0, PAGE_SIZE);
+                memset(pdpt.data(), 0, PAGE_SIZE);
+            } else
+                free_page(page);
+        }
     }
 
-    auto& pdpt_entry = pdpt[(va & 0x7fc0000000) >> 30];
+    volatile auto& pdpt_entry = pdpt[(va & 0x7fc0000000) >> 30];
 
     if (!pdpt_entry.Valid) {
         uint64_t page = allocate_page();
         if (page == 0)
             return false;
 
+        {
+            lock_guard lock(pdpt_spinlock);
+
+            if (!pdpt_entry.Valid) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pdpt_entry.PageFrameNumber = page >> PAGE_SHIFT;
+                pdpt_entry.PageFrameNumber = page >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-        pdpt_entry.Valid = 1;
-        pdpt_entry.Write = 1;
-        pdpt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
+                pdpt_entry.Valid = 1;
+                pdpt_entry.Write = 1;
+                pdpt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
-        memset(pdt.data(), 0, PAGE_SIZE);
+                memset(pdt.data(), 0, PAGE_SIZE);
+            } else
+                free_page(page);
+        }
     }
 
-    auto& pdt_entry = pdt[(va & 0x3fe00000) >> 21];
+    volatile auto& pdt_entry = pdt[(va & 0x3fe00000) >> 21];
 
     if (!pdt_entry.Valid) {
         uint64_t page = allocate_page();
         if (page == 0)
             return false;
 
+        {
+            lock_guard lock(pdt_spinlock);
+
+            if (!pdt_entry.Valid) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pdt_entry.PageFrameNumber = page >> PAGE_SHIFT;
+                pdt_entry.PageFrameNumber = page >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-        pdt_entry.Valid = 1;
-        pdt_entry.Write = 1;
-        pdt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
+                pdt_entry.Valid = 1;
+                pdt_entry.Write = 1;
+                pdt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
-        memset(pt.data(), 0, PAGE_SIZE);
+                memset(pt.data(), 0, PAGE_SIZE);
+            } else
+                free_page(page);
+        }
     }
 
-    auto& pt_entry = pt[(va & 0x1ff000) >> PAGE_SHIFT];
+    volatile auto& pt_entry = pt[(va & 0x1ff000) >> PAGE_SHIFT];
 
     *(uint64_t*)&pt_entry = 0;
 
