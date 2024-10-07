@@ -864,6 +864,8 @@ void unmap_page(uint64_t va) {
 void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
     lock_guard lock(protect_page_spinlock);
 
+    // FIXME - do we really need the spinlock?
+
     switch (type) {
         case mapping_type::read_write:
             pt_entry.NoExecute = 1;
