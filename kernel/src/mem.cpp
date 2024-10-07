@@ -25,6 +25,7 @@ static uint64_t vablock_size;
 
 static spinlock pa_spinlock, va_spinlock, heap_spinlock;
 static spinlock pml4_spinlock, pdpt_spinlock, pdt_spinlock;
+static spinlock protect_page_spinlock;
 
 static bool treat_as_free(enum mem_type type) {
     switch (type) {
@@ -861,6 +862,8 @@ void unmap_page(uint64_t va) {
 }
 
 void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
+    lock_guard lock(protect_page_spinlock);
+
     switch (type) {
         case mapping_type::read_write:
             pt_entry.NoExecute = 1;
