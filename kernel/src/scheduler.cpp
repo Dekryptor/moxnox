@@ -307,6 +307,21 @@ span<char> sp_context(span<char>dest, const AMD64_CONTEXT& ctx) {
 }
 
 void wait_for_object(object& obj) {
+#ifdef DEBUG
+    uint64_t cr8 = 0;
+
+    __asm __volatile(
+        "mov rax, cr8\n"
+        "mov %0, rax\n"
+        :
+        : "m" (cr8)
+        : "rax"
+    );
+
+    if (cr8)
+        bsod("calling wait_for_object when cr8 != 0");
+#endif
+
     auto current_thread = get_current_thread();
 
     __asm("cli");
