@@ -33,7 +33,7 @@ public:
     }
 
 private:
-    std::atomic<uint64_t> v;
+    std::atomic<uint64_t> v = 0;
     uint64_t old_cr8;
 };
 
