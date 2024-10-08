@@ -47,3 +47,5 @@
 #define THREAD_SYSCALL_CONTEXT 0x570
 
 #define PROCESS_CR3 0x40
+
+#define APIC_BASE 0xfffffab000000000

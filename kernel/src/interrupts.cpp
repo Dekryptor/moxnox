@@ -25,7 +25,7 @@ typedef struct {
     uint32_t zero;
 } idt_entry;
 
-volatile uint8_t* const local_apic = (uint8_t*)0xfffffab000000000;
+volatile uint8_t* const local_apic = (uint8_t*)APIC_BASE;
 static volatile uint8_t* const io_apic = (uint8_t*)0xfffffae000000000;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
 static span<const uint8_t> madt;

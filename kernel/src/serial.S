@@ -95,7 +95,7 @@ serial_isr:
     add rsp, 0x20
 
     xor rax, rax
-    mov DWORD PTR [0xfffffab0000000b0], eax # EOI
+    mov DWORD PTR [APIC_BASE+0xb0], eax # EOI
 
     pop r11
     pop r10
