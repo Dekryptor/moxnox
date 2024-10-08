@@ -198,12 +198,19 @@ acquire_sync_lock: # clobbers rax
     xchg [rip+sync_lock_val], rax
     test rax, rax
     jnz 0b
+#ifdef DEBUG
+    mov eax, gs:GS_CPU_NO
+    mov DWORD PTR [rip+sync_lock_cpu], eax
+#endif
     ret
 
 .global release_sync_lock
 release_sync_lock: # clobbers rax
     xor rax, rax
     xchg [rip+sync_lock_val], rax
+#ifdef DEBUG
+    mov DWORD PTR [rip+sync_lock_cpu], 0xffffffff
+#endif
     ret
 
 .global pit_delay

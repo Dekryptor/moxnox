@@ -21,6 +21,10 @@ static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
 volatile uint64_t sync_lock_val = 0;
 
+#ifdef DEBUG
+uint32_t sync_lock_cpu = 0xffffffff;
+#endif
+
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
 
