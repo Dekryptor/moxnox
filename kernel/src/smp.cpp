@@ -159,6 +159,16 @@ static void ap_startup() {
         : "m" (bsp_idt)
     );
 
+    // disable 8259 PIC
+    __asm __volatile (
+        "mov al, 0xff\n"
+        "out 0xa1, al\n"
+        "out 0x21, al\n"
+        :
+        :
+        : "al"
+    );
+
     auto spurious_interrupt_reg = (volatile uint32_t*)&local_apic[0xf0];
 
     *spurious_interrupt_reg = spurious_interrupt | 0x100;
