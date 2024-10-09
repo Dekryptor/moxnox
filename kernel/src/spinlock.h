@@ -5,12 +5,14 @@
 class spinlock {
 public:
     void lock() {
+        uint64_t current_cr8;
+
         __asm __volatile(
             "mov rax, cr8\n"
             "mov %0, rax\n"
             "mov rax, 3\n"
             "mov cr8, rax\n"
-            : "=m" (old_cr8)
+            : "=m" (current_cr8)
             :
             : "rax"
         );
@@ -18,6 +20,8 @@ public:
         while (v.exchange(1, std::memory_order_acquire)) {
             __asm("pause");
         }
+
+        old_cr8 = current_cr8;
     }
 
     void unlock() {
