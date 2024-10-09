@@ -390,6 +390,26 @@ NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_
                                   uint32_t* return_length) {
     printk("FIXME - NtQueryInformationThread\n");
 
+    auto objrw = deref_handle2(thread_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    auto& obj = objrw.get();
+
+    if (obj.type != object_type::thread)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    // FIXME - check access rights
+
+    auto& t = static_cast<thread&>(obj);
+
+    return t.query_information(thread_information_class, thread_information,
+                               thread_information_length, return_length);
+}
+
+NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS thread_information_class,
+                                   void* thread_information, uint32_t thread_information_length,
+                                   uint32_t* return_length) {
     // FIXME
 
     return nt_status::NOT_IMPLEMENTED;

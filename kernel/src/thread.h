@@ -57,6 +57,9 @@ public:
 
     void terminate();
     void kill(NTSTATUS exit_status);
+    NTSTATUS query_information(enum THREAD_INFORMATION_CLASS thread_information_class,
+                               void* thread_information, uint32_t thread_information_length,
+                               uint32_t* return_length);
 
     list_entry le;
     bool signalled = false;
