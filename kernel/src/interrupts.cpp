@@ -527,7 +527,8 @@ bool init_interrupts() {
     return true;
 }
 
-static void page_fault_user(uintptr_t address, uint64_t error_code) {
+extern "C"
+void page_fault_user(uintptr_t address, uint64_t error_code) {
     auto& cb = *get_cpu_block();
     auto& current_thread = *get_current_thread();
 

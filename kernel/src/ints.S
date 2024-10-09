@@ -13,7 +13,20 @@ page_fault_isr:
     mov rcx, cr2
     pop rdx
     sub rsp, 0x20
+
+    mov rax, QWORD PTR gs:GS_CURRENT_THREAD
+    cmp rax, 0
+    je 1f
+    cmp QWORD PTR [rax + THREAD_PROC], 0
+    je 1f
+    cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+    jne 1f
+    call page_fault_user
+    jmp 2f
+
+1:
     call page_fault
+2:
     add rsp, 0x20
 
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
@@ -29,10 +42,10 @@ page_fault_isr:
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
 
     cmp QWORD PTR [rsp+0x8], 0x8
-    je 1f
+    je 3f
     load_process_cr3
     swapgs
-1:
+3:
     iretq
 
 .global double_fault_isr
