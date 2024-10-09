@@ -154,7 +154,7 @@ invalid_opcode_isr:
 spurious_isr:
     push rax
     xor rax, rax
-    mov DWORD PTR [APIC_BASE+0xb0], eax # EOI
+    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
     pop rax
     iretq
 
@@ -202,7 +202,7 @@ yield_isr:
 0:
     push rax
     xor rax, rax
-    mov DWORD PTR [APIC_BASE+0xb0], eax # EOI
+    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
     pop rax
 
     mov rsp, gs:GS_SCHEDULER_STACK

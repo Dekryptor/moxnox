@@ -49,3 +49,4 @@
 #define PROCESS_CR3 0x40
 
 #define APIC_BASE 0xfffffab000000000
+#define APIC_EOI 0xb0

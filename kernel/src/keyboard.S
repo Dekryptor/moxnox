@@ -24,7 +24,7 @@ keyboard_isr:
     add rsp, 0x20
 
     xor rax, rax
-    mov DWORD PTR [APIC_BASE+0xb0], eax # EOI
+    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
 
     pop r11
     pop r10

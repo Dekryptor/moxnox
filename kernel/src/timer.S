@@ -77,14 +77,14 @@ Ltimer_isr_threads:
 
     save_context
     xor rax, rax
-    mov DWORD PTR [APIC_BASE+0xb0], eax # EOI
+    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
     mov rsp, gs:GS_SCHEDULER_STACK
     jmp scheduler
 
 Ltimer_isr_nop:
     push rax
     xor rax, rax
-    mov DWORD PTR [APIC_BASE+0xb0], eax # EOI
+    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
     pop rax
     load_process_cr3
     cmp QWORD PTR [rsp+0x8], 0x8
