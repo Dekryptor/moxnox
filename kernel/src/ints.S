@@ -2,6 +2,30 @@
 
 #include "context.S"
 
+.global page_fault_user_isr
+page_fault_user_isr:
+    mov rcx, cr2
+    pop rdx
+    sub rsp, 0x20
+    call page_fault_user
+    add rsp, 0x20
+
+    mov r11, gs:GS_CONTEXT + CONTEXT_R11
+    mov r10, gs:GS_CONTEXT + CONTEXT_R10
+    mov r9, gs:GS_CONTEXT + CONTEXT_R9
+    mov r8, gs:GS_CONTEXT + CONTEXT_R8
+    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
+    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
+    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
+    mov QWORD PTR [rsp], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
+    mov QWORD PTR [rsp+0x18], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+
+    load_process_cr3
+    swapgs
+    iretq
+
 .global page_fault_isr
 page_fault_isr:
     cmp QWORD PTR [rsp+0x10], 0x8
@@ -10,9 +34,6 @@ page_fault_isr:
     load_kernel_cr3
 0:
     save_context_when_error_code
-    mov rcx, cr2
-    pop rdx
-    sub rsp, 0x20
 
     mov rax, QWORD PTR gs:GS_CURRENT_THREAD
     cmp rax, 0
@@ -21,10 +42,12 @@ page_fault_isr:
     je 1f
     cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
     jne 1f
-    call page_fault_user
-    jmp 2f
+    jmp page_fault_user_isr
 
 1:
+    mov rcx, cr2
+    pop rdx
+    sub rsp, 0x20
     call page_fault
 2:
     add rsp, 0x20
