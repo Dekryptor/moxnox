@@ -529,9 +529,9 @@ bool init_interrupts() {
 
 static void page_fault_user(uintptr_t address, uint64_t error_code) {
     auto& cb = *get_cpu_block();
-    auto current_thread = cb.current_thread;
+    auto& current_thread = *get_current_thread();
 
-    auto& p = *current_thread->proc;
+    auto& p = *current_thread.proc;
 
     if (p.handle_page_fault(address, error_code))
         return;
@@ -540,8 +540,8 @@ static void page_fault_user(uintptr_t address, uint64_t error_code) {
 
     if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
         printk("Unable to copy thread context to stack.\n");
-        current_thread->exit_status = nt_status::ACCESS_VIOLATION;
-        current_thread->terminate();
+        current_thread.exit_status = nt_status::ACCESS_VIOLATION;
+        current_thread.terminate();
         return;
     }
 
@@ -560,8 +560,8 @@ static void page_fault_user(uintptr_t address, uint64_t error_code) {
 
     if (!p.copy_to((void*)us_er, &er, er_size)) {
         printk("Unable to copy exception record to stack.\n");
-        current_thread->exit_status = nt_status::ACCESS_VIOLATION;
-        current_thread->terminate();
+        current_thread.exit_status = nt_status::ACCESS_VIOLATION;
+        current_thread.terminate();
         return;
     }
 
