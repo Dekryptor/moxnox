@@ -22,7 +22,7 @@ public:
         }
     }
 
-    explicit operator bool() {
+    explicit operator bool() const {
         return rw.has_value();
     }
 
