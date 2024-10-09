@@ -4,8 +4,24 @@
 
 .global page_fault_user_isr
 page_fault_user_isr:
+    # switch to syscall stack
+    mov rax, QWORD PTR gs:GS_CURRENT_THREAD
+    mov rax, [rax + THREAD_SYSCALL_STACK]
+    sub rax, 0x28
+    mov rdx, QWORD PTR [rsp + 0x8] # RIP
+    mov QWORD PTR [rax], rdx
+    mov rdx, QWORD PTR [rsp + 0x10] # CS
+    mov QWORD PTR [rax + 0x8], rdx
+    mov rdx, QWORD PTR [rsp + 0x18] # RFLAGS
+    mov QWORD PTR [rax + 0x10], rdx
+    mov rdx, QWORD PTR [rsp + 0x20] # RSP
+    mov QWORD PTR [rax + 0x18], rdx
+    mov rdx, QWORD PTR [rsp + 0x28] # SS
+    mov QWORD PTR [rax + 0x20], rdx
+    pop rdx # error code
+    mov rsp, rax
+
     mov rcx, cr2
-    pop rdx
     sub rsp, 0x20
     call page_fault_user
     add rsp, 0x20
