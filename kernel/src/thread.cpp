@@ -407,9 +407,9 @@ NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_
                                thread_information_length, return_length);
 }
 
-NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS thread_information_class,
-                                   void* thread_information, uint32_t thread_information_length,
-                                   uint32_t* return_length) {
+NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS /*thread_information_class*/,
+                                   void* /*thread_information*/, uint32_t /*thread_information_length*/,
+                                   uint32_t* /*return_length*/) {
     // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
