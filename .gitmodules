@@ -1,3 +1,6 @@
 [submodule "freetype-new"]
 	path = freetype
 	url = https://gitlab.freedesktop.org/freetype/freetype
+[submodule "efi/code"]
+	path = efi/gnu-efi
+	url = https://git.code.sf.net/p/gnu-efi/code
