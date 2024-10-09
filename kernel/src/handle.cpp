@@ -112,6 +112,33 @@ optional<reference_wrapper<object>> deref_handle(handle_t h) {
     return *ho.obj;
 }
 
+object_ref deref_handle2(handle_t h) {
+    if (!(h & kernel_handle_mask)) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nullopt;
+
+        return t->proc->deref_handle2(h);
+    }
+
+    lock_guard lock(handle_spinlock);
+
+    if (h == 0 || (h & ~kernel_handle_mask) > no_handles)
+        return nullopt;
+
+    auto& ho = handle_arr[(h & ~kernel_handle_mask) - 1];
+
+    if (!ho.obj)
+        return nullopt;
+
+    visit_obj(*ho.obj, [](auto&& o) {
+        o.acquire(); // needs to be within spinlock
+    });
+
+    return *ho.obj;
+}
+
 bool name_object(object& obj, string_view name, bool persistent) {
     if (name.empty()) {
         // FIXME - exception

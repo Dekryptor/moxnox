@@ -84,27 +84,20 @@ NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE 
                               void* file_information, uint32_t length,
                               FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
                               const UNICODE_STRING* file_name, bool restart_scan) {
-    auto objrw = deref_handle(file_handle);
+    auto objrw = deref_handle2(file_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 
-    auto& obj = objrw->get();
+    auto& obj = objrw.get();
 
-    if (obj.type != object_type::file) {
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
+    if (obj.type != object_type::file)
         return nt_status::INVALID_HANDLE;
-    }
 
     auto& f = static_cast<file&>(obj);
 
     auto ret = f.query_directory(event, apc_routine, apc_context, *io_status_block, file_information,
                                  length, file_information_class, return_single_entry,
                                  file_name, restart_scan);
-
-    f.release();
 
     return ret;
 }

@@ -18,9 +18,8 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 // FIXME - 32-bit processes
 
 unique_handle create_process(string_view fn, string_view curdir,
-                             optional<reference_wrapper<object>> stdinobj,
-                             optional<reference_wrapper<object>> stdoutobj,
-                             optional<reference_wrapper<object>> stderrobj) {
+                             object_ref& stdinobj, object_ref& stdoutobj,
+                             object_ref& stderrobj) {
     // FIXME - merge with NtCreateProcess
 
     auto img_file = open_inode(fn);
@@ -94,13 +93,13 @@ unique_handle create_process(string_view fn, string_view curdir,
     handle_t stdinh = 0, stdouth = 0, stderrh = 0;
 
     if (stdinobj)
-        stdinh = p.add_handle(stdinobj->get(), 0); // FIXME - access mask
+        stdinh = p.add_handle(stdinobj.get(), 0); // FIXME - access mask
 
     if (stdoutobj)
-        stdouth = p.add_handle(stdoutobj->get(), 0); // FIXME - access mask
+        stdouth = p.add_handle(stdoutobj.get(), 0); // FIXME - access mask
 
     if (stderrobj)
-        stderrh = p.add_handle(stderrobj->get(), 0); // FIXME - access mask
+        stderrh = p.add_handle(stderrobj.get(), 0); // FIXME - access mask
 
     auto& curdir_inode_obj = static_cast<inode&>(deref_handle(curdir_inode.get())->get());
 
@@ -1636,6 +1635,24 @@ bool process::allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth
 }
 
 optional<reference_wrapper<object>> process::deref_handle(handle_t h) {
+    lock_guard lock(handle_lock);
+
+    if (h == 0 || h > no_handles)
+        return nullopt;
+
+    auto& ho = handle_arr[h - 1];
+
+    if (!ho.obj)
+        return nullopt;
+
+    visit_obj(*ho.obj, [](auto&& o) {
+        o.acquire(); // needs to be within spinlock
+    });
+
+    return *ho.obj;
+}
+
+object_ref process::deref_handle2(handle_t h) {
     lock_guard lock(handle_lock);
 
     if (h == 0 || h > no_handles)

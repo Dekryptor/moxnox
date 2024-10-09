@@ -61,31 +61,24 @@ void set_event(event& e) {
 }
 
 void set_event(handle_t h) {
-    auto objrw = deref_handle(h);
+    auto objrw = deref_handle2(h);
     if (!objrw) {
         // FIXME - exception
         printk("No such handle\n");
         return;
     }
 
-    auto& obj = objrw->get();
+    auto& obj = objrw.get();
 
     if (obj.type != object_type::event) {
         // FIXME - exception
         printk("Not an event\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
         return;
     }
 
-    auto& e = static_cast<event&>(objrw->get());
+    auto& e = static_cast<event&>(objrw.get());
 
     set_event(e);
-
-    e.release();
 }
 
 static void reset_event(event& e) {
@@ -96,31 +89,24 @@ static void reset_event(event& e) {
 }
 
 void reset_event(handle_t h) {
-    auto objrw = deref_handle(h);
+    auto objrw = deref_handle2(h);
     if (!objrw) {
         // FIXME - exception
         printk("No such handle\n");
         return;
     }
 
-    auto& obj = objrw->get();
+    auto& obj = objrw.get();
 
     if (obj.type != object_type::event) {
         // FIXME - exception
         printk("Not an event\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
         return;
     }
 
-    auto& e = static_cast<event&>(objrw->get());
+    auto& e = static_cast<event&>(objrw.get());
 
     reset_event(e);
-
-    e.release();
 }
 
 void event::on_wake() {

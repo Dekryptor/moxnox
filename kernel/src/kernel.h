@@ -220,12 +220,13 @@ void add_fs_to_list(filesystem& fs);
 bool mount_root();
 unique_handle open_inode(std::string_view fn);
 
+class object_ref;
+
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;
 unique_handle create_process(std::string_view fn, std::string_view curdir,
-                             std::optional<std::reference_wrapper<object>> stdinobj,
-                             std::optional<std::reference_wrapper<object>> stdoutobj,
-                             std::optional<std::reference_wrapper<object>> stderrobj);
+                             object_ref& stdinobj, object_ref& stdoutobj,
+                             object_ref& stderrobj);
 void load_ntdll();
 
 // section.cpp
