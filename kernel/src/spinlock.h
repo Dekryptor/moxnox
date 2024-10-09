@@ -44,17 +44,21 @@ private:
 class sync_lock {
 public:
     void lock() {
+        uint64_t current_cr8;
+
         __asm __volatile(
             "mov rax, cr8\n"
             "mov %0, rax\n"
             "mov rax, 3\n"
             "mov cr8, rax\n"
-            : "=m" (old_cr8)
+            : "=m" (current_cr8)
             :
             : "rax"
         );
 
         acquire_sync_lock();
+
+        old_cr8 = current_cr8;
     }
 
     void unlock() {
