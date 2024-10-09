@@ -484,8 +484,6 @@ syscall_handler:
 
 Lafter_syscall:
     # mark thread as running user code
-    push rax
-
     mov rcx, gs:GS_CURRENT_THREAD
     mov [rcx + THREAD_SYSCALL_CONTEXT + CONTEXT_RAX], rax
     mov BYTE PTR [rcx + THREAD_KERNEL_MODE], 0
