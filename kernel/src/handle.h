@@ -9,6 +9,11 @@ public:
     object_ref(std::nullopt_t) : rw(std::nullopt) { }
     object_ref(object& obj) : rw(obj) { }
 
+    // FIXME - implement (and test) these
+    object_ref(object_ref& temp_obj) = delete;
+    object_ref& operator=(const object_ref& temp_obj) = delete;
+    // FIXME - also move operator
+
     ~object_ref() {
         if (rw) {
             visit_obj(rw->get(), [](auto&& o) {
