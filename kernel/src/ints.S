@@ -3,10 +3,11 @@
 #include "context.S"
 
 .global page_fault_isr
-page_fault_isr: # keeps process' cr3
+page_fault_isr:
     cmp QWORD PTR [rsp+0x10], 0x8
     je 0f
     swapgs
+    load_kernel_cr3
 0:
     save_context_when_error_code
     mov rcx, cr2
@@ -29,6 +30,7 @@ page_fault_isr: # keeps process' cr3
 
     cmp QWORD PTR [rsp+0x8], 0x8
     je 1f
+    load_process_cr3
     swapgs
 1:
     iretq
