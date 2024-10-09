@@ -524,7 +524,7 @@ void startup() {
                 }
 
                 if (!ignore_bs)
-                    print(string_view(&s[i], 1));
+                    print("\b \b");
             } else {
                 if (s[i] == '\n')
                     nl = true;
