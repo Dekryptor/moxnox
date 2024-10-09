@@ -21,24 +21,43 @@ page_fault_user_isr:
     pop rdx # error code
     mov rsp, rax
 
+    mov rax, gs:GS_CONTEXT + CONTEXT_R11
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R10
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R9
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R8
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
+    push rax
+
     mov rcx, cr2
     sub rsp, 0x20
+    # FIXME - mark thread as in kernel mode
+    # FIXME - enable interrupts
     call page_fault_user
+    # FIXME - disable interrupts
+    # FIXME - mark thread as not in kernel mode
     add rsp, 0x20
 
-    mov r11, gs:GS_CONTEXT + CONTEXT_R11
-    mov r10, gs:GS_CONTEXT + CONTEXT_R10
-    mov r9, gs:GS_CONTEXT + CONTEXT_R9
-    mov r8, gs:GS_CONTEXT + CONTEXT_R8
-    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
-    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
-    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
-    mov QWORD PTR [rsp], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
-    mov QWORD PTR [rsp+0x18], rax
+    pop rcx
+    pop rdx
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+
+    # change to process cr3
+    mov rax, gs:GS_CURRENT_THREAD
+    mov rax, [rax+THREAD_PROC]
+    mov rax, [rax+PROCESS_CR3]
+    mov cr3, rax
+
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
 
-    load_process_cr3
     swapgs
     iretq
 
