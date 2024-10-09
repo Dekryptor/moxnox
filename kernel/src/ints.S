@@ -34,14 +34,20 @@ page_fault_user_isr:
     mov rax, gs:GS_CONTEXT + CONTEXT_RCX
     push rax
 
+    # mark thread as in kernel mode
+    mov rax, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 1
+
     mov rcx, cr2
     sub rsp, 0x20
-    # FIXME - mark thread as in kernel mode
-    # FIXME - enable interrupts
+    sti
     call page_fault_user
-    # FIXME - disable interrupts
-    # FIXME - mark thread as not in kernel mode
+    cli
     add rsp, 0x20
+
+    # mark thread as not in kernel mode
+    mov rax, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0
 
     pop rcx
     pop rdx
