@@ -88,6 +88,13 @@ void set_event(handle_t h) {
     e.release();
 }
 
+static void reset_event(event& e) {
+    sync_lock sl;
+    lock_guard lock(sl);
+
+    e.signalled = false;
+}
+
 void reset_event(handle_t h) {
     auto objrw = deref_handle(h);
     if (!objrw) {
@@ -111,12 +118,7 @@ void reset_event(handle_t h) {
 
     auto& e = static_cast<event&>(objrw->get());
 
-    {
-        sync_lock sl;
-        lock_guard lock(sl);
-
-        e.signalled = false;
-    }
+    reset_event(e);
 
     e.release();
 }
