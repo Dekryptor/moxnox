@@ -2,40 +2,6 @@
 
 #include "context.S"
 
-.global dummy_isr
-dummy_isr:
-    cmp QWORD PTR [rsp+0x8], 0x8
-    je 0f
-    swapgs
-0:
-    load_kernel_cr3
-    push rax
-    push rcx
-    push rdx
-    push r8
-    push r9
-    push r10
-    push r11
-
-    sub rsp, 0x20
-    call dummy_isr_func
-    add rsp, 0x20
-
-    pop r11
-    pop r10
-    pop r9
-    pop r8
-    pop rdx
-    pop rcx
-    pop rax
-    load_process_cr3
-
-    cmp QWORD PTR [rsp+0x8], 0x8
-    je 1f
-    swapgs
-1:
-    iretq
-
 .global page_fault_isr
 page_fault_isr: # keeps process' cr3
     cmp QWORD PTR [rsp+0x10], 0x8

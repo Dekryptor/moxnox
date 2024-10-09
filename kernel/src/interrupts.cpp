@@ -271,8 +271,6 @@ static bool setup_idt() {
     // FIXME - int 14 (virtualization exception)
     // FIXME - int 15 (control protection exception)
 
-    add_idt_entry(0x80, (void*)dummy_isr, false, 0);
-
     add_idt_entry(halt_interrupt, (void*)halt_isr, false, 0);
     add_idt_entry(spurious_interrupt, (void*)spurious_isr, false, 0);
     add_idt_entry(yield_interrupt, (void*)yield_isr, false, 0);
@@ -527,12 +525,6 @@ bool init_interrupts() {
     __asm("sti");
 
     return true;
-}
-
-extern "C"
-void dummy_isr_func() {
-    // FIXME
-    printk("ISR\n");
 }
 
 static void page_fault_user(uintptr_t address, uint64_t error_code) {

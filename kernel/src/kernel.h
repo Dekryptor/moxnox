@@ -136,7 +136,6 @@ task_state_segment* init_tss();
 void* allocate_stack();
 
 // ints.S
-extern "C" void dummy_isr();
 extern "C" void page_fault_isr();
 extern "C" void double_fault_isr();
 extern "C" void general_protection_fault_isr();
