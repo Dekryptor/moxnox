@@ -1,5 +1,7 @@
 #pragma once
 
+#include "handle.h"
+
 class unique_handle {
 public:
     unique_handle() : h(0) { }
