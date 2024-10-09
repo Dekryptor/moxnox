@@ -468,13 +468,17 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool, const LARGE_INTEGER*)
 }
 
 void disable_preempt() {
-    auto& cb = *get_cpu_block();
-
-    cb.disable_preempt++;
+    __asm __volatile(
+        "inc QWORD PTR gs:%0\n"
+        :
+        : "i" (offsetof(cpu_block, disable_preempt))
+    );
 }
 
 void enable_preempt() {
-    auto& cb = *get_cpu_block();
-
-    cb.disable_preempt--;
+    __asm __volatile(
+        "dec QWORD PTR gs:%0\n"
+        :
+        : "i" (offsetof(cpu_block, disable_preempt))
+    );
 }

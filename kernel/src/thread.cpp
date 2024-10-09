@@ -7,9 +7,11 @@ using namespace std;
 extern uint16_t last_tid; // FIXME
 
 thread* get_current_thread() {
-    __asm __volatile("cli");
+    disable_preempt();
+
     auto t = get_cpu_block()->current_thread;
-    __asm __volatile("sti");
+
+    enable_preempt();
 
     return t;
 }
