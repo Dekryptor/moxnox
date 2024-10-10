@@ -68,11 +68,10 @@ page_fault_user_isr:
     iretq
 
 .global page_fault_isr
-page_fault_isr:
+page_fault_isr: # keeps cr3 of process
     cmp QWORD PTR [rsp+0x10], 0x8
     je 0f
     swapgs
-    load_kernel_cr3
 0:
     save_context_when_error_code
 
@@ -107,7 +106,6 @@ page_fault_isr:
 
     cmp QWORD PTR [rsp+0x8], 0x8
     je 3f
-    load_process_cr3
     swapgs
 3:
     iretq
@@ -117,17 +115,17 @@ double_fault_isr:
     cmp QWORD PTR [rsp+0x10], 0x8
     je 0f
     swapgs
-0:
     load_kernel_cr3
+0:
     save_context_when_error_code
     pop rcx
     sub rsp, 0x20
     call double_fault
     add rsp, 0x20
-    load_process_cr3
 
     cmp QWORD PTR [rsp+0x8], 0x8
     je 1f
+    load_process_cr3
     swapgs
 1:
     iretq
@@ -137,14 +135,13 @@ general_protection_fault_isr:
     cmp QWORD PTR [rsp+0x10], 0x8
     je 0f
     swapgs
-0:
     load_kernel_cr3
+0:
     save_context_when_error_code
     pop rcx
     sub rsp, 0x20
     call general_protection_fault
     add rsp, 0x20
-    load_process_cr3
 
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
     mov r10, gs:GS_CONTEXT + CONTEXT_R10
@@ -160,6 +157,7 @@ general_protection_fault_isr:
 
     cmp QWORD PTR [rsp+0x8], 0x8
     je 1f
+    load_process_cr3
     swapgs
 1:
     iretq
@@ -169,13 +167,12 @@ invalid_opcode_isr:
     cmp QWORD PTR [rsp+0x8], 0x8
     je 0f
     swapgs
-0:
     load_kernel_cr3
+0:
     save_context
     sub rsp, 0x20
     call invalid_opcode
     add rsp, 0x20
-    load_process_cr3
 
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
     mov r10, gs:GS_CONTEXT + CONTEXT_R10
@@ -191,6 +188,7 @@ invalid_opcode_isr:
 
     cmp QWORD PTR [rsp+0x8], 0x8
     je 1f
+    load_process_cr3
     swapgs
 1:
     iretq
@@ -213,13 +211,12 @@ divide_by_zero_isr:
     cmp QWORD PTR [rsp+0x8], 0x8
     je 0f
     swapgs
-0:
     load_kernel_cr3
+0:
     save_context
     sub rsp, 0x20
     call divide_by_zero
     add rsp, 0x20
-    load_process_cr3
 
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
     mov r10, gs:GS_CONTEXT + CONTEXT_R10
@@ -235,6 +232,7 @@ divide_by_zero_isr:
 
     cmp QWORD PTR [rsp+0x8], 0x8
     je 1f
+    load_process_cr3
     swapgs
 1:
     iretq

@@ -69,23 +69,17 @@
 .endm
 
 .macro load_kernel_cr3
-    cmp BYTE PTR gs:GS_KERNEL_MODE, 0
-    jne 0f
     push rax
     mov rax, gs:GS_KERNEL_CR3
     mov cr3, rax
     pop rax
-0:
 .endm
 
 .macro load_process_cr3
-    cmp BYTE PTR gs:GS_KERNEL_MODE, 0
-    jne 0f
     push rax
     mov rax, gs:GS_CURRENT_THREAD
     mov rax, [rax+THREAD_PROC]
     mov rax, [rax+PROCESS_CR3]
     mov cr3, rax
     pop rax
-0:
 .endm

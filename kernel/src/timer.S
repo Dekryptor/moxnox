@@ -10,8 +10,8 @@ timer_isr:
     cmp QWORD PTR [rsp+0x8], 0x8
     je 0f
     swapgs
-0:
     load_kernel_cr3
+0:
 
     cmp BYTE PTR gs:GS_HANDLE_TIMERS, 0 # only handle timers on one CPU
     je Ltimer_isr_threads
@@ -86,9 +86,9 @@ Ltimer_isr_nop:
     xor rax, rax
     mov DWORD PTR [APIC_BASE+APIC_EOI], eax
     pop rax
-    load_process_cr3
     cmp QWORD PTR [rsp+0x8], 0x8
     je 1f
+    load_process_cr3
     swapgs
 1:
     iretq

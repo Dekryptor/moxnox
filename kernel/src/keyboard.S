@@ -7,8 +7,8 @@ keyboard_isr:
     cmp QWORD PTR [rsp+0x8], 0x8
     je 0f
     swapgs
-0:
     load_kernel_cr3
+0:
     push rax
     push rcx
     push rdx
@@ -33,10 +33,10 @@ keyboard_isr:
     pop rdx
     pop rcx
     pop rax
-    load_process_cr3
 
     cmp QWORD PTR [rsp+0x8], 0x8
     je 1f
+    load_process_cr3
     swapgs
 1:
     iretq
