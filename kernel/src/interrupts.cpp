@@ -578,11 +578,6 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
 
-    if (current_thread && current_thread->proc && !current_thread->kernel_mode) {
-        page_fault_user(address, error_code);
-        return;
-    }
-
     char s[1024];
     auto sp = span(s, sizeof(s));
 
