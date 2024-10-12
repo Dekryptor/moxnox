@@ -40,7 +40,6 @@ page_fault_user_isr:
 
     mov rcx, cr2
     sub rsp, 0x20
-    sti
     call page_fault_user
     cli
     add rsp, 0x20

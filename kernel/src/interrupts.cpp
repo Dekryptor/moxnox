@@ -531,15 +531,22 @@ extern "C"
 void page_fault_user(uintptr_t address, uint64_t error_code) {
     auto& cb = *get_cpu_block();
     auto& current_thread = *get_current_thread();
+    CONTEXT ctx;
+
+    memcpy(&ctx, &cb.thread_context, sizeof(CONTEXT));
+    __asm __volatile("sti");
 
     auto& p = *current_thread.proc;
 
-    if (p.handle_page_fault(address, error_code))
+    if (p.handle_page_fault(address, error_code)) {
+        __asm __volatile("cli");
+        memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
         return;
+    }
 
-    uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
+    uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
 
-    if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
+    if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
         printk("Unable to copy thread context to stack.\n");
         current_thread.exit_status = nt_status::ACCESS_VIOLATION;
         current_thread.terminate();
@@ -551,7 +558,7 @@ void page_fault_user(uintptr_t address, uint64_t error_code) {
     er.ExceptionCode = (uint32_t)nt_status::ACCESS_VIOLATION;
     er.ExceptionFlags = 0;
     er.ExceptionRecord = nullptr;
-    er.ExceptionAddress = (void*)cb.thread_context.Rip;
+    er.ExceptionAddress = (void*)ctx.Rip;
     er.NumberParameters = 2;
     er.ExceptionInformation[0] = (error_code & 0x12) >> 1;
     er.ExceptionInformation[1] = address;
@@ -566,6 +573,9 @@ void page_fault_user(uintptr_t address, uint64_t error_code) {
         return;
     }
 
+    __asm __volatile("cli");
+
+    memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
     cb.thread_context.Rip = p.ntdll_addr + mn_signal;
     cb.thread_context.Rcx = us_er;
     cb.thread_context.Rdx = us_context;
