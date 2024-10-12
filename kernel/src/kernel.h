@@ -159,7 +159,7 @@ unique_handle create_timer();
 void set_timer(handle_t h, uint64_t timeout, bool periodic);
 
 // scheduler.cpp
-extern list_entry thread_list;
+extern list_entry thread_list, thread_list_dead;
 unique_handle add_kernel_thread(void (*func)());
 unique_handle add_kernel_thread(void (*func)(void*), void* param);
 unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);

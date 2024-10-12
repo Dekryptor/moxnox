@@ -43,25 +43,35 @@ void thread::terminate() {
     __asm("cli");
     acquire_sync_lock();
 
-    status = thread_status::dead;
-    signalled = true;
+    if (status != thread_status::dead) {
+        status = thread_status::dead;
+        signalled = true;
 
-    auto le = thread_list.next;
+        if (current_cpu != 0xffffffff)
+            acquire();
 
-    while (le != &thread_list) {
-        auto& t = containing_record<thread>(le);
+        auto le = thread_list.next;
 
-        if (t.status == thread_status::waiting && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
-            t.status = thread_status::runnable;
-            t.waiting_for = nullopt;
-            release_count++;
+        while (le != &thread_list) {
+            auto& t = containing_record<thread>(le);
+
+            if (t.status == thread_status::waiting && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
+                t.status = thread_status::runnable;
+                t.waiting_for = nullopt;
+                release_count++;
+            }
+
+            le = le->next;
         }
 
-        le = le->next;
-    }
+        remove_entry_list(this->le);
 
-    for (unsigned int i = 0; i < release_count; i++) {
-        release();
+        for (unsigned int i = 0; i < release_count; i++) {
+            release();
+        }
+
+        if (current_cpu != 0xffffffff)
+            insert_tail_list(thread_list_dead, this->le); // FIXME - release these in scheduler
     }
 
     if (this != get_cpu_block()->current_thread) {

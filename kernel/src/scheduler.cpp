@@ -16,6 +16,7 @@ static const uint16_t kernel_DS = 0x10;
 static const uint64_t time_slice = 50; // ticks
 
 list_entry thread_list = { &thread_list, &thread_list };
+list_entry thread_list_dead = { &thread_list_dead, &thread_list_dead };
 
 static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
