@@ -246,7 +246,7 @@ void startup(loader_block* lb) {
 
     printk(MOXNOX_VERSION_STRING "\n");
 
-    if (!init_cpu_block(true, current_cpu_id()))
+    if (!init_cpu_block(current_cpu_id()))
         goto hang;
 
     if (!init_console_pipe())

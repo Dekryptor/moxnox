@@ -48,9 +48,6 @@ timer_isr:
     load_kernel_cr3
 0:
 
-    cmp BYTE PTR gs:GS_HANDLE_TIMERS, 0 # only handle timers on one CPU
-    je Ltimer_isr_threads
-
     push rax
     push rcx
     push rdx

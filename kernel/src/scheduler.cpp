@@ -400,7 +400,7 @@ void wait_for_object(handle_t h) {
     wait_for_object(objrw->get());
 }
 
-bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
+bool init_cpu_block(unsigned int cpu_no) {
     auto pages = bytes_to_pages(sizeof(cpu_block));
     auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);
     auto& cb = *(cpu_block*)va;
@@ -424,7 +424,6 @@ bool init_cpu_block(bool handle_timers, unsigned int cpu_no) {
 
     cb.self = &cb;
     cb.current_thread = nullptr;
-    cb.handle_timers = handle_timers;
     cb.cpu_no = cpu_no;
 
     auto stack = allocate_stack();

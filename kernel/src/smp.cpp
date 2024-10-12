@@ -175,7 +175,7 @@ static void ap_startup() {
 
     auto apic_id = current_cpu_id();
 
-    init_cpu_block(false, apic_id);
+    init_cpu_block(apic_id);
 
     setup_ap_gdt(init_tss());
 
