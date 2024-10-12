@@ -147,6 +147,7 @@ extern "C" void yield_isr();
 
 // timer.S
 extern "C" void timer_isr();
+extern "C" void timer_isr_ap();
 extern "C" void yield();
 extern "C" void acquire_sync_lock();
 extern "C" void release_sync_lock();
@@ -154,7 +155,7 @@ extern "C" void pit_delay(uint16_t delay);
 
 // timer.cpp
 void init_timer();
-void init_lapic_timer(bool set_div);
+void init_lapic_timer(bool ap);
 unique_handle create_timer();
 void set_timer(handle_t h, uint64_t timeout, bool periodic);
 

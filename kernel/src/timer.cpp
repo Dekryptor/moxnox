@@ -6,6 +6,7 @@
 using namespace std;
 
 static const uint8_t timer_interrupt = 0x20;
+static const uint8_t timer_ap_interrupt = 0x24;
 
 static const unsigned int tick_rate = 1000; // Hz
 
@@ -15,8 +16,8 @@ uint32_t apic_timer_freq;
 
 list_entry active_timer_list = { &active_timer_list, &active_timer_list };
 
-void init_lapic_timer(bool set_div) {
-    if (set_div) {
+void init_lapic_timer(bool ap) {
+    if (ap) {
         auto timer_div = (volatile uint32_t*)&local_apic[0x3e0];
         *timer_div = 3; // 16
     }
@@ -24,7 +25,11 @@ void init_lapic_timer(bool set_div) {
     auto lvt_timer = (volatile uint32_t*)&local_apic[0x320];
     auto timer_initial = (volatile uint32_t*)&local_apic[0x380];
 
-    *lvt_timer = 0x20000 | timer_interrupt; // periodic
+    if (ap)
+        *lvt_timer = 0x20000 | timer_ap_interrupt; // periodic
+    else
+        *lvt_timer = 0x20000 | timer_interrupt; // periodic
+
     *timer_initial = apic_timer_freq / tick_rate;
 }
 
@@ -55,6 +60,7 @@ void init_timer() {
     printk("\n");
 
     add_idt_entry(timer_interrupt, (void*)timer_isr, false, 1);
+    add_idt_entry(timer_ap_interrupt, (void*)timer_isr_ap, false, 1);
 
     init_lapic_timer(false);
 }

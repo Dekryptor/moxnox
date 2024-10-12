@@ -4,9 +4,44 @@
 
 .equ IA32_KERNEL_GS_BASE, 0xc0000102
 
+.global timer_isr_ap
+timer_isr_ap:
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je Ltimer_isr_threads
+    swapgs
+    load_kernel_cr3
+
+Ltimer_isr_threads:
+    cmp QWORD PTR gs:GS_CURRENT_THREAD, 0
+    je Ltimer_isr_nop
+
+    cmp QWORD PTR gs:GS_DISABLE_PREEMPT, 0
+    jne Ltimer_isr_nop
+
+    dec QWORD PTR gs:GS_TIME_SLICE_LEFT
+    cmp QWORD PTR gs:GS_TIME_SLICE_LEFT, 0
+    jne Ltimer_isr_nop
+
+    save_context
+    xor rax, rax
+    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
+    mov rsp, gs:GS_SCHEDULER_STACK
+    jmp scheduler
+
+Ltimer_isr_nop:
+    push rax
+    xor rax, rax
+    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
+    pop rax
+    cmp QWORD PTR [rsp+0x8], 0x8
+    je 1f
+    load_process_cr3
+    swapgs
+1:
+    iretq
+
 .global timer_isr
 timer_isr:
-    # FIXME - different ISR for CPUs not handling timers?
     cmp QWORD PTR [rsp+0x8], 0x8
     je 0f
     swapgs
@@ -63,35 +98,7 @@ Ltimer_isr_loop_end:
     pop rdx
     pop rcx
     pop rax
-
-Ltimer_isr_threads:
-    cmp QWORD PTR gs:GS_CURRENT_THREAD, 0
-    je Ltimer_isr_nop
-
-    cmp QWORD PTR gs:GS_DISABLE_PREEMPT, 0
-    jne Ltimer_isr_nop
-
-    dec QWORD PTR gs:GS_TIME_SLICE_LEFT
-    cmp QWORD PTR gs:GS_TIME_SLICE_LEFT, 0
-    jne Ltimer_isr_nop
-
-    save_context
-    xor rax, rax
-    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
-    mov rsp, gs:GS_SCHEDULER_STACK
-    jmp scheduler
-
-Ltimer_isr_nop:
-    push rax
-    xor rax, rax
-    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
-    pop rax
-    cmp QWORD PTR [rsp+0x8], 0x8
-    je 1f
-    load_process_cr3
-    swapgs
-1:
-    iretq
+    jmp Ltimer_isr_threads
 
 .global scheduler_restore
 scheduler_restore:
