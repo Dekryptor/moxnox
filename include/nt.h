@@ -1008,5 +1008,6 @@ NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert);
 NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
                                   void* thread_information, uint32_t thread_information_length,
                                   uint32_t* return_length);
+NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime);
 
 };
