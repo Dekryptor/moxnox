@@ -5,6 +5,7 @@
 #include <ntdll.h>
 #include <span>
 #include <charconv>
+#include <chrono>
 #include "shell.h"
 
 using namespace std;
@@ -26,6 +27,71 @@ static void print(integral auto i) {
 
     auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
     print(string_view(s, ptr - s));
+}
+
+static void print(const chrono::year_month_day& ymd) {
+    char s[13];
+    char* ptr = s;
+
+    auto tcr = to_chars(ptr, s + sizeof(s), (int)ymd.year());
+    ptr = tcr.ptr;
+    *ptr = '-';
+    ptr++;
+
+    if ((unsigned int)ymd.month() < 10) {
+        *ptr = '0';
+        ptr++;
+    }
+
+    tcr = to_chars(ptr, s + sizeof(s), (unsigned int)ymd.month());
+    ptr = tcr.ptr;
+    *ptr = '-';
+    ptr++;
+
+    if ((unsigned int)ymd.day() < 10) {
+        *ptr = '0';
+        ptr++;
+    }
+
+    tcr = to_chars(ptr, s + sizeof(s), (unsigned int)ymd.day());
+    ptr = tcr.ptr;
+
+    print(string_view(s, ptr));
+}
+
+static void print(const chrono::hh_mm_ss<chrono::seconds>& hms) {
+    char s[9];
+    char* ptr = s;
+
+    if (hms.hours().count() < 10) {
+        *ptr = '0';
+        ptr++;
+    }
+
+    auto tcr = to_chars(ptr, s + sizeof(s), hms.hours().count());
+    ptr = tcr.ptr;
+    *ptr = ':';
+    ptr++;
+
+    if (hms.minutes().count() < 10) {
+        *ptr = '0';
+        ptr++;
+    }
+
+    tcr = to_chars(ptr, s + sizeof(s), hms.minutes().count());
+    ptr = tcr.ptr;
+    *ptr = ':';
+    ptr++;
+
+    if (hms.seconds().count() < 10) {
+        *ptr = '0';
+        ptr++;
+    }
+
+    tcr = to_chars(ptr, s + sizeof(s), hms.seconds().count());
+    ptr = tcr.ptr;
+
+    print(string_view(s, ptr));
 }
 
 span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding) {
@@ -329,6 +395,39 @@ static void run_program(u16string_view fn) {
     NtClose(proc);
 }
 
+static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
+    signed long long j, e, f, g, h;
+    uint8_t day, month;
+    uint16_t year;
+
+    auto num = (int)(system_time / (int64_t)864000000000);
+
+    j = num + 2305814;
+
+    f = (4 * j) + 274277;
+    f /= 146097;
+    f *= 3;
+    f /= 4;
+    f += j;
+    f += 1363;
+
+    e = (4 * f) + 3;
+    g = (e % 1461) / 4;
+    h = (5 * g) + 2;
+
+    day = (uint8_t)(((h % 153) / 5) + 1);
+    month = (uint8_t)(((h / 153) + 2) % 12 + 1);
+    year = static_cast<uint16_t>((e / 1461) - 4716 + ((14 - month) / 12));
+
+    return {chrono::year{year}, chrono::month{month}, chrono::day{day}};
+}
+
+static constexpr chrono::hh_mm_ss<chrono::seconds> system_time_to_hms(int64_t system_time) noexcept {
+    auto secs = (unsigned int)((system_time % (int64_t)864000000000) / 10000000);
+
+    return chrono::hh_mm_ss{chrono::seconds{secs}};
+}
+
 static void time() {
     LARGE_INTEGER time;
     auto status = NtQuerySystemTime(&time);
@@ -342,6 +441,14 @@ static void time() {
 
     print("System time is ");
     print(time.QuadPart);
+    print("\n");
+
+    auto ymd = system_time_to_ymd(time.QuadPart);
+    auto hms = system_time_to_hms(time.QuadPart);
+
+    print(ymd);
+    print(" ");
+    print(hms);
     print("\n");
 }
 
