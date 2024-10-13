@@ -2,19 +2,21 @@
 #include "objects.h"
 #include "unique_handle.h"
 #include "spinlock.h"
+#include "tick_rate.h"
 
 using namespace std;
 
 static const uint8_t timer_interrupt = 0x20;
 static const uint8_t timer_ap_interrupt = 0x24;
 
-static const unsigned int tick_rate = 1000; // Hz
-
 volatile uint64_t timer_count;
 
 uint32_t apic_timer_freq;
 
 list_entry active_timer_list = { &active_timer_list, &active_timer_list };
+
+// FIXME - this should be in a page that userspace can read directly
+uint64_t system_time = 0;
 
 void init_lapic_timer(bool ap) {
     if (ap) {
@@ -30,7 +32,7 @@ void init_lapic_timer(bool ap) {
     else
         *lvt_timer = 0x20000 | timer_interrupt; // periodic
 
-    *timer_initial = apic_timer_freq / tick_rate;
+    *timer_initial = apic_timer_freq / TICK_RATE;
 }
 
 void init_timer() {

@@ -1,6 +1,7 @@
 .intel_syntax noprefix
 
 #include "context.S"
+#include "tick_rate.h"
 
 .equ IA32_KERNEL_GS_BASE, 0xc0000102
 
@@ -47,6 +48,7 @@ timer_isr:
     swapgs
     load_kernel_cr3
 0:
+    add QWORD PTR [rip+system_time], SYSTEM_TIME_RESOLUTION / TICK_RATE
 
     push rax
     push rcx
