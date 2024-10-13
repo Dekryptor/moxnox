@@ -4,6 +4,7 @@
 #include <nt.h>
 #include <ntdll.h>
 #include <span>
+#include <charconv>
 #include "shell.h"
 
 using namespace std;
@@ -18,6 +19,13 @@ void print(string_view s) {
 
     NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr, &iosb, s.data(),
                 (uint32_t)s.size(), nullptr, nullptr);
+}
+
+static void print(integral auto i) {
+    char s[21];
+
+    auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
+    print(string_view(s, ptr - s));
 }
 
 span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding) {
@@ -321,6 +329,22 @@ static void run_program(u16string_view fn) {
     NtClose(proc);
 }
 
+static void time() {
+    LARGE_INTEGER time;
+    auto status = NtQuerySystemTime(&time);
+
+    if (!success(status)) {
+        print("NtQuerySystemTime returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    print("System time is ");
+    print(time.QuadPart);
+    print("\n");
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -351,6 +375,8 @@ static void process_line(string_view sv) {
         NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
     else if (cmd == "run")
         run_program(u"\\run.exe");
+    else if (cmd == "time")
+        time();
     else {
         print(cmd); // FIXME - stderr
         print(": command not found\n");
