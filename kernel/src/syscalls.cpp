@@ -1118,3 +1118,18 @@ NTSTATUS user_NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMA
 
     return status;
 }
+
+extern "C"
+NTSTATUS user_NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
+    LARGE_INTEGER time;
+    NTSTATUS status;
+
+    status = NtQuerySystemTime(&time);
+    if (!success(status))
+        return status;
+
+    if (!copy_to_process(SystemTime, &time, sizeof(time)))
+        status = nt_status::ACCESS_VIOLATION;
+
+    return status;
+}

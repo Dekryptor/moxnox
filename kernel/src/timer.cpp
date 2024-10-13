@@ -170,3 +170,9 @@ void timer::on_wake() {
     if (periodic)
         signalled = false;
 }
+
+NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
