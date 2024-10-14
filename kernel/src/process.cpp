@@ -2646,3 +2646,16 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
 
     return ret;
 }
+
+object_ref process::get_stderr() {
+    PEB peb;
+    RTL_USER_PROCESS_PARAMETERS params;
+
+    if (!copy_from(&peb, this->peb, sizeof(PEB)))
+        return nullopt;
+
+    if (!copy_from(&params, peb.ProcessParameters, sizeof(RTL_USER_PROCESS_PARAMETERS)))
+        return nullopt;
+
+    return this->deref_handle2(params.StandardError);
+}

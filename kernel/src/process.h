@@ -53,6 +53,7 @@ public:
                      uint32_t* number_of_bytes_read);
     NTSTATUS write_vm(void* base_address, void* buffer, uint32_t buffer_size,
                       uint32_t* number_of_bytes_written);
+    object_ref get_stderr();
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
