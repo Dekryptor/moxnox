@@ -176,3 +176,11 @@ NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK desired_access,
+                       const OBJECT_ATTRIBUTES* object_attributes,
+                       TIMER_TYPE timer_type) {
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

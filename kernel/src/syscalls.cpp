@@ -1154,3 +1154,31 @@ NTSTATUS user_NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
 
     return status;
 }
+
+extern "C"
+NTSTATUS user_NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK desired_access,
+                            const OBJECT_ATTRIBUTES* object_attributes,
+                            TIMER_TYPE timer_type) {
+    HANDLE h;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+
+    if (object_attributes) {
+        auto ret = copy_object_attributes(oa, us, object_attributes);
+        if (!success(ret))
+            return ret;
+    }
+
+    auto ret = NtCreateTimer(&h, desired_access, object_attributes ? &oa : nullptr,
+                             timer_type);
+
+    if (object_attributes)
+        free_object_attributes(oa);
+
+    if (success(ret)) {
+        if (!copy_to_process(timer_handle, &h, sizeof(HANDLE)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
