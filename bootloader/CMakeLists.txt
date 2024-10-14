@@ -34,3 +34,5 @@ set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/payload.s PROPERTIES OBJ
 set_property(TARGET boot PROPERTY LINKER_LANGUAGE C) # HACK
 set_property(TARGET boot PROPERTY LINK_DEPENDS ${CMAKE_SOURCE_DIR}/bootloader/boot.ld)
 set_property(TARGET boot PROPERTY SUFFIX "")
+
+install(TARGETS boot DESTINATION ${CMAKE_INSTALL_PREFIX})

@@ -49,3 +49,5 @@ target_link_options(kernel PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup -W
 target_link_libraries(kernel freetype)
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
+
+install(TARGETS kernel DESTINATION ${CMAKE_INSTALL_PREFIX})

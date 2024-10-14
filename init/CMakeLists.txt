@@ -15,3 +15,5 @@ target_compile_options(init PRIVATE -Wall -Wextra -Wno-address-of-packed-member 
 target_link_options(init PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(init ntdll ntdllcrt)
+
+install(TARGETS init DESTINATION ${CMAKE_INSTALL_PREFIX})

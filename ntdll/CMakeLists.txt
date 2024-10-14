@@ -19,3 +19,5 @@ add_library(ntdll SHARED ${SRC_FILES})
 
 target_compile_options(ntdll PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe)
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)
+
+install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX})
