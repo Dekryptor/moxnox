@@ -364,9 +364,30 @@ NTSTATUS user_NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, si
 
 extern "C"
 void unimplemented_syscall(const char* name) {
-    printk("Unimplemented syscall ");
-    printk(name);
-    printk(".\n");
+    auto& t = *get_current_thread();
+    bool written = false;
+    char s[255];
+    auto sp = span(s, sizeof(s));
+
+    sp = sp_strcpy(sp, "Unimplemented syscall ");
+    sp = sp_strcpy(sp, name);
+    sp = sp_strcpy(sp, ".\n");
+
+    if (t.proc) {
+        auto objrw_stderr = t.proc->get_stderr();
+
+        if (objrw_stderr) {
+            visit_obj(objrw_stderr.get(), [&](auto&& o) {
+                if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>) {
+                    o.write(span((uint8_t*)s, sp.data() - s)); // FIXME - handle short writes
+                    written = true;
+                }
+            });
+        }
+    }
+
+    if (!written)
+        printk(string_view(s, sp.data() - s));
 
     NtTerminateProcess(NtCurrentProcess(), nt_status::NOT_IMPLEMENTED);
 }
