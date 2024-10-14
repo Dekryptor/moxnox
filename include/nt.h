@@ -956,6 +956,8 @@ enum class TIMER_TYPE {
     SynchronizationTimer
 };
 
+using PTIMER_APC_ROUTINE = void (*)(void*, uint32_t, int32_t);
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1022,5 +1024,7 @@ NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime);
 NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK desired_access, const OBJECT_ATTRIBUTES* object_attributes,
                        TIMER_TYPE timer_type);
+NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time, PTIMER_APC_ROUTINE timer_apc_routine,
+                    void* timer_context, bool resume_timer, int32_t period, bool* previous_state);
 
 };
