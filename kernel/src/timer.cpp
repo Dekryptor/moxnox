@@ -16,7 +16,7 @@ uint32_t apic_timer_freq;
 list_entry active_timer_list = { &active_timer_list, &active_timer_list };
 
 // FIXME - this should be in a page that userspace can read directly
-int64_t system_time = 0;
+volatile int64_t system_time = 0;
 
 void init_lapic_timer(bool ap) {
     if (ap) {

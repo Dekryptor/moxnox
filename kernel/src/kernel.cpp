@@ -181,6 +181,8 @@ void main_thread() {
     // FIXME - NVMe
     // FIXME - USB
 
+    init_rtc();
+
     if (!mount_root())
         bsod("mount_root failed");
 

@@ -158,6 +158,7 @@ void init_timer();
 void init_lapic_timer(bool ap);
 unique_handle create_timer();
 void set_timer(handle_t h, uint64_t timeout, bool periodic);
+extern volatile int64_t system_time;
 
 // scheduler.cpp
 extern list_entry thread_list, thread_list_dead;
@@ -257,6 +258,9 @@ extern "C" void init_pat();
 
 // thread.cpp
 thread* get_current_thread();
+
+// rtc.cpp
+void init_rtc();
 
 template<typename T>
 concept cmdline_func = std::invocable<T, std::string_view> &&

@@ -38,7 +38,8 @@ set(SRC_FILES src/kernel.cpp
     src/serial.S
     src/mem.S
     src/file.cpp
-    src/thread.cpp)
+    src/thread.cpp
+    src/rtc.cpp)
 
 add_executable(kernel ${SRC_FILES})
 include_directories(../freetype/include)
