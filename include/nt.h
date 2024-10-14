@@ -945,6 +945,17 @@ enum class THREAD_INFORMATION_CLASS {
     WorkloadClass
 };
 
+static const ACCESS_MASK TIMER_QUERY_STATE = 0x0001;
+static const ACCESS_MASK TIMER_MODIFY_STATE = 0x0002;
+
+static const ACCESS_MASK TIMER_ALL_ACCESS = TIMER_QUERY_STATE | TIMER_MODIFY_STATE | DELETE |
+                                            READ_CONTROL | WRITE_DAC | WRITE_OWNER | SYNCHRONIZE;
+
+enum class TIMER_TYPE {
+    NotificationTimer,
+    SynchronizationTimer
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1009,5 +1020,7 @@ NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_
                                   void* thread_information, uint32_t thread_information_length,
                                   uint32_t* return_length);
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime);
+NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK desired_access, const OBJECT_ATTRIBUTES* object_attributes,
+                       TIMER_TYPE timer_type);
 
 };
