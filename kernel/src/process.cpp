@@ -1003,7 +1003,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         p.protect = protect;
     }
 
-    uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
+    uintptr_t last_addr = 0x100000; // don't allocate in first megabyte
     lock_guard lock(mappings_lock);
 
     auto le = mappings.next;
