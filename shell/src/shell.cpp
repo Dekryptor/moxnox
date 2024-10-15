@@ -452,6 +452,47 @@ static void time() {
     print("\n");
 }
 
+static void timer() {
+    HANDLE h;
+    NTSTATUS status;
+    LARGE_INTEGER due_time;
+
+    status = NtCreateTimer(&h, TIMER_ALL_ACCESS, nullptr, TIMER_TYPE::SynchronizationTimer);
+    if (!success(status)) {
+        print("NtCreateTimer returned "); // FIXME - should be to stderr
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    due_time.QuadPart = -10000000; // 1 second
+
+    status = NtSetTimer(h, &due_time, nullptr, nullptr, false,
+                        1000, nullptr);
+    if (!success(status)) {
+        print("NtSetTimer returned "); // FIXME - should be to stderr
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(h);
+        return;
+    }
+
+    for (unsigned int i = 0; i < 3; i++) {
+        status = NtWaitForSingleObject(h, false, nullptr);
+        if (!success(status)) {
+            print("NtWaitForSingleObject returned "); // FIXME - should be to stderr
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(h);
+            return;
+        }
+
+        print("timer fired\n");
+    }
+
+    NtClose(h);
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -484,6 +525,8 @@ static void process_line(string_view sv) {
         run_program(u"\\run.exe");
     else if (cmd == "time")
         time();
+    else if (cmd == "timer")
+        timer();
     else {
         print(cmd); // FIXME - stderr
         print(": command not found\n");
