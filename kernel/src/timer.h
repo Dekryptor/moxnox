@@ -22,6 +22,7 @@ public:
     uint64_t ticks_left;
     uint64_t orig_ticks;
     bool periodic;
+    bool autoreset;
 };
 
 static_assert(is_sync_object<timer>);

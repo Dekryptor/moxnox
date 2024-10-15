@@ -67,7 +67,7 @@ void init_timer() {
     init_lapic_timer(false);
 }
 
-unique_handle create_timer() {
+unique_handle create_timer(bool autoreset) {
     auto tptr = new timer;
     if (!tptr) {
         printk("new failed\n");
@@ -75,6 +75,7 @@ unique_handle create_timer() {
     }
 
     auto& t = *tptr;
+    t.autoreset = autoreset;
 
     auto hv = add_kernel_handle(t, 0); // FIXME - access mask
 
@@ -139,7 +140,7 @@ void timer_expired(timer* tptr) {
                 thr.waiting_for = nullopt;
                 release_count++;
 
-                if (t.periodic)
+                if (t.autoreset)
                     break;
             }
 
@@ -147,8 +148,8 @@ void timer_expired(timer* tptr) {
         }
     }
 
-    // if periodic, only signal if nothing waiting when fired
-    if (!t.periodic || release_count == 0)
+    // if autoreset, only signal if nothing waiting when fired
+    if (!t.autoreset || release_count == 0)
         t.signalled = true;
 
     // FIXME - how can we do this outside of lock?
@@ -167,7 +168,7 @@ void timer_expired(timer* tptr) {
 }
 
 void timer::on_wake() {
-    if (periodic)
+    if (autoreset)
         signalled = false;
 }
 
@@ -177,10 +178,33 @@ NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK desired_access,
-                       const OBJECT_ATTRIBUTES* object_attributes,
+NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                        TIMER_TYPE timer_type) {
-    // FIXME
+    auto t = get_current_thread();
+    auto p = t->proc;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - desired_access
+    // FIXME - object_attributes
+
+    if (timer_type != TIMER_TYPE::NotificationTimer && timer_type != TIMER_TYPE::SynchronizationTimer)
+        return nt_status::INVALID_PARAMETER;
+
+    auto timerh = create_timer(timer_type == TIMER_TYPE::SynchronizationTimer);
+
+    if (!timerh)
+        return nt_status::INTERNAL_ERROR;
+
+    auto objrw = deref_handle2(timerh.get());
+
+    if (!objrw)
+        return nt_status::INTERNAL_ERROR;
+
+    auto h = p->add_handle(objrw.get(), 0); // FIXME - access mask
+
+    if (!h)
+        return nt_status::INTERNAL_ERROR;
+
+    *timer_handle = h;
+
+    return nt_status::SUCCESS;
 }
