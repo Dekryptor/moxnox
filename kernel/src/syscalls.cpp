@@ -1082,19 +1082,6 @@ NTSTATUS user_NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLA
 }
 
 extern "C"
-NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool raise_alert) {
-    CONTEXT ctx;
-
-    if (!thread_context)
-        return nt_status::INVALID_PARAMETER;
-
-    if (!copy_from_process(&ctx, thread_context, sizeof(CONTEXT)))
-        return nt_status::ACCESS_VIOLATION;
-
-    return NtContinue(&ctx, raise_alert);
-}
-
-extern "C"
 NTSTATUS user_NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
                                        void* thread_information, uint32_t thread_information_length) {
     auto& t = *get_current_thread();

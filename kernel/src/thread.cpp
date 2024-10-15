@@ -385,18 +385,6 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtContinue(const CONTEXT* thread_context, bool) {
-    auto& t = *get_current_thread();
-
-    // FIXME - raise_alert
-
-    memcpy(&t.syscall_context, thread_context, sizeof(CONTEXT));
-
-    t.syscall_context.EFlags |= 0x202; // IF, reserved flag
-
-    return (NTSTATUS)thread_context->Rax;
-}
-
 NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
                                   void* thread_information, uint32_t thread_information_length,
                                   uint32_t* return_length) {
