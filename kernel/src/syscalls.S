@@ -214,7 +214,6 @@ syscalls:
     .quad user_NtCloseObjectAuditAlarm
     .quad user_NtCompleteConnectPort
     .quad user_NtConnectPort
-    .quad 0 # FIXME
     .quad user_NtCreateDirectoryObject
     .quad user_NtCreateEvent
     .quad user_NtCreateEventPair
