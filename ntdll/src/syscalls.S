@@ -40,7 +40,6 @@ do_syscall "NtClose", 0x1017
 do_syscall "NtCloseObjectAuditAlarm", 0x1018
 do_syscall "NtCompleteConnectPort", 0x1019
 do_syscall "NtConnectPort", 0x101a
-do_syscall "NtContinue", 0x101b
 do_syscall "NtCreateDirectoryObject", 0x101c
 do_syscall "NtCreateEvent", 0x101d
 do_syscall "NtCreateEventPair", 0x101e
