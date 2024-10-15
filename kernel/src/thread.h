@@ -77,7 +77,9 @@ public:
     std::atomic<unsigned int> suspend_count = 0;
     TEB* teb;
     uint32_t current_cpu = 0xffffffff;
-    CONTEXT syscall_context;
+    uint64_t syscall_rip;
+    uint64_t syscall_rflags;
+    uint64_t syscall_rsp;
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);
@@ -87,4 +89,6 @@ static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
-static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
+static_assert(offsetof(thread, syscall_rip) == THREAD_SYSCALL_RIP);
+static_assert(offsetof(thread, syscall_rflags) == THREAD_SYSCALL_RFLAGS);
+static_assert(offsetof(thread, syscall_rsp) == THREAD_SYSCALL_RSP);

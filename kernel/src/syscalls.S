@@ -415,37 +415,14 @@ init_syscalls:
 syscall_handler:
     swapgs
 
-    # save thread context
-    mov gs:GS_CONTEXT + CONTEXT_RAX, rax
+    mov gs:GS_SYSCALL_RAX, rax
     mov rax, gs:GS_CURRENT_THREAD
-    # rax is going to be clobbered
-    # rcx has been clobbered
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RDX], rdx
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RBX], rbx
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RSP], rsp
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RBP], rbp
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RSI], rsi
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RDI], rdi
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R8], r8
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R9], r9
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R10], r10
-    # r11 has been clobbered
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R12], r12
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R13], r13
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R14], r14
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R15], r15
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RIP], rcx
-    mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_EFLAGS], r11d
-    # cs and ss have been clobbered
-    mov WORD PTR [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_DS], ds
-    mov WORD PTR [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_ES], es
-    mov WORD PTR [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_FS], fs
-    mov WORD PTR [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_GS], gs
-    # FIXME - debug registers
-    fxsave [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_FXSAVE]
+
+    mov QWORD PTR [rax + THREAD_SYSCALL_RIP], rcx
+    mov QWORD PTR [rax + THREAD_SYSCALL_RFLAGS], r11
+    mov QWORD PTR [rax + THREAD_SYSCALL_RSP], rsp
 
     # change to kernel stack
-    mov rax, gs:GS_CURRENT_THREAD
     mov rsp, [rax + THREAD_SYSCALL_STACK]
 
     # mark thread as running kernel code
@@ -455,11 +432,7 @@ syscall_handler:
     mov rax, gs:GS_KERNEL_CR3
     mov cr3, rax
 
-    # load kernel ds segment
-    mov ax, 0x10
-    mov ds, ax
-
-    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+    mov rax, gs:GS_SYSCALL_RAX
     cmp rax, 0x1000
     jl Lno_syscall
     sub rax, 0x1000
@@ -471,8 +444,7 @@ syscall_handler:
     add rax, rcx
     mov rax, [rax]
 
-    mov rcx, gs:GS_CURRENT_THREAD
-    mov rcx, [rcx + THREAD_SYSCALL_CONTEXT + CONTEXT_R10]
+    mov rcx, r10
 
     sti
     call rax
@@ -480,50 +452,31 @@ syscall_handler:
 
 Lafter_syscall:
     # mark thread as running user code
-    mov rcx, gs:GS_CURRENT_THREAD
-    mov [rcx + THREAD_SYSCALL_CONTEXT + CONTEXT_RAX], rax
-    mov BYTE PTR [rcx + THREAD_KERNEL_MODE], 0
+    mov rdx, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rdx + THREAD_KERNEL_MODE], 0
 
     # load process cr3
-    mov rax, gs:GS_CURRENT_THREAD
-    mov rax, [rax + THREAD_PROC]
-    mov rax, [rax + PROCESS_CR3]
-    mov cr3, rax
+    mov rcx, [rdx + THREAD_PROC]
+    mov rcx, [rcx + PROCESS_CR3]
+    mov cr3, rcx
 
-    # restore context
-    mov rax, gs:GS_CURRENT_THREAD
-    mov rdx, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RDX]
-    mov rbx, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RBX]
-    mov rbp, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RBP]
-    mov rsi, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RSI]
-    mov rdi, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RDI]
-    mov r8, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R8]
-    mov r9, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R9]
-    mov r10, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R10]
-    mov r11, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R11]
-    mov r12, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R12]
-    mov r13, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R13]
-    mov r14, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R14]
-    mov r15, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_R15]
-    mov ds, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_DS]
-    mov es, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_ES]
-    mov fs, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_FS]
-    # FIXME - debug registers
-    fxrstor [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_FXSAVE]
-
-    mov rcx, 0x33
+    mov rcx, 0x33 # ss
     push rcx
-    push [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RSP]
-    mov ecx, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_EFLAGS]
+    push [rdx + THREAD_SYSCALL_RSP]
+    push [rdx + THREAD_SYSCALL_RFLAGS]
+    mov rcx, 0x3b # cs
     push rcx
-    mov rcx, 0x3b
-    push rcx
-    push [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RIP]
-
-    mov rcx, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RCX]
-    mov rax, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RAX]
+    push [rdx + THREAD_SYSCALL_RIP]
 
     swapgs
+
+    # don't leak information to userspace
+    xor rcx, rcx
+    xor rdx, rdx
+    xor r8, r8
+    xor r9, r9
+    xor r10, r10
+    xor r11, r11
 
     iretq
 

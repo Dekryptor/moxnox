@@ -12,6 +12,7 @@ struct cpu_block {
     void* scheduler_stack;
     uint64_t kernel_cr3;
     std::atomic<uint64_t> disable_preempt = 0;
+    uint64_t syscall_rax;
 };
 
 static_assert(offsetof(cpu_block, current_thread) == GS_CURRENT_THREAD);
@@ -21,6 +22,7 @@ static_assert(offsetof(cpu_block, cpu_no) == GS_CPU_NO);
 static_assert(offsetof(cpu_block, scheduler_stack) == GS_SCHEDULER_STACK);
 static_assert(offsetof(cpu_block, kernel_cr3) == GS_KERNEL_CR3);
 static_assert(offsetof(cpu_block, disable_preempt) == GS_DISABLE_PREEMPT);
+static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);
 
 // timer.S
 extern "C" cpu_block* get_cpu_block();
