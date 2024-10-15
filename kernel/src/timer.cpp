@@ -84,43 +84,6 @@ unique_handle create_timer(bool autoreset) {
     return unique_handle{hv};
 }
 
-void set_timer(handle_t h, uint64_t timeout, bool periodic) {
-    auto objrw = deref_handle(h);
-    if (!objrw) {
-        // FIXME - exception
-        printk("No such handle\n");
-        return;
-    }
-
-    auto& obj = objrw->get();
-
-    if (obj.type != object_type::timer) {
-        // FIXME - exception
-        printk("Not a timer\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
-        return;
-    }
-
-    auto& t = static_cast<timer&>(objrw->get());
-
-    // FIXME - remove from list if already there
-
-    sync_lock sl;
-    lock_guard lock(sl);
-
-    t.ticks_left = t.orig_ticks = timeout; // FIXME - should be 100ns units (and floor at one)
-    t.signalled = false;
-    t.periodic = periodic;
-    t.active = true;
-
-    insert_tail_list(active_timer_list, t.le);
-    // no need to increase refcount, t already acquired by deref_handle
-}
-
 extern "C"
 void timer_expired(timer* tptr) {
     // interrupts disabled and sync_lock held
