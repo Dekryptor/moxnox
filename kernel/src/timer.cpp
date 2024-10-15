@@ -209,10 +209,28 @@ NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK, const OBJECT_ATTRIBUTE
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
-                    PTIMER_APC_ROUTINE timer_apc_routine, void* timer_context,
-                    bool resume_timer, int32_t period, bool* previous_state) {
+NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE timer_apc_routine,
+                    void* timer_context, bool resume_timer, int32_t period,
+                    bool* previous_state) {
     // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
+                    PTIMER_APC_ROUTINE timer_apc_routine, void* timer_context,
+                    bool resume_timer, int32_t period, bool* previous_state) {
+    auto objrw = deref_handle2(timer_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    auto& obj = objrw.get();
+
+    if (obj.type != object_type::timer)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    auto& t = static_cast<timer&>(obj);
+
+    return t.set(due_time->QuadPart, timer_apc_routine, timer_context,
+                 resume_timer, period, previous_state);
 }

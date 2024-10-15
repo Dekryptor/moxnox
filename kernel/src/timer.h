@@ -17,6 +17,10 @@ public:
 
     void on_wake();
 
+    NTSTATUS set(int64_t due_time, PTIMER_APC_ROUTINE timer_apc_routine,
+                 void* timer_context, bool resume_timer, int32_t period,
+                 bool* previous_state);
+
     bool signalled = false;
     list_entry le;
     uint64_t ticks_left;
