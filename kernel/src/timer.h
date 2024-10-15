@@ -5,6 +5,7 @@
 class timer : public object {
 public:
     timer() : object(object_type::timer) { }
+    ~timer();
 
     void acquire() {
         refcount++;

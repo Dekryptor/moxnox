@@ -139,6 +139,18 @@ void timer::on_wake() {
         signalled = false;
 }
 
+timer::~timer() {
+    if (!active)
+        return;
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        remove_entry_list(le);
+    }
+}
+
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
     SystemTime->QuadPart = system_time;
 
