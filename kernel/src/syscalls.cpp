@@ -1208,7 +1208,7 @@ NTSTATUS user_NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
                           previous_state ? &ks_previous_state : nullptr);
 
     if (success(ret)) {
-        if (!copy_to_process(previous_state, &ks_previous_state, sizeof(ks_previous_state)))
+        if (previous_state && !copy_to_process(previous_state, &ks_previous_state, sizeof(ks_previous_state)))
             ret = nt_status::ACCESS_VIOLATION;
     }
 
