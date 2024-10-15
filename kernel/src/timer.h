@@ -22,6 +22,7 @@ public:
                  bool* previous_state);
 
     bool signalled = false;
+    bool active = false;
     list_entry le;
     uint64_t ticks_left;
     uint64_t orig_ticks;

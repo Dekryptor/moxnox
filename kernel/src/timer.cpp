@@ -115,6 +115,7 @@ void set_timer(handle_t h, uint64_t timeout, bool periodic) {
     t.ticks_left = t.orig_ticks = timeout; // FIXME - should be 100ns units (and floor at one)
     t.signalled = false;
     t.periodic = periodic;
+    t.active = true;
 
     insert_tail_list(active_timer_list, t.le);
     // no need to increase refcount, t already acquired by deref_handle
@@ -158,6 +159,7 @@ void timer_expired(timer* tptr) {
     }
 
     if (!t.periodic) {
+        t.active = false;
         remove_entry_list(t.le);
         t.release();
         return;
@@ -209,12 +211,42 @@ NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK, const OBJECT_ATTRIBUTE
     return nt_status::SUCCESS;
 }
 
-NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE timer_apc_routine,
-                    void* timer_context, bool resume_timer, int32_t period,
-                    bool* previous_state) {
-    // FIXME
+NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
+                    int32_t period, bool* previous_state) {
+    uint64_t ticks;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - timer_apc_routine, timer_context, resume_timer
+
+    if (due_time > 0) {
+        // FIXME - handle positive due_time (system time)
+        return nt_status::INVALID_PARAMETER;
+    } else
+        ticks = (-due_time * TICK_RATE) / SYSTEM_TIME_RESOLUTION;
+
+    if (ticks == 0)
+        ticks = 1;
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        if (previous_state)
+            *previous_state = signalled;
+
+        ticks_left = ticks;
+        signalled = false;
+        periodic = period != 0;
+
+        if (periodic)
+            orig_ticks =  (period * TICK_RATE) / SYSTEM_TIME_RESOLUTION;
+
+        if (!active) {
+            insert_tail_list(active_timer_list, le);
+            active = true;
+        }
+    }
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
