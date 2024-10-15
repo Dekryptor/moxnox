@@ -9,6 +9,8 @@ using namespace std;
 static const uint8_t timer_interrupt = 0x20;
 static const uint8_t timer_ap_interrupt = 0x24;
 
+static const unsigned int TIMER_PERIOD_RESOLUTION = 1000; // milliseconds
+
 volatile uint64_t timer_count;
 
 uint32_t apic_timer_freq;
@@ -201,7 +203,7 @@ NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
         periodic = period != 0;
 
         if (periodic)
-            orig_ticks =  (period * TICK_RATE) / SYSTEM_TIME_RESOLUTION;
+            orig_ticks = (period * TICK_RATE) / TIMER_PERIOD_RESOLUTION;
 
         if (!active) {
             insert_tail_list(active_timer_list, le);
