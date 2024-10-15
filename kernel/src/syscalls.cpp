@@ -1184,3 +1184,33 @@ NTSTATUS user_NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK desired_access,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
+                         PTIMER_APC_ROUTINE timer_apc_routine, void* timer_context) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 3> args;
+    LARGE_INTEGER ks_due_time;
+    bool ks_previous_state;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto resume_timer = (bool)args[0];
+    auto period = (int32_t)args[1];
+    auto previous_state = (bool*)args[2];
+
+    if (!copy_from_process(&ks_due_time, due_time, sizeof(ks_due_time)))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto ret = NtSetTimer(timer_handle, &ks_due_time, timer_apc_routine,
+                          timer_context, resume_timer, period,
+                          previous_state ? &ks_previous_state : nullptr);
+
+    if (success(ret)) {
+        if (!copy_to_process(previous_state, &ks_previous_state, sizeof(ks_previous_state)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
