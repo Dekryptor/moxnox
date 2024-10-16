@@ -779,46 +779,7 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
     return *ino;
 }
 
-unique_handle btrfs_filesystem::open(string_view fn) {
-    if (fn.empty()) { // root
-        auto hv = add_kernel_handle(*root_inode, 0); // FIXME - access mask
-
-        return unique_handle{hv};
-    }
-
-    // FIXME - die if anything in middle not directory
-
-    reference_wrapper<btrfs_inode> dirrw = *root_inode;
-    dirrw.get().acquire();
-
-    while (true) {
-        auto sl = fn.find("/");
-        auto& dir = dirrw.get();
-
-        auto objrw = dir.open_child(sl == string_view::npos ? fn : string_view(fn.data(), sl));
-        if (!objrw) {
-            dir.release();
-            return {};
-        }
-
-        auto& obj = objrw->get();
-
-        dir.release();
-
-        if (sl == string_view::npos) {
-            auto hv = add_kernel_handle(obj, 0); // FIXME - access mask
-
-            obj.release();
-
-            return unique_handle{hv};
-        }
-
-        fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
-        dirrw = obj;
-    }
-}
-
-object_ref btrfs_filesystem::open2(string_view fn) {
+object_ref btrfs_filesystem::open(string_view fn) {
     if (fn.empty()) { // root
         root_inode->acquire();
 

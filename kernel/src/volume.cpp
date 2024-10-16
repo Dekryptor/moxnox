@@ -158,7 +158,7 @@ object_ref open_inode(string_view fn) {
     // FIXME - handle mount points
     // FIXME - /dev
 
-    return root_fs->open2(fn);
+    return root_fs->open(fn);
 }
 
 struct part_wait {
