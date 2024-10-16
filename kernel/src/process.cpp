@@ -2280,7 +2280,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     // FIXME - map time page into process
 
-    if (!p.allocate_peb(img_base, 0, 0, 0, 0, "", "")) { // FIXME - get filename from section
+    if (!p.allocate_peb(img_base, 0, 0, 0, 0, "", string_view(img.name, img.namelen))) {
         printk("process::allocate_peb failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
