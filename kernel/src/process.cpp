@@ -22,7 +22,7 @@ unique_handle create_process(string_view fn, string_view curdir,
                              object_ref& stderrobj) {
     // FIXME - merge with NtCreateProcess
 
-    auto img_file_ref = open_inode2(fn);
+    auto img_file_ref = open_inode(fn);
     if (!img_file_ref) {
         printk("open_inode failed for ");
         printk(fn);
@@ -38,7 +38,7 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     auto& img_file_inode = static_cast<inode&>(img_file);
 
-    auto curdir_ref = open_inode2(curdir);
+    auto curdir_ref = open_inode(curdir);
     if (!curdir_ref) {
         printk("open_inode failed for ");
         printk(curdir);
@@ -573,7 +573,7 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 }
 
 void load_ntdll() {
-    auto fileref = open_inode2("/ntdll.dll");
+    auto fileref = open_inode("/ntdll.dll");
     if (!fileref) {
         bsod("open_inode failed for ntdll.dll");
         return;

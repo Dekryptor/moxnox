@@ -142,26 +142,7 @@ bool mount_root() {
     return true;
 }
 
-unique_handle open_inode(string_view fn) {
-    if (fn.empty() || fn[0] != '/') {
-        printk("Not an absolute path.\n");
-        return {};
-    }
-
-    if (!root_fs) {
-        printk("No root filesystem.\n");
-        return {};
-    }
-
-    fn.remove_prefix(1);
-
-    // FIXME - handle mount points
-    // FIXME - /dev
-
-    return root_fs->open(fn);
-}
-
-object_ref open_inode2(string_view fn) {
+object_ref open_inode(string_view fn) {
     if (fn.empty() || fn[0] != '/') {
         printk("Not an absolute path.\n");
         return {};

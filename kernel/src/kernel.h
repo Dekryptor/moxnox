@@ -220,8 +220,7 @@ class object_ref;
 // volume.cpp
 void add_fs_to_list(filesystem& fs);
 bool mount_root();
-unique_handle open_inode(std::string_view fn);
-object_ref open_inode2(std::string_view fn);
+object_ref open_inode(std::string_view fn);
 
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;

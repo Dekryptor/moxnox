@@ -595,7 +595,7 @@ bool init_fb_console() {
     {
         // load console.ttf to memory
 
-        auto file_ref = open_inode2("/console.ttf");
+        auto file_ref = open_inode("/console.ttf");
         if (!file_ref) {
             printk("open_inode failed\n");
             return false;
