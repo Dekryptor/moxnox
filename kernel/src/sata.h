@@ -478,7 +478,7 @@ public:
     const pci_device& dev;
     list_entry le;
     volatile HBA_MEM* abar;
-    unique_handle init_event;
+    object_ref init_event;
     std::atomic<unsigned int> init_left = 0;
     spinlock port_list_lock;
     list_entry port_list = { &port_list, &port_list };

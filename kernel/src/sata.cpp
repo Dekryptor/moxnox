@@ -409,7 +409,7 @@ static void init_sata_device(void* ctx, void* ctx2) {
         delete &dev;
 
         if (--sc.init_left == 0)
-            set_event(sc.init_event.get());
+            set_event(static_cast<event&>(sc.init_event.get()));
 
         return;
     }
@@ -458,7 +458,7 @@ static void init_sata_device(void* ctx, void* ctx2) {
 
 end:
     if (--sc.init_left == 0)
-        set_event(sc.init_event.get());
+        set_event(static_cast<event&>(sc.init_event.get()));
 }
 
 extern "C"
@@ -585,7 +585,7 @@ void init_sata(const pci_device& dev) {
         insert_tail_list(sata_list, sc->le);
     }
 
-    sc->init_event = create_event(true);
+    sc->init_event = create_event2(true);
 
     mask = sc->abar->pi;
 
