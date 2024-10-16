@@ -5,24 +5,7 @@
 
 using namespace std;
 
-unique_handle create_event(bool autoreset) {
-    auto eptr = new event;
-    if (!eptr) {
-        printk("new failed\n");
-        return {};
-    }
-
-    auto& e = *eptr;
-    e.autoreset = autoreset;
-
-    auto hv = add_kernel_handle(e, 0); // FIXME - access mask
-
-    e.release(); // add_kernel_handle increases refcount
-
-    return unique_handle{hv};
-}
-
-object_ref create_event2(bool autoreset) {
+object_ref create_event(bool autoreset) {
     auto eptr = new event;
     if (!eptr) {
         printk("new failed\n");
@@ -73,53 +56,11 @@ void set_event(event& e) {
     }
 }
 
-void set_event(handle_t h) {
-    auto objrw = deref_handle2(h);
-    if (!objrw) {
-        // FIXME - exception
-        printk("No such handle\n");
-        return;
-    }
-
-    auto& obj = objrw.get();
-
-    if (obj.type != object_type::event) {
-        // FIXME - exception
-        printk("Not an event\n");
-        return;
-    }
-
-    auto& e = static_cast<event&>(objrw.get());
-
-    set_event(e);
-}
-
 void reset_event(event& e) {
     sync_lock sl;
     lock_guard lock(sl);
 
     e.signalled = false;
-}
-
-void reset_event(handle_t h) {
-    auto objrw = deref_handle2(h);
-    if (!objrw) {
-        // FIXME - exception
-        printk("No such handle\n");
-        return;
-    }
-
-    auto& obj = objrw.get();
-
-    if (obj.type != object_type::event) {
-        // FIXME - exception
-        printk("Not an event\n");
-        return;
-    }
-
-    auto& e = static_cast<event&>(objrw.get());
-
-    reset_event(e);
 }
 
 void event::on_wake() {

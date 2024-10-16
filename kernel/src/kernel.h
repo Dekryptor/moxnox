@@ -188,11 +188,8 @@ void init_keyboard();
 class object_ref;
 
 // event.cpp
-unique_handle create_event(bool autoreset);
-object_ref create_event2(bool autoreset);
-void set_event(handle_t h);
+object_ref create_event(bool autoreset);
 void set_event(event& e);
-void reset_event(handle_t h);
 void reset_event(event& e);
 
 // pipe.cpp

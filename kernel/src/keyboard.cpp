@@ -176,7 +176,7 @@ void init_keyboard() {
 
     keyboard_buffer = (uint8_t*)va;
 
-    auto keyboard_event = create_event2(true);
+    auto keyboard_event = create_event(true);
     if (!keyboard_event) {
         printk("create_event failed\n");
         return;

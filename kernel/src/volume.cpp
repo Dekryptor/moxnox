@@ -282,7 +282,7 @@ bool volume::check_for_partitions() {
         return false;
     }
 
-    pw->event = create_event2(false);
+    pw->event = create_event(false);
 
     for (unsigned int i = 0; i < number_of_partition_entries; i++) {
         auto& part = *(efi_partition_entry*)ptr;

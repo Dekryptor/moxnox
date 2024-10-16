@@ -309,7 +309,7 @@ void init_pci() {
     if (devices_left == 0)
         return;
 
-    init_device_event = create_event2(true);
+    init_device_event = create_event(true);
 
     {
         auto le = pci_device_list.next;

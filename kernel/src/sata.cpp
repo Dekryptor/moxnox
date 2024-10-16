@@ -369,7 +369,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     }
 
     for (auto& ev : events) {
-        ev = create_event2(false);
+        ev = create_event(false);
     }
 
     slot_semaphore = create_semaphore(SATA_NUM_CMD_TABLES);
@@ -585,7 +585,7 @@ void init_sata(const pci_device& dev) {
         insert_tail_list(sata_list, sc->le);
     }
 
-    sc->init_event = create_event2(true);
+    sc->init_event = create_event(true);
 
     mask = sc->abar->pi;
 
