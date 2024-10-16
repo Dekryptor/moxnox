@@ -65,7 +65,7 @@ bool mount_root() {
         cmdline_root = string_view(cmdline_root.data() + sizeof(prefix) - 1,
                                    cmdline_root.size() - sizeof(prefix) + 1);
 
-        auto ref = open_object2(cmdline_root);
+        auto ref = open_object(cmdline_root);
         if (!ref) {
             char s[255];
             auto sp = span(s, sizeof(s));

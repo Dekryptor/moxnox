@@ -215,58 +215,7 @@ bool name_object(handle_t h, string_view name, bool persistent) {
     return ret;
 }
 
-unique_handle open_object(string_view name) {
-    if (name.empty()) {
-        printk("Invalid name\n");
-        return {};
-    }
-
-    object* obj = nullptr;
-
-    {
-        lock_guard lock(name_lock);
-
-        auto le = name_list.next;
-        while (le != &name_list) {
-            auto& ne = containing_record<name_entry>(le);
-
-            if (ne.name_len == name.length()) {
-                auto nesv = string_view(ne.name, ne.name_len);
-
-                if (nesv == name) {
-                    visit_obj(*ne.obj, [](auto&& o) {
-                        o.acquire();
-                    });
-
-                    obj = ne.obj;
-                    break;
-                }
-            }
-
-            le = le->next;
-        }
-    }
-
-    if (!obj) {
-        printk("Not found\n");
-        return {};
-    }
-
-    auto hv = add_kernel_handle(*obj, 0); // FIXME - access mask
-
-    visit_obj(*obj, [](auto&& o) {
-        o.release();
-    });
-
-    if (!hv) {
-        printk("add_kernel_handle failed\n");
-        return {};
-    }
-
-    return unique_handle{hv};
-}
-
-object_ref open_object2(string_view name) {
+object_ref open_object(string_view name) {
     if (name.empty()) {
         printk("Invalid name\n");
         return {};
@@ -612,7 +561,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     object_ref ino_ref;
 
     if (namelen > dev_prefix.size() && string_view(name, dev_prefix.size()) == dev_prefix)
-        ino_ref = open_object2(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
+        ino_ref = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
     else
         ino_ref = open_inode2(string_view(name, namelen));
 

@@ -86,11 +86,11 @@ static void timer_test() {
 #endif
 
 static unique_handle start_init_process() {
-    auto initout = open_object2("tty");
+    auto initout = open_object("tty");
     if (!initout)
         bsod("Could not open tty object.");
 
-    auto initin = open_object2("keyboard");
+    auto initin = open_object("keyboard");
     if (!initin)
         bsod("Could not open keyboard object.");
 
@@ -119,7 +119,7 @@ static void keywait() {
     if (!do_wait)
         return;
 
-    auto keybh = open_object2("keyboard");
+    auto keybh = open_object("keyboard");
 
     if (!keybh) {
         printk("/dev/keyboard not found\n");
