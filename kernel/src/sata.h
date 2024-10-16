@@ -460,7 +460,7 @@ public:
     uint64_t clb, fb;
     std::array<HBA_CMD_TBL*, SATA_NUM_CMD_TABLES> cmd_tables;
     ata_identify_device_block identify_block;
-    unique_handle events[SATA_NUM_CMD_TABLES];
+    object_ref events[SATA_NUM_CMD_TABLES];
     char model_number_buf[40];
     std::string_view model_number;
     object_ref slot_semaphore;

@@ -94,7 +94,7 @@ void set_event(handle_t h) {
     set_event(e);
 }
 
-static void reset_event(event& e) {
+void reset_event(event& e) {
     sync_lock sl;
     lock_guard lock(sl);
 
