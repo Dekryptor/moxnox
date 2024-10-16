@@ -266,6 +266,46 @@ unique_handle open_object(string_view name) {
     return unique_handle{hv};
 }
 
+object_ref open_object2(string_view name) {
+    if (name.empty()) {
+        printk("Invalid name\n");
+        return {};
+    }
+
+    object* obj = nullptr;
+
+    {
+        lock_guard lock(name_lock);
+
+        auto le = name_list.next;
+        while (le != &name_list) {
+            auto& ne = containing_record<name_entry>(le);
+
+            if (ne.name_len == name.length()) {
+                auto nesv = string_view(ne.name, ne.name_len);
+
+                if (nesv == name) {
+                    visit_obj(*ne.obj, [](auto&& o) {
+                        o.acquire();
+                    });
+
+                    obj = ne.obj;
+                    break;
+                }
+            }
+
+            le = le->next;
+        }
+    }
+
+    if (!obj) {
+        printk("Not found\n");
+        return {};
+    }
+
+    return *obj;
+}
+
 size_t read(handle_t h, span<uint8_t> s, optional<size_t> offset) {
     auto objrw = deref_handle(h);
 
