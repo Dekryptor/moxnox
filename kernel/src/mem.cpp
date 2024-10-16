@@ -804,6 +804,9 @@ void* malloc(size_t size) {
 
 extern "C"
 void free(void* ptr) {
+    if (!ptr)
+        return;
+
     auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
 
     ah->free = 1;

@@ -12,6 +12,8 @@ public:
         visit_obj(ino, [](auto&& o) {
             o.release();
         });
+
+        free(name);
     }
 
     void acquire() {
@@ -27,6 +29,8 @@ public:
     spinlock lock;
     uint64_t file_offset = 0;
     uint64_t query_dir_index = 0;
+    char* name = nullptr;
+    size_t namelen = 0;
 
     size_t read(std::span<uint8_t> s);
     size_t read(std::span<uint8_t> s, uint64_t offset);

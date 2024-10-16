@@ -576,17 +576,18 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     else
         inoh = open_inode(string_view(name, namelen));
 
-    free(name);
-
     if (!inoh) {
         // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
+        free(name);
         return nt_status::OBJECT_NAME_NOT_FOUND;
     }
 
     auto objrw = deref_handle(inoh.get());
 
-    if (!objrw)
+    if (!objrw) {
+        free(name);
         return nt_status::INTERNAL_ERROR;
+    }
 
     auto f = new file(objrw->get());
 
@@ -594,8 +595,13 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
         o.release();
     });
 
-    if (!f)
+    if (!f) {
+        free(name);
         return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    f->name = name;
+    f->namelen = namelen;
 
     auto h = p->add_handle(*f, 0); // FIXME - access mask
 
