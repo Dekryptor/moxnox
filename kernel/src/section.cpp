@@ -640,10 +640,7 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
             return nt_status::INVALID_HANDLE;
 
         visit_obj(objrw.get(), [&](auto&& o) {
-            if constexpr (is_same_v<remove_reference_t<decltype(o)>, inode>) {
-                ino = o;
-                o.acquire();
-            } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
+            if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
                 if (o.ino.type == object_type::inode) {
                     ino = static_cast<inode&>(o.ino);
                     ino->get().acquire();
