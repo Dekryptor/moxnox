@@ -32,7 +32,7 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
     get_current_thread()->terminate();
 }
 
-unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
+object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
     uint16_t tid;
 
     auto tptr = new (align_val_t(16)) thread;
@@ -128,21 +128,19 @@ unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* 
         insert_tail_list(thread_list, t.le);
     }
 
-    auto hv = add_kernel_handle(t, 0); // FIXME - access mask
+    t.acquire(); // for active thread list
 
-    // we don't decrease the refcount after the handle is created, because of the active thread list
-
-    return unique_handle{hv};
+    return t;
 }
 
-unique_handle add_kernel_thread(void (*func)(void*), void* param) {
+object_ref add_kernel_thread(void (*func)(void*), void* param) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-function-type"
     return add_kernel_thread((void(*)(void*, void*))func, param, nullptr);
 #pragma GCC diagnostic pop
 }
 
-unique_handle add_kernel_thread(void (*func)()) {
+object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 

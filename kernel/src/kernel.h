@@ -158,11 +158,13 @@ void init_timer();
 void init_lapic_timer(bool ap);
 extern volatile int64_t system_time;
 
+class object_ref;
+
 // scheduler.cpp
 extern list_entry thread_list, thread_list_dead;
-unique_handle add_kernel_thread(void (*func)());
-unique_handle add_kernel_thread(void (*func)(void*), void* param);
-unique_handle add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);
+object_ref add_kernel_thread(void (*func)());
+object_ref add_kernel_thread(void (*func)(void*), void* param);
+object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);
 extern "C" void scheduler();
 std::span<char> sp_context(std::span<char>dest, const CONTEXT& ctx);
 void wait_for_object(handle_t h);
@@ -183,8 +185,6 @@ enum mapping_type characteristics_to_mapping_type(uint32_t c);
 
 // keyboard.cpp
 void init_keyboard();
-
-class object_ref;
 
 // event.cpp
 object_ref create_event(bool autoreset);
