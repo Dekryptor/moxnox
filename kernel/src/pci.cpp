@@ -7,7 +7,7 @@ using namespace std;
 
 static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
 atomic<unsigned int> devices_left = 0;
-static unique_handle init_device_event;
+static object_ref init_device_event;
 
 static span<const uint8_t> find_mcfg() {
     optional<reference_wrapper<const ACPISDTHeader>> mcfgw;
@@ -273,7 +273,7 @@ static void pci_device_found(void* ctx) {
     }
 
     if (--devices_left == 0)
-        set_event(init_device_event.get());
+        set_event(static_cast<event&>(init_device_event.get()));
 }
 
 void init_pci() {
@@ -309,7 +309,7 @@ void init_pci() {
     if (devices_left == 0)
         return;
 
-    init_device_event = create_event(true);
+    init_device_event = create_event2(true);
 
     {
         auto le = pci_device_list.next;

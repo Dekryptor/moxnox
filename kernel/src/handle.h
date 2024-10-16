@@ -20,11 +20,7 @@ public:
     }
 
     ~object_ref() {
-        if (rw) {
-            visit_obj(rw->get(), [](auto&& o) {
-                o.release();
-            });
-        }
+        reset();
     }
 
     explicit operator bool() const {
@@ -33,6 +29,14 @@ public:
 
     object& get() {
         return rw->get();
+    }
+
+    void reset() {
+        if (rw) {
+            visit_obj(rw->get(), [](auto&& o) {
+                o.release();
+            });
+        }
     }
 
 private:
