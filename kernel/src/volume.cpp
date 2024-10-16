@@ -65,8 +65,8 @@ bool mount_root() {
         cmdline_root = string_view(cmdline_root.data() + sizeof(prefix) - 1,
                                    cmdline_root.size() - sizeof(prefix) + 1);
 
-        auto h = open_object(cmdline_root);
-        if (!h) {
+        auto ref = open_object2(cmdline_root);
+        if (!ref) {
             char s[255];
             auto sp = span(s, sizeof(s));
 
@@ -75,9 +75,7 @@ bool mount_root() {
             bsod(string_view(s, sp.data() - s));
         }
 
-        auto& obj = deref_handle(h.get())->get();
-
-        if (obj.type != object_type::volume) {
+        if (ref.get().type != object_type::volume) {
             char s[255];
             auto sp = span(s, sizeof(s));
 
@@ -87,7 +85,7 @@ bool mount_root() {
             bsod(string_view(s, sp.data() - s));
         }
 
-        auto& vol = *static_cast<volume*>(&obj);
+        auto& vol = static_cast<volume&>(ref.get());
 
         {
             lock_guard lock(vol.mount_lock);
