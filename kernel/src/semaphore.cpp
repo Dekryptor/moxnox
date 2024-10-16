@@ -5,7 +5,7 @@
 
 using namespace std;
 
-unique_handle create_semaphore(unsigned int maximum_count) {
+object_ref create_semaphore(unsigned int maximum_count) {
     auto sptr = new semaphore;
     if (!sptr) {
         printk("new failed\n");
@@ -17,13 +17,9 @@ unique_handle create_semaphore(unsigned int maximum_count) {
     s.current_count = 0;
     s.signalled = true;
 
-    auto hv = add_kernel_handle(s, 0); // FIXME - access mask
-
-    s.release(); // add_kernel_handle increases refcount
-
     // FIXME - what happens if a thread dies before calling release_semaphore?
 
-    return unique_handle{hv};
+    return s;
 }
 
 void release_semaphore(semaphore& s) {
@@ -63,34 +59,6 @@ void release_semaphore(semaphore& s) {
 
     if (release_count == 1)
         s.release();
-}
-
-void release_semaphore(handle_t h) {
-    auto objrw = deref_handle(h);
-    if (!objrw) {
-        // FIXME - exception
-        printk("No such handle\n");
-        return;
-    }
-
-    auto& obj = objrw->get();
-
-    if (obj.type != object_type::semaphore) {
-        // FIXME - exception
-        printk("Not a semaphore\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
-        return;
-    }
-
-    auto& s = static_cast<semaphore&>(objrw->get());
-
-    release_semaphore(s);
-
-    s.release();
 }
 
 void semaphore::on_wake() {

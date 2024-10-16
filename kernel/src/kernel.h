@@ -207,15 +207,14 @@ extern "C" void keyboard_isr();
 // sata.S
 extern "C" void sata_isr();
 
+class object_ref;
+
 // semaphore.cpp
-unique_handle create_semaphore(unsigned int maximum_count);
-void release_semaphore(handle_t h);
+object_ref create_semaphore(unsigned int maximum_count);
 void release_semaphore(semaphore& s);
 
 // btrfs.cpp
 bool btrfs_probe(volume& vol);
-
-class object_ref;
 
 // volume.cpp
 void add_fs_to_list(filesystem& fs);

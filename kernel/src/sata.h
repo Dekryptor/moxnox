@@ -463,7 +463,7 @@ public:
     unique_handle events[SATA_NUM_CMD_TABLES];
     char model_number_buf[40];
     std::string_view model_number;
-    unique_handle slot_semaphore;
+    object_ref slot_semaphore;
     spinlock slot_lock;
     std::atomic<uint32_t> allocated_slots = 0;
     std::atomic<uint32_t> pending_slots = 0;

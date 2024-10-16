@@ -148,7 +148,7 @@ void sata_device::release_slot(uint8_t slot) {
         allocated_slots &= ~(1 << (uint32_t)slot);
     }
 
-    release_semaphore(slot_semaphore.get());
+    release_semaphore(static_cast<semaphore&>(slot_semaphore.get()));
 }
 
 bool sata_device::identify() {
