@@ -227,8 +227,6 @@ class file;
 class inode;
 
 // section.cpp
-object_ref create_section(std::optional<std::reference_wrapper<inode>> ino,
-                          bool image, size_t size);
 object_ref create_section(const std::optional<std::reference_wrapper<file>>& file,
                           bool image, size_t size);
 
