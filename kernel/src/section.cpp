@@ -689,7 +689,7 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
     auto t = get_current_thread();
     auto p = t->proc;
     uint64_t size = maximum_size ? maximum_size->QuadPart : 0;
-    optional<reference_wrapper<inode>> ino;
+    optional<reference_wrapper<file>> f;
 
     // FIXME - desired_access
     // FIXME - object_attributes
@@ -703,21 +703,22 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
 
         visit_obj(objrw.get(), [&](auto&& o) {
             if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
-                if (o.ino.type == object_type::inode) {
-                    ino = static_cast<inode&>(o.ino);
-                    ino->get().acquire();
-                }
-            }
+                if (o.ino.type == object_type::inode)
+                    f = o;
+                else
+                    o.release();
+            } else
+                o.release();
         });
 
-        if (!ino)
+        if (!f)
             return nt_status::INVALID_HANDLE;
     }
 
-    auto secth = create_section(ino, allocation_attributes & SEC_IMAGE, size);
+    auto secth = create_section(f, allocation_attributes & SEC_IMAGE, size);
 
-    if (ino)
-        ino->get().release();
+    if (f)
+        f->get().release();
 
     if (!secth)
         return nt_status::INTERNAL_ERROR;
