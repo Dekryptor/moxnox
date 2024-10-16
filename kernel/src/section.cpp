@@ -4,7 +4,7 @@
 
 using namespace std;
 
-unique_handle create_section(optional<reference_wrapper<inode>> ino, bool image, size_t size) {
+object_ref create_section(optional<reference_wrapper<inode>> ino, bool image, size_t size) {
     if (ino && !image) {
         printk("FIXME - non-image sections\n");
         return {};
@@ -58,11 +58,7 @@ unique_handle create_section(optional<reference_wrapper<inode>> ino, bool image,
         // FIXME - make sure allocate_page doesn't steal what we've reserved
     }
 
-    auto hv = add_kernel_handle(s, 0); // FIXME - access mask
-
-    s.release(); // add_kernel_handle increases refcount
-
-    return unique_handle{hv};
+    return s;
 }
 
 section::~section() {
@@ -670,12 +666,7 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
     if (!secth)
         return nt_status::INTERNAL_ERROR;
 
-    auto objrw = deref_handle(secth.get());
-
-    if (!objrw)
-        return nt_status::INTERNAL_ERROR;
-
-    auto h = p->add_handle(*objrw, 0); // FIXME - access mask
+    auto h = p->add_handle(secth.get(), 0); // FIXME - access mask
 
     if (!h)
         return nt_status::INTERNAL_ERROR;

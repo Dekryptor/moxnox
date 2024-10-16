@@ -71,7 +71,8 @@ object_ref create_process(string_view fn, string_view curdir,
         return {};
     }
 
-    p.img = static_cast<section&>(deref_handle(imgh.get())->get());
+    p.img = static_cast<section&>(imgh.get());
+    p.img->get().acquire();
 
     imgh.reset();
 
@@ -590,9 +591,8 @@ void load_ntdll() {
         return;
     }
 
-    ntdll = static_cast<section*>(&deref_handle(ntdllh.get())->get());
-
-    ntdllh.reset();
+    ntdll = &static_cast<section&>(ntdllh.get());
+    ntdll->acquire();
 
     mn_start_thread = ntdll->find_export("mn_start_thread");
     if (!mn_start_thread) {

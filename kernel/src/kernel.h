@@ -229,8 +229,8 @@ void load_ntdll();
 class inode;
 
 // section.cpp
-unique_handle create_section(std::optional<std::reference_wrapper<inode>> ino,
-                             bool image, size_t size);
+object_ref create_section(std::optional<std::reference_wrapper<inode>> ino,
+                          bool image, size_t size);
 
 // string.cpp
 std::span<char> sp_strcpy(std::span<char> dest, std::string_view src);
