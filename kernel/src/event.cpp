@@ -22,6 +22,19 @@ unique_handle create_event(bool autoreset) {
     return unique_handle{hv};
 }
 
+object_ref create_event2(bool autoreset) {
+    auto eptr = new event;
+    if (!eptr) {
+        printk("new failed\n");
+        return {};
+    }
+
+    auto& e = *eptr;
+    e.autoreset = autoreset;
+
+    return e;
+}
+
 void set_event(event& e) {
     unsigned int release_count = 0;
 

@@ -185,8 +185,11 @@ enum mapping_type characteristics_to_mapping_type(uint32_t c);
 // keyboard.cpp
 void init_keyboard();
 
+class object_ref;
+
 // event.cpp
 unique_handle create_event(bool autoreset);
+object_ref create_event2(bool autoreset);
 void set_event(handle_t h);
 void set_event(event& e);
 void reset_event(handle_t h);
@@ -206,8 +209,6 @@ extern "C" void keyboard_isr();
 
 // sata.S
 extern "C" void sata_isr();
-
-class object_ref;
 
 // semaphore.cpp
 object_ref create_semaphore(unsigned int maximum_count);

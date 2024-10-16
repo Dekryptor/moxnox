@@ -9,7 +9,6 @@ using namespace std;
 static const uint8_t keyboard_interrupt = 0x21;
 static const unsigned int keyboard_buffer_pages = 1;
 
-static unique_handle keyboard_event;
 static optional<reference_wrapper<event>> keyboard_event_obj;
 static unique_handle keyboard_pipe;
 
@@ -27,7 +26,7 @@ static unsigned int modifier = 0;
 
 static void keyboard_event_recv() {
     do {
-        wait_for_object(keyboard_event.get());
+        wait_for_object(keyboard_event_obj->get());
 
         lock_guard lock(keyboard_lock);
 
@@ -177,14 +176,14 @@ void init_keyboard() {
 
     keyboard_buffer = (uint8_t*)va;
 
-    keyboard_event = create_event(true);
+    auto keyboard_event = create_event2(true);
     if (!keyboard_event) {
         printk("create_event failed\n");
         return;
     }
 
-    auto& obj = deref_handle(keyboard_event.get())->get();
-    keyboard_event_obj = static_cast<event&>(obj);
+    keyboard_event_obj = static_cast<event&>(keyboard_event.get());
+    keyboard_event_obj->get().acquire();
 
     if (!add_kernel_thread(keyboard_event_recv)) {
         printk("add_kernel_thread failed\n");
