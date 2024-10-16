@@ -528,7 +528,7 @@ bool init_interrupts() {
 }
 
 extern "C"
-void page_fault_user(uintptr_t address, uint64_t error_code) {
+bool page_fault_user(uintptr_t address, uint64_t error_code) {
     auto& cb = *get_cpu_block();
     auto& current_thread = *get_current_thread();
     CONTEXT ctx;
@@ -541,7 +541,7 @@ void page_fault_user(uintptr_t address, uint64_t error_code) {
     if (p.handle_page_fault(address, error_code)) {
         __asm __volatile("cli");
         memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
-        return;
+        return false;
     }
 
     uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
@@ -550,7 +550,7 @@ void page_fault_user(uintptr_t address, uint64_t error_code) {
         printk("Unable to copy thread context to stack.\n");
         current_thread.exit_status = nt_status::ACCESS_VIOLATION;
         current_thread.terminate();
-        return;
+        return false;
     }
 
     EXCEPTION_RECORD er;
@@ -570,7 +570,7 @@ void page_fault_user(uintptr_t address, uint64_t error_code) {
         printk("Unable to copy exception record to stack.\n");
         current_thread.exit_status = nt_status::ACCESS_VIOLATION;
         current_thread.terminate();
-        return;
+        return false;
     }
 
     __asm __volatile("cli");
@@ -581,6 +581,8 @@ void page_fault_user(uintptr_t address, uint64_t error_code) {
     cb.thread_context.Rdx = us_context;
     cb.thread_context.Rsp -= sizeof(CONTEXT);
     cb.thread_context.Rsp -= er_size;
+
+    return true;
 }
 
 extern "C"

@@ -44,6 +44,10 @@ page_fault_user_isr:
     cli
     add rsp, 0x20
 
+    cmp ax, 0
+    jnz page_fault_user_exception
+
+page_fault_user_no_exception:
     # mark thread as not in kernel mode
     mov rax, gs:GS_CURRENT_THREAD
     mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0
@@ -65,6 +69,17 @@ page_fault_user_isr:
 
     swapgs
     iretq
+
+page_fault_user_exception:
+    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
+    mov [rsp], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
+    mov [rsp+0x8], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
+    mov [rsp+0x30], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
+    mov [rsp+0x48], rax
+    jmp page_fault_user_no_exception
 
 .global page_fault_isr
 page_fault_isr: # keeps cr3 of process
