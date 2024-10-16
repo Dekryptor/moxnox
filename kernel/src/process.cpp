@@ -15,6 +15,8 @@ static_assert(sizeof(TEB) == 0x1818);
 static_assert(sizeof(PEB) == 0x388);
 static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
+static const size_t MAX_PATH = 260;
+
 // FIXME - 32-bit processes
 
 object_ref create_process(string_view fn, string_view curdir,
@@ -1568,8 +1570,8 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     size_t size;
 
     size = sizeof(RTL_USER_PROCESS_PARAMETERS);
-    size += ((curdir_len + 1) * sizeof(char16_t));
-    size += ((fn_len + 1) * sizeof(char16_t));
+    size += MAX_PATH * sizeof(char16_t);
+    size += (fn_len + 1) * sizeof(char16_t);
 
     if (!success(proc.allocate_vm((void**)&proc.proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
         printk("process::allocate_vm failed\n");
@@ -1597,8 +1599,8 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     ks_proc_params.StandardError = stderrh;
     ks_proc_params.CurrentDirectory.Handle = curdirh;
 
-    ks_proc_params.CurrentDirectory.DosPath.Length = (uint16_t)(curdir_len * sizeof(char16_t));
-    ks_proc_params.CurrentDirectory.DosPath.MaximumLength = ks_proc_params.CurrentDirectory.DosPath.Length + sizeof(char16_t);
+    ks_proc_params.CurrentDirectory.DosPath.Length = (uint16_t)(min(MAX_PATH, curdir_len) * sizeof(char16_t));
+    ks_proc_params.CurrentDirectory.DosPath.MaximumLength = MAX_PATH * sizeof(char16_t);
     ks_proc_params.CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc.proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
 
     auto ks_dos_path = span((char16_t*)((uint8_t*)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uint8_t*)proc.proc_params + va),
