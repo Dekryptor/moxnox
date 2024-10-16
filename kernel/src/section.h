@@ -41,4 +41,6 @@ public:
     uintptr_t preferred_base, entry_point;
     uint64_t stack_size;
     spinlock alloc_lock;
+    char* name = nullptr;
+    size_t namelen = 0;
 };

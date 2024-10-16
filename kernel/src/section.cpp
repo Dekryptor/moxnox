@@ -24,7 +24,20 @@ object_ref create_section(const optional<reference_wrapper<file>>& file, bool im
     if (file) {
         if (file->get().ino.type != object_type::inode) {
             printk("file pointed to object other than inode\n");
+            s.release();
             return {};
+        }
+
+        if (file->get().name) {
+            s.name = (char*)malloc(file->get().namelen);
+            if (!s.name) {
+                printk("malloc failed\n");
+                s.release();
+                return {};
+            }
+
+            s.namelen = file->get().namelen;
+            memcpy(s.name, file->get().name, s.namelen);
         }
 
         s.ino = static_cast<inode&>(file->get().ino);
@@ -71,6 +84,7 @@ section::~section() {
     if (ino)
         ino->get().release();
 
+    free(name);
     free_pa();
 }
 
