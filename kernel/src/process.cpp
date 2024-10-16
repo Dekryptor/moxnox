@@ -22,21 +22,37 @@ unique_handle create_process(string_view fn, string_view curdir,
                              object_ref& stderrobj) {
     // FIXME - merge with NtCreateProcess
 
-    auto img_file = open_inode(fn);
-    if (!img_file) {
+    auto img_file_ref = open_inode2(fn);
+    if (!img_file_ref) {
         printk("open_inode failed for ");
         printk(fn);
         printk("\n");
         return {};
     }
 
-    auto curdir_inode = open_inode(curdir);
-    if (!curdir_inode) {
+    auto& img_file = img_file_ref.get();
+    if (img_file.type != object_type::inode) {
+        printk("open_inode returned something other than inode\n");
+        return {};
+    }
+
+    auto& img_file_inode = static_cast<inode&>(img_file);
+
+    auto curdir_ref = open_inode2(curdir);
+    if (!curdir_ref) {
         printk("open_inode failed for ");
         printk(curdir);
         printk("\n");
         return {};
     }
+
+    auto& curdir_obj = curdir_ref.get();
+    if (curdir_obj.type != object_type::inode) {
+        printk("open_inode returned something other than inode\n");
+        return {};
+    }
+
+    auto& curdir_inode = static_cast<inode&>(curdir_obj);
 
     auto pptr = new process;
     if (!pptr) {
@@ -48,7 +64,7 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     // create section for image
 
-    auto imgh = create_section(img_file.get(), true, 0);
+    auto imgh = create_section(img_file_inode, true, 0);
     if (!imgh) {
         printk("create_section failed\n");
         p.release();
@@ -101,17 +117,12 @@ unique_handle create_process(string_view fn, string_view curdir,
     if (stderrobj)
         stderrh = p.add_handle(stderrobj.get(), 0); // FIXME - access mask
 
-    auto& curdir_inode_obj = static_cast<inode&>(deref_handle(curdir_inode.get())->get());
-
-    auto curdir_file = new file(curdir_inode_obj);
+    auto curdir_file = new file(curdir_inode);
     if (!curdir_file) {
         printk("new failed\n");
-        curdir_inode_obj.release();
         p.release();
         return {};
     }
-
-    curdir_inode_obj.release();
 
     auto curdirh = p.add_handle(*curdir_file, 0); // FIXME - access mask
 
