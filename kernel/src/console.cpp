@@ -53,6 +53,7 @@ static unsigned int fb_console_rows, fb_console_cols;
 static bool fb_console_started = false;
 static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
+static spinlock cursor_lock;
 
 struct console_info {
     enum console_colour bg;
@@ -79,8 +80,38 @@ static void text_console_putc(uint8_t x, uint8_t y, uint8_t c, enum console_colo
 
 static void text_console_overflow() {
     memcpy(text_console.data(), &text_console[COLS], (ROWS - 1) * COLS * sizeof(uint16_t));
-    memset(text_console.data() + ((ROWS - 1) * COLS), 0, COLS * sizeof(uint16_t));
+
+    for (uint8_t x = 0; x < COLS; x++) {
+        text_console_putc(x, ROWS - 1, ' ', console_colour::black, console_colour::light_grey);
+    }
+
     cursor_y = ROWS - 1;
+}
+
+__attribute((naked))
+static void outb(uint16_t port, uint8_t val) {
+    __asm __volatile(
+        "mov al, %1\n"
+        "\tmov dx, %0\n"
+        "\tout dx, al\n"
+        "\tret\n"
+        :
+        : "r" (port), "r" (val)
+        : "al", "dx"
+    );
+}
+
+static void text_console_move_cursor(uint8_t x, uint8_t y) {
+    auto pos = (uint16_t)((y * COLS) + x);
+
+    {
+        lock_guard lock(cursor_lock);
+
+        outb(0x3d4, 0xf);
+        outb(0x3d5, (uint8_t)(pos & 0xff));
+        outb(0x3d4, 0xe);
+        outb(0x3d5, (uint8_t)((pos >> 8) & 0xff));
+    }
 }
 
 static void text_console_print(string_view s, enum console_colour bg = console_colour::black,
@@ -109,6 +140,8 @@ static void text_console_print(string_view s, enum console_colour bg = console_c
             }
         }
     }
+
+    text_console_move_cursor((uint8_t)cursor_x, (uint8_t)cursor_y);
 }
 
 static void text_console_print(integral auto i, enum console_colour bg = console_colour::black,
@@ -404,8 +437,12 @@ bool init_console(const loader_block_framebuffer& fb) {
         if (!map_page(CONSOLE_PA, (uintptr_t)text_console.data(), mapping_type::read_write))
             return false;
 
-        // clear console
-        memset(text_console.data(), 0, text_console.size_bytes());
+        // clear console (foreground colour needs to be initialized for cursor to show up)
+        for (uint8_t y = 0; y < ROWS; y++) {
+            for (uint8_t x = 0; x < COLS; x++) {
+                text_console_putc(x, y, ' ', console_colour::black, console_colour::light_grey);
+            }
+        }
     } else {
         uint32_t size = fb.pixels_per_scan_line * fb.height * sizeof(uint32_t);
 
@@ -685,17 +722,8 @@ static void fill_framebuffer(uint32_t colour) {
 }
 
 static void disable_cursor() {
-    __asm __volatile (
-        "mov al, 0xa\n"
-        "mov dx, 0x3d4\n"
-        "out dx, al\n"
-        "mov al, 0x20\n"
-        "mov dx, 0x3d5\n"
-        "out dx, al\n"
-        :
-        :
-        : "al", "dx"
-    );
+    outb(0x3d4, 0xa);
+    outb(0x3d5, 0x20);
 }
 
 void bsod(string_view msg, source_location sl) {
