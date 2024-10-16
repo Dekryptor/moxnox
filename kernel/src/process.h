@@ -54,6 +54,7 @@ public:
     NTSTATUS write_vm(void* base_address, void* buffer, uint32_t buffer_size,
                       uint32_t* number_of_bytes_written);
     object_ref get_stderr();
+    bool map_to_kernel_space(void* us, void* ks, unsigned int num_pages);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
@@ -76,10 +77,6 @@ private:
     void free_mappings();
     NTSTATUS unmap_proc_page(uint64_t va);
     bool populate_teb(thread& t);
-    bool map_to_kernel_space(void* us, void* ks, unsigned int num_pages);
-    bool allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh,
-                              HANDLE curdirh, std::string_view curdir,
-                              std::string_view fn);
     NTSTATUS change_proc_page_protection(uint64_t va, enum mapping_type prot);
 };
 

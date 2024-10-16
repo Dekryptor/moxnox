@@ -1543,8 +1543,8 @@ static void create_dos_path(span<char16_t> buf, string_view s) {
     }
 }
 
-bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
-                                   string_view curdir, string_view fn) {
+static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
+                                 string_view curdir, string_view fn) {
     // FIXME - also include space for command line, environment, etc.
 
     auto curdir_len = dos_path_len(curdir);
@@ -1556,7 +1556,7 @@ bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh
     size += ((curdir_len + 1) * sizeof(char16_t));
     size += ((fn_len + 1) * sizeof(char16_t));
 
-    if (!success(allocate_vm((void**)&proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
+    if (!success(proc.allocate_vm((void**)&proc.proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
         printk("process::allocate_vm failed\n");
         return false;
     }
@@ -1569,7 +1569,7 @@ bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh
         return false;
     }
 
-    if (!map_to_kernel_space(proc_params, (void*)va, num_pages)) {
+    if (!proc.map_to_kernel_space(proc.proc_params, (void*)va, num_pages)) {
         printk("map_to_kernel_space failed\n");
         free_va(va, num_pages);
         return false;
@@ -1584,9 +1584,9 @@ bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh
 
     ks_proc_params.CurrentDirectory.DosPath.Length = (uint16_t)(curdir_len * sizeof(char16_t));
     ks_proc_params.CurrentDirectory.DosPath.MaximumLength = ks_proc_params.CurrentDirectory.DosPath.Length + sizeof(char16_t);
-    ks_proc_params.CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
+    ks_proc_params.CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc.proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
 
-    auto ks_dos_path = span((char16_t*)((uint8_t*)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uint8_t*)proc_params + va),
+    auto ks_dos_path = span((char16_t*)((uint8_t*)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uint8_t*)proc.proc_params + va),
                             ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
     create_dos_path(ks_dos_path, curdir);
 
@@ -1595,7 +1595,7 @@ bool process::allocate_proc_params(HANDLE stdinh, HANDLE stdouth, HANDLE stderrh
     ks_proc_params.ImagePathName.Buffer = ks_proc_params.CurrentDirectory.DosPath.Buffer +
         (ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
 
-    auto ks_fn_path = span((char16_t*)((uint8_t*)ks_proc_params.ImagePathName.Buffer - (uint8_t*)proc_params + va),
+    auto ks_fn_path = span((char16_t*)((uint8_t*)ks_proc_params.ImagePathName.Buffer - (uint8_t*)proc.proc_params + va),
                             ks_proc_params.ImagePathName.MaximumLength / sizeof(char16_t));
     create_dos_path(ks_fn_path, fn);
 
@@ -1614,7 +1614,7 @@ bool process::allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth
 
     size_t peb_size = sizeof(PEB);
 
-    if (!allocate_proc_params(stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
+    if (!allocate_proc_params(*this, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
         printk("process::allocate_proc_params failed\n");
         return false;
     }
