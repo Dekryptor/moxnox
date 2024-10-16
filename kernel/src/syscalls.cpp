@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "nt.h"
 #include "objects.h"
+#include "handle.h"
 
 using namespace std;
 

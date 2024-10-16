@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
 #include "btrfs.h"
+#include "handle.h"
 
 using namespace std;
 

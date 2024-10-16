@@ -1,13 +1,12 @@
 #include "kernel.h"
 #include "objects.h"
 #include "spinlock.h"
-#include "unique_handle.h"
+#include "handle.h"
 
 using namespace std;
 
 static unsigned int no_handles = 0;
 static handle_obj* const handle_arr = (handle_obj*)0xfffffa2000000000;
-static size_t handle_arr_pages = 0;
 static spinlock handle_spinlock;
 
 struct name_entry {

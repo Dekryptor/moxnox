@@ -1,8 +1,8 @@
 #include "kernel.h"
 #include "objects.h"
 #include "cpu_block.h"
-#include "unique_handle.h"
 #include "spinlock.h"
+#include "handle.h"
 #include <cstdlib>
 #include <optional>
 #include <atomic>

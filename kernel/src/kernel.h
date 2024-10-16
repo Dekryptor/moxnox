@@ -20,7 +20,6 @@ class thread;
 class object;
 struct cpu_block;
 struct list_entry;
-class unique_handle;
 class event;
 struct task_state_segment;
 struct pci_device;

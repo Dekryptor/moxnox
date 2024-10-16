@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include "spinlock.h"
-#include "unique_handle.h"
 #include "objects.h"
+#include "handle.h"
 #include <span>
 #include <cstring>
 #include <bit>

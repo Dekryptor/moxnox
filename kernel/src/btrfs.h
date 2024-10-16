@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include "unique_handle.h"
 
 using btrfs_uuid = std::array<uint8_t, 16>;
 

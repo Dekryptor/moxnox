@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
-#include "unique_handle.h"
 #include "mem.h"
+#include "handle.h"
 #include <limits>
 
 using namespace std;

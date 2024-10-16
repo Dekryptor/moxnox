@@ -1,8 +1,8 @@
 #pragma once
 
 #include "objects.h"
-#include "unique_handle.h"
 #include "spinlock.h"
+#include "handle.h"
 
 static const unsigned int SATA_NUM_CMD_TABLES = 32;
 

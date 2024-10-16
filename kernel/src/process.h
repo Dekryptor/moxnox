@@ -1,7 +1,6 @@
 #pragma once
 
 #include "spinlock.h"
-#include "unique_handle.h"
 #include "context_offsets.h"
 
 class section;

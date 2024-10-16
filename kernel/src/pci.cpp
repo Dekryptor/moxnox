@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include "acpi.h"
 #include "pci.h"
-#include "unique_handle.h"
+#include "handle.h"
 
 using namespace std;
 

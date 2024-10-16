@@ -1,7 +1,6 @@
 #include "kernel.h"
 #include "pci.h"
 #include "sata.h"
-#include "unique_handle.h"
 #include "spinlock.h"
 
 using namespace std;

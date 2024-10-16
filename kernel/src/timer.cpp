@@ -1,8 +1,8 @@
 #include "kernel.h"
 #include "objects.h"
-#include "unique_handle.h"
 #include "spinlock.h"
 #include "tick_rate.h"
+#include "handle.h"
 
 using namespace std;
 

@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "objects.h"
+#include "handle.h"
 #include <pe.h>
 
 using namespace std;
