@@ -338,6 +338,9 @@ void wait_for_object(object& obj) {
     if (!(rflags & 0x200)) // IF flag not set
         bsod("calling wait_for_object with interrupts disabled");
 #endif
+    visit_obj(obj, [](auto&& o) {
+        o.acquire();
+    });
 
     auto current_thread = get_current_thread();
 
@@ -462,6 +465,10 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool, const LARGE_INTEGER*)
     // FIXME - check handle has SYNCHRONIZE access
 
     wait_for_object(objrw->get());
+
+    visit_obj(objrw->get(), [](auto&& o) {
+        o.release();
+    });
 
     return nt_status::SUCCESS;
 }
