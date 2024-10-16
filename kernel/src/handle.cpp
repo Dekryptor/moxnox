@@ -609,31 +609,20 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     // FIXME - proper VFS system
 
     static const string_view dev_prefix = "/dev/";
-    unique_handle inoh;
+    object_ref ino_ref;
 
     if (namelen > dev_prefix.size() && string_view(name, dev_prefix.size()) == dev_prefix)
-        inoh = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
+        ino_ref = open_object2(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
     else
-        inoh = open_inode(string_view(name, namelen));
+        ino_ref = open_inode2(string_view(name, namelen));
 
-    if (!inoh) {
+    if (!ino_ref) {
         // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
         free(name);
         return nt_status::OBJECT_NAME_NOT_FOUND;
     }
 
-    auto objrw = deref_handle(inoh.get());
-
-    if (!objrw) {
-        free(name);
-        return nt_status::INTERNAL_ERROR;
-    }
-
-    auto f = new file(objrw->get());
-
-    visit_obj(objrw->get(), [](auto&& o) {
-        o.release();
-    });
+    auto f = new file(ino_ref.get());
 
     if (!f) {
         free(name);
