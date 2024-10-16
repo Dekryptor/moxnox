@@ -69,7 +69,7 @@ void init_timer() {
     init_lapic_timer(false);
 }
 
-unique_handle create_timer(bool autoreset) {
+object_ref create_timer(bool autoreset) {
     auto tptr = new timer;
     if (!tptr) {
         printk("new failed\n");
@@ -79,11 +79,7 @@ unique_handle create_timer(bool autoreset) {
     auto& t = *tptr;
     t.autoreset = autoreset;
 
-    auto hv = add_kernel_handle(t, 0); // FIXME - access mask
-
-    t.release(); // add_kernel_handle increases refcount
-
-    return unique_handle{hv};
+    return t;
 }
 
 extern "C"
@@ -173,12 +169,7 @@ NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK, const OBJECT_ATTRIBUTE
     if (!timerh)
         return nt_status::INTERNAL_ERROR;
 
-    auto objrw = deref_handle2(timerh.get());
-
-    if (!objrw)
-        return nt_status::INTERNAL_ERROR;
-
-    auto h = p->add_handle(objrw.get(), 0); // FIXME - access mask
+    auto h = p->add_handle(timerh.get(), 0); // FIXME - access mask
 
     if (!h)
         return nt_status::INTERNAL_ERROR;

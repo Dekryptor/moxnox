@@ -156,7 +156,6 @@ extern "C" void pit_delay(uint16_t delay);
 // timer.cpp
 void init_timer();
 void init_lapic_timer(bool ap);
-unique_handle create_timer(bool autoreset);
 extern volatile int64_t system_time;
 
 // scheduler.cpp
