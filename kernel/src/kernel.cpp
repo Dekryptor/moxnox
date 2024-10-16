@@ -86,23 +86,15 @@ static void timer_test() {
 #endif
 
 static unique_handle start_init_process() {
-    auto initout = open_object("tty");
+    auto initout = open_object2("tty");
     if (!initout)
         bsod("Could not open tty object.");
 
-    auto initout_objrw = deref_handle2(initout.get());
-    if (!initout_objrw)
-        bsod("No such handle");
-
-    auto initin = open_object("keyboard");
+    auto initin = open_object2("keyboard");
     if (!initin)
         bsod("Could not open keyboard object.");
 
-    auto initin_objrw = deref_handle2(initin.get());
-    if (!initin_objrw)
-        bsod("No such handle");
-
-    auto proc_handle = create_process("/init.exe", "/", initin_objrw, initout_objrw, initout_objrw);
+    auto proc_handle = create_process("/init.exe", "/", initin, initout, initout);
     if (!proc_handle)
         bsod("Could not start init process.");
 
