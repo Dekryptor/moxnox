@@ -635,24 +635,20 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
     // FIXME - allocation_attributes that aren't SEC_IMAGE
 
     if (file_handle) {
-        auto objrw = deref_handle(file_handle);
+        auto objrw = deref_handle2(file_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
-
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_same_v<remove_reference_t<decltype(o)>, inode>)
+        visit_obj(objrw.get(), [&](auto&& o) {
+            if constexpr (is_same_v<remove_reference_t<decltype(o)>, inode>) {
                 ino = o;
-            else if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
+                o.acquire();
+            } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
                 if (o.ino.type == object_type::inode) {
                     ino = static_cast<inode&>(o.ino);
                     ino->get().acquire();
                 }
-
-                o.release();
-            } else
-                o.release();
+            }
         });
 
         if (!ino)
