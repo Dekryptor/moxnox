@@ -43,7 +43,6 @@ private:
     std::optional<std::reference_wrapper<object>> rw;
 };
 
-handle_t add_kernel_handle(object& obj, uint32_t access_mask);
 void close_handle(handle_t h);
 std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
 object_ref deref_handle2(handle_t h);

@@ -20,52 +20,6 @@ struct name_entry {
 static spinlock name_lock;
 static list_entry name_list = { &name_list, &name_list };
 
-handle_t add_kernel_handle(object& obj, uint32_t access_mask) {
-    handle_t h;
-
-    // FIXME - reusing handles?
-
-    {
-        lock_guard lock(handle_spinlock);
-
-        size_t needed_pages = bytes_to_pages((no_handles + 1) * sizeof(handle_obj));
-
-        if (needed_pages > handle_arr_pages) {
-            auto pa = allocate_page();
-            if (!pa) {
-                // FIXME - should be exception
-                printk("allocate_page failed\n");
-                return 0;
-            }
-
-            if (!map_page(pa, (uintptr_t)handle_arr + (handle_arr_pages << PAGE_SHIFT), mapping_type::read_write)) {
-                // FIXME - exception
-                printk("map_page failed\n");
-                free_page(pa);
-                return 0;
-            }
-
-            handle_arr_pages++;
-        }
-
-        no_handles++;
-
-        h = kernel_handle_mask | no_handles;
-
-        auto& ho = handle_arr[h - 1];
-        ho.obj = &obj;
-        ho.access_mask = access_mask;
-    }
-
-    visit_obj(obj, [](auto&& o) {
-        o.acquire();
-    });
-
-    obj.handle_count++;
-
-    return h;
-}
-
 void close_handle(handle_t h) {
     object* obj;
 
