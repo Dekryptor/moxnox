@@ -590,59 +590,45 @@ bool init_fb_console() {
         return false;
     }
 
-    // load console.ttf to memory
-
-    auto file = open_inode("/console.ttf");
-    if (!file) {
-        printk("open_inode failed\n");
-        return false;
-    }
-
-    optional<uint64_t> file_size;
+    uint64_t file_size;
 
     {
-        auto objrw = deref_handle(file.get());
-        if (!objrw) {
-            // FIXME - exception
-            printk("No such handle\n");
+        // load console.ttf to memory
+
+        auto file_ref = open_inode2("/console.ttf");
+        if (!file_ref) {
+            printk("open_inode failed\n");
             return false;
         }
 
-        auto& obj = objrw->get();
+        if (file_ref.get().type != object_type::inode) {
+            printk("open_inode returned something other than inode\n");
+            return false;
+        }
 
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_same_v<remove_reference_t<decltype(o)>, inode>)
-                file_size = o.file_size;
+        auto& inode = static_cast<class inode&>(file_ref.get());
 
-            o.release();
-        });
+        file_size = inode.file_size;
+
+        if (file_size == 0) {
+            printk("Font file was empty\n");
+            return false;
+        }
+
+        font_data = malloc(file_size);
+        if (!font_data) {
+            printk("malloc failed\n");
+            return false;
+        }
+
+        if (inode.read(span((uint8_t*)font_data, file_size), 0) < file_size) {
+            free(font_data);
+            printk("read failed\n");
+            return false;
+        }
     }
 
-    if (!file_size) {
-        printk("Could not get size of font file\n");
-        return false;
-    }
-
-    if (file_size == 0) {
-        printk("Font file was empty\n");
-        return false;
-    }
-
-    font_data = malloc(*file_size);
-    if (!font_data) {
-        printk("malloc failed\n");
-        return false;
-    }
-
-    if (read(file.get(), span((uint8_t*)font_data, *file_size), 0) < *file_size) {
-        free(font_data);
-        printk("read failed\n");
-        return false;
-    }
-
-    file.reset();
-
-    error = FT_New_Memory_Face(ft, (uint8_t*)font_data, (FT_Long)*file_size, 0, &face);
+    error = FT_New_Memory_Face(ft, (uint8_t*)font_data, (FT_Long)file_size, 0, &face);
     if (error) {
         free(font_data);
 
