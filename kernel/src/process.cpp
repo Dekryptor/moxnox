@@ -22,21 +22,20 @@ object_ref create_process(string_view fn, string_view curdir,
                           object_ref& stderrobj) {
     // FIXME - merge with NtCreateProcess
 
-    auto img_file_ref = open_inode(fn);
-    if (!img_file_ref) {
+    auto img_inode_ref = open_inode(fn);
+    if (!img_inode_ref) {
         printk("open_inode failed for ");
         printk(fn);
         printk("\n");
         return {};
     }
 
-    auto& img_file = img_file_ref.get();
-    if (img_file.type != object_type::inode) {
+    if (img_inode_ref.get().type != object_type::inode) {
         printk("open_inode returned something other than inode\n");
         return {};
     }
 
-    auto& img_file_inode = static_cast<inode&>(img_file);
+    auto& img_inode = static_cast<inode&>(img_inode_ref.get());
 
     auto curdir_ref = open_inode(curdir);
     if (!curdir_ref) {
@@ -64,7 +63,9 @@ object_ref create_process(string_view fn, string_view curdir,
 
     // create section for image
 
-    auto imgh = create_section(img_file_inode, true, 0);
+    object_ref f(*new file(img_inode));
+
+    auto imgh = create_section(static_cast<file&>(f.get()), true, 0);
     if (!imgh) {
         printk("create_section failed\n");
         p.release();
