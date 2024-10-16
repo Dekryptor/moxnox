@@ -306,7 +306,7 @@ size_t read(handle_t h, span<uint8_t> s, optional<size_t> offset) {
             if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
                 ret = o.read(s, *offset);
             else
-                ret = 0; // can't happen - this is to make compiler happy
+                ret = 0; // can't happen - this is to make compiler happy (FIXME - mark unreachable)
         } else {
             if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
                 ret = o.read(s);
