@@ -85,7 +85,7 @@ static void timer_test() {
 }
 #endif
 
-static unique_handle start_init_process() {
+static object_ref create_init_process() {
     auto initout = open_object("tty");
     if (!initout)
         bsod("Could not open tty object.");
@@ -94,14 +94,7 @@ static unique_handle start_init_process() {
     if (!initin)
         bsod("Could not open keyboard object.");
 
-    auto proc_handle = create_process("/init.exe", "/", initin, initout, initout);
-    if (!proc_handle)
-        bsod("Could not start init process.");
-
-    if (!success(NtResumeProcess(proc_handle.get())))
-        bsod("NtResumeProcess failed for init process.");
-
-    return proc_handle;
+    return create_process("/init.exe", "/", initin, initout, initout);
 }
 
 static void keywait() {
@@ -177,12 +170,16 @@ void main_thread() {
 
     load_ntdll();
 
-    auto init = start_init_process();
+    auto init = create_init_process();
+
+    if (!init)
+        bsod("Could not start init process.");
+
+    static_cast<process&>(init.get()).resume();
 
     wait_for_object(init.get());
 
-    auto initrw = deref_handle(init.get());
-    auto& init_process = *static_cast<process*>(&initrw->get());
+    auto& init_process = static_cast<process&>(init.get());
 
     {
         char s[255];

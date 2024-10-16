@@ -17,9 +17,9 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
 // FIXME - 32-bit processes
 
-unique_handle create_process(string_view fn, string_view curdir,
-                             object_ref& stdinobj, object_ref& stdoutobj,
-                             object_ref& stderrobj) {
+object_ref create_process(string_view fn, string_view curdir,
+                          object_ref& stdinobj, object_ref& stdoutobj,
+                          object_ref& stderrobj) {
     // FIXME - merge with NtCreateProcess
 
     auto img_file_ref = open_inode(fn);
@@ -178,11 +178,7 @@ unique_handle create_process(string_view fn, string_view curdir,
 
     p.suspend_count = 1;
 
-    auto hv = add_kernel_handle(p, 0); // FIXME - access mask
-
-    p.release(); // add_kernel_handle increases refcount
-
-    return unique_handle{hv};
+    return p;
 }
 
 mapping_section::mapping_section(section& sect) : sect(sect) {

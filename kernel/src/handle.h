@@ -10,7 +10,7 @@ public:
     object_ref(object& obj) : rw(obj) { }
 
     // FIXME - implement (and test) these (refcount issues?)
-    object_ref(object_ref& temp_obj) = delete;
+    object_ref(const object_ref& temp_obj) = delete;
     object_ref& operator=(const object_ref& temp_obj) = delete;
 
     object_ref& operator=(object_ref&& other) {
