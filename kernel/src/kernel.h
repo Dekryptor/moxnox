@@ -244,7 +244,7 @@ void utf8_to_utf16(std::span<char16_t> buf, std::string_view sv);
 extern "C" void init_syscalls();
 
 // serial.cpp
-extern unique_handle com1_pipe_handle;
+extern object_ref com1_pipe_handle;
 bool init_serial();
 
 // serial.S

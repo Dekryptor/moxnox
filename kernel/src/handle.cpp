@@ -309,16 +309,14 @@ size_t read(handle_t h, span<uint8_t> s, optional<size_t> offset) {
     return ret;
 }
 
-void write(handle_t h, span<const uint8_t> s) {
-    auto objrw = deref_handle(h);
-
-    if (!objrw) {
+void write(object_ref& h, span<const uint8_t> s) {
+    if (!h) {
         // FIXME - exception
-        printk("Invalid handle\n");
+        printk("Object not set\n");
         return;
     }
 
-    auto& obj = objrw->get();
+    auto& obj = h.get();
     bool can_write = false;
 
     visit_obj(obj, [&](auto&& o) {
@@ -329,23 +327,16 @@ void write(handle_t h, span<const uint8_t> s) {
     if (!can_write) {
         // FIXME - exception
         printk("Not a writable object\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
         return;
     }
 
     visit_obj(obj, [&](auto&& o) {
         if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
             o.write(s);
-
-        o.release();
     });
 }
 
-void write(handle_t h, string_view s) {
+void write(object_ref& h, string_view s) {
     write(h, span((uint8_t*)s.data(), s.size()));
 }
 

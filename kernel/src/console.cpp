@@ -408,10 +408,10 @@ static void early_print(string_view s) {
 }
 
 void safe_print(string_view s) {
-    static_cast<pipe&>(console_pipe.get()).write(s);
+    write(console_pipe, s);
 
     if (com1_pipe_handle)
-        write(com1_pipe_handle.get(), s);
+        write(com1_pipe_handle, s);
 }
 
 void print_hex(uint64_t num, unsigned int padding) {

@@ -19,10 +19,10 @@ public:
 
 static serial_pipe* com1_pipe = nullptr;
 
-unique_handle com1_pipe_handle;
+object_ref com1_pipe_handle;
 static object_ref com1_recv_handle, duplex_pipe;
 
-static unique_handle create_serial_pipe(unsigned int buffer_pages, uint16_t port) {
+static object_ref create_serial_pipe(unsigned int buffer_pages, uint16_t port) {
     auto pptr = new serial_pipe(buffer_pages, port);
     if (!pptr) {
         printk("new failed\n");
@@ -31,11 +31,7 @@ static unique_handle create_serial_pipe(unsigned int buffer_pages, uint16_t port
 
     auto& p = *pptr;
 
-    auto hv = add_kernel_handle(p, 0); // FIXME - access mask
-
-    p.release(); // add_kernel_handle increases refcount
-
-    return unique_handle{hv};
+    return p;
 }
 
 bool init_serial() {
@@ -56,7 +52,7 @@ bool init_serial() {
         return false;
     }
 
-    com1_pipe = &static_cast<serial_pipe&>(deref_handle(com1_pipe_handle.get())->get());
+    com1_pipe = &static_cast<serial_pipe&>(com1_pipe_handle.get());
 
     auto& com1_recv_pipe = static_cast<pipe&>(com1_recv_handle.get());
 
