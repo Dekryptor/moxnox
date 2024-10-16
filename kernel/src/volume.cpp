@@ -163,7 +163,7 @@ object_ref open_inode(string_view fn) {
 
 struct part_wait {
     atomic<unsigned int> left = 0;
-    unique_handle event;
+    object_ref event;
 };
 
 static void partition_found(void* ctx1, void* ctx2) {
@@ -177,7 +177,7 @@ static void partition_found(void* ctx1, void* ctx2) {
     part.release();
 
     if (--pw.left == 0)
-        set_event(pw.event.get());
+        set_event(static_cast<event&>(pw.event.get()));
 }
 
 bool volume::check_for_partitions() {
@@ -282,7 +282,7 @@ bool volume::check_for_partitions() {
         return false;
     }
 
-    pw->event = create_event(false);
+    pw->event = create_event2(false);
 
     for (unsigned int i = 0; i < number_of_partition_entries; i++) {
         auto& part = *(efi_partition_entry*)ptr;
