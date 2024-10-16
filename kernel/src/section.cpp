@@ -65,64 +65,6 @@ unique_handle create_section(optional<reference_wrapper<inode>> ino, bool image,
     return unique_handle{hv};
 }
 
-unique_handle create_section(handle_t h, bool image, size_t size) {
-    if (!h)
-        return create_section(nullopt, image, size);
-
-    auto objrw = deref_handle(h);
-    if (!objrw) {
-        // FIXME - exception
-        printk("No such handle\n");
-        return {};
-    }
-
-    optional<reference_wrapper<inode>> ino;
-    auto& obj = objrw->get();
-
-    switch (obj.type) {
-        case object_type::inode:
-            ino = static_cast<inode&>(obj);
-            break;
-
-        case object_type::file: {
-            auto& f = static_cast<file&>(obj);
-
-            if (f.ino.type == object_type::inode) {
-                ino = static_cast<inode&>(f.ino);
-                ino->get().acquire();
-                f.release();
-            } else {
-                printk("Not an inode\n");
-
-                visit_obj(obj, [](auto&& o) {
-                    o.release();
-                });
-
-                return {};
-            }
-
-            break;
-        }
-
-        default: {
-            // FIXME - exception
-            printk("Not an inode\n");
-
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
-            return {};
-        }
-    }
-
-    auto ret = create_section(ino, image, size);
-
-    ino->get().release();
-
-    return ret;
-}
-
 section::~section() {
     if (ino)
         ino->get().release();

@@ -232,7 +232,6 @@ void load_ntdll();
 class inode;
 
 // section.cpp
-unique_handle create_section(handle_t h, bool image, size_t size);
 unique_handle create_section(std::optional<std::reference_wrapper<inode>> ino,
                              bool image, size_t size);
 
