@@ -818,6 +818,40 @@ unique_handle btrfs_filesystem::open(string_view fn) {
     }
 }
 
+object_ref btrfs_filesystem::open2(string_view fn) {
+    if (fn.empty()) { // root
+        root_inode->acquire();
+
+        return *root_inode;
+    }
+
+    // FIXME - die if anything in middle not directory
+
+    reference_wrapper<btrfs_inode> dirrw = *root_inode;
+    dirrw.get().acquire();
+
+    while (true) {
+        auto sl = fn.find("/");
+        auto& dir = dirrw.get();
+
+        auto objrw = dir.open_child(sl == string_view::npos ? fn : string_view(fn.data(), sl));
+        if (!objrw) {
+            dir.release();
+            return {};
+        }
+
+        auto& obj = objrw->get();
+
+        dir.release();
+
+        if (sl == string_view::npos)
+            return obj;
+
+        fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
+        dirrw = obj;
+    }
+}
+
 size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t offset, uint64_t num_bytes,
                                             span<uint8_t> s) {
     size_t to_read = min(num_bytes, s.size());

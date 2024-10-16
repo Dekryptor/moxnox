@@ -408,6 +408,7 @@ public:
     void walk_from(uint64_t subvol, const key& k, std::invocable<const key&, std::span<const uint8_t>> auto func);
     std::optional<std::reference_wrapper<btrfs_inode>> open_inode(uint64_t subvol, uint64_t inode);
     unique_handle open(std::string_view fn) override;
+    object_ref open2(std::string_view fn) override;
     size_t read_extent(uint64_t address, uint64_t offset, uint64_t num_bytes, std::span<uint8_t> s);
     NTSTATUS query_directory_dirent(const dirent& de, std::span<uint8_t> buf,
                                     FILE_INFORMATION_CLASS file_information_class);

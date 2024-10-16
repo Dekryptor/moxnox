@@ -562,13 +562,22 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 }
 
 void load_ntdll() {
-    auto file = open_inode("/ntdll.dll");
-    if (!file) {
+    auto fileref = open_inode2("/ntdll.dll");
+    if (!fileref) {
         bsod("open_inode failed for ntdll.dll");
         return;
     }
 
-    auto ntdllh = create_section(file.get(), true, 0);
+    auto& file = fileref.get();
+
+    if (file.type != object_type::inode) {
+        bsod("open_inode returned something other than an inode");
+        return;
+    }
+
+    auto& inode = static_cast<class inode&>(file);
+
+    auto ntdllh = create_section(inode, true, 0);
     if (!ntdllh) {
         bsod("create_section failed for ntdll.dll");
         return;

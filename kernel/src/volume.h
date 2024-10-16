@@ -53,6 +53,7 @@ public:
     filesystem(volume& vol) : vol(vol) { }
     virtual ~filesystem() { }
     virtual unique_handle open(std::string_view fn) = 0;
+    virtual object_ref open2(std::string_view fn) = 0;
 
     list_entry le;
     volume& vol;

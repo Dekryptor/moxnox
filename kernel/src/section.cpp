@@ -4,7 +4,7 @@
 
 using namespace std;
 
-static unique_handle create_section(optional<reference_wrapper<inode>> ino, bool image, size_t size) {
+unique_handle create_section(optional<reference_wrapper<inode>> ino, bool image, size_t size) {
     if (ino && !image) {
         printk("FIXME - non-image sections\n");
         return {};

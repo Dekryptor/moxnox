@@ -215,12 +215,13 @@ void release_semaphore(semaphore& s);
 // btrfs.cpp
 bool btrfs_probe(volume& vol);
 
+class object_ref;
+
 // volume.cpp
 void add_fs_to_list(filesystem& fs);
 bool mount_root();
 unique_handle open_inode(std::string_view fn);
-
-class object_ref;
+object_ref open_inode2(std::string_view fn);
 
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;
@@ -229,8 +230,12 @@ unique_handle create_process(std::string_view fn, std::string_view curdir,
                              object_ref& stderrobj);
 void load_ntdll();
 
+class inode;
+
 // section.cpp
 unique_handle create_section(handle_t h, bool image, size_t size);
+unique_handle create_section(std::optional<std::reference_wrapper<inode>> ino,
+                             bool image, size_t size);
 
 // string.cpp
 std::span<char> sp_strcpy(std::span<char> dest, std::string_view src);
