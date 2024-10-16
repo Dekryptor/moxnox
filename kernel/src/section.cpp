@@ -5,6 +5,68 @@
 
 using namespace std;
 
+object_ref create_section(const optional<reference_wrapper<file>>& file, bool image, size_t size) {
+    if (file && !image) {
+        printk("FIXME - non-image sections\n");
+        return {};
+    }
+
+    // FIXME - non-image sections
+
+    auto sptr = new section;
+    if (!sptr) {
+        printk("new failed\n");
+        return {};
+    }
+
+    auto& s = *sptr;
+
+    if (file) {
+        if (file->get().ino.type != object_type::inode) {
+            printk("file pointed to object other than inode\n");
+            return {};
+        }
+
+        s.ino = static_cast<inode&>(file->get().ino);
+        s.ino->get().acquire();
+
+        s.type = section_type::image;
+        // FIXME - also work with ELFs
+
+        if (!s.load_image()) {
+            printk("load_image failed\n");
+            s.release();
+            return {};
+        }
+    } else {
+        s.type = section_type::anonymous;
+        s.num_pages = bytes_to_pages(size);
+
+        if (s.num_pages == 0) {
+            printk("anonymous section must specify a size\n");
+            s.release();
+            return {};
+        }
+
+        s.size = s.num_pages << PAGE_SHIFT;
+
+        s.pages = (page_info*)malloc(sizeof(page_info) * s.num_pages);
+        if (!s.pages) {
+            printk("malloc failed\n");
+            s.release();
+            return {};
+        }
+
+        memset(s.pages, 0, sizeof(page_info) * s.num_pages);
+
+        // FIXME - protection
+
+        // FIXME - make sure allocate_page doesn't steal what we've reserved
+    }
+
+    return s;
+}
+
 object_ref create_section(optional<reference_wrapper<inode>> ino, bool image, size_t size) {
     if (ino && !image) {
         printk("FIXME - non-image sections\n");
