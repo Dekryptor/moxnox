@@ -40,7 +40,7 @@ static unsigned int cursor_x = 0, cursor_y = 0;
 static void early_print(string_view s);
 decltype(&safe_print) _printk = early_print;
 
-static unique_handle console_pipe;
+static object_ref console_pipe;
 static const unsigned int console_buffer_pages = 4;
 
 static span<uint32_t> framebuffer, shadow_framebuffer;
@@ -408,7 +408,7 @@ static void early_print(string_view s) {
 }
 
 void safe_print(string_view s) {
-    write(console_pipe.get(), s);
+    static_cast<pipe&>(console_pipe.get()).write(s);
 
     if (com1_pipe_handle)
         write(com1_pipe_handle.get(), s);
@@ -504,7 +504,7 @@ static void console_event_recv() {
         uint8_t s[255];
         wait_for_object(console_pipe.get());
 
-        auto ret = read(console_pipe.get(), s);
+        auto ret = static_cast<pipe&>(console_pipe.get()).read(s);
 
         // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
 

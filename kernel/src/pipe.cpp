@@ -4,7 +4,7 @@
 
 using namespace std;
 
-unique_handle create_pipe(unsigned int buffer_pages) {
+object_ref create_pipe(unsigned int buffer_pages) {
     auto pptr = new pipe(buffer_pages);
     if (!pptr) {
         printk("new failed\n");
@@ -13,11 +13,7 @@ unique_handle create_pipe(unsigned int buffer_pages) {
 
     auto& p = *pptr;
 
-    auto hv = add_kernel_handle(p, 0); // FIXME - access mask
-
-    p.release(); // add_kernel_handle increases refcount
-
-    return unique_handle{hv};
+    return p;
 }
 
 pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buffer_pages) {

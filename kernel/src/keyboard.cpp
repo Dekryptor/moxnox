@@ -10,7 +10,7 @@ static const uint8_t keyboard_interrupt = 0x21;
 static const unsigned int keyboard_buffer_pages = 1;
 
 static optional<reference_wrapper<event>> keyboard_event_obj;
-static unique_handle keyboard_pipe;
+static object_ref keyboard_pipe;
 
 #define MODIFIER_LSHIFT     1
 #define MODIFIER_RSHIFT     2
@@ -151,7 +151,7 @@ static void keyboard_event_recv() {
             }
 
             if (!sv.empty())
-                write(keyboard_pipe.get(), sv);
+                static_cast<pipe&>(keyboard_pipe.get()).write(sv);
         }
     } while (true);
 }
