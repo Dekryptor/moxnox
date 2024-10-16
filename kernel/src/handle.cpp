@@ -5,10 +5,6 @@
 
 using namespace std;
 
-static unsigned int no_handles = 0;
-static handle_obj* const handle_arr = (handle_obj*)0xfffffa2000000000;
-static spinlock handle_spinlock;
-
 struct name_entry {
     list_entry le;
     object* obj;
@@ -19,77 +15,22 @@ struct name_entry {
 static spinlock name_lock;
 static list_entry name_list = { &name_list, &name_list };
 
-void close_handle(handle_t h) {
-    object* obj;
-
-    {
-        lock_guard lock(handle_spinlock);
-
-        auto& ho = handle_arr[(h & ~kernel_handle_mask) - 1];
-        obj = ho.obj;
-
-        ho.obj = nullptr;
-    }
-
-    handle_closed(*obj);
-
-    visit_obj(*obj, [](auto&& o) {
-        o.release();
-    });
-}
-
 optional<reference_wrapper<object>> deref_handle(handle_t h) {
-    if (!(h & kernel_handle_mask)) {
-        auto t = get_current_thread();
+    auto t = get_current_thread();
 
-        if (!t->proc)
-            return nullopt;
-
-        return t->proc->deref_handle(h);
-    }
-
-    lock_guard lock(handle_spinlock);
-
-    if (h == 0 || (h & ~kernel_handle_mask) > no_handles)
+    if (!t->proc)
         return nullopt;
 
-    auto& ho = handle_arr[(h & ~kernel_handle_mask) - 1];
-
-    if (!ho.obj)
-        return nullopt;
-
-    visit_obj(*ho.obj, [](auto&& o) {
-        o.acquire(); // needs to be within spinlock
-    });
-
-    return *ho.obj;
+    return t->proc->deref_handle(h);
 }
 
 object_ref deref_handle2(handle_t h) {
-    if (!(h & kernel_handle_mask)) {
-        auto t = get_current_thread();
+    auto t = get_current_thread();
 
-        if (!t->proc)
-            return nullopt;
-
-        return t->proc->deref_handle2(h);
-    }
-
-    lock_guard lock(handle_spinlock);
-
-    if (h == 0 || (h & ~kernel_handle_mask) > no_handles)
+    if (!t->proc)
         return nullopt;
 
-    auto& ho = handle_arr[(h & ~kernel_handle_mask) - 1];
-
-    if (!ho.obj)
-        return nullopt;
-
-    visit_obj(*ho.obj, [](auto&& o) {
-        o.acquire(); // needs to be within spinlock
-    });
-
-    return *ho.obj;
+    return t->proc->deref_handle2(h);
 }
 
 bool name_object(object& obj, string_view name, bool persistent) {
@@ -539,11 +480,6 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
 }
 
 NTSTATUS NtClose(HANDLE handle) {
-    if (handle & kernel_handle_mask) {
-        close_handle(handle);
-        return nt_status::SUCCESS;
-    }
-
     auto t = get_current_thread();
     auto p = t->proc;
 

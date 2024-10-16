@@ -76,17 +76,11 @@ NTSTATUS user_NtDisplayString(const UNICODE_STRING* string) {
 
 extern "C"
 NTSTATUS user_NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
-    if (thread_handle & kernel_handle_mask && thread_handle != NtCurrentThread())
-        return nt_status::INVALID_HANDLE;
-
     return NtTerminateThread(thread_handle, exit_status);
 }
 
 extern "C"
 NTSTATUS user_NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
-    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
-
     return NtTerminateProcess(process_handle, exit_status);
 }
 
@@ -105,9 +99,6 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
     array<uintptr_t, 5> args;
     LARGE_INTEGER byte_offset;
     uint32_t key;
-
-    if (file_handle & kernel_handle_mask || event & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
 
     if (!copy_stack_args(t, args))
         return nt_status::ACCESS_VIOLATION;
@@ -170,9 +161,6 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
 
 extern "C"
 NTSTATUS user_NtResumeProcess(HANDLE proc_handle) {
-    if (proc_handle & kernel_handle_mask && proc_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
-
     return NtResumeProcess(proc_handle);
 }
 
@@ -184,9 +172,6 @@ NTSTATUS user_NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, u
 
     if (!region_size || !base_address)
         return nt_status::INVALID_PARAMETER;
-
-    if (proc_handle & kernel_handle_mask && proc_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
 
     if (!copy_stack_args(t, args))
         return nt_status::ACCESS_VIOLATION;
@@ -221,9 +206,6 @@ NTSTATUS user_NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_
     if (!region_size || !base_address)
         return nt_status::INVALID_PARAMETER;
 
-    if (proc_handle & kernel_handle_mask && proc_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
-
     void* addr;
     size_t size;
 
@@ -254,9 +236,6 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
     array<uintptr_t, 5> args;
     LARGE_INTEGER byte_offset;
     uint32_t key;
-
-    if (file_handle & kernel_handle_mask || event & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
 
     if (!copy_stack_args(t, args))
         return nt_status::ACCESS_VIOLATION;
@@ -322,9 +301,6 @@ NTSTATUS user_NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, si
                                      uint32_t new_prot) {
     auto& t = *get_current_thread();
     array<uintptr_t, 1> args;
-
-    if (proc_handle & kernel_handle_mask && proc_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
 
     if (!region_size || !base_address)
         return nt_status::INVALID_PARAMETER;
@@ -401,9 +377,6 @@ static NTSTATUS copy_object_attributes(OBJECT_ATTRIBUTES& oa, UNICODE_STRING& us
 
     if (oa.Length < sizeof(OBJECT_ATTRIBUTES))
         return nt_status::INVALID_PARAMETER;
-
-    if (oa.RootDirectory & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
 
     if (oa.ObjectName) {
         if (!copy_from_process(&us, oa.ObjectName, sizeof(UNICODE_STRING)))
@@ -516,9 +489,6 @@ NTSTATUS user_NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
 extern "C"
 NTSTATUS user_NtClose(HANDLE handle) {
-    if (handle & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
-
     return NtClose(handle);
 }
 
@@ -541,9 +511,6 @@ NTSTATUS user_NtCreateSection(HANDLE* section_handle, ACCESS_MASK desired_access
     auto section_page_protection = (uint32_t)args[0];
     auto allocation_attributes = (uint32_t)args[1];
     auto file_handle = (HANDLE)args[2];
-
-    if (file_handle & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
 
     if (maximum_size) {
         if (!copy_from_process(&size, maximum_size, sizeof(LARGE_INTEGER)))
@@ -579,12 +546,6 @@ NTSTATUS user_NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, v
     void* addr;
     LARGE_INTEGER offset;
     size_t size;
-
-    if (section_handle & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
-
-    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
 
     if (!base_address)
         return nt_status::INVALID_PARAMETER;
@@ -636,9 +597,6 @@ NTSTATUS user_NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, v
 
 extern "C"
 NTSTATUS user_NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
-    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
-
     return NtUnmapViewOfSection(process_handle, base_address);
 }
 
@@ -664,12 +622,6 @@ NTSTATUS user_NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROU
 
     if (!file_handle)
         return nt_status::INVALID_PARAMETER;
-
-    if (file_handle & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
-
-    if (event & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
 
     if (!us_iosb || !us_file_information)
         return nt_status::INVALID_PARAMETER;
@@ -737,8 +689,6 @@ NTSTATUS user_NtCreateThread(HANDLE* us_thread_handle, ACCESS_MASK desired_acces
     if (!us_thread_handle || !us_client_id || !us_thread_context || !us_initial_teb)
         return nt_status::INVALID_PARAMETER;
 
-    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
 
     if (!copy_from_process(&thread_context, us_thread_context, sizeof(CONTEXT)))
         return nt_status::ACCESS_VIOLATION;
@@ -773,9 +723,6 @@ extern "C"
 NTSTATUS user_NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
     uint32_t count;
 
-    if (thread_handle & kernel_handle_mask && thread_handle != NtCurrentThread())
-        return nt_status::INVALID_HANDLE;
-
     auto status = NtResumeThread(thread_handle, suspend_count ? &count : 0);
 
     if (success(status)) {
@@ -793,8 +740,6 @@ NTSTATUS user_NtWaitForSingleObject(HANDLE object_handle, bool alertable, const 
     LARGE_INTEGER time_out;
 
     // FIXME - are NtCurrentProcess() or NtThreadProcess() valid values for object_handle?
-    if (object_handle & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
 
     if (us_time_out) {
         if (!copy_from_process(&time_out, us_time_out, sizeof(LARGE_INTEGER)))
@@ -824,18 +769,6 @@ NTSTATUS user_NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access
 
     if (!process_handle)
         return nt_status::INVALID_PARAMETER;
-
-    if (parent_process & kernel_handle_mask && parent_process != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
-
-    if (section_handle & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
-
-    if (debug_port & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
-
-    if (exception_port & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
 
     if (object_attributes) {
         status = copy_object_attributes(oa, us, object_attributes);
@@ -872,15 +805,6 @@ NTSTATUS user_NtDuplicateObject(HANDLE source_process_handle, HANDLE source_hand
     auto handle_attributes = (uint32_t)args[1];
     auto options = (uint32_t)args[2];
 
-    if (source_process_handle & kernel_handle_mask && source_process_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
-
-    if (source_handle & kernel_handle_mask && source_handle != NtCurrentProcess() && source_handle != NtCurrentThread())
-        return nt_status::INVALID_HANDLE;
-
-    if (target_process_handle & kernel_handle_mask && target_process_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
-
     status = NtDuplicateObject(source_process_handle, source_handle, target_process_handle, target_handle ? &h : nullptr,
                                desired_access, handle_attributes, options);
 
@@ -906,9 +830,6 @@ NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address, voi
         return nt_status::ACCESS_VIOLATION;
 
     auto number_of_bytes_read = (uint32_t*)args[0];
-
-    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
 
     if (!buffer)
         return nt_status::INVALID_PARAMETER;
@@ -953,9 +874,6 @@ NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address, vo
 
     auto number_of_bytes_written = (uint32_t*)args[0];
 
-    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
-
     if (!buffer)
         return nt_status::INVALID_PARAMETER;
 
@@ -999,9 +917,6 @@ NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOC
         return nt_status::ACCESS_VIOLATION;
 
     auto return_length = (uint32_t*)args[0];
-
-    if (process_handle & kernel_handle_mask && process_handle != NtCurrentProcess())
-        return nt_status::INVALID_HANDLE;
 
     if (!process_information)
         return nt_status::INVALID_PARAMETER;
@@ -1048,9 +963,6 @@ NTSTATUS user_NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLA
 
     auto return_length = (size_t*)args[0];
 
-    if (section_handle & kernel_handle_mask)
-        return nt_status::INVALID_HANDLE;
-
     if (!section_information)
         return nt_status::INVALID_PARAMETER;
 
@@ -1095,9 +1007,6 @@ NTSTATUS user_NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMA
         return nt_status::ACCESS_VIOLATION;
 
     auto return_length = (uint32_t*)args[0];
-
-    if (thread_handle & kernel_handle_mask && thread_handle != NtCurrentThread())
-        return nt_status::INVALID_HANDLE;
 
     if (!thread_information)
         return nt_status::INVALID_PARAMETER;

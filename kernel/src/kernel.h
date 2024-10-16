@@ -38,8 +38,6 @@ static const uint8_t halt_interrupt = 0xfe;
 static const uint8_t spurious_interrupt = 0xff;
 static const uint8_t yield_interrupt = 0x30;
 
-static const uint64_t kernel_handle_mask = 0x8000000000000000;
-
 static const uint16_t user_CS = 0x3b;
 static const uint16_t user_DS = 0x33;
 

@@ -43,7 +43,6 @@ private:
     std::optional<std::reference_wrapper<object>> rw;
 };
 
-void close_handle(handle_t h);
 std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
 object_ref deref_handle2(handle_t h);
 bool name_object(handle_t h, std::string_view name, bool persistent = false);
