@@ -20,7 +20,8 @@ public:
 static serial_pipe* com1_pipe = nullptr;
 
 unique_handle com1_pipe_handle;
-static unique_handle com1_recv_handle, duplex_pipe;
+static unique_handle com1_recv_handle;
+static object_ref duplex_pipe;
 
 static unique_handle create_serial_pipe(unsigned int buffer_pages, uint16_t port) {
     auto pptr = new serial_pipe(buffer_pages, port);

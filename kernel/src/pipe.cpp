@@ -206,7 +206,7 @@ size_t pipe::read(span<uint8_t> s) {
     return copied;
 }
 
-unique_handle create_duplex_pipe(pipe& recv_pipe, pipe& send_pipe) {
+object_ref create_duplex_pipe(pipe& recv_pipe, pipe& send_pipe) {
     auto pptr = new duplex_pipe(recv_pipe, send_pipe);
     if (!pptr) {
         printk("new failed\n");
@@ -215,9 +215,5 @@ unique_handle create_duplex_pipe(pipe& recv_pipe, pipe& send_pipe) {
 
     auto& p = *pptr;
 
-    auto hv = add_kernel_handle(p, 0); // FIXME - access mask
-
-    p.release(); // add_kernel_handle increases refcount
-
-    return unique_handle{hv};
+    return p;
 }
