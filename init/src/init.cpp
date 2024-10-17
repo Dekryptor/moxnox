@@ -323,6 +323,8 @@ static void do_serial() {
     IO_STATUS_BLOCK iosb;
     HANDLE h;
 
+    // FIXME - should be soliciting username and password
+
     static const char16_t dev[] = u"\\dev\\ttyS0";
 
     us.Length = us.MaximumLength = (uint16_t)(sizeof(dev) - sizeof(char16_t));
@@ -414,7 +416,6 @@ void startup() {
         auto peb = teb->ProcessEnvironmentBlock;
 
         // FIXME - solicit username and password
-        // FIXME - also launch shell on serial port if available
 
         print("\nWelcome to Moxnox\n\n");
 
