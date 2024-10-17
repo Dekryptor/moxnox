@@ -467,6 +467,7 @@ static void add_ldr_entry(void* base, u16string_view full_name, u16string_view b
 
 static void init_ldr_data(void* ntdll_base) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto& proc_params = *peb.ProcessParameters;
 
     ldr_data.Length = sizeof(ldr_data);
     ldr_data.Initialized = true;
@@ -474,8 +475,18 @@ static void init_ldr_data(void* ntdll_base) {
     InitializeListHead(&ldr_data.InMemoryOrderModuleList);
     InitializeListHead(&ldr_data.InInitializationOrderModuleList);
 
+    u16string_view image_path(proc_params.ImagePathName.Buffer,
+                              proc_params.ImagePathName.Length / sizeof(char16_t));
+    u16string_view base_name = image_path;
+
+    if (auto pos = base_name.find_last_of('\\'); pos != u16string_view::npos)
+        base_name = u16string_view(base_name.data() + pos + 1, base_name.size() - pos - 1);
+
+    if (auto pos = base_name.find_last_of('/'); pos != u16string_view::npos)
+        base_name = u16string_view(base_name.data() + pos + 1, base_name.size() - pos - 1);
+
     add_ldr_entry(ntdll_base, u"\\ntdll.dll", u"ntdll.dll", true); // FIXME - name and path
-    add_ldr_entry(peb.ImageBaseAddress, u"\\init.exe", u"init.exe", true); // FIXME - name and path
+    add_ldr_entry(peb.ImageBaseAddress, image_path, base_name, true);
 }
 
 static bool try_load_dll(u16string_view dir, u16string_view name) {
