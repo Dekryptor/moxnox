@@ -1,8 +1,18 @@
 #include "ntdll_private.h"
 #include "list.h"
 #include <utf16_to_utf8.h>
+#include <pe.h>
 
 using namespace std;
+
+struct RUNTIME_FUNCTION {
+    uint32_t BeginAddress;
+    uint32_t EndAddress;
+    union {
+        uint32_t UnwindInfoAddress;
+        uint32_t UnwindData;
+    };
+};
 
 static LDR_DATA_TABLE_ENTRY* get_ldr_from_address(uint64_t addr) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -38,6 +48,59 @@ static void print_rip(uint64_t rip) {
     }
 
     print(string_view(s, sp.data() - s));
+}
+
+static span<const uint8_t> find_pdata(const LDR_DATA_TABLE_ENTRY& ldr) {
+    const auto& dos_header = *(IMAGE_DOS_HEADER*)ldr.DllBase;
+
+    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
+        return span<const uint8_t>();
+
+    const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)ldr.DllBase + dos_header.e_lfanew);
+
+    if (nt_header.Signature != IMAGE_NT_SIGNATURE)
+        return span<const uint8_t>();
+
+    span<const IMAGE_SECTION_HEADER> sections;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+    else if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+
+    for (const auto& sect : sections) {
+        if (string_view(sect.Name) == ".pdata")
+            return span((uint8_t*)ldr.DllBase + sect.VirtualAddress, sect.VirtualSize);
+    }
+
+    return span<const uint8_t>();
+}
+
+static const RUNTIME_FUNCTION* find_runtime_function(uint64_t rip) {
+    auto ldr = get_ldr_from_address(rip);
+    if (!ldr)
+        return nullptr;
+
+    rip -= (uintptr_t)ldr->DllBase;
+
+    // FIXME - how do JITted programs provide their pdata?
+
+    auto pdata = find_pdata(*ldr);
+    if (pdata.empty())
+        return nullptr;
+
+    span<RUNTIME_FUNCTION> rt_funcs((RUNTIME_FUNCTION*)pdata.data(),
+                                    pdata.size() / sizeof(RUNTIME_FUNCTION));
+
+    for (const auto& f : rt_funcs) {
+        if (rip >= f.BeginAddress && rip < f.EndAddress)
+            return &f;
+
+        if (f.BeginAddress > rip) // stored in order
+            break;
+    }
+
+    return nullptr;
 }
 
 extern "C" __declspec(dllexport)
@@ -81,6 +144,10 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 
     print("\n");
     print_rip(context->Rip);
+
+    auto rt_func = find_runtime_function(context->Rip);
+
+    // FIXME
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
 }
