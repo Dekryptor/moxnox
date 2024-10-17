@@ -32,18 +32,6 @@ static const uint32_t HEAP_CREATE_ALIGN_16 = 0x00010000;
 static const uint32_t HEAP_CREATE_ENABLE_TRACING = 0x00020000;
 static const uint32_t HEAP_CREATE_ENABLE_EXECUTE = 0x00040000;
 
-struct PEB_LDR_DATA {
-    uint32_t Length;
-    bool Initialized;
-    void* SsHandle;
-    LIST_ENTRY InLoadOrderModuleList;
-    LIST_ENTRY InMemoryOrderModuleList;
-    LIST_ENTRY InInitializationOrderModuleList;
-    void* EntryInProgress;
-    bool ShutdownInProgress;
-    HANDLE ShutdownThreadId;
-};
-
 struct LDR_DATA_TABLE_ENTRY {
     LIST_ENTRY InLoadOrderLinks;
     LIST_ENTRY InMemoryOrderLinks;

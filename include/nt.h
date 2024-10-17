@@ -148,7 +148,6 @@ struct GUID {
     uint8_t Data4[8];
 };
 
-struct PEB_LDR_DATA;
 struct RTL_CRITICAL_SECTION;
 struct ACTIVATION_CONTEXT_DATA;
 struct ASSEMBLY_STORAGE_MAP;
@@ -210,6 +209,18 @@ struct RTL_USER_PROCESS_PARAMETERS {
     uint64_t* DefaultThreadpoolCpuSetMasks;
     uint32_t DefaultThreadpoolCpuSetMaskCount;
     uint32_t DefaultThreadpoolThreadMaximum;
+};
+
+struct PEB_LDR_DATA {
+    uint32_t Length;
+    bool Initialized;
+    void* SsHandle;
+    LIST_ENTRY InLoadOrderModuleList;
+    LIST_ENTRY InMemoryOrderModuleList;
+    LIST_ENTRY InInitializationOrderModuleList;
+    void* EntryInProgress;
+    bool ShutdownInProgress;
+    HANDLE ShutdownThreadId;
 };
 
 struct PEB {
