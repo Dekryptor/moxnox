@@ -15,6 +15,8 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
 // string.cpp
 int toupper(int c);
 std::span<char> sp_strcpy(std::span<char> dest, std::string_view src);
+std::span<char> sp_strcpy(std::span<char> dest, std::u16string_view src);
+std::span<char> sp_strcpy(std::span<char> dest, const UNICODE_STRING& us);
 std::span<char> sp_context(std::span<char>dest, const AMD64_CONTEXT& ctx);
 
 struct ci_char_traits : public std::char_traits<char16_t> {

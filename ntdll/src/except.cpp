@@ -1,6 +1,44 @@
 #include "ntdll_private.h"
+#include "list.h"
+#include <utf16_to_utf8.h>
 
 using namespace std;
+
+static LDR_DATA_TABLE_ENTRY* get_ldr_from_address(uint64_t addr) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto& ldr_data = *peb.Ldr;
+    auto le = ldr_data.InMemoryOrderModuleList.Flink;
+
+    while (le != &ldr_data.InMemoryOrderModuleList) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+        if (addr >= (uintptr_t)ent.DllBase && addr < (uintptr_t)ent.DllBase + ent.SizeOfImage)
+            return &ent;
+
+        le = le->Flink;
+    }
+
+    return nullptr;
+}
+
+static void print_rip(uint64_t rip) {
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = sp_itoa_hex(sp, rip, 16);
+
+    auto ldr = get_ldr_from_address(rip);
+
+    if (ldr) {
+        sp = sp_strcpy(sp, " (");
+        sp = sp_strcpy(sp, ldr->BaseDllName);
+        sp = sp_strcpy(sp, "+");
+        sp = sp_itoa_hex(sp, rip - (uintptr_t)ldr->DllBase);
+        sp = sp_strcpy(sp, ")\n");
+    }
+
+    print(string_view(s, sp.data() - s));
+}
 
 extern "C" __declspec(dllexport)
 void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
@@ -40,6 +78,9 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     print(string_view(s, sp.data() - s));
 
     // FIXME - print stacktrace? With DWARF information?
+
+    print("\n");
+    print_rip(context->Rip);
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
 }

@@ -1,4 +1,5 @@
 #include "ntdll_private.h"
+#include <utf16_to_utf8.h>
 
 using namespace std;
 
@@ -11,42 +12,6 @@ size_t strlen(const char* s) {
     }
 
     return i;
-}
-
-size_t utf16_to_utf8_len(u16string_view u16sv) {
-    size_t len = 0;
-
-    for (unsigned int i = 0; i < u16sv.size(); i++) {
-        uint32_t cp;
-
-        if (u16sv[i] < 0xd800 || u16sv[i] > 0xdfff)
-            cp = u16sv[i];
-        else if (u16sv[i] >= 0xd800 && u16sv[i] < 0xdc00) {
-            if (i == u16sv.size() - 1)
-                return 0;
-
-            auto next = u16sv[i+1];
-
-            if (next < 0xdc00 || next > 0xdfff)
-                return 0;
-
-            cp = (((uint32_t)u16sv[i] & 0x3ff) << 10) | (next & 0x3ff);
-
-            i++;
-        } else // invalid
-            return 0;
-
-        if (cp < 0x80)
-            len++;
-        else if (cp < 0x800)
-            len += 2;
-        else if (cp < 0x10000)
-            len += 3;
-        else
-            len += 4;
-    }
-
-    return len;
 }
 
 void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
@@ -258,6 +223,19 @@ span<char> sp_strcpy(span<char> dest, string_view src) {
     memcpy(dest.data(), src.data(), to_copy);
 
     return dest.subspan(to_copy);
+}
+
+span<char> sp_strcpy(span<char> dest, u16string_view src) {
+    auto u8len = utf16_to_utf8_len(src);
+    auto to_copy = min(u8len, dest.size());
+
+    utf16_to_utf8_range(src, dest);
+
+    return dest.subspan(to_copy);
+}
+
+span<char> sp_strcpy(span<char> dest, const UNICODE_STRING& us) {
+    return sp_strcpy(dest, u16string_view(us.Buffer, us.Length / sizeof(char16_t)));
 }
 
 span<char> sp_context(span<char>dest, const AMD64_CONTEXT& ctx) {
