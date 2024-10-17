@@ -85,6 +85,21 @@ static const uint32_t DLL_PROCESS_ATTACH = 1;
 static const uint32_t DLL_THREAD_ATTACH = 2;
 static const uint32_t DLL_THREAD_DETACH = 3;
 
+struct UNWIND_INFO {
+    uint8_t version : 3;
+    uint8_t flags : 5;
+    uint8_t prologue_bytes;
+    uint8_t unwind_codes_count;
+    uint8_t frame_register : 4;
+    uint8_t frame_offset : 4;
+};
+
+struct UNWIND_CODE {
+    uint8_t offset;
+    uint8_t code : 4;
+    uint8_t info : 4;
+};
+
 extern "C" {
 
 void* RtlCreateHeap(uint32_t flags, void* heap_base, size_t reserve_size, size_t commit_size,

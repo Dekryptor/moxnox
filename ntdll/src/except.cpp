@@ -2,6 +2,7 @@
 #include "list.h"
 #include <utf16_to_utf8.h>
 #include <pe.h>
+#include <stdlib.h>
 
 using namespace std;
 
@@ -44,8 +45,10 @@ static void print_rip(uint64_t rip) {
         sp = sp_strcpy(sp, ldr->BaseDllName);
         sp = sp_strcpy(sp, "+");
         sp = sp_itoa_hex(sp, rip - (uintptr_t)ldr->DllBase);
-        sp = sp_strcpy(sp, ")\n");
+        sp = sp_strcpy(sp, ")");
     }
+
+    sp = sp_strcpy(sp, "\n");
 
     print(string_view(s, sp.data() - s));
 }
@@ -76,16 +79,13 @@ static span<const uint8_t> find_pdata(const LDR_DATA_TABLE_ENTRY& ldr) {
     return span<const uint8_t>();
 }
 
-static const RUNTIME_FUNCTION* find_runtime_function(uint64_t rip) {
-    auto ldr = get_ldr_from_address(rip);
-    if (!ldr)
-        return nullptr;
-
-    rip -= (uintptr_t)ldr->DllBase;
+static const RUNTIME_FUNCTION* find_runtime_function(const LDR_DATA_TABLE_ENTRY& ldr,
+                                                     uint64_t rip) {
+    rip -= (uintptr_t)ldr.DllBase;
 
     // FIXME - how do JITted programs provide their pdata?
 
-    auto pdata = find_pdata(*ldr);
+    auto pdata = find_pdata(ldr);
     if (pdata.empty())
         return nullptr;
 
@@ -101,6 +101,78 @@ static const RUNTIME_FUNCTION* find_runtime_function(uint64_t rip) {
     }
 
     return nullptr;
+}
+
+static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
+                            const RUNTIME_FUNCTION& rt_func) {
+    UNWIND_INFO ui;
+    NTSTATUS status;
+    uint32_t bytes_read;
+
+    if (rt_func.UnwindInfoAddress > ldr.SizeOfImage - sizeof(UNWIND_INFO))
+        return false;
+
+    status = NtReadVirtualMemory(NtCurrentProcess(), (uint8_t*)ldr.DllBase + rt_func.UnwindInfoAddress,
+                                 &ui, sizeof(UNWIND_INFO), &bytes_read);
+    if (!success(status) || bytes_read != sizeof(UNWIND_INFO))
+        return false;
+
+    if (ui.version != 1)
+        return false;
+
+    if (ui.unwind_codes_count == 0)
+        return true;
+
+    if (rt_func.UnwindInfoAddress > ldr.SizeOfImage - sizeof(UNWIND_INFO) - (ui.unwind_codes_count * sizeof(UNWIND_CODE)))
+        return false;
+
+    auto codes = (UNWIND_CODE*)malloc(ui.unwind_codes_count * sizeof(UNWIND_CODE));
+    if (!codes)
+        return false;
+
+    status = NtReadVirtualMemory(NtCurrentProcess(),
+                                 (uint8_t*)ldr.DllBase + rt_func.UnwindInfoAddress + sizeof(UNWIND_INFO),
+                                 codes, ui.unwind_codes_count * sizeof(UNWIND_CODE), &bytes_read);
+    if (!success(status) || bytes_read != ui.unwind_codes_count * sizeof(UNWIND_CODE)) {
+        free(codes);
+        return false;
+    }
+
+    // FIXME - parse
+
+    free(codes);
+
+    return true;
+}
+
+static bool rewind_context(CONTEXT& context) {
+    NTSTATUS status;
+    uint64_t rip;
+    uint32_t bytes_read;
+
+    auto ldr = get_ldr_from_address(context.Rip);
+    if (!ldr)
+        return false;
+
+    auto rt_func = find_runtime_function(*ldr, context.Rip);
+
+    // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
+    if (rt_func) {
+        if (!rewind_context2(context, *ldr, *rt_func))
+            return false;
+    }
+
+    status = NtReadVirtualMemory(NtCurrentProcess(), (void*)context.Rsp, &rip,
+                                 sizeof(uint64_t), &bytes_read);
+    if (!success(status) || bytes_read != sizeof(uint64_t))
+        return false;
+
+    context.Rsp -= sizeof(uint64_t);
+    context.Rip = rip;
+
+    // FIXME
+
+    return true;
 }
 
 extern "C" __declspec(dllexport)
@@ -143,9 +215,11 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     // FIXME - print stacktrace? With DWARF information?
 
     print("\n");
+
     print_rip(context->Rip);
 
-    auto rt_func = find_runtime_function(context->Rip);
+    if (rewind_context(*context))
+        print_rip(context->Rip);
 
     // FIXME
 
