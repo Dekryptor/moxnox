@@ -363,8 +363,6 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 break;
 
             case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg (.seh_savexmm)
-                print("FIXME - handle UWOP_SAVE_XMM128\n");
-
                 if (i == codes.size() - 1) {
                     free(codesptr);
                     return false;
@@ -374,8 +372,6 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 break;
 
             case unwind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg (.seh_savexmm)
-                print("FIXME - handle UWOP_SAVE_XMM128_FAR\n");
-
                 if (i >= codes.size() - 2) {
                     free(codesptr);
                     return false;
