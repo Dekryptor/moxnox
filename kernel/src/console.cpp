@@ -715,22 +715,11 @@ static void disable_cursor() {
 void bsod(string_view msg, source_location sl) {
     __asm("cli");
 
-    // stop other cores
-
-    auto this_cpu = current_cpu_id();
+    // send IPI to other cores to stop them
 
     auto icr1 = (volatile uint32_t*)&local_apic[0x300];
-    auto icr2 = (volatile uint32_t*)&local_apic[0x310];
 
-    for (unsigned int i = 0; i < num_cpus; i++) {
-        if (apic_ids[i] == this_cpu)
-            continue;
-
-        *icr2 = apic_ids[i] << 24;
-        *icr1 = 0x5000 | halt_interrupt;
-
-        while (*icr1 & 0x1000) { }
-    }
+    *icr1 = 0xc0000 | halt_interrupt;
 
     cursor_x = 0;
     cursor_y = 0;
