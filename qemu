@@ -1,8 +1,10 @@
 #!/bin/bash
 
-qemu-system-x86_64 -enable-kvm -cpu host \
+qemu-system-x86_64 -M q35 -enable-kvm -cpu host \
 -smp cores=4,threads=1 \
 -kernel build/bootloader/boot \
 -append "root=/dev/sda keywait" \
--monitor stdio \
+-device ich9-ahci,id=ahci -drive id=disk,file=btrfs,if=none,format=raw \
+-device ide-hd,drive=disk,bus=ahci.0 \
+-serial stdio \
 -s
