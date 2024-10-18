@@ -3,6 +3,7 @@
 #include <utf16_to_utf8.h>
 #include <pe.h>
 #include <stdlib.h>
+#include <optional>
 
 using namespace std;
 
@@ -103,6 +104,19 @@ static const RUNTIME_FUNCTION* find_runtime_function(const LDR_DATA_TABLE_ENTRY&
     return nullptr;
 }
 
+static optional<uint64_t> read_uint64_t(uint64_t addr) {
+    NTSTATUS status;
+    uint64_t ret;
+    uint32_t bytes_read;
+
+    status = NtReadVirtualMemory(NtCurrentProcess(), (void*)addr, &ret, sizeof(uint64_t),
+                                 &bytes_read);
+    if (!success(status) || bytes_read != sizeof(uint64_t))
+        return nullopt;
+
+    return ret;
+}
+
 enum class rewind_opcode {
     UWOP_PUSH_NONVOL = 0,
     UWOP_ALLOC_LARGE = 1,
@@ -115,12 +129,123 @@ enum class rewind_opcode {
     UWOP_PUSH_MACHFRAME = 10,
 };
 
+enum class rewind_register {
+    rax = 0,
+    rcx = 1,
+    rdx = 2,
+    rbx = 3,
+    rsp = 4,
+    rbp = 5,
+    rsi = 6,
+    rdi = 7,
+    r8 = 8,
+    r9 = 9,
+    r10 = 10,
+    r11 = 11,
+    r12 = 12,
+    r13 = 13,
+    r14 = 14,
+    r15 = 15
+};
+
+static uint64_t get_register(const CONTEXT& context, enum rewind_register reg) {
+    switch (reg) {
+        case rewind_register::rax:
+            return context.Rax;
+        case rewind_register::rcx:
+            return context.Rcx;
+        case rewind_register::rdx:
+            return context.Rdx;
+        case rewind_register::rbx:
+            return context.Rbx;
+        case rewind_register::rsp:
+            return context.Rsp;
+        case rewind_register::rbp:
+            return context.Rbp;
+        case rewind_register::rsi:
+            return context.Rsi;
+        case rewind_register::rdi:
+            return context.Rdi;
+        case rewind_register::r8:
+            return context.R8;
+        case rewind_register::r9:
+            return context.R9;
+        case rewind_register::r10:
+            return context.R10;
+        case rewind_register::r11:
+            return context.R11;
+        case rewind_register::r12:
+            return context.R12;
+        case rewind_register::r13:
+            return context.R13;
+        case rewind_register::r14:
+            return context.R14;
+        case rewind_register::r15:
+            return context.R15;
+    }
+
+    return 0;
+}
+
+static void set_register(CONTEXT& context, enum rewind_register reg, uint64_t value) {
+    switch (reg) {
+        case rewind_register::rax:
+            context.Rax = value;
+            break;
+        case rewind_register::rcx:
+            context.Rcx = value;
+            break;
+        case rewind_register::rdx:
+            context.Rdx = value;
+            break;
+        case rewind_register::rbx:
+            context.Rbx = value;
+            break;
+        case rewind_register::rsp:
+            context.Rsp = value;
+            break;
+        case rewind_register::rbp:
+            context.Rbp = value;
+            break;
+        case rewind_register::rsi:
+            context.Rsi = value;
+            break;
+        case rewind_register::rdi:
+            context.Rdi = value;
+            break;
+        case rewind_register::r8:
+            context.R8 = value;
+            break;
+        case rewind_register::r9:
+            context.R9 = value;
+            break;
+        case rewind_register::r10:
+            context.R10 = value;
+            break;
+        case rewind_register::r11:
+            context.R11 = value;
+            break;
+        case rewind_register::r12:
+            context.R12 = value;
+            break;
+        case rewind_register::r13:
+            context.R13 = value;
+            break;
+        case rewind_register::r14:
+            context.R14 = value;
+            break;
+        case rewind_register::r15:
+            context.R15 = value;
+            break;
+    }
+}
+
 static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                             const RUNTIME_FUNCTION& rt_func) {
     UNWIND_INFO ui;
     NTSTATUS status;
     uint32_t bytes_read;
-    uint64_t func_offset;
+    uint32_t func_offset;
 
     if (rt_func.UnwindInfoAddress > ldr.SizeOfImage - sizeof(UNWIND_INFO))
         return false;
@@ -143,9 +268,11 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
     if (!codesptr)
         return false;
 
-    func_offset = context.Rip;
-    func_offset -= (uintptr_t)ldr.DllBase;
-    func_offset -= rt_func.BeginAddress;
+    if (context.Rip >= (uintptr_t)ldr.DllBase + rt_func.BeginAddress &&
+        context.Rip < (uintptr_t)ldr.DllBase + rt_func.BeginAddress + ui.prologue_bytes) {
+        func_offset = (uint32_t)(context.Rip - (uintptr_t)ldr.DllBase - rt_func.BeginAddress);
+    } else
+        func_offset = 0xffffffff;
 
     span codes(codesptr, ui.unwind_codes_count);
 
@@ -157,44 +284,109 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
         return false;
     }
 
-    for (const auto& c : codes) {
+    uint64_t frame;
+
+    if (ui.frame_register != 0) {
+        frame = get_register(context, (enum rewind_register)ui.frame_register);
+        frame -= ui.frame_offset * 16;
+    } else
+        frame = context.Rsp;
+
+    for (size_t i = 0; i < codes.size(); i++) {
+        const auto& c = codes[i];
+
         if (c.offset > func_offset)
             continue;
 
         switch ((enum rewind_opcode)c.code) {
-            case rewind_opcode::UWOP_PUSH_NONVOL:
-                print("FIXME - handle UWOP_PUSH_NONVOL\n");
+            case rewind_opcode::UWOP_PUSH_NONVOL: { // push reg
+                auto val = read_uint64_t(context.Rsp);
+
+                if (!val.has_value()) {
+                    free(codesptr);
+                    return false;
+                }
+
+                set_register(context, (enum rewind_register)c.info, *val);
+                context.Rsp += sizeof(uint64_t);
+                break;
+            }
+
+            case rewind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n
+                if (c.info == 0) {
+                    if (i == codes.size() - 1) {
+                        free(codesptr);
+                        return false;
+                    }
+
+                    context.Rsp += *(uint16_t*)&codes[i + 1] * 8;
+                    i++;
+                } else {
+                    if (i >= codes.size() - 2) {
+                        free(codesptr);
+                        return false;
+                    }
+
+                    context.Rsp += *(uint32_t*)&codes[i + 1];
+                    i += 2;
+                }
                 break;
 
-            case rewind_opcode::UWOP_ALLOC_LARGE:
-                print("FIXME - handle UWOP_ALLOC_LARGE\n");
+            case rewind_opcode::UWOP_ALLOC_SMALL: // sub rsp, n
+                context.Rsp += (c.info * 8) + 8;
                 break;
 
-            case rewind_opcode::UWOP_ALLOC_SMALL:
-                print("FIXME - handle UWOP_ALLOC_SMALL\n");
+            case rewind_opcode::UWOP_SET_FPREG: // lea framereg, [rsp + n]
+                context.Rsp = frame;
                 break;
 
-            case rewind_opcode::UWOP_SET_FPREG:
-                print("FIXME - handle UWOP_SET_FPREG\n");
-                break;
-
-            case rewind_opcode::UWOP_SAVE_NONVOL:
+            case rewind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg
                 print("FIXME - handle UWOP_SAVE_NONVOL\n");
+
+                if (i == codes.size() - 1) {
+                    free(codesptr);
+                    return false;
+                }
+
+                // FIXME
+                i++;
                 break;
 
-            case rewind_opcode::UWOP_SAVE_NONVOL_FAR:
+            case rewind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg
                 print("FIXME - handle UWOP_SAVE_NONVOL_FAR\n");
+
+                if (i >= codes.size() - 2) {
+                    free(codesptr);
+                    return false;
+                }
+
+                // FIXME
+                i += 2;
                 break;
 
-            case rewind_opcode::UWOP_SAVE_XMM128:
+            case rewind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg
                 print("FIXME - handle UWOP_SAVE_XMM128\n");
+
+                if (i == codes.size() - 1) {
+                    free(codesptr);
+                    return false;
+                }
+
+                i++;
                 break;
 
-            case rewind_opcode::UWOP_SAVE_XMM128_FAR:
+            case rewind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg
                 print("FIXME - handle UWOP_SAVE_XMM128_FAR\n");
+
+                if (i >= codes.size() - 2) {
+                    free(codesptr);
+                    return false;
+                }
+
+                i += 2;
                 break;
 
-            case rewind_opcode::UWOP_PUSH_MACHFRAME:
+            case rewind_opcode::UWOP_PUSH_MACHFRAME: // interrupt
                 print("FIXME - handle UWOP_PUSH_MACHFRAME\n");
                 break;
 
@@ -213,16 +405,14 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
         }
     }
 
+    // FIXME - chain
+
     free(codesptr);
 
     return true;
 }
 
 static bool rewind_context(CONTEXT& context) {
-    NTSTATUS status;
-    uint64_t rip;
-    uint32_t bytes_read;
-
     auto ldr = get_ldr_from_address(context.Rip);
     if (!ldr)
         return false;
@@ -235,15 +425,13 @@ static bool rewind_context(CONTEXT& context) {
             return false;
     }
 
-    status = NtReadVirtualMemory(NtCurrentProcess(), (void*)context.Rsp, &rip,
-                                 sizeof(uint64_t), &bytes_read);
-    if (!success(status) || bytes_read != sizeof(uint64_t))
+    auto rip = read_uint64_t(context.Rsp);
+
+    if (!rip.has_value())
         return false;
 
-    context.Rsp -= sizeof(uint64_t);
-    context.Rip = rip;
-
-    // FIXME
+    context.Rsp += sizeof(uint64_t);
+    context.Rip = *rip;
 
     return true;
 }
@@ -285,16 +473,16 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     sp = sp_context(sp, *context);
     print(string_view(s, sp.data() - s));
 
-    // FIXME - print stacktrace? With DWARF information?
+    // FIXME - DWARF information in stack trace?
 
     print("\n");
 
-    print_rip(context->Rip);
-
-    if (rewind_context(*context))
+    do {
         print_rip(context->Rip);
 
-    // FIXME
+        if (!rewind_context(*context))
+            break;
+    } while (true);
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
 }
