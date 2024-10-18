@@ -341,26 +341,24 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 break;
 
             case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg
-                print("FIXME - handle UWOP_SAVE_NONVOL\n");
-
                 if (i == codes.size() - 1) {
                     free(codesptr);
                     return false;
                 }
 
-                // FIXME
+                set_register(context, (enum unwind_register)c.info,
+                             frame + *(uint16_t*)&codes[i + 1] * 8);
                 i++;
                 break;
 
             case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg
-                print("FIXME - handle UWOP_SAVE_NONVOL_FAR\n");
-
                 if (i >= codes.size() - 2) {
                     free(codesptr);
                     return false;
                 }
 
-                // FIXME
+                set_register(context, (enum unwind_register)c.info,
+                             frame + *(uint32_t*)&codes[i + 1]);
                 i += 2;
                 break;
 
