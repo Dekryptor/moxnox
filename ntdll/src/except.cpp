@@ -299,7 +299,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
             continue;
 
         switch ((enum unwind_opcode)c.code) {
-            case unwind_opcode::UWOP_PUSH_NONVOL: { // push reg
+            case unwind_opcode::UWOP_PUSH_NONVOL: { // push reg (.seh_pushreg)
                 auto val = read_uint64_t(context.Rsp);
 
                 if (!val.has_value()) {
@@ -312,7 +312,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 break;
             }
 
-            case unwind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n
+            case unwind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n (.seh_stackalloc)
                 if (c.info == 0) {
                     if (i == codes.size() - 1) {
                         free(codesptr);
@@ -332,15 +332,15 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 }
                 break;
 
-            case unwind_opcode::UWOP_ALLOC_SMALL: // sub rsp, n
+            case unwind_opcode::UWOP_ALLOC_SMALL: // sub rsp, n (.seh_stackalloc)
                 context.Rsp += (c.info * 8) + 8;
                 break;
 
-            case unwind_opcode::UWOP_SET_FPREG: // lea framereg, [rsp + n]
+            case unwind_opcode::UWOP_SET_FPREG: // lea framereg, [rsp + n] (.seh_setframe)
                 context.Rsp = frame;
                 break;
 
-            case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg
+            case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg (.seh_savereg)
                 if (i == codes.size() - 1) {
                     free(codesptr);
                     return false;
@@ -351,7 +351,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 i++;
                 break;
 
-            case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg
+            case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg (.seh_savereg)
                 if (i >= codes.size() - 2) {
                     free(codesptr);
                     return false;
@@ -362,7 +362,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 i += 2;
                 break;
 
-            case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg
+            case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg (.seh_savexmm)
                 print("FIXME - handle UWOP_SAVE_XMM128\n");
 
                 if (i == codes.size() - 1) {
@@ -373,7 +373,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 i++;
                 break;
 
-            case unwind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg
+            case unwind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg (.seh_savexmm)
                 print("FIXME - handle UWOP_SAVE_XMM128_FAR\n");
 
                 if (i >= codes.size() - 2) {
@@ -384,7 +384,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 i += 2;
                 break;
 
-            case unwind_opcode::UWOP_PUSH_MACHFRAME: // interrupt
+            case unwind_opcode::UWOP_PUSH_MACHFRAME: // interrupt (.seh_pushframe)
                 print("FIXME - handle UWOP_PUSH_MACHFRAME\n");
                 break;
 
