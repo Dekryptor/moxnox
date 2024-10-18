@@ -117,7 +117,7 @@ static optional<uint64_t> read_uint64_t(uint64_t addr) {
     return ret;
 }
 
-enum class rewind_opcode {
+enum class unwind_opcode {
     UWOP_PUSH_NONVOL = 0,
     UWOP_ALLOC_LARGE = 1,
     UWOP_ALLOC_SMALL = 2,
@@ -129,7 +129,7 @@ enum class rewind_opcode {
     UWOP_PUSH_MACHFRAME = 10,
 };
 
-enum class rewind_register {
+enum class unwind_register {
     rax = 0,
     rcx = 1,
     rdx = 2,
@@ -148,99 +148,99 @@ enum class rewind_register {
     r15 = 15
 };
 
-static uint64_t get_register(const CONTEXT& context, enum rewind_register reg) {
+static uint64_t get_register(const CONTEXT& context, enum unwind_register reg) {
     switch (reg) {
-        case rewind_register::rax:
+        case unwind_register::rax:
             return context.Rax;
-        case rewind_register::rcx:
+        case unwind_register::rcx:
             return context.Rcx;
-        case rewind_register::rdx:
+        case unwind_register::rdx:
             return context.Rdx;
-        case rewind_register::rbx:
+        case unwind_register::rbx:
             return context.Rbx;
-        case rewind_register::rsp:
+        case unwind_register::rsp:
             return context.Rsp;
-        case rewind_register::rbp:
+        case unwind_register::rbp:
             return context.Rbp;
-        case rewind_register::rsi:
+        case unwind_register::rsi:
             return context.Rsi;
-        case rewind_register::rdi:
+        case unwind_register::rdi:
             return context.Rdi;
-        case rewind_register::r8:
+        case unwind_register::r8:
             return context.R8;
-        case rewind_register::r9:
+        case unwind_register::r9:
             return context.R9;
-        case rewind_register::r10:
+        case unwind_register::r10:
             return context.R10;
-        case rewind_register::r11:
+        case unwind_register::r11:
             return context.R11;
-        case rewind_register::r12:
+        case unwind_register::r12:
             return context.R12;
-        case rewind_register::r13:
+        case unwind_register::r13:
             return context.R13;
-        case rewind_register::r14:
+        case unwind_register::r14:
             return context.R14;
-        case rewind_register::r15:
+        case unwind_register::r15:
             return context.R15;
     }
 
     return 0;
 }
 
-static void set_register(CONTEXT& context, enum rewind_register reg, uint64_t value) {
+static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t value) {
     switch (reg) {
-        case rewind_register::rax:
+        case unwind_register::rax:
             context.Rax = value;
             break;
-        case rewind_register::rcx:
+        case unwind_register::rcx:
             context.Rcx = value;
             break;
-        case rewind_register::rdx:
+        case unwind_register::rdx:
             context.Rdx = value;
             break;
-        case rewind_register::rbx:
+        case unwind_register::rbx:
             context.Rbx = value;
             break;
-        case rewind_register::rsp:
+        case unwind_register::rsp:
             context.Rsp = value;
             break;
-        case rewind_register::rbp:
+        case unwind_register::rbp:
             context.Rbp = value;
             break;
-        case rewind_register::rsi:
+        case unwind_register::rsi:
             context.Rsi = value;
             break;
-        case rewind_register::rdi:
+        case unwind_register::rdi:
             context.Rdi = value;
             break;
-        case rewind_register::r8:
+        case unwind_register::r8:
             context.R8 = value;
             break;
-        case rewind_register::r9:
+        case unwind_register::r9:
             context.R9 = value;
             break;
-        case rewind_register::r10:
+        case unwind_register::r10:
             context.R10 = value;
             break;
-        case rewind_register::r11:
+        case unwind_register::r11:
             context.R11 = value;
             break;
-        case rewind_register::r12:
+        case unwind_register::r12:
             context.R12 = value;
             break;
-        case rewind_register::r13:
+        case unwind_register::r13:
             context.R13 = value;
             break;
-        case rewind_register::r14:
+        case unwind_register::r14:
             context.R14 = value;
             break;
-        case rewind_register::r15:
+        case unwind_register::r15:
             context.R15 = value;
             break;
     }
 }
 
-static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
+static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                             const RUNTIME_FUNCTION& rt_func) {
     UNWIND_INFO ui;
     NTSTATUS status;
@@ -287,7 +287,7 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
     uint64_t frame;
 
     if (ui.frame_register != 0) {
-        frame = get_register(context, (enum rewind_register)ui.frame_register);
+        frame = get_register(context, (enum unwind_register)ui.frame_register);
         frame -= ui.frame_offset * 16;
     } else
         frame = context.Rsp;
@@ -298,8 +298,8 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
         if (c.offset > func_offset)
             continue;
 
-        switch ((enum rewind_opcode)c.code) {
-            case rewind_opcode::UWOP_PUSH_NONVOL: { // push reg
+        switch ((enum unwind_opcode)c.code) {
+            case unwind_opcode::UWOP_PUSH_NONVOL: { // push reg
                 auto val = read_uint64_t(context.Rsp);
 
                 if (!val.has_value()) {
@@ -307,12 +307,12 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                     return false;
                 }
 
-                set_register(context, (enum rewind_register)c.info, *val);
+                set_register(context, (enum unwind_register)c.info, *val);
                 context.Rsp += sizeof(uint64_t);
                 break;
             }
 
-            case rewind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n
+            case unwind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n
                 if (c.info == 0) {
                     if (i == codes.size() - 1) {
                         free(codesptr);
@@ -332,15 +332,15 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 }
                 break;
 
-            case rewind_opcode::UWOP_ALLOC_SMALL: // sub rsp, n
+            case unwind_opcode::UWOP_ALLOC_SMALL: // sub rsp, n
                 context.Rsp += (c.info * 8) + 8;
                 break;
 
-            case rewind_opcode::UWOP_SET_FPREG: // lea framereg, [rsp + n]
+            case unwind_opcode::UWOP_SET_FPREG: // lea framereg, [rsp + n]
                 context.Rsp = frame;
                 break;
 
-            case rewind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg
+            case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg
                 print("FIXME - handle UWOP_SAVE_NONVOL\n");
 
                 if (i == codes.size() - 1) {
@@ -352,7 +352,7 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 i++;
                 break;
 
-            case rewind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg
+            case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg
                 print("FIXME - handle UWOP_SAVE_NONVOL_FAR\n");
 
                 if (i >= codes.size() - 2) {
@@ -364,7 +364,7 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 i += 2;
                 break;
 
-            case rewind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg
+            case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg
                 print("FIXME - handle UWOP_SAVE_XMM128\n");
 
                 if (i == codes.size() - 1) {
@@ -375,7 +375,7 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 i++;
                 break;
 
-            case rewind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg
+            case unwind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg
                 print("FIXME - handle UWOP_SAVE_XMM128_FAR\n");
 
                 if (i >= codes.size() - 2) {
@@ -386,7 +386,7 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                 i += 2;
                 break;
 
-            case rewind_opcode::UWOP_PUSH_MACHFRAME: // interrupt
+            case unwind_opcode::UWOP_PUSH_MACHFRAME: // interrupt
                 print("FIXME - handle UWOP_PUSH_MACHFRAME\n");
                 break;
 
@@ -412,7 +412,7 @@ static bool rewind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
     return true;
 }
 
-static bool rewind_context(CONTEXT& context) {
+static bool unwind_context(CONTEXT& context) {
     auto ldr = get_ldr_from_address(context.Rip);
     if (!ldr)
         return false;
@@ -421,7 +421,7 @@ static bool rewind_context(CONTEXT& context) {
 
     // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
     if (rt_func) {
-        if (!rewind_context2(context, *ldr, *rt_func))
+        if (!unwind_context2(context, *ldr, *rt_func))
             return false;
     }
 
@@ -480,7 +480,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     do {
         print_rip(context->Rip);
 
-        if (!rewind_context(*context))
+        if (!unwind_context(*context))
             break;
     } while (true);
 
