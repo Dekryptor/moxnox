@@ -109,7 +109,7 @@ void safe_print(std::string_view s);
 extern decltype(&safe_print) _printk;
 void print_hex(uint64_t num, unsigned int padding = 0);
 bool init_fb_console();
-void bsod(std::string_view msg, std::source_location sl = std::source_location::current());
+__attribute__((noreturn)) void bsod(std::string_view msg, std::source_location sl = std::source_location::current());
 
 static void printk(std::convertible_to<std::string_view> auto s) {
     _printk(s);
