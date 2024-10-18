@@ -16,6 +16,10 @@ struct RUNTIME_FUNCTION {
     };
 };
 
+static const uint8_t UNW_FLAG_EHANDLER = 0x01;
+static const uint8_t UNW_FLAG_UHANDLER = 0x02;
+static const uint8_t UNW_FLAG_CHAININFO = 0x04;
+
 static LDR_DATA_TABLE_ENTRY* get_ldr_from_address(uint64_t addr) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto& ldr_data = *peb.Ldr;
@@ -241,167 +245,187 @@ static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t va
 }
 
 static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
-                            const RUNTIME_FUNCTION& rt_func) {
+                            const RUNTIME_FUNCTION* prt_func) {
     UNWIND_INFO ui;
     NTSTATUS status;
     uint32_t bytes_read;
     uint32_t func_offset;
+    uint64_t frame = context.Rsp;
+    RUNTIME_FUNCTION rt_func2;
 
-    if (rt_func.UnwindInfoAddress > ldr.SizeOfImage - sizeof(UNWIND_INFO))
-        return false;
+    while (true) {
+        const auto& rt_func = *prt_func;
 
-    status = NtReadVirtualMemory(NtCurrentProcess(), (uint8_t*)ldr.DllBase + rt_func.UnwindInfoAddress,
-                                 &ui, sizeof(UNWIND_INFO), &bytes_read);
-    if (!success(status) || bytes_read != sizeof(UNWIND_INFO))
-        return false;
+        if (rt_func.UnwindInfoAddress > ldr.SizeOfImage - sizeof(UNWIND_INFO))
+            return false;
 
-    if (ui.version != 1)
-        return false;
+        status = NtReadVirtualMemory(NtCurrentProcess(), (uint8_t*)ldr.DllBase + rt_func.UnwindInfoAddress,
+                                    &ui, sizeof(UNWIND_INFO), &bytes_read);
+        if (!success(status) || bytes_read != sizeof(UNWIND_INFO))
+            return false;
 
-    if (ui.unwind_codes_count == 0)
-        return true;
+        if (ui.version != 1)
+            return false;
 
-    if (rt_func.UnwindInfoAddress > ldr.SizeOfImage - sizeof(UNWIND_INFO) - (ui.unwind_codes_count * sizeof(UNWIND_CODE)))
-        return false;
+        if (ui.unwind_codes_count == 0)
+            return true;
 
-    auto codesptr = (UNWIND_CODE*)malloc(ui.unwind_codes_count * sizeof(UNWIND_CODE));
-    if (!codesptr)
-        return false;
+        if (ui.unwind_codes_count > 0) {
+            if (rt_func.UnwindInfoAddress > ldr.SizeOfImage - sizeof(UNWIND_INFO) - (ui.unwind_codes_count * sizeof(UNWIND_CODE)))
+                return false;
 
-    if (context.Rip >= (uintptr_t)ldr.DllBase + rt_func.BeginAddress &&
-        context.Rip < (uintptr_t)ldr.DllBase + rt_func.BeginAddress + ui.prologue_bytes) {
-        func_offset = (uint32_t)(context.Rip - (uintptr_t)ldr.DllBase - rt_func.BeginAddress);
-    } else
-        func_offset = 0xffffffff;
+            auto codesptr = (UNWIND_CODE*)malloc(ui.unwind_codes_count * sizeof(UNWIND_CODE));
+            if (!codesptr)
+                return false;
 
-    span codes(codesptr, ui.unwind_codes_count);
+            if (context.Rip >= (uintptr_t)ldr.DllBase + rt_func.BeginAddress &&
+                context.Rip < (uintptr_t)ldr.DllBase + rt_func.BeginAddress + ui.prologue_bytes) {
+                func_offset = (uint32_t)(context.Rip - (uintptr_t)ldr.DllBase - rt_func.BeginAddress);
+            } else
+                func_offset = 0xffffffff;
 
-    status = NtReadVirtualMemory(NtCurrentProcess(),
-                                 (uint8_t*)ldr.DllBase + rt_func.UnwindInfoAddress + sizeof(UNWIND_INFO),
-                                 codesptr, ui.unwind_codes_count * sizeof(UNWIND_CODE), &bytes_read);
-    if (!success(status) || bytes_read != ui.unwind_codes_count * sizeof(UNWIND_CODE)) {
-        free(codesptr);
-        return false;
-    }
+            span codes(codesptr, ui.unwind_codes_count);
 
-    uint64_t frame;
-
-    if (ui.frame_register != 0) {
-        frame = get_register(context, (enum unwind_register)ui.frame_register);
-        frame -= ui.frame_offset * 16;
-    } else
-        frame = context.Rsp;
-
-    for (size_t i = 0; i < codes.size(); i++) {
-        const auto& c = codes[i];
-
-        if (c.offset > func_offset)
-            continue;
-
-        switch ((enum unwind_opcode)c.code) {
-            case unwind_opcode::UWOP_PUSH_NONVOL: { // push reg (.seh_pushreg)
-                auto val = read_uint64_t(context.Rsp);
-
-                if (!val.has_value()) {
-                    free(codesptr);
-                    return false;
-                }
-
-                set_register(context, (enum unwind_register)c.info, *val);
-                context.Rsp += sizeof(uint64_t);
-                break;
-            }
-
-            case unwind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n (.seh_stackalloc)
-                if (c.info == 0) {
-                    if (i == codes.size() - 1) {
-                        free(codesptr);
-                        return false;
-                    }
-
-                    context.Rsp += *(uint16_t*)&codes[i + 1] * 8;
-                    i++;
-                } else {
-                    if (i >= codes.size() - 2) {
-                        free(codesptr);
-                        return false;
-                    }
-
-                    context.Rsp += *(uint32_t*)&codes[i + 1];
-                    i += 2;
-                }
-                break;
-
-            case unwind_opcode::UWOP_ALLOC_SMALL: // sub rsp, n (.seh_stackalloc)
-                context.Rsp += (c.info * 8) + 8;
-                break;
-
-            case unwind_opcode::UWOP_SET_FPREG: // lea framereg, [rsp + n] (.seh_setframe)
-                context.Rsp = frame;
-                break;
-
-            case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg (.seh_savereg)
-                if (i == codes.size() - 1) {
-                    free(codesptr);
-                    return false;
-                }
-
-                set_register(context, (enum unwind_register)c.info,
-                             frame + *(uint16_t*)&codes[i + 1] * 8);
-                i++;
-                break;
-
-            case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg (.seh_savereg)
-                if (i >= codes.size() - 2) {
-                    free(codesptr);
-                    return false;
-                }
-
-                set_register(context, (enum unwind_register)c.info,
-                             frame + *(uint32_t*)&codes[i + 1]);
-                i += 2;
-                break;
-
-            case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg (.seh_savexmm)
-                if (i == codes.size() - 1) {
-                    free(codesptr);
-                    return false;
-                }
-
-                i++;
-                break;
-
-            case unwind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg (.seh_savexmm)
-                if (i >= codes.size() - 2) {
-                    free(codesptr);
-                    return false;
-                }
-
-                i += 2;
-                break;
-
-            case unwind_opcode::UWOP_PUSH_MACHFRAME: // interrupt (.seh_pushframe)
-                print("FIXME - handle UWOP_PUSH_MACHFRAME\n");
-                break;
-
-            default: {
-                char s[50];
-                auto sp = span(s, sizeof(s));
-
-                sp = sp_strcpy(sp, "unrecognized unwind opcode ");
-                sp = sp_itoa_hex(sp, c.code);
-                sp = sp_strcpy(sp, "\n");
-
-                print(string_view(s, sp.data() - s));
+            status = NtReadVirtualMemory(NtCurrentProcess(),
+                                        (uint8_t*)ldr.DllBase + rt_func.UnwindInfoAddress + sizeof(UNWIND_INFO),
+                                        codesptr, ui.unwind_codes_count * sizeof(UNWIND_CODE), &bytes_read);
+            if (!success(status) || bytes_read != ui.unwind_codes_count * sizeof(UNWIND_CODE)) {
                 free(codesptr);
                 return false;
             }
+
+            if (ui.frame_register != 0) {
+                frame = get_register(context, (enum unwind_register)ui.frame_register);
+                frame -= ui.frame_offset * 16;
+            }
+
+            for (size_t i = 0; i < codes.size(); i++) {
+                const auto& c = codes[i];
+
+                if (c.offset > func_offset)
+                    continue;
+
+                switch ((enum unwind_opcode)c.code) {
+                    case unwind_opcode::UWOP_PUSH_NONVOL: { // push reg (.seh_pushreg)
+                        auto val = read_uint64_t(context.Rsp);
+
+                        if (!val.has_value()) {
+                            free(codesptr);
+                            return false;
+                        }
+
+                        set_register(context, (enum unwind_register)c.info, *val);
+                        context.Rsp += sizeof(uint64_t);
+                        break;
+                    }
+
+                    case unwind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n (.seh_stackalloc)
+                        if (c.info == 0) {
+                            if (i == codes.size() - 1) {
+                                free(codesptr);
+                                return false;
+                            }
+
+                            context.Rsp += *(uint16_t*)&codes[i + 1] * 8;
+                            i++;
+                        } else {
+                            if (i >= codes.size() - 2) {
+                                free(codesptr);
+                                return false;
+                            }
+
+                            context.Rsp += *(uint32_t*)&codes[i + 1];
+                            i += 2;
+                        }
+                        break;
+
+                    case unwind_opcode::UWOP_ALLOC_SMALL: // sub rsp, n (.seh_stackalloc)
+                        context.Rsp += (c.info * 8) + 8;
+                        break;
+
+                    case unwind_opcode::UWOP_SET_FPREG: // lea framereg, [rsp + n] (.seh_setframe)
+                        context.Rsp = frame;
+                        break;
+
+                    case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg (.seh_savereg)
+                        if (i == codes.size() - 1) {
+                            free(codesptr);
+                            return false;
+                        }
+
+                        set_register(context, (enum unwind_register)c.info,
+                                    frame + *(uint16_t*)&codes[i + 1] * 8);
+                        i++;
+                        break;
+
+                    case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg (.seh_savereg)
+                        if (i >= codes.size() - 2) {
+                            free(codesptr);
+                            return false;
+                        }
+
+                        set_register(context, (enum unwind_register)c.info,
+                                    frame + *(uint32_t*)&codes[i + 1]);
+                        i += 2;
+                        break;
+
+                    case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg (.seh_savexmm)
+                        if (i == codes.size() - 1) {
+                            free(codesptr);
+                            return false;
+                        }
+
+                        i++;
+                        break;
+
+                    case unwind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg (.seh_savexmm)
+                        if (i >= codes.size() - 2) {
+                            free(codesptr);
+                            return false;
+                        }
+
+                        i += 2;
+                        break;
+
+                    case unwind_opcode::UWOP_PUSH_MACHFRAME: // interrupt (.seh_pushframe)
+                        print("FIXME - handle UWOP_PUSH_MACHFRAME\n");
+                        break;
+
+                    default: {
+                        char s[50];
+                        auto sp = span(s, sizeof(s));
+
+                        sp = sp_strcpy(sp, "unrecognized unwind opcode ");
+                        sp = sp_itoa_hex(sp, c.code);
+                        sp = sp_strcpy(sp, "\n");
+
+                        print(string_view(s, sp.data() - s));
+                        free(codesptr);
+                        return false;
+                    }
+                }
+            }
+
+            free(codesptr);
         }
+
+        if (!(ui.flags & UNW_FLAG_CHAININFO))
+            break;
+
+        uint8_t* addr = (uint8_t*)ldr.DllBase;
+        addr += rt_func.UnwindInfoAddress;
+        addr += ui.unwind_codes_count * sizeof(UNWIND_CODE);
+
+        if (ui.unwind_codes_count & 1)
+            addr += sizeof(UNWIND_CODE);
+
+        status = NtReadVirtualMemory(NtCurrentProcess(), addr, &rt_func2,
+                                     sizeof(RUNTIME_FUNCTION), &bytes_read);
+        if (!success(status) || bytes_read != sizeof(RUNTIME_FUNCTION))
+            return false;
+
+        prt_func = &rt_func2;
     }
-
-    // FIXME - chain
-
-    free(codesptr);
 
     return true;
 }
@@ -415,7 +439,7 @@ static bool unwind_context(CONTEXT& context) {
 
     // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
     if (rt_func) {
-        if (!unwind_context2(context, *ldr, *rt_func))
+        if (!unwind_context2(context, *ldr, rt_func))
             return false;
     }
 
