@@ -754,6 +754,6 @@ void bsod(string_view msg, source_location sl) {
     // FIXME - print context
     // FIXME - print stacktrace (go through DWARF sections?)
 
-    __asm("jmp halt_isr");
+    __asm("call halt_isr");
     __builtin_unreachable();
 }
