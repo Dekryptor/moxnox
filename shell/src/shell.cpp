@@ -493,6 +493,10 @@ static void timer() {
     NtClose(h);
 }
 
+static void segfault() {
+    *(uint8_t*)0 = 0;
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -527,6 +531,8 @@ static void process_line(string_view sv) {
         time();
     else if (cmd == "timer")
         timer();
+    else if (cmd == "segfault")
+        segfault(); // TESTING
     else {
         print(cmd); // FIXME - stderr
         print(": command not found\n");
