@@ -2,6 +2,7 @@
 #include "pci.h"
 #include "sata.h"
 #include "spinlock.h"
+#include "mem.h"
 
 using namespace std;
 
@@ -157,19 +158,7 @@ bool sata_device::identify() {
         return false;
     }
 
-    auto va = allocate_va(1);
-    if (!va) {
-        printk("allocate_va failed\n");
-        free_page(pa);
-        return false;
-    }
-
-    if (!map_page(pa, va, mapping_type::read_write)) {
-        printk("map_page failed\n");
-        free_page(pa);
-        free_va(va, 1);
-        return false;
-    }
+    auto va = phys_address(pa);
 
     port.is = 0xffffffff; // clear interrupt bits
 
@@ -209,8 +198,6 @@ bool sata_device::identify() {
     if (port.is & HBA_PxIS_TFES) {
         printk("Error sending IDENTIFY DEVICE command to disk\n");
         release_slot(slot);
-        unmap_page(va);
-        free_va(va, 1);
         free_page(pa);
         return false;
     }
@@ -219,9 +206,6 @@ bool sata_device::identify() {
 
     release_slot(slot);
 
-    unmap_page(va);
-
-    free_va(va, 1);
     free_page(pa);
 
     return true;
