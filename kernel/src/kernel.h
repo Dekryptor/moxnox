@@ -238,6 +238,7 @@ class inode;
 object_ref create_section(const std::optional<std::reference_wrapper<file>>& file,
                           bool image, size_t size);
 uint64_t get_image_size(void* image);
+std::span<const uint8_t> find_pdata(const kernel_image& img);
 
 // string.cpp
 std::span<char> sp_strcpy(std::span<char> dest, std::string_view src);

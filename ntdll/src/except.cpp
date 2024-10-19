@@ -7,19 +7,6 @@
 
 using namespace std;
 
-struct RUNTIME_FUNCTION {
-    uint32_t BeginAddress;
-    uint32_t EndAddress;
-    union {
-        uint32_t UnwindInfoAddress;
-        uint32_t UnwindData;
-    };
-};
-
-static const uint8_t UNW_FLAG_EHANDLER = 0x01;
-static const uint8_t UNW_FLAG_UHANDLER = 0x02;
-static const uint8_t UNW_FLAG_CHAININFO = 0x04;
-
 static LDR_DATA_TABLE_ENTRY* get_ldr_from_address(uint64_t addr) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto& ldr_data = *peb.Ldr;

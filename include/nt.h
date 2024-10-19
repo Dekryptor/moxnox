@@ -969,6 +969,34 @@ enum class TIMER_TYPE {
 
 using PTIMER_APC_ROUTINE = void (*)(void*, uint32_t, int32_t);
 
+struct RUNTIME_FUNCTION {
+    uint32_t BeginAddress;
+    uint32_t EndAddress;
+    union {
+        uint32_t UnwindInfoAddress;
+        uint32_t UnwindData;
+    };
+};
+
+static const uint8_t UNW_FLAG_EHANDLER = 0x01;
+static const uint8_t UNW_FLAG_UHANDLER = 0x02;
+static const uint8_t UNW_FLAG_CHAININFO = 0x04;
+
+struct UNWIND_INFO {
+    uint8_t version : 3;
+    uint8_t flags : 5;
+    uint8_t prologue_bytes;
+    uint8_t unwind_codes_count;
+    uint8_t frame_register : 4;
+    uint8_t frame_offset : 4;
+};
+
+struct UNWIND_CODE {
+    uint8_t offset;
+    uint8_t code : 4;
+    uint8_t info : 4;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);

@@ -883,3 +883,29 @@ uint64_t get_image_size(void* image) {
     } else
         return 0;
 }
+
+span<const uint8_t> find_pdata(const kernel_image& img) {
+    const auto& dos_header = *(IMAGE_DOS_HEADER*)img.base_address;
+
+    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
+        return span<const uint8_t>();
+
+    const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img.base_address + dos_header.e_lfanew);
+
+    if (nt_header.Signature != IMAGE_NT_SIGNATURE)
+        return span<const uint8_t>();
+
+    span<const IMAGE_SECTION_HEADER> sections;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+    else if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+
+    for (const auto& sect : sections) {
+        if (string_view(sect.Name) == ".pdata")
+            return span((uint8_t*)img.base_address + sect.VirtualAddress, sect.VirtualSize);
+    }
+
+    return span<const uint8_t>();
+}
