@@ -269,6 +269,9 @@ thread* get_current_thread();
 // rtc.cpp
 void init_rtc();
 
+// dwarf.cpp
+std::string_view dwarf_find_function(const kernel_image& img, uint64_t addr);
+
 template<typename T>
 concept cmdline_func = std::invocable<T, std::string_view> &&
 requires(T t, std::string_view s) { { t(s) } -> std::convertible_to<bool>; };

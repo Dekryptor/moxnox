@@ -727,6 +727,8 @@ static void print_rip(uint64_t rip) {
     auto img = get_kernel_image_from_address(rip);
 
     if (img) {
+        auto name = dwarf_find_function(*img, rip); // FIXME
+
         sp = sp_strcpy(sp, " (");
         sp = sp_strcpy(sp, img->name);
         sp = sp_strcpy(sp, "+");
