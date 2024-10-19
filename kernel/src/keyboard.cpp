@@ -3,6 +3,7 @@
 #include "spinlock.h"
 #include "qwerty.h"
 #include "handle.h"
+#include "mem.h"
 
 using namespace std;
 
@@ -163,18 +164,7 @@ void init_keyboard() {
         return;
     }
 
-    auto va = allocate_va(1);
-    if (!va) {
-        printk("allocate_va failed\n");
-        return;
-    }
-
-    if (!map_page(pa, va, mapping_type::read_write)) {
-        printk("map_page failed\n");
-        return;
-    }
-
-    keyboard_buffer = (uint8_t*)va;
+    keyboard_buffer = (uint8_t*)phys_address(pa);
 
     auto keyboard_event = create_event(true);
     if (!keyboard_event) {
