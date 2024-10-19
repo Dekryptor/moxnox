@@ -449,17 +449,7 @@ bool process::allocate_cr3() {
         return false;
     }
 
-    auto va = allocate_va(1);
-    if (!va) {
-        printk("allocate_va failed\n");
-        return false;
-    }
-
-    if (!map_page(cr3, va, mapping_type::read_write)) {
-        printk("map_page failed\n");
-        free_va(va, 1);
-        return false;
-    }
+    auto va = phys_address(cr3);
 
     // copy higher half mappings
 
@@ -475,9 +465,6 @@ bool process::allocate_cr3() {
 #pragma GCC diagnostic pop
     pml4t[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
     pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
-
-    unmap_page(va);
-    free_va(va, 1);
 
     return true;
 }
