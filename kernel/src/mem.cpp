@@ -23,6 +23,8 @@ static unsigned int heap_pages = 0;
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
 
+static const uint64_t phys_memory = 0xffff990000000000;
+
 static spinlock pa_spinlock, va_spinlock, heap_spinlock;
 static spinlock pml4_spinlock, pdpt_spinlock, pdt_spinlock;
 static spinlock protect_page_spinlock;
@@ -563,6 +565,48 @@ void free_lower_half_mappings() {
     );
 }
 
+static bool map_physical_memory(uint64_t total_pages) {
+    auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
+    auto& pml4_entry = pml4[(phys_memory & 0xff8000000000) >> 39];
+    auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((phys_memory & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
+
+    auto pa = allocate_page();
+    if (!pa) {
+        printk("allocate_page failed\n");
+        return false;
+    }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    pml4_entry.PageFrameNumber = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    pml4_entry.Valid = 1;
+    pml4_entry.Write = 1;
+
+    memset(pdpt.data(), 0, pdpt.size_bytes());
+
+    static const uint64_t PAGES_PER_GIGABYTE = 1024 * 1024 * 1024 / 4096;
+
+    // FIXME - if more than 512GB, will need to allocate second pml4 entry
+
+    uint64_t gigabytes = (total_pages + PAGES_PER_GIGABYTE - 1) / PAGES_PER_GIGABYTE;
+    auto* pdpt_entry = &pdpt[(phys_memory & 0x7fc0000000) >> 30];
+
+    for (unsigned int i = 0; i < gigabytes; i++) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pdpt_entry->PageFrameNumber = i * PAGES_PER_GIGABYTE;
+#pragma GCC diagnostic pop
+        pdpt_entry->Valid = 1;
+        pdpt_entry->Write = 1;
+        pdpt_entry->LargePage = 1;
+
+        pdpt_entry++;
+    }
+
+    return true;
+}
+
 bool init_memory(const loader_block& lb) {
     uint64_t total_pages, num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
@@ -630,6 +674,8 @@ bool init_memory(const loader_block& lb) {
     }
 
     mark_mem_as_used(0, PAGE_SIZE);
+
+    map_physical_memory(total_pages);
 
     return true;
 }
