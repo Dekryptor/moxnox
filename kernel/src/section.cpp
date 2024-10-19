@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
 #include "handle.h"
+#include "mem.h"
 #include <pe.h>
 
 using namespace std;
@@ -110,19 +111,7 @@ public:
             return;
         }
 
-        va = allocate_va(1);
-        if (!va) {
-            printk("allocate_va failed\n");
-            free_page(pa);
-            return;
-        }
-
-        if (!map_page(pa, va, mapping_type::read_write)) {
-            printk("map_page failed\n");
-            free_va(va, 1);
-            free_page(pa);
-            return;
-        }
+        va = (uintptr_t)phys_address(pa);
 
         valid = true;
     }
@@ -131,8 +120,6 @@ public:
         if (!valid)
             return;
 
-        unmap_page(va);
-        free_va(va, 1);
         free_page(pa);
     }
 
