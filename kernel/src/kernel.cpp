@@ -214,7 +214,7 @@ static void init_images_list() {
     img->size = kernel_size;
     memcpy(img->name, kernel_name, sizeof(kernel_name));
 
-    insert_tail_list(kernel_images, img->list);
+    insert_tail_list(kernel_images, img->le);
 }
 
 extern "C"

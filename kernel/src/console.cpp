@@ -703,6 +703,48 @@ static void disable_cursor() {
     outb(0x3d5, 0x20);
 }
 
+static kernel_image* get_kernel_image_from_address(uint64_t addr) {
+    auto le = kernel_images.next;
+
+    while (le != &kernel_images) {
+        auto& ent = containing_record<kernel_image>(le);
+
+        if (addr >= (uintptr_t)ent.base_address && addr < (uintptr_t)ent.base_address + ent.size)
+            return &ent;
+
+        le = le->next;
+    }
+
+    return nullptr;
+}
+
+static void print_rip(uint64_t rip) {
+    char s[50];
+    auto sp = span(s, sizeof(s));
+
+    sp = sp_itoa_hex(sp, rip, 16);
+
+    auto img = get_kernel_image_from_address(rip);
+
+    if (img) {
+        sp = sp_strcpy(sp, " (");
+        sp = sp_strcpy(sp, img->name);
+        sp = sp_strcpy(sp, "+");
+        sp = sp_itoa_hex(sp, rip - (uintptr_t)img->base_address);
+        sp = sp_strcpy(sp, ")");
+    }
+
+    sp = sp_strcpy(sp, "\n");
+
+    text_console_print(string_view(s, sp.data() - s), console_colour::blue, console_colour::white);
+}
+
+static void print_stacktrace(CONTEXT& context) {
+    print_rip(context.Rip);
+
+    // FIXME - stacktrace
+}
+
 void bsod(string_view msg, source_location sl) {
     __asm("cli");
 
@@ -742,8 +784,26 @@ void bsod(string_view msg, source_location sl) {
         memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
     }
 
-    // FIXME - print context
-    // FIXME - print stacktrace (go through DWARF sections?)
+    // FIXME - print context?
+
+    CONTEXT context;
+
+    __asm __volatile(
+        "mov %0, rsp\n"
+        "\tmov %1, rbp\n"
+        "\tcall 0f\n"
+        "\t0:\n"
+        "\tpop rax\n"
+        "\tmov %2, rax\n"
+        : "=m" (context.Rsp), "=m" (context.Rbp), "=m" (context.Rip)
+        :
+        : "rax"
+    );
+
+    if (framebuffer.empty()) { // FIXME - also work with framebuffer
+        text_console_print("\n", console_colour::blue, console_colour::white);
+        print_stacktrace(context);
+    }
 
     __asm("call halt_isr");
     __builtin_unreachable();

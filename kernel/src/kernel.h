@@ -84,7 +84,7 @@ struct page_info {
 };
 
 struct kernel_image {
-    list_entry list;
+    list_entry le;
     void* base_address;
     uint64_t size;
     char name[0];
@@ -92,6 +92,7 @@ struct kernel_image {
 
 // kernel.cpp
 extern std::string_view cmdline;
+extern list_entry kernel_images;
 
 // mem.cpp
 bool init_memory(const loader_block& lb);
