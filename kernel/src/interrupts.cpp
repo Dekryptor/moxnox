@@ -344,27 +344,11 @@ task_state_segment* init_tss() {
         return nullptr;
     }
 
-    auto va = allocate_va(1);
-    if (!va) {
-        printk("allocate_va failed\n");
-        free_page(pa);
-        return nullptr;
-    }
-
-    if (!map_page(pa, va, mapping_type::read_write)) {
-        printk("map_page failed\n");
-        free_va(va, 1);
-        free_page(pa);
-        return nullptr;
-    }
-
-    auto& tss = *(task_state_segment*)va;
+    auto& tss = *(task_state_segment*)phys_address(pa);
     memset(&tss, 0, sizeof(tss));
 
     auto stack = allocate_stack();
     if (!stack) {
-        unmap_page(va);
-        free_va(va, 1);
         free_page(pa);
         return nullptr;
     }
@@ -373,8 +357,6 @@ task_state_segment* init_tss() {
 
     stack = allocate_stack();
     if (!stack) {
-        unmap_page(va);
-        free_va(va, 1);
         free_page(pa);
         return nullptr;
     }
