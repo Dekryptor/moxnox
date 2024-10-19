@@ -1053,6 +1053,10 @@ static bool unwind_context(CONTEXT& context) {
 static void print_stacktrace(CONTEXT& context) {
     // FIXME - include function names
 
+    // not interested in top entry (bsod function)
+    if (!unwind_context(context))
+        return;
+
     do {
         print_rip(context.Rip);
 
