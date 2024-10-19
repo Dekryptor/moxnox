@@ -11,6 +11,7 @@
 #include <charconv>
 #include <loaderblock.h>
 #include "nt.h"
+#include "list.h"
 
 #define PAGE_SIZE 4096
 #define PAGE_SHIFT 12
@@ -19,7 +20,6 @@ struct loader_block;
 class thread;
 class object;
 struct cpu_block;
-struct list_entry;
 class event;
 struct task_state_segment;
 struct pci_device;
@@ -81,6 +81,13 @@ struct handle_obj {
 struct page_info {
     uint64_t pa;
     enum mapping_type protect;
+};
+
+struct kernel_image {
+    list_entry list;
+    void* base_address;
+    uint64_t size;
+    char name[0];
 };
 
 // kernel.cpp
@@ -229,6 +236,7 @@ class inode;
 // section.cpp
 object_ref create_section(const std::optional<std::reference_wrapper<file>>& file,
                           bool image, size_t size);
+uint64_t get_image_size(void* image);
 
 // string.cpp
 std::span<char> sp_strcpy(std::span<char> dest, std::string_view src);

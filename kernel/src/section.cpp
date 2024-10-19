@@ -851,3 +851,35 @@ NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS se
 
     return ret;
 }
+
+uint64_t get_image_size(void* image) {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)image;
+
+    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
+        return 0;
+
+    if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS))
+        return 0;
+
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)image + dos_header.e_lfanew);
+
+    if (nt_header.Signature != IMAGE_NT_SIGNATURE)
+        return 0;
+
+    if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
+        nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        return 0;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64))
+            return 0;
+
+        return nt_header.OptionalHeader64.SizeOfImage;
+    } else if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
+        if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32))
+            return 0;
+
+        return nt_header.OptionalHeader32.SizeOfImage;
+    } else
+        return 0;
+}

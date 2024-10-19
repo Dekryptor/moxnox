@@ -15,6 +15,10 @@ string_view cmdline;
 
 static bool has_framebuffer;
 
+extern uint8_t __image_base__;
+
+list_entry kernel_images = { &kernel_images, &kernel_images };
+
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
 
@@ -195,6 +199,24 @@ void main_thread() {
 //     timer_test(); // FIXME
 }
 
+static void init_images_list() {
+    const char kernel_name[] = "kernel.exe";
+
+    uint64_t kernel_size = get_image_size(&__image_base__);
+    if (kernel_size == 0)
+        bsod("get_image_size failed for kernel");
+
+    auto img = (struct kernel_image*)malloc(offsetof(struct kernel_image, name) + sizeof(kernel_name));
+    if (!img)
+        bsod("malloc failed");
+
+    img->base_address = &__image_base__;
+    img->size = kernel_size;
+    memcpy(img->name, kernel_name, sizeof(kernel_name));
+
+    insert_tail_list(kernel_images, img->list);
+}
+
 extern "C"
 void startup(loader_block* lb) {
     loader_block_framebuffer fb;
@@ -222,6 +244,8 @@ void startup(loader_block* lb) {
     lb = nullptr; // no longer valid
 
     call_global_constructors();
+
+    init_images_list();
 
     if (!init_vablock())
         goto hang;
