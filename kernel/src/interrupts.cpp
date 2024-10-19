@@ -397,12 +397,7 @@ static bool setup_gdt(task_state_segment* tss) {
     if (pa == 0)
         return false;
 
-    cb.gdt = (void*)allocate_va(1);
-    if (!cb.gdt)
-        return false;
-
-    if (!map_page(pa, (uintptr_t)cb.gdt, mapping_type::read_write))
-        return false;
+    cb.gdt = phys_address(pa);
 
     auto gdtarr = span((gdt_entry*)cb.gdt, 8);
 
