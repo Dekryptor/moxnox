@@ -2,6 +2,7 @@
 #include "spinlock.h"
 #include "objects.h"
 #include "handle.h"
+#include "mem.h"
 #include <span>
 #include <cstring>
 #include <bit>
@@ -425,17 +426,7 @@ void print_hex(uint64_t num, unsigned int padding) {
 
 bool init_console(const loader_block_framebuffer& fb) {
     if (!fb.pa) {
-        auto va = allocate_va(1);
-        if (!va) {
-            // FIXME - exception
-            printk("allocate_va failed\n");
-            return false;
-        }
-
-        text_console = span((uint16_t*)va, COLS * ROWS);
-
-        if (!map_page(CONSOLE_PA, (uintptr_t)text_console.data(), mapping_type::read_write))
-            return false;
+        text_console = span((uint16_t*)phys_address(CONSOLE_PA), COLS * ROWS);
 
         // clear console (foreground colour needs to be initialized for cursor to show up)
         for (uint8_t y = 0; y < ROWS; y++) {
