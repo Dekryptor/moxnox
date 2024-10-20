@@ -902,6 +902,8 @@ span<const uint8_t> find_pdata(const kernel_image& img) {
     else if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
 
+    // FIXME - probably should be looking in data directory rather than going off name
+
     for (const auto& sect : sections) {
         if (string_view(sect.Name) == ".pdata")
             return span((uint8_t*)img.base_address + sect.VirtualAddress, sect.VirtualSize);
