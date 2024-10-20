@@ -10,7 +10,7 @@ using namespace std;
 
 extern e820_entry* ptr_e820_entries;
 extern uint32_t* ptr_e820_count;
-extern uint8_t* payload_data;
+extern uint8_t payload_data;
 extern const uint64_t payload_size;
 extern char* ptr_cmdline;
 
@@ -700,6 +700,36 @@ static bool do_relocations(IMAGE_NT_HEADERS& pe_header, uint8_t* data, uint64_t 
     return true;
 }
 
+static string_view get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FILE_HEADER& file_header,
+                                    span<const uint8_t> payload) {
+    auto name = string_view(s.Name, sizeof(s.Name));
+
+    while (!name.empty() && name.back() == 0) {
+        name.remove_suffix(1);
+    }
+
+    if (name.empty() || name[0] != '/' || file_header.PointerToSymbolTable == 0)
+        return name;
+
+    // decode long section names
+
+    unsigned int num = 0;
+    uint32_t string_table = file_header.PointerToSymbolTable + (file_header.NumberOfSymbols * 18);
+
+    for (auto c : string_view(name.data() + 1, name.size() - 1)) {
+        num *= 10;
+
+        if (c >= '0' && c <= '9')
+            num += c - '0';
+        else
+            return name;
+    }
+
+    return string_view((char*)payload.data() + string_table + num);
+}
+
+static void print(string_view s);
+
 static bool load_payload() {
     auto& dos_header = *(IMAGE_DOS_HEADER*)&payload_data;
 
@@ -740,6 +770,10 @@ static bool load_payload() {
 
     for (const auto& s : sects) {
         uint32_t section_size;
+        auto name = get_section_name(s, pe_header.FileHeader,
+                                     span(&payload_data, payload_size));
+
+        // FIXME - put pointers to DWARF sections in loader block
 
         section_size = s.VirtualSize;
 
