@@ -34,6 +34,10 @@ struct loader_block {
     uint64_t rsdt_pa;
     loader_block_framebuffer framebuffer;
     uint64_t cmdline;
+    uint64_t debug_info_ptr;
+    uint64_t debug_info_size;
+    uint64_t debug_abbrev_ptr;
+    uint64_t debug_abbrev_size;
 } __attribute__((packed));
 
 static const uint64_t SELFMAP = 0xfffff68000000000;

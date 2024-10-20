@@ -199,7 +199,8 @@ void main_thread() {
 //     timer_test(); // FIXME
 }
 
-static void init_images_list() {
+static void init_images_list(span<const uint8_t> debug_info,
+                             span<const uint8_t> debug_abbrev) {
     const char kernel_name[] = "kernel.exe";
 
     uint64_t kernel_size = get_image_size(&__image_base__);
@@ -212,6 +213,8 @@ static void init_images_list() {
 
     img->base_address = &__image_base__;
     img->size = kernel_size;
+    img->debug_info = debug_info;
+    img->debug_abbrev = debug_abbrev;
     memcpy(img->name, kernel_name, sizeof(kernel_name));
 
     insert_tail_list(kernel_images, img->le);
@@ -220,6 +223,7 @@ static void init_images_list() {
 extern "C"
 void startup(loader_block* lb) {
     loader_block_framebuffer fb;
+    span<const uint8_t> debug_info, debug_abbrev;
 
     // FIXME - should restart if anything fails before we can show error message
 
@@ -238,6 +242,9 @@ void startup(loader_block* lb) {
 
     has_framebuffer = !!fb.pa;
 
+    debug_info = span((uint8_t*)(uintptr_t)lb->debug_info_ptr, lb->debug_info_size);
+    debug_abbrev = span((uint8_t*)(uintptr_t)lb->debug_abbrev_ptr, lb->debug_abbrev_size);
+
     if (!init_memory(*lb))
         goto hang;
 
@@ -245,7 +252,7 @@ void startup(loader_block* lb) {
 
     call_global_constructors();
 
-    init_images_list();
+    init_images_list(debug_info, debug_abbrev);
 
     if (!init_vablock())
         goto hang;

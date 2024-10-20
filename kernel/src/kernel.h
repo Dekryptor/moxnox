@@ -87,6 +87,8 @@ struct kernel_image {
     list_entry le;
     void* base_address;
     uint64_t size;
+    std::span<const uint8_t> debug_info;
+    std::span<const uint8_t> debug_abbrev;
     char name[0];
 };
 

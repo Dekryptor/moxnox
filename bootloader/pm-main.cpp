@@ -18,6 +18,8 @@ static const unsigned int MAX_MAP_ENTRIES = 128; // same as E820_COUNT
 
 static struct map_entry mem_entries[MAX_MAP_ENTRIES];
 static uint32_t mem_entries_count;
+static uint64_t debug_info_ptr, debug_abbrev_ptr;
+static uint32_t debug_info_size, debug_abbrev_size;
 
 static const uint64_t img_addr = 0xfffff80000000000;
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
@@ -195,6 +197,60 @@ size_t strlen(const char* s) {
     }
 
     return i;
+}
+
+int memcmp(const void* s1, const void* s2, size_t n) {
+    // FIXME - not completely accurate, as 1 or -1 is messed up by endianness
+
+    while (n > sizeof(uint64_t)) {
+        uint64_t c1 = *(uint64_t*)s1;
+        uint64_t c2 = *(uint64_t*)s2;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        s1 = (uint64_t*)s1 + 1;
+        s2 = (uint64_t*)s2 + 1;
+        n -= sizeof(uint64_t);
+    }
+
+    while (n > sizeof(uint32_t)) {
+        uint32_t c1 = *(uint32_t*)s1;
+        uint32_t c2 = *(uint32_t*)s2;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        s1 = (uint32_t*)s1 + 1;
+        s2 = (uint32_t*)s2 + 1;
+        n -= sizeof(uint32_t);
+    }
+
+    while (n > sizeof(uint16_t)) {
+        uint16_t c1 = *(uint16_t*)s1;
+        uint16_t c2 = *(uint16_t*)s2;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        s1 = (uint16_t*)s1 + 1;
+        s2 = (uint16_t*)s2 + 1;
+        n -= sizeof(uint16_t);
+    }
+
+    while (n > 0) {
+        uint8_t c1 = *(uint8_t*)s1;
+        uint8_t c2 = *(uint8_t*)s2;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        s1 = (uint8_t*)s1 + 1;
+        s2 = (uint8_t*)s2 + 1;
+        n--;
+    }
+
+    return 0;
 }
 
 static void add_new_mem_entry(unsigned int pos) {
@@ -773,7 +829,13 @@ static bool load_payload() {
         auto name = get_section_name(s, pe_header.FileHeader,
                                      span(&payload_data, payload_size));
 
-        // FIXME - put pointers to DWARF sections in loader block
+        if (name == ".debug_info") {
+            debug_info_ptr = img_addr + s.VirtualAddress;
+            debug_info_size = s.VirtualSize;
+        } else if (name == ".debug_abbrev") {
+            debug_abbrev_ptr = img_addr + s.VirtualAddress;
+            debug_abbrev_size = s.VirtualSize;
+        }
 
         section_size = s.VirtualSize;
 
@@ -945,6 +1007,10 @@ void protected_mode_main() {
     lb.num_map_entries = mem_entries_count;
     lb.rsdt_pa = rsdt_address;
     lb.cmdline = (uintptr_t)ptr_cmdline;
+    lb.debug_info_ptr = debug_info_ptr;
+    lb.debug_info_size = debug_info_size;
+    lb.debug_abbrev_ptr = debug_abbrev_ptr;
+    lb.debug_abbrev_size = debug_abbrev_size;
 
     // jump to entry point of image
 
