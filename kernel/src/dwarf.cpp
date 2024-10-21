@@ -380,21 +380,133 @@ static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
     }
 }
 
+static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
+    while (true) {
+        auto att_num = read_dw_enum<enum DW_AT>(att_list);
+        auto form = read_dw_enum<enum DW_FORM>(att_list);
+
+        if (att_num == (enum DW_AT)0)
+            break;
+
+        switch (form) {
+            case DW_FORM::addr:
+                die = die.subspan(sizeof(uintptr_t));
+            break;
+
+            // FIXME - DW_FORM::block2
+            // FIXME - DW_FORM::block4
+
+            case DW_FORM::data2:
+            case DW_FORM::ref2:
+                die = die.subspan(2);
+            break;
+
+            case DW_FORM::data4:
+            case DW_FORM::ref4:
+                die = die.subspan(4);
+            break;
+
+            case DW_FORM::data8:
+            case DW_FORM::ref8:
+                die = die.subspan(8);
+            break;
+
+            case DW_FORM::string: {
+                string_view sv((char*)die.data(), die.size());
+
+                if (auto nul = sv.find_first_of('\0'); nul != string_view::npos)
+                    die = die.subspan(nul + 1);
+                else
+                    die = span<const uint8_t>();
+
+                break;
+            }
+
+            // FIXME - DW_FORM::block
+            // FIXME - DW_FORM::block1
+
+            case DW_FORM::data1:
+            case DW_FORM::ref1:
+                die = die.subspan(1);
+            break;
+
+            // FIXME - DW_FORM::flag
+            // FIXME - DW_FORM::sdata
+
+            case DW_FORM::strp:
+            case DW_FORM::strp_sup:
+            case DW_FORM::line_strp:
+            case DW_FORM::sec_offset:
+                die = die.subspan(4);
+            break;
+
+            // FIXME - DW_FORM::udata
+            // FIXME - DW_FORM::ref_addr
+            // FIXME - DW_FORM::ref_udata
+            // FIXME - DW_FORM::indirect
+            // FIXME - DW_FORM::exprloc
+            // FIXME - DW_FORM::flag_present
+            // FIXME - DW_FORM::ref_sig8
+            // FIXME - DW_FORM::strx
+            // FIXME - DW_FORM::addrx
+            // FIXME - DW_FORM::ref_sup4
+
+            case DW_FORM::data16:
+                die = die.subspan(16);
+            break;
+
+            case DW_FORM::implicit_const:
+            break;
+
+            // FIXME - DW_FORM::loclistx
+            // FIXME - DW_FORM::rnglistx
+            // FIXME - DW_FORM::ref_sup8
+            // FIXME - DW_FORM::strx1
+            // FIXME - DW_FORM::strx2
+            // FIXME - DW_FORM::strx3
+            // FIXME - DW_FORM::strx4
+            // FIXME - DW_FORM::addrx1
+            // FIXME - DW_FORM::addrx2
+            // FIXME - DW_FORM::addrx3
+            // FIXME - DW_FORM::addrx4
+
+            default:
+                // FIXME
+                return false;
+        }
+
+        if (form == DW_FORM::implicit_const)
+            skip_uleb128(att_list);
+    }
+
+    return true;
+}
+
 template<typename T>
-concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>>;
+concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>, span<const uint8_t>> &&
+requires(T t, enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list) { { t(tag, has_children, die, att_list) } -> convertible_to<bool>; };
 
-static void process_die(span<const uint8_t>& die, span<const uint8_t> abbrev,
-                        die_func auto func) {
-    enum DW_TAG tag;
-    bool has_children;
-    span<const uint8_t> att_list;
+static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbrev,
+                              die_func auto func) {
+    while (true) {
+        enum DW_TAG tag;
+        bool has_children;
+        span<const uint8_t> att_list;
 
-    auto abbrev_num = read_uleb128(die);
+        auto abbrev_num = read_uleb128(cu);
 
-    if (!find_abbrev_entry(abbrev_num, abbrev, tag, has_children, att_list))
-        return;
+        if (abbrev_num == 0)
+            break;
 
-    func(tag, has_children, att_list);
+        if (!find_abbrev_entry(abbrev_num, abbrev, tag, has_children, att_list))
+            return;
+
+        if (!func(tag, has_children, cu, att_list))
+            return;
+
+        if (!skip_die(cu, att_list))
+            return;
+    }
 }
 
 template<typename T>
@@ -420,16 +532,19 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             // FIXME - DW_FORM::block4
 
             case DW_FORM::data2:
+            case DW_FORM::ref2:
                 data = span(die.data(), 2);
                 die = die.subspan(2);
             break;
 
             case DW_FORM::data4:
+            case DW_FORM::ref4:
                 data = span(die.data(), 4);
                 die = die.subspan(4);
             break;
 
             case DW_FORM::data8:
+            case DW_FORM::ref8:
                 data = span(die.data(), 8);
                 die = die.subspan(8);
             break;
@@ -452,6 +567,7 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             // FIXME - DW_FORM::block1
 
             case DW_FORM::data1:
+            case DW_FORM::ref1:
                 data = span(die.data(), 1);
                 die = die.subspan(1);
             break;
@@ -469,10 +585,6 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
 
             // FIXME - DW_FORM::udata
             // FIXME - DW_FORM::ref_addr
-            // FIXME - DW_FORM::ref1
-            // FIXME - DW_FORM::ref2
-            // FIXME - DW_FORM::ref4
-            // FIXME - DW_FORM::ref8
             // FIXME - DW_FORM::ref_udata
             // FIXME - DW_FORM::indirect
             // FIXME - DW_FORM::exprloc
@@ -552,6 +664,22 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
     return false;
 }
 
+static string_view dwarf_find_function2(const kernel_image& img, uint64_t addr,
+                                        span<const uint8_t> cu,
+                                        span<const uint8_t> abbrev) {
+    // FIXME - loop through DIEs
+    // FIXME - find DW_TAG_subprogram matching range
+    // FIXME - return DW_AT_name and offset
+
+    loop_through_dies(cu, abbrev, [&](enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list) -> bool {
+        // FIXME
+
+        return true;
+    });
+
+    return "";
+}
+
 string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
     auto info = img.debug_info;
     if (info.empty())
@@ -570,11 +698,11 @@ string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
     loop_through_cus(info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
         auto current_cu = cu;
 
-        process_die(cu, abbrev.subspan(debug_abbrev_object), [&](enum DW_TAG tag, bool, span<const uint8_t> att_list) {
+        loop_through_dies(cu, abbrev.subspan(debug_abbrev_object), [&](enum DW_TAG tag, bool, span<const uint8_t> die, span<const uint8_t> att_list) -> bool {
             if (tag != DW_TAG::compile_unit)
-                return;
+                return false;
 
-            loop_through_atts(cu, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
+            loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
                 if (att_num == DW_AT::ranges && form == DW_FORM::sec_offset) {
                     auto offset = *(uint32_t*)data.data();
 
@@ -591,6 +719,8 @@ string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
 
                 return true;
             });
+
+            return false;
         });
 
         if (!found_cu.empty())
@@ -602,9 +732,6 @@ string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
     if (found_cu.empty())
         return "";
 
-    // FIXME - loop through DIEs
-    // FIXME - find DW_TAG_subprogram matching range
-    // FIXME - return DW_AT_name and offset
-
-    return "";
+    return dwarf_find_function2(img, addr, found_cu,
+                                abbrev.subspan(found_debug_abbrev_object));
 }
