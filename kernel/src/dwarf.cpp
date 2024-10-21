@@ -12,7 +12,8 @@ struct dwarf_cu_header {
     uint32_t debug_abbrev_object;
 } __attribute__((packed));
 
-enum class DW_FORM : uleb128 {
+enum class DW_FORM : uint8_t {
+    unknown = 0x00,
     addr = 0x01,
     block2 = 0x03,
     block4 = 0x04,
@@ -56,6 +57,134 @@ enum class DW_FORM : uleb128 {
     addrx2 = 0x2a,
     addrx3 = 0x2b,
     addrx4 = 0x2c,
+};
+
+enum class DW_AT : uint16_t {
+    unknown = 0x00,
+    sibling = 0x01,
+    location = 0x02,
+    name = 0x03,
+    ordering = 0x09,
+    subscr_data = 0x0a,
+    byte_size = 0x0b,
+    bit_offset = 0x0c,
+    bit_size = 0x0d,
+    element_list = 0x0f,
+    stmt_list = 0x10,
+    low_pc = 0x11,
+    high_pc = 0x12,
+    language = 0x13,
+    member = 0x14,
+    discr = 0x15,
+    discr_value = 0x16,
+    visibility = 0x17,
+    import_ = 0x18,
+    string_length = 0x19,
+    common_reference = 0x1a,
+    comp_dir = 0x1b,
+    const_value = 0x1c,
+    containing_type = 0x1d,
+    default_value = 0x1e,
+    inline_ = 0x20,
+    is_optional = 0x21,
+    lower_bound = 0x22,
+    producer = 0x25,
+    prototyped = 0x27,
+    return_addr = 0x2a,
+    start_scope = 0x2c,
+    bit_stride = 0x2e,
+    upper_bound = 0x2f,
+    abstract_origin = 0x31,
+    accessibility = 0x32,
+    address_class = 0x33,
+    artificial = 0x34,
+    base_types = 0x35,
+    calling_convention = 0x36,
+    count = 0x37,
+    data_member_location = 0x38,
+    decl_column = 0x39,
+    decl_file = 0x3a,
+    decl_line = 0x3b,
+    declaration = 0x3c,
+    discr_list = 0x3d,
+    encoding = 0x3e,
+    external = 0x3f,
+    frame_base = 0x40,
+    friend_ = 0x41,
+    identifier_case = 0x42,
+    macro_info = 0x43,
+    namelist_item = 0x44,
+    priority = 0x45,
+    segment = 0x46,
+    specification = 0x47,
+    static_link = 0x48,
+    type = 0x49,
+    use_location = 0x4a,
+    variable_parameter = 0x4b,
+    virtuality = 0x4c,
+    vtable_elem_location = 0x4d,
+    allocated = 0x4e,
+    associated = 0x4f,
+    data_location = 0x50,
+    byte_stride = 0x51,
+    entry_pc = 0x52,
+    use_UTF8 = 0x53,
+    extension = 0x54,
+    ranges = 0x55,
+    trampoline = 0x56,
+    call_column = 0x57,
+    call_file = 0x58,
+    call_line = 0x59,
+    description = 0x5a,
+    binary_scale = 0x5b,
+    decimal_scale = 0x5c,
+    small = 0x5d,
+    decimal_sign = 0x5e,
+    digit_count = 0x5f,
+    picture_string = 0x60,
+    mutable_ = 0x61,
+    threads_scaled = 0x62,
+    explicit_ = 0x63,
+    object_pointer = 0x64,
+    endianity = 0x65,
+    elemental = 0x66,
+    pure = 0x67,
+    recursive = 0x68,
+    signature = 0x69,
+    main_subprogram = 0x6a,
+    data_bit_offset = 0x6b,
+    const_expr = 0x6c,
+    enum_class = 0x6d,
+    linkage_name = 0x6e,
+    string_length_bit_size = 0x6f,
+    string_length_byte_size = 0x70,
+    rank = 0x71,
+    str_offsets_base = 0x72,
+    addr_base = 0x73,
+    rnglists_base = 0x74,
+    dwo_name = 0x76,
+    reference = 0x77,
+    rvalue_reference = 0x78,
+    macros = 0x79,
+    call_all_calls = 0x7a,
+    call_all_source_calls = 0x7b,
+    call_all_tail_calls = 0x7c,
+    call_return_pc = 0x7d,
+    call_value = 0x7e,
+    call_origin = 0x7f,
+    call_parameter = 0x80,
+    call_pc = 0x81,
+    call_tail_call = 0x82,
+    call_target = 0x83,
+    call_target_clobbered = 0x84,
+    call_data_location = 0x85,
+    call_data_value = 0x86,
+    noreturn = 0x87,
+    alignment = 0x88,
+    export_symbols = 0x89,
+    deleted = 0x8a,
+    defaulted = 0x8b,
+    loclists_base = 0x8c,
 };
 
 template<typename T>
@@ -117,6 +246,24 @@ static void skip_leb128(span<const uint8_t>& sp) {
     sp = sp.subspan(1);
 }
 
+static enum DW_FORM read_dw_form(span<const uint8_t>& sp) {
+    auto val = read_uleb128(sp);
+
+    if (val >= (1 << sizeof(enum DW_FORM) * 8))
+        val = 0;
+
+    return static_cast<enum DW_FORM>(val);
+}
+
+static enum DW_AT read_dw_at(span<const uint8_t>& sp) {
+    auto val = read_uleb128(sp);
+
+    if (val >= (1 << sizeof(enum DW_AT) * 8))
+        val = 0;
+
+    return static_cast<enum DW_AT>(val);
+}
+
 static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
                               uleb128& tag, bool& has_children,
                               span<const uint8_t>& att_list) {
@@ -133,13 +280,13 @@ static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
             abbrev = abbrev.subspan(1); // has children
 
             do {
-                auto att_num = read_uleb128(abbrev);
-                auto form = read_uleb128(abbrev);
+                auto att_num = read_dw_at(abbrev);
+                auto form = read_dw_form(abbrev);
 
-                if ((enum DW_FORM)form == DW_FORM::implicit_const)
+                if (form == DW_FORM::implicit_const)
                     skip_leb128(abbrev);
 
-                if (att_num == 0)
+                if (att_num == (enum DW_AT)0)
                     break;
             } while (true);
 
@@ -157,7 +304,12 @@ static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
     }
 }
 
-static void process_die(span<const uint8_t> die, span<const uint8_t> abbrev) {
+template<typename T>
+concept die_func = invocable<T, enum DW_AT, enum DW_FORM> &&
+requires(T t, enum DW_AT att_num, enum DW_FORM form) { { t(att_num, form) } -> convertible_to<bool>; };
+
+static void process_die(span<const uint8_t> die, span<const uint8_t> abbrev,
+                        die_func auto func) {
     uleb128 tag;
     bool has_children;
     span<const uint8_t> att_list;
@@ -167,7 +319,19 @@ static void process_die(span<const uint8_t> die, span<const uint8_t> abbrev) {
     if (!find_abbrev_entry(abbrev_num, abbrev, tag, has_children, att_list))
         return;
 
-    // FIXME
+    while (true) {
+        auto att_num = read_dw_at(att_list);
+        auto form = read_dw_form(att_list);
+
+        if (att_num == (enum DW_AT)0)
+            break;
+
+        if (!func(att_num, form))
+            break;
+
+        if (form == DW_FORM::implicit_const)
+            skip_leb128(att_list);
+    }
 }
 
 string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
@@ -181,7 +345,12 @@ string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
 
     loop_through_cus(info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
         // FIXME - find CU with addr in DW_AT_ranges
-        process_die(cu, abbrev.subspan(debug_abbrev_object));
+        process_die(cu, abbrev.subspan(debug_abbrev_object),
+        [](enum DW_AT att_num, enum DW_FORM form) {
+            // FIXME
+
+            return true;
+        });
 
         return true;
     });
