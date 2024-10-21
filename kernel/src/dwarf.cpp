@@ -259,6 +259,17 @@ enum class DW_TAG : uint8_t {
     immutable_type = 0x4b,
 };
 
+enum class DW_RLE : uint8_t {
+    end_of_list = 0x00,
+    base_addressx = 0x01,
+    startx_endx = 0x02,
+    startx_length = 0x03,
+    offset_pair = 0x04,
+    base_address = 0x05,
+    start_end = 0x06,
+    start_length = 0x07
+};
+
 template<typename T>
 concept cus_func = invocable<T, span<const uint8_t>, uint32_t> &&
 requires(T t, span<const uint8_t> s, uint32_t n) { { t(s, n) } -> convertible_to<bool>; };
@@ -502,6 +513,45 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
     }
 }
 
+static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
+    while (!rnglist.empty()) {
+        auto type = (enum DW_RLE)rnglist[0];
+
+        rnglist = rnglist.subspan(1);
+
+        switch (type) {
+            case DW_RLE::end_of_list:
+                return false;
+
+            // FIXME - DW_RLE::base_addressx
+            // FIXME - DW_RLE::startx_endx
+            // FIXME - DW_RLE::startx_length
+            // FIXME - DW_RLE::offset_pair
+            // FIXME - DW_RLE::base_address
+            // FIXME - DW_RLE::start_end
+
+            case DW_RLE::start_length: {
+                auto base_addr = *(uint64_t*)rnglist.data();
+
+                rnglist = rnglist.subspan(sizeof(uint64_t));
+
+                auto length = read_uleb128(rnglist);
+
+                if (addr >= base_addr && addr < base_addr + length)
+                    return true;
+
+                break;
+            }
+
+            default:
+                // FIXME
+                return false;
+        }
+    }
+
+    return false;
+}
+
 string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
     auto info = img.debug_info;
     if (info.empty())
@@ -511,21 +561,46 @@ string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
     if (abbrev.empty())
         return "";
 
+    auto rnglists = img.debug_rnglists;
+
+    span<const uint8_t> found_cu;
+    uint32_t found_debug_abbrev_object;
+
+    // find CU with addr in DW_AT_ranges
     loop_through_cus(info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
-        // FIXME - find CU with addr in DW_AT_ranges
+        auto current_cu = cu;
 
         process_die(cu, abbrev.subspan(debug_abbrev_object), [&](enum DW_TAG tag, bool, span<const uint8_t> att_list) {
             if (tag != DW_TAG::compile_unit)
                 return;
 
-            loop_through_atts(cu, att_list, [](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
-                // FIXME
+            loop_through_atts(cu, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
+                if (att_num == DW_AT::ranges && form == DW_FORM::sec_offset) {
+                    auto offset = *(uint32_t*)data.data();
+
+                    if (addr_in_range(addr, rnglists.subspan(offset))) {
+                        found_cu = current_cu;
+                        found_debug_abbrev_object = debug_abbrev_object;
+                    }
+
+                    return false;
+                }
+
+                if (!found_cu.empty())
+                    return false;
+
                 return true;
             });
         });
 
+        if (!found_cu.empty())
+            return false;
+
         return true;
     });
+
+    if (found_cu.empty())
+        return "";
 
     // FIXME - loop through DIEs
     // FIXME - find DW_TAG_subprogram matching range
