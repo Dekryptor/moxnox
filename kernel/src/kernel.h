@@ -89,6 +89,7 @@ struct kernel_image {
     uint64_t size;
     std::span<const uint8_t> debug_info;
     std::span<const uint8_t> debug_abbrev;
+    std::span<const uint8_t> debug_rnglists;
     char name[0];
 };
 
