@@ -187,6 +187,78 @@ enum class DW_AT : uint16_t {
     loclists_base = 0x8c,
 };
 
+enum class DW_TAG : uint8_t {
+    padding = 0x00,
+    array_type = 0x01,
+    class_type = 0x02,
+    entry_point = 0x03,
+    enumeration_type = 0x04,
+    formal_parameter = 0x05,
+    imported_declaration = 0x08,
+    label = 0x0a,
+    lexical_block = 0x0b,
+    member = 0x0d,
+    pointer_type = 0x0f,
+    reference_type = 0x10,
+    compile_unit = 0x11,
+    string_type = 0x12,
+    structure_type = 0x13,
+    subroutine_type = 0x15,
+    typedef_ = 0x16,
+    union_type = 0x17,
+    unspecified_parameters = 0x18,
+    variant = 0x19,
+    common_block = 0x1a,
+    common_inclusion = 0x1b,
+    inheritance = 0x1c,
+    inlined_subroutine = 0x1d,
+    module_ = 0x1e,
+    ptr_to_member_type = 0x1f,
+    set_type = 0x20,
+    subrange_type = 0x21,
+    with_stmt = 0x22,
+    access_declaration = 0x23,
+    base_type = 0x24,
+    catch_block = 0x25,
+    const_type = 0x26,
+    constant = 0x27,
+    enumerator = 0x28,
+    file_type = 0x29,
+    friend_ = 0x2a,
+    namelist = 0x2b,
+    namelist_item = 0x2c,
+    packed_type = 0x2d,
+    subprogram = 0x2e,
+    template_type_param = 0x2f,
+    template_value_param = 0x30,
+    thrown_type = 0x31,
+    try_block = 0x32,
+    variant_part = 0x33,
+    variable = 0x34,
+    volatile_type = 0x35,
+    dwarf_procedure = 0x36,
+    restrict_type = 0x37,
+    interface_type = 0x38,
+    namespace_ = 0x39,
+    imported_module = 0x3a,
+    unspecified_type = 0x3b,
+    partial_unit = 0x3c,
+    imported_unit = 0x3d,
+    condition = 0x3f,
+    shared_type = 0x40,
+    type_unit = 0x41,
+    rvalue_reference_type = 0x42,
+    template_alias = 0x43,
+    coarray_type = 0x44,
+    generic_subrange = 0x45,
+    dynamic_type = 0x46,
+    atomic_type = 0x47,
+    call_site = 0x48,
+    call_site_parameter = 0x49,
+    skeleton_unit = 0x4a,
+    immutable_type = 0x4b,
+};
+
 template<typename T>
 concept cus_func = invocable<T, span<const uint8_t>, uint32_t> &&
 requires(T t, span<const uint8_t> s, uint32_t n) { { t(s, n) } -> convertible_to<bool>; };
@@ -246,26 +318,19 @@ static void skip_leb128(span<const uint8_t>& sp) {
     sp = sp.subspan(1);
 }
 
-static enum DW_FORM read_dw_form(span<const uint8_t>& sp) {
+template<typename T>
+requires is_enum_v<T>
+static T read_dw_enum(span<const uint8_t>& sp) {
     auto val = read_uleb128(sp);
 
-    if (val >= (1 << sizeof(enum DW_FORM) * 8))
+    if (val >= (1 << sizeof(T) * 8))
         val = 0;
 
-    return static_cast<enum DW_FORM>(val);
-}
-
-static enum DW_AT read_dw_at(span<const uint8_t>& sp) {
-    auto val = read_uleb128(sp);
-
-    if (val >= (1 << sizeof(enum DW_AT) * 8))
-        val = 0;
-
-    return static_cast<enum DW_AT>(val);
+    return static_cast<T>(val);
 }
 
 static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
-                              uleb128& tag, bool& has_children,
+                              enum DW_TAG& tag, bool& has_children,
                               span<const uint8_t>& att_list) {
     while (true) {
         if (abbrev.empty())
@@ -280,8 +345,8 @@ static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
             abbrev = abbrev.subspan(1); // has children
 
             do {
-                auto att_num = read_dw_at(abbrev);
-                auto form = read_dw_form(abbrev);
+                auto att_num = read_dw_enum<enum DW_AT>(abbrev);
+                auto form = read_dw_enum<enum DW_FORM>(abbrev);
 
                 if (form == DW_FORM::implicit_const)
                     skip_leb128(abbrev);
@@ -293,7 +358,7 @@ static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
             continue;
         }
 
-        tag = read_uleb128(abbrev);
+        tag = read_dw_enum<enum DW_TAG>(abbrev);
 
         has_children = abbrev[0] != 0;
         abbrev = abbrev.subspan(1);
@@ -310,7 +375,7 @@ requires(T t, enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
 
 static void process_die(span<const uint8_t>& die, span<const uint8_t> abbrev,
                         die_func auto func) {
-    uleb128 tag;
+    enum DW_TAG tag;
     bool has_children;
     span<const uint8_t> att_list;
 
@@ -320,8 +385,8 @@ static void process_die(span<const uint8_t>& die, span<const uint8_t> abbrev,
         return;
 
     while (true) {
-        auto att_num = read_dw_at(att_list);
-        auto form = read_dw_form(att_list);
+        auto att_num = read_dw_enum<enum DW_AT>(att_list);
+        auto form = read_dw_enum<enum DW_FORM>(att_list);
 
         if (att_num == (enum DW_AT)0)
             break;
