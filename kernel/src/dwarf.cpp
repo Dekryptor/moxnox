@@ -370,8 +370,7 @@ static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
 }
 
 template<typename T>
-concept die_func = invocable<T, enum DW_AT, enum DW_FORM, span<const uint8_t>> &&
-requires(T t, enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) { { t(att_num, form, data) } -> convertible_to<bool>; };
+concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>>;
 
 static void process_die(span<const uint8_t>& die, span<const uint8_t> abbrev,
                         die_func auto func) {
@@ -384,6 +383,14 @@ static void process_die(span<const uint8_t>& die, span<const uint8_t> abbrev,
     if (!find_abbrev_entry(abbrev_num, abbrev, tag, has_children, att_list))
         return;
 
+    func(tag, has_children, att_list);
+}
+
+template<typename T>
+concept att_func = invocable<T, enum DW_AT, enum DW_FORM, span<const uint8_t>> &&
+requires(T t, enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) { { t(att_num, form, data) } -> convertible_to<bool>; };
+
+static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_list, att_func auto func) {
     while (true) {
         auto att_num = read_dw_enum<enum DW_AT>(att_list);
         auto form = read_dw_enum<enum DW_FORM>(att_list);
@@ -506,11 +513,15 @@ string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
 
     loop_through_cus(info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
         // FIXME - find CU with addr in DW_AT_ranges
-        process_die(cu, abbrev.subspan(debug_abbrev_object),
-        [](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
-            // FIXME
 
-            return true;
+        process_die(cu, abbrev.subspan(debug_abbrev_object), [&](enum DW_TAG tag, bool, span<const uint8_t> att_list) {
+            if (tag != DW_TAG::compile_unit)
+                return;
+
+            loop_through_atts(cu, att_list, [](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
+                // FIXME
+                return true;
+            });
         });
 
         return true;
