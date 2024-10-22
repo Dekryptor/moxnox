@@ -315,16 +315,10 @@ static uleb128 read_uleb128(span<const uint8_t>& sp) {
     return ret;
 }
 
-static void skip_uleb128(span<const uint8_t>& sp) {
+static void skip_leb128(span<const uint8_t>& sp) {
     while (sp[0] & 0x80) {
         sp = sp.subspan(1);
     }
-
-    sp = sp.subspan(1);
-}
-
-static void skip_leb128(span<const uint8_t>& sp) {
-    // FIXME
 
     sp = sp.subspan(1);
 }
@@ -352,7 +346,7 @@ static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
             return false;
 
         if (entry_num != num) {
-            skip_uleb128(abbrev); // tag
+            skip_leb128(abbrev); // tag
             abbrev = abbrev.subspan(1); // has children
 
             do {
@@ -484,7 +478,7 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
         }
 
         if (form == DW_FORM::implicit_const)
-            skip_uleb128(att_list);
+            skip_leb128(att_list);
     }
 
     return true;
@@ -626,7 +620,16 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
                 die = die.subspan(16);
             break;
 
-            // FIXME - DW_FORM::implicit_const
+            case DW_FORM::implicit_const: {
+                auto new_att_list = att_list;
+
+                skip_leb128(new_att_list);
+
+                data = span(att_list.data(), new_att_list.data() - att_list.data());
+                att_list = new_att_list;
+                break;
+            }
+
             // FIXME - DW_FORM::loclistx
             // FIXME - DW_FORM::rnglistx
             // FIXME - DW_FORM::ref_sup8
@@ -646,9 +649,6 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
 
         if (!func(att_num, form, data))
             break;
-
-        if (form == DW_FORM::implicit_const)
-            skip_leb128(att_list);
     }
 }
 
