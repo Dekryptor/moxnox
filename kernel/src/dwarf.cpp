@@ -485,8 +485,8 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
 }
 
 template<typename T>
-concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>, span<const uint8_t>> &&
-requires(T t, enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list) { { t(tag, has_children, die, att_list) } -> convertible_to<bool>; };
+concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>, span<const uint8_t>, unsigned int> &&
+requires(T t, enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list, unsigned int depth) { { t(tag, has_children, die, att_list, depth) } -> convertible_to<bool>; };
 
 static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbrev,
                               die_func auto func) {
@@ -510,7 +510,7 @@ static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbre
         if (!find_abbrev_entry(abbrev_num, abbrev, tag, has_children, att_list))
             return;
 
-        if (!func(tag, has_children, cu, att_list))
+        if (!func(tag, has_children, cu, att_list, depth))
             return;
 
         if (has_children)
@@ -698,7 +698,22 @@ static string_view dwarf_find_function2(const kernel_image& img, uint64_t addr,
     // FIXME - find DW_TAG_subprogram matching range
     // FIXME - return DW_AT_name and offset
 
-    loop_through_dies(cu, abbrev, [&](enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list) -> bool {
+    loop_through_dies(cu, abbrev, [&](enum DW_TAG tag, bool has_children, span<const uint8_t> die,
+                                      span<const uint8_t> att_list, unsigned int depth) -> bool {
+        string_view name;
+
+        if (tag != DW_TAG::subprogram || depth != 0)
+            return true;
+
+        loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
+            if (att_num == DW_AT::name && form == DW_FORM::string)
+                name = string_view((char*)data.data(), data.size());
+
+            // FIXME
+
+            return true;
+        });
+
         // FIXME
 
         return true;
@@ -725,7 +740,8 @@ string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
     loop_through_cus(info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
         auto current_cu = cu;
 
-        loop_through_dies(cu, abbrev.subspan(debug_abbrev_object), [&](enum DW_TAG tag, bool, span<const uint8_t> die, span<const uint8_t> att_list) -> bool {
+        loop_through_dies(cu, abbrev.subspan(debug_abbrev_object), [&](enum DW_TAG tag, bool, span<const uint8_t> die,
+                                                                       span<const uint8_t> att_list, unsigned int) -> bool {
             if (tag != DW_TAG::compile_unit)
                 return false;
 
