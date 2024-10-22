@@ -81,13 +81,18 @@ page_fault_user_exception:
     mov [rsp+0x48], rax
     jmp page_fault_user_no_exception
 
+.seh_proc page_fault_isr
 .global page_fault_isr
 page_fault_isr: # keeps cr3 of process
-    cmp QWORD PTR [rsp+0x10], 0x8
+    .seh_pushframe code
+    sub rsp, 0x20
+    .seh_stackalloc 32
+    .seh_endprologue
+    cmp QWORD PTR [rsp+0x30], 0x8
     je 0f
     swapgs
 0:
-    save_context_when_error_code
+    save_context_when_error_code2
 
     mov rax, QWORD PTR gs:GS_CURRENT_THREAD
     cmp rax, 0
@@ -96,15 +101,14 @@ page_fault_isr: # keeps cr3 of process
     je 1f
     cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
     jne 1f
+    add rsp, 0x20 # FIXME
     jmp page_fault_user_isr
 
 1:
     mov rcx, cr2
-    pop rdx
-    sub rsp, 0x20
+    mov rdx, [rsp+0x20]
     call page_fault
 2:
-    add rsp, 0x20
 
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
     mov r10, gs:GS_CONTEXT + CONTEXT_R10
@@ -122,7 +126,9 @@ page_fault_isr: # keeps cr3 of process
     je 3f
     swapgs
 3:
+    add rsp, 0x28
     iretq
+    .seh_endproc
 
 .global double_fault_isr
 double_fault_isr:
