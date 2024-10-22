@@ -570,7 +570,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "Page fault (address = ");
+    sp = sp_strcpy(sp, "Page fault in kernel mode (address = ");
     sp = sp_itoa_hex(sp, address);
     sp = sp_strcpy(sp, ", error code = ");
     sp = sp_itoa_hex(sp, error_code);
@@ -595,9 +595,8 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     }
 
     sp = sp_context(sp, cb.thread_context);
-    printk(string_view(s, sp.data() - s));
 
-    bsod("page fault in kernel mode");
+    bsod(string_view(s, sp.data() - s));
 }
 
 extern "C"
