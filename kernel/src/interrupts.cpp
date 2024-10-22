@@ -597,14 +597,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     sp = sp_context(sp, cb.thread_context);
     printk(string_view(s, sp.data() - s));
 
-    if (!current_thread) {
-        // FIXME - BSOD
-        while (1) { }
-    } else {
-        printk("Thread killed\n");
-        current_thread->exit_status = nt_status::ACCESS_VIOLATION;
-        current_thread->terminate();
-    }
+    bsod("page fault in kernel mode");
 }
 
 extern "C"
