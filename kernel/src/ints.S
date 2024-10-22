@@ -2,23 +2,43 @@
 
 #include "context.S"
 
-.global page_fault_user_isr
+.seh_proc page_fault_isr
+.global page_fault_isr
+page_fault_isr: # keeps cr3 of process
+    .seh_pushframe code
+    sub rsp, 0x20
+    .seh_stackalloc 32
+    .seh_endprologue
+    cmp QWORD PTR [rsp+0x30], 0x8
+    je 0f
+    swapgs
+0:
+    save_context_when_error_code2
+
+    mov rax, QWORD PTR gs:GS_CURRENT_THREAD
+    cmp rax, 0
+    je 1f
+    cmp QWORD PTR [rax + THREAD_PROC], 0
+    je 1f
+    cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+    jne 1f
+
 page_fault_user_isr:
     # switch to syscall stack
     mov rax, QWORD PTR gs:GS_CURRENT_THREAD
     mov rax, [rax + THREAD_SYSCALL_STACK]
     sub rax, 0x28
-    mov rdx, QWORD PTR [rsp + 0x8] # RIP
+    mov rdx, QWORD PTR [rsp + 0x28] # RIP
     mov QWORD PTR [rax], rdx
-    mov rdx, QWORD PTR [rsp + 0x10] # CS
+    mov rdx, QWORD PTR [rsp + 0x30] # CS
     mov QWORD PTR [rax + 0x8], rdx
-    mov rdx, QWORD PTR [rsp + 0x18] # RFLAGS
+    mov rdx, QWORD PTR [rsp + 0x38] # RFLAGS
     mov QWORD PTR [rax + 0x10], rdx
-    mov rdx, QWORD PTR [rsp + 0x20] # RSP
+    mov rdx, QWORD PTR [rsp + 0x40] # RSP
     mov QWORD PTR [rax + 0x18], rdx
-    mov rdx, QWORD PTR [rsp + 0x28] # SS
+    mov rdx, QWORD PTR [rsp + 0x48] # SS
     mov QWORD PTR [rax + 0x20], rdx
-    pop rdx # error code
+    mov rdx, QWORD PTR [rsp+0x20] # error code
     mov rsp, rax
 
     mov rax, gs:GS_CONTEXT + CONTEXT_R11
@@ -80,29 +100,6 @@ page_fault_user_exception:
     mov rax, gs:GS_CONTEXT + CONTEXT_RSP
     mov [rsp+0x48], rax
     jmp page_fault_user_no_exception
-
-.seh_proc page_fault_isr
-.global page_fault_isr
-page_fault_isr: # keeps cr3 of process
-    .seh_pushframe code
-    sub rsp, 0x20
-    .seh_stackalloc 32
-    .seh_endprologue
-    cmp QWORD PTR [rsp+0x30], 0x8
-    je 0f
-    swapgs
-0:
-    save_context_when_error_code2
-
-    mov rax, QWORD PTR gs:GS_CURRENT_THREAD
-    cmp rax, 0
-    je 1f
-    cmp QWORD PTR [rax + THREAD_PROC], 0
-    je 1f
-    cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
-    jne 1f
-    add rsp, 0x20 # FIXME
-    jmp page_fault_user_isr
 
 1:
     mov rcx, cr2
