@@ -27,18 +27,18 @@ page_fault_user_isr:
     # switch to syscall stack
     mov rax, QWORD PTR gs:GS_CURRENT_THREAD
     mov rax, [rax + THREAD_SYSCALL_STACK]
-    sub rax, 0x28
+    sub rax, 0x50
     mov rdx, QWORD PTR [rsp + 0x28] # RIP
-    mov QWORD PTR [rax], rdx
+    mov QWORD PTR [rax + 0x28], rdx
     mov rdx, QWORD PTR [rsp + 0x30] # CS
-    mov QWORD PTR [rax + 0x8], rdx
+    mov QWORD PTR [rax + 0x30], rdx
     mov rdx, QWORD PTR [rsp + 0x38] # RFLAGS
-    mov QWORD PTR [rax + 0x10], rdx
+    mov QWORD PTR [rax + 0x38], rdx
     mov rdx, QWORD PTR [rsp + 0x40] # RSP
-    mov QWORD PTR [rax + 0x18], rdx
+    mov QWORD PTR [rax + 0x40], rdx
     mov rdx, QWORD PTR [rsp + 0x48] # SS
-    mov QWORD PTR [rax + 0x20], rdx
-    mov rdx, QWORD PTR [rsp+0x20] # error code
+    mov QWORD PTR [rax + 0x48], rdx
+    mov rdx, QWORD PTR [rsp + 0x20] # error code
     mov rsp, rax
 
     mov rax, gs:GS_CONTEXT + CONTEXT_R11
@@ -88,7 +88,7 @@ page_fault_user_no_exception:
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
 
     swapgs
-    iretq
+    jmp page_fault_end
 
 page_fault_user_exception:
     mov rax, gs:GS_CONTEXT + CONTEXT_RCX
@@ -96,9 +96,9 @@ page_fault_user_exception:
     mov rax, gs:GS_CONTEXT + CONTEXT_RDX
     mov [rsp+0x8], rax
     mov rax, gs:GS_CONTEXT + CONTEXT_RIP
-    mov [rsp+0x30], rax
+    mov [rsp+0x58], rax
     mov rax, gs:GS_CONTEXT + CONTEXT_RSP
-    mov [rsp+0x48], rax
+    mov [rsp+0x70], rax
     jmp page_fault_user_no_exception
 
 1:
@@ -120,9 +120,10 @@ page_fault_user_exception:
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
 
     cmp QWORD PTR [rsp+0x8], 0x8
-    je 3f
+    je page_fault_end
     swapgs
-3:
+
+page_fault_end:
     add rsp, 0x28
     iretq
     .seh_endproc
