@@ -445,7 +445,10 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             // FIXME - DW_FORM::ref_udata
             // FIXME - DW_FORM::indirect
             // FIXME - DW_FORM::exprloc
-            // FIXME - DW_FORM::flag_present
+
+            case DW_FORM::flag_present:
+            break;
+
             // FIXME - DW_FORM::ref_sig8
             // FIXME - DW_FORM::strx
             // FIXME - DW_FORM::addrx
@@ -598,7 +601,10 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             // FIXME - DW_FORM::ref_udata
             // FIXME - DW_FORM::indirect
             // FIXME - DW_FORM::exprloc
-            // FIXME - DW_FORM::flag_present
+
+            case DW_FORM::flag_present:
+            break;
+
             // FIXME - DW_FORM::ref_sig8
             // FIXME - DW_FORM::strx
             // FIXME - DW_FORM::addrx
