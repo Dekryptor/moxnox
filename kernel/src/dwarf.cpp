@@ -334,46 +334,6 @@ static T read_dw_enum(span<const uint8_t>& sp) {
     return static_cast<T>(val);
 }
 
-static bool find_abbrev_entry(uleb128 num, span<const uint8_t> abbrev,
-                              enum DW_TAG& tag, bool& has_children,
-                              span<const uint8_t>& att_list) {
-    while (true) {
-        if (abbrev.empty())
-            return false;
-
-        auto entry_num = read_uleb128(abbrev);
-        if (entry_num == 0)
-            return false;
-
-        if (entry_num != num) {
-            skip_leb128(abbrev); // tag
-            abbrev = abbrev.subspan(1); // has children
-
-            do {
-                auto att_num = read_dw_enum<enum DW_AT>(abbrev);
-                auto form = read_dw_enum<enum DW_FORM>(abbrev);
-
-                if (form == DW_FORM::implicit_const)
-                    skip_leb128(abbrev);
-
-                if (att_num == (enum DW_AT)0)
-                    break;
-            } while (true);
-
-            continue;
-        }
-
-        tag = read_dw_enum<enum DW_TAG>(abbrev);
-
-        has_children = abbrev[0] != 0;
-        abbrev = abbrev.subspan(1);
-
-        att_list = abbrev;
-
-        return true;
-    }
-}
-
 static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
     while (true) {
         auto att_num = read_dw_enum<enum DW_AT>(att_list);
@@ -484,6 +444,67 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
     return true;
 }
 
+static span<const uint8_t*> load_abbrev_entries(span<const uint8_t> abbrev) {
+    auto orig_abbrev = abbrev;
+    unsigned int count = 0;
+
+    while (true) {
+        if (abbrev.empty())
+            break;
+
+        auto entry_num = read_uleb128(abbrev);
+        if (entry_num == 0)
+            break;
+
+        skip_leb128(abbrev); // tag
+        abbrev = abbrev.subspan(1); // has children
+
+        do {
+            auto att_num = read_dw_enum<enum DW_AT>(abbrev);
+            auto form = read_dw_enum<enum DW_FORM>(abbrev);
+
+            if (form == DW_FORM::implicit_const)
+                skip_leb128(abbrev);
+
+            if (att_num == (enum DW_AT)0)
+                break;
+        } while (true);
+
+        count++;
+    }
+
+    if (count == 0)
+        return span<const uint8_t*>();
+
+    auto arr = (const uint8_t**)malloc(sizeof(const uint8_t*) * count);
+    if (!arr)
+        return span<const uint8_t*>();
+
+    abbrev = orig_abbrev;
+
+    for (unsigned int num = 0; num < count; num++) {
+        skip_leb128(abbrev); // entry num
+
+        arr[num] = abbrev.data();
+
+        skip_leb128(abbrev); // tag
+        abbrev = abbrev.subspan(1); // has children
+
+        do {
+            auto att_num = read_dw_enum<enum DW_AT>(abbrev);
+            auto form = read_dw_enum<enum DW_FORM>(abbrev);
+
+            if (form == DW_FORM::implicit_const)
+                skip_leb128(abbrev);
+
+            if (att_num == (enum DW_AT)0)
+                break;
+        } while (true);
+    }
+
+    return span(arr, count);
+}
+
 template<typename T>
 concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>, span<const uint8_t>, unsigned int> &&
 requires(T t, enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list, unsigned int depth) { { t(tag, has_children, die, att_list, depth) } -> convertible_to<bool>; };
@@ -492,10 +513,14 @@ static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbre
                               die_func auto func) {
     unsigned int depth = 0;
 
+    auto abbrev_list = load_abbrev_entries(abbrev);
+
+    if (abbrev_list.empty())
+        return;
+
     while (true) {
         enum DW_TAG tag;
         bool has_children;
-        span<const uint8_t> att_list;
 
         auto abbrev_num = read_uleb128(cu);
 
@@ -507,18 +532,28 @@ static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbre
             continue;
         }
 
-        if (!find_abbrev_entry(abbrev_num, abbrev, tag, has_children, att_list))
-            return;
+        if (abbrev_num > abbrev_list.size())
+            break;
 
-        if (!func(tag, has_children, cu, att_list, depth))
-            return;
+        auto entry = span(abbrev_list[(size_t)abbrev_num - 1],
+                          abbrev.data() + abbrev.size() - abbrev_list[(size_t)abbrev_num - 1]);
+
+        tag = read_dw_enum<enum DW_TAG>(entry);
+
+        has_children = entry[0] != 0;
+        entry = entry.subspan(1);
+
+        if (!func(tag, has_children, cu, entry, depth))
+            break;
 
         if (has_children)
             depth++;
 
-        if (!skip_die(cu, att_list))
-            return;
+        if (!skip_die(cu, entry))
+            break;
     }
+
+    free(abbrev_list.data());
 }
 
 template<typename T>
@@ -702,7 +737,7 @@ static string_view dwarf_find_function2(const kernel_image& img, uint64_t addr,
                                       span<const uint8_t> att_list, unsigned int depth) -> bool {
         string_view name;
 
-        if (tag != DW_TAG::subprogram || depth != 0)
+        if (tag != DW_TAG::subprogram || depth != 1)
             return true;
 
         loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
