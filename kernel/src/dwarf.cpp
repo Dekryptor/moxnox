@@ -488,6 +488,8 @@ requires(T t, enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<
 
 static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbrev,
                               die_func auto func) {
+    unsigned int depth = 0;
+
     while (true) {
         enum DW_TAG tag;
         bool has_children;
@@ -495,14 +497,22 @@ static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbre
 
         auto abbrev_num = read_uleb128(cu);
 
-        if (abbrev_num == 0)
-            break;
+        if (abbrev_num == 0) {
+            if (depth == 0)
+                break;
+
+            depth--;
+            continue;
+        }
 
         if (!find_abbrev_entry(abbrev_num, abbrev, tag, has_children, att_list))
             return;
 
         if (!func(tag, has_children, cu, att_list))
             return;
+
+        if (has_children)
+            depth++;
 
         if (!skip_die(cu, att_list))
             return;
