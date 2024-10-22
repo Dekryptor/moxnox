@@ -729,12 +729,19 @@ static void print_rip(uint64_t rip) {
     if (img) {
         // FIXME - also get filename and line no. from DWARF
 
-        auto name = dwarf_find_function(*img, rip); // FIXME
+        auto name = dwarf_find_function(*img, rip);
 
         sp = sp_strcpy(sp, " (");
         sp = sp_strcpy(sp, img->name);
-        sp = sp_strcpy(sp, "+");
-        sp = sp_itoa_hex(sp, rip - (uintptr_t)img->base_address);
+
+        if (!name.empty()) {
+            sp = sp_strcpy(sp, "!");
+            sp = sp_strcpy(sp, name); // FIXME - also offset
+        } else {
+            sp = sp_strcpy(sp, "+");
+            sp = sp_itoa_hex(sp, rip - (uintptr_t)img->base_address);
+        }
+
         sp = sp_strcpy(sp, ")");
     }
 

@@ -726,16 +726,14 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
     return false;
 }
 
-static string_view dwarf_find_function2(const kernel_image& img, uint64_t addr,
-                                        span<const uint8_t> cu,
+static string_view dwarf_find_function2(uint64_t addr, span<const uint8_t> cu,
                                         span<const uint8_t> abbrev) {
-    // FIXME - loop through DIEs
-    // FIXME - find DW_TAG_subprogram matching range
-    // FIXME - return DW_AT_name and offset
+    string_view func_name;
 
-    loop_through_dies(cu, abbrev, [&](enum DW_TAG tag, bool has_children, span<const uint8_t> die,
+    loop_through_dies(cu, abbrev, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                       span<const uint8_t> att_list, unsigned int depth) -> bool {
         string_view name;
+        optional<uint64_t> low_pc, high_pc, func_length;
 
         if (tag != DW_TAG::subprogram || depth != 1)
             return true;
@@ -743,18 +741,32 @@ static string_view dwarf_find_function2(const kernel_image& img, uint64_t addr,
         loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
             if (att_num == DW_AT::name && form == DW_FORM::string)
                 name = string_view((char*)data.data(), data.size());
-
-            // FIXME
+            else if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
+                low_pc = *(uint64_t*)data.data();
+            else if (att_num == DW_AT::high_pc) {
+                if (form == DW_FORM::addr)
+                    high_pc = *(uint64_t*)data.data();
+                else if (form == DW_FORM::data8)
+                    func_length = *(uint64_t*)data.data();
+            }
 
             return true;
         });
 
-        // FIXME
+        if (!high_pc.has_value() && low_pc.has_value() && func_length.has_value())
+            high_pc = *low_pc + *func_length;
+
+        if (low_pc.has_value() && high_pc.has_value() && !name.empty()) {
+            if (addr >= *low_pc && addr < *high_pc) {
+                func_name = name;
+                return false;
+            }
+        }
 
         return true;
     });
 
-    return "";
+    return func_name;
 }
 
 string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
@@ -810,6 +822,6 @@ string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
     if (found_cu.empty())
         return "";
 
-    return dwarf_find_function2(img, addr, found_cu,
+    return dwarf_find_function2(addr, found_cu,
                                 abbrev.subspan(found_debug_abbrev_object));
 }
