@@ -906,7 +906,8 @@ static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t va
 }
 
 static bool unwind_context2(CONTEXT& context, const kernel_image& img,
-                            const RUNTIME_FUNCTION* prt_func) {
+                            const RUNTIME_FUNCTION* prt_func,
+                            bool& machine_frame) {
     uint32_t func_offset;
     uint64_t frame = context.Rsp;
 
@@ -1016,9 +1017,26 @@ static bool unwind_context2(CONTEXT& context, const kernel_image& img,
                         i += 2;
                         break;
 
-                    case unwind_opcode::UWOP_PUSH_MACHFRAME: // interrupt (.seh_pushframe)
-                        // FIXME - handle UWOP_PUSH_MACHFRAME
-                        return false;
+                    case unwind_opcode::UWOP_PUSH_MACHFRAME: { // interrupt (.seh_pushframe)
+                        if (c.info != 0)
+                            context.Rsp += sizeof(uint64_t);
+
+                        auto val = read_uint64_t(context.Rsp);
+
+                        if (!val.has_value())
+                            return false;
+
+                        context.Rip = *val;
+
+                        val = read_uint64_t(context.Rsp + (3 * sizeof(uint64_t)));
+
+                        if (!val.has_value())
+                            return false;
+
+                        context.Rsp = *val;
+                        machine_frame = true;
+                        break;
+                    }
 
                     default:
                         return false;
@@ -1043,6 +1061,8 @@ static bool unwind_context2(CONTEXT& context, const kernel_image& img,
 }
 
 static bool unwind_context(CONTEXT& context) {
+    bool machine_frame = false;
+
     auto img = get_kernel_image_from_address(context.Rip);
     if (!img)
         return false;
@@ -1051,17 +1071,19 @@ static bool unwind_context(CONTEXT& context) {
 
     // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
     if (rt_func) {
-        if (!unwind_context2(context, *img, rt_func))
+        if (!unwind_context2(context, *img, rt_func, machine_frame))
             return false;
     }
 
-    auto rip = read_uint64_t(context.Rsp);
+    if (!machine_frame) {
+        auto rip = read_uint64_t(context.Rsp);
 
-    if (!rip.has_value())
-        return false;
+        if (!rip.has_value())
+            return false;
 
-    context.Rsp += sizeof(uint64_t);
-    context.Rip = *rip;
+        context.Rsp += sizeof(uint64_t);
+        context.Rip = *rip;
+    }
 
     return true;
 }
