@@ -273,7 +273,7 @@ thread* get_current_thread();
 void init_rtc();
 
 // dwarf.cpp
-std::string_view dwarf_find_function(const kernel_image& img, uint64_t addr);
+std::tuple<std::string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64_t addr);
 
 template<typename T>
 concept cmdline_func = std::invocable<T, std::string_view> &&

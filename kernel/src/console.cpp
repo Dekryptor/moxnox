@@ -719,7 +719,7 @@ static kernel_image* get_kernel_image_from_address(uint64_t addr) {
 }
 
 static void print_rip(uint64_t rip) {
-    char s[50];
+    char s[200];
     auto sp = span(s, sizeof(s));
 
     sp = sp_itoa_hex(sp, rip, 16);
@@ -729,14 +729,19 @@ static void print_rip(uint64_t rip) {
     if (img) {
         // FIXME - also get filename and line no. from DWARF
 
-        auto name = dwarf_find_function(*img, rip);
+        auto [func_name, func_start] = dwarf_find_function(*img, rip);
 
         sp = sp_strcpy(sp, " (");
         sp = sp_strcpy(sp, img->name);
 
-        if (!name.empty()) {
+        if (!func_name.empty()) {
             sp = sp_strcpy(sp, "!");
-            sp = sp_strcpy(sp, name); // FIXME - also offset
+            sp = sp_strcpy(sp, func_name);
+
+            if (rip != func_start) {
+                sp = sp_strcpy(sp, "+");
+                sp = sp_itoa_hex(sp, rip - func_start);
+            }
         } else {
             sp = sp_strcpy(sp, "+");
             sp = sp_itoa_hex(sp, rip - (uintptr_t)img->base_address);
@@ -1062,8 +1067,6 @@ static bool unwind_context(CONTEXT& context) {
 }
 
 static void print_stacktrace(CONTEXT& context) {
-    // FIXME - include function names
-
     // not interested in top entry (bsod function)
     if (!unwind_context(context))
         return;

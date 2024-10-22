@@ -726,9 +726,10 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
     return false;
 }
 
-static string_view dwarf_find_function2(uint64_t addr, span<const uint8_t> cu,
+static tuple<string_view, uint64_t> dwarf_find_function2(uint64_t addr, span<const uint8_t> cu,
                                         span<const uint8_t> abbrev) {
     string_view func_name;
+    uint64_t func_start = 0;
 
     loop_through_dies(cu, abbrev, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                       span<const uint8_t> att_list, unsigned int depth) -> bool {
@@ -759,6 +760,7 @@ static string_view dwarf_find_function2(uint64_t addr, span<const uint8_t> cu,
         if (low_pc.has_value() && high_pc.has_value() && !name.empty()) {
             if (addr >= *low_pc && addr < *high_pc) {
                 func_name = name;
+                func_start = *low_pc;
                 return false;
             }
         }
@@ -766,17 +768,17 @@ static string_view dwarf_find_function2(uint64_t addr, span<const uint8_t> cu,
         return true;
     });
 
-    return func_name;
+    return {func_name, func_start};
 }
 
-string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
+tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64_t addr) {
     auto info = img.debug_info;
     if (info.empty())
-        return "";
+        return {"", 0};
 
     auto abbrev = img.debug_abbrev;
     if (abbrev.empty())
-        return "";
+        return {"", 0};
 
     auto rnglists = img.debug_rnglists;
 
@@ -820,7 +822,7 @@ string_view dwarf_find_function(const kernel_image& img, uint64_t addr) {
     });
 
     if (found_cu.empty())
-        return "";
+        return {"", 0};
 
     return dwarf_find_function2(addr, found_cu,
                                 abbrev.subspan(found_debug_abbrev_object));
