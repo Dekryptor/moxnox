@@ -511,7 +511,7 @@ template<typename T>
 concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>, span<const uint8_t>, unsigned int> &&
 requires(T t, enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list, unsigned int depth) { { t(tag, has_children, die, att_list, depth) } -> convertible_to<bool>; };
 
-static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t*> abbrev_list,
+static void loop_through_dies(span<const uint8_t> cu, span<const uint8_t*> abbrev_list,
                               die_func auto func) {
     unsigned int depth = 0;
 
@@ -549,6 +549,28 @@ static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t*> abbr
         if (!skip_die(cu, entry))
             break;
     }
+}
+
+static void find_die_by_reference(span<const uint8_t> cu, uint32_t reference, span<const uint8_t*> abbrev_list,
+                                  invocable<enum DW_TAG, span<const uint8_t>, span<const uint8_t>> auto func) {
+    cu = span(cu.data() + reference - 0xc, cu.size() - reference + 0xc);
+
+    auto abbrev_num = read_uleb128(cu);
+
+    if (abbrev_num == 0)
+        return;
+
+    if (abbrev_num >= abbrev_list.size())
+        return;
+
+    auto entry = span(abbrev_list[(size_t)abbrev_num - 1],
+                      abbrev_list[(size_t)abbrev_num] - abbrev_list[(size_t)abbrev_num - 1]);
+
+    auto tag = read_dw_enum<enum DW_TAG>(entry);
+
+    entry = entry.subspan(1); // has_children
+
+    func(tag, cu, entry);
 }
 
 template<typename T>
@@ -722,7 +744,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
 }
 
 static tuple<string_view, uint64_t> dwarf_find_function2(uint64_t addr, span<const uint8_t> cu,
-                                        span<const uint8_t> abbrev) {
+                                                         span<const uint8_t> abbrev) {
     string_view func_name;
     uint64_t func_start = 0;
 
@@ -735,6 +757,7 @@ static tuple<string_view, uint64_t> dwarf_find_function2(uint64_t addr, span<con
                                            span<const uint8_t> att_list, unsigned int depth) -> bool {
         string_view name;
         optional<uint64_t> low_pc, high_pc, func_length;
+        optional<uint32_t> specification;
 
         if (tag != DW_TAG::subprogram || depth != 1)
             return true;
@@ -742,6 +765,8 @@ static tuple<string_view, uint64_t> dwarf_find_function2(uint64_t addr, span<con
         loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
             if (att_num == DW_AT::name && form == DW_FORM::string)
                 name = string_view((char*)data.data(), data.size());
+            else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
+                specification = *(uint32_t*)data.data();
             else if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
                 low_pc = *(uint64_t*)data.data();
             else if (att_num == DW_AT::high_pc) {
@@ -757,15 +782,35 @@ static tuple<string_view, uint64_t> dwarf_find_function2(uint64_t addr, span<con
         if (!high_pc.has_value() && low_pc.has_value() && func_length.has_value())
             high_pc = *low_pc + *func_length;
 
-        if (low_pc.has_value() && high_pc.has_value() && !name.empty()) {
-            if (addr >= *low_pc && addr < *high_pc) {
-                func_name = name;
-                func_start = *low_pc;
-                return false;
-            }
+        if (!low_pc.has_value() || !high_pc.has_value())
+            return true;
+
+        if (addr < *low_pc || addr >= *high_pc)
+            return true;
+
+        // if class function, we need to follow the specification
+        if (name.empty() && specification.has_value()) {
+            find_die_by_reference(cu, *specification, abbrev_list, [&name](enum DW_TAG, span<const uint8_t> die,
+                                                                           span<const uint8_t> att_list) {
+                loop_through_atts(die, att_list, [&name](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
+                    // FIXME - return nice C++ name
+                    if (att_num == DW_AT::linkage_name && form == DW_FORM::string) {
+                        name = string_view((char*)data.data(), data.size());
+                        return false;
+                    }
+
+                    return true;
+                });
+            });
         }
 
-        return true;
+        if (!name.empty())
+            func_name = name;
+        else
+            func_name = "???";
+
+        func_start = *low_pc;
+        return false;
     });
 
     free(abbrev_list.data());
