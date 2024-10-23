@@ -621,16 +621,8 @@ void double_fault() {
     sp = sp_strcpy(sp, "\n");
 
     sp = sp_context(sp, cb.thread_context);
-    printk(string_view(s, sp.data() - s));
 
-    if (!current_thread) {
-        // FIXME - BSOD
-        while (1) { }
-    } else {
-        printk("Thread killed\n");
-        // FIXME - set exit_status (what should it be for a double fault?)
-        current_thread->terminate();
-    }
+    bsod(string_view(s, sp.data() - s));
 }
 
 extern "C"
