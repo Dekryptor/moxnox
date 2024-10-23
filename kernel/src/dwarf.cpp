@@ -756,7 +756,7 @@ static tuple<string_view, uint64_t> dwarf_find_function2(const kernel_image& img
 
     loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                            span<const uint8_t> att_list, unsigned int depth) -> bool {
-        string_view name;
+        string_view name, linkage_name;
         optional<uint64_t> low_pc, high_pc, func_length;
         optional<uint32_t> specification;
 
@@ -769,6 +769,11 @@ static tuple<string_view, uint64_t> dwarf_find_function2(const kernel_image& img
                     name = string_view((char*)data.data(), data.size());
                 else if (form == DW_FORM::strp)
                     name = string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
+            } else if (att_num == DW_AT::linkage_name) {
+                if (form == DW_FORM::string)
+                    linkage_name = string_view((char*)data.data(), data.size());
+                else if (form == DW_FORM::strp)
+                    linkage_name = string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
             } else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
                 specification = *(uint32_t*)data.data();
             else if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
@@ -782,6 +787,9 @@ static tuple<string_view, uint64_t> dwarf_find_function2(const kernel_image& img
 
             return true;
         });
+
+        if (name.empty() && !linkage_name.empty())
+            name = linkage_name;
 
         if (!high_pc.has_value() && low_pc.has_value() && func_length.has_value())
             high_pc = *low_pc + *func_length;
