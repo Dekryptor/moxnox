@@ -226,15 +226,14 @@ halt_isr:
 
 .global divide_by_zero_isr
 divide_by_zero_isr:
-    cmp QWORD PTR [rsp+0x8], 0x8
+    sub rsp, 0x20
+    cmp QWORD PTR [rsp+0x28], 0x8
     je 0f
     swapgs
     load_kernel_cr3
 0:
-    save_context
-    sub rsp, 0x20
+    save_context2
     call divide_by_zero
-    add rsp, 0x20
 
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
     mov r10, gs:GS_CONTEXT + CONTEXT_R10
@@ -243,16 +242,17 @@ divide_by_zero_isr:
     mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
     mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
     mov rax, gs:GS_CONTEXT + CONTEXT_RIP
-    mov QWORD PTR [rsp], rax
+    mov QWORD PTR [rsp+0x20], rax
     mov rax, gs:GS_CONTEXT + CONTEXT_RSP
-    mov QWORD PTR [rsp+0x18], rax
+    mov QWORD PTR [rsp+0x38], rax
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
 
-    cmp QWORD PTR [rsp+0x8], 0x8
+    cmp QWORD PTR [rsp+0x28], 0x8
     je 1f
     load_process_cr3
     swapgs
 1:
+    add rsp, 0x20
     iretq
 
 .global yield_isr
