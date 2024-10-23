@@ -130,22 +130,22 @@ page_fault_end:
 
 .global double_fault_isr
 double_fault_isr:
-    cmp QWORD PTR [rsp+0x10], 0x8
+    sub rsp, 0x20
+    cmp QWORD PTR [rsp+0x30], 0x8
     je 0f
     swapgs
     load_kernel_cr3
 0:
-    save_context_when_error_code
-    pop rcx
-    sub rsp, 0x20
+    save_context_when_error_code2
+    mov rcx, QWORD PTR [rsp+0x20]
     call double_fault
-    add rsp, 0x20
 
-    cmp QWORD PTR [rsp+0x8], 0x8
+    cmp QWORD PTR [rsp+0x30], 0x8
     je 1f
     load_process_cr3
     swapgs
 1:
+    add rsp, 0x28
     iretq
 
 .seh_proc general_protection_fault_isr
