@@ -2,9 +2,13 @@
 
 #include "context.S"
 
+.seh_proc sata_isr
 .global sata_isr
 sata_isr:
+    .seh_pushframe
     sub rsp, 0x58
+    .seh_stackalloc 0x58
+    .seh_endprologue
 
     cmp QWORD PTR [rsp+0x60], 0x8
     je 0f
@@ -39,3 +43,4 @@ sata_isr:
 1:
     add rsp, 0x58
     iretq
+    .seh_endproc
