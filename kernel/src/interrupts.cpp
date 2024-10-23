@@ -829,7 +829,7 @@ void divide_by_zero() {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "Divide by zero, ");
+    sp = sp_strcpy(sp, "Divide by zero in kernel mode, ");
 
     if (!current_thread)
         sp = sp_strcpy(sp, "not in thread");
@@ -840,17 +840,8 @@ void divide_by_zero() {
 
     sp = sp_strcpy(sp, ", CPU ");
     sp = sp_itoa_hex(sp, cb.cpu_no);
-    sp = sp_strcpy(sp, ")\n");
+    sp = sp_strcpy(sp, "\n");
 
     sp = sp_context(sp, cb.thread_context);
-    printk(string_view(s, sp.data() - s));
-
-    if (!current_thread) {
-        // FIXME - BSOD
-        while (1) { }
-    } else {
-        printk("Thread killed\n");
-        current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
-        current_thread->terminate();
-    }
+    bsod(string_view(s, sp.data() - s));
 }
