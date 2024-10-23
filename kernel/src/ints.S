@@ -180,9 +180,14 @@ general_protection_fault_isr:
 1:
     iretq
 
+.seh_proc invalid_opcode_isr
 .global invalid_opcode_isr
 invalid_opcode_isr:
+    .seh_pushframe
     sub rsp, 0x20
+    .seh_stackalloc 32
+    .seh_endprologue
+
     cmp QWORD PTR [rsp+0x28], 0x8
     je 0f
     swapgs
@@ -210,6 +215,7 @@ invalid_opcode_isr:
 1:
     add rsp, 0x20
     iretq
+    .seh_endproc
 
 .global spurious_isr
 spurious_isr:
