@@ -13,7 +13,7 @@ page_fault_isr: # keeps cr3 of process
     je 0f
     swapgs
 0:
-    save_context_when_error_code2
+    save_context_when_error_code
 
     mov rax, QWORD PTR gs:GS_CURRENT_THREAD
     cmp rax, 0
@@ -141,7 +141,7 @@ double_fault_isr:
     swapgs
     load_kernel_cr3
 0:
-    save_context_when_error_code2
+    save_context_when_error_code
     mov rcx, QWORD PTR [rsp+0x20]
     call double_fault
 
@@ -167,7 +167,7 @@ general_protection_fault_isr:
     swapgs
     load_kernel_cr3
 0:
-    save_context_when_error_code2
+    save_context_when_error_code
     mov rcx, QWORD PTR [rsp+0x20]
     call general_protection_fault
 
