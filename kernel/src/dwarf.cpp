@@ -802,12 +802,17 @@ static tuple<string_view, uint64_t> dwarf_find_function2(const kernel_image& img
 
         // if class function, we need to follow the specification
         if (name.empty() && specification.has_value()) {
-            find_die_by_reference(cu, *specification, abbrev_list, [&name](enum DW_TAG, span<const uint8_t> die,
-                                                                           span<const uint8_t> att_list) {
-                loop_through_atts(die, att_list, [&name](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
+            find_die_by_reference(cu, *specification, abbrev_list, [&name, &img](enum DW_TAG, span<const uint8_t> die,
+                                                                                 span<const uint8_t> att_list) {
+                loop_through_atts(die, att_list, [&name, &img](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
                     // FIXME - return nice C++ name
-                    if (att_num == DW_AT::linkage_name && form == DW_FORM::string) {
-                        name = string_view((char*)data.data(), data.size());
+
+                    if (att_num == DW_AT::linkage_name) {
+                        if (form == DW_FORM::string)
+                            name = string_view((char*)data.data(), data.size());
+                        else if (form == DW_FORM::strp)
+                            name = string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
+
                         return false;
                     }
 
