@@ -223,7 +223,16 @@ bool btrfs_filesystem::walk_tree2(uint64_t addr, uint8_t exp_level, invocable<co
     auto& th = *(tree_header*)buf.data();
 
     if (th.level != exp_level) {
-        printk("Tree level was incorrect\n");
+        char s[100];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "Tree level was incorrect (");
+        sp = sp_itoa_hex(sp, th.level);
+        sp = sp_strcpy(sp, ", expected ");
+        sp = sp_itoa_hex(sp, exp_level);
+        sp = sp_strcpy(sp, ")\n");
+        printk(string_view(s, sp.data() - s));
+
         free(bufptr);
         return false;
     }
