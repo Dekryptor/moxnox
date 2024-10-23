@@ -476,7 +476,7 @@ static span<const uint8_t*> load_abbrev_entries(span<const uint8_t> abbrev) {
     if (count == 0)
         return span<const uint8_t*>();
 
-    auto arr = (const uint8_t**)malloc(sizeof(const uint8_t*) * count);
+    auto arr = (const uint8_t**)malloc(sizeof(const uint8_t*) * (count + 1));
     if (!arr)
         return span<const uint8_t*>();
 
@@ -502,21 +502,18 @@ static span<const uint8_t*> load_abbrev_entries(span<const uint8_t> abbrev) {
         } while (true);
     }
 
-    return span(arr, count);
+    arr[count] = abbrev.data() + abbrev.size();
+
+    return span(arr, count + 1);
 }
 
 template<typename T>
 concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>, span<const uint8_t>, unsigned int> &&
 requires(T t, enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list, unsigned int depth) { { t(tag, has_children, die, att_list, depth) } -> convertible_to<bool>; };
 
-static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbrev,
+static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t*> abbrev_list,
                               die_func auto func) {
     unsigned int depth = 0;
-
-    auto abbrev_list = load_abbrev_entries(abbrev);
-
-    if (abbrev_list.empty())
-        return;
 
     while (true) {
         enum DW_TAG tag;
@@ -536,7 +533,7 @@ static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbre
             break;
 
         auto entry = span(abbrev_list[(size_t)abbrev_num - 1],
-                          abbrev.data() + abbrev.size() - abbrev_list[(size_t)abbrev_num - 1]);
+                          abbrev_list[(size_t)abbrev_num] - abbrev_list[(size_t)abbrev_num - 1]);
 
         tag = read_dw_enum<enum DW_TAG>(entry);
 
@@ -552,8 +549,6 @@ static void loop_through_dies(span<const uint8_t>& cu, span<const uint8_t> abbre
         if (!skip_die(cu, entry))
             break;
     }
-
-    free(abbrev_list.data());
 }
 
 template<typename T>
@@ -731,8 +726,13 @@ static tuple<string_view, uint64_t> dwarf_find_function2(uint64_t addr, span<con
     string_view func_name;
     uint64_t func_start = 0;
 
-    loop_through_dies(cu, abbrev, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
-                                      span<const uint8_t> att_list, unsigned int depth) -> bool {
+    auto abbrev_list = load_abbrev_entries(abbrev);
+
+    if (abbrev_list.empty())
+        return {"", 0};
+
+    loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
+                                           span<const uint8_t> att_list, unsigned int depth) -> bool {
         string_view name;
         optional<uint64_t> low_pc, high_pc, func_length;
 
@@ -768,6 +768,8 @@ static tuple<string_view, uint64_t> dwarf_find_function2(uint64_t addr, span<con
         return true;
     });
 
+    free(abbrev_list.data());
+
     return {func_name, func_start};
 }
 
@@ -789,8 +791,13 @@ tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64
     loop_through_cus(info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
         auto current_cu = cu;
 
-        loop_through_dies(cu, abbrev.subspan(debug_abbrev_object), [&](enum DW_TAG tag, bool, span<const uint8_t> die,
-                                                                       span<const uint8_t> att_list, unsigned int) -> bool {
+        auto abbrev_list = load_abbrev_entries(abbrev.subspan(debug_abbrev_object));
+
+        if (abbrev_list.empty())
+            return true;
+
+        loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
+                                               span<const uint8_t> att_list, unsigned int) -> bool {
             if (tag != DW_TAG::compile_unit)
                 return false;
 
@@ -814,6 +821,8 @@ tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64
 
             return false;
         });
+
+        free(abbrev_list.data());
 
         if (!found_cu.empty())
             return false;
