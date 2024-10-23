@@ -1475,36 +1475,22 @@ bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     break;
             }
 
-            auto va = allocate_va(1);
-            if (!va) {
-                printk("allocate_va failed\n");
-                return false;
-            }
-
             if (!p.pa) {
                 p.pa = allocate_page();
                 if (!p.pa) {
                     printk("allocate_page failed\n");
-                    free_va(va, 1);
                     return false;
                 }
 
                 new_page = true;
             }
 
-            if (!map_page(p.pa, va, mapping_type::read_write)) {
-                printk("map_page failed\n");
-                free_va(va, 1);
-                return false;
-            }
+            auto va = phys_address(p.pa);
 
             if (new_page)
                 memset((void*)va, 0, PAGE_SIZE);
 
             memcpy((uint8_t*)va + (offset & (PAGE_SIZE - 1)), ks_addr, to_copy);
-
-            unmap_page(va);
-            free_va(va, 1);
         }
 
         if (to_copy == size)
