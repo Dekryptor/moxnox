@@ -224,9 +224,14 @@ halt_isr:
     hlt
     jmp halt_isr
 
+.seh_proc divide_by_zero_isr
 .global divide_by_zero_isr
 divide_by_zero_isr:
+    .seh_pushframe
     sub rsp, 0x20
+    .seh_stackalloc 32
+    .seh_endprologue
+
     cmp QWORD PTR [rsp+0x28], 0x8
     je 0f
     swapgs
@@ -254,6 +259,7 @@ divide_by_zero_isr:
 1:
     add rsp, 0x20
     iretq
+    .seh_endproc
 
 .global yield_isr
 yield_isr:
