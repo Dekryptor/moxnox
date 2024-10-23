@@ -72,9 +72,13 @@ init_serial_port:
 
     ret
 
+.seh_proc serial_isr
 .global serial_isr
 serial_isr:
+    .seh_pushframe
     sub rsp, 0x58
+    .seh_stackalloc 0x58
+    .seh_endprologue
 
     cmp QWORD PTR [rsp+0x60], 0x8
     je 0f
@@ -112,3 +116,4 @@ serial_isr:
 1:
     add rsp, 0x58
     iretq
+    .seh_endproc
