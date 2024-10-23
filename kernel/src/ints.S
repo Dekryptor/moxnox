@@ -148,9 +148,14 @@ double_fault_isr:
 1:
     iretq
 
+.seh_proc general_protection_fault_isr
 .global general_protection_fault_isr
 general_protection_fault_isr:
+    .seh_pushframe code
     sub rsp, 0x20
+    .seh_stackalloc 32
+    .seh_endprologue
+
     cmp QWORD PTR [rsp+0x30], 0x8
     je 0f
     swapgs
@@ -179,6 +184,7 @@ general_protection_fault_isr:
 1:
     add rsp, 0x28
     iretq
+    .seh_endproc
 
 .seh_proc invalid_opcode_isr
 .global invalid_opcode_isr
