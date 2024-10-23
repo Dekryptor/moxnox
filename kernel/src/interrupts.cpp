@@ -682,7 +682,7 @@ void general_protection_fault(uint64_t error_code) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "General protection fault (error code = ");
+    sp = sp_strcpy(sp, "General protection fault in kernel mode, error code = ");
     sp = sp_itoa_hex(sp, error_code);
 
     if (!current_thread)
@@ -694,19 +694,10 @@ void general_protection_fault(uint64_t error_code) {
 
     sp = sp_strcpy(sp, ", CPU ");
     sp = sp_itoa_hex(sp, cb.cpu_no);
-    sp = sp_strcpy(sp, ")\n");
+    sp = sp_strcpy(sp, "\n");
 
     sp = sp_context(sp, cb.thread_context);
-    printk(string_view(s, sp.data() - s));
-
-    if (!current_thread) {
-        // FIXME - BSOD
-        while (1) { }
-    } else {
-        printk("Thread killed\n");
-        current_thread->exit_status = nt_status::ACCESS_VIOLATION;
-        current_thread->terminate();
-    }
+    bsod(string_view(s, sp.data() - s));
 }
 
 extern "C"
