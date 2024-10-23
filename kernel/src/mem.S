@@ -6,9 +6,9 @@
 .global memcpy
 memcpy:
     # rcx = dest, rdx = src, r8 = n
-    push rcx
+    mov r9, rcx
 
-    # FIXME - SSE
+    # FIXME - SSE?
 
 0:
     cmp r8, 8
@@ -51,7 +51,7 @@ memcpy:
     jmp 3b
 
 4:
-    pop rax
+    mov rax, r9
     ret
 
 # void memcpy_aligned(void* dest, const void* src, size_t n)
