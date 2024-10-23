@@ -743,7 +743,8 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
     return false;
 }
 
-static tuple<string_view, uint64_t> dwarf_find_function2(uint64_t addr, span<const uint8_t> cu,
+static tuple<string_view, uint64_t> dwarf_find_function2(const kernel_image& img, uint64_t addr,
+                                                         span<const uint8_t> cu,
                                                          span<const uint8_t> abbrev) {
     string_view func_name;
     uint64_t func_start = 0;
@@ -763,9 +764,12 @@ static tuple<string_view, uint64_t> dwarf_find_function2(uint64_t addr, span<con
             return true;
 
         loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
-            if (att_num == DW_AT::name && form == DW_FORM::string)
-                name = string_view((char*)data.data(), data.size());
-            else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
+            if (att_num == DW_AT::name) {
+                if (form == DW_FORM::string)
+                    name = string_view((char*)data.data(), data.size());
+                else if (form == DW_FORM::strp)
+                    name = string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
+            } else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
                 specification = *(uint32_t*)data.data();
             else if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
                 low_pc = *(uint64_t*)data.data();
@@ -878,6 +882,6 @@ tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64
     if (found_cu.empty())
         return {"", 0};
 
-    return dwarf_find_function2(addr, found_cu,
+    return dwarf_find_function2(img, addr, found_cu,
                                 abbrev.subspan(found_debug_abbrev_object));
 }
