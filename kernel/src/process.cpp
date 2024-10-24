@@ -1413,22 +1413,9 @@ bool mapping_section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
                 if (!sect.copy_from(offset, ks_addr, (uint32_t)to_copy))
                     return false;
             } else {
-                auto va = allocate_va(1);
-                if (!va) {
-                    printk("allocate_va failed\n");
-                    return false;
-                }
-
-                if (!map_page(p.pa, va, mapping_type::read_only)) {
-                    printk("map_page failed\n");
-                    free_va(va, 1);
-                    return false;
-                }
+                auto va = phys_address(p.pa);
 
                 memcpy(ks_addr, (uint8_t*)va + (offset & (PAGE_SIZE - 1)), to_copy);
-
-                unmap_page(va);
-                free_va(va, 1);
             }
         }
 
