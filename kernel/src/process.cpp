@@ -1651,81 +1651,28 @@ object_ref process::deref_handle2(handle_t h) {
 }
 
 NTSTATUS process::change_proc_page_protection(uint64_t va, enum mapping_type prot) {
-    NTSTATUS status;
     span<HARDWARE_PTE> pml4, pdpt, pdt, pt;
 
-    auto buf = allocate_va(4);
-    if (!buf) {
-        printk("allocate_va failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+    pml4 = span((HARDWARE_PTE*)phys_address(cr3), 512);
 
-    if (!map_page(cr3, buf, mapping_type::read_only)) {
-        printk("map_page failed\n");
-        status = nt_status::INSUFFICIENT_RESOURCES;
-        goto end;
-    }
+    if (!pml4[(va & 0xff8000000000) >> 39].Valid)
+        return nt_status::SUCCESS;
 
-    pml4 = span((HARDWARE_PTE*)buf, 512);
+    pdpt = span((HARDWARE_PTE*)phys_address((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT), 512);
 
-    if (!pml4[(va & 0xff8000000000) >> 39].Valid) {
-        status = nt_status::SUCCESS;
-        goto end2;
-    }
+    if (!pdpt[(va & 0x7fc0000000) >> 30].Valid)
+        return nt_status::SUCCESS;
 
-    if (!map_page((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT, buf + PAGE_SIZE, mapping_type::read_only)) {
-        printk("map_page failed\n");
-        status = nt_status::INSUFFICIENT_RESOURCES;
-        goto end2;
-    }
+    pdt = span((HARDWARE_PTE*)phys_address((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT), 512);
 
-    pdpt = span((HARDWARE_PTE*)(buf + PAGE_SIZE), 512);
+    if (!pdt[(va & 0x3fe00000) >> 21].Valid)
+        return nt_status::SUCCESS;
 
-    if (!pdpt[(va & 0x7fc0000000) >> 30].Valid) {
-        status = nt_status::SUCCESS;
-        goto end3;
-    }
-
-    if (!map_page((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT, buf + (2 * PAGE_SIZE), mapping_type::read_only)) {
-        printk("map_page failed\n");
-        status = nt_status::INSUFFICIENT_RESOURCES;
-        goto end3;
-    }
-
-    pdt = span((HARDWARE_PTE*)(buf + (2 * PAGE_SIZE)), 512);
-
-    if (!pdt[(va & 0x3fe00000) >> 21].Valid) {
-        status = nt_status::SUCCESS;
-        goto end4;
-    }
-
-    if (!map_page((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT, buf + (3 * PAGE_SIZE), mapping_type::read_write)) {
-        printk("map_page failed\n");
-        status = nt_status::INSUFFICIENT_RESOURCES;
-        goto end4;
-    }
-
-    pt = span((HARDWARE_PTE*)(buf + (3 * PAGE_SIZE)), 512);
+    pt = span((HARDWARE_PTE*)phys_address((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT), 512);
 
     protect_page2(pt[(va & 0x1ff000) >> 12], prot, false);
 
-    status = nt_status::SUCCESS;
-
-    unmap_page(buf + (3 * PAGE_SIZE));
-
-end4:
-    unmap_page(buf + (2 * PAGE_SIZE));
-
-end3:
-    unmap_page(buf + PAGE_SIZE);
-
-end2:
-    unmap_page(buf);
-
-end:
-    free_va(buf, 4);
-
-    return status;
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
