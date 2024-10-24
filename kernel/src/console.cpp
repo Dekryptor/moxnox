@@ -54,7 +54,7 @@ static unsigned int fb_console_rows, fb_console_cols;
 static bool fb_console_started = false;
 static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
-static spinlock cursor_lock;
+static spinlock cursor_lock, bsod_lock;
 
 struct console_info {
     enum console_colour bg;
@@ -1103,6 +1103,8 @@ static void print_stacktrace(CONTEXT& context) {
 
 void bsod(string_view msg, source_location sl) {
     __asm("cli");
+
+    lock_guard lock(bsod_lock);
 
     // send IPI to other cores to stop them
 
