@@ -425,24 +425,11 @@ bool section::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
         // FIXME - page protection (copy-on-write etc.)
 
-        auto va = allocate_va(1);
-        if (!va) {
-            printk("allocate_va failed\n");
-            return false;
-        }
-
-        if (!map_page(page, va, mapping_type::read_only)) {
-            printk("map_page failed\n");
-            free_va(va, 1);
-            return false;
-        }
+        auto va = phys_address(page);
 
         auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
 
         memcpy((uint8_t*)va + (offset & (PAGE_SIZE - 1)), ks_addr, to_copy);
-
-        unmap_page(va);
-        free_va(va, 1);
 
         if (to_copy == size)
             return true;
