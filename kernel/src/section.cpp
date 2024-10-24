@@ -507,44 +507,43 @@ uint64_t section::find_export(string_view name) {
         return 0;
     }
 
-    // map first page
-
-    auto va = allocate_va(1);
-    if (!va) {
-        printk("allocate_va failed\n");
-        return 0;
-    }
-
-    if (!map(0, va, true)) {
-        printk("section::map failed\n");
-        free_va(va, 1);
-        return 0;
-    }
-
     IMAGE_DATA_DIRECTORY exp_dir;
-    bool found = false;
+    uint64_t page;
 
-    const auto& dos_header = *(IMAGE_DOS_HEADER*)va;
-    const auto& nt_header = *(IMAGE_NT_HEADERS*)(va + dos_header.e_lfanew);
-
-    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_EXPORT) {
-            exp_dir = nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-            found = true;
-        }
-    } else {
-        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_EXPORT) {
-            exp_dir = nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-            found = true;
-        }
+    {
+        lock_guard lock(alloc_lock);
+        page = pages[0].pa;
     }
 
-    unmap_page(va);
-    free_va(va, 1);
-
-    if (!found) {
-        printk("image has no export directory\n");
+    if (!page) {
+        printk("first page of image not set\n");
         return 0;
+    }
+
+    {
+        auto va = phys_address(page);
+
+        bool found = false;
+
+        const auto& dos_header = *(IMAGE_DOS_HEADER*)va;
+        const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)va + dos_header.e_lfanew);
+
+        if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+            if (nt_header.OptionalHeader64.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_EXPORT) {
+                exp_dir = nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+                found = true;
+            }
+        } else {
+            if (nt_header.OptionalHeader32.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_EXPORT) {
+                exp_dir = nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+                found = true;
+            }
+        }
+
+        if (!found) {
+            printk("image has no export directory\n");
+            return 0;
+        }
     }
 
     if (exp_dir.VirtualAddress == 0 || exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
@@ -556,7 +555,9 @@ uint64_t section::find_export(string_view name) {
     uint64_t exp_dir_end = bytes_to_pages(exp_dir.VirtualAddress + exp_dir.Size) << PAGE_SHIFT;
     auto exp_dir_pages = bytes_to_pages(exp_dir_end - exp_dir_start);
 
-    va = allocate_va(exp_dir_pages);
+    // FIXME - avoid doing mapping here?
+
+    auto va = allocate_va(exp_dir_pages);
     if (!va) {
         printk("allocate_va failed\n");
         return 0;
