@@ -101,7 +101,10 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
 
         pending_slots |= 1 << slot;
 
-        port.ci = port.ci | (1 << slot);
+        {
+            lock_guard lock(ci_lock);
+            port.ci |= 1 << slot;
+        }
 
         wait_for_object(events[slot].get());
 
@@ -468,6 +471,8 @@ void sata_card::isr() {
 
     if (abar_is == 0)
         return;
+
+    // FIXME - abar->is indicates which sata device we should look at?
 
     lock_guard lock(port_list_lock);
 
