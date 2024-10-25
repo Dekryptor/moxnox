@@ -997,6 +997,12 @@ struct UNWIND_CODE {
     uint8_t info : 4;
 };
 
+enum class SHUTDOWN_ACTION {
+    ShutdownNoReboot,
+    ShutdownReboot,
+    ShutdownPowerOff
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1065,5 +1071,6 @@ NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK desired_access, const O
                        TIMER_TYPE timer_type);
 NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time, PTIMER_APC_ROUTINE timer_apc_routine,
                     void* timer_context, bool resume_timer, int32_t period, bool* previous_state);
+NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action);
 
 };
