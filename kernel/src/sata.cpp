@@ -104,7 +104,6 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         port.ci = port.ci | (1 << slot);
 
         wait_for_object(events[slot].get());
-        reset_event(static_cast<event&>(events[slot].get()));
 
         if (port.is & HBA_PxIS_TFES) {
             printk("Error reading disk\n");
@@ -352,7 +351,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     }
 
     for (auto& ev : events) {
-        ev = create_event(false);
+        ev = create_event(true);
     }
 
     slot_semaphore = create_semaphore(SATA_NUM_CMD_TABLES);
