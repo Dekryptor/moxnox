@@ -497,6 +497,26 @@ static void segfault() {
     *(uint8_t*)0 = 0;
 }
 
+static void halt() {
+    auto status = NtShutdownSystem(SHUTDOWN_ACTION::ShutdownPowerOff);
+
+    // shouldn't return
+
+    print("NtShutdownSystem returned ");
+    print_hex((uint32_t)status, 8);
+    print("\n");
+}
+
+static void reboot() {
+    auto status = NtShutdownSystem(SHUTDOWN_ACTION::ShutdownReboot);
+
+    // shouldn't return
+
+    print("NtShutdownSystem returned ");
+    print_hex((uint32_t)status, 8);
+    print("\n");
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -533,6 +553,10 @@ static void process_line(string_view sv) {
         timer();
     else if (cmd == "segfault")
         segfault(); // TESTING
+    else if (cmd == "halt")
+        halt();
+    else if (cmd == "reboot")
+        reboot();
     else {
         print(cmd); // FIXME - stderr
         print(": command not found\n");
