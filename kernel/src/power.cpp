@@ -30,6 +30,9 @@ static void outw(uint16_t port, uint16_t val) {
 NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     // FIXME - parse ACPI AML to find what constants should be
 
+    // FIXME - flush and unmount filesystems, close running programs, etc.
+    // FIXME - call _PTS ACPI method ("Prepare to Sleep")
+
     switch (action) {
         case SHUTDOWN_ACTION::ShutdownPowerOff:
             outw(0x604, 0x2000); // FIXME - qemu-specific
