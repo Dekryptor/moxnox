@@ -474,6 +474,7 @@ public:
 class sata_card {
 public:
     sata_card(const pci_device& dev) : dev(dev) { }
+    void isr();
 
     const pci_device& dev;
     list_entry le;

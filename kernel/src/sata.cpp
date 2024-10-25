@@ -444,6 +444,40 @@ end:
         set_event(static_cast<event&>(sc.init_event.get()));
 }
 
+void sata_card::isr() {
+    auto abar_is = abar->is;
+
+    abar->is = abar_is;
+
+    if (abar_is == 0)
+        return;
+
+    lock_guard lock(port_list_lock);
+
+    auto le = port_list.next;
+    while (le != &port_list) {
+        auto& dev = containing_record<sata_device>(le);
+
+        auto is = dev.port.is;
+
+        dev.port.is = is;
+
+        if (is & 1) { // D2H FIS received
+            auto ci = dev.port.ci;
+            auto signalled = dev.pending_slots & ~ci;
+
+            for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
+                if (signalled & (1 << i)) {
+                    set_event(static_cast<event&>(dev.events[i].get()));
+                    dev.pending_slots &= ~(1 << i);
+                }
+            }
+        }
+
+        le = le->next;
+    }
+}
+
 extern "C"
 void sata_isr_func() {
     lock_guard lock(sata_list_lock);
@@ -452,36 +486,7 @@ void sata_isr_func() {
     while (le != &sata_list) {
         auto& sc = containing_record<sata_card>(le);
 
-        auto abar_is = sc.abar->is;
-
-        sc.abar->is = abar_is;
-
-        if (abar_is != 0) {
-            lock_guard lock2(sc.port_list_lock);
-
-            auto le2 = sc.port_list.next;
-            while (le2 != &sc.port_list) {
-                auto& dev = containing_record<sata_device>(le2);
-
-                auto is = dev.port.is;
-
-                dev.port.is = is;
-
-                if (is & 1) { // D2H FIS received
-                    auto ci = dev.port.ci;
-                    auto signalled = dev.pending_slots & ~ci;
-
-                    for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
-                        if (signalled & (1 << i)) {
-                            set_event(static_cast<event&>(dev.events[i].get()));
-                            dev.pending_slots &= ~(1 << i);
-                        }
-                    }
-                }
-
-                le2 = le2->next;
-            }
-        }
+        sc.isr();
 
         le = le->next;
     }
