@@ -444,6 +444,24 @@ end:
         set_event(static_cast<event&>(sc.init_event.get()));
 }
 
+void sata_device::isr() {
+    auto is = port.is;
+
+    port.is = is;
+
+    if (is & 1) { // D2H FIS received
+        auto ci = port.ci;
+        auto signalled = pending_slots & ~ci;
+
+        for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
+            if (signalled & (1 << i)) {
+                set_event(static_cast<event&>(events[i].get()));
+                pending_slots &= ~(1 << i);
+            }
+        }
+    }
+}
+
 void sata_card::isr() {
     auto abar_is = abar->is;
 
@@ -458,21 +476,7 @@ void sata_card::isr() {
     while (le != &port_list) {
         auto& dev = containing_record<sata_device>(le);
 
-        auto is = dev.port.is;
-
-        dev.port.is = is;
-
-        if (is & 1) { // D2H FIS received
-            auto ci = dev.port.ci;
-            auto signalled = dev.pending_slots & ~ci;
-
-            for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
-                if (signalled & (1 << i)) {
-                    set_event(static_cast<event&>(dev.events[i].get()));
-                    dev.pending_slots &= ~(1 << i);
-                }
-            }
-        }
+        dev.isr();
 
         le = le->next;
     }

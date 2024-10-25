@@ -454,6 +454,7 @@ public:
     uint8_t get_slot();
     void release_slot(uint8_t slot);
     size_t read(std::span<uint8_t> data, uint64_t offset);
+    void isr();
 
     list_entry le;
     volatile HBA_PORT& port;
