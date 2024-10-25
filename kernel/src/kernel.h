@@ -29,6 +29,8 @@ class filesystem;
 class pipe;
 struct HARDWARE_PTE;
 
+#define offsetofend(TYPE, MEMBER) (offsetof(TYPE, MEMBER) + sizeof(((TYPE *)0)->MEMBER))
+
 static const uint32_t PIT_HZ = 1193182;
 
 static const unsigned int KERNEL_STACK_PAGES = 8; // 32KB
