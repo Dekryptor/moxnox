@@ -3,6 +3,8 @@
 
 using namespace std;
 
+static const uint16_t SLP_EN = 1 << 13;
+
 __attribute((naked))
 static void outb(uint16_t port, uint8_t val) {
     __asm __volatile(
@@ -80,15 +82,57 @@ static void reboot() {
     }
 }
 
-NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
-    // FIXME - parse ACPI AML to find what constants should be
-
-    // FIXME - flush and unmount filesystems, close running programs, etc.
+static void halt() {
     // FIXME - call _PTS ACPI method ("Prepare to Sleep")
+
+    optional<reference_wrapper<const ACPISDTHeader>> fadtw;
+
+    find_acpi_table(ACPI_FACP, [&](const ACPISDTHeader& tbl) {
+        if (fadtw)
+            return;
+
+        fadtw = tbl;
+    });
+
+    if (!fadtw) {
+        printk("FADT not found in ACPI tables.\n");
+        return;
+    }
+
+    auto& fadt = reinterpret_cast<const struct fadt&>(fadtw->get());
+
+    if (fadt.h.Length < offsetofend(struct fadt, X_PM1aControlBlock)) {
+        printk("FADT was truncated\n");
+        return;
+    }
+
+    if (fadt.X_PM1aControlBlock.AddressSpace != acpi_address_space::system_io) {
+        printk("unexpected value for X_PM1aControlBlock.AddressSpace in FADT\n");
+        return;
+    }
+
+    if (fadt.X_PM1aControlBlock.BitWidth != 16) {
+        printk("unexpected value for X_PM1aControlBlock.BitWidth in FADT\n");
+        return;
+    }
+
+    if (fadt.X_PM1aControlBlock.BitOffset != 0) {
+        printk("unexpected value for X_PM1aControlBlock.BitOffset in FADT\n");
+        return;
+    }
+
+    // FIXME - parse DSDT AML to find what _S5 SLP_TYP should actually be
+    static const uint16_t SLP_TYP5 = 0;
+
+    outw((uint16_t)fadt.X_PM1aControlBlock.Address, SLP_EN | SLP_TYP5);
+}
+
+NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
+    // FIXME - flush and unmount filesystems, close running programs, etc.
 
     switch (action) {
         case SHUTDOWN_ACTION::ShutdownPowerOff:
-            outw(0x604, 0x2000); // FIXME - qemu-specific
+            halt();
             break;
 
         case SHUTDOWN_ACTION::ShutdownReboot:
