@@ -1111,3 +1111,10 @@ NTSTATUS user_NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtShutdownSystem(enum SHUTDOWN_ACTION action) {
+    // FIXME - check user has SeShutdownPrivilege
+
+    return NtShutdownSystem(action);
+}

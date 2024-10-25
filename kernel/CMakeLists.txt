@@ -40,7 +40,8 @@ set(SRC_FILES src/kernel.cpp
     src/file.cpp
     src/thread.cpp
     src/rtc.cpp
-    src/dwarf.cpp)
+    src/dwarf.cpp
+    src/power.cpp)
 
 add_executable(kernel ${SRC_FILES})
 include_directories(../freetype/include)
