@@ -38,6 +38,8 @@ struct HBA_PORT {
     uint32_t vendor[4];
 };
 
+static_assert(sizeof(HBA_PORT) == 0x80);
+
 static const uint32_t SATA_SIG_ATA = 0x00000101;
 static const uint32_t SATA_SIG_ATAPI = 0xeb140101;
 
@@ -57,6 +59,9 @@ struct HBA_MEM {
     uint8_t vendor[96];
     HBA_PORT ports[1];
 };
+
+static_assert(offsetof(HBA_MEM, rsv) == 0x2c);
+static_assert(offsetof(HBA_MEM, ports) == 0x100);
 
 enum class FIS_TYPE : uint8_t {
     REG_H2D = 0x27,
