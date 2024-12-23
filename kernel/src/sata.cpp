@@ -477,15 +477,17 @@ void sata_device::isr() {
 
     port.is = is;
 
-    if (is & 1) { // D2H FIS received
-        auto ci = port.ci;
-        auto signalled = pending_slots & ~ci;
+    if (!(is & SATA_IS_DHRS))
+        return;
 
-        for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
-            if (signalled & (1 << i)) {
-                set_event(static_cast<event&>(events[i].get()));
-                pending_slots &= ~(1 << i);
-            }
+    // D2H FIS received
+    auto ci = port.ci;
+    auto signalled = pending_slots & ~ci;
+
+    for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
+        if (signalled & (1 << i)) {
+            set_event(static_cast<event&>(events[i].get()));
+            pending_slots &= ~(1 << i);
         }
     }
 }
