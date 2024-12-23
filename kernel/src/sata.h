@@ -458,7 +458,8 @@ public:
     bool identify();
     uint8_t get_slot();
     void release_slot(uint8_t slot);
-    size_t read(std::span<uint8_t> data, uint64_t offset);
+    size_t read(std::span<uint8_t> data, uint64_t offset) override;
+    size_t read_uncached(std::span<uint8_t> data, uint64_t offset) override;
     void isr();
 
     list_entry le;

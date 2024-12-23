@@ -32,7 +32,7 @@ static constexpr uint32_t SATA_IS_DHRS = 1 << 0;
 
 atomic<unsigned int> num_sata_devices = 0;
 
-size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
+size_t sata_device::read_uncached(span<uint8_t> data, uint64_t offset) {
     size_t ret = 0;
 
     if (offset & (sector_size - 1)) {
@@ -140,6 +140,11 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     }
 
     return ret;
+}
+
+size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
+    // FIXME
+    return read_uncached(data, offset);
 }
 
 uint8_t sata_device::get_slot() {
