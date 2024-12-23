@@ -12,6 +12,24 @@ static bool interrupt_added = false;
 static spinlock sata_list_lock;
 static list_entry sata_list = { &sata_list, &sata_list };
 
+static constexpr uint32_t SATA_IS_CPDS = 1 << 31;
+static constexpr uint32_t SATA_IS_TFES = 1 << 30;
+static constexpr uint32_t SATA_IS_HBFS = 1 << 29;
+static constexpr uint32_t SATA_IS_HBDS = 1 << 28;
+static constexpr uint32_t SATA_IS_IFS  = 1 << 27;
+static constexpr uint32_t SATA_IS_INFS = 1 << 26;
+static constexpr uint32_t SATA_IS_OFS  = 1 << 24;
+static constexpr uint32_t SATA_IS_IPMS = 1 << 23;
+static constexpr uint32_t SATA_IS_PRCS = 1 << 22;
+static constexpr uint32_t SATA_IS_PMPS = 1 << 7;
+static constexpr uint32_t SATA_IS_PCS  = 1 << 6;
+static constexpr uint32_t SATA_IS_DPS  = 1 << 5;
+static constexpr uint32_t SATA_IS_UFS  = 1 << 4;
+static constexpr uint32_t SATA_IS_SDBS = 1 << 3;
+static constexpr uint32_t SATA_IS_DSS  = 1 << 2;
+static constexpr uint32_t SATA_IS_PSS  = 1 << 1;
+static constexpr uint32_t SATA_IS_DHRS = 1 << 0;
+
 atomic<unsigned int> num_sata_devices = 0;
 
 size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
@@ -272,7 +290,13 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     memset((void*)fb, 0, PAGE_SIZE);
 
     port.is = 0xffffffff;
-    port.ie = 0xfdc000ff; // enable all interrupts
+
+    // enable all interrupts
+    port.ie = SATA_IS_CPDS | SATA_IS_TFES | SATA_IS_HBFS | SATA_IS_HBDS |
+              SATA_IS_IFS | SATA_IS_INFS | SATA_IS_OFS | SATA_IS_IPMS |
+              SATA_IS_PRCS | SATA_IS_PMPS | SATA_IS_PCS | SATA_IS_DPS |
+              SATA_IS_UFS | SATA_IS_SDBS | SATA_IS_DSS | SATA_IS_PSS |
+              SATA_IS_DHRS;
 
     unsigned int cmdtbl_pages = bytes_to_pages(SATA_NUM_CMD_TABLES * sizeof(HBA_CMD_TBL));
 
