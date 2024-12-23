@@ -8,3 +8,5 @@ qemu-system-x86_64 -M q35 -enable-kvm -cpu host \
 -device ide-hd,drive=disk,bus=ahci.0 \
 -serial stdio \
 -s
+
+#--trace "ahci_trigger_irq" --trace "ahci_cmd_done" --trace "ahci_reset_port"
