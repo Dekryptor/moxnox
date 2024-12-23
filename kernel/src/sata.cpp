@@ -143,7 +143,46 @@ size_t sata_device::read_uncached(span<uint8_t> data, uint64_t offset) {
 }
 
 size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
-    // FIXME
+    if (data.empty())
+        return 0;
+
+    uint64_t page_offset = offset >> PAGE_SHIFT;
+    uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - page_offset + 1;
+
+    {
+        char s[100];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "sata_device::read: page_offset ");
+        sp = sp_itoa_hex(sp, page_offset);
+        sp = sp_strcpy(sp, ", num_pages ");
+        sp = sp_itoa_hex(sp, num_pages);
+        sp = sp_strcpy(sp, ")\n");
+        printk(string_view(s, sp.data() - s));
+    }
+
+    {
+        lock_guard lg(page_cache_lock);
+        // FIXME - add missing entries and increase refcount (status new)
+    }
+
+    // FIXME - loop:
+    // FIXME - lock page cache
+    // FIXME - find first contiguous unread range
+    // FIXME - allocate pages
+    // FIXME - change status to reading
+    // FIXME - unlock page cache
+    // FIXME - read data into pages
+    // FIXME - lock page cache
+    // FIXME - change status to clean
+    // FIXME - unlock page cache
+
+    {
+        lock_guard lg(page_cache_lock);
+        // FIXME - copy pages into data
+        // FIXME - decrease refcount
+    }
+
     return read_uncached(data, offset);
 }
 

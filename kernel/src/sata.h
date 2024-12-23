@@ -476,6 +476,7 @@ public:
     std::atomic<uint32_t> pending_slots = 0;
     unsigned int dev_num;
     bool valid = false;
+    spinlock page_cache_lock;
 };
 
 class sata_card {
