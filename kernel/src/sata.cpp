@@ -213,6 +213,8 @@ bool sata_device::identify() {
 
     while (port.ci & 1 << slot) { }
 
+    pending_slots &= ~(1 << slot);
+
     reset_event(static_cast<event&>(events[slot].get()));
 
     if (port.is & HBA_PxIS_TFES) {
