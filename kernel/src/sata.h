@@ -461,7 +461,7 @@ public:
     void release_slot(uint8_t slot);
     size_t read(std::span<uint8_t> data, uint64_t offset) override;
     size_t read_uncached(std::span<uint8_t> data, uint64_t offset);
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     void isr();
 
     list_entry le;

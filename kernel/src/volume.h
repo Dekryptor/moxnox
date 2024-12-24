@@ -16,6 +16,7 @@ public:
     virtual void release() = 0;
 
     virtual size_t read(std::span<uint8_t> s, uint64_t offset) = 0;
+    virtual uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
 
     void probe();
     bool check_for_partitions();
@@ -30,6 +31,7 @@ public:
 };
 
 static_assert(is_readable_object_with_offset<volume>);
+static_assert(cacheable<volume>);
 
 class diskpart : public volume {
 public:
@@ -43,10 +45,14 @@ public:
     }
 
     size_t read(std::span<uint8_t> s, uint64_t offset) override;
+    uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     volume& parent;
     uint64_t disk_offset;
     uint64_t length;
 };
+
+static_assert(is_readable_object_with_offset<diskpart>);
+static_assert(cacheable<diskpart>);
 
 class filesystem {
 public:

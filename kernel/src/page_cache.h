@@ -16,11 +16,6 @@ struct page_cache_entry {
     uint64_t phys_address;
 };
 
-template<typename T>
-concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
-    { t.read_into_cache(page_num, num_pages) } -> std::convertible_to<size_t>;
-};
-
 class page_cache_base {
 public:
     bool init_cache(uint64_t first_page, uint64_t num_pages,
