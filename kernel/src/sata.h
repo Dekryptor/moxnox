@@ -460,6 +460,11 @@ struct page_cache_entry {
 };
 
 template<typename T>
+concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
+    { t.read_into_cache(page_num, num_pages) } -> std::convertible_to<size_t>;
+};
+
+template<typename T>
 class page_cache {
 public:
     page_cache(T& dev) : dev(dev) { }
@@ -506,6 +511,8 @@ public:
     bool valid = false;
     page_cache<sata_device> cache{*this};
 };
+
+static_assert(cacheable<sata_device>);
 
 class sata_card {
 public:
