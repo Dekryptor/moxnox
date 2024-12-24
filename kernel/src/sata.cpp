@@ -188,9 +188,9 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         num_pages = NUM_PRDT_ENTRIES;
 
     {
-        lock_guard lg(page_cache_lock);
+        lock_guard lg(cache.cache_lock);
 
-        auto* p = find_page_cache_entry(page_cache, page_num);
+        auto* p = find_page_cache_entry(cache.cache, page_num);
 
         for (unsigned int i = 0; i < num_pages; i++) {
             auto& e = cmdtbl.prdt_entry[i];
@@ -274,14 +274,10 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     return p;
 }
 
-size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
+template<typename T>
+size_t page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
     if (data.empty())
         return 0;
-
-    // FIXME - clear page cache in destructor
-
-    // FIXME - return error if offset past end of device
-    // FIXME - truncate data buffer if we would read past end of device
 
     uint64_t first_page = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
@@ -294,12 +290,12 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     // FIXME - lock range
 
     {
-        lock_guard lg(page_cache_lock);
+        lock_guard lg(cache_lock);
 
         page_cache_entry* ent;
         page_cache_entry* p;
 
-        ent = find_page_cache_entry(page_cache, first_page);
+        ent = find_page_cache_entry(cache, first_page);
 
         if (!ent || ent->page_num != first_page) {
             p = create_new_page_cache_entry(first_page);
@@ -307,7 +303,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
                 return 0;
 
             if (!ent) // first entry
-                insert_head_list(page_cache, p->le);
+                insert_head_list(cache, p->le);
             else
                 insert_head_list(ent->le, p->le);
 
@@ -325,7 +321,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         }
 
         for (uint64_t page_num = first_page + 1; page_num < first_page + num_pages; page_num++) {
-            if (p->le.next == &page_cache)
+            if (p->le.next == &cache)
                 ent = nullptr;
             else
                 ent = &containing_record<page_cache_entry>(p->le.next);
@@ -336,7 +332,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
                     return 0;
 
                 if (!ent) // first entry
-                    insert_tail_list(page_cache, p->le);
+                    insert_tail_list(cache, p->le);
                 else
                     insert_head_list(*ent->le.prev, p->le);
 
@@ -363,12 +359,12 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
             uint64_t range_length;
 
             {
-                lock_guard lg(page_cache_lock);
+                lock_guard lg(cache_lock);
 
                 // find first contiguous unread range
 
                 while (ent->status != page_cache_status::allocated) {
-                    if (ent->le.next == &page_cache) {
+                    if (ent->le.next == &cache) {
                         ent = nullptr;
                         break;
                     }
@@ -396,7 +392,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
 
                         range_length++;
 
-                        if (ent->le.next == &page_cache)
+                        if (ent->le.next == &cache)
                             break;
                     }
                 }
@@ -426,7 +422,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
                         printk(string_view(s, sp.data() - s));
                     }
 
-                    auto ret = read_into_cache(page_num_start, pages_left);
+                    auto ret = dev.read_into_cache(page_num_start, pages_left);
 
                     if (ret == 0) {
                         printk("sata_device::read_into_cache failed\n");
@@ -441,7 +437,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
             // change status to clean
 
             {
-                lock_guard lg(page_cache_lock);
+                lock_guard lg(cache_lock);
 
                 auto p = range_start;
                 for (uint64_t i = 0; i < range_length; i++) {
@@ -461,7 +457,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     size_t read_bytes = data.size();
 
     {
-        lock_guard lg(page_cache_lock);
+        lock_guard lg(cache_lock);
 
         page_cache_entry* ent;
 
@@ -469,7 +465,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
 
         for (uint64_t i = 0; i < num_pages; i++) {
             if (i == 0)
-                ent = find_page_cache_entry(page_cache, first_page);
+                ent = find_page_cache_entry(cache, first_page);
             else
                 ent = &containing_record<page_cache_entry>(ent->le.next);
 
@@ -495,6 +491,15 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     // FIXME - LRU
 
     return read_bytes;
+}
+
+size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
+    // FIXME - clear page cache in destructor
+
+    // FIXME - return error if offset past end of device
+    // FIXME - truncate data buffer if we would read past end of device
+
+    return cache.read(data, offset);
 }
 
 uint8_t sata_device::get_slot() {

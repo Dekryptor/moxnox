@@ -459,6 +459,20 @@ struct page_cache_entry {
     uint64_t phys_address;
 };
 
+template<typename T>
+class page_cache {
+public:
+    page_cache(T& dev) : dev(dev) { }
+
+    size_t read(std::span<uint8_t> data, uint64_t offset);
+
+    spinlock cache_lock;
+    list_entry cache = { &cache, &cache };
+
+private:
+    T& dev;
+};
+
 class sata_device : public volume {
 public:
     sata_device(volatile HBA_PORT& port);
@@ -473,6 +487,7 @@ public:
     void release_slot(uint8_t slot);
     size_t read(std::span<uint8_t> data, uint64_t offset) override;
     size_t read_uncached(std::span<uint8_t> data, uint64_t offset);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
     void isr();
 
     list_entry le;
@@ -489,11 +504,7 @@ public:
     std::atomic<uint32_t> pending_slots = 0;
     unsigned int dev_num;
     bool valid = false;
-    spinlock page_cache_lock;
-    list_entry page_cache = { &page_cache, &page_cache };
-
-private:
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    page_cache<sata_device> cache{*this};
 };
 
 class sata_card {
