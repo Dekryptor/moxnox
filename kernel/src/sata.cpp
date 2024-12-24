@@ -165,6 +165,91 @@ static page_cache_entry* find_page_cache_entry(list_entry& page_cache, uint64_t 
     return last_p;
 }
 
+uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    // FIXME - proper error handling
+    // FIXME - asynchronous mode
+
+    port.is = 0xffffffff; // clear interrupt bits
+
+    uint8_t slot = get_slot();
+
+    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+
+    cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
+    cmd.w = 0; // read
+
+    auto& cmdtbl = *cmd_tables[slot];
+
+    memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
+
+    if (num_pages > NUM_PRDT_ENTRIES)
+        num_pages = NUM_PRDT_ENTRIES;
+
+    {
+        lock_guard lg(page_cache_lock);
+
+        auto* p = find_page_cache_entry(page_cache, page_num);
+
+        for (unsigned int i = 0; i < num_pages; i++) {
+            auto& e = cmdtbl.prdt_entry[i];
+
+            // FIXME - make sure device supports 64-bit PAs
+
+            e.dba = (uint32_t)p->phys_address;
+            e.dbau = (uint32_t)(p->phys_address >> 32);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            e.dbc = (unsigned int)(PAGE_SIZE - 1); // FIXME - what if device not whole number of pages?
+#pragma GCC diagnostic pop
+            e.i = 0; // interrupt
+        }
+    }
+
+    cmdtbl.prdt_entry[num_pages - 1].i = 1;
+
+    cmd.prdtl = (uint16_t)num_pages;
+
+    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+
+    cmdfis.fis_type = FIS_TYPE::REG_H2D;
+    cmdfis.c = 1; // command
+    cmdfis.command = ata_command::READ_DMA_EX;
+
+    uint64_t lba = page_num * (PAGE_SIZE / sector_size);
+    auto num_sectors = (uint16_t)(num_pages * (PAGE_SIZE / sector_size));
+
+    cmdfis.lba0 = (uint8_t)lba;
+    cmdfis.lba1 = (uint8_t)(lba >> 8);
+    cmdfis.lba2 = (uint8_t)(lba >> 16);
+    cmdfis.device = 0x40; // LBA mode
+
+    cmdfis.lba3 = (uint8_t)(lba >> 24);
+    cmdfis.lba4 = (uint8_t)(lba >> 32);
+    cmdfis.lba5 = (uint8_t)(lba >> 40);
+
+    cmdfis.countl = (uint8_t)num_sectors;
+    cmdfis.counth = (uint8_t)(num_sectors >> 8);
+
+    pending_slots |= 1 << slot;
+
+    {
+        lock_guard lock(ci_lock);
+        port.ci |= 1 << slot;
+    }
+
+    wait_for_object(events[slot].get());
+
+    if (port.is & HBA_PxIS_TFES) {
+        printk("Error reading disk\n");
+        release_slot(slot);
+        return 0;
+    }
+
+    release_slot(slot);
+
+    return num_pages;
+}
+
 static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     auto p = new page_cache_entry;
     if (!p)
@@ -173,7 +258,13 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     p->page_num = page_num;
     p->refcount = 1;
     p->status = page_cache_status::allocated;
-    // uint64_t phys_address; // FIXME
+    p->phys_address = allocate_page();
+
+    if (!p->phys_address) {
+        printk("allocate_page failed\n");
+        delete p;
+        return nullptr;
+    }
 
     return p;
 }
@@ -183,6 +274,8 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         return 0;
 
     // FIXME - clear page cache in destructor
+
+    // FIXME - make sure we don't overflow device
 
     uint64_t first_page = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
@@ -202,9 +295,9 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     page_cache_entry* first_unread = nullptr;
 
     // FIXME - use RB tree rather than linked list
+    // FIXME - if create_new_page_cache_entry fails, we should be clearing existing cache
 
     // FIXME - lock range
-
 
     {
         lock_guard lg(page_cache_lock);
@@ -317,19 +410,39 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
                 range_end = ent;
             }
 
+            // read data into pages
+
             {
-                char s[100];
-                auto sp = span(s, sizeof(s));
+                uint64_t page_num_start = range_start->page_num;
+                uint64_t pages_left = range_length;
 
-                sp = sp_strcpy(sp, "sata_device::read: do read from ");
-                sp = sp_itoa_hex(sp, range_start->page_num);
-                sp = sp_strcpy(sp, ", length ");
-                sp = sp_itoa_hex(sp, range_length);
-                sp = sp_strcpy(sp, "\n");
-                printk(string_view(s, sp.data() - s));
+                // FIXME - do this asynchronously (i.e. using all the free slots, and only waiting at end or when none left)
+                // FIXME - better if we could allocate contiguous physical pages? (folios?)
+
+                while (pages_left > 0) {
+                    {
+                        char s[100];
+                        auto sp = span(s, sizeof(s));
+
+                        sp = sp_strcpy(sp, "sata_device::read: do read from ");
+                        sp = sp_itoa_hex(sp, page_num_start);
+                        sp = sp_strcpy(sp, ", length ");
+                        sp = sp_itoa_hex(sp, pages_left);
+                        sp = sp_strcpy(sp, "\n");
+                        printk(string_view(s, sp.data() - s));
+                    }
+
+                    auto ret = read_into_cache(page_num_start, pages_left);
+
+                    if (ret == 0) {
+                        printk("sata_device::read_into_cache failed\n");
+                        return 0;
+                    }
+
+                    page_num_start += ret;
+                    pages_left -= ret;
+                }
             }
-
-            // FIXME - read data into pages
 
             // change status to clean
 

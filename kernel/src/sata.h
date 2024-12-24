@@ -491,6 +491,9 @@ public:
     bool valid = false;
     spinlock page_cache_lock;
     list_entry page_cache = { &page_cache, &page_cache };
+
+private:
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
 };
 
 class sata_card {
