@@ -447,7 +447,8 @@ struct ata_identify_device_block {
 static_assert(sizeof(ata_identify_device_block) == 512);
 
 enum class page_cache_status {
-    allocated
+    allocated,
+    clean
 };
 
 struct page_cache_entry {

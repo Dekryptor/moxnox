@@ -220,9 +220,14 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
                 insert_head_list(page_cache, p->le);
             else
                 insert_head_list(ent->le, p->le);
+
+            need_read = true;
         } else {
             ent->refcount++;
             p = ent;
+
+            if (p->status != page_cache_status::clean)
+                need_read = true;
         }
 
         for (uint64_t page_num = first_page + 1; page_num < first_page + num_pages; page_num++) {
@@ -240,13 +245,16 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
                     insert_tail_list(page_cache, p->le);
                 else
                     insert_head_list(*ent->le.prev, p->le);
+
+                need_read = true;
             } else {
                 ent->refcount++;
                 p = ent;
+
+                if (p->status != page_cache_status::clean)
+                    need_read = true;
             }
         }
-
-        // FIXME - set need_read if necessary
     }
 
     if (need_read) {
@@ -260,12 +268,27 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         // FIXME - lock page cache
         // FIXME - change status to clean
         // FIXME - unlock page cache
+
+        // FIXME - if status is already reading, wait for it to finish
     }
 
     {
         lock_guard lg(page_cache_lock);
-        // FIXME - copy pages into data
-        // FIXME - decrease refcount
+
+        page_cache_entry* ent;
+
+        // FIXME - assert that page numbers are correct
+
+        for (uint64_t i = 0; i < num_pages; i++) {
+            // FIXME - copy pages into data
+
+            if (i == 0)
+                ent = find_page_cache_entry(page_cache, first_page);
+            else
+                ent = &containing_record<page_cache_entry>(ent->le.next);
+
+            ent->refcount--;
+        }
     }
 
     // FIXME - LRU
