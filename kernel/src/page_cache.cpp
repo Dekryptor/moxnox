@@ -136,3 +136,15 @@ void page_cache_base::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
         ent->refcount--;
     }
 }
+
+void page_cache_base::clean_pages(page_cache_entry* range_start, uint64_t range_length) {
+    lock_guard lg(cache_lock);
+
+    auto p = range_start;
+    for (uint64_t i = 0; i < range_length; i++) {
+        // FIXME - assert that status is page_cache_status::allocated
+
+        p->status = page_cache_status::clean;
+        p = &containing_record<page_cache_entry>(p->le.next);
+    }
+}

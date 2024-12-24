@@ -27,6 +27,7 @@ public:
                     page_cache_entry*& first_unread);
     void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
                           std::span<uint8_t> data, uint64_t offset);
+    void clean_pages(page_cache_entry* range_start, uint64_t range_length);
 
     spinlock cache_lock;
     list_entry cache = { &cache, &cache };
@@ -148,20 +149,7 @@ size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
                 }
             }
 
-            // change status to clean
-
-            {
-                std::lock_guard lg(cache_lock);
-
-                auto p = range_start;
-                for (uint64_t i = 0; i < range_length; i++) {
-                    // FIXME - assert that status is page_cache_status::allocated
-
-                    p->status = page_cache_status::clean;
-                    p = &containing_record<page_cache_entry>(p->le.next);
-                }
-
-            }
+            clean_pages(range_start, range_length);
 
             if (range_end->page_num == first_page + num_pages - 1)
                 break;
