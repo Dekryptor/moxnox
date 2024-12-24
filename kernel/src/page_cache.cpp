@@ -44,6 +44,66 @@ page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     return p;
 }
 
+bool page_cache_base::init_cache(uint64_t first_page, uint64_t num_pages,
+                                 page_cache_entry*& first_unread) {
+    lock_guard lg(cache_lock);
+
+    page_cache_entry* ent;
+    page_cache_entry* p;
+
+    ent = find_page_cache_entry(cache, first_page);
+
+    if (!ent || ent->page_num != first_page) {
+        p = create_new_page_cache_entry(first_page);
+        if (!p) // FIXME - throw error
+            return false;
+
+        if (!ent) // first entry
+            insert_head_list(cache, p->le);
+        else
+            insert_head_list(ent->le, p->le);
+
+        first_unread = p;
+    } else {
+        ent->refcount++;
+        p = ent;
+
+        if (p->status != page_cache_status::clean)
+            first_unread = p;
+    }
+
+    for (uint64_t page_num = first_page + 1; page_num < first_page + num_pages; page_num++) {
+        if (p->le.next == &cache)
+            ent = nullptr;
+        else
+            ent = &containing_record<page_cache_entry>(p->le.next);
+
+        if (!ent || ent->page_num != page_num) {
+            p = create_new_page_cache_entry(page_num);
+            if (!p) // FIXME - throw error
+                return false;
+
+            if (!ent) // first entry
+                insert_tail_list(cache, p->le);
+            else
+                insert_head_list(*ent->le.prev, p->le);
+
+            if (!first_unread)
+                first_unread = p;
+        } else {
+            ent->refcount++;
+            p = ent;
+
+            if (p->status != page_cache_status::clean) {
+                if (!first_unread)
+                    first_unread = p;
+            }
+        }
+    }
+
+    return true;
+}
+
 void page_cache_base::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
                                        span<uint8_t> data, uint64_t offset) {
     lock_guard lg(cache_lock);
