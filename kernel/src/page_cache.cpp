@@ -148,3 +148,49 @@ void page_cache_base::clean_pages(page_cache_entry* range_start, uint64_t range_
         p = &containing_record<page_cache_entry>(p->le.next);
     }
 }
+
+bool page_cache_base::find_unread_range(page_cache_entry*& range_start,
+                                        page_cache_entry*& range_end,
+                                        uint64_t& range_length,
+                                        page_cache_entry*& ent,
+                                        uint64_t first_page,
+                                        uint64_t num_pages) {
+    lock_guard lg(cache_lock);
+
+    // find first contiguous unread range
+
+    while (ent->status != page_cache_status::allocated) {
+        if (ent->le.next == &cache) {
+            ent = nullptr;
+            return false;
+        }
+
+        ent = &containing_record<page_cache_entry>(ent->le.next);
+    }
+
+    range_start = ent;
+
+    uint64_t range_left = first_page + num_pages - range_start->page_num - 1;
+
+    range_length = 1;
+
+    if (range_left != 0) {
+        for (uint64_t i = 0; i < range_left; i++) {
+            ent = &containing_record<page_cache_entry>(ent->le.next);
+
+            if (ent->status != page_cache_status::allocated) {
+                ent = &containing_record<page_cache_entry>(ent->le.prev);
+                break;
+            }
+
+            range_length++;
+
+            if (ent->le.next == &cache)
+                break;
+        }
+    }
+
+    range_end = ent;
+
+    return true;
+}

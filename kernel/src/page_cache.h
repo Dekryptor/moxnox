@@ -28,6 +28,10 @@ public:
     void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
                           std::span<uint8_t> data, uint64_t offset);
     void clean_pages(page_cache_entry* range_start, uint64_t range_length);
+    bool find_unread_range(page_cache_entry*& range_start,
+                           page_cache_entry*& range_end, uint64_t& range_length,
+                           page_cache_entry*& ent, uint64_t first_page,
+                           uint64_t num_pages);
 
     spinlock cache_lock;
     list_entry cache = { &cache, &cache };
@@ -73,47 +77,9 @@ size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
             page_cache_entry* range_end;
             uint64_t range_length;
 
-            {
-                std::lock_guard lg(cache_lock);
-
-                // find first contiguous unread range
-
-                while (ent->status != page_cache_status::allocated) {
-                    if (ent->le.next == &cache) {
-                        ent = nullptr;
-                        break;
-                    }
-
-                    ent = &containing_record<page_cache_entry>(ent->le.next);
-                }
-
-                if (!ent)
-                    break;
-
-                range_start = ent;
-
-                uint64_t range_left = first_page + num_pages - range_start->page_num - 1;
-
-                range_length = 1;
-
-                if (range_left != 0) {
-                    for (uint64_t i = 0; i < range_left; i++) {
-                        ent = &containing_record<page_cache_entry>(ent->le.next);
-
-                        if (ent->status != page_cache_status::allocated) {
-                            ent = &containing_record<page_cache_entry>(ent->le.prev);
-                            break;
-                        }
-
-                        range_length++;
-
-                        if (ent->le.next == &cache)
-                            break;
-                    }
-                }
-
-                range_end = ent;
-            }
+            if (!find_unread_range(range_start, range_end, range_length, ent,
+                                   first_page, num_pages))
+                break;
 
             // read data into pages
 
