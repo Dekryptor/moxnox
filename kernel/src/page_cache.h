@@ -21,15 +21,21 @@ concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
     { t.read_into_cache(page_num, num_pages) } -> std::convertible_to<size_t>;
 };
 
+class page_cache_base {
+public:
+    void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
+                          std::span<uint8_t> data, uint64_t offset);
+
+    spinlock cache_lock;
+    list_entry cache = { &cache, &cache };
+};
+
 template<typename T>
-class page_cache {
+class page_cache : public page_cache_base {
 public:
     page_cache(T& dev) : dev(dev) { }
 
     size_t read(std::span<uint8_t> data, uint64_t offset);
-
-    spinlock cache_lock;
-    list_entry cache = { &cache, &cache };
 
 private:
     T& dev;
@@ -218,41 +224,9 @@ size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
         }
     }
 
-    size_t read_bytes = data.size();
-
-    {
-        std::lock_guard lg(cache_lock);
-
-        page_cache_entry* ent;
-
-        // FIXME - assert that page numbers are correct
-
-        for (uint64_t i = 0; i < num_pages; i++) {
-            if (i == 0)
-                ent = find_page_cache_entry(cache, first_page);
-            else
-                ent = &containing_record<page_cache_entry>(ent->le.next);
-
-            // copy pages into data
-
-            auto ent_va = phys_address(ent->phys_address);
-
-            if (i == 0 && offset & (PAGE_SIZE - 1)) {
-                size_t off = offset & (PAGE_SIZE - 1);
-
-                memcpy(data.data(), (void*)(ent->phys_address + off),
-                       std::min(data.size(), (size_t)PAGE_SIZE - off));
-                data = data.subspan(std::min(data.size(), (size_t)PAGE_SIZE - off));
-            } else {
-                memcpy(data.data(), ent_va, std::min(data.size(), (size_t)PAGE_SIZE));
-                data = data.subspan(std::min(data.size(), (size_t)PAGE_SIZE));
-            }
-
-            ent->refcount--;
-        }
-    }
+    copy_into_buffer(first_page, num_pages, data, offset);
 
     // FIXME - LRU
 
-    return read_bytes;
+    return data.size();
 }
