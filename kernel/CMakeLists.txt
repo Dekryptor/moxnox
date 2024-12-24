@@ -41,7 +41,8 @@ set(SRC_FILES src/kernel.cpp
     src/thread.cpp
     src/rtc.cpp
     src/dwarf.cpp
-    src/power.cpp)
+    src/power.cpp
+    src/page_cache.cpp)
 
 add_executable(kernel ${SRC_FILES})
 include_directories(../freetype/include)

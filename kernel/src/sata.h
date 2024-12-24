@@ -3,6 +3,7 @@
 #include "objects.h"
 #include "spinlock.h"
 #include "handle.h"
+#include "page_cache.h"
 
 static const unsigned int SATA_NUM_CMD_TABLES = 32;
 
@@ -445,38 +446,6 @@ struct ata_identify_device_block {
 } __attribute__((packed));
 
 static_assert(sizeof(ata_identify_device_block) == 512);
-
-enum class page_cache_status {
-    allocated,
-    clean
-};
-
-struct page_cache_entry {
-    list_entry le;
-    uint64_t page_num;
-    std::atomic<uint32_t> refcount;
-    enum page_cache_status status;
-    uint64_t phys_address;
-};
-
-template<typename T>
-concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
-    { t.read_into_cache(page_num, num_pages) } -> std::convertible_to<size_t>;
-};
-
-template<typename T>
-class page_cache {
-public:
-    page_cache(T& dev) : dev(dev) { }
-
-    size_t read(std::span<uint8_t> data, uint64_t offset);
-
-    spinlock cache_lock;
-    list_entry cache = { &cache, &cache };
-
-private:
-    T& dev;
-};
 
 class sata_device : public volume {
 public:
