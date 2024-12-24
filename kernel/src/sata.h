@@ -446,6 +446,18 @@ struct ata_identify_device_block {
 
 static_assert(sizeof(ata_identify_device_block) == 512);
 
+enum class page_cache_status {
+    allocated
+};
+
+struct page_cache_entry {
+    list_entry le;
+    uint64_t page_num;
+    std::atomic<uint32_t> refcount;
+    enum page_cache_status status;
+    uint64_t phys_address;
+};
+
 class sata_device : public volume {
 public:
     sata_device(volatile HBA_PORT& port);
@@ -477,6 +489,7 @@ public:
     unsigned int dev_num;
     bool valid = false;
     spinlock page_cache_lock;
+    list_entry page_cache = { &page_cache, &page_cache };
 };
 
 class sata_card {

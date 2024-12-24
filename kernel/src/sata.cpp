@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "list.h"
 #include "pci.h"
 #include "sata.h"
 #include "spinlock.h"
@@ -142,46 +143,132 @@ size_t sata_device::read_uncached(span<uint8_t> data, uint64_t offset) {
     return ret;
 }
 
+static page_cache_entry* find_page_cache_entry(list_entry& page_cache, uint64_t page_num) {
+    // returns page cache entry, or previous one if not found
+
+    page_cache_entry* last_p = nullptr;
+
+    auto le = page_cache.next;
+    while (le != &page_cache) {
+        auto& p = containing_record<page_cache_entry>(le);
+
+        if (p.page_num == page_num)
+            return &p;
+
+        if (p.page_num > page_num)
+            return last_p;
+
+        last_p = &p;
+        le = le->next;
+    }
+
+    return nullptr;
+}
+
+static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
+    auto p = new page_cache_entry;
+    if (!p)
+        return nullptr;
+
+    p->page_num = page_num;
+    p->refcount = 1;
+    p->status = page_cache_status::allocated;
+    // uint64_t phys_address; // FIXME
+
+    return p;
+}
+
 size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     if (data.empty())
         return 0;
 
-    uint64_t page_offset = offset >> PAGE_SHIFT;
-    uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - page_offset + 1;
+    // FIXME - clear page cache in destructor
+
+    uint64_t first_page = offset >> PAGE_SHIFT;
+    uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
 
     {
         char s[100];
         auto sp = span(s, sizeof(s));
 
-        sp = sp_strcpy(sp, "sata_device::read: page_offset ");
-        sp = sp_itoa_hex(sp, page_offset);
+        sp = sp_strcpy(sp, "sata_device::read: first_page ");
+        sp = sp_itoa_hex(sp, first_page);
         sp = sp_strcpy(sp, ", num_pages ");
         sp = sp_itoa_hex(sp, num_pages);
         sp = sp_strcpy(sp, ")\n");
         printk(string_view(s, sp.data() - s));
     }
 
+    bool need_read = false;
+
+    // FIXME - use RB tree rather than linked list
+
     {
         lock_guard lg(page_cache_lock);
-        // FIXME - add missing entries and increase refcount (status new)
+
+        page_cache_entry* ent;
+        page_cache_entry* p;
+
+        ent = find_page_cache_entry(page_cache, first_page);
+
+        if (!ent || ent->page_num != first_page) {
+            p = create_new_page_cache_entry(first_page);
+            if (!p) // FIXME - throw error
+                return 0;
+
+            if (!ent) // first entry
+                insert_head_list(page_cache, p->le);
+            else
+                insert_head_list(ent->le, p->le);
+        } else {
+            ent->refcount++;
+            p = ent;
+        }
+
+        for (uint64_t page_num = first_page + 1; page_num < first_page + num_pages; page_num++) {
+            if (p->le.next == &page_cache)
+                ent = nullptr;
+            else
+                ent = &containing_record<page_cache_entry>(p->le.next);
+
+            if (!ent || ent->page_num != page_num) {
+                p = create_new_page_cache_entry(page_num);
+                if (!p) // FIXME - throw error
+                    return 0;
+
+                if (!ent) // first entry
+                    insert_tail_list(page_cache, p->le);
+                else
+                    insert_head_list(*ent->le.prev, p->le);
+            } else {
+                ent->refcount++;
+                p = ent;
+            }
+        }
+
+        // FIXME - set need_read if necessary
     }
 
-    // FIXME - loop:
-    // FIXME - lock page cache
-    // FIXME - find first contiguous unread range
-    // FIXME - allocate pages
-    // FIXME - change status to reading
-    // FIXME - unlock page cache
-    // FIXME - read data into pages
-    // FIXME - lock page cache
-    // FIXME - change status to clean
-    // FIXME - unlock page cache
+    if (need_read) {
+        // FIXME - loop:
+        // FIXME - lock page cache
+        // FIXME - find first contiguous unread range
+        // FIXME - allocate pages
+        // FIXME - change status to reading
+        // FIXME - unlock page cache
+        // FIXME - read data into pages
+        // FIXME - lock page cache
+        // FIXME - change status to clean
+        // FIXME - unlock page cache
+    }
 
     {
         lock_guard lg(page_cache_lock);
         // FIXME - copy pages into data
         // FIXME - decrease refcount
     }
+
+    // FIXME - LRU
 
     return read_uncached(data, offset);
 }
