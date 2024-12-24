@@ -162,7 +162,7 @@ static page_cache_entry* find_page_cache_entry(list_entry& page_cache, uint64_t 
         le = le->next;
     }
 
-    return nullptr;
+    return last_p;
 }
 
 static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
@@ -195,13 +195,16 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         sp = sp_itoa_hex(sp, first_page);
         sp = sp_strcpy(sp, ", num_pages ");
         sp = sp_itoa_hex(sp, num_pages);
-        sp = sp_strcpy(sp, ")\n");
+        sp = sp_strcpy(sp, "\n");
         printk(string_view(s, sp.data() - s));
     }
 
-    bool need_read = false;
+    page_cache_entry* first_unread = nullptr;
 
     // FIXME - use RB tree rather than linked list
+
+    // FIXME - lock range
+
 
     {
         lock_guard lg(page_cache_lock);
@@ -221,13 +224,17 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
             else
                 insert_head_list(ent->le, p->le);
 
-            need_read = true;
+            if (!first_unread)
+                first_unread = p;
+
         } else {
             ent->refcount++;
             p = ent;
 
-            if (p->status != page_cache_status::clean)
-                need_read = true;
+            if (p->status != page_cache_status::clean) {
+                if (!first_unread)
+                    first_unread = p;
+            }
         }
 
         for (uint64_t page_num = first_page + 1; page_num < first_page + num_pages; page_num++) {
@@ -246,30 +253,102 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
                 else
                     insert_head_list(*ent->le.prev, p->le);
 
-                need_read = true;
+                if (!first_unread)
+                    first_unread = p;
             } else {
                 ent->refcount++;
                 p = ent;
 
-                if (p->status != page_cache_status::clean)
-                    need_read = true;
+                if (p->status != page_cache_status::clean) {
+                    if (!first_unread)
+                        first_unread = p;
+                }
             }
         }
     }
 
-    if (need_read) {
-        // FIXME - loop:
-        // FIXME - lock page cache
-        // FIXME - find first contiguous unread range
-        // FIXME - allocate pages
-        // FIXME - change status to reading
-        // FIXME - unlock page cache
-        // FIXME - read data into pages
-        // FIXME - lock page cache
-        // FIXME - change status to clean
-        // FIXME - unlock page cache
+    if (first_unread) {
+        page_cache_entry* ent = first_unread;
 
-        // FIXME - if status is already reading, wait for it to finish
+        while (true) {
+            page_cache_entry* range_start;
+            page_cache_entry* range_end;
+            uint64_t range_length;
+
+            {
+                lock_guard lg(page_cache_lock);
+
+                // find first contiguous unread range
+
+                while (ent->status != page_cache_status::allocated) {
+                    if (ent->le.next == &page_cache) {
+                        ent = nullptr;
+                        break;
+                    }
+
+                    ent = &containing_record<page_cache_entry>(ent->le.next);
+                }
+
+                if (!ent)
+                    break;
+
+                range_start = ent;
+
+                uint64_t range_left = first_page + num_pages - range_start->page_num - 1;
+
+                range_length = 1;
+
+                if (range_left != 0) {
+                    for (uint64_t i = 0; i < range_left; i++) {
+                        ent = &containing_record<page_cache_entry>(ent->le.next);
+
+                        if (ent->status != page_cache_status::allocated) {
+                            ent = &containing_record<page_cache_entry>(ent->le.prev);
+                            break;
+                        }
+
+                        range_length++;
+
+                        if (ent->le.next == &page_cache)
+                            break;
+                    }
+                }
+
+                range_end = ent;
+            }
+
+            {
+                char s[100];
+                auto sp = span(s, sizeof(s));
+
+                sp = sp_strcpy(sp, "sata_device::read: do read from ");
+                sp = sp_itoa_hex(sp, range_start->page_num);
+                sp = sp_strcpy(sp, ", length ");
+                sp = sp_itoa_hex(sp, range_length);
+                sp = sp_strcpy(sp, "\n");
+                printk(string_view(s, sp.data() - s));
+            }
+
+            // FIXME - read data into pages
+
+            // change status to clean
+
+            {
+                lock_guard lg(page_cache_lock);
+
+                auto p = range_start;
+                for (uint64_t i = 0; i < range_length; i++) {
+                    // FIXME - assert that status is page_cache_status::allocated
+
+                    p->status = page_cache_status::clean;
+                    p = &containing_record<page_cache_entry>(p->le.next);
+                }
+
+            }
+
+            if (range_end->page_num == first_page + num_pages - 1)
+                break;
+        }
     }
 
     {
