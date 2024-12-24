@@ -16,7 +16,6 @@ public:
     virtual void release() = 0;
 
     virtual size_t read(std::span<uint8_t> s, uint64_t offset) = 0;
-    virtual size_t read_uncached(std::span<uint8_t> s, uint64_t offset) = 0;
 
     void probe();
     bool check_for_partitions();
@@ -44,7 +43,6 @@ public:
     }
 
     size_t read(std::span<uint8_t> s, uint64_t offset) override;
-    size_t read_uncached(std::span<uint8_t> data, uint64_t offset) override;
     volume& parent;
     uint64_t disk_offset;
     uint64_t length;

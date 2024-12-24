@@ -33,6 +33,7 @@ static constexpr uint32_t SATA_IS_DHRS = 1 << 0;
 
 atomic<unsigned int> num_sata_devices = 0;
 
+#if 0
 size_t sata_device::read_uncached(span<uint8_t> data, uint64_t offset) {
     size_t ret = 0;
 
@@ -142,6 +143,7 @@ size_t sata_device::read_uncached(span<uint8_t> data, uint64_t offset) {
 
     return ret;
 }
+#endif
 
 static page_cache_entry* find_page_cache_entry(list_entry& page_cache, uint64_t page_num) {
     // returns page cache entry, or previous one if not found
@@ -192,6 +194,9 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
         for (unsigned int i = 0; i < num_pages; i++) {
             auto& e = cmdtbl.prdt_entry[i];
+
+            if (i != 0)
+                p = &containing_record<page_cache_entry>(p->le.next);
 
             // FIXME - make sure device supports 64-bit PAs
 
@@ -275,22 +280,11 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
 
     // FIXME - clear page cache in destructor
 
-    // FIXME - make sure we don't overflow device
+    // FIXME - return error if offset past end of device
+    // FIXME - truncate data buffer if we would read past end of device
 
     uint64_t first_page = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
-
-    {
-        char s[100];
-        auto sp = span(s, sizeof(s));
-
-        sp = sp_strcpy(sp, "sata_device::read: first_page ");
-        sp = sp_itoa_hex(sp, first_page);
-        sp = sp_strcpy(sp, ", num_pages ");
-        sp = sp_itoa_hex(sp, num_pages);
-        sp = sp_strcpy(sp, "\n");
-        printk(string_view(s, sp.data() - s));
-    }
 
     page_cache_entry* first_unread = nullptr;
 
@@ -464,6 +458,8 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         }
     }
 
+    size_t read_bytes = data.size();
+
     {
         lock_guard lg(page_cache_lock);
 
@@ -472,12 +468,25 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
         // FIXME - assert that page numbers are correct
 
         for (uint64_t i = 0; i < num_pages; i++) {
-            // FIXME - copy pages into data
-
             if (i == 0)
                 ent = find_page_cache_entry(page_cache, first_page);
             else
                 ent = &containing_record<page_cache_entry>(ent->le.next);
+
+            // copy pages into data
+
+            auto ent_va = phys_address(ent->phys_address);
+
+            if (i == 0 && offset & (PAGE_SIZE - 1)) {
+                size_t off = offset & (PAGE_SIZE - 1);
+
+                memcpy(data.data(), (void*)(ent->phys_address + off),
+                       min(data.size(), (size_t)PAGE_SIZE - off));
+                data = data.subspan(min(data.size(), (size_t)PAGE_SIZE - off));
+            } else {
+                memcpy(data.data(), ent_va, min(data.size(), (size_t)PAGE_SIZE));
+                data = data.subspan(min(data.size(), (size_t)PAGE_SIZE));
+            }
 
             ent->refcount--;
         }
@@ -485,7 +494,7 @@ size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
 
     // FIXME - LRU
 
-    return read_uncached(data, offset);
+    return read_bytes;
 }
 
 uint8_t sata_device::get_slot() {

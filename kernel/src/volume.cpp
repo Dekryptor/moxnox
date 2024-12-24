@@ -368,6 +368,7 @@ size_t diskpart::read(span<uint8_t> s, uint64_t offset) {
     return parent.read(s, offset);
 }
 
+#if 0
 size_t diskpart::read_uncached(span<uint8_t> s, uint64_t offset) {
     if (offset >= length)
         return 0;
@@ -382,3 +383,4 @@ size_t diskpart::read_uncached(span<uint8_t> s, uint64_t offset) {
 
     return parent.read_uncached(s, offset);
 }
+#endif
