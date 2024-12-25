@@ -124,6 +124,7 @@ extern decltype(&safe_print) _printk;
 void print_hex(uint64_t num, unsigned int padding = 0);
 bool init_fb_console();
 __attribute__((noreturn)) void bsod(std::string_view msg, std::source_location sl = std::source_location::current());
+__attribute__((noreturn)) void _assert(const char* msg, const char* file, unsigned int line);
 
 static void printk(std::convertible_to<std::string_view> auto s) {
     _printk(s);
@@ -314,3 +315,12 @@ concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
     { t.unpin(page_num, num_pages) };
     { t.find_page_cache_entry(page_num) } -> std::convertible_to<page_cache_entry*>;
 };
+
+#ifdef NDEBUG
+#define assert(_Expression) ((void)0)
+#else
+#define assert(_Expression) \
+    (void) \
+    ((!!(_Expression)) || \
+    (_assert(#_Expression,__FILE__,__LINE__),0))
+#endif

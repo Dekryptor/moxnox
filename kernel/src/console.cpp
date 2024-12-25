@@ -55,6 +55,7 @@ static bool fb_console_started = false;
 static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
 static spinlock cursor_lock, bsod_lock;
+static char assertion_buffer[1024];
 
 struct console_info {
     enum console_colour bg;
@@ -1165,4 +1166,17 @@ void bsod(string_view msg, source_location sl) {
 
     __asm("call halt_isr");
     __builtin_unreachable();
+}
+
+void _assert(const char* msg, const char* file, unsigned int line) {
+    span sp(assertion_buffer, sizeof(assertion_buffer));
+
+    sp = sp_strcpy(sp, "assertion failed at ");
+    sp = sp_strcpy(sp, file);
+    sp = sp_strcpy(sp, ":0x");
+    sp = sp_itoa_hex(sp, line); // FIXME - should be decimal!
+    sp = sp_strcpy(sp, ": ");
+    sp = sp_strcpy(sp, msg);
+
+    bsod(string_view(assertion_buffer, sp.data() - assertion_buffer));
 }
