@@ -104,8 +104,10 @@ bool page_cache_base::pin(uint64_t first_page, uint64_t num_pages,
     return true;
 }
 
-void page_cache_base::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
-                                       span<uint8_t> data, uint64_t offset) {
+void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page,
+                                                 uint64_t num_pages,
+                                                 span<uint8_t> data,
+                                                 uint64_t offset) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;

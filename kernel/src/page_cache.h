@@ -20,8 +20,8 @@ class page_cache_base {
 public:
     bool pin(uint64_t first_page, uint64_t num_pages,
              page_cache_entry*& first_unread);
-    void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
-                          std::span<uint8_t> data, uint64_t offset);
+    void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                    std::span<uint8_t> data, uint64_t offset);
     void clean_pages(page_cache_entry* range_start, uint64_t range_length);
     bool find_unread_range(page_cache_entry*& range_start,
                            page_cache_entry*& range_end, uint64_t& range_length,
@@ -117,7 +117,7 @@ size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
         }
     }
 
-    copy_into_buffer(first_page, num_pages, data, offset);
+    copy_into_buffer_and_unpin(first_page, num_pages, data, offset);
 
     // FIXME - LRU
 
