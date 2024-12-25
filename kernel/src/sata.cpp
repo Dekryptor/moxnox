@@ -241,7 +241,7 @@ uint64_t sata_device::read_into_cache_and_pin(uint64_t page_num,
     auto read_pages = read_into_cache(page_num, num_pages);
 
     if (read_pages < num_pages)
-        cache.unpin(page_num + num_pages, num_pages - read_pages);
+        cache.unpin(page_num + read_pages, num_pages - read_pages);
 
     return read_pages;
 }
