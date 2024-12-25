@@ -335,26 +335,124 @@ bool btrfs_filesystem::load_chunks() {
     return true;
 }
 
-bool btrfs_filesystem::read_single(uint64_t addr, chunk& c, span<uint8_t> data) {
-    auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
+uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    uint64_t addr = page_num << PAGE_SHIFT;
 
-    if (s < data.size()) {
+    // find chunk
+
+    optional<reference_wrapper<chunk>> crw;
+
+    {
+        auto le = chunk_list.next;
+        while (le != &chunk_list) {
+            auto& c = containing_record<chunk>(le);
+
+            if (addr >= c.offset && addr < c.offset + c.ci.size) {
+                crw = c;
+                break;
+            }
+
+            le = le->next;
+        }
+    }
+
+    if (!crw) {
+        printk("Could not find chunk for logical address ");
+        print_hex(addr);
+        printk("\n");
+        return 0;
+    }
+
+    auto& c = crw->get();
+
+    if (c.ci.type & BLOCK_FLAG_RAID0) {
+        printk("RAID0 not supported\n");
+        return 0;
+    } else if (c.ci.type & BLOCK_FLAG_RAID10) {
+        printk("RAID10 not supported\n");
+        return 0;
+    } else if (c.ci.type & BLOCK_FLAG_RAID5) {
+        printk("RAID10 not supported\n");
+        return 0;
+    } else if (c.ci.type & BLOCK_FLAG_RAID6) {
+        printk("RAID10 not supported\n");
+        return 0;
+    }
+
+    // chunk is SINGLE, DUP, RAID1, RAID1C3, or RAID1C4
+
+    auto buf = (uint8_t*)malloc(num_pages << PAGE_SHIFT);
+    if (!buf)
+        return 0;
+
+    // FIXME - choose stripe and device
+    // FIXME - handle missing devices
+
+    auto bytes_read = vol.read(span(buf, num_pages << PAGE_SHIFT),
+                               addr - c.offset + c.ci.stripes[0].offset);
+    if (bytes_read == 0) {
+        free(buf);
+        return 0;
+    }
+
+    // FIXME - check csum (metadata or data)
+    // FIXME - choose other copy if csum wrong
+    // FIXME - copy over bad copy if csum wrong
+
+    // copy from buffer into our own page cache
+
+    {
+        lock_guard lg(cache.cache_lock);
+
+        auto* p = find_page_cache_entry(cache.cache, page_num);
+
+        for (unsigned int i = 0; i < num_pages; i++) {
+            if (i != 0)
+                p = &containing_record<page_cache_entry>(p->le.next);
+
+            auto va = phys_address(p->phys_address);
+
+            memcpy(va, buf + (i << PAGE_SHIFT), PAGE_SIZE);
+        }
+    }
+
+    free(buf);
+
+    // FIXME - avoid memcpy and malloc? Can we steal pages?
+
+    return num_pages;
+}
+
+bool btrfs_filesystem::read_single(uint64_t addr, chunk& c, span<uint8_t> data) {
+    if (!cache.read(data, addr)) {
         printk("Short read\n");
         return false;
     }
 
-    // FIXME - checksums
+    // auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
+    //
+    // if (s < data.size()) {
+    //     printk("Short read\n");
+    //     return false;
+    // }
+    //
+    // // FIXME - checksums
 
     return true;
 }
 
 bool btrfs_filesystem::read_dup(uint64_t addr, chunk& c, span<uint8_t> data) {
-    auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
-
-    if (s < data.size()) {
+    if (!cache.read(data, addr)) {
         printk("Short read\n");
         return false;
     }
+
+    // auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
+    //
+    // if (s < data.size()) {
+    //     printk("Short read\n");
+    //     return false;
+    // }
 
     // FIXME - alternate between two stripes
     // FIXME - checksums

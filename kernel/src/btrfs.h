@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include "page_cache.h"
 
 using btrfs_uuid = std::array<uint8_t, 16>;
 
@@ -410,6 +411,7 @@ public:
     size_t read_extent(uint64_t address, uint64_t offset, uint64_t num_bytes, std::span<uint8_t> s);
     NTSTATUS query_directory_dirent(const dirent& de, std::span<uint8_t> buf,
                                     FILE_INFORMATION_CLASS file_information_class);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
 
     superblock sb;
     bool valid = false;
@@ -418,6 +420,7 @@ public:
     btrfs_inode* root_inode = nullptr;
     spinlock inode_lock;
     list_entry inode_list = { &inode_list, &inode_list };
+    page_cache<btrfs_filesystem> cache{*this};
 
 private:
     bool load_chunks();
@@ -431,3 +434,5 @@ private:
                     std::invocable<const key&, std::span<const uint8_t>> auto func);
     size_t read_extent_single(chunk& c, uint64_t address, uint64_t offset, uint64_t num_bytes, std::span<uint8_t> s);
 };
+
+static_assert(cacheable<btrfs_filesystem>);
