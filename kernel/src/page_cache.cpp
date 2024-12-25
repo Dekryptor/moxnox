@@ -113,13 +113,13 @@ void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page,
 
     page_cache_entry* ent;
 
-    // FIXME - assert that page numbers are correct
-
     for (uint64_t i = 0; i < num_pages; i++) {
         if (i == 0)
             ent = find_page_cache_entry(cache, first_page);
         else
             ent = &containing_record<page_cache_entry>(ent->le.next);
+
+        assert(ent->page_num == first_page + i);
 
         // copy pages into data
 
