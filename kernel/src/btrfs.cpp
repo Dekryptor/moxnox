@@ -350,46 +350,50 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
 
     // chunk is SINGLE, DUP, RAID1, RAID1C3, or RAID1C4
 
-    auto buf = (uint8_t*)malloc(num_pages << PAGE_SHIFT);
-    if (!buf)
-        return 0;
-
     // FIXME - choose stripe and device
     // FIXME - handle missing devices
 
-    auto bytes_read = vol.read(span(buf, num_pages << PAGE_SHIFT),
-                               addr - c.offset + c.ci.stripes[0].offset);
-    if (bytes_read == 0) {
-        free(buf);
+    uint64_t disk_addr = (addr - c.offset + c.ci.stripes[0].offset);
+
+    auto pages_read = vol.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
+                                                  num_pages);
+    if (pages_read == 0)
         return 0;
+
+    // copy from buffer into our own page cache
+
+    // FIXME - can we steal pages?
+
+    page_cache_entry* dest_p;
+
+    for (uint64_t i = 0; i < pages_read; i++) {
+        page_cache_entry* src_p;
+
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                dest_p = ::find_page_cache_entry(cache.cache, page_num);
+            else
+                dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
+        }
+
+        src_p = vol.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + i);
+        // FIXME - find next entry rather than doing complete lookup
+
+        auto src_va = phys_address(src_p->phys_address);
+        auto dest_va = phys_address(dest_p->phys_address);
+
+        memcpy(dest_va, src_va, PAGE_SIZE);
     }
+
+    vol.unpin(disk_addr >> PAGE_SHIFT, pages_read);
 
     // FIXME - check csum (metadata or data)
     // FIXME - choose other copy if csum wrong
     // FIXME - copy over bad copy if csum wrong
 
-    // copy from buffer into our own page cache
-
-    {
-        lock_guard lg(cache.cache_lock);
-
-        auto* p = ::find_page_cache_entry(cache.cache, page_num);
-
-        for (unsigned int i = 0; i < num_pages; i++) {
-            if (i != 0)
-                p = &containing_record<page_cache_entry>(p->le.next);
-
-            auto va = phys_address(p->phys_address);
-
-            memcpy(va, buf + (i << PAGE_SHIFT), PAGE_SIZE);
-        }
-    }
-
-    free(buf);
-
-    // FIXME - avoid memcpy and malloc? Can we steal pages?
-
-    return num_pages;
+    return pages_read;
 }
 
 uint64_t btrfs_filesystem::read_into_cache_and_pin(uint64_t page_num,
