@@ -163,40 +163,9 @@ bool btrfs_probe(volume& vol) {
 }
 
 bool btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
-    optional<reference_wrapper<chunk>> crw;
-
-    {
-        auto le = chunk_list.next;
-        while (le != &chunk_list) {
-            auto& c = containing_record<chunk>(le);
-
-            if (addr >= c.offset && addr < c.offset + c.ci.size) {
-                crw = c;
-                break;
-            }
-
-            le = le->next;
-        }
-    }
-
-    if (!crw) {
-        printk("Could not find chunk for logical address ");
-        print_hex(addr);
-        printk("\n");
+    if (!cache.read(data, addr)) {
+        printk("Short read\n");
         return false;
-    }
-
-    auto& c = crw->get();
-
-    if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
-        printk("RAID not supported\n");
-        return false;
-    } else if (c.ci.type & BLOCK_FLAG_DUPLICATE) {
-        if (!read_dup(addr, c, data))
-            return false;
-    } else {
-        if (!read_single(addr, c, data))
-            return false;
     }
 
     // FIXME - check checksum, address, level, and subvol ID
@@ -421,43 +390,6 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     // FIXME - avoid memcpy and malloc? Can we steal pages?
 
     return num_pages;
-}
-
-bool btrfs_filesystem::read_single(uint64_t addr, chunk& c, span<uint8_t> data) {
-    if (!cache.read(data, addr)) {
-        printk("Short read\n");
-        return false;
-    }
-
-    // auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
-    //
-    // if (s < data.size()) {
-    //     printk("Short read\n");
-    //     return false;
-    // }
-    //
-    // // FIXME - checksums
-
-    return true;
-}
-
-bool btrfs_filesystem::read_dup(uint64_t addr, chunk& c, span<uint8_t> data) {
-    if (!cache.read(data, addr)) {
-        printk("Short read\n");
-        return false;
-    }
-
-    // auto s = vol.read(data, addr - c.offset + c.ci.stripes[0].offset);
-    //
-    // if (s < data.size()) {
-    //     printk("Short read\n");
-    //     return false;
-    // }
-
-    // FIXME - alternate between two stripes
-    // FIXME - checksums
-
-    return true;
 }
 
 void btrfs_filesystem::free_chunk_list() {
@@ -930,8 +862,8 @@ object_ref btrfs_filesystem::open(string_view fn) {
     }
 }
 
-size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t offset, uint64_t num_bytes,
-                                            span<uint8_t> s) {
+size_t btrfs_filesystem::read_extent(uint64_t address, uint64_t offset, uint64_t num_bytes,
+                                     span<uint8_t> s) {
     size_t to_read = min(num_bytes, s.size());
 
     if (offset != 0) {
@@ -985,8 +917,8 @@ size_t btrfs_filesystem::read_extent_single(chunk& c, uint64_t address, uint64_t
 
     auto buf = (uint8_t*)va;
 
-    if (!read_single(address, c, span(buf, num_bytes + offset))) {
-        printk("btrfs_filesystem::read_single failed\n");
+    if (!cache.read(span(buf, num_bytes + offset), address)) {
+        printk("btrfs_filesystem::read_extent failed\n");
         to_read = 0;
         goto end;
     }
@@ -1005,42 +937,6 @@ end:
     free_va(va, pages);
 
     return to_read;
-}
-
-size_t btrfs_filesystem::read_extent(uint64_t address, uint64_t offset, uint64_t num_bytes, span<uint8_t> s) {
-    optional<reference_wrapper<chunk>> crw;
-
-    {
-        auto le = chunk_list.next;
-        while (le != &chunk_list) {
-            auto& c = containing_record<chunk>(le);
-
-            if (address >= c.offset && address < c.offset + c.ci.size) {
-                crw = c;
-                break;
-            }
-
-            le = le->next;
-        }
-    }
-
-    if (!crw) {
-        printk("Could not find chunk for address ");
-        print_hex(address);
-        printk(".\n");
-        return 0;
-    }
-
-    auto& c = crw->get();
-
-    if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
-        printk("RAID not supported\n");
-        return 0;
-    } else if (c.ci.type & BLOCK_FLAG_DUPLICATE) {
-        printk("FIXME - DUP\n");
-        return 0;
-    } else
-        return read_extent_single(c, address, offset, num_bytes, s);
 }
 
 size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {

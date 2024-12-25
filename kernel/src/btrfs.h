@@ -425,14 +425,11 @@ public:
 private:
     bool load_chunks();
     bool load_roots();
-    bool read_single(uint64_t addr, chunk& c, std::span<uint8_t> data);
-    bool read_dup(uint64_t addr, chunk& c, std::span<uint8_t> data);
     void free_chunk_list();
     void free_root_list();
     bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
     bool walk_from2(uint64_t addr, uint8_t exp_level, const key& k,
                     std::invocable<const key&, std::span<const uint8_t>> auto func);
-    size_t read_extent_single(chunk& c, uint64_t address, uint64_t offset, uint64_t num_bytes, std::span<uint8_t> s);
 };
 
 static_assert(cacheable<btrfs_filesystem>);
