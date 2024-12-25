@@ -405,6 +405,10 @@ uint64_t btrfs_filesystem::read_into_cache_and_pin(uint64_t page_num,
     return read_pages;
 }
 
+void btrfs_filesystem::unpin(uint64_t page_num, uint64_t num_pages) {
+    cache.unpin(page_num, num_pages);
+}
+
 void btrfs_filesystem::free_chunk_list() {
     while (!is_list_empty(chunk_list)) {
         auto& c = containing_record<chunk>(chunk_list.next);

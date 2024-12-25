@@ -397,3 +397,9 @@ uint64_t diskpart::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages
     return parent.read_into_cache_and_pin(page_num + (disk_offset >> PAGE_SHIFT),
                                           num_pages);
 }
+
+void diskpart::unpin(uint64_t page_num, uint64_t num_pages) {
+    // FIXME - make sure that partition is aligned to page boundaries
+
+    return parent.unpin(page_num + (disk_offset >> PAGE_SHIFT), num_pages);
+}

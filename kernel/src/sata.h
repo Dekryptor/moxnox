@@ -464,6 +464,7 @@ public:
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t read_into_cache_and_pin(uint64_t page_num,
                                    uint64_t num_pages) override;
+    void unpin(uint64_t page_num, uint64_t num_pages) override;
     void isr();
 
     list_entry le;
