@@ -373,7 +373,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     {
         lock_guard lg(cache.cache_lock);
 
-        auto* p = find_page_cache_entry(cache.cache, page_num);
+        auto* p = ::find_page_cache_entry(cache.cache, page_num);
 
         for (unsigned int i = 0; i < num_pages; i++) {
             if (i != 0)
@@ -407,6 +407,10 @@ uint64_t btrfs_filesystem::read_into_cache_and_pin(uint64_t page_num,
 
 void btrfs_filesystem::unpin(uint64_t page_num, uint64_t num_pages) {
     cache.unpin(page_num, num_pages);
+}
+
+page_cache_entry* btrfs_filesystem::find_page_cache_entry(uint64_t page_num) {
+    return ::find_page_cache_entry(cache.cache, page_num);
 }
 
 void btrfs_filesystem::free_chunk_list() {

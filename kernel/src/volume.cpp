@@ -403,3 +403,9 @@ void diskpart::unpin(uint64_t page_num, uint64_t num_pages) {
 
     return parent.unpin(page_num + (disk_offset >> PAGE_SHIFT), num_pages);
 }
+
+page_cache_entry* diskpart::find_page_cache_entry(uint64_t page_num) {
+    // FIXME - make sure that partition is aligned to page boundaries
+
+    return parent.find_page_cache_entry(page_num + (disk_offset >> PAGE_SHIFT));
+}

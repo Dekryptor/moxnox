@@ -168,7 +168,7 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     {
         lock_guard lg(cache.cache_lock);
 
-        auto* p = find_page_cache_entry(cache.cache, page_num);
+        auto* p = ::find_page_cache_entry(cache.cache, page_num);
 
         for (unsigned int i = 0; i < num_pages; i++) {
             auto& e = cmdtbl.prdt_entry[i];
@@ -248,6 +248,10 @@ uint64_t sata_device::read_into_cache_and_pin(uint64_t page_num,
 
 void sata_device::unpin(uint64_t page_num, uint64_t num_pages) {
     cache.unpin(page_num, num_pages);
+}
+
+page_cache_entry* sata_device::find_page_cache_entry(uint64_t page_num) {
+    return ::find_page_cache_entry(cache.cache, page_num);
 }
 
 size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
