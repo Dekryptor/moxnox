@@ -44,8 +44,8 @@ page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     return p;
 }
 
-bool page_cache_base::init_cache(uint64_t first_page, uint64_t num_pages,
-                                 page_cache_entry*& first_unread) {
+bool page_cache_base::pin(uint64_t first_page, uint64_t num_pages,
+                          page_cache_entry*& first_unread) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;

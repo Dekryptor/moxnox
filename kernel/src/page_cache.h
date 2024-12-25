@@ -18,8 +18,8 @@ struct page_cache_entry {
 
 class page_cache_base {
 public:
-    bool init_cache(uint64_t first_page, uint64_t num_pages,
-                    page_cache_entry*& first_unread);
+    bool pin(uint64_t first_page, uint64_t num_pages,
+             page_cache_entry*& first_unread);
     void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
                           std::span<uint8_t> data, uint64_t offset);
     void clean_pages(page_cache_entry* range_start, uint64_t range_length);
@@ -61,7 +61,7 @@ size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
 
     // FIXME - lock range
 
-    if (!init_cache(first_page, num_pages, first_unread))
+    if (!pin(first_page, num_pages, first_unread))
         return 0;
 
     if (first_unread) {
