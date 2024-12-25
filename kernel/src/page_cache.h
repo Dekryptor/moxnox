@@ -37,6 +37,7 @@ class page_cache : public page_cache_base {
 public:
     page_cache(T& dev) : dev(dev) { }
 
+    bool read_and_pin(uint64_t offset, uint64_t length);
     size_t read(std::span<uint8_t> data, uint64_t offset);
 
 private:
@@ -47,12 +48,12 @@ page_cache_entry* find_page_cache_entry(list_entry& page_cache, uint64_t page_nu
 page_cache_entry* create_new_page_cache_entry(uint64_t page_num);
 
 template<typename T>
-size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
-    if (data.empty())
-        return 0;
+bool page_cache<T>::read_and_pin(uint64_t offset, uint64_t length) {
+    if (length == 0)
+        return true;
 
     uint64_t first_page = offset >> PAGE_SHIFT;
-    uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
+    uint64_t num_pages = ((offset + length - 1) >> PAGE_SHIFT) - first_page + 1;
 
     page_cache_entry* first_unread = nullptr;
 
@@ -62,7 +63,7 @@ size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
     // FIXME - lock range
 
     if (!pin(first_page, num_pages, first_unread))
-        return 0;
+        return false;
 
     if (first_unread) {
         page_cache_entry* ent = first_unread;
@@ -116,6 +117,20 @@ size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
                 break;
         }
     }
+
+    return true;
+}
+
+template<typename T>
+size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
+    if (data.empty())
+        return 0;
+
+    if (!read_and_pin(offset, data.size()))
+        return 0;
+
+    uint64_t first_page = offset >> PAGE_SHIFT;
+    uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
 
     copy_into_buffer_and_unpin(first_page, num_pages, data, offset);
 
