@@ -27,6 +27,7 @@ public:
                            page_cache_entry*& range_end, uint64_t& range_length,
                            page_cache_entry*& ent, uint64_t first_page,
                            uint64_t num_pages);
+    void unpin(uint64_t first_page, uint64_t num_pages);
 
     spinlock cache_lock;
     list_entry cache = { &cache, &cache };
