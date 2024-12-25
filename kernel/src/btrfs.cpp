@@ -392,6 +392,19 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     return num_pages;
 }
 
+uint64_t btrfs_filesystem::read_into_cache_and_pin(uint64_t page_num,
+                                                   uint64_t num_pages) {
+    if (!cache.pin(page_num, num_pages, nullptr))
+        return 0;
+
+    auto read_pages = read_into_cache(page_num, num_pages);
+
+    if (read_pages < num_pages)
+        cache.unpin(page_num + num_pages, num_pages - read_pages);
+
+    return read_pages;
+}
+
 void btrfs_filesystem::free_chunk_list() {
     while (!is_list_empty(chunk_list)) {
         auto& c = containing_record<chunk>(chunk_list.next);

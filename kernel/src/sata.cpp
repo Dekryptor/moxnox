@@ -233,6 +233,19 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     return num_pages;
 }
 
+uint64_t sata_device::read_into_cache_and_pin(uint64_t page_num,
+                                              uint64_t num_pages) {
+    if (!cache.pin(page_num, num_pages, nullptr))
+        return 0;
+
+    auto read_pages = read_into_cache(page_num, num_pages);
+
+    if (read_pages < num_pages)
+        cache.unpin(page_num + num_pages, num_pages - read_pages);
+
+    return read_pages;
+}
+
 size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
     // FIXME - clear page cache in destructor
 

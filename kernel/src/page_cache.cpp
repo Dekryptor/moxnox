@@ -45,7 +45,7 @@ page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
 }
 
 bool page_cache_base::pin(uint64_t first_page, uint64_t num_pages,
-                          page_cache_entry*& first_unread) {
+                          page_cache_entry** first_unread) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -63,13 +63,14 @@ bool page_cache_base::pin(uint64_t first_page, uint64_t num_pages,
         else
             insert_head_list(ent->le, p->le);
 
-        first_unread = p;
+        if (first_unread)
+            *first_unread = p;
     } else {
         ent->refcount++;
         p = ent;
 
-        if (p->status != page_cache_status::clean)
-            first_unread = p;
+        if (first_unread && p->status != page_cache_status::clean)
+            *first_unread = p;
     }
 
     for (uint64_t page_num = first_page + 1; page_num < first_page + num_pages; page_num++) {
@@ -88,15 +89,15 @@ bool page_cache_base::pin(uint64_t first_page, uint64_t num_pages,
             else
                 insert_head_list(*ent->le.prev, p->le);
 
-            if (!first_unread)
-                first_unread = p;
+            if (first_unread && !*first_unread)
+                *first_unread = p;
         } else {
             ent->refcount++;
             p = ent;
 
             if (p->status != page_cache_status::clean) {
-                if (!first_unread)
-                    first_unread = p;
+                if (first_unread && !*first_unread)
+                    *first_unread = p;
             }
         }
     }
