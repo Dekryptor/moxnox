@@ -964,90 +964,124 @@ end:
     return to_read;
 }
 
-size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
-    uint64_t lastoff = offset;
-    size_t read = 0;
+size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages) {
+    printk("FIXME - read_zeroes_into_cache\n");
 
+    // FIXME
+
+    return 0;
+}
+
+size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
+                                                  uint64_t num_pages,
+                                                  const inode_extent& ie) {
+    printk("FIXME - inline extents\n"); // FIXME
+
+    // FIXME - also compressed inline extents
+
+    return 0;
+}
+
+size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
+                                           const inode_extent& ie) {
+    if (ie.ed.compression != 0) {
+        printk("FIXME - compression\n"); // FIXME
+        return 0;
+    }
+
+    const auto& ed2 = *(extent_data2*)ie.ed.data;
+
+    uint64_t addr = ed2.address + ed2.offset + (page_num << PAGE_SHIFT) - ie.offset;
+
+    num_pages = min(num_pages, ed2.num_bytes >> PAGE_SHIFT);
+
+    auto pages_read = fs.read_into_cache_and_pin(addr >> PAGE_SHIFT, num_pages);
+    if (pages_read == 0)
+        return 0;
+
+    // copy from buffer into our own page cache
+
+    // FIXME - can we steal pages?
+
+    page_cache_entry* dest_p;
+
+    for (uint64_t i = 0; i < pages_read; i++) {
+        page_cache_entry* src_p;
+
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                dest_p = ::find_page_cache_entry(cache.cache, page_num);
+            else
+                dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
+        }
+
+        src_p = fs.find_page_cache_entry((addr >> PAGE_SHIFT) + i);
+        // FIXME - find next entry rather than doing complete lookup
+
+        auto src_va = phys_address(src_p->phys_address);
+        auto dest_va = phys_address(dest_p->phys_address);
+
+        memcpy(dest_va, src_va, PAGE_SIZE);
+    }
+
+    fs.unpin(addr >> PAGE_SHIFT, pages_read);
+
+    // FIXME - check csums
+    // FIXME - read from another copy (and replace) if csum is bad
+
+    return pages_read;
+}
+
+size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    uint64_t lastoff = page_num << PAGE_SHIFT;
+
+    // FIXME - extents should be an RB tree
+
+    auto le = extents.next;
+    while (le != &extents) {
+        auto& ie = containing_record<inode_extent>(le);
+
+        if (ie.offset + ie.ed.decoded_size < page_num << PAGE_SHIFT) {
+            le = le->next;
+            continue;
+        }
+
+        if (ie.offset > lastoff) {
+            auto pages_to_zero = min(num_pages, (ie.offset - lastoff) >> PAGE_SHIFT);
+            return read_zeroes_into_cache(page_num, pages_to_zero);
+        }
+
+        switch (ie.ed.type) {
+            case btrfs_extent_type::inline_extent:
+                return read_inline_extent_into_cache(page_num, num_pages, ie);
+
+            case btrfs_extent_type::regular:
+                return read_extent_into_cache(page_num, num_pages, ie);
+
+            case btrfs_extent_type::prealloc: {
+                auto pages_to_zero = min(num_pages, ie.ed.decoded_size >> PAGE_SHIFT);
+                return read_zeroes_into_cache(page_num, pages_to_zero);
+            }
+
+            default:
+                printk("unknown btrfs extent type");
+                return 0;
+        }
+    }
+
+    return read_zeroes_into_cache(page_num, num_pages);
+}
+
+size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
     if (offset > file_size || s.empty())
         return 0;
 
     if (offset + s.size() > file_size)
         s = s.subspan(file_size - offset);
 
-    auto le = extents.next;
-    while (le != &extents) {
-        auto& ie = containing_record<inode_extent>(le);
-
-        if (ie.offset + ie.ed.decoded_size < offset) {
-            le = le->next;
-            continue;
-        }
-
-        if (ie.ed.compression != 0) {
-            printk("FIXME - compression\n"); // FIXME
-            return 0;
-        }
-
-        if (ie.offset > lastoff) {
-            auto to_zero = min(s.size(), ie.offset - lastoff);
-
-            memset(s.data(), 0, to_zero);
-            s = s.subspan(to_zero);
-            read += to_zero;
-
-            if (s.empty())
-                return read;
-        }
-
-        switch (ie.ed.type) {
-            case btrfs_extent_type::inline_extent:
-                printk("FIXME - inline extents\n"); // FIXME
-                return 0;
-            break;
-
-            case btrfs_extent_type::regular: {
-                auto& ed2 = *(extent_data2*)ie.ed.data;
-                auto r = fs.read_extent(ed2.address, ed2.offset + offset + read - ie.offset, ed2.num_bytes, s);
-
-                if (r == 0) {
-                    printk("btrfs_filesystem::read_extent failed\n");
-                    return 0;
-                }
-
-                read += r;
-                s = s.subspan(read);
-
-                if (s.empty())
-                    return read;
-
-                break;
-            }
-
-            case btrfs_extent_type::prealloc: {
-                auto to_zero = min(s.size(), ie.ed.decoded_size);
-
-                memset(s.data(), 0, to_zero);
-                s = s.subspan(to_zero);
-                read += to_zero;
-
-                if (s.empty())
-                    return read;
-
-                break;
-            }
-        }
-
-        lastoff = ie.offset;
-
-        le = le->next;
-    }
-
-    if (!s.empty()) {
-        memset(s.data(), 0, s.size());
-        read += s.size();
-    }
-
-    return read;
+    return cache.read(s, offset);
 }
 
 NTSTATUS btrfs_filesystem::query_directory_dirent(const dirent& de, span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
@@ -1128,4 +1162,25 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     free(de);
 
     return ret;
+}
+
+uint64_t btrfs_inode::read_into_cache_and_pin(uint64_t page_num,
+                                              uint64_t num_pages) {
+    if (!cache.pin(page_num, num_pages, nullptr))
+        return 0;
+
+    auto read_pages = read_into_cache(page_num, num_pages);
+
+    if (read_pages < num_pages)
+        cache.unpin(page_num + read_pages, num_pages - read_pages);
+
+    return read_pages;
+}
+
+void btrfs_inode::unpin(uint64_t page_num, uint64_t num_pages) {
+    cache.unpin(page_num, num_pages);
+}
+
+page_cache_entry* btrfs_inode::find_page_cache_entry(uint64_t page_num) {
+    return ::find_page_cache_entry(cache.cache, page_num);
 }
