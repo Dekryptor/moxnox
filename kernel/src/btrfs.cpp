@@ -33,6 +33,16 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         return;
     }
 
+    if (sb.node_size & (PAGE_SIZE - 1)) {
+        printk("btrfs node size not multiple of CPU page size\n");
+        return;
+    }
+
+    if (sb.sector_size & (PAGE_SIZE - 1)) {
+        printk("btrfs sector size not multiple of CPU page size\n");
+        return;
+    }
+
     // FIXME - make sure sb.n < sizeof(sb.sys_chunk_array)
     auto chunk_array = span(sb.sys_chunk_array.data(), sb.n);
 
