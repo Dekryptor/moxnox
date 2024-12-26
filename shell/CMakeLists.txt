@@ -19,3 +19,15 @@ target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 target_link_libraries(shell ntdll ntdllcrt)
 
 install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+###
+
+add_executable(echo src/echo.cpp
+    src/string.cpp)
+
+target_compile_options(echo PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe)
+target_link_options(echo PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(echo ntdll ntdllcrt)
+
+install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX})
