@@ -146,12 +146,9 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-static void run_program(u16string_view fn) {
-    OBJECT_ATTRIBUTES oa;
-    UNICODE_STRING us;
+static void run_program(HANDLE file) {
     NTSTATUS status;
-    HANDLE file, sect, proc, thread;
-    IO_STATUS_BLOCK iosb;
+    HANDLE sect, proc, thread;
     CLIENT_ID client_id;
     CONTEXT context;
     INITIAL_TEB initial_teb;
@@ -163,37 +160,9 @@ static void run_program(u16string_view fn) {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
-    // open file
-
-    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
-    us.Buffer = (char16_t*)malloc(us.Length);
-
-    if (!us.Buffer) {
-        print("malloc failed\n");
-        return;
-    }
-
-    memcpy(us.Buffer, fn.data(), fn.size() * sizeof(char16_t));
-
-    oa.Length = sizeof(OBJECT_ATTRIBUTES);
-    oa.ObjectName = &us;
-
-    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0, nullptr, 0);
-
-    free(us.Buffer);
-
-    if (!success(status)) {
-        print("NtCreateFile returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
-        return;
-    }
-
     // create section
 
     status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, file);
-
-    NtClose(file);
 
     if (!success(status)) {
         print("NtCreateSection returned ");
@@ -390,8 +359,6 @@ static void run_program(u16string_view fn) {
         return;
     }
 
-    print("finished\n");
-
     NtClose(proc);
 }
 
@@ -561,8 +528,12 @@ static void try_run_program(string_view program) {
         return;
     }
 
-    // FIXME -  run program with command line
-    print("FIXME - run program\n");
+    // FIXME - run program with command line
+    // FIXME - descriptive message if not image
+    // FIXME - don't try to run DLLs
+    run_program(file);
+
+    NtClose(file);
 }
 
 static void process_line(string_view sv) {
@@ -593,8 +564,6 @@ static void process_line(string_view sv) {
         ls(param);
     else if (cmd == "exit")
         NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
-    else if (cmd == "run")
-        run_program(u"\\run.exe");
     else if (cmd == "time")
         time();
     else if (cmd == "timer")
