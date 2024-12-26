@@ -128,7 +128,7 @@ void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page,
         if (i == 0 && offset & (PAGE_SIZE - 1)) {
             size_t off = offset & (PAGE_SIZE - 1);
 
-            memcpy(data.data(), (void*)(ent->phys_address + off),
+            memcpy(data.data(), (uint8_t*)ent_va + off,
                    min(data.size(), (size_t)PAGE_SIZE - off));
             data = data.subspan(min(data.size(), (size_t)PAGE_SIZE - off));
         } else {
