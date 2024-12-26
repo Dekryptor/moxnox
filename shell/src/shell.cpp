@@ -559,7 +559,6 @@ static void try_run_program(string_view program, string_view cmdline) {
 
     // FIXME - path may be absolute, or relative to subdir
     // FIXME - translate slashes to backslashes
-    // FIXME - if no extension, try with .exe if not found
     us.Length = us.MaximumLength = (uint16_t)(len * sizeof(char16_t));
     us.Buffer = (char16_t*)malloc(us.Length);
 
@@ -578,6 +577,39 @@ static void try_run_program(string_view program, string_view cmdline) {
                           nullptr, 0);
 
     free(us.Buffer);
+
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        bool add_ext = true;
+
+        for (auto c : program) {
+            if (c == '.' || c == '/' || c == '\\') {
+                add_ext = false;
+                break;
+            }
+        }
+
+        if (add_ext) {
+            static const char16_t suffix[] = u".exe";
+
+            us.Length = us.MaximumLength = (uint16_t)((len * sizeof(char16_t)) + sizeof(suffix) - sizeof(char16_t));
+            us.Buffer = (char16_t*)malloc(us.Length);
+
+            if (!us.Buffer) {
+                print("malloc failed\n");
+                return;
+            }
+
+            // FIXME - PATH etc.
+            us.Buffer[0] = '\\';
+            utf8_to_utf16(span(us.Buffer + 1, len - 1), program);
+            memcpy(us.Buffer + len, suffix, sizeof(suffix) - sizeof(char16_t));
+
+            oa.ObjectName = &us;
+
+            status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0,
+                                  FILE_OPEN, 0, nullptr, 0);
+        }
+    }
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND || status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print(program); // FIXME - stderr
