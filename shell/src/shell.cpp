@@ -20,15 +20,6 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
-void print(string_view s) {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    IO_STATUS_BLOCK iosb;
-
-    NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr, &iosb, s.data(),
-                (uint32_t)s.size(), nullptr, nullptr);
-}
-
 static void print(integral auto i) {
     char s[21];
 
@@ -99,48 +90,6 @@ static void print(const chrono::hh_mm_ss<chrono::seconds>& hms) {
     ptr = tcr.ptr;
 
     print(string_view(s, ptr));
-}
-
-span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding) {
-    bool first = true;
-
-    if (dest.empty())
-        return dest;
-
-    if (num == 0 && padding == 0) {
-        dest[0] = '0';
-        return dest.subspan(1);
-    }
-
-    for (unsigned int i = 0; i < 16; i++) {
-        if (!first || padding == 16 - i || num & 0xf000000000000000) {
-            uint64_t n = num >> 60;
-
-            if (n <= 9)
-                dest[0] = (char)(n + '0');
-            else
-                dest[0] = (char)(n - 0xa + 'a');
-
-            dest = dest.subspan(1);
-            first = false;
-
-            if (dest.empty())
-                return dest;
-        }
-
-        num <<= 4;
-    }
-
-    return dest;
-}
-
-void print_hex(uint64_t num, unsigned int padding) {
-    char s[17];
-    span sp(s, sizeof(s));
-
-    sp = sp_itoa_hex(sp, num, padding);
-
-    print(string_view(s, sp.data() - s));
 }
 
 extern "C"
@@ -653,9 +602,7 @@ static void process_line(string_view sv) {
     if (cmd.front() == '"' && cmd.back() == '"')
         cmd = string_view(cmd.data() + 1, cmd.size() - 2);
 
-    if (cmd == "ls")
-        ls(param);
-    else if (cmd == "exit")
+    if (cmd == "exit")
         NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
     else if (cmd == "time")
         time();

@@ -80,15 +80,6 @@ static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv) {
     }
 }
 
-void print(string_view s) {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    IO_STATUS_BLOCK iosb;
-
-    NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr, &iosb, s.data(),
-                (uint32_t)s.size(), nullptr, nullptr);
-}
-
 void print(u16string_view sv) {
     auto len = utf16_to_utf8_len(sv);
     if (len == 0)

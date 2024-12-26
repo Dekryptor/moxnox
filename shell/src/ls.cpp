@@ -3,7 +3,8 @@
 
 using namespace std;
 
-void ls(string_view) {
+extern "C"
+void startup() {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
     char buf[4096];
@@ -24,6 +25,7 @@ void ls(string_view) {
             print("NtQueryDirectoryFile returned "); // FIXME - should be to stderr
             print_hex((uint32_t)status, 8);
             print("\n");
+            NtTerminateThread(NtCurrentThread(), status);
             return;
         }
 
@@ -42,4 +44,6 @@ void ls(string_view) {
 
         first = false;
     }
+
+    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
 }
