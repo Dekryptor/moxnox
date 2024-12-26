@@ -1173,8 +1173,8 @@ void _assert(const char* msg, const char* file, unsigned int line) {
 
     sp = sp_strcpy(sp, "assertion failed at ");
     sp = sp_strcpy(sp, file);
-    sp = sp_strcpy(sp, ":0x");
-    sp = sp_itoa_hex(sp, line); // FIXME - should be decimal!
+    sp = sp_strcpy(sp, ":");
+    sp = sp_itoa(sp, line);
     sp = sp_strcpy(sp, ": ");
     sp = sp_strcpy(sp, msg);
 
