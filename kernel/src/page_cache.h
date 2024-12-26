@@ -88,18 +88,6 @@ bool page_cache<T>::read_and_pin(uint64_t offset, uint64_t length) {
                 // FIXME - better if we could allocate contiguous physical pages? (folios?)
 
                 while (pages_left > 0) {
-                    {
-                        char s[100];
-                        auto sp = std::span(s, sizeof(s));
-
-                        sp = sp_strcpy(sp, "page_cache: do read from ");
-                        sp = sp_itoa_hex(sp, page_num_start);
-                        sp = sp_strcpy(sp, ", length ");
-                        sp = sp_itoa_hex(sp, pages_left);
-                        sp = sp_strcpy(sp, "\n");
-                        printk(std::string_view(s, sp.data() - s));
-                    }
-
                     auto ret = dev.read_into_cache(page_num_start, pages_left);
 
                     if (ret == 0) {
