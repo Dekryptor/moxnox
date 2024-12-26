@@ -13,6 +13,13 @@ using namespace std;
 char* buf = nullptr;
 unsigned int buflen = 0;
 
+static const size_t PAGE_SIZE = 4096;
+static const uint64_t PAGE_SHIFT = 12;
+
+static constexpr uint32_t bytes_to_pages(size_t bytes) {
+    return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
+}
+
 void print(string_view s) {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
@@ -146,7 +153,7 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-static void run_program(HANDLE file) {
+static void run_program(HANDLE file, string_view cmdline) {
     NTSTATUS status;
     HANDLE sect, proc, thread;
     CLIENT_ID client_id;
@@ -292,7 +299,60 @@ static void run_program(HANDLE file) {
     params.CurrentDirectory.Handle = curdirh;
 
     // FIXME - copy current directory string
+    // FIXME - ImagePathName
     // FIXME - environment variables
+
+    // allocate misc block
+
+    auto u16_cmdline_len = utf8_to_utf16_len(cmdline);
+
+    size_t misc_block_size = (u16_cmdline_len + 1) * sizeof(char16_t);
+
+    auto misc_block = (uint8_t*)malloc(misc_block_size);
+    if (!misc_block) {
+        print("malloc failed\n");
+        NtClose(proc);
+        return;
+    }
+
+    // allocate misc block in process
+
+    void* proc_misc_block;
+    size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
+
+    status = NtAllocateVirtualMemory(proc, &proc_misc_block, 0, &proc_misc_block_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        free(misc_block);
+        NtClose(proc);
+        return;
+    }
+
+    // copy cmdline
+
+    utf8_to_utf16(span((char16_t*)misc_block, u16_cmdline_len), cmdline);
+    misc_block[u16_cmdline_len * sizeof(char16_t)] = 0;
+    params.CommandLine.Length = (uint16_t)(u16_cmdline_len * sizeof(char16_t));
+    params.CommandLine.MaximumLength = (uint16_t)((u16_cmdline_len + 1) * sizeof(char16_t));
+    params.CommandLine.Buffer = (char16_t*)proc_misc_block;
+
+    // copy misc block
+
+    status = NtWriteVirtualMemory(proc, proc_misc_block, misc_block,
+                                  (uint32_t)misc_block_size, nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        free(misc_block);
+        NtClose(proc);
+        return;
+    }
+
+    free(misc_block);
 
     // write ProcessParameters back
 
@@ -484,7 +544,7 @@ static void reboot() {
     print("\n");
 }
 
-static void try_run_program(string_view program) {
+static void try_run_program(string_view program, string_view cmdline) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
@@ -497,7 +557,9 @@ static void try_run_program(string_view program) {
 
     // open file
 
-    // FIXME - if no extension, add .exe
+    // FIXME - path may be absolute, or relative to subdir
+    // FIXME - translate slashes to backslashes
+    // FIXME - if no extension, try with .exe if not found
     us.Length = us.MaximumLength = (uint16_t)(len * sizeof(char16_t));
     us.Buffer = (char16_t*)malloc(us.Length);
 
@@ -528,10 +590,9 @@ static void try_run_program(string_view program) {
         return;
     }
 
-    // FIXME - run program with command line
     // FIXME - descriptive message if not image
     // FIXME - don't try to run DLLs
-    run_program(file);
+    run_program(file, cmdline);
 
     NtClose(file);
 }
@@ -575,7 +636,7 @@ static void process_line(string_view sv) {
     else if (cmd == "reboot")
         reboot();
     else
-        try_run_program(cmd);
+        try_run_program(cmd, sv);
 }
 
 static void process_lines() {
