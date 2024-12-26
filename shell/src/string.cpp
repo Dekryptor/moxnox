@@ -63,6 +63,9 @@ void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
             return;
 
         if (cp < 0x80) {
+            if (buf.empty())
+                return;
+
             buf[0] = (char)cp;
             buf = buf.subspan(1);
         } else if (cp < 0x800) {
@@ -92,6 +95,103 @@ void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
             buf[3] = (char)(0x80 | (cp & 0x3f));
 
             buf = buf.subspan(4);
+        }
+    }
+}
+
+size_t utf8_to_utf16_len(string_view sv) {
+    size_t ret = 0;
+
+    while (!sv.empty()) {
+        if ((uint8_t)sv[0] < 0x80) {
+            ret++;
+            sv = string_view(sv.data() + 1, sv.size() - 1);
+        } else if (((uint8_t)sv[0] & 0xe0) == 0xc0 && (uint8_t)sv.length() >= 2 && ((uint8_t)sv[1] & 0xc0) == 0x80) {
+            ret++;
+            sv = string_view(sv.data() + 2, sv.size() - 2);
+        } else if (((uint8_t)sv[0] & 0xf0) == 0xe0 && (uint8_t)sv.length() >= 3 && ((uint8_t)sv[1] & 0xc0) == 0x80 && ((uint8_t)sv[2] & 0xc0) == 0x80) {
+            ret++;
+            sv = string_view(sv.data() + 3, sv.size() - 3);
+        } else if (((uint8_t)sv[0] & 0xf8) == 0xf0 && (uint8_t)sv.length() >= 4 && ((uint8_t)sv[1] & 0xc0) == 0x80 && ((uint8_t)sv[2] & 0xc0) == 0x80 && ((uint8_t)sv[3] & 0xc0) == 0x80) {
+            char32_t cp = (char32_t)(((uint8_t)sv[0] & 0x7) << 18) | (char32_t)(((uint8_t)sv[1] & 0x3f) << 12) | (char32_t)(((uint8_t)sv[2] & 0x3f) << 6) | (char32_t)((uint8_t)sv[3] & 0x3f);
+
+            if (cp > 0x10ffff) {
+                ret++;
+                sv = string_view(sv.data() + 4, sv.size() - 4);
+                continue;
+            }
+
+            ret += 2;
+            sv = string_view(sv.data() + 4, sv.size() - 4);
+        } else {
+            ret++;
+            sv = string_view(sv.data() + 1, sv.size() - 1);
+        }
+    }
+
+    return ret;
+}
+
+void utf8_to_utf16(span<char16_t> buf, string_view sv) {
+    if (buf.empty())
+        return;
+
+    while (!sv.empty() && !buf.empty()) {
+        if ((uint8_t)sv[0] < 0x80) {
+            buf[0] = (uint8_t)sv[0];
+            buf = buf.subspan(1);
+
+            sv = string_view(sv.data() + 1, sv.size() - 1);
+        } else if (((uint8_t)sv[0] & 0xe0) == 0xc0 && (uint8_t)sv.length() >= 2 && ((uint8_t)sv[1] & 0xc0) == 0x80) {
+            char16_t cp = (char16_t)(((uint8_t)sv[0] & 0x1f) << 6) | (char16_t)((uint8_t)sv[1] & 0x3f);
+
+            buf[0] = cp;
+            buf = buf.subspan(1);
+
+            sv = string_view(sv.data() + 2, sv.size() - 2);
+        } else if (((uint8_t)sv[0] & 0xf0) == 0xe0 && (uint8_t)sv.length() >= 3 && ((uint8_t)sv[1] & 0xc0) == 0x80 && ((uint8_t)sv[2] & 0xc0) == 0x80) {
+            char16_t cp = (char16_t)(((uint8_t)sv[0] & 0xf) << 12) | (char16_t)(((uint8_t)sv[1] & 0x3f) << 6) | (char16_t)((uint8_t)sv[2] & 0x3f);
+
+            if (cp >= 0xd800 && cp <= 0xdfff) {
+                buf[0] = 0xfffd;
+                buf = buf.subspan(1);
+
+                sv = string_view(sv.data() + 3, sv.size() - 3);
+                continue;
+            }
+
+            buf[0] = cp;
+            buf = buf.subspan(1);
+
+            sv = string_view(sv.data() + 3, sv.size() - 3);
+        } else if (((uint8_t)sv[0] & 0xf8) == 0xf0 && (uint8_t)sv.length() >= 4 && ((uint8_t)sv[1] & 0xc0) == 0x80 && ((uint8_t)sv[2] & 0xc0) == 0x80 && ((uint8_t)sv[3] & 0xc0) == 0x80) {
+            char32_t cp = (char32_t)(((uint8_t)sv[0] & 0x7) << 18) | (char32_t)(((uint8_t)sv[1] & 0x3f) << 12) | (char32_t)(((uint8_t)sv[2] & 0x3f) << 6) | (char32_t)((uint8_t)sv[3] & 0x3f);
+
+            if (cp > 0x10ffff) {
+                buf[0] = 0xfffd;
+                buf = buf.subspan(1);
+
+                sv = string_view(sv.data() + 4, sv.size() - 4);
+                continue;
+            }
+
+            cp -= 0x10000;
+
+            buf[0] = (char16_t)(0xd800 | (cp >> 10));
+            buf = buf.subspan(1);
+
+            if (buf.empty())
+                return;
+
+            buf[0] = (char16_t)(0xdc00 | (cp & 0x3ff));
+            buf = buf.subspan(1);
+
+            sv = string_view(sv.data() + 4, sv.size() - 4);
+        } else {
+            buf[0] = 0xfffd;
+            buf = buf.subspan(1);
+
+            sv = string_view(sv.data() + 1, sv.size() - 1);
         }
     }
 }

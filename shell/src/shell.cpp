@@ -517,6 +517,54 @@ static void reboot() {
     print("\n");
 }
 
+static void try_run_program(string_view program) {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+    HANDLE file;
+    IO_STATUS_BLOCK iosb;
+
+    // FIXME - should be checking PATH instead of root
+
+    auto len = utf8_to_utf16_len(program) + 1;
+
+    // open file
+
+    // FIXME - if no extension, add .exe
+    us.Length = us.MaximumLength = (uint16_t)(len * sizeof(char16_t));
+    us.Buffer = (char16_t*)malloc(us.Length);
+
+    if (!us.Buffer) {
+        print("malloc failed\n");
+        return;
+    }
+
+    us.Buffer[0] = '\\';
+    utf8_to_utf16(span(us.Buffer + 1, len - 1), program);
+
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0,
+                          nullptr, 0);
+
+    free(us.Buffer);
+
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND || status == nt_status::OBJECT_PATH_NOT_FOUND) {
+        print(program); // FIXME - stderr
+        print(": command not found\n");
+        return;
+    } else if (!success(status)) {
+        print("NtCreateFile returned "); // FIXME - stderr
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    // FIXME -  run program with command line
+    print("FIXME - run program\n");
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -557,11 +605,8 @@ static void process_line(string_view sv) {
         halt();
     else if (cmd == "reboot")
         reboot();
-    else {
-        print(cmd); // FIXME - stderr
-        print(": command not found\n");
-        return;
-    }
+    else
+        try_run_program(cmd);
 }
 
 static void process_lines() {
