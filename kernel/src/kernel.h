@@ -226,10 +226,12 @@ void release_semaphore(semaphore& s);
 // btrfs.cpp
 bool btrfs_probe(volume& vol);
 
+class inode;
+
 // volume.cpp
 void add_fs_to_list(filesystem& fs);
 bool mount_root();
-object_ref open_inode(std::string_view fn, const object_ref& dir);
+object_ref open_inode(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir);
 
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;
@@ -239,7 +241,6 @@ object_ref create_process(std::string_view fn, std::string_view curdir,
 void load_ntdll();
 
 class file;
-class inode;
 
 // section.cpp
 object_ref create_section(const std::optional<std::reference_wrapper<file>>& file,

@@ -863,11 +863,22 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
     return *ino;
 }
 
-object_ref btrfs_filesystem::open(string_view fn) {
-    if (fn.empty()) { // root
-        root_inode->acquire();
+object_ref btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& dir) {
+    if (!dir) {
+        if (fn.empty() || fn[0] != '/') {
+            printk("Not an absolute path.\n");
+            return {};
+        }
 
-        return *root_inode;
+        fn.remove_prefix(1);
+
+        if (fn.empty()) { // root
+            root_inode->acquire();
+            return *root_inode;
+        }
+    } else {
+        printk("FIXME - RootDirectory\n");
+        return {};
     }
 
     // FIXME - die if anything in middle not directory

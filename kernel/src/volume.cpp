@@ -142,15 +142,10 @@ bool mount_root() {
     return true;
 }
 
-object_ref open_inode(string_view fn, const object_ref& dir) {
-    if (dir && (fn.empty() || fn[0] != '/')) {
-        printk("FIXME - RootDirectory\n");
-        return {};
-    } else {
-        if (fn.empty() || fn[0] != '/') {
-            printk("Not an absolute path.\n");
-            return {};
-        }
+object_ref open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir) {
+    if (dir && fn.empty()) {
+        dir->get().acquire();
+        return dir->get();
     }
 
     if (!root_fs) {
@@ -158,12 +153,10 @@ object_ref open_inode(string_view fn, const object_ref& dir) {
         return {};
     }
 
-    fn.remove_prefix(1);
-
     // FIXME - handle mount points
     // FIXME - /dev
 
-    return root_fs->open(fn);
+    return root_fs->open(fn, dir);
 }
 
 struct part_wait {

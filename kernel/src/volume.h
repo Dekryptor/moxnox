@@ -65,7 +65,7 @@ class filesystem {
 public:
     filesystem(volume& vol) : vol(vol) { }
     virtual ~filesystem() { }
-    virtual object_ref open(std::string_view fn) = 0;
+    virtual object_ref open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir) = 0;
 
     list_entry le;
     volume& vol;

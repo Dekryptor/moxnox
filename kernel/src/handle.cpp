@@ -465,8 +465,12 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
 
     if (namelen > dev_prefix.size() && string_view(name, dev_prefix.size()) == dev_prefix)
         ino_ref = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
-    else
-        ino_ref = open_inode(string_view(name, namelen), root_dir);
+    else {
+        if (root_dir) {
+            ino_ref = open_inode(string_view(name, namelen), static_cast<inode&>(root_dir.get()));
+        } else
+            ino_ref = open_inode(string_view(name, namelen), nullopt);
+    }
 
     if (!ino_ref) {
         // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.

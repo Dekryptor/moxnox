@@ -421,7 +421,7 @@ public:
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
     void walk_from(uint64_t subvol, const key& k, std::invocable<const key&, std::span<const uint8_t>> auto func);
     std::optional<std::reference_wrapper<btrfs_inode>> open_inode(uint64_t subvol, uint64_t inode);
-    object_ref open(std::string_view fn) override;
+    object_ref open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir) override;
     NTSTATUS query_directory_dirent(const dirent& de, std::span<uint8_t> buf,
                                     FILE_INFORMATION_CLASS file_information_class);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
