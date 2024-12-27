@@ -142,10 +142,15 @@ bool mount_root() {
     return true;
 }
 
-object_ref open_inode(string_view fn) {
-    if (fn.empty() || fn[0] != '/') {
-        printk("Not an absolute path.\n");
+object_ref open_inode(string_view fn, const object_ref& dir) {
+    if (dir) {
+        printk("FIXME - RootDirectory\n");
         return {};
+    } else {
+        if (fn.empty() || fn[0] != '/') {
+            printk("Not an absolute path.\n");
+            return {};
+        }
     }
 
     if (!root_fs) {

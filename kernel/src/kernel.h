@@ -229,7 +229,7 @@ bool btrfs_probe(volume& vol);
 // volume.cpp
 void add_fs_to_list(filesystem& fs);
 bool mount_root();
-object_ref open_inode(std::string_view fn);
+object_ref open_inode(std::string_view fn, const object_ref& dir);
 
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;

@@ -24,7 +24,7 @@ object_ref create_process(string_view fn, string_view curdir,
                           object_ref& stderrobj) {
     // FIXME - merge with NtCreateProcess
 
-    auto img_inode_ref = open_inode(fn);
+    auto img_inode_ref = open_inode(fn, nullopt);
     if (!img_inode_ref) {
         printk("open_inode failed for ");
         printk(fn);
@@ -39,7 +39,7 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto& img_inode = static_cast<inode&>(img_inode_ref.get());
 
-    auto curdir_ref = open_inode(curdir);
+    auto curdir_ref = open_inode(curdir, nullopt);
     if (!curdir_ref) {
         printk("open_inode failed for ");
         printk(curdir);
@@ -560,7 +560,7 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 }
 
 void load_ntdll() {
-    auto inode_ref = open_inode("/ntdll.dll");
+    auto inode_ref = open_inode("/ntdll.dll", nullopt);
     if (!inode_ref) {
         bsod("open_inode failed for ntdll.dll");
         return;

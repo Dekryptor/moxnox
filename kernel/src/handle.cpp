@@ -397,14 +397,32 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
                       uint32_t, void*, uint32_t) {
     auto t = get_current_thread();
     auto p = t->proc;
+    object_ref root_dir;
 
-    if (!p) // FIXME - allow creating kernel handles?
+    if (!p)
         return nt_status::INVALID_PARAMETER;
 
-    // FIXME - object_attributes->RootDirectory
-
-    if (!object_attributes->ObjectName)
+    if (!object_attributes->ObjectName) // FIXME - is this allowed if RootDirectory is set?
         return nt_status::INVALID_PARAMETER;
+
+    if (object_attributes->RootDirectory) {
+        bool valid = false;
+
+        root_dir = deref_handle2(object_attributes->RootDirectory);
+
+        if (!root_dir)
+            return nt_status::INVALID_HANDLE;
+
+        visit_obj(root_dir.get(), [&](auto&& o) {
+            if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
+                if (o.ino.type == object_type::inode)
+                    valid = true;
+            }
+        });
+
+        if (!valid)
+            return nt_status::INVALID_HANDLE;
+    }
 
     if (create_disposition != FILE_OPEN) {
         printk("FIXME - creating files\n");
@@ -448,7 +466,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     if (namelen > dev_prefix.size() && string_view(name, dev_prefix.size()) == dev_prefix)
         ino_ref = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
     else
-        ino_ref = open_inode(string_view(name, namelen));
+        ino_ref = open_inode(string_view(name, namelen), root_dir);
 
     if (!ino_ref) {
         // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
