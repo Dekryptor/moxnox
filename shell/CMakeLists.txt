@@ -42,3 +42,15 @@ target_link_options(ls PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 target_link_libraries(ls ntdll ntdllcrt)
 
 install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+###
+
+add_executable(cat src/cat.cpp
+    src/string.cpp)
+
+target_compile_options(cat PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe)
+target_link_options(cat PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(cat ntdll ntdllcrt)
+
+install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX})
