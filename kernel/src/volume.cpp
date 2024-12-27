@@ -143,7 +143,7 @@ bool mount_root() {
 }
 
 object_ref open_inode(string_view fn, const object_ref& dir) {
-    if (dir) {
+    if (dir && (fn.empty() || fn[0] != '/')) {
         printk("FIXME - RootDirectory\n");
         return {};
     } else {
