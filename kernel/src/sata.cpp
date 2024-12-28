@@ -254,13 +254,15 @@ page_cache_entry* sata_device::find_page_cache_entry(uint64_t page_num) {
     return ::find_page_cache_entry(cache.cache, page_num);
 }
 
-size_t sata_device::read(span<uint8_t> data, uint64_t offset) {
+NTSTATUS sata_device::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) {
     // FIXME - clear page cache in destructor
 
     // FIXME - return error if offset past end of device
     // FIXME - truncate data buffer if we would read past end of device
 
-    return cache.read(data, offset);
+    // FIXME - return errors properly
+    read_bytes = cache.read(data, offset);
+    return nt_status::SUCCESS;
 }
 
 uint8_t sata_device::get_slot() {

@@ -613,7 +613,10 @@ bool init_fb_console() {
             return false;
         }
 
-        if (inode.read(span((uint8_t*)font_data, file_size), 0) < file_size) {
+        uint64_t read_bytes;
+        auto status = inode.read(span((uint8_t*)font_data, file_size), 0, read_bytes);
+
+        if (!success(status) || read_bytes < file_size) {
             free(font_data);
             printk("read failed\n");
             return false;

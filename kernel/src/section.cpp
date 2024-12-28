@@ -141,13 +141,16 @@ bool section::load_image() {
 
         auto buf = (uint8_t*)s.va;
 
-        auto ret = f.read(span(buf, PAGE_SIZE), 0);
-        if (ret == 0) {
-            printk("inode read failed\n");
+        uint64_t read_bytes;
+        auto status = f.read(span(buf, PAGE_SIZE), 0, read_bytes);
+        if (!success(status)) {
+            printk("inode read returned ");
+            print_hex((uint64_t)status, 8);
+            printk("\n");
             return false;
         }
 
-        if (ret < PAGE_SIZE) {
+        if (read_bytes < PAGE_SIZE) {
             printk("read less than 1 page\n");
             return false;
         }
@@ -304,8 +307,19 @@ bool section::load_image() {
         }
 
         if (sect.PointerToRawData != 0) {
-            auto read = f.read(span((uint8_t*)(temp_va + sect.VirtualAddress), section_size), sect.PointerToRawData);
-            if (read < section_size) {
+            uint64_t read_bytes;
+            auto status = f.read(span((uint8_t*)(temp_va + sect.VirtualAddress), section_size),
+                                 sect.PointerToRawData, read_bytes);
+            if (!success(status)) {
+                printk("inode read returned ");
+                print_hex((uint64_t)status, 8);
+                printk("\n");
+                free_va(temp_va, num_pages);
+                free_pa();
+                return false;
+            }
+
+            if (read_bytes < section_size) {
                 printk("short read\n");
                 free_va(temp_va, num_pages);
                 free_pa();

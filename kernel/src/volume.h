@@ -15,7 +15,7 @@ public:
 
     virtual void release() = 0;
 
-    virtual size_t read(std::span<uint8_t> s, uint64_t offset) = 0;
+    virtual NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) = 0;
     virtual uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
     virtual uint64_t read_into_cache_and_pin(uint64_t page_num,
                                              uint64_t num_pages) = 0;
@@ -48,7 +48,7 @@ public:
             delete this;
     }
 
-    size_t read(std::span<uint8_t> s, uint64_t offset) override;
+    NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) override;
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     uint64_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) override;
     void unpin(uint64_t page_num, uint64_t num_pages) override;

@@ -33,7 +33,7 @@ public:
     size_t namelen = 0;
 
     size_t read(std::span<uint8_t> s);
-    size_t read(std::span<uint8_t> s, uint64_t offset);
+    NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
     size_t write(std::span<const uint8_t> s);
     size_t write(std::span<const uint8_t> s, uint64_t offset);
     NTSTATUS query_directory(HANDLE event, PIO_APC_ROUTINE apc_routine,

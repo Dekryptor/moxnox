@@ -14,8 +14,19 @@ static const uint64_t supported_incompat_flags = BTRFS_INCOMPAT_FLAGS_MIXED_BACK
 btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     vol.acquire();
 
-    if (!vol.read(span((uint8_t*)&sb, sizeof(superblock)), superblock_addrs[0]))
+    uint64_t read_bytes;
+    auto status = vol.read(span((uint8_t*)&sb, sizeof(superblock)), superblock_addrs[0],
+                           read_bytes);
+
+    if (!success(status)) {
+        printk("volume::read returned ");
+        print_hex((uint64_t)status, 8);
+        printk("\n");
         return;
+    } else if (read_bytes < sizeof(superblock)) {
+        printk("volume::read failed\n");
+        return;
+    }
 
     if (sb.magic != btrfs_magic)
         return;
@@ -1019,14 +1030,20 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     return read_zeroes_into_cache(page_num, num_pages);
 }
 
-size_t btrfs_inode::read(span<uint8_t> s, uint64_t offset) {
-    if (offset > file_size || s.empty())
-        return 0;
+NTSTATUS btrfs_inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
+    if (offset >= file_size)
+        return nt_status::END_OF_FILE;
+
+    if (s.empty()) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
 
     if (offset + s.size() > file_size)
         s = s.subspan(file_size - offset);
 
-    return cache.read(s, offset);
+    read_bytes = cache.read(s, offset);
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS btrfs_filesystem::query_directory_dirent(const dirent& de, span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {

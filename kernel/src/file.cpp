@@ -5,41 +5,41 @@
 using namespace std;
 
 size_t file::read(span<uint8_t> s) {
-    size_t ret;
+    size_t read_bytes;
 
     visit_obj(ino, [&](auto&& o) {
         if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>) {
-            ret = o.read(s);
+            read_bytes = o.read(s);
         } else if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>) {
-            ret = o.read(s, file_offset);
+            auto status = o.read(s, file_offset, read_bytes);
 
-            if (ret > 0) {
+            if (success(status)) {
                 lock_guard l(lock);
-                file_offset += ret;
+                file_offset += read_bytes;
             }
         } else
-            ret = 0;
+            read_bytes = 0;
     });
 
-    return ret;
+    return read_bytes;
 }
 
-size_t file::read(span<uint8_t> s, uint64_t offset) {
-    size_t ret;
+NTSTATUS file::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
+    NTSTATUS status;
 
     visit_obj(ino, [&](auto&& o) {
         if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
-            ret = o.read(s, offset);
+            status = o.read(s, offset, read_bytes);
         else
-            ret = 0;
+            status = nt_status::INTERNAL_ERROR;
     });
 
-    if (ret > 0) {
+    if (success(status)) {
         lock_guard l(lock);
-        file_offset = offset + ret;
+        file_offset = offset + read_bytes;
     }
 
-    return ret;
+    return status;
 }
 
 size_t file::write(span<const uint8_t> s) {

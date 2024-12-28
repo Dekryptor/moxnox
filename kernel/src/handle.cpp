@@ -149,60 +149,6 @@ object_ref open_object(string_view name) {
     return *obj;
 }
 
-size_t read(handle_t h, span<uint8_t> s, optional<size_t> offset) {
-    auto objrw = deref_handle(h);
-
-    if (!objrw) {
-        // FIXME - exception
-        printk("Invalid handle\n");
-        return 0;
-    }
-
-    auto& obj = objrw->get();
-    bool can_read = false;
-
-    visit_obj(obj, [&](auto&& o) {
-        if (offset) {
-            if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
-                can_read = true;
-        } else {
-            if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
-                can_read = true;
-        }
-    });
-
-    if (!can_read) {
-        // FIXME - exception
-        printk("Can't read from object\n");
-
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
-        return 0;
-    }
-
-    size_t ret;
-
-    visit_obj(obj, [&](auto&& o) {
-        if (offset) {
-            if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
-                ret = o.read(s, *offset);
-            else
-                ret = 0; // can't happen - this is to make compiler happy (FIXME - mark unreachable)
-        } else {
-            if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
-                ret = o.read(s);
-            else
-                ret = 0;
-        }
-
-        o.release();
-    });
-
-    return ret;
-}
-
 void write(object_ref& h, span<const uint8_t> s) {
     if (!h) {
         // FIXME - exception
@@ -365,12 +311,13 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
         return nt_status::INVALID_PARAMETER;
     }
 
+    NTSTATUS status;
     size_t read;
 
     if (byte_offset) {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
-                read = o.read(buf, byte_offset->QuadPart);
+                status = o.read(buf, byte_offset->QuadPart, read);
 
             o.release();
         });
@@ -381,6 +328,12 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 
             o.release();
         });
+    }
+
+    if (byte_offset && !success(status)) {
+        io_status_block->Status = status;
+        io_status_block->Information = 0;
+        return status;
     }
 
     // FIXME - propagating errors from reada function

@@ -185,7 +185,16 @@ bool volume::check_for_partitions() {
         return false;
     }
 
-    if (read(span(first_sect, read_sector_size), 0) < read_sector_size) {
+    uint64_t read_bytes;
+    auto status = read(span(first_sect, read_sector_size), 0, read_bytes);
+
+    if (!success(status)) {
+        printk("volume::read returned ");
+        print_hex((uint64_t)status, 8);
+        printk("\n");
+        free(first_sect);
+        return false;
+    } else if (read_bytes < read_sector_size) {
         printk("volume::read failed\n");
         free(first_sect);
         return false;
@@ -263,7 +272,15 @@ bool volume::check_for_partitions() {
         return false;
     }
 
-    if (read(span(buf, table_end_aligned - table_start_aligned), table_start_aligned) < table_end_aligned - table_start_aligned) {
+    status = read(span(buf, table_end_aligned - table_start_aligned), table_start_aligned, read_bytes);
+
+    if (!success(status)) {
+        printk("volume::read returned ");
+        print_hex((uint64_t)status, 8);
+        printk("\n");
+        free(buf);
+        return false;
+    } else if (read_bytes < table_end_aligned - table_start_aligned) {
         printk("volume::read failed\n");
         free(buf);
         return false;
@@ -351,19 +368,21 @@ diskpart::~diskpart() {
     parent.release();
 }
 
-size_t diskpart::read(span<uint8_t> s, uint64_t offset) {
+NTSTATUS diskpart::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
     if (offset >= length)
-        return 0;
+        return nt_status::END_OF_FILE;
 
     if (offset + s.size() > length)
         s = s.subspan(length - offset);
 
-    if (s.empty())
-        return 0;
+    if (s.empty()) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
 
     offset += disk_offset;
 
-    return parent.read(s, offset);
+    return parent.read(s, offset, read_bytes);
 }
 
 #if 0
