@@ -863,8 +863,8 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
     return *ino;
 }
 
-object_ref btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& dir) {
-    if (!dir) {
+object_ref btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& root_dir) {
+    if (!root_dir) {
         if (fn.empty() || fn[0] != '/') {
             printk("Not an absolute path.\n");
             return {};
@@ -876,19 +876,20 @@ object_ref btrfs_filesystem::open(string_view fn, const optional<reference_wrapp
             root_inode->acquire();
             return *root_inode;
         }
-    } else {
-        printk("FIXME - RootDirectory\n");
-        return {};
     }
 
-    // FIXME - die if anything in middle not directory
+    // FIXME - do we need to make sure root_dir is definitely a btrfs inode?
 
-    reference_wrapper<btrfs_inode> dirrw = *root_inode;
+    reference_wrapper<btrfs_inode> dirrw{!root_dir ? *root_inode : static_cast<btrfs_inode&>(root_dir->get())};
     dirrw.get().acquire();
+
+    // FIXME - die if anything in middle not directory
 
     while (true) {
         auto sl = fn.find("/");
         auto& dir = dirrw.get();
+
+        // FIXME - .. and .
 
         auto objrw = dir.open_child(sl == string_view::npos ? fn : string_view(fn.data(), sl));
         if (!objrw) {
