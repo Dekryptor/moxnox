@@ -65,3 +65,15 @@ target_link_libraries(cat shelllib)
 target_link_libraries(cat ntdll ntdllcrt)
 
 install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+###
+
+add_executable(pwd src/pwd.cpp)
+
+target_compile_options(pwd PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe)
+target_link_options(pwd PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(pwd shelllib)
+target_link_libraries(pwd ntdll ntdllcrt)
+
+install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX})
