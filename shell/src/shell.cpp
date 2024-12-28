@@ -519,6 +519,7 @@ static void try_run_program(string_view program, string_view cmdline) {
     us.Buffer[0] = '\\';
     utf8_to_utf16(span(us.Buffer + 1, len - 1), program);
 
+    memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
