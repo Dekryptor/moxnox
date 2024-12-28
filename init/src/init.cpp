@@ -245,12 +245,27 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
     params.StandardError = proc_stderrh;
     params.CurrentDirectory.Handle = curdirh;
 
-    // FIXME - copy current directory string
+    // copy current directory string
+
+    params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
+                                                 peb->ProcessParameters->CurrentDirectory.DosPath.Length);
+
     // FIXME - environment variables
 
     // write ProcessParameters back
 
     status = NtWriteVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
+    status = NtWriteVirtualMemory(proc, params.CurrentDirectory.DosPath.Buffer,
+                                  peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
+                                  params.CurrentDirectory.DosPath.Length, nullptr);
     if (!success(status)) {
         print("NtWriteVirtualMemory returned ");
         print_hex((uint32_t)status, 8);
