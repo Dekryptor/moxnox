@@ -579,6 +579,31 @@ static void try_run_program(string_view program, string_view cmdline) {
     NtClose(file);
 }
 
+static void pwd() {
+    const auto& teb = *NtCurrentTeb();
+    const auto& peb = *teb.ProcessEnvironmentBlock;
+    const auto& params = *peb.ProcessParameters;
+
+    auto pwd = u16string_view(params.CurrentDirectory.DosPath.Buffer,
+                              params.CurrentDirectory.DosPath.Length / sizeof(char16_t));
+    auto len = utf16_to_utf8_len(pwd);
+
+    if (len != 0) {
+        auto buf = (char*)malloc(len);
+        if (!buf) {
+            print("malloc failed\n");
+            return;
+        }
+
+        utf16_to_utf8(span(buf, len), pwd);
+
+        print(string_view(buf, len));
+        free(buf);
+    }
+
+    print("\n");
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -615,6 +640,8 @@ static void process_line(string_view sv) {
         halt();
     else if (cmd == "reboot")
         reboot();
+    else if (cmd == "pwd")
+        pwd();
     else
         try_run_program(cmd, sv);
 }
