@@ -247,7 +247,22 @@ static void run_program(HANDLE file, string_view cmdline) {
     params.StandardError = stderrh;
     params.CurrentDirectory.Handle = curdirh;
 
-    // FIXME - copy current directory string
+    // copy current directory string
+
+    params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
+                                                 peb->ProcessParameters->CurrentDirectory.DosPath.Length);
+
+    status = NtWriteVirtualMemory(proc, params.CurrentDirectory.DosPath.Buffer,
+                                  peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
+                                  params.CurrentDirectory.DosPath.Length, nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        NtClose(proc);
+        return;
+    }
+
     // FIXME - ImagePathName
     // FIXME - environment variables
 
