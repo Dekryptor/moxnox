@@ -51,8 +51,8 @@ concept is_readable_object_with_offset = requires(T t, std::span<uint8_t> s, uin
 };
 
 template<typename T>
-concept is_readable_object_without_offset = requires(T t, std::span<uint8_t> s) {
-    { t.read(s) } -> std::convertible_to<size_t>;
+concept is_readable_object_without_offset = requires(T t, std::span<uint8_t> s, uint64_t& read_bytes) {
+    { t.read(s, read_bytes) } -> std::convertible_to<NTSTATUS>;
 };
 
 template<typename T>

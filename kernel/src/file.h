@@ -32,7 +32,7 @@ public:
     char* name = nullptr;
     size_t namelen = 0;
 
-    size_t read(std::span<uint8_t> s);
+    NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes);
     NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
     size_t write(std::span<const uint8_t> s);
     size_t write(std::span<const uint8_t> s, uint64_t offset);

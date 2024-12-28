@@ -324,19 +324,17 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     } else {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
-                read = o.read(buf);
+                status = o.read(buf, read);
 
             o.release();
         });
     }
 
-    if (byte_offset && !success(status)) {
+    if (!success(status)) {
         io_status_block->Status = status;
         io_status_block->Information = 0;
         return status;
     }
-
-    // FIXME - propagating errors from reada function
 
     io_status_block->Status = nt_status::SUCCESS;
     io_status_block->Information = read;

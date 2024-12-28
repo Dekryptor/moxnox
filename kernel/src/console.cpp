@@ -494,14 +494,16 @@ bool init_console(const loader_block_framebuffer& fb) {
 static void console_event_recv() {
     do {
         uint8_t s[255];
+        uint64_t read_bytes;
+
         wait_for_object(console_pipe.get());
 
-        auto ret = static_cast<pipe&>(console_pipe.get()).read(s);
+        auto status = static_cast<pipe&>(console_pipe.get()).read(s, read_bytes);
 
         // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
 
-        if (ret != 0)
-            early_print(string_view((char*)s, ret));
+        if (success(status) && read_bytes != 0)
+            early_print(string_view((char*)s, read_bytes));
     } while (true);
 }
 

@@ -4,24 +4,24 @@
 
 using namespace std;
 
-size_t file::read(span<uint8_t> s) {
-    size_t read_bytes;
+NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
+    NTSTATUS status;
 
     visit_obj(ino, [&](auto&& o) {
         if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>) {
-            read_bytes = o.read(s);
+            status = o.read(s, read_bytes);
         } else if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>) {
-            auto status = o.read(s, file_offset, read_bytes);
+            status = o.read(s, file_offset, read_bytes);
 
             if (success(status)) {
                 lock_guard l(lock);
                 file_offset += read_bytes;
             }
         } else
-            read_bytes = 0;
+            status = nt_status::INTERNAL_ERROR;
     });
 
-    return read_bytes;
+    return status;
 }
 
 NTSTATUS file::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {

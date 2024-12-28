@@ -153,11 +153,13 @@ size_t pipe::write(span<const uint8_t> s) {
     return size;
 }
 
-size_t pipe::read(span<uint8_t> s) {
+NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
     size_t copied = 0;
 
-    if (s.empty())
-        return 0;
+    if (s.empty()) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
 
     acquire();
     wait_for_object(*this);
@@ -165,8 +167,10 @@ size_t pipe::read(span<uint8_t> s) {
     {
         lock_guard l(lock);
 
-        if (buf_unread == 0)
-            return 0;
+        if (buf_unread == 0) {
+            read_bytes = 0;
+            return nt_status::SUCCESS;
+        }
 
         size_t buf_read_pos = buf_write_pos + (buf_pages << PAGE_SHIFT) - buf_unread;
 
@@ -199,7 +203,8 @@ size_t pipe::read(span<uint8_t> s) {
         }
     }
 
-    return copied;
+    read_bytes = copied;
+    return nt_status::SUCCESS;
 }
 
 object_ref create_duplex_pipe(pipe& recv_pipe, pipe& send_pipe) {

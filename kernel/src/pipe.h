@@ -18,7 +18,7 @@ public:
             delete this;
     }
 
-    size_t read(std::span<uint8_t> s);
+    NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes);
 
     virtual size_t write(std::span<const uint8_t> s);
 
@@ -59,8 +59,8 @@ public:
             delete this;
     }
 
-    size_t read(std::span<uint8_t> s) {
-        return recv_pipe.read(s);
+    NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) {
+        return recv_pipe.read(s, read_bytes);
     }
 
     size_t write(std::span<const uint8_t> s) {
