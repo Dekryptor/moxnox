@@ -1086,7 +1086,7 @@ uint64_t allocate_va(uint32_t pages) {
             if (run_length >= pages) {
                 mark_vamem_as_used(run_start, pages);
                 last_i = i;
-                last_j = ((run_start + pages) % 64) + 1;
+                last_j = (run_start + pages) % 64;
                 return (uintptr_t)vablock + (run_start << PAGE_SHIFT);
             }
         } else
