@@ -1040,7 +1040,7 @@ NTSTATUS btrfs_inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_byte
     }
 
     if (offset + s.size() > file_size)
-        s = s.subspan(file_size - offset);
+        s = s.subspan(0, file_size - offset);
 
     read_bytes = cache.read(s, offset);
     return nt_status::SUCCESS;
