@@ -104,7 +104,25 @@ add	di, E820_SIZE
 jmp	.loop
 
 .out:
+call	vbe_get_info
 jmp	real_mode_main
+
+vbe_get_info:
+mov	ax, 0x4f00
+lea	di, vbe_info
+int	0x10
+
+cmp	ax, 0x4f
+jne	.vbe_get_info_end
+
+mov	eax, DWORD PTR [vbe_info]
+cmp	eax, 0x41534556
+jne	.vbe_get_info_end
+
+mov	BYTE PTR [vbe_info_valid], 1
+
+.vbe_get_info_end:
+ret
 
 .section .rdata
 kernel_version:
@@ -118,6 +136,14 @@ e820_entries:
 .global e820_count
 e820_count:
 .long	0
+
+.global vbe_info
+vbe_info:
+.space 512
+
+.global vbe_info_valid
+vbe_info_valid:
+.byte 0
 
 .global cmdline
 cmdline:
