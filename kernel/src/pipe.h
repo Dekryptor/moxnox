@@ -32,6 +32,7 @@ public:
     size_t buf_unread = 0;
     size_t buf_write_pos = 0;
     spinlock lock;
+    event not_full_event;
 };
 
 static_assert(is_sync_object<pipe>);

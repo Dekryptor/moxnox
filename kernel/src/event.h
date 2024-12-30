@@ -14,6 +14,7 @@ public:
     }
 
     void on_wake();
+    void set_holding_sync_lock();
 
     bool signalled = false;
     bool autoreset;

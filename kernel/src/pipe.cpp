@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "list.h"
 #include "objects.h"
 #include "handle.h"
 
@@ -17,6 +18,9 @@ object_ref create_pipe(unsigned int buffer_pages) {
 }
 
 pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buffer_pages) {
+    not_full_event.autoreset = false;
+    not_full_event.signalled = true;
+
     if (buffer_pages == 0) {
         // FIXME - exception
         printk("Invalid value for buffer_pages\n");
@@ -83,41 +87,46 @@ pipe::~pipe() {
 }
 
 size_t pipe::write(span<const uint8_t> s) {
-    unsigned int release_count = 0;
     auto size = s.size();
 
     if (s.empty())
         return 0;
 
-    {
-        lock_guard l(lock);
-
-        size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
-        size_t to_copy = min(s.size(), buf_left);
-
-        if (to_copy > 0) {
-            if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
-                auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
-
-                memcpy(&buf[buf_write_pos], s.data(), first_bit);
-
-                buf_write_pos = 0;
-                buf_unread += first_bit;
-                to_copy -= first_bit;
-                s = s.subspan(first_bit);
-            }
-
-            memcpy(&buf[buf_write_pos], s.data(), to_copy);
-            buf_write_pos += to_copy;
-            buf_unread += to_copy;
-            s = s.subspan(to_copy);
-        }
-
-        // wake up waiting thread
+    do {
+        unsigned int release_count = 0;
+        size_t to_copy;
 
         {
+            lock_guard l(lock);
+
+            size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
+
+            to_copy = min(s.size(), buf_left);
+
+            if (to_copy > 0) {
+                if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
+                    auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
+
+                    memcpy(&buf[buf_write_pos], s.data(), first_bit);
+
+                    buf_write_pos = 0;
+                    buf_unread += first_bit;
+                    to_copy -= first_bit;
+                    s = s.subspan(first_bit);
+                }
+
+                memcpy(&buf[buf_write_pos], s.data(), to_copy);
+                buf_write_pos += to_copy;
+                buf_unread += to_copy;
+                s = s.subspan(to_copy);
+            }
+        }
+
+        if (to_copy > 0) {
+            // wake up waiting thread
+
             sync_lock sl;
-            lock_guard lock(sl);
+            lock_guard l(sl);
 
             if (!signalled) {
                 signalled = true;
@@ -138,17 +147,26 @@ size_t pipe::write(span<const uint8_t> s) {
                     }
                 }
             }
+
+            {
+                lock_guard l2(lock);
+
+                if (buf_unread == buf_pages << PAGE_SHIFT)
+                    not_full_event.signalled = false;
+            }
         }
-    }
 
-    for (unsigned int i = 0; i < release_count; i++) {
-        release();
-    }
+        for (unsigned int i = 0; i < release_count; i++) {
+            release();
+        }
 
-    if (s.empty())
-        return size;
+        if (s.empty())
+            break;
 
-    // FIXME - block while we wait for space to become available
+        // block while we wait for space to become available
+
+        wait_for_object(not_full_event);
+    } while (true);
 
     return size;
 }
@@ -165,7 +183,9 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
     wait_for_object(*this);
 
     {
-        lock_guard l(lock);
+        sync_lock sl;
+        lock_guard l(sl);
+        lock_guard l2(lock);
 
         if (buf_unread == 0) {
             read_bytes = 0;
@@ -196,11 +216,11 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
         buf_unread -= to_copy;
         copied += to_copy;
 
-        if (buf_unread == 0) {
-            sync_lock sl;
-            lock_guard l2(sl);
+        if (buf_unread == 0)
             signalled = false;
-        }
+
+        if (!not_full_event.signalled)
+            not_full_event.set_holding_sync_lock();
     }
 
     read_bytes = copied;
