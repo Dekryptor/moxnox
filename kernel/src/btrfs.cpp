@@ -653,16 +653,8 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
                     return false;
                 }
 
-                if (ed.type == btrfs_extent_type::inline_extent) {
-                    printk("FIXME - inline extents\n"); // FIXME
-                    return true;
-                } else if (ed.type != btrfs_extent_type::regular || ed.type != btrfs_extent_type::prealloc) {
-                    if (data.size() < offsetof(extent_data, data) + sizeof(extent_data2)) {
-                        printk("EXTENT_DATA was short\n");
-                        return false;
-                    }
-                } else {
-                    printk("Invalid extent type\n");
+                if (ed.compression != 0) {
+                    printk("Compression not supported\n");
                     return false;
                 }
 
@@ -673,6 +665,21 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 
                 if (ed.encoding != 0) {
                     printk("Other encodings not supported\n");
+                    return false;
+                }
+
+                if (ed.type == btrfs_extent_type::regular || ed.type == btrfs_extent_type::prealloc) {
+                    if (data.size() < offsetof(extent_data, data) + sizeof(extent_data2)) {
+                        printk("EXTENT_DATA was short\n");
+                        return false;
+                    }
+                } else if (ed.type == btrfs_extent_type::inline_extent) {
+                    if (data.size() < offsetof(extent_data, data) + ed.decoded_size) {
+                        printk("EXTENT_DATA was short\n");
+                        return false;
+                    }
+                } else {
+                    printk("Invalid extent type\n");
                     return false;
                 }
 
