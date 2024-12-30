@@ -928,11 +928,26 @@ object_ref btrfs_filesystem::open(string_view fn, const optional<reference_wrapp
 }
 
 size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages) {
-    printk("FIXME - read_zeroes_into_cache\n");
+    page_cache_entry* dest_p;
 
-    // FIXME
+    // FIXME - this should be populating page cache with references to the zero page
 
-    return 0;
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                dest_p = ::find_page_cache_entry(cache.cache, page_num);
+            else
+                dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
+        }
+
+        auto dest_va = phys_address(dest_p->phys_address);
+
+        memset(dest_va, 0, PAGE_SIZE);
+    }
+
+    return num_pages;
 }
 
 size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
