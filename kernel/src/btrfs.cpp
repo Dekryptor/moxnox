@@ -938,11 +938,42 @@ size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages
 size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
                                                   uint64_t num_pages,
                                                   const inode_extent& ie) {
-    printk("FIXME - inline extents\n"); // FIXME
+    if (ie.ed.compression != 0) {
+        printk("FIXME - compression\n"); // FIXME
+        return 0;
+    }
 
-    // FIXME - also compressed inline extents
+    if (page_num >= bytes_to_pages(ie.ed.decoded_size))
+        return 0;
 
-    return 0;
+    num_pages = min(num_pages, (uint64_t)bytes_to_pages(ie.ed.decoded_size) - page_num);
+
+    if (num_pages == 0)
+        return 0;
+
+    page_cache_entry* dest_p;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                dest_p = ::find_page_cache_entry(cache.cache, page_num);
+            else
+                dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
+        }
+
+        auto dest_va = phys_address(dest_p->phys_address);
+
+        uint64_t offset = (page_num + i) << PAGE_SHIFT;
+        auto to_copy = min((uint64_t)PAGE_SIZE, ie.ed.decoded_size - offset);
+
+        memcpy(dest_va, ie.ed.data + offset, to_copy);
+
+        memset((uint8_t*)dest_va + to_copy, 0, PAGE_SIZE - to_copy);
+    }
+
+    return num_pages;
 }
 
 size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
