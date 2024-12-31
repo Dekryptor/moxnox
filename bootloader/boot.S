@@ -168,9 +168,9 @@ mov	si, WORD PTR [di+VBE_MODE_INFO_ATTRIBUTES]
 test	si, 0x1
 je	.vbe_get_modes_next
 
-# skip if not linear framebuffer
-test	si, 0x80
-je	.vbe_get_modes_next
+# # skip if not linear framebuffer (FIXME)
+# test	si, 0x80
+# je	.vbe_get_modes_next
 
 inc	WORD PTR [vbe_num_modes]
 add	di, 2 + VBE_INFO_SIZE
@@ -194,10 +194,34 @@ ret
 
 .global vbe_choose_mode
 vbe_choose_mode:
-# FIXME - choose best mode
+push	di
+cmp	WORD PTR [vbe_num_modes], 0
+je	.vbe_choose_mode_end
+
+# FIXME - actually choose best mode
 # FIXME - parse cmdline for specified preference
-mov	cx, 0x0000
+
+xor	dx, dx
+lea	di, [vbe_modes]
+
+.vbe_choose_mode_loop:
+cmp	dx, WORD PTR [vbe_num_modes]
+je	.vbe_choose_mode_end
+
+cmp	WORD PTR [di], 0x0000 # FIXME
+je	.vbe_choose_mode_after_loop
+
+inc	dx
+add	di, 2 + VBE_INFO_SIZE
+jmp	.vbe_choose_mode_loop
+
+.vbe_choose_mode_after_loop:
+mov	cx, WORD PTR [di]
 call	vbe_set_mode
+mov	WORD PTR [vbe_selected_mode], dx
+
+.vbe_choose_mode_end:
+pop	di
 ret
 
 .section .rdata
@@ -227,6 +251,9 @@ vbe_modes:
 .space	(2 + VBE_INFO_SIZE) * MAX_VBE_MODES
 .space	256 - VBE_INFO_SIZE # padding
 
-.global vbe_num_modes
 vbe_num_modes:
-.long	0
+.short	0
+
+.global vbe_selected_mode
+vbe_selected_mode:
+.short	0
