@@ -11,6 +11,8 @@
 .equ VBE_INFO_MODES_OFFSET, 14
 .equ VBE_INFO_MODES_SEGMENT, 16
 
+.equ VBE_MODE_INFO_ATTRIBUTES, 0
+
 .section ".boot", "a"
 
 .space  0x1f1
@@ -138,6 +140,7 @@ ret
 .global vbe_get_modes
 vbe_get_modes:
 push	di
+push	si
 
 mov	fs, WORD PTR [vbe_info+VBE_INFO_MODES_SEGMENT]
 mov	dx, WORD PTR [vbe_info+VBE_INFO_MODES_OFFSET]
@@ -158,12 +161,25 @@ mov	ax, 0x4f01
 int	0x10
 cmp	ax, 0x4f
 jne	.vbe_get_modes_end
+
+# skip if mode not supported
+mov	si, WORD PTR [di+VBE_MODE_INFO_ATTRIBUTES]
+test	si, 0x1
+je	.vbe_get_modes_next
+
+# skip if not linear framebuffer
+test	si, 0x80
+je	.vbe_get_modes_next
+
 inc	WORD PTR [vbe_num_modes]
 add	di, 2 + 256
+
+.vbe_get_modes_next:
 add	dx, 2
 jmp	.vbe_get_modes_loop
 
 .vbe_get_modes_end:
+pop	si
 pop	di
 ret
 
