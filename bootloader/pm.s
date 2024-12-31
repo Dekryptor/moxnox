@@ -56,6 +56,18 @@ enter_protected_mode:
     mov eax, DWORD PTR [eax]
     mov DWORD PTR [ptr_cmdline], eax
 
+    mov eax, ebx
+    shl eax, 4
+    or eax, DWORD PTR [pm_vbe_selected_mode]
+    mov ax, WORD PTR [eax]
+    and eax, 0xffff
+    mov DWORD PTR [pm_vbe_selected_mode], eax
+
+    mov eax, ebx
+    shl eax, 4
+    or eax, DWORD PTR [ptr_vbe_modes]
+    mov DWORD PTR [ptr_vbe_modes], eax
+
     mov ax, 0x10
     mov es, ax
     mov ss, ax
@@ -83,9 +95,19 @@ long_mode_start:
 .globl ptr_e820_entries
 ptr_e820_entries:
 .long e820_entries
+
 .globl ptr_e820_count
 ptr_e820_count:
 .long e820_count
+
 .globl ptr_cmdline
 ptr_cmdline:
 .long cmdline
+
+.global pm_vbe_selected_mode
+pm_vbe_selected_mode:
+.long vbe_selected_mode
+
+.global ptr_vbe_modes
+ptr_vbe_modes:
+.long vbe_modes

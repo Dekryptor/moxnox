@@ -8,11 +8,51 @@
 
 using namespace std;
 
+struct vbe_mode_info {
+    uint16_t mode_number;
+    uint16_t attributes;
+    uint8_t window_a;
+    uint8_t window_b;
+    uint16_t granularity;
+    uint16_t window_size;
+    uint16_t segment_a;
+    uint16_t segment_b;
+    uint32_t win_func_ptr;
+    uint16_t pitch;
+    uint16_t width;
+    uint16_t height;
+    uint8_t w_char;
+    uint8_t y_char;
+    uint8_t planes;
+    uint8_t bpp;
+    uint8_t banks;
+    uint8_t memory_model;
+    uint8_t bank_size;
+    uint8_t image_pages;
+    uint8_t reserved0;
+    uint8_t red_mask;
+    uint8_t red_position;
+    uint8_t green_mask;
+    uint8_t green_position;
+    uint8_t blue_mask;
+    uint8_t blue_position;
+    uint8_t reserved_mask;
+    uint8_t reserved_position;
+    uint8_t direct_color_attributes;
+    uint32_t framebuffer;
+    uint32_t off_screen_mem_off;
+    uint16_t off_screen_mem_size;
+} __attribute__ ((packed));
+
+static_assert(sizeof(vbe_mode_info) == 52);
+
 extern e820_entry* ptr_e820_entries;
 extern uint32_t* ptr_e820_count;
 extern uint8_t payload_data;
 extern const uint64_t payload_size;
 extern char* ptr_cmdline;
+extern vbe_mode_info* ptr_vbe_modes;
+extern uint32_t pm_vbe_selected_mode;
 
 static const unsigned int MAX_MAP_ENTRIES = 128; // same as E820_COUNT
 
@@ -985,6 +1025,14 @@ static bool find_acpi() {
     return false;
 }
 
+static void set_graphics_info() {
+    auto& mode = ptr_vbe_modes[pm_vbe_selected_mode];
+
+    lb.text_mode = true; // FIXME
+    lb.text_console.width = mode.width;
+    lb.text_console.height = mode.height;
+}
+
 extern "C"
 void protected_mode_main() {
     init_console();
@@ -1001,6 +1049,8 @@ void protected_mode_main() {
         print("Unable to find ACPI tables\n");
         goto halt;
     }
+
+    set_graphics_info();
 
     if (!load_payload()) {
         print("load_payload failed\n");

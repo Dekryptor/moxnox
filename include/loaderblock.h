@@ -28,11 +28,20 @@ struct loader_block_framebuffer {
     uint32_t pixels_per_scan_line;
 };
 
+struct loader_block_text_console {
+    uint16_t width;
+    uint16_t height;
+};
+
 struct loader_block {
     uint64_t map_ptr;
     uint32_t num_map_entries;
     uint64_t rsdt_pa;
-    loader_block_framebuffer framebuffer;
+    bool text_mode;
+    union {
+        loader_block_framebuffer framebuffer;
+        loader_block_text_console text_console;
+    };
     uint64_t cmdline;
     uint64_t debug_info_ptr;
     uint64_t debug_info_size;

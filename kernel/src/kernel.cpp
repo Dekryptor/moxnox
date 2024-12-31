@@ -237,7 +237,8 @@ void startup(loader_block* lb) {
 
     // FIXME - should restart if anything fails before we can show error message
 
-    memcpy(&fb, &lb->framebuffer, sizeof(fb));
+    if (!lb->text_mode)
+        memcpy(&fb, &lb->framebuffer, sizeof(fb));
 
     if (lb->cmdline) {
         size_t len = strlen((char*)lb->cmdline);
@@ -250,7 +251,7 @@ void startup(loader_block* lb) {
         cmdline = string_view(cmdline_arr, len);
     }
 
-    has_framebuffer = !!fb.pa;
+    has_framebuffer = !lb->text_mode;
 
     debug_info = span((uint8_t*)(uintptr_t)lb->debug_info_ptr, lb->debug_info_size);
     debug_abbrev = span((uint8_t*)(uintptr_t)lb->debug_abbrev_ptr, lb->debug_abbrev_size);
