@@ -59,8 +59,10 @@ gdt_desc gdt_descriptor{ sizeof(gdt) - 1, gdt };
 
 extern "C" void enter_protected_mode(); // pm.s
 
-extern "C" bool vbe_get_info(); // boot.S
-extern "C" void vbe_get_modes(); // boot.S
+// boot.S
+extern "C" bool vbe_get_info();
+extern "C" void vbe_get_modes();
+extern "C" void vbe_choose_mode();
 
 extern "C"
 __attribute__((section(".rm_text")))
@@ -69,8 +71,7 @@ void real_mode_main() {
 
 	if (vbe_get_info()) {
 		vbe_get_modes();
-
-		// FIXME - set mode
+		vbe_choose_mode();
 	}
 
 	enter_protected_mode();

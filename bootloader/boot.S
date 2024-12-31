@@ -184,6 +184,22 @@ pop	si
 pop	di
 ret
 
+vbe_set_mode:
+mov	ax, 0x4f02
+mov	bx, cx
+or	bx, 0x4000 # set "Use LFB" bit
+int	0x10
+# FIXME - check for success
+ret
+
+.global vbe_choose_mode
+vbe_choose_mode:
+# FIXME - choose best mode
+# FIXME - parse cmdline for specified preference
+mov	cx, 0x0000
+call	vbe_set_mode
+ret
+
 .section .rdata
 kernel_version:
 .asciz	MOXNOX_VERSION_STRING
