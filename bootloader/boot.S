@@ -6,8 +6,9 @@
 .equ E820_COUNT, 128
 .equ E820_SIZE, 20
 
-.equ MAX_VBE_MODES, 100
+.equ MAX_VBE_MODES, 246
 
+.equ VBE_INFO_SIZE, 50
 .equ VBE_INFO_MODES_OFFSET, 14
 .equ VBE_INFO_MODES_SEGMENT, 16
 
@@ -172,7 +173,7 @@ test	si, 0x80
 je	.vbe_get_modes_next
 
 inc	WORD PTR [vbe_num_modes]
-add	di, 2 + 256
+add	di, 2 + VBE_INFO_SIZE
 
 .vbe_get_modes_next:
 add	dx, 2
@@ -207,7 +208,8 @@ vbe_info:
 
 .global vbe_modes
 vbe_modes:
-.space	(2 + 256) * MAX_VBE_MODES
+.space	(2 + VBE_INFO_SIZE) * MAX_VBE_MODES
+.space	256 - VBE_INFO_SIZE # padding
 
 .global vbe_num_modes
 vbe_num_modes:
