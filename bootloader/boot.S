@@ -104,10 +104,11 @@ add	di, E820_SIZE
 jmp	.loop
 
 .out:
-call	vbe_get_info
 jmp	real_mode_main
 
+.global vbe_get_info
 vbe_get_info:
+push	di
 mov	ax, 0x4f00
 lea	di, vbe_info
 int	0x10
@@ -122,6 +123,7 @@ jne	.vbe_get_info_end
 mov	BYTE PTR [vbe_info_valid], 1
 
 .vbe_get_info_end:
+pop	di
 ret
 
 .section .rdata
