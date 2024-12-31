@@ -7,10 +7,16 @@ SECTIONS
         *(.boot)
         . = ALIGN(4096);
     }
+
     .rm_data : AT(rm_data) {
         rm_data = .;
         *rm-main.cpp.obj(.data)
         *boot.S.obj(.data)
+    }
+
+    .vbe : AT(vbe) {
+        vbe = .;
+        *boot.S.obj(.vbe)
     }
 
     . = ALIGN(16);

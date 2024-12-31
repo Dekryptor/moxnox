@@ -6,7 +6,7 @@
 .equ E820_COUNT, 128
 .equ E820_SIZE, 20
 
-.equ MAX_VBE_MODES, 80
+.equ MAX_VBE_MODES, 100
 
 .equ VBE_INFO_MODES_OFFSET, 14
 .equ VBE_INFO_MODES_SEGMENT, 16
@@ -144,7 +144,7 @@ mov	dx, WORD PTR [vbe_info+VBE_INFO_MODES_OFFSET]
 and	edx, 0xffff
 push	ds
 pop	es
-lea	di, vbe_modes
+lea	di, [vbe_modes+2]
 
 .vbe_get_modes_loop:
 mov	cx, WORD PTR fs:[edx]
@@ -153,12 +153,13 @@ je	.vbe_get_modes_end
 cmp	WORD PTR [vbe_num_modes], MAX_VBE_MODES
 je	.vbe_get_modes_end
 
+mov	WORD PTR [di - 2], cx
 mov	ax, 0x4f01
 int	0x10
 cmp	ax, 0x4f
 jne	.vbe_get_modes_end
 inc	WORD PTR [vbe_num_modes]
-add	di, 256
+add	di, 2 + 256
 add	dx, 2
 jmp	.vbe_get_modes_loop
 
@@ -179,17 +180,19 @@ e820_entries:
 e820_count:
 .long	0
 
+.global cmdline
+cmdline:
+.long	.cmd_line_ptr - start + 0x200
+
+.section .vbe
 .global vbe_info
 vbe_info:
 .space	512
 
 .global vbe_modes
 vbe_modes:
-.space	256 * MAX_VBE_MODES
+.space	(2 + 256) * MAX_VBE_MODES
 
+.global vbe_num_modes
 vbe_num_modes:
 .long	0
-
-.global cmdline
-cmdline:
-.long	.cmd_line_ptr - start + 0x200
