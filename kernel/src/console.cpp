@@ -11,8 +11,7 @@
 
 using namespace std;
 
-static constexpr unsigned int COLS = 80;
-static constexpr unsigned int ROWS = 25;
+static unsigned int console_cols, console_rows;
 
 enum class console_colour : uint8_t {
     black = 0,
@@ -65,6 +64,8 @@ struct console_info {
 
 static console_info* console;
 
+bool has_framebuffer;
+
 size_t strlen(const char* s) {
     size_t i = 0;
 
@@ -77,17 +78,17 @@ size_t strlen(const char* s) {
 
 static void text_console_putc(uint8_t x, uint8_t y, uint8_t c, enum console_colour bg,
                               enum console_colour fg) {
-    text_console[(y * COLS) + x] = (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
+    text_console[(y * console_cols) + x] = (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
 }
 
 static void text_console_overflow() {
-    memcpy(text_console.data(), &text_console[COLS], (ROWS - 1) * COLS * sizeof(uint16_t));
+    memcpy(text_console.data(), &text_console[console_cols], (console_rows - 1) * console_cols * sizeof(uint16_t));
 
-    for (uint8_t x = 0; x < COLS; x++) {
-        text_console_putc(x, ROWS - 1, ' ', console_colour::black, console_colour::light_grey);
+    for (uint8_t x = 0; x < console_cols; x++) {
+        text_console_putc(x, (uint8_t)(console_rows - 1), ' ', console_colour::black, console_colour::light_grey);
     }
 
-    cursor_y = ROWS - 1;
+    cursor_y = console_rows - 1;
 }
 
 __attribute((naked))
@@ -104,7 +105,7 @@ static void outb(uint16_t port, uint8_t val) {
 }
 
 static void text_console_move_cursor(uint8_t x, uint8_t y) {
-    auto pos = (uint16_t)((y * COLS) + x);
+    auto pos = (uint16_t)((y * console_cols) + x);
 
     {
         lock_guard lock(cursor_lock);
@@ -123,7 +124,7 @@ static void text_console_print(string_view s, enum console_colour bg = console_c
             cursor_x = 0;
             cursor_y++;
 
-            if (cursor_y == ROWS)
+            if (cursor_y == console_rows)
                 text_console_overflow();
         } else if (c == '\b') {
             if (cursor_x > 0) // FIXME
@@ -133,11 +134,11 @@ static void text_console_print(string_view s, enum console_colour bg = console_c
 
             cursor_x++;
 
-            if (cursor_x == COLS) {
+            if (cursor_x == console_cols) {
                 cursor_x = 0;
                 cursor_y++;
 
-                if (cursor_y == ROWS)
+                if (cursor_y == console_rows)
                     text_console_overflow();
             }
         }
@@ -425,13 +426,17 @@ void print_hex(uint64_t num, unsigned int padding) {
     printk(string_view(s, sp.data() - s));
 }
 
-bool init_console(const loader_block_framebuffer& fb) {
-    if (!fb.pa) {
-        text_console = span((uint16_t*)phys_address(CONSOLE_PA), COLS * ROWS);
+bool init_console(const loader_block_framebuffer& fb,
+                  const loader_block_text_console& tc) {
+    if (!has_framebuffer) {
+        console_cols = tc.cols;
+        console_rows = tc.rows;
+
+        text_console = span((uint16_t*)phys_address(CONSOLE_PA), console_cols * console_rows);
 
         // clear console (foreground colour needs to be initialized for cursor to show up)
-        for (uint8_t y = 0; y < ROWS; y++) {
-            for (uint8_t x = 0; x < COLS; x++) {
+        for (uint8_t y = 0; y < console_rows; y++) {
+            for (uint8_t x = 0; x < console_cols; x++) {
                 text_console_putc(x, y, ' ', console_colour::black, console_colour::light_grey);
             }
         }

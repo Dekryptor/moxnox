@@ -29,8 +29,8 @@ struct loader_block_framebuffer {
 };
 
 struct loader_block_text_console {
-    uint16_t width;
-    uint16_t height;
+    uint16_t cols;
+    uint16_t rows;
 };
 
 struct loader_block {

@@ -1029,8 +1029,8 @@ static void set_graphics_info() {
     auto& mode = ptr_vbe_modes[pm_vbe_selected_mode];
 
     lb.text_mode = true; // FIXME
-    lb.text_console.width = mode.width;
-    lb.text_console.height = mode.height;
+    lb.text_console.cols = mode.width;
+    lb.text_console.rows = mode.height;
 }
 
 extern "C"

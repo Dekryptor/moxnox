@@ -13,8 +13,6 @@ extern uint64_t __CTOR_LIST__;
 static char cmdline_arr[255];
 string_view cmdline;
 
-static bool has_framebuffer;
-
 extern uint8_t __image_base__;
 
 list_entry kernel_images = { &kernel_images, &kernel_images };
@@ -233,11 +231,14 @@ static void init_images_list(span<const uint8_t> debug_info,
 extern "C"
 void startup(loader_block* lb) {
     loader_block_framebuffer fb;
+    loader_block_text_console tc;
     span<const uint8_t> debug_info, debug_abbrev, debug_rnglists, debug_str;
 
     // FIXME - should restart if anything fails before we can show error message
 
-    if (!lb->text_mode)
+    if (lb->text_mode)
+        memcpy(&tc, &lb->text_console, sizeof(tc));
+    else
         memcpy(&fb, &lb->framebuffer, sizeof(fb));
 
     if (lb->cmdline) {
@@ -270,7 +271,7 @@ void startup(loader_block* lb) {
     if (!init_vablock())
         goto hang;
 
-    if (!init_console(fb))
+    if (!init_console(fb, tc))
         goto hang;
 
     printk(MOXNOX_VERSION_STRING "\n");
