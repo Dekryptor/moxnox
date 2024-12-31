@@ -6,6 +6,11 @@
 .equ E820_COUNT, 128
 .equ E820_SIZE, 20
 
+.equ MAX_VBE_MODES, 80
+
+.equ VBE_INFO_MODES_OFFSET, 14
+.equ VBE_INFO_MODES_SEGMENT, 16
+
 .section ".boot", "a"
 
 .space  0x1f1
@@ -114,15 +119,50 @@ lea	di, vbe_info
 int	0x10
 
 cmp	ax, 0x4f
-jne	.vbe_get_info_end
+jne	.vbe_get_info_fail
 
 mov	eax, DWORD PTR [vbe_info]
 cmp	eax, 0x41534556
-jne	.vbe_get_info_end
+jne	.vbe_get_info_fail
 
-mov	BYTE PTR [vbe_info_valid], 1
+mov	ax, 1
+jmp	.vbe_get_info_end
+
+.vbe_get_info_fail:
+xor	ax, ax
 
 .vbe_get_info_end:
+pop	di
+ret
+
+.global vbe_get_modes
+vbe_get_modes:
+push	di
+
+mov	fs, WORD PTR [vbe_info+VBE_INFO_MODES_SEGMENT]
+mov	dx, WORD PTR [vbe_info+VBE_INFO_MODES_OFFSET]
+and	edx, 0xffff
+push	ds
+pop	es
+lea	di, vbe_modes
+
+.vbe_get_modes_loop:
+mov	cx, WORD PTR fs:[edx]
+cmp	cx, 0xffff
+je	.vbe_get_modes_end
+cmp	WORD PTR [vbe_num_modes], MAX_VBE_MODES
+je	.vbe_get_modes_end
+
+mov	ax, 0x4f01
+int	0x10
+cmp	ax, 0x4f
+jne	.vbe_get_modes_end
+inc	WORD PTR [vbe_num_modes]
+add	di, 256
+add	dx, 2
+jmp	.vbe_get_modes_loop
+
+.vbe_get_modes_end:
 pop	di
 ret
 
@@ -141,11 +181,14 @@ e820_count:
 
 .global vbe_info
 vbe_info:
-.space 512
+.space	512
 
-.global vbe_info_valid
-vbe_info_valid:
-.byte 0
+.global vbe_modes
+vbe_modes:
+.space	256 * MAX_VBE_MODES
+
+vbe_num_modes:
+.long	0
 
 .global cmdline
 cmdline:
