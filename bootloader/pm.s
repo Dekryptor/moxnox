@@ -79,6 +79,31 @@ enter_protected_mode:
     mov eax, OFFSET protected_mode_main
     jmp eax
 
+.code32
+.section .text
+.globl have_long_mode
+have_long_mode:
+    push ebx
+
+    mov eax, 0x80000000
+    cpuid
+    cmp eax, 0x80000001
+    jb 1f
+
+    mov eax, 0x80000001
+    cpuid
+    test edx, 1 << 29
+    jz 1f
+
+    mov eax, 1
+    pop ebx
+    ret
+
+1:
+    xor eax, eax
+    pop ebx
+    ret
+
 .code64
 .section .text
 .globl long_mode_start

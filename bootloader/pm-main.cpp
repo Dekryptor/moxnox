@@ -54,6 +54,9 @@ extern char* ptr_cmdline;
 extern vbe_mode_info* ptr_vbe_modes;
 extern uint32_t pm_vbe_selected_mode;
 
+// pm.s
+extern "C" bool have_long_mode();
+
 static const unsigned int MAX_MAP_ENTRIES = 128; // same as E820_COUNT
 
 static struct map_entry mem_entries[MAX_MAP_ENTRIES];
@@ -1045,6 +1048,11 @@ void protected_mode_main() {
         init_console();
 
     print("Starting bootloader\n");
+
+    if (!have_long_mode()) {
+        print("Long mode not supported.\n");
+        goto halt;
+    }
 
     copy_e820_entries();
 
