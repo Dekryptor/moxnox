@@ -281,8 +281,49 @@ pop	esi
 pop	di
 ret
 
-parse_text_option:
+parse_integer:
 # FIXME
+ret
+
+parse_text_option: # void parse_text_option(char* cmd, uint16_t len)
+push	bx
+
+# bx is x, eax is i
+
+and	ecx, 0xffff
+mov	eax, 0
+
+.parse_text_option_loop:
+cmp	ax, dx
+jge	.parse_text_option_end
+
+cmp	BYTE PTR es:[ecx+eax], 'x'
+jne	.parse_text_option_continue
+mov	bx, ax
+jmp	1f
+
+.parse_text_option_continue:
+inc	ax
+jmp	.parse_text_option_loop
+
+1:
+push	cx
+push	dx
+mov	dx, bx
+call	parse_integer
+mov	WORD PTR [vbe_preferred_text_rows], ax
+pop	dx
+pop	cx
+
+add	cx, bx
+inc	cx
+sub	dx, bx
+dec	dx
+call	parse_integer
+mov	WORD PTR [vbe_preferred_text_cols], ax
+
+.parse_text_option_end:
+pop	bx
 ret
 
 parse_option: # void parse_option(char* cmd, uint16_t len)
