@@ -281,8 +281,25 @@ pop	esi
 pop	di
 ret
 
-parse_option:
-# FIXME (cx = cmd, dx = i)
+parse_text_option:
+# FIXME
+ret
+
+parse_option: # void parse_option(char* cmd, uint16_t len)
+and	ecx, 0xffff
+
+cmp	dx, 5
+jl	.parse_option_end
+cmp	DWORD PTR es:[ecx], 0x74786574 # 'text'
+jne	.parse_option_end
+cmp	BYTE PTR es:[ecx+4], '='
+jne	.parse_option_end
+add	ecx, 5
+sub	dx, 5
+call	parse_text_option
+jmp	.parse_option_end
+
+.parse_option_end:
 ret
 
 .global parse_cmdline
