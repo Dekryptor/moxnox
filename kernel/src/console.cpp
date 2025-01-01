@@ -32,8 +32,6 @@ enum class console_colour : uint8_t {
     white = 15
 };
 
-static const uint64_t CONSOLE_PA = 0xb8000;
-
 static span<uint16_t> text_console;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
@@ -432,7 +430,8 @@ bool init_console(const loader_block_framebuffer& fb,
         console_cols = tc.cols;
         console_rows = tc.rows;
 
-        text_console = span((uint16_t*)phys_address(CONSOLE_PA), console_cols * console_rows);
+        text_console = span((uint16_t*)phys_address(tc.phys_address),
+                            console_cols * console_rows);
 
         // clear console (foreground colour needs to be initialized for cursor to show up)
         for (uint8_t y = 0; y < console_rows; y++) {
