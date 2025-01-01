@@ -281,6 +281,59 @@ pop	esi
 pop	di
 ret
 
+parse_option:
+# FIXME (cx = cmd, dx = i)
+ret
+
+.global parse_cmdline
+parse_cmdline:
+push	di
+push	si
+push	bx
+
+# translate cmdline to segment (es) and offset (bx)
+mov	eax, DWORD PTR [cmdline] # FIXME
+mov	eax, DWORD PTR [eax]
+mov	bx, ax
+and	bx, 0xf
+shr	eax, 4
+mov	es, ax
+
+xor	di, di # start
+xor	si, si # i
+
+.parse_cmdline_loop:
+
+cmp	BYTE PTR es:[bx+si], 0
+jne	1f
+mov	cx, bx
+mov	dx, si
+call	parse_option
+jmp	.parse_cmdline_end
+
+1:
+cmp	BYTE PTR es:[bx+si], ' '
+jne	2f
+mov	cx, bx
+mov	dx, si
+call	parse_option
+add	bx, si
+inc	bx
+xor	si, si
+jmp	.parse_cmdline_loop
+
+2:
+inc	si
+jmp	.parse_cmdline_loop
+
+.parse_cmdline_end:
+push	ds
+pop	es
+pop	bx
+pop	si
+pop	di
+ret
+
 .section .rdata
 kernel_version:
 .asciz	MOXNOX_VERSION_STRING
