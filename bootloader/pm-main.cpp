@@ -947,6 +947,9 @@ static void text_console_putc(uint8_t x, uint8_t y, uint8_t c) {
 }
 
 static void print(string_view s) {
+    if (!lb.text_mode)
+        return;
+
     for (auto c : s) {
         if (c == '\n') {
             cursor_x = 0;
@@ -1035,6 +1038,8 @@ static void set_graphics_info() {
 
 extern "C"
 void protected_mode_main() {
+    set_graphics_info();
+
     init_console();
     print("Starting bootloader\n");
 
@@ -1049,8 +1054,6 @@ void protected_mode_main() {
         print("Unable to find ACPI tables\n");
         goto halt;
     }
-
-    set_graphics_info();
 
     if (!load_payload()) {
         print("load_payload failed\n");
