@@ -281,8 +281,34 @@ pop	esi
 pop	di
 ret
 
-parse_integer:
-# FIXME
+parse_integer: # uint16_t parse_integer(char* s, uint16_t len)
+push	bx
+
+xor	ax, ax
+and	ecx, 0xffff
+xor	bh, bh
+
+.parse_integer_loop:
+cmp	dx, 0
+je	.parse_integer_end
+
+cmp	BYTE PTR es:[ecx], '0'
+jl	.parse_integer_end
+
+cmp	BYTE PTR es:[ecx], '9'
+jg	.parse_integer_end
+
+imul	ax, 10
+mov	bl, BYTE PTR es:[ecx]
+sub	bl, '0'
+add	ax, bx
+
+inc	cx
+dec	dx
+jmp	.parse_integer_loop
+
+.parse_integer_end:
+pop	bx
 ret
 
 parse_text_option: # void parse_text_option(char* cmd, uint16_t len)
@@ -427,10 +453,10 @@ vbe_selected_mode:
 .short	0xffff
 
 vbe_preferred_text_rows:
-.short	40 # FIXME
+.short	0
 
 vbe_preferred_text_cols:
-.short	25 # FIXME
+.short	0
 
 vbe_best_mode:
 .short	0xffff
