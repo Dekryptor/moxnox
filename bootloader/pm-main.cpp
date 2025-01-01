@@ -87,7 +87,6 @@ enum class console_colour : uint8_t {
     white = 15
 };
 
-static const uint64_t CONSOLE_PA = 0xb8000;
 static const unsigned int COLS = 80;
 static const unsigned int ROWS = 25;
 static unsigned int cursor_x = 0;
@@ -931,7 +930,7 @@ static void copy_e820_entries() {
 }
 
 static void init_console() {
-    text_console = span((uint16_t*)CONSOLE_PA, COLS * ROWS);
+    text_console = span((uint16_t*)lb.text_console.phys_address, COLS * ROWS);
 
     memset(text_console.data(), 0, text_console.size_bytes());
 }
@@ -1034,13 +1033,16 @@ static void set_graphics_info() {
     lb.text_mode = true; // FIXME
     lb.text_console.cols = mode.width;
     lb.text_console.rows = mode.height;
+    lb.text_console.phys_address = mode.segment_a << 4;
 }
 
 extern "C"
 void protected_mode_main() {
     set_graphics_info();
 
-    init_console();
+    if (lb.text_mode)
+        init_console();
+
     print("Starting bootloader\n");
 
     copy_e820_entries();
