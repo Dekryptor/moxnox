@@ -87,8 +87,6 @@ enum class console_colour : uint8_t {
     white = 15
 };
 
-static const unsigned int COLS = 80;
-static const unsigned int ROWS = 25;
 static unsigned int cursor_x = 0;
 static unsigned int cursor_y = 0;
 static const enum console_colour fg_colour = console_colour::light_grey;
@@ -930,19 +928,22 @@ static void copy_e820_entries() {
 }
 
 static void init_console() {
-    text_console = span((uint16_t*)lb.text_console.phys_address, COLS * ROWS);
+    text_console = span((uint16_t*)lb.text_console.phys_address,
+                        lb.text_console.cols * lb.text_console.rows);
 
     memset(text_console.data(), 0, text_console.size_bytes());
 }
 
 static void text_console_overflow() {
-    memcpy(text_console.data(), &text_console[COLS], (ROWS - 1) * COLS * sizeof(uint16_t));
-    memset(text_console.data() + ((ROWS - 1) * COLS), 0, COLS * sizeof(uint16_t));
-    cursor_y = ROWS - 1;
+    memcpy(text_console.data(), &text_console[lb.text_console.cols],
+           (lb.text_console.rows - 1) * lb.text_console.cols * sizeof(uint16_t));
+    memset(text_console.data() + ((lb.text_console.rows - 1) * lb.text_console.cols), 0,
+           lb.text_console.cols * sizeof(uint16_t));
+    cursor_y = lb.text_console.rows - 1;
 }
 
 static void text_console_putc(uint8_t x, uint8_t y, uint8_t c) {
-    text_console[(y * COLS) + x] = (uint16_t)(((uint16_t)bg_colour << 12) | ((uint16_t)fg_colour << 8) | c);
+    text_console[(y * lb.text_console.cols) + x] = (uint16_t)(((uint16_t)bg_colour << 12) | ((uint16_t)fg_colour << 8) | c);
 }
 
 static void print(string_view s) {
@@ -954,18 +955,18 @@ static void print(string_view s) {
             cursor_x = 0;
             cursor_y++;
 
-            if (cursor_y == ROWS)
+            if (cursor_y == lb.text_console.rows)
                 text_console_overflow();
         } else {
             text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c);
 
             cursor_x++;
 
-            if (cursor_x == COLS) {
+            if (cursor_x == lb.text_console.cols) {
                 cursor_x = 0;
                 cursor_y++;
 
-                if (cursor_y == ROWS)
+                if (cursor_y == lb.text_console.rows)
                     text_console_overflow();
             }
         }
