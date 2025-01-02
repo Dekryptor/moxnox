@@ -15,9 +15,13 @@
 .equ VBE_MODE_INFO_ATTRIBUTES, 0
 .equ VBE_MODE_INFO_WIDTH, 18
 .equ VBE_MODE_INFO_HEIGHT, 20
+.equ VBE_MODE_INFO_BPP, 25
 .equ VBE_MODE_INFO_MEMORY_MODEL, 27
 
+.equ VBE_MODE_ATTRIBUTE_LINEAR_FRAME_BUFFER_MODE, 0x0080
+
 .equ MM_TEXT, 0
+.equ MM_DIRECT, 6
 
 .section ".boot", "a"
 
@@ -197,6 +201,95 @@ int	0x10
 # FIXME - check for success
 ret
 
+vbe_choose_graphics_mode:
+push	di
+push	esi
+
+xor	dx, dx
+lea	di, [vbe_modes]
+
+.vbe_choose_graphics_mode_loop:
+cmp	dx, WORD PTR [vbe_num_modes]
+je	.vbe_choose_graphics_mode_after_loop
+
+# continue if memory model is not direct
+cmp	BYTE PTR [di+2+VBE_MODE_INFO_MEMORY_MODEL], MM_DIRECT
+jne	.vbe_choose_graphics_mode_continue
+
+# continue if width == 0 || height == 0
+cmp	WORD PTR [di+2+VBE_MODE_INFO_WIDTH], 0
+je	.vbe_choose_graphics_mode_continue
+cmp	WORD PTR [di+2+VBE_MODE_INFO_HEIGHT], 0
+je	.vbe_choose_graphics_mode_continue
+
+# continue if not linear framebuffer
+mov	ax, WORD PTR [di+2+VBE_MODE_INFO_ATTRIBUTES]
+or	ax, VBE_MODE_ATTRIBUTE_LINEAR_FRAME_BUFFER_MODE
+cmp	ax, 0
+je	.vbe_choose_graphics_mode_continue
+
+# continue if not 32 bits per pixel
+cmp	BYTE PTR [di+2+VBE_MODE_INFO_BPP], 32
+jne	.vbe_choose_graphics_mode_continue
+
+# FIXME - continue if not BGR
+
+# FIXME - break if preferred width and height
+
+# set vbe_best_mode if currently == 0xffff
+cmp	WORD PTR [vbe_best_mode], 0xffff
+jne	2f
+movzx	eax, WORD PTR [di+2+VBE_MODE_INFO_WIDTH]
+movzx	esi, WORD PTR [di+2+VBE_MODE_INFO_HEIGHT]
+imul	eax, esi
+mov	WORD PTR [vbe_best_mode], dx
+mov	DWORD PTR [vbe_best_mode_mul], eax
+jmp	.vbe_choose_graphics_mode_continue
+
+2:
+# set vbe_best_mode if width*height > vbe_best_mode_mul
+movzx	eax, WORD PTR [di+2+VBE_MODE_INFO_WIDTH]
+movzx	esi, WORD PTR [di+2+VBE_MODE_INFO_HEIGHT]
+imul	eax, esi
+cmp	eax, DWORD PTR [vbe_best_mode_mul]
+jle	.vbe_choose_graphics_mode_continue
+mov	WORD PTR [vbe_best_mode], dx
+mov	DWORD PTR [vbe_best_mode_mul], eax
+
+.vbe_choose_graphics_mode_continue:
+inc	dx
+add	di, 2 + VBE_INFO_SIZE
+jmp	.vbe_choose_graphics_mode_loop
+
+.vbe_choose_graphics_mode_after_loop:
+
+cmp	WORD PTR [vbe_selected_mode], 0xffff
+jne	1f
+cmp	WORD PTR [vbe_best_mode], 0xffff
+jne	0f
+xor	ax, ax
+jmp	.vbe_choose_graphics_mode_end
+
+0:
+mov	dx, WORD PTR [vbe_best_mode]
+mov	WORD PTR [vbe_selected_mode], dx
+
+1:
+mov	dx, WORD PTR [vbe_selected_mode]
+mov	ax, dx
+imul	ax, 2 + VBE_INFO_SIZE
+lea	di, [vbe_modes]
+add	di, ax
+mov	cx, WORD PTR [di]
+or	cx, 0x4000 # set "use LFB" flag in mode
+call	vbe_set_mode
+mov	ax, 1
+
+.vbe_choose_graphics_mode_end:
+pop	di
+pop	esi
+ret
+
 .global vbe_choose_mode
 vbe_choose_mode:
 push	di
@@ -204,8 +297,15 @@ push	esi
 cmp	WORD PTR [vbe_num_modes], 0
 je	.vbe_choose_mode_end
 
-# FIXME - parse cmdline for specified preference
+cmp	WORD PTR [vbe_preferred_text_rows], 0
+jne	0f
+cmp	WORD PTR [vbe_preferred_text_cols], 0
+jne	0f
+call	vbe_choose_graphics_mode
+cmp	ax, 0
+jne	.vbe_choose_mode_end
 
+0:
 xor	dx, dx
 lea	di, [vbe_modes]
 

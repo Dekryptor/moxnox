@@ -46,6 +46,8 @@ struct vbe_mode_info {
 
 static_assert(sizeof(vbe_mode_info) == 52);
 
+static const uint8_t MM_TEXT = 0;
+
 extern e820_entry* ptr_e820_entries;
 extern uint32_t* ptr_e820_count;
 extern uint8_t payload_data;
@@ -1034,10 +1036,18 @@ static bool find_acpi() {
 static void set_graphics_info() {
     auto& mode = ptr_vbe_modes[pm_vbe_selected_mode];
 
-    lb.text_mode = true; // FIXME
-    lb.text_console.cols = mode.width;
-    lb.text_console.rows = mode.height;
-    lb.text_console.phys_address = mode.segment_a << 4;
+    if (mode.memory_model == MM_TEXT) {
+        lb.text_mode = true;
+        lb.text_console.cols = mode.width;
+        lb.text_console.rows = mode.height;
+        lb.text_console.phys_address = mode.segment_a << 4;
+    } else {
+        lb.text_mode = false;
+        lb.framebuffer.pa = mode.framebuffer;
+        lb.framebuffer.width = mode.width;
+        lb.framebuffer.height = mode.height;
+        lb.framebuffer.pixels_per_scan_line = mode.pitch / sizeof(uint32_t);
+    }
 }
 
 extern "C"
