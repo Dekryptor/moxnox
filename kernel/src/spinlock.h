@@ -25,13 +25,15 @@ public:
     }
 
     void unlock() {
+        uint64_t last_cr8 = old_cr8;
+
         v.exchange(0, std::memory_order_release);
 
         __asm __volatile(
             "mov rax, %0\n"
             "mov cr8, rax\n"
             :
-            : "m" (old_cr8)
+            : "m" (last_cr8)
             : "rax"
         );
     }
