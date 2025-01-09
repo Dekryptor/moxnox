@@ -61,7 +61,6 @@ page_fault_user_isr:
     mov rcx, cr2
     sub rsp, 0x20
     call page_fault_user
-    cli
     add rsp, 0x20
 
     cmp ax, 0
@@ -78,12 +77,6 @@ page_fault_user_no_exception:
     pop r9
     pop r10
     pop r11
-
-    # change to process cr3
-    mov rax, gs:GS_CURRENT_THREAD
-    mov rax, [rax+THREAD_PROC]
-    mov rax, [rax+PROCESS_CR3]
-    mov cr3, rax
 
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
 
