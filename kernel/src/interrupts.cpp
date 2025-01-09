@@ -506,18 +506,18 @@ bool init_interrupts() {
 
 extern "C"
 bool page_fault_user(uintptr_t address, uint64_t error_code) {
-    auto& cb = *get_cpu_block();
     auto& current_thread = *get_current_thread();
     CONTEXT ctx;
 
-    memcpy(&ctx, &cb.thread_context, sizeof(CONTEXT));
+    memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+
     __asm __volatile("sti");
 
     auto& p = *current_thread.proc;
 
     if (p.handle_page_fault(address, error_code)) {
         __asm __volatile("cli");
-        memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
+        memcpy(&get_cpu_block()->thread_context, &ctx, sizeof(CONTEXT));
         return false;
     }
 
@@ -551,6 +551,8 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     }
 
     __asm __volatile("cli");
+
+    auto& cb = *get_cpu_block();
 
     memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
     cb.thread_context.Rip = p.ntdll_addr + mn_signal;
