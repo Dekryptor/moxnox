@@ -190,6 +190,22 @@ static thread* pick_runnable_thread(thread* current) {
 
 extern "C"
 void scheduler() {
+#ifdef DEBUG
+    uint64_t rflags = 0;
+
+    __asm __volatile(
+        "pushf\n"
+        "pop rax\n"
+        "mov %0, rax\n"
+        :
+        : "m" (rflags)
+        : "rax"
+    );
+
+    if (rflags & 0x200) // IF flag set
+        bsod("calling scheduler with interrupts enabled");
+#endif
+
     auto& cb = *get_cpu_block();
 
     if (cb.current_thread) {
