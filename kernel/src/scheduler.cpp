@@ -204,6 +204,8 @@ void scheduler() {
         cb.current_thread = pick_runnable_thread(cb.current_thread);
 
         if (cb.current_thread) {
+            assert(cb.current_thread->status == thread_status::runnable);
+            assert(cb.current_thread->current_cpu == 0xffffffff);
             cb.current_thread->status = thread_status::running;
             cb.current_thread->current_cpu = cb.cpu_no;
         }
@@ -360,6 +362,7 @@ void wait_for_object(object& obj) {
 
         current_thread->waiting_for = obj;
         current_thread->status = thread_status::waiting;
+        current_thread->current_cpu = 0xffffffff;
     }
 
     yield(); // releases sync_lock
