@@ -64,13 +64,15 @@ public:
     }
 
     void unlock() {
+        uint64_t last_cr8 = old_cr8;
+
         release_sync_lock();
 
         __asm __volatile(
             "mov rax, %0\n"
             "mov cr8, rax\n"
             :
-            : "m" (old_cr8)
+            : "m" (last_cr8)
             : "rax"
         );
     }
