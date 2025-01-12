@@ -55,51 +55,12 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
 
     t.tid = tid;
 
-    auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-    if (!stack) {
-        printk("allocate_va failed\n");
+    t.kernel_stack = allocate_stack();
+    if (!t.kernel_stack) {
+        printk("allocate_stack failed\n");
         delete &t;
         return {};
     }
-
-    for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-        auto pa = allocate_page();
-        if (!pa) {
-            printk("allocate_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
-                auto pa = va_to_pa(va);
-
-                free_page(pa);
-                unmap_page(va);
-            }
-
-            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-
-            delete &t;
-            return {};
-        }
-
-        if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
-            printk("map_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
-                auto pa = va_to_pa(va);
-
-                free_page(pa);
-                unmap_page(va);
-            }
-
-            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-
-            delete &t;
-            return {};
-        }
-    }
-
-    t.kernel_stack = stack;
 
     memset(&t.context, 0, sizeof(t.context));
     t.context.Rip = (uintptr_t)kernel_thread_start;
