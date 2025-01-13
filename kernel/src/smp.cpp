@@ -189,6 +189,8 @@ static void ap_startup() {
 
     apic_ids[num_cpus - num] = apic_id;
 
+    acquire_sync_lock();
+
     __asm __volatile ( // doesn't return
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"

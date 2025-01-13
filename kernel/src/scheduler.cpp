@@ -169,10 +169,10 @@ void scheduler() {
 
     auto& cb = *get_cpu_block();
 
+    // scheduler is called with sync_lock acquired
+
     if (cb.current_thread) {
         bool dead = false;
-
-        acquire_sync_lock();
 
         memcpy(&cb.current_thread->context, &cb.thread_context, sizeof(CONTEXT));
         cb.current_thread->current_cpu = 0xffffffff;
@@ -191,7 +191,8 @@ void scheduler() {
             cb.current_thread->release();
             cb.current_thread = nullptr;
         }
-    }
+    } else
+        release_sync_lock();
 
     do {
         acquire_sync_lock();

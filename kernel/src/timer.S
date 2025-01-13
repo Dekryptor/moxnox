@@ -26,6 +26,7 @@ Ltimer_isr_threads:
     save_context
     xor rax, rax
     mov DWORD PTR [APIC_BASE+APIC_EOI], eax
+    call acquire_sync_lock
     mov rsp, gs:GS_SCHEDULER_STACK
     jmp scheduler
 
@@ -193,7 +194,6 @@ yield:
     fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
     # FIXME - debug registers
 
-    call release_sync_lock
     mov rsp, gs:GS_SCHEDULER_STACK
     jmp scheduler
 

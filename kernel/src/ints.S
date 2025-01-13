@@ -284,4 +284,5 @@ yield_isr:
     pop rax
 
     mov rsp, gs:GS_SCHEDULER_STACK
+    call acquire_sync_lock
     jmp scheduler
