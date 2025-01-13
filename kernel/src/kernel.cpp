@@ -146,6 +146,9 @@ static void keywait() {
 void main_thread() {
     init_keyboard();
 
+    if (has_framebuffer && !init_fb_console())
+        printk("init_fb_console failed\n");
+
     keywait();
 
     init_syscalls();
@@ -172,9 +175,6 @@ void main_thread() {
 
     if (!mount_root())
         bsod("mount_root failed");
-
-    if (has_framebuffer && !init_fb_console())
-        printk("init_fb_console failed\n");
 
     load_ntdll();
 
