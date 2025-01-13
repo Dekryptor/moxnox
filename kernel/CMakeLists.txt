@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
+configure_file(src/font.S.in ${CMAKE_CURRENT_BINARY_DIR}/font.S)
+
 set(SRC_FILES src/kernel.cpp
     src/mem.cpp
     src/console.cpp
@@ -42,7 +44,8 @@ set(SRC_FILES src/kernel.cpp
     src/rtc.cpp
     src/dwarf.cpp
     src/power.cpp
-    src/page_cache.cpp)
+    src/page_cache.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 add_executable(kernel ${SRC_FILES})
 include_directories(../freetype/include)

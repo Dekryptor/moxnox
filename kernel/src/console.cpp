@@ -45,7 +45,6 @@ static span<uint32_t> framebuffer, shadow_framebuffer;
 static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static FT_Face face = nullptr;
-static void* font_data;
 static unsigned int font_width, font_height;
 static unsigned int fb_console_rows, fb_console_cols;
 static bool fb_console_started = false;
@@ -53,6 +52,10 @@ static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
 static spinlock cursor_lock, bsod_lock;
 static char assertion_buffer[1024];
+
+// font.S
+extern void* console_font_data;
+extern uint64_t console_font_size;
 
 struct console_info {
     enum console_colour bg;
@@ -588,51 +591,9 @@ bool init_fb_console() {
         return false;
     }
 
-    uint64_t file_size;
-
-    {
-        // load console.ttf to memory
-
-        auto file_ref = open_inode("/console.ttf", nullopt);
-        if (!file_ref) {
-            printk("open_inode failed\n");
-            return false;
-        }
-
-        if (file_ref.get().type != object_type::inode) {
-            printk("open_inode returned something other than inode\n");
-            return false;
-        }
-
-        auto& inode = static_cast<class inode&>(file_ref.get());
-
-        file_size = inode.file_size;
-
-        if (file_size == 0) {
-            printk("Font file was empty\n");
-            return false;
-        }
-
-        font_data = malloc(file_size);
-        if (!font_data) {
-            printk("malloc failed\n");
-            return false;
-        }
-
-        uint64_t read_bytes;
-        auto status = inode.read(span((uint8_t*)font_data, file_size), 0, read_bytes);
-
-        if (!success(status) || read_bytes < file_size) {
-            free(font_data);
-            printk("read failed\n");
-            return false;
-        }
-    }
-
-    error = FT_New_Memory_Face(ft, (uint8_t*)font_data, (FT_Long)file_size, 0, &face);
+    error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_data, (FT_Long)console_font_size,
+                               0, &face);
     if (error) {
-        free(font_data);
-
         printk("FT_New_Memory_Face failed (");
         print_hex(error);
         printk(")\n");

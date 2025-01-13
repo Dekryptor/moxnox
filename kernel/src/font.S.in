@@ -1,0 +1,10 @@
+.section ".rdata"
+.global console_font_data
+console_font_data:
+.incbin "${CMAKE_CURRENT_SOURCE_DIR}/console.ttf"
+.console_font_data_end:
+
+.p2align 3
+.global console_font_size
+console_font_size:
+.quad .console_font_data_end - console_font_data
