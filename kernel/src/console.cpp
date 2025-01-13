@@ -169,7 +169,8 @@ static void blit(unsigned int x, unsigned int y, unsigned int w, unsigned int h)
     }
 }
 
-static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y) {
+static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y,
+                         uint32_t bg_colour, uint32_t fg_colour) {
     FT_Error error;
 
     // FIXME - colour
@@ -199,14 +200,26 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y) {
     if (bottom > (int)fb_height)
         bottom = fb_height;
 
+    uint32_t bg_colour_r = bg_colour >> 16;
+    uint32_t fg_colour_r = fg_colour >> 16;
+    uint32_t bg_colour_g = (bg_colour & 0xff00) >> 8;
+    uint32_t fg_colour_g = (fg_colour & 0xff00) >> 8;
+    uint32_t bg_colour_b = bg_colour & 0xff;
+    uint32_t fg_colour_b = fg_colour & 0xff;
+
     auto orig_y = y;
     auto base = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + fb_x + face->glyph->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
-            if (*buf != 0) {
-                // FIXME - alpha blending
-                base[x] = (*buf << 16) | (*buf << 8) | *buf;
+            if (*buf == 255)
+                base[x] = fg_colour;
+            else if (*buf != 0) {
+                auto r = (uint8_t)(((bg_colour_r * (255 - (uint32_t)*buf)) + (fg_colour_r * (uint32_t)*buf)) / 255);
+                auto g = (uint8_t)(((bg_colour_g * (255 - (uint32_t)*buf)) + (fg_colour_g * (uint32_t)*buf)) / 255);
+                auto b = (uint8_t)(((bg_colour_b * (255 - (uint32_t)*buf)) + (fg_colour_b * (uint32_t)*buf)) / 255);
+
+                base[x] = (r << 16) | (g << 8) | b;
             }
 
             buf++;
@@ -258,7 +271,7 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
     blit(x, y, w, h);
 }
 
-static void print_char(char32_t c) {
+static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
     if (c == '\n') {
         if (console) {
             for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
@@ -296,9 +309,10 @@ static void print_char(char32_t c) {
         if (console)
             console[(cursor_y * fb_console_cols) + cursor_x].c = 0;
 
-        rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, 0x000000);
+        rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, bg_colour);
     } else {
-        draw_ft_char(c, cursor_x * font_width, (cursor_y + 1) * font_height);
+        draw_ft_char(c, cursor_x * font_width, (cursor_y + 1) * font_height,
+                     bg_colour, fg_colour);
 
         if (console)
             console[(cursor_y * fb_console_cols) + cursor_x].c = c;
@@ -326,11 +340,14 @@ static void early_print(string_view s) {
     if (!fb_console_started)
         return;
 
+    uint32_t bg_colour = 0x000000;
+    uint32_t fg_colour = 0xffffff;
+
     for (auto c : s) {
         if (utf8_chars != 0) {
             if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-                print_char(0xfffd);
-                print_char(c);
+                print_char(0xfffd, bg_colour, fg_colour);
+                print_char(c, bg_colour, fg_colour);
                 utf8_chars = 0;
                 continue;
             }
@@ -340,32 +357,32 @@ static void early_print(string_view s) {
 
             if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char(0xfffd);
+                    print_char(0xfffd, bg_colour, fg_colour);
                     utf8_chars = 0;
                     continue;
                 }
 
                 char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
 
-                print_char(c);
+                print_char(c, bg_colour, fg_colour);
                 utf8_chars = 0;
                 continue;
             } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
                 if (utf8_chars == 2) {
                     if ((utf8_buf[1] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
+                        print_char(0xfffd, bg_colour, fg_colour);
                         utf8_chars = 0;
                     }
                 } else {
                     if ((utf8_buf[2] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
+                        print_char(0xfffd, bg_colour, fg_colour);
                         utf8_chars = 0;
                         continue;
                     }
 
                     char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
 
-                    print_char(c);
+                    print_char(c, bg_colour, fg_colour);
                     utf8_chars = 0;
                 }
 
@@ -373,24 +390,24 @@ static void early_print(string_view s) {
             } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
                 if (utf8_chars == 2) {
                     if ((utf8_buf[1] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
+                        print_char(0xfffd, bg_colour, fg_colour);
                         utf8_chars = 0;
                     }
                 } else if (utf8_chars == 3) {
                     if ((utf8_buf[2] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
+                        print_char(0xfffd, bg_colour, fg_colour);
                         utf8_chars = 0;
                     }
                 } else {
                     if ((utf8_buf[3] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
+                        print_char(0xfffd, bg_colour, fg_colour);
                         utf8_chars = 0;
                         continue;
                     }
 
                     char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
 
-                    print_char(c);
+                    print_char(c, bg_colour, fg_colour);
                     utf8_chars = 0;
                 }
 
@@ -403,11 +420,11 @@ static void early_print(string_view s) {
             utf8_chars = 1;
             continue;
         } else if (c & 0x80) {
-            print_char(0xfffd);
+            print_char(0xfffd, bg_colour, fg_colour);
             continue;
         }
 
-        print_char(c);
+        print_char(c, bg_colour, fg_colour);
     }
 }
 
@@ -1103,11 +1120,10 @@ void bsod(string_view msg, source_location sl) {
     } else {
         fill_framebuffer(0x000080);
 
-        // FIXME - set colour to white
         // FIXME - also print source_location info to framebuffer
 
         for (auto c : msg) {
-            print_char(c); // FIXME - UTF-8 etc.
+            print_char(c, 0x000080, 0xffffff); // FIXME - UTF-8 etc.
         }
 
         memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
