@@ -139,6 +139,10 @@ mov	eax, DWORD PTR [vbe_info]
 cmp	eax, 0x41534556
 jne	.vbe_get_info_fail
 
+mov	ax, WORD PTR [vbe_info+4]
+cmp	ax, 0x0300
+jne	.vbe_get_info_fail
+
 mov	ax, 1
 jmp	.vbe_get_info_end
 
