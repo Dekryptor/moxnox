@@ -642,7 +642,7 @@ bool init_fb_console() {
         dpi = 72;
 
     // FIXME - font size
-    error = FT_Set_Char_Size(face, 24 * 64, 0, dpi, 0);
+    error = FT_Set_Char_Size(face, 18 * 64, 0, dpi, 0);
     if (error) {
         printk("FT_Set_Char_Size failed (");
         print_hex(error);
