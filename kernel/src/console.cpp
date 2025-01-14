@@ -65,6 +65,9 @@ struct console_info {
 
 static console_info* console;
 
+static const uint32_t BSOD_BG_COLOUR = 0x000080;
+static const uint32_t BSOD_FG_COLOUR = 0xffffff;
+
 bool has_framebuffer;
 
 size_t strlen(const char* s) {
@@ -331,18 +334,7 @@ static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
     }
 }
 
-static void early_print(string_view s) {
-    if (framebuffer.empty()) {
-        text_console_print(s);
-        return;
-    }
-
-    if (!fb_console_started)
-        return;
-
-    uint32_t bg_colour = 0x000000;
-    uint32_t fg_colour = 0xffffff;
-
+static void fb_print(string_view s, uint32_t bg_colour, uint32_t fg_colour) {
     for (auto c : s) {
         if (utf8_chars != 0) {
             if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
@@ -426,6 +418,25 @@ static void early_print(string_view s) {
 
         print_char(c, bg_colour, fg_colour);
     }
+}
+
+static void fb_print(integral auto i, uint32_t bg_colour, uint32_t fg_colour) {
+    char s[21];
+
+    auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
+    fb_print(string_view(s, ptr - s), bg_colour, fg_colour);
+}
+
+static void early_print(string_view s) {
+    if (framebuffer.empty()) {
+        text_console_print(s);
+        return;
+    }
+
+    if (!fb_console_started)
+        return;
+
+    fb_print(s, 0x000000, 0xffffff);
 }
 
 void safe_print(string_view s) {
@@ -1118,13 +1129,16 @@ void bsod(string_view msg, source_location sl) {
         text_console_print(sl.function_name(), console_colour::blue, console_colour::white);
         text_console_print("\n", console_colour::blue, console_colour::white);
     } else {
-        fill_framebuffer(0x000080);
+        fill_framebuffer(BSOD_BG_COLOUR);
 
-        // FIXME - also print source_location info to framebuffer
-
-        for (auto c : msg) {
-            print_char(c, 0x000080, 0xffffff); // FIXME - UTF-8 etc.
-        }
+        fb_print(msg, BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        fb_print("\n", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        fb_print(sl.file_name(), BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        fb_print(":", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        fb_print(sl.line(), BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        fb_print(", ", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        fb_print(sl.function_name(), BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        fb_print("\n", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
 
         memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
     }
