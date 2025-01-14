@@ -126,6 +126,7 @@ void print_hex(uint64_t num, unsigned int padding = 0);
 bool init_fb_console();
 __attribute__((noreturn)) void bsod(std::string_view msg, std::source_location sl = std::source_location::current());
 __attribute__((noreturn)) void _assert(const char* msg, const char* file, unsigned int line);
+void copy_edid(loader_block* lb);
 extern bool has_framebuffer;
 
 static void printk(std::convertible_to<std::string_view> auto s) {

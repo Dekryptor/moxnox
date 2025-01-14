@@ -68,6 +68,10 @@ static console_info* console;
 static const uint32_t BSOD_BG_COLOUR = 0x000080;
 static const uint32_t BSOD_FG_COLOUR = 0xffffff;
 
+static const size_t EDID_SIZE = 128;
+static uint8_t edid[EDID_SIZE];
+static bool have_edid;
+
 bool has_framebuffer;
 
 size_t strlen(const char* s) {
@@ -609,6 +613,7 @@ void FT_Done_Memory(FT_Memory memory) {
 
 bool init_fb_console() {
     FT_Error error;
+    unsigned int dpi;
 
     error = FT_Init_FreeType(&ft);
     if (error) {
@@ -629,8 +634,15 @@ bool init_fb_console() {
         return false;
     }
 
+    if (have_edid) {
+        uint8_t screen_x_cm = edid[21];
+
+        dpi = (fb_width * 254) / ((uint16_t)screen_x_cm * 100);
+    } else
+        dpi = 72;
+
     // FIXME - font size
-    error = FT_Set_Char_Size(face, 24 * 64, 0, 72, 0); // FIXME - get DPI from EDID
+    error = FT_Set_Char_Size(face, 24 * 64, 0, dpi, 0);
     if (error) {
         printk("FT_Set_Char_Size failed (");
         print_hex(error);
@@ -1186,4 +1198,9 @@ void _assert(const char* msg, const char* file, unsigned int line) {
     sp = sp_strcpy(sp, msg);
 
     bsod(string_view(assertion_buffer, sp.data() - assertion_buffer));
+}
+
+void copy_edid(loader_block* lb) {
+    memcpy(edid, (void*)lb->edid, EDID_SIZE);
+    have_edid = true;
 }
