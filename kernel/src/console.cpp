@@ -717,6 +717,7 @@ static kernel_image* get_kernel_image_from_address(uint64_t addr) {
     return nullptr;
 }
 
+template<bool FB>
 static void print_rip(uint64_t rip) {
     char s[200];
     auto sp = span(s, sizeof(s));
@@ -751,7 +752,10 @@ static void print_rip(uint64_t rip) {
 
     sp = sp_strcpy(sp, "\n");
 
-    text_console_print(string_view(s, sp.data() - s), console_colour::blue, console_colour::white);
+    if constexpr (FB)
+        fb_print(string_view(s, sp.data() - s), BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+    else
+        text_console_print(string_view(s, sp.data() - s), console_colour::blue, console_colour::white);
 }
 
 static const RUNTIME_FUNCTION* find_runtime_function(const kernel_image& img,
@@ -1087,13 +1091,13 @@ static bool unwind_context(CONTEXT& context) {
     return true;
 }
 
-static void print_stacktrace(CONTEXT& context) {
+static void print_stacktrace(CONTEXT& context, const invocable<uint64_t> auto& func) {
     // not interested in top entry (bsod function)
     if (!unwind_context(context))
         return;
 
     do {
-        print_rip(context.Rip);
+        func(context.Rip);
 
         if (!unwind_context(context))
             return;
@@ -1159,9 +1163,12 @@ void bsod(string_view msg, source_location sl) {
         : "rax"
     );
 
-    if (framebuffer.empty()) { // FIXME - also work with framebuffer
+    if (framebuffer.empty()) {
         text_console_print("\n", console_colour::blue, console_colour::white);
-        print_stacktrace(context);
+        print_stacktrace(context, print_rip<false>);
+    } else {
+        fb_print("\n", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        print_stacktrace(context, print_rip<true>);
     }
 
     __asm("call halt_isr");
