@@ -17,6 +17,8 @@
 .equ VBE_MODE_INFO_HEIGHT, 20
 .equ VBE_MODE_INFO_BPP, 25
 .equ VBE_MODE_INFO_MEMORY_MODEL, 27
+.equ VBE_MODE_INFO_RED_MASK, 31
+.equ VBE_MODE_INFO_BLUE_MASK, 35
 
 .equ VBE_MODE_ATTRIBUTE_LINEAR_FRAME_BUFFER_MODE, 0x0080
 
@@ -276,7 +278,11 @@ je	.vbe_choose_graphics_mode_continue
 cmp	BYTE PTR [di+2+VBE_MODE_INFO_BPP], 32
 jne	.vbe_choose_graphics_mode_continue
 
-# FIXME - continue if not BGR
+# continue if not BGR
+cmp	DWORD PTR [di+2+VBE_MODE_INFO_RED_MASK], 0x08081008
+jne	.vbe_choose_graphics_mode_continue
+cmp	WORD PTR [di+2+VBE_MODE_INFO_BLUE_MASK], 0x0008
+jne	.vbe_choose_graphics_mode_continue
 
 # # break if width == vbe_preferred_video_width && height == vbe_preferred_video_height
 mov	si, WORD PTR [vbe_preferred_video_width]
