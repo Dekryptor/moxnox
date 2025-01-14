@@ -680,6 +680,8 @@ bool init_memory(const loader_block& lb) {
                          bytes_to_pages(bytes) << PAGE_SHIFT);
     }
 
+    // FIXME - probably should double-check that framebuffer memory is marked used
+
     map_physical_memory(total_pages);
 
     return true;
