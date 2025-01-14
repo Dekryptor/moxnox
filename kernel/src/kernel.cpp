@@ -13,6 +13,10 @@ extern uint64_t __CTOR_LIST__;
 static char cmdline_arr[255];
 string_view cmdline;
 
+static const size_t EDID_SIZE = 128;
+static uint8_t edid[EDID_SIZE];
+static bool have_edid;
+
 extern uint8_t __image_base__;
 
 list_entry kernel_images = { &kernel_images, &kernel_images };
@@ -250,6 +254,11 @@ void startup(loader_block* lb) {
         memcpy(cmdline_arr, (char*)lb->cmdline, len);
         cmdline_arr[len] = 0;
         cmdline = string_view(cmdline_arr, len);
+    }
+
+    if (lb->edid) {
+        memcpy(edid, (void*)lb->edid, EDID_SIZE);
+        have_edid = true;
     }
 
     has_framebuffer = !lb->text_mode;
