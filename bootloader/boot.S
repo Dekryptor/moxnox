@@ -234,8 +234,17 @@ jne	.vbe_choose_graphics_mode_continue
 
 # FIXME - continue if not BGR
 
-# FIXME - break if preferred width and height
+# # break if width == vbe_preferred_video_width && height == vbe_preferred_video_height
+mov	si, WORD PTR [vbe_preferred_video_width]
+cmp	WORD PTR [di+2+VBE_MODE_INFO_WIDTH], si
+jne	1f
+mov	si, WORD PTR [vbe_preferred_video_height]
+cmp	WORD PTR [di+2+VBE_MODE_INFO_HEIGHT], si
+jne	1f
+mov	WORD PTR [vbe_selected_mode], dx
+jmp	.vbe_choose_graphics_mode_after_loop
 
+1:
 # set vbe_best_mode if currently == 0xffff
 cmp	WORD PTR [vbe_best_mode], 0xffff
 jne	2f
@@ -452,18 +461,71 @@ mov	WORD PTR [vbe_preferred_text_cols], ax
 pop	bx
 ret
 
+parse_video_option: # void parse_video_option(char* cmd, uint16_t len)
+push	bx
+
+# bx is x, eax is i
+
+and	ecx, 0xffff
+mov	eax, 0
+
+.parse_video_option_loop:
+cmp	ax, dx
+jge	.parse_video_option_end
+
+cmp	BYTE PTR es:[ecx+eax], 'x'
+jne	.parse_video_option_continue
+mov	bx, ax
+jmp	1f
+
+.parse_video_option_continue:
+inc	ax
+jmp	.parse_video_option_loop
+
+1:
+push	cx
+push	dx
+mov	dx, bx
+call	parse_integer
+mov	WORD PTR [vbe_preferred_video_width], ax
+pop	dx
+pop	cx
+
+add	cx, bx
+inc	cx
+sub	dx, bx
+dec	dx
+call	parse_integer
+mov	WORD PTR [vbe_preferred_video_height], ax
+
+.parse_video_option_end:
+pop	bx
+ret
+
 parse_option: # void parse_option(char* cmd, uint16_t len)
 and	ecx, 0xffff
 
 cmp	dx, 5
-jl	.parse_option_end
+jl	.parse_option_video
 cmp	DWORD PTR es:[ecx], 0x74786574 # 'text'
-jne	.parse_option_end
+jne	.parse_option_video
 cmp	BYTE PTR es:[ecx+4], '='
-jne	.parse_option_end
+jne	.parse_option_video
 add	ecx, 5
 sub	dx, 5
 call	parse_text_option
+jmp	.parse_option_end
+
+.parse_option_video:
+cmp	dx, 6
+jl	.parse_option_end
+cmp	DWORD PTR es:[ecx], 0x65646976 # 'vide'
+jne	.parse_option_end
+cmp	WORD PTR es:[ecx+4], 0x3d6f # 'o='
+jne	.parse_option_end
+add	ecx, 6
+sub	dx, 6
+call	parse_video_option
 jmp	.parse_option_end
 
 .parse_option_end:
@@ -556,6 +618,12 @@ vbe_preferred_text_rows:
 .short	0
 
 vbe_preferred_text_cols:
+.short	0
+
+vbe_preferred_video_width:
+.short	0
+
+vbe_preferred_video_height:
 .short	0
 
 vbe_best_mode:

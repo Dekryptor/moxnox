@@ -3,7 +3,7 @@
 qemu-system-x86_64 -M q35 -enable-kvm -cpu host \
 -smp cores=4,threads=1 \
 -kernel build/bootloader/boot \
--append "root=/dev/sda keywait" \
+-append "root=/dev/sda video=1280x720 keywait" \
 -device ich9-ahci,id=ahci -drive id=disk,file=btrfs,if=none,format=raw \
 -device ide-hd,drive=disk,bus=ahci.0 \
 -serial stdio \
