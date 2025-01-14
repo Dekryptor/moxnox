@@ -226,6 +226,29 @@ vbe_choose_graphics_mode:
 push	di
 push	esi
 
+# use preferred resolution in EDID if not overridden
+cmp	WORD PTR [vbe_preferred_video_width], 0
+jne	0f
+cmp	WORD PTR [vbe_preferred_video_height], 0
+jne	0f
+cmp	BYTE PTR [vbe_edid_valid], 0
+je	0f
+
+movzx	dx, BYTE PTR [vbe_edid+0x3a]
+and	dx, 0xf0
+shl	dx, 4
+movzx	ax, BYTE PTR [vbe_edid+0x38]
+or	ax, dx
+mov	WORD PTR [vbe_preferred_video_width], ax
+
+movzx	dx, BYTE PTR [vbe_edid+0x3d]
+and	dx, 0xf0
+shl	dx, 4
+movzx	ax, BYTE PTR [vbe_edid+0x3b]
+or	ax, dx
+mov	WORD PTR [vbe_preferred_video_height], ax
+
+0:
 xor	dx, dx
 lea	di, [vbe_modes]
 
