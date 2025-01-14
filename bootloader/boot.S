@@ -147,6 +147,27 @@ xor	ax, ax
 pop	di
 ret
 
+.global vbe_get_edid
+vbe_get_edid:
+push	bx
+push	di
+
+mov	ax, 0x4f15
+mov	bl, 0x01
+xor	cx, cx
+xor	dx, dx
+lea	di, vbe_edid
+int	0x10
+
+cmp	ax, 0x4f
+jne	0f
+mov	BYTE PTR [vbe_edid_valid], 1
+
+0:
+pop	di
+pop	bx
+ret
+
 .global vbe_get_modes
 vbe_get_modes:
 push	di
@@ -601,6 +622,14 @@ cmdline:
 .global vbe_info
 vbe_info:
 .space	512
+
+.global vbe_edid
+vbe_edid:
+.space	128
+
+.global vbe_edid_valid
+vbe_edid_valid:
+.byte	0
 
 .global vbe_modes
 vbe_modes:

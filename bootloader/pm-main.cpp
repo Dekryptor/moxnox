@@ -55,6 +55,8 @@ extern const uint64_t payload_size;
 extern char* ptr_cmdline;
 extern vbe_mode_info* ptr_vbe_modes;
 extern uint32_t pm_vbe_selected_mode;
+extern void* ptr_vbe_edid;
+extern bool* ptr_vbe_edid_valid;
 
 // pm.s
 extern "C" bool have_long_mode();
@@ -1047,6 +1049,9 @@ static void set_graphics_info() {
         lb.framebuffer.width = mode.width;
         lb.framebuffer.height = mode.height;
         lb.framebuffer.pixels_per_scan_line = mode.pitch / sizeof(uint32_t);
+
+        if (*ptr_vbe_edid_valid)
+            lb.edid = (uintptr_t)ptr_vbe_edid;
     }
 }
 

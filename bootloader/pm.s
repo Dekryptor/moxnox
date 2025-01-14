@@ -68,6 +68,16 @@ enter_protected_mode:
     or eax, DWORD PTR [ptr_vbe_modes]
     mov DWORD PTR [ptr_vbe_modes], eax
 
+    mov eax, ebx
+    shl eax, 4
+    or eax, DWORD PTR [ptr_vbe_edid_valid]
+    mov DWORD PTR [ptr_vbe_edid_valid], eax
+
+    mov eax, ebx
+    shl eax, 4
+    or eax, DWORD PTR [ptr_vbe_edid]
+    mov DWORD PTR [ptr_vbe_edid], eax
+
     mov ax, 0x10
     mov es, ax
     mov ss, ax
@@ -136,3 +146,11 @@ pm_vbe_selected_mode:
 .global ptr_vbe_modes
 ptr_vbe_modes:
 .long vbe_modes
+
+.global ptr_vbe_edid_valid
+ptr_vbe_edid_valid:
+.long vbe_edid_valid
+
+.global ptr_vbe_edid
+ptr_vbe_edid:
+.long vbe_edid
