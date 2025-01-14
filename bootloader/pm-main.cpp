@@ -1057,6 +1057,16 @@ static void set_graphics_info() {
 
 extern "C"
 void protected_mode_main() {
+    if (pm_vbe_selected_mode == 0xffff) {
+        lb.text_mode = true;
+        lb.text_console.cols = 80;
+        lb.text_console.rows = 25;
+        lb.text_console.phys_address = 0xb8000;
+        init_console();
+        print("Unable to select VBE mode\n");
+        goto halt;
+    }
+
     set_graphics_info();
 
     if (lb.text_mode)
