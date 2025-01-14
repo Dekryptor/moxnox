@@ -853,7 +853,7 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
             goto end;
         }
 
-        lb.framebuffer.pa = (uintptr_t)gop->Mode->FrameBufferBase;
+        lb.framebuffer.phys_address = (uintptr_t)gop->Mode->FrameBufferBase;
         lb.framebuffer.width = gop->Mode->Info->HorizontalResolution;
         lb.framebuffer.height = gop->Mode->Info->VerticalResolution;
         lb.framebuffer.pixels_per_scan_line = gop->Mode->Info->PixelsPerScanLine;
@@ -954,7 +954,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE* SystemTable
         goto end;
     }
 
-    status = add_map_entry((uintptr_t)lb.framebuffer.pa, bytes_to_pages(lb.framebuffer.pixels_per_scan_line * lb.framebuffer.height * 4) << EFI_PAGE_SHIFT, mem_type::framebuffer);
+    status = add_map_entry((uintptr_t)lb.framebuffer.phys_address, bytes_to_pages(lb.framebuffer.pixels_per_scan_line * lb.framebuffer.height * 4) << EFI_PAGE_SHIFT, mem_type::framebuffer);
     if (EFI_ERROR(status)) {
         print_error(u"add_map_entry", status);
         goto end;

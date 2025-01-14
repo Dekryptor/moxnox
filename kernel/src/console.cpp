@@ -488,7 +488,7 @@ bool init_console(const loader_block_framebuffer& fb,
         framebuffer = span((uint32_t*)va, fb.pixels_per_scan_line * fb.height);
 
         for (unsigned int i = 0; i < pages; i++) {
-            if (!map_page((uintptr_t)fb.pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
+            if (!map_page((uintptr_t)fb.phys_address + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
                 printk("map_page failed\n");
                 return false;
             }

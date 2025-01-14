@@ -1043,7 +1043,7 @@ static void set_graphics_info() {
         lb.text_console.phys_address = mode.segment_a << 4;
     } else {
         lb.text_mode = false;
-        lb.framebuffer.pa = mode.framebuffer;
+        lb.framebuffer.phys_address = mode.framebuffer;
         lb.framebuffer.width = mode.width;
         lb.framebuffer.height = mode.height;
         lb.framebuffer.pixels_per_scan_line = mode.pitch / sizeof(uint32_t);

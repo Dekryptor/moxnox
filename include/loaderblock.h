@@ -22,7 +22,7 @@ struct map_entry {
 } __attribute__((packed));
 
 struct loader_block_framebuffer {
-    uint64_t pa;
+    uint64_t phys_address;
     uint32_t width;
     uint32_t height;
     uint32_t pixels_per_scan_line;
