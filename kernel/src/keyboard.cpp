@@ -157,6 +157,19 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
+static uint8_t inb(uint16_t port) {
+    uint8_t ret;
+
+    __asm __volatile(
+        "\tin %b0, %w1\n"
+        : "=a" (ret)
+        : "Nd" (port)
+        :
+    );
+
+    return ret;
+}
+
 void init_keyboard() {
     auto pa = allocate_page();
     if (!pa) {
@@ -191,12 +204,20 @@ void init_keyboard() {
         return;
     }
 
+    __asm __volatile("cli");
+
+    while (inb(0x64) & 1) {
+        inb(0x60);
+    }
+
     add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 0);
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     // IRQ 1 = keyboard
     add_irq_handler(1, keyboard_interrupt, local_apic_id);
+
+    __asm __volatile("sti");
 }
 
 extern "C"
