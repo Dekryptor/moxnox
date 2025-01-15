@@ -178,14 +178,7 @@ static void blit(unsigned int x, unsigned int y, unsigned int w, unsigned int h)
 
 static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y,
                          uint32_t bg_colour, uint32_t fg_colour) {
-    FT_Error error;
-
-    // FIXME - colour
-
-    if (fb_y >= fb_height)
-        return;
-
-    error = FT_Load_Char(face, cp, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
+    auto error = FT_Load_Char(face, cp, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
     if (error)
         return; // FIXME - if not found, print Unicode replacement character?
 
@@ -203,6 +196,9 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y,
         buf += bitmap.width * (face->glyph->bitmap_top - fb_y);
         y = 0;
     }
+
+    if (y >= (int)fb_height)
+        return;
 
     if (bottom > (int)fb_height)
         bottom = fb_height;
