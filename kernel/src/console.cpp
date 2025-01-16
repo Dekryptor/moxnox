@@ -135,8 +135,10 @@ static void text_console_print(string_view s, enum console_colour bg = console_c
             if (cursor_y == console_rows)
                 text_console_overflow();
         } else if (c == '\b') {
-            if (cursor_x > 0) // FIXME
+            if (cursor_x > 0) { // FIXME
                 cursor_x--;
+                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ', bg, fg);
+            }
         } else {
             text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c, bg, fg);
 
