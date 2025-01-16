@@ -134,7 +134,6 @@ bool section::load_image() {
     }
 
     auto& f = ino->get();
-    uint64_t temp_va;
     uint32_t size_of_headers, header_pages, section_alignment;
 
     scratch s;
@@ -295,27 +294,6 @@ bool section::load_image() {
 
     pages[0].protect = mapping_type::read_only;
 
-    temp_va = allocate_va(num_pages);
-    if (!temp_va) {
-        printk("allocate_va failed\n");
-        free_pa();
-        return false;
-    }
-
-    for (unsigned int i = 0; i < num_pages; i++) {
-        if (!map_page(pages[i].pa, temp_va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-            printk("map_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                unmap_page(temp_va + (j << PAGE_SHIFT));
-            }
-
-            free_va(temp_va, num_pages);
-            free_pa();
-            return false;
-        }
-    }
-
     // FIXME - we should be creating our own page cache for this
 
     for (const auto& sect : sections) {
@@ -326,7 +304,6 @@ bool section::load_image() {
 
         if (sect.VirtualAddress + section_size > size) {
             printk("section overflow\n");
-            free_va(temp_va, num_pages);
             free_pa();
             return false;
         }
@@ -341,7 +318,6 @@ bool section::load_image() {
 
             if (sect.VirtualAddress % section_alignment) {
                 printk("section not aligned to SectionAlignment\n");
-                free_va(temp_va, num_pages);
                 free_pa();
                 return false;
             }
@@ -351,7 +327,6 @@ bool section::load_image() {
 
                 if (pinned_pages == 0) {
                     printk("inode::read_into_cache_and_pin did not pin any pages\n");
-                    free_va(temp_va, num_pages);
                     free_pa();
                     return false;
                 }
@@ -360,7 +335,7 @@ bool section::load_image() {
                     span<uint8_t> sp;
 
                     if (page_num != 0 && offset != 0) {
-                        sp = span((uint8_t*)temp_va + sect.VirtualAddress + ((page_num - 1) << PAGE_SHIFT) + (PAGE_SIZE - offset),
+                        sp = span((uint8_t*)phys_address(pages[(sect.VirtualAddress >> PAGE_SHIFT) + page_num - 1].pa) + (PAGE_SIZE - offset),
                                   min(offset, bytes_left));
 
                         f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, 0);
@@ -370,7 +345,7 @@ bool section::load_image() {
                             break;
                     }
 
-                    sp = span((uint8_t*)temp_va + sect.VirtualAddress + (page_num << PAGE_SHIFT),
+                    sp = span((uint8_t*)phys_address(pages[(sect.VirtualAddress >> PAGE_SHIFT) + page_num].pa),
                               min(PAGE_SIZE - offset, bytes_left));
 
                     f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, offset);
@@ -397,8 +372,6 @@ bool section::load_image() {
             pages[i].protect = prot;
         }
     }
-
-    free_va(temp_va, num_pages);
 
     return true;
 }
