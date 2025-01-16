@@ -135,6 +135,7 @@ bool section::load_image() {
 
     auto& f = ino->get();
     uint64_t temp_va;
+    uint32_t size_of_headers;
 
     {
         scratch s;
@@ -188,8 +189,6 @@ bool section::load_image() {
         // FIXME - check checksum
 
         // FIXME - check Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE
-
-        uint32_t size_of_headers;
 
         if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
             if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64)) {
@@ -257,30 +256,43 @@ bool section::load_image() {
             }
         }
 
-        temp_va = allocate_va(num_pages);
-        if (!temp_va) {
-            printk("allocate_va failed\n");
+        auto header_pages = bytes_to_pages(size_of_headers);
+
+        for (unsigned int i = 0; i < header_pages; i++) {
+            size_t to_copy;
+
+            if (i == header_pages - 1 && size_of_headers % PAGE_SIZE)
+                to_copy = size_of_headers % PAGE_SIZE;
+            else
+                to_copy = PAGE_SIZE;
+
+            memcpy(phys_address(pages[i].pa), buf + (i << PAGE_SHIFT),
+                   to_copy);
+        }
+    }
+
+    temp_va = allocate_va(num_pages);
+    if (!temp_va) {
+        printk("allocate_va failed\n");
+        free_pa();
+        return false;
+    }
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (!map_page(pages[i].pa, temp_va + (i << PAGE_SHIFT), mapping_type::read_write)) {
+            printk("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(temp_va + (j << PAGE_SHIFT));
+            }
+
+            free_va(temp_va, num_pages);
             free_pa();
             return false;
         }
-
-        for (unsigned int i = 0; i < num_pages; i++) {
-            if (!map_page(pages[i].pa, temp_va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-                printk("map_page failed\n");
-
-                for (unsigned int j = 0; j < i; j++) {
-                    unmap_page(temp_va + (j << PAGE_SHIFT));
-                }
-
-                free_va(temp_va, num_pages);
-                free_pa();
-                return false;
-            }
-        }
-
-        memcpy((void*)temp_va, buf, size_of_headers);
-        memset((void*)(temp_va + size_of_headers), 0, (num_pages << PAGE_SHIFT) - size_of_headers);
     }
+
+    memset((void*)(temp_va + size_of_headers), 0, (num_pages << PAGE_SHIFT) - size_of_headers);
 
     auto& dos_header = *(IMAGE_DOS_HEADER*)temp_va;
     auto& nt_header = *(IMAGE_NT_HEADERS*)(temp_va + dos_header.e_lfanew);
