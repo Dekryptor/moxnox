@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "objects.h"
 #include "page_cache.h"
 
 using namespace std;

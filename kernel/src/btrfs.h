@@ -380,10 +380,10 @@ public:
     NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) override;
     NTSTATUS query_directory(std::span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
-    size_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages);
-    void unpin(uint64_t page_num, uint64_t num_pages);
-    page_cache_entry* find_page_cache_entry(uint64_t page_num);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) override;
+    void unpin(uint64_t page_num, uint64_t num_pages) override;
+    page_cache_entry* find_page_cache_entry(uint64_t page_num) override;
 
     btrfs_filesystem& fs;
     list_entry le;
@@ -395,7 +395,6 @@ public:
     list_entry children = { &children, &children };
     list_entry extents = { &extents, &extents };
     btrfs_inode_type inode_type;
-    page_cache<btrfs_inode> cache{*this};
 
 private:
     size_t read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages);
