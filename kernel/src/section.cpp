@@ -137,148 +137,155 @@ bool section::load_image() {
     uint64_t temp_va;
     uint32_t size_of_headers, header_pages;
 
-    {
-        scratch s;
+    scratch s;
 
-        auto buf = (uint8_t*)s.va;
+    auto buf = (uint8_t*)s.va;
 
-        uint64_t read_bytes;
-        auto status = f.read(span(buf, PAGE_SIZE), 0, read_bytes);
-        if (!success(status)) {
-            printk("inode read returned ");
-            print_hex((uint64_t)status, 8);
-            printk("\n");
+    uint64_t read_bytes;
+    auto status = f.read(span(buf, PAGE_SIZE), 0, read_bytes);
+    if (!success(status)) {
+        printk("inode read returned ");
+        print_hex((uint64_t)status, 8);
+        printk("\n");
+        return false;
+    }
+
+    if (read_bytes < PAGE_SIZE) {
+        printk("read less than 1 page\n");
+        return false;
+    }
+
+    auto& dos_header = *(IMAGE_DOS_HEADER*)buf;
+
+    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
+        printk("invalid image header\n");
+        return false;
+    }
+
+    if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS)) {
+        printk("invalid e_lfanew value\n");
+        return false;
+    }
+
+    auto& nt_header = *(IMAGE_NT_HEADERS*)(buf + dos_header.e_lfanew);
+
+    if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
+        printk("incorrect PE signature\n");
+        return false;
+    }
+
+    if (nt_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
+        printk("unsupported architecture\n");
+        return false;
+    }
+
+    if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
+        nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        printk("unrecognized optional header signature\n");
+        return false;
+    }
+
+    // FIXME - check checksum
+
+    // FIXME - check Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64)) {
+            printk("SizeOfOptionalHeader was smaller than expected\n");
             return false;
         }
 
-        if (read_bytes < PAGE_SIZE) {
-            printk("read less than 1 page\n");
+        size = nt_header.OptionalHeader64.SizeOfImage;
+        size_of_headers = nt_header.OptionalHeader64.SizeOfHeaders;
+        preferred_base = nt_header.OptionalHeader64.ImageBase;
+        stack_size = nt_header.OptionalHeader64.SizeOfStackReserve;
+        entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
+    } else {
+        if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
+            printk("SizeOfOptionalHeader was smaller than expected\n");
             return false;
         }
 
-        auto& dos_header = *(IMAGE_DOS_HEADER*)buf;
+        size = nt_header.OptionalHeader32.SizeOfImage;
+        size_of_headers = nt_header.OptionalHeader32.SizeOfHeaders;
+        preferred_base = nt_header.OptionalHeader32.ImageBase;
+        stack_size = nt_header.OptionalHeader32.SizeOfStackReserve;
+        entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
+    }
 
-        if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
-            printk("invalid image header\n");
-            return false;
-        }
+    if (size == 0) {
+        printk("size of image was 0\n");
+        return false;
+    }
 
-        if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS)) {
-            printk("invalid e_lfanew value\n");
-            return false;
-        }
+    if (size_of_headers > size) {
+        printk("SizeOfHeaders was more than SizeOfImage\n");
+        return false;
+    }
 
-        auto& nt_header = *(IMAGE_NT_HEADERS*)(buf + dos_header.e_lfanew);
+    if (size_of_headers > PAGE_SIZE) {
+        printk("SizeOfHeaders was more than 1 page\n");
+        return false;
+    }
 
-        if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
-            printk("incorrect PE signature\n");
-            return false;
-        }
+    num_pages = bytes_to_pages(size);
+    size = num_pages << PAGE_SHIFT;
 
-        if (nt_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
-            printk("unsupported architecture\n");
-            return false;
-        }
+    pages = (page_info*)malloc(sizeof(page_info) * num_pages);
+    if (!pages) {
+        printk("malloc failed\n");
+        return false;
+    }
 
-        if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
-            nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-            printk("unrecognized optional header signature\n");
-            return false;
-        }
+    // FIXME - allocate zeroed pages?
 
-        // FIXME - check checksum
+    for (unsigned int i = 0; i < num_pages; i++) {
+        pages[i].pa = allocate_page();
+        if (!pages[i].pa) {
+            printk("allocate_page failed\n");
 
-        // FIXME - check Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE
-
-        if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-            if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64)) {
-                printk("SizeOfOptionalHeader was smaller than expected\n");
-                return false;
+            for (unsigned int j = 0; j < i; j++) {
+                free_page(pages[j].pa);
             }
 
-            size = nt_header.OptionalHeader64.SizeOfImage;
-            size_of_headers = nt_header.OptionalHeader64.SizeOfHeaders;
-            preferred_base = nt_header.OptionalHeader64.ImageBase;
-            stack_size = nt_header.OptionalHeader64.SizeOfStackReserve;
-            entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
-        } else {
-            if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
-                printk("SizeOfOptionalHeader was smaller than expected\n");
-                return false;
-            }
+            free(pages);
+            pages = nullptr;
 
-            size = nt_header.OptionalHeader32.SizeOfImage;
-            size_of_headers = nt_header.OptionalHeader32.SizeOfHeaders;
-            preferred_base = nt_header.OptionalHeader32.ImageBase;
-            stack_size = nt_header.OptionalHeader32.SizeOfStackReserve;
-            entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
-        }
-
-        if (size == 0) {
-            printk("size of image was 0\n");
             return false;
         }
+    }
 
-        if (size_of_headers > size) {
-            printk("SizeOfHeaders was more than SizeOfImage\n");
-            return false;
-        }
+    header_pages = bytes_to_pages(size_of_headers);
 
-        if (size_of_headers > PAGE_SIZE) {
-            printk("SizeOfHeaders was more than 1 page\n");
-            return false;
-        }
+    for (unsigned int i = 0; i < header_pages; i++) {
+        size_t to_copy;
 
-        num_pages = bytes_to_pages(size);
-        size = num_pages << PAGE_SHIFT;
+        if (i == header_pages - 1 && size_of_headers % PAGE_SIZE)
+            to_copy = size_of_headers % PAGE_SIZE;
+        else
+            to_copy = PAGE_SIZE;
 
-        pages = (page_info*)malloc(sizeof(page_info) * num_pages);
-        if (!pages) {
-            printk("malloc failed\n");
-            return false;
-        }
+        memcpy(phys_address(pages[i].pa), buf + (i << PAGE_SHIFT),
+                to_copy);
 
-        // FIXME - allocate zeroed pages?
-
-        for (unsigned int i = 0; i < num_pages; i++) {
-            pages[i].pa = allocate_page();
-            if (!pages[i].pa) {
-                printk("allocate_page failed\n");
-
-                for (unsigned int j = 0; j < i; j++) {
-                    free_page(pages[j].pa);
-                }
-
-                free(pages);
-                pages = nullptr;
-
-                return false;
-            }
-        }
-
-        header_pages = bytes_to_pages(size_of_headers);
-
-        for (unsigned int i = 0; i < header_pages; i++) {
-            size_t to_copy;
-
-            if (i == header_pages - 1 && size_of_headers % PAGE_SIZE)
-                to_copy = size_of_headers % PAGE_SIZE;
-            else
-                to_copy = PAGE_SIZE;
-
-            memcpy(phys_address(pages[i].pa), buf + (i << PAGE_SHIFT),
-                   to_copy);
-
-            if (to_copy < PAGE_SIZE) {
-                memset((uint8_t*)phys_address(pages[i].pa) + to_copy, 0,
-                       PAGE_SIZE - to_copy);
-            }
+        if (to_copy < PAGE_SIZE) {
+            memset((uint8_t*)phys_address(pages[i].pa) + to_copy, 0,
+                    PAGE_SIZE - to_copy);
         }
     }
 
     for (unsigned int i = header_pages; i < num_pages; i++) {
         memset(phys_address(pages[i].pa), 0, PAGE_SIZE);
     }
+
+    span<IMAGE_SECTION_HEADER> sections;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+    else
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+
+    pages[0].protect = mapping_type::read_only;
 
     temp_va = allocate_va(num_pages);
     if (!temp_va) {
@@ -301,16 +308,7 @@ bool section::load_image() {
         }
     }
 
-    auto& dos_header = *(IMAGE_DOS_HEADER*)temp_va;
-    auto& nt_header = *(IMAGE_NT_HEADERS*)(temp_va + dos_header.e_lfanew);
-    span<IMAGE_SECTION_HEADER> sections;
-
-    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
-        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
-    else
-        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
-
-    pages[0].protect = mapping_type::read_only;
+    // FIXME - we should be creating our own page cache for this
 
     for (const auto& sect : sections) {
         auto section_size = max(sect.VirtualSize, sect.SizeOfRawData);
@@ -326,24 +324,37 @@ bool section::load_image() {
         }
 
         if (sect.PointerToRawData != 0) {
-            uint64_t read_bytes;
-            auto status = f.read(span((uint8_t*)(temp_va + sect.VirtualAddress), section_size),
-                                 sect.PointerToRawData, read_bytes);
-            if (!success(status)) {
-                printk("inode read returned ");
-                print_hex((uint64_t)status, 8);
-                printk("\n");
-                free_va(temp_va, num_pages);
-                free_pa();
-                return false;
-            }
+            auto start_page = sect.PointerToRawData >> PAGE_SHIFT;
+            auto end_page = (sect.PointerToRawData + section_size - 1) >> PAGE_SHIFT;
+            auto num_pages = end_page - start_page + 1;
+            auto sp = span((uint8_t*)(temp_va + sect.VirtualAddress), section_size);
+            uint64_t offset = sect.PointerToRawData & (PAGE_SIZE - 1);
 
-            if (read_bytes < section_size) {
-                printk("short read\n");
-                free_va(temp_va, num_pages);
-                free_pa();
-                return false;
-            }
+            do {
+                auto pinned_pages = (uint32_t)f.read_into_cache_and_pin(start_page, num_pages);
+
+                if (pinned_pages == 0) {
+                    printk("inode::read_into_cache_and_pin did not pin any pages\n");
+                    free_va(temp_va, num_pages);
+                    free_pa();
+                    return false;
+                }
+
+                f.cache.copy_into_buffer_and_unpin(start_page, pinned_pages,
+                                                   sp, offset);
+                num_pages -= pinned_pages;
+
+                if (num_pages == 0)
+                    break;
+
+                start_page += pinned_pages;
+
+                if (offset != 0) {
+                    sp = sp.subspan((PAGE_SIZE - offset) + ((pinned_pages - 1) << PAGE_SHIFT));
+                    offset = 0;
+                } else
+                    sp = sp.subspan(pinned_pages << PAGE_SHIFT);
+            } while (true);
         }
 
         auto page_start = bytes_to_pages(sect.VirtualAddress);
