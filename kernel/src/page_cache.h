@@ -20,6 +20,8 @@ class page_cache_base {
 public:
     bool pin(uint64_t first_page, uint64_t num_pages,
              page_cache_entry** first_unread);
+    void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
+                          std::span<uint8_t> data, uint64_t offset);
     void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
                                     std::span<uint8_t> data, uint64_t offset);
     void clean_pages(page_cache_entry* range_start, uint64_t range_length);

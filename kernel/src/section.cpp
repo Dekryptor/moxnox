@@ -135,7 +135,7 @@ bool section::load_image() {
 
     auto& f = ino->get();
     uint64_t temp_va;
-    uint32_t size_of_headers, header_pages;
+    uint32_t size_of_headers, header_pages, section_alignment;
 
     scratch s;
 
@@ -200,6 +200,7 @@ bool section::load_image() {
         preferred_base = nt_header.OptionalHeader64.ImageBase;
         stack_size = nt_header.OptionalHeader64.SizeOfStackReserve;
         entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
+        section_alignment = nt_header.OptionalHeader64.SectionAlignment;
     } else {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
             printk("SizeOfOptionalHeader was smaller than expected\n");
@@ -211,6 +212,7 @@ bool section::load_image() {
         preferred_base = nt_header.OptionalHeader32.ImageBase;
         stack_size = nt_header.OptionalHeader32.SizeOfStackReserve;
         entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
+        section_alignment = nt_header.OptionalHeader32.SectionAlignment;
     }
 
     if (size == 0) {
@@ -225,6 +227,12 @@ bool section::load_image() {
 
     if (size_of_headers > PAGE_SIZE) {
         printk("SizeOfHeaders was more than 1 page\n");
+        return false;
+    }
+
+    // FIXME - does this happen in the real world?
+    if (section_alignment % PAGE_SIZE) {
+        printk("SectionAlignment was not a multiple of PAGE_SIZE\n");
         return false;
     }
 
@@ -324,14 +332,23 @@ bool section::load_image() {
         }
 
         if (sect.PointerToRawData != 0) {
-            auto start_page = sect.PointerToRawData >> PAGE_SHIFT;
-            auto end_page = (sect.PointerToRawData + section_size - 1) >> PAGE_SHIFT;
-            auto num_pages = end_page - start_page + 1;
+            auto file_start_page = sect.PointerToRawData >> PAGE_SHIFT;
+            auto file_end_page = (sect.PointerToRawData + section_size - 1) >> PAGE_SHIFT;
+            auto file_pages_left = file_end_page - file_start_page + 1;
+            uint64_t bytes_left = section_size;
             auto sp = span((uint8_t*)(temp_va + sect.VirtualAddress), section_size);
+            unsigned int page_num = 0;
             uint64_t offset = sect.PointerToRawData & (PAGE_SIZE - 1);
 
+            if (sect.VirtualAddress % section_alignment) {
+                printk("section not aligned to SectionAlignment\n");
+                free_va(temp_va, num_pages);
+                free_pa();
+                return false;
+            }
+
             do {
-                auto pinned_pages = (uint32_t)f.read_into_cache_and_pin(start_page, num_pages);
+                auto pinned_pages = (uint32_t)f.read_into_cache_and_pin(file_start_page + page_num, file_pages_left);
 
                 if (pinned_pages == 0) {
                     printk("inode::read_into_cache_and_pin did not pin any pages\n");
@@ -341,22 +358,44 @@ bool section::load_image() {
                 }
 
                 for (unsigned int i = 0; i < pinned_pages; i++) {
-                    f.cache.copy_into_buffer_and_unpin(start_page + i, 1,
-                                                       sp, offset);
+                    span<uint8_t> sp2;
 
-                    if (offset != 0) {
-                        sp = sp.subspan(PAGE_SIZE - offset);
-                        offset = 0;
-                    } else
-                        sp = sp.subspan(PAGE_SIZE);
+                    if (page_num == 0) {
+                        sp2 = span((uint8_t*)(temp_va + sect.VirtualAddress),
+                                    min(PAGE_SIZE - offset, bytes_left));
+
+                        f.cache.copy_into_buffer(file_start_page, 1, sp2, offset);
+                        bytes_left -= sp2.size();
+                    } else if (offset == 0) {
+                        sp2 = span((uint8_t*)temp_va + sect.VirtualAddress + (page_num << PAGE_SHIFT),
+                                   min((uint64_t)PAGE_SIZE, bytes_left));
+
+                        f.cache.copy_into_buffer(file_start_page + page_num, 1, sp2, 0);
+                        bytes_left -= sp2.size();
+                    } else {
+                        sp2 = span((uint8_t*)temp_va + sect.VirtualAddress + ((page_num - 1) << PAGE_SHIFT) + (PAGE_SIZE - offset),
+                                   min(offset, bytes_left));
+
+                        f.cache.copy_into_buffer(file_start_page + page_num, 1, sp2, 0);
+                        bytes_left -= sp2.size();
+
+                        if (bytes_left > 0) {
+                            sp2 = span((uint8_t*)temp_va + sect.VirtualAddress + (page_num << PAGE_SHIFT),
+                                       min(PAGE_SIZE - offset, bytes_left));
+                            f.cache.copy_into_buffer(file_start_page + page_num, 1, sp2, offset);
+                            bytes_left -= sp2.size();
+                        }
+                    }
+
+                    page_num++;
                 }
 
-                num_pages -= pinned_pages;
+                f.unpin(file_start_page, pinned_pages);
 
-                if (num_pages == 0)
+                file_pages_left -= pinned_pages;
+
+                if (file_pages_left == 0)
                     break;
-
-                start_page += pinned_pages;
             } while (true);
         }
 
