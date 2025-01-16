@@ -45,7 +45,7 @@ static span<uint32_t> framebuffer, shadow_framebuffer;
 static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static FT_Face face = nullptr;
-static unsigned int font_width, font_height;
+static unsigned int font_width, font_height, font_descender;
 static unsigned int fb_console_rows, fb_console_cols;
 static bool fb_console_started = false;
 static uint8_t utf8_buf[5];
@@ -316,7 +316,7 @@ static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
 
         rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, bg_colour);
     } else {
-        draw_ft_char(c, cursor_x * font_width, (cursor_y + 1) * font_height,
+        draw_ft_char(c, cursor_x * font_width, ((cursor_y + 1) * font_height) - font_descender,
                      bg_colour, fg_colour);
 
         if (console)
@@ -660,6 +660,7 @@ bool init_fb_console() {
 
     font_width = face->glyph->bitmap.width;
     font_height = face->size->metrics.height / 64;
+    font_descender = -face->size->metrics.descender / 64;
 
     fb_console_cols = fb_width / font_width;
     fb_console_rows = fb_height / font_height;
