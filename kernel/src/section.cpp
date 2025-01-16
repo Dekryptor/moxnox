@@ -336,7 +336,6 @@ bool section::load_image() {
             auto file_end_page = (sect.PointerToRawData + section_size - 1) >> PAGE_SHIFT;
             auto file_pages_left = file_end_page - file_start_page + 1;
             uint64_t bytes_left = section_size;
-            auto sp = span((uint8_t*)(temp_va + sect.VirtualAddress), section_size);
             unsigned int page_num = 0;
             uint64_t offset = sect.PointerToRawData & (PAGE_SIZE - 1);
 
@@ -358,34 +357,24 @@ bool section::load_image() {
                 }
 
                 for (unsigned int i = 0; i < pinned_pages; i++) {
-                    span<uint8_t> sp2;
+                    span<uint8_t> sp;
 
-                    if (page_num == 0) {
-                        sp2 = span((uint8_t*)(temp_va + sect.VirtualAddress),
-                                    min(PAGE_SIZE - offset, bytes_left));
+                    if (page_num != 0 && offset != 0) {
+                        sp = span((uint8_t*)temp_va + sect.VirtualAddress + ((page_num - 1) << PAGE_SHIFT) + (PAGE_SIZE - offset),
+                                  min(offset, bytes_left));
 
-                        f.cache.copy_into_buffer(file_start_page, 1, sp2, offset);
-                        bytes_left -= sp2.size();
-                    } else if (offset == 0) {
-                        sp2 = span((uint8_t*)temp_va + sect.VirtualAddress + (page_num << PAGE_SHIFT),
-                                   min((uint64_t)PAGE_SIZE, bytes_left));
+                        f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, 0);
+                        bytes_left -= sp.size();
 
-                        f.cache.copy_into_buffer(file_start_page + page_num, 1, sp2, 0);
-                        bytes_left -= sp2.size();
-                    } else {
-                        sp2 = span((uint8_t*)temp_va + sect.VirtualAddress + ((page_num - 1) << PAGE_SHIFT) + (PAGE_SIZE - offset),
-                                   min(offset, bytes_left));
-
-                        f.cache.copy_into_buffer(file_start_page + page_num, 1, sp2, 0);
-                        bytes_left -= sp2.size();
-
-                        if (bytes_left > 0) {
-                            sp2 = span((uint8_t*)temp_va + sect.VirtualAddress + (page_num << PAGE_SHIFT),
-                                       min(PAGE_SIZE - offset, bytes_left));
-                            f.cache.copy_into_buffer(file_start_page + page_num, 1, sp2, offset);
-                            bytes_left -= sp2.size();
-                        }
+                        if (bytes_left == 0)
+                            break;
                     }
+
+                    sp = span((uint8_t*)temp_va + sect.VirtualAddress + (page_num << PAGE_SHIFT),
+                              min(PAGE_SIZE - offset, bytes_left));
+
+                    f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, offset);
+                    bytes_left -= sp.size();
 
                     page_num++;
                 }
