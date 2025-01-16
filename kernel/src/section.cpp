@@ -340,29 +340,32 @@ bool section::load_image() {
                     return false;
                 }
 
-                f.cache.copy_into_buffer_and_unpin(start_page, pinned_pages,
-                                                   sp, offset);
+                for (unsigned int i = 0; i < pinned_pages; i++) {
+                    f.cache.copy_into_buffer_and_unpin(start_page + i, 1,
+                                                       sp, offset);
+
+                    if (offset != 0) {
+                        sp = sp.subspan(PAGE_SIZE - offset);
+                        offset = 0;
+                    } else
+                        sp = sp.subspan(PAGE_SIZE);
+                }
+
                 num_pages -= pinned_pages;
 
                 if (num_pages == 0)
                     break;
 
                 start_page += pinned_pages;
-
-                if (offset != 0) {
-                    sp = sp.subspan((PAGE_SIZE - offset) + ((pinned_pages - 1) << PAGE_SHIFT));
-                    offset = 0;
-                } else
-                    sp = sp.subspan(pinned_pages << PAGE_SHIFT);
             } while (true);
         }
 
-        auto page_start = bytes_to_pages(sect.VirtualAddress);
-        auto page_end = bytes_to_pages(sect.VirtualAddress + section_size - 1);
+        auto page_start = sect.VirtualAddress >> PAGE_SHIFT;
+        auto page_end = (sect.VirtualAddress + section_size - 1) >> PAGE_SHIFT;
 
         auto prot = characteristics_to_mapping_type(sect.Characteristics);
 
-        for (auto i = page_start; i < page_end; i++) {
+        for (auto i = page_start; i <= page_end; i++) {
             pages[i].protect = prot;
         }
     }
