@@ -135,7 +135,7 @@ bool section::load_image() {
 
     auto& f = ino->get();
     uint64_t temp_va;
-    uint32_t size_of_headers;
+    uint32_t size_of_headers, header_pages;
 
     {
         scratch s;
@@ -256,7 +256,7 @@ bool section::load_image() {
             }
         }
 
-        auto header_pages = bytes_to_pages(size_of_headers);
+        header_pages = bytes_to_pages(size_of_headers);
 
         for (unsigned int i = 0; i < header_pages; i++) {
             size_t to_copy;
@@ -268,7 +268,16 @@ bool section::load_image() {
 
             memcpy(phys_address(pages[i].pa), buf + (i << PAGE_SHIFT),
                    to_copy);
+
+            if (to_copy < PAGE_SIZE) {
+                memset((uint8_t*)phys_address(pages[i].pa) + to_copy, 0,
+                       PAGE_SIZE - to_copy);
+            }
         }
+    }
+
+    for (unsigned int i = header_pages; i < num_pages; i++) {
+        memset(phys_address(pages[i].pa), 0, PAGE_SIZE);
     }
 
     temp_va = allocate_va(num_pages);
@@ -291,8 +300,6 @@ bool section::load_image() {
             return false;
         }
     }
-
-    memset((void*)(temp_va + size_of_headers), 0, (num_pages << PAGE_SHIFT) - size_of_headers);
 
     auto& dos_header = *(IMAGE_DOS_HEADER*)temp_va;
     auto& nt_header = *(IMAGE_NT_HEADERS*)(temp_va + dos_header.e_lfanew);
