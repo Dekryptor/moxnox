@@ -703,6 +703,8 @@ static void fill_framebuffer(uint32_t colour) {
 
         buf += fb_pixels_per_scan_line - fb_width;
     }
+
+    memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 }
 
 static void disable_cursor() {
@@ -1151,8 +1153,6 @@ void bsod(string_view msg, source_location sl) {
         fb_print(", ", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
         fb_print(sl.function_name(), BSOD_BG_COLOUR, BSOD_FG_COLOUR);
         fb_print("\n", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
-
-        memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
     }
 
     // FIXME - print context?
