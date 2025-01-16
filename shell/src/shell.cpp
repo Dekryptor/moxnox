@@ -800,7 +800,7 @@ void startup() {
                 }
 
                 if (!ignore_bs)
-                    print("\b \b");
+                    print("\b");
             } else {
                 if (s[i] == '\n')
                     nl = true;
