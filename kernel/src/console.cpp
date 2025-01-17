@@ -8,6 +8,7 @@
 #include <bit>
 #include <ft2build.h>
 #include <freetype/freetype.h>
+#include <console.h>
 
 using namespace std;
 
@@ -52,6 +53,8 @@ static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
 static spinlock cursor_lock, bsod_lock;
 static char assertion_buffer[1024];
+
+static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
 // font.S
 extern void* console_font_data;
@@ -137,7 +140,9 @@ static void text_console_print(string_view s, enum console_colour bg = console_c
         } else if (c == '\b') {
             if (cursor_x > 0) { // FIXME
                 cursor_x--;
-                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ', bg, fg);
+
+                if (console_output_mode & ENABLE_PROCESSED_OUTPUT)
+                    text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ', bg, fg);
             }
         } else {
             text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c, bg, fg);
@@ -314,8 +319,10 @@ static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
         if (console)
             console[(cursor_y * fb_console_cols) + cursor_x].c = 0;
 
-        rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, bg_colour);
+        if (console_output_mode & ENABLE_PROCESSED_OUTPUT)
+            rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, bg_colour);
     } else {
+        rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, bg_colour);
         draw_ft_char(c, cursor_x * font_width, ((cursor_y + 1) * font_height) - font_descender,
                      bg_colour, fg_colour);
 
