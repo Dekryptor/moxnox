@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
 #include "handle.h"
+#include <console.h>
 
 using namespace std;
 
@@ -15,6 +16,10 @@ public:
 
     bool ready = true;
     uint16_t port;
+
+private:
+    size_t do_write(span<const uint8_t> s);
+    uint32_t output_mode = ENABLE_PROCESSED_OUTPUT;
 };
 
 static serial_pipe* com1_pipe = nullptr;
@@ -77,7 +82,7 @@ bool init_serial() {
     return true;
 }
 
-size_t serial_pipe::write(span<const uint8_t> s) {
+size_t serial_pipe::do_write(span<const uint8_t> s) {
     auto size = s.size();
 
     if (s.empty())
@@ -122,6 +127,31 @@ size_t serial_pipe::write(span<const uint8_t> s) {
     }
 
     return size;
+}
+
+size_t serial_pipe::write(span<const uint8_t> s) {
+    if (!(output_mode & ENABLE_PROCESSED_OUTPUT))
+        return do_write(s);
+
+    int last_bs = -1;
+
+    static const uint8_t SEND_BS[] = { '\b', ' ', '\b' };
+
+    for (int i = 0; i < (int)s.size(); i++) {
+        if (s[i] == '\b') {
+            if (last_bs == -1)
+                do_write(s.subspan(0, i));
+            else
+                do_write(s.subspan(last_bs + 1, i - last_bs - 1));
+
+            do_write(SEND_BS);
+            last_bs = i;
+        }
+    }
+
+    do_write(s.subspan(last_bs + 1, s.size() - last_bs - 1));
+
+    return s.size();
 }
 
 extern "C"
