@@ -1118,3 +1118,74 @@ NTSTATUS user_NtShutdownSystem(enum SHUTDOWN_ACTION action) {
 
     return NtShutdownSystem(action);
 }
+
+NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine, void* apc_context,
+                               IO_STATUS_BLOCK* iosb, uint32_t control_code, const void* input_buffer,
+                               uint32_t input_buffer_len, void* output_buffer, uint32_t output_buffer_len) {
+    printk("FIXME - NtDeviceIoControlFile\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
+extern "C"
+NTSTATUS user_NtDeviceIoControlFile(HANDLE file_handle, HANDLE event,
+                                    PIO_APC_ROUTINE apc_routine, void* apc_context) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 6> args;
+    IO_STATUS_BLOCK iosb;
+    void* input_buffer = nullptr;
+    void* output_buffer = nullptr;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto user_iosb = (IO_STATUS_BLOCK*)args[0];
+    auto control_code = (uint32_t)args[1];
+    auto user_input_buffer = (const void*)args[2];
+    auto input_buffer_len = (uint32_t)args[3];
+    auto user_output_buffer = (void*)args[4];
+    auto output_buffer_len = (uint32_t)args[5];
+
+    if (!user_iosb)
+        return nt_status::INVALID_PARAMETER;
+
+    if (user_input_buffer && input_buffer_len > 0) {
+        input_buffer = malloc(input_buffer_len);
+        if (!input_buffer)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        if (!copy_from_process(input_buffer, user_input_buffer, input_buffer_len))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    if (user_output_buffer && output_buffer_len > 0) {
+        output_buffer = malloc(output_buffer_len);
+        if (!output_buffer) {
+            if (input_buffer)
+                free(input_buffer);
+
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    auto ret = NtDeviceIoControlFile(file_handle, event, apc_routine, apc_context,
+                                     &iosb, control_code, input_buffer, input_buffer_len,
+                                     output_buffer, output_buffer_len);
+
+    if (input_buffer)
+        free(input_buffer);
+
+    if (output_buffer) {
+        if (!copy_to_process(user_output_buffer, output_buffer, output_buffer_len)) {
+            free(output_buffer);
+            return nt_status::ACCESS_VIOLATION;
+        }
+
+        free(output_buffer);
+    }
+
+    if (!copy_to_process(user_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
+        return nt_status::ACCESS_VIOLATION;
+
+    return ret;
+}

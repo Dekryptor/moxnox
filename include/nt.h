@@ -1122,5 +1122,7 @@ NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK desired_access, const O
 NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time, PTIMER_APC_ROUTINE timer_apc_routine,
                     void* timer_context, bool resume_timer, int32_t period, bool* previous_state);
 NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action);
-
+NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine, void* apc_context,
+                               IO_STATUS_BLOCK* iosb, uint32_t control_code, const void* input_buffer,
+                               uint32_t input_buffer_len, void* output_buffer, uint32_t output_buffer_len);
 };
