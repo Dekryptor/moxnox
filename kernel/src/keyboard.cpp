@@ -11,7 +11,7 @@ static const uint8_t keyboard_interrupt = 0x21;
 static const unsigned int keyboard_buffer_pages = 1;
 
 static optional<reference_wrapper<event>> keyboard_event_obj;
-static object_ref keyboard_pipe;
+static object_ref keyboard_obj;
 
 #define MODIFIER_LSHIFT     1
 #define MODIFIER_RSHIFT     2
@@ -24,6 +24,11 @@ static uint8_t* keyboard_buffer;
 static unsigned int keyboard_buffer_write_pos = 0;
 static unsigned int keyboard_buffer_read_pos = 0;
 static unsigned int modifier = 0;
+
+class keyboard_pipe : public pipe {
+public:
+    keyboard_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
+};
 
 static void keyboard_event_recv() {
     do {
@@ -168,7 +173,7 @@ static void keyboard_event_recv() {
             }
 
             if (!sv.empty())
-                static_cast<pipe&>(keyboard_pipe.get()).write(sv);
+                static_cast<pipe&>(keyboard_obj.get()).write(sv);
         }
     } while (true);
 }
@@ -209,13 +214,15 @@ void init_keyboard() {
         return;
     }
 
-    keyboard_pipe = create_pipe(keyboard_buffer_pages);
-    if (!keyboard_pipe) {
-        printk("create_pipe failed\n");
+    auto pptr = new keyboard_pipe(keyboard_buffer_pages);
+    if (!pptr) {
+        printk("new failed\n");
         return;
     }
 
-    if (!name_object(keyboard_pipe.get(), "keyboard")) {
+    keyboard_obj = object_ref{*pptr};
+
+    if (!name_object(keyboard_obj.get(), "keyboard")) {
         printk("name_object failed\n");
         return;
     }
