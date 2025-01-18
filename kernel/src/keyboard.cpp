@@ -39,7 +39,6 @@ static void keyboard_event_recv() {
             keyboard_buffer_read_pos &= 0xfff;
 
             // FIXME - caps lock and num lock (and lights?)
-            // FIXME - ctrl
             // FIXME - print screen (e0 2a e0 37)
             // FIXME - pause (e1 1d 45)
 
@@ -134,7 +133,12 @@ static void keyboard_event_recv() {
                     break;
 
                     default: {
-                        if (modifier & (MODIFIER_LSHIFT | MODIFIER_RSHIFT)) {
+                        if (modifier & (MODIFIER_LCTRL | MODIFIER_RCTRL)) {
+                            if (sc < sizeof(scan_codes_ctrl) / sizeof(scan_codes_ctrl[0]) && !scan_codes_ctrl[sc].empty()) {
+                                const auto& u8str = scan_codes_ctrl[sc];
+                                sv = string_view((char*)u8str.data(), u8str.length());
+                            }
+                        } else if (modifier & (MODIFIER_LSHIFT | MODIFIER_RSHIFT)) {
                             if (sc < sizeof(scan_codes_shift) / sizeof(scan_codes_shift[0]) && !scan_codes_shift[sc].empty()) {
                                 const auto& u8str = scan_codes_shift[sc];
                                 sv = string_view((char*)u8str.data(), u8str.length());

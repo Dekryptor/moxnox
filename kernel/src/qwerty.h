@@ -216,3 +216,101 @@ static const std::u8string_view scan_codes_shift[] = {
     u8"", // F11
     u8"" // F12
 };
+
+static const std::u8string_view scan_codes_ctrl[] = {
+    // 00
+    u8"",
+    u8"\x1b", // escape
+    u8"1",
+    u8"2",
+    u8"3",
+    u8"4",
+    u8"5",
+    u8"6",
+    u8"7",
+    u8"8",
+    u8"9",
+    u8"0",
+    u8"-",
+    u8"=",
+    u8"\b", // backspace
+    u8"\t", // tab
+    // 10
+    u8"\x11",
+    u8"\x17",
+    u8"\x05",
+    u8"\x12",
+    u8"\x14",
+    u8"\x19",
+    u8"\x15",
+    u8"\x09",
+    u8"\x0f",
+    u8"\x10",
+    u8"\x1b",
+    u8"\x1d",
+    u8"\n", // enter
+    u8"", // left control
+    u8"\x01",
+    u8"\x13",
+    // 20
+    u8"\x04",
+    u8"\x06",
+    u8"\x07",
+    u8"\x08",
+    u8"\x0a",
+    u8"\x0b",
+    u8"\x0c",
+    u8";",
+    u8"'",
+    u8"\x00",
+    u8"", // left shift
+    u8"#",
+    u8"\x1a",
+    u8"\x18",
+    u8"\x03",
+    u8"\x16",
+    // 30
+    u8"\x02",
+    u8"\x0e",
+    u8"\x0d",
+    u8",",
+    u8".",
+    u8"\x1f",
+    u8"", // right shift
+    u8"*",
+    u8"", // left alt
+    u8"\x00",
+    u8"", // caps lock
+    u8"\x1bOP", // F1
+    u8"\x1bOQ", // F2
+    u8"\x1bOR", // F3
+    u8"\x1bOS", // F4
+    u8"\x1b[15~", // F5
+    // 40
+    u8"\x1b[17~", // F6
+    u8"\x1b[18~", // F7
+    u8"\x1b[19~", // F8
+    u8"\x1b[20~", // F9
+    u8"\x1b[21~", // F10
+    u8"", // num lock
+    u8"", // scroll lock
+    u8"7",
+    u8"8",
+    u8"9",
+    u8"-",
+    u8"4",
+    u8"5",
+    u8"6",
+    u8"+",
+    u8"1",
+    // 50
+    u8"2",
+    u8"3",
+    u8"0",
+    u8".",
+    u8"",
+    u8"",
+    u8"\\",
+    u8"\x1b[23~", // F11
+    u8"\x1b[24~" // F12
+};
