@@ -67,7 +67,10 @@ static void keyboard_event_recv() {
                     break;
 
                     case CODE_MODIFIED_UP:
-                        sv = "\x1b[A";
+                        if (modifier & (MODIFIER_LCTRL | MODIFIER_RCTRL))
+                            sv = "\x1b[1;5A";
+                        else
+                            sv = "\x1b[A";
                     break;
 
                     case CODE_MODIFIED_PGUP:
@@ -75,11 +78,17 @@ static void keyboard_event_recv() {
                     break;
 
                     case CODE_MODIFIED_LEFT:
-                        sv = "\x1b[D";
+                        if (modifier & (MODIFIER_LCTRL | MODIFIER_RCTRL))
+                            sv = "\x1b[1;5D";
+                        else
+                            sv = "\x1b[D";
                     break;
 
                     case CODE_MODIFIED_RIGHT:
-                        sv = "\x1b[C";
+                        if (modifier & (MODIFIER_LCTRL | MODIFIER_RCTRL))
+                            sv = "\x1b[1;5C";
+                        else
+                            sv = "\x1b[C";
                     break;
 
                     case CODE_MODIFIED_END:
@@ -87,7 +96,10 @@ static void keyboard_event_recv() {
                     break;
 
                     case CODE_MODIFIED_DOWN:
-                        sv = "\x1b[B";
+                        if (modifier & (MODIFIER_LCTRL | MODIFIER_RCTRL))
+                            sv = "\x1b[1;5B";
+                        else
+                            sv = "\x1b[B";
                     break;
 
                     case CODE_MODIFIED_PGDN:
