@@ -1119,12 +1119,28 @@ NTSTATUS user_NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     return NtShutdownSystem(action);
 }
 
-NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine, void* apc_context,
+NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE /*event*/, PIO_APC_ROUTINE /*apc_routine*/, void* /*apc_context*/,
                                IO_STATUS_BLOCK* iosb, uint32_t control_code, const void* input_buffer,
                                uint32_t input_buffer_len, void* output_buffer, uint32_t output_buffer_len) {
-    printk("FIXME - NtDeviceIoControlFile\n");
+    if (!file_handle)
+        return nt_status::INVALID_PARAMETER;
 
-    return nt_status::NOT_IMPLEMENTED;
+    auto objrw = deref_handle2(file_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    NTSTATUS ret;
+
+    visit_obj(objrw.get(), [&](auto&& o) {
+        if constexpr (has_ioctls<decltype(o)>) {
+            ret = o.ioctl(control_code, span((uint8_t*)input_buffer, input_buffer_len),
+                          span((uint8_t*)output_buffer, output_buffer_len),
+                          iosb->Information);
+        } else
+            ret = nt_status::NOT_SUPPORTED;
+    });
+
+    return ret;
 }
 
 extern "C"

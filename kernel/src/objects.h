@@ -56,6 +56,11 @@ concept is_readable_object_without_offset = requires(T t, std::span<uint8_t> s, 
 };
 
 template<typename T>
+concept has_ioctls = requires(T t, uint32_t code, std::span<const uint8_t> inbuf, std::span<uint8_t> outbuf, uintptr_t& written) {
+    { t.ioctl(code, inbuf, outbuf, written) } -> std::convertible_to<NTSTATUS>;
+};
+
+template<typename T>
 static void visit_obj(object& obj, const T& func);
 
 #include "thread.h"

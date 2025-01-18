@@ -26,6 +26,10 @@ public:
         return write(std::span((uint8_t*)sv.data(), sv.length()));
     }
 
+    virtual NTSTATUS ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     bool signalled = false;
     uint8_t* buf;
     unsigned int buf_pages;
@@ -38,6 +42,7 @@ public:
 static_assert(is_sync_object<pipe>);
 static_assert(is_readable_object_without_offset<pipe>);
 static_assert(is_writable_object_without_offset<pipe>);
+static_assert(has_ioctls<pipe>);
 
 class duplex_pipe : public object {
 public:
