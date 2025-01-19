@@ -2,6 +2,7 @@
 #include "objects.h"
 #include "handle.h"
 #include <console.h>
+#include <ioctl.h>
 
 using namespace std;
 
@@ -32,6 +33,13 @@ public:
     ~serial_duplex_pipe() {
         recv_pipe.release();
         send_pipe.release();
+
+        {
+            lock_guard lg(fg_proc_lock);
+
+            if (fg_proc)
+                fg_proc->get().release();
+        }
     }
 
     NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) override {
@@ -42,8 +50,16 @@ public:
         return send_pipe.write(s);
     }
 
+    NTSTATUS ioctl(uint32_t code, span<const uint8_t> inbuf, span<uint8_t> outbuf, uintptr_t& written) override;
+
     pipe& recv_pipe;
     pipe& send_pipe;
+
+private:
+    NTSTATUS console_set_foreground(span<const uint8_t> inbuf);
+
+    spinlock fg_proc_lock;
+    optional<reference_wrapper<process>> fg_proc;
 };
 
 static serial_pipe* com1_pipe = nullptr;
@@ -229,5 +245,51 @@ void serial_isr_func(uint8_t iir) {
         p.write(span(&c, 1));
 
         p.release();
+    }
+}
+
+NTSTATUS serial_duplex_pipe::console_set_foreground(span<const uint8_t> inbuf) {
+    if (inbuf.size() != sizeof(HANDLE))
+        return nt_status::INVALID_PARAMETER;
+
+    auto h = *(HANDLE*)inbuf.data();
+
+    auto obj = deref_handle2(h);
+    if (!obj)
+        return nt_status::INVALID_HANDLE;
+
+    optional<reference_wrapper<process>> procrw;
+
+    visit_obj(obj.get(), [&](auto&& o) {
+        if constexpr (is_same_v<remove_reference_t<decltype(o)>, process>)
+            procrw = o;
+    });
+
+    if (!procrw.has_value())
+        return nt_status::INVALID_HANDLE;
+
+    auto& proc = procrw->get();
+    proc.acquire();
+
+    {
+        lock_guard lg(fg_proc_lock);
+
+        if (fg_proc)
+            fg_proc->get().release();
+
+        fg_proc = proc;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+NTSTATUS serial_duplex_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                              span<uint8_t>, uintptr_t&) {
+    switch (code) {
+        case IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND:
+            return console_set_foreground(inbuf);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
     }
 }
