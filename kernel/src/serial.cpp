@@ -13,10 +13,23 @@ static const unsigned int serial_buffer_pages = 1;
 class serial_in_pipe : public pipe {
 public:
     serial_in_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
+
+    ~serial_in_pipe() {
+        lock_guard lg(fg_proc_lock);
+
+        if (fg_proc)
+            fg_proc->get().release();
+    }
+
     size_t write(span<const uint8_t> s) override;
+    NTSTATUS console_set_foreground(span<const uint8_t> inbuf);
 
 private:
+    void handle_ctrl_c();
+
     uint32_t input_mode = ENABLE_PROCESSED_INPUT;
+    spinlock fg_proc_lock;
+    optional<reference_wrapper<process>> fg_proc;
 };
 
 class serial_out_pipe : public pipe {
@@ -34,7 +47,7 @@ private:
 
 class serial_duplex_pipe : public pipe {
 public:
-    serial_duplex_pipe(pipe& recv_pipe, pipe& send_pipe) : pipe(0), recv_pipe(recv_pipe), send_pipe(send_pipe) {
+    serial_duplex_pipe(serial_in_pipe& recv_pipe, serial_out_pipe& send_pipe) : pipe(0), recv_pipe(recv_pipe), send_pipe(send_pipe) {
         recv_pipe.acquire();
         send_pipe.acquire();
     }
@@ -42,13 +55,6 @@ public:
     ~serial_duplex_pipe() {
         recv_pipe.release();
         send_pipe.release();
-
-        {
-            lock_guard lg(fg_proc_lock);
-
-            if (fg_proc)
-                fg_proc->get().release();
-        }
     }
 
     NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) override {
@@ -61,14 +67,8 @@ public:
 
     NTSTATUS ioctl(uint32_t code, span<const uint8_t> inbuf, span<uint8_t> outbuf, uintptr_t& written) override;
 
-    pipe& recv_pipe;
-    pipe& send_pipe;
-
-private:
-    NTSTATUS console_set_foreground(span<const uint8_t> inbuf);
-
-    spinlock fg_proc_lock;
-    optional<reference_wrapper<process>> fg_proc;
+    serial_in_pipe& recv_pipe;
+    serial_out_pipe& send_pipe;
 };
 
 static serial_out_pipe* com1_pipe = nullptr;
@@ -229,7 +229,7 @@ size_t serial_in_pipe::write(span<const uint8_t> s) {
     for (int i = 0; i < (int)s.size(); i++) {
         auto c = s[i];
 
-        if (c == '\r' || c == 0x7f) {
+        if (c == '\r' || c == 0x7f || c == '\x03') {
             if (last_run_start == -1)
                 ret += pipe::write(s.subspan(0, i));
             else
@@ -241,7 +241,8 @@ size_t serial_in_pipe::write(span<const uint8_t> s) {
             } else if (c == 0x7f) {
                 c = '\b';
                 ret += pipe::write(span(&c, 1));
-            }
+            } else if (c == '\x03')
+                handle_ctrl_c();
 
             last_run_start = i;
         }
@@ -297,7 +298,7 @@ void serial_isr_func(uint8_t iir) {
     }
 }
 
-NTSTATUS serial_duplex_pipe::console_set_foreground(span<const uint8_t> inbuf) {
+NTSTATUS serial_in_pipe::console_set_foreground(span<const uint8_t> inbuf) {
     if (inbuf.size() != sizeof(HANDLE))
         return nt_status::INVALID_PARAMETER;
 
@@ -336,9 +337,27 @@ NTSTATUS serial_duplex_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
                                    span<uint8_t>, uintptr_t&) {
     switch (code) {
         case IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND:
-            return console_set_foreground(inbuf);
+            return recv_pipe.console_set_foreground(inbuf);
 
         default:
             return nt_status::NOT_SUPPORTED;
     }
+}
+
+void serial_in_pipe::handle_ctrl_c() {
+    optional<reference_wrapper<process>> proc;
+
+    {
+        lock_guard lg(fg_proc_lock);
+
+        if (!fg_proc)
+            return;
+
+        proc = fg_proc;
+        proc->get().acquire();
+    }
+
+    proc->get().send_signal(nt_status::CONTROL_C_EXIT);
+
+    proc->get().release();
 }
