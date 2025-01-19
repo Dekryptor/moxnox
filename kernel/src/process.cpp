@@ -1633,6 +1633,11 @@ optional<reference_wrapper<object>> process::deref_handle(handle_t h) {
 }
 
 object_ref process::deref_handle2(handle_t h) {
+    if (h == NtCurrentProcess()) {
+        this->acquire();
+        return *this;
+    }
+
     lock_guard lock(handle_lock);
 
     if (h == 0 || h > no_handles)
