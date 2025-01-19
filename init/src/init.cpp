@@ -3,6 +3,7 @@
 #include <string.h>
 #include <nt.h>
 #include <ntdll.h>
+#include <ioctl.h>
 #include <span>
 #include <string_view>
 
@@ -312,6 +313,12 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
         print("\n");
         NtClose(proc);
         return;
+    }
+
+    if (stdinh) {
+        NtDeviceIoControlFile(stdinh, 0, nullptr, nullptr,
+                              &iosb, IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND,
+                              &proc, sizeof(proc), nullptr, 0);
     }
 
     NtResumeThread(thread, nullptr);
