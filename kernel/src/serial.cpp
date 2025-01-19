@@ -10,6 +10,11 @@ static const uint8_t serial_interrupt = 0x23;
 static const uint16_t com1_port = 0x3f8;
 static const unsigned int serial_buffer_pages = 1;
 
+class serial_in_pipe : public pipe {
+public:
+    serial_in_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
+};
+
 class serial_out_pipe : public pipe {
 public:
     serial_out_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
@@ -67,6 +72,18 @@ static serial_out_pipe* com1_pipe = nullptr;
 object_ref com1_pipe_handle;
 static object_ref com1_recv_handle, duplex_pipe;
 
+static object_ref create_serial_in_pipe(unsigned int buffer_pages) {
+    auto pptr = new serial_in_pipe(buffer_pages);
+    if (!pptr) {
+        printk("new failed\n");
+        return {};
+    }
+
+    auto& p = *pptr;
+
+    return p;
+}
+
 static object_ref create_serial_out_pipe(unsigned int buffer_pages, uint16_t port) {
     auto pptr = new serial_out_pipe(buffer_pages, port);
     if (!pptr) {
@@ -87,19 +104,19 @@ bool init_serial() {
 
     com1_pipe_handle = create_serial_out_pipe(serial_buffer_pages, com1_port);
     if (!com1_pipe_handle) {
-        printk("create_serial_pipe failed\n");
+        printk("create_serial_out_pipe failed\n");
         return false;
     }
 
-    com1_recv_handle = create_pipe(serial_buffer_pages);
+    com1_recv_handle = create_serial_in_pipe(serial_buffer_pages);
     if (!com1_recv_handle) {
-        printk("create_pipe failed\n");
+        printk("create_serial_in_pipe failed\n");
         return false;
     }
 
     com1_pipe = &static_cast<serial_out_pipe&>(com1_pipe_handle.get());
 
-    auto& com1_recv_pipe = static_cast<pipe&>(com1_recv_handle.get());
+    auto& com1_recv_pipe = static_cast<serial_in_pipe&>(com1_recv_handle.get());
 
     auto pptr = new serial_duplex_pipe(com1_recv_pipe, *com1_pipe);
     if (!pptr) {
@@ -233,7 +250,7 @@ void serial_isr_func(uint8_t iir) {
             : "d" (com1_port)
         );
 
-        auto& p = static_cast<pipe&>(com1_recv_handle.get());
+        auto& p = static_cast<serial_in_pipe&>(com1_recv_handle.get());
 
         // FIXME - VT100 weirdness
 
@@ -284,7 +301,7 @@ NTSTATUS serial_duplex_pipe::console_set_foreground(span<const uint8_t> inbuf) {
 }
 
 NTSTATUS serial_duplex_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                              span<uint8_t>, uintptr_t&) {
+                                   span<uint8_t>, uintptr_t&) {
     switch (code) {
         case IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND:
             return console_set_foreground(inbuf);
