@@ -10,9 +10,9 @@ static const uint8_t serial_interrupt = 0x23;
 static const uint16_t com1_port = 0x3f8;
 static const unsigned int serial_buffer_pages = 1;
 
-class serial_pipe : public pipe {
+class serial_out_pipe : public pipe {
 public:
-    serial_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
+    serial_out_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
     size_t write(span<const uint8_t> s) override;
 
     bool ready = true;
@@ -62,13 +62,13 @@ private:
     optional<reference_wrapper<process>> fg_proc;
 };
 
-static serial_pipe* com1_pipe = nullptr;
+static serial_out_pipe* com1_pipe = nullptr;
 
 object_ref com1_pipe_handle;
 static object_ref com1_recv_handle, duplex_pipe;
 
-static object_ref create_serial_pipe(unsigned int buffer_pages, uint16_t port) {
-    auto pptr = new serial_pipe(buffer_pages, port);
+static object_ref create_serial_out_pipe(unsigned int buffer_pages, uint16_t port) {
+    auto pptr = new serial_out_pipe(buffer_pages, port);
     if (!pptr) {
         printk("new failed\n");
         return {};
@@ -85,7 +85,7 @@ bool init_serial() {
     if (!init_serial_port(com1_port))
         return true;
 
-    com1_pipe_handle = create_serial_pipe(serial_buffer_pages, com1_port);
+    com1_pipe_handle = create_serial_out_pipe(serial_buffer_pages, com1_port);
     if (!com1_pipe_handle) {
         printk("create_serial_pipe failed\n");
         return false;
@@ -97,7 +97,7 @@ bool init_serial() {
         return false;
     }
 
-    com1_pipe = &static_cast<serial_pipe&>(com1_pipe_handle.get());
+    com1_pipe = &static_cast<serial_out_pipe&>(com1_pipe_handle.get());
 
     auto& com1_recv_pipe = static_cast<pipe&>(com1_recv_handle.get());
 
@@ -124,7 +124,7 @@ bool init_serial() {
     return true;
 }
 
-size_t serial_pipe::do_write(span<const uint8_t> s) {
+size_t serial_out_pipe::do_write(span<const uint8_t> s) {
     auto size = s.size();
 
     if (s.empty())
@@ -171,7 +171,7 @@ size_t serial_pipe::do_write(span<const uint8_t> s) {
     return size;
 }
 
-size_t serial_pipe::write(span<const uint8_t> s) {
+size_t serial_out_pipe::write(span<const uint8_t> s) {
     if (!(output_mode & ENABLE_PROCESSED_OUTPUT))
         return do_write(s);
 
