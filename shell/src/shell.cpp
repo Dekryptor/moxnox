@@ -3,6 +3,7 @@
 #include <string.h>
 #include <nt.h>
 #include <ntdll.h>
+#include <ioctl.h>
 #include <span>
 #include <charconv>
 #include <chrono>
@@ -113,6 +114,7 @@ static void run_program(HANDLE file, string_view cmdline) {
     PEB newpeb;
     RTL_USER_PROCESS_PARAMETERS params;
     SECTION_IMAGE_INFORMATION sii;
+    IO_STATUS_BLOCK iosb;
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
@@ -369,6 +371,12 @@ static void run_program(HANDLE file, string_view cmdline) {
         return;
     }
 
+    // mark as foreground process
+    status = NtDeviceIoControlFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr,
+                                   &iosb, IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND,
+                                   &proc, sizeof(proc), nullptr, 0);
+    auto set_fg = success(status);
+
     NtResumeThread(thread, nullptr);
 
     NtClose(thread);
@@ -381,6 +389,23 @@ static void run_program(HANDLE file, string_view cmdline) {
         print("\n");
         NtClose(proc);
         return;
+    }
+
+    if (set_fg) {
+        HANDLE this_proc = NtCurrentProcess();
+
+        // mark self as foreground process
+        status = NtDeviceIoControlFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr,
+                                       &iosb, IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND,
+                                       &this_proc, sizeof(this_proc), nullptr, 0);
+
+        if (!success(status)) {
+            print("NtDeviceIoControlFile returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
     }
 
     NtClose(proc);
