@@ -826,6 +826,11 @@ void startup() {
 
                 if (!ignore_bs)
                     print("\b");
+            } else if (s[i] == '\x04') { // Ctrl+D
+                if (buflen == 0) {
+                    print("\n");
+                    NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+                }
             } else {
                 if (s[i] == '\n')
                     nl = true;
