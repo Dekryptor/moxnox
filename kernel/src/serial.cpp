@@ -13,6 +13,10 @@ static const unsigned int serial_buffer_pages = 1;
 class serial_in_pipe : public pipe {
 public:
     serial_in_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
+    size_t write(span<const uint8_t> s) override;
+
+private:
+    uint32_t input_mode = ENABLE_PROCESSED_INPUT;
 };
 
 class serial_out_pipe : public pipe {
@@ -213,6 +217,41 @@ size_t serial_out_pipe::write(span<const uint8_t> s) {
     return s.size();
 }
 
+size_t serial_in_pipe::write(span<const uint8_t> s) {
+    if (!(input_mode & ENABLE_PROCESSED_INPUT))
+        return pipe::write(s);
+
+    // handle VT100 weirdness
+
+    size_t ret = 0;
+    int last_run_start = -1;
+
+    for (int i = 0; i < (int)s.size(); i++) {
+        auto c = s[i];
+
+        if (c == '\r' || c == 0x7f) {
+            if (last_run_start == -1)
+                ret += pipe::write(s.subspan(0, i));
+            else
+                ret += pipe::write(s.subspan(last_run_start + 1, i - last_run_start - 1));
+
+            if (c == '\r') {
+                c = '\n';
+                ret += pipe::write(span(&c, 1));
+            } else if (c == 0x7f) {
+                c = '\b';
+                ret += pipe::write(span(&c, 1));
+            }
+
+            last_run_start = i;
+        }
+    }
+
+    ret += pipe::write(s.subspan(last_run_start + 1, s.size() - last_run_start - 1));
+
+    return ret;
+}
+
 extern "C"
 void serial_isr_func(uint8_t iir) {
     if (iir & 1) // not us
@@ -251,13 +290,6 @@ void serial_isr_func(uint8_t iir) {
         );
 
         auto& p = static_cast<serial_in_pipe&>(com1_recv_handle.get());
-
-        // FIXME - VT100 weirdness
-
-        if (c == '\r')
-            c = '\n';
-        else if (c == 0x7f)
-            c = '\b';
 
         p.write(span(&c, 1));
 
