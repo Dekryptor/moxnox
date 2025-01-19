@@ -10,8 +10,7 @@ enum class object_type {
     inode,
     process,
     section,
-    file,
-    duplex_pipe
+    file
 };
 
 class object {
@@ -116,10 +115,6 @@ static void visit_obj(object& obj, const T& func) {
 
         case object_type::file:
             func(static_cast<file&>(obj));
-        break;
-
-        case object_type::duplex_pipe:
-            func(static_cast<duplex_pipe&>(obj));
         break;
     }
 }

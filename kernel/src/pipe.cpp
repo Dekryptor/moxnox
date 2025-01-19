@@ -22,8 +22,7 @@ pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buf
     not_full_event.signalled = true;
 
     if (buffer_pages == 0) {
-        // FIXME - exception
-        printk("Invalid value for buffer_pages\n");
+        buf = nullptr;
         return;
     }
 
@@ -72,6 +71,9 @@ pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buf
 }
 
 pipe::~pipe() {
+    if (!buf)
+        return;
+
     auto va = (uintptr_t)buf;
 
     for (unsigned int i = 0; i < buf_pages; i++) {
@@ -225,16 +227,4 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     read_bytes = copied;
     return nt_status::SUCCESS;
-}
-
-object_ref create_duplex_pipe(pipe& recv_pipe, pipe& send_pipe) {
-    auto pptr = new duplex_pipe(recv_pipe, send_pipe);
-    if (!pptr) {
-        printk("new failed\n");
-        return {};
-    }
-
-    auto& p = *pptr;
-
-    return p;
 }

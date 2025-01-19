@@ -22,6 +22,30 @@ private:
     uint32_t output_mode = ENABLE_PROCESSED_OUTPUT;
 };
 
+class serial_duplex_pipe : public pipe {
+public:
+    serial_duplex_pipe(pipe& recv_pipe, pipe& send_pipe) : pipe(0), recv_pipe(recv_pipe), send_pipe(send_pipe) {
+        recv_pipe.acquire();
+        send_pipe.acquire();
+    }
+
+    ~serial_duplex_pipe() {
+        recv_pipe.release();
+        send_pipe.release();
+    }
+
+    NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) override {
+        return recv_pipe.read(s, read_bytes);
+    }
+
+    size_t write(std::span<const uint8_t> s) override {
+        return send_pipe.write(s);
+    }
+
+    pipe& recv_pipe;
+    pipe& send_pipe;
+};
+
 static serial_pipe* com1_pipe = nullptr;
 
 object_ref com1_pipe_handle;
@@ -61,11 +85,13 @@ bool init_serial() {
 
     auto& com1_recv_pipe = static_cast<pipe&>(com1_recv_handle.get());
 
-    duplex_pipe = create_duplex_pipe(com1_recv_pipe, *com1_pipe);
-    if (!duplex_pipe) {
-        printk("create_duplex_pipe failed\n");
+    auto pptr = new serial_duplex_pipe(com1_recv_pipe, *com1_pipe);
+    if (!pptr) {
+        printk("new failed\n");
         return false;
     }
+
+    duplex_pipe = object_ref{*pptr};
 
     if (!name_object(duplex_pipe.get(), "ttyS0")) {
         printk("name_object failed\n");

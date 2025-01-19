@@ -208,7 +208,6 @@ void reset_event(event& e);
 
 // pipe.cpp
 object_ref create_pipe(unsigned int buffer_pages);
-object_ref create_duplex_pipe(pipe& recv_pipe, pipe& send_pipe);
 
 // pci.cpp
 void init_pci();
