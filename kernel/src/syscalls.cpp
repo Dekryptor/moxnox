@@ -1136,6 +1136,14 @@ NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE /*event*/, PIO_APC_ROU
             ret = o.ioctl(control_code, span((uint8_t*)input_buffer, input_buffer_len),
                           span((uint8_t*)output_buffer, output_buffer_len),
                           iosb->Information);
+        } else if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
+            visit_obj(o.ino, [&](auto&& o) {
+                if constexpr (has_ioctls<decltype(o)>) {
+                    ret = o.ioctl(control_code, span((uint8_t*)input_buffer, input_buffer_len),
+                                  span((uint8_t*)output_buffer, output_buffer_len),
+                                  iosb->Information);
+                }
+            });
         } else
             ret = nt_status::NOT_SUPPORTED;
     });
