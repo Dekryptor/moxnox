@@ -293,8 +293,6 @@ void serial_isr_func(uint8_t iir) {
         auto& p = static_cast<serial_in_pipe&>(com1_recv_handle.get());
 
         p.write(span(&c, 1));
-
-        p.release();
     }
 }
 
