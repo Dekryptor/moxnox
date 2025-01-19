@@ -4,6 +4,7 @@
 #include "qwerty.h"
 #include "handle.h"
 #include "mem.h"
+#include "console.h"
 #include <ioctl.h>
 
 using namespace std;
@@ -26,6 +27,8 @@ static unsigned int keyboard_buffer_write_pos = 0;
 static unsigned int keyboard_buffer_read_pos = 0;
 static unsigned int modifier = 0;
 
+static uint32_t input_mode = ENABLE_PROCESSED_INPUT;
+
 class keyboard_pipe : public pipe {
 public:
     keyboard_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
@@ -38,6 +41,7 @@ public:
     }
 
     NTSTATUS ioctl(uint32_t code, span<const uint8_t> inbuf, span<uint8_t> outbuf, uintptr_t& written) override;
+    void handle_ctrl_c();
 
 private:
     NTSTATUS console_set_foreground(span<const uint8_t> inbuf);
@@ -45,6 +49,24 @@ private:
     spinlock fg_proc_lock;
     optional<reference_wrapper<process>> fg_proc;
 };
+
+void keyboard_pipe::handle_ctrl_c() {
+    optional<reference_wrapper<process>> proc;
+
+    {
+        lock_guard lg(fg_proc_lock);
+
+        if (!fg_proc)
+            return;
+
+        proc = fg_proc;
+        proc->get().acquire();
+    }
+
+    proc->get().send_signal(nt_status::CONTROL_C_EXIT);
+
+    proc->get().release();
+}
 
 static void keyboard_event_recv() {
     do {
@@ -188,8 +210,14 @@ static void keyboard_event_recv() {
                 }
             }
 
-            if (!sv.empty())
-                static_cast<pipe&>(keyboard_obj.get()).write(sv);
+            if (!sv.empty()) {
+                auto& p = static_cast<keyboard_pipe&>(keyboard_obj.get());
+
+                if (input_mode & ENABLE_PROCESSED_INPUT && sv.size() == 1 && sv[0] == '\x03')
+                    p.handle_ctrl_c();
+                else
+                    p.write(sv);
+            }
         }
     } while (true);
 }

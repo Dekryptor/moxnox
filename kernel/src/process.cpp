@@ -2586,3 +2586,7 @@ object_ref process::get_stderr() {
 
     return this->deref_handle2(params.StandardError);
 }
+
+void process::send_signal(nt_status code) {
+    printk("FIXME - process::send_signal\n");
+}
