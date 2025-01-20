@@ -80,6 +80,7 @@ public:
     uint64_t syscall_rip;
     uint64_t syscall_rflags;
     uint64_t syscall_rsp;
+    uint64_t pending_signal = 0;
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);

@@ -54,7 +54,7 @@ public:
                       uint32_t* number_of_bytes_written);
     object_ref get_stderr();
     bool map_to_kernel_space(void* us, void* ks, unsigned int num_pages);
-    void send_signal(nt_status code);
+    void send_signal(uint64_t code);
 
     bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;

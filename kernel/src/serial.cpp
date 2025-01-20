@@ -355,7 +355,7 @@ void serial_in_pipe::handle_ctrl_c() {
         proc->get().acquire();
     }
 
-    proc->get().send_signal(nt_status::CONTROL_C_EXIT);
+    proc->get().send_signal((uint64_t)nt_status::CONTROL_C_EXIT);
 
     proc->get().release();
 }
