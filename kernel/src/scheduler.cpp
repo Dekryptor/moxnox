@@ -412,19 +412,6 @@ void wait_for_object(object& obj) {
     yield(); // releases sync_lock
 }
 
-void wait_for_object(handle_t h) {
-    auto objrw = deref_handle(h);
-    if (!objrw) {
-        // FIXME - exception
-        printk("No such handle\n");
-        return;
-    }
-
-    // FIXME - check handle has SYNCHRONIZE access
-
-    wait_for_object(objrw->get());
-}
-
 bool init_cpu_block(unsigned int cpu_no) {
     auto pages = bytes_to_pages(sizeof(cpu_block));
     auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);
