@@ -149,6 +149,41 @@ static thread* pick_runnable_thread(thread* current) {
     return nullptr;
 }
 
+static bool handle_signal() {
+    auto& cb = *get_cpu_block();
+    auto& t = *cb.current_thread;
+    auto& p = *t.proc;
+
+    uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
+
+    // FIXME - terminate thread if copy fails
+
+    if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT)))
+        return false;
+
+    EXCEPTION_RECORD er;
+
+    er.ExceptionCode = (uint32_t)t.pending_signal;
+    er.ExceptionFlags = 0;
+    er.ExceptionRecord = nullptr;
+    er.ExceptionAddress = (void*)cb.thread_context.Rip;
+    er.NumberParameters = 0;
+
+    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
+    uintptr_t us_er = us_context - er_size;
+
+    if (!p.copy_to((void*)us_er, &er, er_size))
+        return false;
+
+    cb.thread_context.Rip = p.ntdll_addr + mn_signal;
+    cb.thread_context.Rcx = us_er;
+    cb.thread_context.Rdx = us_context;
+    cb.thread_context.Rsp -= sizeof(CONTEXT);
+    cb.thread_context.Rsp -= er_size;
+
+    return true;
+}
+
 extern "C"
 void scheduler() {
 #ifdef DEBUG
@@ -216,7 +251,15 @@ void scheduler() {
         if (cb.current_thread) {
             memcpy(&cb.thread_context, &cb.current_thread->context, sizeof(CONTEXT));
             cb.time_slice_left = time_slice;
-            __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
+
+            if (!cb.current_thread->kernel_mode && cb.current_thread->pending_signal) {
+                if (!handle_signal()) {
+                    cb.current_thread->release();
+                    cb.current_thread = nullptr;
+                } else
+                    __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
+            } else
+                __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
         }
 
         __asm("sti; hlt; cli");
