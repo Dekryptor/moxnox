@@ -87,7 +87,7 @@ NTSTATUS user_NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
 template<size_t N>
 static bool copy_stack_args(thread& t, array<uintptr_t, N>& args) {
     // 1 uint64_t for return address, followed by 4 for shadow store
-    return copy_from_process(args.data(), (void*)((uintptr_t)t.syscall_rsp + (5 * sizeof(uint64_t))),
+    return copy_from_process(args.data(), (void*)((uintptr_t)t.syscall_context.Rsp + (5 * sizeof(uint64_t))),
                              args.size() * sizeof(uintptr_t));
 }
 

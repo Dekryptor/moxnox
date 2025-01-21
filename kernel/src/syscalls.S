@@ -1,6 +1,7 @@
 .intel_syntax noprefix
 
 #include "context_offsets.h"
+#include "context.S"
 
 .macro syscall_stub name
     .text
@@ -412,15 +413,10 @@ init_syscalls:
 .global syscall_handler
 syscall_handler:
     swapgs
-
-    mov gs:GS_SYSCALL_RAX, rax
-    mov rax, gs:GS_CURRENT_THREAD
-
-    mov QWORD PTR [rax + THREAD_SYSCALL_RIP], rcx
-    mov QWORD PTR [rax + THREAD_SYSCALL_RFLAGS], r11
-    mov QWORD PTR [rax + THREAD_SYSCALL_RSP], rsp
+    save_syscall_context
 
     # change to kernel stack
+    mov rax, gs:GS_CURRENT_THREAD
     mov rsp, [rax + THREAD_SYSCALL_STACK]
 
     # mark thread as running kernel code
@@ -453,18 +449,18 @@ Lafter_syscall:
     mov rdx, gs:GS_CURRENT_THREAD
     mov BYTE PTR [rdx + THREAD_KERNEL_MODE], 0
 
+    mov rcx, 0x33 # ss
+    push rcx
+    push [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RSP]
+    push [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_EFLAGS]
+    mov rcx, 0x3b # cs
+    push rcx
+    push [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RIP]
+
     # load process cr3
     mov rcx, [rdx + THREAD_PROC]
     mov rcx, [rcx + PROCESS_CR3]
     mov cr3, rcx
-
-    mov rcx, 0x33 # ss
-    push rcx
-    push [rdx + THREAD_SYSCALL_RSP]
-    push [rdx + THREAD_SYSCALL_RFLAGS]
-    mov rcx, 0x3b # cs
-    push rcx
-    push [rdx + THREAD_SYSCALL_RIP]
 
     swapgs
 

@@ -239,6 +239,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     }
 
     memset(&t.context, 0, sizeof(CONTEXT));
+    memset(&t.syscall_context, 0, sizeof(CONTEXT));
 
     t.context.EFlags |= 0x202; // IF, reserved flag
     t.context.SegCs = user_CS;
