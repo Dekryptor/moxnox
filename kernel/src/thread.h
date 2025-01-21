@@ -89,3 +89,4 @@ static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
+static_assert(offsetof(thread, pending_signal) == THREAD_PENDING_SIGNAL);

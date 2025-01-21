@@ -83,6 +83,7 @@ private:
 static_assert(is_sync_object<process>);
 
 static_assert(offsetof(process, cr3) == PROCESS_CR3);
+static_assert(offsetof(process, ntdll_addr) == PROCESS_NTDLL_ADDR);
 
 enum class proc_map_type {
     section,
