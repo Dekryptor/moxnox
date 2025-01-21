@@ -467,17 +467,13 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool, const LARGE_INTEGER*)
     // FIXME - alertable
     // FIXME - time_out
 
-    auto objrw = deref_handle(object_handle);
+    auto objrw = deref_handle2(object_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 
     // FIXME - check handle has SYNCHRONIZE access
 
-    wait_for_object(objrw->get(), false);
-
-    visit_obj(objrw->get(), [](auto&& o) {
-        o.release();
-    });
+    wait_for_object(objrw.get(), false);
 
     return nt_status::SUCCESS;
 }
