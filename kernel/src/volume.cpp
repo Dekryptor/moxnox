@@ -349,7 +349,7 @@ bool volume::check_for_partitions() {
 
     free(buf);
 
-    wait_for_object(pw->event.get());
+    wait_for_object(pw->event.get(), false);
 
     delete pw;
 

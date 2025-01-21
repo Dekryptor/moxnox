@@ -332,7 +332,7 @@ span<char> sp_context(span<char>dest, const AMD64_CONTEXT& ctx) {
     return dest;
 }
 
-void wait_for_object(object& obj) {
+void wait_for_object(object& obj, bool interruptible) {
 #ifdef DEBUG
     uint64_t cr8 = 0, rflags = 0;
 
@@ -473,7 +473,7 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool, const LARGE_INTEGER*)
 
     // FIXME - check handle has SYNCHRONIZE access
 
-    wait_for_object(objrw->get());
+    wait_for_object(objrw->get(), false);
 
     visit_obj(objrw->get(), [](auto&& o) {
         o.release();

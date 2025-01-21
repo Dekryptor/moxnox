@@ -322,6 +322,6 @@ void init_pci() {
         }
     }
 
-    wait_for_object(init_device_event.get());
+    wait_for_object(init_device_event.get(), false);
     init_device_event.reset();
 }

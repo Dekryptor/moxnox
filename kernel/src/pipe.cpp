@@ -167,7 +167,7 @@ size_t pipe::write(span<const uint8_t> s) {
 
         // block while we wait for space to become available
 
-        wait_for_object(not_full_event);
+        wait_for_object(not_full_event, false);
     } while (true);
 
     return size;
@@ -182,7 +182,7 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
     }
 
     acquire();
-    wait_for_object(*this);
+    wait_for_object(*this, false);
 
     {
         sync_lock sl;

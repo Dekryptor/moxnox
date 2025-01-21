@@ -66,7 +66,7 @@ static void thread_test() {
     print_hex(h.get());
     printk("\n");
 
-    wait_for_object(ev.get());
+    wait_for_object(ev.get(), false);
     printk("second thread finished\n");
 }
 
@@ -81,7 +81,7 @@ static void timer_test() {
 
     set_timer(h.get(), 5000, false);
 
-    wait_for_object(h.get());
+    wait_for_object(h.get(), false);
 
     printk("Timer fired.\n");
 }
@@ -185,7 +185,7 @@ void main_thread() {
 
     static_cast<process&>(init.get()).resume();
 
-    wait_for_object(init.get());
+    wait_for_object(init.get(), false);
 
     auto& init_process = static_cast<process&>(init.get());
 

@@ -182,7 +182,7 @@ object_ref add_kernel_thread(void (*func)(void*), void* param);
 object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);
 extern "C" void scheduler();
 std::span<char> sp_context(std::span<char>dest, const CONTEXT& ctx);
-void wait_for_object(object& obj);
+void wait_for_object(object& obj, bool interruptible);
 bool init_cpu_block(unsigned int cpu_no);
 void disable_preempt();
 void enable_preempt();

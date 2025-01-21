@@ -540,7 +540,7 @@ static void console_event_recv() {
         uint8_t s[255];
         uint64_t read_bytes;
 
-        wait_for_object(console_pipe.get());
+        wait_for_object(console_pipe.get(), false);
 
         auto status = static_cast<pipe&>(console_pipe.get()).read(s, read_bytes);
 

@@ -126,7 +126,7 @@ size_t sata_device::read_uncached(span<uint8_t> data, uint64_t offset) {
             port.ci |= 1 << slot;
         }
 
-        wait_for_object(events[slot].get());
+        wait_for_object(events[slot].get(), false);
 
         if (port.is & HBA_PxIS_TFES) {
             printk("Error reading disk\n");
@@ -220,7 +220,7 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         port.ci |= 1 << slot;
     }
 
-    wait_for_object(events[slot].get());
+    wait_for_object(events[slot].get(), false);
 
     if (port.is & HBA_PxIS_TFES) {
         printk("Error reading disk\n");
@@ -266,7 +266,7 @@ NTSTATUS sata_device::read(span<uint8_t> data, uint64_t offset, uint64_t& read_b
 }
 
 uint8_t sata_device::get_slot() {
-    wait_for_object(slot_semaphore.get());
+    wait_for_object(slot_semaphore.get(), false);
 
     lock_guard l(slot_lock);
 
@@ -752,5 +752,5 @@ void init_sata(const pci_device& dev) {
         mask >>= 1;
     }
 
-    wait_for_object(sc->init_event.get());
+    wait_for_object(sc->init_event.get(), false);
 }

@@ -70,7 +70,7 @@ void keyboard_pipe::handle_ctrl_c() {
 
 static void keyboard_event_recv() {
     do {
-        wait_for_object(keyboard_event_obj->get());
+        wait_for_object(keyboard_event_obj->get(), false);
 
         lock_guard lock(keyboard_lock);
 
