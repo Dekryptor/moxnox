@@ -254,6 +254,11 @@ void scheduler() {
 
             if (!cb.current_thread->kernel_mode && cb.current_thread->pending_signal) {
                 if (!handle_signal()) {
+                    acquire_sync_lock();
+                    cb.current_thread->status = thread_status::runnable;
+                    cb.current_thread->current_cpu = 0xffffffff;
+                    release_sync_lock();
+
                     cb.current_thread->release();
                     cb.current_thread = nullptr;
                 } else
