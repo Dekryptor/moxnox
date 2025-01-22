@@ -412,9 +412,13 @@ nt_status wait_for_object(object& obj, bool interruptible) {
         current_thread->waiting_for = obj;
         current_thread->status = thread_status::waiting;
         current_thread->current_cpu = 0xffffffff;
+        current_thread->wait_interruptible = interruptible;
     }
 
     yield(); // releases sync_lock
+
+    if (interruptible && current_thread->pending_signal)
+        return nt_status::ALERTED;
 
     return nt_status::SUCCESS;
 }

@@ -79,6 +79,7 @@ public:
     TEB* teb;
     uint32_t current_cpu = 0xffffffff;
     uint64_t pending_signal = 0;
+    bool wait_interruptible;
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);
