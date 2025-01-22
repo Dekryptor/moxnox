@@ -337,7 +337,7 @@ span<char> sp_context(span<char>dest, const AMD64_CONTEXT& ctx) {
     return dest;
 }
 
-void wait_for_object(object& obj, bool interruptible) {
+nt_status wait_for_object(object& obj, bool interruptible) {
 #ifdef DEBUG
     uint64_t cr8 = 0, rflags = 0;
 
@@ -388,7 +388,7 @@ void wait_for_object(object& obj, bool interruptible) {
             __asm("sti");
             // FIXME - exception
             printk("Not a sync object\n");
-            return;
+            return nt_status::INVALID_PARAMETER;
         }
 
         auto signalled = *sigopt;
@@ -406,7 +406,7 @@ void wait_for_object(object& obj, bool interruptible) {
                 o.release();
             });
 
-            return;
+            return nt_status::SUCCESS;
         }
 
         current_thread->waiting_for = obj;
@@ -415,6 +415,8 @@ void wait_for_object(object& obj, bool interruptible) {
     }
 
     yield(); // releases sync_lock
+
+    return nt_status::SUCCESS;
 }
 
 bool init_cpu_block(unsigned int cpu_no) {
