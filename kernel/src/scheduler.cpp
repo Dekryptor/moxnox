@@ -468,8 +468,7 @@ bool init_cpu_block(unsigned int cpu_no) {
     return true;
 }
 
-NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool, const LARGE_INTEGER*) {
-    // FIXME - alertable
+NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE_INTEGER*) {
     // FIXME - time_out
 
     auto objrw = deref_handle2(object_handle);
@@ -478,7 +477,7 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool, const LARGE_INTEGER*)
 
     // FIXME - check handle has SYNCHRONIZE access
 
-    wait_for_object(objrw.get(), false);
+    wait_for_object(objrw.get(), alertable);
 
     return nt_status::SUCCESS;
 }
