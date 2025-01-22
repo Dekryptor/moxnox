@@ -4,6 +4,7 @@
 
 enum class nt_status : uint32_t {
     SUCCESS = 0x00000000,
+    ALERTED = 0x00000101,
     PENDING = 0x00000103,
     NO_MORE_FILES = 0x80000006,
     NOT_IMPLEMENTED = 0xc0000002,

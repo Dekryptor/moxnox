@@ -381,15 +381,22 @@ static void run_program(HANDLE file, string_view cmdline) {
 
     NtClose(thread);
 
-    status = NtWaitForSingleObject(proc, false, nullptr);
+    do {
+        status = NtWaitForSingleObject(proc, true, nullptr);
 
-    if (!success(status)) {
-        print("NtWaitForSingleObject returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
-        NtClose(proc);
-        return;
-    }
+        if (status == nt_status::ALERTED)
+            continue;
+
+        if (!success(status)) {
+            print("NtWaitForSingleObject returned ");
+            print_hex((uint32_t)status, 8);
+            print("\n");
+            NtClose(proc);
+            return;
+        }
+
+        break;
+    } while (true);
 
     if (set_fg) {
         HANDLE this_proc = NtCurrentProcess();
