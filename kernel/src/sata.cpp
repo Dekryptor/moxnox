@@ -220,7 +220,12 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         port.ci |= 1 << slot;
     }
 
-    wait_for_object(events[slot].get(), false);
+    auto status = wait_for_object(events[slot].get(), true);
+
+    if (status == nt_status::ALERTED) {
+        release_slot(slot);
+        return 0;
+    }
 
     if (port.is & HBA_PxIS_TFES) {
         printk("Error reading disk\n");
