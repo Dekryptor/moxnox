@@ -182,6 +182,7 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
     }
 
     acquire();
+    object_ref obj{*this}; // so refcount gets decreased on exit
 
     auto status = wait_for_object(*this, true);
 
