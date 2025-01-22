@@ -479,9 +479,7 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE
 
     // FIXME - check handle has SYNCHRONIZE access
 
-    wait_for_object(objrw.get(), alertable);
-
-    return nt_status::SUCCESS;
+    return wait_for_object(objrw.get(), alertable);
 }
 
 void disable_preempt() {
