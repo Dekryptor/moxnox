@@ -167,7 +167,8 @@ size_t pipe::write(span<const uint8_t> s) {
 
         // block while we wait for space to become available
 
-        wait_for_object(not_full_event, false);
+        if (wait_for_object(not_full_event, true) == nt_status::ALERTED)
+            break;
     } while (true);
 
     return size;
