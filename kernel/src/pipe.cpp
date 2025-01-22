@@ -182,7 +182,14 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
     }
 
     acquire();
-    wait_for_object(*this, false);
+
+    auto status = wait_for_object(*this, true);
+
+    if (status == nt_status::ALERTED) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    } else if (!success(status))
+        return status;
 
     {
         sync_lock sl;
