@@ -73,6 +73,32 @@ static console_info* console;
 static const uint32_t BSOD_BG_COLOUR = 0x000080;
 static const uint32_t BSOD_FG_COLOUR = 0xffffff;
 
+static const uint32_t DEFAULT_BG_COLOUR = 0x000000;
+static const uint32_t DEFAULT_FG_COLOUR = 0xffffff;
+static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
+
+static const uint32_t vt100_colours[] = {
+    0x000000,
+    0xb21818,
+    0x18b218,
+    0xb26818,
+    0x1818b2,
+    0xb218b2,
+    0x18b2b2,
+    0xb2b2b2,
+};
+
+static const uint32_t vt100_bright_colours[] = {
+    0x686868,
+    0xff5454,
+    0x54ff54,
+    0xffff54,
+    0x5454ff,
+    0xff54ff,
+    0x54ffff,
+    0xffffff,
+};
+
 static const size_t EDID_SIZE = 128;
 static uint8_t edid[EDID_SIZE];
 static bool have_edid;
@@ -256,7 +282,7 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
 }
 
 static void refresh_shadow_framebuffer() {
-    rect(0, 0, fb_width, fb_height, 0x000000);
+    rect(0, 0, fb_width, fb_height, DEFAULT_BG_COLOUR);
 
     auto* c = &console[0];
 
@@ -336,7 +362,7 @@ static void refresh_framebuffer() {
     memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 }
 
-static void fb_print2(char c, uint32_t bg_colour, uint32_t fg_colour) {
+static void fb_print2(char c) {
     if (utf8_chars != 0) {
         if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
             print_char(0xfffd, bg_colour, fg_colour);
@@ -420,14 +446,121 @@ static void fb_print2(char c, uint32_t bg_colour, uint32_t fg_colour) {
     print_char(c, bg_colour, fg_colour);
 }
 
+static void handle_sgr_part(string_view s) {
+    while (!s.empty() && s.front() == '0') {
+        s = string_view(s.data() + 1, s.size() - 1);
+    }
+
+    unsigned int num = 0;
+
+    for (auto c : s) {
+        if (c < '0' || c > '9')
+            return;
+
+        num *= 10;
+        num += c - '0';
+    }
+
+    switch (num) {
+        case 0: // reset
+            fg_colour = DEFAULT_FG_COLOUR;
+            bg_colour = DEFAULT_BG_COLOUR;
+            break;
+
+        // FIXME - 1 - bold
+        // FIXME - 3 - italic
+        // FIXME - 4 - underline
+        // FIXME - 5 - blink
+        // FIXME - 7 - reverse video
+        // FIXME - 9 - strikethrough
+        // FIXME - 21 - double underline
+        // FIXME - 22 - not bold
+        // FIXME - 23 - not italic
+        // FIXME - 24 - not underlined
+        // FIXME - 25 - not blinking
+
+        case 30:
+        case 31:
+        case 32:
+        case 33:
+        case 34:
+        case 35:
+        case 36:
+        case 37:
+            fg_colour = vt100_colours[num - 30];
+            break;
+
+        // FIXME - 38 - custom foreground colour
+
+        case 39:
+            fg_colour = DEFAULT_FG_COLOUR;
+            break;
+
+        case 40:
+        case 41:
+        case 42:
+        case 43:
+        case 44:
+        case 45:
+        case 46:
+        case 47:
+            bg_colour = vt100_colours[num - 40];
+            break;
+
+        // FIXME - 48 - custom background colour
+
+        case 49:
+            bg_colour = DEFAULT_BG_COLOUR;
+            break;
+
+        case 90:
+        case 91:
+        case 92:
+        case 93:
+        case 94:
+        case 95:
+        case 96:
+        case 97:
+            fg_colour = vt100_bright_colours[num - 90];
+            break;
+
+        case 100:
+        case 101:
+        case 102:
+        case 103:
+        case 104:
+        case 105:
+        case 106:
+        case 107:
+            bg_colour = vt100_bright_colours[num - 100];
+            break;
+    }
+}
+
 static void handle_sgr(string_view s) {
-    // FIXME
+    do {
+        string_view p;
+
+        auto sc = s.find(';');
+
+        if (sc == string_view::npos)
+            p = s;
+        else
+            p = string_view(s.data(), sc);
+
+        handle_sgr_part(p);
+
+        if (sc == string_view::npos)
+            break;
+
+        s = string_view(s.data() + sc + 1, s.size() - sc - 1);
+    } while (true);
 }
 
 static void handle_escape_sequence(string_view s) {
     if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
         for (auto c : s) {
-            fb_print2(c, 0x000000/*FIXME*/, 0xffffff/*FIXME*/);
+            fb_print2(c);
         }
         return;
     }
@@ -436,10 +569,10 @@ static void handle_escape_sequence(string_view s) {
         handle_sgr(string_view(s.data() + 2, s.size() - 3));
 }
 
-static void fb_print(string_view s, uint32_t bg_colour, uint32_t fg_colour) {
+static void fb_print(string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
-            fb_print2(0x1b, bg_colour, fg_colour);
+            fb_print2(0x1b);
             escape_buffer_len = 0;
         } else {
             if (escape_buffer_len == 1) {
@@ -455,7 +588,7 @@ static void fb_print(string_view s, uint32_t bg_colour, uint32_t fg_colour) {
             while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
                 if (escape_buffer_len == sizeof(escape_buffer)) {
                     for (size_t i = 0; i < escape_buffer_len; i++) {
-                        fb_print2(escape_buffer[i], bg_colour, fg_colour);
+                        fb_print2(escape_buffer[i]);
                     }
 
                     escape_buffer_len = 0;
@@ -483,7 +616,7 @@ static void fb_print(string_view s, uint32_t bg_colour, uint32_t fg_colour) {
                     return;
             } else {
                 for (size_t i = 0; i < escape_buffer_len; i++) {
-                    fb_print2(escape_buffer[i], bg_colour, fg_colour);
+                    fb_print2(escape_buffer[i]);
                 }
 
                 escape_buffer_len = 0;
@@ -515,12 +648,12 @@ loop:
                 if (s.size() == param_bytes + 2) {
                     if (param_bytes + 2 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < escape_buffer_len; i++) {
-                            fb_print2(escape_buffer[i], bg_colour, fg_colour);
+                            fb_print2(escape_buffer[i]);
                         }
                         escape_buffer_len = 0;
 
                         for (size_t i = 0; i < s.size(); i++) {
-                            fb_print2(s[i], bg_colour, fg_colour);
+                            fb_print2(s[i]);
                         }
 
                         return;
@@ -535,7 +668,7 @@ loop:
                     // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
                     if (param_bytes + 3 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < param_bytes + 3; i++) {
-                            fb_print2(s[i], bg_colour, fg_colour);
+                            fb_print2(s[i]);
                         }
                     } else
                         handle_escape_sequence(string_view(s.data(), param_bytes + 3));
@@ -546,15 +679,15 @@ loop:
             }
         }
 
-        fb_print2(c, bg_colour, fg_colour);
+        fb_print2(c);
     }
 }
 
-static void fb_print(integral auto i, uint32_t bg_colour, uint32_t fg_colour) {
+static void fb_print(integral auto i) {
     char s[21];
 
     auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
-    fb_print(string_view(s, ptr - s), bg_colour, fg_colour);
+    fb_print(string_view(s, ptr - s));
 }
 
 static void early_print(string_view s) {
@@ -566,7 +699,7 @@ static void early_print(string_view s) {
     if (!fb_console_started)
         return;
 
-    fb_print(s, 0x000000, 0xffffff);
+    fb_print(s);
     refresh_shadow_framebuffer();
     refresh_framebuffer();
 }
@@ -811,8 +944,8 @@ bool init_fb_console() {
     }
 
     for (unsigned int i = 0; i < fb_console_cols * fb_console_rows; i++) {
-        console[i].bg = 0x000000;
-        console[i].fg = 0xffffff;
+        console[i].bg = DEFAULT_BG_COLOUR;
+        console[i].fg = DEFAULT_FG_COLOUR;
         console[i].c = ' ';
     }
 
@@ -903,7 +1036,7 @@ static void print_rip(uint64_t rip) {
     sp = sp_strcpy(sp, "\n");
 
     if constexpr (FB)
-        fb_print(string_view(s, sp.data() - s), BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        fb_print(string_view(s, sp.data() - s));
     else
         text_console_print(string_view(s, sp.data() - s), console_colour::blue, console_colour::white);
 }
@@ -1285,14 +1418,16 @@ void bsod(string_view msg, source_location sl) {
     } else {
         fill_framebuffer(BSOD_BG_COLOUR);
 
-        fb_print(msg, BSOD_BG_COLOUR, BSOD_FG_COLOUR);
-        fb_print("\n", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
-        fb_print(sl.file_name(), BSOD_BG_COLOUR, BSOD_FG_COLOUR);
-        fb_print(":", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
-        fb_print(sl.line(), BSOD_BG_COLOUR, BSOD_FG_COLOUR);
-        fb_print(", ", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
-        fb_print(sl.function_name(), BSOD_BG_COLOUR, BSOD_FG_COLOUR);
-        fb_print("\n", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        // FIXME - set VT100 code for colours
+
+        fb_print(msg);
+        fb_print("\n");
+        fb_print(sl.file_name());
+        fb_print(":");
+        fb_print(sl.line());
+        fb_print(", ");
+        fb_print(sl.function_name());
+        fb_print("\n");
     }
 
     // FIXME - print context?
@@ -1315,7 +1450,7 @@ void bsod(string_view msg, source_location sl) {
         text_console_print("\n", console_colour::blue, console_colour::white);
         print_stacktrace(context, print_rip<false>);
     } else {
-        fb_print("\n", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
+        fb_print("\n");
         print_stacktrace(context, print_rip<true>);
 
         refresh_shadow_framebuffer();
