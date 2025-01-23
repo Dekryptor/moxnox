@@ -170,19 +170,6 @@ static void text_console_print(integral auto i, enum console_colour bg = console
     text_console_print(string_view(s, ptr - s), bg, fg);
 }
 
-static void blit(unsigned int x, unsigned int y, unsigned int w, unsigned int h) {
-    auto src = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + x;
-    auto dst = framebuffer.data() + (y * fb_pixels_per_scan_line) + x;
-
-    while (h > 0) {
-        memcpy(dst, src, w * sizeof(uint32_t));
-
-        src += fb_pixels_per_scan_line;
-        dst += fb_pixels_per_scan_line;
-        h--;
-    }
-}
-
 static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y,
                          uint32_t bg_colour, uint32_t fg_colour) {
     auto error = FT_Load_Char(face, cp, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
@@ -217,7 +204,6 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y,
     uint32_t bg_colour_b = bg_colour & 0xff;
     uint32_t fg_colour_b = fg_colour & 0xff;
 
-    auto orig_y = y;
     auto base = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + fb_x + face->glyph->bitmap_left;
 
     while (y < bottom) {
@@ -240,8 +226,6 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y,
         base += fb_pixels_per_scan_line;
         y++;
     }
-
-    blit(fb_x + face->glyph->bitmap_left, orig_y, width, bottom - orig_y);
 }
 
 static void fb_console_overflow() {
@@ -252,8 +236,6 @@ static void fb_console_overflow() {
     dest += fb_pixels_per_scan_line * (fb_height - font_height);
 
     memset(dest, 0, fb_pixels_per_scan_line * font_height * sizeof(uint32_t)); // black
-
-    memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 
     memcpy(console, &console[fb_console_cols], (fb_console_rows - 1) * fb_console_cols * sizeof(console_info));
 
@@ -277,8 +259,6 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
 
         dest += fb_pixels_per_scan_line - w;
     }
-
-    blit(x, y, w, h);
 }
 
 static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
@@ -341,6 +321,12 @@ static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
             }
         }
     }
+}
+
+static void refresh_framebuffer() {
+    // FIXME - only copy changed parts?
+
+    memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 }
 
 static void fb_print(string_view s, uint32_t bg_colour, uint32_t fg_colour) {
@@ -446,6 +432,7 @@ static void early_print(string_view s) {
         return;
 
     fb_print(s, 0x000000, 0xffffff);
+    refresh_framebuffer();
 }
 
 void safe_print(string_view s) {
@@ -1188,6 +1175,8 @@ void bsod(string_view msg, source_location sl) {
         fb_print("\n", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
         print_stacktrace(context, print_rip<true>);
     }
+
+    refresh_framebuffer();
 
     __asm("call halt_isr");
     __builtin_unreachable();
