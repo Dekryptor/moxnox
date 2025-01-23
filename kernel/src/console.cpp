@@ -61,8 +61,8 @@ extern void* console_font_data;
 extern uint64_t console_font_size;
 
 struct console_info {
-    enum console_colour bg;
-    enum console_colour fg;
+    uint32_t bg;
+    uint32_t fg;
     char32_t c;
 };
 
@@ -229,21 +229,13 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y,
 }
 
 static void fb_console_overflow() {
-    auto src = shadow_framebuffer.data() + (fb_pixels_per_scan_line * font_height);
-    auto dest = shadow_framebuffer.data();
-
-    memcpy(dest, src, fb_pixels_per_scan_line * (fb_height - font_height) * sizeof(uint32_t));
-    dest += fb_pixels_per_scan_line * (fb_height - font_height);
-
-    memset(dest, 0, fb_pixels_per_scan_line * font_height * sizeof(uint32_t)); // black
-
     memcpy(console, &console[fb_console_cols], (fb_console_rows - 1) * fb_console_cols * sizeof(console_info));
 
     auto c = &console[(fb_console_rows - 1) * fb_console_cols];
 
     for (unsigned int i = 0; i < fb_console_cols; i++) {
         // FIXME - set fg and bg to current colour
-        c->c = 0;
+        c->c = ' ';
         c++;
     }
 }
@@ -261,11 +253,26 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
     }
 }
 
+static void refresh_shadow_framebuffer() {
+    rect(0, 0, fb_width, fb_height, 0x000000);
+
+    auto* c = &console[0];
+
+    for (unsigned int y = 0; y < fb_console_rows; y++) {
+        for (unsigned int x = 0; x < fb_console_cols; x++) {
+            draw_ft_char(c->c, x * font_width, ((y + 1) * font_height) - font_descender,
+                         c->bg, c->fg);
+
+            c++;
+        }
+    }
+}
+
 static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
     if (c == '\n') {
         if (console) {
             for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
-                console[(cursor_y * fb_console_cols) + i].c = 0;
+                console[(cursor_y * fb_console_cols) + i].c = ' ';
             }
         }
 
@@ -296,18 +303,16 @@ static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
                 cursor_x++;
         }
 
-        if (console)
-            console[(cursor_y * fb_console_cols) + cursor_x].c = 0;
-
-        if (console_output_mode & ENABLE_PROCESSED_OUTPUT)
-            rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, bg_colour);
+        if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT)
+            console[(cursor_y * fb_console_cols) + cursor_x].c = ' ';
     } else {
-        rect(cursor_x * font_width, cursor_y * font_height, font_width, font_height, bg_colour);
-        draw_ft_char(c, cursor_x * font_width, ((cursor_y + 1) * font_height) - font_descender,
-                     bg_colour, fg_colour);
+        if (console) {
+            auto& p = console[(cursor_y * fb_console_cols) + cursor_x];
 
-        if (console)
-            console[(cursor_y * fb_console_cols) + cursor_x].c = c;
+            p.c = c;
+            p.bg = bg_colour;
+            p.fg = fg_colour;
+        }
 
         cursor_x++;
 
@@ -432,6 +437,7 @@ static void early_print(string_view s) {
         return;
 
     fb_print(s, 0x000000, 0xffffff);
+    refresh_shadow_framebuffer();
     refresh_framebuffer();
 }
 
@@ -668,9 +674,9 @@ bool init_fb_console() {
     }
 
     for (unsigned int i = 0; i < fb_console_cols * fb_console_rows; i++) {
-        console[i].bg = console_colour::black;
-        console[i].fg = console_colour::light_grey;
-        console[i].c = 0;
+        console[i].bg = 0x000000;
+        console[i].fg = 0xffffff;
+        console[i].c = ' ';
     }
 
     if (!add_kernel_thread(console_event_recv)) {
@@ -1174,9 +1180,10 @@ void bsod(string_view msg, source_location sl) {
     } else {
         fb_print("\n", BSOD_BG_COLOUR, BSOD_FG_COLOUR);
         print_stacktrace(context, print_rip<true>);
-    }
 
-    refresh_framebuffer();
+        refresh_shadow_framebuffer();
+        refresh_framebuffer();
+    }
 
     __asm("call halt_isr");
     __builtin_unreachable();
