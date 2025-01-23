@@ -73,10 +73,6 @@ static console_info* console;
 static const uint32_t BSOD_BG_COLOUR = 0x000080;
 static const uint32_t BSOD_FG_COLOUR = 0xffffff;
 
-static const uint32_t DEFAULT_BG_COLOUR = 0x000000;
-static const uint32_t DEFAULT_FG_COLOUR = 0xffffff;
-static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
-
 static const uint32_t vt100_colours[] = {
     0x000000,
     0xb21818,
@@ -98,6 +94,15 @@ static const uint32_t vt100_bright_colours[] = {
     0x54ffff,
     0xffffff,
 };
+
+static const unsigned int DEFAULT_BG_COLOUR_INDEX = 0;
+static const unsigned int DEFAULT_FG_COLOUR_INDEX = 7;
+static const uint32_t DEFAULT_BG_COLOUR = vt100_colours[DEFAULT_BG_COLOUR_INDEX];
+static const uint32_t DEFAULT_FG_COLOUR = vt100_colours[DEFAULT_FG_COLOUR_INDEX];
+static uint32_t bg_colour_index = 0, fg_colour_index = 7;
+static bool bg_bright = false, fg_bright = false;
+static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
+
 
 static const size_t EDID_SIZE = 128;
 static uint8_t edid[EDID_SIZE];
@@ -446,6 +451,17 @@ static void fb_print2(char c) {
     print_char(c, bg_colour, fg_colour);
 }
 
+static void recalc_colours(bool fg) {
+    static bool bright = fg ? fg_bright : bg_bright;
+    static unsigned int index = fg ? fg_colour_index : bg_colour_index;
+    static uint32_t* colour = fg ? &fg_colour : &bg_colour;
+
+    if (bright)
+        *colour = vt100_bright_colours[index];
+    else
+        *colour = vt100_colours[index];
+}
+
 static void handle_sgr_part(string_view s) {
     while (!s.empty() && s.front() == '0') {
         s = string_view(s.data() + 1, s.size() - 1);
@@ -463,7 +479,12 @@ static void handle_sgr_part(string_view s) {
 
     switch (num) {
         case 0: // reset
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
             fg_colour = DEFAULT_FG_COLOUR;
+
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_bright = false;
             bg_colour = DEFAULT_BG_COLOUR;
             break;
 
@@ -487,12 +508,16 @@ static void handle_sgr_part(string_view s) {
         case 35:
         case 36:
         case 37:
-            fg_colour = vt100_colours[num - 30];
+            fg_colour_index = num - 30;
+            fg_bright = false;
+            recalc_colours(true);
             break;
 
         // FIXME - 38 - custom foreground colour
 
         case 39:
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
             fg_colour = DEFAULT_FG_COLOUR;
             break;
 
@@ -504,13 +529,17 @@ static void handle_sgr_part(string_view s) {
         case 45:
         case 46:
         case 47:
-            bg_colour = vt100_colours[num - 40];
+            bg_colour_index = num - 40;
+            bg_bright = false;
+            recalc_colours(false);
             break;
 
         // FIXME - 48 - custom background colour
 
         case 49:
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
             bg_colour = DEFAULT_BG_COLOUR;
+            bg_bright = false;
             break;
 
         case 90:
@@ -521,7 +550,9 @@ static void handle_sgr_part(string_view s) {
         case 95:
         case 96:
         case 97:
-            fg_colour = vt100_bright_colours[num - 90];
+            fg_colour_index = num - 90;
+            fg_bright = false;
+            recalc_colours(true);
             break;
 
         case 100:
@@ -532,7 +563,9 @@ static void handle_sgr_part(string_view s) {
         case 105:
         case 106:
         case 107:
-            bg_colour = vt100_bright_colours[num - 100];
+            bg_colour_index = num - 100;
+            bg_bright = true;
+            recalc_colours(false);
             break;
     }
 }
