@@ -357,6 +357,7 @@ struct dirent {
     list_entry le;
     uint64_t inode;
     enum key_type type;
+    enum btrfs_inode_type inode_type;
     uint64_t index;
     uint8_t namelen;
     char name[1];

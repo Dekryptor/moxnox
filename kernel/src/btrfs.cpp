@@ -633,6 +633,7 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 
                 de.inode = di.k.obj_id;
                 de.type = di.k.obj_type;
+                de.inode_type = di.type;
                 de.index = k.offset;
                 de.namelen = (uint8_t)di.n;
                 memcpy(de.name, di.name, di.n);
@@ -1124,7 +1125,7 @@ NTSTATUS btrfs_filesystem::query_directory_dirent(const dirent& de, span<uint8_t
             fdi.ChangeTime.QuadPart = 0; // FIXME
             fdi.EndOfFile.QuadPart = 0; // FIXME
             fdi.AllocationSize.QuadPart = 0; // FIXME
-            fdi.FileAttributes = 0; // FIXME
+            fdi.FileAttributes = de.inode_type == btrfs_inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
             utf8_to_utf16(span(fdi.FileName, utf16len), sv);
 
