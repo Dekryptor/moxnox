@@ -336,10 +336,6 @@ static void refresh_framebuffer() {
     memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 }
 
-static void handle_escape_sequence(string_view s) {
-    // FIXME
-}
-
 static void fb_print2(char c, uint32_t bg_colour, uint32_t fg_colour) {
     if (utf8_chars != 0) {
         if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
@@ -422,6 +418,22 @@ static void fb_print2(char c, uint32_t bg_colour, uint32_t fg_colour) {
     }
 
     print_char(c, bg_colour, fg_colour);
+}
+
+static void handle_sgr(string_view s) {
+    // FIXME
+}
+
+static void handle_escape_sequence(string_view s) {
+    if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
+        for (auto c : s) {
+            fb_print2(c, 0x000000/*FIXME*/, 0xffffff/*FIXME*/);
+        }
+        return;
+    }
+
+    if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[' && s.back() == 'm')
+        handle_sgr(string_view(s.data() + 2, s.size() - 3));
 }
 
 static void fb_print(string_view s, uint32_t bg_colour, uint32_t fg_colour) {
