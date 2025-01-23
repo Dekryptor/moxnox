@@ -100,9 +100,8 @@ static const unsigned int DEFAULT_FG_COLOUR_INDEX = 7;
 static const uint32_t DEFAULT_BG_COLOUR = vt100_colours[DEFAULT_BG_COLOUR_INDEX];
 static const uint32_t DEFAULT_FG_COLOUR = vt100_colours[DEFAULT_FG_COLOUR_INDEX];
 static uint32_t bg_colour_index = 0, fg_colour_index = 7;
-static bool bg_bright = false, fg_bright = false;
+static bool bg_bright = false, fg_bright = false, bold = false;
 static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
-
 
 static const size_t EDID_SIZE = 128;
 static uint8_t edid[EDID_SIZE];
@@ -452,11 +451,11 @@ static void fb_print2(char c) {
 }
 
 static void recalc_colours(bool fg) {
-    static bool bright = fg ? fg_bright : bg_bright;
-    static unsigned int index = fg ? fg_colour_index : bg_colour_index;
-    static uint32_t* colour = fg ? &fg_colour : &bg_colour;
+    bool bright = fg ? fg_bright : bg_bright;
+    unsigned int index = fg ? fg_colour_index : bg_colour_index;
+    uint32_t* colour = fg ? &fg_colour : &bg_colour;
 
-    if (bright)
+    if (bright || (fg && bold))
         *colour = vt100_bright_colours[index];
     else
         *colour = vt100_colours[index];
@@ -486,16 +485,27 @@ static void handle_sgr_part(string_view s) {
             bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
             bg_bright = false;
             bg_colour = DEFAULT_BG_COLOUR;
+
+            bold = false;
             break;
 
-        // FIXME - 1 - bold
+        case 1:
+            bold = true;
+            recalc_colours(true);
+            break;
+
         // FIXME - 3 - italic
         // FIXME - 4 - underline
         // FIXME - 5 - blink
         // FIXME - 7 - reverse video
         // FIXME - 9 - strikethrough
         // FIXME - 21 - double underline
-        // FIXME - 22 - not bold
+
+        case 22:
+            bold = false;
+            recalc_colours(false);
+            break;
+
         // FIXME - 23 - not italic
         // FIXME - 24 - not underlined
         // FIXME - 25 - not blinking
