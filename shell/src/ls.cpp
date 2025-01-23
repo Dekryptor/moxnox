@@ -37,9 +37,15 @@ void startup() {
         utf16_to_utf8(s, u16sv);
 
         // FIXME - print times and file sizes (and attributes?)
-        // FIXME - different colour for directories etc.
+
+        if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            print("\e[01;34m");
 
         print(string_view(s, len));
+
+        if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            print("\e[0m");
+
         print("\n");
 
         first = false;
