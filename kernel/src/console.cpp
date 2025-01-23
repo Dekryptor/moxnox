@@ -529,19 +529,26 @@ bool init_console(const loader_block_framebuffer& fb,
 }
 
 static void console_event_recv() {
+    auto buf_size = console_buffer_pages << PAGE_SHIFT;
+
+    auto buf = (uint8_t*)malloc(buf_size);
+    if (!buf)
+        return;
+
     do {
-        uint8_t s[255];
         uint64_t read_bytes;
 
         wait_for_object(console_pipe.get(), false);
 
-        auto status = static_cast<pipe&>(console_pipe.get()).read(s, read_bytes);
+        auto status = static_cast<pipe&>(console_pipe.get()).read(span(buf, buf_size), read_bytes);
 
         // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
 
         if (success(status) && read_bytes != 0)
-            early_print(string_view((char*)s, read_bytes));
+            early_print(string_view((char*)buf, read_bytes));
     } while (true);
+
+    free(buf);
 }
 
 bool init_console_pipe() {
