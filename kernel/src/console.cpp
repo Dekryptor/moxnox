@@ -87,6 +87,17 @@ static const uint32_t vt100_colours[] = {
     0xb2b2b2,
 };
 
+static const enum console_colour vt100_colours_text[] = {
+    console_colour::black,
+    console_colour::red,
+    console_colour::green,
+    console_colour::brown,
+    console_colour::blue,
+    console_colour::magenta,
+    console_colour::cyan,
+    console_colour::light_grey,
+};
+
 static const uint32_t vt100_bright_colours[] = {
     0x686868,
     0xff5454,
@@ -98,6 +109,17 @@ static const uint32_t vt100_bright_colours[] = {
     0xffffff,
 };
 
+static const enum console_colour vt100_bright_colours_text[] = {
+    console_colour::dark_grey,
+    console_colour::light_red,
+    console_colour::light_green,
+    console_colour::yellow,
+    console_colour::light_blue,
+    console_colour::light_magenta,
+    console_colour::light_cyan,
+    console_colour::white,
+};
+
 static const uint32_t BSOD_BG_COLOUR = vt100_colours[4];
 static const uint32_t BSOD_FG_COLOUR = vt100_bright_colours[7];
 static const unsigned int DEFAULT_BG_COLOUR_INDEX = 0;
@@ -107,12 +129,18 @@ static const uint32_t DEFAULT_FG_COLOUR = vt100_colours[DEFAULT_FG_COLOUR_INDEX]
 static uint32_t bg_colour_index = 0, fg_colour_index = 7;
 static bool bg_bright = false, fg_bright = false, bold = false;
 static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
+static const auto DEFAULT_BG_COLOUR_TEXT = console_colour::black;
+static const auto DEFAULT_FG_COLOUR_TEXT = console_colour::light_grey;
+static enum console_colour bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+static enum console_colour fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
 
 static const size_t EDID_SIZE = 128;
 static uint8_t edid[EDID_SIZE];
 static bool have_edid;
 
 bool has_framebuffer;
+
+static void fb_print2(char c);
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -165,46 +193,433 @@ static void text_console_move_cursor(uint8_t x, uint8_t y) {
     }
 }
 
-static void text_console_print(string_view s, enum console_colour bg = console_colour::black,
-                               enum console_colour fg = console_colour::light_grey) {
-    for (auto c : s) {
-        if (c == '\n') {
+static void text_console_print2(char c) {
+    if (c == '\n') {
+        cursor_x = 0;
+        cursor_y++;
+
+        if (cursor_y == console_rows)
+            text_console_overflow();
+    } else if (c == '\b') {
+        if (cursor_x > 0) { // FIXME
+            cursor_x--;
+
+            if (console_output_mode & ENABLE_PROCESSED_OUTPUT) {
+                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
+                                  bg_colour_text, fg_colour_text);
+            }
+        }
+    } else {
+        text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
+                          bg_colour_text, fg_colour_text);
+
+        cursor_x++;
+
+        if (cursor_x == console_cols) {
             cursor_x = 0;
             cursor_y++;
 
             if (cursor_y == console_rows)
                 text_console_overflow();
-        } else if (c == '\b') {
-            if (cursor_x > 0) { // FIXME
-                cursor_x--;
+        }
+    }
+}
 
-                if (console_output_mode & ENABLE_PROCESSED_OUTPUT)
-                    text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ', bg, fg);
-            }
+static void recalc_colours(bool fg) {
+    bool bright = fg ? fg_bright : bg_bright;
+    unsigned int index = fg ? fg_colour_index : bg_colour_index;
+    uint32_t* colour = fg ? &fg_colour : &bg_colour;
+
+    if (bright || (fg && bold))
+        *colour = vt100_bright_colours[index];
+    else
+        *colour = vt100_colours[index];
+}
+
+static void recalc_colours_text(bool fg) {
+    bool bright = fg ? fg_bright : bg_bright;
+    unsigned int index = fg ? fg_colour_index : bg_colour_index;
+    enum console_colour* colour = fg ? &fg_colour_text : &bg_colour_text;
+
+    if (bright || (fg && bold))
+        *colour = vt100_bright_colours_text[index];
+    else
+        *colour = vt100_colours_text[index];
+}
+
+template<bool FB>
+static void handle_sgr_part(string_view s) {
+    while (!s.empty() && s.front() == '0') {
+        s = string_view(s.data() + 1, s.size() - 1);
+    }
+
+    unsigned int num = 0;
+
+    for (auto c : s) {
+        if (c < '0' || c > '9')
+            return;
+
+        num *= 10;
+        num += c - '0';
+    }
+
+    if constexpr (FB) {
+        switch (num) {
+            case 0: // reset
+                fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+                fg_bright = false;
+                fg_colour = DEFAULT_FG_COLOUR;
+
+                bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+                bg_bright = false;
+                bg_colour = DEFAULT_BG_COLOUR;
+
+                bold = false;
+                break;
+
+            case 1:
+                bold = true;
+                recalc_colours(true);
+                break;
+
+            // FIXME - 3 - italic
+            // FIXME - 4 - underline
+            // FIXME - 5 - blink
+            // FIXME - 7 - reverse video
+            // FIXME - 9 - strikethrough
+            // FIXME - 21 - double underline
+
+            case 22:
+                bold = false;
+                recalc_colours(false);
+                break;
+
+            // FIXME - 23 - not italic
+            // FIXME - 24 - not underlined
+            // FIXME - 25 - not blinking
+
+            case 30:
+            case 31:
+            case 32:
+            case 33:
+            case 34:
+            case 35:
+            case 36:
+            case 37:
+                fg_colour_index = num - 30;
+                fg_bright = false;
+                recalc_colours(true);
+                break;
+
+            // FIXME - 38 - custom foreground colour
+
+            case 39:
+                fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+                fg_bright = false;
+                fg_colour = DEFAULT_FG_COLOUR;
+                break;
+
+            case 40:
+            case 41:
+            case 42:
+            case 43:
+            case 44:
+            case 45:
+            case 46:
+            case 47:
+                bg_colour_index = num - 40;
+                bg_bright = false;
+                recalc_colours(false);
+                break;
+
+            // FIXME - 48 - custom background colour
+
+            case 49:
+                bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+                bg_colour = DEFAULT_BG_COLOUR;
+                bg_bright = false;
+                break;
+
+            case 90:
+            case 91:
+            case 92:
+            case 93:
+            case 94:
+            case 95:
+            case 96:
+            case 97:
+                fg_colour_index = num - 90;
+                fg_bright = true;
+                recalc_colours(true);
+                break;
+
+            case 100:
+            case 101:
+            case 102:
+            case 103:
+            case 104:
+            case 105:
+            case 106:
+            case 107:
+                bg_colour_index = num - 100;
+                bg_bright = true;
+                recalc_colours(false);
+                break;
+        }
+    } else {
+        switch (num) {
+            case 0: // reset
+                fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+                fg_bright = false;
+                fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+
+                bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+                bg_bright = false;
+                bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+
+                bold = false;
+                break;
+
+            case 1:
+                bold = true;
+                recalc_colours_text(true);
+                break;
+
+            // FIXME - 5 - blink
+            // FIXME - 7 - reverse video
+
+            case 22:
+                bold = false;
+                recalc_colours_text(false);
+                break;
+
+            // FIXME - 25 - not blinking
+
+            case 30:
+            case 31:
+            case 32:
+            case 33:
+            case 34:
+            case 35:
+            case 36:
+            case 37:
+                fg_colour_index = num - 30;
+                fg_bright = false;
+                recalc_colours_text(true);
+                break;
+
+            case 39:
+                fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+                fg_bright = false;
+                fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+                break;
+
+            case 40:
+            case 41:
+            case 42:
+            case 43:
+            case 44:
+            case 45:
+            case 46:
+            case 47:
+                bg_colour_index = num - 40;
+                bg_bright = false;
+                recalc_colours_text(false);
+                break;
+
+            case 49:
+                bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+                bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+                bg_bright = false;
+                break;
+
+            case 90:
+            case 91:
+            case 92:
+            case 93:
+            case 94:
+            case 95:
+            case 96:
+            case 97:
+                fg_colour_index = num - 90;
+                fg_bright = true;
+                recalc_colours_text(true);
+                break;
+
+            case 100:
+            case 101:
+            case 102:
+            case 103:
+            case 104:
+            case 105:
+            case 106:
+            case 107:
+                bg_colour_index = num - 100;
+                bg_bright = true;
+                recalc_colours_text(false);
+                break;
+        }
+    }
+}
+
+template<bool FB>
+static void handle_sgr(string_view s) {
+    do {
+        string_view p;
+
+        auto sc = s.find(';');
+
+        if (sc == string_view::npos)
+            p = s;
+        else
+            p = string_view(s.data(), sc);
+
+        handle_sgr_part<FB>(p);
+
+        if (sc == string_view::npos)
+            break;
+
+        s = string_view(s.data() + sc + 1, s.size() - sc - 1);
+    } while (true);
+}
+
+template<bool FB>
+static void handle_escape_sequence(string_view s) {
+    if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
+        for (auto c : s) {
+            if constexpr (FB)
+                fb_print2(c);
+            else
+                text_console_print2(c);
+        }
+        return;
+    }
+
+    if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[' && s.back() == 'm')
+        handle_sgr<FB>(string_view(s.data() + 2, s.size() - 3));
+}
+
+static void text_console_print(string_view s) {
+    if (escape_buffer_len != 0) {
+        if (escape_buffer_len == 1 && s[0] != '[') {
+            text_console_print2(0x1b);
+            escape_buffer_len = 0;
         } else {
-            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c, bg, fg);
+            if (escape_buffer_len == 1) {
+                escape_buffer[1] = '[';
+                escape_buffer_len++;
 
-            cursor_x++;
+                s = string_view(s.data() + 1, s.size() - 1);
 
-            if (cursor_x == console_cols) {
-                cursor_x = 0;
-                cursor_y++;
+                if (s.empty())
+                    return;
+            }
 
-                if (cursor_y == console_rows)
-                    text_console_overflow();
+            while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
+                if (escape_buffer_len == sizeof(escape_buffer)) {
+                    for (size_t i = 0; i < escape_buffer_len; i++) {
+                        text_console_print2(escape_buffer[i]);
+                    }
+
+                    escape_buffer_len = 0;
+                    goto loop;
+                }
+
+                escape_buffer[escape_buffer_len] = s.front();
+                escape_buffer_len++;
+                s = string_view(s.data() + 1, s.size() - 1);
+            }
+
+            if (s.empty())
+                return;
+
+            if (s.front() >= 0x40 && s.front() <= 0x7e) {
+                escape_buffer[escape_buffer_len] = s.front();
+                escape_buffer_len++;
+
+                s = string_view(s.data() + 1, s.size() - 1);
+
+                handle_escape_sequence<false>(string_view(escape_buffer, escape_buffer_len));
+                escape_buffer_len = 0;
+
+                if (s.empty())
+                    return;
+            } else {
+                for (size_t i = 0; i < escape_buffer_len; i++) {
+                    text_console_print2(escape_buffer[i]);
+                }
+
+                escape_buffer_len = 0;
             }
         }
+    }
+
+loop:
+    for (; !s.empty(); s = string_view(s.data() + 1, s.size() - 1)) {
+        auto c = s.front();
+
+        if (c == 0x1b) {
+            if (s.size() == 1) {
+                escape_buffer[0] = 0x1b;
+                escape_buffer_len = 1;
+                return;
+            }
+
+            if (s[1] == '[') {
+                unsigned int param_bytes = 0;
+
+                while (s.size() >= param_bytes + 2) {
+                    if (s[2 + param_bytes] >= 0x30 && s[2 + param_bytes] <= 0x3f)
+                        param_bytes++;
+                    else
+                        break;
+                }
+
+                if (s.size() == param_bytes + 2) {
+                    if (param_bytes + 2 > sizeof(escape_buffer)) {
+                        for (size_t i = 0; i < escape_buffer_len; i++) {
+                            text_console_print2(escape_buffer[i]);
+                        }
+                        escape_buffer_len = 0;
+
+                        for (size_t i = 0; i < s.size(); i++) {
+                            text_console_print2(s[i]);
+                        }
+
+                        return;
+                    }
+
+                    memcpy(escape_buffer, s.data(), param_bytes + 2);
+                    escape_buffer_len = param_bytes + 2;
+                    return;
+                }
+
+                if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
+                    // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
+                    if (param_bytes + 3 > sizeof(escape_buffer)) {
+                        for (size_t i = 0; i < param_bytes + 3; i++) {
+                            text_console_print2(s[i]);
+                        }
+                    } else
+                        handle_escape_sequence<false>(string_view(s.data(), param_bytes + 3));
+
+                    s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
+                    continue;
+                }
+            }
+        }
+
+        text_console_print2(c);
     }
 
     text_console_move_cursor((uint8_t)cursor_x, (uint8_t)cursor_y);
 }
 
-static void text_console_print(integral auto i, enum console_colour bg = console_colour::black,
-                               enum console_colour fg = console_colour::light_grey) {
+static void text_console_print(integral auto i) {
     char s[21];
 
     auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
-    text_console_print(string_view(s, ptr - s), bg, fg);
+    text_console_print(string_view(s, ptr - s));
 }
 
 static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y) {
@@ -455,168 +870,6 @@ static void fb_print2(char c) {
     print_char(c);
 }
 
-static void recalc_colours(bool fg) {
-    bool bright = fg ? fg_bright : bg_bright;
-    unsigned int index = fg ? fg_colour_index : bg_colour_index;
-    uint32_t* colour = fg ? &fg_colour : &bg_colour;
-
-    if (bright || (fg && bold))
-        *colour = vt100_bright_colours[index];
-    else
-        *colour = vt100_colours[index];
-}
-
-static void handle_sgr_part(string_view s) {
-    while (!s.empty() && s.front() == '0') {
-        s = string_view(s.data() + 1, s.size() - 1);
-    }
-
-    unsigned int num = 0;
-
-    for (auto c : s) {
-        if (c < '0' || c > '9')
-            return;
-
-        num *= 10;
-        num += c - '0';
-    }
-
-    switch (num) {
-        case 0: // reset
-            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
-            fg_bright = false;
-            fg_colour = DEFAULT_FG_COLOUR;
-
-            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
-            bg_bright = false;
-            bg_colour = DEFAULT_BG_COLOUR;
-
-            bold = false;
-            break;
-
-        case 1:
-            bold = true;
-            recalc_colours(true);
-            break;
-
-        // FIXME - 3 - italic
-        // FIXME - 4 - underline
-        // FIXME - 5 - blink
-        // FIXME - 7 - reverse video
-        // FIXME - 9 - strikethrough
-        // FIXME - 21 - double underline
-
-        case 22:
-            bold = false;
-            recalc_colours(false);
-            break;
-
-        // FIXME - 23 - not italic
-        // FIXME - 24 - not underlined
-        // FIXME - 25 - not blinking
-
-        case 30:
-        case 31:
-        case 32:
-        case 33:
-        case 34:
-        case 35:
-        case 36:
-        case 37:
-            fg_colour_index = num - 30;
-            fg_bright = false;
-            recalc_colours(true);
-            break;
-
-        // FIXME - 38 - custom foreground colour
-
-        case 39:
-            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
-            fg_bright = false;
-            fg_colour = DEFAULT_FG_COLOUR;
-            break;
-
-        case 40:
-        case 41:
-        case 42:
-        case 43:
-        case 44:
-        case 45:
-        case 46:
-        case 47:
-            bg_colour_index = num - 40;
-            bg_bright = false;
-            recalc_colours(false);
-            break;
-
-        // FIXME - 48 - custom background colour
-
-        case 49:
-            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
-            bg_colour = DEFAULT_BG_COLOUR;
-            bg_bright = false;
-            break;
-
-        case 90:
-        case 91:
-        case 92:
-        case 93:
-        case 94:
-        case 95:
-        case 96:
-        case 97:
-            fg_colour_index = num - 90;
-            fg_bright = true;
-            recalc_colours(true);
-            break;
-
-        case 100:
-        case 101:
-        case 102:
-        case 103:
-        case 104:
-        case 105:
-        case 106:
-        case 107:
-            bg_colour_index = num - 100;
-            bg_bright = true;
-            recalc_colours(false);
-            break;
-    }
-}
-
-static void handle_sgr(string_view s) {
-    do {
-        string_view p;
-
-        auto sc = s.find(';');
-
-        if (sc == string_view::npos)
-            p = s;
-        else
-            p = string_view(s.data(), sc);
-
-        handle_sgr_part(p);
-
-        if (sc == string_view::npos)
-            break;
-
-        s = string_view(s.data() + sc + 1, s.size() - sc - 1);
-    } while (true);
-}
-
-static void handle_escape_sequence(string_view s) {
-    if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
-        for (auto c : s) {
-            fb_print2(c);
-        }
-        return;
-    }
-
-    if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[' && s.back() == 'm')
-        handle_sgr(string_view(s.data() + 2, s.size() - 3));
-}
-
 static void fb_print(string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
@@ -657,7 +910,7 @@ static void fb_print(string_view s) {
 
                 s = string_view(s.data() + 1, s.size() - 1);
 
-                handle_escape_sequence(string_view(escape_buffer, escape_buffer_len));
+                handle_escape_sequence<true>(string_view(escape_buffer, escape_buffer_len));
                 escape_buffer_len = 0;
 
                 if (s.empty())
@@ -719,7 +972,7 @@ loop:
                             fb_print2(s[i]);
                         }
                     } else
-                        handle_escape_sequence(string_view(s.data(), param_bytes + 3));
+                        handle_escape_sequence<true>(string_view(s.data(), param_bytes + 3));
 
                     s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
                     continue;
@@ -1105,7 +1358,7 @@ static void print_rip(uint64_t rip) {
     if constexpr (FB)
         fb_print(string_view(s, sp.data() - s));
     else
-        text_console_print(string_view(s, sp.data() - s), console_colour::blue, console_colour::white);
+        text_console_print(string_view(s, sp.data() - s));
 }
 
 static const RUNTIME_FUNCTION* find_runtime_function(const kernel_image& img,
@@ -1474,14 +1727,14 @@ void bsod(string_view msg, source_location sl) {
         disable_cursor();
         fill_text_console(console_colour::blue, console_colour::white);
 
-        text_console_print(msg, console_colour::blue, console_colour::white);
-        text_console_print("\n", console_colour::blue, console_colour::white);
-        text_console_print(sl.file_name(), console_colour::blue, console_colour::white);
-        text_console_print(":", console_colour::blue, console_colour::white);
-        text_console_print(sl.line(), console_colour::blue, console_colour::white);
-        text_console_print(", ", console_colour::blue, console_colour::white);
-        text_console_print(sl.function_name(), console_colour::blue, console_colour::white);
-        text_console_print("\n", console_colour::blue, console_colour::white);
+        text_console_print(msg);
+        text_console_print("\n");
+        text_console_print(sl.file_name());
+        text_console_print(":");
+        text_console_print(sl.line());
+        text_console_print(", ");
+        text_console_print(sl.function_name());
+        text_console_print("\n");
     } else {
         fill_framebuffer(BSOD_BG_COLOUR);
 
@@ -1524,7 +1777,7 @@ void bsod(string_view msg, source_location sl) {
     );
 
     if (framebuffer.empty()) {
-        text_console_print("\n", console_colour::blue, console_colour::white);
+        text_console_print("\n");
         print_stacktrace(context, print_rip<false>);
     } else {
         fb_print("\n");
