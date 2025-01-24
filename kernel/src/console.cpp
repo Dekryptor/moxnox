@@ -566,6 +566,16 @@ static void handle_escape_sequence(string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
 
+        // FIXME - E (cursor next line)
+        // FIXME - F (cursor previous line)
+        // FIXME - G (cursor horizontal absolute)
+        // FIXME - H/f (cursor position)
+        // FIXME - J (erase in display)
+        // FIXME - K (erase in line)
+        // FIXME - S (scroll up)
+        // FIXME - T (scroll down)
+        // FIXME - d (vertical position absolute)
+
         if (s.back() >= 'A' && s.back() <= 'D')
             move_cursor(s);
         else if (s.back() == 'm')
