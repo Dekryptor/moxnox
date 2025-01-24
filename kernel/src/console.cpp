@@ -60,7 +60,9 @@ static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
 // font.S
 extern void* console_font_data;
+extern void* console_font_bold_data;
 extern uint64_t console_font_size;
+extern uint64_t console_font_bold_size;
 
 struct console_info {
     uint32_t bg;
