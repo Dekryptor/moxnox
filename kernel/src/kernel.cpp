@@ -131,7 +131,7 @@ static void keywait() {
     auto& p = static_cast<pipe&>(keyb);
     uint8_t c;
 
-    printk("Press any key to continue...\n");
+    printk("Press any key to continue...\n\e[?25l");
 
     // FIXME - make sure this behaves properly if user presses a multi-character key (clear buffer?)
     while (true) {
@@ -141,6 +141,8 @@ static void keywait() {
         if (!success(status) || read_bytes != 0)
             break;
     }
+
+    printk("\e[?25h");
 }
 
 void main_thread() {

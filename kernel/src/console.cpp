@@ -55,6 +55,7 @@ static spinlock cursor_lock, bsod_lock;
 static char assertion_buffer[1024];
 static char escape_buffer[50];
 static size_t escape_buffer_len = 0;
+static bool show_cursor = true;
 
 static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
@@ -165,6 +166,20 @@ static void text_console_overflow() {
     }
 
     cursor_y = console_rows - 1;
+}
+
+// FIXME - put these in one centralized place
+static uint8_t inb(uint16_t port) {
+    uint8_t ret;
+
+    __asm __volatile(
+        "\tin %b0, %w1\n"
+        : "=a" (ret)
+        : "Nd" (port)
+        :
+    );
+
+    return ret;
 }
 
 __attribute((naked))
@@ -483,6 +498,21 @@ static void handle_sgr(string_view s) {
     } while (true);
 }
 
+static void enable_cursor() {
+    uint8_t cursor_start = 14, cursor_end = 15;
+
+    outb(0x3d4, 0x0a);
+    outb(0x3d5, (inb(0x3d5) & 0xc0) | cursor_start);
+
+    outb(0x3d4, 0x0b);
+    outb(0x3d5, (inb(0x3d5) & 0xe0) | cursor_end);
+}
+
+static void disable_cursor() {
+    outb(0x3d4, 0xa);
+    outb(0x3d5, 0x20);
+}
+
 template<bool FB>
 static void handle_escape_sequence(string_view s) {
     if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
@@ -495,8 +525,23 @@ static void handle_escape_sequence(string_view s) {
         return;
     }
 
-    if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[' && s.back() == 'm')
-        handle_sgr<FB>(string_view(s.data() + 2, s.size() - 3));
+    if (s.size() >= 2 && s[0] == 0x1b && s[1] == '[') {
+        s = string_view(s.data() + 2, s.size() - 2);
+
+        if (s.size() >= 1 && s.back() == 'm')
+            handle_sgr<FB>(string_view(s.data(), s.size() - 1));
+        else if (s == "?25h") {
+            show_cursor = true;
+
+            if constexpr (!FB)
+                enable_cursor();
+        } else if (s == "?25l") {
+            show_cursor = false;
+
+            if constexpr (!FB)
+                disable_cursor();
+        }
+    }
 }
 
 static void text_console_print(string_view s) {
@@ -721,7 +766,7 @@ static void refresh_shadow_framebuffer() {
 
     for (unsigned int y = 0; y < fb_console_rows; y++) {
         for (unsigned int x = 0; x < fb_console_cols; x++) {
-            bool is_cursor = x == cursor_x && y == cursor_y;
+            bool is_cursor = show_cursor && x == cursor_x && y == cursor_y;
 
             rect(x * font_width, y * font_height, font_width, font_height, is_cursor ? c->fg : c->bg);
             draw_ft_char(*c, x * font_width, ((y + 1) * font_height) - font_descender, is_cursor);
@@ -1318,11 +1363,6 @@ static void fill_framebuffer(uint32_t colour) {
     memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 }
 
-static void disable_cursor() {
-    outb(0x3d4, 0xa);
-    outb(0x3d5, 0x20);
-}
-
 static kernel_image* get_kernel_image_from_address(uint64_t addr) {
     auto le = kernel_images.next;
 
@@ -1742,10 +1782,9 @@ void bsod(string_view msg, source_location sl) {
     // clear screen to blue and print message
 
     if (framebuffer.empty()) {
-        disable_cursor();
         fill_text_console(console_colour::blue, console_colour::white);
 
-        text_console_print("\e[97;44m");
+        text_console_print("\e[97;44m\e[?25l"); // change to blue and white, hide cursor
 
         for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
             fb_print(" ");
@@ -1776,7 +1815,7 @@ void bsod(string_view msg, source_location sl) {
             }
         }
 
-        fb_print("\e[97;44m");
+        fb_print("\e[97;44m\e[?25l"); // change to blue and white, hide cursor
 
         for (unsigned int i = 0; i < (fb_console_cols / 2) - 2; i++) {
             fb_print(" ");
