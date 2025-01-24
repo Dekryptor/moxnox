@@ -45,7 +45,7 @@ static const unsigned int console_buffer_pages = 4;
 static span<uint32_t> framebuffer, shadow_framebuffer;
 static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
-static FT_Face face = nullptr;
+static FT_Face face = nullptr, face_bold = nullptr;
 static unsigned int font_width, font_height, font_descender;
 static unsigned int fb_console_rows, fb_console_cols;
 static bool fb_console_started = false;
@@ -64,9 +64,13 @@ extern void* console_font_bold_data;
 extern uint64_t console_font_size;
 extern uint64_t console_font_bold_size;
 
+static const auto console_font = span(&console_font_data, console_font_size);
+static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
+
 struct console_info {
     uint32_t bg;
     uint32_t fg;
+    bool bold;
     char32_t c;
 };
 
@@ -204,24 +208,25 @@ static void text_console_print(integral auto i, enum console_colour bg = console
     text_console_print(string_view(s, ptr - s), bg, fg);
 }
 
-static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y,
-                         uint32_t bg_colour, uint32_t fg_colour) {
-    auto error = FT_Load_Char(face, cp, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
+static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y) {
+    auto font = c.bold ? face_bold : face;
+
+    auto error = FT_Load_Char(font, c.c, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
     if (error)
         return; // FIXME - if not found, print Unicode replacement character?
 
-    auto& bitmap = face->glyph->bitmap;
+    auto& bitmap = font->glyph->bitmap;
     auto buf = bitmap.buffer;
 
     auto width = bitmap.width;
-    if (fb_x + face->glyph->bitmap_left + width > fb_width)
-        width = fb_width - fb_x - face->glyph->bitmap_left;
+    if (fb_x + font->glyph->bitmap_left + width > fb_width)
+        width = fb_width - fb_x - font->glyph->bitmap_left;
 
-    int y = fb_y - face->glyph->bitmap_top;
+    int y = fb_y - font->glyph->bitmap_top;
     int bottom = y + bitmap.rows;
 
     if (y < 0) {
-        buf += bitmap.width * (face->glyph->bitmap_top - fb_y);
+        buf += bitmap.width * (font->glyph->bitmap_top - fb_y);
         y = 0;
     }
 
@@ -231,19 +236,19 @@ static void draw_ft_char(char32_t cp, unsigned int fb_x, unsigned int fb_y,
     if (bottom > (int)fb_height)
         bottom = fb_height;
 
-    uint32_t bg_colour_r = bg_colour >> 16;
-    uint32_t fg_colour_r = fg_colour >> 16;
-    uint32_t bg_colour_g = (bg_colour & 0xff00) >> 8;
-    uint32_t fg_colour_g = (fg_colour & 0xff00) >> 8;
-    uint32_t bg_colour_b = bg_colour & 0xff;
-    uint32_t fg_colour_b = fg_colour & 0xff;
+    uint32_t bg_colour_r = c.bg >> 16;
+    uint32_t fg_colour_r = c.fg >> 16;
+    uint32_t bg_colour_g = (c.bg & 0xff00) >> 8;
+    uint32_t fg_colour_g = (c.fg & 0xff00) >> 8;
+    uint32_t bg_colour_b = c.bg & 0xff;
+    uint32_t fg_colour_b = c.fg & 0xff;
 
-    auto base = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + fb_x + face->glyph->bitmap_left;
+    auto base = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + fb_x + font->glyph->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
             if (*buf == 255)
-                base[x] = fg_colour;
+                base[x] = c.fg;
             else if (*buf != 0) {
                 auto r = (uint8_t)(((bg_colour_r * (255 - (uint32_t)*buf)) + (fg_colour_r * (uint32_t)*buf)) / 255);
                 auto g = (uint8_t)(((bg_colour_g * (255 - (uint32_t)*buf)) + (fg_colour_g * (uint32_t)*buf)) / 255);
@@ -294,15 +299,14 @@ static void refresh_shadow_framebuffer() {
 
     for (unsigned int y = 0; y < fb_console_rows; y++) {
         for (unsigned int x = 0; x < fb_console_cols; x++) {
-            draw_ft_char(c->c, x * font_width, ((y + 1) * font_height) - font_descender,
-                         c->bg, c->fg);
+            draw_ft_char(*c, x * font_width, ((y + 1) * font_height) - font_descender);
 
             c++;
         }
     }
 }
 
-static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
+static void print_char(char32_t c) {
     if (c == '\n') {
         if (console) {
             for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
@@ -346,6 +350,7 @@ static void print_char(char32_t c, uint32_t bg_colour, uint32_t fg_colour) {
             p.c = c;
             p.bg = bg_colour;
             p.fg = fg_colour;
+            p.bold = bold;
         }
 
         cursor_x++;
@@ -371,8 +376,8 @@ static void refresh_framebuffer() {
 static void fb_print2(char c) {
     if (utf8_chars != 0) {
         if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-            print_char(0xfffd, bg_colour, fg_colour);
-            print_char(c, bg_colour, fg_colour);
+            print_char(0xfffd);
+            print_char(c);
             utf8_chars = 0;
             return;
         }
@@ -382,32 +387,32 @@ static void fb_print2(char c) {
 
         if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
             if ((utf8_buf[1] & 0xc0) != 0x80) {
-                print_char(0xfffd, bg_colour, fg_colour);
+                print_char(0xfffd);
                 utf8_chars = 0;
                 return;
             }
 
             char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
 
-            print_char(c, bg_colour, fg_colour);
+            print_char(c);
             utf8_chars = 0;
             return;
         } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
             if (utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char(0xfffd, bg_colour, fg_colour);
+                    print_char(0xfffd);
                     utf8_chars = 0;
                 }
             } else {
                 if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char(0xfffd, bg_colour, fg_colour);
+                    print_char(0xfffd);
                     utf8_chars = 0;
                     return;
                 }
 
                 char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
 
-                print_char(c, bg_colour, fg_colour);
+                print_char(c);
                 utf8_chars = 0;
             }
 
@@ -415,24 +420,24 @@ static void fb_print2(char c) {
         } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
             if (utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char(0xfffd, bg_colour, fg_colour);
+                    print_char(0xfffd);
                     utf8_chars = 0;
                 }
             } else if (utf8_chars == 3) {
                 if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char(0xfffd, bg_colour, fg_colour);
+                    print_char(0xfffd);
                     utf8_chars = 0;
                 }
             } else {
                 if ((utf8_buf[3] & 0xc0) != 0x80) {
-                    print_char(0xfffd, bg_colour, fg_colour);
+                    print_char(0xfffd);
                     utf8_chars = 0;
                     return;
                 }
 
                 char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
 
-                print_char(c, bg_colour, fg_colour);
+                print_char(c);
                 utf8_chars = 0;
             }
 
@@ -445,11 +450,11 @@ static void fb_print2(char c) {
         utf8_chars = 1;
         return;
     } else if (c & 0x80) {
-        print_char(0xfffd, bg_colour, fg_colour);
+        print_char(0xfffd);
         return;
     }
 
-    print_char(c, bg_colour, fg_colour);
+    print_char(c);
 }
 
 static void recalc_colours(bool fg) {
@@ -937,6 +942,13 @@ bool init_fb_console() {
         return false;
     }
 
+    if (have_edid) {
+        uint8_t screen_x_cm = edid[21];
+
+        dpi = (fb_width * 254) / ((uint16_t)screen_x_cm * 100);
+    } else
+        dpi = 72;
+
     error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_data, (FT_Long)console_font_size,
                                0, &face);
     if (error) {
@@ -947,15 +959,26 @@ bool init_fb_console() {
         return false;
     }
 
-    if (have_edid) {
-        uint8_t screen_x_cm = edid[21];
-
-        dpi = (fb_width * 254) / ((uint16_t)screen_x_cm * 100);
-    } else
-        dpi = 72;
-
-    // FIXME - font size
     error = FT_Set_Char_Size(face, 18 * 64, 0, dpi, 0);
+    if (error) {
+        printk("FT_Set_Char_Size failed (");
+        print_hex(error);
+        printk(")\n");
+
+        return false;
+    }
+
+    error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_bold_data, (FT_Long)console_font_bold_size,
+                               0, &face_bold);
+    if (error) {
+        printk("FT_New_Memory_Face failed (");
+        print_hex(error);
+        printk(")\n");
+
+        return false;
+    }
+
+    error = FT_Set_Char_Size(face_bold, 18 * 64, 0, dpi, 0);
     if (error) {
         printk("FT_Set_Char_Size failed (");
         print_hex(error);
@@ -991,6 +1014,7 @@ bool init_fb_console() {
     for (unsigned int i = 0; i < fb_console_cols * fb_console_rows; i++) {
         console[i].bg = DEFAULT_BG_COLOUR;
         console[i].fg = DEFAULT_FG_COLOUR;
+        console[i].bold = false;
         console[i].c = ' ';
     }
 
