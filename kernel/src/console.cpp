@@ -513,6 +513,44 @@ static void disable_cursor() {
     outb(0x3d5, 0x20);
 }
 
+static void move_cursor(string_view s) {
+    unsigned int delta = 1;
+
+    if (s.size() > 1) {
+        delta = 0;
+
+        for (size_t i = 0; i < s.size() - 1; i++) {
+            auto c = s[i];
+
+            if (c < '0' || c > '9')
+                return;
+
+            delta *= 10;
+            delta += c - '0';
+        }
+    }
+
+    if (s.back() == 'A') {
+        if (cursor_y > delta - 1)
+            cursor_y -= delta;
+        else
+            cursor_y = 0;
+    } else if (s.back() == 'B') {
+        if (cursor_y < fb_console_rows - delta)
+            cursor_y += delta;
+        else
+            cursor_y = fb_console_rows - 1;
+    } else if (s.back() == 'C') {
+        if (cursor_x < fb_console_cols - delta)
+            cursor_x += delta;
+        else
+            cursor_x = fb_console_cols - 1;
+    } else if (s.back() == 'D') {
+        if (cursor_x > delta - 1)
+            cursor_x -= delta;
+    }
+}
+
 template<bool FB>
 static void handle_escape_sequence(string_view s) {
     if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
@@ -525,10 +563,12 @@ static void handle_escape_sequence(string_view s) {
         return;
     }
 
-    if (s.size() >= 2 && s[0] == 0x1b && s[1] == '[') {
+    if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
 
-        if (s.size() >= 1 && s.back() == 'm')
+        if (s.back() >= 'A' && s.back() <= 'D')
+            move_cursor(s);
+        else if (s.back() == 'm')
             handle_sgr<FB>(string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
             show_cursor = true;
