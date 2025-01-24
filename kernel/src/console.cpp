@@ -76,9 +76,6 @@ struct console_info {
 
 static console_info* console;
 
-static const uint32_t BSOD_BG_COLOUR = 0x000080;
-static const uint32_t BSOD_FG_COLOUR = 0xffffff;
-
 static const uint32_t vt100_colours[] = {
     0x000000,
     0xb21818,
@@ -101,6 +98,8 @@ static const uint32_t vt100_bright_colours[] = {
     0xffffff,
 };
 
+static const uint32_t BSOD_BG_COLOUR = vt100_colours[4];
+static const uint32_t BSOD_FG_COLOUR = vt100_bright_colours[7];
 static const unsigned int DEFAULT_BG_COLOUR_INDEX = 0;
 static const unsigned int DEFAULT_FG_COLOUR_INDEX = 7;
 static const uint32_t DEFAULT_BG_COLOUR = vt100_colours[DEFAULT_BG_COLOUR_INDEX];
@@ -293,12 +292,11 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
 }
 
 static void refresh_shadow_framebuffer() {
-    rect(0, 0, fb_width, fb_height, DEFAULT_BG_COLOUR);
-
     auto* c = &console[0];
 
     for (unsigned int y = 0; y < fb_console_rows; y++) {
         for (unsigned int x = 0; x < fb_console_cols; x++) {
+            rect(x * font_width, y * font_height, font_width, font_height, c->bg);
             draw_ft_char(*c, x * font_width, ((y + 1) * font_height) - font_descender);
 
             c++;
@@ -568,7 +566,7 @@ static void handle_sgr_part(string_view s) {
         case 96:
         case 97:
             fg_colour_index = num - 90;
-            fg_bright = false;
+            fg_bright = true;
             recalc_colours(true);
             break;
 
@@ -1487,7 +1485,17 @@ void bsod(string_view msg, source_location sl) {
     } else {
         fill_framebuffer(BSOD_BG_COLOUR);
 
-        // FIXME - set VT100 code for colours
+        fb_print("\e[97;44m");
+
+        auto c = console;
+        for (unsigned int y = 0; y < fb_console_rows; y++) {
+            for (unsigned int x = 0; x < fb_console_cols; x++) {
+                c->bg = BSOD_BG_COLOUR;
+                c->fg = BSOD_FG_COLOUR;
+                c->c = ' ';
+                c++;
+            }
+        }
 
         fb_print(msg);
         fb_print("\n");
