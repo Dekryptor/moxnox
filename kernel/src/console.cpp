@@ -1729,6 +1729,12 @@ void bsod(string_view msg, source_location sl) {
 
         text_console_print("\e[97;44m");
 
+        for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
+            fb_print(" ");
+        }
+
+        text_console_print("\e[1mBSOD\e[22m\n\n");
+
         text_console_print(msg);
         text_console_print("\n");
         text_console_print(sl.file_name());
@@ -1740,8 +1746,6 @@ void bsod(string_view msg, source_location sl) {
     } else {
         fill_framebuffer(BSOD_BG_COLOUR);
 
-        fb_print("\e[97;44m");
-
         auto c = console;
         for (unsigned int y = 0; y < fb_console_rows; y++) {
             for (unsigned int x = 0; x < fb_console_cols; x++) {
@@ -1751,6 +1755,14 @@ void bsod(string_view msg, source_location sl) {
                 c++;
             }
         }
+
+        fb_print("\e[97;44m");
+
+        for (unsigned int i = 0; i < (fb_console_cols / 2) - 2; i++) {
+            fb_print(" ");
+        }
+
+        fb_print("\e[1mBSOD\e[22m\n\n");
 
         fb_print(msg);
         fb_print("\n");
