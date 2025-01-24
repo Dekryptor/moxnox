@@ -71,7 +71,7 @@ struct console_info {
     uint32_t bg;
     uint32_t fg;
     bool bold;
-    char32_t c;
+    FT_UInt glyph;
 };
 
 static console_info* console;
@@ -625,9 +625,9 @@ static void text_console_print(integral auto i) {
 static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y) {
     auto font = c.bold ? face_bold : face;
 
-    auto error = FT_Load_Char(font, c.c, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
+    auto error = FT_Load_Glyph(font, c.glyph, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
     if (error)
-        return; // FIXME - if not found, print Unicode replacement character?
+        return;
 
     auto& bitmap = font->glyph->bitmap;
     auto buf = bitmap.buffer;
@@ -686,9 +686,12 @@ static void fb_console_overflow() {
 
     auto c = &console[(fb_console_rows - 1) * fb_console_cols];
 
+    auto font = bold ? face_bold : face;
+    auto glyph = FT_Get_Char_Index(font, ' ');
+
     for (unsigned int i = 0; i < fb_console_cols; i++) {
         // FIXME - set fg and bg to current colour
-        c->c = ' ';
+        c->glyph = glyph;
         c++;
     }
 }
@@ -722,8 +725,11 @@ static void refresh_shadow_framebuffer() {
 static void print_char(char32_t c) {
     if (c == '\n') {
         if (console) {
+            auto font = bold ? face_bold : face;
+            auto glyph = FT_Get_Char_Index(font, ' ');
+
             for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
-                console[(cursor_y * fb_console_cols) + i].c = ' ';
+                console[(cursor_y * fb_console_cols) + i].glyph = glyph;
             }
         }
 
@@ -744,23 +750,24 @@ static void print_char(char32_t c) {
             cursor_x = fb_console_cols - 1;
             cursor_y--;
 
-            if (console) {
-                while (cursor_x > 0 && console[(cursor_y * fb_console_cols) + cursor_x].c == 0) {
-                    cursor_x--;
-                }
-            }
-
             if (cursor_x != fb_console_cols - 1)
                 cursor_x++;
         }
 
-        if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT)
-            console[(cursor_y * fb_console_cols) + cursor_x].c = ' ';
+        if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT) {
+            auto font = bold ? face_bold : face;
+            auto glyph = FT_Get_Char_Index(font, ' ');
+
+            console[(cursor_y * fb_console_cols) + cursor_x].glyph = glyph;
+        }
     } else {
         if (console) {
             auto& p = console[(cursor_y * fb_console_cols) + cursor_x];
 
-            p.c = c;
+            auto font = bold ? face_bold : face;
+            auto glyph = FT_Get_Char_Index(font, c);
+
+            p.glyph = glyph;
             p.bg = bg_colour;
             p.fg = fg_colour;
             p.bold = bold;
@@ -1262,11 +1269,13 @@ bool init_fb_console() {
         return false;
     }
 
+    auto glyph = FT_Get_Char_Index(face, ' ');
+
     for (unsigned int i = 0; i < fb_console_cols * fb_console_rows; i++) {
         console[i].bg = DEFAULT_BG_COLOUR;
         console[i].fg = DEFAULT_FG_COLOUR;
         console[i].bold = false;
-        console[i].c = ' ';
+        console[i].glyph = glyph;
     }
 
     if (!add_kernel_thread(console_event_recv)) {
@@ -1746,12 +1755,14 @@ void bsod(string_view msg, source_location sl) {
     } else {
         fill_framebuffer(BSOD_BG_COLOUR);
 
+        auto glyph = FT_Get_Char_Index(face, ' ');
+
         auto c = console;
         for (unsigned int y = 0; y < fb_console_rows; y++) {
             for (unsigned int x = 0; x < fb_console_cols; x++) {
                 c->bg = BSOD_BG_COLOUR;
                 c->fg = BSOD_FG_COLOUR;
-                c->c = ' ';
+                c->glyph = glyph;
                 c++;
             }
         }
