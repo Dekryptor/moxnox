@@ -513,6 +513,7 @@ static void disable_cursor() {
     outb(0x3d5, 0x20);
 }
 
+template<bool FB>
 static void move_cursor(string_view s) {
     unsigned int delta = 1;
 
@@ -536,15 +537,29 @@ static void move_cursor(string_view s) {
         else
             cursor_y = 0;
     } else if (s.back() == 'B') {
-        if (cursor_y < fb_console_rows - delta)
-            cursor_y += delta;
-        else
-            cursor_y = fb_console_rows - 1;
+        if constexpr (FB) {
+            if (cursor_y < fb_console_rows - delta)
+                cursor_y += delta;
+            else
+                cursor_y = fb_console_rows - 1;
+        } else {
+            if (cursor_y < console_rows - delta)
+                cursor_y += delta;
+            else
+                cursor_y = console_rows - 1;
+        }
     } else if (s.back() == 'C') {
-        if (cursor_x < fb_console_cols - delta)
-            cursor_x += delta;
-        else
-            cursor_x = fb_console_cols - 1;
+        if constexpr (FB) {
+            if (cursor_x < fb_console_cols - delta)
+                cursor_x += delta;
+            else
+                cursor_x = fb_console_cols - 1;
+        } else {
+            if (cursor_x < console_cols - delta)
+                cursor_x += delta;
+            else
+                cursor_x = console_cols - 1;
+        }
     } else if (s.back() == 'D') {
         if (cursor_x > delta - 1)
             cursor_x -= delta;
@@ -577,7 +592,7 @@ static void handle_escape_sequence(string_view s) {
         // FIXME - d (vertical position absolute)
 
         if (s.back() >= 'A' && s.back() <= 'D')
-            move_cursor(s);
+            move_cursor<FB>(s);
         else if (s.back() == 'm')
             handle_sgr<FB>(string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
