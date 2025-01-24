@@ -1727,6 +1727,8 @@ void bsod(string_view msg, source_location sl) {
         disable_cursor();
         fill_text_console(console_colour::blue, console_colour::white);
 
+        text_console_print("\e[97;44m");
+
         text_console_print(msg);
         text_console_print("\n");
         text_console_print(sl.file_name());
