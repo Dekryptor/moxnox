@@ -622,7 +622,8 @@ static void text_console_print(integral auto i) {
     text_console_print(string_view(s, ptr - s));
 }
 
-static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y) {
+static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y,
+                         bool is_cursor) {
     auto font = c.bold ? face_bold : face;
 
     auto error = FT_Load_Glyph(font, c.glyph, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
@@ -650,19 +651,25 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
     if (bottom > (int)fb_height)
         bottom = fb_height;
 
-    uint32_t bg_colour_r = c.bg >> 16;
-    uint32_t fg_colour_r = c.fg >> 16;
-    uint32_t bg_colour_g = (c.bg & 0xff00) >> 8;
-    uint32_t fg_colour_g = (c.fg & 0xff00) >> 8;
-    uint32_t bg_colour_b = c.bg & 0xff;
-    uint32_t fg_colour_b = c.fg & 0xff;
+    auto bg = c.bg;
+    auto fg = c.fg;
+
+    if (is_cursor)
+        swap(bg, fg);
+
+    uint32_t bg_colour_r = bg >> 16;
+    uint32_t fg_colour_r = fg >> 16;
+    uint32_t bg_colour_g = (bg & 0xff00) >> 8;
+    uint32_t fg_colour_g = (fg & 0xff00) >> 8;
+    uint32_t bg_colour_b = bg & 0xff;
+    uint32_t fg_colour_b = fg & 0xff;
 
     auto base = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + fb_x + font->glyph->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
             if (*buf == 255)
-                base[x] = c.fg;
+                base[x] = fg;
             else if (*buf != 0) {
                 auto r = (uint8_t)(((bg_colour_r * (255 - (uint32_t)*buf)) + (fg_colour_r * (uint32_t)*buf)) / 255);
                 auto g = (uint8_t)(((bg_colour_g * (255 - (uint32_t)*buf)) + (fg_colour_g * (uint32_t)*buf)) / 255);
@@ -714,8 +721,10 @@ static void refresh_shadow_framebuffer() {
 
     for (unsigned int y = 0; y < fb_console_rows; y++) {
         for (unsigned int x = 0; x < fb_console_cols; x++) {
-            rect(x * font_width, y * font_height, font_width, font_height, c->bg);
-            draw_ft_char(*c, x * font_width, ((y + 1) * font_height) - font_descender);
+            bool is_cursor = x == cursor_x && y == cursor_y;
+
+            rect(x * font_width, y * font_height, font_width, font_height, is_cursor ? c->fg : c->bg);
+            draw_ft_char(*c, x * font_width, ((y + 1) * font_height) - font_descender, is_cursor);
 
             c++;
         }
