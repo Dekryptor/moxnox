@@ -141,8 +141,6 @@ static bool have_edid;
 
 bool has_framebuffer;
 
-static void print_char(char32_t c);
-
 size_t strlen(const char* s) {
     size_t i = 0;
 
@@ -214,90 +212,88 @@ static void text_console_move_cursor(uint8_t x, uint8_t y) {
     }
 }
 
+static void fb_console_overflow(unsigned int rows = 1) {
+    memcpy(console, &console[fb_console_cols * rows], (fb_console_rows - rows) * fb_console_cols * sizeof(console_info));
+
+    auto c = &console[(fb_console_rows - rows) * fb_console_cols];
+
+    auto font = bold ? face_bold : face;
+    auto glyph = FT_Get_Char_Index(font, ' ');
+
+    for (unsigned int i = 0; i < fb_console_cols * rows; i++) {
+        c->bg = bg_colour;
+        c->fg = fg_colour;
+        c->glyph = glyph;
+        c->bold = bold;
+        c++;
+    }
+}
+
 template<bool FB>
-static void do_print2(char c) {
+static void print_char(char32_t c) {
     if constexpr (FB) {
-        if (utf8_chars != 0) {
-            if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-                print_char(0xfffd);
-                print_char(c);
-                utf8_chars = 0;
-                return;
+        if (c == '\n') {
+            if (console) {
+                auto font = bold ? face_bold : face;
+                auto glyph = FT_Get_Char_Index(font, ' ');
+
+                for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
+                    console[(cursor_y * fb_console_cols) + i].glyph = glyph;
+                }
             }
 
-            utf8_buf[utf8_chars] = c;
-            utf8_chars++;
+            cursor_x = 0;
+            cursor_y++;
 
-            if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
-                if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char(0xfffd);
-                    utf8_chars = 0;
-                    return;
-                }
-
-                char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
-
-                print_char(c);
-                utf8_chars = 0;
+            if (cursor_y == fb_console_rows) {
+                fb_console_overflow();
+                cursor_y = fb_console_rows - 1;
+            }
+        } else if (c == '\b') {
+            if (cursor_x == 0 && cursor_y == 0)
                 return;
-            } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
-                if (utf8_chars == 2) {
-                    if ((utf8_buf[1] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
-                        utf8_chars = 0;
-                    }
-                } else {
-                    if ((utf8_buf[2] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
-                        utf8_chars = 0;
-                        return;
-                    }
 
-                    char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
+            if (cursor_x > 0)
+                cursor_x--;
+            else {
+                cursor_x = fb_console_cols - 1;
+                cursor_y--;
 
-                    print_char(c);
-                    utf8_chars = 0;
+                if (cursor_x != fb_console_cols - 1)
+                    cursor_x++;
+            }
+
+            if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT) {
+                auto font = bold ? face_bold : face;
+                auto glyph = FT_Get_Char_Index(font, ' ');
+
+                console[(cursor_y * fb_console_cols) + cursor_x].glyph = glyph;
+            }
+        } else {
+            if (console) {
+                auto& p = console[(cursor_y * fb_console_cols) + cursor_x];
+
+                auto font = bold ? face_bold : face;
+                auto glyph = FT_Get_Char_Index(font, c);
+
+                p.glyph = glyph;
+                p.bg = bg_colour;
+                p.fg = fg_colour;
+                p.bold = bold;
+            }
+
+            cursor_x++;
+
+            if (cursor_x == fb_console_cols) {
+                cursor_x = 0;
+                cursor_y++;
+
+                if (cursor_y == fb_console_rows) {
+                    fb_console_overflow();
+                    cursor_y = fb_console_rows - 1;
                 }
-
-                return;
-            } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
-                if (utf8_chars == 2) {
-                    if ((utf8_buf[1] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
-                        utf8_chars = 0;
-                    }
-                } else if (utf8_chars == 3) {
-                    if ((utf8_buf[2] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
-                        utf8_chars = 0;
-                    }
-                } else {
-                    if ((utf8_buf[3] & 0xc0) != 0x80) {
-                        print_char(0xfffd);
-                        utf8_chars = 0;
-                        return;
-                    }
-
-                    char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
-
-                    print_char(c);
-                    utf8_chars = 0;
-                }
-
-                return;
             }
         }
-
-        if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
-            utf8_buf[0] = c;
-            utf8_chars = 1;
-            return;
-        } else if (c & 0x80) {
-            print_char(0xfffd);
-            return;
-        }
-
-        print_char(c);
     } else {
         if (c == '\n') {
             cursor_x = 0;
@@ -333,6 +329,93 @@ static void do_print2(char c) {
             }
         }
     }
+}
+
+template<bool FB>
+static void do_print2(char c) {
+    if constexpr (FB) {
+        if (utf8_chars != 0) {
+            if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
+                print_char<FB>(0xfffd);
+                print_char<FB>(c);
+                utf8_chars = 0;
+                return;
+            }
+
+            utf8_buf[utf8_chars] = c;
+            utf8_chars++;
+
+            if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
+                if ((utf8_buf[1] & 0xc0) != 0x80) {
+                    print_char<FB>(0xfffd);
+                    utf8_chars = 0;
+                    return;
+                }
+
+                char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
+
+                print_char<FB>(c);
+                utf8_chars = 0;
+                return;
+            } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
+                if (utf8_chars == 2) {
+                    if ((utf8_buf[1] & 0xc0) != 0x80) {
+                        print_char<FB>(0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else {
+                    if ((utf8_buf[2] & 0xc0) != 0x80) {
+                        print_char<FB>(0xfffd);
+                        utf8_chars = 0;
+                        return;
+                    }
+
+                    char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
+
+                    print_char<FB>(c);
+                    utf8_chars = 0;
+                }
+
+                return;
+            } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
+                if (utf8_chars == 2) {
+                    if ((utf8_buf[1] & 0xc0) != 0x80) {
+                        print_char<FB>(0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else if (utf8_chars == 3) {
+                    if ((utf8_buf[2] & 0xc0) != 0x80) {
+                        print_char<FB>(0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else {
+                    if ((utf8_buf[3] & 0xc0) != 0x80) {
+                        print_char<FB>(0xfffd);
+                        utf8_chars = 0;
+                        return;
+                    }
+
+                    char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
+
+                    print_char<FB>(c);
+                    utf8_chars = 0;
+                }
+
+                return;
+            }
+        }
+
+        if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
+            utf8_buf[0] = c;
+            utf8_chars = 1;
+            return;
+        } else if (c & 0x80) {
+            print_char<FB>(0xfffd);
+            return;
+        }
+    }
+
+    print_char<FB>(c);
 }
 
 static void recalc_colours(bool fg) {
@@ -889,23 +972,6 @@ static void erase_in_display(string_view s) {
     }
 }
 
-static void fb_console_overflow(unsigned int rows = 1) {
-    memcpy(console, &console[fb_console_cols * rows], (fb_console_rows - rows) * fb_console_cols * sizeof(console_info));
-
-    auto c = &console[(fb_console_rows - rows) * fb_console_cols];
-
-    auto font = bold ? face_bold : face;
-    auto glyph = FT_Get_Char_Index(font, ' ');
-
-    for (unsigned int i = 0; i < fb_console_cols * rows; i++) {
-        c->bg = bg_colour;
-        c->fg = fg_colour;
-        c->glyph = glyph;
-        c->bold = bold;
-        c++;
-    }
-}
-
 template<bool FB>
 static void scroll_up(string_view s) {
     unsigned int rows = 1;
@@ -1322,71 +1388,6 @@ static void refresh_shadow_framebuffer() {
             }
 
             c++;
-        }
-    }
-}
-
-static void print_char(char32_t c) {
-    if (c == '\n') {
-        if (console) {
-            auto font = bold ? face_bold : face;
-            auto glyph = FT_Get_Char_Index(font, ' ');
-
-            for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
-                console[(cursor_y * fb_console_cols) + i].glyph = glyph;
-            }
-        }
-
-        cursor_x = 0;
-        cursor_y++;
-
-        if (cursor_y == fb_console_rows) {
-            fb_console_overflow();
-            cursor_y = fb_console_rows - 1;
-        }
-    } else if (c == '\b') {
-        if (cursor_x == 0 && cursor_y == 0)
-            return;
-
-        if (cursor_x > 0)
-            cursor_x--;
-        else {
-            cursor_x = fb_console_cols - 1;
-            cursor_y--;
-
-            if (cursor_x != fb_console_cols - 1)
-                cursor_x++;
-        }
-
-        if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT) {
-            auto font = bold ? face_bold : face;
-            auto glyph = FT_Get_Char_Index(font, ' ');
-
-            console[(cursor_y * fb_console_cols) + cursor_x].glyph = glyph;
-        }
-    } else {
-        if (console) {
-            auto& p = console[(cursor_y * fb_console_cols) + cursor_x];
-
-            auto font = bold ? face_bold : face;
-            auto glyph = FT_Get_Char_Index(font, c);
-
-            p.glyph = glyph;
-            p.bg = bg_colour;
-            p.fg = fg_colour;
-            p.bold = bold;
-        }
-
-        cursor_x++;
-
-        if (cursor_x == fb_console_cols) {
-            cursor_x = 0;
-            cursor_y++;
-
-            if (cursor_y == fb_console_rows) {
-                fb_console_overflow();
-                cursor_y = fb_console_rows - 1;
-            }
         }
     }
 }
