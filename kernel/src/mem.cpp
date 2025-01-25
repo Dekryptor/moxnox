@@ -1283,13 +1283,27 @@ char* strstr(const char* haystack, const char* needle) {
 void* memmove(void* dest, const void* src, size_t n) {
     auto orig_dest = dest;
 
-    while (n > 0) {
-        *(uint8_t*)dest = *(uint8_t*)src;
+    if (dest <= src) {
+        while (n > 0) {
+            *(uint8_t*)dest = *(uint8_t*)src;
 
-        dest = (uint8_t*)dest + 1;
-        src = (uint8_t*)src + 1;
+            dest = (uint8_t*)dest + 1;
+            src = (uint8_t*)src + 1;
 
-        n--;
+            n--;
+        }
+    } else {
+        dest = (uint8_t*)dest + n - 1;
+        src = (uint8_t*)src + n - 1;
+
+        while (n > 0) {
+            *(uint8_t*)dest = *(uint8_t*)src;
+
+            dest = (uint8_t*)dest - 1;
+            src = (uint8_t*)src - 1;
+
+            n--;
+        }
     }
 
     return orig_dest;
