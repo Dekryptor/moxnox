@@ -141,7 +141,7 @@ static bool have_edid;
 
 bool has_framebuffer;
 
-static void fb_print2(char c);
+static void print_char(char32_t c);
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -214,37 +214,122 @@ static void text_console_move_cursor(uint8_t x, uint8_t y) {
     }
 }
 
-static void text_console_print2(char c) {
-    if (c == '\n') {
-        cursor_x = 0;
-        cursor_y++;
+template<bool FB>
+static void do_print2(char c) {
+    if constexpr (FB) {
+        if (utf8_chars != 0) {
+            if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
+                print_char(0xfffd);
+                print_char(c);
+                utf8_chars = 0;
+                return;
+            }
 
-        if (cursor_y == console_rows) {
-            text_console_overflow();
-            cursor_y = console_rows - 1;
-        }
-    } else if (c == '\b') {
-        if (cursor_x > 0) { // FIXME
-            cursor_x--;
+            utf8_buf[utf8_chars] = c;
+            utf8_chars++;
 
-            if (console_output_mode & ENABLE_PROCESSED_OUTPUT) {
-                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
-                                  bg_colour_text, fg_colour_text);
+            if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
+                if ((utf8_buf[1] & 0xc0) != 0x80) {
+                    print_char(0xfffd);
+                    utf8_chars = 0;
+                    return;
+                }
+
+                char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
+
+                print_char(c);
+                utf8_chars = 0;
+                return;
+            } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
+                if (utf8_chars == 2) {
+                    if ((utf8_buf[1] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else {
+                    if ((utf8_buf[2] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                        return;
+                    }
+
+                    char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
+
+                    print_char(c);
+                    utf8_chars = 0;
+                }
+
+                return;
+            } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
+                if (utf8_chars == 2) {
+                    if ((utf8_buf[1] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else if (utf8_chars == 3) {
+                    if ((utf8_buf[2] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else {
+                    if ((utf8_buf[3] & 0xc0) != 0x80) {
+                        print_char(0xfffd);
+                        utf8_chars = 0;
+                        return;
+                    }
+
+                    char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
+
+                    print_char(c);
+                    utf8_chars = 0;
+                }
+
+                return;
             }
         }
+
+        if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
+            utf8_buf[0] = c;
+            utf8_chars = 1;
+            return;
+        } else if (c & 0x80) {
+            print_char(0xfffd);
+            return;
+        }
+
+        print_char(c);
     } else {
-        text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
-                          bg_colour_text, fg_colour_text);
-
-        cursor_x++;
-
-        if (cursor_x == console_cols) {
+        if (c == '\n') {
             cursor_x = 0;
             cursor_y++;
 
             if (cursor_y == console_rows) {
                 text_console_overflow();
                 cursor_y = console_rows - 1;
+            }
+        } else if (c == '\b') {
+            if (cursor_x > 0) { // FIXME
+                cursor_x--;
+
+                if (console_output_mode & ENABLE_PROCESSED_OUTPUT) {
+                    text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
+                                      bg_colour_text, fg_colour_text);
+                }
+            }
+        } else {
+            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
+                              bg_colour_text, fg_colour_text);
+
+            cursor_x++;
+
+            if (cursor_x == console_cols) {
+                cursor_x = 0;
+                cursor_y++;
+
+                if (cursor_y == console_rows) {
+                    text_console_overflow();
+                    cursor_y = console_rows - 1;
+                }
             }
         }
     }
@@ -974,10 +1059,7 @@ template<bool FB>
 static void handle_escape_sequence(string_view s) {
     if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
         for (auto c : s) {
-            if constexpr (FB)
-                fb_print2(c);
-            else
-                text_console_print2(c);
+            do_print2<FB>(c);
         }
         return;
     }
@@ -1018,10 +1100,7 @@ template<bool FB>
 static void do_print(string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
-            if constexpr (FB)
-                fb_print2(0x1b);
-            else
-                text_console_print2(0x1b);
+            do_print2<FB>(0x1b);
             escape_buffer_len = 0;
         } else {
             if (escape_buffer_len == 1) {
@@ -1037,10 +1116,7 @@ static void do_print(string_view s) {
             while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
                 if (escape_buffer_len == sizeof(escape_buffer)) {
                     for (size_t i = 0; i < escape_buffer_len; i++) {
-                        if constexpr (FB)
-                            fb_print2(escape_buffer[i]);
-                        else
-                            text_console_print2(escape_buffer[i]);
+                        do_print2<FB>(escape_buffer[i]);
                     }
 
                     escape_buffer_len = 0;
@@ -1068,10 +1144,7 @@ static void do_print(string_view s) {
                     return;
             } else {
                 for (size_t i = 0; i < escape_buffer_len; i++) {
-                    if constexpr (FB)
-                        fb_print2(escape_buffer[i]);
-                    else
-                        text_console_print2(escape_buffer[i]);
+                    do_print2<FB>(escape_buffer[i]);
                 }
 
                 escape_buffer_len = 0;
@@ -1103,18 +1176,12 @@ loop:
                 if (s.size() == param_bytes + 2) {
                     if (param_bytes + 2 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < escape_buffer_len; i++) {
-                            if constexpr (FB)
-                                fb_print2(escape_buffer[i]);
-                            else
-                                text_console_print2(escape_buffer[i]);
+                            do_print2<FB>(escape_buffer[i]);
                         }
                         escape_buffer_len = 0;
 
                         for (size_t i = 0; i < s.size(); i++) {
-                            if constexpr (FB)
-                                fb_print2(s[i]);
-                            else
-                                text_console_print2(s[i]);
+                            do_print2<FB>(s[i]);
                         }
 
                         return;
@@ -1129,10 +1196,7 @@ loop:
                     // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
                     if (param_bytes + 3 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < param_bytes + 3; i++) {
-                            if constexpr (FB)
-                                fb_print2(s[i]);
-                            else
-                                text_console_print2(s[i]);
+                            do_print2<FB>(s[i]);
                         }
                     } else
                         handle_escape_sequence<FB>(string_view(s.data(), param_bytes + 3));
@@ -1143,10 +1207,7 @@ loop:
             }
         }
 
-        if constexpr (FB)
-            fb_print2(c);
-        else
-            text_console_print2(c);
+        do_print2<FB>(c);
     }
 
     if constexpr (!FB)
@@ -1334,90 +1395,6 @@ static void refresh_framebuffer() {
     // FIXME - only copy changed parts?
 
     memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
-}
-
-static void fb_print2(char c) {
-    if (utf8_chars != 0) {
-        if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-            print_char(0xfffd);
-            print_char(c);
-            utf8_chars = 0;
-            return;
-        }
-
-        utf8_buf[utf8_chars] = c;
-        utf8_chars++;
-
-        if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
-            if ((utf8_buf[1] & 0xc0) != 0x80) {
-                print_char(0xfffd);
-                utf8_chars = 0;
-                return;
-            }
-
-            char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
-
-            print_char(c);
-            utf8_chars = 0;
-            return;
-        } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
-            if (utf8_chars == 2) {
-                if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char(0xfffd);
-                    utf8_chars = 0;
-                }
-            } else {
-                if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char(0xfffd);
-                    utf8_chars = 0;
-                    return;
-                }
-
-                char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
-
-                print_char(c);
-                utf8_chars = 0;
-            }
-
-            return;
-        } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
-            if (utf8_chars == 2) {
-                if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char(0xfffd);
-                    utf8_chars = 0;
-                }
-            } else if (utf8_chars == 3) {
-                if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char(0xfffd);
-                    utf8_chars = 0;
-                }
-            } else {
-                if ((utf8_buf[3] & 0xc0) != 0x80) {
-                    print_char(0xfffd);
-                    utf8_chars = 0;
-                    return;
-                }
-
-                char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
-
-                print_char(c);
-                utf8_chars = 0;
-            }
-
-            return;
-        }
-    }
-
-    if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
-        utf8_buf[0] = c;
-        utf8_chars = 1;
-        return;
-    } else if (c & 0x80) {
-        print_char(0xfffd);
-        return;
-    }
-
-    print_char(c);
 }
 
 template<bool FB>
