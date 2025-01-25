@@ -153,9 +153,14 @@ size_t strlen(const char* s) {
     return i;
 }
 
+static constexpr uint16_t text_console_val(uint8_t c, enum console_colour bg,
+                                           enum console_colour fg) {
+    return (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
+}
+
 static void text_console_putc(uint8_t x, uint8_t y, uint8_t c, enum console_colour bg,
                               enum console_colour fg) {
-    text_console[(y * console_cols) + x] = (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
+    text_console[(y * console_cols) + x] = text_console_val(c, bg, fg);
 }
 
 static void text_console_overflow() {
@@ -723,6 +728,8 @@ static void erase_in_display(string_view s) {
                 auto glyph = FT_Get_Char_Index(face, ' ');
 
                 for (unsigned int i = (cursor_y * fb_console_cols) + cursor_x; i < fb_console_cols * fb_console_rows; i++) {
+                    c->bg = DEFAULT_BG_COLOUR;
+                    c->fg = DEFAULT_FG_COLOUR;
                     c->glyph = glyph;
                     c->bold = false;
                     c++;
@@ -731,7 +738,8 @@ static void erase_in_display(string_view s) {
                 auto* c = &text_console[(cursor_y * console_cols) + cursor_x];
 
                 for (unsigned int i = (cursor_y * console_cols) + cursor_x; i < console_cols * console_rows; i++) {
-                    *c = (*c & ~0xff) | ' ';
+                    *c = text_console_val(' ', DEFAULT_BG_COLOUR_TEXT,
+                                          DEFAULT_FG_COLOUR_TEXT);
                     c++;
                 }
             }
@@ -744,6 +752,8 @@ static void erase_in_display(string_view s) {
                 auto glyph = FT_Get_Char_Index(face, ' ');
 
                 for (unsigned int i = 0; i <= (cursor_y * fb_console_cols) + cursor_x; i++) {
+                    c->bg = DEFAULT_BG_COLOUR;
+                    c->fg = DEFAULT_FG_COLOUR;
                     c->glyph = glyph;
                     c->bold = false;
                     c++;
@@ -752,7 +762,8 @@ static void erase_in_display(string_view s) {
                 auto* c = &text_console[0];
 
                 for (unsigned int i = 0; i <= (cursor_y * console_cols) + cursor_x; i++) {
-                    *c = (*c & ~0xff) | ' ';
+                    *c = text_console_val(' ', DEFAULT_BG_COLOUR_TEXT,
+                                          DEFAULT_FG_COLOUR_TEXT);
                     c++;
                 }
             }
@@ -766,6 +777,8 @@ static void erase_in_display(string_view s) {
                 auto glyph = FT_Get_Char_Index(face, ' ');
 
                 for (unsigned int i = 0; i < fb_console_cols * fb_console_rows; i++) {
+                    c->bg = DEFAULT_BG_COLOUR;
+                    c->fg = DEFAULT_FG_COLOUR;
                     c->glyph = glyph;
                     c->bold = false;
                     c++;
@@ -774,7 +787,8 @@ static void erase_in_display(string_view s) {
                 auto* c = &text_console[0];
 
                 for (unsigned int i = 0; i < console_cols * console_rows; i++) {
-                    *c = (*c & ~0xff) | ' ';
+                    *c = text_console_val(' ', DEFAULT_BG_COLOUR_TEXT,
+                                          DEFAULT_FG_COLOUR_TEXT);
                     c++;
                 }
             }
