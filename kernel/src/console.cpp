@@ -515,10 +515,10 @@ static void disable_cursor() {
 
 template<bool FB>
 static void move_cursor(string_view s) {
-    unsigned int delta = 1;
+    unsigned int param = 1;
 
     if (s.size() > 1) {
-        delta = 0;
+        param = 0;
 
         for (size_t i = 0; i < s.size() - 1; i++) {
             auto c = s[i];
@@ -526,64 +526,79 @@ static void move_cursor(string_view s) {
             if (c < '0' || c > '9')
                 return;
 
-            delta *= 10;
-            delta += c - '0';
+            param *= 10;
+            param += c - '0';
         }
     }
 
     if (s.back() == 'A') { // up
-        if (cursor_y > delta - 1)
-            cursor_y -= delta;
+        if (cursor_y > param - 1)
+            cursor_y -= param;
         else
             cursor_y = 0;
     } else if (s.back() == 'B') { // down
         if constexpr (FB) {
-            if (cursor_y < fb_console_rows - delta)
-                cursor_y += delta;
+            if (cursor_y < fb_console_rows - param)
+                cursor_y += param;
             else
                 cursor_y = fb_console_rows - 1;
         } else {
-            if (cursor_y < console_rows - delta)
-                cursor_y += delta;
+            if (cursor_y < console_rows - param)
+                cursor_y += param;
             else
                 cursor_y = console_rows - 1;
         }
     } else if (s.back() == 'C') { // right
         if constexpr (FB) {
-            if (cursor_x < fb_console_cols - delta)
-                cursor_x += delta;
+            if (cursor_x < fb_console_cols - param)
+                cursor_x += param;
             else
                 cursor_x = fb_console_cols - 1;
         } else {
-            if (cursor_x < console_cols - delta)
-                cursor_x += delta;
+            if (cursor_x < console_cols - param)
+                cursor_x += param;
             else
                 cursor_x = console_cols - 1;
         }
     } else if (s.back() == 'D') { // left
-        if (cursor_x > delta - 1)
-            cursor_x -= delta;
+        if (cursor_x > param - 1)
+            cursor_x -= param;
     } else if (s.back() == 'E') { // cursor next line
         cursor_x = 0;
 
         if constexpr (FB) {
-            if (cursor_y < fb_console_rows - delta)
-                cursor_y += delta;
+            if (cursor_y < fb_console_rows - param)
+                cursor_y += param;
             else
                 cursor_y = fb_console_rows - 1;
         } else {
-            if (cursor_y < console_rows - delta)
-                cursor_y += delta;
+            if (cursor_y < console_rows - param)
+                cursor_y += param;
             else
                 cursor_y = console_rows - 1;
         }
     } else if (s.back() == 'F') { // cursor previous line
         cursor_x = 0;
 
-        if (cursor_y > delta - 1)
-            cursor_y -= delta;
+        if (cursor_y > param - 1)
+            cursor_y -= param;
         else
             cursor_y = 0;
+    } else if (s.back() == 'G') { // cursor horizontal absolute
+        if (param < 1)
+            param = 1;
+
+        if constexpr (FB) {
+            if (param > fb_console_cols)
+                cursor_x = fb_console_cols - 1;
+            else
+                cursor_x = param - 1;
+        } else {
+            if (param > console_cols)
+                cursor_x = console_cols - 1;
+            else
+                cursor_x = param - 1;
+        }
     }
 }
 
@@ -602,7 +617,6 @@ static void handle_escape_sequence(string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
 
-        // FIXME - G (cursor horizontal absolute)
         // FIXME - H/f (cursor position)
         // FIXME - J (erase in display)
         // FIXME - K (erase in line)
@@ -610,7 +624,7 @@ static void handle_escape_sequence(string_view s) {
         // FIXME - T (scroll down)
         // FIXME - d (vertical position absolute)
 
-        if (s.back() >= 'A' && s.back() <= 'F')
+        if (s.back() >= 'A' && s.back() <= 'G')
             move_cursor<FB>(s);
         else if (s.back() == 'm')
             handle_sgr<FB>(string_view(s.data(), s.size() - 1));
