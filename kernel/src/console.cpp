@@ -1225,6 +1225,24 @@ static void refresh_shadow_framebuffer() {
             rect(x * font_width, y * font_height, font_width, font_height, is_cursor ? c->fg : c->bg);
             draw_ft_char(*c, x * font_width, ((y + 1) * font_height) - font_descender, is_cursor);
 
+            // don't leave black lines at edge of screen
+
+            if (x == fb_console_cols - 1 && font_width * fb_console_cols < fb_width) {
+                rect((x + 1) * font_width, y * font_height, fb_width - (font_width * fb_console_cols),
+                     font_height, c->bg);
+            }
+
+            if (y == fb_console_rows - 1 && font_height * fb_console_rows < fb_height) {
+                rect(x * font_width, (y + 1) * font_height, font_width,
+                     fb_height - (font_height * fb_console_rows), c->bg);
+
+                if (x == fb_console_cols - 1 && font_width * fb_console_cols < fb_width) {
+                    rect((x + 1) * font_width, (y + 1) * font_height,
+                         fb_width - (font_width * fb_console_cols),
+                         fb_height - (font_height * fb_console_rows), c->bg);
+                }
+            }
+
             c++;
         }
     }
