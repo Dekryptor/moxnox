@@ -172,8 +172,6 @@ static void text_console_overflow(unsigned int rows = 1) {
                               bg_colour_text, fg_colour_text);
         }
     }
-
-    cursor_y = console_rows - 1;
 }
 
 // FIXME - put these in one centralized place
@@ -221,8 +219,10 @@ static void text_console_print2(char c) {
         cursor_x = 0;
         cursor_y++;
 
-        if (cursor_y == console_rows)
+        if (cursor_y == console_rows) {
             text_console_overflow();
+            cursor_y = console_rows - 1;
+        }
     } else if (c == '\b') {
         if (cursor_x > 0) { // FIXME
             cursor_x--;
@@ -242,8 +242,10 @@ static void text_console_print2(char c) {
             cursor_x = 0;
             cursor_y++;
 
-            if (cursor_y == console_rows)
+            if (cursor_y == console_rows) {
                 text_console_overflow();
+                cursor_y = console_rows - 1;
+            }
         }
     }
 }
@@ -852,6 +854,59 @@ static void scroll_up(string_view s) {
 }
 
 template<bool FB>
+static void scroll_down(string_view s) {
+    unsigned int rows = 1;
+
+    if (!s.empty()) {
+        rows = 0;
+
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                return;
+
+            rows *= 10;
+            rows += c - '0';
+        }
+
+        if (rows == 0)
+            return;
+    }
+
+    if constexpr (FB) {
+        if (rows > fb_console_rows)
+            rows = fb_console_rows;
+
+        memmove(&console[fb_console_cols * rows], console,
+                (fb_console_rows - rows) * fb_console_cols * sizeof(console_info));
+
+        auto c = &console[0];
+
+        auto font = bold ? face_bold : face;
+        auto glyph = FT_Get_Char_Index(font, ' ');
+
+        for (unsigned int i = 0; i < fb_console_cols * rows; i++) {
+            c->bg = bg_colour;
+            c->fg = fg_colour;
+            c->glyph = glyph;
+            c->bold = bold;
+            c++;
+        }
+    } else {
+        if (rows > console_rows)
+            rows = console_rows;
+
+        memmove(&text_console[console_cols * rows], text_console.data(),
+                (console_rows - rows) * console_cols * sizeof(uint16_t));
+
+        for (uint8_t y = 0; y < rows; y++) {
+            for (uint8_t x = 0; x < console_cols; x++) {
+                text_console_putc(x, y, ' ', bg_colour_text, fg_colour_text);
+            }
+        }
+    }
+}
+
+template<bool FB>
 static void handle_escape_sequence(string_view s) {
     if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
         for (auto c : s) {
@@ -867,7 +922,6 @@ static void handle_escape_sequence(string_view s) {
         s = string_view(s.data() + 2, s.size() - 2);
 
         // FIXME - H/f (cursor position)
-        // FIXME - T (scroll down)
 
         if ((s.back() >= 'A' && s.back() <= 'G') || s.back() == 'd')
             move_cursor<FB>(s);
@@ -879,6 +933,8 @@ static void handle_escape_sequence(string_view s) {
             erase_in_line<FB>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'S')
             scroll_up<FB>(string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'T')
+            scroll_down<FB>(string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
             show_cursor = true;
 
