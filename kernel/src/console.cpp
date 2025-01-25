@@ -2109,51 +2109,40 @@ void bsod(string_view msg, source_location sl) {
 
     // clear screen to blue and print message
 
-    if (framebuffer.empty()) {
-        do_print<false>(
+    auto print_bsod = [&]<bool FB>() {
+        do_print<FB>(
             "\e[97;44m" // change to blue and white
             "\e[2J" // erase screen
             "\e[?25l" // hide cursor
             "\e[1;1H" // move to top left
         );
 
-        for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
-            do_print<true>(" ");
+        if constexpr (FB) {
+            for (unsigned int i = 0; i < (fb_console_cols / 2) - 2; i++) {
+                do_print<FB>(" ");
+            }
+        } else {
+            for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
+                do_print<FB>(" ");
+            }
         }
 
-        do_print<false>("\e[1mBSOD\e[22m\n\n");
+        do_print<FB>("\e[1mBSOD\e[22m\n\n");
 
-        do_print<false>(msg);
-        do_print<false>("\n");
-        do_print<false>(sl.file_name());
-        do_print<false>(":");
-        do_print<false>(sl.line());
-        do_print<false>(", ");
-        do_print<false>(sl.function_name());
-        do_print<false>("\n");
-    } else {
-        do_print<true>(
-            "\e[97;44m" // change to blue and white
-            "\e[2J" // erase screen
-            "\e[?25l" // hide cursor
-            "\e[1;1H" // move to top left
-        );
+        do_print<FB>(msg);
+        do_print<FB>("\n");
+        do_print<FB>(sl.file_name());
+        do_print<FB>(":");
+        do_print<FB>(sl.line());
+        do_print<FB>(", ");
+        do_print<FB>(sl.function_name());
+        do_print<FB>("\n");
+    };
 
-        for (unsigned int i = 0; i < (fb_console_cols / 2) - 2; i++) {
-            do_print<true>(" ");
-        }
-
-        do_print<true>("\e[1mBSOD\e[22m\n\n");
-
-        do_print<true>(msg);
-        do_print<true>("\n");
-        do_print<true>(sl.file_name());
-        do_print<true>(":");
-        do_print<true>(sl.line());
-        do_print<true>(", ");
-        do_print<true>(sl.function_name());
-        do_print<true>("\n");
-    }
+    if (framebuffer.empty())
+        print_bsod.template operator()<false>();
+    else
+        print_bsod.template operator()<true>();
 
     // FIXME - print context?
 
