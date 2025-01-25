@@ -700,6 +700,89 @@ static void erase_in_line(string_view s) {
 }
 
 template<bool FB>
+static void erase_in_display(string_view s) {
+    unsigned int param = 0;
+
+    if (!s.empty()) {
+        param = 0;
+
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                return;
+
+            param *= 10;
+            param += c - '0';
+        }
+    }
+
+    switch (param) {
+        case 0: // clear from cursor to end of screen
+            if constexpr (FB) {
+                auto* c = &console[(cursor_y * fb_console_cols) + cursor_x];
+
+                auto glyph = FT_Get_Char_Index(face, ' ');
+
+                for (unsigned int i = (cursor_y * fb_console_cols) + cursor_x; i < fb_console_cols * fb_console_rows; i++) {
+                    c->glyph = glyph;
+                    c->bold = false;
+                    c++;
+                }
+            } else {
+                auto* c = &text_console[(cursor_y * console_cols) + cursor_x];
+
+                for (unsigned int i = (cursor_y * console_cols) + cursor_x; i < console_cols * console_rows; i++) {
+                    *c = (*c & ~0xff) | ' ';
+                    c++;
+                }
+            }
+            break;
+
+        case 1: // clear from beginning of screen to cursor
+            if constexpr (FB) {
+                auto* c = &console[0];
+
+                auto glyph = FT_Get_Char_Index(face, ' ');
+
+                for (unsigned int i = 0; i <= (cursor_y * fb_console_cols) + cursor_x; i++) {
+                    c->glyph = glyph;
+                    c->bold = false;
+                    c++;
+                }
+            } else {
+                auto* c = &text_console[0];
+
+                for (unsigned int i = 0; i <= (cursor_y * console_cols) + cursor_x; i++) {
+                    *c = (*c & ~0xff) | ' ';
+                    c++;
+                }
+            }
+            break;
+
+        case 2: // clear entire screen
+        case 3:
+            if constexpr (FB) {
+                auto* c = &console[0];
+
+                auto glyph = FT_Get_Char_Index(face, ' ');
+
+                for (unsigned int i = 0; i < fb_console_cols * fb_console_rows; i++) {
+                    c->glyph = glyph;
+                    c->bold = false;
+                    c++;
+                }
+            } else {
+                auto* c = &text_console[0];
+
+                for (unsigned int i = 0; i < console_cols * console_rows; i++) {
+                    *c = (*c & ~0xff) | ' ';
+                    c++;
+                }
+            }
+            break;
+    }
+}
+
+template<bool FB>
 static void handle_escape_sequence(string_view s) {
     if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
         for (auto c : s) {
@@ -715,7 +798,6 @@ static void handle_escape_sequence(string_view s) {
         s = string_view(s.data() + 2, s.size() - 2);
 
         // FIXME - H/f (cursor position)
-        // FIXME - J (erase in display)
         // FIXME - S (scroll up)
         // FIXME - T (scroll down)
 
@@ -723,6 +805,8 @@ static void handle_escape_sequence(string_view s) {
             move_cursor<FB>(s);
         else if (s.back() == 'm')
             handle_sgr<FB>(string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'J')
+            erase_in_display<FB>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'K')
             erase_in_line<FB>(string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
