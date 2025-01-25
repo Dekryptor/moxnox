@@ -231,8 +231,8 @@ static void fb_console_overflow(unsigned int rows = 1) {
 
 template<bool FB>
 static void print_char(char32_t c) {
-    if constexpr (FB) {
-        if (c == '\n') {
+    if (c == '\n') {
+        if constexpr (FB) {
             if (console) {
                 auto font = bold ? face_bold : face;
                 auto glyph = FT_Get_Char_Index(font, ' ');
@@ -241,18 +241,27 @@ static void print_char(char32_t c) {
                     console[(cursor_y * fb_console_cols) + i].glyph = glyph;
                 }
             }
+        }
 
-            cursor_x = 0;
-            cursor_y++;
+        cursor_x = 0;
+        cursor_y++;
 
+        if constexpr (FB) {
             if (cursor_y == fb_console_rows) {
                 fb_console_overflow();
                 cursor_y = fb_console_rows - 1;
             }
-        } else if (c == '\b') {
-            if (cursor_x == 0 && cursor_y == 0)
-                return;
+        } else {
+            if (cursor_y == console_rows) {
+                text_console_overflow();
+                cursor_y = console_rows - 1;
+            }
+        }
+    } else if (c == '\b') {
+        if (cursor_x == 0 && cursor_y == 0)
+            return;
 
+        if constexpr (FB) {
             if (cursor_x > 0)
                 cursor_x--;
             else {
@@ -270,6 +279,17 @@ static void print_char(char32_t c) {
                 console[(cursor_y * fb_console_cols) + cursor_x].glyph = glyph;
             }
         } else {
+            if (cursor_x > 0) { // FIXME
+                cursor_x--;
+
+                if (console_output_mode & ENABLE_PROCESSED_OUTPUT) {
+                    text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
+                                      bg_colour_text, fg_colour_text);
+                }
+            }
+        }
+    } else {
+        if constexpr (FB) {
             if (console) {
                 auto& p = console[(cursor_y * fb_console_cols) + cursor_x];
 
@@ -281,9 +301,14 @@ static void print_char(char32_t c) {
                 p.fg = fg_colour;
                 p.bold = bold;
             }
+        } else {
+            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
+                              bg_colour_text, fg_colour_text);
+        }
 
-            cursor_x++;
+        cursor_x++;
 
+        if constexpr (FB) {
             if (cursor_x == fb_console_cols) {
                 cursor_x = 0;
                 cursor_y++;
@@ -293,31 +318,7 @@ static void print_char(char32_t c) {
                     cursor_y = fb_console_rows - 1;
                 }
             }
-        }
-    } else {
-        if (c == '\n') {
-            cursor_x = 0;
-            cursor_y++;
-
-            if (cursor_y == console_rows) {
-                text_console_overflow();
-                cursor_y = console_rows - 1;
-            }
-        } else if (c == '\b') {
-            if (cursor_x > 0) { // FIXME
-                cursor_x--;
-
-                if (console_output_mode & ENABLE_PROCESSED_OUTPUT) {
-                    text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
-                                      bg_colour_text, fg_colour_text);
-                }
-            }
         } else {
-            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
-                              bg_colour_text, fg_colour_text);
-
-            cursor_x++;
-
             if (cursor_x == console_cols) {
                 cursor_x = 0;
                 cursor_y++;
