@@ -599,6 +599,21 @@ static void move_cursor(string_view s) {
             else
                 cursor_x = param - 1;
         }
+    } else if (s.back() == 'd') { // vertical position absolute
+        if (param < 1)
+            param = 1;
+
+        if constexpr (FB) {
+            if (param > fb_console_rows)
+                cursor_y = fb_console_cols - 1;
+            else
+                cursor_y = param - 1;
+        } else {
+            if (param > console_rows)
+                cursor_y = console_rows - 1;
+            else
+                cursor_y = param - 1;
+        }
     }
 }
 
@@ -622,9 +637,8 @@ static void handle_escape_sequence(string_view s) {
         // FIXME - K (erase in line)
         // FIXME - S (scroll up)
         // FIXME - T (scroll down)
-        // FIXME - d (vertical position absolute)
 
-        if (s.back() >= 'A' && s.back() <= 'G')
+        if ((s.back() >= 'A' && s.back() <= 'G') || s.back() == 'd')
             move_cursor<FB>(s);
         else if (s.back() == 'm')
             handle_sgr<FB>(string_view(s.data(), s.size() - 1));
