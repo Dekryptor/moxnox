@@ -643,18 +643,20 @@ static void erase_in_line(string_view s) {
             if constexpr (FB) {
                 auto* c = &console[(cursor_y * fb_console_cols) + cursor_x];
 
-                auto glyph = FT_Get_Char_Index(face, ' ');
+                auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
 
                 for (unsigned int x = cursor_x + 1; x < fb_console_cols; x++) {
+                    c->bg = bg_colour;
+                    c->fg = fg_colour;
                     c->glyph = glyph;
-                    c->bold = false;
+                    c->bold = bold;
                     c++;
                 }
             } else {
                 auto* c = &text_console[(cursor_y * console_cols) + cursor_x];
 
                 for (unsigned int x = cursor_x + 1; x < console_cols; x++) {
-                    *c = (*c & ~0xff) | ' ';
+                    *c = text_console_val(' ', bg_colour_text, fg_colour_text);
                     c++;
                 }
             }
@@ -664,18 +666,20 @@ static void erase_in_line(string_view s) {
             if constexpr (FB) {
                 auto* c = &console[cursor_y * fb_console_cols];
 
-                auto glyph = FT_Get_Char_Index(face, ' ');
+                auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
 
                 for (unsigned int x = 0; x <= cursor_x; x++) {
+                    c->bg = bg_colour;
+                    c->fg = fg_colour;
                     c->glyph = glyph;
-                    c->bold = false;
+                    c->bold = bold;
                     c++;
                 }
             } else {
                 auto* c = &text_console[cursor_y * console_cols];
 
                 for (unsigned int x = 0; x <= cursor_x; x++) {
-                    *c = (*c & ~0xff) | ' ';
+                    *c = text_console_val(' ', bg_colour_text, fg_colour_text);
                     c++;
                 }
             }
@@ -685,18 +689,20 @@ static void erase_in_line(string_view s) {
             if constexpr (FB) {
                 auto* c = &console[cursor_y * fb_console_cols];
 
-                auto glyph = FT_Get_Char_Index(face, ' ');
+                auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
 
                 for (unsigned int x = 0; x < fb_console_cols; x++) {
+                    c->bg = bg_colour;
+                    c->fg = fg_colour;
                     c->glyph = glyph;
-                    c->bold = false;
+                    c->bold = bold;
                     c++;
                 }
             } else {
                 auto* c = &text_console[cursor_y * console_cols];
 
                 for (unsigned int x = 0; x < console_cols; x++) {
-                    *c = (*c & ~0xff) | ' ';
+                    *c = text_console_val(' ', bg_colour_text, fg_colour_text);
                     c++;
                 }
             }
