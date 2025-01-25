@@ -1013,10 +1013,15 @@ static void handle_escape_sequence(string_view s) {
     }
 }
 
-static void text_console_print(string_view s) {
+
+template<bool FB>
+static void do_print(string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
-            text_console_print2(0x1b);
+            if constexpr (FB)
+                fb_print2(0x1b);
+            else
+                text_console_print2(0x1b);
             escape_buffer_len = 0;
         } else {
             if (escape_buffer_len == 1) {
@@ -1032,7 +1037,10 @@ static void text_console_print(string_view s) {
             while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
                 if (escape_buffer_len == sizeof(escape_buffer)) {
                     for (size_t i = 0; i < escape_buffer_len; i++) {
-                        text_console_print2(escape_buffer[i]);
+                        if constexpr (FB)
+                            fb_print2(escape_buffer[i]);
+                        else
+                            text_console_print2(escape_buffer[i]);
                     }
 
                     escape_buffer_len = 0;
@@ -1053,14 +1061,17 @@ static void text_console_print(string_view s) {
 
                 s = string_view(s.data() + 1, s.size() - 1);
 
-                handle_escape_sequence<false>(string_view(escape_buffer, escape_buffer_len));
+                handle_escape_sequence<FB>(string_view(escape_buffer, escape_buffer_len));
                 escape_buffer_len = 0;
 
                 if (s.empty())
                     return;
             } else {
                 for (size_t i = 0; i < escape_buffer_len; i++) {
-                    text_console_print2(escape_buffer[i]);
+                    if constexpr (FB)
+                        fb_print2(escape_buffer[i]);
+                    else
+                        text_console_print2(escape_buffer[i]);
                 }
 
                 escape_buffer_len = 0;
@@ -1092,12 +1103,18 @@ loop:
                 if (s.size() == param_bytes + 2) {
                     if (param_bytes + 2 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < escape_buffer_len; i++) {
-                            text_console_print2(escape_buffer[i]);
+                            if constexpr (FB)
+                                fb_print2(escape_buffer[i]);
+                            else
+                                text_console_print2(escape_buffer[i]);
                         }
                         escape_buffer_len = 0;
 
                         for (size_t i = 0; i < s.size(); i++) {
-                            text_console_print2(s[i]);
+                            if constexpr (FB)
+                                fb_print2(s[i]);
+                            else
+                                text_console_print2(s[i]);
                         }
 
                         return;
@@ -1112,10 +1129,13 @@ loop:
                     // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
                     if (param_bytes + 3 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < param_bytes + 3; i++) {
-                            text_console_print2(s[i]);
+                            if constexpr (FB)
+                                fb_print2(s[i]);
+                            else
+                                text_console_print2(s[i]);
                         }
                     } else
-                        handle_escape_sequence<false>(string_view(s.data(), param_bytes + 3));
+                        handle_escape_sequence<FB>(string_view(s.data(), param_bytes + 3));
 
                     s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
                     continue;
@@ -1123,17 +1143,14 @@ loop:
             }
         }
 
-        text_console_print2(c);
+        if constexpr (FB)
+            fb_print2(c);
+        else
+            text_console_print2(c);
     }
 
-    text_console_move_cursor((uint8_t)cursor_x, (uint8_t)cursor_y);
-}
-
-static void text_console_print(integral auto i) {
-    char s[21];
-
-    auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
-    text_console_print(string_view(s, ptr - s));
+    if constexpr (!FB)
+        text_console_move_cursor((uint8_t)cursor_x, (uint8_t)cursor_y);
 }
 
 static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y,
@@ -1403,137 +1420,24 @@ static void fb_print2(char c) {
     print_char(c);
 }
 
-static void fb_print(string_view s) {
-    if (escape_buffer_len != 0) {
-        if (escape_buffer_len == 1 && s[0] != '[') {
-            fb_print2(0x1b);
-            escape_buffer_len = 0;
-        } else {
-            if (escape_buffer_len == 1) {
-                escape_buffer[1] = '[';
-                escape_buffer_len++;
-
-                s = string_view(s.data() + 1, s.size() - 1);
-
-                if (s.empty())
-                    return;
-            }
-
-            while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
-                if (escape_buffer_len == sizeof(escape_buffer)) {
-                    for (size_t i = 0; i < escape_buffer_len; i++) {
-                        fb_print2(escape_buffer[i]);
-                    }
-
-                    escape_buffer_len = 0;
-                    goto loop;
-                }
-
-                escape_buffer[escape_buffer_len] = s.front();
-                escape_buffer_len++;
-                s = string_view(s.data() + 1, s.size() - 1);
-            }
-
-            if (s.empty())
-                return;
-
-            if (s.front() >= 0x40 && s.front() <= 0x7e) {
-                escape_buffer[escape_buffer_len] = s.front();
-                escape_buffer_len++;
-
-                s = string_view(s.data() + 1, s.size() - 1);
-
-                handle_escape_sequence<true>(string_view(escape_buffer, escape_buffer_len));
-                escape_buffer_len = 0;
-
-                if (s.empty())
-                    return;
-            } else {
-                for (size_t i = 0; i < escape_buffer_len; i++) {
-                    fb_print2(escape_buffer[i]);
-                }
-
-                escape_buffer_len = 0;
-            }
-        }
-    }
-
-loop:
-    for (; !s.empty(); s = string_view(s.data() + 1, s.size() - 1)) {
-        auto c = s.front();
-
-        if (c == 0x1b) {
-            if (s.size() == 1) {
-                escape_buffer[0] = 0x1b;
-                escape_buffer_len = 1;
-                return;
-            }
-
-            if (s[1] == '[') {
-                unsigned int param_bytes = 0;
-
-                while (s.size() >= param_bytes + 2) {
-                    if (s[2 + param_bytes] >= 0x30 && s[2 + param_bytes] <= 0x3f)
-                        param_bytes++;
-                    else
-                        break;
-                }
-
-                if (s.size() == param_bytes + 2) {
-                    if (param_bytes + 2 > sizeof(escape_buffer)) {
-                        for (size_t i = 0; i < escape_buffer_len; i++) {
-                            fb_print2(escape_buffer[i]);
-                        }
-                        escape_buffer_len = 0;
-
-                        for (size_t i = 0; i < s.size(); i++) {
-                            fb_print2(s[i]);
-                        }
-
-                        return;
-                    }
-
-                    memcpy(escape_buffer, s.data(), param_bytes + 2);
-                    escape_buffer_len = param_bytes + 2;
-                    return;
-                }
-
-                if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
-                    // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
-                    if (param_bytes + 3 > sizeof(escape_buffer)) {
-                        for (size_t i = 0; i < param_bytes + 3; i++) {
-                            fb_print2(s[i]);
-                        }
-                    } else
-                        handle_escape_sequence<true>(string_view(s.data(), param_bytes + 3));
-
-                    s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
-                    continue;
-                }
-            }
-        }
-
-        fb_print2(c);
-    }
-}
-
-static void fb_print(integral auto i) {
+template<bool FB>
+static void do_print(integral auto i) {
     char s[21];
 
     auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
-    fb_print(string_view(s, ptr - s));
+    do_print<FB>(string_view(s, ptr - s));
 }
 
 static void early_print(string_view s) {
     if (framebuffer.empty()) {
-        text_console_print(s);
+        do_print<false>(s);
         return;
     }
 
     if (!fb_console_started)
         return;
 
-    fb_print(s);
+    do_print<true>(s);
     refresh_shadow_framebuffer();
     refresh_framebuffer();
 }
@@ -1864,10 +1768,7 @@ static void print_rip(uint64_t rip) {
 
     sp = sp_strcpy(sp, "\n");
 
-    if constexpr (FB)
-        fb_print(string_view(s, sp.data() - s));
-    else
-        text_console_print(string_view(s, sp.data() - s));
+    do_print<FB>(string_view(s, sp.data() - s));
 }
 
 static const RUNTIME_FUNCTION* find_runtime_function(const kernel_image& img,
@@ -2230,7 +2131,7 @@ void bsod(string_view msg, source_location sl) {
     // clear screen to blue and print message
 
     if (framebuffer.empty()) {
-        text_console_print(
+        do_print<false>(
             "\e[97;44m" // change to blue and white
             "\e[2J" // erase screen
             "\e[?25l" // hide cursor
@@ -2238,21 +2139,21 @@ void bsod(string_view msg, source_location sl) {
         );
 
         for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
-            fb_print(" ");
+            do_print<true>(" ");
         }
 
-        text_console_print("\e[1mBSOD\e[22m\n\n");
+        do_print<false>("\e[1mBSOD\e[22m\n\n");
 
-        text_console_print(msg);
-        text_console_print("\n");
-        text_console_print(sl.file_name());
-        text_console_print(":");
-        text_console_print(sl.line());
-        text_console_print(", ");
-        text_console_print(sl.function_name());
-        text_console_print("\n");
+        do_print<false>(msg);
+        do_print<false>("\n");
+        do_print<false>(sl.file_name());
+        do_print<false>(":");
+        do_print<false>(sl.line());
+        do_print<false>(", ");
+        do_print<false>(sl.function_name());
+        do_print<false>("\n");
     } else {
-        fb_print(
+        do_print<true>(
             "\e[97;44m" // change to blue and white
             "\e[2J" // erase screen
             "\e[?25l" // hide cursor
@@ -2260,19 +2161,19 @@ void bsod(string_view msg, source_location sl) {
         );
 
         for (unsigned int i = 0; i < (fb_console_cols / 2) - 2; i++) {
-            fb_print(" ");
+            do_print<true>(" ");
         }
 
-        fb_print("\e[1mBSOD\e[22m\n\n");
+        do_print<true>("\e[1mBSOD\e[22m\n\n");
 
-        fb_print(msg);
-        fb_print("\n");
-        fb_print(sl.file_name());
-        fb_print(":");
-        fb_print(sl.line());
-        fb_print(", ");
-        fb_print(sl.function_name());
-        fb_print("\n");
+        do_print<true>(msg);
+        do_print<true>("\n");
+        do_print<true>(sl.file_name());
+        do_print<true>(":");
+        do_print<true>(sl.line());
+        do_print<true>(", ");
+        do_print<true>(sl.function_name());
+        do_print<true>("\n");
     }
 
     // FIXME - print context?
@@ -2292,10 +2193,10 @@ void bsod(string_view msg, source_location sl) {
     );
 
     if (framebuffer.empty()) {
-        text_console_print("\n");
+        do_print<false>("\n");
         print_stacktrace(context, print_rip<false>);
     } else {
-        fb_print("\n");
+        do_print<true>("\n");
         print_stacktrace(context, print_rip<true>);
 
         refresh_shadow_framebuffer();
