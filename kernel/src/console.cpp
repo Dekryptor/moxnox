@@ -907,6 +907,70 @@ static void scroll_down(string_view s) {
 }
 
 template<bool FB>
+static void set_cursor_position(string_view s) {
+    unsigned int x = 1, y = 1;
+
+    if (!s.empty()) {
+        y = 0;
+
+        while (!s.empty()) {
+            if (s.front() == ';')
+                break;
+
+            if (s.front() < '0' || s.front() > '9')
+                return;
+
+            y *= 10;
+            y += s.front() - '0';
+
+            s = string_view(s.data() + 1, s.size() - 1);
+        }
+
+        if (!s.empty()) {
+            if (s.front() == ';')
+                s = string_view(s.data() + 1, s.size() - 1);
+
+            if (!s.empty()) {
+                x = 0;
+
+                while (!s.empty()) {
+                    if (s.front() < '0' || s.front() > '9')
+                        return;
+
+                    x *= 10;
+                    x += s.front() - '0';
+
+                    s = string_view(s.data() + 1, s.size() - 1);
+                }
+            }
+        }
+    }
+
+    if (x == 0)
+        x = 1;
+
+    if (y == 0)
+        y = 1;
+
+    if constexpr (FB) {
+        if (x >= fb_console_cols)
+            x = fb_console_cols;
+
+        if (y >= fb_console_rows)
+            y = fb_console_rows;
+    } else {
+        if (x >= console_cols)
+            x = console_cols;
+
+        if (y >= console_rows)
+            y = console_rows;
+    }
+
+    cursor_x = x - 1;
+    cursor_y = y - 1;
+}
+
+template<bool FB>
 static void handle_escape_sequence(string_view s) {
     if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
         for (auto c : s) {
@@ -921,8 +985,6 @@ static void handle_escape_sequence(string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
 
-        // FIXME - H/f (cursor position)
-
         if ((s.back() >= 'A' && s.back() <= 'G') || s.back() == 'd')
             move_cursor<FB>(s);
         else if (s.back() == 'm')
@@ -935,6 +997,8 @@ static void handle_escape_sequence(string_view s) {
             scroll_up<FB>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'T')
             scroll_down<FB>(string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'H' || s.back() == 'f')
+            set_cursor_position<FB>(string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
             show_cursor = true;
 
