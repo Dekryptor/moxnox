@@ -1796,27 +1796,6 @@ bool init_fb_console() {
     return true;
 }
 
-static void fill_text_console(enum console_colour bg, enum console_colour fg) {
-    for (auto& c : text_console) {
-        c = (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | ' ');
-    }
-}
-
-static void fill_framebuffer(uint32_t colour) {
-    auto buf = shadow_framebuffer.data();
-
-    for (unsigned int y = 0; y < fb_height; y++) {
-        for (unsigned int x = 0; x < fb_width; x++) {
-            *buf = colour;
-            buf++;
-        }
-
-        buf += fb_pixels_per_scan_line - fb_width;
-    }
-
-    memcpy(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
-}
-
 static kernel_image* get_kernel_image_from_address(uint64_t addr) {
     auto le = kernel_images.next;
 
@@ -2230,15 +2209,15 @@ void bsod(string_view msg, source_location sl) {
 
     *icr1 = 0xc0000 | halt_interrupt;
 
-    cursor_x = 0;
-    cursor_y = 0;
-
     // clear screen to blue and print message
 
     if (framebuffer.empty()) {
-        fill_text_console(console_colour::blue, console_colour::white);
-
-        text_console_print("\e[97;44m\e[?25l"); // change to blue and white, hide cursor
+        text_console_print(
+            "\e[97;44m" // change to blue and white
+            "\e[2J" // erase screen
+            "\e[?25l" // hide cursor
+            "\e[1;1H" // move to top left
+        );
 
         for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
             fb_print(" ");
@@ -2255,21 +2234,12 @@ void bsod(string_view msg, source_location sl) {
         text_console_print(sl.function_name());
         text_console_print("\n");
     } else {
-        fill_framebuffer(BSOD_BG_COLOUR);
-
-        auto glyph = FT_Get_Char_Index(face, ' ');
-
-        auto c = console;
-        for (unsigned int y = 0; y < fb_console_rows; y++) {
-            for (unsigned int x = 0; x < fb_console_cols; x++) {
-                c->bg = BSOD_BG_COLOUR;
-                c->fg = BSOD_FG_COLOUR;
-                c->glyph = glyph;
-                c++;
-            }
-        }
-
-        fb_print("\e[97;44m\e[?25l"); // change to blue and white, hide cursor
+        fb_print(
+            "\e[97;44m" // change to blue and white
+            "\e[2J" // erase screen
+            "\e[?25l" // hide cursor
+            "\e[1;1H" // move to top left
+        );
 
         for (unsigned int i = 0; i < (fb_console_cols / 2) - 2; i++) {
             fb_print(" ");
