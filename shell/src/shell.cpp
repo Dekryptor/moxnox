@@ -797,26 +797,43 @@ static void handle_char(char c) {
 static void handle_backspace() {
     bool ignore_bs = true;
 
-    if (buflen >= 1 && !(buf[buflen - 1] & 0x80)) {
+    if (cursor_pos == 0)
+        return;
+
+    if (cursor_pos >= 1 && !(buf[cursor_pos - 1] & 0x80)) {
+        memmove(&buf[cursor_pos - 1], &buf[cursor_pos], buflen - cursor_pos);
+
         buflen--;
+        cursor_pos--;
         ignore_bs = false;
-    } else if (buflen >= 2 && (buf[buflen - 1] & 0xc0) == 0x80) {
-        if ((buf[buflen - 2] & 0xe0) == 0xc0) {
-            buflen -= 2;
-            ignore_bs = false;
-        } else if (buflen >= 3 && (buf[buflen - 2] & 0xc0) == 0x80) {
-            if ((buf[buflen - 3] & 0xf0) == 0xe0) {
-                buflen -= 3;
-                ignore_bs = false;
-            } else if (buflen >= 4 && (buf[buflen - 3] & 0xc0) == 0x80 && (buf[buflen - 4] & 0xf8) == 0xf0) {
-                buflen -= 4;
-                ignore_bs = false;
-            }
-        }
+    // } else if (buflen >= 2 && (buf[buflen - 1] & 0xc0) == 0x80) {
+    //     if ((buf[buflen - 2] & 0xe0) == 0xc0) {
+    //         buflen -= 2;
+    //         ignore_bs = false;
+    //     } else if (buflen >= 3 && (buf[buflen - 2] & 0xc0) == 0x80) {
+    //         if ((buf[buflen - 3] & 0xf0) == 0xe0) {
+    //             buflen -= 3;
+    //             ignore_bs = false;
+    //         } else if (buflen >= 4 && (buf[buflen - 3] & 0xc0) == 0x80 && (buf[buflen - 4] & 0xf8) == 0xf0) {
+    //             buflen -= 4;
+    //             ignore_bs = false;
+    //         }
+    //     }
     }
 
-    if (!ignore_bs)
-        print("\b");
+    if (ignore_bs)
+        return;
+
+    print("\b");
+    print("\x1b[K"); // erase rest of line
+
+    auto sv = string_view(&buf[cursor_pos], buflen - cursor_pos);
+
+    print(sv);
+
+    for (unsigned int i = 0; i < sv.size(); i++) {
+        print("\x1b[D"); // left
+    }
 }
 
 static void handle_input(string_view s) {
