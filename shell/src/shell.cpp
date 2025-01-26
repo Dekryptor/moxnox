@@ -20,6 +20,8 @@ static const uint64_t PAGE_SHIFT = 12;
 
 static char escape_buffer[50];
 static size_t escape_buffer_len = 0;
+static uint8_t utf8_buf[5];
+static unsigned int utf8_chars = 0;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -755,8 +757,6 @@ static void handle_escape_sequence(string_view s) {
         if (cursor_pos == 0)
             return;
 
-        // FIXME - all this would be better if we could guarantee that buf was valid UTF-8
-
         // find start of UTF-8 sequence
         while ((buf[cursor_pos - 1] & 0xc0) == 0x80 && cursor_pos >= 2) {
             cursor_pos--;
@@ -785,33 +785,139 @@ static void handle_escape_sequence(string_view s) {
     // FIXME - delete
 }
 
-static void handle_char(char c) {
-    if ((uint8_t)c < 0x20)
+static void handle_char2(char32_t c) {
+    if (c < 0x20)
         return;
 
-    if (cursor_pos == buflen) {
-        buf[buflen] = c;
-        buflen++;
-        print(string_view(&c, 1));
-        cursor_pos++;
-    } else {
-        memmove(&buf[cursor_pos + 1], &buf[cursor_pos], buflen - cursor_pos);
-        buf[cursor_pos] = c;
-        buflen++;
+    unsigned int cp_len = 1;
 
-        print("\x1b[K"); // erase rest of line
-        print(string_view(buf + cursor_pos, buflen - cursor_pos));
+    if (c < 0x80)
+        cp_len = 1;
+    else if (c < 0x800)
+        cp_len = 2;
+    else if (c < 0x10000)
+        cp_len = 3;
+    else if (c < 0x110000)
+        cp_len = 4;
+    else
+        return;
 
-        cursor_pos++;
+    memmove(&buf[cursor_pos + cp_len], &buf[cursor_pos], buflen - cursor_pos);
 
-        for (unsigned int i = cursor_pos; i < buflen; i++) {
-            // skip if not start of code point
-            if ((buf[i] & 0xc0) == 0x80)
-                continue;
+    if (c < 0x80)
+        buf[cursor_pos] = (char)c;
+    else if (c < 0x800) {
+        buf[cursor_pos] = (char)(0xc0 | ((c & 0x7c0) >> 6));
+        buf[cursor_pos + 1] = (char)(0x80 | (c & 0x3f));
+    } else if (c < 0x10000) {
+        buf[cursor_pos] = (char)(0xe0 | ((c & 0xf000) >> 12));
+        buf[cursor_pos + 1] = (char)(0x80 | ((c & 0xfc0) >> 6));
+        buf[cursor_pos + 2] = (char)(0x80 | (c & 0x3f));
+    } else if (c < 0x110000) {
+        buf[cursor_pos] = (char)(0xf0 | ((c & 0xe0000) >> 18));
+        buf[cursor_pos + 1] = (char)(0x80 | ((c & 0x3f000) >> 12));
+        buf[cursor_pos + 2] = (char)(0x80 | ((c & 0xfc0) >> 6));
+        buf[cursor_pos + 3] = (char)(0x80 | (c & 0x3f));
+    }
 
-            print("\x1b[D");
+    buflen += cp_len;
+
+    print("\x1b[K"); // erase rest of line
+    print(string_view(buf + cursor_pos, buflen - cursor_pos));
+
+    cursor_pos += cp_len;
+
+    for (unsigned int i = cursor_pos; i < buflen; i++) {
+        // skip if not start of code point
+        if ((buf[i] & 0xc0) == 0x80)
+            continue;
+
+        print("\x1b[D");
+    }
+}
+
+static void handle_char(char c) {
+    if (utf8_chars != 0) {
+        if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
+            handle_char2(0xfffd);
+            handle_char2(c);
+            utf8_chars = 0;
+            return;
+        }
+
+        utf8_buf[utf8_chars] = c;
+        utf8_chars++;
+
+        if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
+            if ((utf8_buf[1] & 0xc0) != 0x80) {
+                handle_char2(0xfffd);
+                utf8_chars = 0;
+                return;
+            }
+
+            char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
+
+            handle_char2(c);
+            utf8_chars = 0;
+            return;
+        } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
+            if (utf8_chars == 2) {
+                if ((utf8_buf[1] & 0xc0) != 0x80) {
+                    handle_char2(0xfffd);
+                    utf8_chars = 0;
+                }
+            } else {
+                if ((utf8_buf[2] & 0xc0) != 0x80) {
+                    handle_char2(0xfffd);
+                    utf8_chars = 0;
+                    return;
+                }
+
+                char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
+
+                handle_char2(c);
+                utf8_chars = 0;
+            }
+
+            return;
+        } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
+            if (utf8_chars == 2) {
+                if ((utf8_buf[1] & 0xc0) != 0x80) {
+                    handle_char2(0xfffd);
+                    utf8_chars = 0;
+                }
+            } else if (utf8_chars == 3) {
+                if ((utf8_buf[2] & 0xc0) != 0x80) {
+                    handle_char2(0xfffd);
+                    utf8_chars = 0;
+                }
+            } else {
+                if ((utf8_buf[3] & 0xc0) != 0x80) {
+                    handle_char2(0xfffd);
+                    utf8_chars = 0;
+                    return;
+                }
+
+                char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
+
+                handle_char2(c);
+                utf8_chars = 0;
+            }
+
+            return;
         }
     }
+
+    if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
+        utf8_buf[0] = c;
+        utf8_chars = 1;
+        return;
+    } else if (c & 0x80) {
+        handle_char2(0xfffd);
+        return;
+    }
+
+    handle_char2(c);
 }
 
 static void handle_backspace() {
