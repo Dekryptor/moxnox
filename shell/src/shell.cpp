@@ -768,6 +768,54 @@ static void thread_test() {
 }
 #endif
 
+static void handle_input(string_view sv) {
+    bool nl = false;
+
+    for (auto c : sv) {
+        if (c == '\b') {
+            bool ignore_bs = true;
+
+            if (buflen >= 1 && !(buf[buflen - 1] & 0x80)) {
+                buflen--;
+                ignore_bs = false;
+            } else if (buflen >= 2 && (buf[buflen - 1] & 0xc0) == 0x80) {
+                if ((buf[buflen - 2] & 0xe0) == 0xc0) {
+                    buflen -= 2;
+                    ignore_bs = false;
+                } else if (buflen >= 3 && (buf[buflen - 2] & 0xc0) == 0x80) {
+                    if ((buf[buflen - 3] & 0xf0) == 0xe0) {
+                        buflen -= 3;
+                        ignore_bs = false;
+                    } else if (buflen >= 4 && (buf[buflen - 3] & 0xc0) == 0x80 && (buf[buflen - 4] & 0xf8) == 0xf0) {
+                        buflen -= 4;
+                        ignore_bs = false;
+                    }
+                }
+            }
+
+            if (!ignore_bs)
+                print("\b");
+        } else if (c == '\x04') { // Ctrl+D
+            if (buflen == 0) {
+                print("\n");
+                NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+            }
+        } else {
+            if (c == '\n')
+                nl = true;
+
+            buf[buflen] = c;
+            buflen++;
+            print(string_view(&c, 1));
+        }
+    }
+
+    if (nl) {
+        process_lines();
+        print("> ");
+    }
+}
+
 extern "C"
 void startup() {
     auto teb = NtCurrentTeb();
@@ -807,51 +855,7 @@ void startup() {
 
         buf = buf2;
 
-        bool nl = false;
-
-        for (unsigned int i = 0; i < iosb.Information; i++) {
-            if (s[i] == '\b') {
-                bool ignore_bs = true;
-
-                if (buflen >= 1 && !(buf[buflen - 1] & 0x80)) {
-                    buflen--;
-                    ignore_bs = false;
-                } else if (buflen >= 2 && (buf[buflen - 1] & 0xc0) == 0x80) {
-                    if ((buf[buflen - 2] & 0xe0) == 0xc0) {
-                        buflen -= 2;
-                        ignore_bs = false;
-                    } else if (buflen >= 3 && (buf[buflen - 2] & 0xc0) == 0x80) {
-                        if ((buf[buflen - 3] & 0xf0) == 0xe0) {
-                            buflen -= 3;
-                            ignore_bs = false;
-                        } else if (buflen >= 4 && (buf[buflen - 3] & 0xc0) == 0x80 && (buf[buflen - 4] & 0xf8) == 0xf0) {
-                            buflen -= 4;
-                            ignore_bs = false;
-                        }
-                    }
-                }
-
-                if (!ignore_bs)
-                    print("\b");
-            } else if (s[i] == '\x04') { // Ctrl+D
-                if (buflen == 0) {
-                    print("\n");
-                    NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
-                }
-            } else {
-                if (s[i] == '\n')
-                    nl = true;
-
-                buf[buflen] = s[i];
-                buflen++;
-                print(string_view(&s[i], 1));
-            }
-        }
-
-        if (nl) {
-            process_lines();
-            print("> ");
-        }
+        handle_input(string_view(s, iosb.Information));
     }
 
     NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
