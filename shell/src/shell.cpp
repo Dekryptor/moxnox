@@ -798,34 +798,31 @@ static void handle_char(char c) {
 }
 
 static void handle_backspace() {
-    bool ignore_bs = true;
+    unsigned int cp_size = 0;
 
     if (cursor_pos == 0)
         return;
 
-    if (cursor_pos >= 1 && !(buf[cursor_pos - 1] & 0x80)) {
-        memmove(&buf[cursor_pos - 1], &buf[cursor_pos], buflen - cursor_pos);
-
-        buflen--;
-        cursor_pos--;
-        ignore_bs = false;
-    // } else if (buflen >= 2 && (buf[buflen - 1] & 0xc0) == 0x80) {
-    //     if ((buf[buflen - 2] & 0xe0) == 0xc0) {
-    //         buflen -= 2;
-    //         ignore_bs = false;
-    //     } else if (buflen >= 3 && (buf[buflen - 2] & 0xc0) == 0x80) {
-    //         if ((buf[buflen - 3] & 0xf0) == 0xe0) {
-    //             buflen -= 3;
-    //             ignore_bs = false;
-    //         } else if (buflen >= 4 && (buf[buflen - 3] & 0xc0) == 0x80 && (buf[buflen - 4] & 0xf8) == 0xf0) {
-    //             buflen -= 4;
-    //             ignore_bs = false;
-    //         }
-    //     }
+    if (cursor_pos >= 1 && !(buf[cursor_pos - 1] & 0x80))
+        cp_size = 1;
+    else if (cursor_pos >= 2 && (buf[cursor_pos - 1] & 0xc0) == 0x80) {
+        if ((buf[cursor_pos - 2] & 0xe0) == 0xc0)
+            cp_size = 2;
+        else if (cursor_pos >= 3 && (buf[cursor_pos - 2] & 0xc0) == 0x80) {
+            if ((buf[cursor_pos - 3] & 0xf0) == 0xe0)
+                cp_size = 3;
+            else if (cursor_pos >= 4 && (buf[cursor_pos - 3] & 0xc0) == 0x80 && (buf[cursor_pos - 4] & 0xf8) == 0xf0)
+                cp_size = 4;
+        }
     }
 
-    if (ignore_bs)
+    if (cp_size == 0)
         return;
+
+    memmove(&buf[cursor_pos - cp_size], &buf[cursor_pos], buflen - cursor_pos);
+
+    buflen -= cp_size;
+    cursor_pos -= cp_size;
 
     print("\b");
     print("\x1b[K"); // erase rest of line
@@ -834,7 +831,7 @@ static void handle_backspace() {
 
     print(sv);
 
-    for (unsigned int i = 0; i < sv.size(); i++) {
+    for (unsigned int i = 0; i < sv.size(); i++) { // FIXME - should actually be code points
         print("\x1b[D"); // left
     }
 }
