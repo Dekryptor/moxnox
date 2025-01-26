@@ -755,13 +755,28 @@ static void handle_escape_sequence(string_view s) {
         if (cursor_pos == 0)
             return;
 
+        // FIXME - all this would be better if we could guarantee that buf was valid UTF-8
+
+        // find start of UTF-8 sequence
+        while ((buf[cursor_pos - 1] & 0xc0) == 0x80 && cursor_pos >= 2) {
+            cursor_pos--;
+        }
+
         cursor_pos--;
         print("\x1b[D");
     } else if (s == "\x1b[C") { // right
         if (cursor_pos == buflen)
             return;
 
-        cursor_pos++;
+        if (!(buf[cursor_pos] & 0x80))
+            cursor_pos++;
+        else if ((buf[cursor_pos] & 0xe0) == 0xc0 && cursor_pos < buflen - 1)
+            cursor_pos += 2;
+        else if ((buf[cursor_pos] & 0xf0) == 0xe0 && cursor_pos < buflen - 2)
+            cursor_pos += 3;
+        else if ((buf[cursor_pos] & 0xf8) == 0xf0 && cursor_pos < buflen - 3)
+            cursor_pos += 4;
+
         print("\x1b[C");
     }
 
@@ -771,8 +786,6 @@ static void handle_escape_sequence(string_view s) {
 }
 
 static void handle_char(char c) {
-    // FIXME - Unicode
-
     if ((uint8_t)c < 0x20)
         return;
 
