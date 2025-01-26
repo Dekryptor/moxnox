@@ -3,6 +3,7 @@
 #include "objects.h"
 #include "handle.h"
 #include "mem.h"
+#include "cp437.h"
 #include <span>
 #include <cstring>
 #include <bit>
@@ -155,8 +156,10 @@ static constexpr uint16_t text_console_val(uint8_t c, enum console_colour bg,
     return (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
 }
 
-static void text_console_putc(uint8_t x, uint8_t y, uint8_t c, enum console_colour bg,
-                              enum console_colour fg) {
+static void text_console_putc(uint8_t x, uint8_t y, char32_t cp,
+                              enum console_colour bg, enum console_colour fg) {
+    auto c = cp437(cp);
+
     text_console[(y * console_cols) + x] = text_console_val(c, bg, fg);
 }
 
