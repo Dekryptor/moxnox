@@ -316,86 +316,84 @@ static void print_char(char32_t c) {
 
 template<bool FB>
 static void do_print2(char c) {
-    if constexpr (FB) {
-        if (utf8_chars != 0) {
-            if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
+    if (utf8_chars != 0) {
+        if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
+            print_char<FB>(0xfffd);
+            print_char<FB>(c);
+            utf8_chars = 0;
+            return;
+        }
+
+        utf8_buf[utf8_chars] = c;
+        utf8_chars++;
+
+        if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
+            if ((utf8_buf[1] & 0xc0) != 0x80) {
                 print_char<FB>(0xfffd);
-                print_char<FB>(c);
                 utf8_chars = 0;
                 return;
             }
 
-            utf8_buf[utf8_chars] = c;
-            utf8_chars++;
+            char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
 
-            if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
+            print_char<FB>(c);
+            utf8_chars = 0;
+            return;
+        } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
+            if (utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
+                    print_char<FB>(0xfffd);
+                    utf8_chars = 0;
+                }
+            } else {
+                if ((utf8_buf[2] & 0xc0) != 0x80) {
                     print_char<FB>(0xfffd);
                     utf8_chars = 0;
                     return;
                 }
 
-                char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
+                char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
 
                 print_char<FB>(c);
                 utf8_chars = 0;
-                return;
-            } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
-                if (utf8_chars == 2) {
-                    if ((utf8_buf[1] & 0xc0) != 0x80) {
-                        print_char<FB>(0xfffd);
-                        utf8_chars = 0;
-                    }
-                } else {
-                    if ((utf8_buf[2] & 0xc0) != 0x80) {
-                        print_char<FB>(0xfffd);
-                        utf8_chars = 0;
-                        return;
-                    }
-
-                    char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
-
-                    print_char<FB>(c);
-                    utf8_chars = 0;
-                }
-
-                return;
-            } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
-                if (utf8_chars == 2) {
-                    if ((utf8_buf[1] & 0xc0) != 0x80) {
-                        print_char<FB>(0xfffd);
-                        utf8_chars = 0;
-                    }
-                } else if (utf8_chars == 3) {
-                    if ((utf8_buf[2] & 0xc0) != 0x80) {
-                        print_char<FB>(0xfffd);
-                        utf8_chars = 0;
-                    }
-                } else {
-                    if ((utf8_buf[3] & 0xc0) != 0x80) {
-                        print_char<FB>(0xfffd);
-                        utf8_chars = 0;
-                        return;
-                    }
-
-                    char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
-
-                    print_char<FB>(c);
-                    utf8_chars = 0;
-                }
-
-                return;
             }
-        }
 
-        if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
-            utf8_buf[0] = c;
-            utf8_chars = 1;
             return;
-        } else if (c & 0x80) {
-            print_char<FB>(0xfffd);
+        } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
+            if (utf8_chars == 2) {
+                if ((utf8_buf[1] & 0xc0) != 0x80) {
+                    print_char<FB>(0xfffd);
+                    utf8_chars = 0;
+                }
+            } else if (utf8_chars == 3) {
+                if ((utf8_buf[2] & 0xc0) != 0x80) {
+                    print_char<FB>(0xfffd);
+                    utf8_chars = 0;
+                }
+            } else {
+                if ((utf8_buf[3] & 0xc0) != 0x80) {
+                    print_char<FB>(0xfffd);
+                    utf8_chars = 0;
+                    return;
+                }
+
+                char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
+
+                print_char<FB>(c);
+                utf8_chars = 0;
+            }
+
             return;
         }
+    }
+
+    if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
+        utf8_buf[0] = c;
+        utf8_chars = 1;
+        return;
+    } else if (c & 0x80) {
+        print_char<FB>(0xfffd);
+        return;
     }
 
     print_char<FB>(c);
