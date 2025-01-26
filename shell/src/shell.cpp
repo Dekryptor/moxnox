@@ -17,6 +17,9 @@ unsigned int buflen = 0;
 static const size_t PAGE_SIZE = 4096;
 static const uint64_t PAGE_SHIFT = 12;
 
+static char escape_buffer[50];
+static size_t escape_buffer_len = 0;
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
@@ -768,10 +771,77 @@ static void thread_test() {
 }
 #endif
 
-static void handle_input(string_view sv) {
+static void handle_escape_sequence(string_view s) {
+    // FIXME
+}
+
+static void handle_char(char c) {
+    buf[buflen] = c;
+    buflen++;
+    print(string_view(&c, 1));
+}
+
+static void handle_input(string_view s) {
     bool nl = false;
 
-    for (auto c : sv) {
+    if (escape_buffer_len != 0) {
+        if (escape_buffer_len == 1 && s[0] != '[') {
+            handle_char(0x1b);
+            escape_buffer_len = 0;
+        } else {
+            if (escape_buffer_len == 1) {
+                escape_buffer[1] = '[';
+                escape_buffer_len++;
+
+                s = string_view(s.data() + 1, s.size() - 1);
+
+                if (s.empty())
+                    return;
+            }
+
+            while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
+                if (escape_buffer_len == sizeof(escape_buffer)) {
+                    for (size_t i = 0; i < escape_buffer_len; i++) {
+                        handle_char(escape_buffer[i]);
+                    }
+
+                    escape_buffer_len = 0;
+                    goto loop;
+                }
+
+                escape_buffer[escape_buffer_len] = s.front();
+                escape_buffer_len++;
+                s = string_view(s.data() + 1, s.size() - 1);
+            }
+
+            if (s.empty())
+                return;
+
+            if (s.front() >= 0x40 && s.front() <= 0x7e) {
+                escape_buffer[escape_buffer_len] = s.front();
+                escape_buffer_len++;
+
+                s = string_view(s.data() + 1, s.size() - 1);
+
+                handle_escape_sequence(string_view(escape_buffer, escape_buffer_len));
+                escape_buffer_len = 0;
+
+                if (s.empty())
+                    return;
+            } else {
+                for (size_t i = 0; i < escape_buffer_len; i++) {
+                    handle_char(escape_buffer[i]);
+                }
+
+                escape_buffer_len = 0;
+            }
+        }
+    }
+
+loop:
+    for (; !s.empty(); s = string_view(s.data() + 1, s.size() - 1)) {
+        auto c = s.front();
+
         if (c == '\b') {
             bool ignore_bs = true;
 
@@ -804,9 +874,58 @@ static void handle_input(string_view sv) {
             if (c == '\n')
                 nl = true;
 
-            buf[buflen] = c;
-            buflen++;
-            print(string_view(&c, 1));
+            if (c == 0x1b) {
+                if (s.size() == 1) {
+                    escape_buffer[0] = 0x1b;
+                    escape_buffer_len = 1;
+                    break;
+                }
+
+                if (s[1] == '[') {
+                    unsigned int param_bytes = 0;
+
+                    while (s.size() >= param_bytes + 2) {
+                        if (s[2 + param_bytes] >= 0x30 && s[2 + param_bytes] <= 0x3f)
+                            param_bytes++;
+                        else
+                            break;
+                    }
+
+                    if (s.size() == param_bytes + 2) {
+                        if (param_bytes + 2 > sizeof(escape_buffer)) {
+                            for (size_t i = 0; i < escape_buffer_len; i++) {
+                                handle_char(escape_buffer[i]);
+                            }
+                            escape_buffer_len = 0;
+
+                            for (size_t i = 0; i < s.size(); i++) {
+                                handle_char(s[i]);
+                            }
+
+                            break;
+                        }
+
+                        memcpy(escape_buffer, s.data(), param_bytes + 2);
+                        escape_buffer_len = param_bytes + 2;
+                        break;
+                    }
+
+                    if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
+                        // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
+                        if (param_bytes + 3 > sizeof(escape_buffer)) {
+                            for (size_t i = 0; i < param_bytes + 3; i++) {
+                                handle_char(s[i]);
+                            }
+                        } else
+                            handle_escape_sequence(string_view(s.data(), param_bytes + 3));
+
+                        s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
+                        continue;
+                    }
+                }
+            }
+
+            handle_char(c);
         }
     }
 
