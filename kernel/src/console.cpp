@@ -286,6 +286,9 @@ static void print_char(char32_t c) {
             }
         }
     } else {
+        if (c < 0x20)
+            return;
+
         if constexpr (FB) {
             if (console) {
                 auto& p = console[(cursor_y * console_cols) + cursor_x];
