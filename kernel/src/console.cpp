@@ -47,7 +47,6 @@ static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static FT_Face face = nullptr, face_bold = nullptr;
 static unsigned int font_width, font_height, font_descender;
-static unsigned int fb_console_rows, fb_console_cols;
 static bool fb_console_started = false;
 static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
@@ -204,14 +203,14 @@ static void text_console_move_cursor(uint8_t x, uint8_t y) {
 template<bool FB>
 static void console_overflow(unsigned int rows = 1) {
     if constexpr (FB) {
-        memcpy(console, &console[fb_console_cols * rows], (fb_console_rows - rows) * fb_console_cols * sizeof(console_info));
+        memcpy(console, &console[console_cols * rows], (console_rows - rows) * console_cols * sizeof(console_info));
 
-        auto c = &console[(fb_console_rows - rows) * fb_console_cols];
+        auto c = &console[(console_rows - rows) * console_cols];
 
         auto font = bold ? face_bold : face;
         auto glyph = FT_Get_Char_Index(font, ' ');
 
-        for (unsigned int i = 0; i < fb_console_cols * rows; i++) {
+        for (unsigned int i = 0; i < console_cols * rows; i++) {
             c->bg = bg_colour;
             c->fg = fg_colour;
             c->glyph = glyph;
@@ -239,8 +238,8 @@ static void print_char(char32_t c) {
                 auto font = bold ? face_bold : face;
                 auto glyph = FT_Get_Char_Index(font, ' ');
 
-                for (unsigned int i = cursor_x; i < fb_console_cols; i++) {
-                    console[(cursor_y * fb_console_cols) + i].glyph = glyph;
+                for (unsigned int i = cursor_x; i < console_cols; i++) {
+                    console[(cursor_y * console_cols) + i].glyph = glyph;
                 }
             }
         }
@@ -248,16 +247,9 @@ static void print_char(char32_t c) {
         cursor_x = 0;
         cursor_y++;
 
-        if constexpr (FB) {
-            if (cursor_y == fb_console_rows) {
-                console_overflow<FB>();
-                cursor_y = fb_console_rows - 1;
-            }
-        } else {
-            if (cursor_y == console_rows) {
-                console_overflow<FB>();
-                cursor_y = console_rows - 1;
-            }
+        if (cursor_y == console_rows) {
+            console_overflow<FB>();
+            cursor_y = console_rows - 1;
         }
     } else if (c == '\b') {
         if (cursor_x == 0 && cursor_y == 0)
@@ -267,10 +259,10 @@ static void print_char(char32_t c) {
             if (cursor_x > 0)
                 cursor_x--;
             else {
-                cursor_x = fb_console_cols - 1;
+                cursor_x = console_cols - 1;
                 cursor_y--;
 
-                if (cursor_x != fb_console_cols - 1)
+                if (cursor_x != console_cols - 1)
                     cursor_x++;
             }
 
@@ -278,7 +270,7 @@ static void print_char(char32_t c) {
                 auto font = bold ? face_bold : face;
                 auto glyph = FT_Get_Char_Index(font, ' ');
 
-                console[(cursor_y * fb_console_cols) + cursor_x].glyph = glyph;
+                console[(cursor_y * console_cols) + cursor_x].glyph = glyph;
             }
         } else {
             if (cursor_x > 0) { // FIXME
@@ -293,7 +285,7 @@ static void print_char(char32_t c) {
     } else {
         if constexpr (FB) {
             if (console) {
-                auto& p = console[(cursor_y * fb_console_cols) + cursor_x];
+                auto& p = console[(cursor_y * console_cols) + cursor_x];
 
                 auto font = bold ? face_bold : face;
                 auto glyph = FT_Get_Char_Index(font, c);
@@ -310,25 +302,13 @@ static void print_char(char32_t c) {
 
         cursor_x++;
 
-        if constexpr (FB) {
-            if (cursor_x == fb_console_cols) {
-                cursor_x = 0;
-                cursor_y++;
+        if (cursor_x == console_cols) {
+            cursor_x = 0;
+            cursor_y++;
 
-                if (cursor_y == fb_console_rows) {
-                    console_overflow<FB>();
-                    cursor_y = fb_console_rows - 1;
-                }
-            }
-        } else {
-            if (cursor_x == console_cols) {
-                cursor_x = 0;
-                cursor_y++;
-
-                if (cursor_y == console_rows) {
-                    console_overflow<FB>();
-                    cursor_y = console_rows - 1;
-                }
+            if (cursor_y == console_rows) {
+                console_overflow<FB>();
+                cursor_y = console_rows - 1;
             }
         }
     }
@@ -718,46 +698,25 @@ static void move_cursor(string_view s) {
         else
             cursor_y = 0;
     } else if (s.back() == 'B') { // down
-        if constexpr (FB) {
-            if (cursor_y < fb_console_rows - param)
-                cursor_y += param;
-            else
-                cursor_y = fb_console_rows - 1;
-        } else {
-            if (cursor_y < console_rows - param)
-                cursor_y += param;
-            else
-                cursor_y = console_rows - 1;
-        }
+        if (cursor_y < console_rows - param)
+            cursor_y += param;
+        else
+            cursor_y = console_rows - 1;
     } else if (s.back() == 'C') { // right
-        if constexpr (FB) {
-            if (cursor_x < fb_console_cols - param)
-                cursor_x += param;
-            else
-                cursor_x = fb_console_cols - 1;
-        } else {
-            if (cursor_x < console_cols - param)
-                cursor_x += param;
-            else
-                cursor_x = console_cols - 1;
-        }
+        if (cursor_x < console_cols - param)
+            cursor_x += param;
+        else
+            cursor_x = console_cols - 1;
     } else if (s.back() == 'D') { // left
         if (cursor_x > param - 1)
             cursor_x -= param;
     } else if (s.back() == 'E') { // cursor next line
         cursor_x = 0;
 
-        if constexpr (FB) {
-            if (cursor_y < fb_console_rows - param)
-                cursor_y += param;
-            else
-                cursor_y = fb_console_rows - 1;
-        } else {
-            if (cursor_y < console_rows - param)
-                cursor_y += param;
-            else
-                cursor_y = console_rows - 1;
-        }
+        if (cursor_y < console_rows - param)
+            cursor_y += param;
+        else
+            cursor_y = console_rows - 1;
     } else if (s.back() == 'F') { // cursor previous line
         cursor_x = 0;
 
@@ -769,32 +728,18 @@ static void move_cursor(string_view s) {
         if (param < 1)
             param = 1;
 
-        if constexpr (FB) {
-            if (param > fb_console_cols)
-                cursor_x = fb_console_cols - 1;
-            else
-                cursor_x = param - 1;
-        } else {
-            if (param > console_cols)
-                cursor_x = console_cols - 1;
-            else
-                cursor_x = param - 1;
-        }
+        if (param > console_cols)
+            cursor_x = console_cols - 1;
+        else
+            cursor_x = param - 1;
     } else if (s.back() == 'd') { // vertical position absolute
         if (param < 1)
             param = 1;
 
-        if constexpr (FB) {
-            if (param > fb_console_rows)
-                cursor_y = fb_console_cols - 1;
-            else
-                cursor_y = param - 1;
-        } else {
-            if (param > console_rows)
-                cursor_y = console_rows - 1;
-            else
-                cursor_y = param - 1;
-        }
+        if (param > console_rows)
+            cursor_y = console_rows - 1;
+        else
+            cursor_y = param - 1;
     }
 }
 
@@ -817,11 +762,11 @@ static void erase_in_line(string_view s) {
     switch (param) {
         case 0: // clear from cursor to end of line
             if constexpr (FB) {
-                auto* c = &console[(cursor_y * fb_console_cols) + cursor_x];
+                auto* c = &console[(cursor_y * console_cols) + cursor_x];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
 
-                for (unsigned int x = cursor_x + 1; x < fb_console_cols; x++) {
+                for (unsigned int x = cursor_x + 1; x < console_cols; x++) {
                     c->bg = bg_colour;
                     c->fg = fg_colour;
                     c->glyph = glyph;
@@ -840,7 +785,7 @@ static void erase_in_line(string_view s) {
 
         case 1: // clear from beginning of line to cursor
             if constexpr (FB) {
-                auto* c = &console[cursor_y * fb_console_cols];
+                auto* c = &console[cursor_y * console_cols];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
 
@@ -863,11 +808,11 @@ static void erase_in_line(string_view s) {
 
         case 2: // clear entire line
             if constexpr (FB) {
-                auto* c = &console[cursor_y * fb_console_cols];
+                auto* c = &console[cursor_y * console_cols];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
 
-                for (unsigned int x = 0; x < fb_console_cols; x++) {
+                for (unsigned int x = 0; x < console_cols; x++) {
                     c->bg = bg_colour;
                     c->fg = fg_colour;
                     c->glyph = glyph;
@@ -905,11 +850,11 @@ static void erase_in_display(string_view s) {
     switch (param) {
         case 0: // clear from cursor to end of screen
             if constexpr (FB) {
-                auto* c = &console[(cursor_y * fb_console_cols) + cursor_x];
+                auto* c = &console[(cursor_y * console_cols) + cursor_x];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
 
-                for (unsigned int i = (cursor_y * fb_console_cols) + cursor_x; i < fb_console_cols * fb_console_rows; i++) {
+                for (unsigned int i = (cursor_y * console_cols) + cursor_x; i < console_cols * console_rows; i++) {
                     c->bg = bg_colour;
                     c->fg = fg_colour;
                     c->glyph = glyph;
@@ -932,7 +877,7 @@ static void erase_in_display(string_view s) {
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
 
-                for (unsigned int i = 0; i <= (cursor_y * fb_console_cols) + cursor_x; i++) {
+                for (unsigned int i = 0; i <= (cursor_y * console_cols) + cursor_x; i++) {
                     c->bg = bg_colour;
                     c->fg = fg_colour;
                     c->glyph = glyph;
@@ -956,7 +901,7 @@ static void erase_in_display(string_view s) {
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
 
-                for (unsigned int i = 0; i < fb_console_cols * fb_console_rows; i++) {
+                for (unsigned int i = 0; i < console_cols * console_rows; i++) {
                     c->bg = bg_colour;
                     c->fg = fg_colour;
                     c->glyph = glyph;
@@ -994,13 +939,8 @@ static void scroll_up(string_view s) {
             return;
     }
 
-    if constexpr (FB) {
-        if (rows > fb_console_rows)
-            rows = fb_console_rows;
-    } else {
-        if (rows > console_rows)
-            rows = console_rows;
-    }
+    if (rows > console_rows)
+        rows = console_rows;
 
     console_overflow<FB>(rows);
 }
@@ -1024,19 +964,19 @@ static void scroll_down(string_view s) {
             return;
     }
 
-    if constexpr (FB) {
-        if (rows > fb_console_rows)
-            rows = fb_console_rows;
+    if (rows > console_rows)
+        rows = console_rows;
 
-        memmove(&console[fb_console_cols * rows], console,
-                (fb_console_rows - rows) * fb_console_cols * sizeof(console_info));
+    if constexpr (FB) {
+        memmove(&console[console_cols * rows], console,
+                (console_rows - rows) * console_cols * sizeof(console_info));
 
         auto c = &console[0];
 
         auto font = bold ? face_bold : face;
         auto glyph = FT_Get_Char_Index(font, ' ');
 
-        for (unsigned int i = 0; i < fb_console_cols * rows; i++) {
+        for (unsigned int i = 0; i < console_cols * rows; i++) {
             c->bg = bg_colour;
             c->fg = fg_colour;
             c->glyph = glyph;
@@ -1044,9 +984,6 @@ static void scroll_down(string_view s) {
             c++;
         }
     } else {
-        if (rows > console_rows)
-            rows = console_rows;
-
         memmove(&text_console[console_cols * rows], text_console.data(),
                 (console_rows - rows) * console_cols * sizeof(uint16_t));
 
@@ -1104,19 +1041,11 @@ static void set_cursor_position(string_view s) {
     if (y == 0)
         y = 1;
 
-    if constexpr (FB) {
-        if (x >= fb_console_cols)
-            x = fb_console_cols;
+    if (x >= console_cols)
+        x = console_cols;
 
-        if (y >= fb_console_rows)
-            y = fb_console_rows;
-    } else {
-        if (x >= console_cols)
-            x = console_cols;
-
-        if (y >= console_rows)
-            y = console_rows;
-    }
+    if (y >= console_rows)
+        y = console_rows;
 
     cursor_x = x - 1;
     cursor_y = y - 1;
@@ -1363,8 +1292,8 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
 static void refresh_shadow_framebuffer() {
     auto* c = &console[0];
 
-    for (unsigned int y = 0; y < fb_console_rows; y++) {
-        for (unsigned int x = 0; x < fb_console_cols; x++) {
+    for (unsigned int y = 0; y < console_rows; y++) {
+        for (unsigned int x = 0; x < console_cols; x++) {
             bool is_cursor = show_cursor && x == cursor_x && y == cursor_y;
 
             rect(x * font_width, y * font_height, font_width, font_height, is_cursor ? c->fg : c->bg);
@@ -1372,19 +1301,19 @@ static void refresh_shadow_framebuffer() {
 
             // don't leave black lines at edge of screen
 
-            if (x == fb_console_cols - 1 && font_width * fb_console_cols < fb_width) {
-                rect((x + 1) * font_width, y * font_height, fb_width - (font_width * fb_console_cols),
+            if (x == console_cols - 1 && font_width * console_cols < fb_width) {
+                rect((x + 1) * font_width, y * font_height, fb_width - (font_width * console_cols),
                      font_height, c->bg);
             }
 
-            if (y == fb_console_rows - 1 && font_height * fb_console_rows < fb_height) {
+            if (y == console_rows - 1 && font_height * console_rows < fb_height) {
                 rect(x * font_width, (y + 1) * font_height, font_width,
-                     fb_height - (font_height * fb_console_rows), c->bg);
+                     fb_height - (font_height * console_rows), c->bg);
 
-                if (x == fb_console_cols - 1 && font_width * fb_console_cols < fb_width) {
+                if (x == console_cols - 1 && font_width * console_cols < fb_width) {
                     rect((x + 1) * font_width, (y + 1) * font_height,
-                         fb_width - (font_width * fb_console_cols),
-                         fb_height - (font_height * fb_console_rows), c->bg);
+                         fb_width - (font_width * console_cols),
+                         fb_height - (font_height * console_rows), c->bg);
                 }
             }
 
@@ -1667,12 +1596,12 @@ bool init_fb_console() {
     font_height = face->size->metrics.height / 64;
     font_descender = -face->size->metrics.descender / 64;
 
-    fb_console_cols = fb_width / font_width;
-    fb_console_rows = fb_height / font_height;
+    console_cols = fb_width / font_width;
+    console_rows = fb_height / font_height;
 
     cursor_x = cursor_y = 0;
 
-    console = (console_info*)malloc(fb_console_cols * fb_console_rows * sizeof(console_info));
+    console = (console_info*)malloc(console_cols * console_rows * sizeof(console_info));
     if (!console) {
         printk("out of memory\n");
         return false;
@@ -1680,7 +1609,7 @@ bool init_fb_console() {
 
     auto glyph = FT_Get_Char_Index(face, ' ');
 
-    for (unsigned int i = 0; i < fb_console_cols * fb_console_rows; i++) {
+    for (unsigned int i = 0; i < console_cols * console_rows; i++) {
         console[i].bg = DEFAULT_BG_COLOUR;
         console[i].fg = DEFAULT_FG_COLOUR;
         console[i].bold = false;
@@ -2117,14 +2046,8 @@ void bsod(string_view msg, source_location sl) {
             "\e[1;1H" // move to top left
         );
 
-        if constexpr (FB) {
-            for (unsigned int i = 0; i < (fb_console_cols / 2) - 2; i++) {
-                do_print<FB>(" ");
-            }
-        } else {
-            for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
-                do_print<FB>(" ");
-            }
+        for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
+            do_print<FB>(" ");
         }
 
         do_print<FB>("\e[1mBSOD\e[22m\n\n");
