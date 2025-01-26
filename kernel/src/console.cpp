@@ -1584,16 +1584,7 @@ bool init_fb_console() {
         return false;
     }
 
-    error = FT_Load_Char(face, 'M', FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
-    if (error) {
-        printk("FT_Set_Char_Size failed (");
-        print_hex(error);
-        printk(")\n");
-
-        return false;
-    }
-
-    font_width = face->glyph->bitmap.width;
+    font_width = face->size->metrics.max_advance / 64;
     font_height = face->size->metrics.height / 64;
     font_descender = -face->size->metrics.descender / 64;
 
