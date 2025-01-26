@@ -805,7 +805,11 @@ static void handle_char(char c) {
         cursor_pos++;
 
         for (unsigned int i = cursor_pos; i < buflen; i++) {
-            print("\x1b[D"); // left
+            // skip if not start of code point
+            if ((buf[i] & 0xc0) == 0x80)
+                continue;
+
+            print("\x1b[D");
         }
     }
 }
