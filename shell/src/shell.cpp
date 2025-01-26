@@ -11,8 +11,9 @@
 
 using namespace std;
 
-char* buf = nullptr;
-unsigned int buflen = 0;
+static char* buf = nullptr;
+static unsigned int buflen = 0;
+static unsigned int cursor_pos = 0;
 
 static const size_t PAGE_SIZE = 4096;
 static const uint64_t PAGE_SHIFT = 12;
@@ -670,41 +671,19 @@ static void process_line(string_view sv) {
 }
 
 static void process_lines() {
-    while (true) {
-        bool found = false;
-        auto sv = string_view(buf, buflen);
-
-        for (unsigned int i = 0; i < sv.size(); i++) {
-            if (sv[i] == '\n') {
-                process_line(string_view(sv.data(), i));
-
-                auto newsv = string_view(sv.data() + i + 1, sv.size() - i - 1);
-
-                if (newsv.size() > 0) {
-                    auto buf2 = (char*)malloc(newsv.size());
-                    if (!buf2) {
-                        print("out of memory\n");
-                        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-                    }
-
-                    memcpy(buf2, newsv.data(), newsv.size());
-                    free(buf);
-                    buf = buf2;
-                } else {
-                    free(buf);
-                    buf = nullptr;
-                }
-
-                buflen = (unsigned int)newsv.size();
-
-                found = true;
-                break;
-            }
-        }
-
-        if (!found)
-            return;
+    for (unsigned int i = cursor_pos; i < buflen; i++) {
+        print("\x1b[C"); // right
     }
+    print("\n");
+
+    process_line(string_view(buf, buflen));
+
+    free(buf);
+    buf = nullptr;
+
+    buflen = 0;
+
+    cursor_pos = 0;
 }
 
 #if 0
@@ -772,18 +751,51 @@ static void thread_test() {
 #endif
 
 static void handle_escape_sequence(string_view s) {
-    // FIXME
+    if (s == "\x1b[D") { // left
+        if (cursor_pos == 0)
+            return;
+
+        cursor_pos--;
+        print("\x1b[D");
+    } else if (s == "\x1b[C") { // right
+        if (cursor_pos == buflen)
+            return;
+
+        cursor_pos++;
+        print("\x1b[C");
+    }
+
+    // FIXME - home
+    // FIXME - end
+    // FIXME - delete
 }
 
 static void handle_char(char c) {
-    buf[buflen] = c;
-    buflen++;
-    print(string_view(&c, 1));
+    // FIXME - Unicode
+
+    if (cursor_pos == buflen) {
+        buf[buflen] = c;
+        buflen++;
+        print(string_view(&c, 1));
+        cursor_pos++;
+    } else {
+        memmove(&buf[cursor_pos + 1], &buf[cursor_pos], buflen - cursor_pos);
+        buf[cursor_pos] = c;
+        buflen++;
+
+        print("\x1b[K"); // erase rest of line
+        print(string_view(buf + cursor_pos, buflen - cursor_pos));
+
+        cursor_pos++;
+
+        for (unsigned int i = cursor_pos; i < buflen; i++) {
+            print("\x1b[D"); // left
+        }
+    }
+
 }
 
 static void handle_input(string_view s) {
-    bool nl = false;
-
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
             handle_char(0x1b);
@@ -870,68 +882,60 @@ loop:
                 print("\n");
                 NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
             }
-        } else {
-            if (c == '\n')
-                nl = true;
+        } else if (c == '\n') {
+            process_lines();
+            print("> ");
+        } else if (c == 0x1b) {
+            if (s.size() == 1) {
+                escape_buffer[0] = 0x1b;
+                escape_buffer_len = 1;
+                break;
+            }
 
-            if (c == 0x1b) {
-                if (s.size() == 1) {
-                    escape_buffer[0] = 0x1b;
-                    escape_buffer_len = 1;
-                    break;
+            if (s[1] == '[') {
+                unsigned int param_bytes = 0;
+
+                while (s.size() >= param_bytes + 2) {
+                    if (s[2 + param_bytes] >= 0x30 && s[2 + param_bytes] <= 0x3f)
+                        param_bytes++;
+                    else
+                        break;
                 }
 
-                if (s[1] == '[') {
-                    unsigned int param_bytes = 0;
+                if (s.size() == param_bytes + 2) {
+                    if (param_bytes + 2 > sizeof(escape_buffer)) {
+                        for (size_t i = 0; i < escape_buffer_len; i++) {
+                            handle_char(escape_buffer[i]);
+                        }
+                        escape_buffer_len = 0;
 
-                    while (s.size() >= param_bytes + 2) {
-                        if (s[2 + param_bytes] >= 0x30 && s[2 + param_bytes] <= 0x3f)
-                            param_bytes++;
-                        else
-                            break;
-                    }
-
-                    if (s.size() == param_bytes + 2) {
-                        if (param_bytes + 2 > sizeof(escape_buffer)) {
-                            for (size_t i = 0; i < escape_buffer_len; i++) {
-                                handle_char(escape_buffer[i]);
-                            }
-                            escape_buffer_len = 0;
-
-                            for (size_t i = 0; i < s.size(); i++) {
-                                handle_char(s[i]);
-                            }
-
-                            break;
+                        for (size_t i = 0; i < s.size(); i++) {
+                            handle_char(s[i]);
                         }
 
-                        memcpy(escape_buffer, s.data(), param_bytes + 2);
-                        escape_buffer_len = param_bytes + 2;
                         break;
                     }
 
-                    if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
-                        // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
-                        if (param_bytes + 3 > sizeof(escape_buffer)) {
-                            for (size_t i = 0; i < param_bytes + 3; i++) {
-                                handle_char(s[i]);
-                            }
-                        } else
-                            handle_escape_sequence(string_view(s.data(), param_bytes + 3));
+                    memcpy(escape_buffer, s.data(), param_bytes + 2);
+                    escape_buffer_len = param_bytes + 2;
+                    break;
+                }
 
-                        s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
-                        continue;
-                    }
+                if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
+                    // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
+                    if (param_bytes + 3 > sizeof(escape_buffer)) {
+                        for (size_t i = 0; i < param_bytes + 3; i++) {
+                            handle_char(s[i]);
+                        }
+                    } else
+                        handle_escape_sequence(string_view(s.data(), param_bytes + 3));
+
+                    s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
+                    continue;
                 }
             }
-
+        } else
             handle_char(c);
-        }
-    }
-
-    if (nl) {
-        process_lines();
-        print("> ");
     }
 }
 
