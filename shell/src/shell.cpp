@@ -848,7 +848,11 @@ static void handle_backspace() {
 
     print(sv);
 
-    for (unsigned int i = 0; i < sv.size(); i++) { // FIXME - should actually be code points
+    for (auto c : sv) {
+        // skip if not start of code point
+        if ((c & 0xc0) == 0x80)
+            continue;
+
         print("\x1b[D"); // left
     }
 }
