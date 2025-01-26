@@ -1095,7 +1095,6 @@ static void handle_escape_sequence(string_view s) {
     }
 }
 
-
 template<bool FB>
 static void do_print(string_view s) {
     if (escape_buffer_len != 0) {
