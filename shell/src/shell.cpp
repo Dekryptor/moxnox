@@ -773,7 +773,7 @@ static void handle_escape_sequence(string_view s) {
 static void handle_char(char c) {
     // FIXME - Unicode
 
-    if (c < 0x20)
+    if ((uint8_t)c < 0x20)
         return;
 
     if (cursor_pos == buflen) {
