@@ -19,10 +19,13 @@ typedef struct {
     uint16_t offset_1;
     uint16_t selector;
     uint8_t ist;
-    uint8_t type_attr;
+    uint8_t gate_type : 4;
+    uint8_t zero1 : 1;
+    uint8_t dpl : 2;
+    uint8_t present : 1;
     uint16_t offset_2;
     uint32_t offset_3;
-    uint32_t zero;
+    uint32_t zero2;
 } idt_entry;
 
 volatile uint8_t* const local_apic = (uint8_t*)APIC_BASE;
@@ -224,15 +227,18 @@ void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist) {
     i.offset_1 = addr & 0xffff;
     i.selector = interrupt_cs;
     i.ist = ist;
+    i.present = 1;
+    i.dpl = 0; // FIXME
+    i.zero1 = 0;
 
     if (trap)
-        i.type_attr = 0x8f; // present = 1, DPL = 0, type = 0xf (trap gate)
+        i.gate_type = 0xf; // trap gate
     else
-        i.type_attr = 0x8e; // present = 1, DPL = 0, type = 0xe (interrupt gate)
+        i.gate_type = 0xe; // interrupt gate
 
     i.offset_2 = (addr >> 16) & 0xffff;
     i.offset_3 = (uint32_t)(addr >> 32);
-    i.zero = 0;
+    i.zero2 = 0;
 }
 
 static bool setup_idt() {
