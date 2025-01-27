@@ -144,7 +144,8 @@ static void printk(std::integral auto i) {
 extern volatile uint8_t* const local_apic;
 bool init_interrupts();
 void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id);
-void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist);
+void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
+                   bool user_mode);
 void enable_irq(uint8_t irq, bool enable);
 std::span<const uint8_t> find_madt();
 task_state_segment* init_tss();
@@ -159,6 +160,7 @@ extern "C" void spurious_isr();
 extern "C" void halt_isr();
 extern "C" void divide_by_zero_isr();
 extern "C" void yield_isr();
+extern "C" void breakpoint_isr();
 
 // timer.S
 extern "C" void timer_isr();

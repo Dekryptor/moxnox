@@ -286,3 +286,40 @@ yield_isr:
     mov rsp, gs:GS_SCHEDULER_STACK
     call acquire_sync_lock
     jmp scheduler
+
+.seh_proc breakpoint_isr
+.global breakpoint_isr
+breakpoint_isr:
+    .seh_pushframe
+    sub rsp, 0x20
+    .seh_stackalloc 32
+    .seh_endprologue
+
+    cmp QWORD PTR [rsp+0x28], 0x8
+    je 0f
+    swapgs
+    load_kernel_cr3
+0:
+    save_context2
+    call breakpoint
+
+    mov r11, gs:GS_CONTEXT + CONTEXT_R11
+    mov r10, gs:GS_CONTEXT + CONTEXT_R10
+    mov r9, gs:GS_CONTEXT + CONTEXT_R9
+    mov r8, gs:GS_CONTEXT + CONTEXT_R8
+    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
+    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
+    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
+    mov QWORD PTR [rsp+0x20], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
+    mov QWORD PTR [rsp+0x38], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+
+    cmp QWORD PTR [rsp+0x28], 0x8
+    je 1f
+    load_process_cr3
+    swapgs
+1:
+    add rsp, 0x20
+    iretq
+    .seh_endproc

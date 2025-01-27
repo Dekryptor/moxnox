@@ -63,8 +63,8 @@ void init_timer() {
     printk(apic_timer_freq);
     printk("\n");
 
-    add_idt_entry(timer_interrupt, (void*)timer_isr, false, 1);
-    add_idt_entry(timer_ap_interrupt, (void*)timer_isr_ap, false, 1);
+    add_idt_entry(timer_interrupt, (void*)timer_isr, false, 1, false);
+    add_idt_entry(timer_ap_interrupt, (void*)timer_isr_ap, false, 1, false);
 
     init_lapic_timer(false);
 }

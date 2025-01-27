@@ -220,7 +220,8 @@ static bool init_apic() {
     return true;
 }
 
-void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist) {
+void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
+                   bool user_mode) {
     auto& i = idt[vector];
     auto addr = (uintptr_t)func;
 
@@ -228,7 +229,7 @@ void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist) {
     i.selector = interrupt_cs;
     i.ist = ist;
     i.present = 1;
-    i.dpl = 0; // FIXME
+    i.dpl = user_mode ? 3 : 0;
     i.zero1 = 0;
 
     if (trap)
@@ -255,21 +256,21 @@ static bool setup_idt() {
 
     memset(idt.data(), 0, PAGE_SIZE);
 
-    add_idt_entry(0x0, (void*)divide_by_zero_isr, false, 0);
-    add_idt_entry(0x1, (void*)spurious_isr, false, 0); // FIXME - single-step debug interrupt
+    add_idt_entry(0x0, (void*)divide_by_zero_isr, false, 0, false);
+    add_idt_entry(0x1, (void*)spurious_isr, false, 0, false); // FIXME - single-step debug interrupt
     // FIXME - int 2 (NMI)
-    // FIXME - int 3
+    add_idt_entry(0x3, (void*)breakpoint_isr, false, 0, true);
     // FIXME - int 4 (overflow)
     // FIXME - int 5 (bound range exceeded)
-    add_idt_entry(0x6, (void*)invalid_opcode_isr, false, 0);
+    add_idt_entry(0x6, (void*)invalid_opcode_isr, false, 0, false);
     // FIXME - int 7 (device not available)
-    add_idt_entry(0x8, (void*)double_fault_isr, false, 0);
+    add_idt_entry(0x8, (void*)double_fault_isr, false, 0, false);
     // FIXME - int 9 (coprocessor segment overrun)
     // FIXME - int a (invalid TSS)
     // FIXME - int b (segment not present)
     // FIXME - int c (stack-segment fault)
-    add_idt_entry(0xd, (void*)general_protection_fault_isr, false, 0);
-    add_idt_entry(0xe, (void*)page_fault_isr, false, 0);
+    add_idt_entry(0xd, (void*)general_protection_fault_isr, false, 0, false);
+    add_idt_entry(0xe, (void*)page_fault_isr, false, 0, false);
     // FIXME - int 10 (x87 exception)
     // FIXME - int 11 (alignment check)
     // FIXME - int 12 (machine check)
@@ -277,9 +278,9 @@ static bool setup_idt() {
     // FIXME - int 14 (virtualization exception)
     // FIXME - int 15 (control protection exception)
 
-    add_idt_entry(halt_interrupt, (void*)halt_isr, false, 0);
-    add_idt_entry(spurious_interrupt, (void*)spurious_isr, false, 0);
-    add_idt_entry(yield_interrupt, (void*)yield_isr, false, 0);
+    add_idt_entry(halt_interrupt, (void*)halt_isr, false, 0, false);
+    add_idt_entry(spurious_interrupt, (void*)spurious_isr, false, 0, false);
+    add_idt_entry(yield_interrupt, (void*)yield_isr, false, 0, false);
 
     struct {
         uint16_t limit;
@@ -822,6 +823,70 @@ void divide_by_zero() {
     auto sp = span(s, sizeof(s));
 
     sp = sp_strcpy(sp, "Divide by zero in kernel mode, ");
+
+    if (!current_thread)
+        sp = sp_strcpy(sp, "not in thread");
+    else {
+        sp = sp_strcpy(sp, "thread ");
+        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
+    }
+
+    sp = sp_strcpy(sp, ", CPU ");
+    sp = sp_itoa_hex(sp, cb.cpu_no);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_context(sp, cb.thread_context);
+    bsod(string_view(s, sp.data() - s));
+}
+
+extern "C"
+void breakpoint() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
+    if (current_thread && current_thread->proc && !current_thread->kernel_mode) {
+        auto& p = *current_thread->proc;
+
+        uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
+
+        if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
+            printk("Unable to copy thread context to stack.\n");
+            current_thread->exit_status = nt_status::BREAKPOINT;
+            current_thread->terminate();
+            return;
+        }
+
+        EXCEPTION_RECORD er;
+
+        er.ExceptionCode = (uint32_t)nt_status::BREAKPOINT;
+        er.ExceptionFlags = 0;
+        er.ExceptionRecord = nullptr;
+        er.ExceptionAddress = (void*)cb.thread_context.Rip;
+        er.NumberParameters = 0;
+
+        size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
+        uintptr_t us_er = us_context - er_size;
+
+        if (!p.copy_to((void*)us_er, &er, er_size)) {
+            printk("Unable to copy exception record to stack.\n");
+            current_thread->exit_status = nt_status::BREAKPOINT;
+            current_thread->terminate();
+            return;
+        }
+
+        cb.thread_context.Rip = p.ntdll_addr + mn_signal;
+        cb.thread_context.Rcx = us_er;
+        cb.thread_context.Rdx = us_context;
+        cb.thread_context.Rsp -= sizeof(CONTEXT);
+        cb.thread_context.Rsp -= er_size;
+
+        return;
+    }
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = sp_strcpy(sp, "Unhandled breakpoint in kernel mode, ");
 
     if (!current_thread)
         sp = sp_strcpy(sp, "not in thread");

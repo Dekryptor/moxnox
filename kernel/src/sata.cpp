@@ -685,7 +685,7 @@ void init_sata(const pci_device& dev) {
     }
 
     if (!interrupt_added) {
-        add_idt_entry(sata_interrupt, (void*)sata_isr, false, 0);
+        add_idt_entry(sata_interrupt, (void*)sata_isr, false, 0, false);
         interrupt_added = true;
     }
 

@@ -135,7 +135,7 @@ bool init_serial() {
         return false;
     }
 
-    add_idt_entry(serial_interrupt, (void*)serial_isr, false, 0);
+    add_idt_entry(serial_interrupt, (void*)serial_isr, false, 0, false);
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
