@@ -657,6 +657,10 @@ static void try_run_program(string_view program, string_view cmdline) {
     NtClose(sect);
 }
 
+static void int3() {
+    __asm("int 3");
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -689,6 +693,8 @@ static void process_line(string_view sv) {
         timer();
     else if (cmd == "segfault")
         segfault(); // TESTING
+    else if (cmd == "int3")
+        int3(); // TESTING
     else if (cmd == "halt")
         halt();
     else if (cmd == "reboot")
