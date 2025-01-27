@@ -109,9 +109,9 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-static void run_program(HANDLE file, string_view cmdline) {
+static void run_program(HANDLE sect, string_view cmdline) {
     NTSTATUS status;
-    HANDLE sect, proc, thread;
+    HANDLE proc, thread;
     CLIENT_ID client_id;
     CONTEXT context;
     INITIAL_TEB initial_teb;
@@ -123,17 +123,6 @@ static void run_program(HANDLE file, string_view cmdline) {
     IO_STATUS_BLOCK iosb;
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
-
-    // create section
-
-    status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, file);
-
-    if (!success(status)) {
-        print("NtCreateSection returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
-        return;
-    }
 
     // get entry point
 
@@ -550,7 +539,7 @@ static void try_run_program(string_view program, string_view cmdline) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
-    HANDLE file;
+    HANDLE file, sect;
     IO_STATUS_BLOCK iosb;
 
     // FIXME - should be checking PATH instead of root
@@ -629,11 +618,27 @@ static void try_run_program(string_view program, string_view cmdline) {
         return;
     }
 
-    // FIXME - descriptive message if not image
-    // FIXME - don't try to run DLLs
-    run_program(file, cmdline);
+    // create section
+
+    status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, file);
 
     NtClose(file);
+
+    if (status == nt_status::INVALID_IMAGE_FORMAT) {
+        print(program); // FIXME - stderr
+        print(": not an executable\n");
+        return;
+    } else if (!success(status)) {
+        print("NtCreateSection returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    // FIXME - don't try to run DLLs
+    run_program(sect, cmdline);
+
+    NtClose(sect);
 }
 
 static void process_line(string_view sv) {
