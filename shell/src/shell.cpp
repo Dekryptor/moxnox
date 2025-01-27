@@ -576,8 +576,8 @@ static void try_run_program(string_view program, string_view cmdline) {
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
-    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0,
-                          nullptr, 0);
+    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN,
+                          FILE_NON_DIRECTORY_FILE, nullptr, 0);
 
     free(us.Buffer);
 
@@ -617,6 +617,10 @@ static void try_run_program(string_view program, string_view cmdline) {
     if (status == nt_status::OBJECT_NAME_NOT_FOUND || status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print(program); // FIXME - stderr
         print(": command not found\n");
+        return;
+    } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
+        print(program); // FIXME - stderr
+        print(": is a directory\n");
         return;
     } else if (!success(status)) {
         print("NtCreateFile returned "); // FIXME - stderr
