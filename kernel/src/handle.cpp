@@ -345,12 +345,15 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
                       const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block,
                       const LARGE_INTEGER*, uint32_t, uint32_t, uint32_t create_disposition,
-                      uint32_t, void*, uint32_t) {
+                      uint32_t create_options, void*, uint32_t) {
     auto t = get_current_thread();
     auto p = t->proc;
     object_ref root_dir;
 
     if (!p)
+        return nt_status::INVALID_PARAMETER;
+
+    if (create_options & FILE_NON_DIRECTORY_FILE && create_options & FILE_DIRECTORY_FILE)
         return nt_status::INVALID_PARAMETER;
 
     if (!object_attributes->ObjectName) // FIXME - is this allowed if RootDirectory is set?
@@ -428,6 +431,13 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
         free(name);
         return nt_status::OBJECT_NAME_NOT_FOUND;
     }
+
+    const auto& ino = static_cast<inode&>(ino_ref.get());
+
+    if (create_options & FILE_NON_DIRECTORY_FILE && ino.inode_type == inode_type::directory)
+        return nt_status::FILE_IS_A_DIRECTORY;
+    else if (create_options & FILE_DIRECTORY_FILE && ino.inode_type != inode_type::directory)
+        return nt_status::NOT_A_DIRECTORY;
 
     auto f = new file(ino_ref.get());
 
