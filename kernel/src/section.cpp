@@ -184,12 +184,8 @@ nt_status section::load_image() {
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
-    if (nt_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
-        debug_printk("unsupported architecture\n");
-        return nt_status::INVALID_IMAGE_FORMAT; // FIXME - there's probably a specific error for this
-    }
-
     characteristics = nt_header.FileHeader.Characteristics;
+    machine = nt_header.FileHeader.Machine;
 
     if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
         nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
@@ -839,7 +835,7 @@ NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_
             sii.GpValue = 0; // FIXME
             sii.ImageCharacteristics = characteristics;
             sii.DllCharacteristics = 0; // FIXME
-            sii.Machine = 0; // FIXME
+            sii.Machine = machine;
             sii.ImageContainsCode = false; // FIXME
             sii.ImageFlags = 0; // FIXME
             sii.LoaderFlags = 0; // FIXME

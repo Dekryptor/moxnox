@@ -3,6 +3,7 @@
 #include "mem.h"
 #include "handle.h"
 #include <limits>
+#include <pe.h>
 
 using namespace std;
 
@@ -22,7 +23,7 @@ static const size_t MAX_PATH = 260;
 object_ref create_process(string_view fn, string_view curdir,
                           object_ref& stdinobj, object_ref& stdoutobj,
                           object_ref& stderrobj) {
-    // FIXME - merge with NtCreateProcess
+    // FIXME - merge with NtCreateProcess?
 
     auto img_inode_ref = open_inode(fn, nullopt);
     if (!img_inode_ref) {
@@ -78,6 +79,13 @@ object_ref create_process(string_view fn, string_view curdir,
     }
 
     p.img = static_cast<section&>(imgh.get());
+
+    if (p.img->get().machine != IMAGE_FILE_MACHINE_AMD64) {
+        printk("invalid architecture\n");
+        p.release();
+        return {};
+    }
+
     p.img->get().acquire();
 
     imgh.reset();

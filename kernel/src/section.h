@@ -39,7 +39,7 @@ public:
     uint32_t num_pages;
     page_info* pages = nullptr;
     uintptr_t preferred_base, entry_point;
-    uint16_t characteristics;
+    uint16_t characteristics, machine;
     uint64_t stack_size;
     spinlock alloc_lock;
     char* name = nullptr;
