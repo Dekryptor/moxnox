@@ -6,10 +6,11 @@
 
 using namespace std;
 
-object_ref create_section(const optional<reference_wrapper<file>>& file, bool image, size_t size) {
+nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
+                         size_t size, object_ref& ref) {
     if (file && !image) {
         printk("FIXME - non-image sections\n");
-        return {};
+        return nt_status::INTERNAL_ERROR;
     }
 
     // FIXME - non-image sections
@@ -17,7 +18,7 @@ object_ref create_section(const optional<reference_wrapper<file>>& file, bool im
     auto sptr = new section;
     if (!sptr) {
         printk("new failed\n");
-        return {};
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     auto& s = *sptr;
@@ -26,7 +27,7 @@ object_ref create_section(const optional<reference_wrapper<file>>& file, bool im
         if (file->get().ino.type != object_type::inode) {
             printk("file pointed to object other than inode\n");
             s.release();
-            return {};
+            return nt_status::INVALID_PARAMETER;
         }
 
         if (file->get().name) {
@@ -34,7 +35,7 @@ object_ref create_section(const optional<reference_wrapper<file>>& file, bool im
             if (!s.name) {
                 printk("malloc failed\n");
                 s.release();
-                return {};
+                return nt_status::INSUFFICIENT_RESOURCES;
             }
 
             s.namelen = file->get().namelen;
@@ -50,7 +51,7 @@ object_ref create_section(const optional<reference_wrapper<file>>& file, bool im
         if (!s.load_image()) {
             printk("load_image failed\n");
             s.release();
-            return {};
+            return nt_status::INVALID_PARAMETER;
         }
     } else {
         s.type = section_type::anonymous;
@@ -59,7 +60,7 @@ object_ref create_section(const optional<reference_wrapper<file>>& file, bool im
         if (s.num_pages == 0) {
             printk("anonymous section must specify a size\n");
             s.release();
-            return {};
+            return nt_status::INVALID_PARAMETER;
         }
 
         s.size = s.num_pages << PAGE_SHIFT;
@@ -68,7 +69,7 @@ object_ref create_section(const optional<reference_wrapper<file>>& file, bool im
         if (!s.pages) {
             printk("malloc failed\n");
             s.release();
-            return {};
+            return nt_status::INSUFFICIENT_RESOURCES;
         }
 
         memset(s.pages, 0, sizeof(page_info) * s.num_pages);
@@ -78,7 +79,9 @@ object_ref create_section(const optional<reference_wrapper<file>>& file, bool im
         // FIXME - make sure allocate_page doesn't steal what we've reserved
     }
 
-    return s;
+    ref = object_ref{s};
+
+    return nt_status::SUCCESS;
 }
 
 section::~section() {
@@ -681,13 +684,16 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
             return nt_status::INVALID_HANDLE;
     }
 
-    auto secth = create_section(f, allocation_attributes & SEC_IMAGE, size);
+    object_ref secth;
+
+    auto status = create_section(f, allocation_attributes & SEC_IMAGE, size,
+                                 secth);
 
     if (f)
         f->get().release();
 
-    if (!secth)
-        return nt_status::INTERNAL_ERROR;
+    if (!success(status))
+        return status;
 
     auto h = p->add_handle(secth.get(), 0); // FIXME - access mask
 

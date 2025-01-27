@@ -66,10 +66,13 @@ object_ref create_process(string_view fn, string_view curdir,
     // create section for image
 
     object_ref f(*new file(img_inode));
+    object_ref imgh;
 
-    auto imgh = create_section(static_cast<file&>(f.get()), true, 0);
-    if (!imgh) {
-        printk("create_section failed\n");
+    auto status = create_section(static_cast<file&>(f.get()), true, 0, imgh);
+    if (!success(status)) {
+        printk("create_section returned ");
+        print_hex((uint32_t)status, 8);
+        printk("\n");
         p.release();
         return {};
     }
@@ -171,7 +174,7 @@ object_ref create_process(string_view fn, string_view curdir,
         return {};
     }
 
-    auto status = p.create_thread(nullopt, 0, nullptr, client_id, entry_point_context, initial_teb, true);
+    status = p.create_thread(nullopt, 0, nullptr, client_id, entry_point_context, initial_teb, true);
     if (!success(status)) {
         printk("process::create_thread returned ");
         print_hex((uint32_t)status);
@@ -572,10 +575,17 @@ void load_ntdll() {
     }
 
     object_ref f(*new file(inode_ref.get()));
+    object_ref ntdllh;
 
-    auto ntdllh = create_section(static_cast<file&>(f.get()), true, 0);
-    if (!ntdllh) {
-        bsod("create_section failed for ntdll.dll");
+    auto status = create_section(static_cast<file&>(f.get()), true, 0, ntdllh);
+    if (!success(status)) {
+        char s[100];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "create_section returned ");
+        sp = sp_itoa_hex(sp, (uint32_t)status, 8);
+        sp = sp_strcpy(sp, " for ntdll.dll");
+        bsod(string_view(s, sp.data() - s));
         return;
     }
 

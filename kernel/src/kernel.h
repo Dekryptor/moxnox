@@ -244,8 +244,8 @@ void load_ntdll();
 class file;
 
 // section.cpp
-object_ref create_section(const std::optional<std::reference_wrapper<file>>& file,
-                          bool image, size_t size);
+nt_status create_section(const std::optional<std::reference_wrapper<file>>& file, bool image,
+                         size_t size, object_ref& ref);
 uint64_t get_image_size(void* image);
 std::span<const uint8_t> find_pdata(const kernel_image& img);
 
