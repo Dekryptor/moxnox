@@ -22,7 +22,7 @@ public:
             delete this;
     }
 
-    bool load_image();
+    nt_status load_image();
     void free_pa();
     bool map(uint32_t offset, uint64_t va, bool readonly);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);

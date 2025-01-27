@@ -48,10 +48,13 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
         s.type = section_type::image;
         // FIXME - also work with ELFs
 
-        if (!s.load_image()) {
-            printk("load_image failed\n");
+        auto status = s.load_image();
+        if (!success(status)) {
+            printk("load_image returned ");
+            print_hex((uint32_t)status, 8);
+            printk("\n");
             s.release();
-            return nt_status::INVALID_PARAMETER;
+            return status;
         }
     } else {
         s.type = section_type::anonymous;
@@ -130,10 +133,10 @@ public:
     uintptr_t pa, va;
 };
 
-bool section::load_image() {
+nt_status section::load_image() {
     if (!ino) {
         printk("inode was NULL\n");
-        return false;
+        return nt_status::INVALID_PARAMETER;
     }
 
     auto& f = ino->get();
@@ -149,42 +152,42 @@ bool section::load_image() {
         printk("inode read returned ");
         print_hex((uint64_t)status, 8);
         printk("\n");
-        return false;
+        return status;
     }
 
     if (read_bytes < PAGE_SIZE) {
         printk("read less than 1 page\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     auto& dos_header = *(IMAGE_DOS_HEADER*)buf;
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
         printk("invalid image header\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS)) {
         printk("invalid e_lfanew value\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     auto& nt_header = *(IMAGE_NT_HEADERS*)(buf + dos_header.e_lfanew);
 
     if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
         printk("incorrect PE signature\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (nt_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
         printk("unsupported architecture\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT; // FIXME - there's probably a specific error for this
     }
 
     if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
         nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         printk("unrecognized optional header signature\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     // FIXME - check checksum
@@ -194,7 +197,7 @@ bool section::load_image() {
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64)) {
             printk("SizeOfOptionalHeader was smaller than expected\n");
-            return false;
+            return nt_status::INVALID_IMAGE_FORMAT;
         }
 
         size = nt_header.OptionalHeader64.SizeOfImage;
@@ -206,7 +209,7 @@ bool section::load_image() {
     } else {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
             printk("SizeOfOptionalHeader was smaller than expected\n");
-            return false;
+            return nt_status::INVALID_IMAGE_FORMAT;
         }
 
         size = nt_header.OptionalHeader32.SizeOfImage;
@@ -219,23 +222,23 @@ bool section::load_image() {
 
     if (size == 0) {
         printk("size of image was 0\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (size_of_headers > size) {
         printk("SizeOfHeaders was more than SizeOfImage\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (size_of_headers > PAGE_SIZE) {
         printk("SizeOfHeaders was more than 1 page\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     // FIXME - does this happen in the real world?
     if (section_alignment % PAGE_SIZE) {
         printk("SectionAlignment was not a multiple of PAGE_SIZE\n");
-        return false;
+        return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     num_pages = bytes_to_pages(size);
@@ -244,7 +247,7 @@ bool section::load_image() {
     pages = (page_info*)malloc(sizeof(page_info) * num_pages);
     if (!pages) {
         printk("malloc failed\n");
-        return false;
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     // FIXME - allocate zeroed pages?
@@ -261,7 +264,7 @@ bool section::load_image() {
             free(pages);
             pages = nullptr;
 
-            return false;
+            return nt_status::INSUFFICIENT_RESOURCES;
         }
     }
 
@@ -308,7 +311,7 @@ bool section::load_image() {
         if (sect.VirtualAddress + section_size > size) {
             printk("section overflow\n");
             free_pa();
-            return false;
+            return nt_status::INVALID_IMAGE_FORMAT;
         }
 
         if (sect.PointerToRawData != 0) {
@@ -322,7 +325,7 @@ bool section::load_image() {
             if (sect.VirtualAddress % section_alignment) {
                 printk("section not aligned to SectionAlignment\n");
                 free_pa();
-                return false;
+                return nt_status::INVALID_IMAGE_FORMAT;
             }
 
             do {
@@ -331,7 +334,7 @@ bool section::load_image() {
                 if (pinned_pages == 0) {
                     printk("inode::read_into_cache_and_pin did not pin any pages\n");
                     free_pa();
-                    return false;
+                    return nt_status::INTERNAL_ERROR;
                 }
 
                 for (unsigned int i = 0; i < pinned_pages; i++) {
@@ -376,7 +379,7 @@ bool section::load_image() {
         }
     }
 
-    return true;
+    return nt_status::SUCCESS;
 }
 
 bool section::map(uint32_t offset, uint64_t va, bool readonly) {
