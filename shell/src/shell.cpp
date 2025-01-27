@@ -778,9 +778,20 @@ static void handle_escape_sequence(string_view s) {
             cursor_pos += 4;
 
         print("\x1b[C");
+    } else if (s == "\x1b[H") { // home
+        if (cursor_pos == 0)
+            return;
+
+        for (size_t i = 0; i < cursor_pos; i++) {
+            if ((buf[i] & 0xc0) == 0x80)
+                continue;
+
+            print("\x1b[D"); // left
+        }
+
+        cursor_pos = 0;
     }
 
-    // FIXME - home
     // FIXME - end
     // FIXME - delete
 }
