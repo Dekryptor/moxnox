@@ -790,9 +790,17 @@ static void handle_escape_sequence(string_view s) {
         }
 
         cursor_pos = 0;
+    } else if (s == "\x1b[F") { // end
+        for (size_t i = cursor_pos; i < buflen; i++) {
+            if ((buf[i] & 0xc0) == 0x80)
+                continue;
+
+            print("\x1b[C"); // right
+        }
+
+        cursor_pos = buflen;
     }
 
-    // FIXME - end
     // FIXME - delete
 }
 
