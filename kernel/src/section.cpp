@@ -6,6 +6,11 @@
 
 using namespace std;
 
+// #define debug_printk printk
+// #define debug_print_hex print_hex
+#define debug_printk(a)
+#define debug_print_hex(...)
+
 nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
                          size_t size, object_ref& ref) {
     if (file && !image) {
@@ -17,7 +22,7 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
     auto sptr = new section;
     if (!sptr) {
-        printk("new failed\n");
+        debug_printk("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
@@ -25,7 +30,7 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
     if (file) {
         if (file->get().ino.type != object_type::inode) {
-            printk("file pointed to object other than inode\n");
+            debug_printk("file pointed to object other than inode\n");
             s.release();
             return nt_status::INVALID_PARAMETER;
         }
@@ -33,7 +38,7 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
         if (file->get().name) {
             s.name = (char*)malloc(file->get().namelen);
             if (!s.name) {
-                printk("malloc failed\n");
+                debug_printk("malloc failed\n");
                 s.release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
@@ -50,9 +55,9 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
         auto status = s.load_image();
         if (!success(status)) {
-            printk("load_image returned ");
-            print_hex((uint32_t)status, 8);
-            printk("\n");
+            debug_printk("load_image returned ");
+            debug_print_hex((uint32_t)status, 8);
+            debug_printk("\n");
             s.release();
             return status;
         }
@@ -61,7 +66,7 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
         s.num_pages = bytes_to_pages(size);
 
         if (s.num_pages == 0) {
-            printk("anonymous section must specify a size\n");
+            debug_printk("anonymous section must specify a size\n");
             s.release();
             return nt_status::INVALID_PARAMETER;
         }
@@ -70,7 +75,7 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
         s.pages = (page_info*)malloc(sizeof(page_info) * s.num_pages);
         if (!s.pages) {
-            printk("malloc failed\n");
+            debug_printk("malloc failed\n");
             s.release();
             return nt_status::INSUFFICIENT_RESOURCES;
         }
@@ -113,7 +118,7 @@ public:
     scratch() {
         pa = allocate_page();
         if (!pa) {
-            printk("allocate_page failed\n");
+            debug_printk("allocate_page failed\n");
             return;
         }
 
@@ -135,7 +140,7 @@ public:
 
 nt_status section::load_image() {
     if (!ino) {
-        printk("inode was NULL\n");
+        debug_printk("inode was NULL\n");
         return nt_status::INVALID_PARAMETER;
     }
 
@@ -149,44 +154,44 @@ nt_status section::load_image() {
     uint64_t read_bytes;
     auto status = f.read(span(buf, PAGE_SIZE), 0, read_bytes);
     if (!success(status)) {
-        printk("inode read returned ");
-        print_hex((uint64_t)status, 8);
-        printk("\n");
+        debug_printk("inode read returned ");
+        debug_print_hex((uint64_t)status, 8);
+        debug_printk("\n");
         return status;
     }
 
     if (read_bytes < PAGE_SIZE) {
-        printk("read less than 1 page\n");
+        debug_printk("read less than 1 page\n");
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     auto& dos_header = *(IMAGE_DOS_HEADER*)buf;
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
-        printk("invalid image header\n");
+        debug_printk("invalid image header\n");
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS)) {
-        printk("invalid e_lfanew value\n");
+        debug_printk("invalid e_lfanew value\n");
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     auto& nt_header = *(IMAGE_NT_HEADERS*)(buf + dos_header.e_lfanew);
 
     if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
-        printk("incorrect PE signature\n");
+        debug_printk("incorrect PE signature\n");
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (nt_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
-        printk("unsupported architecture\n");
+        debug_printk("unsupported architecture\n");
         return nt_status::INVALID_IMAGE_FORMAT; // FIXME - there's probably a specific error for this
     }
 
     if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
         nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-        printk("unrecognized optional header signature\n");
+        debug_printk("unrecognized optional header signature\n");
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
@@ -196,7 +201,7 @@ nt_status section::load_image() {
 
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64)) {
-            printk("SizeOfOptionalHeader was smaller than expected\n");
+            debug_printk("SizeOfOptionalHeader was smaller than expected\n");
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
@@ -208,7 +213,7 @@ nt_status section::load_image() {
         section_alignment = nt_header.OptionalHeader64.SectionAlignment;
     } else {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
-            printk("SizeOfOptionalHeader was smaller than expected\n");
+            debug_printk("SizeOfOptionalHeader was smaller than expected\n");
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
@@ -221,23 +226,23 @@ nt_status section::load_image() {
     }
 
     if (size == 0) {
-        printk("size of image was 0\n");
+        debug_printk("size of image was 0\n");
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (size_of_headers > size) {
-        printk("SizeOfHeaders was more than SizeOfImage\n");
+        debug_printk("SizeOfHeaders was more than SizeOfImage\n");
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (size_of_headers > PAGE_SIZE) {
-        printk("SizeOfHeaders was more than 1 page\n");
+        debug_printk("SizeOfHeaders was more than 1 page\n");
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     // FIXME - does this happen in the real world?
     if (section_alignment % PAGE_SIZE) {
-        printk("SectionAlignment was not a multiple of PAGE_SIZE\n");
+        debug_printk("SectionAlignment was not a multiple of PAGE_SIZE\n");
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
@@ -246,7 +251,7 @@ nt_status section::load_image() {
 
     pages = (page_info*)malloc(sizeof(page_info) * num_pages);
     if (!pages) {
-        printk("malloc failed\n");
+        debug_printk("malloc failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
@@ -255,7 +260,7 @@ nt_status section::load_image() {
     for (unsigned int i = 0; i < num_pages; i++) {
         pages[i].pa = allocate_page();
         if (!pages[i].pa) {
-            printk("allocate_page failed\n");
+            debug_printk("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 free_page(pages[j].pa);
@@ -309,7 +314,7 @@ nt_status section::load_image() {
             continue;
 
         if (sect.VirtualAddress + section_size > size) {
-            printk("section overflow\n");
+            debug_printk("section overflow\n");
             free_pa();
             return nt_status::INVALID_IMAGE_FORMAT;
         }
@@ -323,7 +328,7 @@ nt_status section::load_image() {
             uint64_t offset = sect.PointerToRawData & (PAGE_SIZE - 1);
 
             if (sect.VirtualAddress % section_alignment) {
-                printk("section not aligned to SectionAlignment\n");
+                debug_printk("section not aligned to SectionAlignment\n");
                 free_pa();
                 return nt_status::INVALID_IMAGE_FORMAT;
             }
@@ -332,7 +337,7 @@ nt_status section::load_image() {
                 auto pinned_pages = (uint32_t)f.read_into_cache_and_pin(file_start_page + page_num, file_pages_left);
 
                 if (pinned_pages == 0) {
-                    printk("inode::read_into_cache_and_pin did not pin any pages\n");
+                    debug_printk("inode::read_into_cache_and_pin did not pin any pages\n");
                     free_pa();
                     return nt_status::INTERNAL_ERROR;
                 }
@@ -393,13 +398,13 @@ bool section::map(uint32_t offset, uint64_t va, bool readonly) {
 
         if (!page) {
             if (type != section_type::anonymous) {
-                printk("page not set\n");
+                debug_printk("page not set\n");
                 return false;
             }
 
             page = allocate_page();
             if (!page) {
-                printk("allocate_page failed\n");
+                debug_printk("allocate_page failed\n");
                 return false;
             }
 
@@ -503,21 +508,21 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
     auto names = span((uint32_t*)(dir.data() + ied.AddressOfNames - offset), ied.NumberOfNames);
 
     if ((uint8_t*)names.data() + names.size_bytes() > dir.data() + dir.size()) {
-        printk("invalid export directory\n");
+        debug_printk("invalid export directory\n");
         return 0;
     }
 
     auto name_ordinals = span((uint16_t*)(dir.data() + ied.AddressOfNameOrdinals - offset), ied.NumberOfNames);
 
     if ((uint8_t*)name_ordinals.data() + name_ordinals.size_bytes() > dir.data() + dir.size()) {
-        printk("invalid export directory\n");
+        debug_printk("invalid export directory\n");
         return 0;
     }
 
     auto funcs = span((uint32_t*)(dir.data() + ied.AddressOfFunctions - offset), ied.NumberOfFunctions);
 
     if ((uint8_t*)funcs.data() + funcs.size_bytes() > dir.data() + dir.size()) {
-        printk("invalid export directory\n");
+        debug_printk("invalid export directory\n");
         return 0;
     }
 
@@ -527,7 +532,7 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
         auto n = names[i];
 
         if (dir.data() + n - offset > dir.data() + dir.size()) {
-            printk("invalid export directory\n");
+            debug_printk("invalid export directory\n");
             return 0;
         }
 
@@ -548,7 +553,7 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
         return 0;
 
     if (*ord >= ied.NumberOfFunctions) {
-        printk("Function ordinal out of range.\n");
+        debug_printk("Function ordinal out of range.\n");
         return 0;
     }
 
@@ -557,7 +562,7 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
 
 uint64_t section::find_export(string_view name) {
     if (type != section_type::image) {
-        printk("Not an image.\n");
+        debug_printk("Not an image.\n");
         return 0;
     }
 
@@ -570,7 +575,7 @@ uint64_t section::find_export(string_view name) {
     }
 
     if (!page) {
-        printk("first page of image not set\n");
+        debug_printk("first page of image not set\n");
         return 0;
     }
 
@@ -595,13 +600,13 @@ uint64_t section::find_export(string_view name) {
         }
 
         if (!found) {
-            printk("image has no export directory\n");
+            debug_printk("image has no export directory\n");
             return 0;
         }
     }
 
     if (exp_dir.VirtualAddress == 0 || exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
-        printk("invalid export directory\n");
+        debug_printk("invalid export directory\n");
         return 0;
     }
 
@@ -613,13 +618,13 @@ uint64_t section::find_export(string_view name) {
 
     auto va = allocate_va(exp_dir_pages);
     if (!va) {
-        printk("allocate_va failed\n");
+        debug_printk("allocate_va failed\n");
         return 0;
     }
 
     for (unsigned int i = 0; i < exp_dir_pages; i++) {
         if (!map((uint32_t)(exp_dir_start + (i << PAGE_SHIFT)), va + (i << PAGE_SHIFT), true)) {
-            printk("section::map failed\n");
+            debug_printk("section::map failed\n");
             for (unsigned int j = 0; j < i; j++) {
                 unmap_page(va + (j << PAGE_SHIFT));
             }
@@ -846,9 +851,9 @@ NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_
         }
 
         default:
-            printk("section::query_info: unhandled info class ");
-            print_hex((unsigned int)section_information_class);
-            printk("\n");
+            debug_printk("section::query_info: unhandled info class ");
+            debug_print_hex((unsigned int)section_information_class);
+            debug_printk("\n");
             return nt_status::INVALID_INFO_CLASS;
     }
 }
