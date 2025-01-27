@@ -2,6 +2,18 @@
 
 #include "page_cache.h"
 
+enum class inode_type : uint8_t {
+    unknown = 0,
+    file = 1,
+    directory = 2,
+    chardev = 3,
+    blockdev = 4,
+    fifo = 5,
+    socket = 6,
+    symlink = 7,
+    ea = 8
+};
+
 class inode : public object {
 public:
     inode() : object(object_type::inode) { }
@@ -25,6 +37,7 @@ public:
 
     uint64_t file_size;
     page_cache<inode> cache{*this};
+    enum inode_type inode_type;
 };
 
 static_assert(is_readable_object_with_offset<inode>);

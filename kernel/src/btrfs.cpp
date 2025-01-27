@@ -587,7 +587,7 @@ void btrfs_filesystem::walk_from(uint64_t subvol, const key& k, invocable<const 
     walk_from2(addr, level, k, func);
 }
 
-btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : fs(fs), subvol(subvol), inode(inode), inode_type(inode_type) {
+btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : fs(fs), subvol(subvol), inode(inode) {
     bool found_inode_item = false;
 
     fs.walk_from(subvol, key(inode, key_type::INODE_ITEM, 0), [&](const key& k, span<const uint8_t> data) {
@@ -726,39 +726,73 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 
     file_size = ii.st_size;
 
-    if (inode_type == btrfs_inode_type::unknown) {
-        switch ((ii.st_mode & 0xf000) >> 12) {
-            case 1:
-                inode_type = btrfs_inode_type::fifo;
-                break;
+    switch (inode_type) {
+        case btrfs_inode_type::file:
+            this->inode_type = inode_type::file;
+            break;
 
-            case 2:
-                inode_type = btrfs_inode_type::chardev;
-                break;
+        case btrfs_inode_type::directory:
+            this->inode_type = inode_type::directory;
+            break;
 
-            case 4:
-                inode_type = btrfs_inode_type::directory;
-                break;
+        case btrfs_inode_type::chardev:
+            this->inode_type = inode_type::chardev;
+            break;
 
-            case 6:
-                inode_type = btrfs_inode_type::blockdev;
-                break;
+        case btrfs_inode_type::blockdev:
+            this->inode_type = inode_type::blockdev;
+            break;
 
-            case 8:
-                inode_type = btrfs_inode_type::file;
-                break;
+        case btrfs_inode_type::fifo:
+            this->inode_type = inode_type::fifo;
+            break;
 
-            case 0xa:
-                inode_type = btrfs_inode_type::symlink;
-                break;
+        case btrfs_inode_type::socket:
+            this->inode_type = inode_type::socket;
+            break;
 
-            case 0xc:
-                inode_type = btrfs_inode_type::socket;
-                break;
+        case btrfs_inode_type::symlink:
+            this->inode_type = inode_type::symlink;
+            break;
 
-            default:
-                break;
-        }
+        case btrfs_inode_type::ea:
+            this->inode_type = inode_type::ea;
+            break;
+
+        case btrfs_inode_type::unknown:
+            switch ((ii.st_mode & 0xf000) >> 12) {
+                case 1:
+                    this->inode_type = inode_type::fifo;
+                    break;
+
+                case 2:
+                    this->inode_type = inode_type::chardev;
+                    break;
+
+                case 4:
+                    this->inode_type = inode_type::directory;
+                    break;
+
+                case 6:
+                    this->inode_type = inode_type::blockdev;
+                    break;
+
+                case 8:
+                    this->inode_type = inode_type::file;
+                    break;
+
+                case 0xa:
+                    this->inode_type = inode_type::symlink;
+                    break;
+
+                case 0xc:
+                    this->inode_type = inode_type::socket;
+                    break;
+
+                default:
+                    break;
+            }
+        break;
     }
 
     valid = true;
@@ -800,7 +834,7 @@ void btrfs_inode::release() {
 optional<reference_wrapper<btrfs_inode>> btrfs_inode::open_child(string_view name) {
     dirent* de = nullptr;
 
-    if (inode_type != btrfs_inode_type::directory)
+    if (inode_type != inode_type::directory)
         return nullopt;
 
     {
@@ -1142,7 +1176,7 @@ NTSTATUS btrfs_filesystem::query_directory_dirent(const dirent& de, span<uint8_t
 
 NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                                       uint64_t& index) {
-    if (inode_type != btrfs_inode_type::directory)
+    if (inode_type != inode_type::directory)
         return nt_status::NOT_A_DIRECTORY;
 
     dirent* de = nullptr;

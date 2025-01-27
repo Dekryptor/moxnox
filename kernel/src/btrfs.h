@@ -395,7 +395,6 @@ public:
     spinlock children_lock;
     list_entry children = { &children, &children };
     list_entry extents = { &extents, &extents };
-    btrfs_inode_type inode_type;
 
 private:
     size_t read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages);
