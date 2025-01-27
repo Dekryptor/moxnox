@@ -752,6 +752,46 @@ static void thread_test() {
 }
 #endif
 
+static void handle_delete() {
+    unsigned int cp_size;
+
+    if (cursor_pos == buflen)
+        return;
+
+    if (!(buf[cursor_pos] & 0x80))
+        cp_size = 1;
+    else if ((buf[cursor_pos] & 0xe0) == 0xc0)
+        cp_size = 2;
+    else if ((buf[cursor_pos] & 0xf0) == 0xe0)
+        cp_size = 3;
+    else if ((buf[cursor_pos] & 0xf8) == 0xf0)
+        cp_size = 4;
+    else
+        return;
+
+    if (cp_size == 0)
+        return;
+
+    memmove(&buf[cursor_pos], &buf[cursor_pos + cp_size],
+            buflen - cursor_pos - cp_size);
+
+    buflen -= cp_size;
+
+    print("\x1b[K"); // erase rest of line
+
+    auto sv = string_view(&buf[cursor_pos], buflen - cursor_pos);
+
+    print(sv);
+
+    for (auto c : sv) {
+        // skip if not start of code point
+        if ((c & 0xc0) == 0x80)
+            continue;
+
+        print("\x1b[D"); // left
+    }
+}
+
 static void handle_escape_sequence(string_view s) {
     if (s == "\x1b[D") { // left
         if (cursor_pos == 0)
@@ -799,9 +839,8 @@ static void handle_escape_sequence(string_view s) {
         }
 
         cursor_pos = buflen;
-    }
-
-    // FIXME - delete
+    } else if (s == "\x1b[3~") // delete
+        handle_delete();
 }
 
 static void handle_char2(char32_t c) {
