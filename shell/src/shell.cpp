@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <nt.h>
+#include <pe.h>
 #include <ntdll.h>
 #include <ioctl.h>
 #include <span>
@@ -109,7 +110,8 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-static void run_program(HANDLE sect, string_view cmdline) {
+static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
+                        string_view cmdline) {
     NTSTATUS status;
     HANDLE proc, thread;
     CLIENT_ID client_id;
@@ -119,23 +121,9 @@ static void run_program(HANDLE sect, string_view cmdline) {
     PROCESS_BASIC_INFORMATION pbi;
     PEB newpeb;
     RTL_USER_PROCESS_PARAMETERS params;
-    SECTION_IMAGE_INFORMATION sii;
     IO_STATUS_BLOCK iosb;
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
-
-    // get entry point
-
-    status = NtQuerySection(sect, SECTION_INFORMATION_CLASS::ImageInformation, &sii,
-                            sizeof(SECTION_IMAGE_INFORMATION), nullptr);
-
-    if (!success(status)) {
-        print("NtQuerySection returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
-        NtClose(sect);
-        return;
-    }
 
     // create process
 
@@ -541,6 +529,7 @@ static void try_run_program(string_view program, string_view cmdline) {
     NTSTATUS status;
     HANDLE file, sect;
     IO_STATUS_BLOCK iosb;
+    SECTION_IMAGE_INFORMATION sii;
 
     // FIXME - should be checking PATH instead of root
 
@@ -635,8 +624,27 @@ static void try_run_program(string_view program, string_view cmdline) {
         return;
     }
 
-    // FIXME - don't try to run DLLs
-    run_program(sect, cmdline);
+    status = NtQuerySection(sect, SECTION_INFORMATION_CLASS::ImageInformation, &sii,
+                            sizeof(SECTION_IMAGE_INFORMATION), nullptr);
+
+    if (!success(status)) {
+        NtClose(sect);
+
+        print("NtQuerySection returned ");
+        print_hex((uint32_t)status, 8);
+        print("\n");
+        return;
+    }
+
+    if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
+        NtClose(sect);
+
+        print(program); // FIXME - stderr
+        print(": not an executable\n");
+        return;
+    }
+
+    run_program(sect, sii, cmdline);
 
     NtClose(sect);
 }
