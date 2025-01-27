@@ -644,6 +644,14 @@ static void try_run_program(string_view program, string_view cmdline) {
         return;
     }
 
+    if (sii.Machine != IMAGE_FILE_MACHINE_AMD64) {
+        NtClose(sect);
+
+        print(program); // FIXME - stderr
+        print(": unsupported architecture\n");
+        return;
+    }
+
     run_program(sect, sii, cmdline);
 
     NtClose(sect);
