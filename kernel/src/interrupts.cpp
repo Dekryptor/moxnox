@@ -257,7 +257,7 @@ static bool setup_idt() {
     memset(idt.data(), 0, PAGE_SIZE);
 
     add_idt_entry(0x0, (void*)divide_by_zero_isr, false, 0, false);
-    add_idt_entry(0x1, (void*)spurious_isr, false, 0, false); // FIXME - single-step debug interrupt
+    add_idt_entry(0x1, (void*)single_step_isr, false, 0, false);
     // FIXME - int 2 (NMI)
     add_idt_entry(0x3, (void*)breakpoint_isr, false, 0, true);
     // FIXME - int 4 (overflow)
@@ -887,6 +887,70 @@ void breakpoint() {
     auto sp = span(s, sizeof(s));
 
     sp = sp_strcpy(sp, "Unhandled breakpoint in kernel mode, ");
+
+    if (!current_thread)
+        sp = sp_strcpy(sp, "not in thread");
+    else {
+        sp = sp_strcpy(sp, "thread ");
+        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
+    }
+
+    sp = sp_strcpy(sp, ", CPU ");
+    sp = sp_itoa_hex(sp, cb.cpu_no);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_context(sp, cb.thread_context);
+    bsod(string_view(s, sp.data() - s));
+}
+
+extern "C"
+void single_step() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
+    if (current_thread && current_thread->proc && !current_thread->kernel_mode) {
+        auto& p = *current_thread->proc;
+
+        uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
+
+        if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
+            printk("Unable to copy thread context to stack.\n");
+            current_thread->exit_status = nt_status::SINGLE_STEP;
+            current_thread->terminate();
+            return;
+        }
+
+        EXCEPTION_RECORD er;
+
+        er.ExceptionCode = (uint32_t)nt_status::SINGLE_STEP;
+        er.ExceptionFlags = 0;
+        er.ExceptionRecord = nullptr;
+        er.ExceptionAddress = (void*)cb.thread_context.Rip;
+        er.NumberParameters = 0;
+
+        size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
+        uintptr_t us_er = us_context - er_size;
+
+        if (!p.copy_to((void*)us_er, &er, er_size)) {
+            printk("Unable to copy exception record to stack.\n");
+            current_thread->exit_status = nt_status::SINGLE_STEP;
+            current_thread->terminate();
+            return;
+        }
+
+        cb.thread_context.Rip = p.ntdll_addr + mn_signal;
+        cb.thread_context.Rcx = us_er;
+        cb.thread_context.Rdx = us_context;
+        cb.thread_context.Rsp -= sizeof(CONTEXT);
+        cb.thread_context.Rsp -= er_size;
+
+        return;
+    }
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = sp_strcpy(sp, "Unhandled single-step breakpoint in kernel mode, ");
 
     if (!current_thread)
         sp = sp_strcpy(sp, "not in thread");

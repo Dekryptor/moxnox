@@ -161,6 +161,7 @@ extern "C" void halt_isr();
 extern "C" void divide_by_zero_isr();
 extern "C" void yield_isr();
 extern "C" void breakpoint_isr();
+extern "C" void single_step_isr();
 
 // timer.S
 extern "C" void timer_isr();
