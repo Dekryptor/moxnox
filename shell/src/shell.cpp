@@ -661,6 +661,14 @@ static void int3() {
     __asm("int 3");
 }
 
+static void int1() {
+    __asm __volatile(
+        "pushf\n"
+        "\tor QWORD PTR [rsp], 0x100\n"
+        "\tpopf"
+    );
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -695,6 +703,8 @@ static void process_line(string_view sv) {
         segfault(); // TESTING
     else if (cmd == "int3")
         int3(); // TESTING
+    else if (cmd == "int1")
+        int1(); // TESTING
     else if (cmd == "halt")
         halt();
     else if (cmd == "reboot")
