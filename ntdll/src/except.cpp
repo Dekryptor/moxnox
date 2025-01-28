@@ -477,6 +477,10 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
                 sp = sp_strcpy(sp, "Unhandled breakpoint\n");
             break;
 
+            case nt_status::SINGLE_STEP:
+                sp = sp_strcpy(sp, "Unhandled single-step breakpoint\n");
+            break;
+
             default:
                 sp = sp_strcpy(sp, "Unhandled exception ");
                 sp = sp_itoa_hex(sp, exception->ExceptionCode, 8);
