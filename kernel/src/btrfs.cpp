@@ -1145,13 +1145,13 @@ NTSTATUS btrfs_inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_byte
     return nt_status::SUCCESS;
 }
 
-static NTSTATUS query_directory_dirent(const dirent& de, span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
+static NTSTATUS query_directory_dirent(string_view sv, enum btrfs_inode_type inode_type,
+                                       span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::DirectoryInformation: {
             if (buf.size() < offsetof(FILE_DIRECTORY_INFORMATION, FileName))
                 return nt_status::BUFFER_TOO_SMALL;
 
-            auto sv = string_view(de.name, de.namelen);
             auto utf16len = utf8_to_utf16_len(sv);
             auto len = offsetof(FILE_DIRECTORY_INFORMATION, FileName) + (utf16len * sizeof(char16_t));
 
@@ -1170,7 +1170,7 @@ static NTSTATUS query_directory_dirent(const dirent& de, span<uint8_t> buf, FILE
             fdi.ChangeTime.QuadPart = 0; // FIXME
             fdi.EndOfFile.QuadPart = 0; // FIXME
             fdi.AllocationSize.QuadPart = 0; // FIXME
-            fdi.FileAttributes = de.inode_type == btrfs_inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
+            fdi.FileAttributes = inode_type == btrfs_inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
             utf8_to_utf16(span(fdi.FileName, utf16len), sv);
 
@@ -1190,37 +1190,57 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     if (inode_type != inode_type::directory)
         return nt_status::NOT_A_DIRECTORY;
 
-    dirent* de = nullptr;
+    char name[256]; // FIXME - reference page cache directly
+    size_t name_len;
+    key dir_index_key;
+    enum btrfs_inode_type inode_type;
+    uint64_t found_index;
+    bool found = false;
 
-    {
-        lock_guard lock(children_lock);
+    auto k = key{inode, key_type::DIR_INDEX, index};
 
-        auto le = children.next;
-        while (le != &children) {
-            auto& de2 = containing_record<dirent>(le);
+    // FIXME - transaction lock
 
-            if (de2.index > index) {
-                auto delen = offsetof(dirent, name) + de2.namelen;
-                de = (dirent*)malloc(delen);
-                if (!de)
-                    return nt_status::INSUFFICIENT_RESOURCES;
+    fs.walk_from(subvol, k, [&](const key& found_key, span<const uint8_t> data) -> bool {
+        if (found_key.obj_id != k.obj_id || found_key.obj_type != k.obj_type)
+            return false;
 
-                memcpy(de, &de2, delen);
+        if (found_key.offset < index)
+            return false;
 
-                break;
-            }
+        // FIXME - return actual error if data malformed
 
-            le = le->next;
-        }
-    }
+        if (data.size() < offsetof(dir_item, name))
+            return false;
 
-    if (!de)
+        const auto& di = *(dir_item*)data.data();
+
+        if (data.size() < offsetof(dir_item, name) + di.m + di.n)
+            return false;
+
+        if (di.n > sizeof(name))
+            return false;
+
+        memcpy(name, di.name, di.n);
+        name_len = di.n;
+
+        dir_index_key = di.k;
+        inode_type = di.type;
+        found_index = found_key.offset;
+
+        found = true;
+
+        return false;
+    });
+
+    if (!found)
         return nt_status::NO_MORE_FILES;
 
-    auto ret = query_directory_dirent(*de, buf, file_information_class);
+    auto ret = query_directory_dirent(string_view(name, name_len),
+                                      inode_type, buf,
+                                      file_information_class);
 
-    index = de->index;
-    free(de);
+    index = found_index + 1;
 
     return ret;
 }
