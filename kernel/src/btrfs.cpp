@@ -822,14 +822,13 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
     auto& v = *dir_item_key;
 
     if (v.obj_type == key_type::ROOT_ITEM)
-        obj = fs.open_inode(v.obj_id, SUBVOL_ROOT_INODE);
+        return fs.open_inode(v.obj_id, SUBVOL_ROOT_INODE, obj);
     else
-        obj = fs.open_inode(subvol, v.obj_id);
-
-    return nt_status::SUCCESS;
+        return fs.open_inode(subvol, v.obj_id, obj);
 }
 
-optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode) {
+nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
+                                       optional<reference_wrapper<btrfs_inode>>& obj) {
     {
         lock_guard lock(inode_lock);
 
@@ -839,7 +838,8 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
 
             if (in.subvol == subvol && in.inode == inode) {
                 in.acquire();
-                return in;
+                obj = in;
+                return nt_status::SUCCESS;
             }
 
             le = le->next;
@@ -850,12 +850,12 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
 
     if (!ino) {
         printk("new failed\n");
-        return nullopt;
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     if (!ino->valid) {
         delete ino;
-        return nullopt;
+        return nt_status::INTERNAL_ERROR;
     }
 
     {
@@ -871,7 +871,8 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
 
                 delete ino;
 
-                return in;
+                obj = in;
+                return nt_status::SUCCESS;
             }
 
             le = le->next;
@@ -880,7 +881,8 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
         insert_tail_list(inode_list, ino->le);
     }
 
-    return *ino;
+    obj = *ino;
+    return nt_status::SUCCESS;
 }
 
 nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& root_dir,

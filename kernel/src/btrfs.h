@@ -410,7 +410,7 @@ public:
     bool read_metadata(uint64_t addr, std::span<uint8_t> data);
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
     void walk_from(uint64_t subvol, const key& k, std::invocable<const key&, std::span<const uint8_t>> auto func);
-    std::optional<std::reference_wrapper<btrfs_inode>> open_inode(uint64_t subvol, uint64_t inode);
+    nt_status open_inode(uint64_t subvol, uint64_t inode, std::optional<std::reference_wrapper<btrfs_inode>>& obj);
     nt_status open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
                    object_ref& obj_ref, uint32_t create_disposition) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
