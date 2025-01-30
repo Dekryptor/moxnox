@@ -2,6 +2,7 @@
 #include "objects.h"
 #include "btrfs.h"
 #include "handle.h"
+#include "crc32c.h"
 
 using namespace std;
 
