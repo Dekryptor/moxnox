@@ -785,14 +785,9 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 
-    if (create_disposition != FILE_OPEN) {
-        printk("FIXME - creating files\n");
-        return nt_status::NOT_SUPPORTED;
-    }
-
     auto hash = calc_crc32c(0xfffffffe, name);
 
-    // FIXME - transaction lock
+    // FIXME - transaction lock (RO if FILE_OPEN, RW otherwise)
 
     auto k = key{inode, key_type::DIR_ITEM, hash};
     optional<key> dir_item_key;
@@ -816,15 +811,36 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         return false;
     });
 
-    if (!dir_item_key.has_value())
-        return nt_status::OBJECT_NAME_NOT_FOUND;
+    if (dir_item_key.has_value()) {
+        if (create_disposition == FILE_CREATE)
+            return nt_status::OBJECT_NAME_COLLISION;
 
-    auto& v = *dir_item_key;
+        if (create_disposition == FILE_OVERWRITE) {
+            printk("FIXME - FILE_OVERWRITE\n");
+            return nt_status::NOT_SUPPORTED;
+        } else if (create_disposition == FILE_OVERWRITE_IF) {
+            printk("FIXME - FILE_OVERWRITE_IF\n");
+            return nt_status::NOT_SUPPORTED;
+        } else if (create_disposition == FILE_SUPERSEDE) {
+            printk("FIXME - FILE_SUPERSEDE\n");
+            return nt_status::NOT_SUPPORTED;
+        }
 
-    if (v.obj_type == key_type::ROOT_ITEM)
-        return fs.open_inode(v.obj_id, SUBVOL_ROOT_INODE, obj);
-    else
-        return fs.open_inode(subvol, v.obj_id, obj);
+        auto& v = *dir_item_key;
+
+        if (v.obj_type == key_type::ROOT_ITEM)
+            return fs.open_inode(v.obj_id, SUBVOL_ROOT_INODE, obj);
+        else
+            return fs.open_inode(subvol, v.obj_id, obj);
+    } else {
+        if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE)
+            return nt_status::OBJECT_NAME_NOT_FOUND;
+
+        // FIXME - create
+
+        printk("FIXME - creating files\n");
+        return nt_status::NOT_SUPPORTED;
+    }
 }
 
 nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
