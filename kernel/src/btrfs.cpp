@@ -833,34 +833,44 @@ void btrfs_inode::release() {
 }
 
 optional<reference_wrapper<btrfs_inode>> btrfs_inode::open_child(string_view name) {
-    dirent* de = nullptr;
-
     if (inode_type != inode_type::directory)
         return nullopt;
 
-    {
-        lock_guard lock(children_lock);
+    auto hash = calc_crc32c(0xfffffffe, name);
 
-        auto le = children.next;
-        while (le != &children) {
-            auto& de2 = containing_record<dirent>(le);
+    // FIXME - transaction lock
 
-            if (de2.namelen == name.length() && string_view(de2.name, de2.namelen) == name) {
-                de = &de2;
+    auto k = key{inode, key_type::DIR_ITEM, hash};
+    optional<key> dir_item_key;
+
+    fs.walk_from(subvol, k, [&](const key& found_key, span<const uint8_t> data) -> bool {
+        if (k != found_key)
+            return false;
+
+        while (data.size() >= offsetof(dir_item, name)) {
+            const auto& di = *(dir_item*)data.data();
+
+            if (data.size() < offsetof(dir_item, name) + di.m + di.n)
+                break;
+
+            if (string_view(di.name, di.n) == name) {
+                dir_item_key = di.k;
                 break;
             }
-
-            le = le->next;
         }
-    }
 
-    if (!de)
+        return false;
+    });
+
+    if (!dir_item_key.has_value())
         return nullopt;
 
-    if (de->type == key_type::ROOT_ITEM)
-        return fs.open_inode(de->inode, SUBVOL_ROOT_INODE);
+    auto& v = *dir_item_key;
+
+    if (v.obj_type == key_type::ROOT_ITEM)
+        return fs.open_inode(v.obj_id, SUBVOL_ROOT_INODE);
     else
-        return fs.open_inode(subvol, de->inode);
+        return fs.open_inode(subvol, v.obj_id);
 }
 
 optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode) {

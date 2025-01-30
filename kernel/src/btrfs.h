@@ -168,6 +168,8 @@ struct key {
     key_type obj_type;
     uint64_t offset;
 
+    bool operator==(const key& k) const = default;
+
     std::strong_ordering operator<=>(const key& k) const {
         auto cmp = obj_id <=> k.obj_id;
 
