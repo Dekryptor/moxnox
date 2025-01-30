@@ -355,16 +355,6 @@ struct root {
     root_item ri;
 };
 
-struct dirent {
-    list_entry le;
-    uint64_t inode;
-    enum key_type type;
-    enum btrfs_inode_type inode_type;
-    uint64_t index;
-    uint8_t namelen;
-    char name[1];
-};
-
 struct inode_extent {
     list_entry le;
     uint64_t offset;
@@ -394,8 +384,6 @@ public:
     uint64_t inode;
     inode_item ii;
     bool valid = false;
-    spinlock children_lock;
-    list_entry children = { &children, &children };
     list_entry extents = { &extents, &extents };
 
 private:

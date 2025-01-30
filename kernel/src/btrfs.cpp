@@ -606,47 +606,6 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
                 found_inode_item = true;
             break;
 
-            case key_type::DIR_INDEX: {
-                auto& di = *(dir_item*)data.data();
-
-                if (data.size() < offsetof(dir_item, name)) {
-                    printk("DIR_ITEM was short\n");
-                    return false;
-                }
-
-                if (data.size() < offsetof(dir_item, name) + di.m + di.n) {
-                    printk("DIR_ITEM was short\n");
-                    return false;
-                }
-
-                if (di.n > 255) {
-                    printk("Skipping item with overly long name\n");
-                    return true;
-                }
-
-                auto deptr = (dirent*)malloc(offsetof(dirent, name) + di.n);
-                if (!deptr) {
-                    printk("malloc failed\n");
-                    return false;
-                }
-
-                auto& de = *deptr;
-
-                de.inode = di.k.obj_id;
-                de.type = di.k.obj_type;
-                de.inode_type = di.type;
-                de.index = k.offset;
-                de.namelen = (uint8_t)di.n;
-                memcpy(de.name, di.name, di.n);
-
-                {
-                    lock_guard lock(children_lock);
-                    insert_tail_list(children, de.le);
-                }
-
-                break;
-            }
-
             case key_type::EXTENT_DATA: {
                 auto& ed = *(extent_data*)data.data();
 
@@ -800,17 +759,6 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 }
 
 btrfs_inode::~btrfs_inode() {
-    {
-        lock_guard lock(children_lock);
-
-        while (!is_list_empty(children)) {
-            auto& de = containing_record<dirent>(children.next);
-
-            remove_entry_list(de.le);
-            free(&de);
-        }
-    }
-
     while (!is_list_empty(extents)) {
         auto& ie = containing_record<inode_extent>(extents.next);
 
