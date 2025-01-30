@@ -346,6 +346,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
                       const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block,
                       const LARGE_INTEGER*, uint32_t, uint32_t, uint32_t create_disposition,
                       uint32_t create_options, void*, uint32_t) {
+    NTSTATUS status;
     auto t = get_current_thread();
     auto p = t->proc;
     object_ref root_dir;
@@ -376,11 +377,6 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
 
         if (!valid)
             return nt_status::INVALID_HANDLE;
-    }
-
-    if (create_disposition != FILE_OPEN) {
-        printk("FIXME - creating files\n");
-        return nt_status::NOT_SUPPORTED;
     }
 
     // FIXME - check permissions (whether valid, and against SD)
@@ -417,19 +413,25 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     static const string_view dev_prefix = "/dev/";
     object_ref ino_ref;
 
-    if (namelen > dev_prefix.size() && string_view(name, dev_prefix.size()) == dev_prefix)
+    if (namelen > dev_prefix.size() && string_view(name, dev_prefix.size()) == dev_prefix) {
+        if (create_disposition != FILE_OPEN)
+            return nt_status::NOT_SUPPORTED;
+
         ino_ref = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
-    else {
-        if (root_dir)
-            ino_ref = open_inode(string_view(name, namelen), static_cast<inode&>(static_cast<file&>(root_dir.get()).ino));
-        else
-            ino_ref = open_inode(string_view(name, namelen), nullopt);
+    } else {
+        if (root_dir) {
+            status = open_inode(string_view(name, namelen), static_cast<inode&>(static_cast<file&>(root_dir.get()).ino),
+                                ino_ref, create_disposition);
+        } else {
+            status = open_inode(string_view(name, namelen), nullopt, ino_ref,
+                                create_disposition);
+        }
     }
 
-    if (!ino_ref) {
+    if (!success(status)) {
         // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
         free(name);
-        return nt_status::OBJECT_NAME_NOT_FOUND;
+        return status;
     }
 
     const auto& ino = static_cast<inode&>(ino_ref.get());

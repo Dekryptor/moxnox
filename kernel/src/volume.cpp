@@ -142,21 +142,23 @@ bool mount_root() {
     return true;
 }
 
-object_ref open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir) {
+nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir,
+                     object_ref& obj_ref, uint32_t create_disposition) {
     if (dir && fn.empty()) {
         dir->get().acquire();
-        return dir->get();
+        obj_ref = dir->get();
+        return nt_status::SUCCESS;
     }
 
     if (!root_fs) {
         printk("No root filesystem.\n");
-        return {};
+        return nt_status::INTERNAL_ERROR;
     }
 
     // FIXME - handle mount points
     // FIXME - /dev
 
-    return root_fs->open(fn, dir);
+    return root_fs->open(fn, dir, obj_ref, create_disposition);
 }
 
 struct part_wait {

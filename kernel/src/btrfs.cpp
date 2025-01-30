@@ -875,18 +875,20 @@ optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t s
     return *ino;
 }
 
-object_ref btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& root_dir) {
+nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& root_dir,
+                                 object_ref& obj_ref, uint32_t create_disposition) {
     if (!root_dir) {
         if (fn.empty() || fn[0] != '/') {
             printk("Not an absolute path.\n");
-            return {};
+            return nt_status::INVALID_PARAMETER;
         }
 
         fn.remove_prefix(1);
 
         if (fn.empty()) { // root
             root_inode->acquire();
-            return *root_inode;
+            obj_ref = *root_inode;
+            return nt_status::SUCCESS;
         }
     }
 
@@ -897,6 +899,11 @@ object_ref btrfs_filesystem::open(string_view fn, const optional<reference_wrapp
 
     // FIXME - die if anything in middle not directory
 
+    if (create_disposition != FILE_OPEN) {
+        printk("FIXME - creating files\n");
+        return nt_status::NOT_SUPPORTED;
+    }
+
     while (true) {
         auto sl = fn.find("/");
         auto& dir = dirrw.get();
@@ -906,15 +913,17 @@ object_ref btrfs_filesystem::open(string_view fn, const optional<reference_wrapp
         auto objrw = dir.open_child(sl == string_view::npos ? fn : string_view(fn.data(), sl));
         if (!objrw) {
             dir.release();
-            return {};
+            return nt_status::OBJECT_NAME_NOT_FOUND; // FIXME - or OBJECT_PATH_NOT_FOUND if in middle
         }
 
         auto& obj = objrw->get();
 
         dir.release();
 
-        if (sl == string_view::npos)
-            return obj;
+        if (sl == string_view::npos) {
+            obj_ref = obj;
+            return nt_status::SUCCESS;
+        }
 
         fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
         dirrw = obj;

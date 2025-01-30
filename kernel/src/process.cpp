@@ -23,12 +23,17 @@ static const size_t MAX_PATH = 260;
 object_ref create_process(string_view fn, string_view curdir,
                           object_ref& stdinobj, object_ref& stdoutobj,
                           object_ref& stderrobj) {
+    nt_status status;
+    object_ref img_inode_ref, curdir_ref;
+
     // FIXME - merge with NtCreateProcess?
 
-    auto img_inode_ref = open_inode(fn, nullopt);
-    if (!img_inode_ref) {
+    status = open_inode(fn, nullopt, img_inode_ref, FILE_OPEN);
+    if (!success(status)) { // FIXME - return status
         printk("open_inode failed for ");
         printk(fn);
+        printk(": ");
+        print_hex((uint32_t)status, 8);
         printk("\n");
         return {};
     }
@@ -40,10 +45,12 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto& img_inode = static_cast<inode&>(img_inode_ref.get());
 
-    auto curdir_ref = open_inode(curdir, nullopt);
-    if (!curdir_ref) {
+    status = open_inode(curdir, nullopt, curdir_ref, FILE_OPEN);
+    if (!success(status)) { // FIXME - return status
         printk("open_inode failed for ");
         printk(curdir);
+        printk(": ");
+        print_hex((uint32_t)status, 8);
         printk("\n");
         return {};
     }
@@ -69,7 +76,7 @@ object_ref create_process(string_view fn, string_view curdir,
     object_ref f(*new file(img_inode));
     object_ref imgh;
 
-    auto status = create_section(static_cast<file&>(f.get()), true, 0, imgh);
+    status = create_section(static_cast<file&>(f.get()), true, 0, imgh);
     if (!success(status)) {
         printk("create_section returned ");
         print_hex((uint32_t)status, 8);
@@ -571,9 +578,18 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 }
 
 void load_ntdll() {
-    auto inode_ref = open_inode("/ntdll.dll", nullopt);
-    if (!inode_ref) {
-        bsod("open_inode failed for ntdll.dll");
+    nt_status status;
+    object_ref inode_ref;
+
+    status = open_inode("/ntdll.dll", nullopt, inode_ref, FILE_OPEN);
+    if (!success(status)) {
+        char s[100];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "open_inode returned ");
+        sp = sp_itoa_hex(sp, (uint32_t)status, 8);
+        sp = sp_strcpy(sp, " for ntdll.dll");
+        bsod(string_view(s, sp.data() - s));
         return;
     }
 
@@ -585,7 +601,7 @@ void load_ntdll() {
     object_ref f(*new file(inode_ref.get()));
     object_ref ntdllh;
 
-    auto status = create_section(static_cast<file&>(f.get()), true, 0, ntdllh);
+    status = create_section(static_cast<file&>(f.get()), true, 0, ntdllh);
     if (!success(status)) {
         char s[100];
         auto sp = span(s, sizeof(s));
