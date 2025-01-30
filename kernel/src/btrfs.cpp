@@ -780,6 +780,60 @@ void btrfs_inode::release() {
     delete this;
 }
 
+nt_status btrfs_filesystem::insert_item(uint64_t subvol, const key& k,
+                                        span<const uint8_t> data) {
+    // FIXME
+
+    return nt_status::NOT_SUPPORTED;
+}
+
+nt_status btrfs_inode::create_child(string_view name,
+                                    optional<reference_wrapper<btrfs_inode>>& obj) {
+    nt_status status;
+
+    // FIXME - check name valid (not too long, no forbidden characters)
+
+    uint64_t inode_number = 42; // FIXME - get new inode number
+
+    // FIXME - INODE_ITEM
+    // FIXME - INODE_REF (including ext refs)
+
+    // DIR_ITEM in parent
+    auto hash = calc_crc32c(0xfffffffe, name);
+
+    size_t di_size = offsetof(dir_item, name) + name.size();
+    auto di = (dir_item*)malloc(di_size);
+    if (!di)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    di->k.obj_id = inode_number;
+    di->k.obj_type = key_type::INODE_ITEM;
+    di->k.offset = 0;
+    di->transid = 0; // FIXME
+    di->m = 0;
+    di->n = (uint16_t)name.size();
+    di->type = btrfs_inode_type::file; // FIXME
+    memcpy(di->name, name.data(), name.size());
+
+    status = fs.insert_item(subvol, {inode, key_type::DIR_ITEM, hash}, span((uint8_t*)di, di_size));
+
+    // FIXME - handle collisions
+
+    if (!success(status)) {
+        free(di);
+        return status;
+    }
+
+    free(di);
+
+    // FIXME - DIR_INDEX in parent (lookup last number)
+
+    // FIXME - create btrfs_inode object and return
+
+    printk("FIXME - creating files\n");
+    return nt_status::NOT_SUPPORTED;
+}
+
 nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
                                   optional<reference_wrapper<btrfs_inode>>& obj) {
     if (inode_type != inode_type::directory)
@@ -811,6 +865,8 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         return false;
     });
 
+    // FIXME - iosb Information
+
     if (dir_item_key.has_value()) {
         if (create_disposition == FILE_CREATE)
             return nt_status::OBJECT_NAME_COLLISION;
@@ -836,10 +892,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE)
             return nt_status::OBJECT_NAME_NOT_FOUND;
 
-        // FIXME - create
-
-        printk("FIXME - creating files\n");
-        return nt_status::NOT_SUPPORTED;
+        return create_child(name, obj);
     }
 }
 
