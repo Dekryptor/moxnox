@@ -369,7 +369,8 @@ public:
     ~btrfs_inode();
     void release() override;
 
-    std::optional<std::reference_wrapper<btrfs_inode>> open_child(std::string_view name);
+    nt_status open_child(std::string_view name, uint32_t create_disposition,
+                         std::optional<std::reference_wrapper<btrfs_inode>>& obj);
     NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) override;
     NTSTATUS query_directory(std::span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;

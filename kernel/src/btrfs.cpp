@@ -780,9 +780,15 @@ void btrfs_inode::release() {
     delete this;
 }
 
-optional<reference_wrapper<btrfs_inode>> btrfs_inode::open_child(string_view name) {
+nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
+                                  optional<reference_wrapper<btrfs_inode>>& obj) {
     if (inode_type != inode_type::directory)
-        return nullopt;
+        return nt_status::INVALID_PARAMETER;
+
+    if (create_disposition != FILE_OPEN) {
+        printk("FIXME - creating files\n");
+        return nt_status::NOT_SUPPORTED;
+    }
 
     auto hash = calc_crc32c(0xfffffffe, name);
 
@@ -811,14 +817,16 @@ optional<reference_wrapper<btrfs_inode>> btrfs_inode::open_child(string_view nam
     });
 
     if (!dir_item_key.has_value())
-        return nullopt;
+        return nt_status::OBJECT_NAME_NOT_FOUND;
 
     auto& v = *dir_item_key;
 
     if (v.obj_type == key_type::ROOT_ITEM)
-        return fs.open_inode(v.obj_id, SUBVOL_ROOT_INODE);
+        obj = fs.open_inode(v.obj_id, SUBVOL_ROOT_INODE);
     else
-        return fs.open_inode(subvol, v.obj_id);
+        obj = fs.open_inode(subvol, v.obj_id);
+
+    return nt_status::SUCCESS;
 }
 
 optional<reference_wrapper<btrfs_inode>> btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode) {
@@ -899,28 +907,31 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
 
     // FIXME - die if anything in middle not directory
 
-    if (create_disposition != FILE_OPEN) {
-        printk("FIXME - creating files\n");
-        return nt_status::NOT_SUPPORTED;
-    }
-
     while (true) {
         auto sl = fn.find("/");
         auto& dir = dirrw.get();
+        bool last_bit = sl == string_view::npos;
+        optional<reference_wrapper<btrfs_inode>> objrw;
 
         // FIXME - .. and .
 
-        auto objrw = dir.open_child(sl == string_view::npos ? fn : string_view(fn.data(), sl));
-        if (!objrw) {
+        auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
+                                     last_bit ? create_disposition : FILE_OPEN,
+                                     objrw);
+        if (!success(status)) {
             dir.release();
-            return nt_status::OBJECT_NAME_NOT_FOUND; // FIXME - or OBJECT_PATH_NOT_FOUND if in middle
+
+            if (!last_bit && status == nt_status::OBJECT_NAME_NOT_FOUND)
+                status = nt_status::OBJECT_PATH_NOT_FOUND;
+
+            return status;
         }
 
         auto& obj = objrw->get();
 
         dir.release();
 
-        if (sl == string_view::npos) {
+        if (last_bit) {
             obj_ref = obj;
             return nt_status::SUCCESS;
         }
