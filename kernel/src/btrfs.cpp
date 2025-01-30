@@ -1145,7 +1145,7 @@ NTSTATUS btrfs_inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_byte
     return nt_status::SUCCESS;
 }
 
-NTSTATUS btrfs_filesystem::query_directory_dirent(const dirent& de, span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
+static NTSTATUS query_directory_dirent(const dirent& de, span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::DirectoryInformation: {
             if (buf.size() < offsetof(FILE_DIRECTORY_INFORMATION, FileName))
@@ -1217,7 +1217,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     if (!de)
         return nt_status::NO_MORE_FILES;
 
-    auto ret = fs.query_directory_dirent(*de, buf, file_information_class);
+    auto ret = query_directory_dirent(*de, buf, file_information_class);
 
     index = de->index;
     free(de);
