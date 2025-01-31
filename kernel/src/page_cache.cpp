@@ -246,3 +246,37 @@ bool page_cache_base::find_unread_range(page_cache_entry*& range_start,
 
     return true;
 }
+
+bool page_cache_base::write_pages(uint64_t first_page, uint64_t num_pages,
+                                  span<const uint8_t> data) {
+    // FIXME - add page cache to list of things that need to be flushed
+
+    if (!pin(first_page, num_pages, nullptr))
+        return false;
+
+    // copy pages and set status to dirty
+
+    {
+        page_cache_entry* ent;
+
+        lock_guard lg(cache_lock);
+
+        for (uint64_t i = 0; i < num_pages; i++) {
+            if (i == 0)
+                ent = find_page_cache_entry(cache, first_page);
+            else
+                ent = &containing_record<page_cache_entry>(ent->le.next);
+
+            assert(ent->page_num == first_page + i);
+
+            auto ent_va = phys_address(ent->phys_address);
+
+            memcpy(ent_va, data.data() + (i << PAGE_SHIFT), PAGE_SIZE);
+
+            ent->status = page_cache_status::dirty;
+            ent->refcount--; // unpin
+        }
+    }
+
+    return true;
+}

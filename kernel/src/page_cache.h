@@ -5,7 +5,8 @@
 
 enum class page_cache_status {
     allocated,
-    clean
+    clean,
+    dirty
 };
 
 struct page_cache_entry {
@@ -30,6 +31,8 @@ public:
                            page_cache_entry*& ent, uint64_t first_page,
                            uint64_t num_pages);
     void unpin(uint64_t first_page, uint64_t num_pages);
+    bool write_pages(uint64_t first_page, uint64_t num_pages,
+                     std::span<const uint8_t> data);
 
     spinlock cache_lock;
     list_entry cache = { &cache, &cache };
@@ -42,6 +45,7 @@ public:
 
     bool read_and_pin(uint64_t offset, uint64_t length);
     size_t read(std::span<uint8_t> data, uint64_t offset);
+    size_t write(std::span<const uint8_t> data, uint64_t offset);
 
 private:
     T& dev;
@@ -126,6 +130,23 @@ size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
     copy_into_buffer_and_unpin(first_page, num_pages, data, offset);
 
     // FIXME - LRU
+
+    return data.size();
+}
+
+template<typename T>
+size_t page_cache<T>::write(std::span<const uint8_t> data, uint64_t offset) {
+    if (data.empty())
+        return 0;
+
+    // FIXME - handle offset not being aligned to page (need to read)
+    // FIXME - handle offset + data.size() not being aligned to page (need to read)
+
+    uint64_t first_page = offset >> PAGE_SHIFT;
+    uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
+
+    if (!write_pages(first_page, num_pages, data))
+        return false;
 
     return data.size();
 }
