@@ -361,6 +361,26 @@ struct inode_extent {
     extent_data ed;
 };
 
+static const unsigned int BTRFS_MAX_LEVEL = 8;
+
+struct btrfs_path {
+    btrfs_path() {
+        for (unsigned int i = 0; i < BTRFS_MAX_LEVEL; i++) {
+            data[i] = nullptr;
+        }
+    }
+
+    ~btrfs_path() {
+        for (unsigned int i = 0; i < BTRFS_MAX_LEVEL; i++) {
+            if (data[i])
+                free(data[i]);
+        }
+    }
+
+    uint8_t* data[BTRFS_MAX_LEVEL];
+    uint32_t slots[BTRFS_MAX_LEVEL];
+};
+
 class btrfs_filesystem;
 
 class btrfs_inode : public inode {
@@ -419,7 +439,9 @@ public:
     size_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages);
     void unpin(uint64_t page_num, uint64_t num_pages);
     page_cache_entry* find_page_cache_entry(uint64_t page_num);
-    nt_status insert_item(uint64_t subvol, const key& k, std::span<const uint8_t> data);
+    nt_status insert_item(uint64_t subvol, const key& k,
+                          std::span<const uint8_t> data);
+    nt_status find_item(uint64_t subvol, const key& k, btrfs_path& p);
 
     superblock sb;
     bool valid = false;

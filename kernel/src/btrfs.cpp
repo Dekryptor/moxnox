@@ -780,9 +780,141 @@ void btrfs_inode::release() {
     delete this;
 }
 
+nt_status btrfs_filesystem::find_item(uint64_t subvol, const key& k, btrfs_path& p) {
+    uint64_t addr = 0;
+    uint8_t level;
+
+    auto le = root_list.next;
+    while (le != &root_list) {
+        auto& r = containing_record<root>(le);
+
+        if (r.id == subvol) {
+            addr = r.ri.block_number;
+            level = r.ri.root_level;
+            break;
+        }
+
+        le = le->next;
+    }
+
+    if (addr == 0) {
+        printk("Could not find address for root ");
+        print_hex(subvol);
+        printk("\n");
+        return nt_status::DISK_CORRUPT_ERROR;
+    }
+
+    // FIXME - error if level >= BTRFS_MAX_LEVEL
+
+    for (unsigned int i = 0; i <= level; i++) {
+        p.data[i] = (uint8_t*)malloc(sb.node_size);
+        if (!p.data[i])
+            return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    do {
+        if (!read_metadata(addr, span(p.data[level], sb.node_size))) { // FIXME - return error
+            printk("read_metadata failed\n");
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        auto& th = *(tree_header*)p.data[level];
+
+        if (th.level != level) {
+            char s[100];
+            auto sp = span(s, sizeof(s));
+
+            sp = sp_strcpy(sp, "Tree level was incorrect (");
+            sp = sp_itoa_hex(sp, th.level);
+            sp = sp_strcpy(sp, ", expected ");
+            sp = sp_itoa_hex(sp, level);
+            sp = sp_strcpy(sp, ")\n");
+            printk(string_view(s, sp.data() - s));
+
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        if (th.level == 0) {
+            auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+            p.slots[level] = (uint32_t)items.size();
+
+            for (uint32_t i = 0; i < items.size(); i++) {
+                if (items[i].k >= k) {
+                    p.slots[level] = i;
+                    break;
+                }
+            }
+        } else {
+            auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+            // FIXME
+    //         for (const auto& i : items) {
+    //             if (!walk_tree2(i.address, exp_level - 1, func))
+    //                 break;
+    //         }
+        }
+    } while (false); // FIXME - do loop if level > 0
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_filesystem::insert_item(uint64_t subvol, const key& k,
                                         span<const uint8_t> data) {
-    // FIXME
+    btrfs_path p;
+    nt_status status;
+
+    // check if data too big for any tree
+    if (data.size() >= sb.node_size - sizeof(tree_header) - sizeof(leaf_node))
+        return nt_status::INTERNAL_ERROR;
+
+    status = find_item(subvol, k, p);
+    if (!success(status))
+        return status;
+
+    auto& th = *(tree_header*)p.data[0];
+    auto* items = (leaf_node*)((uint8_t*)&th + sizeof(tree_header));
+
+    if (p.slots[0] < th.num_items && items[p.slots[0]].k == k)
+        return nt_status::OBJECT_NAME_COLLISION;
+
+    unsigned int size_used = sizeof(tree_header);
+
+    for (unsigned int i = 0; i < th.num_items; i++) {
+        size_used += items[i].size;
+    }
+
+    size_used += (unsigned int)(th.num_items * sizeof(leaf_node));
+
+    if (size_used + sizeof(leaf_node) + data.size() > sb.node_size) {
+        printk("FIXME - split tree\n"); // FIXME
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    // insert new leaf_node
+
+    if (p.slots[0] < th.num_items) {
+        memmove(&items[p.slots[0] + 1], &items[p.slots[0]],
+                (th.num_items - p.slots[0]) * sizeof(leaf_node));
+    }
+
+    th.num_items++;
+
+    items[p.slots[0]].k = k;
+    items[p.slots[0]].offset = 0; // FIXME
+    items[p.slots[0]].size = 0; // FIXME
+
+    // FIXME - move data around
+    // FIXME - copy data into tree
+
+    // copy tree back into page cache and mark dirty
+    // FIXME - when do we recalc hash?
+    if (!cache.write(span(p.data[0], sb.node_size), th.address)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    // FIXME - COWing tree (acquire new metadata address, update tree 2)
+
+    // FIXME - split tree if would be too full, or no room
 
     return nt_status::NOT_SUPPORTED;
 }
@@ -817,10 +949,14 @@ nt_status btrfs_inode::create_child(string_view name,
 
     status = fs.insert_item(subvol, {inode, key_type::DIR_ITEM, hash}, span((uint8_t*)di, di_size));
 
-    // FIXME - handle collisions
+    // FIXME - handle DIR_ITEM hash collisions
 
     if (!success(status)) {
         free(di);
+
+        if (status == nt_status::OBJECT_NAME_COLLISION)
+            status = nt_status::INTERNAL_ERROR;
+
         return status;
     }
 
