@@ -878,13 +878,13 @@ nt_status btrfs_filesystem::insert_item(uint64_t subvol, const key& k,
     if (p.slots[0] < th.num_items && items[p.slots[0]].k == k)
         return nt_status::OBJECT_NAME_COLLISION;
 
-    unsigned int size_used = sizeof(tree_header);
+    unsigned int data_size = sizeof(tree_header);
 
     for (unsigned int i = 0; i < th.num_items; i++) {
-        size_used += items[i].size;
+        data_size += items[i].size;
     }
 
-    size_used += (unsigned int)(th.num_items * sizeof(leaf_node));
+    unsigned int size_used = data_size + (unsigned int)(th.num_items * sizeof(leaf_node));
 
     if (size_used + sizeof(leaf_node) + data.size() > sb.node_size) {
         printk("FIXME - split tree\n"); // FIXME
@@ -901,11 +901,31 @@ nt_status btrfs_filesystem::insert_item(uint64_t subvol, const key& k,
     th.num_items++;
 
     items[p.slots[0]].k = k;
-    items[p.slots[0]].offset = 0; // FIXME
-    items[p.slots[0]].size = 0; // FIXME
 
-    // FIXME - move data around
-    // FIXME - copy data into tree
+    if (!data.empty()) {
+        unsigned int to_move = 0;
+
+        // move data around
+
+        for (unsigned int i = p.slots[0] + 1; i < th.num_items; i++) {
+            to_move += items[i].size;
+            items[i].offset -= (uint32_t)data.size();
+        }
+
+        memmove(p.data[0] + sizeof(tree_header) + items[th.num_items - 1].offset - data.size(),
+                p.data[0] + sizeof(tree_header) + items[th.num_items - 1].offset,
+                to_move);
+    }
+
+    if (p.slots[0] == th.num_items - 1)
+        items[p.slots[0]].offset = (uint32_t)(sb.node_size - sizeof(tree_header) - data.size());
+    else
+        items[p.slots[0]].offset = (uint32_t)(items[p.slots[0] + 1].offset - data.size());
+
+    items[p.slots[0]].size = (uint32_t)data.size();
+
+    memcpy(p.data[0] + sizeof(tree_header) + items[p.slots[0]].offset,
+           data.data(), data.size());
 
     // copy tree back into page cache and mark dirty
     // FIXME - when do we recalc hash?
