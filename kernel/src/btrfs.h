@@ -415,6 +415,7 @@ private:
                                          const inode_extent& ie);
     size_t read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
                                   const inode_extent& ie);
+    nt_status get_last_dir_index(uint64_t& ret);
 };
 
 static_assert(cacheable<btrfs_inode>);
@@ -442,6 +443,7 @@ public:
     nt_status insert_item(uint64_t subvol, const key& k,
                           std::span<const uint8_t> data);
     nt_status find_item(uint64_t subvol, const key& k, btrfs_path& p);
+    bool move_path_back(btrfs_path& p);
 
     superblock sb;
     bool valid = false;

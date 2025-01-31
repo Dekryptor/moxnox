@@ -936,7 +936,44 @@ nt_status btrfs_filesystem::insert_item(uint64_t subvol, const key& k,
 
     // FIXME - split tree if would be too full, or no room
 
-    return nt_status::NOT_SUPPORTED;
+    return nt_status::SUCCESS;
+}
+
+bool btrfs_filesystem::move_path_back(btrfs_path& p) {
+    // FIXME - handle moving back through internal trees
+
+    if (p.slots[0] == 0)
+        return false;
+
+    p.slots[0]--;
+
+    return true;
+}
+
+nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
+    nt_status status;
+    btrfs_path p;
+
+    status = fs.find_item(subvol, {inode, key_type::DIR_INDEX, 0xffffffffffffffff}, p);
+    if (!success(status))
+        return status;
+
+    if (!fs.move_path_back(p)) {
+        ret = 1;
+        return nt_status::SUCCESS;
+    }
+
+    auto& th = *(tree_header*)p.data[0];
+    auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+    if (items[p.slots[0]].k.obj_id != inode || items[p.slots[0]].k.obj_type != key_type::DIR_INDEX) {
+        ret = 1;
+        return nt_status::SUCCESS;
+    }
+
+    ret = items[p.slots[0]].k.offset;
+
+    return nt_status::SUCCESS;
 }
 
 nt_status btrfs_inode::create_child(string_view name,
@@ -950,7 +987,8 @@ nt_status btrfs_inode::create_child(string_view name,
     // FIXME - INODE_ITEM
     // FIXME - INODE_REF (including ext refs)
 
-    // DIR_ITEM in parent
+    // create DIR_ITEM in parent
+
     auto hash = calc_crc32c(0xfffffffe, name);
 
     size_t di_size = offsetof(dir_item, name) + name.size();
@@ -980,9 +1018,32 @@ nt_status btrfs_inode::create_child(string_view name,
         return status;
     }
 
+    // create DIR_INDEX in parent
+
+    uint64_t index;
+
+    status = get_last_dir_index(index);
+    if (!success(status)) {
+        free(di);
+        return status;
+    }
+
+    index++;
+
+    status = fs.insert_item(subvol, {inode, key_type::DIR_INDEX, index}, span((uint8_t*)di, di_size));
+
+    if (!success(status)) {
+        free(di);
+
+        if (status == nt_status::OBJECT_NAME_COLLISION)
+            status = nt_status::INTERNAL_ERROR;
+
+        return status;
+    }
+
     free(di);
 
-    // FIXME - DIR_INDEX in parent (lookup last number)
+    // FIXME - adjust size of parent directory
 
     // FIXME - create btrfs_inode object and return
 
