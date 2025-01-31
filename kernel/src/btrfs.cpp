@@ -184,16 +184,16 @@ bool btrfs_probe(volume& vol) {
     return true;
 }
 
-bool btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
+nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
     if (!cache.read(data, addr)) {
         printk("Short read\n");
-        return false;
+        return nt_status::INTERNAL_ERROR;
     }
 
     // FIXME - check checksum, address, level, and subvol ID
     // FIXME - if duff, read from other version (and replace)
 
-    return true;
+    return nt_status::SUCCESS;
 }
 
 bool btrfs_filesystem::walk_tree2(uint64_t addr, uint8_t exp_level, invocable<const key&, span<const uint8_t>> auto func) {
@@ -205,7 +205,7 @@ bool btrfs_filesystem::walk_tree2(uint64_t addr, uint8_t exp_level, invocable<co
 
     auto buf = span(bufptr, sb.node_size);
 
-    if (!read_metadata(addr, buf)) {
+    if (auto status = read_metadata(addr, buf); !success(status)) {
         printk("read_metadata failed\n");
         free(bufptr);
         return false;
@@ -507,7 +507,7 @@ bool btrfs_filesystem::walk_from2(uint64_t addr, uint8_t exp_level, const key& k
 
     auto buf = span(bufptr, sb.node_size);
 
-    if (!read_metadata(addr, buf)) {
+    if (auto status = read_metadata(addr, buf); !success(status)) {
         printk("read_metadata failed\n");
         free(bufptr);
         return 0;
@@ -783,6 +783,7 @@ void btrfs_inode::release() {
 nt_status btrfs_filesystem::find_item(uint64_t subvol, const key& k, btrfs_path& p) {
     uint64_t addr = 0;
     uint8_t level;
+    nt_status status;
 
     auto le = root_list.next;
     while (le != &root_list) {
@@ -813,10 +814,9 @@ nt_status btrfs_filesystem::find_item(uint64_t subvol, const key& k, btrfs_path&
     }
 
     do {
-        if (!read_metadata(addr, span(p.data[level], sb.node_size))) { // FIXME - return error
-            printk("read_metadata failed\n");
-            return nt_status::INTERNAL_ERROR;
-        }
+        status = read_metadata(addr, span(p.data[level], sb.node_size));
+        if (!success(status))
+            return status;
 
         auto& th = *(tree_header*)p.data[level];
 
