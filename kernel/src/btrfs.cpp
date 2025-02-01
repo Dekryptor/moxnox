@@ -384,18 +384,6 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
     // FIXME - calculate hashes etc.
 
-    {
-        char s[100];
-        auto sp = span(s, sizeof(s));
-
-        sp = sp_strcpy(sp, "FIXME - btrfs_filesystem::flush_tree("); // FIXME
-        sp = sp_itoa_hex(sp, c.offset);
-        sp = sp_strcpy(sp, ", ");
-        sp = sp_itoa_hex(sp, addr);
-        sp = sp_strcpy(sp, ")\n");
-        printk(string_view(s, sp.data() - s));
-    }
-
     if (c.ci.type & BLOCK_FLAG_RAID0) {
         printk("RAID0 not supported\n");
         return false;
@@ -448,28 +436,6 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
         }
     }
 
-    for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
-        uint64_t disk_addr = addr - c.offset + c.ci.stripes[i].offset;
-        uint64_t first_page = disk_addr >> PAGE_SHIFT;
-        uint64_t num_pages = pages_per_tree;
-
-        while (true) {
-            auto flushed = vol.flush_cache(first_page, num_pages);
-
-            if (flushed == 0) {
-                printk("volume::flush_cache failed\n");
-                cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
-                return false;
-            }
-
-            if (num_pages == flushed)
-                break;
-
-            first_page += flushed;
-            num_pages -= flushed;
-        }
-    }
-
     ent = first_page;
     for (unsigned j = 0; j < pages_per_tree; j++) {
         if (ent->status == page_cache_status::dirty)
@@ -517,20 +483,44 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
     }
 
     auto& c = crw->get();
-    uint64_t ret = 0;
+    uint64_t pages_written = 0;
 
     while (addr < c.ci.size) {
         if (!flush_tree(c, addr))
             break;
 
         addr += sb.node_size;
-        ret += pages_per_tree;
+        pages_written += pages_per_tree;
 
-        if (ret >= num_pages)
+        if (pages_written >= num_pages)
             break;
     }
 
-    return ret;
+    if (pages_written == 0)
+        return pages_written;
+
+    uint64_t pages_to_flush = pages_written;
+    for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
+        uint64_t disk_addr = (page_num << PAGE_SHIFT) - c.offset + c.ci.stripes[i].offset;
+        uint64_t first_page = disk_addr >> PAGE_SHIFT;
+
+        while (true) {
+            auto flushed = vol.flush_cache(first_page, pages_to_flush);
+
+            if (flushed == 0) {
+                printk("volume::flush_cache failed\n");
+                break;
+            }
+
+            if (pages_to_flush == flushed)
+                break;
+
+            first_page += flushed;
+            pages_to_flush -= flushed;
+        }
+    }
+
+    return pages_written;
 }
 
 void btrfs_filesystem::free_chunk_list() {

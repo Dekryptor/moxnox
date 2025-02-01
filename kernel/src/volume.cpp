@@ -468,7 +468,17 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    printk("FIXME - diskpart::flush_cache\n"); // FIXME
+    {
+        char s[100];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "FIXME - diskpart::flush_cache("); // FIXME
+        sp = sp_itoa_hex(sp, page_num);
+        sp = sp_strcpy(sp, ", ");
+        sp = sp_itoa_hex(sp, num_pages);
+        sp = sp_strcpy(sp, ")\n");
+        printk(string_view(s, sp.data() - s));
+    }
 
     return 0;
 }
