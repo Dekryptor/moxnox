@@ -59,6 +59,11 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         return;
     }
 
+    if (sb.csum_type != 0) {
+        printk("unsupported csum type\n");
+        return;
+    }
+
     // FIXME - make sure sb.n < sizeof(sb.sys_chunk_array)
     auto chunk_array = span(sb.sys_chunk_array.data(), sb.n);
 
