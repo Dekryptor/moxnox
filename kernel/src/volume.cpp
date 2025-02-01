@@ -411,21 +411,15 @@ diskpart::~diskpart() {
     parent.release();
 }
 
-NTSTATUS diskpart::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
-    if (offset >= length)
-        return nt_status::END_OF_FILE;
+NTSTATUS diskpart::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) {
+    // FIXME - clear page cache in destructor
 
-    if (offset + s.size() > length)
-        s = s.subspan(length - offset);
+    // FIXME - return error if offset past end of device
+    // FIXME - truncate data buffer if we would read past end of device
 
-    if (s.empty()) {
-        read_bytes = 0;
-        return nt_status::SUCCESS;
-    }
-
-    offset += disk_offset;
-
-    return parent.read(s, offset, read_bytes);
+    // FIXME - return errors properly
+    read_bytes = cache.read(data, offset);
+    return nt_status::SUCCESS;
 }
 
 #if 0
@@ -448,24 +442,47 @@ size_t diskpart::read_uncached(span<uint8_t> s, uint64_t offset) {
 uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     // FIXME - make sure that partition is aligned to page boundaries
 
-    return parent.read_into_cache(page_num + (disk_offset >> PAGE_SHIFT), num_pages);
+    auto read_pages = parent.read_into_cache_and_pin(page_num + (disk_offset >> PAGE_SHIFT), num_pages);
+
+    if (read_pages == 0)
+        return 0;
+
+    auto* src = parent.find_page_cache_entry(page_num + (disk_offset >> PAGE_SHIFT));
+    auto* dst = find_page_cache_entry(page_num);
+
+    for (uint64_t i = 0; i < read_pages; i++) {
+        // FIXME - steal pages?
+        memcpy(phys_address(dst->phys_address), phys_address(src->phys_address),
+               PAGE_SIZE);
+        dst->status = page_cache_status::clean;
+
+        if (i != read_pages - 1) {
+            src = &containing_record<page_cache_entry>(src->le.next);
+            dst = &containing_record<page_cache_entry>(dst->le.next);
+        }
+    }
+
+    parent.unpin(page_num + (disk_offset >> PAGE_SHIFT), read_pages);
+
+    return read_pages;
 }
 
 uint64_t diskpart::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) {
-    // FIXME - make sure that partition is aligned to page boundaries
+    if (!cache.pin(page_num, num_pages, nullptr))
+        return 0;
 
-    return parent.read_into_cache_and_pin(page_num + (disk_offset >> PAGE_SHIFT),
-                                          num_pages);
+    auto read_pages = read_into_cache(page_num, num_pages);
+
+    if (read_pages < num_pages)
+        cache.unpin(page_num + read_pages, num_pages - read_pages);
+
+    return read_pages;
 }
 
 void diskpart::unpin(uint64_t page_num, uint64_t num_pages) {
-    // FIXME - make sure that partition is aligned to page boundaries
-
-    return parent.unpin(page_num + (disk_offset >> PAGE_SHIFT), num_pages);
+    cache.unpin(page_num, num_pages);
 }
 
 page_cache_entry* diskpart::find_page_cache_entry(uint64_t page_num) {
-    // FIXME - make sure that partition is aligned to page boundaries
-
-    return parent.find_page_cache_entry(page_num + (disk_offset >> PAGE_SHIFT));
+    return ::find_page_cache_entry(cache.cache, page_num);
 }

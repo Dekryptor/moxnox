@@ -1,4 +1,5 @@
 #pragma once
+#include "page_cache.h"
 
 class filesystem;
 
@@ -52,7 +53,7 @@ public:
             delete this;
     }
 
-    NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) override;
+    NTSTATUS read(std::span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) override;
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     uint64_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) override;
     void unpin(uint64_t page_num, uint64_t num_pages) override;
@@ -60,6 +61,7 @@ public:
     volume& parent;
     uint64_t disk_offset;
     uint64_t length;
+    page_cache<diskpart> cache{*this};
 };
 
 static_assert(is_readable_object_with_offset<diskpart>);
