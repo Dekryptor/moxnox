@@ -412,9 +412,8 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
         return false;
     }
 
-    auto ent = first_page;
-
     for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
+        auto ent = first_page;
         uint64_t disk_addr = addr - c.offset + c.ci.stripes[i].offset;
 
         for (unsigned j = 0; j < pages_per_tree; j++) {
@@ -436,7 +435,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
         }
     }
 
-    ent = first_page;
+    auto ent = first_page;
     for (unsigned j = 0; j < pages_per_tree; j++) {
         if (ent->status == page_cache_status::dirty)
             ent->status = page_cache_status::clean;
