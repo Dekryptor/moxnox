@@ -45,7 +45,6 @@ private:
 
 std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
 object_ref deref_handle2(handle_t h);
-bool name_object(handle_t h, std::string_view name, bool persistent = false);
 bool name_object(object& obj, std::string_view name, bool persistent = false);
 object_ref open_object(std::string_view name);
 void write(object_ref& h, std::span<const uint8_t> s);

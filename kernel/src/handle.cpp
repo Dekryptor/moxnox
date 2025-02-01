@@ -90,25 +90,6 @@ bool name_object(object& obj, string_view name, bool persistent) {
     return true;
 }
 
-bool name_object(handle_t h, string_view name, bool persistent) {
-    auto objrw = deref_handle(h);
-    if (!objrw) {
-        // FIXME - exception
-        printk("No such handle\n");
-        return false;
-    }
-
-    auto& obj = objrw->get();
-
-    auto ret = name_object(obj, name, persistent);
-
-    visit_obj(obj, [](auto&& o) {
-        o.release();
-    });
-
-    return ret;
-}
-
 object_ref open_object(string_view name) {
     if (name.empty()) {
         printk("Invalid name\n");
