@@ -15,6 +15,12 @@ static const uint64_t supported_incompat_flags = BTRFS_INCOMPAT_FLAGS_MIXED_BACK
                                                  BTRFS_INCOMPAT_FLAGS_BIG_METADATA | BTRFS_INCOMPAT_FLAGS_EXTENDED_IREF |
                                                  BTRFS_INCOMPAT_FLAGS_SKINNY_METADATA | BTRFS_INCOMPAT_FLAGS_NO_HOLES;
 
+static bool check_checksum(const superblock& sb) {
+    auto csum = ~calc_crc32c(0xffffffff, span((const uint8_t*)&sb.uuid, sizeof(superblock) - sizeof(sb.checksum)));
+
+    return csum == *(uint32_t*)&sb;
+}
+
 btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     vol.acquire();
 
@@ -35,7 +41,12 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     if (sb.magic != btrfs_magic)
         return;
 
-    // FIXME - check checksum
+    // FIXME - if checksum fails, try other superblock addresses
+    if (!check_checksum(sb)) {
+        printk("Incorrect superblock checksum\n");
+        return;
+    }
+
     // FIXME - check other superblock addresses, and choose one with highest generation
 
     if (sb.incompat_flags & ~supported_incompat_flags) {
