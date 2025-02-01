@@ -280,3 +280,19 @@ bool page_cache_base::write_pages(uint64_t first_page, uint64_t num_pages,
 
     return true;
 }
+
+size_t page_cache_base::write(std::span<const uint8_t> data, uint64_t offset) {
+    if (data.empty())
+        return 0;
+
+    // FIXME - handle offset not being aligned to page (need to read)
+    // FIXME - handle offset + data.size() not being aligned to page (need to read)
+
+    uint64_t first_page = offset >> PAGE_SHIFT;
+    uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
+
+    if (!write_pages(first_page, num_pages, data))
+        return false;
+
+    return data.size();
+}
