@@ -3,7 +3,7 @@
 
 class filesystem;
 
-class volume : public object {
+class volume : public object, public cacheable {
 public:
     volume() : object(object_type::volume) { }
 
@@ -19,12 +19,10 @@ public:
     virtual void release() = 0;
 
     virtual NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) = 0;
-    virtual uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
 
     void probe();
     bool check_for_partitions();
 
-    page_cache<volume> cache{*this};
     unsigned int part_num = 0;
     unsigned int sector_size;
     guid partition_guid = null_guid;
@@ -37,7 +35,6 @@ public:
 };
 
 static_assert(is_readable_object_with_offset<volume>);
-static_assert(cacheable<volume>);
 
 class diskpart : public volume {
 public:
@@ -58,7 +55,6 @@ public:
 };
 
 static_assert(is_readable_object_with_offset<diskpart>);
-static_assert(cacheable<diskpart>);
 
 class filesystem {
 public:

@@ -480,8 +480,6 @@ public:
     bool valid = false;
 };
 
-static_assert(cacheable<sata_device>);
-
 class sata_card {
 public:
     sata_card(const pci_device& dev) : dev(dev) { }

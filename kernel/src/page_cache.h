@@ -53,6 +53,13 @@ private:
     T& dev;
 };
 
+class cacheable {
+public:
+    virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
+
+    page_cache<cacheable> cache{*this};
+};
+
 page_cache_entry* create_new_page_cache_entry(uint64_t page_num);
 
 template<typename T>

@@ -425,9 +425,7 @@ private:
     nt_status get_last_dir_index(uint64_t& ret);
 };
 
-static_assert(cacheable<btrfs_inode>);
-
-class btrfs_filesystem : public filesystem {
+class btrfs_filesystem : public filesystem, public cacheable {
 public:
     btrfs_filesystem(volume& vol);
 
@@ -442,7 +440,7 @@ public:
     nt_status open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
                    object_ref& obj_ref, uint32_t create_disposition,
                    uint32_t create_options) override;
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status insert_item(root& r, const key& k, std::span<const uint8_t> data);
     nt_status find_item(root& r, const key& k, btrfs_path& p);
     bool move_path_back(btrfs_path& p);
@@ -456,7 +454,6 @@ public:
     btrfs_inode* root_inode = nullptr;
     spinlock inode_lock;
     list_entry inode_list = { &inode_list, &inode_list };
-    page_cache<btrfs_filesystem> cache{*this};
 
 private:
     bool load_chunks();
@@ -464,5 +461,3 @@ private:
     void free_chunk_list();
     void free_root_list();
 };
-
-static_assert(cacheable<btrfs_filesystem>);
