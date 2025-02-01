@@ -444,6 +444,7 @@ public:
                           std::span<const uint8_t> data);
     nt_status find_item(root& r, const key& k, btrfs_path& p);
     bool move_path_back(btrfs_path& p);
+    bool move_path_forward(btrfs_path& p);
     root* find_root(uint64_t root_num);
 
     superblock sb;

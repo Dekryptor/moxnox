@@ -589,17 +589,38 @@ void btrfs_filesystem::walk_from(uint64_t subvol, const key& k, invocable<const 
 }
 
 btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : fs(fs), subvol(subvol), inode(inode) {
+    nt_status status;
     bool found_inode_item = false;
+    btrfs_path p;
 
-    fs.walk_from(subvol, key(inode, key_type::INODE_ITEM, 0), [&](const key& k, span<const uint8_t> data) {
+    auto r = fs.find_root(subvol);
+    if (!r)
+        return;
+
+    status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p);
+    if (!success(status)) // FIXME - return this somehow
+        return;
+
+    do {
+        auto& th = *(tree_header*)p.data[0];
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        if (p.slots[0] >= th.num_items)
+            break;
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.k;
+
         if (k.obj_id != inode)
-            return false;
+            break;
+
+        auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
 
         switch (k.obj_type) {
             case key_type::INODE_ITEM:
                 if (data.size() < sizeof(inode_item)) {
                     printk("INODE_ITEM was short\n");
-                    return false;
+                    break;
                 }
 
                 memcpy(&ii, data.data(), min(data.size(), sizeof(inode_item)));
@@ -611,50 +632,50 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 
                 if (data.size() < offsetof(extent_data, data)) {
                     printk("EXTENT_DATA was short\n");
-                    return false;
+                    break;
                 }
 
                 if (ed.compression != 0) {
                     printk("Compression not supported\n");
-                    return false;
+                    break;
                 }
 
                 if (ed.encryption != 0) {
                     printk("Encryption not supported\n");
-                    return false;
+                    break;
                 }
 
                 if (ed.encoding != 0) {
                     printk("Other encodings not supported\n");
-                    return false;
+                    break;
                 }
 
                 if (ed.type == btrfs_extent_type::regular || ed.type == btrfs_extent_type::prealloc) {
                     if (data.size() < offsetof(extent_data, data) + sizeof(extent_data2)) {
                         printk("EXTENT_DATA was short\n");
-                        return false;
+                        break;
                     }
                 } else if (ed.type == btrfs_extent_type::inline_extent) {
                     if (data.size() < offsetof(extent_data, data) + ed.decoded_size) {
                         printk("EXTENT_DATA was short\n");
-                        return false;
+                        break;
                     }
                 } else {
                     printk("Invalid extent type\n");
-                    return false;
+                    break;
                 }
 
                 if (ed.type == btrfs_extent_type::regular) {
                     auto& ed2 = *(extent_data2*)ed.data;
 
                     if (ed2.address == 0 || ed2.size == 0) // skip sparse extents
-                        return true;
+                        break;
                 }
 
                 auto ieptr = (inode_extent*)malloc(offsetof(inode_extent, ed) + data.size());
                 if (!ieptr) {
                     printk("malloc failed\n");
-                    return false;
+                    break;
                 }
 
                 auto& ie = *ieptr;
@@ -670,10 +691,9 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
                 break;
         }
 
-        // FIXME - record other entries (extents etc.)
-
-        return true;
-    });
+        if (!fs.move_path_forward(p))
+            break;
+    } while (true);
 
     if (!found_inode_item) {
         printk("INODE_ITEM for subvol ");
@@ -944,6 +964,19 @@ bool btrfs_filesystem::move_path_back(btrfs_path& p) {
         return false;
 
     p.slots[0]--;
+
+    return true;
+}
+
+bool btrfs_filesystem::move_path_forward(btrfs_path& p) {
+    // FIXME - handle moving forward through internal trees
+
+    const auto& th = *(tree_header*)p.data[0];
+
+    if (th.num_items == 0 || p.slots[0] == th.num_items - 1)
+        return false;
+
+    p.slots[0]++;
 
     return true;
 }
