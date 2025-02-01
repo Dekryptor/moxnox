@@ -438,8 +438,7 @@ public:
     size_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages);
     void unpin(uint64_t page_num, uint64_t num_pages);
     page_cache_entry* find_page_cache_entry(uint64_t page_num);
-    nt_status insert_item(uint64_t subvol, const key& k,
-                          std::span<const uint8_t> data);
+    nt_status insert_item(root& r, const key& k, std::span<const uint8_t> data);
     nt_status find_item(root& r, const key& k, btrfs_path& p);
     bool move_path_back(btrfs_path& p);
     bool move_path_forward(btrfs_path& p);

@@ -771,7 +771,7 @@ nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p) {
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_filesystem::insert_item(uint64_t subvol, const key& k,
+nt_status btrfs_filesystem::insert_item(root& r, const key& k,
                                         span<const uint8_t> data) {
     btrfs_path p;
     nt_status status;
@@ -780,11 +780,7 @@ nt_status btrfs_filesystem::insert_item(uint64_t subvol, const key& k,
     if (data.size() >= sb.node_size - sizeof(tree_header) - sizeof(leaf_node))
         return nt_status::INTERNAL_ERROR;
 
-    auto r = find_root(subvol);
-    if (!r)
-        return nt_status::DISK_CORRUPT_ERROR;
-
-    status = find_item(*r, k, p);
+    status = find_item(r, k, p);
     if (!success(status))
         return status;
 
@@ -929,7 +925,7 @@ nt_status btrfs_inode::create_child(string_view name,
     // ii.st_mtime; // FIXME
     // ii.otime; // FIXME
 
-    status = fs.insert_item(r->id, {inode_number, key_type::INODE_ITEM, 0},
+    status = fs.insert_item(*r, {inode_number, key_type::INODE_ITEM, 0},
                             span((uint8_t*)&ii, sizeof(ii)));
     if (!success(status)) {
         if (status == nt_status::OBJECT_NAME_COLLISION)
@@ -957,7 +953,7 @@ nt_status btrfs_inode::create_child(string_view name,
     di->type = btrfs_inode_type::file; // FIXME
     memcpy(di->name, name.data(), name.size());
 
-    status = fs.insert_item(r->id, {inode, key_type::DIR_ITEM, hash}, span((uint8_t*)di, di_size));
+    status = fs.insert_item(*r, {inode, key_type::DIR_ITEM, hash}, span((uint8_t*)di, di_size));
 
     // FIXME - handle DIR_ITEM hash collisions
 
@@ -982,7 +978,7 @@ nt_status btrfs_inode::create_child(string_view name,
 
     index++;
 
-    status = fs.insert_item(r->id, {inode, key_type::DIR_INDEX, index}, span((uint8_t*)di, di_size));
+    status = fs.insert_item(*r, {inode, key_type::DIR_INDEX, index}, span((uint8_t*)di, di_size));
 
     if (!success(status)) {
         free(di);
