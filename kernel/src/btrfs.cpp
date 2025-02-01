@@ -53,8 +53,9 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         return;
     }
 
-    if (sb.sector_size & (PAGE_SIZE - 1)) {
-        printk("btrfs sector size not multiple of CPU page size\n");
+    // FIXME - subpage on ARM?
+    if (sb.sector_size != PAGE_SIZE) {
+        printk("btrfs sector size is not CPU page size\n");
         return;
     }
 
@@ -378,20 +379,158 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     return pages_read;
 }
 
-size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
+bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
+    unsigned int pages_per_tree = sb.node_size >> PAGE_SHIFT;
+
+    // FIXME - calculate hashes etc.
+
     {
         char s[100];
         auto sp = span(s, sizeof(s));
 
-        sp = sp_strcpy(sp, "FIXME - btrfs_filesystem::flush_cache("); // FIXME
-        sp = sp_itoa_hex(sp, page_num);
+        sp = sp_strcpy(sp, "FIXME - btrfs_filesystem::flush_tree("); // FIXME
+        sp = sp_itoa_hex(sp, c.offset);
         sp = sp_strcpy(sp, ", ");
-        sp = sp_itoa_hex(sp, num_pages);
+        sp = sp_itoa_hex(sp, addr);
         sp = sp_strcpy(sp, ")\n");
         printk(string_view(s, sp.data() - s));
     }
 
-    return 0;
+    if (c.ci.type & BLOCK_FLAG_RAID0) {
+        printk("RAID0 not supported\n");
+        return false;
+    } else if (c.ci.type & BLOCK_FLAG_RAID10) {
+        printk("RAID10 not supported\n");
+        return false;
+    } else if (c.ci.type & BLOCK_FLAG_RAID5) {
+        printk("RAID5 not supported\n");
+        return false;
+    } else if (c.ci.type & BLOCK_FLAG_RAID6) {
+        printk("RAID6 not supported\n");
+        return false;
+    }
+
+    // chunk is SINGLE, DUP, RAID1, RAID1C3, or RAID1C4
+
+    // FIXME - handle missing devices
+
+    // copy into page cache of volumes
+
+    cache.pin(addr >> PAGE_SHIFT, pages_per_tree, nullptr);
+
+    auto* first_page = cache.find_page_cache_entry(addr >> PAGE_SHIFT);
+    if (!first_page) {
+        printk("cache.find_page_cache_entry returned NULL\n");
+        return false;
+    }
+
+    auto ent = first_page;
+
+    for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
+        uint64_t disk_addr = addr - c.offset + c.ci.stripes[i].offset;
+
+        for (unsigned j = 0; j < pages_per_tree; j++) {
+            assert(ent->page_num == (addr >> PAGE_SHIFT) + j);
+
+            if (ent->status == page_cache_status::dirty) {
+                if (!vol.cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
+                    span((uint8_t*)phys_address(ent->phys_address), PAGE_SIZE))) {
+                    printk("volume::write_pages failed\n");
+                    cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
+                    return false;
+                }
+            }
+
+            disk_addr += PAGE_SIZE;
+
+            if (j != pages_per_tree - 1)
+                ent = &containing_record<page_cache_entry>(ent->le.next);
+        }
+    }
+
+    for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
+        uint64_t disk_addr = addr - c.offset + c.ci.stripes[i].offset;
+        uint64_t first_page = disk_addr >> PAGE_SHIFT;
+        uint64_t num_pages = pages_per_tree;
+
+        while (true) {
+            auto flushed = vol.flush_cache(first_page, num_pages);
+
+            if (flushed == 0) {
+                printk("volume::flush_cache failed\n");
+                cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
+                return false;
+            }
+
+            if (num_pages == flushed)
+                break;
+
+            first_page += flushed;
+            num_pages -= flushed;
+        }
+    }
+
+    ent = first_page;
+    for (unsigned j = 0; j < pages_per_tree; j++) {
+        if (ent->status == page_cache_status::dirty)
+            ent->status = page_cache_status::clean;
+
+        if (j != pages_per_tree - 1)
+            ent = &containing_record<page_cache_entry>(ent->le.next);
+    }
+
+    cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
+
+    return true;
+}
+
+size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    unsigned int pages_per_tree = sb.node_size >> PAGE_SHIFT;
+    uint64_t addr = page_num << PAGE_SHIFT;
+
+    if (page_num % pages_per_tree) // not aligned to tree
+        return 0;
+
+    // find chunk
+
+    optional<reference_wrapper<chunk>> crw;
+
+    {
+        auto le = chunk_list.next;
+        while (le != &chunk_list) {
+            auto& c = containing_record<chunk>(le);
+
+            if (addr >= c.offset && addr < c.offset + c.ci.size) {
+                crw = c;
+                break;
+            }
+
+            le = le->next;
+        }
+    }
+
+    if (!crw) {
+        printk("Could not find chunk for logical address ");
+        print_hex(addr);
+        printk("\n");
+        return 0;
+    }
+
+    auto& c = crw->get();
+    uint64_t ret = 0;
+
+    while (addr < c.ci.size) {
+        if (!flush_tree(c, addr))
+            break;
+
+        addr += sb.node_size;
+        ret += pages_per_tree;
+
+        if (ret >= num_pages)
+            break;
+    }
+
+    return ret;
 }
 
 void btrfs_filesystem::free_chunk_list() {

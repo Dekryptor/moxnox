@@ -463,4 +463,5 @@ private:
     bool load_roots();
     void free_chunk_list();
     void free_root_list();
+    bool flush_tree(const chunk& c, uint64_t addr);
 };
