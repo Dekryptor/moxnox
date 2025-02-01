@@ -369,3 +369,20 @@ uint64_t page_cache_base::read_into_cache_and_pin(uint64_t page_num, uint64_t nu
 
     return read_pages;
 }
+
+size_t page_cache_base::read(std::span<uint8_t> data, uint64_t offset) {
+    if (data.empty())
+        return 0;
+
+    if (!read_and_pin(offset, data.size()))
+        return 0;
+
+    uint64_t first_page = offset >> PAGE_SHIFT;
+    uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
+
+    copy_into_buffer_and_unpin(first_page, num_pages, data, offset);
+
+    // FIXME - LRU
+
+    return data.size();
+}
