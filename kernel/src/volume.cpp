@@ -47,8 +47,6 @@ bool mount_root() {
         return false;
     });
 
-    // FIXME - make sure partitions get names as well as disks
-
     if (!cmdline_root.empty()) {
         static const char prefix[] = "/dev/";
 
@@ -343,6 +341,47 @@ bool volume::check_for_partitions() {
                 printk("new failed\n");
                 free(buf);
                 return false;
+            }
+
+            if (volume_name_len > 0) {
+                char num[5];
+                // add "p" if parent name ends in number
+                bool add_p = volume_name[volume_name_len - 1] >= '0' && volume_name[volume_name_len - 1] <= '9';
+
+                if (auto [ptr, ec] = to_chars(num, num + sizeof(num), i + 1); ec == errc()) {
+                    partdev->volume_name_len = volume_name_len;
+                    partdev->volume_name_len += ptr - num;
+
+                    if (add_p)
+                        partdev->volume_name_len++;
+
+                    partdev->volume_name = (char*)malloc(partdev->volume_name_len);
+                    if (!partdev->volume_name) {
+                        printk("malloc failed\n");
+                        free(buf);
+                        return false;
+                    }
+
+                    char* p = partdev->volume_name;
+
+                    memcpy(p, volume_name, volume_name_len);
+                    p += volume_name_len;
+
+                    if (add_p) {
+                        *p = 'p';
+                        p++;
+                    }
+
+                    memcpy(p, num, ptr - num);
+
+                    auto sv = string_view(partdev->volume_name, partdev->volume_name_len);
+
+                    if (!name_object(*partdev, sv, true)) {
+                        printk("name_object failed\n");
+                        free(buf);
+                        return false;
+                    }
+                }
             }
 
             add_kernel_thread(partition_found, partdev, pw);

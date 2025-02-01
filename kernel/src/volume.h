@@ -7,6 +7,8 @@ public:
     volume() : object(object_type::volume) { }
 
     virtual ~volume() {
+        if (volume_name)
+            free(volume_name);
     }
 
     void acquire() {
@@ -29,6 +31,8 @@ public:
     unsigned int sector_size;
     guid partition_guid = null_guid;
     guid type_guid = null_guid;
+    char* volume_name = nullptr;
+    size_t volume_name_len = 0;
 
     spinlock mount_lock;
     std::optional<std::reference_wrapper<filesystem>> filesystem;

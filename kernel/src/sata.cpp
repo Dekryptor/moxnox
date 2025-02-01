@@ -589,6 +589,15 @@ static void init_sata_device(void* ctx, void* ctx2) {
             printk("name_object failed\n");
             goto end;
         }
+
+        dev.volume_name_len = strlen(name);
+        dev.volume_name = (char*)malloc(dev.volume_name_len);
+        if (!dev.volume_name) {
+            printk("malloc failed\n");
+            goto end;
+        }
+
+        memcpy(dev.volume_name, name, dev.volume_name_len);
     }
 
     dev.probe();
