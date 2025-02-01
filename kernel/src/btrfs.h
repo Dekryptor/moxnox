@@ -432,7 +432,6 @@ public:
 
     nt_status read_metadata(uint64_t addr, std::span<uint8_t> data);
     bool walk_tree(uint64_t id, std::invocable<const key&, std::span<const uint8_t>> auto func);
-    void walk_from(uint64_t subvol, const key& k, std::invocable<const key&, std::span<const uint8_t>> auto func);
     nt_status open_inode(uint64_t subvol, uint64_t inode, std::optional<std::reference_wrapper<btrfs_inode>>& obj);
     nt_status open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
                    object_ref& obj_ref, uint32_t create_disposition) override;
@@ -462,8 +461,6 @@ private:
     void free_chunk_list();
     void free_root_list();
     bool walk_tree2(uint64_t addr, uint8_t exp_level, std::invocable<const key&, std::span<const uint8_t>> auto func);
-    bool walk_from2(uint64_t addr, uint8_t exp_level, const key& k,
-                    std::invocable<const key&, std::span<const uint8_t>> auto func);
 };
 
 static_assert(cacheable<btrfs_filesystem>);
