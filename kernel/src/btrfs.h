@@ -399,8 +399,10 @@ public:
     void release() override;
 
     nt_status open_child(std::string_view name, uint32_t create_disposition,
+                         uint32_t create_options,
                          std::optional<std::reference_wrapper<btrfs_inode>>& obj);
     nt_status create_child(std::string_view name,
+                           uint32_t create_options,
                            std::optional<std::reference_wrapper<btrfs_inode>>& obj);
     NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) override;
     NTSTATUS query_directory(std::span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
@@ -441,7 +443,8 @@ public:
     nt_status read_metadata(uint64_t addr, std::span<uint8_t> data);
     nt_status open_inode(uint64_t subvol, uint64_t inode, std::optional<std::reference_wrapper<btrfs_inode>>& obj);
     nt_status open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
-                   object_ref& obj_ref, uint32_t create_disposition) override;
+                   object_ref& obj_ref, uint32_t create_disposition,
+                   uint32_t create_options) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
     size_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages);
     void unpin(uint64_t page_num, uint64_t num_pages);

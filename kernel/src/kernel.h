@@ -236,7 +236,8 @@ class inode;
 void add_fs_to_list(filesystem& fs);
 bool mount_root();
 nt_status open_inode(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
-                     object_ref& obj_ref, uint32_t create_disposition);
+                     object_ref& obj_ref, uint32_t create_disposition,
+                     uint32_t create_options);
 
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;

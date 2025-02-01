@@ -380,7 +380,6 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     }
 
     // FIXME - check permissions (whether valid, and against SD)
-    // FIXME - create_options
     // FIXME - creating files
     // FIXME - allocation_size
     // FIXME - file_attributes
@@ -421,10 +420,10 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     } else {
         if (root_dir) {
             status = open_inode(string_view(name, namelen), static_cast<inode&>(static_cast<file&>(root_dir.get()).ino),
-                                ino_ref, create_disposition);
+                                ino_ref, create_disposition, create_options);
         } else {
             status = open_inode(string_view(name, namelen), nullopt, ino_ref,
-                                create_disposition);
+                                create_disposition, create_options);
         }
     }
 

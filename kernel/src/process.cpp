@@ -28,7 +28,8 @@ object_ref create_process(string_view fn, string_view curdir,
 
     // FIXME - merge with NtCreateProcess?
 
-    status = open_inode(fn, nullopt, img_inode_ref, FILE_OPEN);
+    status = open_inode(fn, nullopt, img_inode_ref, FILE_OPEN,
+                        FILE_NON_DIRECTORY_FILE);
     if (!success(status)) { // FIXME - return status
         printk("open_inode failed for ");
         printk(fn);
@@ -45,7 +46,8 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto& img_inode = static_cast<inode&>(img_inode_ref.get());
 
-    status = open_inode(curdir, nullopt, curdir_ref, FILE_OPEN);
+    status = open_inode(curdir, nullopt, curdir_ref, FILE_OPEN,
+                        FILE_NON_DIRECTORY_FILE);
     if (!success(status)) { // FIXME - return status
         printk("open_inode failed for ");
         printk(curdir);
@@ -581,7 +583,8 @@ void load_ntdll() {
     nt_status status;
     object_ref inode_ref;
 
-    status = open_inode("/ntdll.dll", nullopt, inode_ref, FILE_OPEN);
+    status = open_inode("/ntdll.dll", nullopt, inode_ref, FILE_OPEN,
+                        FILE_NON_DIRECTORY_FILE);
     if (!success(status)) {
         char s[100];
         auto sp = span(s, sizeof(s));

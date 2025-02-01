@@ -6,6 +6,9 @@
 
 using namespace std;
 
+static const uint32_t S_IFREG = 0100000;
+static const uint32_t S_IFDIR = 0040000;
+
 static const uint64_t superblock_addrs[] = { 0x10000, 0x4000000, 0x4000000000, 0x4000000000000, 0 };
 
 static const uint64_t supported_incompat_flags = BTRFS_INCOMPAT_FLAGS_MIXED_BACKREF | BTRFS_INCOMPAT_FLAGS_MIXED_GROUPS |
@@ -908,9 +911,11 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
 }
 
 nt_status btrfs_inode::create_child(string_view name,
+                                    uint32_t create_options,
                                     optional<reference_wrapper<btrfs_inode>>& obj) {
     nt_status status;
     inode_item ii;
+    bool is_dir = create_options & FILE_DIRECTORY_FILE;
 
     // FIXME - check name valid (not too long, not empty, not . or .., no forbidden characters)
 
@@ -924,7 +929,13 @@ nt_status btrfs_inode::create_child(string_view name,
     ii.st_nlink = 1;
     ii.st_uid = 0; // FIXME
     ii.st_gid = 0; // FIXME
-    ii.st_mode = 0644; // FIXME (755 for directories, plus directory flag) (inherit from parent?)
+
+    // FIXME - do we inherit mode from parent?
+    if (is_dir)
+        ii.st_mode = S_IFDIR | 0755;
+    else
+        ii.st_mode = S_IFREG | 0644;
+
     ii.sequence = 0; // FIXME?
     // ii.st_atime; // FIXME
     // ii.st_ctime; // FIXME
@@ -954,7 +965,7 @@ nt_status btrfs_inode::create_child(string_view name,
     di->transid = 0; // FIXME
     di->m = 0;
     di->n = (uint16_t)name.size();
-    di->type = btrfs_inode_type::file; // FIXME
+    di->type = is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file;
     memcpy(di->name, name.data(), name.size());
 
     status = fs.insert_item(*r, {inode, key_type::DIR_ITEM, hash}, span((uint8_t*)di, di_size));
@@ -1024,7 +1035,8 @@ nt_status btrfs_inode::create_child(string_view name,
 
     // create btrfs_inode object and return
 
-    auto bi = new btrfs_inode(fs, r->id, new_inode, btrfs_inode_type::file/*FIXME*/);
+    auto bi = new btrfs_inode(fs, r->id, new_inode,
+                              is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file);
 
     memcpy(&bi->ii, &ii, sizeof(inode_item));
     bi->file_size = 0;
@@ -1040,6 +1052,7 @@ nt_status btrfs_inode::create_child(string_view name,
 }
 
 nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
+                                  uint32_t create_options,
                                   optional<reference_wrapper<btrfs_inode>>& obj) {
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
@@ -1115,7 +1128,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE)
             return nt_status::OBJECT_NAME_NOT_FOUND;
 
-        return create_child(name, obj);
+        return create_child(name, create_options, obj);
     }
 }
 
@@ -1178,7 +1191,8 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
 }
 
 nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& root_dir,
-                                 object_ref& obj_ref, uint32_t create_disposition) {
+                                 object_ref& obj_ref, uint32_t create_disposition,
+                                 uint32_t create_options) {
     if (!root_dir) {
         if (fn.empty() || fn[0] != '/') {
             printk("Not an absolute path.\n");
@@ -1211,7 +1225,7 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
 
         auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
                                      last_bit ? create_disposition : FILE_OPEN,
-                                     objrw);
+                                     create_options, objrw);
         if (!success(status)) {
             dir.release();
 

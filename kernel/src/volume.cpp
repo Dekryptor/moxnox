@@ -143,7 +143,8 @@ bool mount_root() {
 }
 
 nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir,
-                     object_ref& obj_ref, uint32_t create_disposition) {
+                     object_ref& obj_ref, uint32_t create_disposition,
+                     uint32_t create_options) {
     if (dir && fn.empty()) {
         dir->get().acquire();
         obj_ref = dir->get();
@@ -158,7 +159,8 @@ nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& d
     // FIXME - handle mount points
     // FIXME - /dev
 
-    return root_fs->open(fn, dir, obj_ref, create_disposition);
+    return root_fs->open(fn, dir, obj_ref, create_disposition,
+                         create_options);
 }
 
 struct part_wait {
