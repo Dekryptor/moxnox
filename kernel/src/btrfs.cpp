@@ -496,19 +496,50 @@ void btrfs_filesystem::free_root_list() {
 bool btrfs_filesystem::load_roots() {
     list_entry new_root_list = { &new_root_list, &new_root_list };
 
-    auto b = walk_tree(BTRFS_ROOT_ROOT, [&](const key& k, span<const uint8_t> data) {
-        if (k.obj_type != key_type::ROOT_ITEM)
-            return;
+    auto r = find_root(BTRFS_ROOT_ROOT);
+    if (!r) {
+        printk("Root root not found\n");
+        return false;
+    }
+
+    btrfs_path p;
+
+    auto status = find_item(*r, {0, key_type::ROOT_ITEM, 0}, p);
+    if (!success(status))
+        return false;
+
+    bool fail = false;
+
+    do {
+        auto& th = *(tree_header*)p.data[0];
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        if (p.slots[0] >= th.num_items)
+            break;
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.k;
+
+        if (k.obj_type != key_type::ROOT_ITEM) {
+            if (!move_path_forward(p))
+                break;
+
+            continue;
+        }
+
+        auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
 
         if (data.size() < sizeof(root_item)) {
             printk("Root item truncated\n");
-            return;
+            fail = true;
+            break;
         }
 
         auto rptr = new root;
         if (!rptr) {
             printk("new failed\n");
-            return;
+            fail = true;
+            break;
         }
 
         auto& r = *rptr;
@@ -516,9 +547,12 @@ bool btrfs_filesystem::load_roots() {
         r.id = k.obj_id;
         memcpy(&r.ri, data.data(), sizeof(root_item));
         insert_tail_list(new_root_list, r.le);
-    });
 
-    if (!b) {
+        if (!move_path_forward(p))
+            break;
+    } while (true);
+
+    if (fail) {
         swap_lists(root_list, new_root_list);
         free_root_list();
         swap_lists(root_list, new_root_list);
