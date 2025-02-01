@@ -468,17 +468,56 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    {
-        char s[100];
-        auto sp = span(s, sizeof(s));
+    // FIXME - need lock? Others shouldn't be writing into bits of the page cache we're flushing
 
-        sp = sp_strcpy(sp, "FIXME - diskpart::flush_cache("); // FIXME
-        sp = sp_itoa_hex(sp, page_num);
-        sp = sp_strcpy(sp, ", ");
-        sp = sp_itoa_hex(sp, num_pages);
-        sp = sp_strcpy(sp, ")\n");
-        printk(string_view(s, sp.data() - s));
+    if (!cache.pin(page_num, num_pages, nullptr))
+        return 0;
+
+    uint64_t flushed = 0;
+    auto ent = cache.find_page_cache_entry(page_num);
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        assert(ent->page_num == page_num + i);
+
+        if (ent->status == page_cache_status::dirty) {
+            auto dirty_page = span((uint8_t*)phys_address(ent->phys_address), PAGE_SIZE);
+
+            if (!parent.cache.write_pages(page_num + (disk_offset >> PAGE_SHIFT) + i,
+                                          1, dirty_page)) {
+                break;
+            }
+
+            ent->status = page_cache_status::clean;
+        }
+
+        if (i != num_pages - 1)
+            ent = &containing_record<page_cache_entry>(ent->le.next);
+
+        flushed++;
     }
 
-    return 0;
+    cache.unpin(page_num, num_pages);
+
+    if (flushed == 0)
+        return 0;
+
+    uint64_t flushed2 = 0;
+    uint64_t cur_page = page_num + (disk_offset >> PAGE_SHIFT);
+
+    while (true) {
+        auto done = parent.flush_cache(cur_page, flushed);
+
+        if (done == 0)
+            break;
+
+        flushed2 += min(done, flushed);
+
+        if (done >= flushed)
+            break;
+
+        cur_page += done;
+        flushed -= done;
+    }
+
+    return flushed2;
 }
