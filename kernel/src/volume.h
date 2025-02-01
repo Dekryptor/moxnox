@@ -22,7 +22,6 @@ public:
     virtual uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
     virtual uint64_t read_into_cache_and_pin(uint64_t page_num,
                                              uint64_t num_pages) = 0;
-    virtual page_cache_entry* find_page_cache_entry(uint64_t page_num) = 0;
 
     void probe();
     bool check_for_partitions();
@@ -56,7 +55,6 @@ public:
     NTSTATUS read(std::span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) override;
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     uint64_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) override;
-    page_cache_entry* find_page_cache_entry(uint64_t page_num) override;
     volume& parent;
     uint64_t disk_offset;
     uint64_t length;

@@ -33,6 +33,7 @@ public:
     void unpin(uint64_t first_page, uint64_t num_pages);
     bool write_pages(uint64_t first_page, uint64_t num_pages,
                      std::span<const uint8_t> data);
+    page_cache_entry* find_page_cache_entry(uint64_t page_num);
 
     spinlock cache_lock;
     list_entry cache = { &cache, &cache };
@@ -51,7 +52,6 @@ private:
     T& dev;
 };
 
-page_cache_entry* find_page_cache_entry(list_entry& page_cache, uint64_t page_num);
 page_cache_entry* create_new_page_cache_entry(uint64_t page_num);
 
 template<typename T>

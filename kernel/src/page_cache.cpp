@@ -4,13 +4,13 @@
 
 using namespace std;
 
-page_cache_entry* find_page_cache_entry(list_entry& page_cache, uint64_t page_num) {
+page_cache_entry* page_cache_base::find_page_cache_entry(uint64_t page_num) {
     // returns page cache entry, or previous one if not found
 
     page_cache_entry* last_p = nullptr;
 
-    auto le = page_cache.next;
-    while (le != &page_cache) {
+    auto le = cache.next;
+    while (le != &cache) {
         auto& p = containing_record<page_cache_entry>(le);
 
         if (p.page_num == page_num)
@@ -52,7 +52,7 @@ bool page_cache_base::pin(uint64_t first_page, uint64_t num_pages,
     page_cache_entry* ent;
     page_cache_entry* p;
 
-    ent = find_page_cache_entry(cache, first_page);
+    ent = find_page_cache_entry(first_page);
 
     if (!ent || ent->page_num != first_page) {
         p = create_new_page_cache_entry(first_page);
@@ -114,7 +114,7 @@ void page_cache_base::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (i == 0)
-            ent = find_page_cache_entry(cache, first_page);
+            ent = find_page_cache_entry(first_page);
         else
             ent = &containing_record<page_cache_entry>(ent->le.next);
 
@@ -147,7 +147,7 @@ void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page,
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (i == 0)
-            ent = find_page_cache_entry(cache, first_page);
+            ent = find_page_cache_entry(first_page);
         else
             ent = &containing_record<page_cache_entry>(ent->le.next);
 
@@ -179,7 +179,7 @@ void page_cache_base::unpin(uint64_t first_page, uint64_t num_pages) {
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (i == 0)
-            ent = find_page_cache_entry(cache, first_page);
+            ent = find_page_cache_entry(first_page);
         else
             ent = &containing_record<page_cache_entry>(ent->le.next);
 
@@ -263,7 +263,7 @@ bool page_cache_base::write_pages(uint64_t first_page, uint64_t num_pages,
 
         for (uint64_t i = 0; i < num_pages; i++) {
             if (i == 0)
-                ent = find_page_cache_entry(cache, first_page);
+                ent = find_page_cache_entry(first_page);
             else
                 ent = &containing_record<page_cache_entry>(ent->le.next);
 

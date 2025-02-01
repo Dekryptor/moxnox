@@ -355,12 +355,12 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
             lock_guard lg(cache.cache_lock);
 
             if (i == 0)
-                dest_p = ::find_page_cache_entry(cache.cache, page_num);
+                dest_p = cache.find_page_cache_entry(page_num);
             else
                 dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
         }
 
-        src_p = vol.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + i);
+        src_p = vol.cache.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + i);
         // FIXME - find next entry rather than doing complete lookup
 
         auto src_va = phys_address(src_p->phys_address);
@@ -389,10 +389,6 @@ uint64_t btrfs_filesystem::read_into_cache_and_pin(uint64_t page_num,
         cache.unpin(page_num + read_pages, num_pages - read_pages);
 
     return read_pages;
-}
-
-page_cache_entry* btrfs_filesystem::find_page_cache_entry(uint64_t page_num) {
-    return ::find_page_cache_entry(cache.cache, page_num);
 }
 
 void btrfs_filesystem::free_chunk_list() {
@@ -1255,7 +1251,7 @@ size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages
             lock_guard lg(cache.cache_lock);
 
             if (i == 0)
-                dest_p = ::find_page_cache_entry(cache.cache, page_num);
+                dest_p = cache.find_page_cache_entry(page_num);
             else
                 dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
         }
@@ -1291,7 +1287,7 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
             lock_guard lg(cache.cache_lock);
 
             if (i == 0)
-                dest_p = ::find_page_cache_entry(cache.cache, page_num);
+                dest_p = cache.find_page_cache_entry(page_num);
             else
                 dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
         }
@@ -1339,12 +1335,12 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
             lock_guard lg(cache.cache_lock);
 
             if (i == 0)
-                dest_p = ::find_page_cache_entry(cache.cache, page_num);
+                dest_p = cache.find_page_cache_entry(page_num);
             else
                 dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
         }
 
-        src_p = fs.find_page_cache_entry((addr >> PAGE_SHIFT) + i);
+        src_p = fs.cache.find_page_cache_entry((addr >> PAGE_SHIFT) + i);
         // FIXME - find next entry rather than doing complete lookup
 
         auto src_va = phys_address(src_p->phys_address);
@@ -1542,8 +1538,4 @@ uint64_t btrfs_inode::read_into_cache_and_pin(uint64_t page_num,
         cache.unpin(page_num + read_pages, num_pages - read_pages);
 
     return read_pages;
-}
-
-page_cache_entry* btrfs_inode::find_page_cache_entry(uint64_t page_num) {
-    return ::find_page_cache_entry(cache.cache, page_num);
 }

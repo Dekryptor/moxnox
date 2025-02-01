@@ -447,8 +447,8 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     if (read_pages == 0)
         return 0;
 
-    auto* src = parent.find_page_cache_entry(page_num + (disk_offset >> PAGE_SHIFT));
-    auto* dst = find_page_cache_entry(page_num);
+    auto* src = parent.cache.find_page_cache_entry(page_num + (disk_offset >> PAGE_SHIFT));
+    auto* dst = cache.find_page_cache_entry(page_num);
 
     for (uint64_t i = 0; i < read_pages; i++) {
         // FIXME - steal pages?
@@ -477,8 +477,4 @@ uint64_t diskpart::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages
         cache.unpin(page_num + read_pages, num_pages - read_pages);
 
     return read_pages;
-}
-
-page_cache_entry* diskpart::find_page_cache_entry(uint64_t page_num) {
-    return ::find_page_cache_entry(cache.cache, page_num);
 }

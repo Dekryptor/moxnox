@@ -168,7 +168,7 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     {
         lock_guard lg(cache.cache_lock);
 
-        auto* p = ::find_page_cache_entry(cache.cache, page_num);
+        auto* p = cache.find_page_cache_entry(page_num);
 
         for (unsigned int i = 0; i < num_pages; i++) {
             auto& e = cmdtbl.prdt_entry[i];
@@ -251,9 +251,7 @@ uint64_t sata_device::read_into_cache_and_pin(uint64_t page_num,
     return read_pages;
 }
 
-page_cache_entry* sata_device::find_page_cache_entry(uint64_t page_num) {
-    return ::find_page_cache_entry(cache.cache, page_num);
-}
+
 
 NTSTATUS sata_device::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) {
     // FIXME - clear page cache in destructor
