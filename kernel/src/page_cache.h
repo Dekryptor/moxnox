@@ -67,8 +67,6 @@ public:
     page_cache<cacheable> cache{*this};
 };
 
-page_cache_entry* create_new_page_cache_entry(uint64_t page_num);
-
 template<typename T>
 uint64_t page_cache<T>::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) {
     if (!pin(page_num, num_pages, nullptr))

@@ -26,7 +26,7 @@ page_cache_entry* page_cache_base::find_page_cache_entry(uint64_t page_num) {
     return last_p;
 }
 
-page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
+static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     auto p = new page_cache_entry;
     if (!p)
         return nullptr;
