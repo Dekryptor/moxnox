@@ -34,6 +34,9 @@ public:
                            page_cache_entry*& range_end, uint64_t& range_length,
                            page_cache_entry*& ent, uint64_t first_page,
                            uint64_t num_pages);
+    bool find_dirty_range(page_cache_entry*& range_start,
+                          page_cache_entry*& range_end, uint64_t& range_length,
+                          page_cache_entry*& ent);
     void unpin(uint64_t first_page, uint64_t num_pages);
     bool write_pages(uint64_t first_page, uint64_t num_pages,
                      std::span<const uint8_t> data);

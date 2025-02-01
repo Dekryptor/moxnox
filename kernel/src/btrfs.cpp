@@ -379,7 +379,17 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
 }
 
 size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    printk("FIXME - btrfs_filesystem::flush_cache\n"); // FIXME
+    {
+        char s[100];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "FIXME - btrfs_filesystem::flush_cache("); // FIXME
+        sp = sp_itoa_hex(sp, page_num);
+        sp = sp_strcpy(sp, ", ");
+        sp = sp_itoa_hex(sp, num_pages);
+        sp = sp_strcpy(sp, ")\n");
+        printk(string_view(s, sp.data() - s));
+    }
 
     return 0;
 }
@@ -1113,7 +1123,14 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE)
             return nt_status::OBJECT_NAME_NOT_FOUND;
 
-        return create_child(name, create_options, obj);
+        auto status = create_child(name, create_options, obj);
+
+        if (!success(status))
+            return status;
+
+        fs.do_flush(); // FIXME
+
+        return status;
     }
 }
 
@@ -1527,4 +1544,42 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     return ret;
 }
 
+void btrfs_filesystem::do_flush() {
+    page_cache_entry* ent = nullptr;
 
+    // FIXME - should have rwsem held exclusively
+
+    // loop through cache, and call flush_cache for dirty ranges
+
+    while (true) {
+        page_cache_entry* start;
+        page_cache_entry* end;
+        uint64_t range_length;
+
+        if (!cache.find_dirty_range(start, end, range_length, ent))
+            break;
+
+        auto first_page = start->page_num;
+        auto num_pages = end->page_num - start->page_num + 1;
+
+        while (true) {
+            auto flushed = flush_cache(first_page, num_pages);
+
+            if (flushed == 0) {
+                printk("flush_cache did not flush any pages\n");
+                return;
+            }
+
+            if (num_pages >= flushed)
+                break;
+
+            first_page += flushed;
+            num_pages -= flushed;
+        }
+    }
+
+    // FIXME - flush cache for block devices
+
+    // FIXME - write superblock into cache of block devices
+    // FIXME - flush block device caches again
+}

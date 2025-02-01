@@ -382,3 +382,48 @@ size_t page_cache::read(std::span<uint8_t> data, uint64_t offset) {
 
     return data.size();
 }
+
+bool page_cache::find_dirty_range(page_cache_entry*& range_start,
+                                  page_cache_entry*& range_end,
+                                  uint64_t& range_length, page_cache_entry*& ent) {
+    lock_guard lg(cache_lock);
+
+    // find first contiguous dirty range
+
+    if (is_list_empty(cache))
+        return false;
+
+    if (!ent)
+        ent = &containing_record<page_cache_entry>(cache.next);
+
+    while (ent->status != page_cache_status::dirty) {
+        if (ent->le.next == &cache) {
+            ent = nullptr;
+            return false;
+        }
+
+        ent = &containing_record<page_cache_entry>(ent->le.next);
+    }
+
+    range_start = ent;
+
+    range_length = 1;
+
+    while (true) {
+        ent = &containing_record<page_cache_entry>(ent->le.next);
+
+        if (ent->status != page_cache_status::dirty) {
+            ent = &containing_record<page_cache_entry>(ent->le.prev);
+            break;
+        }
+
+        range_length++;
+
+        if (ent->le.next == &cache)
+            break;
+    }
+
+    range_end = ent;
+
+    return true;
+}

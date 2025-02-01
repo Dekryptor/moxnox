@@ -448,6 +448,7 @@ public:
     bool move_path_back(btrfs_path& p);
     bool move_path_forward(btrfs_path& p);
     root* find_root(uint64_t root_num);
+    void do_flush();
 
     superblock sb;
     bool valid = false;
