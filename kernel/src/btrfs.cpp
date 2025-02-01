@@ -1055,6 +1055,9 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
                 dir_item_key = di.k;
                 break;
             }
+
+            data = data.subspan(offsetof(dir_item, name) + di.m + di.n,
+                                data.size() - offsetof(dir_item, name) - di.m - di.n);
         }
     } while (false);
 
