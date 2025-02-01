@@ -1114,12 +1114,29 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
 
     // FIXME - transaction lock (RO if FILE_OPEN, RW otherwise)
 
-    auto k = key{inode, key_type::DIR_ITEM, hash};
     optional<key> dir_item_key;
 
-    fs.walk_from(r->id, k, [&](const key& found_key, span<const uint8_t> data) -> bool {
-        if (k != found_key)
-            return false;
+    do {
+        auto k = key{inode, key_type::DIR_ITEM, hash};
+        btrfs_path p;
+
+        auto status = fs.find_item(*r, k, p);
+        if (!success(status))
+            return status;
+
+        auto& th = *(tree_header*)p.data[0];
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        if (p.slots[0] >= th.num_items)
+            break;
+
+        const auto& it = items[p.slots[0]];
+        const auto& found_key = it.k;
+
+        if (found_key != k)
+            break;
+
+        auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
 
         while (data.size() >= offsetof(dir_item, name)) {
             const auto& di = *(dir_item*)data.data();
@@ -1132,9 +1149,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
                 break;
             }
         }
-
-        return false;
-    });
+    } while (false);
 
     // FIXME - iosb Information
 
