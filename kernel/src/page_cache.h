@@ -40,6 +40,7 @@ public:
     page_cache_entry* find_page_cache_entry(uint64_t page_num);
     size_t write(std::span<const uint8_t> data, uint64_t offset);
     bool read_and_pin(uint64_t offset, uint64_t length);
+    uint64_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages);
 
     spinlock cache_lock;
     list_entry cache = { &cache, &cache };
@@ -54,7 +55,6 @@ public:
     page_cache(T& dev) : page_cache_base(dev), dev(dev) { }
 
     size_t read(std::span<uint8_t> data, uint64_t offset);
-    uint64_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages);
 
 private:
     cacheable& dev;
@@ -66,19 +66,6 @@ public:
 
     page_cache<cacheable> cache{*this};
 };
-
-template<typename T>
-uint64_t page_cache<T>::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) {
-    if (!pin(page_num, num_pages, nullptr))
-        return 0;
-
-    auto read_pages = dev.read_into_cache(page_num, num_pages);
-
-    if (read_pages < num_pages)
-        unpin(page_num + read_pages, num_pages - read_pages);
-
-    return read_pages;
-}
 
 template<typename T>
 size_t page_cache<T>::read(std::span<uint8_t> data, uint64_t offset) {
