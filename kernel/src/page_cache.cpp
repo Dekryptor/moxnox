@@ -4,7 +4,7 @@
 
 using namespace std;
 
-page_cache_entry* page_cache_base::find_page_cache_entry(uint64_t page_num) {
+page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
     // returns page cache entry, or previous one if not found
 
     page_cache_entry* last_p = nullptr;
@@ -45,8 +45,8 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     return p;
 }
 
-bool page_cache_base::pin(uint64_t first_page, uint64_t num_pages,
-                          page_cache_entry** first_unread) {
+bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
+                     page_cache_entry** first_unread) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -106,8 +106,8 @@ bool page_cache_base::pin(uint64_t first_page, uint64_t num_pages,
     return true;
 }
 
-void page_cache_base::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
-                                       span<uint8_t> data, uint64_t offset) {
+void page_cache::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
+                                  span<uint8_t> data, uint64_t offset) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -137,10 +137,8 @@ void page_cache_base::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
     }
 }
 
-void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page,
-                                                 uint64_t num_pages,
-                                                 span<uint8_t> data,
-                                                 uint64_t offset) {
+void page_cache::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                            span<uint8_t> data, uint64_t offset) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -172,7 +170,7 @@ void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page,
     }
 }
 
-void page_cache_base::unpin(uint64_t first_page, uint64_t num_pages) {
+void page_cache::unpin(uint64_t first_page, uint64_t num_pages) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -189,7 +187,7 @@ void page_cache_base::unpin(uint64_t first_page, uint64_t num_pages) {
     }
 }
 
-void page_cache_base::clean_pages(page_cache_entry* range_start, uint64_t range_length) {
+void page_cache::clean_pages(page_cache_entry* range_start, uint64_t range_length) {
     lock_guard lg(cache_lock);
 
     auto p = range_start;
@@ -201,12 +199,10 @@ void page_cache_base::clean_pages(page_cache_entry* range_start, uint64_t range_
     }
 }
 
-bool page_cache_base::find_unread_range(page_cache_entry*& range_start,
-                                        page_cache_entry*& range_end,
-                                        uint64_t& range_length,
-                                        page_cache_entry*& ent,
-                                        uint64_t first_page,
-                                        uint64_t num_pages) {
+bool page_cache::find_unread_range(page_cache_entry*& range_start,
+                                   page_cache_entry*& range_end,
+                                   uint64_t& range_length, page_cache_entry*& ent,
+                                   uint64_t first_page, uint64_t num_pages) {
     lock_guard lg(cache_lock);
 
     // find first contiguous unread range
@@ -247,8 +243,8 @@ bool page_cache_base::find_unread_range(page_cache_entry*& range_start,
     return true;
 }
 
-bool page_cache_base::write_pages(uint64_t first_page, uint64_t num_pages,
-                                  span<const uint8_t> data) {
+bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
+                             span<const uint8_t> data) {
     // FIXME - add page cache to list of things that need to be flushed
 
     if (!pin(first_page, num_pages, nullptr))
@@ -281,7 +277,7 @@ bool page_cache_base::write_pages(uint64_t first_page, uint64_t num_pages,
     return true;
 }
 
-size_t page_cache_base::write(std::span<const uint8_t> data, uint64_t offset) {
+size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
     if (data.empty())
         return 0;
 
@@ -297,7 +293,7 @@ size_t page_cache_base::write(std::span<const uint8_t> data, uint64_t offset) {
     return data.size();
 }
 
-bool page_cache_base::read_and_pin(uint64_t offset, uint64_t length) {
+bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
     if (length == 0)
         return true;
 
@@ -358,7 +354,7 @@ bool page_cache_base::read_and_pin(uint64_t offset, uint64_t length) {
     return true;
 }
 
-uint64_t page_cache_base::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) {
+uint64_t page_cache::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) {
     if (!pin(page_num, num_pages, nullptr))
         return 0;
 
@@ -370,7 +366,7 @@ uint64_t page_cache_base::read_into_cache_and_pin(uint64_t page_num, uint64_t nu
     return read_pages;
 }
 
-size_t page_cache_base::read(std::span<uint8_t> data, uint64_t offset) {
+size_t page_cache::read(std::span<uint8_t> data, uint64_t offset) {
     if (data.empty())
         return 0;
 

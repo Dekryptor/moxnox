@@ -19,9 +19,9 @@ struct page_cache_entry {
 
 class cacheable;
 
-class page_cache_base {
+class page_cache {
 public:
-    page_cache_base(cacheable& dev) : dev(dev) { }
+    page_cache(cacheable& dev) : dev(dev) { }
 
     bool pin(uint64_t first_page, uint64_t num_pages,
              page_cache_entry** first_unread);
@@ -50,18 +50,9 @@ private:
     cacheable& dev;
 };
 
-template<typename T>
-class page_cache : public page_cache_base {
-public:
-    page_cache(T& dev) : page_cache_base(dev), dev(dev) { }
-
-private:
-    cacheable& dev;
-};
-
 class cacheable {
 public:
     virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
 
-    page_cache<cacheable> cache{*this};
+    page_cache cache{*this};
 };
