@@ -466,3 +466,9 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
     return read_pages;
 }
+
+size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    printk("FIXME - diskpart::flush_cache\n"); // FIXME
+
+    return 0;
+}

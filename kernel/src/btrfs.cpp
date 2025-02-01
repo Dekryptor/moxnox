@@ -378,6 +378,12 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     return pages_read;
 }
 
+size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    printk("FIXME - btrfs_filesystem::flush_cache\n"); // FIXME
+
+    return 0;
+}
+
 void btrfs_filesystem::free_chunk_list() {
     while (!is_list_empty(chunk_list)) {
         auto& c = containing_record<chunk>(chunk_list.next);
@@ -1383,6 +1389,12 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     }
 
     return read_zeroes_into_cache(page_num, num_pages);
+}
+
+size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    printk("FIXME - btrfs_inode::flush_cache\n"); // FIXME
+
+    return 0;
 }
 
 NTSTATUS btrfs_inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {

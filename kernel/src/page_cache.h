@@ -53,6 +53,7 @@ private:
 class cacheable {
 public:
     virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
+    virtual size_t flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
 
     page_cache cache{*this};
 };

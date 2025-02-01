@@ -408,6 +408,7 @@ public:
     NTSTATUS query_directory(std::span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     root* r;
     btrfs_filesystem& fs;
@@ -441,6 +442,7 @@ public:
                    object_ref& obj_ref, uint32_t create_disposition,
                    uint32_t create_options) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status insert_item(root& r, const key& k, std::span<const uint8_t> data);
     nt_status find_item(root& r, const key& k, btrfs_path& p);
     bool move_path_back(btrfs_path& p);

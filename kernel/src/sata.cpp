@@ -747,3 +747,9 @@ void init_sata(const pci_device& dev) {
 
     wait_for_object(sc->init_event.get(), false);
 }
+
+size_t sata_device::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    printk("FIXME - sata_device::flush_cache\n"); // FIXME
+
+    return 0;
+}
