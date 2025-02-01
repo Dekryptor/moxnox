@@ -588,12 +588,12 @@ void btrfs_filesystem::walk_from(uint64_t subvol, const key& k, invocable<const 
     walk_from2(addr, level, k, func);
 }
 
-btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : fs(fs), subvol(subvol), inode(inode) {
+btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : fs(fs), inode(inode) {
     nt_status status;
     bool found_inode_item = false;
     btrfs_path p;
 
-    auto r = fs.find_root(subvol);
+    r = fs.find_root(subvol);
     if (!r)
         return;
 
@@ -985,10 +985,6 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     nt_status status;
     btrfs_path p;
 
-    auto r = fs.find_root(subvol);
-    if (!r)
-        return nt_status::DISK_CORRUPT_ERROR;
-
     status = fs.find_item(*r, {inode, key_type::DIR_INDEX, 0xffffffffffffffff}, p);
     if (!success(status))
         return status;
@@ -1035,7 +1031,7 @@ nt_status btrfs_inode::create_child(string_view name,
     // ii.st_mtime; // FIXME
     // ii.otime; // FIXME
 
-    status = fs.insert_item(subvol, {inode_number, key_type::INODE_ITEM, 0},
+    status = fs.insert_item(r->id, {inode_number, key_type::INODE_ITEM, 0},
                             span((uint8_t*)&ii, sizeof(ii)));
     if (!success(status)) {
         if (status == nt_status::OBJECT_NAME_COLLISION)
@@ -1063,7 +1059,7 @@ nt_status btrfs_inode::create_child(string_view name,
     di->type = btrfs_inode_type::file; // FIXME
     memcpy(di->name, name.data(), name.size());
 
-    status = fs.insert_item(subvol, {inode, key_type::DIR_ITEM, hash}, span((uint8_t*)di, di_size));
+    status = fs.insert_item(r->id, {inode, key_type::DIR_ITEM, hash}, span((uint8_t*)di, di_size));
 
     // FIXME - handle DIR_ITEM hash collisions
 
@@ -1088,7 +1084,7 @@ nt_status btrfs_inode::create_child(string_view name,
 
     index++;
 
-    status = fs.insert_item(subvol, {inode, key_type::DIR_INDEX, index}, span((uint8_t*)di, di_size));
+    status = fs.insert_item(r->id, {inode, key_type::DIR_INDEX, index}, span((uint8_t*)di, di_size));
 
     if (!success(status)) {
         free(di);
@@ -1121,7 +1117,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
     auto k = key{inode, key_type::DIR_ITEM, hash};
     optional<key> dir_item_key;
 
-    fs.walk_from(subvol, k, [&](const key& found_key, span<const uint8_t> data) -> bool {
+    fs.walk_from(r->id, k, [&](const key& found_key, span<const uint8_t> data) -> bool {
         if (k != found_key)
             return false;
 
@@ -1162,7 +1158,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         if (v.obj_type == key_type::ROOT_ITEM)
             return fs.open_inode(v.obj_id, SUBVOL_ROOT_INODE, obj);
         else
-            return fs.open_inode(subvol, v.obj_id, obj);
+            return fs.open_inode(r->id, v.obj_id, obj);
     } else {
         if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE)
             return nt_status::OBJECT_NAME_NOT_FOUND;
@@ -1180,7 +1176,7 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
         while (le != &inode_list) {
             auto& in = containing_record<btrfs_inode>(le);
 
-            if (in.subvol == subvol && in.inode == inode) {
+            if (in.r->id == subvol && in.inode == inode) {
                 in.acquire();
                 obj = in;
                 return nt_status::SUCCESS;
@@ -1209,7 +1205,7 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
         while (le != &inode_list) {
             auto& in = containing_record<btrfs_inode>(le);
 
-            if (in.subvol == subvol && in.inode == inode) {
+            if (in.r->id == subvol && in.inode == inode) {
                 in.acquire();
                 lock.reset();
 
@@ -1515,7 +1511,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
     // FIXME - transaction lock
 
-    fs.walk_from(subvol, k, [&](const key& found_key, span<const uint8_t> data) -> bool {
+    fs.walk_from(r->id, k, [&](const key& found_key, span<const uint8_t> data) -> bool {
         if (found_key.obj_id != k.obj_id || found_key.obj_type != k.obj_type)
             return false;
 
