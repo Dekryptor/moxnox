@@ -343,6 +343,14 @@ struct extent_data2 {
 
 static_assert(sizeof(extent_data2) == 32);
 
+struct inode_ref {
+    uint64_t index;
+    uint16_t n;
+    char name[1];
+} __attribute__((packed));
+
+static_assert(offsetof(inode_ref, name) == 10);
+
 struct chunk {
     uint64_t offset;
     list_entry le;

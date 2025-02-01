@@ -906,9 +906,9 @@ nt_status btrfs_inode::create_child(string_view name,
     nt_status status;
     inode_item ii;
 
-    // FIXME - check name valid (not too long, no forbidden characters)
+    // FIXME - check name valid (not too long, not empty, not . or .., no forbidden characters)
 
-    uint64_t inode_number = 42; // FIXME - get new inode number
+    uint64_t new_inode = 42; // FIXME - get new inode number
 
     // create INODE_ITEM
 
@@ -925,15 +925,13 @@ nt_status btrfs_inode::create_child(string_view name,
     // ii.st_mtime; // FIXME
     // ii.otime; // FIXME
 
-    status = fs.insert_item(*r, {inode_number, key_type::INODE_ITEM, 0},
+    status = fs.insert_item(*r, {new_inode, key_type::INODE_ITEM, 0},
                             span((uint8_t*)&ii, sizeof(ii)));
     if (!success(status)) {
         if (status == nt_status::OBJECT_NAME_COLLISION)
             status = nt_status::INTERNAL_ERROR;
         return status;
     }
-
-    // FIXME - INODE_REF (including ext refs)
 
     // create DIR_ITEM in parent
 
@@ -944,7 +942,7 @@ nt_status btrfs_inode::create_child(string_view name,
     if (!di)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    di->k.obj_id = inode_number;
+    di->k.obj_id = new_inode;
     di->k.obj_type = key_type::INODE_ITEM;
     di->k.offset = 0;
     di->transid = 0; // FIXME
@@ -990,6 +988,31 @@ nt_status btrfs_inode::create_child(string_view name,
     }
 
     free(di);
+
+    // create INODE_REF
+
+    size_t ir_size = offsetof(inode_ref, name) + name.size();
+    auto ir = (inode_ref*)malloc(ir_size);
+    if (!ir)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    ir->index = index;
+    ir->n = (uint16_t)name.size();
+    memcpy(ir->name, name.data(), name.size());
+
+    status = fs.insert_item(*r, {new_inode, key_type::INODE_REF, inode},
+                            span((uint8_t*)ir, ir_size));
+
+    if (!success(status)) {
+        free(ir);
+
+        if (status == nt_status::OBJECT_NAME_COLLISION)
+            status = nt_status::INTERNAL_ERROR;
+
+        return status;
+    }
+
+    free(ir);
 
     // FIXME - adjust size of parent directory
 
