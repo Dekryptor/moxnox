@@ -220,6 +220,7 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         port.ci |= 1 << slot;
     }
 
+    // FIXME - should this be uninterruptible?
     auto status = wait_for_object(events[slot].get(), true);
 
     if (status == nt_status::ALERTED) {
@@ -749,17 +750,112 @@ void init_sata(const pci_device& dev) {
 }
 
 size_t sata_device::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    {
-        char s[100];
-        auto sp = span(s, sizeof(s));
+    // FIXME - cache lock?
 
-        sp = sp_strcpy(sp, "FIXME - sata_device::flush_cache("); // FIXME
-        sp = sp_itoa_hex(sp, page_num);
-        sp = sp_strcpy(sp, ", ");
-        sp = sp_itoa_hex(sp, num_pages);
-        sp = sp_strcpy(sp, ")\n");
-        printk(string_view(s, sp.data() - s));
+    // FIXME - we're assuming here the pages are dirty, is that safe?
+
+    // FIXME - proper error handling
+    // FIXME - asynchronous mode
+
+    port.is = 0xffffffff; // clear interrupt bits
+
+    uint8_t slot = get_slot();
+
+    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+
+    cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
+    cmd.w = 0; // read
+
+    auto& cmdtbl = *cmd_tables[slot];
+
+    memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
+
+    if (num_pages > NUM_PRDT_ENTRIES)
+        num_pages = NUM_PRDT_ENTRIES;
+
+    {
+        lock_guard lg(cache.cache_lock);
+
+        auto* p = cache.find_page_cache_entry(page_num);
+
+        for (unsigned int i = 0; i < num_pages; i++) {
+            auto& e = cmdtbl.prdt_entry[i];
+
+            if (i != 0)
+                p = &containing_record<page_cache_entry>(p->le.next);
+
+            assert(p->page_num == page_num + i);
+
+            // FIXME - make sure device supports 64-bit PAs
+
+            e.dba = (uint32_t)p->phys_address;
+            e.dbau = (uint32_t)(p->phys_address >> 32);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            e.dbc = (unsigned int)(PAGE_SIZE - 1); // FIXME - what if device not whole number of pages?
+#pragma GCC diagnostic pop
+            e.i = 0; // interrupt
+        }
     }
 
-    return 0;
+    cmdtbl.prdt_entry[num_pages - 1].i = 1;
+
+    cmd.prdtl = (uint16_t)num_pages;
+
+    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+
+    cmdfis.fis_type = FIS_TYPE::REG_H2D;
+    cmdfis.c = 1; // command
+    cmdfis.command = ata_command::WRITE_DMA_EX;
+
+    uint64_t lba = page_num * (PAGE_SIZE / sector_size);
+    auto num_sectors = (uint16_t)(num_pages * (PAGE_SIZE / sector_size));
+
+    cmdfis.lba0 = (uint8_t)lba;
+    cmdfis.lba1 = (uint8_t)(lba >> 8);
+    cmdfis.lba2 = (uint8_t)(lba >> 16);
+    cmdfis.device = 0x40; // LBA mode
+
+    cmdfis.lba3 = (uint8_t)(lba >> 24);
+    cmdfis.lba4 = (uint8_t)(lba >> 32);
+    cmdfis.lba5 = (uint8_t)(lba >> 40);
+
+    cmdfis.countl = (uint8_t)num_sectors;
+    cmdfis.counth = (uint8_t)(num_sectors >> 8);
+
+    pending_slots |= 1 << slot;
+
+    {
+        lock_guard lock(ci_lock);
+        port.ci |= 1 << slot;
+    }
+
+    wait_for_object(events[slot].get(), false);
+
+    if (port.is & HBA_PxIS_TFES) {
+        printk("Error writing to disk\n");
+        release_slot(slot);
+        return 0;
+    }
+
+    release_slot(slot);
+
+    // mark page cache entries as clean
+
+    {
+        lock_guard lg(cache.cache_lock);
+
+        auto* p = cache.find_page_cache_entry(page_num);
+
+        for (unsigned int i = 0; i < num_pages; i++) {
+            if (i != 0)
+                p = &containing_record<page_cache_entry>(p->le.next);
+
+            assert(p->page_num == page_num + i);
+
+            p->status = page_cache_status::clean;
+        }
+    }
+
+    return num_pages;
 }
