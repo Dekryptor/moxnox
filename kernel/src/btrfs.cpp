@@ -979,12 +979,35 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
 nt_status btrfs_inode::create_child(string_view name,
                                     optional<reference_wrapper<btrfs_inode>>& obj) {
     nt_status status;
+    inode_item ii;
 
     // FIXME - check name valid (not too long, no forbidden characters)
 
     uint64_t inode_number = 42; // FIXME - get new inode number
 
-    // FIXME - INODE_ITEM
+    // create INODE_ITEM
+
+    memset(&ii, 0, sizeof(inode_item));
+    ii.generation = 0; // FIXME
+    ii.transid = 0; // FIXME
+    ii.st_nlink = 1;
+    ii.st_uid = 0; // FIXME
+    ii.st_gid = 0; // FIXME
+    ii.st_mode = 0644; // FIXME (755 for directories, plus directory flag) (inherit from parent?)
+    ii.sequence = 0; // FIXME?
+    // ii.st_atime; // FIXME
+    // ii.st_ctime; // FIXME
+    // ii.st_mtime; // FIXME
+    // ii.otime; // FIXME
+
+    status = fs.insert_item(subvol, {inode_number, key_type::INODE_ITEM, 0},
+                            span((uint8_t*)&ii, sizeof(ii)));
+    if (!success(status)) {
+        if (status == nt_status::OBJECT_NAME_COLLISION)
+            status = nt_status::INTERNAL_ERROR;
+        return status;
+    }
+
     // FIXME - INODE_REF (including ext refs)
 
     // create DIR_ITEM in parent
