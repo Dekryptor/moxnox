@@ -395,6 +395,7 @@ class btrfs_inode : public inode {
 public:
     btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type);
     ~btrfs_inode();
+    bool load_inode();
     void release() override;
 
     nt_status open_child(std::string_view name, uint32_t create_disposition,
@@ -414,7 +415,6 @@ public:
     list_entry le;
     uint64_t inode;
     inode_item ii;
-    bool valid = false;
     list_entry extents = { &extents, &extents };
 
 private:

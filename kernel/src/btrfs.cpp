@@ -154,7 +154,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         return;
     }
 
-    if (!root_inode->valid)
+    if (!root_inode->load_inode())
         return;
 
     insert_tail_list(inode_list, root_inode->le);
@@ -487,17 +487,57 @@ bool btrfs_filesystem::load_roots() {
 }
 
 btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : fs(fs), inode(inode) {
-    nt_status status;
-    bool found_inode_item = false;
-    btrfs_path p;
-
     r = fs.find_root(subvol);
     if (!r)
         return;
 
+    switch (inode_type) {
+        case btrfs_inode_type::file:
+            this->inode_type = inode_type::file;
+            break;
+
+        case btrfs_inode_type::directory:
+            this->inode_type = inode_type::directory;
+            break;
+
+        case btrfs_inode_type::chardev:
+            this->inode_type = inode_type::chardev;
+            break;
+
+        case btrfs_inode_type::blockdev:
+            this->inode_type = inode_type::blockdev;
+            break;
+
+        case btrfs_inode_type::fifo:
+            this->inode_type = inode_type::fifo;
+            break;
+
+        case btrfs_inode_type::socket:
+            this->inode_type = inode_type::socket;
+            break;
+
+        case btrfs_inode_type::symlink:
+            this->inode_type = inode_type::symlink;
+            break;
+
+        case btrfs_inode_type::ea:
+            this->inode_type = inode_type::ea;
+            break;
+
+        default:
+            this->inode_type = inode_type::unknown;
+            break;
+    }
+}
+
+bool btrfs_inode::load_inode() {
+    nt_status status;
+    bool found_inode_item = false;
+    btrfs_path p;
+
     status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p);
     if (!success(status)) // FIXME - return this somehow
-        return;
+        return false;
 
     do {
         auto& th = *(tree_header*)p.data[0];
@@ -595,85 +635,51 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 
     if (!found_inode_item) {
         printk("INODE_ITEM for subvol ");
-        print_hex(subvol);
+        print_hex(r->id);
         printk(", inode ");
         print_hex(inode);
         printk(" not found.\n");
-        return;
+        return false;
     }
 
     file_size = ii.st_size;
 
-    switch (inode_type) {
-        case btrfs_inode_type::file:
-            this->inode_type = inode_type::file;
-            break;
+    if (this->inode_type == inode_type::unknown) {
+        switch ((ii.st_mode & 0xf000) >> 12) {
+            case 1:
+                this->inode_type = inode_type::fifo;
+                break;
 
-        case btrfs_inode_type::directory:
-            this->inode_type = inode_type::directory;
-            break;
+            case 2:
+                this->inode_type = inode_type::chardev;
+                break;
 
-        case btrfs_inode_type::chardev:
-            this->inode_type = inode_type::chardev;
-            break;
+            case 4:
+                this->inode_type = inode_type::directory;
+                break;
 
-        case btrfs_inode_type::blockdev:
-            this->inode_type = inode_type::blockdev;
-            break;
+            case 6:
+                this->inode_type = inode_type::blockdev;
+                break;
 
-        case btrfs_inode_type::fifo:
-            this->inode_type = inode_type::fifo;
-            break;
+            case 8:
+                this->inode_type = inode_type::file;
+                break;
 
-        case btrfs_inode_type::socket:
-            this->inode_type = inode_type::socket;
-            break;
+            case 0xa:
+                this->inode_type = inode_type::symlink;
+                break;
 
-        case btrfs_inode_type::symlink:
-            this->inode_type = inode_type::symlink;
-            break;
+            case 0xc:
+                this->inode_type = inode_type::socket;
+                break;
 
-        case btrfs_inode_type::ea:
-            this->inode_type = inode_type::ea;
-            break;
-
-        case btrfs_inode_type::unknown:
-            switch ((ii.st_mode & 0xf000) >> 12) {
-                case 1:
-                    this->inode_type = inode_type::fifo;
-                    break;
-
-                case 2:
-                    this->inode_type = inode_type::chardev;
-                    break;
-
-                case 4:
-                    this->inode_type = inode_type::directory;
-                    break;
-
-                case 6:
-                    this->inode_type = inode_type::blockdev;
-                    break;
-
-                case 8:
-                    this->inode_type = inode_type::file;
-                    break;
-
-                case 0xa:
-                    this->inode_type = inode_type::symlink;
-                    break;
-
-                case 0xc:
-                    this->inode_type = inode_type::socket;
-                    break;
-
-                default:
-                    break;
-            }
-        break;
+            default:
+                break;
+        }
     }
 
-    valid = true;
+    return true;
 }
 
 btrfs_inode::~btrfs_inode() {
@@ -1016,10 +1022,21 @@ nt_status btrfs_inode::create_child(string_view name,
 
     // FIXME - adjust size of parent directory
 
-    // FIXME - create btrfs_inode object and return
+    // create btrfs_inode object and return
 
-    printk("FIXME - creating files\n");
-    return nt_status::NOT_SUPPORTED;
+    auto bi = new btrfs_inode(fs, r->id, new_inode, btrfs_inode_type::file/*FIXME*/);
+
+    memcpy(&bi->ii, &ii, sizeof(inode_item));
+    bi->file_size = 0;
+
+    {
+        lock_guard lock(fs.inode_lock);
+        insert_tail_list(fs.inode_list, bi->le);
+    }
+
+    obj = *bi;
+
+    return nt_status::SUCCESS;
 }
 
 nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
@@ -1128,7 +1145,7 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    if (!ino->valid) {
+    if (!ino->load_inode()) {
         delete ino;
         return nt_status::INTERNAL_ERROR;
     }
