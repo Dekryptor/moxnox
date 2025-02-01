@@ -442,7 +442,7 @@ size_t diskpart::read_uncached(span<uint8_t> s, uint64_t offset) {
 uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     // FIXME - make sure that partition is aligned to page boundaries
 
-    auto read_pages = parent.read_into_cache_and_pin(page_num + (disk_offset >> PAGE_SHIFT), num_pages);
+    auto read_pages = parent.cache.read_into_cache_and_pin(page_num + (disk_offset >> PAGE_SHIFT), num_pages);
 
     if (read_pages == 0)
         return 0;
@@ -463,18 +463,6 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     }
 
     parent.cache.unpin(page_num + (disk_offset >> PAGE_SHIFT), read_pages);
-
-    return read_pages;
-}
-
-uint64_t diskpart::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) {
-    if (!cache.pin(page_num, num_pages, nullptr))
-        return 0;
-
-    auto read_pages = read_into_cache(page_num, num_pages);
-
-    if (read_pages < num_pages)
-        cache.unpin(page_num + read_pages, num_pages - read_pages);
 
     return read_pages;
 }

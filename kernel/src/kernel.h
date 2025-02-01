@@ -319,7 +319,6 @@ struct page_cache_entry;
 template<typename T>
 concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
     { t.read_into_cache(page_num, num_pages) } -> std::convertible_to<size_t>;
-    { t.read_into_cache_and_pin(page_num, num_pages) } -> std::convertible_to<size_t>;
 };
 
 #ifdef NDEBUG

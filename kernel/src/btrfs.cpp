@@ -337,8 +337,8 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
 
     uint64_t disk_addr = (addr - c.offset + c.ci.stripes[0].offset);
 
-    auto pages_read = vol.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
-                                                  num_pages);
+    auto pages_read = vol.cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
+                                                        num_pages);
     if (pages_read == 0)
         return 0;
 
@@ -376,19 +376,6 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     // FIXME - copy over bad copy if csum wrong
 
     return pages_read;
-}
-
-uint64_t btrfs_filesystem::read_into_cache_and_pin(uint64_t page_num,
-                                                   uint64_t num_pages) {
-    if (!cache.pin(page_num, num_pages, nullptr))
-        return 0;
-
-    auto read_pages = read_into_cache(page_num, num_pages);
-
-    if (read_pages < num_pages)
-        cache.unpin(page_num + read_pages, num_pages - read_pages);
-
-    return read_pages;
 }
 
 void btrfs_filesystem::free_chunk_list() {
@@ -1318,7 +1305,8 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
 
     num_pages = min(num_pages, ed2.num_bytes >> PAGE_SHIFT);
 
-    auto pages_read = fs.read_into_cache_and_pin(addr >> PAGE_SHIFT, num_pages);
+    auto pages_read = fs.cache.read_into_cache_and_pin(addr >> PAGE_SHIFT,
+                                                       num_pages);
     if (pages_read == 0)
         return 0;
 
@@ -1527,15 +1515,4 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     return ret;
 }
 
-uint64_t btrfs_inode::read_into_cache_and_pin(uint64_t page_num,
-                                              uint64_t num_pages) {
-    if (!cache.pin(page_num, num_pages, nullptr))
-        return 0;
 
-    auto read_pages = read_into_cache(page_num, num_pages);
-
-    if (read_pages < num_pages)
-        cache.unpin(page_num + read_pages, num_pages - read_pages);
-
-    return read_pages;
-}

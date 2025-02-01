@@ -31,7 +31,6 @@ public:
     virtual NTSTATUS query_directory(std::span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                                      uint64_t& index) = 0;
     virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
-    virtual size_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) = 0;
 
     uint64_t file_size;
     page_cache<inode> cache{*this};

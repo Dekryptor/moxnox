@@ -332,7 +332,7 @@ nt_status section::load_image() {
             }
 
             do {
-                auto pinned_pages = (uint32_t)f.read_into_cache_and_pin(file_start_page + page_num, file_pages_left);
+                auto pinned_pages = (uint32_t)f.cache.read_into_cache_and_pin(file_start_page + page_num, file_pages_left);
 
                 if (pinned_pages == 0) {
                     debug_printk("inode::read_into_cache_and_pin did not pin any pages\n");
