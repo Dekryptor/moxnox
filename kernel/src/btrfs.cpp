@@ -278,13 +278,43 @@ bool btrfs_filesystem::walk_tree(uint64_t id, invocable<const key&, span<const u
 bool btrfs_filesystem::load_chunks() {
     list_entry new_chunk_list = { &new_chunk_list, &new_chunk_list };
 
-    auto b = walk_tree(BTRFS_ROOT_CHUNK, [&](const key& k, span<const uint8_t> data) {
-        if (k.obj_type != key_type::CHUNK_ITEM)
-            return;
+    auto r = find_root(BTRFS_ROOT_CHUNK);
+    if (!r) {
+        printk("Chunk root not found\n");
+        return false;
+    }
+
+    btrfs_path p;
+
+    auto status = find_item(*r, {0, key_type::CHUNK_ITEM, 0}, p);
+    if (!success(status))
+        return false;
+
+    bool fail = false;
+
+    do {
+        auto& th = *(tree_header*)p.data[0];
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        if (p.slots[0] >= th.num_items)
+            break;
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.k;
+
+        if (k.obj_type != key_type::CHUNK_ITEM) {
+            if (!move_path_forward(p))
+                break;
+
+            continue;
+        }
+
+        auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
 
         if (data.size() < offsetof(chunk_item, stripes)) {
             printk("Chunk item truncated\n");
-            return;
+            fail = true;
+            break;
         }
 
         auto& ci = *(chunk_item*)data.data();
@@ -292,18 +322,21 @@ bool btrfs_filesystem::load_chunks() {
 
         if (data.size() < chunk_size) {
             printk("Chunk array truncated\n");
-            return;
+            fail = true;
+            break;
         }
 
         if (ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
             printk("RAID not supported\n");
-            return;
+            fail = true;
+            break;
         }
 
         auto cptr = (chunk*)malloc(offsetof(chunk, ci) + chunk_size);
         if (!cptr) {
             printk("malloc failed\n");
-            return;
+            fail = true;
+            break;
         }
 
         auto& c = *cptr;
@@ -311,9 +344,12 @@ bool btrfs_filesystem::load_chunks() {
         c.offset = k.offset;
         memcpy(&c.ci, data.data(), chunk_size);
         insert_tail_list(new_chunk_list, c.le);
-    });
 
-    if (!b) {
+        if (!move_path_forward(p))
+            break;
+    } while (true);
+
+    if (fail) {
         swap_lists(chunk_list, new_chunk_list);
         free_chunk_list();
         swap_lists(chunk_list, new_chunk_list);
