@@ -780,30 +780,24 @@ void btrfs_inode::release() {
     delete this;
 }
 
-nt_status btrfs_filesystem::find_item(uint64_t subvol, const key& k, btrfs_path& p) {
-    uint64_t addr = 0;
-    uint8_t level;
-    nt_status status;
-
+root* btrfs_filesystem::find_root(uint64_t root_num) {
     auto le = root_list.next;
     while (le != &root_list) {
         auto& r = containing_record<root>(le);
 
-        if (r.id == subvol) {
-            addr = r.ri.block_number;
-            level = r.ri.root_level;
-            break;
-        }
+        if (r.id == root_num)
+            return &r;
 
         le = le->next;
     }
 
-    if (addr == 0) {
-        printk("Could not find address for root ");
-        print_hex(subvol);
-        printk("\n");
-        return nt_status::DISK_CORRUPT_ERROR;
-    }
+    return nullptr;
+}
+
+nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p) {
+    uint64_t addr = r.ri.block_number;
+    uint8_t level = r.ri.root_level;
+    nt_status status;
 
     // FIXME - error if level >= BTRFS_MAX_LEVEL
 
@@ -868,7 +862,11 @@ nt_status btrfs_filesystem::insert_item(uint64_t subvol, const key& k,
     if (data.size() >= sb.node_size - sizeof(tree_header) - sizeof(leaf_node))
         return nt_status::INTERNAL_ERROR;
 
-    status = find_item(subvol, k, p);
+    auto r = find_root(subvol);
+    if (!r)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    status = find_item(*r, k, p);
     if (!success(status))
         return status;
 
@@ -954,7 +952,11 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     nt_status status;
     btrfs_path p;
 
-    status = fs.find_item(subvol, {inode, key_type::DIR_INDEX, 0xffffffffffffffff}, p);
+    auto r = fs.find_root(subvol);
+    if (!r)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    status = fs.find_item(*r, {inode, key_type::DIR_INDEX, 0xffffffffffffffff}, p);
     if (!success(status))
         return status;
 
