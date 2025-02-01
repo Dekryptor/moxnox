@@ -22,12 +22,12 @@ public:
     virtual uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
     virtual uint64_t read_into_cache_and_pin(uint64_t page_num,
                                              uint64_t num_pages) = 0;
-    virtual void unpin(uint64_t page_num, uint64_t num_pages) = 0;
     virtual page_cache_entry* find_page_cache_entry(uint64_t page_num) = 0;
 
     void probe();
     bool check_for_partitions();
 
+    page_cache<volume> cache{*this};
     unsigned int part_num = 0;
     unsigned int sector_size;
     guid partition_guid = null_guid;
@@ -56,12 +56,10 @@ public:
     NTSTATUS read(std::span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) override;
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     uint64_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) override;
-    void unpin(uint64_t page_num, uint64_t num_pages) override;
     page_cache_entry* find_page_cache_entry(uint64_t page_num) override;
     volume& parent;
     uint64_t disk_offset;
     uint64_t length;
-    page_cache<diskpart> cache{*this};
 };
 
 static_assert(is_readable_object_with_offset<diskpart>);

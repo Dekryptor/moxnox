@@ -462,7 +462,7 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         }
     }
 
-    parent.unpin(page_num + (disk_offset >> PAGE_SHIFT), read_pages);
+    parent.cache.unpin(page_num + (disk_offset >> PAGE_SHIFT), read_pages);
 
     return read_pages;
 }
@@ -477,10 +477,6 @@ uint64_t diskpart::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages
         cache.unpin(page_num + read_pages, num_pages - read_pages);
 
     return read_pages;
-}
-
-void diskpart::unpin(uint64_t page_num, uint64_t num_pages) {
-    cache.unpin(page_num, num_pages);
 }
 
 page_cache_entry* diskpart::find_page_cache_entry(uint64_t page_num) {

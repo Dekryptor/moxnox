@@ -369,7 +369,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
         memcpy(dest_va, src_va, PAGE_SIZE);
     }
 
-    vol.unpin(disk_addr >> PAGE_SHIFT, pages_read);
+    vol.cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
 
     // FIXME - check csum (metadata or data)
     // FIXME - choose other copy if csum wrong
@@ -389,10 +389,6 @@ uint64_t btrfs_filesystem::read_into_cache_and_pin(uint64_t page_num,
         cache.unpin(page_num + read_pages, num_pages - read_pages);
 
     return read_pages;
-}
-
-void btrfs_filesystem::unpin(uint64_t page_num, uint64_t num_pages) {
-    cache.unpin(page_num, num_pages);
 }
 
 page_cache_entry* btrfs_filesystem::find_page_cache_entry(uint64_t page_num) {
@@ -1357,7 +1353,7 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
         memcpy(dest_va, src_va, PAGE_SIZE);
     }
 
-    fs.unpin(addr >> PAGE_SHIFT, pages_read);
+    fs.cache.unpin(addr >> PAGE_SHIFT, pages_read);
 
     // FIXME - check csums
     // FIXME - read from another copy (and replace) if csum is bad
@@ -1546,10 +1542,6 @@ uint64_t btrfs_inode::read_into_cache_and_pin(uint64_t page_num,
         cache.unpin(page_num + read_pages, num_pages - read_pages);
 
     return read_pages;
-}
-
-void btrfs_inode::unpin(uint64_t page_num, uint64_t num_pages) {
-    cache.unpin(page_num, num_pages);
 }
 
 page_cache_entry* btrfs_inode::find_page_cache_entry(uint64_t page_num) {

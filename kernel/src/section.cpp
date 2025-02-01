@@ -363,7 +363,7 @@ nt_status section::load_image() {
                     page_num++;
                 }
 
-                f.unpin(file_start_page, pinned_pages);
+                f.cache.unpin(file_start_page, pinned_pages);
 
                 file_pages_left -= pinned_pages;
 

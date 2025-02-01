@@ -251,10 +251,6 @@ uint64_t sata_device::read_into_cache_and_pin(uint64_t page_num,
     return read_pages;
 }
 
-void sata_device::unpin(uint64_t page_num, uint64_t num_pages) {
-    cache.unpin(page_num, num_pages);
-}
-
 page_cache_entry* sata_device::find_page_cache_entry(uint64_t page_num) {
     return ::find_page_cache_entry(cache.cache, page_num);
 }

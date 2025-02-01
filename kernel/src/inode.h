@@ -32,7 +32,6 @@ public:
                                      uint64_t& index) = 0;
     virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
     virtual size_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) = 0;
-    virtual void unpin(uint64_t page_num, uint64_t num_pages) = 0;
     virtual page_cache_entry* find_page_cache_entry(uint64_t page_num) = 0;
 
     uint64_t file_size;
