@@ -1522,29 +1522,45 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     uint64_t found_index;
     bool found = false;
 
-    auto k = key{inode, key_type::DIR_INDEX, index};
+    do {
+        auto k = key{inode, key_type::DIR_INDEX, index};
+        btrfs_path p;
 
-    // FIXME - transaction lock
+        // FIXME - transaction lock
 
-    fs.walk_from(r->id, k, [&](const key& found_key, span<const uint8_t> data) -> bool {
+        auto status = fs.find_item(*r, k, p);
+        if (!success(status))
+            return status;
+
+        auto& th = *(tree_header*)p.data[0];
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        if (p.slots[0] >= th.num_items)
+            break;
+
+        const auto& it = items[p.slots[0]];
+        const auto& found_key = it.k;
+
         if (found_key.obj_id != k.obj_id || found_key.obj_type != k.obj_type)
-            return false;
+            break;
 
         if (found_key.offset < index)
-            return false;
+            break;
+
+        auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
 
         // FIXME - return actual error if data malformed
 
         if (data.size() < offsetof(dir_item, name))
-            return false;
+            break;
 
         const auto& di = *(dir_item*)data.data();
 
         if (data.size() < offsetof(dir_item, name) + di.m + di.n)
-            return false;
+            break;
 
         if (di.n > sizeof(name))
-            return false;
+            break;
 
         memcpy(name, di.name, di.n);
         name_len = di.n;
@@ -1554,9 +1570,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
         found_index = found_key.offset;
 
         found = true;
-
-        return false;
-    });
+    } while (false);
 
     if (!found)
         return nt_status::NO_MORE_FILES;
