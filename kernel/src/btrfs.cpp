@@ -410,17 +410,11 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
 
     vol.cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
 
-    // FIXME - check csum (metadata or data)
-    // FIXME - choose other copy if csum wrong
-    // FIXME - copy over bad copy if csum wrong
-
     return pages_read;
 }
 
 bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
     unsigned int pages_per_tree = sb.node_size >> PAGE_SHIFT;
-
-    // FIXME - calculate hashes etc.
 
     if (c.ci.type & BLOCK_FLAG_RAID0) {
         printk("RAID0 not supported\n");
@@ -448,6 +442,35 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
     if (!first_page) {
         printk("cache.find_page_cache_entry returned NULL\n");
         return false;
+    }
+
+    // set WRITTEN flag
+
+    auto& th = *(tree_header*)phys_address(first_page->phys_address);
+    th.flags |= HEADER_FLAG_WRITTEN;
+
+    // calculate hash
+
+    {
+        auto ent = first_page;
+        uint32_t crc32 = 0xffffffff;
+
+        for (unsigned j = 0; j < pages_per_tree; j++) {
+            span<const uint8_t> sp;
+
+            if (j == 0) {
+                sp = span((const uint8_t*)phys_address(ent->phys_address) + offsetof(tree_header, fs_uuid),
+                          PAGE_SIZE - offsetof(tree_header, fs_uuid));
+            } else
+                sp = span((const uint8_t*)phys_address(ent->phys_address), PAGE_SIZE);
+
+            crc32 = calc_crc32c(crc32, sp);
+
+            if (j != pages_per_tree - 1)
+                ent = &containing_record<page_cache_entry>(ent->le.next);
+        }
+
+        *(uint32_t*)&th = ~crc32;
     }
 
     for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
@@ -1012,7 +1035,7 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
     th.flags &= ~HEADER_FLAG_WRITTEN;
 
     // copy tree back into page cache and mark dirty
-    // FIXME - when do we recalc hash?
+
     if (!cache.write(span(p.data[0], sb.node_size), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
