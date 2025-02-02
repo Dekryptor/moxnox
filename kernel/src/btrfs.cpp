@@ -1012,14 +1012,14 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
 
         // move data around
 
+        uint32_t off = sizeof(tree_header) + items[th.num_items - 1].offset;
+
         for (unsigned int i = p.slots[0] + 1; i < th.num_items; i++) {
             to_move += items[i].size;
             items[i].offset -= (uint32_t)data.size();
         }
 
-        memmove(p.data[0] + sizeof(tree_header) + items[th.num_items - 1].offset - data.size(),
-                p.data[0] + sizeof(tree_header) + items[th.num_items - 1].offset,
-                to_move);
+        memmove(p.data[0] + off - data.size(), p.data[0] + off, to_move);
     }
 
     if (p.slots[0] == th.num_items - 1)
