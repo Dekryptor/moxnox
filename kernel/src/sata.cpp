@@ -553,6 +553,7 @@ static void init_sata_device(void* ctx, void* ctx2) {
     printk("\n");
 
     dev.sector_size = 512; // FIXME - get from identify block
+    dev.size = dev.identify_block.user_addressable_sectors * dev.sector_size;
     dev.dev_num = num_sata_devices.fetch_add(1);
 
     // FIXME - make sure SATA devices get numbered consistently

@@ -288,7 +288,7 @@ size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
     uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
 
     if (!write_pages(first_page, num_pages, data))
-        return false;
+        return 0;
 
     return data.size();
 }

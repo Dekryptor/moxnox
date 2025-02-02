@@ -399,12 +399,13 @@ bool volume::check_for_partitions() {
     return true;
 }
 
-diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length, const guid& partition_guid, const guid& type_guid) : parent(parent), disk_offset(disk_offset), length(length) {
+diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t size, const guid& partition_guid, const guid& type_guid) : parent(parent), disk_offset(disk_offset) {
     parent.acquire();
 
     this->part_num = part_num;
     this->partition_guid = partition_guid;
     this->type_guid = type_guid;
+    this->size = size;
 }
 
 diskpart::~diskpart() {

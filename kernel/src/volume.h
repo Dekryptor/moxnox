@@ -25,6 +25,7 @@ public:
 
     unsigned int part_num = 0;
     unsigned int sector_size;
+    uint64_t size;
     guid partition_guid = null_guid;
     guid type_guid = null_guid;
     char* volume_name = nullptr;
@@ -52,7 +53,6 @@ public:
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     volume& parent;
     uint64_t disk_offset;
-    uint64_t length;
 };
 
 static_assert(is_readable_object_with_offset<diskpart>);

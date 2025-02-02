@@ -9,7 +9,7 @@ using namespace std;
 static const uint32_t S_IFREG = 0100000;
 static const uint32_t S_IFDIR = 0040000;
 
-static const uint64_t superblock_addrs[] = { 0x10000, 0x4000000, 0x4000000000, 0x4000000000000, 0 };
+static const uint64_t superblock_addrs[] = { 0x10000, 0x4000000, 0x4000000000, 0x4000000000000 };
 
 static const uint64_t supported_incompat_flags = BTRFS_INCOMPAT_FLAGS_MIXED_BACKREF | BTRFS_INCOMPAT_FLAGS_MIXED_GROUPS |
                                                  BTRFS_INCOMPAT_FLAGS_BIG_METADATA | BTRFS_INCOMPAT_FLAGS_EXTENDED_IREF |
@@ -1817,6 +1817,43 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     return ret;
 }
 
+static void write_superblocks(btrfs_filesystem& fs) {
+    for (auto addr : superblock_addrs) {
+        if (addr + sizeof(superblock) >= fs.vol.size)
+            break;
+
+        auto& sb = fs.sb;
+
+        sb.sb_phys_addr = addr;
+        *(uint32_t*)&sb= ~calc_crc32c(0xffffffff, span((const uint8_t*)&sb.uuid, sizeof(superblock) - sizeof(sb.checksum)));
+
+        fs.vol.cache.write(span((const uint8_t*)&fs.sb, sizeof(superblock)), addr);
+    }
+
+    for (auto addr : superblock_addrs) {
+        if (addr + sizeof(superblock) >= fs.vol.size)
+            break;
+
+        auto first_page = addr >> PAGE_SHIFT;
+        auto num_pages = sizeof(superblock) >> PAGE_SHIFT;
+
+        while (true) {
+            auto flushed = fs.vol.flush_cache(first_page, num_pages);
+
+            if (flushed == 0) {
+                printk("volume::flush_cache failed\n");
+                return;
+            }
+
+            if (flushed == num_pages)
+                break;
+
+            first_page += flushed;
+            num_pages -= flushed;
+        }
+    }
+}
+
 void btrfs_filesystem::do_flush() {
     page_cache_entry* ent = nullptr;
 
@@ -1851,8 +1888,9 @@ void btrfs_filesystem::do_flush() {
         }
     }
 
-    // FIXME - flush cache for block devices
+    // FIXME - send SATA command to ensure cache flushed
 
-    // FIXME - write superblock into cache of block devices
-    // FIXME - flush block device caches again
+    write_superblocks(*this);
+
+    // FIXME - send SATA command again to ensure cache flushed
 }
