@@ -601,6 +601,41 @@ void btrfs_filesystem::free_root_list() {
     }
 }
 
+static constexpr bool is_file_root(uint64_t id) {
+    return id == BTRFS_ROOT_FSTREE || (id >= BTRFS_FIRST_FREE_OBJECTID && id <= BTRFS_LAST_FREE_OBJECTID);
+}
+
+static void find_last_inode_number(btrfs_filesystem& fs, root& r) {
+    btrfs_path p;
+    bool done = false;
+
+    auto status = fs.find_item(r, {BTRFS_LAST_FREE_OBJECTID, key_type::INODE_ITEM, 0}, p);
+    if (!success(status))
+        return;
+
+    do {
+        auto& th = *(tree_header*)p.data[0];
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        if (th.num_items == 0)
+            break;
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.k;
+
+        if (k.obj_type == key_type::INODE_ITEM) {
+            r.next_inode_number = k.obj_id + 1;
+            return;
+        }
+
+        if (!fs.move_path_back(p))
+            break;
+    } while (true);
+
+    if (!done)
+        r.next_inode_number = BTRFS_FIRST_FREE_OBJECTID;
+}
+
 bool btrfs_filesystem::load_roots() {
     list_entry new_root_list = { &new_root_list, &new_root_list };
 
@@ -655,6 +690,9 @@ bool btrfs_filesystem::load_roots() {
         r.id = k.obj_id;
         memcpy(&r.ri, data.data(), sizeof(root_item));
         insert_tail_list(new_root_list, r.le);
+
+        if (is_file_root(r.id))
+            find_last_inode_number(*this, r);
 
         if (!move_path_forward(p))
             break;
@@ -1143,7 +1181,7 @@ nt_status btrfs_inode::create_child(string_view name,
 
     // FIXME - check name valid (not too long, not empty, not . or .., no forbidden characters)
 
-    uint64_t new_inode = 42; // FIXME - get new inode number
+    uint64_t new_inode = r->next_inode_number.fetch_add(1);
 
     // create INODE_ITEM
 

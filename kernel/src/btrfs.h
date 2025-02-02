@@ -44,6 +44,9 @@ static const uint64_t BTRFS_ROOT_UUID = 0x9;
 static const uint64_t BTRFS_ROOT_FREE_SPACE = 0xa;
 static const uint64_t BTRFS_ROOT_DATA_RELOC = 0xfffffffffffffff7;
 
+static const uint64_t BTRFS_FIRST_FREE_OBJECTID = 0x100;
+static const uint64_t BTRFS_LAST_FREE_OBJECTID = 0xffffffffffffff00;
+
 static const uint64_t SUBVOL_ROOT_INODE = 0x100;
 
 struct dev_item {
@@ -363,6 +366,7 @@ struct root {
     list_entry le;
     uint64_t id;
     root_item ri;
+    std::atomic<uint64_t> next_inode_number;
 };
 
 struct inode_extent {
