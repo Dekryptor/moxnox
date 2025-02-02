@@ -205,12 +205,31 @@ bool btrfs_probe(volume& vol) {
 }
 
 nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
+    assert(data.size() == sb.node_size);
+
     if (!cache.read(data, addr)) {
         printk("Short read\n");
         return nt_status::INTERNAL_ERROR;
     }
 
-    // FIXME - check checksum, address, level, and subvol ID
+    // FIXME - need locking
+
+    const auto& th = *(tree_header*)data.data();
+    if (th.flags & HEADER_FLAG_WRITTEN) {
+        auto crc32 = ~calc_crc32c(0xffffffff, span((const uint8_t*)&th.fs_uuid,
+                                sb.node_size - sizeof(th.csum)));
+
+        if (*(uint32_t*)&th != crc32) {
+            printk("metadata csum error\n");
+            // FIXME - evict from cache
+            // FIXME - try to read other copies if present
+            // FIXME - if success, copy good copies over bad
+            // FIXME - increase dev stats counter
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+    }
+
+    // FIXME - check address, level, and subvol ID
     // FIXME - if duff, read from other version (and replace)
 
     return nt_status::SUCCESS;
@@ -989,6 +1008,8 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
 
     memcpy(p.data[0] + sizeof(tree_header) + items[p.slots[0]].offset,
            data.data(), data.size());
+
+    th.flags &= ~HEADER_FLAG_WRITTEN;
 
     // copy tree back into page cache and mark dirty
     // FIXME - when do we recalc hash?

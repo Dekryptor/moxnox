@@ -220,6 +220,8 @@ struct tree_header {
 
 static_assert(sizeof(tree_header) == 101);
 
+static const uint64_t HEADER_FLAG_WRITTEN = 1;
+
 struct leaf_node {
     key k;
     uint32_t offset;
