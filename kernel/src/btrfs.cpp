@@ -1060,10 +1060,10 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
         memmove(p.data[0] + off - data.size(), p.data[0] + off, to_move);
     }
 
-    if (p.slots[0] == th.num_items - 1)
+    if (p.slots[0] == 0)
         items[p.slots[0]].offset = (uint32_t)(sb.node_size - sizeof(tree_header) - data.size());
     else
-        items[p.slots[0]].offset = (uint32_t)(items[p.slots[0] + 1].offset + items[p.slots[0] + 1].size);
+        items[p.slots[0]].offset = (uint32_t)(items[p.slots[0] - 1].offset - data.size());
 
     items[p.slots[0]].size = (uint32_t)data.size();
 
