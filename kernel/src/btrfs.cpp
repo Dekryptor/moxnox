@@ -1096,6 +1096,44 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     return nt_status::SUCCESS;
 }
 
+static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode, int64_t diff) {
+    btrfs_path p;
+    nt_status status;
+
+    status = fs.find_item(r, {inode, key_type::INODE_ITEM, 0}, p);
+    if (!success(status))
+        return status;
+
+    auto& th = *(tree_header*)p.data[0];
+    auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+    auto& it = items[p.slots[0]];
+    const auto& found_key = it.k;
+
+    if (found_key.obj_id != inode || found_key.obj_type != key_type::INODE_ITEM)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
+
+    if (it.size < sizeof(inode_item))
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    auto& ii = *(inode_item*)data.data();
+
+    ii.st_size += diff;
+
+    // FIXME - COWing
+
+    th.flags &= ~HEADER_FLAG_WRITTEN;
+
+    // copy tree back into page cache and mark dirty
+
+    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_inode::create_child(string_view name,
                                     uint32_t create_options,
                                     optional<reference_wrapper<btrfs_inode>>& obj) {
@@ -1217,7 +1255,13 @@ nt_status btrfs_inode::create_child(string_view name,
 
     free(ir);
 
-    // FIXME - adjust size of parent directory
+    // adjust size of parent directory
+
+    // FIXME - adjust file_size and inode_item in in-memory inode?
+
+    status = adjust_inode_size(fs, *r, inode, name.size() * 2);
+    if (!success(status))
+        return status;
 
     // create btrfs_inode object and return
 
