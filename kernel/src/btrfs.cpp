@@ -352,7 +352,10 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     // FIXME - choose stripe and device
     // FIXME - handle missing devices
 
-    uint64_t disk_addr = (addr - c.offset + c.ci.stripes[0].offset);
+    uint64_t disk_addr = addr - c.offset + c.ci.stripes[0].offset;
+
+    if (addr + (num_pages << PAGE_SHIFT) > c.offset + c.ci.size)
+        num_pages = (c.offset + c.ci.size - addr) >> PAGE_SHIFT;
 
     auto pages_read = vol.cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
                                                         num_pages);
