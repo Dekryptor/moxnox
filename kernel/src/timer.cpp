@@ -97,7 +97,7 @@ void timer_expired(timer* tptr) {
         while (le != &thread_list) {
             auto& thr = containing_record<thread>(le);
 
-            if (thr.status == thread_status::waiting && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(&t)) {
+            if (thr.status == thread_status::waiting_object && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(&t)) {
                 thr.status = thread_status::runnable;
                 thr.waiting_for = nullopt;
                 release_count++;

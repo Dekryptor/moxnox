@@ -56,7 +56,7 @@ void thread::terminate() {
         while (le != &thread_list) {
             auto& t = containing_record<thread>(le);
 
-            if (t.status == thread_status::waiting && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
+            if (t.status == thread_status::waiting_object && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
                 t.status = thread_status::runnable;
                 t.waiting_for = nullopt;
                 release_count++;

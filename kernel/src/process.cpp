@@ -646,7 +646,7 @@ void process::terminate() {
         while (le != &thread_list) {
             auto& t = containing_record<thread>(le);
 
-            if (t.status == thread_status::waiting && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
+            if (t.status == thread_status::waiting_object && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
                 t.status = thread_status::runnable;
                 t.waiting_for = nullopt;
                 release_count++;
@@ -2672,7 +2672,7 @@ void process::send_signal(uint64_t code) {
         sync_lock sl;
         lock_guard l(sl);
 
-        if (t.status == thread_status::waiting && t.wait_interruptible) {
+        if (t.status == thread_status::waiting_object && t.wait_interruptible) {
             t.status = thread_status::runnable;
             swap(t.waiting_for, waiting_for);
         }

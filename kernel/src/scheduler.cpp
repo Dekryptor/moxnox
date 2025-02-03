@@ -410,7 +410,7 @@ nt_status wait_for_object(object& obj, bool interruptible) {
         }
 
         current_thread->waiting_for = obj;
-        current_thread->status = thread_status::waiting;
+        current_thread->status = thread_status::waiting_object;
         current_thread->current_cpu = 0xffffffff;
         current_thread->wait_interruptible = interruptible;
     }

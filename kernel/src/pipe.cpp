@@ -139,7 +139,7 @@ size_t pipe::write(span<const uint8_t> s) {
                     while (le != &thread_list) {
                         auto& thr = containing_record<thread>(le);
 
-                        if (thr.status == thread_status::waiting && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(this)) {
+                        if (thr.status == thread_status::waiting_object && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(this)) {
                             thr.status = thread_status::runnable;
                             thr.waiting_for = nullopt;
                             release_count++;
