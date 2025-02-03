@@ -2,6 +2,7 @@
 
 #include <array>
 #include "page_cache.h"
+#include "rwsem.h"
 
 using btrfs_uuid = std::array<uint8_t, 16>;
 
@@ -463,6 +464,7 @@ public:
     btrfs_inode* root_inode = nullptr;
     spinlock inode_lock;
     list_entry inode_list = { &inode_list, &inode_list };
+    rwsem trans_lock;
 
 private:
     bool load_chunks();

@@ -3,6 +3,7 @@
 #include "btrfs.h"
 #include "handle.h"
 #include "crc32c.h"
+#include <shared_mutex>
 
 using namespace std;
 
@@ -760,6 +761,8 @@ bool btrfs_inode::load_inode() {
     bool found_inode_item = false;
     btrfs_path p;
 
+    shared_lock lg(fs.trans_lock);
+
     status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p);
     if (!success(status)) // FIXME - return this somehow
         return false;
@@ -1327,8 +1330,6 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
 
     auto hash = calc_crc32c(0xfffffffe, name);
 
-    // FIXME - transaction lock (RO if FILE_OPEN, RW otherwise)
-
     optional<key> dir_item_key;
 
     do {
@@ -1487,6 +1488,16 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
 
     reference_wrapper<btrfs_inode> dirrw{!root_dir ? *root_inode : static_cast<btrfs_inode&>(root_dir->get())};
     dirrw.get().acquire();
+
+    // get trans_lock RO if FILE_OPEN, RW otherwise
+    variant<shared_lock<rwsem>, lock_guard<rwsem>> lg;
+
+    if (create_disposition == FILE_OPEN)
+        lg.emplace<shared_lock<rwsem>>(trans_lock);
+    else
+        lg.emplace<lock_guard<rwsem>>(trans_lock);
+
+    // FIXME - transaction lock (RO if FILE_OPEN, RW otherwise)
 
     // FIXME - die if anything in middle not directory
 
@@ -1754,6 +1765,8 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     enum btrfs_inode_type inode_type;
     uint64_t found_index;
     bool found = false;
+
+    shared_lock lg(fs.trans_lock);
 
     do {
         auto k = key{inode, key_type::DIR_INDEX, index};

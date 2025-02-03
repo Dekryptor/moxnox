@@ -2105,6 +2105,10 @@ void _assert(const char* msg, const char* file, unsigned int line) {
     bsod(string_view(assertion_buffer, sp.data() - assertion_buffer));
 }
 
+void abort() {
+    bsod("abort() called");
+}
+
 void copy_edid(loader_block* lb) {
     memcpy(edid, (void*)lb->edid, EDID_SIZE);
     have_edid = true;
