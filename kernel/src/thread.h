@@ -36,6 +36,7 @@ enum class thread_status {
     runnable,
     running,
     waiting_object,
+    waiting_other,
     dead
 };
 
@@ -80,6 +81,7 @@ public:
     uint32_t current_cpu = 0xffffffff;
     uint64_t pending_signal = 0;
     bool wait_interruptible;
+    list_entry wait_le;
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);
