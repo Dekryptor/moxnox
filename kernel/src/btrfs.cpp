@@ -993,16 +993,27 @@ nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
                     break;
                 }
             }
+
+            break;
         } else {
             auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
-            // FIXME
-    //         for (const auto& i : items) {
-    //             if (!walk_tree2(i.address, exp_level - 1, func))
-    //                 break;
-    //         }
+            p.slots[level] = th.num_items - 1;
+
+            for (uint32_t i = 1; i < items.size(); i++) {
+                if (items[i].k == k) {
+                    p.slots[level] = i;
+                    break;
+                } else if (items[i].k > k) {
+                    p.slots[level] = i - 1;
+                    break;
+                }
+            }
+
+            addr = items[p.slots[level]].address;
+            level--;
         }
-    } while (false); // FIXME - do loop if level > 0
+    } while (true);
 
     // FIXME - do COWing
 
