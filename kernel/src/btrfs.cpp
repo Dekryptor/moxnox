@@ -622,6 +622,9 @@ static void find_last_inode_number(btrfs_filesystem& fs, root& r) {
         if (th.num_items == 0)
             break;
 
+        if (p.slots[0] == th.num_items)
+            p.slots[0] = th.num_items - 1;
+
         const auto& it = items[p.slots[0]];
         const auto& k = it.k;
 
@@ -1103,14 +1106,37 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
 }
 
 bool btrfs_filesystem::move_path_back(btrfs_path& p) {
-    // FIXME - handle moving back through internal trees
+    if (p.slots[0] != 0) {
+        p.slots[0]--;
+        return true;
+    }
 
-    if (p.slots[0] == 0)
-        return false;
+    for (uint8_t i = 1; i < BTRFS_MAX_LEVEL; i++) {
+        if (!p.data[i])
+            return false;
 
-    p.slots[0]--;
+        if (p.slots[i] == 0)
+            continue;
 
-    return true;
+        p.slots[i]--;
+
+        for (int8_t j = i; j > 0; j--) {
+            const auto& th = *(tree_header*)p.data[j];
+            auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+            auto status = read_metadata(items[p.slots[j]].address, span(p.data[j - 1], sb.node_size));
+            if (!success(status)) // FIXME
+                return false;
+
+            const auto& th2 = *(tree_header*)p.data[j - 1];
+
+            p.slots[j - 1] = th2.num_items - 1;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 bool btrfs_filesystem::move_path_forward(btrfs_path& p) {
