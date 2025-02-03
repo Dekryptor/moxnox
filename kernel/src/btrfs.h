@@ -451,7 +451,7 @@ public:
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status insert_item(root& r, const key& k, std::span<const uint8_t> data);
-    nt_status find_item(root& r, const key& k, btrfs_path& p);
+    nt_status find_item(root& r, const key& k, btrfs_path& p, bool cow);
     bool move_path_back(btrfs_path& p);
     bool move_path_forward(btrfs_path& p);
     root* find_root(uint64_t root_num);

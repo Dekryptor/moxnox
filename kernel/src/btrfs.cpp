@@ -247,7 +247,7 @@ bool btrfs_filesystem::load_chunks() {
 
     btrfs_path p;
 
-    auto status = find_item(*r, {0, key_type::CHUNK_ITEM, 0}, p);
+    auto status = find_item(*r, {0, key_type::CHUNK_ITEM, 0}, p, false);
     if (!success(status))
         return false;
 
@@ -610,7 +610,8 @@ static void find_last_inode_number(btrfs_filesystem& fs, root& r) {
     btrfs_path p;
     bool done = false;
 
-    auto status = fs.find_item(r, {BTRFS_LAST_FREE_OBJECTID, key_type::INODE_ITEM, 0}, p);
+    auto status = fs.find_item(r, {BTRFS_LAST_FREE_OBJECTID, key_type::INODE_ITEM, 0},
+                               p, false);
     if (!success(status))
         return;
 
@@ -648,7 +649,7 @@ bool btrfs_filesystem::load_roots() {
 
     btrfs_path p;
 
-    auto status = find_item(*r, {0, key_type::ROOT_ITEM, 0}, p);
+    auto status = find_item(*r, {0, key_type::ROOT_ITEM, 0}, p, false);
     if (!success(status))
         return false;
 
@@ -763,7 +764,7 @@ bool btrfs_inode::load_inode() {
 
     shared_lock lg(fs.trans_lock);
 
-    status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p);
+    status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, false);
     if (!success(status)) // FIXME - return this somehow
         return false;
 
@@ -946,7 +947,8 @@ root* btrfs_filesystem::find_root(uint64_t root_num) {
     return nullptr;
 }
 
-nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p) {
+nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
+                                      bool cow) {
     uint64_t addr = r.ri.block_number;
     uint8_t level = r.ri.root_level;
     nt_status status;
@@ -1002,6 +1004,8 @@ nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p) {
         }
     } while (false); // FIXME - do loop if level > 0
 
+    // FIXME - do COWing
+
     return nt_status::SUCCESS;
 }
 
@@ -1014,7 +1018,7 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
     if (data.size() >= sb.node_size - sizeof(tree_header) - sizeof(leaf_node))
         return nt_status::INTERNAL_ERROR;
 
-    status = find_item(r, k, p);
+    status = find_item(r, k, p, true);
     if (!success(status))
         return status;
 
@@ -1115,7 +1119,8 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     nt_status status;
     btrfs_path p;
 
-    status = fs.find_item(*r, {inode, key_type::DIR_INDEX, 0xffffffffffffffff}, p);
+    status = fs.find_item(*r, {inode, key_type::DIR_INDEX, 0xffffffffffffffff},
+                          p, false);
     if (!success(status))
         return status;
 
@@ -1141,7 +1146,7 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
     btrfs_path p;
     nt_status status;
 
-    status = fs.find_item(r, {inode, key_type::INODE_ITEM, 0}, p);
+    status = fs.find_item(r, {inode, key_type::INODE_ITEM, 0}, p, true);
     if (!success(status))
         return status;
 
@@ -1336,7 +1341,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         auto k = key{inode, key_type::DIR_ITEM, hash};
         btrfs_path p;
 
-        auto status = fs.find_item(*r, k, p);
+        auto status = fs.find_item(*r, k, p, false);
         if (!success(status))
             return status;
 
@@ -1772,9 +1777,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
         auto k = key{inode, key_type::DIR_INDEX, index};
         btrfs_path p;
 
-        // FIXME - transaction lock
-
-        auto status = fs.find_item(*r, k, p);
+        auto status = fs.find_item(*r, k, p, false);
         if (!success(status))
             return status;
 
