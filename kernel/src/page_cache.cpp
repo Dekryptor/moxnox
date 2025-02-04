@@ -410,13 +410,15 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
     range_length = 1;
 
     while (true) {
-        ent = &containing_record<page_cache_entry>(ent->le.next);
+        auto ent2 = &containing_record<page_cache_entry>(ent->le.next);
 
-        if (ent->status != page_cache_status::dirty) {
-            ent = &containing_record<page_cache_entry>(ent->le.prev);
+        if (ent2->page_num != range_start->page_num + range_length)
             break;
-        }
 
+        if (ent2->status != page_cache_status::dirty)
+            break;
+
+        ent = ent2;
         range_length++;
 
         if (ent->le.next == &cache)
