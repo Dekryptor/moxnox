@@ -1063,8 +1063,10 @@ static bool allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
             if (s.length == fs.sb.node_size) {
                 remove_entry_list(s.le);
                 free(&s);
-            } else
+            } else {
                 s.offset += fs.sb.node_size;
+                s.length -= fs.sb.node_size;
+            }
 
             return true;
         }
