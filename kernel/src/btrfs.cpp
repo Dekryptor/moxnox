@@ -950,6 +950,55 @@ root* btrfs_filesystem::find_root(uint64_t root_num) {
     return nullptr;
 }
 
+static bool allocate_metadata_in_chunk(chunk& c, uint64_t& addr) {
+    // FIXME - loop through space and find free nodesize range
+
+    return false;
+}
+
+static bool allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
+    optional<reference_wrapper<chunk>> crw;
+
+    for (auto le = fs.chunk_list.next; le != &fs.chunk_list; le = le->next) {
+        auto& c = containing_record<chunk>(le);
+
+        // FIXME - skip if chunk is readonly
+
+        if (!(c.ci.type & BLOCK_FLAG_METADATA))
+            continue;
+
+        // skip unsupported RAID types
+        if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6))
+            continue;
+
+        if (allocate_metadata_in_chunk(c, addr))
+            return true;
+    }
+
+    // FIXME - if nothing found, try to allocate new chunk
+
+    return false;
+}
+
+static nt_status cow_tree(btrfs_filesystem& fs, uint8_t* tree) {
+    uint64_t addr;
+
+    // FIXME - updating extent tree and free space tree
+
+    if (!allocate_metadata(fs, addr))
+        return nt_status::DISK_FULL;
+
+    auto& th = *(tree_header*)tree;
+
+    th.flags &= ~HEADER_FLAG_WRITTEN;
+    th.address = addr;
+
+    if (!fs.cache.write(span(tree, fs.sb.node_size), th.address)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
                                       bool cow) {
     uint64_t addr = r.ri.block_number;
@@ -1018,7 +1067,17 @@ nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
         }
     } while (true);
 
-    // FIXME - do COWing
+    if (cow) {
+        const auto& th = *(tree_header*)p.data[0];
+
+        if (th.flags & HEADER_FLAG_WRITTEN) {
+            status = cow_tree(*this, p.data[0]);
+            if (!success(status))
+                return status;
+        }
+
+        // FIXME - update internal trees and COW
+    }
 
     return nt_status::SUCCESS;
 }
@@ -1091,14 +1150,10 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
     memcpy(p.data[0] + sizeof(tree_header) + items[p.slots[0]].offset,
            data.data(), data.size());
 
-    th.flags &= ~HEADER_FLAG_WRITTEN;
-
     // copy tree back into page cache and mark dirty
 
     if (!cache.write(span(p.data[0], sb.node_size), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
-
-    // FIXME - COWing tree (acquire new metadata address, update tree 2)
 
     // FIXME - split tree if would be too full, or no room
 
@@ -1225,8 +1280,6 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
     ii.st_size += diff;
 
     // FIXME - COWing
-
-    th.flags &= ~HEADER_FLAG_WRITTEN;
 
     // copy tree back into page cache and mark dirty
 

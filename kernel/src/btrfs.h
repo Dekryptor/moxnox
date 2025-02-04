@@ -25,6 +25,9 @@ static const uint64_t BTRFS_INCOMPAT_FLAGS_NO_HOLES = 0x0200;
 static const uint64_t BTRFS_INCOMPAT_FLAGS_METADATA_UUID = 0x0400;
 static const uint64_t BTRFS_INCOMPAT_FLAGS_RAID1C34 = 0x0800;
 
+static const uint64_t BLOCK_FLAG_DATA = 0x001;
+static const uint64_t BLOCK_FLAG_SYSTEM = 0x002;
+static const uint64_t BLOCK_FLAG_METADATA = 0x004;
 static const uint64_t BLOCK_FLAG_RAID0 = 0x008;
 static const uint64_t BLOCK_FLAG_RAID1 = 0x010;
 static const uint64_t BLOCK_FLAG_DUPLICATE = 0x020;
