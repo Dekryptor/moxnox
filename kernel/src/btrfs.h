@@ -370,6 +370,15 @@ struct chunk_space {
 };
 
 struct chunk {
+    ~chunk() {
+        while (!is_list_empty(space_list)) {
+            auto& s = containing_record<chunk_space>(space_list.next);
+
+            remove_entry_list(s.le);
+            free(&s);
+        }
+    }
+
     list_entry le;
     uint64_t offset;
     list_entry space_list = { &space_list, &space_list };

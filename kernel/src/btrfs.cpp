@@ -1054,7 +1054,21 @@ static bool allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
             return false;
     }
 
-    // FIXME - loop through space and find free nodesize range
+    for (auto le = c.space_list.next; le != &c.space_list; le = le->next) {
+        auto& s = containing_record<chunk_space>(le);
+
+        if (s.length >= fs.sb.node_size) {
+            addr = s.offset;
+
+            if (s.length == fs.sb.node_size) {
+                remove_entry_list(s.le);
+                free(&s);
+            } else
+                s.offset += fs.sb.node_size;
+
+            return true;
+        }
+    }
 
     return false;
 }
