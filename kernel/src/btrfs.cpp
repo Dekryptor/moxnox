@@ -55,6 +55,12 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         return;
     }
 
+    // FIXME - support free space cache?
+    if (!(sb.compat_ro_flags & (BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_TREE | BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_TREE_VALID))) {
+        printk("free space cache not supported\n");
+        return;
+    }
+
     if (sb.num_devices != 1) {
         printk("Multiple devices not supported\n");
         return;
@@ -119,6 +125,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         }
 
         auto& c = *cptr;
+        new (&c) chunk;
 
         c.offset = k.offset;
         memcpy(&c.ci, chunk_array.data(), chunk_size);
@@ -301,6 +308,7 @@ bool btrfs_filesystem::load_chunks() {
         }
 
         auto& c = *cptr;
+        new (&c) chunk;
 
         c.offset = k.offset;
         memcpy(&c.ci, data.data(), chunk_size);
@@ -950,7 +958,102 @@ root* btrfs_filesystem::find_root(uint64_t root_num) {
     return nullptr;
 }
 
-static bool allocate_metadata_in_chunk(chunk& c, uint64_t& addr) {
+static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
+    auto pr = fs.find_root(BTRFS_ROOT_FREE_SPACE);
+    if (!pr) {
+        printk("Could not find free space tree\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    auto& r = *pr;
+    auto search_key = key{c.offset, key_type::FREE_SPACE_INFO, c.ci.size};
+    btrfs_path p;
+
+    auto status = fs.find_item(r, search_key, p, false);
+    if (!success(status))
+        return status;
+
+    {
+        auto& th = *(tree_header*)p.data[0];
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        if (p.slots[0] >= th.num_items) {
+            char s[100];
+            auto sp = span(s, sizeof(s));
+
+            sp = sp_strcpy(sp, "Could not find free_space_info for chunk ");
+            sp = sp_itoa_hex(sp, c.offset);
+            sp = sp_strcpy(sp, ".\n");
+            printk(string_view(s, sp.data() - s));
+
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.k;
+
+        if (k != search_key) {
+            char s[100];
+            auto sp = span(s, sizeof(s));
+
+            sp = sp_strcpy(sp, "Could not find free_space_info for chunk ");
+            sp = sp_itoa_hex(sp, c.offset);
+            sp = sp_strcpy(sp, ".\n");
+            printk(string_view(s, sp.data() - s));
+
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+    }
+
+    do {
+        if (!fs.move_path_forward(p))
+            break;
+
+        auto& th = *(tree_header*)p.data[0];
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.k;
+
+        if (k.obj_id >= c.offset + c.ci.size)
+            break;
+
+        switch (k.obj_type) {
+            case key_type::FREE_SPACE_EXTENT: {
+                auto s = (chunk_space*)malloc(sizeof(chunk_space));
+
+                // FIXME - these should be in some sort of tree rather than a linked list
+
+                s->offset = k.obj_id;
+                s->length = k.offset;
+                insert_tail_list(c.space_list, s->le);
+
+                break;
+            }
+
+            case key_type::FREE_SPACE_BITMAP:
+                printk("FIXME - support free space bitmaps\n"); // FIXME
+                return nt_status::INTERNAL_ERROR;
+            break;
+
+            default:
+                break;
+        }
+    } while (true);
+
+    c.space_loaded = true;
+
+    return nt_status::SUCCESS;
+}
+
+static bool allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
+                                       uint64_t& addr) {
+    if (!c.space_loaded) {
+        auto status = load_space(fs, c);
+        if (!success(status)) // FIXME - return status
+            return false;
+    }
+
     // FIXME - loop through space and find free nodesize range
 
     return false;
@@ -971,7 +1074,7 @@ static bool allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
         if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6))
             continue;
 
-        if (allocate_metadata_in_chunk(c, addr))
+        if (allocate_metadata_in_chunk(fs, c, addr))
             return true;
     }
 
