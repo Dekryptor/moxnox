@@ -1140,16 +1140,35 @@ bool btrfs_filesystem::move_path_back(btrfs_path& p) {
 }
 
 bool btrfs_filesystem::move_path_forward(btrfs_path& p) {
-    // FIXME - handle moving forward through internal trees
+    if (p.slots[0] < ((tree_header*)p.data[0])->num_items - 1) {
+        p.slots[0]++;
+        return true;
+    }
 
-    const auto& th = *(tree_header*)p.data[0];
+    for (uint8_t i = 1; i < BTRFS_MAX_LEVEL; i++) {
+        if (!p.data[i])
+            return false;
 
-    if (th.num_items == 0 || p.slots[0] == th.num_items - 1)
-        return false;
+        if (p.slots[i] == ((tree_header*)p.data[i])->num_items - 1)
+            continue;
 
-    p.slots[0]++;
+        p.slots[i]++;
 
-    return true;
+        for (int8_t j = i; j > 0; j--) {
+            const auto& th = *(tree_header*)p.data[j];
+            auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+            auto status = read_metadata(items[p.slots[j]].address, span(p.data[j - 1], sb.node_size));
+            if (!success(status)) // FIXME
+                return false;
+
+            p.slots[j - 1] = 0;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
