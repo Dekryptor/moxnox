@@ -1312,6 +1312,23 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
     memcpy(p.data[0] + sizeof(tree_header) + items[p.slots[0]].offset,
            data.data(), data.size());
 
+    // update parents if new first item
+
+    if (p.slots[0] == 0 && p.data[1]) {
+        for (uint8_t i = 0; i < BTRFS_MAX_LEVEL - 1; i++) {
+            if (p.slots[i] != 0 || !p.data[i + 1])
+                break;
+
+            auto& th2 = *(tree_header*)p.data[i + 1];
+            auto items2 = span((internal_node*)((uint8_t*)&th2 + sizeof(tree_header)), th2.num_items);
+
+            items2[p.slots[i + 1]].k = items[0].k;
+
+            if (!cache.write(span(p.data[i + 1], sb.node_size), th2.address)) // FIXME - return status
+                return nt_status::INTERNAL_ERROR;
+        }
+    }
+
     // copy tree back into page cache and mark dirty
 
     if (!cache.write(span(p.data[0], sb.node_size), th.address)) // FIXME - return status
