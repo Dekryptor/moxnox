@@ -1363,8 +1363,25 @@ nt_status btrfs_filesystem::remove_item(root& r, const key& k) {
             sizeof(leaf_node) * (th.num_items - p.slots[0] - 1));
     th.num_items--;
 
-    // FIXME - update parent if deleting first item (recursively)
+    // update parents if deleting first item
 
+    if (p.slots[0] == 0 && p.data[1]) {
+        for (uint8_t i = 0; i < BTRFS_MAX_LEVEL - 1; i++) {
+            if (p.slots[i] != 0 || !p.data[i + 1])
+                break;
+
+            auto& th2 = *(tree_header*)p.data[i + 1];
+            auto items2 = span((internal_node*)((uint8_t*)&th2 + sizeof(tree_header)), th2.num_items);
+
+            items2[p.slots[i + 1]].k = items[0].k;
+
+            if (!cache.write(span(p.data[i + 1], sb.node_size), th2.address)) // FIXME - return status
+                return nt_status::INTERNAL_ERROR;
+        }
+    }
+
+    // FIXME - if num_items is now 0 and not top, remove entry in parent
+    // FIXME - adjust levels if internal tree has only one entry
     // FIXME - merging trees
 
     // copy tree back into page cache and mark dirty
