@@ -146,6 +146,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         r.ri.block_number = sb.root_tree_addr;
         r.ri.root_level = sb.root_level;
 
+        root_root = &r;
         insert_tail_list(root_list, r.le);
     }
 
@@ -161,6 +162,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         r.ri.block_number = sb.chunk_tree_addr;
         r.ri.root_level = sb.chunk_root_level;
 
+        chunk_root = &r;
         insert_tail_list(root_list, r.le);
     }
 
@@ -246,15 +248,9 @@ nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
 bool btrfs_filesystem::load_chunks() {
     list_entry new_chunk_list = { &new_chunk_list, &new_chunk_list };
 
-    auto r = find_root(BTRFS_ROOT_CHUNK);
-    if (!r) {
-        printk("Chunk root not found\n");
-        return false;
-    }
-
     btrfs_path p;
 
-    auto status = find_item(*r, {0, key_type::CHUNK_ITEM, 0}, p, false);
+    auto status = find_item(*chunk_root, {0, key_type::CHUNK_ITEM, 0}, p, false);
     if (!success(status))
         return false;
 
@@ -652,15 +648,9 @@ static void find_last_inode_number(btrfs_filesystem& fs, root& r) {
 bool btrfs_filesystem::load_roots() {
     list_entry new_root_list = { &new_root_list, &new_root_list };
 
-    auto r = find_root(BTRFS_ROOT_ROOT);
-    if (!r) {
-        printk("Root root not found\n");
-        return false;
-    }
-
     btrfs_path p;
 
-    auto status = find_item(*r, {0, key_type::ROOT_ITEM, 0}, p, false);
+    auto status = find_item(*root_root, {0, key_type::ROOT_ITEM, 0}, p, false);
     if (!success(status))
         return false;
 
@@ -718,7 +708,12 @@ bool btrfs_filesystem::load_roots() {
         return false;
     }
 
-    free_root_list();
+    remove_entry_list(root_root->le);
+    insert_head_list(new_root_list, root_root->le);
+
+    remove_entry_list(chunk_root->le);
+    insert_head_list(new_root_list, chunk_root->le);
+
     swap_lists(root_list, new_root_list);
 
     return true;
@@ -1099,21 +1094,38 @@ static bool allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
     return false;
 }
 
-static nt_status cow_tree(btrfs_filesystem& fs, uint8_t* tree) {
-    uint64_t addr;
-
+static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
     // FIXME - updating extent tree and free space tree
 
-    if (!allocate_metadata(fs, addr))
-        return nt_status::DISK_FULL;
+    for (unsigned int i = 0; i < BTRFS_MAX_LEVEL; i++) {
+        uint64_t addr;
 
-    auto& th = *(tree_header*)tree;
+        if (!p.data[i])
+            break;
 
-    th.flags &= ~HEADER_FLAG_WRITTEN;
-    th.address = addr;
+        auto& th = *(tree_header*)p.data[i];
 
-    if (!fs.cache.write(span(tree, fs.sb.node_size), th.address)) // FIXME - return status
-        return nt_status::INTERNAL_ERROR;
+        if (!(th.flags & HEADER_FLAG_WRITTEN))
+            break;
+
+        if (!allocate_metadata(fs, addr))
+            return nt_status::DISK_FULL;
+
+        th.flags &= ~HEADER_FLAG_WRITTEN;
+        th.address = addr;
+
+        if (!fs.cache.write(span(p.data[i], fs.sb.node_size), th.address)) // FIXME - return status
+            return nt_status::INTERNAL_ERROR;
+
+        // FIXME - update address in parent
+
+        if (i == BTRFS_MAX_LEVEL - 1 || !p.data[i + 1]) { // top
+            r.ri.block_number = addr;
+
+            if (r.id != BTRFS_ROOT_ROOT)
+                insert_tail_list(fs.dirty_root_list, r.dirty_le);
+        }
+    }
 
     return nt_status::SUCCESS;
 }
@@ -1187,15 +1199,9 @@ nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
     } while (true);
 
     if (cow) {
-        const auto& th = *(tree_header*)p.data[0];
-
-        if (th.flags & HEADER_FLAG_WRITTEN) {
-            status = cow_tree(*this, p.data[0]);
-            if (!success(status))
-                return status;
-        }
-
-        // FIXME - update internal trees and COW
+        status = cow_tree(*this, r, p);
+        if (!success(status))
+            return status;
     }
 
     return nt_status::SUCCESS;
@@ -1397,8 +1403,6 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
     auto& ii = *(inode_item*)data.data();
 
     ii.st_size += diff;
-
-    // FIXME - COWing
 
     // copy tree back into page cache and mark dirty
 
@@ -2098,10 +2102,71 @@ static void write_superblocks(btrfs_filesystem& fs) {
     }
 }
 
+static nt_status flush_root(btrfs_filesystem& fs, root& r) {
+    btrfs_path p;
+
+    auto status = fs.find_item(*fs.root_root, {r.id, key_type::ROOT_ITEM, 0}, p, true);
+    if (!success(status))
+        return status;
+
+    auto& th = *(tree_header*)p.data[0];
+    auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+    if (p.slots[0] >= th.num_items) {
+        printk("Root item not found\n");
+        return nt_status::DISK_CORRUPT_ERROR;
+    }
+
+    const auto& it = items[p.slots[0]];
+    const auto& k = it.k;
+
+    if (k.obj_id != r.id || k.obj_type != key_type::ROOT_ITEM) {
+        printk("Root item not found\n");
+        return nt_status::DISK_CORRUPT_ERROR;
+    }
+
+    auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
+
+    if (data.size() < sizeof(root_item)) {
+        printk("Root item truncated\n");
+        return nt_status::DISK_CORRUPT_ERROR;
+    }
+
+    auto& ri = *(root_item*)data.data();
+
+    memcpy(&ri, &r.ri, sizeof(root_item));
+
+    // copy tree back into page cache and mark dirty
+
+    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
 void btrfs_filesystem::do_flush() {
     page_cache_entry* ent = nullptr;
 
     // FIXME - should have rwsem held exclusively
+
+    while (!is_list_empty(dirty_root_list)) {
+        auto& r = *(root*)((uint8_t*)dirty_root_list.next - offsetof(root, dirty_le));
+
+        auto status = flush_root(*this, r);
+        if (!success(status)) {
+            char s[30];
+            auto sp = span(s, sizeof(s));
+
+            sp = sp_strcpy(sp, "flush_root returned ");
+            sp = sp_itoa_hex(sp, (uint32_t)status);
+            sp = sp_strcpy(sp, "\n");
+            printk(string_view(s, sp.data() - s));
+
+            // FIXME - make filesystem readonly if do_flush fails
+        }
+
+        remove_entry_list(r.dirty_le);
+    }
 
     // loop through cache, and call flush_cache for dirty ranges
 
@@ -2134,7 +2199,12 @@ void btrfs_filesystem::do_flush() {
 
     // FIXME - send SATA command to ensure cache flushed
 
+    sb.root_level = root_root->ri.root_level;
+    sb.root_tree_addr = root_root->ri.block_number;
+
     write_superblocks(*this);
+
+    // FIXME - write superblock backups
 
     // FIXME - send SATA command again to ensure cache flushed
 }

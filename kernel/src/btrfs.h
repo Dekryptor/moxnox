@@ -391,6 +391,7 @@ struct root {
     uint64_t id;
     root_item ri;
     std::atomic<uint64_t> next_inode_number;
+    list_entry dirty_le;
 };
 
 struct inode_extent {
@@ -488,6 +489,9 @@ public:
     spinlock inode_lock;
     list_entry inode_list = { &inode_list, &inode_list };
     rwsem trans_lock;
+    root* root_root;
+    root* chunk_root;
+    list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
 
 private:
     bool load_chunks();
