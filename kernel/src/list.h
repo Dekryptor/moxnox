@@ -43,31 +43,46 @@ static bool __inline is_list_empty(const list_entry& le) {
 static void __inline swap_lists(list_entry& le1, list_entry& le2) {
     bool le1empty = is_list_empty(le1);
     bool le2empty = is_list_empty(le2);
-    list_entry* prev = le1.prev;
-    list_entry* next = le1.next;
 
     if (le1empty && le2empty)
         return;
 
     if (le2empty) {
+        le2.next = le1.next;
+        le2.prev = le1.prev;
+        le2.next->prev = &le2;
+        le2.prev->next = &le2;
+
         le1.next = &le1;
         le1.prev = &le1;
-    } else {
-        le1.next = le2.next;
-        le1.prev = le2.prev;
+
+        return;
     }
 
     if (le1empty) {
+        le1.next = le2.next;
+        le1.prev = le2.prev;
+        le1.next->prev = &le1;
+        le1.prev->next = &le1;
+
         le2.next = &le2;
         le2.prev = &le2;
-    } else {
-        le2.next = next;
-        le2.prev = prev;
+
+        return;
     }
+
+    list_entry* le1head = le1.next;
+    list_entry* le1tail = le1.prev;
+    list_entry* le2head = le2.next;
+    list_entry* le2tail = le2.prev;
+
+    le1.next = le2head;
+    le1.prev = le2tail;
+    le2.next = le1head;
+    le2.prev = le1tail;
 
     le1.next->prev = &le1;
     le1.prev->next = &le1;
-
     le2.next->prev = &le2;
     le2.prev->next = &le2;
 }
