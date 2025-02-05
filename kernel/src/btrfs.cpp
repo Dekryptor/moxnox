@@ -1114,6 +1114,8 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
             if (!allocate_metadata(fs, addr))
                 return nt_status::DISK_FULL;
 
+            auto old_addr = th.address;
+
             th.flags &= ~HEADER_FLAG_WRITTEN;
             th.address = addr;
 
@@ -1134,6 +1136,17 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
             mc->address = addr;
             mc->level = i;
             mc->root = r.id;
+            mc->remove = false;
+            insert_tail_list(fs.metadata_changes, mc->le);
+
+            mc = (metadata_change*)malloc(sizeof(metadata_change));
+            if (!mc)
+                return nt_status::INSUFFICIENT_RESOURCES;
+
+            mc->address = old_addr;
+            mc->level = i;
+            mc->root = r.id;
+            mc->remove = true;
             insert_tail_list(fs.metadata_changes, mc->le);
         }
 
@@ -1305,6 +1318,59 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
         return nt_status::INTERNAL_ERROR;
 
     // FIXME - split tree if would be too full, or no room
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_filesystem::remove_item(root& r, const key& k) {
+    btrfs_path p;
+    nt_status status;
+
+    status = find_item(r, k, p, true);
+    if (!success(status))
+        return status;
+
+    auto& th = *(tree_header*)p.data[0];
+    auto* items = (leaf_node*)((uint8_t*)&th + sizeof(tree_header));
+
+    if (items[p.slots[0]].k != k || p.slots[0] >= th.num_items)
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+
+    // move data
+
+    if (items[p.slots[0]].size != 0) {
+        unsigned int data_size = 0, after_item = 0;
+
+        for (unsigned int i = 0; i < th.num_items; i++) {
+            data_size += items[i].size;
+
+            if (i > p.slots[0])
+                after_item += items[i].size;
+        }
+
+        memmove(p.data[0] + sb.node_size - data_size + items[p.slots[0]].size,
+                p.data[0] + sb.node_size - data_size,
+                after_item);
+
+        for (unsigned int i = p.slots[0] + 1; i < th.num_items; i++) {
+            items[i].offset += items[p.slots[0]].size;
+        }
+    }
+
+    // adjust items
+
+    memmove(&items[p.slots[0]], &items[p.slots[0] + 1],
+            sizeof(leaf_node) * (th.num_items - p.slots[0] - 1));
+    th.num_items--;
+
+    // FIXME - update parent if deleting first item (recursively)
+
+    // FIXME - merging trees
+
+    // copy tree back into page cache and mark dirty
+
+    if (!cache.write(span(p.data[0], sb.node_size), th.address)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
 }
@@ -2171,26 +2237,44 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
 static nt_status do_metadata_changes(btrfs_filesystem& fs) {
     while (!is_list_empty(fs.metadata_changes)) {
         auto& mc = containing_record<metadata_change>(fs.metadata_changes.next);
-        extent_item_tbr eitbr;
 
-        eitbr.ei.refcount = 1;
-        eitbr.ei.generation = 0; // FIXME
-        eitbr.ei.flags = EXTENT_ITEM_TREE_BLOCK;
-        eitbr.type = key_type::TREE_BLOCK_REF;
-        eitbr.tbr.offset = mc.root;
+        if (mc.remove) {
+            // FIXME - snapshotted metadata
 
-        auto status = fs.insert_item(*fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level},
-                                     span((uint8_t*)&eitbr, sizeof(eitbr)));
-        if (!success(status)) {
-            char s[30];
-            auto sp = span(s, sizeof(s));
+            auto status = fs.remove_item(*fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level});
+            if (!success(status)) {
+                char s[30];
+                auto sp = span(s, sizeof(s));
 
-            sp = sp_strcpy(sp, "insert_item returned ");
-            sp = sp_itoa_hex(sp, (uint32_t)status);
-            sp = sp_strcpy(sp, "\n");
-            printk(string_view(s, sp.data() - s));
+                sp = sp_strcpy(sp, "remove_item returned ");
+                sp = sp_itoa_hex(sp, (uint32_t)status);
+                sp = sp_strcpy(sp, "\n");
+                printk(string_view(s, sp.data() - s));
 
-            return status;
+                return status;
+            }
+        } else {
+            extent_item_tbr eitbr;
+
+            eitbr.ei.refcount = 1;
+            eitbr.ei.generation = 0; // FIXME
+            eitbr.ei.flags = EXTENT_ITEM_TREE_BLOCK;
+            eitbr.type = key_type::TREE_BLOCK_REF;
+            eitbr.tbr.offset = mc.root;
+
+            auto status = fs.insert_item(*fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level},
+                                        span((uint8_t*)&eitbr, sizeof(eitbr)));
+            if (!success(status)) {
+                char s[30];
+                auto sp = span(s, sizeof(s));
+
+                sp = sp_strcpy(sp, "insert_item returned ");
+                sp = sp_itoa_hex(sp, (uint32_t)status);
+                sp = sp_strcpy(sp, "\n");
+                printk(string_view(s, sp.data() - s));
+
+                return status;
+            }
         }
 
         remove_entry_list(mc.le);
