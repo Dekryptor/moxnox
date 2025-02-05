@@ -1100,9 +1100,9 @@ static bool allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
 }
 
 static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
-    // FIXME - updating extent tree and free space tree
+    // FIXME - updating free space tree
 
-    for (unsigned int i = 0; i < BTRFS_MAX_LEVEL; i++) {
+    for (uint8_t i = 0; i < BTRFS_MAX_LEVEL; i++) {
         uint64_t addr;
 
         if (!p.data[i])
@@ -1127,20 +1127,14 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
                     insert_tail_list(fs.dirty_root_list, r.dirty_le);
             }
 
-            {
-                extent_item_tbr eitbr;
+            auto mc = (metadata_change*)malloc(sizeof(metadata_change));
+            if (!mc)
+                return nt_status::INSUFFICIENT_RESOURCES;
 
-                eitbr.ei.refcount = 1;
-                eitbr.ei.generation = 0; // FIXME
-                eitbr.ei.flags = EXTENT_ITEM_TREE_BLOCK;
-                eitbr.type = key_type::TREE_BLOCK_REF;
-                eitbr.tbr.offset = r.id;
-
-                auto status = fs.insert_item(*fs.extent_root, {addr, key_type::METADATA_ITEM, i},
-                                             span((uint8_t*)&eitbr, sizeof(eitbr)));
-                if (!success(status))
-                    return status;
-            }
+            mc->address = addr;
+            mc->level = i;
+            mc->root = r.id;
+            insert_tail_list(fs.metadata_changes, mc->le);
         }
 
         if (i > 0) {
@@ -2174,10 +2168,45 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
     return nt_status::SUCCESS;
 }
 
+static nt_status do_metadata_changes(btrfs_filesystem& fs) {
+    while (!is_list_empty(fs.metadata_changes)) {
+        auto& mc = containing_record<metadata_change>(fs.metadata_changes.next);
+        extent_item_tbr eitbr;
+
+        eitbr.ei.refcount = 1;
+        eitbr.ei.generation = 0; // FIXME
+        eitbr.ei.flags = EXTENT_ITEM_TREE_BLOCK;
+        eitbr.type = key_type::TREE_BLOCK_REF;
+        eitbr.tbr.offset = mc.root;
+
+        auto status = fs.insert_item(*fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level},
+                                     span((uint8_t*)&eitbr, sizeof(eitbr)));
+        if (!success(status)) {
+            char s[30];
+            auto sp = span(s, sizeof(s));
+
+            sp = sp_strcpy(sp, "insert_item returned ");
+            sp = sp_itoa_hex(sp, (uint32_t)status);
+            sp = sp_strcpy(sp, "\n");
+            printk(string_view(s, sp.data() - s));
+
+            return status;
+        }
+
+        remove_entry_list(mc.le);
+        free(&mc);
+    }
+
+    return nt_status::SUCCESS;
+}
+
 void btrfs_filesystem::do_flush() {
     page_cache_entry* ent = nullptr;
 
     // FIXME - should have rwsem held exclusively
+
+    do_metadata_changes(*this);
+    // FIXME - make filesystem readonly if do_metadata_changes fails
 
     while (!is_list_empty(dirty_root_list)) {
         auto& r = *(root*)((uint8_t*)dirty_root_list.next - offsetof(root, dirty_le));
@@ -2197,6 +2226,9 @@ void btrfs_filesystem::do_flush() {
 
         remove_entry_list(r.dirty_le);
     }
+
+    do_metadata_changes(*this);
+    // FIXME - make filesystem readonly if do_metadata_changes fails
 
     // loop through cache, and call flush_cache for dirty ranges
 

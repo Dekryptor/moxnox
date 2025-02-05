@@ -426,6 +426,13 @@ struct extent_item_tbr {
 
 static_assert(sizeof(extent_item_tbr) == 33);
 
+struct metadata_change {
+    uint64_t address;
+    uint8_t level;
+    uint64_t root;
+    list_entry le;
+};
+
 static const unsigned int BTRFS_MAX_LEVEL = 8;
 
 struct btrfs_path {
@@ -519,6 +526,7 @@ public:
     root* chunk_root;
     root* extent_root;
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
+    list_entry metadata_changes = { &metadata_changes, &metadata_changes };
 
 private:
     bool load_chunks();
