@@ -61,6 +61,8 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         return;
     }
 
+    sb.incompat_flags |= BTRFS_INCOMPAT_FLAGS_SKINNY_METADATA;
+
     if (sb.num_devices != 1) {
         printk("Multiple devices not supported\n");
         return;
@@ -697,6 +699,9 @@ bool btrfs_filesystem::load_roots() {
         if (is_file_root(r.id))
             find_last_inode_number(*this, r);
 
+        if (r.id == BTRFS_ROOT_EXTENT)
+            extent_root = &r;
+
         if (!move_path_forward(p))
             break;
     } while (true);
@@ -1120,6 +1125,21 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
 
                 if (r.id != BTRFS_ROOT_ROOT)
                     insert_tail_list(fs.dirty_root_list, r.dirty_le);
+            }
+
+            {
+                extent_item_tbr eitbr;
+
+                eitbr.ei.refcount = 1;
+                eitbr.ei.generation = 0; // FIXME
+                eitbr.ei.flags = EXTENT_ITEM_TREE_BLOCK;
+                eitbr.type = key_type::TREE_BLOCK_REF;
+                eitbr.tbr.offset = r.id;
+
+                auto status = fs.insert_item(*fs.extent_root, {addr, key_type::METADATA_ITEM, i},
+                                             span((uint8_t*)&eitbr, sizeof(eitbr)));
+                if (!success(status))
+                    return status;
             }
         }
 

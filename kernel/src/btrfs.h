@@ -400,6 +400,32 @@ struct inode_extent {
     extent_data ed;
 };
 
+static const uint64_t EXTENT_ITEM_DATA = 0x001;
+static const uint64_t EXTENT_ITEM_TREE_BLOCK = 0x002;
+static const uint64_t EXTENT_ITEM_SHARED_BACKREFS = 0x100;
+
+struct extent_item {
+    uint64_t refcount;
+    uint64_t generation;
+    uint64_t flags;
+};
+
+static_assert(sizeof(extent_item) == 24);
+
+struct tree_block_ref {
+    uint64_t offset;
+};
+
+static_assert(sizeof(tree_block_ref) == 8);
+
+struct extent_item_tbr {
+    extent_item ei;
+    key_type type;
+    tree_block_ref tbr;
+} __attribute__((packed));
+
+static_assert(sizeof(extent_item_tbr) == 33);
+
 static const unsigned int BTRFS_MAX_LEVEL = 8;
 
 struct btrfs_path {
@@ -491,6 +517,7 @@ public:
     rwsem trans_lock;
     root* root_root;
     root* chunk_root;
+    root* extent_root;
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
 
 private:
