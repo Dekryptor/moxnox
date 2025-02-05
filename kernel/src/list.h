@@ -20,9 +20,11 @@ static void __inline insert_tail_list(list_entry& head, list_entry& entry) {
 }
 
 static void __inline insert_head_list(list_entry& head, list_entry& entry) {
-    head.next->prev = &entry;
-    entry.next = head.next;
+    auto* last_head = head.next;
+
+    entry.next = last_head;
     entry.prev = &head;
+    last_head->prev = &entry;
     head.next = &entry;
 }
 
