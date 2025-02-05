@@ -1105,25 +1105,35 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
 
         auto& th = *(tree_header*)p.data[i];
 
-        if (!(th.flags & HEADER_FLAG_WRITTEN))
-            break;
+        if (th.flags & HEADER_FLAG_WRITTEN) {
+            if (!allocate_metadata(fs, addr))
+                return nt_status::DISK_FULL;
 
-        if (!allocate_metadata(fs, addr))
-            return nt_status::DISK_FULL;
+            th.flags &= ~HEADER_FLAG_WRITTEN;
+            th.address = addr;
 
-        th.flags &= ~HEADER_FLAG_WRITTEN;
-        th.address = addr;
+            if (!fs.cache.write(span(p.data[i], fs.sb.node_size), th.address)) // FIXME - return status
+                return nt_status::INTERNAL_ERROR;
 
-        if (!fs.cache.write(span(p.data[i], fs.sb.node_size), th.address)) // FIXME - return status
-            return nt_status::INTERNAL_ERROR;
+            if (i == BTRFS_MAX_LEVEL - 1 || !p.data[i + 1]) { // top
+                r.ri.block_number = addr;
 
-        // FIXME - update address in parent
+                if (r.id != BTRFS_ROOT_ROOT)
+                    insert_tail_list(fs.dirty_root_list, r.dirty_le);
+            }
+        }
 
-        if (i == BTRFS_MAX_LEVEL - 1 || !p.data[i + 1]) { // top
-            r.ri.block_number = addr;
+        if (i > 0) {
+            auto& prev_th = *(tree_header*)p.data[i - 1];
+            auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
-            if (r.id != BTRFS_ROOT_ROOT)
-                insert_tail_list(fs.dirty_root_list, r.dirty_le);
+            if (items[p.slots[i]].address == prev_th.address)
+                break;
+
+            items[p.slots[i]].address = prev_th.address;
+
+            if (!fs.cache.write(span(p.data[i], fs.sb.node_size), th.address)) // FIXME - return status
+                return nt_status::INTERNAL_ERROR;
         }
     }
 
