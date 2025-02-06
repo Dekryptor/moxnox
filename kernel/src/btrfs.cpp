@@ -2302,6 +2302,64 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
     return nt_status::SUCCESS;
 }
 
+static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
+                                        int delta) {
+    auto& r = *fs.free_space_root;
+    nt_status status;
+    btrfs_path p;
+    uint64_t bg = 0;
+
+    {
+        auto le = fs.chunk_list.next;
+        while (le != &fs.chunk_list) {
+            auto& c = containing_record<chunk>(le);
+
+            if (address >= c.offset && address < c.offset + c.ci.size) {
+                bg = c.offset;
+                break;
+            }
+
+            le = le->next;
+        }
+    }
+
+    if (bg == 0) {
+        printk("Could not find chunk for logical address ");
+        print_hex(address);
+        printk("\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    status = fs.find_item(r, {bg, key_type::FREE_SPACE_INFO, 0}, p, true);
+    if (!success(status))
+        return status;
+
+    auto& th = *(tree_header*)p.data[0];
+    auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+    auto& it = items[p.slots[0]];
+    const auto& found_key = it.k;
+
+    if (found_key.obj_id != bg || found_key.obj_type != key_type::FREE_SPACE_INFO)
+        return nt_status::INTERNAL_ERROR;
+
+    auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
+
+    if (it.size < sizeof(free_space_info))
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    auto& fsi = *(free_space_info*)data.data();
+
+    fsi.count += delta;
+
+    // copy tree back into page cache and mark dirty
+
+    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
                                    uint64_t length) {
     auto& r = *fs.free_space_root;
@@ -2348,7 +2406,9 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
         if (!success(status))
             return status;
 
-        // FIXME - decrease count
+        status = adjust_free_space_info(fs, address, -1);
+        if (!success(status))
+            return status;
     } else if (k.obj_id == address) {
         // removing start
         status = fs.change_key(p, {k.obj_id + length, key_type::FREE_SPACE_EXTENT, k.offset - length});
@@ -2371,7 +2431,9 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
         if (!success(status))
             return status;
 
-        // FIXME - increase count
+        status = adjust_free_space_info(fs, address, 1);
+        if (!success(status))
+            return status;
     }
 
     return nt_status::SUCCESS;

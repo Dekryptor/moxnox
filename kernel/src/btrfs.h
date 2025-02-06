@@ -434,6 +434,13 @@ struct metadata_change {
     list_entry le;
 };
 
+struct free_space_info {
+    uint32_t count;
+    uint32_t flags;
+} __attribute__((packed));
+
+static_assert(sizeof(free_space_info) == 8);
+
 static const unsigned int BTRFS_MAX_LEVEL = 8;
 
 struct btrfs_path {
