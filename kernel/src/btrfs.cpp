@@ -2469,7 +2469,9 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
 
         // new entry
 
-        // FIXME - increase number
+        status = adjust_free_space_info(fs, address, 1);
+        if (!success(status))
+            return status;
 
         return fs.insert_item(r, {address, key_type::FREE_SPACE_EXTENT, length},
                               span<const uint8_t>());
@@ -2501,7 +2503,9 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
         if (!success(status))
             return status;
 
-        // FIXME - decrease number
+        status = adjust_free_space_info(fs, address, -1);
+        if (!success(status))
+            return status;
 
         return nt_status::SUCCESS;
     }
@@ -2529,7 +2533,9 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
     if (!success(status))
         return status;
 
-    // FIXME - increase number
+    status = adjust_free_space_info(fs, address, 1);
+    if (!success(status))
+        return status;
 
     return nt_status::SUCCESS;
 }
