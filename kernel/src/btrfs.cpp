@@ -2454,32 +2454,13 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
     auto& th = *(tree_header*)p.data[0];
     auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
-    if (p.slots[0] == th.num_items) {
-        if (fs.move_path_back(p)) {
-            auto& th2 = *(tree_header*)p.data[0];
-            auto items2 = span((leaf_node*)((uint8_t*)&th2 + sizeof(tree_header)), th2.num_items);
-
-            const auto& k = items2[p.slots[0]].k;
-
-            // extend prev
-
-            if (k.obj_type == key_type::FREE_SPACE_EXTENT && k.obj_id + k.offset == address)
-                return fs.change_key(p, {k.obj_id, key_type::FREE_SPACE_EXTENT, k.offset + length});
-        }
-
-        // new entry
-
-        status = adjust_free_space_info(fs, address, 1);
-        if (!success(status))
-            return status;
-
-        return fs.insert_item(r, {address, key_type::FREE_SPACE_EXTENT, length},
-                              span<const uint8_t>());
-    }
-
-    auto next_k = items[p.slots[0]].k;
-
+    key next_k;
     key prev_k{0, (enum key_type)0, 0};
+
+    if (p.slots[0] < th.num_items)
+        next_k = items[p.slots[0]].k;
+    else
+        next_k = {0, (enum key_type)0, 0};
 
     if (fs.move_path_back(p)) {
         auto& th2 = *(tree_header*)p.data[0];
