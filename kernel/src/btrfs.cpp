@@ -2439,6 +2439,101 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
     return nt_status::SUCCESS;
 }
 
+static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
+                                uint64_t length) {
+    auto& r = *fs.free_space_root;
+    btrfs_path p;
+
+    auto status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
+                               p, true);
+    if (!success(status))
+        return status;
+
+    // FIXME - if bitmap, convert into normal extents
+
+    auto& th = *(tree_header*)p.data[0];
+    auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+    if (p.slots[0] == th.num_items) {
+        if (fs.move_path_back(p)) {
+            auto& th2 = *(tree_header*)p.data[0];
+            auto items2 = span((leaf_node*)((uint8_t*)&th2 + sizeof(tree_header)), th2.num_items);
+
+            const auto& k = items2[p.slots[0]].k;
+
+            // extend prev
+
+            if (k.obj_type == key_type::FREE_SPACE_EXTENT && k.obj_id + k.offset == address)
+                return fs.change_key(p, {k.obj_id, key_type::FREE_SPACE_EXTENT, k.offset + length});
+        }
+
+        // new entry
+
+        // FIXME - increase number
+
+        return fs.insert_item(r, {address, key_type::FREE_SPACE_EXTENT, length},
+                              span<const uint8_t>());
+    }
+
+    auto next_k = items[p.slots[0]].k;
+
+    key prev_k{0, (enum key_type)0, 0};
+
+    if (fs.move_path_back(p)) {
+        auto& th2 = *(tree_header*)p.data[0];
+        auto items2 = span((leaf_node*)((uint8_t*)&th2 + sizeof(tree_header)), th2.num_items);
+
+        if (items2[p.slots[0]].k.obj_type == key_type::FREE_SPACE_EXTENT)
+            prev_k = items2[p.slots[0]].k;
+    }
+
+    if (prev_k.obj_type == key_type::FREE_SPACE_EXTENT &&
+        next_k.obj_type == key_type::FREE_SPACE_EXTENT &&
+        prev_k.obj_id + prev_k.offset == address &&
+        next_k.obj_id == address + length) {
+        // bridge
+
+        status = fs.change_key(p, {prev_k.obj_id, key_type::FREE_SPACE_EXTENT, prev_k.offset + length + next_k.offset});
+        if (!success(status))
+            return status;
+
+        status = fs.remove_item(r, next_k);
+        if (!success(status))
+            return status;
+
+        // FIXME - decrease number
+
+        return nt_status::SUCCESS;
+    }
+
+    if (prev_k.obj_type == key_type::FREE_SPACE_EXTENT &&
+        prev_k.obj_id + prev_k.offset == address) {
+        // extend previous
+        return fs.change_key(p, {prev_k.obj_id, key_type::FREE_SPACE_EXTENT, prev_k.offset + length});
+    }
+
+    if (next_k.obj_type == key_type::FREE_SPACE_EXTENT &&
+        next_k.obj_id == address + length) {
+        // extend next
+
+        if (!fs.move_path_forward(p))
+            return nt_status::INTERNAL_ERROR;
+
+        return fs.change_key(p, {address, key_type::FREE_SPACE_EXTENT, next_k.offset + length});
+    }
+
+    // new entry
+
+    status = fs.insert_item(r, {address, key_type::FREE_SPACE_EXTENT, length},
+                            span<const uint8_t>());
+    if (!success(status))
+        return status;
+
+    // FIXME - increase number
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status do_metadata_changes(btrfs_filesystem& fs) {
     while (!is_list_empty(fs.metadata_changes)) {
         auto& mc = containing_record<metadata_change>(fs.metadata_changes.next);
@@ -2452,6 +2547,19 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
                 auto sp = span(s, sizeof(s));
 
                 sp = sp_strcpy(sp, "remove_item returned ");
+                sp = sp_itoa_hex(sp, (uint32_t)status);
+                sp = sp_strcpy(sp, "\n");
+                printk(string_view(s, sp.data() - s));
+
+                return status;
+            }
+
+            status = add_free_space(fs, mc.address, fs.sb.node_size);
+            if (!success(status)) {
+                char s[40];
+                auto sp = span(s, sizeof(s));
+
+                sp = sp_strcpy(sp, "add_free_space returned ");
                 sp = sp_itoa_hex(sp, (uint32_t)status);
                 sp = sp_strcpy(sp, "\n");
                 printk(string_view(s, sp.data() - s));
