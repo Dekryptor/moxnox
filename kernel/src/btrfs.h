@@ -510,6 +510,8 @@ public:
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status insert_item(root& r, const key& k, std::span<const uint8_t> data);
     nt_status remove_item(root& r, const key& k);
+    nt_status remove_item2(btrfs_path& p);
+    nt_status change_key(btrfs_path& p, const key& k);
     nt_status find_item(root& r, const key& k, btrfs_path& p, bool cow);
     bool move_path_back(btrfs_path& p);
     bool move_path_forward(btrfs_path& p);
@@ -526,7 +528,8 @@ public:
     rwsem trans_lock;
     root* root_root;
     root* chunk_root;
-    root* extent_root;
+    root* extent_root = nullptr;
+    root* free_space_root = nullptr;
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
     list_entry metadata_changes = { &metadata_changes, &metadata_changes };
 

@@ -701,6 +701,8 @@ bool btrfs_filesystem::load_roots() {
 
         if (r.id == BTRFS_ROOT_EXTENT)
             extent_root = &r;
+        else if (r.id == BTRFS_ROOT_FREE_SPACE)
+            free_space_root = &r;
 
         if (!move_path_forward(p))
             break;
@@ -959,13 +961,7 @@ root* btrfs_filesystem::find_root(uint64_t root_num) {
 }
 
 static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
-    auto pr = fs.find_root(BTRFS_ROOT_FREE_SPACE);
-    if (!pr) {
-        printk("Could not find free space tree\n");
-        return nt_status::INTERNAL_ERROR;
-    }
-
-    auto& r = *pr;
+    auto& r = *fs.free_space_root;
     auto search_key = key{c.offset, key_type::FREE_SPACE_INFO, c.ci.size};
     btrfs_path p;
 
@@ -1339,19 +1335,9 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_filesystem::remove_item(root& r, const key& k) {
-    btrfs_path p;
-    nt_status status;
-
-    status = find_item(r, k, p, true);
-    if (!success(status))
-        return status;
-
+nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
     auto& th = *(tree_header*)p.data[0];
     auto* items = (leaf_node*)((uint8_t*)&th + sizeof(tree_header));
-
-    if (items[p.slots[0]].k != k || p.slots[0] >= th.num_items)
-        return nt_status::OBJECT_NAME_NOT_FOUND;
 
     // move data
 
@@ -1400,6 +1386,54 @@ nt_status btrfs_filesystem::remove_item(root& r, const key& k) {
     // FIXME - if num_items is now 0 and not top, remove entry in parent
     // FIXME - adjust levels if internal tree has only one entry
     // FIXME - merging trees
+
+    // copy tree back into page cache and mark dirty
+
+    if (!cache.write(span(p.data[0], sb.node_size), th.address)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_filesystem::remove_item(root& r, const key& k) {
+    btrfs_path p;
+    nt_status status;
+
+    status = find_item(r, k, p, true);
+    if (!success(status))
+        return status;
+
+    const auto& th = *(tree_header*)p.data[0];
+    const auto* items = (leaf_node*)((uint8_t*)&th + sizeof(tree_header));
+
+    if (items[p.slots[0]].k != k || p.slots[0] >= th.num_items)
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+
+    return remove_item2(p);
+}
+
+nt_status btrfs_filesystem::change_key(btrfs_path& p, const key& k) {
+    auto& th = *(tree_header*)p.data[0];
+    auto* items = (leaf_node*)((uint8_t*)&th + sizeof(tree_header));
+
+    items[p.slots[0]].k = k;
+
+    // update parents if changing first item
+
+    if (p.slots[0] == 0 && p.data[1]) {
+        for (uint8_t i = 0; i < BTRFS_MAX_LEVEL - 1; i++) {
+            if (p.slots[i] != 0 || !p.data[i + 1])
+                break;
+
+            auto& th2 = *(tree_header*)p.data[i + 1];
+            auto items2 = span((internal_node*)((uint8_t*)&th2 + sizeof(tree_header)), th2.num_items);
+
+            items2[p.slots[i + 1]].k = items[0].k;
+
+            if (!cache.write(span(p.data[i + 1], sb.node_size), th2.address)) // FIXME - return status
+                return nt_status::INTERNAL_ERROR;
+        }
+    }
 
     // copy tree back into page cache and mark dirty
 
@@ -2268,6 +2302,81 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
     return nt_status::SUCCESS;
 }
 
+static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
+                                   uint64_t length) {
+    auto& r = *fs.free_space_root;
+    btrfs_path p;
+
+    auto status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
+                               p, true);
+    if (!success(status))
+        return status;
+
+    // FIXME - if bitmap, convert into normal extents
+
+    while (true) {
+        auto& th = *(tree_header*)p.data[0];
+        auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+        if (p.slots[0] >= th.num_items)
+            return nt_status::OBJECT_NAME_NOT_FOUND;
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.k;
+
+        if (k.obj_id > address) {
+            if (!fs.move_path_back(p))
+                return nt_status::OBJECT_NAME_NOT_FOUND;
+            continue;
+        }
+
+        if (k.obj_id > address || k.obj_id + k.offset < address + length || k.obj_type != key_type::FREE_SPACE_EXTENT)
+            return nt_status::OBJECT_NAME_NOT_FOUND;
+
+        break;
+    }
+
+    auto& th = *(tree_header*)p.data[0];
+    auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+    const auto& it = items[p.slots[0]];
+    auto k = it.k;
+
+    if (k.obj_id == address && k.offset == length) {
+        // removing whole entry
+        status = fs.remove_item2(p);
+        if (!success(status))
+            return status;
+
+        // FIXME - decrease count
+    } else if (k.obj_id == address) {
+        // removing start
+        status = fs.change_key(p, {k.obj_id + length, key_type::FREE_SPACE_EXTENT, k.offset - length});
+        if (!success(status))
+            return status;
+    } else if (k.obj_id + k.offset == address + length) {
+        // removing end
+        status = fs.change_key(p, {k.obj_id, key_type::FREE_SPACE_EXTENT, k.offset - length});
+        if (!success(status))
+            return status;
+    } else {
+        // removing middle
+
+        status = fs.change_key(p, {k.obj_id, key_type::FREE_SPACE_EXTENT, address - k.obj_id});
+        if (!success(status))
+            return status;
+
+        status = fs.insert_item(r, {address + length, key_type::FREE_SPACE_EXTENT, k.obj_id + k.offset - address - length},
+                                span<const uint8_t>());
+        if (!success(status))
+            return status;
+
+        // FIXME - increase count
+    }
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status do_metadata_changes(btrfs_filesystem& fs) {
     while (!is_list_empty(fs.metadata_changes)) {
         auto& mc = containing_record<metadata_change>(fs.metadata_changes.next);
@@ -2299,10 +2408,23 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
             auto status = fs.insert_item(*fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level},
                                         span((uint8_t*)&eitbr, sizeof(eitbr)));
             if (!success(status)) {
-                char s[30];
+                char s[40];
                 auto sp = span(s, sizeof(s));
 
                 sp = sp_strcpy(sp, "insert_item returned ");
+                sp = sp_itoa_hex(sp, (uint32_t)status);
+                sp = sp_strcpy(sp, "\n");
+                printk(string_view(s, sp.data() - s));
+
+                return status;
+            }
+
+            status = remove_free_space(fs, mc.address, fs.sb.node_size);
+            if (!success(status)) {
+                char s[40];
+                auto sp = span(s, sizeof(s));
+
+                sp = sp_strcpy(sp, "remove_free_space returned ");
                 sp = sp_itoa_hex(sp, (uint32_t)status);
                 sp = sp_strcpy(sp, "\n");
                 printk(string_view(s, sp.data() - s));
@@ -2320,11 +2442,23 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
 
 void btrfs_filesystem::do_flush() {
     page_cache_entry* ent = nullptr;
+    nt_status status;
 
     // FIXME - should have rwsem held exclusively
 
-    do_metadata_changes(*this);
+    status = do_metadata_changes(*this);
     // FIXME - make filesystem readonly if do_metadata_changes fails
+    if (!success(status)) {
+        char s[40];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "do_metadata_changes returned ");
+        sp = sp_itoa_hex(sp, (uint32_t)status);
+        sp = sp_strcpy(sp, "\n");
+        printk(string_view(s, sp.data() - s));
+
+        return;
+    }
 
     while (!is_list_empty(dirty_root_list)) {
         auto& r = *(root*)((uint8_t*)dirty_root_list.next - offsetof(root, dirty_le));
@@ -2345,8 +2479,19 @@ void btrfs_filesystem::do_flush() {
         remove_entry_list(r.dirty_le);
     }
 
-    do_metadata_changes(*this);
+    status = do_metadata_changes(*this);
     // FIXME - make filesystem readonly if do_metadata_changes fails
+    if (!success(status)) {
+        char s[40];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "do_metadata_changes returned ");
+        sp = sp_itoa_hex(sp, (uint32_t)status);
+        sp = sp_strcpy(sp, "\n");
+        printk(string_view(s, sp.data() - s));
+
+        return;
+    }
 
     // loop through cache, and call flush_cache for dirty ranges
 
