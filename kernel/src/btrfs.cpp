@@ -191,6 +191,8 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 
     insert_tail_list(inode_list, root_inode->le);
 
+    sb.generation++;
+
     valid = true;
 }
 
@@ -1114,12 +1116,15 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
 
             th.flags &= ~HEADER_FLAG_WRITTEN;
             th.address = addr;
+            th.generation = fs.sb.generation;
 
             if (!fs.cache.write(span(p.data[i], fs.sb.node_size), th.address)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
 
             if (i == BTRFS_MAX_LEVEL - 1 || !p.data[i + 1]) { // top
                 r.ri.block_number = addr;
+                r.ri.generation = fs.sb.generation;
+                r.ri.generation2 = fs.sb.generation;
 
                 if (r.id != BTRFS_ROOT_ROOT)
                     insert_tail_list(fs.dirty_root_list, r.dirty_le);
@@ -1154,6 +1159,7 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
                 break;
 
             items[p.slots[i]].address = prev_th.address;
+            items[p.slots[i]].generation = fs.sb.generation;
 
             if (!fs.cache.write(span(p.data[i], fs.sb.node_size), th.address)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
@@ -2689,4 +2695,6 @@ void btrfs_filesystem::do_flush() {
     // FIXME - write superblock backups
 
     // FIXME - send SATA command again to ensure cache flushed
+
+    sb.generation++;
 }
