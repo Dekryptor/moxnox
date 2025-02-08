@@ -1590,8 +1590,8 @@ nt_status btrfs_inode::create_child(string_view name,
     // create INODE_ITEM
 
     memset(&ii, 0, sizeof(inode_item));
-    ii.generation = 0; // FIXME
-    ii.transid = 0; // FIXME
+    ii.generation = fs.sb.generation;
+    ii.transid = fs.sb.generation;
     ii.st_nlink = 1;
     ii.st_uid = 0; // FIXME
     ii.st_gid = 0; // FIXME
