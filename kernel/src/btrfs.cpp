@@ -3,6 +3,7 @@
 #include "btrfs.h"
 #include "handle.h"
 #include "crc32c.h"
+#include "tick_rate.h"
 #include <shared_mutex>
 
 using namespace std;
@@ -1542,7 +1543,20 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     return nt_status::SUCCESS;
 }
 
-static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode, int64_t diff) {
+static btrfs_time get_btrfs_time() {
+    uint64_t now = system_time;
+    btrfs_time ret;
+
+    ret.nanoseconds = (uint32_t)((now % SYSTEM_TIME_RESOLUTION) * (1000000000 / SYSTEM_TIME_RESOLUTION));
+    now /= SYSTEM_TIME_RESOLUTION;
+
+    ret.seconds = now - 11644473600;
+
+    return ret;
+}
+
+static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode,
+                                   int64_t diff, const btrfs_time& cur_time) {
     btrfs_path p;
     nt_status status;
 
@@ -1567,6 +1581,9 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
     auto& ii = *(inode_item*)data.data();
 
     ii.st_size += diff;
+    ii.sequence++;
+    ii.st_ctime = cur_time;
+    ii.st_mtime = cur_time;
 
     // copy tree back into page cache and mark dirty
 
@@ -1587,6 +1604,8 @@ nt_status btrfs_inode::create_child(string_view name,
 
     uint64_t new_inode = r->next_inode_number.fetch_add(1);
 
+    auto cur_time = get_btrfs_time();
+
     // create INODE_ITEM
 
     memset(&ii, 0, sizeof(inode_item));
@@ -1603,10 +1622,9 @@ nt_status btrfs_inode::create_child(string_view name,
         ii.st_mode = S_IFREG | 0644;
 
     ii.sequence = 0; // FIXME?
-    // ii.st_atime; // FIXME
-    // ii.st_ctime; // FIXME
-    // ii.st_mtime; // FIXME
-    // ii.otime; // FIXME
+    ii.st_ctime = cur_time;
+    ii.st_mtime = cur_time;
+    ii.otime = cur_time;
 
     status = fs.insert_item(*r, {new_inode, key_type::INODE_ITEM, 0},
                             span((uint8_t*)&ii, sizeof(ii)));
@@ -1701,7 +1719,7 @@ nt_status btrfs_inode::create_child(string_view name,
 
     // FIXME - adjust file_size and inode_item in in-memory inode?
 
-    status = adjust_inode_size(fs, *r, inode, name.size() * 2);
+    status = adjust_inode_size(fs, *r, inode, name.size() * 2, cur_time);
     if (!success(status))
         return status;
 
