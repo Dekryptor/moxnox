@@ -1628,7 +1628,7 @@ nt_status btrfs_inode::create_child(string_view name,
     di->k.obj_id = new_inode;
     di->k.obj_type = key_type::INODE_ITEM;
     di->k.offset = 0;
-    di->transid = 0; // FIXME
+    di->transid = fs.sb.generation;
     di->m = 0;
     di->n = (uint16_t)name.size();
     di->type = is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file;
