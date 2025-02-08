@@ -1723,6 +1723,11 @@ nt_status btrfs_inode::create_child(string_view name,
     if (!success(status))
         return status;
 
+    // adjust root_item
+
+    r->ri.ctime = cur_time;
+    r->ri.ctransid = fs.sb.generation;
+
     // create btrfs_inode object and return
 
     auto bi = new btrfs_inode(fs, r->id, new_inode,
