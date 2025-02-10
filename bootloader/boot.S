@@ -27,6 +27,7 @@
 
 .section ".boot", "a"
 
+file_start:
 # IMAGE_DOS_HEADER
 .short	0x5a4d # e_magic
 .short	0 # e_cblp
@@ -58,9 +59,94 @@
 .short	0
 .short	0
 .short	0
-.long	0x40 # e_lfanew
+.long	pe_start - file_start # e_lfanew
 
-.space  0x1b1
+pe_start:
+# IMAGE_NT_HEADERS
+.long	0x4550 # Signature
+
+# IMAGE_FILE_HEADER
+.short	0x8664 # Machine
+.short	3 # NumberOfSections (FIXME)
+.long	0 # TimeDateStamp
+.long	0 # PointerToSymbolTable
+.long	0 # NumberOfSymbols
+.short	optional_header_end - optional_header_start # SizeOfOptionalHeader
+.short	0x206 # Characteristics (FIXME)
+
+# IMAGE_OPTIONAL_HEADER64
+optional_header_start:
+.short	0x20b # Magic
+.byte	0x2 # MajorLinkerVersion
+.byte	0x14 # MinorLinkerVersion
+.long	0xbd8000 # SizeOfCode (FIXME)
+.long	0x59000 # SizeOfInitializedData (FIXME)
+.long	0 # SizeOfUninitializedData
+.long	0xbd5a0c # AddressOfEntryPoint (FIXME)
+.long	0x4000 # BaseOfCode (FIXME)
+.quad	0 # ImageBase
+.long	0x1000 # SectionAlignment
+.long	0x200 # FileAlignment
+.short	0 # MajorOperatingSystemVersion
+.short	0 # MinorOperatingSystemVersion
+.short	3 # MajorImageVersion
+.short	0 # MinorImageVersion
+.short	0 # MajorSubsystemVersion
+.short	0 # MinorSubsystemVersion
+.long	0 # Win32VersionValue
+.long	0xc35000 # SizeOfImage (FIXME)
+.long	0x1000 # SizeOfHeaders (FIXME)
+.long	0 # CheckSum
+.short	0xa # Subsystem (EFI)
+.short	0x100 # DllCharacteristics (FIXME)
+.quad	0 # SizeOfStackReserve
+.quad	0 # SizeOfStackCommit
+.quad	0 # SizeOfHeapReserve
+.quad	0 # SizeOfHeapCommit
+.long	0 # LoaderFlags
+.long	0 # NumberOfRvaAndSizes
+optional_header_end:
+
+# IMAGE_SECTION_HEADER
+.ascii	".setup"
+.space	2
+.long	0x3000 # VirtualSize
+.long	0x1000 # VirtualAddress
+.long	0x3000 # SizeOfRawData
+.long	0x1000 # PointerToRawData
+.long	0 # PointerToRelocations
+.long	0 # PointerToLinenumbers
+.short	0 # NumberOfRelocations
+.short	0 # NumberOfLinenumbers
+.long	0x42000040 # Characteristics (FIXME)
+
+# IMAGE_SECTION_HEADER
+.ascii	".text"
+.space	3
+.long	0xbd8000 # VirtualSize
+.long	0x4000 # VirtualAddress
+.long	0xbd8000 # SizeOfRawData
+.long	0x4000 # PointerToRawData
+.long	0 # PointerToRelocations
+.long	0 # PointerToLinenumbers
+.short	0 # NumberOfRelocations
+.short	0 # NumberOfLinenumbers
+.long	0x60000020 # Characteristics (FIXME)
+
+# IMAGE_SECTION_HEADER
+.ascii	".data"
+.space	3
+.long	0x59000 # VirtualSize
+.long	0xbdc000 # VirtualAddress
+.long	0x4000 # SizeOfRawData
+.long	0xbdc000 # PointerToRawData
+.long	0 # PointerToRelocations
+.long	0 # PointerToLinenumbers
+.short	0 # NumberOfRelocations
+.short	0 # NumberOfLinenumbers
+.long	0xc0000040 # Characteristics (FIXME)
+
+.space  0xb1, 0xff
 
 .byte	setup_sects - 1
 .short	1 # root_flags (ROOT_RDONLY)
