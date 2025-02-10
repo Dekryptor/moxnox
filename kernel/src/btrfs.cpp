@@ -1354,8 +1354,6 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     // FIXME - adjust path
     free(new_tree); // FIXME - not if slot now here
 
-    // FIXME - adjust free space figures in superblock
-
     return nt_status::SUCCESS;
 }
 
@@ -2693,6 +2691,8 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
 
     if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
+
+    fs.sb.bytes_used += delta;
 
     return nt_status::SUCCESS;
 }
