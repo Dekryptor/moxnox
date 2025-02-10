@@ -27,7 +27,40 @@
 
 .section ".boot", "a"
 
-.space  0x1f1
+# IMAGE_DOS_HEADER
+.short	0x5a4d # e_magic
+.short	0 # e_cblp
+.short	0 # e_cp
+.short	0 # e_crlc
+.short	0 # e_cparhdr
+.short	0 # e_minalloc
+.short	0 # e_maxalloc
+.short	0 # e_ss
+.short	0 # e_sp
+.short	0 # e_csum
+.short	0 # e_ip
+.short	0 # e_cs
+.short	0 # e_lfarlc
+.short	0 # e_ovno
+.short	0 # e_res[4]
+.short	0
+.short	0
+.short	0
+.short	0 # e_oemid
+.short	0 # e_oeminfo
+.short	0 # e_res2[10]
+.short	0
+.short	0
+.short	0
+.short	0
+.short	0
+.short	0
+.short	0
+.short	0
+.short	0
+.long	0x40 # e_lfanew
+
+.space  0x1b1
 
 .byte	setup_sects - 1
 .short	1 # root_flags (ROOT_RDONLY)
