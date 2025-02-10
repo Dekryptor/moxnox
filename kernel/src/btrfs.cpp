@@ -1354,7 +1354,7 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     // FIXME - adjust path
     free(new_tree); // FIXME - not if slot now here
 
-    // FIXME - adjust free space figures in chunk and superblock
+    // FIXME - adjust free space figures in superblock
 
     return nt_status::SUCCESS;
 }
@@ -2667,9 +2667,60 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
     return nt_status::SUCCESS;
 }
 
+static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delta) {
+    btrfs_path p;
+    key search_key = {c.offset, key_type::BLOCK_GROUP_ITEM, c.ci.size};
+
+    auto status = fs.find_item(*fs.extent_root, search_key, p, true);
+    if (!success(status))
+        return status;
+
+    auto& th = *(tree_header*)p.data[0];
+    auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
+
+    if (p.slots[0] >= th.num_items)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    const auto& it = items[p.slots[0]];
+    const auto& k = it.k;
+
+    if (k != search_key || it.size < sizeof(block_group_item))
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    auto& bgi = *(block_group_item*)((uint8_t*)&th + sizeof(tree_header) + it.offset);
+
+    bgi.used += delta;
+
+    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status do_metadata_changes(btrfs_filesystem& fs) {
+    list_entry changed_chunks = { &changed_chunks, &changed_chunks };
+
     while (!is_list_empty(fs.metadata_changes)) {
         auto& mc = containing_record<metadata_change>(fs.metadata_changes.next);
+
+        auto c = find_chunk(fs, mc.address);
+        if (!c) {
+            char s[50];
+            auto sp = span(s, sizeof(s));
+
+            sp = sp_strcpy(sp, "no chunk found for address ");
+            sp = sp_itoa_hex(sp, mc.address);
+            sp = sp_strcpy(sp, "\n");
+            printk(string_view(s, sp.data() - s));
+
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        if (!c->changed) {
+            insert_tail_list(changed_chunks, c->changed_le);
+            c->changed = true;
+            c->delta = 0;
+        }
 
         if (mc.remove) {
             // FIXME - snapshotted metadata
@@ -2699,6 +2750,8 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
 
                 return status;
             }
+
+            c->delta -= fs.sb.node_size;
         } else {
             extent_item_tbr eitbr;
 
@@ -2734,10 +2787,25 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
 
                 return status;
             }
+
+            c->delta += fs.sb.node_size;
         }
 
         remove_entry_list(mc.le);
         free(&mc);
+    }
+
+    while (!is_list_empty(changed_chunks)) {
+        auto& c = *(chunk*)((uint8_t*)changed_chunks.next - offsetof(chunk, changed_le));
+
+        c.changed = false;
+        remove_entry_list(c.changed_le);
+
+        if (c.delta == 0)
+            continue;
+
+        if (auto status = adjust_chunk_usage(fs, c, c.delta); !success(status))
+            return status;
     }
 
     return nt_status::SUCCESS;
