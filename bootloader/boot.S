@@ -72,7 +72,7 @@ pe_start:
 .long	0 # PointerToSymbolTable
 .long	0 # NumberOfSymbols
 .short	optional_header_end - optional_header_start # SizeOfOptionalHeader
-.short	0x206 # Characteristics (FIXME)
+.short	0x206 # Characteristics (IMAGE_FILE_DEBUG_STRIPPED | IMAGE_FILE_LINE_NUMS_STRIPPED | IMAGE_FILE_EXECUTABLE_IMAGE)
 
 # IMAGE_OPTIONAL_HEADER64
 optional_header_start:
@@ -95,10 +95,10 @@ optional_header_start:
 .short	0 # MinorSubsystemVersion
 .long	0 # Win32VersionValue
 .long	0xc35000 # SizeOfImage (FIXME)
-.long	0x1000 # SizeOfHeaders (FIXME)
+.long	0x1000 # SizeOfHeaders
 .long	0 # CheckSum
 .short	0xa # Subsystem (EFI)
-.short	0x100 # DllCharacteristics (FIXME)
+.short	0x100 # DllCharacteristics (IMAGE_DLLCHARACTERISTICS_NX_COMPAT)
 .quad	0 # SizeOfStackReserve
 .quad	0 # SizeOfStackCommit
 .quad	0 # SizeOfHeapReserve
@@ -118,7 +118,7 @@ optional_header_end:
 .long	0 # PointerToLinenumbers
 .short	0 # NumberOfRelocations
 .short	0 # NumberOfLinenumbers
-.long	0x42000040 # Characteristics (FIXME)
+.long	0x42000040 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_DISCARDABLE | IMAGE_SCN_CNT_INITIALIZED_DATA)
 
 # IMAGE_SECTION_HEADER
 .ascii	".text"
@@ -131,7 +131,7 @@ optional_header_end:
 .long	0 # PointerToLinenumbers
 .short	0 # NumberOfRelocations
 .short	0 # NumberOfLinenumbers
-.long	0x60000020 # Characteristics (FIXME)
+.long	0x60000020 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE)
 
 # IMAGE_SECTION_HEADER
 .ascii	".data"
@@ -144,7 +144,7 @@ optional_header_end:
 .long	0 # PointerToLinenumbers
 .short	0 # NumberOfRelocations
 .short	0 # NumberOfLinenumbers
-.long	0xc0000040 # Characteristics (FIXME)
+.long	0xc0000040 # Characteristics (IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
 
 .space  0xb1, 0xff
 
