@@ -332,35 +332,32 @@ bool btrfs_filesystem::load_chunks() {
     return true;
 }
 
+static chunk* find_chunk(const btrfs_filesystem& fs, uint64_t address) {
+    for (auto le = fs.chunk_list.next; le != &fs.chunk_list; le = le->next) {
+        auto& c = containing_record<chunk>(le);
+
+        if (address >= c.offset && address < c.offset + c.ci.size)
+            return &c;
+    }
+
+    return nullptr;
+}
+
 uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     uint64_t addr = page_num << PAGE_SHIFT;
 
     // find chunk
 
-    optional<reference_wrapper<chunk>> crw;
+    auto pc = find_chunk(*this, addr);
 
-    {
-        auto le = chunk_list.next;
-        while (le != &chunk_list) {
-            auto& c = containing_record<chunk>(le);
-
-            if (addr >= c.offset && addr < c.offset + c.ci.size) {
-                crw = c;
-                break;
-            }
-
-            le = le->next;
-        }
-    }
-
-    if (!crw) {
+    if (!pc) {
         printk("Could not find chunk for logical address ");
         print_hex(addr);
         printk("\n");
         return 0;
     }
 
-    auto& c = crw->get();
+    auto& c = *pc;
 
     if (c.ci.type & BLOCK_FLAG_RAID0) {
         printk("RAID0 not supported\n");
@@ -529,30 +526,16 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     // find chunk
 
-    optional<reference_wrapper<chunk>> crw;
+    auto pc = find_chunk(*this, addr);
 
-    {
-        auto le = chunk_list.next;
-        while (le != &chunk_list) {
-            auto& c = containing_record<chunk>(le);
-
-            if (addr >= c.offset && addr < c.offset + c.ci.size) {
-                crw = c;
-                break;
-            }
-
-            le = le->next;
-        }
-    }
-
-    if (!crw) {
+    if (!pc) {
         printk("Could not find chunk for logical address ");
         print_hex(addr);
         printk("\n");
         return 0;
     }
 
-    auto& c = crw->get();
+    auto& c = *pc;
     uint64_t pages_written = 0;
 
     while (addr < c.ci.size) {
@@ -2484,30 +2467,16 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
     auto& r = *fs.free_space_root;
     nt_status status;
     btrfs_path p;
-    uint64_t bg = 0;
+    chunk* c = find_chunk(fs, address);
 
-    {
-        auto le = fs.chunk_list.next;
-        while (le != &fs.chunk_list) {
-            auto& c = containing_record<chunk>(le);
-
-            if (address >= c.offset && address < c.offset + c.ci.size) {
-                bg = c.offset;
-                break;
-            }
-
-            le = le->next;
-        }
-    }
-
-    if (bg == 0) {
+    if (!c) {
         printk("Could not find chunk for logical address ");
         print_hex(address);
         printk("\n");
         return nt_status::INTERNAL_ERROR;
     }
 
-    status = fs.find_item(r, {bg, key_type::FREE_SPACE_INFO, 0}, p, true);
+    status = fs.find_item(r, {c->offset, key_type::FREE_SPACE_INFO, 0}, p, true);
     if (!success(status))
         return status;
 
@@ -2517,7 +2486,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
     auto& it = items[p.slots[0]];
     const auto& found_key = it.k;
 
-    if (found_key.obj_id != bg || found_key.obj_type != key_type::FREE_SPACE_INFO)
+    if (found_key.obj_id != c->offset || found_key.obj_type != key_type::FREE_SPACE_INFO)
         return nt_status::INTERNAL_ERROR;
 
     auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
