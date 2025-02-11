@@ -69,7 +69,7 @@ pe_start:
 
 # IMAGE_FILE_HEADER
 .short	0x8664 # Machine
-.short	3 # NumberOfSections
+.short	4 # NumberOfSections
 .long	0 # TimeDateStamp
 .long	0 # PointerToSymbolTable
 .long	0 # NumberOfSymbols
@@ -149,7 +149,19 @@ optional_header_end:
 .short	0 # NumberOfLinenumbers
 .long	0x40000040 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
 
-.space  0xb1, 0xff
+# IMAGE_SECTION_HEADER
+.ascii	".payload"
+.long	efi_payload_size # VirtualSize
+.long	efi_payload_vma # VirtualAddress # FIXME
+.long	efi_payload_size # SizeOfRawData
+.long	efi_payload_begin # PointerToRawData
+.long	0 # PointerToRelocations
+.long	0 # PointerToLinenumbers
+.short	0 # NumberOfRelocations
+.short	0 # NumberOfLinenumbers
+.long	0x40000040 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
+
+.space  0x89, 0xff
 
 .byte	setup_sects - 1
 .short	1 # root_flags (ROOT_RDONLY)

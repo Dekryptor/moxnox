@@ -1,6 +1,7 @@
 #include <efi.h>
 #include <string_view>
 #include <span>
+#include <pe.h>
 
 using namespace std;
 
@@ -185,6 +186,60 @@ size_t strlen(const char* s) {
     return i;
 }
 
+static int memcmp(const void* s1, const void* s2, size_t n) {
+    // FIXME - not completely accurate, as 1 or -1 is messed up by endianness
+
+    while (n > sizeof(uint64_t)) {
+        uint64_t c1 = *(uint64_t*)s1;
+        uint64_t c2 = *(uint64_t*)s2;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        s1 = (uint64_t*)s1 + 1;
+        s2 = (uint64_t*)s2 + 1;
+        n -= sizeof(uint64_t);
+    }
+
+    while (n > sizeof(uint32_t)) {
+        uint32_t c1 = *(uint32_t*)s1;
+        uint32_t c2 = *(uint32_t*)s2;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        s1 = (uint32_t*)s1 + 1;
+        s2 = (uint32_t*)s2 + 1;
+        n -= sizeof(uint32_t);
+    }
+
+    while (n > sizeof(uint16_t)) {
+        uint16_t c1 = *(uint16_t*)s1;
+        uint16_t c2 = *(uint16_t*)s2;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        s1 = (uint16_t*)s1 + 1;
+        s2 = (uint16_t*)s2 + 1;
+        n -= sizeof(uint16_t);
+    }
+
+    while (n > 0) {
+        uint8_t c1 = *(uint8_t*)s1;
+        uint8_t c2 = *(uint8_t*)s2;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        s1 = (uint8_t*)s1 + 1;
+        s2 = (uint8_t*)s2 + 1;
+        n--;
+    }
+
+    return 0;
+}
+
 static span<char> sp_strcpy(span<char> dest, string_view src) {
     auto to_copy = min(src.size(), dest.size());
 
@@ -264,6 +319,45 @@ static EFI_STATUS get_image_information(EFI_BOOT_SERVICES* bs, EFI_HANDLE image_
     return EFI_SUCCESS;
 }
 
+static span<uint8_t> find_payload(EFI_LOADED_IMAGE_PROTOCOL* image) {
+    const auto& dos = *(IMAGE_DOS_HEADER*)image->ImageBase;
+    const auto& pe = *(IMAGE_NT_HEADERS*)((uint8_t*)image->ImageBase + dos.e_lfanew);
+
+    auto sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&pe.OptionalHeader64 + pe.FileHeader.SizeOfOptionalHeader),
+                         pe.FileHeader.NumberOfSections);
+    const IMAGE_SECTION_HEADER* payload_sect = nullptr;
+
+    for (const auto& sect : sections) {
+        if (!memcmp(sect.Name, ".payload", sizeof(sect.Name))) {
+            payload_sect = &sect;
+            break;
+        }
+    }
+
+    if (!payload_sect) {
+        print_string("Could not find .payload section.\n");
+        return span<uint8_t>();
+    }
+
+    auto payload_size = *(uint64_t*)((uintptr_t)image->ImageBase + payload_sect->VirtualAddress);
+    auto payload_data = (uint8_t*)((uintptr_t)image->ImageBase + payload_sect->VirtualAddress + sizeof(uint64_t));
+
+    { // FIXME
+        char s[255];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "payload_size = ");
+        sp = sp_itoa_hex(sp, payload_size);
+        sp = sp_strcpy(sp, ", payload_data = ");
+        sp = sp_itoa_hex(sp, (uintptr_t)payload_data);
+        sp = sp_strcpy(sp, "\n");
+
+        print_string(string_view(s, sp.data() - s));
+    }
+
+    return span(payload_data, payload_size);
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     UINTN key_event = 0;
@@ -277,6 +371,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         print_error("get_image_information", Status);
         return Status;
     }
+
+    auto payload = find_payload(image);
+    if (payload.empty())
+        return EFI_LOAD_ERROR;
 
     system_table->ConOut->OutputString(system_table->ConOut, (CHAR16*)L"Hello world!\r\n");
 

@@ -74,8 +74,11 @@ SECTIONS
     syssize = (ABSOLUTE(pm_end) - ABSOLUTE(text)) / 16;
 
     .payload : {
+        efi_payload_begin = ABSOLUTE(.) - 0x100000 + setup_size;
+        efi_payload = ABSOLUTE(.);
         *payload.s.obj(.payload)
         . = ALIGN(4096);
+        efi_payload_size = ABSOLUTE(.) - efi_payload;
         efi_begin = ABSOLUTE(.) - 0x100000 + setup_size;
     }
 
@@ -103,8 +106,9 @@ SECTIONS
     }
 
     efi_rdata_vma = 0x1000 + efi_text_size + efi_data_size;
+    efi_payload_vma = 0x1000 + efi_text_size + efi_data_size + efi_rdata_size;
 
-    size_of_image = efi_text_size + efi_data_size + efi_rdata_size + 0x1000;
+    size_of_image = efi_text_size + efi_data_size + efi_rdata_size + efi_payload_size + 0x1000;
     efi_entry_point = efi_main - efi_text;
-    size_of_initialized_data = efi_data_size + efi_rdata_size;
+    size_of_initialized_data = efi_data_size + efi_rdata_size + efi_payload_size;
 }
