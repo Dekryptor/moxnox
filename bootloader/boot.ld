@@ -1,6 +1,8 @@
 OUTPUT_FORMAT("binary")
 OUTPUT_ARCH("i386")
 TARGET("pe-i386")
+/* OUTPUT_ARCH("i386:x86-64") */
+/* TARGET("pe-x86-64") */
 SECTIONS
 {
     .boot 0 : AT(0) {
@@ -80,6 +82,7 @@ SECTIONS
     .efi_text : AT(efi_begin) {
         efi_text = ABSOLUTE(.);
         *efi.s.obj(.text)
+        *efi.cpp.obj(.text)
         . = ALIGN(4096);
         efi_text_size = ABSOLUTE(.) - efi_text;
     }
@@ -88,6 +91,7 @@ SECTIONS
         efi_data_begin = ABSOLUTE(.) - 0x100000 + setup_size;
         efi_data = ABSOLUTE(.);
         *efi.s.obj(.data)
+        *efi.cpp.obj(.data)
         . = ALIGN(4096);
         efi_data_size = ABSOLUTE(.) - efi_data;
     }

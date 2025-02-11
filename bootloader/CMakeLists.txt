@@ -16,6 +16,14 @@ set(CMAKE_C_LINK_EXECUTABLE "g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OB
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
+add_library(efistub SHARED efi.cpp)
+
+add_custom_command(
+    TARGET efistub
+    POST_BUILD
+    COMMAND objcopy -O coff-i386 "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/efistub.dir/efi.cpp.obj" "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
+)
+
 set(SRC_FILES boot.S
     pm.s
     rm-main.cpp
@@ -24,10 +32,10 @@ set(SRC_FILES boot.S
     ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
 add_executable(boot ${SRC_FILES})
-add_dependencies(boot kernel)
+add_dependencies(boot kernel efistub)
 
 target_compile_options(boot PUBLIC -march=i386 -m32 -fno-ident -fno-pic -ffreestanding -fno-leading-underscore -fno-exceptions -masm=intel)
-target_link_options(boot PUBLIC -Wl,-T ${CMAKE_SOURCE_DIR}/bootloader/boot.ld -nostartfiles -nostdlib)
+target_link_options(boot PUBLIC -Wl,-T ${CMAKE_SOURCE_DIR}/bootloader/boot.ld -nostartfiles -nostdlib ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
 
 set_source_files_properties(rm-main.cpp PROPERTIES COMPILE_OPTIONS "-m16;-Wa,--32")
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/payload.s PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/kernel/kernel.exe)
