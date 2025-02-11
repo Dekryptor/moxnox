@@ -20,6 +20,7 @@ set(SRC_FILES boot.S
     pm.s
     rm-main.cpp
     pm-main.cpp
+    efi.s
     ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
 add_executable(boot ${SRC_FILES})

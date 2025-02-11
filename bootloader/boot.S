@@ -27,6 +27,8 @@
 
 .section ".boot", "a"
 
+.set	section_align, 0x1000
+
 file_start:
 # IMAGE_DOS_HEADER
 .short	0x5a4d # e_magic
@@ -67,7 +69,7 @@ pe_start:
 
 # IMAGE_FILE_HEADER
 .short	0x8664 # Machine
-.short	3 # NumberOfSections (FIXME)
+.short	1 # NumberOfSections
 .long	0 # TimeDateStamp
 .long	0 # PointerToSymbolTable
 .long	0 # NumberOfSymbols
@@ -79,13 +81,13 @@ optional_header_start:
 .short	0x20b # Magic
 .byte	0x2 # MajorLinkerVersion
 .byte	0x14 # MinorLinkerVersion
-.long	0xbd8000 # SizeOfCode (FIXME)
+.long	efi_text_size # SizeOfCode
 .long	0x59000 # SizeOfInitializedData (FIXME)
 .long	0 # SizeOfUninitializedData
-.long	0xbd5a0c # AddressOfEntryPoint (FIXME)
+.long	efi_startup # AddressOfEntryPoint
 .long	0x4000 # BaseOfCode (FIXME)
 .quad	0 # ImageBase
-.long	0x1000 # SectionAlignment
+.long	section_align # SectionAlignment
 .long	0x200 # FileAlignment
 .short	0 # MajorOperatingSystemVersion
 .short	0 # MinorOperatingSystemVersion
@@ -95,7 +97,7 @@ optional_header_start:
 .short	0 # MinorSubsystemVersion
 .long	0 # Win32VersionValue
 .long	0xc35000 # SizeOfImage (FIXME)
-.long	0x1000 # SizeOfHeaders
+.long	section_align # SizeOfHeaders
 .long	0 # CheckSum
 .short	0xa # Subsystem (EFI)
 .short	0x100 # DllCharacteristics (IMAGE_DLLCHARACTERISTICS_NX_COMPAT)
@@ -107,46 +109,46 @@ optional_header_start:
 .long	0 # NumberOfRvaAndSizes
 optional_header_end:
 
-# IMAGE_SECTION_HEADER
-.ascii	".setup"
-.space	2
-.long	0x3000 # VirtualSize
-.long	0x1000 # VirtualAddress
-.long	0x3000 # SizeOfRawData
-.long	0x1000 # PointerToRawData
-.long	0 # PointerToRelocations
-.long	0 # PointerToLinenumbers
-.short	0 # NumberOfRelocations
-.short	0 # NumberOfLinenumbers
-.long	0x42000040 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_DISCARDABLE | IMAGE_SCN_CNT_INITIALIZED_DATA)
+# # IMAGE_SECTION_HEADER
+# .ascii	".setup"
+# .space	2
+# .long	0x4000 - section_align # VirtualSize
+# .long	section_align # VirtualAddress
+# .long	0x4000 - section_align # SizeOfRawData
+# .long	section_align # PointerToRawData
+# .long	0 # PointerToRelocations
+# .long	0 # PointerToLinenumbers
+# .short	0 # NumberOfRelocations
+# .short	0 # NumberOfLinenumbers
+# .long	0x42000040 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_DISCARDABLE | IMAGE_SCN_CNT_INITIALIZED_DATA)
 
 # IMAGE_SECTION_HEADER
 .ascii	".text"
 .space	3
-.long	0xbd8000 # VirtualSize
-.long	0x4000 # VirtualAddress
-.long	0xbd8000 # SizeOfRawData
-.long	0x4000 # PointerToRawData
+.long	efi_text_size # VirtualSize
+.long	efi_text # VirtualAddress
+.long	efi_text_size # SizeOfRawData
+.long	efi_begin # PointerToRawData
 .long	0 # PointerToRelocations
 .long	0 # PointerToLinenumbers
 .short	0 # NumberOfRelocations
 .short	0 # NumberOfLinenumbers
 .long	0x60000020 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE)
 
-# IMAGE_SECTION_HEADER
-.ascii	".data"
-.space	3
-.long	0x59000 # VirtualSize
-.long	0xbdc000 # VirtualAddress
-.long	0x4000 # SizeOfRawData
-.long	0xbdc000 # PointerToRawData
-.long	0 # PointerToRelocations
-.long	0 # PointerToLinenumbers
-.short	0 # NumberOfRelocations
-.short	0 # NumberOfLinenumbers
-.long	0xc0000040 # Characteristics (IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
+# # IMAGE_SECTION_HEADER
+# .ascii	".data"
+# .space	3
+# .long	0x59000 # VirtualSize
+# .long	0xbdc000 # VirtualAddress
+# .long	0x4000 # SizeOfRawData
+# .long	0xbdc000 # PointerToRawData
+# .long	0 # PointerToRelocations
+# .long	0 # PointerToLinenumbers
+# .short	0 # NumberOfRelocations
+# .short	0 # NumberOfLinenumbers
+# .long	0xc0000040 # Characteristics (IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
 
-.space  0xb1, 0xff
+.space  0x101, 0xff
 
 .byte	setup_sects - 1
 .short	1 # root_flags (ROOT_RDONLY)

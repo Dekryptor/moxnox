@@ -73,5 +73,14 @@ SECTIONS
 
     .payload : {
         *payload.s.obj(.payload)
+        . = ALIGN(4096);
+        efi_begin = ABSOLUTE(.) - 0x100000 + setup_size;
+    }
+
+    .efi_text : AT(efi_begin) {
+        efi_text = ABSOLUTE(.);
+        *efi.s.obj(.text)
+        . = ALIGN(4096);
+        efi_text_size = ABSOLUTE(.) - efi_text;
     }
 }
