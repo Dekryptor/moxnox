@@ -9,11 +9,34 @@ using namespace std;
 static EFI_SYSTEM_TABLE* systable __attribute__((section (".data")));
 static EFI_BOOT_SERVICES* bs __attribute__((section (".data")));
 
-static uintptr_t KERNEL_ADDR = 0xfffff80000000000;
-static unsigned int KERNEL_STACK_PAGES = 4;
+static const uintptr_t KERNEL_ADDR = 0xfffff80000000000;
+
+static const uint64_t KERNEL_STACK = 0xfffff90000000000;
+static const unsigned int KERNEL_STACK_PAGES = 4;
 
 static map_entry map[256] __attribute__((section (".data")));
 static unsigned int num_map_entries = 0;
+
+struct HARDWARE_PTE {
+    uint64_t Valid:1;
+    uint64_t Write:1;
+    uint64_t Owner:1;
+    uint64_t WriteThrough:1;
+    uint64_t CacheDisable:1;
+    uint64_t Accessed:1;
+    uint64_t Dirty:1;
+    uint64_t LargePage:1;
+    uint64_t Global:1;
+    uint64_t CopyOnWrite:1;
+    uint64_t Prototype:1;
+    uint64_t reserved0:1;
+    uint64_t PageFrameNumber:28;
+    uint64_t reserved1:12;
+    uint64_t SoftwareWsIndex:11;
+    uint64_t NoExecute:1;
+} __attribute__((packed));
+
+static HARDWARE_PTE* pml4t __attribute__((section (".data")));
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE);
@@ -835,12 +858,195 @@ static EFI_STATUS get_memory_map() {
     return EFI_SUCCESS;
 }
 
+static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
+    EFI_STATUS status;
+    uint32_t pml4t_offset, pdpt_offset, pdt_offset, pt_offset;
+    HARDWARE_PTE *pdpt, *pdt, *pt;
+
+    pml4t_offset = (va >> 39) & 0x1ff;
+
+    if (!pml4t[pml4t_offset].Valid) {
+        EFI_PHYSICAL_ADDRESS new_page;
+
+        status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
+        if (EFI_ERROR(status)) {
+            print_error("AllocatePages", status);
+            return status;
+        }
+
+        memset((void*)new_page, 0, EFI_PAGE_SIZE);
+
+        pml4t[pml4t_offset].Valid = 1;
+        pml4t[pml4t_offset].Write = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pml4t[pml4t_offset].PageFrameNumber = ((uintptr_t)new_page) >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    }
+
+    pdpt = (HARDWARE_PTE*)((uintptr_t)pml4t[pml4t_offset].PageFrameNumber << EFI_PAGE_SHIFT);
+
+    pdpt_offset = (va >> 30) & 0x1ff;
+
+    if (!pdpt[pdpt_offset].Valid) {
+        EFI_PHYSICAL_ADDRESS new_page;
+
+        status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
+        if (EFI_ERROR(status)) {
+            print_error("AllocatePages", status);
+            return status;
+        }
+
+        memset((void*)new_page, 0, EFI_PAGE_SIZE);
+
+        pdpt[pdpt_offset].Valid = 1;
+        pdpt[pdpt_offset].Write = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pdpt[pdpt_offset].PageFrameNumber = ((uintptr_t)new_page) >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    }
+
+    pdt = (HARDWARE_PTE*)((uintptr_t)pdpt[pdpt_offset].PageFrameNumber << EFI_PAGE_SHIFT);
+
+    pdt_offset = (va >> 21) & 0x1ff;
+
+    if (!pdt[pdt_offset].Valid) {
+        EFI_PHYSICAL_ADDRESS new_page;
+
+        status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
+        if (EFI_ERROR(status)) {
+            print_error("AllocatePages", status);
+            return status;
+        }
+
+        memset((void*)new_page, 0, EFI_PAGE_SIZE);
+
+        pdt[pdt_offset].Valid = 1;
+        pdt[pdt_offset].Write = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pdt[pdt_offset].PageFrameNumber = ((uintptr_t)new_page) >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    }
+
+    pt = (HARDWARE_PTE*)((uintptr_t)pdt[pdt_offset].PageFrameNumber << EFI_PAGE_SHIFT);
+
+    pt_offset = (va >> EFI_PAGE_SHIFT) & 0x1ff;
+
+    if (pt[pt_offset].Valid) {
+        char s[255];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "Mapping for ");
+        sp = sp_itoa_hex(sp, va);
+        sp = sp_strcpy(sp, " already set.\n");
+
+        print_string(string_view(s, sp.data() - s));
+        return EFI_INVALID_PARAMETER;
+    }
+
+    pt[pt_offset].Valid = 1;
+    pt[pt_offset].Write = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    pt[pt_offset].PageFrameNumber = pa >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS do_map(uint64_t va, uint64_t pa, uint64_t len) {
+    EFI_STATUS status;
+
+    while (len > 0) {
+        status = map_page(va, pa);
+
+        if (EFI_ERROR(status))
+            return status;
+
+        va += EFI_PAGE_SIZE;
+        pa += EFI_PAGE_SIZE;
+        len -= EFI_PAGE_SIZE;
+    }
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS setup_paging(uint64_t& cr3) {
+    EFI_STATUS status;
+    EFI_PHYSICAL_ADDRESS addr;
+    map_entry* map_copy;
+    unsigned int num_map_entries_copy;
+
+    status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
+    if (EFI_ERROR(status)) {
+        print_error("AllocatePages", status);
+        return status;
+    }
+
+    pml4t = (HARDWARE_PTE*)addr;
+
+    num_map_entries_copy = num_map_entries;
+
+    status = bs->AllocatePool(EfiLoaderData, sizeof(map_entry) * num_map_entries_copy, (void**)&map_copy);
+    if (EFI_ERROR(status)) {
+        print_error("AllocatePool", status);
+        return status;
+    }
+
+    memcpy(map_copy, map, sizeof(map_entry) * num_map_entries);
+
+    memset(pml4t, 0, EFI_PAGE_SIZE);
+
+    for (unsigned int i = 0; i < num_map_entries_copy; i++) {
+        switch (map_copy[i].type) {
+            case mem_type::bootloader:
+            case mem_type::acpi:
+                status = do_map(map_copy[i].addr, map_copy[i].addr, map_copy[i].len); // identity map
+
+                if (EFI_ERROR(status))
+                    return status;
+                break;
+
+            case mem_type::image:
+                status = do_map(KERNEL_ADDR, map_copy[i].addr, map_copy[i].len);
+
+                if (EFI_ERROR(status))
+                    return status;
+                break;
+
+            case mem_type::stack:
+                status = do_map(KERNEL_STACK, map_copy[i].addr, map_copy[i].len);
+
+                if (EFI_ERROR(status))
+                    return status;
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    // add recursive mapping
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].PageFrameNumber = (uintptr_t)pml4t >> EFI_PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
+
+    cr3 = (uintptr_t)pml4t;
+
+    return EFI_SUCCESS;
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     UINTN key_event = 0;
     EFI_STATUS Status;
     EFI_LOADED_IMAGE_PROTOCOL* image;
-    uint64_t entry_point, img_pa;
+    uint64_t entry_point, cr3, img_pa;
     size_t img_size;
     EFI_PHYSICAL_ADDRESS stack;
 
@@ -895,7 +1101,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
 
     // FIXME - add map entry for framebuffer
 
-    // FIXME - setup paging
+    Status = setup_paging(cr3);
+    if (EFI_ERROR(Status)) {
+        print_error("setup_paging", Status);
+        return Status;
+    }
 
     // FIXME - go
 
@@ -905,4 +1115,3 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
 
     return EFI_SUCCESS;
 }
-
