@@ -97,5 +97,5 @@ SECTIONS
     }
 
     size_of_image = efi_text_size + efi_data_size + 0x1000;
-    efi_entry_point = efi_startup - efi_text + 0x1000;
+    efi_entry_point = efi_main - efi_text + 0x1000;
 }

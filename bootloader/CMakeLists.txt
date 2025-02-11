@@ -18,6 +18,8 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_D
 
 add_library(efistub SHARED efi.cpp)
 
+target_include_directories(efistub PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../efi/gnu-efi/inc ${CMAKE_CURRENT_SOURCE_DIR}/../efi/gnu-efi/inc/x86_64)
+
 add_custom_command(
     TARGET efistub
     POST_BUILD
@@ -39,6 +41,7 @@ target_link_options(boot PUBLIC -Wl,-T ${CMAKE_SOURCE_DIR}/bootloader/boot.ld -n
 
 set_source_files_properties(rm-main.cpp PROPERTIES COMPILE_OPTIONS "-m16;-Wa,--32")
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/payload.s PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/kernel/kernel.exe)
+set_source_files_properties(boot.S PROPERTIES OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj")
 
 set_property(TARGET boot PROPERTY LINKER_LANGUAGE C) # HACK
 set_property(TARGET boot PROPERTY LINK_DEPENDS ${CMAKE_SOURCE_DIR}/bootloader/boot.ld)
