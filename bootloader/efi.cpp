@@ -1,7 +1,5 @@
 #include <efi.h>
 
-unsigned int answer = 42;
-
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     UINTN key_event = 0;
