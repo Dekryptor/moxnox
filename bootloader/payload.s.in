@@ -1,13 +1,12 @@
 .intel_syntax noprefix
 
 .section .payload
-.globl payload_data
-payload_data:
-.incbin "${CMAKE_BINARY_DIR}/kernel/kernel.exe"
 
-payload_end:
-
-.section .rdata
 .globl payload_size
 payload_size:
 .quad payload_end - payload_data
+
+.globl payload_data
+payload_data:
+.incbin "${CMAKE_BINARY_DIR}/kernel/kernel.exe"
+payload_end:
