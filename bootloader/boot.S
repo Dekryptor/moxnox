@@ -69,7 +69,7 @@ pe_start:
 
 # IMAGE_FILE_HEADER
 .short	0x8664 # Machine
-.short	1 # NumberOfSections
+.short	2 # NumberOfSections
 .long	0 # TimeDateStamp
 .long	0 # PointerToSymbolTable
 .long	0 # NumberOfSymbols
@@ -82,11 +82,12 @@ optional_header_start:
 .byte	0x2 # MajorLinkerVersion
 .byte	0x14 # MinorLinkerVersion
 .long	efi_text_size # SizeOfCode
-.long	0x59000 # SizeOfInitializedData (FIXME)
+.long	efi_data_size # SizeOfInitializedData
 .long	0 # SizeOfUninitializedData
-.long	efi_startup # AddressOfEntryPoint
-.long	0x4000 # BaseOfCode (FIXME)
-.quad	0 # ImageBase
+.long	efi_entry_point # AddressOfEntryPoint
+.long	0x1000 # BaseOfCode
+.long	efi_text - 0x1000 # ImageBase
+.long	0
 .long	section_align # SectionAlignment
 .long	0x200 # FileAlignment
 .short	0 # MajorOperatingSystemVersion
@@ -96,7 +97,7 @@ optional_header_start:
 .short	0 # MajorSubsystemVersion
 .short	0 # MinorSubsystemVersion
 .long	0 # Win32VersionValue
-.long	0xc35000 # SizeOfImage (FIXME)
+.long	size_of_image # SizeOfImage
 .long	section_align # SizeOfHeaders
 .long	0 # CheckSum
 .short	0xa # Subsystem (EFI)
@@ -126,7 +127,7 @@ optional_header_end:
 .ascii	".text"
 .space	3
 .long	efi_text_size # VirtualSize
-.long	efi_text # VirtualAddress
+.long	0x1000 # VirtualAddress
 .long	efi_text_size # SizeOfRawData
 .long	efi_begin # PointerToRawData
 .long	0 # PointerToRelocations
@@ -135,20 +136,20 @@ optional_header_end:
 .short	0 # NumberOfLinenumbers
 .long	0x60000020 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE)
 
-# # IMAGE_SECTION_HEADER
-# .ascii	".data"
-# .space	3
-# .long	0x59000 # VirtualSize
-# .long	0xbdc000 # VirtualAddress
-# .long	0x4000 # SizeOfRawData
-# .long	0xbdc000 # PointerToRawData
-# .long	0 # PointerToRelocations
-# .long	0 # PointerToLinenumbers
-# .short	0 # NumberOfRelocations
-# .short	0 # NumberOfLinenumbers
-# .long	0xc0000040 # Characteristics (IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
+# IMAGE_SECTION_HEADER
+.ascii	".data"
+.space	3
+.long	efi_data_size # VirtualSize
+.long	0x1000 + efi_text_size # VirtualAddress
+.long	efi_data_size # SizeOfRawData
+.long	efi_data_begin # PointerToRawData
+.long	0 # PointerToRelocations
+.long	0 # PointerToLinenumbers
+.short	0 # NumberOfRelocations
+.short	0 # NumberOfLinenumbers
+.long	0xc0000040 # Characteristics (IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
 
-.space  0x101, 0xff
+.space  0xd9, 0xff
 
 .byte	setup_sects - 1
 .short	1 # root_flags (ROOT_RDONLY)

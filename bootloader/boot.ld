@@ -83,4 +83,15 @@ SECTIONS
         . = ALIGN(4096);
         efi_text_size = ABSOLUTE(.) - efi_text;
     }
+
+    .efi_data : {
+        efi_data_begin = ABSOLUTE(.) - 0x100000 + setup_size;
+        efi_data = ABSOLUTE(.);
+        *efi.s.obj(.data)
+        . = ALIGN(4096);
+        efi_data_size = ABSOLUTE(.) - efi_data;
+    }
+
+    size_of_image = efi_text_size + efi_data_size + 0x1000;
+    efi_entry_point = efi_startup - efi_text + 0x1000;
 }

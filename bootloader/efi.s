@@ -5,3 +5,6 @@
 efi_startup:
 # FIXME
 jmp efi_startup
+
+.data
+.asciz "hello world!\r\n"
