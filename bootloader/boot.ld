@@ -81,7 +81,6 @@ SECTIONS
 
     .efi_text : AT(efi_begin) {
         efi_text = ABSOLUTE(.);
-        *efi.s.obj(.text)
         *efi.cpp.obj(.text)
         . = ALIGN(4096);
         efi_text_size = ABSOLUTE(.) - efi_text;
@@ -90,12 +89,22 @@ SECTIONS
     .efi_data : {
         efi_data_begin = ABSOLUTE(.) - 0x100000 + setup_size;
         efi_data = ABSOLUTE(.);
-        *efi.s.obj(.data)
         *efi.cpp.obj(.data)
         . = ALIGN(4096);
         efi_data_size = ABSOLUTE(.) - efi_data;
     }
 
-    size_of_image = efi_text_size + efi_data_size + 0x1000;
-    efi_entry_point = efi_main - efi_text + 0x1000;
+    .efi_rdata : {
+        efi_rdata_begin = ABSOLUTE(.) - 0x100000 + setup_size;
+        efi_rdata = ABSOLUTE(.);
+        *efi.cpp.obj(.rdata)
+        . = ALIGN(4096);
+        efi_rdata_size = ABSOLUTE(.) - efi_rdata;
+    }
+
+    efi_rdata_vma = 0x1000 + efi_text_size + efi_data_size;
+
+    size_of_image = efi_text_size + efi_data_size + efi_rdata_size + 0x1000;
+    efi_entry_point = efi_main - efi_text;
+    size_of_initialized_data = efi_data_size + efi_rdata_size;
 }

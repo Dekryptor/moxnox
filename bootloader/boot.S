@@ -69,7 +69,7 @@ pe_start:
 
 # IMAGE_FILE_HEADER
 .short	0x8664 # Machine
-.short	2 # NumberOfSections
+.short	3 # NumberOfSections
 .long	0 # TimeDateStamp
 .long	0 # PointerToSymbolTable
 .long	0 # NumberOfSymbols
@@ -82,7 +82,7 @@ optional_header_start:
 .byte	0x2 # MajorLinkerVersion
 .byte	0x14 # MinorLinkerVersion
 .long	efi_text_size # SizeOfCode
-.long	efi_data_size # SizeOfInitializedData
+.long	size_of_initialized_data # SizeOfInitializedData
 .long	0 # SizeOfUninitializedData
 .long	efi_entry_point # AddressOfEntryPoint
 .long	0x1000 # BaseOfCode
@@ -110,19 +110,6 @@ optional_header_start:
 .long	0 # NumberOfRvaAndSizes
 optional_header_end:
 
-# # IMAGE_SECTION_HEADER
-# .ascii	".setup"
-# .space	2
-# .long	0x4000 - section_align # VirtualSize
-# .long	section_align # VirtualAddress
-# .long	0x4000 - section_align # SizeOfRawData
-# .long	section_align # PointerToRawData
-# .long	0 # PointerToRelocations
-# .long	0 # PointerToLinenumbers
-# .short	0 # NumberOfRelocations
-# .short	0 # NumberOfLinenumbers
-# .long	0x42000040 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_DISCARDABLE | IMAGE_SCN_CNT_INITIALIZED_DATA)
-
 # IMAGE_SECTION_HEADER
 .ascii	".text"
 .space	3
@@ -149,7 +136,20 @@ optional_header_end:
 .short	0 # NumberOfLinenumbers
 .long	0xc0000040 # Characteristics (IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
 
-.space  0xd9, 0xff
+# IMAGE_SECTION_HEADER
+.ascii	".rdata"
+.space	2
+.long	efi_rdata_size # VirtualSize
+.long	efi_rdata_vma # VirtualAddress
+.long	efi_rdata_size # SizeOfRawData
+.long	efi_rdata_begin # PointerToRawData
+.long	0 # PointerToRelocations
+.long	0 # PointerToLinenumbers
+.short	0 # NumberOfRelocations
+.short	0 # NumberOfLinenumbers
+.long	0x40000040 # Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
+
+.space  0xb1, 0xff
 
 .byte	setup_sects - 1
 .short	1 # root_flags (ROOT_RDONLY)

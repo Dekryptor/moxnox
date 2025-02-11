@@ -19,18 +19,18 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_D
 add_library(efistub SHARED efi.cpp)
 
 target_include_directories(efistub PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../efi/gnu-efi/inc ${CMAKE_CURRENT_SOURCE_DIR}/../efi/gnu-efi/inc/x86_64)
+target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0)
 
 add_custom_command(
     TARGET efistub
     POST_BUILD
-    COMMAND objcopy -O coff-i386 "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/efistub.dir/efi.cpp.obj" "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
+    COMMAND objcopy -O coff-i386 "${CMAKE_CURRENT_BINARY_DIR}/efistub.dll" "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
 )
 
 set(SRC_FILES boot.S
     pm.s
     rm-main.cpp
     pm-main.cpp
-    efi.s
     ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
 add_executable(boot ${SRC_FILES})
