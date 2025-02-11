@@ -38,6 +38,18 @@ struct HARDWARE_PTE {
 
 static HARDWARE_PTE* pml4t __attribute__((section (".data")));
 
+struct RSDP_DESCRIPTOR {
+    char signature[8];
+    uint8_t checksum;
+    char oem_id [6];
+    uint8_t revision;
+    uint32_t rsdt_physical_address;
+    uint32_t length;
+    uint64_t xsdt_physical_address;
+    uint8_t extended_checksum;
+    char reserved[3];
+} __attribute__((packed));
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE);
 }
@@ -1041,12 +1053,46 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
     return EFI_SUCCESS;
 }
 
+static EFI_STATUS find_acpi_tables(uint64_t& addr) {
+    EFI_GUID acpi2_guid = ACPI_20_TABLE_GUID;
+    RSDP_DESCRIPTOR* rsdp = nullptr;
+
+    for (unsigned int i = 0; i < systable->NumberOfTableEntries; i++) {
+        if (!memcmp(&systable->ConfigurationTable[i].VendorGuid, &acpi2_guid, sizeof(EFI_GUID))) {
+            rsdp = (RSDP_DESCRIPTOR*)systable->ConfigurationTable[i].VendorTable;
+            break;
+        }
+    }
+
+    if (!rsdp) {
+        print_string("ACPI 2.0 tables not found\n");
+        return EFI_NOT_FOUND;
+    }
+
+    if (rsdp->revision == 2)
+        addr = rsdp->xsdt_physical_address;
+    else {
+        char s[255];
+        auto sp = span(s, sizeof(s));
+
+        sp = sp_strcpy(sp, "Unrecognized ACPI revision ");
+        sp = sp_itoa_hex(sp, rsdp->revision);
+        sp = sp_strcpy(sp, "\n");
+
+        print_string(string_view(s, sp.data() - s));
+
+        return EFI_INVALID_PARAMETER;
+    }
+
+    return EFI_SUCCESS;
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     UINTN key_event = 0;
     EFI_STATUS Status;
     EFI_LOADED_IMAGE_PROTOCOL* image;
-    uint64_t entry_point, cr3, img_pa;
+    uint64_t entry_point, cr3, img_pa, acpi_tables;
     size_t img_size;
     EFI_PHYSICAL_ADDRESS stack;
 
@@ -1077,7 +1123,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         return Status;
     }
 
-    // FIXME - find ACPI tables
+    Status = find_acpi_tables(acpi_tables);
+    if (EFI_ERROR(Status)) {
+        print_error("find_acpi_tables", Status);
+        return Status;
+    }
 
     // FIXME - init framebuffer
 
