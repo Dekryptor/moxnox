@@ -19,7 +19,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_D
 add_library(efistub SHARED efi.cpp)
 
 target_include_directories(efistub PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../efi/gnu-efi/inc ${CMAKE_CURRENT_SOURCE_DIR}/../efi/gnu-efi/inc/x86_64)
-target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden)
+target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-zero-initialized-in-bss)
 target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0 -Wl,--exclude-all-symbols)
 
 add_custom_command(

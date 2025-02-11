@@ -2,13 +2,18 @@
 #include <string_view>
 #include <span>
 #include <pe.h>
+#include <loaderblock.h>
 
 using namespace std;
 
-static EFI_SYSTEM_TABLE* systable;
-static EFI_BOOT_SERVICES* bs;
+static EFI_SYSTEM_TABLE* systable __attribute__((section (".data")));
+static EFI_BOOT_SERVICES* bs __attribute__((section (".data")));
 
 static uintptr_t KERNEL_ADDR = 0xfffff80000000000;
+static unsigned int KERNEL_STACK_PAGES = 4;
+
+static map_entry map[256] __attribute__((section (".data")));
+static unsigned int num_map_entries = 0;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE);
@@ -597,6 +602,239 @@ EFI_STATUS load_pe(span<const uint8_t> payload, uint64_t va, uint64_t& entry_poi
     return EFI_SUCCESS;
 }
 
+static void insert_map_entry(int i) {
+    // FIXME - memmove?
+    for (int j = num_map_entries - 1; j >= i; j--) {
+        memcpy(&map[j+1], &map[j], sizeof(map_entry));
+    }
+}
+
+static void remove_map_entry(int i) {
+    memcpy(&map[i], &map[i+1], (num_map_entries - i - 1) * sizeof(map_entry));
+    num_map_entries--;
+}
+
+static EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type) {
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        if (map[i].addr >= start && map[i].addr + map[i].len <= start + len) { // remove whole entry
+            remove_map_entry(i);
+            i--;
+        } else if (map[i].addr >= start && map[i].addr < start + len) { // remove start
+            map[i].len = map[i].addr + map[i].len - start - len;
+            map[i].addr = start + len;
+
+            if (map[i].len == 0) {
+                remove_map_entry(i);
+                i--;
+            }
+        } else if (map[i].addr + map[i].len > start && map[i].addr + map[i].len <= start + len) { // remove end
+            map[i].len = start - map[i].addr;
+
+            if (map[i].len == 0) {
+                remove_map_entry(i);
+                i--;
+            }
+        } else if (start > map[i].addr && start + len < map[i].addr + map[i].len) { // remove middle
+            if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+                print_string("Too many map entries.\n");
+                return EFI_INVALID_PARAMETER;
+            }
+
+            insert_map_entry(i);
+            num_map_entries++;
+
+            map[i].len = start - map[i].addr;
+            map[i+1].len = map[i+1].addr + map[i+1].len - start - len;
+            map[i+1].addr = start + len;
+        }
+    }
+
+    if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+        print_string("Too many map entries.\n");
+        return EFI_INVALID_PARAMETER;
+    }
+
+    if (start == 0) {
+        insert_map_entry(0);
+        map[0].addr = 0;
+        map[0].len = len;
+        map[0].type = type;
+        num_map_entries++;
+
+        return EFI_SUCCESS;
+    }
+
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        if (map[i].addr + map[i].len == start) {
+            insert_map_entry(i+1);
+
+            map[i+1].addr = start;
+            map[i+1].len = len;
+            map[i+1].type = type;
+
+            num_map_entries++;
+        }
+    }
+
+    return EFI_SUCCESS;
+}
+
+static enum mem_type map_efi_type(EFI_MEMORY_TYPE Type) {
+    switch (Type) {
+        case EfiReservedMemoryType:
+        case EfiUnusableMemory:
+        case EfiMemoryMappedIO:
+        case EfiMemoryMappedIOPortSpace:
+        case EfiPalCode:
+            return mem_type::reserved;
+
+        case EfiLoaderCode:
+        case EfiLoaderData:
+        case EfiBootServicesCode:
+        case EfiBootServicesData:
+            return mem_type::bootloader;
+
+        case EfiRuntimeServicesCode:
+            return mem_type::uefi_code;
+
+        case EfiRuntimeServicesData:
+            return mem_type::uefi_data;
+
+        case EfiConventionalMemory:
+            return mem_type::free;
+
+        case EfiACPIMemoryNVS:
+        case EfiACPIReclaimMemory:
+            return mem_type::acpi;
+
+        default:
+            return mem_type::reserved;
+    }
+}
+
+static EFI_STATUS get_memory_map() {
+    EFI_STATUS status;
+    UINTN map_size, key, descriptor_size;
+    UINT32 descriptor_version;
+    EFI_MEMORY_DESCRIPTOR* memory_map = nullptr;
+
+    map_size = 0;
+
+    status = bs->GetMemoryMap(&map_size, memory_map, &key, &descriptor_size, &descriptor_version);
+    if (status == EFI_SUCCESS) {
+        print_string("GetMemoryMap did not return memory map.\r\n");
+        return EFI_INVALID_PARAMETER;
+    } else if (status != EFI_BUFFER_TOO_SMALL) {
+        print_error("GetMemoryMap", status);
+        return status;
+    }
+
+    map_size *= 2; // some leeway, because AllocatePool can change things
+
+    status = bs->AllocatePool(EfiBootServicesData, map_size, (void**)&memory_map);
+    if (EFI_ERROR(status)) {
+        print_error("AllocatePool", status);
+        return status;
+    }
+
+    status = bs->GetMemoryMap(&map_size, memory_map, &key, &descriptor_size, &descriptor_version);
+    if (EFI_ERROR(status)) {
+        print_error("GetMemoryMap", status);
+        bs->FreePool(memory_map);
+        return status;
+    }
+
+    auto ptr = (uint8_t*)memory_map;
+    auto left = map_size;
+
+    while (left > descriptor_size) {
+        auto& m = *(EFI_MEMORY_DESCRIPTOR*)ptr;
+        auto& me = map[num_map_entries];
+
+        if (num_map_entries == sizeof(map) / sizeof(map[0])) {
+            print_string("Too many entries in memory map.\n");
+            bs->FreePool(memory_map);
+            return EFI_INVALID_PARAMETER;
+        }
+
+        me.addr = m.PhysicalStart;
+        me.len = m.NumberOfPages << EFI_PAGE_SHIFT;
+        me.type = map_efi_type((EFI_MEMORY_TYPE)m.Type);
+        num_map_entries++;
+
+        if (left == descriptor_size)
+            break;
+
+        ptr += descriptor_size;
+        left -= descriptor_size;
+    }
+
+    bs->FreePool(memory_map);
+
+    // FIXME - do we need to order memory map, and resolve any overlaps?
+
+    // add missing entries
+    if (map[0].addr != 0) {
+        if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+            print_string("Too many entries in memory map.\n");
+            return EFI_INVALID_PARAMETER;
+        }
+
+        insert_map_entry(0);
+
+        map[0].addr = 0;
+        map[0].len = map[1].addr;
+        map[0].type = mem_type::reserved;
+    } else {
+        if (map[0].type != mem_type::reserved) { // snatch first page
+            insert_map_entry(0);
+
+            map[0].addr = 0;
+            map[0].len = EFI_PAGE_SIZE;
+            map[0].type = mem_type::reserved;
+
+            map[1].addr += EFI_PAGE_SIZE;
+            map[1].len -= EFI_PAGE_SIZE;
+        }
+    }
+
+    for (unsigned int i = 0; i < num_map_entries - 1; i++) {
+        if (map[i].addr + map[i].len < map[i+1].addr) {
+            if (num_map_entries == sizeof(map) / sizeof(map_entry)) {
+                print_string("Too many entries in memory map.\n");
+                return EFI_INVALID_PARAMETER;
+            }
+
+            insert_map_entry(i+1);
+
+            map[i+1].addr = map[i].addr + map[i].len;
+            map[i+1].len = map[i+2].addr - map[i+1].addr;
+            map[i+1].type = mem_type::reserved;
+
+            num_map_entries++;
+        }
+    }
+
+    // merge entries with same type
+    for (unsigned int i = 1; i < num_map_entries; i++) {
+        auto& me1 = map[i - 1];
+        auto& me2 = map[i];
+
+        if (me2.addr == me1.addr + me1.len && me2.type == me1.type) {
+            me1.len += me2.len;
+            memcpy(&map[i], &map[i+1], (num_map_entries - i - 1) * sizeof(map_entry));
+            i--;
+            num_map_entries--;
+        }
+    }
+
+    // remove final entry if inaccessible
+    if (map[num_map_entries - 1].type == mem_type::reserved)
+        num_map_entries--;
+
+    return EFI_SUCCESS;
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     UINTN key_event = 0;
@@ -604,6 +842,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     EFI_LOADED_IMAGE_PROTOCOL* image;
     uint64_t entry_point, img_pa;
     size_t img_size;
+    EFI_PHYSICAL_ADDRESS stack;
 
     systable = system_table;
     bs = system_table->BootServices;
@@ -626,14 +865,35 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         return Status;
     }
 
-    // FIXME - allocate stack
+    Status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, KERNEL_STACK_PAGES, &stack);
+    if (EFI_ERROR(Status)) {
+        print_error("AllocatePages", Status);
+        return Status;
+    }
 
     // FIXME - find ACPI tables
 
     // FIXME - init framebuffer
 
-    // FIXME - get memory map
-    // FIXME - add map entries for image, stack, and framebuffer
+    Status = get_memory_map();
+    if (EFI_ERROR(Status)) {
+        print_error("get_memory_map", Status);
+        return Status;
+    }
+
+    Status = add_map_entry(img_pa, img_size, mem_type::image);
+    if (EFI_ERROR(Status)) {
+        print_error("add_map_entry", Status);
+        return Status;
+    }
+
+    Status = add_map_entry(stack, KERNEL_STACK_PAGES << EFI_PAGE_SHIFT, mem_type::stack);
+    if (EFI_ERROR(Status)) {
+        print_error("add_map_entry", Status);
+        return Status;
+    }
+
+    // FIXME - add map entry for framebuffer
 
     // FIXME - setup paging
 
