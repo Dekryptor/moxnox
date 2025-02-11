@@ -45,26 +45,26 @@ SECTIONS
 
     .text 0x100000 : AT(setup_size) {
         text = .;
-        *pm-main.o(.text)
+        *pm-main.cpp.obj(.text)
         . = ALIGN(4096);
     }
 
     .bss : {
         _bss_start = .;
-        *pm-main.o(.bss)
+        *pm-main.cpp.obj(.bss)
         _bss_end = .;
         . = ALIGN(16);
     }
 
     .rdata : {
-        *pm-main.o(.rdata)
-        *payload.o(.rdata)
+        *pm-main.cpp.obj(.rdata)
+        *payload.s.obj(.rdata)
         . = ALIGN(16);
     }
 
     .data : ALIGN(4096) {
-        *pm-main.o(.data)
-        *pm.o(.data)
+        *pm-main.cpp.obj(.data)
+        *pm.s.obj(.data)
         . = ALIGN(4096);
         pm_end = .;
     }
@@ -72,6 +72,6 @@ SECTIONS
     syssize = (ABSOLUTE(pm_end) - ABSOLUTE(text)) / 16;
 
     .payload : {
-        *payload.o(.payload)
+        *payload.s.obj(.payload)
     }
 }
