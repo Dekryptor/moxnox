@@ -9,7 +9,6 @@ include_directories(include)
 
 add_subdirectory(kernel)
 add_subdirectory(bootloader)
-add_subdirectory(efi)
 add_subdirectory(init)
 add_subdirectory(shell)
 add_subdirectory(ntdll)
