@@ -1532,6 +1532,11 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
             bs->CloseProtocol(handles[i], &edid_guid, image_handle, nullptr);
         }
 
+        if (have_edid && preferred_width == 0 && preferred_height == 0) {
+            preferred_width = ((uint16_t)(edid[0x3a] & 0xf0) << 4) | edid[0x38];
+            preferred_height = ((uint16_t)(edid[0x3d] & 0xf0) << 4) | edid[0x3b];
+        }
+
         for (unsigned int j = 0; j < gop->Mode->MaxMode; j++) {
             UINTN size;
             EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info;
