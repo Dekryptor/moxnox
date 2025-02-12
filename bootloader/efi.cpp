@@ -17,6 +17,15 @@ static const unsigned int KERNEL_STACK_PAGES = 4;
 static map_entry map[256] __attribute__((section (".data")));
 static unsigned int num_map_entries = 0;
 
+static uint64_t debug_info_ptr __attribute__((section (".data")));
+static uint64_t debug_abbrev_ptr __attribute__((section (".data")));
+static uint64_t debug_rnglists_ptr __attribute__((section (".data")));
+static uint64_t debug_str_ptr __attribute__((section (".data")));
+static uint32_t debug_info_size __attribute__((section (".data")));
+static uint32_t debug_abbrev_size __attribute__((section (".data")));
+static uint32_t debug_rnglists_size __attribute__((section (".data")));
+static uint32_t debug_str_size __attribute__((section (".data")));
+
 static loader_block lb __attribute__((section (".data")));
 
 struct HARDWARE_PTE {
@@ -556,11 +565,38 @@ static bool do_relocations(uint8_t* data, uint64_t va, IMAGE_NT_HEADERS* nt_head
     return true;
 }
 
+static string_view get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FILE_HEADER& file_header,
+                                    span<const uint8_t> payload) {
+    auto name = string_view(s.Name, sizeof(s.Name));
+
+    while (!name.empty() && name.back() == 0) {
+        name.remove_suffix(1);
+    }
+
+    if (name.empty() || name[0] != '/' || file_header.PointerToSymbolTable == 0)
+        return name;
+
+    // decode long section names
+
+    unsigned int num = 0;
+    uint32_t string_table = file_header.PointerToSymbolTable + (file_header.NumberOfSymbols * 18);
+
+    for (auto c : string_view(name.data() + 1, name.size() - 1)) {
+        num *= 10;
+
+        if (c >= '0' && c <= '9')
+            num += c - '0';
+        else
+            return name;
+    }
+
+    return string_view((char*)payload.data() + string_table + num);
+}
+
 EFI_STATUS load_pe(span<const uint8_t> payload, uint64_t va, uint64_t& entry_point, uint64_t& img_pa, size_t& img_size) {
     EFI_STATUS status;
     IMAGE_NT_HEADERS* nt_header;
     size_t size;
-    IMAGE_SECTION_HEADER* sections;
     EFI_PHYSICAL_ADDRESS pa;
 
     if (!check_header(payload, &nt_header))
@@ -580,33 +616,45 @@ EFI_STATUS load_pe(span<const uint8_t> payload, uint64_t va, uint64_t& entry_poi
 
     auto addr = (uint8_t*)pa;
 
-    if (nt_header->OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-        sections = (IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header->OptionalHeader64 + nt_header->FileHeader.SizeOfOptionalHeader);
-
-        // copy header
+    // copy header
+    if (nt_header->OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
         memcpy(addr, payload.data(), nt_header->OptionalHeader64.SizeOfHeaders);
-    } else {
-        sections = (IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header->OptionalHeader32 + nt_header->FileHeader.SizeOfOptionalHeader);
-
-        // copy header
+    else
         memcpy(addr, payload.data(), nt_header->OptionalHeader32.SizeOfHeaders);
-    }
 
-    for (unsigned int i = 0; i < nt_header->FileHeader.NumberOfSections; i++) {
+    span sects((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header->OptionalHeader64 + nt_header->FileHeader.SizeOfOptionalHeader),
+               nt_header->FileHeader.NumberOfSections);
+
+    for (const auto& s : sects) {
         uint32_t section_size;
+        auto name = get_section_name(s, nt_header->FileHeader, payload);
 
         // FIXME - check no overruns
 
-        section_size = sections[i].VirtualSize;
+        if (name == ".debug_info") {
+            debug_info_ptr = KERNEL_ADDR + s.VirtualAddress;
+            debug_info_size = s.VirtualSize;
+        } else if (name == ".debug_abbrev") {
+            debug_abbrev_ptr = KERNEL_ADDR + s.VirtualAddress;
+            debug_abbrev_size = s.VirtualSize;
+        } else if (name == ".debug_rnglists") {
+            debug_rnglists_ptr = KERNEL_ADDR + s.VirtualAddress;
+            debug_rnglists_size = s.VirtualSize;
+        } else if (name == ".debug_str") {
+            debug_str_ptr = KERNEL_ADDR + s.VirtualAddress;
+            debug_str_size = s.VirtualSize;
+        }
 
-        if (sections[i].SizeOfRawData < section_size)
-            section_size = sections[i].SizeOfRawData;
+        section_size = s.VirtualSize;
 
-        if (section_size > 0 && sections[i].PointerToRawData != 0)
-            memcpy(addr + sections[i].VirtualAddress, payload.data() + sections[i].PointerToRawData, section_size);
+        if (s.SizeOfRawData < section_size)
+            section_size = s.SizeOfRawData;
 
-        if (section_size < sections[i].VirtualSize) // if short, pad with zeroes
-            memset(addr + sections[i].VirtualAddress + section_size, 0, sections[i].VirtualSize - section_size);
+        if (section_size > 0 && s.PointerToRawData != 0)
+            memcpy(addr + s.VirtualAddress, payload.data() + s.PointerToRawData, section_size);
+
+        if (section_size < s.VirtualSize) // if short, pad with zeroes
+            memset(addr + s.VirtualAddress + section_size, 0, s.VirtualSize - section_size);
     }
 
     if (!do_relocations(addr, va, nt_header))
@@ -1197,14 +1245,14 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     lb.text_mode = false;
     lb.cmdline = 0; // FIXME
     lb.edid = 0; // FIXME
-    lb.debug_info_ptr = 0; // FIXME
-    lb.debug_info_size = 0; // FIXME
-    lb.debug_abbrev_ptr = 0; // FIXME
-    lb.debug_abbrev_size = 0; // FIXME
-    lb.debug_rnglists_ptr = 0; // FIXME
-    lb.debug_rnglists_size = 0; // FIXME
-    lb.debug_str_ptr = 0; // FIXME
-    lb.debug_str_size = 0; // FIXME
+    lb.debug_info_ptr = debug_info_ptr;
+    lb.debug_info_size = debug_info_size;
+    lb.debug_abbrev_ptr = debug_abbrev_ptr;
+    lb.debug_abbrev_size = debug_abbrev_size;
+    lb.debug_rnglists_ptr = debug_rnglists_ptr;
+    lb.debug_rnglists_size = debug_rnglists_size;
+    lb.debug_str_ptr = debug_str_ptr;
+    lb.debug_str_size = debug_str_size;
 
     // exit boot services
 
