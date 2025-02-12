@@ -1410,11 +1410,95 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     return EFI_SUCCESS; // never reached
 }
 
+static char* strstr(const char* haystack, const char* needle) {
+    size_t len = strlen(needle);
+
+    while (true) {
+        bool found = true;
+
+        for (size_t i = 0; i < len; i++) {
+            if (haystack[i] == 0)
+                return nullptr;
+
+            if (haystack[i] != needle[i]) {
+                found = false;
+                break;
+            }
+        }
+
+        if (found)
+            return (char*)haystack;
+
+        haystack++;
+    }
+
+    return nullptr;
+}
+
+static void parse_video_option(unsigned int& preferred_width,
+                               unsigned int& preferred_height) {
+    if (cmdline[0] == 0)
+        return;
+
+    static const char param[] = "video=";
+
+    auto ptr = strstr(cmdline, param);
+    if (!ptr)
+        return;
+
+    ptr += sizeof(param) - 1;
+
+    auto sv = string_view(ptr);
+
+    for (size_t i = 0; i < sv.size(); i++) {
+        if (sv[i] == ' ') {
+            sv = string_view(sv.data(), i);
+            break;
+        }
+    }
+
+    preferred_width = preferred_height = 0;
+
+    while (!sv.empty()) {
+        if (sv.front() == 'x')
+            break;
+        else if (sv.front() >= '0' && sv.front() <= '9') {
+            preferred_width *= 10;
+            preferred_width += sv.front() - '0';
+        } else
+            break;
+
+        sv = string_view(sv.data() + 1, sv.size() - 1);
+    }
+
+    if (sv.empty() || sv.front() != 'x') {
+        preferred_width = 0;
+        return;
+    }
+
+    sv = string_view(sv.data() + 1, sv.size() - 1);
+
+    while (!sv.empty()) {
+        if (sv.front() >= '0' && sv.front() <= '9') {
+            preferred_height *= 10;
+            preferred_height += sv.front() - '0';
+        } else {
+            preferred_width = preferred_height = 0;
+            return;
+        }
+
+        sv = string_view(sv.data() + 1, sv.size() - 1);
+    }
+}
+
 static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
     EFI_GUID guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     EFI_HANDLE* handles = NULL;
     UINTN count;
     EFI_STATUS status;
+    unsigned int preferred_width = 0, preferred_height = 0;
+
+    parse_video_option(preferred_width, preferred_height);
 
     status = bs->LocateHandleBuffer(ByProtocol, &guid, NULL, &count, &handles);
     if (EFI_ERROR(status))
@@ -1443,11 +1527,20 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
             }
 
             // choose the best mode
-            // FIXME - parse cmdline for video param
 
-            if (info->PixelFormat == PixelBlueGreenRedReserved8BitPerColor &&
-                info->HorizontalResolution != info->VerticalResolution && // ignore the square resolutions that Qemu offers
-                info->HorizontalResolution * info->VerticalResolution > pixels) {
+            if (info->PixelFormat != PixelBlueGreenRedReserved8BitPerColor)
+                continue;
+
+            if (info->HorizontalResolution == 0 || info->VerticalResolution == 0)
+                continue;
+
+            if (info->HorizontalResolution == preferred_width &&
+                info->VerticalResolution == preferred_height) {
+                mode = j;
+                break;
+            }
+
+            if (info->HorizontalResolution * info->VerticalResolution > pixels) {
                 mode = j;
                 pixels = info->HorizontalResolution * info->VerticalResolution;
             }
