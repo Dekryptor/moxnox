@@ -17,6 +17,8 @@ static const unsigned int KERNEL_STACK_PAGES = 4;
 static map_entry map[256] __attribute__((section (".data")));
 static unsigned int num_map_entries = 0;
 
+static loader_block lb __attribute__((section (".data")));
+
 struct HARDWARE_PTE {
     uint64_t Valid:1;
     uint64_t Write:1;
@@ -1087,9 +1089,179 @@ static EFI_STATUS find_acpi_tables(uint64_t& addr) {
     return EFI_SUCCESS;
 }
 
+__attribute__((always_inline))
+static uint64_t inline __readcr0() {
+    uint64_t ret;
+
+    __asm__ __volatile__ (
+        "mov\t%0, cr0"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+static void inline __writecr0(uint64_t v) {
+    __asm__ __volatile__ (
+        "mov\tcr0, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+static void inline __writecr3(uint64_t v) {
+    __asm__ __volatile__ (
+        "mov\tcr3, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+static uint64_t inline __readcr4() {
+    uint64_t ret;
+
+    __asm__ __volatile__ (
+        "mov\t%0, cr4"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+static void inline __writecr4(uint64_t v) {
+    __asm__ __volatile__ (
+        "mov\tcr4, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+static uint64_t inline __readmsr(uint32_t r) {
+    uint32_t high, low;
+
+    __asm__ __volatile__ (
+        "rdmsr"
+        : "=d" (high), "=a" (low)
+        : "c" (r)
+    );
+
+    return ((uint64_t)high << 32) | low;
+}
+
+__attribute__((always_inline))
+static void inline __writemsr(uint32_t r, uint64_t v) {
+    __asm__ __volatile__ (
+        "wrmsr"
+        :
+        : "c" (r), "d" (v >> 32), "a" (v & 0xffffffff)
+    );
+}
+
+__attribute__((always_inline))
+static void inline _disable() {
+    __asm__ __volatile__ (
+        "cli"
+    );
+}
+
+__attribute__((noreturn))
+static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb) {
+    _disable();
+
+    // change to virtual addresses
+    __writecr3(pml4t);
+
+    // FIXME - GDT?
+
+    // set MP and WP bits on CR0
+    __writecr0(__readcr0() | 0x10002);
+
+    // set OSFXSR and OSXMMEXCPT flags on CR4
+    __writecr4(__readcr4() | 0x600);
+
+    // enable NX bit and System Call Extensions
+    __writemsr(0xc0000080, __readmsr(0xc0000080) | 0x801);
+
+    // set stack and jump to entry point
+    __asm__ __volatile__ (
+        "mov\trsp, %0"
+        "\n\tjmp\t%2"
+        :
+        : "i" (KERNEL_STACK + (KERNEL_STACK_PAGES << EFI_PAGE_SHIFT) - 0x20), // 0x20 for MS ABI
+          "c" (lb),
+          "r" (entry_point)
+    );
+
+    __builtin_unreachable();
+}
+
+static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3, uint64_t acpi_tables) {
+    EFI_STATUS status;
+    UINTN size, key, descsize;
+    UINT32 version;
+    EFI_MEMORY_DESCRIPTOR* mapdesc;
+
+    lb.map_ptr = (uintptr_t)map;
+    lb.num_map_entries = num_map_entries;
+    lb.rsdt_pa = acpi_tables;
+    lb.text_mode = false;
+    // FIXME - lb.framebuffer
+    lb.cmdline = 0; // FIXME
+    lb.edid = 0; // FIXME
+    lb.debug_info_ptr = 0; // FIXME
+    lb.debug_info_size = 0; // FIXME
+    lb.debug_abbrev_ptr = 0; // FIXME
+    lb.debug_abbrev_size = 0; // FIXME
+    lb.debug_rnglists_ptr = 0; // FIXME
+    lb.debug_rnglists_size = 0; // FIXME
+    lb.debug_str_ptr = 0; // FIXME
+    lb.debug_str_size = 0; // FIXME
+
+    // exit boot services
+
+    size = 0;
+
+    // get new key
+    status = bs->GetMemoryMap(&size, nullptr, &key, &descsize, &version);
+    if (EFI_ERROR(status) && status != EFI_BUFFER_TOO_SMALL) {
+        print_error("GetMemoryMap", status);
+        return status;
+    }
+
+    size *= 2;
+
+    status = bs->AllocatePool(EfiLoaderData, size, (void**)&mapdesc);
+    if (EFI_ERROR(status)) {
+        print_error("AllocatePool", status);
+        return status;
+    }
+
+    status = bs->GetMemoryMap(&size, mapdesc, &key, &descsize, &version);
+    if (EFI_ERROR(status)) {
+        print_error("GetMemoryMap", status);
+        return status;
+    }
+
+    status = bs->ExitBootServices(image_handle, key);
+    if (EFI_ERROR(status)) {
+        print_error("ExitBootServices", status);
+        return status;
+    }
+
+    // FIXME - SetVirtualAddressMap
+
+    start_kernel(entry_point, cr3, &lb);
+
+    return EFI_SUCCESS; // never reached
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
-    UINTN key_event = 0;
     EFI_STATUS Status;
     EFI_LOADED_IMAGE_PROTOCOL* image;
     uint64_t entry_point, cr3, img_pa, acpi_tables;
@@ -1098,8 +1270,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
 
     systable = system_table;
     bs = system_table->BootServices;
-
-    system_table->ConOut->OutputString(system_table->ConOut, (CHAR16*)L"Hello world!\r\n");
 
     Status = get_image_information(image_handle, image);
     if (EFI_ERROR(Status)) {
@@ -1157,11 +1327,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         return Status;
     }
 
-    // FIXME - go
-
-    system_table->BootServices->WaitForEvent(1, &system_table->ConIn->WaitForKey, &key_event);
-
     // FIXME - pass runtime services list through to kernel
 
-    return EFI_SUCCESS;
+    Status = go(image_handle, entry_point, cr3, acpi_tables); // doesn't return unless unsuccessful
+    print_error("go", Status);
+
+    return Status;
 }
