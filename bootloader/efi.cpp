@@ -421,19 +421,6 @@ static span<uint8_t> find_payload(EFI_LOADED_IMAGE_PROTOCOL* image) {
     auto payload_size = *(uint64_t*)((uintptr_t)image->ImageBase + payload_sect->VirtualAddress);
     auto payload_data = (uint8_t*)((uintptr_t)image->ImageBase + payload_sect->VirtualAddress + sizeof(uint64_t));
 
-    { // FIXME
-        char s[255];
-        auto sp = span(s, sizeof(s));
-
-        sp = sp_strcpy(sp, "payload_size = ");
-        sp = sp_itoa_hex(sp, payload_size);
-        sp = sp_strcpy(sp, ", payload_data = ");
-        sp = sp_itoa_hex(sp, (uintptr_t)payload_data);
-        sp = sp_strcpy(sp, "\n");
-
-        print_string(string_view(s, sp.data() - s));
-    }
-
     return span(payload_data, payload_size);
 }
 
@@ -575,8 +562,6 @@ EFI_STATUS load_pe(span<const uint8_t> payload, uint64_t va, uint64_t& entry_poi
     size_t size;
     IMAGE_SECTION_HEADER* sections;
     EFI_PHYSICAL_ADDRESS pa;
-
-    print_string("Loading image\n");
 
     if (!check_header(payload, &nt_header))
         return EFI_INVALID_PARAMETER;
@@ -1210,7 +1195,6 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     lb.num_map_entries = num_map_entries;
     lb.rsdt_pa = acpi_tables;
     lb.text_mode = false;
-    // FIXME - lb.framebuffer
     lb.cmdline = 0; // FIXME
     lb.edid = 0; // FIXME
     lb.debug_info_ptr = 0; // FIXME
@@ -1260,6 +1244,75 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     return EFI_SUCCESS; // never reached
 }
 
+static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
+    EFI_GUID guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+    EFI_HANDLE* handles = NULL;
+    UINTN count;
+    EFI_STATUS status;
+
+    status = bs->LocateHandleBuffer(ByProtocol, &guid, NULL, &count, &handles);
+    if (EFI_ERROR(status))
+        return status;
+
+    for (unsigned int i = 0; i < count; i++) {
+        EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = NULL;
+        unsigned int mode = 0;
+        unsigned int pixels = 0;
+
+        status = bs->OpenProtocol(handles[i], &guid, (void**)&gop, image_handle, NULL,
+                                  EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+        if (EFI_ERROR(status)) {
+            print_error("OpenProtocol", status);
+            continue;
+        }
+
+        for (unsigned int j = 0; j < gop->Mode->MaxMode; j++) {
+            UINTN size;
+            EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info;
+
+            status = gop->QueryMode(gop, j, &size, &info);
+            if (EFI_ERROR(status)) {
+                print_error("QueryMode", status);
+                continue;
+            }
+
+            // choose the best mode
+            // FIXME - parse cmdline for video param
+
+            if (info->PixelFormat == PixelBlueGreenRedReserved8BitPerColor &&
+                info->HorizontalResolution != info->VerticalResolution && // ignore the square resolutions that Qemu offers
+                info->HorizontalResolution * info->VerticalResolution > pixels) {
+                mode = j;
+                pixels = info->HorizontalResolution * info->VerticalResolution;
+            }
+        }
+
+        status = gop->SetMode(gop, mode);
+        if (EFI_ERROR(status)) {
+            print_error("SetMode", status);
+            bs->CloseProtocol(handles[i], &guid, image_handle, NULL);
+            goto end;
+        }
+
+        lb.framebuffer.phys_address = (uintptr_t)gop->Mode->FrameBufferBase;
+        lb.framebuffer.width = gop->Mode->Info->HorizontalResolution;
+        lb.framebuffer.height = gop->Mode->Info->VerticalResolution;
+        lb.framebuffer.pixels_per_scan_line = gop->Mode->Info->PixelsPerScanLine;
+
+        bs->CloseProtocol(handles[i], &guid, image_handle, NULL);
+
+        status = EFI_SUCCESS;
+        goto end;
+    }
+
+    status = EFI_NOT_FOUND;
+
+end:
+    bs->FreePool(handles);
+
+    return status;
+}
+
 extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     EFI_STATUS Status;
@@ -1299,7 +1352,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         return Status;
     }
 
-    // FIXME - init framebuffer
+    Status = init_framebuffer(image_handle);
+    if (EFI_ERROR(Status)) {
+        print_error("init_framebuffer", Status);
+        return Status;
+    }
 
     Status = get_memory_map();
     if (EFI_ERROR(Status)) {
@@ -1319,7 +1376,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         return Status;
     }
 
-    // FIXME - add map entry for framebuffer
+    Status = add_map_entry((uintptr_t)lb.framebuffer.phys_address,
+                           bytes_to_pages(lb.framebuffer.pixels_per_scan_line * lb.framebuffer.height * 4) << EFI_PAGE_SHIFT,
+                           mem_type::framebuffer);
+    if (EFI_ERROR(Status)) {
+        print_error("add_map_entry", Status);
+        return Status;
+    }
 
     Status = setup_paging(cr3);
     if (EFI_ERROR(Status)) {
