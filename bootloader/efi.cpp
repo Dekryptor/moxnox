@@ -31,6 +31,9 @@ static loader_block lb __attribute__((section (".data")));
 // same size as on x86 Linux
 static char cmdline[2048] __attribute__((section (".data")));
 
+static uint8_t edid[128] __attribute__((section (".data")));
+static bool have_edid __attribute__((section (".data"))) = false;
+
 struct HARDWARE_PTE {
     uint64_t Valid:1;
     uint64_t Write:1;
@@ -1362,7 +1365,7 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     lb.rsdt_pa = acpi_tables;
     lb.text_mode = false;
     lb.cmdline = (uintptr_t)cmdline;
-    lb.edid = 0; // FIXME
+    lb.edid = have_edid ? (uintptr_t)edid : 0;
     lb.debug_info_ptr = debug_info_ptr;
     lb.debug_info_size = debug_info_size;
     lb.debug_abbrev_ptr = debug_abbrev_ptr;
@@ -1493,6 +1496,7 @@ static void parse_video_option(unsigned int& preferred_width,
 
 static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
     EFI_GUID guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+    EFI_GUID edid_guid = EFI_EDID_DISCOVERED_PROTOCOL_GUID;
     EFI_HANDLE* handles = NULL;
     UINTN count;
     EFI_STATUS status;
@@ -1505,15 +1509,27 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
         return status;
 
     for (unsigned int i = 0; i < count; i++) {
-        EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = NULL;
+        EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = nullptr;
+        EFI_EDID_DISCOVERED_PROTOCOL* edp = nullptr;
         unsigned int mode = 0;
         unsigned int pixels = 0;
 
-        status = bs->OpenProtocol(handles[i], &guid, (void**)&gop, image_handle, NULL,
-                                  EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+        status = bs->OpenProtocol(handles[i], &guid, (void**)&gop, image_handle,
+                                  nullptr, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
         if (EFI_ERROR(status)) {
             print_error("OpenProtocol", status);
             continue;
+        }
+
+        status = bs->OpenProtocol(handles[i], &edid_guid, (void**)&edp, image_handle,
+                                  nullptr, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+        if (!EFI_ERROR(status)) {
+            if (edp && edp->SizeOfEdid >= 128) {
+                memcpy(edid, edp->Edid, sizeof(edid));
+                have_edid = true;
+            }
+
+            bs->CloseProtocol(handles[i], &edid_guid, image_handle, nullptr);
         }
 
         for (unsigned int j = 0; j < gop->Mode->MaxMode; j++) {
@@ -1549,7 +1565,7 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
         status = gop->SetMode(gop, mode);
         if (EFI_ERROR(status)) {
             print_error("SetMode", status);
-            bs->CloseProtocol(handles[i], &guid, image_handle, NULL);
+            bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
             goto end;
         }
 
@@ -1558,7 +1574,7 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
         lb.framebuffer.height = gop->Mode->Info->VerticalResolution;
         lb.framebuffer.pixels_per_scan_line = gop->Mode->Info->PixelsPerScanLine;
 
-        bs->CloseProtocol(handles[i], &guid, image_handle, NULL);
+        bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
 
         status = EFI_SUCCESS;
         goto end;
