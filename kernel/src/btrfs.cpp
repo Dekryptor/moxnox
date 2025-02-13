@@ -1351,10 +1351,13 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     if (!success(status))
         return status;
 
-    // FIXME - adjust path
-    free(new_tree); // FIXME - not if slot now here
+    if (p.slots[0] < split_point) {
+        free(new_tree);
+        return nt_status::SUCCESS;
+    }
 
-    return nt_status::SUCCESS;
+    printk("FIXME - adjust path\n"); // FIXME
+    return nt_status::INTERNAL_ERROR;
 }
 
 static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p,
