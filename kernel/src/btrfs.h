@@ -383,10 +383,10 @@ struct chunk {
     uint64_t offset;
     list_entry space_list = { &space_list, &space_list };
     bool space_loaded = false;
-    chunk_item ci;
     bool changed = false;
     list_entry changed_le;
     int64_t delta;
+    chunk_item ci; // must be last item
 };
 
 struct root {
