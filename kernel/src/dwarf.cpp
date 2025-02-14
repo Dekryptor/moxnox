@@ -703,7 +703,15 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             break;
 
             // FIXME - DW_FORM::flag
-            // FIXME - DW_FORM::sdata
+
+            case DW_FORM::sdata:
+            case DW_FORM::udata: {
+                auto orig_die = die;
+
+                skip_leb128(die);
+                data = span(orig_die.data(), die.data() - orig_die.data());
+                break;
+            }
 
             case DW_FORM::strp:
             case DW_FORM::strp_sup:
@@ -713,7 +721,6 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
                 die = die.subspan(4);
             break;
 
-            // FIXME - DW_FORM::udata
             // FIXME - DW_FORM::ref_addr
             // FIXME - DW_FORM::ref_udata
             // FIXME - DW_FORM::indirect
