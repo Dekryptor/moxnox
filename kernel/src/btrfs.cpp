@@ -1390,16 +1390,16 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p,
     return split_tree_at(fs, p, split_point);
 }
 
-nt_status btrfs_filesystem::insert_item(root& r, const key& k,
-                                        span<const uint8_t> data) {
+static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
+                             span<const uint8_t> data) {
     btrfs_path p;
     nt_status status;
 
     // check if data too big for any tree
-    if (data.size() >= sb.node_size - sizeof(tree_header) - sizeof(leaf_node))
+    if (data.size() >= fs.sb.node_size - sizeof(tree_header) - sizeof(leaf_node))
         return nt_status::INTERNAL_ERROR;
 
-    status = find_item(r, k, p, true);
+    status = fs.find_item(r, k, p, true);
     if (!success(status))
         return status;
 
@@ -1419,7 +1419,7 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
         unsigned int size_used = data_size + (unsigned int)(th.num_items * sizeof(leaf_node));
 
         if (size_used + sizeof(leaf_node) + data.size() > sb.node_size - sizeof(tree_header)) {
-            status = split_tree(*this, p, size_used, sizeof(leaf_node) + data.size());
+            status = split_tree(fs, p, size_used, sizeof(leaf_node) + data.size());
             if (!success(status))
                 return status;
         }
@@ -1455,7 +1455,7 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
     }
 
     if (p.slots[0] == 0)
-        items[p.slots[0]].offset = (uint32_t)(sb.node_size - sizeof(tree_header) - data.size());
+        items[p.slots[0]].offset = (uint32_t)(fs.sb.node_size - sizeof(tree_header) - data.size());
     else
         items[p.slots[0]].offset = (uint32_t)(items[p.slots[0] - 1].offset - data.size());
 
@@ -1476,14 +1476,14 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
 
             items2[p.slots[i + 1]].k = items[0].k;
 
-            if (!cache.write(span(p.data[i + 1], sb.node_size), th2.address)) // FIXME - return status
+            if (!fs.cache.write(span(p.data[i + 1], fs.sb.node_size), th2.address)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
     }
 
     // copy tree back into page cache and mark dirty
 
-    if (!cache.write(span(p.data[0], sb.node_size), th.address)) // FIXME - return status
+    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     // FIXME - split tree if would be too full, or no room
@@ -1775,8 +1775,8 @@ nt_status btrfs_inode::create_child(string_view name,
     ii.st_mtime = cur_time;
     ii.otime = cur_time;
 
-    status = fs.insert_item(*r, {new_inode, key_type::INODE_ITEM, 0},
-                            span((uint8_t*)&ii, sizeof(ii)));
+    status = insert_item(fs, *r, {new_inode, key_type::INODE_ITEM, 0},
+                         span((uint8_t*)&ii, sizeof(ii)));
     if (!success(status)) {
         if (status == nt_status::OBJECT_NAME_COLLISION)
             status = nt_status::INTERNAL_ERROR;
@@ -1801,7 +1801,8 @@ nt_status btrfs_inode::create_child(string_view name,
     di->type = is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file;
     memcpy(di->name, name.data(), name.size());
 
-    status = fs.insert_item(*r, {inode, key_type::DIR_ITEM, hash}, span((uint8_t*)di, di_size));
+    status = insert_item(fs, *r, {inode, key_type::DIR_ITEM, hash},
+                         span((uint8_t*)di, di_size));
 
     // FIXME - handle DIR_ITEM hash collisions
 
@@ -1826,7 +1827,8 @@ nt_status btrfs_inode::create_child(string_view name,
 
     index++;
 
-    status = fs.insert_item(*r, {inode, key_type::DIR_INDEX, index}, span((uint8_t*)di, di_size));
+    status = insert_item(fs, *r, {inode, key_type::DIR_INDEX, index},
+                         span((uint8_t*)di, di_size));
 
     if (!success(status)) {
         free(di);
@@ -1850,8 +1852,8 @@ nt_status btrfs_inode::create_child(string_view name,
     ir->n = (uint16_t)name.size();
     memcpy(ir->name, name.data(), name.size());
 
-    status = fs.insert_item(*r, {new_inode, key_type::INODE_REF, inode},
-                            span((uint8_t*)ir, ir_size));
+    status = insert_item(fs, *r, {new_inode, key_type::INODE_REF, inode},
+                         span((uint8_t*)ir, ir_size));
 
     if (!success(status)) {
         free(ir);
@@ -2590,8 +2592,8 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
         if (!success(status))
             return status;
 
-        status = fs.insert_item(r, {address + length, key_type::FREE_SPACE_EXTENT, k.obj_id + k.offset - address - length},
-                                span<const uint8_t>());
+        status = insert_item(fs, r, {address + length, key_type::FREE_SPACE_EXTENT, k.obj_id + k.offset - address - length},
+                             span<const uint8_t>());
         if (!success(status))
             return status;
 
@@ -2673,8 +2675,8 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
 
     // new entry
 
-    status = fs.insert_item(r, {address, key_type::FREE_SPACE_EXTENT, length},
-                            span<const uint8_t>());
+    status = insert_item(fs, r, {address, key_type::FREE_SPACE_EXTENT, length},
+                         span<const uint8_t>());
     if (!success(status))
         return status;
 
@@ -2781,8 +2783,8 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
             eitbr.type = key_type::TREE_BLOCK_REF;
             eitbr.tbr.offset = mc.root;
 
-            auto status = fs.insert_item(*fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level},
-                                        span((uint8_t*)&eitbr, sizeof(eitbr)));
+            auto status = insert_item(fs, *fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level},
+                                      span((uint8_t*)&eitbr, sizeof(eitbr)));
             if (!success(status)) {
                 char s[40];
                 auto sp = span(s, sizeof(s));

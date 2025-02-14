@@ -526,7 +526,6 @@ public:
                    uint32_t create_options) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
-    nt_status insert_item(root& r, const key& k, std::span<const uint8_t> data);
     nt_status remove_item(root& r, const key& k);
     nt_status remove_item2(btrfs_path& p);
     nt_status change_key(btrfs_path& p, const key& k);
