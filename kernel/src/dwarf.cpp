@@ -347,8 +347,13 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
                 die = die.subspan(sizeof(uintptr_t));
             break;
 
-            // FIXME - DW_FORM::block2
-            // FIXME - DW_FORM::block4
+            case DW_FORM::block2:
+                printk("FIXME - skipping because of DW_FORM_block2\n"); // FIXME
+                return false;
+
+            case DW_FORM::block4:
+                printk("FIXME - skipping because of DW_FORM_block4\n"); // FIXME
+                return false;
 
             case DW_FORM::data2:
             case DW_FORM::ref2:
@@ -376,16 +381,26 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
                 break;
             }
 
-            // FIXME - DW_FORM::block
-            // FIXME - DW_FORM::block1
+            case DW_FORM::block:
+                printk("FIXME - skipping because of DW_FORM_block\n"); // FIXME
+                return false;
+
+            case DW_FORM::block1:
+                printk("FIXME - skipping because of DW_FORM_block1\n"); // FIXME
+                return false;
 
             case DW_FORM::data1:
             case DW_FORM::ref1:
                 die = die.subspan(1);
             break;
 
-            // FIXME - DW_FORM::flag
-            // FIXME - DW_FORM::sdata
+            case DW_FORM::flag:
+                printk("FIXME - skipping because of DW_FORM_flag\n"); // FIXME
+                return false;
+
+            case DW_FORM::sdata:
+                printk("FIXME - skipping because of DW_FORM_sdata\n"); // FIXME
+                return false;
 
             case DW_FORM::strp:
             case DW_FORM::strp_sup:
@@ -394,10 +409,21 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
                 die = die.subspan(4);
             break;
 
-            // FIXME - DW_FORM::udata
-            // FIXME - DW_FORM::ref_addr
-            // FIXME - DW_FORM::ref_udata
-            // FIXME - DW_FORM::indirect
+            case DW_FORM::udata:
+                printk("FIXME - skipping because of DW_FORM_udata\n"); // FIXME
+                return false;
+
+            case DW_FORM::ref_addr:
+                printk("FIXME - skipping because of DW_FORM_ref_addr\n"); // FIXME
+                return false;
+
+            case DW_FORM::ref_udata:
+                printk("FIXME - skipping because of DW_FORM_ref_udata\n"); // FIXME
+                return false;
+
+            case DW_FORM::indirect:
+                printk("FIXME - skipping because of DW_FORM_indirect\n"); // FIXME
+                return false;
 
             case DW_FORM::exprloc: {
                 auto len = read_uleb128(die);
@@ -408,10 +434,21 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             case DW_FORM::flag_present:
             break;
 
-            // FIXME - DW_FORM::ref_sig8
-            // FIXME - DW_FORM::strx
-            // FIXME - DW_FORM::addrx
-            // FIXME - DW_FORM::ref_sup4
+            case DW_FORM::ref_sig8:
+                printk("FIXME - skipping because of DW_FORM_ref_sig8\n"); // FIXME
+                return false;
+
+            case DW_FORM::strx:
+                printk("FIXME - skipping because of DW_FORM_strx\n"); // FIXME
+                return false;
+
+            case DW_FORM::addrx:
+                printk("FIXME - skipping because of DW_FORM_addrx\n"); // FIXME
+                return false;
+
+            case DW_FORM::ref_sup4:
+                printk("FIXME - skipping because of DW_FORM_ref_sup4\n"); // FIXME
+                return false;
 
             case DW_FORM::data16:
                 die = die.subspan(16);
@@ -420,20 +457,52 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             case DW_FORM::implicit_const:
             break;
 
-            // FIXME - DW_FORM::loclistx
-            // FIXME - DW_FORM::rnglistx
-            // FIXME - DW_FORM::ref_sup8
-            // FIXME - DW_FORM::strx1
-            // FIXME - DW_FORM::strx2
-            // FIXME - DW_FORM::strx3
-            // FIXME - DW_FORM::strx4
-            // FIXME - DW_FORM::addrx1
-            // FIXME - DW_FORM::addrx2
-            // FIXME - DW_FORM::addrx3
-            // FIXME - DW_FORM::addrx4
+            case DW_FORM::loclistx:
+                printk("FIXME - skipping because of DW_FORM_loclistx\n"); // FIXME
+                return false;
+
+            case DW_FORM::rnglistx:
+                printk("FIXME - skipping because of DW_FORM_rnglistx\n"); // FIXME
+                return false;
+
+            case DW_FORM::ref_sup8:
+                printk("FIXME - skipping because of DW_FORM_ref_sup8\n"); // FIXME
+                return false;
+
+            case DW_FORM::strx1:
+                printk("FIXME - skipping because of DW_FORM_strx1\n"); // FIXME
+                return false;
+
+            case DW_FORM::strx2:
+                printk("FIXME - skipping because of DW_FORM_strx2\n"); // FIXME
+                return false;
+
+            case DW_FORM::strx3:
+                printk("FIXME - skipping because of DW_FORM_strx3\n"); // FIXME
+                return false;
+
+            case DW_FORM::strx4:
+                printk("FIXME - skipping because of DW_FORM_strx4\n"); // FIXME
+                return false;
+
+            case DW_FORM::addrx1:
+                printk("FIXME - skipping because of DW_FORM_addrx1\n"); // FIXME
+                return false;
+
+            case DW_FORM::addrx2:
+                printk("FIXME - skipping because of DW_FORM_addrx2\n"); // FIXME
+                return false;
+
+            case DW_FORM::addrx3:
+                printk("FIXME - skipping because of DW_FORM_addrx3\n"); // FIXME
+                return false;
+
+            case DW_FORM::addrx4:
+                printk("FIXME - skipping because of DW_FORM_addrx4\n"); // FIXME
+                return false;
 
             default:
-                // FIXME
+                printk("skipping DIE because of unknown DW_FORM value\n");
                 return false;
         }
 
