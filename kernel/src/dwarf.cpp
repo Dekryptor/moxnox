@@ -382,8 +382,11 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             }
 
             case DW_FORM::block:
-                printk("FIXME - skipping because of DW_FORM_block\n"); // FIXME
-                return false;
+            case DW_FORM::exprloc: {
+                auto len = read_uleb128(die);
+                die = die.subspan((size_t)len);
+                break;
+            }
 
             case DW_FORM::block1:
                 printk("FIXME - skipping because of DW_FORM_block1\n"); // FIXME
@@ -421,12 +424,6 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             case DW_FORM::indirect:
                 printk("FIXME - skipping because of DW_FORM_indirect\n"); // FIXME
                 return false;
-
-            case DW_FORM::exprloc: {
-                auto len = read_uleb128(die);
-                die = die.subspan((size_t)len);
-                break;
-            }
 
             case DW_FORM::flag_present:
             break;
@@ -693,7 +690,14 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
                 break;
             }
 
-            // FIXME - DW_FORM::block
+            case DW_FORM::block:
+            case DW_FORM::exprloc: {
+                auto len = read_uleb128(die);
+                data = span(die.data(), (size_t)len);
+                die = die.subspan((size_t)len);
+                break;
+            }
+
             // FIXME - DW_FORM::block1
 
             case DW_FORM::data1:
@@ -724,13 +728,6 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             // FIXME - DW_FORM::ref_addr
             // FIXME - DW_FORM::ref_udata
             // FIXME - DW_FORM::indirect
-
-            case DW_FORM::exprloc: {
-                auto len = read_uleb128(die);
-                data = span(die.data(), (size_t)len);
-                die = die.subspan((size_t)len);
-                break;
-            }
 
             case DW_FORM::flag_present:
             break;
