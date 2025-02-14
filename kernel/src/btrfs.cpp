@@ -1356,8 +1356,15 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
         return nt_status::SUCCESS;
     }
 
-    printk("FIXME - adjust path\n"); // FIXME
-    return nt_status::INTERNAL_ERROR;
+    p.slots[0] -= th.num_items;
+    p.slots[1]++;
+
+    free(p.data[0]);
+    p.data[0] = new_tree;
+
+    // FIXME - potentially change slots and data for higher levels
+
+    return nt_status::SUCCESS;
 }
 
 static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p,
@@ -1391,25 +1398,30 @@ nt_status btrfs_filesystem::insert_item(root& r, const key& k,
     if (!success(status))
         return status;
 
+    {
+        auto& th = *(tree_header*)p.data[0];
+        auto* items = (leaf_node*)((uint8_t*)&th + sizeof(tree_header));
+
+        if (p.slots[0] < th.num_items && items[p.slots[0]].k == k)
+            return nt_status::OBJECT_NAME_COLLISION;
+
+        unsigned int data_size = 0;
+
+        for (unsigned int i = 0; i < th.num_items; i++) {
+            data_size += items[i].size;
+        }
+
+        unsigned int size_used = data_size + (unsigned int)(th.num_items * sizeof(leaf_node));
+
+        if (size_used + sizeof(leaf_node) + data.size() > sb.node_size - sizeof(tree_header)) {
+            status = split_tree(*this, p, size_used, sizeof(leaf_node) + data.size());
+            if (!success(status))
+                return status;
+        }
+    }
+
     auto& th = *(tree_header*)p.data[0];
     auto* items = (leaf_node*)((uint8_t*)&th + sizeof(tree_header));
-
-    if (p.slots[0] < th.num_items && items[p.slots[0]].k == k)
-        return nt_status::OBJECT_NAME_COLLISION;
-
-    unsigned int data_size = 0;
-
-    for (unsigned int i = 0; i < th.num_items; i++) {
-        data_size += items[i].size;
-    }
-
-    unsigned int size_used = data_size + (unsigned int)(th.num_items * sizeof(leaf_node));
-
-    if (size_used + sizeof(leaf_node) + data.size() > sb.node_size - sizeof(tree_header)) {
-        status = split_tree(*this, p, size_used, sizeof(leaf_node) + data.size());
-        if (!success(status))
-            return status;
-    }
 
     // insert new leaf_node
 
