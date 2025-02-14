@@ -1323,6 +1323,9 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     assert(th.num_items > 0);
     assert(th2.num_items > 0);
 
+    memset(new_tree + sizeof(tree_header) + (th.num_items * sizeof(leaf_node)),
+           0, fs.sb.node_size - to_copy - sizeof(tree_header) - (th.num_items * sizeof(leaf_node)));
+
     if (auto status = add_metadata_change(fs, new_addr, 0, th.tree_id, false); !success(status)) {
         free(new_tree);
         return status;
