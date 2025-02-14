@@ -1351,8 +1351,10 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
 
     auto status = insert_internal_node(fs, p.data[1], p.slots[1] + 1,
                                        items2[0].k, new_addr);
-    if (!success(status))
+    if (!success(status)) {
+        free(new_tree);
         return status;
+    }
 
     if (p.slots[0] < split_point) {
         free(new_tree);
