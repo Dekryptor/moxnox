@@ -348,12 +348,12 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             break;
 
             case DW_FORM::block2:
-                printk("FIXME - skipping because of DW_FORM_block2\n"); // FIXME
-                return false;
+                die = die.subspan(sizeof(uint16_t) + *(uint16_t*)die.data());
+            break;
 
             case DW_FORM::block4:
-                printk("FIXME - skipping because of DW_FORM_block4\n"); // FIXME
-                return false;
+                die = die.subspan(sizeof(uint32_t) + *(uint32_t*)die.data());
+            break;
 
             case DW_FORM::data2:
             case DW_FORM::ref2:
@@ -389,8 +389,8 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             }
 
             case DW_FORM::block1:
-                printk("FIXME - skipping because of DW_FORM_block1\n"); // FIXME
-                return false;
+                die = die.subspan(1 + die[0]);
+            break;
 
             case DW_FORM::data1:
             case DW_FORM::ref1:
@@ -655,8 +655,21 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
                 die = die.subspan(sizeof(uintptr_t));
             break;
 
-            // FIXME - DW_FORM::block2
-            // FIXME - DW_FORM::block4
+            case DW_FORM::block2: {
+                auto len = *(uint16_t*)die.data();
+
+                data = span(die.data() + sizeof(uint16_t), len);
+                die = die.subspan(sizeof(uint16_t) + len);
+                break;
+            }
+
+            case DW_FORM::block4: {
+                auto len = *(uint32_t*)die.data();
+
+                data = span(die.data() + sizeof(uint32_t), len);
+                die = die.subspan(sizeof(uint32_t) + len);
+                break;
+            }
 
             case DW_FORM::data2:
             case DW_FORM::ref2:
@@ -698,7 +711,13 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
                 break;
             }
 
-            // FIXME - DW_FORM::block1
+            case DW_FORM::block1: {
+                auto len = die[0];
+
+                data = span(die.data() + sizeof(uint8_t), len);
+                die = die.subspan(sizeof(uint8_t) + len);
+                break;
+            }
 
             case DW_FORM::data1:
             case DW_FORM::ref1:
