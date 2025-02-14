@@ -399,8 +399,9 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
                 return false;
 
             case DW_FORM::sdata:
-                printk("FIXME - skipping because of DW_FORM_sdata\n"); // FIXME
-                return false;
+            case DW_FORM::udata:
+                skip_leb128(die);
+            break;
 
             case DW_FORM::strp:
             case DW_FORM::strp_sup:
@@ -408,10 +409,6 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             case DW_FORM::sec_offset:
                 die = die.subspan(4);
             break;
-
-            case DW_FORM::udata:
-                printk("FIXME - skipping because of DW_FORM_udata\n"); // FIXME
-                return false;
 
             case DW_FORM::ref_addr:
                 printk("FIXME - skipping because of DW_FORM_ref_addr\n"); // FIXME
