@@ -394,6 +394,7 @@ struct root {
     uint64_t id;
     root_item ri;
     std::atomic<uint64_t> next_inode_number;
+    bool is_dirty = false;
     list_entry dirty_le;
 };
 
