@@ -947,6 +947,8 @@ tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64
         if (abbrev_list.empty())
             return true;
 
+        optional<uint64_t> low_pc, high_pc;
+
         loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                                span<const uint8_t> att_list, unsigned int) -> bool {
             if (tag != DW_TAG::compile_unit)
@@ -964,6 +966,11 @@ tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64
                     return false;
                 }
 
+                if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
+                    low_pc = *(uint64_t*)data.data();
+                else if (att_num == DW_AT::high_pc && form == DW_FORM::udata)
+                    high_pc = read_uleb128(data);
+
                 if (!found_cu.empty())
                     return false;
 
@@ -972,6 +979,13 @@ tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64
 
             return false;
         });
+
+        if (found_cu.empty() && low_pc.has_value() && high_pc.has_value()) {
+            if (addr >= *low_pc && addr < *low_pc + *high_pc) {
+                found_cu = current_cu;
+                found_debug_abbrev_object = debug_abbrev_object;
+            }
+        }
 
         free(abbrev_list.data());
 
