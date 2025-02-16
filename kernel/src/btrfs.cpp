@@ -1536,14 +1536,42 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
     // FIXME - first try to push left and right
 
     auto& th = *(tree_header*)p.data[0];
+    auto* items = (leaf_node*)((uint8_t*)&th + sizeof(tree_header));
 
     size_t sum;
     auto split_point = find_midpoint(th, size_used, sum);
 
-    if (p.slots[0] < split_point) {
-        // FIXME - move backward until at least space_needed bytes free in first tree
-    } else {
-        // FIXME - move forward until at least space_needed bytes free in second tree
+    if (p.slots[0] >= split_point)
+        sum = size_used - sum;
+
+    if (fs.sb.node_size - sizeof(tree_header) - sum < space_needed) {
+        if (p.slots[0] < split_point) {
+            while (split_point > 0) {
+                sum += sizeof(leaf_node) + items[split_point - 1].size;
+                split_point--;
+
+                if (fs.sb.node_size - sizeof(tree_header) - sum >= space_needed)
+                    break;
+            }
+
+            if (split_point == 0) {
+                printk("FIXME - do double split\n");
+                return nt_status::INTERNAL_ERROR;
+            }
+        } else {
+            while (split_point < th.num_items) {
+                sum += sizeof(leaf_node) + items[split_point].size;
+                split_point++;
+
+                if (fs.sb.node_size - sizeof(tree_header) - sum >= space_needed)
+                    break;
+            }
+
+            if (split_point == th.num_items) {
+                printk("FIXME - do double split\n");
+                return nt_status::INTERNAL_ERROR;
+            }
+        }
     }
 
     return split_tree_at(fs, p, r, split_point);
