@@ -2,6 +2,67 @@
 
 #include "context_offsets.h"
 #include "context.S"
+#include "dwarf.S"
+
+.section .debug_abbrev, "dr"
+
+.uleb128 1 # entry num
+.uleb128 DW_TAG_compile_unit
+.byte 1 # has children
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_udata
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_language
+.uleb128 DW_FORM_data2
+.uleb128 0
+.uleb128 0
+
+.uleb128 2 # entry num
+.uleb128 DW_TAG_subprogram
+.byte 0 # has children
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_data8
+.uleb128 0
+.uleb128 0
+
+.uleb128 0
+
+.section .debug_info, "dr"
+
+.long .debug_info_end - .debug_info_start
+
+.debug_info_start:
+.short 5 # version
+.byte DW_UT_compile
+.byte 8 # address size
+.secrel32 .debug_abbrev
+
+.uleb128 1
+.quad .text # low_pc
+.uleb128 .text_end - .text # high_pc
+.asciz __FILE__ # name
+.short DW_LANG_Mips_Assembler # language
+
+.uleb128 2
+.asciz "init_syscalls"
+.quad init_syscalls
+.quad init_syscalls_end - init_syscalls
+
+.uleb128 2
+.asciz "syscall_handler"
+.quad syscall_handler
+.quad syscall_handler_end - syscall_handler
+
+.uleb128 0
+
+.debug_info_end:
 
 .macro syscall_stub name
     .text
@@ -409,6 +470,7 @@ init_syscalls:
     wrmsr
 
     ret
+init_syscalls_end:
 
 .global syscall_handler
 syscall_handler:
@@ -517,3 +579,7 @@ Ldispatch_signal:
 Lno_syscall:
     mov rax, 0xffffffffc0000002 # STATUS_NOT_IMPLEMENTED
     jmp Lafter_syscall
+
+syscall_handler_end:
+
+.text_end:
