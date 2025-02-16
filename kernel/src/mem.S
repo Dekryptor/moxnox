@@ -1,6 +1,45 @@
 .intel_syntax noprefix
 
+#include "dwarf.S"
+
 .equ IA32_PAT_MSR, 0x277
+
+.section .debug_abbrev, "dr"
+
+.uleb128 1 # entry num
+.uleb128 DW_TAG_compile_unit
+.byte 0 # has children
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_udata
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_language
+.uleb128 DW_FORM_data2
+.uleb128 0
+.uleb128 0
+
+.uleb128 0
+
+.section .debug_info, "dr"
+
+.long .debug_info_end - .debug_info_start
+
+.debug_info_start:
+.short 5 # version
+.byte DW_UT_compile
+.byte 8 # address size
+.long 0 # debug abbrev object
+
+.uleb128 1
+.quad .text # low_pc
+.uleb128 .text_end - .text # high_pc
+.asciz __FILE__ # name
+.short DW_LANG_Mips_Assembler # language
+.debug_info_end:
+
+.text
 
 # void* memcpy(void* dest, const void* src, size_t n)
 .global memcpy
@@ -122,3 +161,5 @@ init_pat:
     mov cr3, rax
 
     ret
+
+.text_end:
