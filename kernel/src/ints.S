@@ -1,6 +1,109 @@
 .intel_syntax noprefix
 
 #include "context.S"
+#include "dwarf.S"
+
+.section .debug_abbrev, "dr"
+
+.uleb128 1 # entry num
+.uleb128 DW_TAG_compile_unit
+.byte 1 # has children
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_udata
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_language
+.uleb128 DW_FORM_data2
+.uleb128 0
+.uleb128 0
+
+.uleb128 2 # entry num
+.uleb128 DW_TAG_subprogram
+.byte 0 # has children
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_data8
+.uleb128 0
+.uleb128 0
+
+.uleb128 0
+
+.section .debug_info, "dr"
+
+.long .debug_info_end - .debug_info_start
+
+.debug_info_start:
+.short 5 # version
+.byte DW_UT_compile
+.byte 8 # address size
+.secrel32 .debug_abbrev
+
+.uleb128 1
+.quad .text # low_pc
+.uleb128 .text_end - .text # high_pc
+.asciz __FILE__ # name
+.short DW_LANG_Mips_Assembler # language
+
+.uleb128 2
+.asciz "page_fault_isr"
+.quad page_fault_isr
+.quad page_fault_isr_end - page_fault_isr
+
+.uleb128 2
+.asciz "double_fault_isr"
+.quad double_fault_isr
+.quad double_fault_isr_end - double_fault_isr
+
+.uleb128 2
+.asciz "general_protection_fault_isr"
+.quad general_protection_fault_isr
+.quad general_protection_fault_isr_end - general_protection_fault_isr
+
+.uleb128 2
+.asciz "invalid_opcode_isr"
+.quad invalid_opcode_isr
+.quad invalid_opcode_isr_end - invalid_opcode_isr
+
+.uleb128 2
+.asciz "spurious_isr"
+.quad spurious_isr
+.quad spurious_isr_end - spurious_isr
+
+.uleb128 2
+.asciz "halt_isr"
+.quad halt_isr
+.quad halt_isr_end - halt_isr
+
+.uleb128 2
+.asciz "divide_by_zero_isr"
+.quad divide_by_zero_isr
+.quad divide_by_zero_isr_end - divide_by_zero_isr
+
+.uleb128 2
+.asciz "yield_isr"
+.quad yield_isr
+.quad yield_isr_end - yield_isr
+
+.uleb128 2
+.asciz "breakpoint_isr"
+.quad breakpoint_isr
+.quad breakpoint_isr_end - breakpoint_isr
+
+.uleb128 2
+.asciz "single_step_isr"
+.quad single_step_isr
+.quad single_step_isr_end - single_step_isr
+
+.uleb128 0
+
+.debug_info_end:
+
+.text
 
 .seh_proc page_fault_isr
 .global page_fault_isr
@@ -120,6 +223,7 @@ page_fault_end:
     add rsp, 0x28
     iretq
     .seh_endproc
+page_fault_isr_end:
 
 .seh_proc double_fault_isr
 .global double_fault_isr
@@ -146,6 +250,7 @@ double_fault_isr:
     add rsp, 0x28
     iretq
     .seh_endproc
+double_fault_isr_end:
 
 .seh_proc general_protection_fault_isr
 .global general_protection_fault_isr
@@ -184,6 +289,7 @@ general_protection_fault_isr:
     add rsp, 0x28
     iretq
     .seh_endproc
+general_protection_fault_isr_end:
 
 .seh_proc invalid_opcode_isr
 .global invalid_opcode_isr
@@ -221,6 +327,7 @@ invalid_opcode_isr:
     add rsp, 0x20
     iretq
     .seh_endproc
+invalid_opcode_isr_end:
 
 .global spurious_isr
 spurious_isr:
@@ -229,11 +336,13 @@ spurious_isr:
     mov DWORD PTR [APIC_BASE+APIC_EOI], eax
     pop rax
     iretq
+spurious_isr_end:
 
 .global halt_isr
 halt_isr:
     hlt
     jmp halt_isr
+halt_isr_end:
 
 .seh_proc divide_by_zero_isr
 .global divide_by_zero_isr
@@ -271,6 +380,7 @@ divide_by_zero_isr:
     add rsp, 0x20
     iretq
     .seh_endproc
+divide_by_zero_isr_end:
 
 .global yield_isr
 yield_isr:
@@ -286,6 +396,7 @@ yield_isr:
     mov rsp, gs:GS_SCHEDULER_STACK
     call acquire_sync_lock
     jmp scheduler
+yield_isr_end:
 
 .seh_proc breakpoint_isr
 .global breakpoint_isr
@@ -323,6 +434,7 @@ breakpoint_isr:
     add rsp, 0x20
     iretq
     .seh_endproc
+breakpoint_isr_end:
 
 .seh_proc single_step_isr
 .global single_step_isr
@@ -366,3 +478,6 @@ single_step_isr:
     add rsp, 0x20
     iretq
     .seh_endproc
+single_step_isr_end:
+
+.text_end:
