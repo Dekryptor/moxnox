@@ -1249,12 +1249,12 @@ static unsigned int find_midpoint(const tree_header& th, size_t total,
     return th.num_items - 1;
 }
 
-static nt_status insert_internal_node(btrfs_filesystem& fs, uint8_t* tree,
-                                      unsigned int slot, const key& k,
+static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
+                                      uint8_t level, const key& k,
                                       uint64_t address) {
     size_t max_items = (fs.sb.node_size - sizeof(tree_header)) / sizeof(internal_node);
 
-    auto& th = *(tree_header*)tree;
+    auto& th = *(tree_header*)p.data[level];
 
     if (th.num_items == max_items) {
         printk("FIXME - splitting internal trees\n"); // FIXME
@@ -1263,15 +1263,16 @@ static nt_status insert_internal_node(btrfs_filesystem& fs, uint8_t* tree,
 
     auto* items = (internal_node*)((uint8_t*)&th + sizeof(tree_header));
 
-    memmove(&items[slot + 1], &items[slot], (th.num_items - slot) * sizeof(internal_node));
+    memmove(&items[p.slots[level] + 1], &items[p.slots[level]],
+            (th.num_items - p.slots[level]) * sizeof(internal_node));
 
-    items[slot].k = k;
-    items[slot].address = address;
-    items[slot].generation = fs.sb.generation;
+    items[p.slots[level]].k = k;
+    items[p.slots[level]].address = address;
+    items[p.slots[level]].generation = fs.sb.generation;
 
     th.num_items++;
 
-    if (!fs.cache.write(span(tree, fs.sb.node_size), th.address)) // FIXME - return status
+    if (!fs.cache.write(span(p.data[level], fs.sb.node_size), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -1422,20 +1423,21 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
         }
     }
 
-    status = insert_internal_node(fs, p.data[1], p.slots[1] + 1,
-                                  items2[0].k, new_addr);
+    p.slots[1]++;
+    status = insert_internal_node(fs, p, 1, items2[0].k, new_addr);
     if (!success(status)) {
+        p.slots[1]--;
         free(new_tree);
         return status;
     }
 
     if (p.slots[0] < split_point) {
+        p.slots[1]--;
         free(new_tree);
         return nt_status::SUCCESS;
     }
 
     p.slots[0] -= th.num_items;
-    p.slots[1]++;
 
     free(p.data[0]);
     p.data[0] = new_tree;
@@ -1558,8 +1560,6 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
 
     if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
-
-    // FIXME - split tree if would be too full, or no room
 
     return nt_status::SUCCESS;
 }
