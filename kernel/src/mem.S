@@ -8,7 +8,7 @@
 
 .uleb128 1 # entry num
 .uleb128 DW_TAG_compile_unit
-.byte 0 # has children
+.byte 1 # has children
 .uleb128 DW_AT_low_pc
 .uleb128 DW_FORM_addr
 .uleb128 DW_AT_high_pc
@@ -17,6 +17,18 @@
 .uleb128 DW_FORM_string
 .uleb128 DW_AT_language
 .uleb128 DW_FORM_data2
+.uleb128 0
+.uleb128 0
+
+.uleb128 2 # entry num
+.uleb128 DW_TAG_subprogram
+.byte 0 # has children
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_data8
 .uleb128 0
 .uleb128 0
 
@@ -30,13 +42,31 @@
 .short 5 # version
 .byte DW_UT_compile
 .byte 8 # address size
-.long 0 # debug abbrev object
+.secrel32 .debug_abbrev
 
 .uleb128 1
 .quad .text # low_pc
 .uleb128 .text_end - .text # high_pc
 .asciz __FILE__ # name
 .short DW_LANG_Mips_Assembler # language
+
+.uleb128 2
+.asciz "memcpy"
+.quad memcpy
+.quad memcpy_end - memcpy
+
+.uleb128 2
+.asciz "memcpy_aligned"
+.quad memcpy_aligned
+.quad memcpy_aligned_end - memcpy_aligned
+
+.uleb128 2
+.asciz "init_pat"
+.quad init_pat
+.quad init_pat_end - init_pat
+
+.uleb128 0
+
 .debug_info_end:
 
 .text
@@ -92,6 +122,7 @@ memcpy:
 4:
     mov rax, r9
     ret
+memcpy_end:
 
 # void memcpy_aligned(void* dest, const void* src, size_t n)
 # requires src and dest both to be aligned to 16 bytes
@@ -144,6 +175,7 @@ memcpy_aligned:
     add rcx, 0x100
     sub r8, 0x100
     jmp memcpy_aligned
+memcpy_aligned_end:
 
 .global init_pat
 init_pat:
@@ -161,5 +193,6 @@ init_pat:
     mov cr3, rax
 
     ret
+init_pat_end:
 
 .text_end:
