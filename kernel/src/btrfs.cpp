@@ -6,6 +6,8 @@
 #include "tick_rate.h"
 #include <shared_mutex>
 
+import format;
+
 using namespace std;
 
 static const uint32_t S_IFREG = 0100000;
@@ -37,12 +39,10 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
                            read_bytes);
 
     if (!success(status)) {
-        printk("volume::read returned ");
-        print_hex((uint64_t)status, 8);
-        printk("\n");
+        print("volume::read returned {:x}\n", status);
         return;
     } else if (read_bytes < sizeof(superblock)) {
-        printk("volume::read failed\n");
+        print("volume::read failed\n");
         return;
     }
 
@@ -51,43 +51,43 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 
     // FIXME - if checksum fails, try other superblock addresses
     if (!check_checksum(sb)) {
-        printk("Incorrect superblock checksum\n");
+        print("Incorrect superblock checksum\n");
         return;
     }
 
     // FIXME - check other superblock addresses, and choose one with highest generation
 
     if (sb.incompat_flags & ~supported_incompat_flags) {
-        printk("Unsupported incompat flags\n");
+        print("Unsupported incompat flags\n");
         return;
     }
 
     // FIXME - support free space cache?
     if (!(sb.compat_ro_flags & (BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_TREE | BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_TREE_VALID))) {
-        printk("free space cache not supported\n");
+        print("free space cache not supported\n");
         return;
     }
 
     sb.incompat_flags |= BTRFS_INCOMPAT_FLAGS_SKINNY_METADATA;
 
     if (sb.num_devices != 1) {
-        printk("Multiple devices not supported\n");
+        print("Multiple devices not supported\n");
         return;
     }
 
     if (sb.node_size & (PAGE_SIZE - 1)) {
-        printk("btrfs node size not multiple of CPU page size\n");
+        print("btrfs node size not multiple of CPU page size\n");
         return;
     }
 
     // FIXME - subpage on ARM?
     if (sb.sector_size != PAGE_SIZE) {
-        printk("btrfs sector size is not CPU page size\n");
+        print("btrfs sector size is not CPU page size\n");
         return;
     }
 
     if (sb.csum_type != 0) {
-        printk("unsupported csum type\n");
+        print("unsupported csum type {}\n", sb.csum_type);
         return;
     }
 
@@ -96,21 +96,21 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 
     while (!chunk_array.empty()) {
         if (chunk_array.size() < sizeof(key)) {
-            printk("Chunk array truncated\n");
+            print("Chunk array truncated\n");
             return;
         }
 
         auto& k = *(key*)chunk_array.data();
 
         if (k.obj_type != key_type::CHUNK_ITEM) {
-            printk("Unexpected item in chunk array\n");
+            print("Unexpected item in chunk array\n");
             return;
         }
 
         chunk_array = chunk_array.subspan(sizeof(key));
 
         if (chunk_array.size() < offsetof(chunk_item, stripes)) {
-            printk("Chunk array truncated\n");
+            print("Chunk array truncated\n");
             return;
         }
 
@@ -118,18 +118,18 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
         size_t chunk_size = offsetof(chunk_item, stripes) + (sizeof(chunk_item_stripe) * ci.num_stripes);
 
         if (chunk_array.size() < chunk_size) {
-            printk("Chunk array truncated\n");
+            print("Chunk array truncated\n");
             return;
         }
 
         if (ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
-            printk("RAID not supported\n");
+            print("RAID not supported\n");
             return;
         }
 
         auto cptr = (chunk*)malloc(offsetof(chunk, ci) + chunk_size);
         if (!cptr) {
-            printk("malloc failed\n");
+            print("malloc failed\n");
             return;
         }
 
@@ -146,7 +146,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     {
         auto rptr = new root;
         if (!rptr) {
-            printk("new failed\n");
+            print("new failed\n");
             return;
         }
 
@@ -162,7 +162,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     {
         auto rptr = new root;
         if (!rptr) {
-            printk("new failed\n");
+            print("new failed\n");
             return;
         }
 
@@ -176,12 +176,12 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     }
 
     if (!load_chunks()) {
-        printk("load_chunks failed\n");
+        print("load_chunks failed\n");
         return;
     }
 
     if (!load_roots()) {
-        printk("load_roots failed\n");
+        print("load_roots failed\n");
         return;
     }
 
@@ -189,7 +189,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 
     root_inode = new btrfs_inode(*this, BTRFS_ROOT_FSTREE, SUBVOL_ROOT_INODE, btrfs_inode_type::directory);
     if (!root_inode) {
-        printk("new failed\n");
+        print("new failed\n");
         return;
     }
 
@@ -206,7 +206,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 bool btrfs_probe(volume& vol) {
     auto fs = new btrfs_filesystem(vol);
     if (!fs) {
-        printk("new failed\n");
+        print("new failed\n");
         return false;
     }
 
@@ -229,7 +229,7 @@ nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
     assert(data.size() == sb.node_size);
 
     if (!cache.read(data, addr)) {
-        printk("Short read\n");
+        print("Short read\n");
         return nt_status::INTERNAL_ERROR;
     }
 
@@ -241,7 +241,7 @@ nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
                                 sb.node_size - sizeof(th.csum)));
 
         if (*(uint32_t*)&th != crc32) {
-            printk("metadata csum error\n");
+            print("metadata csum error\n");
             // FIXME - evict from cache
             // FIXME - try to read other copies if present
             // FIXME - if success, copy good copies over bad
@@ -287,7 +287,7 @@ bool btrfs_filesystem::load_chunks() {
         auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
 
         if (data.size() < offsetof(chunk_item, stripes)) {
-            printk("Chunk item truncated\n");
+            print("Chunk item truncated\n");
             fail = true;
             break;
         }
@@ -296,20 +296,20 @@ bool btrfs_filesystem::load_chunks() {
         size_t chunk_size = offsetof(chunk_item, stripes) + (sizeof(chunk_item_stripe) * ci.num_stripes);
 
         if (data.size() < chunk_size) {
-            printk("Chunk array truncated\n");
+            print("Chunk array truncated\n");
             fail = true;
             break;
         }
 
         if (ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
-            printk("RAID not supported\n");
+            print("RAID not supported\n");
             fail = true;
             break;
         }
 
         auto cptr = (chunk*)malloc(offsetof(chunk, ci) + chunk_size);
         if (!cptr) {
-            printk("malloc failed\n");
+            print("malloc failed\n");
             fail = true;
             break;
         }
@@ -357,25 +357,23 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     auto pc = find_chunk(*this, addr);
 
     if (!pc) {
-        printk("Could not find chunk for logical address ");
-        print_hex(addr);
-        printk("\n");
+        print("Could not find chunk for logical address {:x}\n", addr);
         return 0;
     }
 
     auto& c = *pc;
 
     if (c.ci.type & BLOCK_FLAG_RAID0) {
-        printk("RAID0 not supported\n");
+        print("RAID0 not supported\n");
         return 0;
     } else if (c.ci.type & BLOCK_FLAG_RAID10) {
-        printk("RAID10 not supported\n");
+        print("RAID10 not supported\n");
         return 0;
     } else if (c.ci.type & BLOCK_FLAG_RAID5) {
-        printk("RAID10 not supported\n");
+        print("RAID10 not supported\n");
         return 0;
     } else if (c.ci.type & BLOCK_FLAG_RAID6) {
-        printk("RAID10 not supported\n");
+        print("RAID10 not supported\n");
         return 0;
     }
 
@@ -430,16 +428,16 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
     unsigned int pages_per_tree = sb.node_size >> PAGE_SHIFT;
 
     if (c.ci.type & BLOCK_FLAG_RAID0) {
-        printk("RAID0 not supported\n");
+        print("RAID0 not supported\n");
         return false;
     } else if (c.ci.type & BLOCK_FLAG_RAID10) {
-        printk("RAID10 not supported\n");
+        print("RAID10 not supported\n");
         return false;
     } else if (c.ci.type & BLOCK_FLAG_RAID5) {
-        printk("RAID5 not supported\n");
+        print("RAID5 not supported\n");
         return false;
     } else if (c.ci.type & BLOCK_FLAG_RAID6) {
-        printk("RAID6 not supported\n");
+        print("RAID6 not supported\n");
         return false;
     }
 
@@ -453,7 +451,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
     auto* first_page = cache.find_page_cache_entry(addr >> PAGE_SHIFT);
     if (!first_page) {
-        printk("cache.find_page_cache_entry returned NULL\n");
+        print("cache.find_page_cache_entry returned NULL\n");
         return false;
     }
 
@@ -496,7 +494,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             if (ent->status == page_cache_status::dirty) {
                 if (!vol.cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
                     span((uint8_t*)phys_address(ent->phys_address), PAGE_SIZE))) {
-                    printk("volume::write_pages failed\n");
+                    print("volume::write_pages failed\n");
                     cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
                     return false;
                 }
@@ -535,9 +533,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
     auto pc = find_chunk(*this, addr);
 
     if (!pc) {
-        printk("Could not find chunk for logical address ");
-        print_hex(addr);
-        printk("\n");
+        print("Could not find chunk for logical address {:x}\n", addr);
         return 0;
     }
 
@@ -567,7 +563,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
             auto flushed = vol.flush_cache(first_page, pages_to_flush);
 
             if (flushed == 0) {
-                printk("volume::flush_cache failed\n");
+                print("volume::flush_cache failed\n");
                 break;
             }
 
@@ -670,14 +666,14 @@ bool btrfs_filesystem::load_roots() {
         auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
 
         if (data.size() < sizeof(root_item)) {
-            printk("Root item truncated\n");
+            print("Root item truncated\n");
             fail = true;
             break;
         }
 
         auto rptr = new root;
         if (!rptr) {
-            printk("new failed\n");
+            print("new failed\n");
             fail = true;
             break;
         }
@@ -791,7 +787,7 @@ bool btrfs_inode::load_inode() {
         switch (k.obj_type) {
             case key_type::INODE_ITEM:
                 if (data.size() < sizeof(inode_item)) {
-                    printk("INODE_ITEM was short\n");
+                    print("INODE_ITEM was short\n");
                     break;
                 }
 
@@ -803,37 +799,37 @@ bool btrfs_inode::load_inode() {
                 auto& ed = *(extent_data*)data.data();
 
                 if (data.size() < offsetof(extent_data, data)) {
-                    printk("EXTENT_DATA was short\n");
+                    print("EXTENT_DATA was short\n");
                     break;
                 }
 
                 if (ed.compression != 0) {
-                    printk("Compression not supported\n");
+                    print("Compression not supported\n");
                     break;
                 }
 
                 if (ed.encryption != 0) {
-                    printk("Encryption not supported\n");
+                    print("Encryption not supported\n");
                     break;
                 }
 
                 if (ed.encoding != 0) {
-                    printk("Other encodings not supported\n");
+                    print("Other encodings not supported\n");
                     break;
                 }
 
                 if (ed.type == btrfs_extent_type::regular || ed.type == btrfs_extent_type::prealloc) {
                     if (data.size() < offsetof(extent_data, data) + sizeof(extent_data2)) {
-                        printk("EXTENT_DATA was short\n");
+                        print("EXTENT_DATA was short\n");
                         break;
                     }
                 } else if (ed.type == btrfs_extent_type::inline_extent) {
                     if (data.size() < offsetof(extent_data, data) + ed.decoded_size) {
-                        printk("EXTENT_DATA was short\n");
+                        print("EXTENT_DATA was short\n");
                         break;
                     }
                 } else {
-                    printk("Invalid extent type\n");
+                    print("Invalid extent type\n");
                     break;
                 }
 
@@ -846,7 +842,7 @@ bool btrfs_inode::load_inode() {
 
                 auto ieptr = (inode_extent*)malloc(offsetof(inode_extent, ed) + data.size());
                 if (!ieptr) {
-                    printk("malloc failed\n");
+                    print("malloc failed\n");
                     break;
                 }
 
@@ -868,11 +864,7 @@ bool btrfs_inode::load_inode() {
     } while (true);
 
     if (!found_inode_item) {
-        printk("INODE_ITEM for subvol ");
-        print_hex(r->id);
-        printk(", inode ");
-        print_hex(inode);
-        printk(" not found.\n");
+        print("INODE_ITEM for subvol {:x}, inode {:x} not found.\n", r->id, inode);
         return false;
     }
 
@@ -966,14 +958,7 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
         auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
         if (p.slots[0] >= th.num_items) {
-            char s[100];
-            auto sp = span(s, sizeof(s));
-
-            sp = sp_strcpy(sp, "Could not find free_space_info for chunk ");
-            sp = sp_itoa_hex(sp, c.offset);
-            sp = sp_strcpy(sp, ".\n");
-            printk(string_view(s, sp.data() - s));
-
+            print("Could not find free_space_info for chunk {:x}.\n", c.offset);
             return nt_status::DISK_CORRUPT_ERROR;
         }
 
@@ -981,14 +966,7 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
         const auto& k = it.k;
 
         if (k != search_key) {
-            char s[100];
-            auto sp = span(s, sizeof(s));
-
-            sp = sp_strcpy(sp, "Could not find free_space_info for chunk ");
-            sp = sp_itoa_hex(sp, c.offset);
-            sp = sp_strcpy(sp, ".\n");
-            printk(string_view(s, sp.data() - s));
-
+            print("Could not find free_space_info for chunk {:x}.\n", c.offset);
             return nt_status::DISK_CORRUPT_ERROR;
         }
     }
@@ -1020,7 +998,7 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
             }
 
             case key_type::FREE_SPACE_BITMAP:
-                printk("FIXME - support free space bitmaps\n"); // FIXME
+                print("FIXME - support free space bitmaps\n"); // FIXME
                 return nt_status::INTERNAL_ERROR;
             break;
 
@@ -1184,16 +1162,7 @@ nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
         auto& th = *(tree_header*)p.data[level];
 
         if (th.level != level) {
-            char s[100];
-            auto sp = span(s, sizeof(s));
-
-            sp = sp_strcpy(sp, "Tree level was incorrect (");
-            sp = sp_itoa_hex(sp, th.level);
-            sp = sp_strcpy(sp, ", expected ");
-            sp = sp_itoa_hex(sp, level);
-            sp = sp_strcpy(sp, ")\n");
-            printk(string_view(s, sp.data() - s));
-
+            print("Tree level was incorrect ({:x}, expected {:x})\n", th.level, level);
             return nt_status::DISK_CORRUPT_ERROR;
         }
 
@@ -1555,7 +1524,7 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
             }
 
             if (split_point == 0) {
-                printk("FIXME - do double split\n");
+                print("FIXME - do double split\n");
                 return nt_status::INTERNAL_ERROR;
             }
         } else {
@@ -1568,7 +1537,7 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
             }
 
             if (split_point == th.num_items) {
-                printk("FIXME - do double split\n");
+                print("FIXME - do double split\n");
                 return nt_status::INTERNAL_ERROR;
             }
         }
@@ -2137,13 +2106,13 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
             return nt_status::OBJECT_NAME_COLLISION;
 
         if (create_disposition == FILE_OVERWRITE) {
-            printk("FIXME - FILE_OVERWRITE\n");
+            print("FIXME - FILE_OVERWRITE\n");
             return nt_status::NOT_SUPPORTED;
         } else if (create_disposition == FILE_OVERWRITE_IF) {
-            printk("FIXME - FILE_OVERWRITE_IF\n");
+            print("FIXME - FILE_OVERWRITE_IF\n");
             return nt_status::NOT_SUPPORTED;
         } else if (create_disposition == FILE_SUPERSEDE) {
-            printk("FIXME - FILE_SUPERSEDE\n");
+            print("FIXME - FILE_SUPERSEDE\n");
             return nt_status::NOT_SUPPORTED;
         }
 
@@ -2190,7 +2159,7 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
     auto ino = new btrfs_inode(*this, subvol, inode, btrfs_inode_type::unknown);
 
     if (!ino) {
-        printk("new failed\n");
+        print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
@@ -2231,7 +2200,7 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
                                  uint32_t create_options) {
     if (!root_dir) {
         if (fn.empty() || fn[0] != '/') {
-            printk("Not an absolute path.\n");
+            print("Not an absolute path.\n");
             return nt_status::INVALID_PARAMETER;
         }
 
@@ -2322,7 +2291,7 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
                                                   uint64_t num_pages,
                                                   const inode_extent& ie) {
     if (ie.ed.compression != 0) {
-        printk("FIXME - compression\n"); // FIXME
+        print("FIXME - compression\n"); // FIXME
         return 0;
     }
 
@@ -2362,7 +2331,7 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
 size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
                                            const inode_extent& ie) {
     if (ie.ed.compression != 0) {
-        printk("FIXME - compression\n"); // FIXME
+        print("FIXME - compression\n"); // FIXME
         return 0;
     }
 
@@ -2444,7 +2413,7 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
             }
 
             default:
-                printk("unknown btrfs extent type");
+                print("unknown btrfs extent type {:x}\n", (unsigned int)ie.ed.type);
                 return 0;
         }
     }
@@ -2453,7 +2422,7 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    printk("FIXME - btrfs_inode::flush_cache\n"); // FIXME
+    print("FIXME - btrfs_inode::flush_cache\n"); // FIXME
 
     return 0;
 }
@@ -2509,7 +2478,8 @@ static NTSTATUS query_directory_dirent(string_view sv, enum btrfs_inode_type ino
         }
 
         default:
-            printk("btrfs_filesystem::query_directory_dirent: unhandled info class\n");
+            print("btrfs_filesystem::query_directory_dirent: unhandled info class {:x}\n",
+                  (unsigned int)file_information_class);
             return nt_status::INVALID_INFO_CLASS;
     }
 }
@@ -2612,7 +2582,7 @@ static void write_superblocks(btrfs_filesystem& fs) {
             auto flushed = fs.vol.flush_cache(first_page, num_pages);
 
             if (flushed == 0) {
-                printk("volume::flush_cache failed\n");
+                print("volume::flush_cache failed\n");
                 return;
             }
 
@@ -2636,7 +2606,7 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
     auto items = span((leaf_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
     if (p.slots[0] >= th.num_items) {
-        printk("Root item not found\n");
+        print("Root item not found\n");
         return nt_status::DISK_CORRUPT_ERROR;
     }
 
@@ -2644,14 +2614,14 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
     const auto& k = it.k;
 
     if (k.obj_id != r.id || k.obj_type != key_type::ROOT_ITEM) {
-        printk("Root item not found\n");
+        print("Root item not found\n");
         return nt_status::DISK_CORRUPT_ERROR;
     }
 
     auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
 
     if (data.size() < sizeof(root_item)) {
-        printk("Root item truncated\n");
+        print("Root item truncated\n");
         return nt_status::DISK_CORRUPT_ERROR;
     }
 
@@ -2675,9 +2645,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
     chunk* c = find_chunk(fs, address);
 
     if (!c) {
-        printk("Could not find chunk for logical address ");
-        print_hex(address);
-        printk("\n");
+        print("Could not find chunk for logical address {:x}\n", address);
         return nt_status::INTERNAL_ERROR;
     }
 
@@ -2912,14 +2880,7 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
 
         auto c = find_chunk(fs, mc.address);
         if (!c) {
-            char s[50];
-            auto sp = span(s, sizeof(s));
-
-            sp = sp_strcpy(sp, "no chunk found for address ");
-            sp = sp_itoa_hex(sp, mc.address);
-            sp = sp_strcpy(sp, "\n");
-            printk(string_view(s, sp.data() - s));
-
+            print("no chunk found for address {:x}\n", mc.address);
             return nt_status::INTERNAL_ERROR;
         }
 
@@ -2934,27 +2895,13 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
 
             auto status = fs.remove_item(*fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level});
             if (!success(status)) {
-                char s[30];
-                auto sp = span(s, sizeof(s));
-
-                sp = sp_strcpy(sp, "remove_item returned ");
-                sp = sp_itoa_hex(sp, (uint32_t)status);
-                sp = sp_strcpy(sp, "\n");
-                printk(string_view(s, sp.data() - s));
-
+                print("remove_item returned {:x}\n", status);
                 return status;
             }
 
             status = add_free_space(fs, mc.address, fs.sb.node_size);
             if (!success(status)) {
-                char s[40];
-                auto sp = span(s, sizeof(s));
-
-                sp = sp_strcpy(sp, "add_free_space returned ");
-                sp = sp_itoa_hex(sp, (uint32_t)status);
-                sp = sp_strcpy(sp, "\n");
-                printk(string_view(s, sp.data() - s));
-
+                print("add_free_space returned {:x}\n", status);
                 return status;
             }
 
@@ -2971,27 +2918,13 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
             auto status = insert_item(fs, *fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level},
                                       span((uint8_t*)&eitbr, sizeof(eitbr)));
             if (!success(status)) {
-                char s[40];
-                auto sp = span(s, sizeof(s));
-
-                sp = sp_strcpy(sp, "insert_item returned ");
-                sp = sp_itoa_hex(sp, (uint32_t)status);
-                sp = sp_strcpy(sp, "\n");
-                printk(string_view(s, sp.data() - s));
-
+                print("insert_item returned {:x}\n", status);
                 return status;
             }
 
             status = remove_free_space(fs, mc.address, fs.sb.node_size);
             if (!success(status)) {
-                char s[40];
-                auto sp = span(s, sizeof(s));
-
-                sp = sp_strcpy(sp, "remove_free_space returned ");
-                sp = sp_itoa_hex(sp, (uint32_t)status);
-                sp = sp_strcpy(sp, "\n");
-                printk(string_view(s, sp.data() - s));
-
+                print("remove_free_space returned {:x}\n", status);
                 return status;
             }
 
@@ -3027,14 +2960,7 @@ void btrfs_filesystem::do_flush() {
     status = do_metadata_changes(*this);
     // FIXME - make filesystem readonly if do_metadata_changes fails
     if (!success(status)) {
-        char s[40];
-        auto sp = span(s, sizeof(s));
-
-        sp = sp_strcpy(sp, "do_metadata_changes returned ");
-        sp = sp_itoa_hex(sp, (uint32_t)status);
-        sp = sp_strcpy(sp, "\n");
-        printk(string_view(s, sp.data() - s));
-
+        print("do_metadata_changes returned {:x}\n", status);
         return;
     }
 
@@ -3043,14 +2969,7 @@ void btrfs_filesystem::do_flush() {
 
         auto status = flush_root(*this, r);
         if (!success(status)) {
-            char s[30];
-            auto sp = span(s, sizeof(s));
-
-            sp = sp_strcpy(sp, "flush_root returned ");
-            sp = sp_itoa_hex(sp, (uint32_t)status);
-            sp = sp_strcpy(sp, "\n");
-            printk(string_view(s, sp.data() - s));
-
+            print("flush_root returned {:x}\n", status);
             // FIXME - make filesystem readonly if do_flush fails
         }
 
@@ -3061,14 +2980,7 @@ void btrfs_filesystem::do_flush() {
     status = do_metadata_changes(*this);
     // FIXME - make filesystem readonly if do_metadata_changes fails
     if (!success(status)) {
-        char s[40];
-        auto sp = span(s, sizeof(s));
-
-        sp = sp_strcpy(sp, "do_metadata_changes returned ");
-        sp = sp_itoa_hex(sp, (uint32_t)status);
-        sp = sp_strcpy(sp, "\n");
-        printk(string_view(s, sp.data() - s));
-
+        print("do_metadata_changes returned {:x}\n", status);
         return;
     }
 
@@ -3089,7 +3001,7 @@ void btrfs_filesystem::do_flush() {
             auto flushed = flush_cache(first_page, num_pages);
 
             if (flushed == 0) {
-                printk("flush_cache did not flush any pages\n");
+                print("flush_cache did not flush any pages\n");
                 return;
             }
 

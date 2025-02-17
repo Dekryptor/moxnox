@@ -99,6 +99,12 @@ span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
     return sp_itoa(sp, arg);
 }
 
+span<char> do_format_arg(span<char> sp, string_view fmt, nt_status arg) {
+    // FIXME - format nt_status to string?
+
+    return do_format_arg(sp, fmt, (uint32_t)arg);
+}
+
 span<char> do_format_arg(span<char> sp, string_view, string_view arg) {
     return sp_strcpy(sp, arg);
 }
@@ -143,7 +149,7 @@ span<char> format_to(span<char> sp, string_view fmt) {
 
 export
 template<typename... Args>
-void print(string_view fmt, Args&&... args) {
+void print(string_view fmt, Args... args) {
     disable_preempt();
 
     auto& cb = *get_cpu_block();

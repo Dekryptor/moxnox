@@ -110,10 +110,6 @@ void main_thread() {
 
     keywait();
 
-    // FIXME
-    print("The answer is {} (hello {}).\n", 42, 229);
-    print("hello world\n");
-
     init_syscalls();
 
     if (!init_smp()) {
