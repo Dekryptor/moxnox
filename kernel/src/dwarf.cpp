@@ -925,8 +925,12 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
     }
 
     uint32_t ref = *specification;
+    auto orig_sp = sp;
+    size_t written = 0;
 
     do {
+        name = string_view();
+
         find_die_by_reference(cu, ref, abbrev_list, [&name, &linkage_name, &img](enum DW_TAG, span<const uint8_t> die,
                                                                                  span<const uint8_t> att_list) {
             loop_through_atts(die, att_list, [&name, &linkage_name, &img](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
@@ -948,6 +952,12 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
             });
         });
 
+        if (name.empty())
+            break;
+
+        written += name.size();
+        sp = sp_strcpy(sp, name);
+
         auto ref2 = find_die_parent(cu, abbrev_list, ref);
         if (ref2 == 0)
             break;
@@ -955,15 +965,15 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
         ref = ref2;
     } while (true);
 
-    if (name.empty() && !linkage_name.empty())
-        name = linkage_name;
+    if (written == 0) {
+        if (name.empty() && !linkage_name.empty())
+            name = linkage_name;
 
-    if (name.empty()) {
-        sp = sp_strcpy(sp, "???");
-        return;
+        if (name.empty()) {
+            sp = sp_strcpy(sp, "???");
+            return;
+        }
     }
-
-    sp = sp_strcpy(sp, name);
 }
 
 uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
