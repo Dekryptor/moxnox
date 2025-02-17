@@ -55,10 +55,10 @@ target_compile_options(kernel PRIVATE -Wall -Wextra -Wno-address-of-packed-membe
 # target_compile_options(kernel PRIVATE -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}/= -ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=)
 target_link_options(kernel PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup -Wl,--image-base=0xfffff80000000000)
 
+target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-g0>)
+
 target_link_libraries(kernel freetype)
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
-
-set_source_files_properties(src/mem.S src/syscalls.S src/ints.S src/keyboard.S src/sata.S src/serial.S src/timer.S PROPERTIES COMPILE_OPTIONS "-g0")
 
 install(TARGETS kernel DESTINATION ${CMAKE_INSTALL_PREFIX})
