@@ -927,6 +927,8 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
     uint32_t ref = *specification;
     size_t written = 0;
 
+    static const char sep[] = { ':', ':' };
+
     do {
         name = string_view();
 
@@ -954,13 +956,20 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
         if (name.empty())
             break;
 
+        bool write_sep = written != 0;
+
         // FIXME - only need to move what we've written, not whole buffer
-        if (name.size() < sp.size())
-            memmove(sp.data() + name.size(), sp.data(), sp.size() - name.size());
+        if (name.size() < sp.size()) {
+            size_t len = name.size() + (write_sep ? sizeof(sep) : 0);
+
+            memmove(sp.data() + len, sp.data(), sp.size() - len);
+        }
 
         memcpy(sp.data(), name.data(), min(name.size(), sp.size()));
+        written += name.size() + (write_sep ? sizeof(sep) : 0);
 
-        written += name.size();
+        if (write_sep && sp.size() > name.size())
+            memcpy(sp.data() + name.size(), sep, min(sizeof(sep), sp.size() - name.size()));
 
         auto ref2 = find_die_parent(cu, abbrev_list, ref);
         if (ref2 == 0)
