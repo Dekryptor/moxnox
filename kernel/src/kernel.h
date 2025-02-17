@@ -128,17 +128,6 @@ __attribute__((noreturn)) void _assert(const char* msg, const char* file, unsign
 void copy_edid(loader_block* lb);
 extern bool has_framebuffer;
 
-static void printk(std::convertible_to<std::string_view> auto s) {
-    _printk(s);
-}
-
-static void printk(std::integral auto i) {
-    char s[21];
-
-    auto [ptr, ec] = std::to_chars(s, s + sizeof(s), i);
-    _printk(std::string_view(s, ptr));
-}
-
 // interrupts.cpp
 extern volatile uint8_t* const local_apic;
 bool init_interrupts();
