@@ -8,6 +8,9 @@ export module format;
 
 using namespace std;
 
+extern "C++" void safe_print(string_view s);
+extern "C++" decltype(&safe_print) _printk;
+
 span<char> sp_strcpy(span<char> dest, string_view src) {
     auto to_copy = min(src.size(), dest.size());
 
@@ -92,15 +95,13 @@ span<char> format_to(span<char> sp, string_view fmt) {
     return sp_strcpy(sp, fmt);
 }
 
-using func_type = void(string_view s);
-
 export
 template<typename... Args>
-void print(func_type print_func, string_view fmt, Args&&... args) {
+void print(string_view fmt, Args&&... args) {
     char s[50]; // FIXME
     auto sp = span(s, sizeof(s));
 
     sp = format_to(sp, fmt, args...);
 
-    print_func(string_view(s, sp.data() - s));
+    _printk(string_view(s, sp.data() - s));
 }

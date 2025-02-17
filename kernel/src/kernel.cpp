@@ -156,8 +156,8 @@ void main_thread() {
     keywait();
 
     // FIXME
-    print(printk, "The answer is {} (hello {}).\n", 42, 229);
-    print(printk, "hello world\n");
+    print("The answer is {} (hello {}).\n", 42, 229);
+    print("hello world\n");
 
     init_syscalls();
 
