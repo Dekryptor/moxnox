@@ -1647,12 +1647,14 @@ static void print_rip(uint64_t rip) {
     if (img) {
         // FIXME - also get filename and line no. from DWARF
 
-        auto [func_name, func_start] = dwarf_find_function(*img, rip);
-
         sp = sp_strcpy(sp, " (");
         sp = sp_strcpy(sp, img->name);
 
-        if (!func_name.empty()) {
+        string_view func_name;
+
+        auto func_start = dwarf_find_function(*img, rip, func_name);
+
+        if (func_start != 0) {
             sp = sp_strcpy(sp, "!");
             sp = sp_strcpy(sp, func_name);
 

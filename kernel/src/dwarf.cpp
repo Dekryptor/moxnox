@@ -960,16 +960,15 @@ static string_view get_func_name(const kernel_image& img, span<const uint8_t> di
     return name;
 }
 
-static tuple<string_view, uint64_t> dwarf_find_function2(const kernel_image& img, uint64_t addr,
-                                                         span<const uint8_t> cu,
-                                                         span<const uint8_t> abbrev) {
-    string_view func_name;
+uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
+                              span<const uint8_t> cu, span<const uint8_t> abbrev,
+                              string_view& func_name) {
     uint64_t func_start = 0;
 
     auto abbrev_list = load_abbrev_entries(abbrev);
 
     if (abbrev_list.empty())
-        return {"", 0};
+        return 0;
 
     loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                            span<const uint8_t> att_list, unsigned int depth,
@@ -1012,17 +1011,18 @@ static tuple<string_view, uint64_t> dwarf_find_function2(const kernel_image& img
 
     free(abbrev_list.data());
 
-    return {func_name, func_start};
+    return func_start;
 }
 
-tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64_t addr) {
+uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
+                             string_view& func_name) {
     auto info = img.debug_info;
     if (info.empty())
-        return {"", 0};
+        return 0;
 
     auto abbrev = img.debug_abbrev;
     if (abbrev.empty())
-        return {"", 0};
+        return 0;
 
     auto rnglists = img.debug_rnglists;
 
@@ -1088,8 +1088,9 @@ tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64
     });
 
     if (found_cu.empty())
-        return {"", 0};
+        return 0;
 
     return dwarf_find_function2(img, addr, found_cu,
-                                abbrev.subspan(found_debug_abbrev_object));
+                                abbrev.subspan(found_debug_abbrev_object),
+                                func_name);
 }
