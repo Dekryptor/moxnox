@@ -4,6 +4,8 @@
 #include "tick_rate.h"
 #include "handle.h"
 
+import format;
+
 using namespace std;
 
 static const uint8_t timer_interrupt = 0x20;
@@ -59,9 +61,7 @@ void init_timer() {
 
     apic_timer_freq = (0xffffffff - *timer_current) * 100;
 
-    printk("apic_timer_freq = ");
-    printk(apic_timer_freq);
-    printk("\n");
+    print("apic_timer_freq = {}\n", apic_timer_freq);
 
     add_idt_entry(timer_interrupt, (void*)timer_isr, false, 1, false);
     add_idt_entry(timer_ap_interrupt, (void*)timer_isr_ap, false, 1, false);
@@ -72,7 +72,7 @@ void init_timer() {
 object_ref create_timer(bool autoreset) {
     auto tptr = new timer;
     if (!tptr) {
-        printk("new failed\n");
+        print("new failed\n");
         return {};
     }
 

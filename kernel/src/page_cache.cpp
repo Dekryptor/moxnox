@@ -2,6 +2,8 @@
 #include "objects.h"
 #include "page_cache.h"
 
+import format;
+
 using namespace std;
 
 page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
@@ -37,7 +39,7 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     p->phys_address = allocate_page();
 
     if (!p->phys_address) {
-        printk("allocate_page failed\n");
+        print("allocate_page failed\n");
         delete p;
         return nullptr;
     }
@@ -335,7 +337,7 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
                     auto ret = dev.read_into_cache(page_num_start, pages_left);
 
                     if (ret == 0) {
-                        printk("read_into_cache failed\n");
+                        print("read_into_cache failed\n");
                         return 0;
                     }
 

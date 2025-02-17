@@ -3,12 +3,14 @@
 #include "spinlock.h"
 #include "handle.h"
 
+import format;
+
 using namespace std;
 
 object_ref create_event(bool autoreset) {
     auto eptr = new event;
     if (!eptr) {
-        printk("new failed\n");
+        print("new failed\n");
         return {};
     }
 

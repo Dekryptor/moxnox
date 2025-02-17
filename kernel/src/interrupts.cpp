@@ -8,6 +8,8 @@
 #include <optional>
 #include <functional>
 
+import format;
+
 using namespace std;
 
 static const uint32_t CPUID_FEAT_EDX_APIC = 0x200;
@@ -39,7 +41,7 @@ static bool check_cpu_for_apic() {
     __cpuid(1, eax, ebx, ecx, edx);
 
     if (!(edx & CPUID_FEAT_EDX_APIC)) {
-        printk("APIC disabled or not supported by CPU.\n");
+        print("APIC disabled or not supported by CPU.\n");
         return false;
     }
 
@@ -69,14 +71,14 @@ span<const uint8_t> find_madt() {
     });
 
     if (!madtw) {
-        printk("MADT not found in ACPI tables.\n");
+        print("MADT not found in ACPI tables.\n");
         return span<const uint8_t>();
     }
 
     auto& madt = madtw->get();
 
     if (madt.Length < sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t)) {
-        printk("MADT was shorter than expected.\n");
+        print("MADT was shorter than expected.\n");
         return span<const uint8_t>();
     }
 
@@ -98,7 +100,7 @@ static uint64_t find_ioapic(span<const uint8_t> data) {
         data = data.subspan(length);
     }
 
-    printk("Could not find address of I/O APIC.\n");
+    print("Could not find address of I/O APIC.\n");
 
     return 0;
 }
@@ -196,7 +198,7 @@ static bool init_apic() {
     auto apic_base = rdmsr(IA32_APIC_BASE_MSR) & 0xfffff000;
 
     if (!map_page(apic_base, (uintptr_t)local_apic, mapping_type::no_cache)) {
-        printk("map_page failed for local APIC\n");
+        print("map_page failed for local APIC\n");
         return false;
     }
 
@@ -213,7 +215,7 @@ static bool init_apic() {
         return false;
 
     if (!map_page(io_apic_pa, (uintptr_t)io_apic, mapping_type::no_cache)) {
-        printk("map_page failed for I/O APIC\n");
+        print("map_page failed for I/O APIC\n");
         return false;
     }
 
@@ -245,12 +247,12 @@ void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
 static bool setup_idt() {
     auto idt_page = allocate_page();
     if (idt_page == 0) {
-        printk("Could not allocate page for IDT.\n");
+        print("Could not allocate page for IDT.\n");
         return false;
     }
 
     if (!map_page(idt_page, (uintptr_t)idt.data(), mapping_type::read_write)) {
-        printk("map_page failed for IDT\n");
+        print("map_page failed for IDT\n");
         return false;
     }
 
@@ -302,14 +304,14 @@ static bool setup_idt() {
 void* allocate_stack() {
     auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     if (!stack) {
-        printk("allocate_va failed\n");
+        print("allocate_va failed\n");
         return nullptr;
     }
 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            printk("allocate_page failed\n");
+            print("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
@@ -325,7 +327,7 @@ void* allocate_stack() {
         }
 
         if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
-            printk("map_page failed\n");
+            print("map_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
@@ -347,7 +349,7 @@ void* allocate_stack() {
 task_state_segment* init_tss() {
     auto pa = allocate_page();
     if (!pa) {
-        printk("allocate_page failed\n");
+        print("allocate_page failed\n");
         return nullptr;
     }
 
@@ -533,7 +535,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
 
     if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
-        printk("Unable to copy thread context to stack.\n");
+        print("Unable to copy thread context to stack.\n");
         current_thread.exit_status = nt_status::ACCESS_VIOLATION;
         current_thread.terminate();
         return false;
@@ -561,7 +563,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     uintptr_t us_er = us_context - er_size;
 
     if (!p.copy_to((void*)us_er, &er, er_size)) {
-        printk("Unable to copy exception record to stack.\n");
+        print("Unable to copy exception record to stack.\n");
         current_thread.exit_status = nt_status::ACCESS_VIOLATION;
         current_thread.terminate();
         return false;
@@ -655,7 +657,7 @@ void general_protection_fault(uint64_t error_code) {
         uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
-            printk("Unable to copy thread context to stack.\n");
+            print("Unable to copy thread context to stack.\n");
             current_thread->exit_status = nt_status::ACCESS_VIOLATION;
             current_thread->terminate();
             return;
@@ -675,7 +677,7 @@ void general_protection_fault(uint64_t error_code) {
         uintptr_t us_er = us_context - er_size;
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
-            printk("Unable to copy exception record to stack.\n");
+            print("Unable to copy exception record to stack.\n");
             current_thread->exit_status = nt_status::ACCESS_VIOLATION;
             current_thread->terminate();
             return;
@@ -722,7 +724,7 @@ void invalid_opcode() {
         uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
-            printk("Unable to copy thread context to stack.\n");
+            print("Unable to copy thread context to stack.\n");
             current_thread->exit_status = nt_status::ILLEGAL_INSTRUCTION;
             current_thread->terminate();
             return;
@@ -740,7 +742,7 @@ void invalid_opcode() {
         uintptr_t us_er = us_context - er_size;
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
-            printk("Unable to copy exception record to stack.\n");
+            print("Unable to copy exception record to stack.\n");
             current_thread->exit_status = nt_status::ILLEGAL_INSTRUCTION;
             current_thread->terminate();
             return;
@@ -786,7 +788,7 @@ void divide_by_zero() {
         uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
-            printk("Unable to copy thread context to stack.\n");
+            print("Unable to copy thread context to stack.\n");
             current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
             current_thread->terminate();
             return;
@@ -804,7 +806,7 @@ void divide_by_zero() {
         uintptr_t us_er = us_context - er_size;
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
-            printk("Unable to copy exception record to stack.\n");
+            print("Unable to copy exception record to stack.\n");
             current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
             current_thread->terminate();
             return;
@@ -850,7 +852,7 @@ void breakpoint() {
         uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
-            printk("Unable to copy thread context to stack.\n");
+            print("Unable to copy thread context to stack.\n");
             current_thread->exit_status = nt_status::BREAKPOINT;
             current_thread->terminate();
             return;
@@ -868,7 +870,7 @@ void breakpoint() {
         uintptr_t us_er = us_context - er_size;
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
-            printk("Unable to copy exception record to stack.\n");
+            print("Unable to copy exception record to stack.\n");
             current_thread->exit_status = nt_status::BREAKPOINT;
             current_thread->terminate();
             return;
@@ -914,7 +916,7 @@ void single_step() {
         uintptr_t us_context = cb.thread_context.Rsp - sizeof(CONTEXT);
 
         if (!p.copy_to((void*)us_context, &cb.thread_context, sizeof(CONTEXT))) {
-            printk("Unable to copy thread context to stack.\n");
+            print("Unable to copy thread context to stack.\n");
             current_thread->exit_status = nt_status::SINGLE_STEP;
             current_thread->terminate();
             return;
@@ -932,7 +934,7 @@ void single_step() {
         uintptr_t us_er = us_context - er_size;
 
         if (!p.copy_to((void*)us_er, &er, er_size)) {
-            printk("Unable to copy exception record to stack.\n");
+            print("Unable to copy exception record to stack.\n");
             current_thread->exit_status = nt_status::SINGLE_STEP;
             current_thread->terminate();
             return;

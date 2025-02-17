@@ -1,6 +1,8 @@
 #include "kernel.h"
 #include "acpi.h"
 
+import format;
+
 using namespace std;
 
 static const uint16_t SLP_EN = 1 << 13;
@@ -42,30 +44,30 @@ static void reboot() {
     });
 
     if (!fadtw) {
-        printk("FADT not found in ACPI tables.\n");
+        print("FADT not found in ACPI tables.\n");
         return;
     }
 
     auto& fadt = reinterpret_cast<const struct fadt&>(fadtw->get());
 
     if (fadt.h.Length < offsetofend(struct fadt, ResetValue)) {
-        printk("FADT was truncated\n");
+        print("FADT was truncated\n");
         return;
     }
 
     if (fadt.ResetReg.BitWidth != 8) {
-        printk("invalid value for ResetReg.BitWidth in FADT\n");
+        print("invalid value for ResetReg.BitWidth in FADT\n");
         return;
     }
 
     if (fadt.ResetReg.BitOffset != 0) {
-        printk("invalid value for ResetReg.BitOffset in FADT\n");
+        print("invalid value for ResetReg.BitOffset in FADT\n");
         return;
     }
 
     switch (fadt.ResetReg.AddressSpace) {
         case acpi_address_space::system_memory:
-            printk("FIXME - acpi_address_space::system_memory\n");
+            print("FIXME - acpi_address_space::system_memory\n");
         break;
 
         case acpi_address_space::system_io:
@@ -73,11 +75,12 @@ static void reboot() {
         break;
 
         case acpi_address_space::pci_config:
-            printk("FIXME - acpi_address_space::pci_config\n");
+            print("FIXME - acpi_address_space::pci_config\n");
         break;
 
         default:
-            printk("invalid value for ResetReg.AddressSpace in FADT\n");
+            print("invalid value {} for ResetReg.AddressSpace in FADT\n",
+                  (unsigned int)fadt.ResetReg.AddressSpace);
         break;
     }
 }
@@ -95,29 +98,32 @@ static void halt() {
     });
 
     if (!fadtw) {
-        printk("FADT not found in ACPI tables.\n");
+        print("FADT not found in ACPI tables.\n");
         return;
     }
 
     auto& fadt = reinterpret_cast<const struct fadt&>(fadtw->get());
 
     if (fadt.h.Length < offsetofend(struct fadt, X_PM1aControlBlock)) {
-        printk("FADT was truncated\n");
+        print("FADT was truncated\n");
         return;
     }
 
     if (fadt.X_PM1aControlBlock.AddressSpace != acpi_address_space::system_io) {
-        printk("unexpected value for X_PM1aControlBlock.AddressSpace in FADT\n");
+        print("unexpected value {} for X_PM1aControlBlock.AddressSpace in FADT\n",
+              (unsigned int)fadt.X_PM1aControlBlock.AddressSpace);
         return;
     }
 
     if (fadt.X_PM1aControlBlock.BitWidth != 16) {
-        printk("unexpected value for X_PM1aControlBlock.BitWidth in FADT\n");
+        print("unexpected value {} for X_PM1aControlBlock.BitWidth in FADT\n",
+              fadt.X_PM1aControlBlock.BitWidth);
         return;
     }
 
     if (fadt.X_PM1aControlBlock.BitOffset != 0) {
-        printk("unexpected value for X_PM1aControlBlock.BitOffset in FADT\n");
+        print("unexpected value {} for X_PM1aControlBlock.BitOffset in FADT\n",
+              fadt.X_PM1aControlBlock.BitOffset);
         return;
     }
 

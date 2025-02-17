@@ -7,6 +7,8 @@
 #include <optional>
 #include <atomic>
 
+import format;
+
 using namespace std;
 
 uint16_t last_tid = 0; // FIXME - too small?
@@ -37,7 +39,7 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
 
     auto tptr = new (align_val_t(16)) thread;
     if (!tptr) {
-        printk("new failed\n");
+        print("new failed\n");
         return {};
     }
 
@@ -45,7 +47,7 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
 
     // FIXME - spinlock for last_tid (or use atomics)
     if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-        printk("Thread limit reached.\n");
+        print("Thread limit reached.\n");
         delete &t;
         return {};
     }
@@ -57,7 +59,7 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
 
     t.kernel_stack = allocate_stack();
     if (!t.kernel_stack) {
-        printk("allocate_stack failed\n");
+        print("allocate_stack failed\n");
         delete &t;
         return {};
     }
@@ -387,7 +389,7 @@ nt_status wait_for_object(object& obj, bool interruptible) {
             release_sync_lock();
             __asm("sti");
             // FIXME - exception
-            printk("Not a sync object\n");
+            print("Not a sync object\n");
             return nt_status::INVALID_PARAMETER;
         }
 
@@ -431,12 +433,12 @@ bool init_cpu_block(unsigned int cpu_no) {
     for (unsigned int i = 0; i < pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            printk("allocate_page failed\n");
+            print("allocate_page failed\n");
             return false;
         }
 
         if (!map_page(pa, va, mapping_type::read_write)) {
-            printk("map_page failed\n");
+            print("map_page failed\n");
             return false;
         }
 
@@ -445,7 +447,7 @@ bool init_cpu_block(unsigned int cpu_no) {
 
     auto printk_scratch_pa = allocate_page();
     if (!printk_scratch_pa) {
-        printk("allocate_page failed\n");
+        print("allocate_page failed\n");
         return false;
     }
 

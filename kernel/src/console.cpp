@@ -11,6 +11,8 @@
 #include <freetype/freetype.h>
 #include <console.h>
 
+import format;
+
 using namespace std;
 
 static unsigned int console_cols, console_rows;
@@ -1388,14 +1390,14 @@ bool init_console(const loader_block_framebuffer& fb,
         uint32_t size = fb.pixels_per_scan_line * fb.height * sizeof(uint32_t);
 
         if (size == 0) {
-            printk("Framebuffer size was 0.\n");
+            print("Framebuffer size was 0.\n");
             return false;
         }
 
         auto pages = bytes_to_pages(size);
         auto va = allocate_va(pages);
         if (!va) {
-            printk("allocate_va failed\n");
+            print("allocate_va failed\n");
             return false;
         }
 
@@ -1403,14 +1405,14 @@ bool init_console(const loader_block_framebuffer& fb,
 
         for (unsigned int i = 0; i < pages; i++) {
             if (!map_page((uintptr_t)fb.phys_address + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
-                printk("map_page failed\n");
+                print("map_page failed\n");
                 return false;
             }
         }
 
         va = allocate_va(pages);
         if (!va) {
-            printk("allocate_va failed\n");
+            print("allocate_va failed\n");
             return false;
         }
 
@@ -1419,12 +1421,12 @@ bool init_console(const loader_block_framebuffer& fb,
         for (unsigned int i = 0; i < pages; i++) {
             auto pa = allocate_page();
             if (!pa) {
-                printk("allocate_page failed\n");
+                print("allocate_page failed\n");
                 return false;
             }
 
             if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-                printk("map_page failed\n");
+                print("map_page failed\n");
                 return false;
             }
         }
@@ -1466,18 +1468,18 @@ static void console_event_recv() {
 bool init_console_pipe() {
     console_pipe = create_pipe(console_buffer_pages);
     if (!console_pipe) {
-        printk("create_pipe failed\n");
+        print("create_pipe failed\n");
         return false;
     }
 
     if (!name_object(console_pipe.get(), "tty")) {
-        printk("name_object failed\n");
+        print("name_object failed\n");
         return false;
     }
 
     if (framebuffer.empty()) { // gets started later if we have framebuffer
         if (!add_kernel_thread(console_event_recv)) {
-            printk("add_kernel_thread failed\n");
+            print("add_kernel_thread failed\n");
             return false;
         }
     }
@@ -1534,10 +1536,7 @@ bool init_fb_console() {
 
     error = FT_Init_FreeType(&ft);
     if (error) {
-        printk("FT_Init_FreeType failed (");
-        print_hex(error);
-        printk(")\n");
-
+        print("FT_Init_FreeType failed ({:x})\n", error);
         return false;
     }
 
@@ -1551,38 +1550,26 @@ bool init_fb_console() {
     error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_data, (FT_Long)console_font_size,
                                0, &face);
     if (error) {
-        printk("FT_New_Memory_Face failed (");
-        print_hex(error);
-        printk(")\n");
-
+        print("FT_New_Memory_Face failed ({:x})\n", error);
         return false;
     }
 
     error = FT_Set_Char_Size(face, 18 * 64, 0, dpi, 0);
     if (error) {
-        printk("FT_Set_Char_Size failed (");
-        print_hex(error);
-        printk(")\n");
-
+        print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;
     }
 
     error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_bold_data, (FT_Long)console_font_bold_size,
                                0, &face_bold);
     if (error) {
-        printk("FT_New_Memory_Face failed (");
-        print_hex(error);
-        printk(")\n");
-
+        print("FT_New_Memory_Face failed ({:x})\n", error);
         return false;
     }
 
     error = FT_Set_Char_Size(face_bold, 18 * 64, 0, dpi, 0);
     if (error) {
-        printk("FT_Set_Char_Size failed (");
-        print_hex(error);
-        printk(")\n");
-
+        print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;
     }
 
@@ -1597,7 +1584,7 @@ bool init_fb_console() {
 
     console = (console_info*)malloc(console_cols * console_rows * sizeof(console_info));
     if (!console) {
-        printk("out of memory\n");
+        print("out of memory\n");
         return false;
     }
 
@@ -1611,7 +1598,7 @@ bool init_fb_console() {
     }
 
     if (!add_kernel_thread(console_event_recv)) {
-        printk("add_kernel_thread failed\n");
+        print("add_kernel_thread failed\n");
         return false;
     }
 

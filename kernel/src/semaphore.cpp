@@ -3,12 +3,14 @@
 #include "spinlock.h"
 #include "handle.h"
 
+import format;
+
 using namespace std;
 
 object_ref create_semaphore(unsigned int maximum_count) {
     auto sptr = new semaphore;
     if (!sptr) {
-        printk("new failed\n");
+        print("new failed\n");
         return {};
     }
 

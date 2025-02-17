@@ -4,6 +4,8 @@
 #include <console.h>
 #include <ioctl.h>
 
+import format;
+
 using namespace std;
 
 static const uint8_t serial_interrupt = 0x23;
@@ -79,7 +81,7 @@ static object_ref com1_recv_handle, duplex_pipe;
 static object_ref create_serial_in_pipe(unsigned int buffer_pages) {
     auto pptr = new serial_in_pipe(buffer_pages);
     if (!pptr) {
-        printk("new failed\n");
+        print("new failed\n");
         return {};
     }
 
@@ -91,7 +93,7 @@ static object_ref create_serial_in_pipe(unsigned int buffer_pages) {
 static object_ref create_serial_out_pipe(unsigned int buffer_pages, uint16_t port) {
     auto pptr = new serial_out_pipe(buffer_pages, port);
     if (!pptr) {
-        printk("new failed\n");
+        print("new failed\n");
         return {};
     }
 
@@ -108,13 +110,13 @@ bool init_serial() {
 
     com1_pipe_handle = create_serial_out_pipe(serial_buffer_pages, com1_port);
     if (!com1_pipe_handle) {
-        printk("create_serial_out_pipe failed\n");
+        print("create_serial_out_pipe failed\n");
         return false;
     }
 
     com1_recv_handle = create_serial_in_pipe(serial_buffer_pages);
     if (!com1_recv_handle) {
-        printk("create_serial_in_pipe failed\n");
+        print("create_serial_in_pipe failed\n");
         return false;
     }
 
@@ -124,14 +126,14 @@ bool init_serial() {
 
     auto pptr = new serial_duplex_pipe(com1_recv_pipe, *com1_pipe);
     if (!pptr) {
-        printk("new failed\n");
+        print("new failed\n");
         return false;
     }
 
     duplex_pipe = object_ref{*pptr};
 
     if (!name_object(duplex_pipe.get(), "ttyS0")) {
-        printk("name_object failed\n");
+        print("name_object failed\n");
         return false;
     }
 

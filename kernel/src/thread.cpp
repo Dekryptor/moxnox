@@ -3,6 +3,8 @@
 #include "objects.h"
 #include "handle.h"
 
+import format;
+
 using namespace std;
 
 extern uint16_t last_tid; // FIXME
@@ -199,7 +201,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
 
     // FIXME - spinlock for last_tid (or use atomics)
     if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-        printk("Thread limit reached.\n");
+        print("Thread limit reached.\n");
         delete &t;
         return nt_status::INTERNAL_ERROR; // FIXME
     }
@@ -233,7 +235,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     auto ctx_addr = (uintptr_t)initial_teb.StackBase - sizeof(CONTEXT);
 
     if (!copy_to((void*)ctx_addr, &start_context, sizeof(start_context))) {
-        printk("process::copy_to failed\n");
+        print("process::copy_to failed\n");
         delete &t;
         return nt_status::NO_MEMORY;
     }
@@ -390,7 +392,7 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
 NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
                                   void* thread_information, uint32_t thread_information_length,
                                   uint32_t* return_length) {
-    printk("FIXME - NtQueryInformationThread\n");
+    print("FIXME - NtQueryInformationThread\n");
 
     auto objrw = deref_handle2(thread_handle);
     if (!objrw)

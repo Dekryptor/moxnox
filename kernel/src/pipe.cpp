@@ -3,12 +3,14 @@
 #include "objects.h"
 #include "handle.h"
 
+import format;
+
 using namespace std;
 
 object_ref create_pipe(unsigned int buffer_pages) {
     auto pptr = new pipe(buffer_pages);
     if (!pptr) {
-        printk("new failed\n");
+        print("new failed\n");
         return {};
     }
 
@@ -29,7 +31,7 @@ pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buf
     auto va = allocate_va(buffer_pages);
     if (!va) {
         // FIXME - exception
-        printk("allocate_va failed\n");
+        print("allocate_va failed\n");
         return;
     }
 
@@ -37,7 +39,7 @@ pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buf
         auto pa = allocate_page();
         if (!pa) {
             // FIXME - exception
-            printk("allocate_page failed\n");
+            print("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto pa = va_to_pa(va + (j << PAGE_SHIFT));
@@ -52,7 +54,7 @@ pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buf
 
         if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
             // FIXME - exception
-            printk("map_page failed\n");
+            print("map_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto pa = va_to_pa(va + (j << PAGE_SHIFT));

@@ -7,6 +7,8 @@
 #include "console.h"
 #include <ioctl.h>
 
+import format;
+
 using namespace std;
 
 static const uint8_t keyboard_interrupt = 0x21;
@@ -238,7 +240,7 @@ static uint8_t inb(uint16_t port) {
 void init_keyboard() {
     auto pa = allocate_page();
     if (!pa) {
-        printk("allocate_page failed\n");
+        print("allocate_page failed\n");
         return;
     }
 
@@ -246,7 +248,7 @@ void init_keyboard() {
 
     auto keyboard_event = create_event(true);
     if (!keyboard_event) {
-        printk("create_event failed\n");
+        print("create_event failed\n");
         return;
     }
 
@@ -254,20 +256,20 @@ void init_keyboard() {
     keyboard_event_obj->get().acquire();
 
     if (!add_kernel_thread(keyboard_event_recv)) {
-        printk("add_kernel_thread failed\n");
+        print("add_kernel_thread failed\n");
         return;
     }
 
     auto pptr = new keyboard_pipe(keyboard_buffer_pages);
     if (!pptr) {
-        printk("new failed\n");
+        print("new failed\n");
         return;
     }
 
     keyboard_obj = object_ref{*pptr};
 
     if (!name_object(keyboard_obj.get(), "keyboard")) {
-        printk("name_object failed\n");
+        print("name_object failed\n");
         return;
     }
 

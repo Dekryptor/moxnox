@@ -6,6 +6,8 @@
 #include <span>
 #include <cstring>
 
+import format;
+
 using namespace std;
 
 static uint8_t* memblock = (uint8_t*)0xfffffa0000000000;
@@ -512,7 +514,7 @@ static bool copy_acpi(const loader_block& lb) {
         }
 
         default:
-            printk("Could not parse ACPI table\n");
+            print("Could not parse ACPI table\n");
             return false;
     }
 }
@@ -570,7 +572,7 @@ static bool map_physical_memory(uint64_t total_pages) {
 
     auto pa = allocate_page();
     if (!pa) {
-        printk("allocate_page failed\n");
+        print("allocate_page failed\n");
         return false;
     }
 
@@ -793,14 +795,14 @@ static void* malloc_aligned(size_t size, size_t align) {
 
         auto pa = allocate_page();
         if (!pa) {
-            printk("allocate_page failed\n");
+            print("allocate_page failed\n");
             return nullptr;
         }
 
         auto va = (void*)(heap_block | (heap_pages << PAGE_SHIFT));
 
         if (!map_page(pa, (uintptr_t)va, mapping_type::read_write)) {
-            printk("map_page failed\n");
+            print("map_page failed\n");
             return nullptr;
         }
 
@@ -1028,12 +1030,12 @@ bool init_vablock() {
     for (unsigned int i = 0; i < pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            printk("allocate_page failed\n");
+            print("allocate_page failed\n");
             return false;
         }
 
         if (!map_page(pa, va, mapping_type::read_write)) {
-            printk("map_page failed\n");
+            print("map_page failed\n");
             return false;
         }
 

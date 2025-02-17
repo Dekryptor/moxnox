@@ -3,6 +3,8 @@
 #include "spinlock.h"
 #include "handle.h"
 
+import format;
+
 using namespace std;
 
 struct name_entry {
@@ -36,14 +38,14 @@ object_ref deref_handle2(handle_t h) {
 bool name_object(object& obj, string_view name, bool persistent) {
     if (name.empty()) {
         // FIXME - exception
-        printk("Invalid name\n");
+        print("Invalid name\n");
         return false;
     }
 
     auto ne = (name_entry*)malloc(offsetof(name_entry, name) + name.size());
     if (!ne) {
         // FIXME - exception
-        printk("Out of memory\n");
+        print("Out of memory\n");
         return false;
     }
 
@@ -52,7 +54,7 @@ bool name_object(object& obj, string_view name, bool persistent) {
     if (obj.named) {
         lock.reset();
         // FIXME - exception
-        printk("Object already has name\n");
+        print("Object already has name\n");
         free(ne);
         return false;
     }
@@ -67,7 +69,7 @@ bool name_object(object& obj, string_view name, bool persistent) {
             if (ne2sv == name) {
                 lock.reset();
                 // FIXME - exception
-                printk("Name collision\n");
+                print("Name collision\n");
                 free(ne);
                 return false;
             }
@@ -92,7 +94,7 @@ bool name_object(object& obj, string_view name, bool persistent) {
 
 object_ref open_object(string_view name) {
     if (name.empty()) {
-        printk("Invalid name\n");
+        print("Invalid name\n");
         return {};
     }
 
@@ -123,7 +125,7 @@ object_ref open_object(string_view name) {
     }
 
     if (!obj) {
-        printk("Not found\n");
+        print("Not found\n");
         return {};
     }
 
@@ -133,7 +135,7 @@ object_ref open_object(string_view name) {
 void write(object_ref& h, span<const uint8_t> s) {
     if (!h) {
         // FIXME - exception
-        printk("Object not set\n");
+        print("Object not set\n");
         return;
     }
 
@@ -147,7 +149,7 @@ void write(object_ref& h, span<const uint8_t> s) {
 
     if (!can_write) {
         // FIXME - exception
-        printk("Not a writable object\n");
+        print("Not a writable object\n");
         return;
     }
 

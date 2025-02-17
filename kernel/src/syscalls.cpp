@@ -3,6 +3,8 @@
 #include "objects.h"
 #include "handle.h"
 
+import format;
+
 using namespace std;
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string) {
@@ -18,7 +20,7 @@ NTSTATUS NtDisplayString(const UNICODE_STRING* string) {
 
     utf16_to_utf8(span(buf, buflen), u16sv);
 
-    printk(string_view(buf, buflen));
+    print("{}", string_view(buf, buflen));
 
     free(buf);
 
@@ -366,7 +368,7 @@ void unimplemented_syscall(const char* name) {
     }
 
     if (!written)
-        printk(string_view(s, sp.data() - s));
+        print("{}", string_view(s, sp.data() - s));
 
     NtTerminateProcess(NtCurrentProcess(), nt_status::NOT_IMPLEMENTED);
 }
@@ -1222,7 +1224,7 @@ void dispatch_signal() {
     uintptr_t us_context = t.syscall_context.Rsp - sizeof(CONTEXT);
 
     if (!p.copy_to((void*)us_context, &t.syscall_context, sizeof(CONTEXT))) {
-        printk("Unable to copy thread context to stack.\n");
+        print("Unable to copy thread context to stack.\n");
         t.exit_status = nt_status::ACCESS_VIOLATION;
         t.terminate();
         return;
@@ -1240,7 +1242,7 @@ void dispatch_signal() {
     uintptr_t us_er = us_context - er_size;
 
     if (!p.copy_to((void*)us_er, &er, er_size)) {
-        printk("Unable to copy exception record to stack.\n");
+        print("Unable to copy exception record to stack.\n");
         t.exit_status = nt_status::ACCESS_VIOLATION;
         t.terminate();
         return;

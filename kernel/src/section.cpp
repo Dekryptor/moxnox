@@ -4,6 +4,8 @@
 #include "mem.h"
 #include <pe.h>
 
+import format;
+
 using namespace std;
 
 // #define debug_printk printk
@@ -14,7 +16,7 @@ using namespace std;
 nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
                          size_t size, object_ref& ref) {
     if (file && !image) {
-        printk("FIXME - non-image sections\n");
+        print("FIXME - non-image sections\n");
         return nt_status::INTERNAL_ERROR;
     }
 

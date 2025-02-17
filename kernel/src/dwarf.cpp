@@ -1,5 +1,7 @@
 #include "kernel.h"
 
+import format;
+
 using namespace std;
 
 using uleb128 = unsigned __int128;
@@ -400,7 +402,7 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             break;
 
             case DW_FORM::flag:
-                printk("FIXME - skipping because of DW_FORM_flag\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_flag\n"); // FIXME
                 return false;
 
             case DW_FORM::sdata:
@@ -416,34 +418,34 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             break;
 
             case DW_FORM::ref_addr:
-                printk("FIXME - skipping because of DW_FORM_ref_addr\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_ref_addr\n"); // FIXME
                 return false;
 
             case DW_FORM::ref_udata:
-                printk("FIXME - skipping because of DW_FORM_ref_udata\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_ref_udata\n"); // FIXME
                 return false;
 
             case DW_FORM::indirect:
-                printk("FIXME - skipping because of DW_FORM_indirect\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_indirect\n"); // FIXME
                 return false;
 
             case DW_FORM::flag_present:
             break;
 
             case DW_FORM::ref_sig8:
-                printk("FIXME - skipping because of DW_FORM_ref_sig8\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_ref_sig8\n"); // FIXME
                 return false;
 
             case DW_FORM::strx:
-                printk("FIXME - skipping because of DW_FORM_strx\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_strx\n"); // FIXME
                 return false;
 
             case DW_FORM::addrx:
-                printk("FIXME - skipping because of DW_FORM_addrx\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_addrx\n"); // FIXME
                 return false;
 
             case DW_FORM::ref_sup4:
-                printk("FIXME - skipping because of DW_FORM_ref_sup4\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_ref_sup4\n"); // FIXME
                 return false;
 
             case DW_FORM::data16:
@@ -454,51 +456,52 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             break;
 
             case DW_FORM::loclistx:
-                printk("FIXME - skipping because of DW_FORM_loclistx\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_loclistx\n"); // FIXME
                 return false;
 
             case DW_FORM::rnglistx:
-                printk("FIXME - skipping because of DW_FORM_rnglistx\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_rnglistx\n"); // FIXME
                 return false;
 
             case DW_FORM::ref_sup8:
-                printk("FIXME - skipping because of DW_FORM_ref_sup8\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_ref_sup8\n"); // FIXME
                 return false;
 
             case DW_FORM::strx1:
-                printk("FIXME - skipping because of DW_FORM_strx1\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_strx1\n"); // FIXME
                 return false;
 
             case DW_FORM::strx2:
-                printk("FIXME - skipping because of DW_FORM_strx2\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_strx2\n"); // FIXME
                 return false;
 
             case DW_FORM::strx3:
-                printk("FIXME - skipping because of DW_FORM_strx3\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_strx3\n"); // FIXME
                 return false;
 
             case DW_FORM::strx4:
-                printk("FIXME - skipping because of DW_FORM_strx4\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_strx4\n"); // FIXME
                 return false;
 
             case DW_FORM::addrx1:
-                printk("FIXME - skipping because of DW_FORM_addrx1\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_addrx1\n"); // FIXME
                 return false;
 
             case DW_FORM::addrx2:
-                printk("FIXME - skipping because of DW_FORM_addrx2\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_addrx2\n"); // FIXME
                 return false;
 
             case DW_FORM::addrx3:
-                printk("FIXME - skipping because of DW_FORM_addrx3\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_addrx3\n"); // FIXME
                 return false;
 
             case DW_FORM::addrx4:
-                printk("FIXME - skipping because of DW_FORM_addrx4\n"); // FIXME
+                print("FIXME - skipping because of DW_FORM_addrx4\n"); // FIXME
                 return false;
 
             default:
-                printk("skipping DIE because of unknown DW_FORM value\n");
+                print("skipping DIE because of unknown DW_FORM value {}\n",
+                      (unsigned int)form);
                 return false;
         }
 

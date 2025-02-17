@@ -3,6 +3,8 @@
 #include "spinlock.h"
 #include "handle.h"
 
+import format;
+
 using namespace std;
 
 static spinlock fs_lock;
@@ -109,7 +111,7 @@ bool mount_root() {
     lock_guard lock(fs_lock);
 
     if (is_list_empty(fs_list)) {
-        printk("No filesytems found.\n");
+        print("No filesytems found.\n");
         return false;
     }
 
@@ -121,7 +123,7 @@ bool mount_root() {
 
         if (fs.vol.type_guid == moxnox_partition_guid) {
             if (root_fs) {
-                printk("Multiple Moxnox partitions, not sure which to choose\n");
+                print("Multiple Moxnox partitions, not sure which to choose\n");
                 root_fs = nullptr;
                 return false;
             }
@@ -133,7 +135,7 @@ bool mount_root() {
     }
 
     if (!root_fs) {
-        printk("No Moxnox partition found\n");
+        print("No Moxnox partition found\n");
         return false;
     }
 
@@ -150,7 +152,7 @@ nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& d
     }
 
     if (!root_fs) {
-        printk("No root filesystem.\n");
+        print("No root filesystem.\n");
         return nt_status::INTERNAL_ERROR;
     }
 
@@ -183,7 +185,7 @@ static void partition_found(void* ctx1, void* ctx2) {
 bool volume::check_for_partitions() {
     auto first_sect = (uint8_t*)malloc(read_sector_size);
     if (!first_sect) {
-        printk("malloc failed\n");
+        print("malloc failed\n");
         return false;
     }
 
@@ -191,13 +193,11 @@ bool volume::check_for_partitions() {
     auto status = read(span(first_sect, read_sector_size), 0, read_bytes);
 
     if (!success(status)) {
-        printk("volume::read returned ");
-        print_hex((uint64_t)status, 8);
-        printk("\n");
+        print("volume::read returned {:08x}\n", status);
         free(first_sect);
         return false;
     } else if (read_bytes < read_sector_size) {
-        printk("volume::read failed\n");
+        print("volume::read failed\n");
         free(first_sect);
         return false;
     }
@@ -229,7 +229,7 @@ bool volume::check_for_partitions() {
     // FIXME - if GPT not valid, get alternative version from end of disk
 
     if (gpt.signature != gpt_signature) {
-        printk("Invalid GPT signature\n");
+        print("Invalid GPT signature\n");
         free(first_sect);
         return false;
     }
@@ -237,7 +237,7 @@ bool volume::check_for_partitions() {
     // FIXME - check header CRC32
 
     if (gpt.this_lba != 1) {
-        printk("Invalid LBA value in GPT\n");
+        print("Invalid LBA value in GPT\n");
         free(first_sect);
         return false;
     }
@@ -248,9 +248,7 @@ bool volume::check_for_partitions() {
     }
 
     if (gpt.size_of_partition_entry < 128) {
-        printk("partition entry size was 0x");
-        print_hex(gpt.size_of_partition_entry);
-        printk(", expected at least 0x80\n");
+        print("partition entry size was 0x{:x}, expected at least 0x80\n", gpt.size_of_partition_entry);
         free(first_sect);
         return false;
     }
@@ -270,20 +268,18 @@ bool volume::check_for_partitions() {
 
     auto buf = (uint8_t*)malloc(table_end_aligned - table_start_aligned);
     if (!buf) {
-        printk("malloc failed\n");
+        print("malloc failed\n");
         return false;
     }
 
     status = read(span(buf, table_end_aligned - table_start_aligned), table_start_aligned, read_bytes);
 
     if (!success(status)) {
-        printk("volume::read returned ");
-        print_hex((uint64_t)status, 8);
-        printk("\n");
+        print("volume::read returned {:08x}\n", status);
         free(buf);
         return false;
     } else if (read_bytes < table_end_aligned - table_start_aligned) {
-        printk("volume::read failed\n");
+        print("volume::read failed\n");
         free(buf);
         return false;
     }
@@ -294,7 +290,7 @@ bool volume::check_for_partitions() {
 
     auto pw = new part_wait;
     if (!pw) {
-        printk("new failed\n");
+        print("new failed\n");
         free(buf);
         return false;
     }
@@ -306,7 +302,7 @@ bool volume::check_for_partitions() {
 
         if (part.partition_type_guid != null_guid) {
             if (part.ending_lba <= part.starting_lba) {
-                printk("invalid GPT entry, skipping\n");
+                print("invalid GPT entry, skipping\n");
                 ptr += size_of_partition_entry;
                 continue;
             }
@@ -338,7 +334,7 @@ bool volume::check_for_partitions() {
                                         (part.ending_lba - part.starting_lba + 1) * sector_size,
                                         part.unique_partition_guid, part.partition_type_guid);
             if (!partdev) {
-                printk("new failed\n");
+                print("new failed\n");
                 free(buf);
                 return false;
             }
@@ -357,7 +353,7 @@ bool volume::check_for_partitions() {
 
                     partdev->volume_name = (char*)malloc(partdev->volume_name_len);
                     if (!partdev->volume_name) {
-                        printk("malloc failed\n");
+                        print("malloc failed\n");
                         free(buf);
                         return false;
                     }
@@ -377,7 +373,7 @@ bool volume::check_for_partitions() {
                     auto sv = string_view(partdev->volume_name, partdev->volume_name_len);
 
                     if (!name_object(*partdev, sv, true)) {
-                        printk("name_object failed\n");
+                        print("name_object failed\n");
                         free(buf);
                         return false;
                     }
