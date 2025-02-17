@@ -63,6 +63,10 @@ span<char> do_format_arg(span<char> sp, integral auto arg) {
     return sp_itoa(sp, arg);
 }
 
+span<char> do_format_arg(span<char> sp, string_view arg) {
+    return sp_strcpy(sp, arg);
+}
+
 template<typename T, typename... Args>
 span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... args) {
     // FIXME - consteval checking
