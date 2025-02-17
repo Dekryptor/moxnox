@@ -2,8 +2,101 @@
 
 #include "context.S"
 #include "tick_rate.h"
+#include "dwarf.S"
 
 .equ IA32_KERNEL_GS_BASE, 0xc0000102
+
+.section .debug_abbrev, "dr"
+
+.uleb128 1 # entry num
+.uleb128 DW_TAG_compile_unit
+.byte 1 # has children
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_udata
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_language
+.uleb128 DW_FORM_data2
+.uleb128 0
+.uleb128 0
+
+.uleb128 2 # entry num
+.uleb128 DW_TAG_subprogram
+.byte 0 # has children
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_data8
+.uleb128 0
+.uleb128 0
+
+.uleb128 0
+
+.section .debug_info, "dr"
+
+.long .debug_info_end - .debug_info_start
+
+.debug_info_start:
+.short 5 # version
+.byte DW_UT_compile
+.byte 8 # address size
+.secrel32 .debug_abbrev
+
+.uleb128 1
+.quad .text # low_pc
+.uleb128 .text_end - .text # high_pc
+.asciz __FILE__ # name
+.short DW_LANG_Mips_Assembler # language
+
+.uleb128 2
+.asciz "timer_isr_ap"
+.quad timer_isr_ap
+.quad timer_isr_ap_end - timer_isr_ap
+
+.uleb128 2
+.asciz "timer_isr"
+.quad timer_isr
+.quad timer_isr_end - timer_isr
+
+.uleb128 2
+.asciz "scheduler_restore"
+.quad scheduler_restore
+.quad scheduler_restore_end - scheduler_restore
+
+.uleb128 2
+.asciz "yield"
+.quad yield
+.quad yield_end - yield
+
+.uleb128 2
+.asciz "acquire_sync_lock"
+.quad acquire_sync_lock
+.quad acquire_sync_lock_end - acquire_sync_lock
+
+.uleb128 2
+.asciz "release_sync_lock"
+.quad release_sync_lock
+.quad release_sync_lock_end - release_sync_lock
+
+.uleb128 2
+.asciz "pit_delay"
+.quad pit_delay
+.quad pit_delay_end - pit_delay
+
+.uleb128 2
+.asciz "get_cpu_block"
+.quad get_cpu_block
+.quad get_cpu_block_end - get_cpu_block
+
+.uleb128 0
+
+.debug_info_end:
+
+.text
 
 .global timer_isr_ap
 timer_isr_ap:
@@ -41,6 +134,7 @@ Ltimer_isr_nop:
     swapgs
 1:
     iretq
+timer_isr_ap_end:
 
 .global timer_isr
 timer_isr:
@@ -99,6 +193,7 @@ Ltimer_isr_loop_end:
     pop rcx
     pop rax
     jmp Ltimer_isr_threads
+timer_isr_end:
 
 .global scheduler_restore
 scheduler_restore:
@@ -159,6 +254,7 @@ scheduler_restore:
     pop rax
 
     iretq
+scheduler_restore_end:
 
 .global yield
 yield:
@@ -196,6 +292,7 @@ yield:
 
     mov rsp, gs:GS_SCHEDULER_STACK
     jmp scheduler
+yield_end:
 
 .global acquire_sync_lock
 acquire_sync_lock: # clobbers rax
@@ -209,6 +306,7 @@ acquire_sync_lock: # clobbers rax
     mov DWORD PTR [rip+sync_lock_cpu], eax
 #endif
     ret
+acquire_sync_lock_end:
 
 .global release_sync_lock
 release_sync_lock: # clobbers rax
@@ -218,6 +316,7 @@ release_sync_lock: # clobbers rax
     mov DWORD PTR [rip+sync_lock_cpu], 0xffffffff
 #endif
     ret
+release_sync_lock_end:
 
 .global pit_delay
 pit_delay:
@@ -234,8 +333,12 @@ pit_delay:
     test al, 0x80
     je 0b # loop again if not yet signalled
     ret
+pit_delay_end:
 
 .global get_cpu_block
 get_cpu_block:
     mov rax, gs:0
     ret
+get_cpu_block_end:
+
+.text_end:

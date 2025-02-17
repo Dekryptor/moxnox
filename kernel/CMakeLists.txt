@@ -59,6 +59,6 @@ target_link_libraries(kernel freetype)
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
 
-set_source_files_properties(src/mem.S src/syscalls.S src/ints.S src/keyboard.S src/sata.S src/serial.S PROPERTIES COMPILE_OPTIONS "-g0")
+set_source_files_properties(src/mem.S src/syscalls.S src/ints.S src/keyboard.S src/sata.S src/serial.S src/timer.S PROPERTIES COMPILE_OPTIONS "-g0")
 
 install(TARGETS kernel DESTINATION ${CMAKE_INSTALL_PREFIX})
