@@ -12,6 +12,8 @@ struct dwarf_cu_header {
     uint32_t debug_abbrev_object;
 } __attribute__((packed));
 
+static_assert(sizeof(dwarf_cu_header) == 12);
+
 enum class DW_FORM : uint8_t {
     unknown = 0x00,
     addr = 0x01,
@@ -571,16 +573,19 @@ static span<const uint8_t*> load_abbrev_entries(span<const uint8_t> abbrev) {
 }
 
 template<typename T>
-concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>, span<const uint8_t>, unsigned int> &&
-requires(T t, enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list, unsigned int depth) { { t(tag, has_children, die, att_list, depth) } -> convertible_to<bool>; };
+concept die_func = invocable<T, enum DW_TAG, bool, span<const uint8_t>, span<const uint8_t>, unsigned int, uint32_t> &&
+requires(T t, enum DW_TAG tag, bool has_children, span<const uint8_t> die, span<const uint8_t> att_list, unsigned int depth, uint32_t offset) { { t(tag, has_children, die, att_list, depth, offset) } -> convertible_to<bool>; };
 
 static void loop_through_dies(span<const uint8_t> cu, span<const uint8_t*> abbrev_list,
                               die_func auto func) {
     unsigned int depth = 0;
 
+    auto orig_cu = cu;
+
     while (true) {
         enum DW_TAG tag;
         bool has_children;
+        auto offset = (uint32_t)(cu.data() - orig_cu.data() + sizeof(dwarf_cu_header));
 
         auto abbrev_num = read_uleb128(cu);
 
@@ -603,7 +608,7 @@ static void loop_through_dies(span<const uint8_t> cu, span<const uint8_t*> abbre
         has_children = entry[0] != 0;
         entry = entry.subspan(1);
 
-        if (!func(tag, has_children, cu, entry, depth))
+        if (!func(tag, has_children, cu, entry, depth, offset))
             break;
 
         if (has_children)
@@ -616,7 +621,8 @@ static void loop_through_dies(span<const uint8_t> cu, span<const uint8_t*> abbre
 
 static void find_die_by_reference(span<const uint8_t> cu, uint32_t reference, span<const uint8_t*> abbrev_list,
                                   invocable<enum DW_TAG, span<const uint8_t>, span<const uint8_t>> auto func) {
-    cu = span(cu.data() + reference - 0xc, cu.size() - reference + 0xc);
+    cu = span(cu.data() + reference - sizeof(dwarf_cu_header),
+              cu.size() - reference + sizeof(dwarf_cu_header));
 
     auto abbrev_num = read_uleb128(cu);
 
@@ -832,6 +838,54 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
     return false;
 }
 
+static uint32_t find_die_parent(span<const uint8_t> cu, span<const uint8_t*> abbrev_list,
+                                uint32_t offset) {
+    unsigned int max_depth = 0, cur_depth;
+
+    loop_through_dies(cu, abbrev_list, [&](enum DW_TAG, bool, span<const uint8_t>,
+                                           span<const uint8_t>, unsigned int depth,
+                                           uint32_t this_offset) -> bool {
+        max_depth = max(max_depth, depth);
+
+        if (this_offset > offset)
+            return false;
+
+        return true;
+    });
+
+    if (max_depth == 0)
+        return 0;
+
+    auto stack = (uint32_t*)malloc(max_depth * sizeof(uint32_t));
+    if (!stack)
+        return 0;
+
+    loop_through_dies(cu, abbrev_list, [&](enum DW_TAG, bool has_children, span<const uint8_t>,
+                                           span<const uint8_t>, unsigned int depth,
+                                           uint32_t this_offset) -> bool {
+        if (this_offset > offset)
+            return false;
+
+        if (has_children)
+            stack[depth] = this_offset;
+
+        cur_depth = depth;
+
+        return true;
+    });
+
+    if (cur_depth == 0) {
+        free(stack);
+        return 0;
+    }
+
+    auto ret = stack[cur_depth - 1];
+
+    free(stack);
+
+    return ret;
+}
+
 static string_view get_func_name(const kernel_image& img, span<const uint8_t> die,
                                  span<const uint8_t> att_list,
                                  span<const uint8_t*> abbrev_list,
@@ -863,9 +917,14 @@ static string_view get_func_name(const kernel_image& img, span<const uint8_t> di
         return name;
 
     // if class function, we need to follow the specification
-    if (specification.has_value()) {
-        find_die_by_reference(cu, *specification, abbrev_list, [&name, &linkage_name, &img](enum DW_TAG, span<const uint8_t> die,
-                                                                                            span<const uint8_t> att_list) {
+    if (!specification.has_value())
+        return "???";
+
+    uint32_t ref = *specification;
+
+    do {
+        find_die_by_reference(cu, ref, abbrev_list, [&name, &linkage_name, &img](enum DW_TAG, span<const uint8_t> die,
+                                                                                 span<const uint8_t> att_list) {
             loop_through_atts(die, att_list, [&name, &linkage_name, &img](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
                 // FIXME - class and namespace prefixes
 
@@ -885,9 +944,15 @@ static string_view get_func_name(const kernel_image& img, span<const uint8_t> di
             });
         });
 
-        if (name.empty() && !linkage_name.empty())
-            name = linkage_name;
-    }
+        auto ref2 = find_die_parent(cu, abbrev_list, ref);
+        if (ref2 == 0)
+            break;
+
+        ref = ref2;
+    } while (true);
+
+    if (name.empty() && !linkage_name.empty())
+        name = linkage_name;
 
     if (name.empty())
         return "???";
@@ -907,7 +972,8 @@ static tuple<string_view, uint64_t> dwarf_find_function2(const kernel_image& img
         return {"", 0};
 
     loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
-                                           span<const uint8_t> att_list, unsigned int depth) -> bool {
+                                           span<const uint8_t> att_list, unsigned int depth,
+                                           uint32_t) -> bool {
         optional<uint64_t> low_pc, high_pc, func_length;
 
         if (tag != DW_TAG::subprogram || depth != 1)
@@ -975,7 +1041,8 @@ tuple<string_view, uint64_t> dwarf_find_function(const kernel_image& img, uint64
         optional<uint64_t> low_pc, high_pc;
 
         loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
-                                               span<const uint8_t> att_list, unsigned int) -> bool {
+                                               span<const uint8_t> att_list, unsigned int,
+                                               uint32_t) -> bool {
             if (tag != DW_TAG::compile_unit)
                 return false;
 
