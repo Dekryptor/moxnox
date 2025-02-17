@@ -1362,15 +1362,6 @@ void safe_print(string_view s) {
         write(com1_pipe_handle, s);
 }
 
-void print_hex(uint64_t num, unsigned int padding) {
-    char s[17];
-    span sp(s, sizeof(s));
-
-    sp = sp_itoa_hex(sp, num, padding);
-
-    printk(string_view(s, sp.data() - s));
-}
-
 bool init_console(const loader_block_framebuffer& fb,
                   const loader_block_text_console& tc) {
     if (!has_framebuffer) {

@@ -122,7 +122,6 @@ bool init_console(const loader_block_framebuffer& fb,
 bool init_console_pipe();
 void safe_print(std::string_view s);
 extern decltype(&safe_print) _printk;
-void print_hex(uint64_t num, unsigned int padding = 0);
 bool init_fb_console();
 __attribute__((noreturn)) void bsod(std::string_view msg, std::source_location sl = std::source_location::current());
 __attribute__((noreturn)) void _assert(const char* msg, const char* file, unsigned int line);
