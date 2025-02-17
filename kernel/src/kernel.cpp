@@ -6,6 +6,8 @@
 #include "handle.h"
 #include <string_view>
 
+import format;
+
 using namespace std;
 
 extern uint64_t __CTOR_LIST__;
@@ -152,6 +154,10 @@ void main_thread() {
         printk("init_fb_console failed\n");
 
     keywait();
+
+    // FIXME
+    print(printk, "The answer is {} (hello {}).\n", 42, 229);
+    print(printk, "hello world\n");
 
     init_syscalls();
 
