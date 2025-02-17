@@ -925,7 +925,6 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
     }
 
     uint32_t ref = *specification;
-    auto orig_sp = sp;
     size_t written = 0;
 
     do {
@@ -955,8 +954,13 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
         if (name.empty())
             break;
 
+        // FIXME - only need to move what we've written, not whole buffer
+        if (name.size() < sp.size())
+            memmove(sp.data() + name.size(), sp.data(), sp.size() - name.size());
+
+        memcpy(sp.data(), name.data(), min(name.size(), sp.size()));
+
         written += name.size();
-        sp = sp_strcpy(sp, name);
 
         auto ref2 = find_die_parent(cu, abbrev_list, ref);
         if (ref2 == 0)
@@ -969,11 +973,13 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
         if (name.empty() && !linkage_name.empty())
             name = linkage_name;
 
-        if (name.empty()) {
+        if (name.empty())
             sp = sp_strcpy(sp, "???");
-            return;
-        }
+
+        return;
     }
+
+    sp = span(sp.data() + written, written > sp.size() ? 0 : sp.size() - written);
 }
 
 uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
