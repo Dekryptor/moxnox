@@ -111,8 +111,6 @@ span<char> do_format_arg(span<char> sp, string_view, string_view arg) {
 
 template<typename T, typename... Args>
 span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... args) {
-    // FIXME - consteval checking
-
     // FIXME - {{ and }} escaping
 
     auto brack = fmt.find('{');
@@ -147,16 +145,49 @@ span<char> format_to(span<char> sp, string_view fmt) {
     return sp_strcpy(sp, fmt);
 }
 
+void checker_failure();
+
+template<size_t arg_count>
+struct checker {
+    consteval checker(const char* q) : sv(q) {
+        unsigned int num_entries = 0;
+
+        // FIXME - {{ and }} escaping
+
+        auto s = sv;
+
+        while (!s.empty()) {
+            if (s.front() == '{') {
+                num_entries++;
+
+                auto end = s.find('}');
+                if (end == string_view::npos)
+                    checker_failure();
+
+                s = s.substr(end + 1);
+                continue;
+            }
+
+            s = s.substr(1);
+        }
+
+        if (num_entries > arg_count)
+            checker_failure();
+    }
+
+    string_view sv;
+};
+
 export
 template<typename... Args>
-void print(string_view fmt, Args... args) {
+void print(type_identity_t<checker<sizeof...(Args)>> fmt, Args... args) {
     disable_preempt();
 
     auto& cb = *get_cpu_block();
 
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
-    sp = format_to(sp, fmt, args...);
+    sp = format_to(sp, fmt.sv, args...);
 
     _printk(string_view(cb.printk_scratch, sp.data() - cb.printk_scratch));
 
