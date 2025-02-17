@@ -1,6 +1,69 @@
 .intel_syntax noprefix
 
 #include "context.S"
+#include "dwarf.S"
+
+.section .debug_abbrev, "dr"
+
+.uleb128 1 # entry num
+.uleb128 DW_TAG_compile_unit
+.byte 1 # has children
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_udata
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_language
+.uleb128 DW_FORM_data2
+.uleb128 0
+.uleb128 0
+
+.uleb128 2 # entry num
+.uleb128 DW_TAG_subprogram
+.byte 0 # has children
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_data8
+.uleb128 0
+.uleb128 0
+
+.uleb128 0
+
+.section .debug_info, "dr"
+
+.long .debug_info_end - .debug_info_start
+
+.debug_info_start:
+.short 5 # version
+.byte DW_UT_compile
+.byte 8 # address size
+.secrel32 .debug_abbrev
+
+.uleb128 1
+.quad .text # low_pc
+.uleb128 .text_end - .text # high_pc
+.asciz __FILE__ # name
+.short DW_LANG_Mips_Assembler # language
+
+.uleb128 2
+.asciz "init_serial_port"
+.quad init_serial_port
+.quad init_serial_port_end - init_serial_port
+
+.uleb128 2
+.asciz "serial_isr"
+.quad serial_isr
+.quad serial_isr_end - serial_isr
+
+.uleb128 0
+
+.debug_info_end:
+
+.text
 
 .global init_serial_port
 init_serial_port:
@@ -71,6 +134,7 @@ init_serial_port:
     mov rax, 1
 
     ret
+init_serial_port_end:
 
 .seh_proc serial_isr
 .global serial_isr
@@ -117,3 +181,6 @@ serial_isr:
     add rsp, 0x58
     iretq
     .seh_endproc
+serial_isr_end:
+
+.text_end:
