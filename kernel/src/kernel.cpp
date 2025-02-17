@@ -42,53 +42,6 @@ int atexit(void (*)(void)) {
     return 0;
 }
 
-#if 0
-static void thread_test() {
-    auto ev = create_event(false);
-
-    if (!ev) {
-        printk("create_event failed\n");
-        return;
-    }
-
-    auto h = add_kernel_thread([](void* ctx) {
-        auto evv = (handle_t)ctx;
-
-        printk("Hello from second thread\n");
-
-        set_event(evv);
-    }, (void*)ev.get());
-
-    if (!h) {
-        printk("add_kernel_thread failed\n");
-        return;
-    }
-
-    printk("h = ");
-    print_hex(h.get());
-    printk("\n");
-
-    wait_for_object(ev.get(), false);
-    printk("second thread finished\n");
-}
-
-static void timer_test() {
-    auto h = create_timer();
-    if (!h) {
-        printk("create_timer failed\n");
-        return;
-    }
-
-    printk("Waiting...\n");
-
-    set_timer(h.get(), 5000, false);
-
-    wait_for_object(h.get(), false);
-
-    printk("Timer fired.\n");
-}
-#endif
-
 static object_ref create_init_process() {
     auto initout = open_object("tty");
     if (!initout)
@@ -119,21 +72,21 @@ static void keywait() {
     auto keybh = open_object("keyboard");
 
     if (!keybh) {
-        printk("/dev/keyboard not found\n");
+        print("/dev/keyboard not found\n");
         return;
     }
 
     auto& keyb = keybh.get();
 
     if (keyb.type != object_type::pipe) {
-        printk("/dev/keyboard did not point to a pipe\n");
+        print("/dev/keyboard did not point to a pipe\n");
         return;
     }
 
     auto& p = static_cast<pipe&>(keyb);
     uint8_t c;
 
-    printk("Press any key to continue...\n\e[?25l");
+    print("Press any key to continue...\n\e[?25l");
 
     // FIXME - make sure this behaves properly if user presses a multi-character key (clear buffer?)
     while (true) {
@@ -144,14 +97,16 @@ static void keywait() {
             break;
     }
 
-    printk("\e[?25h");
+    print("\e[?25h");
 }
 
 void main_thread() {
     init_keyboard();
 
     if (has_framebuffer && !init_fb_console())
-        printk("init_fb_console failed\n");
+        print("init_fb_console failed\n");
+
+    print(MOXNOX_VERSION_STRING "\n");
 
     keywait();
 
@@ -164,7 +119,7 @@ void main_thread() {
     if (!init_smp()) {
         apic_ids = (uint8_t*)malloc(1);
         if (!apic_ids) {
-            printk("malloc failed\n");
+            print("malloc failed\n");
             return;
         }
 
@@ -284,8 +239,6 @@ void startup(loader_block* lb) {
 
     if (!init_console(fb, tc))
         goto hang;
-
-    printk(MOXNOX_VERSION_STRING "\n");
 
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
