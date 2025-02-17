@@ -59,11 +59,47 @@ span<char> sp_itoa(span<char> dest, uint64_t num) {
     return dest;
 }
 
-span<char> do_format_arg(span<char> sp, integral auto arg) {
+span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding = 0) {
+    bool first = true;
+
+    if (dest.empty())
+        return dest;
+
+    if (num == 0 && padding == 0) {
+        dest[0] = '0';
+        return span(dest.data() + 1, dest.size() - 1);
+    }
+
+    for (unsigned int i = 0; i < 16; i++) {
+        if (!first || padding == 16 - i || num & 0xf000000000000000) {
+            uint64_t n = num >> 60;
+
+            if (n <= 9)
+                dest[0] = (char)(n + '0');
+            else
+                dest[0] = (char)(n - 0xa + 'a');
+
+            dest = span(dest.data() + 1, dest.size() - 1);
+            first = false;
+
+            if (dest.empty())
+                return dest;
+        }
+
+        num <<= 4;
+    }
+
+    return dest;
+}
+
+span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
+    if (fmt == ":x")
+        return sp_itoa_hex(sp, arg);
+
     return sp_itoa(sp, arg);
 }
 
-span<char> do_format_arg(span<char> sp, string_view arg) {
+span<char> do_format_arg(span<char> sp, string_view, string_view arg) {
     return sp_strcpy(sp, arg);
 }
 
@@ -88,7 +124,7 @@ span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... arg
     if (close == string_view::npos)
         return sp;
 
-    sp = do_format_arg(sp, arg); // FIXME - pass through what's between curly brackets
+    sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), arg);
 
     fmt = string_view(fmt.data() + close + 1, fmt.size() - close - 1);
 
