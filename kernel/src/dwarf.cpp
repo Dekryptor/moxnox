@@ -962,7 +962,7 @@ static string_view get_func_name(const kernel_image& img, span<const uint8_t> di
 
 uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
                               span<const uint8_t> cu, span<const uint8_t> abbrev,
-                              string_view& func_name) {
+                              span<char>& sp) {
     uint64_t func_start = 0;
 
     auto abbrev_list = load_abbrev_entries(abbrev);
@@ -1003,7 +1003,11 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
             return true;
 
         die = orig_die;
+
+        string_view func_name;
         func_name = get_func_name(img, die, att_list, abbrev_list, cu);
+
+        sp = sp_strcpy(sp, func_name);
 
         func_start = *low_pc;
         return false;
@@ -1015,7 +1019,7 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
 }
 
 uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
-                             string_view& func_name) {
+                             span<char>& sp) {
     auto info = img.debug_info;
     if (info.empty())
         return 0;
@@ -1092,5 +1096,5 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
 
     return dwarf_find_function2(img, addr, found_cu,
                                 abbrev.subspan(found_debug_abbrev_object),
-                                func_name);
+                                sp);
 }

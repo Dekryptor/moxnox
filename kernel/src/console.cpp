@@ -1649,20 +1649,19 @@ static void print_rip(uint64_t rip) {
 
         sp = sp_strcpy(sp, " (");
         sp = sp_strcpy(sp, img->name);
+        sp = sp_strcpy(sp, "!");
 
-        string_view func_name;
-
-        auto func_start = dwarf_find_function(*img, rip, func_name);
+        auto func_start = dwarf_find_function(*img, rip, sp);
 
         if (func_start != 0) {
-            sp = sp_strcpy(sp, "!");
-            sp = sp_strcpy(sp, func_name);
-
             if (rip != func_start) {
                 sp = sp_strcpy(sp, "+");
                 sp = sp_itoa_hex(sp, rip - func_start);
             }
         } else {
+            // erase exclamation mark
+            sp = span(sp.data() - 1, sp.size() + 1);
+
             sp = sp_strcpy(sp, "+");
             sp = sp_itoa_hex(sp, rip - (uintptr_t)img->base_address);
         }
