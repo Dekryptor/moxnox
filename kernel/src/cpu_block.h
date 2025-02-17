@@ -1,6 +1,9 @@
 #pragma once
 
 #include "context_offsets.h"
+#include <atomic>
+
+class thread;
 
 struct cpu_block {
     cpu_block* self;
@@ -13,6 +16,7 @@ struct cpu_block {
     uint64_t kernel_cr3;
     std::atomic<uint64_t> disable_preempt = 0;
     uint64_t syscall_rax;
+    char* printk_scratch;
 };
 
 static_assert(offsetof(cpu_block, current_thread) == GS_CURRENT_THREAD);

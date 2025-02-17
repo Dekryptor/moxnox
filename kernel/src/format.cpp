@@ -3,6 +3,8 @@ module;
 #include <span>
 #include <string_view>
 #include <stdint.h>
+#include <nt.h>
+#include "cpu_block.h"
 
 export module format;
 
@@ -10,6 +12,10 @@ using namespace std;
 
 extern "C++" void safe_print(string_view s);
 extern "C++" decltype(&safe_print) _printk;
+extern "C++" void disable_preempt();
+extern "C++" void enable_preempt();
+
+#define PAGE_SIZE 4096 // FIXME - only define in one place
 
 span<char> sp_strcpy(span<char> dest, string_view src) {
     auto to_copy = min(src.size(), dest.size());
@@ -98,10 +104,15 @@ span<char> format_to(span<char> sp, string_view fmt) {
 export
 template<typename... Args>
 void print(string_view fmt, Args&&... args) {
-    char s[50]; // FIXME
-    auto sp = span(s, sizeof(s));
+    disable_preempt();
+
+    auto& cb = *get_cpu_block();
+
+    auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
     sp = format_to(sp, fmt, args...);
 
-    _printk(string_view(s, sp.data() - s));
+    _printk(string_view(cb.printk_scratch, sp.data() - cb.printk_scratch));
+
+    enable_preempt();
 }

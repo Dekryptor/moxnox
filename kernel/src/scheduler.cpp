@@ -443,11 +443,18 @@ bool init_cpu_block(unsigned int cpu_no) {
         va += PAGE_SIZE;
     }
 
+    auto printk_scratch_pa = allocate_page();
+    if (!printk_scratch_pa) {
+        printk("allocate_page failed\n");
+        return false;
+    }
+
     new (&cb) cpu_block;
 
     cb.self = &cb;
     cb.current_thread = nullptr;
     cb.cpu_no = cpu_no;
+    cb.printk_scratch = (char*)phys_address(printk_scratch_pa);
 
     auto stack = allocate_stack();
     if (!stack)
