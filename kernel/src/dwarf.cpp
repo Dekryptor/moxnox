@@ -886,10 +886,10 @@ static uint32_t find_die_parent(span<const uint8_t> cu, span<const uint8_t*> abb
     return ret;
 }
 
-static string_view get_func_name(const kernel_image& img, span<const uint8_t> die,
-                                 span<const uint8_t> att_list,
-                                 span<const uint8_t*> abbrev_list,
-                                 span<const uint8_t> cu) {
+static void get_func_name(const kernel_image& img, span<const uint8_t> die,
+                          span<const uint8_t> att_list,
+                          span<const uint8_t*> abbrev_list,
+                          span<const uint8_t> cu, span<char>& sp) {
     string_view name, linkage_name;
     optional<uint32_t> specification;
 
@@ -913,12 +913,16 @@ static string_view get_func_name(const kernel_image& img, span<const uint8_t> di
     if (name.empty() && !linkage_name.empty())
         name = linkage_name;
 
-    if (!name.empty())
-        return name;
+    if (!name.empty()) {
+        sp = sp_strcpy(sp, name);
+        return;
+    }
 
     // if class function, we need to follow the specification
-    if (!specification.has_value())
-        return "???";
+    if (!specification.has_value()) {
+        sp = sp_strcpy(sp, "???");
+        return;
+    }
 
     uint32_t ref = *specification;
 
@@ -954,10 +958,12 @@ static string_view get_func_name(const kernel_image& img, span<const uint8_t> di
     if (name.empty() && !linkage_name.empty())
         name = linkage_name;
 
-    if (name.empty())
-        return "???";
+    if (name.empty()) {
+        sp = sp_strcpy(sp, "???");
+        return;
+    }
 
-    return name;
+    sp = sp_strcpy(sp, name);
 }
 
 uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
@@ -1004,10 +1010,7 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
 
         die = orig_die;
 
-        string_view func_name;
-        func_name = get_func_name(img, die, att_list, abbrev_list, cu);
-
-        sp = sp_strcpy(sp, func_name);
+        get_func_name(img, die, att_list, abbrev_list, cu, sp);
 
         func_start = *low_pc;
         return false;
