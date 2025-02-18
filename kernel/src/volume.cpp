@@ -57,8 +57,7 @@ bool mount_root() {
             char s[255];
             auto sp = span(s, sizeof(s));
 
-            sp = sp_strcpy(sp, "malformed root option ");
-            sp = sp_strcpy(sp, cmdline_root);
+            sp = format(sp, "malformed root option {}", cmdline_root);
             bsod(string_view(s, sp.data() - s));
         }
 
@@ -70,8 +69,7 @@ bool mount_root() {
             char s[255];
             auto sp = span(s, sizeof(s));
 
-            sp = sp_strcpy(sp, "could not find root volume /dev/");
-            sp = sp_strcpy(sp, cmdline_root);
+            sp = format(sp, "could not find root volume /dev/{}", cmdline_root);
             bsod(string_view(s, sp.data() - s));
         }
 
@@ -79,9 +77,8 @@ bool mount_root() {
             char s[255];
             auto sp = span(s, sizeof(s));
 
-            sp = sp_strcpy(sp, "root volume /dev/");
-            sp = sp_strcpy(sp, cmdline_root);
-            sp = sp_strcpy(sp, " is not a block device");
+            sp = format(sp, "root volume /dev/{} is not a block device",
+                        cmdline_root);
             bsod(string_view(s, sp.data() - s));
         }
 
@@ -94,8 +91,8 @@ bool mount_root() {
                 char s[255];
                 auto sp = span(s, sizeof(s));
 
-                sp = sp_strcpy(sp, "no recognized filesystem found on /dev/");
-                sp = sp_strcpy(sp, cmdline_root);
+                sp = format(sp, "no recognized filesystem found on /dev/{}",
+                            cmdline_root);
                 bsod(string_view(s, sp.data() - s));
             }
 
