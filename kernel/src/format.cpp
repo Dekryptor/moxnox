@@ -10,8 +10,7 @@ export module format;
 
 using namespace std;
 
-extern "C++" void safe_print(string_view s);
-extern "C++" decltype(&safe_print) _printk;
+extern "C++" void (*_printk)(std::string_view s);
 extern "C++" void disable_preempt();
 extern "C++" void enable_preempt();
 

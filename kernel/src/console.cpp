@@ -40,7 +40,7 @@ static span<uint16_t> text_console;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
 static void early_print(string_view s);
-decltype(&safe_print) _printk = early_print;
+void (*_printk)(string_view s) = early_print;
 
 static object_ref console_pipe;
 static const unsigned int console_buffer_pages = 4;
