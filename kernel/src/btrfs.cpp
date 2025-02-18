@@ -1552,7 +1552,7 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
     nt_status status;
 
     // check if data too big for any tree
-    if (data.size() >= fs.sb.node_size - sizeof(tree_header) - sizeof(leaf_node))
+    if (data.size() > fs.sb.node_size - sizeof(tree_header) - sizeof(leaf_node))
         return nt_status::INTERNAL_ERROR;
 
     status = fs.find_item(r, k, p, true);
