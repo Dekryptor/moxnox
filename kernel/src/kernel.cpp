@@ -152,9 +152,7 @@ void main_thread() {
         char s[255];
         auto sp = span(s, sizeof(s));
 
-        sp = sp_strcpy(sp, "init process died (exit code ");
-        sp = sp_itoa_hex(sp, (uint64_t)init_process.exit_status);
-        sp = sp_strcpy(sp, ")");
+        sp = format(sp, "init process died (exit code {:x})", (uint64_t)init_process.exit_status);
         bsod(string_view(s, sp.data() - s));
     }
 
