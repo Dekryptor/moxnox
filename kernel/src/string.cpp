@@ -43,40 +43,6 @@ span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding) {
     return dest;
 }
 
-span<char> sp_itoa(span<char> dest, uint64_t num) {
-    bool first = true;
-
-    if (dest.empty())
-        return dest;
-
-    if (num == 0) {
-        dest[0] = '0';
-        return dest.subspan(1);
-    }
-
-    uint64_t place = 1000000000;
-
-    while (place > 0) {
-        if (!first || num >= place) {
-            uint64_t digit = num / place;
-
-            dest[0] = (char)(digit + '0');
-
-            dest = dest.subspan(1);
-            first = false;
-
-            if (dest.empty())
-                return dest;
-
-            num %= place;
-        }
-
-        place /= 10;
-    }
-
-    return dest;
-}
-
 size_t utf16_to_utf8_len(u16string_view u16sv) {
     size_t len = 0;
 
