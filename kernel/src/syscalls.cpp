@@ -348,9 +348,7 @@ void unimplemented_syscall(const char* name) {
     char s[255];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "Unimplemented syscall ");
-    sp = sp_strcpy(sp, name);
-    sp = sp_strcpy(sp, ".\n");
+    sp = format(sp, "Unimplemented syscall {}.\n", name);
 
     if (t.proc) {
         auto objrw_stderr = t.proc->get_stderr();
