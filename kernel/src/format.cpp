@@ -146,7 +146,7 @@ span<char> format_to(span<char> sp, string_view fmt) {
 
 void checker_failure();
 
-template<size_t arg_count>
+template<typename... Args>
 struct checker {
     consteval checker(const char* q) : sv(q) {
         unsigned int num_entries = 0;
@@ -170,7 +170,7 @@ struct checker {
             s = s.substr(1);
         }
 
-        if (num_entries > arg_count)
+        if (num_entries > sizeof...(Args))
             checker_failure();
     }
 
@@ -179,7 +179,7 @@ struct checker {
 
 export
 template<typename... Args>
-void print(type_identity_t<checker<sizeof...(Args)>> fmt, Args... args) {
+void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
     disable_preempt();
 
     auto& cb = *get_cpu_block();
