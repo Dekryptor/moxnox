@@ -579,9 +579,7 @@ void load_ntdll() {
         char s[100];
         auto sp = span(s, sizeof(s));
 
-        sp = sp_strcpy(sp, "open_inode returned ");
-        sp = sp_itoa_hex(sp, (uint32_t)status, 8);
-        sp = sp_strcpy(sp, " for ntdll.dll");
+        sp = format(sp, "open_inode returned {:08x} for ntdll.dll", status);
         bsod(string_view(s, sp.data() - s));
         return;
     }
@@ -599,9 +597,7 @@ void load_ntdll() {
         char s[100];
         auto sp = span(s, sizeof(s));
 
-        sp = sp_strcpy(sp, "create_section returned ");
-        sp = sp_itoa_hex(sp, (uint32_t)status, 8);
-        sp = sp_strcpy(sp, " for ntdll.dll");
+        sp = format(sp, "create_section returned {:08x} for ntdll.dll", status);
         bsod(string_view(s, sp.data() - s));
         return;
     }
