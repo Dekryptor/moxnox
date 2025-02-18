@@ -867,11 +867,11 @@ void free(void* ptr) {
     ah->free = 1;
 }
 
-void* operator new(size_t count) noexcept {
+void* operator new(size_t count) {
     return malloc_aligned(count, 1);
 }
 
-void* operator new(size_t count, align_val_t al) noexcept {
+void* operator new(size_t count, align_val_t al) {
     return malloc_aligned(count, (size_t)al);
 }
 
