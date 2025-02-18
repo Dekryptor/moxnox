@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 enum class nt_status : uint32_t {
     SUCCESS = 0x00000000,
