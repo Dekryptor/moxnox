@@ -606,7 +606,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
         sp = format(sp, "pte {:x}\n", pte);
     }
 
-    sp = sp_context(sp, cb.thread_context);
+    sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, sp.data() - s));
 }
@@ -627,8 +627,7 @@ void double_fault() {
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
-
-    sp = sp_context(sp, cb.thread_context);
+    sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, sp.data() - s));
 }
@@ -690,8 +689,8 @@ void general_protection_fault(uint64_t error_code) {
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
 
-    sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
 }
 
@@ -750,8 +749,8 @@ void invalid_opcode() {
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
 
-    sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
 }
 
@@ -810,8 +809,8 @@ void divide_by_zero() {
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
 
-    sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
 }
 
@@ -870,8 +869,8 @@ void breakpoint() {
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
 
-    sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
 }
 
@@ -930,7 +929,7 @@ void single_step() {
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
 
-    sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
 }
