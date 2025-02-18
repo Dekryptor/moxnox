@@ -619,18 +619,14 @@ void double_fault() {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "Double fault, ");
+    sp = format(sp, "Double fault, ");
 
     if (!current_thread)
-        sp = sp_strcpy(sp, "not in thread");
-    else {
-        sp = sp_strcpy(sp, "thread ");
-        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
-    }
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = sp_strcpy(sp, ", CPU ");
-    sp = sp_itoa_hex(sp, cb.cpu_no);
-    sp = sp_strcpy(sp, "\n");
+    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
 
     sp = sp_context(sp, cb.thread_context);
 
@@ -686,19 +682,14 @@ void general_protection_fault(uint64_t error_code) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "General protection fault in kernel mode, error code = ");
-    sp = sp_itoa_hex(sp, error_code);
+    sp = format(sp, "General protection fault in kernel mode, error code = {:x}, ", error_code);
 
     if (!current_thread)
-        sp = sp_strcpy(sp, ", not in thread");
-    else {
-        sp = sp_strcpy(sp, ", thread ");
-        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
-    }
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = sp_strcpy(sp, ", CPU ");
-    sp = sp_itoa_hex(sp, cb.cpu_no);
-    sp = sp_strcpy(sp, "\n");
+    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
 
     sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
@@ -751,18 +742,14 @@ void invalid_opcode() {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "Invalid opcode in kernel mode, ");
+    sp = format(sp, "Invalid opcode in kernel mode, ");
 
     if (!current_thread)
-        sp = sp_strcpy(sp, "not in thread");
-    else {
-        sp = sp_strcpy(sp, "thread ");
-        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
-    }
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = sp_strcpy(sp, ", CPU ");
-    sp = sp_itoa_hex(sp, cb.cpu_no);
-    sp = sp_strcpy(sp, "\n");
+    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
 
     sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
@@ -815,18 +802,14 @@ void divide_by_zero() {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "Divide by zero in kernel mode, ");
+    sp = format(sp, "Divide by zero in kernel mode, ");
 
     if (!current_thread)
-        sp = sp_strcpy(sp, "not in thread");
-    else {
-        sp = sp_strcpy(sp, "thread ");
-        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
-    }
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = sp_strcpy(sp, ", CPU ");
-    sp = sp_itoa_hex(sp, cb.cpu_no);
-    sp = sp_strcpy(sp, "\n");
+    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
 
     sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
@@ -879,18 +862,14 @@ void breakpoint() {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "Unhandled breakpoint in kernel mode, ");
+    sp = format(sp, "Unhandled breakpoint in kernel mode, ");
 
     if (!current_thread)
-        sp = sp_strcpy(sp, "not in thread");
-    else {
-        sp = sp_strcpy(sp, "thread ");
-        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
-    }
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = sp_strcpy(sp, ", CPU ");
-    sp = sp_itoa_hex(sp, cb.cpu_no);
-    sp = sp_strcpy(sp, "\n");
+    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
 
     sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
