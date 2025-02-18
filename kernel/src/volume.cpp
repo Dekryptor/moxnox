@@ -54,32 +54,19 @@ bool mount_root() {
 
         if (cmdline_root.size() <= sizeof(prefix) - 1 ||
             string_view(cmdline_root.data(), sizeof(prefix) - 1) != prefix) {
-            char s[255];
-            auto sp = span(s, sizeof(s));
-
-            sp = format(sp, "malformed root option {}", cmdline_root);
-            bsod(string_view(s, sp.data() - s));
+            bsod_format("malformed root option {}", cmdline_root);
         }
 
         cmdline_root = string_view(cmdline_root.data() + sizeof(prefix) - 1,
                                    cmdline_root.size() - sizeof(prefix) + 1);
 
         auto ref = open_object(cmdline_root);
-        if (!ref) {
-            char s[255];
-            auto sp = span(s, sizeof(s));
-
-            sp = format(sp, "could not find root volume /dev/{}", cmdline_root);
-            bsod(string_view(s, sp.data() - s));
-        }
+        if (!ref)
+            bsod_format("could not find root volume /dev/{}", cmdline_root);
 
         if (ref.get().type != object_type::volume) {
-            char s[255];
-            auto sp = span(s, sizeof(s));
-
-            sp = format(sp, "root volume /dev/{} is not a block device",
+            bsod_format("root volume /dev/{} is not a block device",
                         cmdline_root);
-            bsod(string_view(s, sp.data() - s));
         }
 
         auto& vol = static_cast<volume&>(ref.get());
@@ -88,12 +75,8 @@ bool mount_root() {
             lock_guard lock(vol.mount_lock);
 
             if (!vol.filesystem) {
-                char s[255];
-                auto sp = span(s, sizeof(s));
-
-                sp = format(sp, "no recognized filesystem found on /dev/{}",
+                bsod_format("no recognized filesystem found on /dev/{}",
                             cmdline_root);
-                bsod(string_view(s, sp.data() - s));
             }
 
             root_fs = &vol.filesystem->get();
