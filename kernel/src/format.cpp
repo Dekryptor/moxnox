@@ -95,7 +95,7 @@ span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding = 0) 
 }
 
 template<typename T>
-consteval bool valid_spec(string_view fmt) {
+consteval bool valid_spec(string_view) {
     return false;
 }
 
@@ -108,7 +108,7 @@ span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
 
         for (size_t i = 1; i < fmt.size() - 1; i++) {
             padding *= 10;
-            padding += fmt[i] - '0';
+            padding += (unsigned int)(fmt[i] - '0');
         }
 
         // FIXME - should be padded with spaces if first digit not 0
@@ -432,7 +432,7 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
 
     sp = format_to(sp, fmt.sv, args...);
 
-    _printk(string_view(cb.printk_scratch, sp.data() - cb.printk_scratch));
+    _printk(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
 
     enable_preempt();
 }
@@ -451,7 +451,7 @@ struct bsod_format {
 
         sp = format_to(sp, fmt.sv, args...);
 
-        bsod(string_view(cb.printk_scratch, sp.data() - cb.printk_scratch), sl,
+        bsod(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)), sl,
              true);
 
         enable_preempt();
