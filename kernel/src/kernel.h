@@ -242,7 +242,6 @@ uint64_t get_image_size(void* image);
 std::span<const uint8_t> find_pdata(const kernel_image& img);
 
 // string.cpp
-std::span<char> sp_strcpy(std::span<char> dest, std::string_view src);
 size_t utf16_to_utf8_len(std::u16string_view u16sv);
 void utf16_to_utf8(std::span<char> buf, std::u16string_view u16sv);
 size_t utf8_to_utf16_len(std::string_view sv);

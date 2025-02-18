@@ -2,14 +2,6 @@
 
 using namespace std;
 
-span<char> sp_strcpy(span<char> dest, string_view src) {
-    auto to_copy = min(src.size(), dest.size());
-
-    memcpy(dest.data(), src.data(), to_copy);
-
-    return dest.subspan(to_copy);
-}
-
 size_t utf16_to_utf8_len(u16string_view u16sv) {
     size_t len = 0;
 
