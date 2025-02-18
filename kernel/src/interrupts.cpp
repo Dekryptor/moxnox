@@ -591,28 +591,19 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "Page fault in kernel mode (address = ");
-    sp = sp_itoa_hex(sp, address);
-    sp = sp_strcpy(sp, ", error code = ");
-    sp = sp_itoa_hex(sp, error_code);
+    sp = format(sp, "Page fault in kernel mode (address = {:x}, error code = {:x}, ", address, error_code);
 
     if (!current_thread)
-        sp = sp_strcpy(sp, ", not in thread");
-    else {
-        sp = sp_strcpy(sp, ", thread ");
-        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
-    }
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = sp_strcpy(sp, ", CPU ");
-    sp = sp_itoa_hex(sp, cb.cpu_no);
-    sp = sp_strcpy(sp, ")\n");
+    sp = format(sp, ", CPU {:x})\n", cb.cpu_no);
 
     if (address & ((uint64_t)1 << 63)) {
         uint64_t pte = SELFMAP | ((address & 0xfffffffff000) >> 9);
 
-        sp = sp_strcpy(sp, "pte ");
-        sp = sp_itoa_hex(sp, pte);
-        sp = sp_strcpy(sp, "\n");
+        sp = format(sp, "pte {:x}\n", pte);
     }
 
     sp = sp_context(sp, cb.thread_context);
