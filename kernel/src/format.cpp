@@ -100,17 +100,41 @@ consteval bool valid_spec(string_view fmt) {
 }
 
 span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
-    if (fmt == ":x")
-        return sp_itoa_hex(sp, arg);
+    if (fmt.empty())
+        return sp_itoa(sp, arg);
 
-    return sp_itoa(sp, arg);
+    if (fmt.size() >= 2 && fmt.front() == ':' && fmt.back() == 'x') {
+        unsigned int padding = 0;
+
+        for (size_t i = 1; i < fmt.size() - 1; i++) {
+            padding *= 10;
+            padding += fmt[i] - '0';
+        }
+
+        // FIXME - should be padded with spaces if first digit not 0
+
+        return sp_itoa_hex(sp, arg, padding);
+    }
+
+    return sp;
 }
 
 template<typename T>
 requires (integral<T>)
-consteval bool valid_spec(string_view /*fmt*/) {
-    // return fmt == "" || fmt == ":x"; // FIXME
-    return true;
+consteval bool valid_spec(string_view fmt) {
+    if (fmt.empty())
+        return true;
+
+    if (fmt.size() >= 2 && fmt.front() == ':' && fmt.back() == 'x') {
+        for (size_t i = 1; i < fmt.size() - 1; i++) {
+            if (fmt[i] < '0' || fmt[i] > '9')
+                return false;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 span<char> do_format_arg(span<char> sp, string_view fmt, nt_status arg) {
