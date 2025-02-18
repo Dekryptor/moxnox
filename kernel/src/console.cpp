@@ -178,13 +178,11 @@ static uint8_t inb(uint16_t port) {
     return ret;
 }
 
-__attribute((naked))
 static void outb(uint16_t port, uint8_t val) {
     __asm __volatile(
-        "mov al, %1\n"
-        "\tmov dx, %0\n"
+        "mov al, dl\n"
+        "\tmov dx, cx\n"
         "\tout dx, al\n"
-        "\tret\n"
         :
         : "r" (port), "r" (val)
         : "al", "dx"
