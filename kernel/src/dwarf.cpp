@@ -917,13 +917,13 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
         name = linkage_name;
 
     if (!name.empty()) {
-        sp = sp_strcpy(sp, name);
+        sp = format(sp, "{}", name);
         return;
     }
 
     // if class function, we need to follow the specification
     if (!specification.has_value()) {
-        sp = sp_strcpy(sp, "???");
+        sp = format(sp, "???");
         return;
     }
 
@@ -986,7 +986,7 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
             name = linkage_name;
 
         if (name.empty())
-            sp = sp_strcpy(sp, "???");
+            sp = format(sp, "???");
 
         return;
     }
