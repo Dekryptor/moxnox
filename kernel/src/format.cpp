@@ -138,9 +138,84 @@ consteval bool valid_spec(string_view fmt) {
 }
 
 span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
-    // FIXME - format nt_status to string?
-
-    return do_format_arg(sp, ":08x", (uint32_t)arg);
+    switch (arg) {
+        case nt_status::SUCCESS:
+            return sp_strcpy(sp, "SUCCESS");
+        case nt_status::ALERTED:
+            return sp_strcpy(sp, "ALERTED");
+        case nt_status::PENDING:
+            return sp_strcpy(sp, "PENDING");
+        case nt_status::BREAKPOINT:
+            return sp_strcpy(sp, "BREAKPOINT");
+        case nt_status::SINGLE_STEP:
+            return sp_strcpy(sp, "SINGLE_STEP");
+        case nt_status::NO_MORE_FILES:
+            return sp_strcpy(sp, "NO_MORE_FILES");
+        case nt_status::NOT_IMPLEMENTED:
+            return sp_strcpy(sp, "NOT_IMPLEMENTED");
+        case nt_status::INVALID_INFO_CLASS:
+            return sp_strcpy(sp, "INVALID_INFO_CLASS");
+        case nt_status::INFO_LENGTH_MISMATCH:
+            return sp_strcpy(sp, "INFO_LENGTH_MISMATCH");
+        case nt_status::ACCESS_VIOLATION:
+            return sp_strcpy(sp, "ACCESS_VIOLATION");
+        case nt_status::INVALID_HANDLE:
+            return sp_strcpy(sp, "INVALID_HANDLE");
+        case nt_status::INVALID_PARAMETER:
+            return sp_strcpy(sp, "INVALID_PARAMETER");
+        case nt_status::END_OF_FILE:
+            return sp_strcpy(sp, "END_OF_FILE");
+        case nt_status::NO_MEMORY:
+            return sp_strcpy(sp, "NO_MEMORY");
+        case nt_status::ILLEGAL_INSTRUCTION:
+            return sp_strcpy(sp, "ILLEGAL_INSTRUCTION");
+        case nt_status::BUFFER_TOO_SMALL:
+            return sp_strcpy(sp, "BUFFER_TOO_SMALL");
+        case nt_status::OBJECT_TYPE_MISMATCH:
+            return sp_strcpy(sp, "OBJECT_TYPE_MISMATCH");
+        case nt_status::DISK_CORRUPT_ERROR:
+            return sp_strcpy(sp, "DISK_CORRUPT_ERROR");
+        case nt_status::OBJECT_NAME_INVALID:
+            return sp_strcpy(sp, "OBJECT_NAME_INVALID");
+        case nt_status::OBJECT_NAME_NOT_FOUND:
+            return sp_strcpy(sp, "OBJECT_NAME_NOT_FOUND");
+        case nt_status::OBJECT_NAME_COLLISION:
+            return sp_strcpy(sp, "OBJECT_NAME_COLLISION");
+        case nt_status::OBJECT_PATH_NOT_FOUND:
+            return sp_strcpy(sp, "OBJECT_PATH_NOT_FOUND");
+        case nt_status::INVALID_PAGE_PROTECTION:
+            return sp_strcpy(sp, "INVALID_PAGE_PROTECTION");
+        case nt_status::PROCEDURE_NOT_FOUND:
+            return sp_strcpy(sp, "PROCEDURE_NOT_FOUND");
+        case nt_status::INVALID_IMAGE_FORMAT:
+            return sp_strcpy(sp, "INVALID_IMAGE_FORMAT");
+        case nt_status::DISK_FULL:
+            return sp_strcpy(sp, "DISK_FULL");
+        case nt_status::INTEGER_DIVIDE_BY_ZERO:
+            return sp_strcpy(sp, "INTEGER_DIVIDE_BY_ZERO");
+        case nt_status::INSUFFICIENT_RESOURCES:
+            return sp_strcpy(sp, "INSUFFICIENT_RESOURCES");
+        case nt_status::FILE_IS_A_DIRECTORY:
+            return sp_strcpy(sp, "FILE_IS_A_DIRECTORY");
+        case nt_status::NOT_SUPPORTED:
+            return sp_strcpy(sp, "NOT_SUPPORTED");
+        case nt_status::INTERNAL_ERROR:
+            return sp_strcpy(sp, "INTERNAL_ERROR");
+        case nt_status::NOT_A_DIRECTORY:
+            return sp_strcpy(sp, "NOT_A_DIRECTORY");
+        case nt_status::DLL_NOT_FOUND:
+            return sp_strcpy(sp, "DLL_NOT_FOUND");
+        case nt_status::ORDINAL_NOT_FOUND:
+            return sp_strcpy(sp, "ORDINAL_NOT_FOUND");
+        case nt_status::CONTROL_C_EXIT:
+            return sp_strcpy(sp, "CONTROL_C_EXIT");
+        case nt_status::DLL_INIT_FAILED:
+            return sp_strcpy(sp, "DLL_INIT_FAILED");
+        case nt_status::ILLEGAL_DLL_RELOCATION:
+            return sp_strcpy(sp, "ILLEGAL_DLL_RELOCATION");
+        default:
+            return do_format_arg(sp, ":08x", (uint32_t)arg);
+    }
 }
 
 template<>
