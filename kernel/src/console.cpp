@@ -1618,36 +1618,31 @@ static void print_rip(uint64_t rip) {
     char s[200];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_itoa_hex(sp, rip, 16);
+    sp = format(sp, "{:16x}", rip);
 
     auto img = get_kernel_image_from_address(rip);
 
     if (img) {
         // FIXME - also get filename and line no. from DWARF
 
-        sp = sp_strcpy(sp, " (");
-        sp = sp_strcpy(sp, img->name);
-        sp = sp_strcpy(sp, "!");
+        sp = format(sp, " ({}!", img->name);
 
         auto func_start = dwarf_find_function(*img, rip, sp);
 
         if (func_start != 0) {
-            if (rip != func_start) {
-                sp = sp_strcpy(sp, "+");
-                sp = sp_itoa_hex(sp, rip - func_start);
-            }
+            if (rip != func_start)
+                sp = format(sp, "+{:x}", rip - func_start);
         } else {
             // erase exclamation mark
             sp = span(sp.data() - 1, sp.size() + 1);
 
-            sp = sp_strcpy(sp, "+");
-            sp = sp_itoa_hex(sp, rip - (uintptr_t)img->base_address);
+            sp = format(sp, "+{:x}", rip - (uintptr_t)img->base_address);
         }
 
-        sp = sp_strcpy(sp, ")");
+        sp = format(sp, ")");
     }
 
-    sp = sp_strcpy(sp, "\n");
+    sp = format(sp, "\n");
 
     do_print<FB>(string_view(s, sp.data() - s));
 }

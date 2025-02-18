@@ -35,7 +35,7 @@ span<char> sp_itoa(span<char> dest, uint64_t num) {
         return span(dest.data() + 1, dest.size() - 1);
     }
 
-    uint64_t place = 1000000000;
+    uint64_t place = 10000000000000000000ull;
 
     while (place > 0) {
         if (!first || num >= place) {
@@ -176,6 +176,12 @@ struct checker {
 
     string_view sv;
 };
+
+export
+template<typename... Args>
+span<char> format(span<char> sp, type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+    return format_to(sp, fmt.sv, args...);
+}
 
 export
 template<typename... Args>
