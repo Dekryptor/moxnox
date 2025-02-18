@@ -276,17 +276,11 @@ span<char> format_to(span<char> sp, string_view fmt) {
 
 void checker_failure();
 
-template<typename T>
-consteval void check_spec(string_view sp) {
-    if (!valid_spec<remove_cvref_t<T>>(sp))
-        checker_failure();
-}
-
 template<typename T, typename... Args>
 consteval void check_specs(span<string_view, sizeof...(Args) + 1> sp,
                            tuple<T, Args...>*) {
-    check_spec<T>(sp[0]);
-    // FIXME
+    if (!valid_spec<remove_cvref_t<T>>(sp[0]))
+        checker_failure();
 
     if constexpr (sizeof...(Args) > 0)
         check_specs(span<string_view, sizeof...(Args)>(sp.data() + 1, sp.size() - 1), (tuple<Args...>*)nullptr);
