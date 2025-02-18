@@ -575,47 +575,29 @@ void load_ntdll() {
 
     status = open_inode("/ntdll.dll", nullopt, inode_ref, FILE_OPEN,
                         FILE_NON_DIRECTORY_FILE);
-    if (!success(status)) {
-        char s[100];
-        auto sp = span(s, sizeof(s));
+    if (!success(status))
+        bsod_format("open_inode returned {:08x} for ntdll.dll", status);
 
-        sp = format(sp, "open_inode returned {:08x} for ntdll.dll", status);
-        bsod(string_view(s, sp.data() - s));
-        return;
-    }
-
-    if (inode_ref.get().type != object_type::inode) {
+    if (inode_ref.get().type != object_type::inode)
         bsod("open_inode returned something other than an inode");
-        return;
-    }
 
     object_ref f(*new file(inode_ref.get()));
     object_ref ntdllh;
 
     status = create_section(static_cast<file&>(f.get()), true, 0, ntdllh);
-    if (!success(status)) {
-        char s[100];
-        auto sp = span(s, sizeof(s));
-
-        sp = format(sp, "create_section returned {:08x} for ntdll.dll", status);
-        bsod(string_view(s, sp.data() - s));
-        return;
-    }
+    if (!success(status))
+        bsod_format("create_section returned {:08x} for ntdll.dll", status);
 
     ntdll = &static_cast<section&>(ntdllh.get());
     ntdll->acquire();
 
     mn_start_thread = ntdll->find_export("mn_start_thread");
-    if (!mn_start_thread) {
+    if (!mn_start_thread)
         bsod("Could not find export mn_start_thread in ntdll.dll");
-        return;
-    }
 
     mn_signal = ntdll->find_export("mn_signal");
-    if (!mn_signal) {
+    if (!mn_signal)
         bsod("Could not find export mn_signal in ntdll.dll");
-        return;
-    }
 }
 
 void process::terminate() {
