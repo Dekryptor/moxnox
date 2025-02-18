@@ -54,7 +54,6 @@ static bool fb_console_started = false;
 static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
 static spinlock cursor_lock, bsod_lock;
-static char assertion_buffer[1024];
 static char escape_buffer[50];
 static size_t escape_buffer_len = 0;
 static bool show_cursor = true;
@@ -2067,11 +2066,7 @@ void bsod(string_view msg, source_location sl) {
 }
 
 void _assert(const char* msg, const char* file, unsigned int line) {
-    span sp(assertion_buffer, sizeof(assertion_buffer));
-
-    sp = format(sp, "assertion failed at {}:{}: {}", file, line, msg);
-
-    bsod(string_view(assertion_buffer, sp.data() - assertion_buffer));
+    bsod_format("assertion failed at {}:{}: {}", file, line, msg);
 }
 
 void abort() {
