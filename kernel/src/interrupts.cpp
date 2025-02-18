@@ -943,18 +943,14 @@ void single_step() {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_strcpy(sp, "Unhandled single-step breakpoint in kernel mode, ");
+    sp = format(sp, "Unhandled single-step breakpoint in kernel mode, ");
 
     if (!current_thread)
-        sp = sp_strcpy(sp, "not in thread");
-    else {
-        sp = sp_strcpy(sp, "thread ");
-        sp = sp_itoa_hex(sp, (uintptr_t)current_thread);
-    }
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = sp_strcpy(sp, ", CPU ");
-    sp = sp_itoa_hex(sp, cb.cpu_no);
-    sp = sp_strcpy(sp, "\n");
+    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
 
     sp = sp_context(sp, cb.thread_context);
     bsod(string_view(s, sp.data() - s));
