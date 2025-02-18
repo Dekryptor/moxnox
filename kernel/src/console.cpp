@@ -2069,12 +2069,7 @@ void bsod(string_view msg, source_location sl) {
 void _assert(const char* msg, const char* file, unsigned int line) {
     span sp(assertion_buffer, sizeof(assertion_buffer));
 
-    sp = sp_strcpy(sp, "assertion failed at ");
-    sp = sp_strcpy(sp, file);
-    sp = sp_strcpy(sp, ":");
-    sp = sp_itoa(sp, line);
-    sp = sp_strcpy(sp, ": ");
-    sp = sp_strcpy(sp, msg);
+    sp = format(sp, "assertion failed at {}:{}: {}", file, line, msg);
 
     bsod(string_view(assertion_buffer, sp.data() - assertion_buffer));
 }
