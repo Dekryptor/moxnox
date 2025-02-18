@@ -14,7 +14,8 @@ using namespace std;
 extern "C++" void (*_printk)(string_view s);
 extern "C++" void disable_preempt();
 extern "C++" void enable_preempt();
-extern "C++" __attribute__((noreturn)) void bsod(string_view msg, source_location sl);
+extern "C++" __attribute__((noreturn)) void bsod(string_view msg, source_location sl,
+                                                 bool skip_caller);
 
 #define PAGE_SIZE 4096 // FIXME - only define in one place
 
@@ -281,7 +282,8 @@ struct bsod_format {
 
         sp = format_to(sp, fmt.sv, args...);
 
-        bsod(string_view(cb.printk_scratch, sp.data() - cb.printk_scratch), sl);
+        bsod(string_view(cb.printk_scratch, sp.data() - cb.printk_scratch), sl,
+             true);
 
         enable_preempt();
     }

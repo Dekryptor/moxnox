@@ -1979,9 +1979,13 @@ static bool unwind_context(CONTEXT& context) {
     return true;
 }
 
-static void print_stacktrace(CONTEXT& context, const invocable<uint64_t> auto& func) {
+static void print_stacktrace(CONTEXT& context, const invocable<uint64_t> auto& func,
+                             bool skip_caller) {
     // not interested in top entry (bsod function)
     if (!unwind_context(context))
+        return;
+
+    if (skip_caller && !unwind_context(context))
         return;
 
     do {
@@ -1992,7 +1996,7 @@ static void print_stacktrace(CONTEXT& context, const invocable<uint64_t> auto& f
     } while (true);
 }
 
-void bsod(string_view msg, source_location sl) {
+void bsod(string_view msg, source_location sl, bool skip_caller) {
     __asm("cli");
 
     lock_guard lock(bsod_lock);
@@ -2052,10 +2056,10 @@ void bsod(string_view msg, source_location sl) {
 
     if (framebuffer.empty()) {
         do_print<false>("\n");
-        print_stacktrace(context, print_rip<false>);
+        print_stacktrace(context, print_rip<false>, skip_caller);
     } else {
         do_print<true>("\n");
-        print_stacktrace(context, print_rip<true>);
+        print_stacktrace(context, print_rip<true>, skip_caller);
 
         refresh_shadow_framebuffer();
         refresh_framebuffer();

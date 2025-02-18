@@ -123,7 +123,8 @@ bool init_console_pipe();
 void safe_print(std::string_view s);
 extern void (*_printk)(std::string_view s);
 bool init_fb_console();
-__attribute__((noreturn)) void bsod(std::string_view msg, std::source_location sl = std::source_location::current());
+__attribute__((noreturn)) void bsod(std::string_view msg, std::source_location sl = std::source_location::current(),
+                                    bool skip_caller = false);
 __attribute__((noreturn)) void _assert(const char* msg, const char* file, unsigned int line);
 void copy_edid(loader_block* lb);
 extern bool has_framebuffer;
