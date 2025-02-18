@@ -94,11 +94,23 @@ span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding = 0) 
     return dest;
 }
 
+template<typename T>
+consteval bool valid_spec(string_view fmt) {
+    return false;
+}
+
 span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
     if (fmt == ":x")
         return sp_itoa_hex(sp, arg);
 
     return sp_itoa(sp, arg);
+}
+
+template<typename T>
+requires (integral<T>)
+consteval bool valid_spec(string_view /*fmt*/) {
+    // return fmt == "" || fmt == ":x"; // FIXME
+    return true;
 }
 
 span<char> do_format_arg(span<char> sp, string_view fmt, nt_status arg) {
@@ -107,8 +119,28 @@ span<char> do_format_arg(span<char> sp, string_view fmt, nt_status arg) {
     return do_format_arg(sp, fmt, (uint32_t)arg);
 }
 
+template<>
+consteval bool valid_spec<nt_status>(string_view fmt) {
+    return valid_spec<unsigned int>(fmt);
+}
+
 span<char> do_format_arg(span<char> sp, string_view, string_view arg) {
     return sp_strcpy(sp, arg);
+}
+
+template<>
+consteval bool valid_spec<string_view>(string_view fmt) {
+    return fmt.empty();
+}
+
+template<>
+consteval bool valid_spec<char*>(string_view fmt) {
+    return valid_spec<string_view>(fmt);
+}
+
+template<>
+consteval bool valid_spec<const char*>(string_view fmt) {
+    return valid_spec<string_view>(fmt);
 }
 
 span<char> do_format_arg(span<char> sp, string_view, const AMD64_CONTEXT& ctx) {
@@ -177,6 +209,11 @@ span<char> do_format_arg(span<char> sp, string_view, const AMD64_CONTEXT& ctx) {
     return sp;
 }
 
+template<>
+consteval bool valid_spec<AMD64_CONTEXT>(string_view fmt) {
+    return fmt.empty();
+}
+
 template<typename T, typename... Args>
 span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... args) {
     // FIXME - {{ and }} escaping
@@ -215,6 +252,22 @@ span<char> format_to(span<char> sp, string_view fmt) {
 
 void checker_failure();
 
+template<typename T>
+consteval void check_spec(string_view sp) {
+    if (!valid_spec<remove_cvref_t<T>>(sp))
+        checker_failure();
+}
+
+template<typename T, typename... Args>
+consteval void check_specs(span<string_view, sizeof...(Args) + 1> sp,
+                           tuple<T, Args...>*) {
+    check_spec<T>(sp[0]);
+    // FIXME
+
+    if constexpr (sizeof...(Args) > 0)
+        check_specs(span<string_view, sizeof...(Args)>(sp.data() + 1, sp.size() - 1), (tuple<Args...>*)nullptr);
+}
+
 template<typename... Args>
 struct checker {
     consteval checker(const char* q) : sv(q) {
@@ -241,6 +294,29 @@ struct checker {
 
         if (num_entries > sizeof...(Args))
             checker_failure();
+
+        array<string_view, sizeof...(Args)> spec;
+
+        s = sv;
+
+        unsigned int pos = 0;
+
+        while (!s.empty()) {
+            if (s.front() == '{') {
+                auto end = s.find('}');
+
+                spec[pos] = s.substr(1, end - 1);
+
+                s = s.substr(end + 1);
+                pos++;
+                continue;
+            }
+
+            s = s.substr(1);
+        }
+
+        if constexpr (sizeof...(Args) > 0)
+            check_specs(spec, (tuple<Args...>*)nullptr);
     }
 
     string_view sv;
