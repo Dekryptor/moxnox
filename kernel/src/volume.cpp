@@ -173,7 +173,7 @@ bool volume::check_for_partitions() {
     auto status = read(span(first_sect, read_sector_size), 0, read_bytes);
 
     if (!success(status)) {
-        print("volume::read returned {:08x}\n", status);
+        print("volume::read returned {}\n", status);
         free(first_sect);
         return false;
     } else if (read_bytes < read_sector_size) {
@@ -255,7 +255,7 @@ bool volume::check_for_partitions() {
     status = read(span(buf, table_end_aligned - table_start_aligned), table_start_aligned, read_bytes);
 
     if (!success(status)) {
-        print("volume::read returned {:08x}\n", status);
+        print("volume::read returned {}\n", status);
         free(buf);
         return false;
     } else if (read_bytes < table_end_aligned - table_start_aligned) {

@@ -33,7 +33,7 @@ object_ref create_process(string_view fn, string_view curdir,
     status = open_inode(fn, nullopt, img_inode_ref, FILE_OPEN,
                         FILE_NON_DIRECTORY_FILE);
     if (!success(status)) { // FIXME - return status
-        print("open_inode failed for {}: {:08x}\n", fn, status);
+        print("open_inode failed for {}: {}\n", fn, status);
         return {};
     }
 
@@ -47,7 +47,7 @@ object_ref create_process(string_view fn, string_view curdir,
     status = open_inode(curdir, nullopt, curdir_ref, FILE_OPEN,
                         FILE_NON_DIRECTORY_FILE);
     if (!success(status)) { // FIXME - return status
-        print("open_inode failed for {}: {:08x}\n", curdir, status);
+        print("open_inode failed for {}: {}\n", curdir, status);
         return {};
     }
 
@@ -74,7 +74,7 @@ object_ref create_process(string_view fn, string_view curdir,
 
     status = create_section(static_cast<file&>(f.get()), true, 0, imgh);
     if (!success(status)) {
-        print("create_section returned {:08x}\n", status);
+        print("create_section returned {}\n", status);
         p.release();
         return {};
     }
@@ -106,7 +106,7 @@ object_ref create_process(string_view fn, string_view curdir,
     void* stackaddr = nullptr;
 
     if (auto status = p.allocate_vm(&stackaddr, 0, &stack_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write); !success(status)) {
-        print("process::map_section returned {:x}\n", status);
+        print("process::map_section returned {}\n", status);
         p.release();
         return {};
     }
@@ -185,7 +185,7 @@ object_ref create_process(string_view fn, string_view curdir,
 
     status = p.create_thread(nullopt, 0, nullptr, client_id, entry_point_context, initial_teb, true);
     if (!success(status)) {
-        print("process::create_thread returned {:08x}\n", status);
+        print("process::create_thread returned {}\n", status);
         p.release();
         return {};
     }
@@ -576,7 +576,7 @@ void load_ntdll() {
     status = open_inode("/ntdll.dll", nullopt, inode_ref, FILE_OPEN,
                         FILE_NON_DIRECTORY_FILE);
     if (!success(status))
-        bsod_format("open_inode returned {:08x} for ntdll.dll", status);
+        bsod_format("open_inode returned {} for ntdll.dll", status);
 
     if (inode_ref.get().type != object_type::inode)
         bsod("open_inode returned something other than an inode");
@@ -586,7 +586,7 @@ void load_ntdll() {
 
     status = create_section(static_cast<file&>(f.get()), true, 0, ntdllh);
     if (!success(status))
-        bsod_format("create_section returned {:08x} for ntdll.dll", status);
+        bsod_format("create_section returned {} for ntdll.dll", status);
 
     ntdll = &static_cast<section&>(ntdllh.get());
     ntdll->acquire();
@@ -1526,7 +1526,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     size += (fn_len + 1) * sizeof(char16_t);
 
     if (auto status = proc.allocate_vm((void**)&proc.proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write); !success(status)) {
-        print("process::allocate_vm returned {:x}\n", status);
+        print("process::allocate_vm returned {}\n", status);
         return false;
     }
 

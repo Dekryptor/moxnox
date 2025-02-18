@@ -39,7 +39,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
                            read_bytes);
 
     if (!success(status)) {
-        print("volume::read returned {:x}\n", status);
+        print("volume::read returned {}\n", status);
         return;
     } else if (read_bytes < sizeof(superblock)) {
         print("volume::read failed\n");
@@ -2895,13 +2895,13 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
 
             auto status = fs.remove_item(*fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level});
             if (!success(status)) {
-                print("remove_item returned {:x}\n", status);
+                print("remove_item returned {}\n", status);
                 return status;
             }
 
             status = add_free_space(fs, mc.address, fs.sb.node_size);
             if (!success(status)) {
-                print("add_free_space returned {:x}\n", status);
+                print("add_free_space returned {}\n", status);
                 return status;
             }
 
@@ -2918,13 +2918,13 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
             auto status = insert_item(fs, *fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level},
                                       span((uint8_t*)&eitbr, sizeof(eitbr)));
             if (!success(status)) {
-                print("insert_item returned {:x}\n", status);
+                print("insert_item returned {}\n", status);
                 return status;
             }
 
             status = remove_free_space(fs, mc.address, fs.sb.node_size);
             if (!success(status)) {
-                print("remove_free_space returned {:x}\n", status);
+                print("remove_free_space returned {}\n", status);
                 return status;
             }
 
@@ -2960,7 +2960,7 @@ void btrfs_filesystem::do_flush() {
     status = do_metadata_changes(*this);
     // FIXME - make filesystem readonly if do_metadata_changes fails
     if (!success(status)) {
-        print("do_metadata_changes returned {:x}\n", status);
+        print("do_metadata_changes returned {}\n", status);
         return;
     }
 
@@ -2969,7 +2969,7 @@ void btrfs_filesystem::do_flush() {
 
         auto status = flush_root(*this, r);
         if (!success(status)) {
-            print("flush_root returned {:x}\n", status);
+            print("flush_root returned {}\n", status);
             // FIXME - make filesystem readonly if do_flush fails
         }
 
@@ -2980,7 +2980,7 @@ void btrfs_filesystem::do_flush() {
     status = do_metadata_changes(*this);
     // FIXME - make filesystem readonly if do_metadata_changes fails
     if (!success(status)) {
-        print("do_metadata_changes returned {:x}\n", status);
+        print("do_metadata_changes returned {}\n", status);
         return;
     }
 

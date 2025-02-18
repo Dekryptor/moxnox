@@ -137,15 +137,15 @@ consteval bool valid_spec(string_view fmt) {
     return false;
 }
 
-span<char> do_format_arg(span<char> sp, string_view fmt, nt_status arg) {
+span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
     // FIXME - format nt_status to string?
 
-    return do_format_arg(sp, fmt, (uint32_t)arg);
+    return do_format_arg(sp, ":08x", (uint32_t)arg);
 }
 
 template<>
 consteval bool valid_spec<nt_status>(string_view fmt) {
-    return valid_spec<unsigned int>(fmt);
+    return fmt.empty();
 }
 
 span<char> do_format_arg(span<char> sp, string_view, string_view arg) {
