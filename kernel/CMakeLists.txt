@@ -49,7 +49,10 @@ set(SRC_FILES src/kernel.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 add_executable(kernel ${SRC_FILES})
-target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES src/format.cpp)
+target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
+    src/format.cpp
+    src/inout.cpp
+)
 
 include_directories(../freetype/include)
 

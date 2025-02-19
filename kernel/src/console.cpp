@@ -12,6 +12,7 @@
 #include <console.h>
 
 import format;
+import inout;
 
 using namespace std;
 
@@ -176,17 +177,6 @@ static uint8_t inb(uint16_t port) {
     );
 
     return ret;
-}
-
-static void outb(uint16_t port, uint8_t val) {
-    __asm __volatile(
-        "mov al, dl\n"
-        "\tmov dx, cx\n"
-        "\tout dx, al\n"
-        :
-        : "r" (port), "r" (val)
-        : "al", "dx"
-    );
 }
 
 static void text_console_move_cursor(uint8_t x, uint8_t y) {

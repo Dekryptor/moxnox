@@ -2,23 +2,11 @@
 #include "acpi.h"
 
 import format;
+import inout;
 
 using namespace std;
 
 static const uint16_t SLP_EN = 1 << 13;
-
-__attribute((naked))
-static void outb(uint16_t port, uint8_t val) {
-    __asm __volatile(
-        "mov al, %1\n"
-        "\tmov dx, %0\n"
-        "\tout dx, al\n"
-        "\tret\n"
-        :
-        : "r" (port), "r" (val)
-        : "al", "dx"
-    );
-}
 
 __attribute((naked))
 static void outw(uint16_t port, uint16_t val) {
