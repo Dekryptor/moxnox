@@ -408,12 +408,12 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
             status = open_inode(string_view(name, namelen), nullopt, ino_ref,
                                 create_disposition, create_options);
         }
-    }
 
-    if (!success(status)) {
-        // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
-        free(name);
-        return status;
+        if (!success(status)) {
+            // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
+            free(name);
+            return status;
+        }
     }
 
     const auto& ino = static_cast<inode&>(ino_ref.get());
