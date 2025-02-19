@@ -449,6 +449,10 @@ syscalls:
     .quad user_NtYieldExecution
 end_syscalls:
 
+# FIXME - Clang forces the nice version to be a memory address (GAS is okay)
+# .equ NUM_SYSCALLS, (end_syscalls - syscalls) / 8
+.equ NUM_SYSCALLS, 0xc8
+
 .section .text
 
 .global init_syscalls
@@ -492,7 +496,7 @@ syscall_handler:
     cmp rax, 0x1000
     jl Lno_syscall
     sub rax, 0x1000
-    cmp rax, (end_syscalls - syscalls) / 8
+    cmp rax, NUM_SYSCALLS
     jge Lno_syscall
 
     shl rax, 3
