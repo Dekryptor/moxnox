@@ -410,7 +410,7 @@ bool init_cpu_block(unsigned int cpu_no) {
         "shr rdx, 32\n\t"
         "wrmsr\n\t"
         :
-        : "m" (&cb)
+        : "m" (cb)
         : "ecx", "rax", "rdx"
     );
 
