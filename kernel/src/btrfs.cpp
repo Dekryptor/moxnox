@@ -1509,6 +1509,7 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
 
     size_t sum;
     auto split_point = find_midpoint(th, size_used, sum);
+    bool need_double_split = false;
 
     if (p.slots[0] >= split_point)
         sum = size_used - sum;
@@ -1523,10 +1524,8 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
                     break;
             }
 
-            if (split_point == 0) {
-                print("FIXME - do double split\n");
-                return nt_status::INTERNAL_ERROR;
-            }
+            if (split_point == 0)
+                need_double_split = true;
         } else {
             while (split_point < th.num_items) {
                 sum += sizeof(leaf_node) + items[split_point].size;
@@ -1536,14 +1535,16 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
                     break;
             }
 
-            if (split_point == th.num_items) {
-                print("FIXME - do double split\n");
-                return nt_status::INTERNAL_ERROR;
-            }
+            if (split_point == th.num_items)
+                need_double_split = true;
         }
     }
 
-    return split_tree_at(fs, p, r, split_point);
+    if (!need_double_split)
+        return split_tree_at(fs, p, r, split_point);
+
+    print("FIXME - do double split\n");
+    return nt_status::INTERNAL_ERROR;
 }
 
 static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
