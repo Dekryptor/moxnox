@@ -108,7 +108,11 @@
 .seh_proc page_fault_isr
 .global page_fault_isr
 page_fault_isr: # keeps cr3 of process
+#ifdef __llvm__
+    .seh_pushframe @code
+#else
     .seh_pushframe code
+#endif
     sub rsp, 0x20
     .seh_stackalloc 32
     .seh_endprologue
@@ -228,7 +232,11 @@ page_fault_isr_end:
 .seh_proc double_fault_isr
 .global double_fault_isr
 double_fault_isr:
+#ifdef __llvm__
+    .seh_pushframe @code
+#else
     .seh_pushframe code
+#endif
     sub rsp, 0x20
     .seh_stackalloc 32
     .seh_endprologue
@@ -255,7 +263,11 @@ double_fault_isr_end:
 .seh_proc general_protection_fault_isr
 .global general_protection_fault_isr
 general_protection_fault_isr:
+#ifdef __llvm__
+    .seh_pushframe @code
+#else
     .seh_pushframe code
+#endif
     sub rsp, 0x20
     .seh_stackalloc 32
     .seh_endprologue
