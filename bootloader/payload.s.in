@@ -2,11 +2,11 @@
 
 .section .payload
 
-.globl payload_size
-payload_size:
-.quad payload_end - payload_data
+.globl _payload_size
+_payload_size:
+.quad payload_end - _payload_data
 
-.globl payload_data
-payload_data:
+.globl _payload_data
+_payload_data:
 .incbin "${CMAKE_BINARY_DIR}/kernel/kernel.exe"
 payload_end:

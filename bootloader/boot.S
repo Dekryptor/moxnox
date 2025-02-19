@@ -257,10 +257,10 @@ add	di, E820_SIZE
 jmp	.loop
 
 .out:
-jmp	real_mode_main
+jmp	_real_mode_main
 
-.global vbe_get_info
-vbe_get_info:
+.global _vbe_get_info
+_vbe_get_info:
 push	di
 mov	ax, 0x4f00
 lea	di, vbe_info
@@ -287,8 +287,8 @@ xor	ax, ax
 pop	di
 ret
 
-.global vbe_get_edid
-vbe_get_edid:
+.global _vbe_get_edid
+_vbe_get_edid:
 push	bx
 push	di
 
@@ -308,8 +308,8 @@ pop	di
 pop	bx
 ret
 
-.global vbe_get_modes
-vbe_get_modes:
+.global _vbe_get_modes
+_vbe_get_modes:
 push	di
 push	si
 
@@ -487,8 +487,8 @@ pop	di
 pop	esi
 ret
 
-.global vbe_choose_mode
-vbe_choose_mode:
+.global _vbe_choose_mode
+_vbe_choose_mode:
 push	di
 push	esi
 cmp	WORD PTR [vbe_num_modes], 0
@@ -719,8 +719,8 @@ jmp	.parse_option_end
 .parse_option_end:
 ret
 
-.global parse_cmdline
-parse_cmdline:
+.global _parse_cmdline
+_parse_cmdline:
 push	di
 push	si
 push	bx
