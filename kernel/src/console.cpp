@@ -2004,7 +2004,8 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
         auto& cb = *get_cpu_block();
         auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
-        sp = format(sp, "{}:{}, {}\n", sl.file_name(), sl.line(), sl.function_name());
+        sp = format(sp, "{}:{}, {}, CPU {:x}\n",
+                    sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
 
         do_print<FB>(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
     };
