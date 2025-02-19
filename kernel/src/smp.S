@@ -8,10 +8,18 @@
 
 # FIXME - is A20 guaranteed to be already set?
 
+.equ ENTER_PROTECTED_MODE, Lenter_protected_mode - ap_trampoline
+.equ ENTER_LONG_MODE_ADDRESS, Lenter_long_mode - ap_trampoline
+.equ GDT_TABLE, Lgdt_table - ap_trampoline
+.equ TRAMPOLINE_CR3, ap_trampoline_cr3 - ap_trampoline
+.equ GDT64_TABLE, Lgdt64_table - ap_trampoline
+.equ LONG_MODE_ADDRESS, Llong_mode - ap_trampoline
+.equ TRAMPOLINE_ADDRESS, ap_trampoline_start_func - ap_trampoline
+
 ap_trampoline:
     cli
     cld
-    jmp 0:Lenter_protected_mode - ap_trampoline
+    jmp 0x0, OFFSET ENTER_PROTECTED_MODE
 
 .align 8
 Lgdt:
@@ -53,14 +61,14 @@ Lenter_protected_mode:
     # load GDT
     xor ax, ax
     mov ds, ax
-    lgdt [Lgdt_table - ap_trampoline]
+    lgdt [GDT_TABLE]
 
     # set PE flag in cr0
     mov eax, cr0
     or eax, 1
     mov cr0, eax
 
-    jmp 0x8:Lenter_long_mode - ap_trampoline
+    jmp 0x8, OFFSET ENTER_LONG_MODE_ADDRESS
 
 .code32
 Lenter_long_mode:
@@ -70,7 +78,7 @@ Lenter_long_mode:
     mov cr4, eax
 
     # load CR3
-    mov eax, [ap_trampoline_cr3 - ap_trampoline]
+    mov eax, [TRAMPOLINE_CR3]
     mov cr3, eax
 
     # enable long mode, NX bit, and System Call Extensions
@@ -85,10 +93,10 @@ Lenter_long_mode:
     mov cr0, eax
 
     # load 64-bit GDT
-    lgdt [Lgdt64_table - ap_trampoline]
+    lgdt [GDT64_TABLE]
 
     # jump to 64-bit code
-    jmp 0x8:Llong_mode - ap_trampoline
+    jmp 0x8, OFFSET LONG_MODE_ADDRESS
 
 .code64
 Llong_mode:
@@ -117,7 +125,7 @@ Llong_mode:
     # add (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20 (0x20 bytes for MS ABI)
     add rsp, 0x7fe0
 
-    mov rax, [ap_trampoline_start_func - ap_trampoline]
+    mov rax, [TRAMPOLINE_ADDRESS]
     jmp rax
 
 ap_trampoline_end:
