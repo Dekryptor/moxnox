@@ -1608,6 +1608,8 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
             items[i].offset -= (uint32_t)data.size();
         }
 
+        assert(off >= data.size() + sizeof(tree_header));
+
         memmove(p.data[0] + off - data.size(), p.data[0] + off, to_move);
     }
 
