@@ -4,6 +4,19 @@ module;
 
 export module inout;
 
+export uint8_t inb(uint16_t port) {
+    uint8_t ret;
+
+    __asm __volatile(
+        "\tin %b0, %w1\n"
+        : "=a" (ret)
+        : "Nd" (port)
+        :
+    );
+
+    return ret;
+}
+
 export void outb(uint16_t port, uint8_t val) {
     __asm __volatile(
         "mov\tal, %1\n"

@@ -8,6 +8,7 @@
 #include <ioctl.h>
 
 import format;
+import inout;
 
 using namespace std;
 
@@ -222,19 +223,6 @@ static void keyboard_event_recv() {
             }
         }
     } while (true);
-}
-
-static uint8_t inb(uint16_t port) {
-    uint8_t ret;
-
-    __asm __volatile(
-        "\tin %b0, %w1\n"
-        : "=a" (ret)
-        : "Nd" (port)
-        :
-    );
-
-    return ret;
 }
 
 void init_keyboard() {

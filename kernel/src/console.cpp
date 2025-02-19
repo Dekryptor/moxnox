@@ -165,20 +165,6 @@ static void text_console_putc(uint8_t x, uint8_t y, char32_t cp,
     text_console[(y * console_cols) + x] = text_console_val(c, bg, fg);
 }
 
-// FIXME - put these in one centralized place
-static uint8_t inb(uint16_t port) {
-    uint8_t ret;
-
-    __asm __volatile(
-        "\tin %b0, %w1\n"
-        : "=a" (ret)
-        : "Nd" (port)
-        :
-    );
-
-    return ret;
-}
-
 static void text_console_move_cursor(uint8_t x, uint8_t y) {
     auto pos = (uint16_t)((y * console_cols) + x);
 
