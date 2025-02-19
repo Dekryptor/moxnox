@@ -4,6 +4,7 @@
 #include "handle.h"
 #include "mem.h"
 #include "cp437.h"
+#include "cpu_block.h"
 #include <span>
 #include <cstring>
 #include <bit>
@@ -1999,12 +2000,13 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
 
         do_print<FB>(msg);
         do_print<FB>("\n");
-        do_print<FB>(sl.file_name());
-        do_print<FB>(":");
-        do_print<FB>(sl.line());
-        do_print<FB>(", ");
-        do_print<FB>(sl.function_name());
-        do_print<FB>("\n");
+
+        auto& cb = *get_cpu_block();
+        auto sp = span(cb.printk_scratch, PAGE_SIZE);
+
+        sp = format(sp, "{}:{}, {}\n", sl.file_name(), sl.line(), sl.function_name());
+
+        do_print<FB>(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
     };
 
     if (framebuffer.empty())
