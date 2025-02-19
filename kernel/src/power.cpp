@@ -8,19 +8,6 @@ using namespace std;
 
 static const uint16_t SLP_EN = 1 << 13;
 
-__attribute((naked))
-static void outw(uint16_t port, uint16_t val) {
-    __asm __volatile(
-        "mov ax, %1\n"
-        "\tmov dx, %0\n"
-        "\tout dx, ax\n"
-        "\tret\n"
-        :
-        : "r" (port), "r" (val)
-        : "al", "dx"
-    );
-}
-
 static void reboot() {
     optional<reference_wrapper<const ACPISDTHeader>> fadtw;
 
