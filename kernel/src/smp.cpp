@@ -4,7 +4,6 @@
 #include "cpu_block.h"
 #include "mem.h"
 #include <atomic>
-#include <cpuid.h>
 
 import format;
 
@@ -79,7 +78,11 @@ static void start_ap(uint8_t i) {
 uint8_t current_cpu_id() {
     uint32_t eax, ebx, ecx, edx;
 
-    __cpuid(1, eax, ebx, ecx, edx);
+    __asm__ __volatile__ (
+        "cpuid\n\t"
+        : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
+        : "0" (1)
+    );
 
     return (uint8_t)((ebx >> 24) & 0xff);
 }
