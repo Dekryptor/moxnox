@@ -1042,8 +1042,6 @@ static bool allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
 }
 
 static bool allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
-    optional<reference_wrapper<chunk>> crw;
-
     for (auto le = fs.chunk_list.next; le != &fs.chunk_list; le = le->next) {
         auto& c = containing_record<chunk>(le);
 
