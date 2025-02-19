@@ -3,7 +3,6 @@
 #include "objects.h"
 #include "cpu_block.h"
 #include "mem.h"
-#include <cpuid.h>
 #include <span>
 #include <optional>
 #include <functional>
@@ -38,7 +37,11 @@ static span<const uint8_t> madt;
 static bool check_cpu_for_apic() {
     uint32_t eax, ebx, ecx, edx;
 
-    __cpuid(1, eax, ebx, ecx, edx);
+    __asm__ __volatile__ (
+        "cpuid\n\t"
+        : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
+        : "0" (1)
+    );
 
     if (!(edx & CPUID_FEAT_EDX_APIC)) {
         print("APIC disabled or not supported by CPU.\n");
