@@ -2038,6 +2038,7 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
 
 void _assert(const char* msg, const char* file, unsigned int line) {
     bsod_format("assertion failed at {}:{}: {}", file, line, msg);
+    __builtin_unreachable();
 }
 
 void abort() {
