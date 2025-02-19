@@ -1449,9 +1449,6 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
 
     th.num_items = split_point;
 
-    assert(th.num_items > 0);
-    assert(th2.num_items > 0);
-
     memset(new_tree + sizeof(tree_header) + (th2.num_items * sizeof(leaf_node)),
            0, fs.sb.node_size - to_copy - sizeof(tree_header) - (th2.num_items * sizeof(leaf_node)));
 
@@ -1488,7 +1485,7 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
         return status;
     }
 
-    if (p.slots[0] < split_point) {
+    if (p.slots[0] < split_point || split_point == 0) {
         p.slots[1]--;
         free(new_tree);
     } else {
@@ -1543,8 +1540,19 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
     if (!need_double_split)
         return split_tree_at(fs, p, r, split_point);
 
-    print("FIXME - do double split\n");
-    return nt_status::INTERNAL_ERROR;
+    if (p.slots[0] != 0) {
+        if (auto status = split_tree_at(fs, p, r, p.slots[0]); !success(status))
+            return status;
+    }
+
+    auto num_items = ((tree_header*)p.data[0])->num_items;
+
+    if (num_items != 0 && p.slots[0] < num_items - 1) {
+        if (auto status = split_tree_at(fs, p, r, p.slots[0]); !success(status))
+            return status;
+    }
+
+    return nt_status::SUCCESS;
 }
 
 static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
@@ -1596,7 +1604,7 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
 
     items[p.slots[0]].k = k;
 
-    if (!data.empty()) {
+    if (!data.empty() && th.num_items > 1) {
         unsigned int to_move = 0;
 
         // move data around
