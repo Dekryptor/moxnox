@@ -124,8 +124,6 @@ static const enum console_colour vt100_bright_colours_text[] = {
     console_colour::white,
 };
 
-static const uint32_t BSOD_BG_COLOUR = vt100_colours[4];
-static const uint32_t BSOD_FG_COLOUR = vt100_bright_colours[7];
 static const unsigned int DEFAULT_BG_COLOUR_INDEX = 0;
 static const unsigned int DEFAULT_FG_COLOUR_INDEX = 7;
 static const uint32_t DEFAULT_BG_COLOUR = vt100_colours[DEFAULT_BG_COLOUR_INDEX];
