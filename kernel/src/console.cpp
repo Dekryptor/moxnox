@@ -1307,14 +1307,6 @@ static void refresh_framebuffer() {
     memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
 }
 
-template<bool FB>
-static void do_print(integral auto i) {
-    char s[21];
-
-    auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
-    do_print<FB>(string_view(s, ptr - s));
-}
-
 static void early_print(string_view s) {
     if (framebuffer.empty()) {
         do_print<false>(s);
