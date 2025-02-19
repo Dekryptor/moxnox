@@ -42,6 +42,12 @@ int atexit(void (*)(void)) {
     return 0;
 }
 
+extern "C"
+void __cxa_pure_virtual() {
+    // Clang wants this
+    bsod("__cxa_pure_virtual() called");
+}
+
 static object_ref create_init_process() {
     auto initout = open_object("tty");
     if (!initout)
