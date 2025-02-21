@@ -1066,6 +1066,24 @@ static nt_status allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
     return nt_status::DISK_FULL;
 }
 
+static void add_to_space_list(btrfs_filesystem& fs, chunk& c, uint64_t addr,
+                              uint64_t size) {
+    print("add_to_space_list: {:x}, {:x}\n", addr, size); // FIXME
+
+    // FIXME
+}
+
+static void handle_pending_space(btrfs_filesystem& fs, chunk& c) {
+    while (!is_list_empty(c.pending_space_list)) {
+        auto& cs = containing_record<chunk_space>(c.pending_space_list.next);
+
+        add_to_space_list(fs, c, cs.offset, cs.length);
+
+        remove_entry_list(cs.le);
+        delete &cs;
+    }
+}
+
 static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
                                      uint8_t level, uint64_t root, bool remove) {
     auto mc = (metadata_change*)malloc(sizeof(metadata_change));
@@ -2919,6 +2937,17 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
             }
 
             c->delta -= fs.sb.node_size;
+
+            auto sc = new chunk_space;
+            if (!sc)
+                return nt_status::INSUFFICIENT_RESOURCES;
+
+            if (is_list_empty(c->pending_space_list))
+                insert_tail_list(fs.space_pending_chunks, c->space_pending_le);
+
+            sc->offset = mc.address;
+            sc->length = fs.sb.node_size;
+            insert_tail_list(c->pending_space_list, sc->le);
         } else {
             extent_item_tbr eitbr;
 
@@ -3038,4 +3067,12 @@ void btrfs_filesystem::do_flush() {
     // FIXME - send SATA command again to ensure cache flushed
 
     sb.generation++;
+
+    while (!is_list_empty(space_pending_chunks)) {
+        auto& c = *(chunk*)((uint8_t*)space_pending_chunks.next - offsetof(chunk, space_pending_le));
+
+        handle_pending_space(*this, c);
+
+        remove_entry_list(c.space_pending_le);
+    }
 }

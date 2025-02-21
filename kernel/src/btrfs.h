@@ -382,9 +382,11 @@ struct chunk {
     list_entry le;
     uint64_t offset;
     list_entry space_list = { &space_list, &space_list };
+    list_entry pending_space_list = { &pending_space_list, &pending_space_list };
     bool space_loaded = false;
     bool changed = false;
     list_entry changed_le;
+    list_entry space_pending_le;
     int64_t delta;
     chunk_item ci; // must be last item
 };
@@ -550,6 +552,7 @@ public:
     root* free_space_root = nullptr;
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
     list_entry metadata_changes = { &metadata_changes, &metadata_changes };
+    list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };
 
 private:
     bool load_chunks();
