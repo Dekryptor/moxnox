@@ -1175,16 +1175,6 @@ uint64_t va_to_pa(uint64_t va) {
     return (uint64_t)pt_entry.PageFrameNumber << PAGE_SHIFT;
 }
 
-void invalidate_tlb() {
-    __asm __volatile (
-        "mov rax, cr3\n"
-        "mov cr3, rax\n"
-        :
-        :
-        : "rax"
-    );
-}
-
 void* memchr(const void* ptr, int ch, size_t count) {
     auto p = (uint8_t*)ptr;
 
