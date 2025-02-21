@@ -1066,18 +1066,86 @@ static nt_status allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
     return nt_status::DISK_FULL;
 }
 
-static void add_to_space_list(btrfs_filesystem& fs, chunk& c, uint64_t addr,
-                              uint64_t size) {
-    print("add_to_space_list: {:x}, {:x}\n", addr, size); // FIXME
+static void add_to_space_list(chunk& c, uint64_t addr, uint64_t size) {
+    for (auto le = c.space_list.next; le != &c.space_list; le = le->next) {
+        auto& s = containing_record<chunk_space>(le);
 
-    // FIXME
+        if (s.offset >= addr + size) {
+            if (s.offset == addr + size) { // move beginning backwards
+                s.length += size;
+                s.offset = addr;
+
+                while (s.le.prev != &c.space_list) {
+                    auto& prev = containing_record<chunk_space>(s.le.prev);
+
+                    if (prev.offset + prev.length == s.offset) {
+                        s.length += prev.length;
+                        s.offset = prev.offset;
+                        remove_entry_list(prev.le);
+                        delete &prev;
+                    } else
+                        break;
+                }
+
+                return;
+            }
+
+            // insert at very beginning
+            if (s.le.prev == &c.space_list) {
+                auto cs = new chunk_space;
+                if (!cs)
+                    return; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
+
+                cs->offset = addr;
+                cs->length = size;
+                insert_head_list(c.space_list, cs->le);
+                return;
+            }
+
+            auto& prev = containing_record<chunk_space>(s.le.prev);
+
+            // extend previous, and bridge if we can
+            if (prev.offset + prev.length == addr) {
+                prev.length += size;
+
+                if (prev.offset + prev.length == s.offset) {
+                    prev.length += s.length;
+                    remove_entry_list(s.le);
+                    delete &s;
+                }
+
+                return;
+            }
+
+            // insert new entry
+            auto cs = new chunk_space;
+            if (!cs)
+                return; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
+
+            cs->offset = addr;
+            cs->length = size;
+            insert_head_list(prev.le, cs->le);
+
+            return;
+        }
+    }
+
+    // add at very end
+
+    auto cs = new chunk_space;
+    if (!cs)
+        return; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
+
+    cs->offset = addr;
+    cs->length = size;
+    insert_tail_list(c.space_list, cs->le);
 }
 
-static void handle_pending_space(btrfs_filesystem& fs, chunk& c) {
+static void handle_pending_space(chunk& c) {
     while (!is_list_empty(c.pending_space_list)) {
         auto& cs = containing_record<chunk_space>(c.pending_space_list.next);
 
-        add_to_space_list(fs, c, cs.offset, cs.length);
+        add_to_space_list(c, cs.offset, cs.length);
 
         remove_entry_list(cs.le);
         delete &cs;
@@ -3071,7 +3139,7 @@ void btrfs_filesystem::do_flush() {
     while (!is_list_empty(space_pending_chunks)) {
         auto& c = *(chunk*)((uint8_t*)space_pending_chunks.next - offsetof(chunk, space_pending_le));
 
-        handle_pending_space(*this, c);
+        handle_pending_space(c);
 
         remove_entry_list(c.space_pending_le);
     }
