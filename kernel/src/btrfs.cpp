@@ -1012,12 +1012,12 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
     return nt_status::SUCCESS;
 }
 
-static bool allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
-                                       uint64_t& addr) {
+static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
+                                            uint64_t& addr) {
     if (!c.space_loaded) {
         auto status = load_space(fs, c);
-        if (!success(status)) // FIXME - return status
-            return false;
+        if (!success(status))
+            return status;
     }
 
     for (auto le = c.space_list.next; le != &c.space_list; le = le->next) {
@@ -1034,14 +1034,16 @@ static bool allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
                 s.length -= fs.sb.node_size;
             }
 
-            return true;
+            return nt_status::SUCCESS;
         }
     }
 
-    return false;
+    return nt_status::DISK_FULL;
 }
 
-static bool allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
+static nt_status allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
+    nt_status status;
+
     for (auto le = fs.chunk_list.next; le != &fs.chunk_list; le = le->next) {
         auto& c = containing_record<chunk>(le);
 
@@ -1054,13 +1056,14 @@ static bool allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
         if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6))
             continue;
 
-        if (allocate_metadata_in_chunk(fs, c, addr))
-            return true;
+        status = allocate_metadata_in_chunk(fs, c, addr);
+        if (status != nt_status::DISK_FULL)
+            return status;
     }
 
     // FIXME - if nothing found, try to allocate new chunk
 
-    return false;
+    return nt_status::DISK_FULL;
 }
 
 static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
@@ -1090,8 +1093,8 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
         auto& th = *(tree_header*)p.data[i];
 
         if (th.flags & HEADER_FLAG_WRITTEN) {
-            if (!allocate_metadata(fs, addr))
-                return nt_status::DISK_FULL;
+            if (auto status = allocate_metadata(fs, addr); !success(status))
+                return status;
 
             auto old_addr = th.address;
 
@@ -1236,9 +1239,10 @@ static nt_status split_internal_tree(btrfs_filesystem& fs, btrfs_path& p,
     if (!new_tree)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    if (!allocate_metadata(fs, new_addr)) {
+    status = allocate_metadata(fs, new_addr);
+    if (!success(status)) {
         free(new_tree);
-        return nt_status::DISK_FULL;
+        return status;
     }
 
     auto& th2 = *(tree_header*)new_tree;
@@ -1342,9 +1346,9 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     if (!new_tree)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    if (!allocate_metadata(fs, new_addr)) {
+    if (auto status = allocate_metadata(fs, new_addr); !success(status)) {
         free(new_tree);
-        return nt_status::DISK_FULL;
+        return status;
     }
 
     memcpy(new_tree, p.data[level - 1], sizeof(tree_header));
@@ -1410,9 +1414,9 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     if (!new_tree)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    if (!allocate_metadata(fs, new_addr)) {
+    if (auto status = allocate_metadata(fs, new_addr); !success(status)) {
         free(new_tree);
-        return nt_status::DISK_FULL;
+        return status;
     }
 
     auto& th = *(tree_header*)p.data[0];
