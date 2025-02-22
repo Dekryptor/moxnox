@@ -5,6 +5,7 @@
 #include "crc32c.h"
 #include "tick_rate.h"
 #include <shared_mutex>
+#include <variant>
 
 import format;
 
