@@ -392,7 +392,7 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     return nt_status::SUCCESS;
 }
 
-nt_status flush_filesystems() {
+nt_status flush_filesystems(bool make_readonly) {
     lock_guard lock(fs_lock);
 
     // FIXME - what should we do if there's a failure - carry on?
@@ -400,7 +400,7 @@ nt_status flush_filesystems() {
     for (auto le = fs_list.next; le != &fs_list; le = le->next) {
         auto& fs = containing_record<::filesystem>(le);
 
-        auto status = fs.flush();
+        auto status = fs.flush(make_readonly);
         if (!success(status))
             return status;
     }

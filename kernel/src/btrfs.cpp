@@ -202,6 +202,9 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     sb.generation++;
 
     valid = true;
+
+    // FIXME - set readonly if underlying disk is RO
+    // FIXME - set readonly if unrecognized compat_ro flag
 }
 
 bool btrfs_probe(volume& vol) {
@@ -2296,6 +2299,10 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
 nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& root_dir,
                                  object_ref& obj_ref, uint32_t create_disposition,
                                  uint32_t create_options) {
+
+    if (readonly && create_disposition != FILE_OPEN)
+        return nt_status::MEDIA_WRITE_PROTECTED;
+
     if (!root_dir) {
         if (fn.empty() || fn[0] != '/') {
             print("Not an absolute path.\n");
@@ -3060,19 +3067,23 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_filesystem::flush() {
+nt_status btrfs_filesystem::flush(bool make_readonly) {
     page_cache_entry* ent = nullptr;
     nt_status status;
 
     // FIXME - should have rwsem held exclusively
 
-    if (is_list_empty(dirty_root_list)) // no changes made
+    if (is_list_empty(dirty_root_list) || readonly) { // no changes made
+        if (make_readonly)
+            readonly = true;
+
         return nt_status::SUCCESS;
+    }
 
     status = do_metadata_changes(*this);
-    // FIXME - make filesystem readonly if do_metadata_changes fails
     if (!success(status)) {
-        print("do_metadata_changes returned {}\n", status);
+        print("do_metadata_changes returned {}, going readonly\n", status);
+        readonly = true;
         return status;
     }
 
@@ -3081,8 +3092,9 @@ nt_status btrfs_filesystem::flush() {
 
         auto status = flush_root(*this, r);
         if (!success(status)) {
-            print("flush_root returned {}\n", status);
-            // FIXME - make filesystem readonly if flush fails
+            print("flush_root returned {}, going readonly\n", status);
+            readonly = true;
+            return status;
         }
 
         remove_entry_list(r.dirty_le);
@@ -3090,9 +3102,9 @@ nt_status btrfs_filesystem::flush() {
     }
 
     status = do_metadata_changes(*this);
-    // FIXME - make filesystem readonly if do_metadata_changes fails
     if (!success(status)) {
-        print("do_metadata_changes returned {}\n", status);
+        print("do_metadata_changes returned {}, going readonly\n", status);
+        readonly = true;
         return status;
     }
 
@@ -3113,7 +3125,8 @@ nt_status btrfs_filesystem::flush() {
             auto flushed = flush_cache(first_page, num_pages);
 
             if (flushed == 0) {
-                print("flush_cache did not flush any pages\n");
+                print("flush_cache did not flush any pages, going readonly\n");
+                readonly = true;
                 return nt_status::INTERNAL_ERROR;
             }
 
@@ -3145,6 +3158,9 @@ nt_status btrfs_filesystem::flush() {
 
         remove_entry_list(c.space_pending_le);
     }
+
+    if (make_readonly)
+        readonly = true;
 
     return nt_status::SUCCESS;
 }

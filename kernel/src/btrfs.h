@@ -536,7 +536,7 @@ public:
     bool move_path_back(btrfs_path& p);
     bool move_path_forward(btrfs_path& p);
     root* find_root(uint64_t root_num);
-    nt_status flush() override;
+    nt_status flush(bool make_readonly) override;
 
     superblock sb;
     bool valid = false;
@@ -553,6 +553,7 @@ public:
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
     list_entry metadata_changes = { &metadata_changes, &metadata_changes };
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };
+    bool readonly = false;
 
 private:
     bool load_chunks();

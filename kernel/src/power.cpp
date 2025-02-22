@@ -119,7 +119,8 @@ NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
 
     // FIXME - flush serial ports, close running programs, etc.
 
-    auto status = flush_filesystems();
+    // flush filesystems and make readonly
+    auto status = flush_filesystems(true);
     if (!success(status))
         return status;
 

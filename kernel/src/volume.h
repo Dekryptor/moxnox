@@ -64,7 +64,7 @@ public:
     virtual nt_status open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
                            object_ref& obj_ref, uint32_t create_disposition,
                            uint32_t create_options) = 0;
-    virtual nt_status flush() = 0;
+    virtual nt_status flush(bool make_readonly) = 0;
 
     list_entry le;
     volume& vol;
