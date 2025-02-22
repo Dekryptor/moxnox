@@ -3180,8 +3180,6 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
 }
 
 void btrfs_filesystem::flush_thread() {
-    print("hello from flush thread\n");
-
     auto tim_ref = create_timer(true);
     if (!tim_ref) {
         print("create_timer failed, exiting flush thread\n");
