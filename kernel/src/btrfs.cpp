@@ -1693,7 +1693,7 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
 
     items[p.slots[0]].k = k;
 
-    if (!data.empty() && th.num_items > 1) {
+    if (!data.empty() && p.slots[0] != th.num_items - 1) {
         unsigned int to_move = 0;
 
         // move data around
