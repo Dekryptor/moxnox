@@ -2231,8 +2231,6 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         if (!success(status))
             return status;
 
-        fs.flush(); // FIXME
-
         return status;
     }
 }
