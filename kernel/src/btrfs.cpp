@@ -2231,7 +2231,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         if (!success(status))
             return status;
 
-        fs.do_flush(); // FIXME
+        fs.flush(); // FIXME
 
         return status;
     }
@@ -3062,7 +3062,7 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
     return nt_status::SUCCESS;
 }
 
-void btrfs_filesystem::do_flush() {
+nt_status btrfs_filesystem::flush() {
     page_cache_entry* ent = nullptr;
     nt_status status;
 
@@ -3072,7 +3072,7 @@ void btrfs_filesystem::do_flush() {
     // FIXME - make filesystem readonly if do_metadata_changes fails
     if (!success(status)) {
         print("do_metadata_changes returned {}\n", status);
-        return;
+        return status;
     }
 
     while (!is_list_empty(dirty_root_list)) {
@@ -3081,7 +3081,7 @@ void btrfs_filesystem::do_flush() {
         auto status = flush_root(*this, r);
         if (!success(status)) {
             print("flush_root returned {}\n", status);
-            // FIXME - make filesystem readonly if do_flush fails
+            // FIXME - make filesystem readonly if flush fails
         }
 
         remove_entry_list(r.dirty_le);
@@ -3092,7 +3092,7 @@ void btrfs_filesystem::do_flush() {
     // FIXME - make filesystem readonly if do_metadata_changes fails
     if (!success(status)) {
         print("do_metadata_changes returned {}\n", status);
-        return;
+        return status;
     }
 
     // loop through cache, and call flush_cache for dirty ranges
@@ -3113,7 +3113,7 @@ void btrfs_filesystem::do_flush() {
 
             if (flushed == 0) {
                 print("flush_cache did not flush any pages\n");
-                return;
+                return nt_status::INTERNAL_ERROR;
             }
 
             if (num_pages >= flushed)
@@ -3144,4 +3144,6 @@ void btrfs_filesystem::do_flush() {
 
         remove_entry_list(c.space_pending_le);
     }
+
+    return nt_status::SUCCESS;
 }
