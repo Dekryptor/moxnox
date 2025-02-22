@@ -3,6 +3,7 @@
 #include <array>
 #include "page_cache.h"
 #include "rwsem.h"
+#include "handle.h"
 
 using btrfs_uuid = std::array<uint8_t, 16>;
 
@@ -555,6 +556,7 @@ public:
     list_entry metadata_changes = { &metadata_changes, &metadata_changes };
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };
     bool readonly = false;
+    object_ref flush_thread_obj;
 
 private:
     bool load_chunks();
@@ -562,4 +564,5 @@ private:
     void free_chunk_list();
     void free_root_list();
     bool flush_tree(const chunk& c, uint64_t addr);
+    void go_readonly();
 };

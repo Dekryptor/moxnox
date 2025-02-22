@@ -418,3 +418,32 @@ NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS /*thread_inform
 
     return nt_status::NOT_IMPLEMENTED;
 }
+
+void thread::send_signal(uint64_t code) {
+    // FIXME - should be able to have multiple pending signals
+    // FIXME - EXCEPTION_RECORD
+
+    pending_signal = code;
+
+    // if currently doing an interruptible wait, wake up
+
+    optional<reference_wrapper<object>> waiting_for2;
+
+    {
+        sync_lock sl;
+        lock_guard l(sl);
+
+        if (status == thread_status::waiting_object && wait_interruptible) {
+            status = thread_status::runnable;
+            swap(waiting_for, waiting_for2);
+        }
+    }
+
+    if (waiting_for2.has_value()) {
+        visit_obj(*waiting_for2, [](auto&& o) {
+            o.release();
+        });
+    }
+
+    // FIXME - send IPI to service signal, if currently running on a CPU in userspace?
+}

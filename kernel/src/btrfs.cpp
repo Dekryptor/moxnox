@@ -210,7 +210,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
     if (!readonly) {
         refcount++;
 
-        add_kernel_thread([](void* ctx) {
+        flush_thread_obj = add_kernel_thread([](void* ctx) {
             auto& fs = *(btrfs_filesystem*)ctx;
 
             fs.flush_thread();
@@ -3089,7 +3089,7 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
 
     if (is_list_empty(dirty_root_list) || readonly) { // no changes made
         if (make_readonly)
-            readonly = true;
+            go_readonly();
 
         return nt_status::SUCCESS;
     }
@@ -3097,7 +3097,7 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
     status = do_metadata_changes(*this);
     if (!success(status)) {
         print("do_metadata_changes returned {}, going readonly\n", status);
-        readonly = true;
+        go_readonly();
         return status;
     }
 
@@ -3107,7 +3107,7 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         auto status = flush_root(*this, r);
         if (!success(status)) {
             print("flush_root returned {}, going readonly\n", status);
-            readonly = true;
+            go_readonly();
             return status;
         }
 
@@ -3118,7 +3118,7 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
     status = do_metadata_changes(*this);
     if (!success(status)) {
         print("do_metadata_changes returned {}, going readonly\n", status);
-        readonly = true;
+        go_readonly();
         return status;
     }
 
@@ -3140,7 +3140,7 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
 
             if (flushed == 0) {
                 print("flush_cache did not flush any pages, going readonly\n");
-                readonly = true;
+                go_readonly();
                 return nt_status::INTERNAL_ERROR;
             }
 
@@ -3174,7 +3174,7 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
     }
 
     if (make_readonly)
-        readonly = true;
+        go_readonly();
 
     return nt_status::SUCCESS;
 }
@@ -3191,7 +3191,7 @@ void btrfs_filesystem::flush_thread() {
     auto& tim = static_cast<timer&>(tim_ref.get());
 
     int64_t due_time_ticks = 10000000; // 1 second
-    unsigned int due_time_ms = (due_time_ticks * 1000) / SYSTEM_TIME_RESOLUTION;
+    auto due_time_ms = (uint32_t)((due_time_ticks * 1000) / SYSTEM_TIME_RESOLUTION);
 
     auto status = tim.set(-due_time_ticks, nullptr, nullptr, false,
                           due_time_ms, nullptr);
@@ -3201,7 +3201,24 @@ void btrfs_filesystem::flush_thread() {
     }
 
     while (true) {
-        wait_for_object(tim, true);
+        status = wait_for_object(tim, true);
+
         print("TIME\n");
+
+        if (status != nt_status::SUCCESS) // thread has been killed
+            break;
+    }
+}
+
+void btrfs_filesystem::go_readonly() {
+    if (readonly)
+        return;
+
+    readonly = true;
+
+    if (flush_thread_obj) {
+        auto& t = static_cast<::thread&>(flush_thread_obj.get());
+
+        t.send_signal((uint64_t)nt_status::MEDIA_WRITE_PROTECTED);
     }
 }

@@ -2626,32 +2626,7 @@ void process::send_signal(uint64_t code) {
 
     auto& t = rw->get();
 
-    // FIXME - should be able to have multiple pending signals
-    // FIXME - EXCEPTION_RECORD
-
-    t.pending_signal = code;
-
-    // if currently doing an interruptible wait, wake up
-
-    optional<reference_wrapper<object>> waiting_for;
-
-    {
-        sync_lock sl;
-        lock_guard l(sl);
-
-        if (t.status == thread_status::waiting_object && t.wait_interruptible) {
-            t.status = thread_status::runnable;
-            swap(t.waiting_for, waiting_for);
-        }
-    }
-
-    if (waiting_for.has_value()) {
-        visit_obj(*waiting_for, [](auto&& o) {
-            o.release();
-        });
-    }
-
-    // FIXME - send IPI to service signal, if currently running on a CPU in userspace?
+    t.send_signal(code);
 
     t.release();
 }
