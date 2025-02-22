@@ -36,3 +36,5 @@ static_assert(object_has_on_wake<timer>);
 
 static_assert(offsetof(timer, le) == TIMER_LE);
 static_assert(offsetof(timer, ticks_left) == TIMER_TICKS_LEFT);
+
+object_ref create_timer(bool autoreset);

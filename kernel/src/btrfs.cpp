@@ -4,6 +4,7 @@
 #include "handle.h"
 #include "crc32c.h"
 #include "tick_rate.h"
+#include "timer.h"
 #include <shared_mutex>
 #include <variant>
 
@@ -205,6 +206,19 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
 
     // FIXME - set readonly if underlying disk is RO
     // FIXME - set readonly if unrecognized compat_ro flag
+
+    if (!readonly) {
+        refcount++;
+
+        add_kernel_thread([](void* ctx) {
+            auto& fs = *(btrfs_filesystem*)ctx;
+
+            fs.flush_thread();
+
+            if (fs.refcount.fetch_sub(1) == 1)
+                delete &fs;
+        }, this);
+    }
 }
 
 bool btrfs_probe(volume& vol) {
@@ -3163,4 +3177,31 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         readonly = true;
 
     return nt_status::SUCCESS;
+}
+
+void btrfs_filesystem::flush_thread() {
+    print("hello from flush thread\n");
+
+    auto tim_ref = create_timer(true);
+    if (!tim_ref) {
+        print("create_timer failed, exiting flush thread\n");
+        return;
+    }
+
+    auto& tim = static_cast<timer&>(tim_ref.get());
+
+    int64_t due_time_ticks = 10000000; // 1 second
+    unsigned int due_time_ms = (due_time_ticks * 1000) / SYSTEM_TIME_RESOLUTION;
+
+    auto status = tim.set(-due_time_ticks, nullptr, nullptr, false,
+                          due_time_ms, nullptr);
+    if (!success(status)) {
+        print("timer::set returned {}, exiting flush thread\n", status);
+        return;
+    }
+
+    while (true) {
+        wait_for_object(tim, true);
+        print("TIME\n");
+    }
 }

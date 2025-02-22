@@ -537,6 +537,7 @@ public:
     bool move_path_forward(btrfs_path& p);
     root* find_root(uint64_t root_num);
     nt_status flush(bool make_readonly) override;
+    void flush_thread();
 
     superblock sb;
     bool valid = false;
