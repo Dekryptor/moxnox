@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
+add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
+
 configure_file(src/font.S.in ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 set(SRC_FILES src/kernel.cpp
