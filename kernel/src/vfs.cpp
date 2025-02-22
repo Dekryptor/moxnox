@@ -3,6 +3,8 @@
 #include "objects.h"
 #include "volume.h"
 #include "handle.h"
+#include "rwsem.h"
+#include <shared_mutex>
 
 import format;
 
@@ -10,11 +12,11 @@ using namespace std;
 
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
-static spinlock fs_lock;
+static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
-static filesystem* root_fs = nullptr;
+static ::filesystem* root_fs = nullptr;
 
-void add_fs_to_list(filesystem& fs) {
+void add_fs_to_list(::filesystem& fs) {
     lock_guard lock(fs_lock);
     insert_tail_list(fs_list, fs.le);
 }
@@ -87,7 +89,7 @@ bool mount_root() {
 
     auto le = fs_list.next;
     while (le != &fs_list) {
-        auto& fs = containing_record<filesystem>(le);
+        auto& fs = containing_record<::filesystem>(le);
 
         if (fs.vol.type_guid == moxnox_partition_guid) {
             if (root_fs) {
