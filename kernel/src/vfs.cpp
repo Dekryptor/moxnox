@@ -389,3 +389,12 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 
     return nt_status::SUCCESS;
 }
+
+nt_status flush_filesystems() {
+    // FIXME - loop through mounts
+
+    if (!root_fs)
+        return nt_status::SUCCESS;
+
+    return root_fs->flush();
+}

@@ -109,21 +109,24 @@ static void halt() {
 }
 
 NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
-    // FIXME - flush and unmount filesystems, close running programs, etc.
-
-    switch (action) {
-        case SHUTDOWN_ACTION::ShutdownPowerOff:
-            halt();
-            break;
-
-        case SHUTDOWN_ACTION::ShutdownReboot:
-            reboot();
-            break;
-
-        case SHUTDOWN_ACTION::ShutdownNoReboot:
-            // FIXME
-            return nt_status::NOT_IMPLEMENTED;
+    if (action == SHUTDOWN_ACTION::ShutdownNoReboot) {
+        // FIXME
+        return nt_status::NOT_IMPLEMENTED;
     }
+
+    if (action != SHUTDOWN_ACTION::ShutdownPowerOff && action != SHUTDOWN_ACTION::ShutdownReboot)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - flush serial ports, close running programs, etc.
+
+    auto status = flush_filesystems();
+    if (!success(status))
+        return status;
+
+    if (action == SHUTDOWN_ACTION::ShutdownPowerOff)
+        halt();
+    else
+        reboot();
 
     return nt_status::INTERNAL_ERROR;
 }
