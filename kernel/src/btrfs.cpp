@@ -3082,6 +3082,8 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
 }
 
 nt_status btrfs_filesystem::flush(bool make_readonly) {
+    lock_guard lock(trans_lock);
+
     page_cache_entry* ent = nullptr;
     nt_status status;
 
