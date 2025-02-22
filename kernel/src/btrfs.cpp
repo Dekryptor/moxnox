@@ -3190,7 +3190,7 @@ void btrfs_filesystem::flush_thread() {
 
     auto& tim = static_cast<timer&>(tim_ref.get());
 
-    int64_t due_time_ticks = 10000000; // 1 second
+    int64_t due_time_ticks = 300000000; // 30 seconds
     auto due_time_ms = (uint32_t)((due_time_ticks * 1000) / SYSTEM_TIME_RESOLUTION);
 
     auto status = tim.set(-due_time_ticks, nullptr, nullptr, false,
@@ -3203,7 +3203,9 @@ void btrfs_filesystem::flush_thread() {
     while (true) {
         status = wait_for_object(tim, true);
 
-        print("TIME\n");
+        auto status2 = flush(false);
+        if (!success(status2))
+            break;
 
         if (status != nt_status::SUCCESS) // thread has been killed
             break;
