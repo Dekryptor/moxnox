@@ -393,10 +393,17 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 }
 
 nt_status flush_filesystems() {
-    // FIXME - loop through mounts
+    lock_guard lock(fs_lock);
 
-    if (!root_fs)
-        return nt_status::SUCCESS;
+    // FIXME - what should we do if there's a failure - carry on?
 
-    return root_fs->flush();
+    for (auto le = fs_list.next; le != &fs_list; le = le->next) {
+        auto& fs = containing_record<::filesystem>(le);
+
+        auto status = fs.flush();
+        if (!success(status))
+            return status;
+    }
+
+    return nt_status::SUCCESS;
 }
