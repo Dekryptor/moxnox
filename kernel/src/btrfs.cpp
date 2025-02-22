@@ -3068,6 +3068,9 @@ nt_status btrfs_filesystem::flush() {
 
     // FIXME - should have rwsem held exclusively
 
+    if (is_list_empty(dirty_root_list)) // no changes made
+        return nt_status::SUCCESS;
+
     status = do_metadata_changes(*this);
     // FIXME - make filesystem readonly if do_metadata_changes fails
     if (!success(status)) {
