@@ -219,7 +219,7 @@ bool btrfs_probe(volume& vol);
 
 class inode;
 
-// volume.cpp
+// vfs.cpp
 void add_fs_to_list(filesystem& fs);
 bool mount_root();
 nt_status open_inode(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,

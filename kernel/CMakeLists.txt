@@ -48,6 +48,7 @@ set(SRC_FILES src/kernel.cpp
     src/power.cpp
     src/page_cache.cpp
     src/rwsem.cpp
+    src/vfs.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 add_executable(kernel ${SRC_FILES})
