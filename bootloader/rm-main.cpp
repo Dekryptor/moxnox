@@ -1,5 +1,11 @@
-#include <stdbool.h>
-#include <stdint.h>
+// Clang doesn't have stdint.h in 16-bit mode(?)
+using uint8_t = unsigned char;
+using uint16_t = unsigned short;
+using uint32_t = unsigned int;
+
+static_assert(sizeof(uint8_t) == 1);
+static_assert(sizeof(uint16_t) == 2);
+static_assert(sizeof(uint32_t) == 4);
 
 struct gdt_entry {
 	uint16_t LimitLow;
