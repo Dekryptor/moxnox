@@ -12,7 +12,6 @@ SECTIONS
 
     .rm_data : AT(rm_data) {
         rm_data = .;
-        *rm-main.cpp.obj(.data)
         *boot.S.obj(.data)
     }
 
@@ -23,15 +22,7 @@ SECTIONS
 
     . = ALIGN(16);
     .rm_rdata : {
-        *rm-main.cpp.obj(.rdata)
         *boot.S.obj(.rdata)
-    }
-
-    . = ALIGN(16);
-    .rm_bss : {
-        __rm_bss_start = .;
-        *rm-main.cpp.obj(.bss)
-        __rm_bss_end = .;
     }
 
     . = ALIGN(16);

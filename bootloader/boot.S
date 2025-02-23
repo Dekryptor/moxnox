@@ -221,14 +221,6 @@ mov	ss, ax
 movzx	esp, dx
 sti
 
-# zero BSS
-mov	di, OFFSET __rm_bss_start
-mov	cx, OFFSET _end + 3
-xor	eax, eax
-sub	cx, di
-shr	cx, 2
-rep stosd
-
 push	ds
 push	OFFSET 1f
 lret
@@ -257,10 +249,10 @@ add	di, E820_SIZE
 jmp	.loop
 
 .out:
-jmp	_real_mode_main
+jmp	real_mode_main
 
-.global _vbe_get_info
-_vbe_get_info:
+.global vbe_get_info
+vbe_get_info:
 push	di
 mov	ax, 0x4f00
 lea	di, vbe_info
@@ -287,8 +279,8 @@ xor	ax, ax
 pop	di
 ret
 
-.global _vbe_get_edid
-_vbe_get_edid:
+.global vbe_get_edid
+vbe_get_edid:
 push	bx
 push	di
 
@@ -308,8 +300,8 @@ pop	di
 pop	bx
 ret
 
-.global _vbe_get_modes
-_vbe_get_modes:
+.global vbe_get_modes
+vbe_get_modes:
 push	di
 push	si
 
@@ -487,8 +479,8 @@ pop	di
 pop	esi
 ret
 
-.global _vbe_choose_mode
-_vbe_choose_mode:
+.global vbe_choose_mode
+vbe_choose_mode:
 push	di
 push	esi
 cmp	WORD PTR [vbe_num_modes], 0
@@ -719,8 +711,8 @@ jmp	.parse_option_end
 .parse_option_end:
 ret
 
-.global _parse_cmdline
-_parse_cmdline:
+.global parse_cmdline
+parse_cmdline:
 push	di
 push	si
 push	bx
@@ -767,6 +759,17 @@ pop	bx
 pop	si
 pop	di
 ret
+
+real_mode_main:
+call	parse_cmdline
+call	vbe_get_info
+test	al, al
+je	0f
+call	vbe_get_edid
+call	vbe_get_modes
+call	vbe_choose_mode
+0:
+jmp     enter_protected_mode
 
 .section .rdata
 kernel_version:

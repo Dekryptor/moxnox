@@ -32,7 +32,6 @@ add_custom_command(
 
 set(SRC_FILES boot.S
     pm.s
-    rm-main.cpp
     pm-main.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
@@ -43,7 +42,6 @@ target_compile_options(boot PUBLIC -march=i386 -m32 -fno-ident -fno-pic -ffreest
 target_link_options(boot PUBLIC -Wl,-T ${CMAKE_SOURCE_DIR}/bootloader/boot.ld -nostartfiles -nostdlib ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
 set(CMAKE_EXE_LINKER_FLAGS "-static") # use binutils rather than llvm for linking
 
-set_source_files_properties(rm-main.cpp PROPERTIES COMPILE_OPTIONS "-m16;-Wa,--32")
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/payload.s PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/kernel/kernel.exe)
 set_source_files_properties(boot.S PROPERTIES OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj")
 

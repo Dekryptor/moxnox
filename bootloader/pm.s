@@ -2,8 +2,8 @@
 .code16
 
 .section .rm_text
-.globl _enter_protected_mode
-_enter_protected_mode:
+.globl enter_protected_mode
+enter_protected_mode:
     cli
 
     # change GDT pointer to flat address
