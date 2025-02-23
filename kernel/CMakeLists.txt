@@ -65,6 +65,7 @@ target_link_options(kernel PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup -W
 
 target_compile_options(kernel PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmodules-ts>)
 target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-g0>)
+target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-gdwarf-5>)
 
 target_link_libraries(kernel freetype)
 
