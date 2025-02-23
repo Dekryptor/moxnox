@@ -1,6 +1,5 @@
 #include <stdbool.h>
 #include <stdint.h>
-#include <intrin.h>
 #include <loaderblock.h>
 #include <string_view>
 #include "x86.h"
@@ -245,6 +244,7 @@ size_t strlen(const char* s) {
     return i;
 }
 
+extern "C"
 int memcmp(const void* s1, const void* s2, size_t n) {
     // FIXME - not completely accurate, as 1 or -1 is messed up by endianness
 
@@ -444,6 +444,82 @@ static void map_acpi(pte_span pd) {
             break;
         }
     }
+}
+
+__attribute__((always_inline))
+static uint32_t inline __readcr0() {
+    uint32_t ret;
+
+    __asm__ __volatile__ (
+        "mov\t%0, cr0"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+static void inline __writecr0(uint32_t v) {
+    __asm__ __volatile__ (
+        "mov\tcr0, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+static void inline __writecr3(uint32_t v) {
+    __asm__ __volatile__ (
+        "mov\tcr3, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+static uint32_t inline __readcr4() {
+    uint32_t ret;
+
+    __asm__ __volatile__ (
+        "mov\t%0, cr4"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+static void inline __writecr4(uint32_t v) {
+    __asm__ __volatile__ (
+        "mov\tcr4, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+static uint64_t inline __readmsr(uint32_t r) {
+    uint32_t high, low;
+
+    __asm__ __volatile__ (
+        "rdmsr"
+        : "=d" (high), "=a" (low)
+        : "c" (r)
+    );
+
+    return ((uint64_t)high << 32) | low;
+}
+
+__attribute__((always_inline))
+static void inline __writemsr(uint32_t r, uint64_t v) {
+    uint32_t high = v >> 32;
+    uint32_t low = v & 0xffffffff;
+
+    __asm__ __volatile__ (
+        "wrmsr"
+        :
+        : "c" (r), "d" (high), "a" (low)
+    );
 }
 
 static void enable_paging() {
