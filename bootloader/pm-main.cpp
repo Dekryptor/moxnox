@@ -623,7 +623,8 @@ static void setup_gdt() {
     __asm__ __volatile__ (
         "lgdt %0\n\t"
         "push 0x8\n\t"
-        "push OFFSET 1f\n\t"
+        "lea eax, 1f\n\t"
+        "push eax\n\t"
         "retf\n\t"
         "1:\n\t"
         :
@@ -1193,7 +1194,8 @@ void protected_mode_main() {
 
     __asm__ __volatile__ (
         "push 0x18\n\t"
-        "push OFFSET long_mode_start\n\t"
+        "lea eax, long_mode_start\n\t"
+        "push eax\n\t"
         "retf\n\t"
     );
 
