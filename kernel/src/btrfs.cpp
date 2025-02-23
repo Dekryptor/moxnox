@@ -614,18 +614,14 @@ void btrfs_filesystem::free_root_list() {
     }
 }
 
-static constexpr bool is_file_root(uint64_t id) {
-    return id == BTRFS_ROOT_FSTREE || (id >= BTRFS_FIRST_FREE_OBJECTID && id <= BTRFS_LAST_FREE_OBJECTID);
-}
-
-static void find_last_inode_number(btrfs_filesystem& fs, root& r) {
+static nt_status find_last_inode_number(btrfs_filesystem& fs, root& r) {
     btrfs_path p;
     bool done = false;
 
     auto status = fs.find_item(r, {BTRFS_LAST_FREE_OBJECTID, key_type::INODE_ITEM, 0},
                                p, false);
     if (!success(status))
-        return;
+        return status;
 
     do {
         auto& th = *(tree_header*)p.data[0];
@@ -642,7 +638,7 @@ static void find_last_inode_number(btrfs_filesystem& fs, root& r) {
 
         if (k.obj_type == key_type::INODE_ITEM) {
             r.next_inode_number = k.obj_id + 1;
-            return;
+            return nt_status::SUCCESS;
         }
 
         if (!fs.move_path_back(p))
@@ -651,6 +647,8 @@ static void find_last_inode_number(btrfs_filesystem& fs, root& r) {
 
     if (!done)
         r.next_inode_number = BTRFS_FIRST_FREE_OBJECTID;
+
+    return nt_status::SUCCESS;
 }
 
 bool btrfs_filesystem::load_roots() {
@@ -701,9 +699,6 @@ bool btrfs_filesystem::load_roots() {
         r.id = k.obj_id;
         memcpy(&r.ri, data.data(), sizeof(root_item));
         insert_tail_list(new_root_list, r.le);
-
-        if (is_file_root(r.id))
-            find_last_inode_number(*this, r);
 
         if (r.id == BTRFS_ROOT_EXTENT)
             extent_root = &r;
@@ -2081,10 +2076,17 @@ nt_status btrfs_inode::create_child(string_view name,
     nt_status status;
     inode_item ii;
     bool is_dir = create_options & FILE_DIRECTORY_FILE;
+    uint64_t new_inode;
 
     // FIXME - check name valid (not too long, not empty, not . or .., no forbidden characters)
 
-    uint64_t new_inode = r->next_inode_number.fetch_add(1);
+    if (r->next_inode_number == 0) {
+        status = find_last_inode_number(fs, *r);
+        if (!success(status))
+            return status;
+    }
+
+    new_inode = r->next_inode_number.fetch_add(1);
 
     auto cur_time = get_btrfs_time();
 
