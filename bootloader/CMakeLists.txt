@@ -42,6 +42,9 @@ target_compile_options(boot PUBLIC -march=i386 -m32 -fno-ident -fno-pic -ffreest
 target_link_options(boot PUBLIC -Wl,-T ${CMAKE_SOURCE_DIR}/bootloader/boot.ld -nostartfiles -nostdlib ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
 set(CMAKE_EXE_LINKER_FLAGS "-static") # use binutils rather than llvm for linking
 
+# Clang likes to generate .refptr stubs, stop it doing this
+target_compile_options(boot PUBLIC $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-fno-auto-import>)
+
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/payload.s PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/kernel/kernel.exe)
 set_source_files_properties(boot.S PROPERTIES OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj")
 
