@@ -9,10 +9,10 @@ _enter_protected_mode:
     # change GDT pointer to flat address
     mov eax, ds
     shl eax, 4
-    or eax, DWORD PTR [_gdt_descriptor + 2]
-    mov DWORD PTR [_gdt_descriptor + 2], eax
+    or eax, DWORD PTR [gdt_descriptor + 2]
+    mov DWORD PTR [gdt_descriptor + 2], eax
 
-    lgdt [_gdt_descriptor]
+    lgdt [gdt_descriptor]
 
     mov eax, cr0
     or al, 1

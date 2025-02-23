@@ -772,8 +772,7 @@ ret
 kernel_version:
 .asciz	MOXNOX_VERSION_STRING
 
-.global _gdt
-_gdt:
+gdt:
 # null descriptor
 .short 0
 .short 0
@@ -788,6 +787,12 @@ _gdt:
 .short 0xffff
 .short 0
 .long 0xcf9200
+gdt_end:
+
+.global gdt_descriptor
+gdt_descriptor:
+.short gdt_end - gdt - 1
+.long gdt
 
 .section .data
 .global e820_entries
