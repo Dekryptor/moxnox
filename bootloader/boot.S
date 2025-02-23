@@ -772,6 +772,23 @@ ret
 kernel_version:
 .asciz	MOXNOX_VERSION_STRING
 
+.global _gdt
+_gdt:
+# null descriptor
+.short 0
+.short 0
+.long 0
+
+# kernel-mode code
+.short 0xffff
+.short 0
+.long 0xcf9a00
+
+# kernel-mode data
+.short 0xffff
+.short 0
+.long 0xcf9200
+
 .section .data
 .global e820_entries
 e820_entries:
