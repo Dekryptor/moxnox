@@ -1038,6 +1038,66 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
             return status;
     }
 
+    // avoid overwriting previous metadata by following on from last allocation,
+    // wherever possible
+    if (c.last_allocation_end != 0) {
+        for (auto le = c.space_list.next; le != &c.space_list; le = le->next) {
+            auto& s = containing_record<chunk_space>(le);
+
+            if (s.offset + s.length < c.last_allocation_end)
+                continue;
+
+            if (s.offset <= c.last_allocation_end && s.offset + s.length >= c.last_allocation_end + fs.sb.node_size) {
+                if (s.offset == c.last_allocation_end && s.length == fs.sb.node_size) {
+                    // remove whole thing
+                    remove_entry_list(s.le);
+                    free(&s);
+                } else if (s.offset == c.last_allocation_end) {
+                    // remove beginning
+                    s.offset += fs.sb.node_size;
+                    s.length -= fs.sb.node_size;
+                } else if (s.offset + s.length == c.last_allocation_end + fs.sb.node_size) {
+                    // remove end
+                    s.length -= fs.sb.node_size;
+                } else {
+                    // remove middle
+
+                    auto s2 = new chunk_space;
+                    if (!s2)
+                        return nt_status::INSUFFICIENT_RESOURCES;
+
+                    s2->offset = c.last_allocation_end + fs.sb.node_size;
+                    s2->length = s.offset + s.length - s2->offset;
+                    insert_head_list(s.le, s2->le);
+
+                    s.length = c.last_allocation_end - s.offset;
+                }
+
+                addr = c.last_allocation_end;
+                c.last_allocation_end = addr + fs.sb.node_size;
+
+                return nt_status::SUCCESS;
+            }
+
+            if (s.length < fs.sb.node_size)
+                continue;
+
+            addr = s.offset;
+
+            if (s.length == fs.sb.node_size) {
+                remove_entry_list(s.le);
+                free(&s);
+            } else {
+                s.offset += fs.sb.node_size;
+                s.length -= fs.sb.node_size;
+            }
+
+            c.last_allocation_end = addr + fs.sb.node_size;
+
+            return nt_status::SUCCESS;
+        }
+    }
+
     for (auto le = c.space_list.next; le != &c.space_list; le = le->next) {
         auto& s = containing_record<chunk_space>(le);
 
@@ -1051,6 +1111,8 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
                 s.offset += fs.sb.node_size;
                 s.length -= fs.sb.node_size;
             }
+
+            c.last_allocation_end = addr + fs.sb.node_size;
 
             return nt_status::SUCCESS;
         }

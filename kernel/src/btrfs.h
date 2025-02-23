@@ -389,6 +389,7 @@ struct chunk {
     list_entry changed_le;
     list_entry space_pending_le;
     int64_t delta;
+    uint64_t last_allocation_end = 0;
     chunk_item ci; // must be last item
 };
 
