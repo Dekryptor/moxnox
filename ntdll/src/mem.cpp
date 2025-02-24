@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-extern "C" __declspec(dllexport)
+extern "C"
 int memcmp(const void* s1, const void* s2, size_t n) {
     // FIXME - not completely accurate, as 1 or -1 is messed up by endianness
 
@@ -55,7 +55,7 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     return 0;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void* memset(void* s, int c, size_t n) {
     void* orig_s = s;
 
@@ -87,7 +87,7 @@ void* memset(void* s, int c, size_t n) {
     return orig_s;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void* memmove(void* dest, const void* src, size_t n) {
     auto orig_dest = dest;
 

@@ -187,7 +187,7 @@ static constexpr size_t round_up(size_t val, uint64_t div) {
     return val;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void* RtlCreateHeap(uint32_t, void*, size_t reserve_size, size_t commit_size,
                     void*, RTL_HEAP_PARAMETERS*) {
     void* addr = nullptr;
@@ -239,21 +239,21 @@ void* RtlCreateHeap(uint32_t, void*, size_t reserve_size, size_t commit_size,
     return h;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void* RtlAllocateHeap(void* heap_handle, uint32_t flags, size_t size) {
     auto& h = *reinterpret_cast<heap*>(heap_handle);
 
     return h.allocate(flags, size);
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 bool RtlFreeHeap(void* heap_handle, uint32_t flags, void* base_address) {
     auto& h = *reinterpret_cast<heap*>(heap_handle);
 
     return h.free(flags, base_address);
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void* RtlDestroyHeap(void* heap_handle) {
     auto& h = *reinterpret_cast<heap*>(heap_handle);
 

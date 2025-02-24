@@ -441,7 +441,7 @@ static bool unwind_context(CONTEXT& context) {
     return true;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     char s[1024];
     auto sp = span(s, sizeof(s));

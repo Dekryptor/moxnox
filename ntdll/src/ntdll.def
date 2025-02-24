@@ -1,0 +1,12 @@
+LIBRARY "ntdll.dll"
+EXPORTS
+mn_signal
+mn_start_thread
+RtlCreateHeap
+RtlAllocateHeap
+RtlFreeHeap
+RtlDestroyHeap
+memcmp
+memset
+memmove
+strlen

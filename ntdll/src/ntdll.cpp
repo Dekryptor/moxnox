@@ -690,7 +690,7 @@ static void call_dll_main() {
     }
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void mn_start_thread(void* ntdll_base, CONTEXT* context) {
     if (!initialized) {
         auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;

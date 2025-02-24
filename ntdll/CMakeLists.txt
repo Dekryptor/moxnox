@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_language(ASM)
 
 set(SRC_FILES src/ntdll.cpp
+    src/ntdll.def
     src/syscalls.S
     src/string.cpp
     src/mem.cpp

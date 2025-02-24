@@ -3,7 +3,7 @@
 
 using namespace std;
 
-extern "C" __declspec(dllexport)
+extern "C"
 size_t strlen(const char* s) {
     size_t i = 0;
 
