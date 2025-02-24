@@ -99,6 +99,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
 
     memcpy(us.Buffer, fn.data(), fn.size() * sizeof(char16_t));
 
+    memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
@@ -359,6 +360,7 @@ static void do_serial() {
     us.Length = us.MaximumLength = (uint16_t)(sizeof(dev) - sizeof(char16_t));
     us.Buffer = (char16_t*)dev;
 
+    memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
