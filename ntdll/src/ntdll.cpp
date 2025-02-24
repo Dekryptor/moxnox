@@ -4,6 +4,7 @@
 #include <optional>
 #include <nt.h>
 #include <stdlib.h>
+#include <string.h>
 
 using namespace std;
 
@@ -507,6 +508,7 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
     memcpy(us.Buffer, dir.data(), dir.size() * sizeof(char16_t));
     memcpy(us.Buffer + dir.size(), name.data(), name.size() * sizeof(char16_t));
 
+    memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
