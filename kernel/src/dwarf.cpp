@@ -723,7 +723,7 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             case DW_FORM::udata:
             case DW_FORM::strx: // FIXME
             case DW_FORM::addrx: // FIXME
-            case DW_FORM::rnglistx: { // FIXME
+            case DW_FORM::rnglistx: {
                 auto orig_die = die;
 
                 skip_leb128(die);
@@ -808,7 +808,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
             }
 
             default:
-                // FIXME
+                print("unhandled DWARF RLE type {:x}\n", (unsigned int)type);
                 return false;
         }
     }
@@ -1048,7 +1048,8 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
         if (abbrev_list.empty())
             return true;
 
-        optional<uint64_t> low_pc, high_pc;
+        optional<uint64_t> low_pc, high_pc, rnglistx;
+        optional<uint32_t> rnglist_base;
 
         loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                                span<const uint8_t> att_list, unsigned int,
@@ -1057,24 +1058,28 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
                 return false;
 
             loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
-                if (att_num == DW_AT::ranges && form == DW_FORM::sec_offset) {
-                    auto offset = *(uint32_t*)data.data();
+                if (att_num == DW_AT::ranges) {
+                    if (form == DW_FORM::sec_offset) {
+                        auto offset = *(uint32_t*)data.data();
 
-                    if (addr_in_range(addr, rnglists.subspan(offset))) {
-                        found_cu = current_cu;
-                        found_debug_abbrev_object = debug_abbrev_object;
+                        if (addr_in_range(addr, rnglists.subspan(offset))) {
+                            found_cu = current_cu;
+                            found_debug_abbrev_object = debug_abbrev_object;
+                        }
+
+                        return false;
+                    } else if (form == DW_FORM::rnglistx) {
+                        rnglistx = read_uleb128(data);
+                        return true;
                     }
-
-                    return false;
                 }
 
                 if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
                     low_pc = *(uint64_t*)data.data();
                 else if (att_num == DW_AT::high_pc && form == DW_FORM::udata)
                     high_pc = read_uleb128(data);
-
-                if (!found_cu.empty())
-                    return false;
+                else if (att_num == DW_AT::rnglists_base && form == DW_FORM::sec_offset)
+                    rnglist_base = *(uint32_t*)data.data();
 
                 return true;
             });
@@ -1082,10 +1087,22 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
             return false;
         });
 
-        if (found_cu.empty() && low_pc.has_value() && high_pc.has_value()) {
-            if (addr >= *low_pc && addr < *low_pc + *high_pc) {
-                found_cu = current_cu;
-                found_debug_abbrev_object = debug_abbrev_object;
+        if (found_cu.empty()) {
+            if (rnglist_base.has_value() && rnglistx.has_value()) {
+                // FIXME - check rnglist has DWARF header
+                // FIXME - check *rnglistx < offset_entry_count in header
+
+                auto offset = *(uint32_t*)(rnglists.data() + *rnglist_base + (*rnglistx * sizeof(uint32_t)));
+
+                if (addr_in_range(addr, rnglists.subspan(*rnglist_base + offset))) {
+                    found_cu = current_cu;
+                    found_debug_abbrev_object = debug_abbrev_object;
+                }
+            } else if (low_pc.has_value() && high_pc.has_value()) {
+                if (addr >= *low_pc && addr < *low_pc + *high_pc) {
+                    found_cu = current_cu;
+                    found_debug_abbrev_object = debug_abbrev_object;
+                }
             }
         }
 
