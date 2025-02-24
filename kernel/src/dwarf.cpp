@@ -420,6 +420,7 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             case DW_FORM::udata:
             case DW_FORM::strx:
             case DW_FORM::addrx:
+            case DW_FORM::rnglistx:
                 skip_leb128(die);
             break;
 
@@ -463,10 +464,6 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
 
             case DW_FORM::loclistx:
                 print("FIXME - skipping because of DW_FORM_loclistx\n"); // FIXME
-                return false;
-
-            case DW_FORM::rnglistx:
-                print("FIXME - skipping because of DW_FORM_rnglistx\n"); // FIXME
                 return false;
 
             case DW_FORM::ref_sup8:
@@ -725,7 +722,8 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             case DW_FORM::sdata:
             case DW_FORM::udata:
             case DW_FORM::strx: // FIXME
-            case DW_FORM::addrx: { // FIXME
+            case DW_FORM::addrx: // FIXME
+            case DW_FORM::rnglistx: { // FIXME
                 auto orig_die = die;
 
                 skip_leb128(die);
@@ -767,7 +765,6 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             }
 
             // FIXME - DW_FORM::loclistx
-            // FIXME - DW_FORM::rnglistx
             // FIXME - DW_FORM::ref_sup8
 
             default:
