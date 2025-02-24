@@ -785,7 +785,7 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             // FIXME - DW_FORM::addrx4
 
             default:
-                // FIXME
+                print("unhandled DWARF form {:x}\n", (unsigned int)form);
                 return;
         }
 
