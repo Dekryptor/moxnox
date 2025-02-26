@@ -93,6 +93,7 @@ struct kernel_image {
     std::span<const uint8_t> debug_abbrev;
     std::span<const uint8_t> debug_rnglists;
     std::span<const uint8_t> debug_str;
+    std::span<const uint8_t> debug_addr;
     char name[0];
 };
 

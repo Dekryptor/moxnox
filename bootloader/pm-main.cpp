@@ -65,9 +65,9 @@ static const unsigned int MAX_MAP_ENTRIES = 128; // same as E820_COUNT
 static struct map_entry mem_entries[MAX_MAP_ENTRIES];
 static uint32_t mem_entries_count;
 static uint64_t debug_info_ptr, debug_abbrev_ptr, debug_rnglists_ptr,
-                debug_str_ptr;
+                debug_str_ptr, debug_addr_ptr;
 static uint32_t debug_info_size, debug_abbrev_size, debug_rnglists_size,
-                debug_str_size;
+                debug_str_size, debug_addr_size;
 
 static const uint64_t img_addr = 0xfffff80000000000;
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
@@ -964,6 +964,9 @@ static bool load_payload() {
         } else if (name == ".debug_str") {
             debug_str_ptr = img_addr + s.VirtualAddress;
             debug_str_size = s.VirtualSize;
+        } else if (name == ".debug_addr") {
+            debug_addr_ptr = img_addr + s.VirtualAddress;
+            debug_addr_size = s.VirtualSize;
         }
 
         section_size = s.VirtualSize;
@@ -1189,6 +1192,8 @@ void protected_mode_main() {
     lb.debug_rnglists_size = debug_rnglists_size;
     lb.debug_str_ptr = debug_str_ptr;
     lb.debug_str_size = debug_str_size;
+    lb.debug_addr_ptr = debug_addr_ptr;
+    lb.debug_addr_size = debug_addr_size;
 
     // jump to entry point of image
 
