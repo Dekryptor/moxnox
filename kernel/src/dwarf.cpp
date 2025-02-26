@@ -940,6 +940,68 @@ static uint32_t find_die_parent(span<const uint8_t> cu, span<const uint8_t*> abb
     return ret;
 }
 
+static bool form_is_string(enum DW_FORM form) {
+    switch (form) {
+        case DW_FORM::string:
+        case DW_FORM::strp:
+        case DW_FORM::line_strp:
+        case DW_FORM::strp_sup:
+        case DW_FORM::strx:
+        case DW_FORM::strx1:
+        case DW_FORM::strx2:
+        case DW_FORM::strx3:
+        case DW_FORM::strx4:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
+                               const kernel_image& img) {
+    switch (form) {
+        case DW_FORM::string:
+            return string_view((char*)data.data(), data.size());
+
+        case DW_FORM::strp:
+            return string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
+
+        case DW_FORM::line_strp:
+            print("FIXME - DW_FORM::line_strp\n");
+            break;
+
+        case DW_FORM::strp_sup:
+            print("FIXME - DW_FORM::strp_sup\n");
+            break;
+
+        case DW_FORM::strx:
+            print("FIXME - DW_FORM::strx\n");
+            break;
+
+        case DW_FORM::strx1:
+            print("FIXME - DW_FORM::strx1\n");
+            break;
+
+        case DW_FORM::strx2:
+            print("FIXME - DW_FORM::strx2\n");
+            break;
+
+        case DW_FORM::strx3:
+            print("FIXME - DW_FORM::strx3\n");
+            break;
+
+        case DW_FORM::strx4:
+            print("FIXME - DW_FORM::strx4\n");
+            break;
+
+        default:
+            break;
+    }
+
+    return string_view();
+}
+
 static void get_func_name(const kernel_image& img, span<const uint8_t> die,
                           span<const uint8_t> att_list,
                           span<const uint8_t*> abbrev_list,
@@ -948,17 +1010,11 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
     optional<uint32_t> specification;
 
     loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
-        if (att_num == DW_AT::name) {
-            if (form == DW_FORM::string)
-                name = string_view((char*)data.data(), data.size());
-            else if (form == DW_FORM::strp)
-                name = string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
-        } else if (att_num == DW_AT::linkage_name) {
-            if (form == DW_FORM::string)
-                linkage_name = string_view((char*)data.data(), data.size());
-            else if (form == DW_FORM::strp)
-                linkage_name = string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
-        } else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
+        if (att_num == DW_AT::name && form_is_string(form))
+            name = read_string(data, form, img);
+        else if (att_num == DW_AT::linkage_name && form_is_string(form))
+            linkage_name = read_string(data, form, img);
+        else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
             specification = *(uint32_t*)data.data();
 
         return true;
@@ -989,19 +1045,10 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
         find_die_by_reference(cu, ref, abbrev_list, [&name, &linkage_name, &img](enum DW_TAG, span<const uint8_t> die,
                                                                                  span<const uint8_t> att_list) {
             loop_through_atts(die, att_list, [&name, &linkage_name, &img](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
-                // FIXME - class and namespace prefixes
-
-                if (att_num == DW_AT::name) {
-                    if (form == DW_FORM::string)
-                        name = string_view((char*)data.data(), data.size());
-                    else if (form == DW_FORM::strp)
-                        name = string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
-                } else if (att_num == DW_AT::linkage_name) {
-                    if (form == DW_FORM::string)
-                        linkage_name = string_view((char*)data.data(), data.size());
-                    else if (form == DW_FORM::strp)
-                        linkage_name = string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
-                }
+                if (att_num == DW_AT::name && form_is_string(form))
+                    name = read_string(data, form, img);
+                else if (att_num == DW_AT::linkage_name && form_is_string(form))
+                    linkage_name = read_string(data, form, img);
 
                 return true;
             });
