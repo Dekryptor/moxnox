@@ -11,9 +11,6 @@ using namespace std;
 
 // console.cpp (FIXME)
 extern object_ref console_pipe;
-template<bool FB> void do_print(string_view s);
-void refresh_shadow_framebuffer();
-void refresh_framebuffer();
 extern unsigned int console_cols;
 
 static spinlock bsod_lock;
@@ -33,8 +30,7 @@ static kernel_image* get_kernel_image_from_address(uint64_t addr) {
     return nullptr;
 }
 
-template<bool FB>
-static void print_rip(uint64_t rip) {
+static void print_rip(pipe& p, uint64_t rip) {
     char s[200];
     auto sp = span(s, sizeof(s));
 
@@ -64,7 +60,7 @@ static void print_rip(uint64_t rip) {
 
     sp = format(sp, "\n");
 
-    do_print<FB>(string_view(s, sp.data() - s));
+    p.write(string_view(s, sp.data() - s));
 }
 
 static const RUNTIME_FUNCTION* find_runtime_function(const kernel_image& img,
@@ -400,8 +396,7 @@ static bool unwind_context(CONTEXT& context) {
     return true;
 }
 
-static void print_stacktrace(CONTEXT& context, const invocable<uint64_t> auto& func,
-                             bool skip_caller) {
+static void print_stacktrace(CONTEXT& context, pipe& p, bool skip_caller) {
     // not interested in top entry (bsod function)
     if (!unwind_context(context))
         return;
@@ -410,7 +405,7 @@ static void print_stacktrace(CONTEXT& context, const invocable<uint64_t> auto& f
         return;
 
     do {
-        func(context.Rip);
+        print_rip(p, context.Rip);
 
         if (!unwind_context(context))
             return;
@@ -463,8 +458,6 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
 
     fp.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
 
-    fp.flush(false);
-
     // FIXME - print context?
 
     CONTEXT context;
@@ -481,16 +474,11 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
         : "rax"
     );
 
-    if (has_framebuffer) {
-        do_print<true>("\n");
-        print_stacktrace(context, print_rip<true>, skip_caller);
+    fp.write("\n");
 
-        refresh_shadow_framebuffer();
-        refresh_framebuffer();
-    } else {
-        do_print<false>("\n");
-        print_stacktrace(context, print_rip<false>, skip_caller);
-    }
+    print_stacktrace(context, fp, skip_caller);
+
+    fp.flush(true);
 
     shutdown_pipes();
 
