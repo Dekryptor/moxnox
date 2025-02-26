@@ -7,6 +7,9 @@ import format;
 
 using namespace std;
 
+static spinlock flushable_pipes_lock;
+static list_entry flushable_pipes = { &flushable_pipes, &flushable_pipes };
+
 object_ref create_pipe(unsigned int buffer_pages) {
     auto pptr = new pipe(buffer_pages);
     if (!pptr) {
@@ -238,4 +241,28 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     read_bytes = copied;
     return nt_status::SUCCESS;
+}
+
+void add_to_flushable_pipes_list(flushable_pipe& p) {
+    lock_guard lock(flushable_pipes_lock);
+
+    insert_tail_list(flushable_pipes, p.flushable_le);
+}
+
+void shutdown_pipes() {
+    while (true) {
+        flushable_pipe* p;
+
+        {
+            lock_guard lock(flushable_pipes_lock);
+
+            if (is_list_empty(flushable_pipes))
+                return;
+
+            p = (flushable_pipe*)((uint8_t*)flushable_pipes.next - offsetof(flushable_pipe, flushable_le));
+            remove_entry_list(p->flushable_le);
+        }
+
+        p->flush(true);
+    }
 }

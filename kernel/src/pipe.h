@@ -43,3 +43,15 @@ static_assert(is_sync_object<pipe>);
 static_assert(is_readable_object_without_offset<pipe>);
 static_assert(is_writable_object_without_offset<pipe>);
 static_assert(has_ioctls<pipe>);
+
+class flushable_pipe {
+public:
+    virtual void flush(bool go_readonly) = 0;
+
+    list_entry flushable_le;
+    bool readonly = false;
+};
+
+// pipe.cpp
+void add_to_flushable_pipes_list(flushable_pipe& p);
+void shutdown_pipes();

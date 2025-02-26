@@ -5,6 +5,7 @@
 #include <ioctl.h>
 
 import format;
+import inout;
 
 using namespace std;
 
@@ -34,10 +35,11 @@ private:
     optional<reference_wrapper<process>> fg_proc;
 };
 
-class serial_out_pipe : public pipe {
+class serial_out_pipe : public pipe, public flushable_pipe {
 public:
     serial_out_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
     size_t write(span<const uint8_t> s) override;
+    void flush(bool go_readonly) override;
 
     bool ready = true;
     uint16_t port;
@@ -98,6 +100,8 @@ static object_ref create_serial_out_pipe(unsigned int buffer_pages, uint16_t por
     }
 
     auto& p = *pptr;
+
+    add_to_flushable_pipes_list(*pptr);
 
     return p;
 }
@@ -195,6 +199,9 @@ size_t serial_out_pipe::do_write(span<const uint8_t> s) {
 }
 
 size_t serial_out_pipe::write(span<const uint8_t> s) {
+    if (readonly)
+        return 0;
+
     if (!(output_mode & ENABLE_PROCESSED_OUTPUT))
         return do_write(s);
 
@@ -360,4 +367,30 @@ void serial_in_pipe::handle_ctrl_c() {
     proc->get().send_signal((uint64_t)nt_status::CONTROL_C_EXIT);
 
     proc->get().release();
+}
+
+void serial_out_pipe::flush(bool go_readonly) {
+    if (go_readonly)
+        readonly = true;
+
+    lock_guard l(lock);
+
+    while (true) {
+        if (buf_unread == 0) {
+            ready = true;
+            return;
+        }
+
+        size_t buf_read_pos = buf_write_pos + (buf_pages << PAGE_SHIFT) - buf_unread;
+
+        while (buf_read_pos >= buf_pages << PAGE_SHIFT) {
+            buf_read_pos -= buf_pages << PAGE_SHIFT;
+        }
+
+        while (!(inb(port + 5) & 0x20)) { }
+
+        outb(port, buf[buf_read_pos]);
+
+        buf_unread--;
+    }
 }

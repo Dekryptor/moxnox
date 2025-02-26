@@ -2041,6 +2041,8 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
         refresh_framebuffer();
     }
 
+    shutdown_pipes();
+
     __asm("call halt_isr");
     __builtin_unreachable();
 }
