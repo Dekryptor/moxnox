@@ -94,6 +94,7 @@ struct kernel_image {
     std::span<const uint8_t> debug_rnglists;
     std::span<const uint8_t> debug_str;
     std::span<const uint8_t> debug_addr;
+    std::span<const uint8_t> debug_str_offsets;
     char name[0];
 };
 

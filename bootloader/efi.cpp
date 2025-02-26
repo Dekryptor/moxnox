@@ -22,11 +22,13 @@ static uint64_t debug_abbrev_ptr __attribute__((section (".data")));
 static uint64_t debug_rnglists_ptr __attribute__((section (".data")));
 static uint64_t debug_str_ptr __attribute__((section (".data")));
 static uint64_t debug_addr_ptr __attribute__((section (".data")));
+static uint64_t debug_str_offsets_ptr __attribute__((section (".data")));
 static uint32_t debug_info_size __attribute__((section (".data")));
 static uint32_t debug_abbrev_size __attribute__((section (".data")));
 static uint32_t debug_rnglists_size __attribute__((section (".data")));
 static uint32_t debug_str_size __attribute__((section (".data")));
 static uint32_t debug_addr_size __attribute__((section (".data")));
+static uint32_t debug_str_offsets_size __attribute__((section (".data")));
 
 static loader_block lb __attribute__((section (".data")));
 
@@ -769,6 +771,9 @@ EFI_STATUS load_pe(span<const uint8_t> payload, uint64_t va, uint64_t& entry_poi
         } else if (name == ".debug_addr") {
             debug_addr_ptr = KERNEL_ADDR + s.VirtualAddress;
             debug_addr_size = s.VirtualSize;
+        } else if (name == ".debug_str_offsets") {
+            debug_str_offsets_ptr = KERNEL_ADDR + s.VirtualAddress;
+            debug_str_offsets_size = s.VirtualSize;
         }
 
         section_size = s.VirtualSize;
@@ -1381,6 +1386,8 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     lb.debug_str_size = debug_str_size;
     lb.debug_addr_ptr = debug_addr_ptr;
     lb.debug_addr_size = debug_addr_size;
+    lb.debug_str_offsets_ptr = debug_str_offsets_ptr;
+    lb.debug_str_offsets_size = debug_str_offsets_size;
 
     // exit boot services
 

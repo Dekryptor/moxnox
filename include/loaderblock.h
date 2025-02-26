@@ -55,6 +55,8 @@ struct loader_block {
     uint64_t debug_str_size;
     uint64_t debug_addr_ptr;
     uint64_t debug_addr_size;
+    uint64_t debug_str_offsets_ptr;
+    uint64_t debug_str_offsets_size;
 } __attribute__((packed));
 
 static const uint64_t SELFMAP = 0xfffff68000000000;
