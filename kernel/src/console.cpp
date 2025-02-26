@@ -72,6 +72,11 @@ extern uint64_t console_font_bold_size;
 static const auto console_font = span(&console_font_data, console_font_size);
 static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
 
+class console : public pipe {
+public:
+    console(unsigned int buffer_pages) : pipe(buffer_pages) { }
+};
+
 struct console_info {
     uint32_t bg;
     uint32_t fg;
@@ -1410,7 +1415,7 @@ static void console_event_recv() {
 
         wait_for_object(console_pipe.get(), false);
 
-        auto status = static_cast<pipe&>(console_pipe.get()).read(span(buf, buf_size), read_bytes);
+        auto status = static_cast<class console&>(console_pipe.get()).read(span(buf, buf_size), read_bytes);
 
         // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
 
@@ -1422,11 +1427,13 @@ static void console_event_recv() {
 }
 
 bool init_console_pipe() {
-    console_pipe = create_pipe(console_buffer_pages);
-    if (!console_pipe) {
-        print("create_pipe failed\n");
+    auto pptr = new class console(console_buffer_pages);
+    if (!pptr) {
+        print("new failed\n");
         return false;
     }
+
+    console_pipe = object_ref{*pptr};
 
     if (!name_object(console_pipe.get(), "tty")) {
         print("name_object failed\n");
