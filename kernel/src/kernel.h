@@ -150,6 +150,7 @@ extern "C" void divide_by_zero_isr();
 extern "C" void yield_isr();
 extern "C" void breakpoint_isr();
 extern "C" void single_step_isr();
+extern volatile uint32_t processors_left_to_halt;
 
 // timer.S
 extern "C" void timer_isr();

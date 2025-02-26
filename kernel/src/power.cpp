@@ -119,12 +119,24 @@ NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     if (action != SHUTDOWN_ACTION::ShutdownPowerOff && action != SHUTDOWN_ACTION::ShutdownReboot)
         return nt_status::INVALID_PARAMETER;
 
-    // FIXME - close running programs, etc.
-
     // flush filesystems and make readonly
     auto status = flush_filesystems(true);
     if (!success(status))
         return status;
+
+    __asm __volatile("cli");
+
+    if (num_cpus > 1) {
+        processors_left_to_halt = num_cpus - 1;
+
+        // send IPI to other cores to stop them
+
+        auto icr1 = (volatile uint32_t*)&local_apic[0x300];
+
+        *icr1 = 0xc0000 | halt_interrupt;
+
+        while (processors_left_to_halt > 0) { }
+    }
 
     print("shutting down\n");
     shutdown_pipes();

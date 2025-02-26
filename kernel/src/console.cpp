@@ -71,9 +71,6 @@ extern uint64_t console_font_bold_size;
 static const auto console_font = span(&console_font_data, console_font_size);
 static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
 
-// ints.S
-extern volatile uint32_t processors_left_to_halt;
-
 struct console_info {
     uint32_t bg;
     uint32_t fg;
