@@ -72,18 +72,11 @@ extern uint64_t console_font_bold_size;
 static const auto console_font = span(&console_font_data, console_font_size);
 static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
 
-class console : public flushable_pipe {
+class console : public pipe {
 public:
-    console(unsigned int buffer_pages) : flushable_pipe(buffer_pages) { }
+    console(unsigned int buffer_pages) : pipe(buffer_pages) { }
 
-    size_t write(span<const uint8_t> s) override {
-        if (readonly)
-            return 0;
-
-        return flushable_pipe::write(s);
-    }
-
-    void flush(bool go_readonly) override;
+    nt_status flush(bool go_readonly) override;
 };
 
 struct console_info {
@@ -1584,7 +1577,7 @@ void copy_edid(loader_block* lb) {
     have_edid = true;
 }
 
-void console::flush(bool go_readonly) {
+nt_status console::flush(bool go_readonly) {
     if (go_readonly)
         readonly = true;
 
@@ -1593,7 +1586,7 @@ void console::flush(bool go_readonly) {
     lock_guard l2(lock);
 
     if (buf_unread == 0)
-        return;
+        return nt_status::SUCCESS;
 
     size_t buf_read_pos = buf_write_pos + (buf_pages << PAGE_SHIFT) - buf_unread;
 
@@ -1617,4 +1610,6 @@ void console::flush(bool go_readonly) {
 
     if (!not_full_event.signalled)
         not_full_event.set_holding_sync_lock();
+
+    return nt_status::SUCCESS;
 }

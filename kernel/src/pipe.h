@@ -26,8 +26,15 @@ public:
         return write(std::span((uint8_t*)sv.data(), sv.length()));
     }
 
-    virtual NTSTATUS ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {
+    virtual nt_status ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {
         return nt_status::NOT_SUPPORTED;
+    }
+
+    virtual nt_status flush(bool go_readonly) {
+        if (go_readonly)
+            readonly = true;
+
+        return nt_status::SUCCESS;
     }
 
     bool signalled = false;
@@ -37,6 +44,8 @@ public:
     size_t buf_write_pos = 0;
     spinlock lock;
     event not_full_event;
+    bool readonly = false;
+    list_entry flushable_le;
 };
 
 static_assert(is_sync_object<pipe>);
@@ -44,16 +53,6 @@ static_assert(is_readable_object_without_offset<pipe>);
 static_assert(is_writable_object_without_offset<pipe>);
 static_assert(has_ioctls<pipe>);
 
-class flushable_pipe : public pipe {
-public:
-    flushable_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
-
-    virtual void flush(bool go_readonly) = 0;
-
-    list_entry flushable_le;
-    bool readonly = false;
-};
-
 // pipe.cpp
-void add_to_flushable_pipes_list(flushable_pipe& p);
+void add_to_flushable_pipes_list(pipe& p);
 void shutdown_pipes();

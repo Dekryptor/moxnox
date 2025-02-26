@@ -94,6 +94,9 @@ pipe::~pipe() {
 }
 
 size_t pipe::write(span<const uint8_t> s) {
+    if (readonly)
+        return 0;
+
     auto size = s.size();
 
     if (s.empty())
@@ -243,7 +246,7 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
     return nt_status::SUCCESS;
 }
 
-void add_to_flushable_pipes_list(flushable_pipe& p) {
+void add_to_flushable_pipes_list(pipe& p) {
     lock_guard lock(flushable_pipes_lock);
 
     insert_tail_list(flushable_pipes, p.flushable_le);
@@ -251,7 +254,7 @@ void add_to_flushable_pipes_list(flushable_pipe& p) {
 
 void shutdown_pipes() {
     while (true) {
-        flushable_pipe* p;
+        pipe* p;
 
         {
             lock_guard lock(flushable_pipes_lock);
@@ -259,7 +262,7 @@ void shutdown_pipes() {
             if (is_list_empty(flushable_pipes))
                 return;
 
-            p = (flushable_pipe*)((uint8_t*)flushable_pipes.next - offsetof(flushable_pipe, flushable_le));
+            p = (pipe*)((uint8_t*)flushable_pipes.next - offsetof(pipe, flushable_le));
             remove_entry_list(p->flushable_le);
         }
 

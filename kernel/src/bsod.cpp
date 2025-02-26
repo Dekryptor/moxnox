@@ -430,11 +430,10 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
     }
 
     auto& p = static_cast<pipe&>(console_pipe.get());
-    auto& fp = static_cast<flushable_pipe&>(p);
 
     // clear screen to blue and print message
 
-    fp.write(
+    p.write(
         "\e[97;44m" // change to blue and white
         "\e[2J" // erase screen
         "\e[?25l" // hide cursor
@@ -442,13 +441,13 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
     );
 
     for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
-        fp.write(" ");
+        p.write(" ");
     }
 
-    fp.write("\e[1mBSOD\e[22m\n\n");
+    p.write("\e[1mBSOD\e[22m\n\n");
 
-    fp.write(msg);
-    fp.write("\n");
+    p.write(msg);
+    p.write("\n");
 
     auto& cb = *get_cpu_block();
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
@@ -456,7 +455,7 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
     sp = format(sp, "{}:{}, {}, CPU {:x}\n",
                 sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
 
-    fp.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
+    p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
 
     // FIXME - print context?
 
@@ -474,11 +473,11 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
         : "rax"
     );
 
-    fp.write("\n");
+    p.write("\n");
 
-    print_stacktrace(context, fp, skip_caller);
+    print_stacktrace(context, p, skip_caller);
 
-    fp.flush(true);
+    p.flush(true);
 
     shutdown_pipes();
 

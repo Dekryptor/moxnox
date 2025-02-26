@@ -35,11 +35,11 @@ private:
     optional<reference_wrapper<process>> fg_proc;
 };
 
-class serial_out_pipe : public flushable_pipe {
+class serial_out_pipe : public pipe {
 public:
-    serial_out_pipe(unsigned int buffer_pages, uint16_t port) : flushable_pipe(buffer_pages), port(port) { }
+    serial_out_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
     size_t write(span<const uint8_t> s) override;
-    void flush(bool go_readonly) override;
+    nt_status flush(bool go_readonly) override;
 
     bool ready = true;
     uint16_t port;
@@ -369,7 +369,7 @@ void serial_in_pipe::handle_ctrl_c() {
     proc->get().release();
 }
 
-void serial_out_pipe::flush(bool go_readonly) {
+nt_status serial_out_pipe::flush(bool go_readonly) {
     if (go_readonly)
         readonly = true;
 
@@ -378,7 +378,7 @@ void serial_out_pipe::flush(bool go_readonly) {
     while (true) {
         if (buf_unread == 0) {
             ready = true;
-            return;
+            return nt_status::SUCCESS;
         }
 
         size_t buf_read_pos = buf_write_pos + (buf_pages << PAGE_SHIFT) - buf_unread;
@@ -393,4 +393,6 @@ void serial_out_pipe::flush(bool go_readonly) {
 
         buf_unread--;
     }
+
+    return nt_status::SUCCESS;
 }
