@@ -1133,6 +1133,8 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
                     high_pc = read_address(data, form, img.debug_addr, addr_base);
                 else if (form == DW_FORM::data8) // FIXME - generic integer-reading code
                     func_length = *(uint64_t*)data.data();
+                else if (form == DW_FORM::data4) // FIXME - generic integer-reading code
+                    func_length = *(uint32_t*)data.data();
             }
 
             return true;
