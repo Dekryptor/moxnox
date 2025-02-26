@@ -3,12 +3,14 @@
 #include "cpu_block.h"
 #include "objects.h"
 #include "pipe.h"
+#include "handle.h"
 
 import format;
 
 using namespace std;
 
 // console.cpp (FIXME)
+extern object_ref console_pipe;
 template<bool FB> void do_print(string_view s);
 void refresh_shadow_framebuffer();
 void refresh_framebuffer();
@@ -432,38 +434,36 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
         while (processors_left_to_halt > 0) { }
     }
 
+    auto& p = static_cast<pipe&>(console_pipe.get());
+    auto& fp = static_cast<flushable_pipe&>(p);
+
     // clear screen to blue and print message
 
-    auto print_bsod = [&]<bool FB>() {
-        do_print<FB>(
-            "\e[97;44m" // change to blue and white
-            "\e[2J" // erase screen
-            "\e[?25l" // hide cursor
-            "\e[1;1H" // move to top left
-        );
+    fp.write(
+        "\e[97;44m" // change to blue and white
+        "\e[2J" // erase screen
+        "\e[?25l" // hide cursor
+        "\e[1;1H" // move to top left
+    );
 
-        for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
-            do_print<FB>(" ");
-        }
+    for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
+        fp.write(" ");
+    }
 
-        do_print<FB>("\e[1mBSOD\e[22m\n\n");
+    fp.write("\e[1mBSOD\e[22m\n\n");
 
-        do_print<FB>(msg);
-        do_print<FB>("\n");
+    fp.write(msg);
+    fp.write("\n");
 
-        auto& cb = *get_cpu_block();
-        auto sp = span(cb.printk_scratch, PAGE_SIZE);
+    auto& cb = *get_cpu_block();
+    auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
-        sp = format(sp, "{}:{}, {}, CPU {:x}\n",
-                    sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
+    sp = format(sp, "{}:{}, {}, CPU {:x}\n",
+                sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
 
-        do_print<FB>(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
-    };
+    fp.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
 
-    if (has_framebuffer)
-        print_bsod.template operator()<true>();
-    else
-        print_bsod.template operator()<false>();
+    fp.flush(false);
 
     // FIXME - print context?
 

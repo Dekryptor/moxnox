@@ -45,7 +45,7 @@ static unsigned int cursor_x = 0, cursor_y = 0;
 static void early_print(string_view s);
 void (*_printk)(string_view s) = early_print;
 
-static object_ref console_pipe;
+object_ref console_pipe;
 static const unsigned int console_buffer_pages = 4;
 
 static span<uint32_t> framebuffer, shadow_framebuffer;
@@ -72,15 +72,15 @@ extern uint64_t console_font_bold_size;
 static const auto console_font = span(&console_font_data, console_font_size);
 static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
 
-class console : public pipe, public flushable_pipe {
+class console : public flushable_pipe {
 public:
-    console(unsigned int buffer_pages) : pipe(buffer_pages) { }
+    console(unsigned int buffer_pages) : flushable_pipe(buffer_pages) { }
 
     size_t write(span<const uint8_t> s) override {
         if (readonly)
             return 0;
 
-        return pipe::write(s);
+        return flushable_pipe::write(s);
     }
 
     void flush(bool go_readonly) override;

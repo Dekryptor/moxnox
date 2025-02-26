@@ -44,8 +44,10 @@ static_assert(is_readable_object_without_offset<pipe>);
 static_assert(is_writable_object_without_offset<pipe>);
 static_assert(has_ioctls<pipe>);
 
-class flushable_pipe {
+class flushable_pipe : public pipe {
 public:
+    flushable_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
+
     virtual void flush(bool go_readonly) = 0;
 
     list_entry flushable_le;

@@ -35,9 +35,9 @@ private:
     optional<reference_wrapper<process>> fg_proc;
 };
 
-class serial_out_pipe : public pipe, public flushable_pipe {
+class serial_out_pipe : public flushable_pipe {
 public:
-    serial_out_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
+    serial_out_pipe(unsigned int buffer_pages, uint16_t port) : flushable_pipe(buffer_pages), port(port) { }
     size_t write(span<const uint8_t> s) override;
     void flush(bool go_readonly) override;
 
