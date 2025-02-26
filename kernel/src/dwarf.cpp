@@ -777,7 +777,9 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
     }
 }
 
-static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
+static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
+                          span<const uint8_t> debug_addr,
+                          optional<uint32_t> addr_base) {
     optional<uint64_t> base_address;
 
     while (!rnglist.empty()) {
@@ -789,9 +791,27 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
             case DW_RLE::end_of_list:
                 return false;
 
-            case DW_RLE::base_addressx:
-                base_address = read_uleb128(rnglist);
+            case DW_RLE::base_addressx: {
+                auto index = read_uleb128(rnglist);
+
+                if (!addr_base.has_value()) {
+                    print("DW_RLE_base_addressx but no DW_AT_addr_base value\n");
+                    return false;
+                }
+
+                // FIXME - check .debug_addr header that address_size == 8
+                // FIXME - check .debug_addr header than segment_selector_size == 0
+
+                if (*addr_base + ((index + 1) * sizeof(uint64_t)) > debug_addr.size()) {
+                    print("DW_RLE_base_addressx would overflow .debug_addr section\n");
+                    return false;
+                }
+
+                auto list = (uint64_t*)(debug_addr.data() + *addr_base);
+                base_address = list[index];
+
                 break;
+            }
 
             case DW_RLE::startx_endx:
                 print("unhandled DWARF RLE type startx_endx\n");
@@ -1081,7 +1101,7 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
             return true;
 
         optional<uint64_t> low_pc, high_pc, rnglistx;
-        optional<uint32_t> rnglist_base;
+        optional<uint32_t> ranges_offset, rnglist_base, addr_base;
 
         loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                                span<const uint8_t> att_list, unsigned int,
@@ -1091,30 +1111,29 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
 
             loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
                 if (att_num == DW_AT::ranges) {
-                    if (form == DW_FORM::sec_offset) {
-                        auto offset = *(uint32_t*)data.data();
-
-                        if (addr_in_range(addr, rnglists.subspan(offset))) {
-                            found_cu = current_cu;
-                            found_debug_abbrev_object = debug_abbrev_object;
-                        }
-
-                        return false;
-                    } else if (form == DW_FORM::rnglistx) {
+                    if (form == DW_FORM::sec_offset)
+                        ranges_offset = *(uint32_t*)data.data();
+                    else if (form == DW_FORM::rnglistx)
                         rnglistx = read_uleb128(data);
-                        return true;
-                    }
-                }
-
-                if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
+                } else if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
                     low_pc = *(uint64_t*)data.data();
                 else if (att_num == DW_AT::high_pc && form == DW_FORM::udata)
                     high_pc = read_uleb128(data);
                 else if (att_num == DW_AT::rnglists_base && form == DW_FORM::sec_offset)
                     rnglist_base = *(uint32_t*)data.data();
+                else if (att_num == DW_AT::addr_base && form == DW_FORM::sec_offset)
+                    addr_base = *(uint32_t*)data.data();
 
                 return true;
             });
+
+            if (ranges_offset.has_value()) {
+                if (addr_in_range(addr, rnglists.subspan(*ranges_offset),
+                                  img.debug_addr, addr_base)) {
+                    found_cu = current_cu;
+                    found_debug_abbrev_object = debug_abbrev_object;
+                }
+            }
 
             return false;
         });
@@ -1126,7 +1145,8 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
 
                 auto offset = *(uint32_t*)(rnglists.data() + *rnglist_base + (*rnglistx * sizeof(uint32_t)));
 
-                if (addr_in_range(addr, rnglists.subspan(*rnglist_base + offset))) {
+                if (addr_in_range(addr, rnglists.subspan(*rnglist_base + offset),
+                                  img.debug_addr, addr_base)) {
                     found_cu = current_cu;
                     found_debug_abbrev_object = debug_abbrev_object;
                 }
