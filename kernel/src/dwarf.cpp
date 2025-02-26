@@ -793,8 +793,15 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
                 base_address = read_uleb128(rnglist);
                 break;
 
-            // FIXME - DW_RLE::startx_endx
-            // FIXME - DW_RLE::startx_length
+            case DW_RLE::startx_endx:
+                print("unhandled DWARF RLE type startx_endx\n");
+                // FIXME
+                return false;
+
+            case DW_RLE::startx_length:
+                print("unhandled DWARF RLE type startx_length\n");
+                // FIXME
+                return false;
 
             case DW_RLE::offset_pair: {
                 auto start = read_uleb128(rnglist);
@@ -809,8 +816,15 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
                 break;
             }
 
-            // FIXME - DW_RLE::base_address
-            // FIXME - DW_RLE::start_end
+            case DW_RLE::base_address:
+                print("unhandled DWARF RLE type base_address\n");
+                // FIXME
+                return false;
+
+            case DW_RLE::start_end:
+                print("unhandled DWARF RLE type start_end\n");
+                // FIXME
+                return false;
 
             case DW_RLE::start_length: {
                 auto base_addr = *(uint64_t*)rnglist.data();
