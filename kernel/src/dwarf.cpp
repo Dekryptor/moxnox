@@ -1059,7 +1059,10 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
         name = string_view();
 
         find_die_by_reference(cu, ref, abbrev_list, [&name, &linkage_name, &img, &str_offsets_base]
-                (enum DW_TAG, span<const uint8_t> die, span<const uint8_t> att_list) {
+                (enum DW_TAG tag, span<const uint8_t> die, span<const uint8_t> att_list) {
+            if (tag == DW_TAG::compile_unit)
+                return;
+
             loop_through_atts(die, att_list, [&name, &linkage_name, &img, &str_offsets_base]
                     (enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
                 if (att_num == DW_AT::name && form_is_string(form))
