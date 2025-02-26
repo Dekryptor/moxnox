@@ -818,10 +818,34 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
                 // FIXME
                 return false;
 
-            case DW_RLE::startx_length:
-                print("unhandled DWARF RLE type startx_length\n");
-                // FIXME
-                return false;
+            case DW_RLE::startx_length: {
+                auto index = read_uleb128(rnglist);
+                auto length = read_uleb128(rnglist);
+
+                if (!addr_base.has_value()) {
+                    print("DW_RLE_startx_length but no DW_AT_addr_base value\n");
+                    return false;
+                }
+
+                // FIXME - check .debug_addr header that address_size == 8
+                // FIXME - check .debug_addr header than segment_selector_size == 0
+
+                if (*addr_base + ((index + 1) * sizeof(uint64_t)) > debug_addr.size()) {
+                    print("DW_RLE_base_addressx would overflow .debug_addr section\n");
+                    return false;
+                }
+
+                auto list = (uint64_t*)(debug_addr.data() + *addr_base);
+                auto start = list[index];
+
+                if (start == 0) // FIXME - why does DWARF do this? Stuff that's optimized out?
+                    break;
+
+                if (addr >= start && addr < start + length)
+                    return true;
+
+                break;
+            }
 
             case DW_RLE::offset_pair: {
                 auto start = read_uleb128(rnglist);
