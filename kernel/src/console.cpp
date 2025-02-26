@@ -72,9 +72,18 @@ extern uint64_t console_font_bold_size;
 static const auto console_font = span(&console_font_data, console_font_size);
 static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
 
-class console : public pipe {
+class console : public pipe, public flushable_pipe {
 public:
     console(unsigned int buffer_pages) : pipe(buffer_pages) { }
+
+    size_t write(span<const uint8_t> s) override {
+        if (readonly)
+            return 0;
+
+        return pipe::write(s);
+    }
+
+    void flush(bool go_readonly) override;
 };
 
 struct console_info {
@@ -1573,4 +1582,41 @@ bool init_fb_console() {
 void copy_edid(loader_block* lb) {
     memcpy(edid, (void*)lb->edid, EDID_SIZE);
     have_edid = true;
+}
+
+void console::flush(bool go_readonly) {
+    if (go_readonly)
+        readonly = true;
+
+    sync_lock sl;
+    lock_guard l(sl);
+    lock_guard l2(lock);
+
+    if (buf_unread == 0)
+        return;
+
+    size_t buf_read_pos = buf_write_pos + (buf_pages << PAGE_SHIFT) - buf_unread;
+
+    while (buf_read_pos >= buf_pages << PAGE_SHIFT) {
+        buf_read_pos -= buf_pages << PAGE_SHIFT;
+    }
+
+    size_t to_copy = buf_unread;
+
+    if (buf_read_pos + buf_unread > buf_pages << PAGE_SHIFT) {
+        auto first_bit = (buf_pages << PAGE_SHIFT) - buf_read_pos;
+
+        early_print(string_view((char*)&buf[buf_read_pos], first_bit));
+
+        buf_read_pos = 0;
+        buf_unread -= first_bit;
+    }
+
+    early_print(string_view((char*)&buf[buf_read_pos], buf_unread));
+    buf_unread = 0;
+
+    signalled = false;
+
+    if (!not_full_event.signalled)
+        not_full_event.set_holding_sync_lock();
 }
