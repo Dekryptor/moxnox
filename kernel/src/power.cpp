@@ -1,5 +1,7 @@
 #include "kernel.h"
 #include "acpi.h"
+#include "objects.h"
+#include "pipe.h"
 
 import format;
 import inout;
@@ -117,12 +119,15 @@ NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     if (action != SHUTDOWN_ACTION::ShutdownPowerOff && action != SHUTDOWN_ACTION::ShutdownReboot)
         return nt_status::INVALID_PARAMETER;
 
-    // FIXME - flush serial ports, close running programs, etc.
+    // FIXME - close running programs, etc.
 
     // flush filesystems and make readonly
     auto status = flush_filesystems(true);
     if (!success(status))
         return status;
+
+    print("shutting down\n");
+    shutdown_pipes();
 
     if (action == SHUTDOWN_ACTION::ShutdownPowerOff)
         halt();
