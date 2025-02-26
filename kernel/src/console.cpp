@@ -1085,7 +1085,7 @@ static void handle_escape_sequence(string_view s) {
 }
 
 template<bool FB>
-void do_print(string_view s) {
+static void do_print(string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
             do_print2<FB>(0x1b);
@@ -1281,7 +1281,7 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
     }
 }
 
-void refresh_shadow_framebuffer() {
+static void refresh_shadow_framebuffer() {
     auto* c = &console[0];
 
     for (unsigned int y = 0; y < console_rows; y++) {
@@ -1314,7 +1314,7 @@ void refresh_shadow_framebuffer() {
     }
 }
 
-void refresh_framebuffer() {
+static void refresh_framebuffer() {
     // FIXME - only copy changed parts?
 
     memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
