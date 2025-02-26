@@ -959,7 +959,8 @@ static bool form_is_string(enum DW_FORM form) {
 }
 
 static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
-                               const kernel_image& img) {
+                               const kernel_image& img,
+                               optional<uint32_t> str_offsets_base) {
     uint64_t index;
 
     switch (form) {
@@ -1001,23 +1002,34 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
             return string_view();
     }
 
-    print("FIXME - DW_FORM::strx {:x}\n", index);
+    if (!str_offsets_base.has_value()) {
+        print("DW_FORM::strx but no str_offsets_base\n");
+        return string_view();
+    }
 
-    return string_view();
+    if (*str_offsets_base + ((index + 1) * sizeof(uint32_t)) > img.debug_str_offsets.size()) {
+        print("DW_FORM::strx would overflow .debug_str_offsets section\n");
+        return string_view();
+    }
+
+    auto list = (uint32_t*)(img.debug_str_offsets.data() + *str_offsets_base);
+
+    return string_view((char*)img.debug_str.data() + list[index]);
 }
 
 static void get_func_name(const kernel_image& img, span<const uint8_t> die,
                           span<const uint8_t> att_list,
                           span<const uint8_t*> abbrev_list,
-                          span<const uint8_t> cu, span<char>& sp) {
+                          span<const uint8_t> cu, span<char>& sp,
+                          optional<uint32_t> str_offsets_base) {
     string_view name, linkage_name;
     optional<uint32_t> specification;
 
     loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
         if (att_num == DW_AT::name && form_is_string(form))
-            name = read_string(data, form, img);
+            name = read_string(data, form, img, str_offsets_base);
         else if (att_num == DW_AT::linkage_name && form_is_string(form))
-            linkage_name = read_string(data, form, img);
+            linkage_name = read_string(data, form, img, str_offsets_base);
         else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
             specification = *(uint32_t*)data.data();
 
@@ -1046,13 +1058,14 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
     do {
         name = string_view();
 
-        find_die_by_reference(cu, ref, abbrev_list, [&name, &linkage_name, &img](enum DW_TAG, span<const uint8_t> die,
-                                                                                 span<const uint8_t> att_list) {
-            loop_through_atts(die, att_list, [&name, &linkage_name, &img](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
+        find_die_by_reference(cu, ref, abbrev_list, [&name, &linkage_name, &img, &str_offsets_base]
+                (enum DW_TAG, span<const uint8_t> die, span<const uint8_t> att_list) {
+            loop_through_atts(die, att_list, [&name, &linkage_name, &img, &str_offsets_base]
+                    (enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
                 if (att_num == DW_AT::name && form_is_string(form))
-                    name = read_string(data, form, img);
+                    name = read_string(data, form, img, str_offsets_base);
                 else if (att_num == DW_AT::linkage_name && form_is_string(form))
-                    linkage_name = read_string(data, form, img);
+                    linkage_name = read_string(data, form, img, str_offsets_base);
 
                 return true;
             });
@@ -1158,7 +1171,8 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
 
 uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
                               span<const uint8_t> cu, span<const uint8_t> abbrev,
-                              span<char>& sp, optional<uint32_t> addr_base) {
+                              span<char>& sp, optional<uint32_t> addr_base,
+                              optional<uint32_t> str_offsets_base) {
     uint64_t func_start = 0;
 
     auto abbrev_list = load_abbrev_entries(abbrev);
@@ -1202,7 +1216,7 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
 
         die = orig_die;
 
-        get_func_name(img, die, att_list, abbrev_list, cu, sp);
+        get_func_name(img, die, att_list, abbrev_list, cu, sp, str_offsets_base);
 
         func_start = *low_pc;
         return false;
@@ -1227,7 +1241,7 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
 
     span<const uint8_t> found_cu;
     uint32_t found_debug_abbrev_object;
-    optional<uint32_t> addr_base;
+    optional<uint32_t> addr_base, str_offsets_base;
 
     // find CU with addr in DW_AT_ranges
     loop_through_cus(info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
@@ -1242,6 +1256,7 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
         optional<uint32_t> ranges_offset, rnglist_base;
 
         addr_base = nullopt;
+        str_offsets_base = nullopt;
 
         loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                                span<const uint8_t> att_list, unsigned int,
@@ -1263,6 +1278,8 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
                     rnglist_base = *(uint32_t*)data.data();
                 else if (att_num == DW_AT::addr_base && form == DW_FORM::sec_offset)
                     addr_base = *(uint32_t*)data.data();
+                else if (att_num == DW_AT::str_offsets_base && form == DW_FORM::sec_offset)
+                    str_offsets_base = *(uint32_t*)data.data();
 
                 return true;
             });
@@ -1311,5 +1328,5 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
 
     return dwarf_find_function2(img, addr, found_cu,
                                 abbrev.subspan(found_debug_abbrev_object),
-                                sp, addr_base);
+                                sp, addr_base, str_offsets_base);
 }
