@@ -778,6 +778,8 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
 }
 
 static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
+    optional<uint64_t> base_address;
+
     while (!rnglist.empty()) {
         auto type = (enum DW_RLE)rnglist[0];
 
@@ -787,10 +789,26 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist) {
             case DW_RLE::end_of_list:
                 return false;
 
-            // FIXME - DW_RLE::base_addressx
+            case DW_RLE::base_addressx:
+                base_address = read_uleb128(rnglist);
+                break;
+
             // FIXME - DW_RLE::startx_endx
             // FIXME - DW_RLE::startx_length
-            // FIXME - DW_RLE::offset_pair
+
+            case DW_RLE::offset_pair: {
+                auto start = read_uleb128(rnglist);
+                auto end = read_uleb128(rnglist);
+
+                if (!base_address.has_value())
+                    break;
+
+                if (addr >= *base_address + start && addr <= *base_address + end)
+                    return true;
+
+                break;
+            }
+
             // FIXME - DW_RLE::base_address
             // FIXME - DW_RLE::start_end
 
