@@ -1601,8 +1601,6 @@ void console::flush(bool go_readonly) {
         buf_read_pos -= buf_pages << PAGE_SHIFT;
     }
 
-    size_t to_copy = buf_unread;
-
     if (buf_read_pos + buf_unread > buf_pages << PAGE_SHIFT) {
         auto first_bit = (buf_pages << PAGE_SHIFT) - buf_read_pos;
 
