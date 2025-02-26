@@ -103,6 +103,12 @@
 
 .debug_info_end:
 
+.bss
+
+.global processors_left_to_halt
+processors_left_to_halt:
+.space 4
+
 .text
 
 .seh_proc page_fault_isr
@@ -352,8 +358,10 @@ spurious_isr_end:
 
 .global halt_isr
 halt_isr:
+    lock dec DWORD PTR [rip+processors_left_to_halt]
+0:
     hlt
-    jmp halt_isr
+    jmp 0b
 halt_isr_end:
 
 .seh_proc divide_by_zero_isr

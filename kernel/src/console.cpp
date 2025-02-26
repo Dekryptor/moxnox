@@ -71,6 +71,9 @@ extern uint64_t console_font_bold_size;
 static const auto console_font = span(&console_font_data, console_font_size);
 static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
 
+// ints.S
+extern volatile uint32_t processors_left_to_halt;
+
 struct console_info {
     uint32_t bg;
     uint32_t fg;
@@ -1966,11 +1969,17 @@ void bsod(string_view msg, source_location sl, bool skip_caller) {
 
     lock_guard lock(bsod_lock);
 
-    // send IPI to other cores to stop them
+    if (num_cpus > 1) {
+        processors_left_to_halt = num_cpus - 1;
 
-    auto icr1 = (volatile uint32_t*)&local_apic[0x300];
+        // send IPI to other cores to stop them
 
-    *icr1 = 0xc0000 | halt_interrupt;
+        auto icr1 = (volatile uint32_t*)&local_apic[0x300];
+
+        *icr1 = 0xc0000 | halt_interrupt;
+
+        while (processors_left_to_halt > 0) { }
+    }
 
     // clear screen to blue and print message
 
