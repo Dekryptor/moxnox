@@ -1051,41 +1051,63 @@ static bool form_is_address(enum DW_FORM form) {
            form == DW_FORM::addrx3 || form == DW_FORM::addrx4;
 }
 
-static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM form) {
+static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM form,
+                                       span<const uint8_t> debug_addr,
+                                       optional<uint32_t> addr_base) {
+    uint64_t index;
+
     switch (form) {
         case DW_FORM::addr:
             return *(uint64_t*)data.data();
 
         case DW_FORM::addrx:
-            print("FIXME - DW_FORM::addr\n");
+            index = read_uleb128(data);
             break;
 
         case DW_FORM::addrx1:
-            print("FIXME - DW_FORM::addrx1\n");
+            index = data[0];
             break;
 
         case DW_FORM::addrx2:
-            print("FIXME - DW_FORM::addrx2\n");
+            index = *(uint16_t*)data.data();
             break;
 
         case DW_FORM::addrx3:
-            print("FIXME - DW_FORM::addrx3\n");
+            index = data[0] | (data[1] << 8) | (data[2] << 16);
             break;
 
         case DW_FORM::addrx4:
-            print("FIXME - DW_FORM::addrx4\n");
+            index = *(uint32_t*)data.data();
             break;
 
         default:
             break;
     }
 
-    return nullopt;
+    if (!addr_base.has_value()) {
+        print("DW_FORM::addrx specified but no DW_AT::addr_base given\n");
+        return nullopt;
+    }
+
+    // FIXME - check .debug_addr header that address_size == 8
+    // FIXME - check .debug_addr header than segment_selector_size == 0
+
+    if (*addr_base + ((index + 1) * sizeof(uint64_t)) > debug_addr.size()) {
+        print("DW_FORM::addrx would overflow .debug_addr section\n");
+        return false;
+    }
+
+    auto list = (uint64_t*)(debug_addr.data() + *addr_base);
+
+    if (list[index] == 0)
+        return nullopt;
+
+    return list[index];
 }
 
 uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
                               span<const uint8_t> cu, span<const uint8_t> abbrev,
-                              span<char>& sp) {
+                              span<char>& sp, optional<uint32_t> addr_base) {
     uint64_t func_start = 0;
 
     auto abbrev_list = load_abbrev_entries(abbrev);
@@ -1105,10 +1127,10 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
 
         loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
             if (att_num == DW_AT::low_pc && form_is_address(form))
-                low_pc = read_address(data, form);
+                low_pc = read_address(data, form, img.debug_addr, addr_base);
             else if (att_num == DW_AT::high_pc) {
                 if (form_is_address(form))
-                    high_pc = read_address(data, form);
+                    high_pc = read_address(data, form, img.debug_addr, addr_base);
                 else if (form == DW_FORM::data8) // FIXME - generic integer-reading code
                     func_length = *(uint64_t*)data.data();
             }
@@ -1152,6 +1174,7 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
 
     span<const uint8_t> found_cu;
     uint32_t found_debug_abbrev_object;
+    optional<uint32_t> addr_base;
 
     // find CU with addr in DW_AT_ranges
     loop_through_cus(info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
@@ -1163,7 +1186,9 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
             return true;
 
         optional<uint64_t> low_pc, high_pc, rnglistx;
-        optional<uint32_t> ranges_offset, rnglist_base, addr_base;
+        optional<uint32_t> ranges_offset, rnglist_base;
+
+        addr_base = nullopt;
 
         loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                                span<const uint8_t> att_list, unsigned int,
@@ -1233,5 +1258,5 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
 
     return dwarf_find_function2(img, addr, found_cu,
                                 abbrev.subspan(found_debug_abbrev_object),
-                                sp);
+                                sp, addr_base);
 }
