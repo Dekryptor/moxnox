@@ -1045,6 +1045,44 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
     sp = span(sp.data() + written, written > sp.size() ? 0 : sp.size() - written);
 }
 
+static bool form_is_address(enum DW_FORM form) {
+    return form == DW_FORM::addr || form == DW_FORM::addrx ||
+           form == DW_FORM::addrx1 || form == DW_FORM::addrx2 ||
+           form == DW_FORM::addrx3 || form == DW_FORM::addrx4;
+}
+
+static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM form) {
+    switch (form) {
+        case DW_FORM::addr:
+            return *(uint64_t*)data.data();
+
+        case DW_FORM::addrx:
+            print("FIXME - DW_FORM::addr\n");
+            break;
+
+        case DW_FORM::addrx1:
+            print("FIXME - DW_FORM::addrx1\n");
+            break;
+
+        case DW_FORM::addrx2:
+            print("FIXME - DW_FORM::addrx2\n");
+            break;
+
+        case DW_FORM::addrx3:
+            print("FIXME - DW_FORM::addrx3\n");
+            break;
+
+        case DW_FORM::addrx4:
+            print("FIXME - DW_FORM::addrx4\n");
+            break;
+
+        default:
+            break;
+    }
+
+    return nullopt;
+}
+
 uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
                               span<const uint8_t> cu, span<const uint8_t> abbrev,
                               span<char>& sp) {
@@ -1066,12 +1104,12 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
         auto orig_die = die;
 
         loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
-            if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
-                low_pc = *(uint64_t*)data.data();
+            if (att_num == DW_AT::low_pc && form_is_address(form))
+                low_pc = read_address(data, form);
             else if (att_num == DW_AT::high_pc) {
-                if (form == DW_FORM::addr)
-                    high_pc = *(uint64_t*)data.data();
-                else if (form == DW_FORM::data8)
+                if (form_is_address(form))
+                    high_pc = read_address(data, form);
+                else if (form == DW_FORM::data8) // FIXME - generic integer-reading code
                     func_length = *(uint64_t*)data.data();
             }
 
