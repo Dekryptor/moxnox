@@ -960,6 +960,8 @@ static bool form_is_string(enum DW_FORM form) {
 
 static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
                                const kernel_image& img) {
+    uint64_t index;
+
     switch (form) {
         case DW_FORM::string:
             return string_view((char*)data.data(), data.size());
@@ -969,35 +971,37 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
 
         case DW_FORM::line_strp:
             print("FIXME - DW_FORM::line_strp\n");
-            break;
+            return string_view();
 
         case DW_FORM::strp_sup:
             print("FIXME - DW_FORM::strp_sup\n");
-            break;
+            return string_view();
 
         case DW_FORM::strx:
-            print("FIXME - DW_FORM::strx\n");
+            index = read_uleb128(data);
             break;
 
         case DW_FORM::strx1:
-            print("FIXME - DW_FORM::strx1\n");
+            index = data[0];
             break;
 
         case DW_FORM::strx2:
-            print("FIXME - DW_FORM::strx2\n");
+            index = *(uint16_t*)data.data();
             break;
 
         case DW_FORM::strx3:
-            print("FIXME - DW_FORM::strx3\n");
+            index = data[0] | (data[1] << 8) | (data[2] << 16);
             break;
 
         case DW_FORM::strx4:
-            print("FIXME - DW_FORM::strx4\n");
+            index = *(uint32_t*)data.data();
             break;
 
         default:
-            break;
+            return string_view();
     }
+
+    print("FIXME - DW_FORM::strx {:x}\n", index);
 
     return string_view();
 }
