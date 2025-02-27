@@ -71,6 +71,6 @@ static const uint16_t TSS_SEGMENT = 0x18;
 
 static const uint64_t PHYS_MEMORY = 0xffff990000000000;
 
-static constexpr void* phys_address(uint64_t pa) {
+static inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
 }
