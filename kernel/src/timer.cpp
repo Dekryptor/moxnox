@@ -169,10 +169,11 @@ NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK, const OBJECT_ATTRIBUTE
     if (!timerh)
         return nt_status::INTERNAL_ERROR;
 
-    auto h = p->add_handle(timerh.get(), 0, true); // FIXME - access mask
+    handle_t h;
 
-    if (!h)
-        return nt_status::INTERNAL_ERROR;
+    auto status = p->add_handle(timerh.get(), 0, true, h); // FIXME - access mask
+    if (!success(status))
+        return status;
 
     *timer_handle = h;
 

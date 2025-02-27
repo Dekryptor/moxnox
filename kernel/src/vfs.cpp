@@ -317,18 +317,18 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
         f->name = name;
         f->namelen = namelen;
 
-        h = p->add_handle(*f, 0, shared_okay); // FIXME - access mask
-        if (!h) {
+        status = p->add_handle(*f, 0, shared_okay, h); // FIXME - access mask
+        if (!success(status)) {
             delete f;
-            return nt_status::INTERNAL_ERROR;
+            return status;
         }
     } else {
-        h = p->add_handle(ino_ref.get(), 0, shared_okay); // FIXME - access mask
-        if (!h) {
+        status = p->add_handle(ino_ref.get(), 0, shared_okay, h); // FIXME - access mask
+        if (!success(status)) {
             visit_obj(ino_ref.get(), [&](auto&& o) {
                 o.release();
             });
-            return nt_status::INTERNAL_ERROR;
+            return status;
         }
     }
 
