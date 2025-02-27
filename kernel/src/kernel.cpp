@@ -56,11 +56,17 @@ static object_ref create_init_process() {
 
     p.acquire();
 
+    object_ref initin;
     object_ref initout{p};
 
-    auto initin = open_object("keyboard");
-    if (!initin)
-        bsod("Could not open keyboard object.");
+    if (console_type == console_type::other) {
+        p.acquire();
+        initin = object_ref{p};
+    } else {
+        initin = open_object("keyboard");
+        if (!initin)
+            bsod("Could not open keyboard object.");
+    }
 
     return create_process("/init.exe", "/", initin, initout, initout);
 }
