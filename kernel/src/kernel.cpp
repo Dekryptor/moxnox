@@ -140,6 +140,7 @@ void main_thread() {
 
     init_keyboard();
 
+    print("\e[2J\e[1;1H");  // erase screen, move to top left
     print(MOXNOX_VERSION_STRING "\n");
 
     keywait();
