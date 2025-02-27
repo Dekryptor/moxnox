@@ -366,7 +366,8 @@ static void do_serial() {
 
     status = NtCreateFile(&h, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0, nullptr, 0);
 
-    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
+        status == nt_status::SHARING_VIOLATION) {
         NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
         return;
     }
