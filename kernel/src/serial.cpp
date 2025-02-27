@@ -12,6 +12,7 @@ using namespace std;
 static const uint8_t serial_interrupt = 0x23;
 static const uint16_t com1_port = 0x3f8;
 static const unsigned int serial_buffer_pages = 1;
+static bool init_serial_done = false;
 
 class serial_in_pipe : public pipe {
 public:
@@ -107,6 +108,11 @@ static object_ref create_serial_out_pipe(unsigned int buffer_pages, uint16_t por
 }
 
 bool init_serial() {
+    if (init_serial_done)
+        return true;
+
+    init_serial_done = true;
+
     // FIXME - COM2, COM3, COM4
 
     if (!init_serial_port(com1_port))

@@ -148,7 +148,7 @@ static const size_t EDID_SIZE = 128;
 static uint8_t edid[EDID_SIZE];
 static bool have_edid;
 
-bool has_framebuffer;
+enum console_type console_type;
 
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -1330,7 +1330,7 @@ static void early_print(string_view s) {
 void safe_print(string_view s) {
     write(console_pipe, s);
 
-    if (com1_pipe_handle)
+    if (console_type != console_type::other && com1_pipe_handle)
         write(com1_pipe_handle, s);
 }
 
@@ -1359,7 +1359,35 @@ static void console_event_recv() {
 
 bool init_console(const loader_block_framebuffer& fb,
                   const loader_block_text_console& tc) {
-    if (!has_framebuffer) {
+    string_view console_opt;
+
+    loop_through_cmdline([&](string_view s) {
+        static const string_view prefix = "console=";
+
+        if (s.size() >= prefix.size() && string_view(s.data(), prefix.size()) == prefix) {
+            console_opt = string_view(s.data() + prefix.size(), s.size() - prefix.size());
+            return false;
+        }
+
+        return true;
+    });
+
+    if (console_opt == "/dev/ttyS0" && init_serial()) {
+        auto& p = static_cast<pipe&>(com1_pipe_handle.get());
+
+        p.acquire();
+
+        console_pipe = object_ref{p};
+
+        console_cols = 80; // FIXME
+        console_rows = 25; // FIXME
+
+        console_type = console_type::other;
+
+        return true;
+    }
+
+    if (console_type == console_type::text) {
         console_cols = tc.cols;
         console_rows = tc.rows;
 

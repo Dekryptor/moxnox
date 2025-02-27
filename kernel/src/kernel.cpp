@@ -107,10 +107,12 @@ static void keywait() {
 }
 
 void main_thread() {
-    init_keyboard();
-
-    if (has_framebuffer && !init_fb_console())
+    if (console_type == console_type::framebuffer && !init_fb_console())
         print("init_fb_console failed\n");
+
+    init_serial();
+
+    init_keyboard();
 
     print(MOXNOX_VERSION_STRING "\n");
 
@@ -127,8 +129,6 @@ void main_thread() {
 
         apic_ids[0] = current_cpu_id();
     }
-
-    init_serial();
 
     protect_kernel_pages();
 
@@ -214,7 +214,10 @@ void startup(loader_block* lb) {
     if (lb->edid)
         copy_edid(lb);
 
-    has_framebuffer = !lb->text_mode;
+    if (lb->text_mode)
+        console_type = console_type::text;
+    else
+        console_type = console_type::framebuffer;
 
     debug_info = span((uint8_t*)(uintptr_t)lb->debug_info_ptr, lb->debug_info_size);
     debug_abbrev = span((uint8_t*)(uintptr_t)lb->debug_abbrev_ptr, lb->debug_abbrev_size);
@@ -236,16 +239,16 @@ void startup(loader_block* lb) {
     if (!init_vablock())
         goto hang;
 
-    if (!init_console(fb, tc))
-        goto hang;
-
-    _printk = safe_print;
-
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
 
     if (!init_interrupts())
         goto hang;
+
+    if (!init_console(fb, tc))
+        goto hang;
+
+    _printk = safe_print;
 
     free_lower_half_mappings();
 

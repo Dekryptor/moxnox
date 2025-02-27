@@ -118,13 +118,19 @@ uint64_t va_to_pa(uint64_t va);
 void free_lower_half_mappings();
 
 // console.cpp
+enum class console_type {
+    text,
+    framebuffer,
+    other
+};
+
 bool init_console(const loader_block_framebuffer& fb,
                   const loader_block_text_console& tc);
 void safe_print(std::string_view s);
 extern void (*_printk)(std::string_view s);
 bool init_fb_console();
 void copy_edid(loader_block* lb);
-extern bool has_framebuffer;
+extern enum console_type console_type;
 
 // bsod.cpp
 __attribute__((noreturn)) void bsod(std::string_view msg, std::source_location sl = std::source_location::current(),
