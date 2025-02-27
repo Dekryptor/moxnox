@@ -86,21 +86,36 @@ static void keywait() {
     if (!do_wait)
         return;
 
-    auto keybh = open_object("keyboard");
+    pipe* p = nullptr;
 
-    if (!keybh) {
-        print("/dev/keyboard not found\n");
-        return;
+    if (console_type == console_type::other) {
+        if (!console_pipe)
+            return;
+
+        p = static_cast<pipe*>(&console_pipe.get());
+        p->acquire();
+    } else {
+        auto keybh = open_object("keyboard");
+
+        if (!keybh) {
+            print("/dev/keyboard not found\n");
+            return;
+        }
+
+        auto& keyb = keybh.get();
+
+        if (keyb.type != object_type::pipe) {
+            print("/dev/keyboard did not point to a pipe\n");
+            return;
+        }
+
+        p = static_cast<pipe*>(&keyb);
     }
 
-    auto& keyb = keybh.get();
-
-    if (keyb.type != object_type::pipe) {
-        print("/dev/keyboard did not point to a pipe\n");
+    if (!p)
         return;
-    }
 
-    auto& p = static_cast<pipe&>(keyb);
+    object_ref obj{*p}; // so it gets released automatically
     uint8_t c;
 
     print("Press any key to continue...\n\e[?25l");
@@ -108,7 +123,7 @@ static void keywait() {
     // FIXME - make sure this behaves properly if user presses a multi-character key (clear buffer?)
     while (true) {
         uint64_t read_bytes;
-        auto status = p.read(span(&c, 1), read_bytes);
+        auto status = p->read(span(&c, 1), read_bytes);
 
         if (!success(status) || read_bytes != 0)
             break;
