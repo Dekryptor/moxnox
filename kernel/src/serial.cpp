@@ -79,7 +79,7 @@ public:
 static serial_out_pipe* com1_pipe = nullptr;
 
 object_ref com1_pipe_handle;
-static object_ref com1_recv_handle, duplex_pipe;
+static object_ref com1_send_handle, com1_recv_handle;
 
 static object_ref create_serial_in_pipe(unsigned int buffer_pages) {
     auto pptr = new serial_in_pipe(buffer_pages);
@@ -118,8 +118,8 @@ bool init_serial() {
     if (!init_serial_port(com1_port))
         return true;
 
-    com1_pipe_handle = create_serial_out_pipe(serial_buffer_pages, com1_port);
-    if (!com1_pipe_handle) {
+    com1_send_handle = create_serial_out_pipe(serial_buffer_pages, com1_port);
+    if (!com1_send_handle) {
         print("create_serial_out_pipe failed\n");
         return false;
     }
@@ -130,7 +130,7 @@ bool init_serial() {
         return false;
     }
 
-    com1_pipe = &static_cast<serial_out_pipe&>(com1_pipe_handle.get());
+    com1_pipe = &static_cast<serial_out_pipe&>(com1_send_handle.get());
 
     auto& com1_recv_pipe = static_cast<serial_in_pipe&>(com1_recv_handle.get());
 
@@ -140,9 +140,9 @@ bool init_serial() {
         return false;
     }
 
-    duplex_pipe = object_ref{*pptr};
+    com1_pipe_handle = object_ref{*pptr};
 
-    if (!name_object(duplex_pipe.get(), "ttyS0")) {
+    if (!name_object(com1_pipe_handle.get(), "ttyS0")) {
         print("name_object failed\n");
         return false;
     }
