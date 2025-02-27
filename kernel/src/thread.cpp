@@ -290,7 +290,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     if (thread_handle) {
         auto& p = *get_current_thread()->proc;
 
-        auto h = p.add_handle(t, 0); // FIXME - access mask
+        auto h = p.add_handle(t, 0, true); // FIXME - access mask
 
         if (!h)
             return nt_status::INTERNAL_ERROR;

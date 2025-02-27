@@ -208,6 +208,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     auto t = get_current_thread();
     auto p = t->proc;
     object_ref root_dir;
+    bool shared_okay = true;
 
     if (!p)
         return nt_status::INVALID_PARAMETER;
@@ -291,6 +292,13 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
         }
     }
 
+    visit_obj(ino_ref.get(), [&](auto&& o) {
+        if constexpr (has_exclusive_field<remove_reference_t<decltype(o)>>)
+            shared_okay = !o.exclusive;
+    });
+
+    handle_t h;
+
     if (ino_ref.get().type == object_type::inode) {
         const auto& ino = static_cast<inode&>(ino_ref.get());
 
@@ -298,26 +306,34 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
             return nt_status::FILE_IS_A_DIRECTORY;
         else if (create_options & FILE_DIRECTORY_FILE && ino.inode_type != inode_type::directory)
             return nt_status::NOT_A_DIRECTORY;
-    }
 
-    auto f = new file(ino_ref.get());
+        auto f = new file(ino_ref.get());
 
-    if (!f) {
-        free(name);
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+        if (!f) {
+            free(name);
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
 
-    f->name = name;
-    f->namelen = namelen;
+        f->name = name;
+        f->namelen = namelen;
 
-    auto h = p->add_handle(*f, 0); // FIXME - access mask
-
-    if (!h) {
-        delete f;
-        return nt_status::INTERNAL_ERROR;
+        h = p->add_handle(*f, 0, shared_okay); // FIXME - access mask
+        if (!h) {
+            delete f;
+            return nt_status::INTERNAL_ERROR;
+        }
+    } else {
+        h = p->add_handle(ino_ref.get(), 0, shared_okay); // FIXME - access mask
+        if (!h) {
+            visit_obj(ino_ref.get(), [&](auto&& o) {
+                o.release();
+            });
+            return nt_status::INTERNAL_ERROR;
+        }
     }
 
     *file_handle = h;
+
     io_status_block->Information = FILE_OPENED;
 
     return nt_status::SUCCESS;

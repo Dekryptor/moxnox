@@ -46,12 +46,14 @@ public:
     event not_full_event;
     bool readonly = false;
     list_entry flushable_le;
+    bool exclusive = true;
 };
 
 static_assert(is_sync_object<pipe>);
 static_assert(is_readable_object_without_offset<pipe>);
 static_assert(is_writable_object_without_offset<pipe>);
 static_assert(has_ioctls<pipe>);
+static_assert(has_exclusive_field<pipe>);
 
 // pipe.cpp
 void add_to_flushable_pipes_list(pipe& p);

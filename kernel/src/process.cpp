@@ -125,13 +125,13 @@ object_ref create_process(string_view fn, string_view curdir,
     handle_t stdinh = 0, stdouth = 0, stderrh = 0;
 
     if (stdinobj)
-        stdinh = p.add_handle(stdinobj.get(), 0); // FIXME - access mask
+        stdinh = p.add_handle(stdinobj.get(), 0, true); // FIXME - access mask
 
     if (stdoutobj)
-        stdouth = p.add_handle(stdoutobj.get(), 0); // FIXME - access mask
+        stdouth = p.add_handle(stdoutobj.get(), 0, true); // FIXME - access mask
 
     if (stderrobj)
-        stderrh = p.add_handle(stderrobj.get(), 0); // FIXME - access mask
+        stderrh = p.add_handle(stderrobj.get(), 0, true); // FIXME - access mask
 
     auto curdir_file = new file(curdir_inode);
     if (!curdir_file) {
@@ -140,7 +140,7 @@ object_ref create_process(string_view fn, string_view curdir,
         return {};
     }
 
-    auto curdirh = p.add_handle(*curdir_file, 0); // FIXME - access mask
+    auto curdirh = p.add_handle(*curdir_file, 0, true); // FIXME - access mask
 
     curdir_file->release();
 
@@ -829,10 +829,16 @@ NTSTATUS NtResumeProcess(HANDLE proc_handle) {
     return nt_status::SUCCESS;
 }
 
-handle_t process::add_handle(object& obj, uint32_t access_mask) {
+handle_t process::add_handle(object& obj, uint32_t access_mask,
+                             bool allow_shared) {
     handle_t h;
 
     // FIXME - reusing handles?
+
+    if (obj.handle_count.fetch_add(1) > 0 && !allow_shared) {
+        obj.handle_count--;
+        return 0; // FIXME
+    }
 
     {
         lock_guard lock(handle_lock);
@@ -844,6 +850,7 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
             if (!pa) {
                 // FIXME - should be exception
                 print("allocate_page failed\n");
+                obj.handle_count--;
                 return 0;
             }
 
@@ -851,6 +858,7 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
             if (!va) {
                 print("allocate_page failed\n");
                 free_page(pa);
+                obj.handle_count--;
                 return 0;
             }
 
@@ -869,6 +877,8 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
 
                         free_va(va, needed_pages);
 
+                        obj.handle_count--;
+
                         return 0;
                     }
                 }
@@ -884,6 +894,8 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
                 }
 
                 free_va(va, needed_pages);
+
+                obj.handle_count--;
 
                 return 0;
             }
@@ -913,8 +925,6 @@ handle_t process::add_handle(object& obj, uint32_t access_mask) {
     visit_obj(obj, [](auto&& o) {
         o.acquire();
     });
-
-    obj.handle_count++;
 
     return h;
 }
@@ -2205,7 +2215,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     auto& curproc = *get_current_thread()->proc;
 
-    auto h = curproc.add_handle(p, 0); // FIXME - access mask
+    auto h = curproc.add_handle(p, 0, true); // FIXME - access mask
 
     if (!h) {
         p.release();
@@ -2300,7 +2310,7 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
     auto& obj = objrw->get();
 
-    auto h = destproc->add_handle(obj, 0); // FIXME - access mask
+    auto h = destproc->add_handle(obj, 0, true); // FIXME - access mask
 
     visit_obj(obj, [](auto&& o) { // deref_handle increased refcount
         o.release();

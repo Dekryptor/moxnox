@@ -28,7 +28,7 @@ public:
     bool copy_to(void* us_addr, const void* ks_addr, size_t size);
     void terminate();
     void resume();
-    handle_t add_handle(object& obj, uint32_t access_mask);
+    handle_t add_handle(object& obj, uint32_t access_mask, bool allow_shared);
     NTSTATUS allocate_vm(void** base_address, uintptr_t zero_bits, size_t* region_size,
                          uint32_t allocation_type, enum mapping_type protect);
     NTSTATUS free_vm(void** base_address, size_t* region_size, uint32_t free_type);

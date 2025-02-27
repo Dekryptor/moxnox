@@ -703,7 +703,7 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
     if (!success(status))
         return status;
 
-    auto h = p->add_handle(secth.get(), 0); // FIXME - access mask
+    auto h = p->add_handle(secth.get(), 0, true); // FIXME - access mask
 
     if (!h)
         return nt_status::INTERNAL_ERROR;

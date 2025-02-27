@@ -60,6 +60,9 @@ concept has_ioctls = requires(T t, uint32_t code, std::span<const uint8_t> inbuf
 };
 
 template<typename T>
+concept has_exclusive_field = std::is_same_v<decltype(T::exclusive), bool>;
+
+template<typename T>
 static void visit_obj(object& obj, const T& func);
 
 #include "thread.h"
