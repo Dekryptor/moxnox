@@ -120,7 +120,6 @@ void free_lower_half_mappings();
 // console.cpp
 bool init_console(const loader_block_framebuffer& fb,
                   const loader_block_text_console& tc);
-bool init_console_pipe();
 void safe_print(std::string_view s);
 extern void (*_printk)(std::string_view s);
 bool init_fb_console();

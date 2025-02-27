@@ -1334,6 +1334,29 @@ void safe_print(string_view s) {
         write(com1_pipe_handle, s);
 }
 
+static void console_event_recv() {
+    auto buf_size = console_buffer_pages << PAGE_SHIFT;
+
+    auto buf = (uint8_t*)malloc(buf_size);
+    if (!buf)
+        return;
+
+    do {
+        uint64_t read_bytes;
+
+        wait_for_object(console_pipe.get(), false);
+
+        auto status = static_cast<class console&>(console_pipe.get()).read(span(buf, buf_size), read_bytes);
+
+        // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
+
+        if (success(status) && read_bytes != 0)
+            early_print(string_view((char*)buf, read_bytes));
+    } while (true);
+
+    free(buf);
+}
+
 bool init_console(const loader_block_framebuffer& fb,
                   const loader_block_text_console& tc) {
     if (!has_framebuffer) {
@@ -1402,33 +1425,6 @@ bool init_console(const loader_block_framebuffer& fb,
         memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());
     }
 
-    return true;
-}
-
-static void console_event_recv() {
-    auto buf_size = console_buffer_pages << PAGE_SHIFT;
-
-    auto buf = (uint8_t*)malloc(buf_size);
-    if (!buf)
-        return;
-
-    do {
-        uint64_t read_bytes;
-
-        wait_for_object(console_pipe.get(), false);
-
-        auto status = static_cast<class console&>(console_pipe.get()).read(span(buf, buf_size), read_bytes);
-
-        // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
-
-        if (success(status) && read_bytes != 0)
-            early_print(string_view((char*)buf, read_bytes));
-    } while (true);
-
-    free(buf);
-}
-
-bool init_console_pipe() {
     auto pptr = new class console(console_buffer_pages);
     if (!pptr) {
         print("new failed\n");

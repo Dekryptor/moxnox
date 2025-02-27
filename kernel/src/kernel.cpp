@@ -239,13 +239,10 @@ void startup(loader_block* lb) {
     if (!init_console(fb, tc))
         goto hang;
 
+    _printk = safe_print;
+
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
-
-    if (!init_console_pipe())
-        goto hang;
-
-    _printk = safe_print;
 
     if (!init_interrupts())
         goto hang;
