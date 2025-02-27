@@ -169,7 +169,7 @@ static void text_console_putc(uint8_t x, uint8_t y, char32_t cp,
                               enum console_colour bg, enum console_colour fg) {
     auto c = cp437(cp);
 
-    text_console[(y * console_cols) + x] = text_console_val(c, bg, fg);
+    text_console[(y * console_cols) + x] = text_console_val((uint8_t)c, bg, fg);
 }
 
 static void text_console_move_cursor(uint8_t x, uint8_t y) {
@@ -312,7 +312,7 @@ static void do_print2(char c) {
             return;
         }
 
-        utf8_buf[utf8_chars] = c;
+        utf8_buf[utf8_chars] = (uint8_t)c;
         utf8_chars++;
 
         if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
@@ -322,7 +322,7 @@ static void do_print2(char c) {
                 return;
             }
 
-            char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
+            auto c = (char32_t)(((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f));
 
             print_char<FB>(c);
             utf8_chars = 0;
@@ -340,7 +340,7 @@ static void do_print2(char c) {
                     return;
                 }
 
-                char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
+                auto c = (char32_t)(((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f));
 
                 print_char<FB>(c);
                 utf8_chars = 0;
@@ -365,7 +365,7 @@ static void do_print2(char c) {
                     return;
                 }
 
-                char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
+                auto c = (char32_t)(((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f));
 
                 print_char<FB>(c);
                 utf8_chars = 0;
@@ -376,7 +376,7 @@ static void do_print2(char c) {
     }
 
     if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
-        utf8_buf[0] = c;
+        utf8_buf[0] = (uint8_t)c;
         utf8_chars = 1;
         return;
     } else if (c & 0x80) {
@@ -384,7 +384,7 @@ static void do_print2(char c) {
         return;
     }
 
-    print_char<FB>(c);
+    print_char<FB>((char32_t)c);
 }
 
 static void recalc_colours(bool fg) {
@@ -422,7 +422,7 @@ static void handle_sgr_part(string_view s) {
             return;
 
         num *= 10;
-        num += c - '0';
+        num += (unsigned int)(c - '0');
     }
 
     if constexpr (FB) {
@@ -674,7 +674,7 @@ static void move_cursor(string_view s) {
                 return;
 
             param *= 10;
-            param += c - '0';
+            param += (unsigned int)(c - '0');
         }
     }
 
@@ -741,7 +741,7 @@ static void erase_in_line(string_view s) {
                 return;
 
             param *= 10;
-            param += c - '0';
+            param += (unsigned int)(c - '0');
         }
     }
 
@@ -829,7 +829,7 @@ static void erase_in_display(string_view s) {
                 return;
 
             param *= 10;
-            param += c - '0';
+            param += (unsigned int)(c - '0');
         }
     }
 
@@ -918,7 +918,7 @@ static void scroll_up(string_view s) {
                 return;
 
             rows *= 10;
-            rows += c - '0';
+            rows += (unsigned int)(c - '0');
         }
 
         if (rows == 0)
@@ -943,7 +943,7 @@ static void scroll_down(string_view s) {
                 return;
 
             rows *= 10;
-            rows += c - '0';
+            rows += (unsigned int)(c - '0');
         }
 
         if (rows == 0)
@@ -996,7 +996,7 @@ static void set_cursor_position(string_view s) {
                 return;
 
             y *= 10;
-            y += s.front() - '0';
+            y += (unsigned int)(s.front() - '0');
 
             s = string_view(s.data() + 1, s.size() - 1);
         }
@@ -1013,7 +1013,7 @@ static void set_cursor_position(string_view s) {
                         return;
 
                     x *= 10;
-                    x += s.front() - '0';
+                    x += (unsigned int)(s.front() - '0');
 
                     s = string_view(s.data() + 1, s.size() - 1);
                 }
@@ -1248,7 +1248,7 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
                 auto g = (uint8_t)(((bg_colour_g * (255 - (uint32_t)*buf)) + (fg_colour_g * (uint32_t)*buf)) / 255);
                 auto b = (uint8_t)(((bg_colour_b * (255 - (uint32_t)*buf)) + (fg_colour_b * (uint32_t)*buf)) / 255);
 
-                base[x] = (r << 16) | (g << 8) | b;
+                base[x] = (unsigned int)((r << 16) | (g << 8) | b);
             }
 
             buf++;
@@ -1477,13 +1477,13 @@ bool init_console(const loader_block_framebuffer& fb,
 }
 
 static void* ft_alloc(FT_Memory, long size) {
-    return malloc(size);
+    return malloc((size_t)size);
 }
 
 static void* ft_realloc(FT_Memory, long cur_size, long new_size, void* block) {
     void* ret;
 
-    ret = malloc(new_size);
+    ret = malloc((size_t)new_size);
     if (!ret)
         return nullptr;
 
