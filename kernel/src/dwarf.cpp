@@ -1128,7 +1128,7 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
             return *(uint64_t*)data.data();
 
         case DW_FORM::addrx:
-            index = read_uleb128(data);
+            index = (uint64_t)read_uleb128(data);
             break;
 
         case DW_FORM::addrx1:
