@@ -291,12 +291,14 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
         }
     }
 
-    const auto& ino = static_cast<inode&>(ino_ref.get());
+    if (ino_ref.get().type == object_type::inode) {
+        const auto& ino = static_cast<inode&>(ino_ref.get());
 
-    if (create_options & FILE_NON_DIRECTORY_FILE && ino.inode_type == inode_type::directory)
-        return nt_status::FILE_IS_A_DIRECTORY;
-    else if (create_options & FILE_DIRECTORY_FILE && ino.inode_type != inode_type::directory)
-        return nt_status::NOT_A_DIRECTORY;
+        if (create_options & FILE_NON_DIRECTORY_FILE && ino.inode_type == inode_type::directory)
+            return nt_status::FILE_IS_A_DIRECTORY;
+        else if (create_options & FILE_DIRECTORY_FILE && ino.inode_type != inode_type::directory)
+            return nt_status::NOT_A_DIRECTORY;
+    }
 
     auto f = new file(ino_ref.get());
 
