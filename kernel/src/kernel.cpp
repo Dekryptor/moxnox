@@ -19,6 +19,9 @@ extern uint8_t __image_base__;
 
 list_entry kernel_images = { &kernel_images, &kernel_images };
 
+// console.cpp
+extern object_ref console_pipe;
+
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
 
@@ -49,9 +52,11 @@ void __cxa_pure_virtual() {
 }
 
 static object_ref create_init_process() {
-    auto initout = open_object("tty");
-    if (!initout)
-        bsod("Could not open tty object.");
+    auto& p = static_cast<pipe&>(console_pipe.get());
+
+    p.acquire();
+
+    object_ref initout{p};
 
     auto initin = open_object("keyboard");
     if (!initin)
