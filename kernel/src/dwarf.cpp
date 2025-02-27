@@ -979,7 +979,7 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
             return string_view();
 
         case DW_FORM::strx:
-            index = read_uleb128(data);
+            index = (uint64_t)read_uleb128(data);
             break;
 
         case DW_FORM::strx1:
