@@ -28,6 +28,7 @@ add_custom_command(
     TARGET efistub
     POST_BUILD
     COMMAND objcopy -S -K efi_main -O coff-i386 "${CMAKE_CURRENT_BINARY_DIR}/efistub.dll" "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
+    BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
 )
 
 set(SRC_FILES boot.S
