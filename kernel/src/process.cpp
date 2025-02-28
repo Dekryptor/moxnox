@@ -1197,7 +1197,7 @@ NTSTATUS process::unmap_proc_page(uint64_t va) {
         goto end2;
     }
 
-    if (!map_page((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT, buf + PAGE_SIZE, mapping_type::read_only)) {
+    if (!map_page((uint64_t)((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT), buf + PAGE_SIZE, mapping_type::read_only)) {
         print("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end2;
@@ -1210,7 +1210,7 @@ NTSTATUS process::unmap_proc_page(uint64_t va) {
         goto end3;
     }
 
-    if (!map_page((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT, buf + (2 * PAGE_SIZE), mapping_type::read_only)) {
+    if (!map_page((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT), buf + (2 * PAGE_SIZE), mapping_type::read_only)) {
         print("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end3;
@@ -1223,7 +1223,7 @@ NTSTATUS process::unmap_proc_page(uint64_t va) {
         goto end4;
     }
 
-    if (!map_page((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT, buf + (3 * PAGE_SIZE), mapping_type::read_write)) {
+    if (!map_page((uint64_t)((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT), buf + (3 * PAGE_SIZE), mapping_type::read_write)) {
         print("map_page failed\n");
         status = nt_status::INSUFFICIENT_RESOURCES;
         goto end4;
@@ -1589,7 +1589,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     ks_proc_params.CurrentDirectory.DosPath.MaximumLength = MAX_PATH * sizeof(char16_t);
     ks_proc_params.CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc.proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
 
-    auto ks_dos_path = span((char16_t*)((uint8_t*)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uint8_t*)proc.proc_params + va),
+    auto ks_dos_path = span((char16_t*)((size_t)((uint8_t*)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uint8_t*)proc.proc_params) + va),
                             ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
     create_dos_path(ks_dos_path, curdir);
 
@@ -1598,7 +1598,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     ks_proc_params.ImagePathName.Buffer = ks_proc_params.CurrentDirectory.DosPath.Buffer +
         (ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
 
-    auto ks_fn_path = span((char16_t*)((uint8_t*)ks_proc_params.ImagePathName.Buffer - (uint8_t*)proc.proc_params + va),
+    auto ks_fn_path = span((char16_t*)((size_t)((uint8_t*)ks_proc_params.ImagePathName.Buffer - (uint8_t*)proc.proc_params) + va),
                             ks_proc_params.ImagePathName.MaximumLength / sizeof(char16_t));
     create_dos_path(ks_fn_path, fn);
 
@@ -1702,17 +1702,17 @@ NTSTATUS process::change_proc_page_protection(uint64_t va, enum mapping_type pro
     if (!pml4[(va & 0xff8000000000) >> 39].Valid)
         return nt_status::SUCCESS;
 
-    pdpt = span((HARDWARE_PTE*)phys_address((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT), 512);
+    pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT)), 512);
 
     if (!pdpt[(va & 0x7fc0000000) >> 30].Valid)
         return nt_status::SUCCESS;
 
-    pdt = span((HARDWARE_PTE*)phys_address((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT), 512);
+    pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT)), 512);
 
     if (!pdt[(va & 0x3fe00000) >> 21].Valid)
         return nt_status::SUCCESS;
 
-    pt = span((HARDWARE_PTE*)phys_address((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT), 512);
+    pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT)), 512);
 
     protect_page2(pt[(va & 0x1ff000) >> 12], prot, false);
 

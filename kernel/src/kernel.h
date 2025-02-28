@@ -14,7 +14,7 @@
 #include "list.h"
 
 static const size_t PAGE_SIZE = 4096;
-#define PAGE_SHIFT 12
+static const unsigned int PAGE_SHIFT = 12;
 
 struct loader_block;
 class thread;
