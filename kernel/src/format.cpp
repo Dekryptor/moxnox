@@ -100,8 +100,16 @@ consteval bool valid_spec(string_view) {
 }
 
 span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
-    if (fmt.empty())
-        return sp_itoa(sp, arg);
+    if (fmt.empty()) {
+        if constexpr (is_signed_v<decltype(arg)>) {
+            if (arg < 0) {
+                sp = sp_strcpy(sp, "-");
+                return sp_itoa(sp, (uint64_t)-arg);
+            }
+        }
+
+        return sp_itoa(sp, (uint64_t)arg);
+    }
 
     if (fmt.size() >= 2 && fmt.front() == ':' && fmt.back() == 'x') {
         unsigned int padding = 0;
@@ -113,7 +121,14 @@ span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
 
         // FIXME - should be padded with spaces if first digit not 0
 
-        return sp_itoa_hex(sp, arg, padding);
+        if constexpr (is_signed_v<decltype(arg)>) {
+            if (arg < 0) {
+                sp = sp_strcpy(sp, "-");
+                return sp_itoa_hex(sp, (uint64_t)-arg, padding > 0 ? (padding - 1) : 0);
+            }
+        }
+
+        return sp_itoa_hex(sp, (uint64_t)arg, padding);
     }
 
     return sp;
