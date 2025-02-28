@@ -188,7 +188,7 @@ NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
         // FIXME - handle positive due_time (system time)
         return nt_status::INVALID_PARAMETER;
     } else
-        ticks = (-due_time * TICK_RATE) / SYSTEM_TIME_RESOLUTION;
+        ticks = (uint64_t)((-due_time * TICK_RATE) / SYSTEM_TIME_RESOLUTION);
 
     if (ticks == 0)
         ticks = 1;
@@ -205,7 +205,7 @@ NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
         periodic = period != 0;
 
         if (periodic)
-            orig_ticks = (period * TICK_RATE) / TIMER_PERIOD_RESOLUTION;
+            orig_ticks = (unsigned int)(period * TICK_RATE) / TIMER_PERIOD_RESOLUTION;
 
         if (!active) {
             insert_tail_list(active_timer_list, le);
