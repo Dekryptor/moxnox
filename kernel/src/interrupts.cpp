@@ -173,7 +173,7 @@ void enable_irq(uint8_t irq, bool enable) {
     auto val = read_reg(0x10 + (gsi * 2));
 
     if (enable)
-        val &= ~0x10000;
+        val &= (uint32_t)~0x10000;
     else
         val |= 0x10000;
 
@@ -611,7 +611,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
 
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, sp.data() - s));
+    bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
 extern "C"
@@ -632,7 +632,7 @@ void double_fault() {
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, sp.data() - s));
+    bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
 extern "C"
@@ -694,7 +694,7 @@ void general_protection_fault(uint64_t error_code) {
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, sp.data() - s));
+    bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
 extern "C"
@@ -754,7 +754,7 @@ void invalid_opcode() {
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, sp.data() - s));
+    bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
 extern "C"
@@ -814,7 +814,7 @@ void divide_by_zero() {
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, sp.data() - s));
+    bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
 extern "C"
@@ -874,7 +874,7 @@ void breakpoint() {
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, sp.data() - s));
+    bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
 extern "C"
@@ -934,5 +934,5 @@ void single_step() {
     sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, sp.data() - s));
+    bsod(string_view(s, (size_t)(sp.data() - s)));
 }
