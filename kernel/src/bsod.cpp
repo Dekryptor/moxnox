@@ -60,7 +60,7 @@ static void print_rip(pipe& p, uint64_t rip) {
 
     sp = format(sp, "\n");
 
-    p.write(string_view(s, sp.data() - s));
+    p.write(string_view(s, (size_t)(sp.data() - s)));
 }
 
 static const RUNTIME_FUNCTION* find_runtime_function(const kernel_image& img,
