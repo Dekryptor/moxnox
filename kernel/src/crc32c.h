@@ -46,7 +46,7 @@ constexpr uint32_t calc_crc32c(uint32_t seed, std::span<const T> msg) {
     uint32_t rem = seed;
 
     for (auto c : msg) {
-        rem = crctable[(rem ^ c) & 0xff] ^ (rem >> 8);
+        rem = crctable[(rem ^ (uint32_t)c) & 0xff] ^ (rem >> 8);
     }
 
     return rem;

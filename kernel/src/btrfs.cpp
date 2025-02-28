@@ -1942,7 +1942,7 @@ bool btrfs_filesystem::move_path_back(btrfs_path& p) {
 
         p.slots[i]--;
 
-        for (int8_t j = i; j > 0; j--) {
+        for (auto j = (int8_t)i; j > 0; j--) {
             const auto& th = *(tree_header*)p.data[j];
             auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
@@ -1976,7 +1976,7 @@ bool btrfs_filesystem::move_path_forward(btrfs_path& p) {
 
         p.slots[i]++;
 
-        for (int8_t j = i; j > 0; j--) {
+        for (auto j = (int8_t)i; j > 0; j--) {
             const auto& th = *(tree_header*)p.data[j];
             auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
@@ -2021,7 +2021,7 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
 }
 
 static btrfs_time get_btrfs_time() {
-    uint64_t now = system_time;
+    auto now = (uint64_t)system_time;
     btrfs_time ret;
 
     ret.nanoseconds = (uint32_t)((now % SYSTEM_TIME_RESOLUTION) * (1000000000 / SYSTEM_TIME_RESOLUTION));
@@ -2057,7 +2057,7 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
 
     auto& ii = *(inode_item*)data.data();
 
-    ii.st_size += diff;
+    ii.st_size = (uint64_t)((int64_t)ii.st_size + diff);
     ii.sequence++;
     ii.st_ctime = cur_time;
     ii.st_mtime = cur_time;
@@ -2205,7 +2205,7 @@ nt_status btrfs_inode::create_child(string_view name,
 
     // FIXME - adjust file_size and inode_item in in-memory inode?
 
-    status = adjust_inode_size(fs, *r, inode, name.size() * 2, cur_time);
+    status = adjust_inode_size(fs, *r, inode, (int64_t)(name.size() * 2), cur_time);
     if (!success(status))
         return status;
 
@@ -2605,7 +2605,7 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME - btrfs_inode::flush_cache\n"); // FIXME
+    print("FIXME - btrfs_inode::flush_cache ({:x}, {:x})\n", page_num, num_pages); // FIXME
 
     return 0;
 }
@@ -2852,7 +2852,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
 
     auto& fsi = *(free_space_info*)data.data();
 
-    fsi.count += delta;
+    fsi.count = (uint32_t)((int32_t)fsi.count + delta);
 
     // copy tree back into page cache and mark dirty
 
@@ -3045,12 +3045,12 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
 
     auto& bgi = *(block_group_item*)((uint8_t*)&th + sizeof(tree_header) + it.offset);
 
-    bgi.used += delta;
+    bgi.used = (uint64_t)((int64_t)bgi.used + delta);
 
     if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
-    fs.sb.bytes_used += delta;
+    fs.sb.bytes_used = (uint64_t)((int64_t)fs.sb.bytes_used + delta);
 
     return nt_status::SUCCESS;
 }
@@ -3255,7 +3255,7 @@ void btrfs_filesystem::flush_thread() {
     auto& tim = static_cast<timer&>(tim_ref.get());
 
     int64_t due_time_ticks = 300000000; // 30 seconds
-    auto due_time_ms = (uint32_t)((due_time_ticks * 1000) / SYSTEM_TIME_RESOLUTION);
+    auto due_time_ms = (int32_t)((due_time_ticks * 1000) / SYSTEM_TIME_RESOLUTION);
 
     auto status = tim.set(-due_time_ticks, nullptr, nullptr, false,
                           due_time_ms, nullptr);
