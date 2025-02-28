@@ -15,7 +15,7 @@ static bool interrupt_added = false;
 static spinlock sata_list_lock;
 static list_entry sata_list = { &sata_list, &sata_list };
 
-static constexpr uint32_t SATA_IS_CPDS = 1 << 31;
+static constexpr uint32_t SATA_IS_CPDS = (uint32_t)(1 << 31);
 static constexpr uint32_t SATA_IS_TFES = 1 << 30;
 static constexpr uint32_t SATA_IS_HBFS = 1 << 29;
 static constexpr uint32_t SATA_IS_HBDS = 1 << 28;
@@ -647,7 +647,7 @@ void sata_isr_func() {
 }
 
 static constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
-    return 0xfee00000 | (processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
+    return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
 }
 
 void init_sata(const pci_device& dev) {
