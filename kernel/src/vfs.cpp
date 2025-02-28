@@ -133,11 +133,13 @@ nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& d
                          create_options);
 }
 
-
 NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                     IO_STATUS_BLOCK* io_status_block, void* buffer,
                     uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
     auto buf = span((uint8_t*)buffer, length);
+
+    if (byte_offset && byte_offset->QuadPart < 0)
+        return nt_status::INVALID_PARAMETER;
 
     auto objrw = deref_handle(file_handle);
     if (!objrw)
@@ -175,7 +177,7 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     if (byte_offset) {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
-                status = o.read(buf, byte_offset->QuadPart, read);
+                status = o.read(buf, (uint64_t)byte_offset->QuadPart, read);
 
             o.release();
         });
