@@ -310,7 +310,7 @@ static uleb128 read_uleb128(span<const uint8_t>& sp) {
 
         sp = sp.subspan(1);
 
-        ret |= (byte & 0x7f) << (7 * i);
+        ret |= (uleb128)((byte & 0x7f) << (7 * i));
 
         if (!(byte & 0x80))
             break;
@@ -559,7 +559,7 @@ static void loop_through_dies(span<const uint8_t> cu, span<const uint8_t*> abbre
     while (true) {
         enum DW_TAG tag;
         bool has_children;
-        auto offset = (uint32_t)(cu.data() - orig_cu.data() + sizeof(dwarf_cu_header));
+        auto offset = (uint32_t)((size_t)(cu.data() - orig_cu.data()) + sizeof(dwarf_cu_header));
 
         auto abbrev_num = read_uleb128(cu);
 
@@ -575,7 +575,7 @@ static void loop_through_dies(span<const uint8_t> cu, span<const uint8_t*> abbre
             break;
 
         auto entry = span(abbrev_list[(size_t)abbrev_num - 1],
-                          abbrev_list[(size_t)abbrev_num] - abbrev_list[(size_t)abbrev_num - 1]);
+                          (size_t)(abbrev_list[(size_t)abbrev_num] - abbrev_list[(size_t)abbrev_num - 1]));
 
         tag = read_dw_enum<enum DW_TAG>(entry);
 
@@ -607,7 +607,7 @@ static void find_die_by_reference(span<const uint8_t> cu, uint32_t reference, sp
         return;
 
     auto entry = span(abbrev_list[(size_t)abbrev_num - 1],
-                      abbrev_list[(size_t)abbrev_num] - abbrev_list[(size_t)abbrev_num - 1]);
+                      (size_t)(abbrev_list[(size_t)abbrev_num] - abbrev_list[(size_t)abbrev_num - 1]));
 
     auto tag = read_dw_enum<enum DW_TAG>(entry);
 
@@ -727,7 +727,7 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
                 auto orig_die = die;
 
                 skip_leb128(die);
-                data = span(orig_die.data(), die.data() - orig_die.data());
+                data = span(orig_die.data(), (size_t)(die.data() - orig_die.data()));
                 break;
             }
 
@@ -759,7 +759,7 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
 
                 skip_leb128(new_att_list);
 
-                data = span(att_list.data(), new_att_list.data() - att_list.data());
+                data = span(att_list.data(), (size_t)(new_att_list.data() - att_list.data()));
                 att_list = new_att_list;
                 break;
             }
@@ -991,7 +991,7 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
             break;
 
         case DW_FORM::strx3:
-            index = data[0] | (data[1] << 8) | (data[2] << 16);
+            index = (uint64_t)(data[0] | (data[1] << 8) | (data[2] << 16));
             break;
 
         case DW_FORM::strx4:
@@ -1140,7 +1140,7 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
             break;
 
         case DW_FORM::addrx3:
-            index = data[0] | (data[1] << 8) | (data[2] << 16);
+            index = (uint64_t)(data[0] | (data[1] << 8) | (data[2] << 16));
             break;
 
         case DW_FORM::addrx4:
