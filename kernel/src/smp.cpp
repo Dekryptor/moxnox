@@ -39,7 +39,7 @@ static void start_ap(uint8_t i) {
     // send INIT IPI
 
     *error_status = 0;
-    *icr2 = (*icr2 & 0x00ffffff) | (i << 24);
+    *icr2 = (*icr2 & 0x00ffffff) | (uint32_t)(i << 24);
     *icr1 = (*icr1 & 0xfff00000) | 0xc500;
 
     // wait for delivery
@@ -50,7 +50,7 @@ static void start_ap(uint8_t i) {
 
     // deassert
 
-    *icr2 = (*icr2 & 0x00ffffff) | (i << 24);
+    *icr2 = (*icr2 & 0x00ffffff) | (uint32_t)(i << 24);
     *icr1 = (*icr1 & 0xfff00000) | 0x8500;
 
     // wait for delivery
@@ -65,7 +65,7 @@ static void start_ap(uint8_t i) {
 
     for (unsigned int j = 0; j < 2; j++) {
         *error_status = 0;
-        *icr2 = (*icr2 & 0x00ffffff) | (i << 24);
+        *icr2 = (*icr2 & 0x00ffffff) | (uint32_t)(i << 24);
         *icr1 = (*icr1 & 0xfff0f800) | 0x000600; // start at 0000:00000000
         pit_delay(PIT_HZ / 5000); // wait 200us
 
@@ -271,7 +271,7 @@ bool init_smp() {
         return false;
     }
 
-    memcpy(trampoline, &ap_trampoline, &ap_trampoline_end - &ap_trampoline);
+    memcpy(trampoline, &ap_trampoline, (size_t)(&ap_trampoline_end - &ap_trampoline));
 
     uint32_t* ap_cr3 = (uint32_t*)((uint8_t*)trampoline + (&ap_trampoline_cr3 - &ap_trampoline));
     uint64_t cr3;
