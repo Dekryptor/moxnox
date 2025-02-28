@@ -18,11 +18,11 @@ static const unsigned int keyboard_buffer_pages = 1;
 static optional<reference_wrapper<event>> keyboard_event_obj;
 static object_ref keyboard_obj;
 
-#define MODIFIER_LSHIFT     1
-#define MODIFIER_RSHIFT     2
-#define MODIFIER_EXTD       4
-#define MODIFIER_LCTRL      8
-#define MODIFIER_RCTRL      16
+static const unsigned int MODIFIER_LSHIFT = 1;
+static const unsigned int MODIFIER_RSHIFT = 2;
+static const unsigned int MODIFIER_EXTD = 4;
+static const unsigned int MODIFIER_LCTRL = 8;
+static const unsigned int MODIFIER_RCTRL = 16;
 
 static spinlock keyboard_lock;
 static uint8_t* keyboard_buffer;
