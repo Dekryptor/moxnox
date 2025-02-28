@@ -217,7 +217,7 @@ uint64_t allocate_page() {
             for (uint64_t j = 0; j < 64; j++) {
                 if (v & 1) {
                     mb[i] &= ~((uint64_t)1 << j);
-                    j = (j & ~7) + 7 - (j & 7);
+                    j = (j & (uint64_t)~7) + 7 - (j & 7);
                     return ((i * 64) + j) << PAGE_SHIFT;
                 }
 
@@ -401,7 +401,7 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
     memset(memblock + (off >> 3), 0xff, pages >> 3);
 
     if (pages & 7) {
-        off += pages & ~7;
+        off += pages & (uint64_t)~7;
         pages &= 7;
 
         auto& b = memblock[off >> 3];
@@ -436,7 +436,7 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     memset(memblock + (off >> 3), 0, pages >> 3);
 
     if (pages & 7) {
-        off += pages & ~7;
+        off += pages & (uint64_t)~7;
         pages &= 7;
 
         auto& b = memblock[off >> 3];
@@ -1004,7 +1004,7 @@ static void mark_vamem_as_used(uint64_t off, size_t pages) {
     memset(vablock + (off >> 6), 0, (pages >> 6) * sizeof(uint64_t));
 
     if (pages & 63) {
-        off += pages & ~63;
+        off += pages & (uint64_t)~63;
         pages &= 63;
 
         auto& b = vablock[off >> 6];
