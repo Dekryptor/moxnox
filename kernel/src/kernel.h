@@ -13,7 +13,7 @@
 #include "nt.h"
 #include "list.h"
 
-#define PAGE_SIZE 4096
+static const size_t PAGE_SIZE = 4096;
 #define PAGE_SHIFT 12
 
 struct loader_block;

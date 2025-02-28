@@ -458,7 +458,7 @@ bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 
         auto va = phys_address(page);
 
-        auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+        auto to_copy = min((size_t)size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
 
         memcpy(ks_addr, (uint8_t*)va + (offset & (PAGE_SIZE - 1)), to_copy);
 
@@ -486,7 +486,7 @@ bool section::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
         auto va = phys_address(page);
 
-        auto to_copy = min(size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+        auto to_copy = min((size_t)size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
 
         memcpy((uint8_t*)va + (offset & (PAGE_SIZE - 1)), ks_addr, to_copy);
 
