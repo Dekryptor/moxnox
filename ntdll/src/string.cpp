@@ -79,29 +79,29 @@ size_t utf8_to_utf16_len(string_view sv) {
         return 0;
 
     for (unsigned int i = 0; i < sv.size(); i++) {
-        uint32_t cp;
+        char32_t cp;
 
         if (!(sv[i] & 0x80))
-            cp = sv[i];
+            cp = (char32_t)sv[i];
         else if ((sv[i] & 0xe0) == 0xc0) {
             if (i == sv.size() - 1 || (sv[i+1] & 0xc0) != 0x80)
                 cp = 0xfffd;
             else {
-                cp = ((sv[i] & 0x1f) << 6) | (sv[i+1] & 0x3f);
+                cp = (char32_t)(((sv[i] & 0x1f) << 6) | (sv[i+1] & 0x3f));
                 i++;
             }
         } else if ((sv[i] & 0xf0) == 0xe0) {
             if (i >= sv.size() - 2 || (sv[i+1] & 0xc0) != 0x80 || (sv[i+2] & 0xc0) != 0x80)
                 cp = 0xfffd;
             else {
-                cp = ((sv[i] & 0xf) << 12) | ((sv[i+1] & 0x3f) << 6) | (sv[i+2] & 0x3f);
+                cp = (char32_t)(((sv[i] & 0xf) << 12) | ((sv[i+1] & 0x3f) << 6) | (sv[i+2] & 0x3f));
                 i += 2;
             }
         } else if ((sv[i] & 0xf8) == 0xf0) {
             if (i >= sv.size() - 3 || (sv[i+1] & 0xc0) != 0x80 || (sv[i+2] & 0xc0) != 0x80 || (sv[i+3] & 0xc0) != 0x80)
                 cp = 0xfffd;
             else {
-                cp = ((sv[i] & 0x7) << 18) | ((sv[i+1] & 0x3f) << 12) | ((sv[i+2] & 0x3f) << 6) | (sv[i+3] & 0x3f);
+                cp = (char32_t)(((sv[i] & 0x7) << 18) | ((sv[i+1] & 0x3f) << 12) | ((sv[i+2] & 0x3f) << 6) | (sv[i+3] & 0x3f));
                 i += 3;
             }
         } else
@@ -124,29 +124,29 @@ void utf8_to_utf16(span<char16_t> buf, string_view sv) {
         return;
 
     for (unsigned int i = 0; i < sv.size(); i++) {
-        uint32_t cp;
+        char32_t cp;
 
         if (!(sv[i] & 0x80))
-            cp = sv[i];
+            cp = (char32_t)sv[i];
         else if ((sv[i] & 0xe0) == 0xc0) {
             if (i == sv.size() - 1 || (sv[i+1] & 0xc0) != 0x80)
                 cp = 0xfffd;
             else {
-                cp = ((sv[i] & 0x1f) << 6) | (sv[i+1] & 0x3f);
+                cp = (char32_t)(((sv[i] & 0x1f) << 6) | (sv[i+1] & 0x3f));
                 i++;
             }
         } else if ((sv[i] & 0xf0) == 0xe0) {
             if (i >= sv.size() - 2 || (sv[i+1] & 0xc0) != 0x80 || (sv[i+2] & 0xc0) != 0x80)
                 cp = 0xfffd;
             else {
-                cp = ((sv[i] & 0xf) << 12) | ((sv[i+1] & 0x3f) << 6) | (sv[i+2] & 0x3f);
+                cp = (char32_t)(((sv[i] & 0xf) << 12) | ((sv[i+1] & 0x3f) << 6) | (sv[i+2] & 0x3f));
                 i += 2;
             }
         } else if ((sv[i] & 0xf8) == 0xf0) {
             if (i >= sv.size() - 3 || (sv[i+1] & 0xc0) != 0x80 || (sv[i+2] & 0xc0) != 0x80 || (sv[i+3] & 0xc0) != 0x80)
                 cp = 0xfffd;
             else {
-                cp = ((sv[i] & 0x7) << 18) | ((sv[i+1] & 0x3f) << 12) | ((sv[i+2] & 0x3f) << 6) | (sv[i+3] & 0x3f);
+                cp = (char32_t)(((sv[i] & 0x7) << 18) | ((sv[i+1] & 0x3f) << 12) | ((sv[i+2] & 0x3f) << 6) | (sv[i+3] & 0x3f));
                 i += 3;
             }
         } else
