@@ -358,7 +358,7 @@ void unimplemented_syscall(const char* name) {
 
             visit_obj(objrw_stderr.get(), [&](auto&& o) {
                 if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>) {
-                    o.write(span((uint8_t*)s, sp.data() - s)); // FIXME - handle short writes
+                    o.write(span((uint8_t*)s, (size_t)(sp.data() - s))); // FIXME - handle short writes
                     written = true;
                 }
             });
@@ -366,7 +366,7 @@ void unimplemented_syscall(const char* name) {
     }
 
     if (!written)
-        print("{}", string_view(s, sp.data() - s));
+        print("{}", string_view(s, (size_t)(sp.data() - s)));
 
     NtTerminateProcess(NtCurrentProcess(), nt_status::NOT_IMPLEMENTED);
 }
