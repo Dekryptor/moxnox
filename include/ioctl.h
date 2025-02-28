@@ -16,7 +16,7 @@ enum class IOCTL_ACCESS : uint8_t {
 
 static consteval uint32_t CTL_CODE(uint16_t device_type, uint32_t function,
                                    enum IOCTL_METHOD method, enum IOCTL_ACCESS access) {
-    return (uint32_t)(((uint32_t)device_type << 16) | ((uint8_t)access << 14) | (function << 2) | (uint8_t)method);
+    return (uint32_t)(((uint32_t)device_type << 16) | (uint32_t)((uint8_t)access << 14) | (function << 2) | (uint8_t)method);
 }
 
 static const uint16_t FILE_DEVICE_MOXNOX = 0x4d4e;

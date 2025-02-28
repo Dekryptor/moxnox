@@ -215,19 +215,19 @@ size_t serial_out_pipe::write(span<const uint8_t> s) {
 
     static const uint8_t SEND_BS[] = { '\b', ' ', '\b' };
 
-    for (int i = 0; i < (int)s.size(); i++) {
+    for (size_t i = 0; i < s.size(); i++) {
         if (s[i] == '\b') {
             if (last_bs == -1)
                 do_write(s.subspan(0, i));
             else
-                do_write(s.subspan(last_bs + 1, i - last_bs - 1));
+                do_write(s.subspan((size_t)(last_bs + 1), i - (size_t)(last_bs + 1)));
 
             do_write(SEND_BS);
-            last_bs = i;
+            last_bs = (int)i;
         }
     }
 
-    do_write(s.subspan(last_bs + 1, s.size() - last_bs - 1));
+    do_write(s.subspan((size_t)(last_bs + 1), s.size() - (size_t)(last_bs + 1)));
 
     return s.size();
 }
@@ -241,14 +241,14 @@ size_t serial_in_pipe::write(span<const uint8_t> s) {
     size_t ret = 0;
     int last_run_start = -1;
 
-    for (int i = 0; i < (int)s.size(); i++) {
+    for (size_t i = 0; i < s.size(); i++) {
         auto c = s[i];
 
         if (c == '\r' || c == 0x7f || c == '\x03') {
             if (last_run_start == -1)
-                ret += pipe::write(s.subspan(0, i));
+                ret += pipe::write(s.subspan(0, (size_t)i));
             else
-                ret += pipe::write(s.subspan(last_run_start + 1, i - last_run_start - 1));
+                ret += pipe::write(s.subspan((size_t)(last_run_start + 1), i - (size_t)(last_run_start + 1)));
 
             if (c == '\r') {
                 c = '\n';
@@ -259,11 +259,11 @@ size_t serial_in_pipe::write(span<const uint8_t> s) {
             } else if (c == '\x03')
                 handle_ctrl_c();
 
-            last_run_start = i;
+            last_run_start = (int)i;
         }
     }
 
-    ret += pipe::write(s.subspan(last_run_start + 1, s.size() - last_run_start - 1));
+    ret += pipe::write(s.subspan((size_t)(last_run_start + 1), s.size() - (size_t)(last_run_start + 1)));
 
     return ret;
 }
