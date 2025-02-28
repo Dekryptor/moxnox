@@ -203,7 +203,7 @@ bool volume::check_for_partitions() {
 
                 if (auto [ptr, ec] = to_chars(num, num + sizeof(num), i + 1); ec == errc()) {
                     partdev->volume_name_len = volume_name_len;
-                    partdev->volume_name_len += ptr - num;
+                    partdev->volume_name_len += (size_t)(ptr - num);
 
                     if (add_p)
                         partdev->volume_name_len++;
@@ -225,7 +225,7 @@ bool volume::check_for_partitions() {
                         p++;
                     }
 
-                    memcpy(p, num, ptr - num);
+                    memcpy(p, num, (size_t)(ptr - num));
 
                     auto sv = string_view(partdev->volume_name, partdev->volume_name_len);
 
