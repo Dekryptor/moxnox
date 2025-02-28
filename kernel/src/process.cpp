@@ -1413,7 +1413,7 @@ bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> p
 
 bool mapping_vm::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     while (true) {
-        auto to_copy = min((size_t)size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+        auto to_copy = (uint32_t)min((size_t)size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
 
         {
             lock_guard l(lock);
