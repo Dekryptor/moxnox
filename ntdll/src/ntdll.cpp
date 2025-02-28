@@ -361,7 +361,7 @@ static void toggle_protections_img(void* base, bool enable) {
 
         void* addr = (uint8_t*)base + sect.VirtualAddress;
         size_t size = section_size;
-        uint32_t new_prot, old_prot;
+        uint32_t new_prot = 0, old_prot;
 
         if (enable) {
             if (sect.Characteristics & IMAGE_SCN_MEM_WRITE && !(sect.Characteristics & IMAGE_SCN_MEM_EXECUTE))
