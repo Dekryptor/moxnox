@@ -37,7 +37,7 @@ static span<const uint8_t> find_mcfg() {
 }
 
 static constexpr uint64_t pci_pa(const apic_mcfg_item& item, uint8_t bus, uint8_t device, uint8_t function) {
-    return item.base_address | ((bus - item.start_number) << 20) | (device << 15) | (function << 12);
+    return item.base_address | (uint64_t)((bus - item.start_number) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12);
 }
 
 static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
@@ -47,7 +47,7 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
     // FIXME - header type 2 (PCI-to-CardBus bridge)
 
     if ((h.header_type & 0x7f) != 0) {
-        print("Unhandled PCI header type {:x}\n", h.header_type & 0x7f);
+        print("Unhandled PCI header type {:x}\n", (uint8_t)(h.header_type & 0x7f));
         return;
     }
 
