@@ -665,13 +665,18 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
                          uint32_t allocation_attributes, HANDLE file_handle) {
     auto t = get_current_thread();
     auto p = t->proc;
-    uint64_t size = maximum_size ? maximum_size->QuadPart : 0;
+    uint64_t size;
     optional<reference_wrapper<file>> f;
 
     // FIXME - desired_access
     // FIXME - object_attributes
     // FIXME - section_page_protection
     // FIXME - allocation_attributes that aren't SEC_IMAGE
+
+    if (maximum_size && maximum_size->QuadPart < 0)
+        return nt_status::INVALID_PARAMETER;
+
+    size = maximum_size ? (uint64_t)maximum_size->QuadPart : 0;
 
     if (file_handle) {
         auto objrw = deref_handle2(file_handle);
