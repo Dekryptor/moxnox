@@ -42,7 +42,7 @@ static void print_rip(uint64_t rip) {
 
     sp = sp_strcpy(sp, "\n");
 
-    print(string_view(s, sp.data() - s));
+    print(string_view(s, (size_t)(sp.data() - s)));
 }
 
 static span<const uint8_t> find_pdata(const LDR_DATA_TABLE_ENTRY& ldr) {
@@ -386,7 +386,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                         sp = sp_itoa_hex(sp, c.code);
                         sp = sp_strcpy(sp, "\n");
 
-                        print(string_view(s, sp.data() - s));
+                        print(string_view(s, (size_t)(sp.data() - s)));
                         free(codesptr);
                         return false;
                     }
@@ -489,7 +489,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         }
 
         sp = sp_context(sp, *context);
-        print(string_view(s, sp.data() - s));
+        print(string_view(s, (size_t)(sp.data() - s)));
 
         // FIXME - DWARF information in stack trace?
 
