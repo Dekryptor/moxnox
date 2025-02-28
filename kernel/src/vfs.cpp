@@ -356,6 +356,9 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                      uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
     auto buf = span((const uint8_t*)buffer, length);
 
+    if (byte_offset && byte_offset->QuadPart < 0)
+        return nt_status::INVALID_PARAMETER;
+
     auto objrw = deref_handle(file_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
@@ -391,7 +394,7 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     if (byte_offset) {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
-                written = o.write(buf, byte_offset->QuadPart);
+                written = o.write(buf, (uint64_t)byte_offset->QuadPart);
 
             o.release();
         });
