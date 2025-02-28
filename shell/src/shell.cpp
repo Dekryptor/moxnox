@@ -32,7 +32,7 @@ static void print(integral auto i) {
     char s[21];
 
     auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
-    print(string_view(s, ptr - s));
+    print(string_view(s, (size_t)(ptr - s)));
 }
 
 static void print(const chrono::year_month_day& ymd) {
@@ -500,7 +500,7 @@ static void timer() {
 }
 
 static void segfault() {
-    *(uint8_t*)0 = 0;
+    *(volatile uint8_t*)0 = 0;
 }
 
 static void halt() {
@@ -939,12 +939,12 @@ static void handle_char(char c) {
     if (utf8_chars != 0) {
         if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
             handle_char2(0xfffd);
-            handle_char2(c);
+            handle_char2((uint8_t)c);
             utf8_chars = 0;
             return;
         }
 
-        utf8_buf[utf8_chars] = c;
+        utf8_buf[utf8_chars] = (uint8_t)c;
         utf8_chars++;
 
         if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
@@ -954,7 +954,7 @@ static void handle_char(char c) {
                 return;
             }
 
-            char32_t c = ((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f);
+            auto c = (char32_t)((utf8_buf[0] & 0x1f) << 6) | (char32_t)(utf8_buf[1] & 0x3f);
 
             handle_char2(c);
             utf8_chars = 0;
@@ -972,7 +972,7 @@ static void handle_char(char c) {
                     return;
                 }
 
-                char32_t c = ((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f);
+                auto c = (char32_t)((utf8_buf[0] & 0xf) << 12) | (char32_t)((utf8_buf[1] & 0x3f) << 6) | (char32_t)(utf8_buf[2] & 0x3f);
 
                 handle_char2(c);
                 utf8_chars = 0;
@@ -997,7 +997,7 @@ static void handle_char(char c) {
                     return;
                 }
 
-                char32_t c = ((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f);
+                auto c = (char32_t)((utf8_buf[0] & 0x7) << 18) | (char32_t)((utf8_buf[1] & 0x3f) << 12) | (char32_t)((utf8_buf[2] & 0x3f) << 6) | (char32_t)(utf8_buf[3] & 0x3f);
 
                 handle_char2(c);
                 utf8_chars = 0;
@@ -1008,7 +1008,7 @@ static void handle_char(char c) {
     }
 
     if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
-        utf8_buf[0] = c;
+        utf8_buf[0] = (uint8_t)c;
         utf8_chars = 1;
         return;
     } else if (c & 0x80) {
@@ -1016,7 +1016,7 @@ static void handle_char(char c) {
         return;
     }
 
-    handle_char2(c);
+    handle_char2((char32_t)c);
 }
 
 static void handle_backspace() {
