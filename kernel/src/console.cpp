@@ -307,7 +307,7 @@ static void do_print2(char c) {
     if (utf8_chars != 0) {
         if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
             print_char<FB>(0xfffd);
-            print_char<FB>(c);
+            print_char<FB>((char32_t)c);
             utf8_chars = 0;
             return;
         }
@@ -1206,15 +1206,15 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
     auto& bitmap = font->glyph->bitmap;
     auto buf = bitmap.buffer;
 
-    auto width = bitmap.width;
-    if (fb_x + font->glyph->bitmap_left + width > fb_width)
-        width = fb_width - fb_x - font->glyph->bitmap_left;
+    auto width = (unsigned int)bitmap.width;
+    if ((int)fb_x + font->glyph->bitmap_left + (int)width > (int)fb_width)
+        width = (unsigned int)((int)fb_width - (int)fb_x - font->glyph->bitmap_left);
 
-    int y = fb_y - font->glyph->bitmap_top;
-    int bottom = y + bitmap.rows;
+    int y = (int)fb_y - font->glyph->bitmap_top;
+    int bottom = y + (int)bitmap.rows;
 
     if (y < 0) {
-        buf += bitmap.width * (font->glyph->bitmap_top - fb_y);
+        buf += bitmap.width * ((unsigned int)font->glyph->bitmap_top - fb_y);
         y = 0;
     }
 
@@ -1222,7 +1222,7 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
         return;
 
     if (bottom > (int)fb_height)
-        bottom = fb_height;
+        bottom = (int)fb_height;
 
     auto bg = c.bg;
     auto fg = c.fg;
@@ -1237,7 +1237,7 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
     uint32_t bg_colour_b = bg & 0xff;
     uint32_t fg_colour_b = fg & 0xff;
 
-    auto base = shadow_framebuffer.data() + (y * fb_pixels_per_scan_line) + fb_x + font->glyph->bitmap_left;
+    auto base = shadow_framebuffer.data() + ((uint32_t)y * fb_pixels_per_scan_line) + fb_x + font->glyph->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
@@ -1487,7 +1487,7 @@ static void* ft_realloc(FT_Memory, long cur_size, long new_size, void* block) {
     if (!ret)
         return nullptr;
 
-    memcpy(ret, block, cur_size < new_size ? new_size : cur_size);
+    memcpy(ret, block, cur_size < new_size ? (size_t)new_size : (size_t)cur_size);
 
     free(block);
 
@@ -1562,9 +1562,9 @@ bool init_fb_console() {
         return false;
     }
 
-    font_width = face->size->metrics.max_advance / 64;
-    font_height = face->size->metrics.height / 64;
-    font_descender = -face->size->metrics.descender / 64;
+    font_width = (unsigned int)(face->size->metrics.max_advance / 64);
+    font_height = (unsigned int)(face->size->metrics.height / 64);
+    font_descender = (unsigned int)(-face->size->metrics.descender / 64);
 
     console_cols = fb_width / font_width;
     console_rows = fb_height / font_height;
