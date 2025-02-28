@@ -469,7 +469,7 @@ static bool copy_acpi(const loader_block& lb) {
                 needed += tbl.Length;
         }
 
-        uint32_t needed_pages = (needed + PAGE_SIZE - 1) >> PAGE_SHIFT;
+        auto needed_pages = (uint32_t)((needed + PAGE_SIZE - 1) >> PAGE_SHIFT);
 
         for (unsigned int i = 0; i < needed_pages; i++) {
             auto pa = allocate_page();
