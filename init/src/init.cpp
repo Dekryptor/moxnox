@@ -57,7 +57,7 @@ void print_hex(uint64_t num, unsigned int padding) {
 
     sp = sp_itoa_hex(sp, num, padding);
 
-    print(string_view(s, sp.data() - s));
+    print(string_view(s, (size_t)(sp.data() - s)));
 }
 
 extern "C"
