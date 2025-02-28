@@ -88,7 +88,7 @@ static void print_string(string_view s) {
             t++;
         }
 
-        *t = c;
+        *t = (wchar_t)c;
         t++;
     }
 
@@ -355,7 +355,7 @@ static void print_error(const char* func, EFI_STATUS Status) {
     sp = sp_strcpy(sp, error_string(Status));
     sp = sp_strcpy(sp, "\n");
 
-    print_string(string_view(s, sp.data() - s));
+    print_string(string_view(s, (size_t)(sp.data() - s)));
 }
 
 static span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding = 0) {
@@ -505,7 +505,7 @@ static EFI_STATUS get_image_information(EFI_HANDLE image_handle,
         sp = sp_itoa_hex(sp, (uintptr_t)image->ImageBase);
         sp = sp_strcpy(sp, "\n");
 
-        print_string(string_view(s, sp.data() - s));
+        print_string(string_view(s, (size_t)(sp.data() - s)));
     }
 
     if (image->LoadOptionsSize == 0)
@@ -710,7 +710,7 @@ static string_view get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_F
         num *= 10;
 
         if (c >= '0' && c <= '9')
-            num += c - '0';
+            num += (unsigned int)(c - '0');
         else
             return name;
     }
@@ -803,15 +803,15 @@ EFI_STATUS load_pe(span<const uint8_t> payload, uint64_t va, uint64_t& entry_poi
     return EFI_SUCCESS;
 }
 
-static void insert_map_entry(int i) {
+static void insert_map_entry(unsigned int i) {
     // FIXME - memmove?
-    for (int j = num_map_entries - 1; j >= i; j--) {
+    for (int j = (int)num_map_entries - 1; j >= (int)i; j--) {
         memcpy(&map[j+1], &map[j], sizeof(map_entry));
     }
 }
 
-static void remove_map_entry(int i) {
-    memcpy(&map[i], &map[i+1], (num_map_entries - i - 1) * sizeof(map_entry));
+static void remove_map_entry(unsigned int i) {
+    memcpy(&map[i], &map[i+1], (size_t)(num_map_entries - i - 1) * sizeof(map_entry));
     num_map_entries--;
 }
 
@@ -1120,7 +1120,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
         sp = sp_itoa_hex(sp, va);
         sp = sp_strcpy(sp, " already set.\n");
 
-        print_string(string_view(s, sp.data() - s));
+        print_string(string_view(s, (size_t)(sp.data() - s)));
         return EFI_INVALID_PARAMETER;
     }
 
@@ -1245,7 +1245,7 @@ static EFI_STATUS find_acpi_tables(uint64_t& addr) {
         sp = sp_itoa_hex(sp, rsdp->revision);
         sp = sp_strcpy(sp, "\n");
 
-        print_string(string_view(s, sp.data() - s));
+        print_string(string_view(s, (size_t)(sp.data() - s)));
 
         return EFI_INVALID_PARAMETER;
     }
@@ -1481,7 +1481,7 @@ static void parse_video_option(unsigned int& preferred_width,
             break;
         else if (sv.front() >= '0' && sv.front() <= '9') {
             preferred_width *= 10;
-            preferred_width += sv.front() - '0';
+            preferred_width += (unsigned int)(sv.front() - '0');
         } else
             break;
 
@@ -1498,7 +1498,7 @@ static void parse_video_option(unsigned int& preferred_width,
     while (!sv.empty()) {
         if (sv.front() >= '0' && sv.front() <= '9') {
             preferred_height *= 10;
-            preferred_height += sv.front() - '0';
+            preferred_height += (unsigned int)(sv.front() - '0');
         } else {
             preferred_width = preferred_height = 0;
             return;
@@ -1547,8 +1547,8 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
         }
 
         if (have_edid && preferred_width == 0 && preferred_height == 0) {
-            preferred_width = ((uint16_t)(edid[0x3a] & 0xf0) << 4) | edid[0x38];
-            preferred_height = ((uint16_t)(edid[0x3d] & 0xf0) << 4) | edid[0x3b];
+            preferred_width = (uint16_t)((edid[0x3a] & 0xf0) << 4) | edid[0x38];
+            preferred_height = (uint16_t)((edid[0x3d] & 0xf0) << 4) | edid[0x3b];
         }
 
         for (unsigned int j = 0; j < gop->Mode->MaxMode; j++) {
