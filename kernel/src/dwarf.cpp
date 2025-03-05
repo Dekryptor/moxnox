@@ -421,6 +421,7 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             case DW_FORM::strx:
             case DW_FORM::addrx:
             case DW_FORM::rnglistx:
+            case DW_FORM::loclistx:
                 skip_leb128(die);
             break;
 
@@ -461,10 +462,6 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
 
             case DW_FORM::implicit_const:
             break;
-
-            case DW_FORM::loclistx:
-                print("FIXME - skipping because of DW_FORM_loclistx\n"); // FIXME
-                return false;
 
             case DW_FORM::ref_sup8:
                 print("FIXME - skipping because of DW_FORM_ref_sup8\n"); // FIXME
