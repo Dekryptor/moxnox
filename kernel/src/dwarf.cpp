@@ -653,22 +653,22 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
 
             case DW_FORM::data2:
             case DW_FORM::ref2:
-            case DW_FORM::strx2: // FIXME
-            case DW_FORM::addrx2: // FIXME
+            case DW_FORM::strx2:
+            case DW_FORM::addrx2:
                 data = span(die.data(), 2);
                 die = die.subspan(2);
             break;
 
-            case DW_FORM::strx3: // FIXME
-            case DW_FORM::addrx3: // FIXME
+            case DW_FORM::strx3:
+            case DW_FORM::addrx3:
                 data = span(die.data(), 2);
                 die = die.subspan(2);
             break;
 
             case DW_FORM::data4:
             case DW_FORM::ref4:
-            case DW_FORM::strx4: // FIXME
-            case DW_FORM::addrx4: // FIXME
+            case DW_FORM::strx4:
+            case DW_FORM::addrx4:
                 data = span(die.data(), 4);
                 die = die.subspan(4);
             break;
@@ -721,8 +721,8 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
 
             case DW_FORM::sdata:
             case DW_FORM::udata:
-            case DW_FORM::strx: // FIXME
-            case DW_FORM::addrx: // FIXME
+            case DW_FORM::strx:
+            case DW_FORM::addrx:
             case DW_FORM::rnglistx: {
                 auto orig_die = die;
 
