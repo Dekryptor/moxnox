@@ -858,6 +858,19 @@ void* malloc(size_t size) {
 }
 
 extern "C"
+void* calloc(size_t nmemb, size_t size) {
+    // FIXME - should test for overflow of nmemb * size
+
+    auto ptr = malloc(nmemb * size);
+    if (!ptr)
+        return nullptr;
+
+    memset(ptr, 0, nmemb * size);
+
+    return ptr;
+}
+
+extern "C"
 void free(void* ptr) {
     if (!ptr)
         return;
