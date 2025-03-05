@@ -338,6 +338,36 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     return 0;
 }
 
+extern "C"
+void* memmove(void* dest, const void* src, size_t n) {
+    auto orig_dest = dest;
+
+    if (dest <= src) {
+        while (n > 0) {
+            *(uint8_t*)dest = *(uint8_t*)src;
+
+            dest = (uint8_t*)dest + 1;
+            src = (uint8_t*)src + 1;
+
+            n--;
+        }
+    } else {
+        dest = (uint8_t*)dest + n - 1;
+        src = (uint8_t*)src + n - 1;
+
+        while (n > 0) {
+            *(uint8_t*)dest = *(uint8_t*)src;
+
+            dest = (uint8_t*)dest - 1;
+            src = (uint8_t*)src - 1;
+
+            n--;
+        }
+    }
+
+    return orig_dest;
+}
+
 static span<char> sp_strcpy(span<char> dest, string_view src) {
     auto to_copy = min(src.size(), dest.size());
 
