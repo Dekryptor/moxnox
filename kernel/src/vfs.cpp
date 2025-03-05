@@ -12,32 +12,33 @@ using namespace std;
 
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
+struct mount {
+    mount(size_t path_len) : path_len(path_len) { }
+
+    ~mount() {
+        if (fs->refcount.fetch_sub(1) == 1)
+            delete fs;
+    }
+
+    list_entry le;
+    ::filesystem* fs = nullptr;
+    spinlock children_lock;
+    list_entry children = { &children, &children };
+    size_t path_len;
+    char path[0];
+};
+
 static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
-static ::filesystem* root_fs = nullptr;
+static mount root(0);
 
 void add_fs_to_list(::filesystem& fs) {
     lock_guard lock(fs_lock);
     insert_tail_list(fs_list, fs.le);
 }
 
-bool mount_root() {
-    string_view cmdline_root;
-
-    loop_through_cmdline([&](string_view s) {
-        static const char root_option[] = "root=";
-
-        if (s.size() < sizeof(root_option) - 1)
-            return true;
-
-        if (string_view(s.data(), sizeof(root_option) - 1) != root_option)
-            return true;
-
-        cmdline_root = string_view(s.data() + sizeof(root_option) - 1,
-                                   s.size() - sizeof(root_option) + 1);
-
-        return false;
-    });
+static ::filesystem* do_mount_root(string_view cmdline_root) {
+    ::filesystem* ret = nullptr;
 
     if (!cmdline_root.empty()) {
         static const char prefix[] = "/dev/";
@@ -69,10 +70,10 @@ bool mount_root() {
                             cmdline_root);
             }
 
-            root_fs = &vol.filesystem->get();
-            root_fs->refcount++;
+            ret = &vol.filesystem->get();
+            ret->refcount++;
 
-            return true;
+            return ret;
         }
     }
 
@@ -82,7 +83,7 @@ bool mount_root() {
 
     if (is_list_empty(fs_list)) {
         print("No filesytems found.\n");
-        return false;
+        return nullptr;
     }
 
     // choose MN partition
@@ -92,22 +93,48 @@ bool mount_root() {
         auto& fs = containing_record<::filesystem>(le);
 
         if (fs.vol.type_guid == moxnox_partition_guid) {
-            if (root_fs) {
+            if (ret) {
                 print("Multiple Moxnox partitions, not sure which to choose\n");
-                root_fs = nullptr;
-                return false;
+                return nullptr;
             }
 
-            root_fs = &fs;
+            ret = &fs;
         }
 
         le = le->next;
     }
 
-    if (!root_fs) {
+    if (!ret) {
         print("No Moxnox partition found\n");
-        return false;
+        return nullptr;
     }
+
+    return ret;
+}
+
+bool mount_root() {
+    string_view cmdline_root;
+
+    loop_through_cmdline([&](string_view s) {
+        static const char root_option[] = "root=";
+
+        if (s.size() < sizeof(root_option) - 1)
+            return true;
+
+        if (string_view(s.data(), sizeof(root_option) - 1) != root_option)
+            return true;
+
+        cmdline_root = string_view(s.data() + sizeof(root_option) - 1,
+                                   s.size() - sizeof(root_option) + 1);
+
+        return false;
+    });
+
+    auto root_fs = do_mount_root(cmdline_root);
+    if (!root_fs)
+        return false;
+
+    root.fs = root_fs;
 
     return true;
 }
@@ -121,7 +148,7 @@ nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& d
         return nt_status::SUCCESS;
     }
 
-    if (!root_fs) {
+    if (!root.fs) {
         print("No root filesystem.\n");
         return nt_status::INTERNAL_ERROR;
     }
@@ -129,7 +156,7 @@ nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& d
     // FIXME - handle mount points
     // FIXME - /dev
 
-    return root_fs->open(fn, dir, obj_ref, create_disposition,
+    return root.fs->open(fn, dir, obj_ref, create_disposition,
                          create_options);
 }
 
