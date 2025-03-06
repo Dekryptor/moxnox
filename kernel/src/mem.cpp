@@ -25,9 +25,13 @@ static unsigned int heap_pages = 0;
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
 
+static uint8_t* const initrd_addr = (uint8_t*)0xfffffa5000000000;
+
 static spinlock pa_spinlock, va_spinlock, heap_spinlock;
 static spinlock pml4_spinlock, pdpt_spinlock, pdt_spinlock;
 static spinlock protect_page_spinlock;
+
+span<const uint8_t> initrd;
 
 static bool treat_as_free(enum mem_type type) {
     switch (type) {
@@ -607,6 +611,27 @@ static bool map_physical_memory(uint64_t total_pages) {
     return true;
 }
 
+static bool load_initrd(void* data, uintptr_t size) {
+    auto pages = bytes_to_pages(size);
+
+    for (unsigned int i = 0; i < pages; i++) {
+        auto pa = allocate_page();
+        if (!pa)
+            bsod("allocate_page failed in load_initrd");
+
+        if (!map_page(pa, (uintptr_t)initrd_addr + (i << PAGE_SHIFT), mapping_type::read_write))
+            bsod("map_page failed in load_initrd");
+    }
+
+    memcpy(initrd_addr, data, size);
+
+    initrd = span(initrd_addr, size);
+
+    // FIXME - should free this memory once boot is done
+
+    return true;
+}
+
 bool init_memory(const loader_block& lb) {
     uint64_t total_pages, num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
@@ -685,6 +710,12 @@ bool init_memory(const loader_block& lb) {
     // FIXME - probably should double-check that framebuffer memory is marked used
 
     map_physical_memory(total_pages);
+
+    if (lb.initrd_size != 0) {
+        load_initrd((void*)lb.initrd_data, lb.initrd_size);
+
+        // FIXME - mark source memory as free (is page-aligned)
+    }
 
     return true;
 }
