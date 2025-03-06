@@ -186,7 +186,9 @@ start:
 .byte	1 # loadflags (LOADED_HIGH)
 .short	0x8000 # setup_move_size
 .long	0x100000 # code32_start
+.initrd_ptr:
 .long	0 # ramdisk_image
+.initrd_size:
 .long	0 # ramdisk_size
 .long	0 # bootsect_kludge
 .short	0 # heap_end_ptr (51c0)
@@ -809,6 +811,14 @@ e820_count:
 .global cmdline
 cmdline:
 .long	.cmd_line_ptr - start + 0x200
+
+.global initrd_data
+initrd_data:
+.long	.initrd_ptr - start + 0x200
+
+.global initrd_size
+initrd_size:
+.long	.initrd_size - start + 0x200
 
 .section .vbe
 .global vbe_info

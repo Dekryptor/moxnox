@@ -12,7 +12,8 @@ enum class mem_type {
     acpi,
     uefi_code,
     uefi_data,
-    framebuffer
+    framebuffer,
+    initrd
 };
 
 struct map_entry {
@@ -44,6 +45,8 @@ struct loader_block {
         loader_block_text_console text_console;
     };
     uint64_t cmdline;
+    uint64_t initrd_data;
+    uint64_t initrd_size;
     uint64_t edid;
     uint64_t debug_info_ptr;
     uint64_t debug_info_size;

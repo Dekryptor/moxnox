@@ -58,6 +58,27 @@ enter_protected_mode:
 
     mov eax, ebx
     shl eax, 4
+    mov ecx, DWORD PTR [_ptr_initrd_data]
+    or eax, ecx
+    mov ecx, DWORD PTR [eax]
+    mov eax, ebx
+    shl eax, 4
+    or eax, ecx
+    mov eax, DWORD PTR [eax]
+    mov DWORD PTR [_ptr_initrd_data], eax
+
+    mov eax, ebx
+    shl eax, 4
+    mov ecx, DWORD PTR [_ptr_initrd_size]
+    or eax, ecx
+    mov ecx, DWORD PTR [eax]
+    mov eax, ebx
+    shl eax, 4
+    or eax, ecx
+    mov DWORD PTR [_ptr_initrd_size], eax
+
+    mov eax, ebx
+    shl eax, 4
     or eax, DWORD PTR [_pm_vbe_selected_mode]
     mov ax, WORD PTR [eax]
     and eax, 0xffff
@@ -138,6 +159,14 @@ _ptr_e820_count:
 .globl _ptr_cmdline
 _ptr_cmdline:
 .long cmdline
+
+.globl _ptr_initrd_data
+_ptr_initrd_data:
+.long initrd_data
+
+.globl _ptr_initrd_size
+_ptr_initrd_size:
+.long initrd_size
 
 .global _pm_vbe_selected_mode
 _pm_vbe_selected_mode:

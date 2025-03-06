@@ -52,6 +52,8 @@ extern uint32_t* ptr_e820_count;
 extern uint8_t payload_data;
 extern const uint64_t payload_size;
 extern char* ptr_cmdline;
+extern uint8_t* ptr_initrd_data;
+extern uint32_t* ptr_initrd_size;
 extern vbe_mode_info* ptr_vbe_modes;
 extern uint32_t pm_vbe_selected_mode;
 extern void* ptr_vbe_edid;
@@ -72,6 +74,8 @@ static uint32_t debug_info_size, debug_abbrev_size, debug_rnglists_size,
 static const uint64_t img_addr = 0xfffff80000000000;
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
 static const unsigned int KERNEL_STACK_PAGES = 4;
+
+static uintptr_t initrd_addr = 0;
 
 static span<uint16_t> text_console;
 enum class console_colour : uint8_t {
@@ -534,6 +538,7 @@ static void enable_paging() {
 
         switch (m.type) {
             case mem_type::bootloader:
+            case mem_type::initrd:
                 for (uint64_t j = 0; j < m.len; j += PAGE_SIZE) {
                     map_page(pd, m.addr + j, m.addr + j);
                 }
@@ -992,6 +997,21 @@ static bool load_payload() {
     return true;
 }
 
+static void load_initrd() {
+    auto size = *ptr_initrd_size;
+
+    if (size == 0)
+        return;
+
+    auto pages = (size + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+    auto addr = (uint8_t*)get_pages(mem_type::initrd, pages);
+
+    memcpy(addr, ptr_initrd_data, size);
+
+    initrd_addr = (uintptr_t)addr;
+}
+
 static void copy_e820_entries() {
     for (unsigned int i = 0; i < *ptr_e820_count; i++) {
         const auto& e = ptr_e820_entries[i];
@@ -1167,6 +1187,9 @@ void protected_mode_main() {
     sanitize_mem_entries();
     mark_bootloader_memory();
 
+    // as early as possible, as it could be in "free" memory
+    load_initrd();
+
     setup_gdt();
 
     if (!find_acpi()) {
@@ -1187,6 +1210,8 @@ void protected_mode_main() {
     lb.num_map_entries = mem_entries_count;
     lb.rsdt_pa = rsdt_address;
     lb.cmdline = (uintptr_t)ptr_cmdline;
+    lb.initrd_data = initrd_addr;
+    lb.initrd_size = *ptr_initrd_size;
     lb.debug_info_ptr = debug_info_ptr;
     lb.debug_info_size = debug_info_size;
     lb.debug_abbrev_ptr = debug_abbrev_ptr;
