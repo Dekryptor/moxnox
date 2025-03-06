@@ -6,6 +6,7 @@
 #include "handle.h"
 
 import format;
+import dwarf;
 
 using namespace std;
 
@@ -43,7 +44,10 @@ static void print_rip(pipe& p, uint64_t rip) {
 
         sp = format(sp, " ({}!", img->name);
 
-        auto func_start = dwarf_find_function(*img, rip, sp);
+        auto func_start = dwarf_find_function(img->debug_info, img->debug_abbrev,
+                                              img->debug_rnglists, img->debug_addr,
+                                              img->debug_str, img->debug_str_offsets,
+                                              rip, sp);
 
         if (func_start != 0) {
             if (rip != func_start)

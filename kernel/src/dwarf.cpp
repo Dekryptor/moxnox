@@ -1,4 +1,12 @@
-#include "kernel.h"
+module;
+
+#include <stdint.h>
+#include <span>
+#include <string_view>
+#include <stdlib.h>
+#include <optional>
+
+export module dwarf;
 
 import format;
 
@@ -956,7 +964,8 @@ static bool form_is_string(enum DW_FORM form) {
 }
 
 static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
-                               const kernel_image& img,
+                               span<const uint8_t> debug_str,
+                               span<const uint8_t> debug_str_offsets,
                                optional<uint32_t> str_offsets_base) {
     uint64_t index;
 
@@ -965,7 +974,7 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
             return string_view((char*)data.data(), data.size());
 
         case DW_FORM::strp:
-            return string_view((char*)img.debug_str.data() + *(uint32_t*)data.data());
+            return string_view((char*)debug_str.data() + *(uint32_t*)data.data());
 
         case DW_FORM::line_strp:
             print("FIXME - DW_FORM::line_strp\n");
@@ -1004,17 +1013,19 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
         return string_view();
     }
 
-    if (*str_offsets_base + ((index + 1) * sizeof(uint32_t)) > img.debug_str_offsets.size()) {
+    if (*str_offsets_base + ((index + 1) * sizeof(uint32_t)) > debug_str_offsets.size()) {
         print("DW_FORM::strx would overflow .debug_str_offsets section\n");
         return string_view();
     }
 
-    auto list = (uint32_t*)(img.debug_str_offsets.data() + *str_offsets_base);
+    auto list = (uint32_t*)(debug_str_offsets.data() + *str_offsets_base);
 
-    return string_view((char*)img.debug_str.data() + list[index]);
+    return string_view((char*)debug_str.data() + list[index]);
 }
 
-static void get_func_name(const kernel_image& img, span<const uint8_t> die,
+static void get_func_name(span<const uint8_t> debug_str,
+                          span<const uint8_t> debug_str_offsets,
+                          span<const uint8_t> die,
                           span<const uint8_t> att_list,
                           span<const uint8_t*> abbrev_list,
                           span<const uint8_t> cu, span<char>& sp,
@@ -1024,9 +1035,9 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
 
     loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
         if (att_num == DW_AT::name && form_is_string(form))
-            name = read_string(data, form, img, str_offsets_base);
+            name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
         else if (att_num == DW_AT::linkage_name && form_is_string(form))
-            linkage_name = read_string(data, form, img, str_offsets_base);
+            linkage_name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
         else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
             specification = *(uint32_t*)data.data();
 
@@ -1055,17 +1066,17 @@ static void get_func_name(const kernel_image& img, span<const uint8_t> die,
     do {
         name = string_view();
 
-        find_die_by_reference(cu, ref, abbrev_list, [&name, &linkage_name, &img, &str_offsets_base]
+        find_die_by_reference(cu, ref, abbrev_list, [&name, &linkage_name, &debug_str, &debug_str_offsets, &str_offsets_base]
                 (enum DW_TAG tag, span<const uint8_t> die, span<const uint8_t> att_list) {
             if (tag == DW_TAG::compile_unit)
                 return;
 
-            loop_through_atts(die, att_list, [&name, &linkage_name, &img, &str_offsets_base]
+            loop_through_atts(die, att_list, [&name, &linkage_name, &debug_str, &debug_str_offsets, &str_offsets_base]
                     (enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
                 if (att_num == DW_AT::name && form_is_string(form))
-                    name = read_string(data, form, img, str_offsets_base);
+                    name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
                 else if (att_num == DW_AT::linkage_name && form_is_string(form))
-                    linkage_name = read_string(data, form, img, str_offsets_base);
+                    linkage_name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
 
                 return true;
             });
@@ -1169,10 +1180,13 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
     return list[index];
 }
 
-uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
-                              span<const uint8_t> cu, span<const uint8_t> abbrev,
-                              span<char>& sp, optional<uint32_t> addr_base,
-                              optional<uint32_t> str_offsets_base) {
+static uint64_t dwarf_find_function2(span<const uint8_t> debug_addr,
+                                     span<const uint8_t> debug_str,
+                                     span<const uint8_t> debug_str_offsets,
+                                     uint64_t addr, span<const uint8_t> cu,
+                                     span<const uint8_t> abbrev,
+                                     span<char>& sp, optional<uint32_t> addr_base,
+                                     optional<uint32_t> str_offsets_base) {
     uint64_t func_start = 0;
 
     auto abbrev_list = load_abbrev_entries(abbrev);
@@ -1192,10 +1206,10 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
 
         loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
             if (att_num == DW_AT::low_pc && form_is_address(form))
-                low_pc = read_address(data, form, img.debug_addr, addr_base);
+                low_pc = read_address(data, form, debug_addr, addr_base);
             else if (att_num == DW_AT::high_pc) {
                 if (form_is_address(form))
-                    high_pc = read_address(data, form, img.debug_addr, addr_base);
+                    high_pc = read_address(data, form, debug_addr, addr_base);
                 else if (form == DW_FORM::data8) // FIXME - generic integer-reading code
                     func_length = *(uint64_t*)data.data();
                 else if (form == DW_FORM::data4) // FIXME - generic integer-reading code
@@ -1216,7 +1230,8 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
 
         die = orig_die;
 
-        get_func_name(img, die, att_list, abbrev_list, cu, sp, str_offsets_base);
+        get_func_name(debug_str, debug_str_offsets, die, att_list,
+                      abbrev_list, cu, sp, str_offsets_base);
 
         func_start = *low_pc;
         return false;
@@ -1227,27 +1242,25 @@ uint64_t dwarf_find_function2(const kernel_image& img, uint64_t addr,
     return func_start;
 }
 
-uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
-                             span<char>& sp) {
-    auto info = img.debug_info;
-    if (info.empty())
+export uint64_t dwarf_find_function(span<const uint8_t> debug_info,
+                                    span<const uint8_t> debug_abbrev,
+                                    span<const uint8_t> debug_rnglists,
+                                    span<const uint8_t> debug_addr,
+                                    span<const uint8_t> debug_str,
+                                    span<const uint8_t> debug_str_offsets,
+                                    uint64_t addr, span<char>& sp) {
+    if (debug_info.empty())
         return 0;
-
-    auto abbrev = img.debug_abbrev;
-    if (abbrev.empty())
-        return 0;
-
-    auto rnglists = img.debug_rnglists;
 
     span<const uint8_t> found_cu;
     uint32_t found_debug_abbrev_object;
     optional<uint32_t> addr_base, str_offsets_base;
 
     // find CU with addr in DW_AT_ranges
-    loop_through_cus(info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
+    loop_through_cus(debug_info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
         auto current_cu = cu;
 
-        auto abbrev_list = load_abbrev_entries(abbrev.subspan(debug_abbrev_object));
+        auto abbrev_list = load_abbrev_entries(debug_abbrev.subspan(debug_abbrev_object));
 
         if (abbrev_list.empty())
             return true;
@@ -1285,8 +1298,8 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
             });
 
             if (ranges_offset.has_value()) {
-                if (addr_in_range(addr, rnglists.subspan(*ranges_offset),
-                                  img.debug_addr, addr_base)) {
+                if (addr_in_range(addr, debug_rnglists.subspan(*ranges_offset),
+                                  debug_addr, addr_base)) {
                     found_cu = current_cu;
                     found_debug_abbrev_object = debug_abbrev_object;
                 }
@@ -1300,10 +1313,10 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
                 // FIXME - check rnglist has DWARF header
                 // FIXME - check *rnglistx < offset_entry_count in header
 
-                auto offset = *(uint32_t*)(rnglists.data() + *rnglist_base + (*rnglistx * sizeof(uint32_t)));
+                auto offset = *(uint32_t*)(debug_rnglists.data() + *rnglist_base + (*rnglistx * sizeof(uint32_t)));
 
-                if (addr_in_range(addr, rnglists.subspan(*rnglist_base + offset),
-                                  img.debug_addr, addr_base)) {
+                if (addr_in_range(addr, debug_rnglists.subspan(*rnglist_base + offset),
+                                  debug_addr, addr_base)) {
                     found_cu = current_cu;
                     found_debug_abbrev_object = debug_abbrev_object;
                 }
@@ -1326,7 +1339,7 @@ uint64_t dwarf_find_function(const kernel_image& img, uint64_t addr,
     if (found_cu.empty())
         return 0;
 
-    return dwarf_find_function2(img, addr, found_cu,
-                                abbrev.subspan(found_debug_abbrev_object),
+    return dwarf_find_function2(debug_addr, debug_str, debug_str_offsets, addr,
+                                found_cu, debug_abbrev.subspan(found_debug_abbrev_object),
                                 sp, addr_base, str_offsets_base);
 }
