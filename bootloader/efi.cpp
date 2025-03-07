@@ -71,6 +71,12 @@ struct RSDP_DESCRIPTOR {
     char reserved[3];
 } __attribute__((packed));
 
+#define LINUX_EFI_INITRD_MEDIA_GUID {0x5568e427, 0x68fc, 0x4f3d, {0xac, 0x74, 0xca, 0x55, 0x52, 0x31, 0xcc, 0x68}}
+#define EFI_LOAD_FILE2_PROTOCOL_GUID { 0x4006c0c1, 0xfcb3, 0x403e, { 0x99, 0x6d, 0x4a, 0x6c, 0x87, 0x24, 0xe0, 0x6d }}
+
+static UINTN initrd_size = 0;
+static EFI_PHYSICAL_ADDRESS initrd_data;
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE);
 }
@@ -1211,6 +1217,7 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
         switch (map_copy[i].type) {
             case mem_type::bootloader:
             case mem_type::acpi:
+            case mem_type::initrd:
                 status = do_map(map_copy[i].addr, map_copy[i].addr, map_copy[i].len); // identity map
 
                 if (EFI_ERROR(status))
@@ -1279,6 +1286,59 @@ static EFI_STATUS find_acpi_tables(uint64_t& addr) {
 
         return EFI_INVALID_PARAMETER;
     }
+
+    return EFI_SUCCESS;
+}
+
+static const struct {
+    VENDOR_DEVICE_PATH vendor;
+    EFI_DEVICE_PATH_PROTOCOL end;
+} __attribute__((packed)) initrd_dev_path = {
+    {
+        {
+            MEDIA_DEVICE_PATH,
+            MEDIA_VENDOR_DP,
+            sizeof(VENDOR_DEVICE_PATH)
+        },
+        LINUX_EFI_INITRD_MEDIA_GUID
+    },
+    {
+        END_DEVICE_PATH_TYPE,
+        END_ENTIRE_DEVICE_PATH_SUBTYPE,
+        sizeof(EFI_DEVICE_PATH_PROTOCOL)
+    }
+};
+
+static EFI_STATUS find_initrd() {
+    EFI_STATUS Status;
+    EFI_GUID load_file2_guid = EFI_LOAD_FILE2_PROTOCOL_GUID;
+    auto devpath = (EFI_DEVICE_PATH_PROTOCOL*)&initrd_dev_path;
+    EFI_HANDLE handle;
+    EFI_LOAD_FILE_PROTOCOL* lf2;
+
+    Status = bs->LocateDevicePath(&load_file2_guid, &devpath, &handle);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    Status = bs->HandleProtocol(handle, &load_file2_guid, (void**)&lf2);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    Status = lf2->LoadFile(lf2, devpath, false, &initrd_size, nullptr);
+    if (Status != EFI_BUFFER_TOO_SMALL)
+        return Status;
+
+    if (initrd_size == 0)
+        return EFI_NOT_FOUND;
+
+    Status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData,
+                               bytes_to_pages(initrd_size), &initrd_data);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    Status = lf2->LoadFile(lf2, devpath, false, &initrd_size, (void*)initrd_data);
+    if (EFI_ERROR(Status))
+        return Status;
 
     return EFI_SUCCESS;
 }
@@ -1405,6 +1465,8 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     lb.rsdt_pa = acpi_tables;
     lb.text_mode = false;
     lb.cmdline = (uintptr_t)cmdline;
+    lb.initrd_data = initrd_data;
+    lb.initrd_size = initrd_size;
     lb.edid = have_edid ? (uintptr_t)edid : 0;
     lb.debug_info_ptr = debug_info_ptr;
     lb.debug_info_size = debug_info_size;
@@ -1676,6 +1738,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         return Status;
     }
 
+    Status = find_initrd();
+    if (EFI_ERROR(Status) && Status != EFI_NOT_FOUND) {
+        print_error("find_initrd", Status);
+        return Status;
+    }
+
     Status = init_framebuffer(image_handle);
     if (EFI_ERROR(Status)) {
         print_error("init_framebuffer", Status);
@@ -1698,6 +1766,15 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     if (EFI_ERROR(Status)) {
         print_error("add_map_entry", Status);
         return Status;
+    }
+
+    if (initrd_size != 0) {
+        Status = add_map_entry(initrd_data, bytes_to_pages(initrd_size) << EFI_PAGE_SHIFT,
+                               mem_type::initrd);
+        if (EFI_ERROR(Status)) {
+            print_error("add_map_entry", Status);
+            return Status;
+        }
     }
 
     Status = add_map_entry((uintptr_t)lb.framebuffer.phys_address,
