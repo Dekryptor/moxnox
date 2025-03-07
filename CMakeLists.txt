@@ -2,10 +2,18 @@ cmake_minimum_required(VERSION 3.15)
 
 project(moxnox)
 
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 
 include_directories(include)
+
+add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
+
+add_library(format STATIC)
+target_sources(format PUBLIC FILE_SET CXX_MODULES FILES format/format.cpp)
+target_compile_options(format PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
 
 add_subdirectory(kernel)
 add_subdirectory(bootloader)
