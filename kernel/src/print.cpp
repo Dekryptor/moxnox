@@ -32,3 +32,9 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
 
     enable_preempt();
 }
+
+export
+extern "C++"
+void do_print(string_view sv) {
+    _printk(sv);
+}

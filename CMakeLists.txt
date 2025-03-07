@@ -12,8 +12,13 @@ include_directories(include)
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 add_library(format STATIC)
-target_sources(format PUBLIC FILE_SET CXX_MODULES FILES format/format.cpp)
+target_sources(format PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
 target_compile_options(format PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+
+add_library(dwarf STATIC)
+target_sources(dwarf PUBLIC FILE_SET CXX_MODULES FILES modules/dwarf.cpp)
+target_compile_options(dwarf PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_link_libraries(dwarf format)
 
 add_subdirectory(kernel)
 add_subdirectory(bootloader)

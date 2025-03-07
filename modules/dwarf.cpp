@@ -9,9 +9,10 @@ module;
 export module dwarf;
 
 import format;
-import print;
 
 using namespace std;
+
+extern "C++" void do_print(string_view sv);
 
 using uleb128 = unsigned __int128;
 
@@ -422,7 +423,7 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             break;
 
             case DW_FORM::flag:
-                print("FIXME - skipping because of DW_FORM_flag\n"); // FIXME
+                do_print("FIXME - skipping because of DW_FORM_flag\n"); // FIXME
                 return false;
 
             case DW_FORM::sdata:
@@ -442,27 +443,27 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             break;
 
             case DW_FORM::ref_addr:
-                print("FIXME - skipping because of DW_FORM_ref_addr\n"); // FIXME
+                do_print("FIXME - skipping because of DW_FORM_ref_addr\n"); // FIXME
                 return false;
 
             case DW_FORM::ref_udata:
-                print("FIXME - skipping because of DW_FORM_ref_udata\n"); // FIXME
+                do_print("FIXME - skipping because of DW_FORM_ref_udata\n"); // FIXME
                 return false;
 
             case DW_FORM::indirect:
-                print("FIXME - skipping because of DW_FORM_indirect\n"); // FIXME
+                do_print("FIXME - skipping because of DW_FORM_indirect\n"); // FIXME
                 return false;
 
             case DW_FORM::flag_present:
             break;
 
             case DW_FORM::ref_sig8:
-                print("FIXME - skipping because of DW_FORM_ref_sig8\n"); // FIXME
+                do_print("FIXME - skipping because of DW_FORM_ref_sig8\n"); // FIXME
                 return false;
 
 
             case DW_FORM::ref_sup4:
-                print("FIXME - skipping because of DW_FORM_ref_sup4\n"); // FIXME
+                do_print("FIXME - skipping because of DW_FORM_ref_sup4\n"); // FIXME
                 return false;
 
             case DW_FORM::data16:
@@ -473,13 +474,18 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
             break;
 
             case DW_FORM::ref_sup8:
-                print("FIXME - skipping because of DW_FORM_ref_sup8\n"); // FIXME
+                do_print("FIXME - skipping because of DW_FORM_ref_sup8\n"); // FIXME
                 return false;
 
-            default:
-                print("skipping DIE because of unknown DW_FORM value {}\n",
-                      (unsigned int)form);
+            default: {
+                char s[100];
+                span sp(s, sizeof(s));
+
+                sp = format(sp, "skipping DIE because of unknown DW_FORM value {}\n", (unsigned int)form);
+                do_print(string_view(s, (size_t)(sp.data() - s)));
+
                 return false;
+            }
         }
 
         if (form == DW_FORM::implicit_const)
@@ -773,9 +779,15 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             // FIXME - DW_FORM::loclistx
             // FIXME - DW_FORM::ref_sup8
 
-            default:
-                print("unhandled DWARF form {:x}\n", (unsigned int)form);
+            default: {
+                char s[100];
+                span sp(s, sizeof(s));
+
+                sp = format(sp, "unhandled DWARF form {:x}\n", (unsigned int)form);
+                do_print(string_view(s, (size_t)(sp.data() - s)));
+
                 return;
+            }
         }
 
         if (!func(att_num, form, data))
@@ -801,7 +813,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
                 auto index = read_uleb128(rnglist);
 
                 if (!addr_base.has_value()) {
-                    print("DW_RLE_base_addressx but no DW_AT_addr_base value\n");
+                    do_print("DW_RLE_base_addressx but no DW_AT_addr_base value\n");
                     return false;
                 }
 
@@ -809,7 +821,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
                 // FIXME - check .debug_addr header than segment_selector_size == 0
 
                 if (*addr_base + ((index + 1) * sizeof(uint64_t)) > debug_addr.size()) {
-                    print("DW_RLE_base_addressx would overflow .debug_addr section\n");
+                    do_print("DW_RLE_base_addressx would overflow .debug_addr section\n");
                     return false;
                 }
 
@@ -820,7 +832,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
             }
 
             case DW_RLE::startx_endx:
-                print("unhandled DWARF RLE type startx_endx\n");
+                do_print("unhandled DWARF RLE type startx_endx\n");
                 // FIXME
                 return false;
 
@@ -829,7 +841,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
                 auto length = read_uleb128(rnglist);
 
                 if (!addr_base.has_value()) {
-                    print("DW_RLE_startx_length but no DW_AT_addr_base value\n");
+                    do_print("DW_RLE_startx_length but no DW_AT_addr_base value\n");
                     return false;
                 }
 
@@ -837,7 +849,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
                 // FIXME - check .debug_addr header than segment_selector_size == 0
 
                 if (*addr_base + ((index + 1) * sizeof(uint64_t)) > debug_addr.size()) {
-                    print("DW_RLE_base_addressx would overflow .debug_addr section\n");
+                    do_print("DW_RLE_base_addressx would overflow .debug_addr section\n");
                     return false;
                 }
 
@@ -867,12 +879,12 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
             }
 
             case DW_RLE::base_address:
-                print("unhandled DWARF RLE type base_address\n");
+                do_print("unhandled DWARF RLE type base_address\n");
                 // FIXME
                 return false;
 
             case DW_RLE::start_end:
-                print("unhandled DWARF RLE type start_end\n");
+                do_print("unhandled DWARF RLE type start_end\n");
                 // FIXME
                 return false;
 
@@ -889,9 +901,15 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
                 break;
             }
 
-            default:
-                print("unhandled DWARF RLE type {:x}\n", (unsigned int)type);
+            default: {
+                char s[100];
+                span sp(s, sizeof(s));
+
+                sp = format(sp, "unhandled DWARF RLE type {:x}\n", (unsigned int)type);
+                do_print(string_view(s, (size_t)(sp.data() - s)));
+
                 return false;
+            }
         }
     }
 
@@ -978,11 +996,11 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
             return string_view((char*)debug_str.data() + *(uint32_t*)data.data());
 
         case DW_FORM::line_strp:
-            print("FIXME - DW_FORM::line_strp\n");
+            do_print("FIXME - DW_FORM::line_strp\n");
             return string_view();
 
         case DW_FORM::strp_sup:
-            print("FIXME - DW_FORM::strp_sup\n");
+            do_print("FIXME - DW_FORM::strp_sup\n");
             return string_view();
 
         case DW_FORM::strx:
@@ -1010,12 +1028,12 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
     }
 
     if (!str_offsets_base.has_value()) {
-        print("DW_FORM::strx but no str_offsets_base\n");
+        do_print("DW_FORM::strx but no str_offsets_base\n");
         return string_view();
     }
 
     if (*str_offsets_base + ((index + 1) * sizeof(uint32_t)) > debug_str_offsets.size()) {
-        print("DW_FORM::strx would overflow .debug_str_offsets section\n");
+        do_print("DW_FORM::strx would overflow .debug_str_offsets section\n");
         return string_view();
     }
 
@@ -1161,7 +1179,7 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
     }
 
     if (!addr_base.has_value()) {
-        print("DW_FORM::addrx specified but no DW_AT::addr_base given\n");
+        do_print("DW_FORM::addrx specified but no DW_AT::addr_base given\n");
         return nullopt;
     }
 
@@ -1169,7 +1187,7 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
     // FIXME - check .debug_addr header than segment_selector_size == 0
 
     if (*addr_base + ((index + 1) * sizeof(uint64_t)) > debug_addr.size()) {
-        print("DW_FORM::addrx would overflow .debug_addr section\n");
+        do_print("DW_FORM::addrx would overflow .debug_addr section\n");
         return false;
     }
 
