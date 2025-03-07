@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <optional>
 
+import format;
+
 using namespace std;
 
 static LDR_DATA_TABLE_ENTRY* get_ldr_from_address(uint64_t addr) {
@@ -28,19 +30,14 @@ static void print_rip(uint64_t rip) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = sp_itoa_hex(sp, rip, 16);
+    sp = format(sp, "{:16x}", rip);
 
     auto ldr = get_ldr_from_address(rip);
 
-    if (ldr) {
-        sp = sp_strcpy(sp, " (");
-        sp = sp_strcpy(sp, ldr->BaseDllName);
-        sp = sp_strcpy(sp, "+");
-        sp = sp_itoa_hex(sp, rip - (uintptr_t)ldr->DllBase);
-        sp = sp_strcpy(sp, ")");
-    }
+    if (ldr)
+        sp = format(sp, " ({}+{:x})", ldr->BaseDllName, rip - (uintptr_t)ldr->DllBase);
 
-    sp = sp_strcpy(sp, "\n");
+    sp = format(sp, "\n");
 
     print(string_view(s, (size_t)(sp.data() - s)));
 }
@@ -382,9 +379,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                         char s[50];
                         auto sp = span(s, sizeof(s));
 
-                        sp = sp_strcpy(sp, "unrecognized unwind opcode ");
-                        sp = sp_itoa_hex(sp, c.code);
-                        sp = sp_strcpy(sp, "\n");
+                        sp = format(sp, "unrecognized unwind opcode {:x}\n", c.code);
 
                         print(string_view(s, (size_t)(sp.data() - s)));
                         free(codesptr);
@@ -458,37 +453,32 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         switch ((NTSTATUS)exception->ExceptionCode) {
             case nt_status::ACCESS_VIOLATION:
                 // FIXME - translate error code to descriptive message
-                sp = sp_strcpy(sp, "Page fault (address = ");
-                sp = sp_itoa_hex(sp, exception->ExceptionInformation[1]);
-                sp = sp_strcpy(sp, ", error code = ");
-                sp = sp_itoa_hex(sp, exception->ExceptionInformation[0]);
-                sp = sp_strcpy(sp, ")\n");
+                sp = format(sp, "Page fault (address = {:x}, error code = {:x})\n",
+                            exception->ExceptionInformation[1], exception->ExceptionInformation[0]);
             break;
 
             case nt_status::INTEGER_DIVIDE_BY_ZERO:
-                sp = sp_strcpy(sp, "Divide by zero\n");
+                sp = format(sp, "Divide by zero\n");
             break;
 
             case nt_status::ILLEGAL_INSTRUCTION:
-                sp = sp_strcpy(sp, "Invalid opcode\n");
+                sp = format(sp, "Invalid opcode\n");
             break;
 
             case nt_status::BREAKPOINT:
-                sp = sp_strcpy(sp, "Unhandled breakpoint\n");
+                sp = format(sp, "Unhandled breakpoint\n");
             break;
 
             case nt_status::SINGLE_STEP:
-                sp = sp_strcpy(sp, "Unhandled single-step breakpoint\n");
+                sp = format(sp, "Unhandled single-step breakpoint\n");
             break;
 
             default:
-                sp = sp_strcpy(sp, "Unhandled exception ");
-                sp = sp_itoa_hex(sp, exception->ExceptionCode, 8);
-                sp = sp_strcpy(sp, "\n");
+                sp = format(sp, "Unhandled exception {:8x}\n", exception->ExceptionCode);
             break;
         }
 
-        sp = sp_context(sp, *context);
+        sp = format(sp, "{}", *context);
         print(string_view(s, (size_t)(sp.data() - s)));
 
         // FIXME - DWARF information in stack trace?

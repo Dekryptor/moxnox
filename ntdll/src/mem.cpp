@@ -116,3 +116,17 @@ void* memmove(void* dest, const void* src, size_t n) {
 
     return orig_dest;
 }
+
+extern "C"
+void* memchr(const void* ptr, int ch, size_t count) {
+    auto p = (uint8_t*)ptr;
+
+    for (size_t i = 0; i < count; i++) {
+        if (*p == ch)
+            return p;
+
+        p++;
+    }
+
+    return nullptr;
+}
