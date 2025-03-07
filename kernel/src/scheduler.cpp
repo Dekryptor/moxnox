@@ -7,7 +7,7 @@
 #include <optional>
 #include <atomic>
 
-import format;
+import print;
 
 using namespace std;
 

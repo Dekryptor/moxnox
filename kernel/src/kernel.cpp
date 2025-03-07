@@ -6,7 +6,7 @@
 #include "handle.h"
 #include <string_view>
 
-import format;
+import print;
 
 using namespace std;
 

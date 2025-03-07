@@ -2,7 +2,7 @@
 #include "objects.h"
 #include "page_cache.h"
 
-import format;
+import print;
 
 using namespace std;
 

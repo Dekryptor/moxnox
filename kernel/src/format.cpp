@@ -5,19 +5,10 @@ module;
 #include <source_location>
 #include <stdint.h>
 #include <nt.h>
-#include "cpu_block.h"
 
 export module format;
 
 using namespace std;
-
-extern "C++" void (*_printk)(string_view s);
-extern "C++" void disable_preempt();
-extern "C++" void enable_preempt();
-extern "C++" __attribute__((noreturn)) void bsod(string_view msg, source_location sl,
-                                                 bool skip_caller);
-
-#define PAGE_SIZE 4096 // FIXME - only define in one place
 
 span<char> sp_strcpy(span<char> dest, string_view src) {
     auto to_copy = min(src.size(), dest.size());
@@ -328,6 +319,7 @@ consteval bool valid_spec<AMD64_CONTEXT>(string_view fmt) {
     return fmt.empty();
 }
 
+export
 template<typename T, typename... Args>
 span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... args) {
     // FIXME - {{ and }} escaping
@@ -360,6 +352,7 @@ span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... arg
         return sp_strcpy(sp, fmt);
 }
 
+export
 span<char> format_to(span<char> sp, string_view fmt) {
     return sp_strcpy(sp, fmt);
 }
@@ -376,6 +369,7 @@ consteval void check_specs(span<string_view, sizeof...(Args) + 1> sp,
         check_specs(span<string_view, sizeof...(Args)>(sp.data() + 1, sp.size() - 1), (tuple<Args...>*)nullptr);
 }
 
+export
 template<typename... Args>
 struct checker {
     consteval checker(const char* q) : sv(q) {
@@ -435,44 +429,3 @@ template<typename... Args>
 span<char> format(span<char> sp, type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
     return format_to(sp, fmt.sv, args...);
 }
-
-export
-template<typename... Args>
-void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
-    disable_preempt();
-
-    auto& cb = *get_cpu_block();
-
-    auto sp = span(cb.printk_scratch, PAGE_SIZE);
-
-    sp = format_to(sp, fmt.sv, args...);
-
-    _printk(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
-
-    enable_preempt();
-}
-
-export
-template<typename... Args>
-struct bsod_format {
-    __attribute__((noreturn))
-    bsod_format(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args,
-                const source_location& sl = source_location::current()) {
-        disable_preempt();
-
-        auto& cb = *get_cpu_block();
-
-        auto sp = span(cb.printk_scratch, PAGE_SIZE);
-
-        sp = format_to(sp, fmt.sv, args...);
-
-        bsod(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)), sl,
-             true);
-
-        enable_preempt();
-    }
-};
-
-export
-template<typename... Args>
-bsod_format(type_identity_t<checker<type_identity_t<Args>...>>, Args&&...) -> bsod_format<Args...>;

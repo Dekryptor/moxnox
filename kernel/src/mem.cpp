@@ -6,7 +6,7 @@
 #include <span>
 #include <cstring>
 
-import format;
+import print;
 
 using namespace std;
 

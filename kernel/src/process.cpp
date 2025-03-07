@@ -5,7 +5,7 @@
 #include <limits>
 #include <pe.h>
 
-import format;
+import print;
 
 using namespace std;
 

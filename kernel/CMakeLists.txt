@@ -56,6 +56,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/format.cpp
     src/inout.cpp
     src/dwarf.cpp
+    src/print.cpp
 )
 
 include_directories(../freetype/include)

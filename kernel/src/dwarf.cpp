@@ -9,6 +9,7 @@ module;
 export module dwarf;
 
 import format;
+import print;
 
 using namespace std;
 

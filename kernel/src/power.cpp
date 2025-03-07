@@ -3,7 +3,7 @@
 #include "objects.h"
 #include "pipe.h"
 
-import format;
+import print;
 import inout;
 
 using namespace std;

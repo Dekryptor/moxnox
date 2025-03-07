@@ -4,8 +4,7 @@
 #include "mem.h"
 #include <pe.h>
 
-import format;
-
+import print;
 using namespace std;
 
 // #define debug_printk printk

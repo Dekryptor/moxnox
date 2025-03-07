@@ -6,7 +6,7 @@
 #include "rwsem.h"
 #include <shared_mutex>
 
-import format;
+import print;
 
 using namespace std;
 

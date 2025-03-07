@@ -3,7 +3,7 @@
 #include "objects.h"
 #include "handle.h"
 
-import format;
+import print;
 
 using namespace std;
 

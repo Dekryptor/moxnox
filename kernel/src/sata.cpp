@@ -5,7 +5,7 @@
 #include "spinlock.h"
 #include "mem.h"
 
-import format;
+import print;
 
 using namespace std;
 

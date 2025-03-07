@@ -8,7 +8,7 @@
 #include <shared_mutex>
 #include <variant>
 
-import format;
+import print;
 
 using namespace std;
 

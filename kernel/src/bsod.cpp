@@ -6,6 +6,7 @@
 #include "handle.h"
 
 import format;
+import print;
 import dwarf;
 
 using namespace std;

@@ -4,7 +4,7 @@
 #include <console.h>
 #include <ioctl.h>
 
-import format;
+import print;
 import inout;
 
 using namespace std;

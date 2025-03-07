@@ -4,7 +4,7 @@
 #include "tick_rate.h"
 #include "handle.h"
 
-import format;
+import print;
 
 using namespace std;
 

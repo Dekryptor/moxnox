@@ -5,7 +5,7 @@
 #include "mem.h"
 #include <atomic>
 
-import format;
+import print;
 
 using namespace std;
 

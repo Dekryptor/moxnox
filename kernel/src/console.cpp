@@ -12,7 +12,7 @@
 #include <freetype/freetype.h>
 #include <console.h>
 
-import format;
+import print;
 import inout;
 
 using namespace std;
