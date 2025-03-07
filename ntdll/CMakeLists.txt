@@ -18,6 +18,9 @@ set(SRC_FILES src/ntdll.cpp
     src/continue.S)
 
 add_library(ntdll SHARED ${SRC_FILES})
+target_sources(ntdll PUBLIC FILE_SET CXX_MODULES FILES
+    src/print.cpp
+)
 
 target_compile_options(ntdll PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe)
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)

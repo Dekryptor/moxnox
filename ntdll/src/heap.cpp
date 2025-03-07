@@ -1,6 +1,8 @@
 #include "ntdll_private.h"
 #include <string.h>
 
+import print;
+
 class heap {
 public:
     heap(size_t reserve_size, size_t commit_size);
@@ -122,9 +124,7 @@ void* heap::allocate(uint32_t flags, size_t size) {
                                        MEM_COMMIT, PAGE_READWRITE);
 
     if (!success(ret)) {
-        print("NtAllocateVirtualMemory returned ");
-        print_hex((uint32_t)ret);
-        print("\n");
+        print("NtAllocateVirtualMemory returned {}\n", ret);
         return nullptr;
     }
 
@@ -218,9 +218,7 @@ void* RtlCreateHeap(uint32_t, void*, size_t reserve_size, size_t commit_size,
                                        MEM_RESERVE, PAGE_READWRITE);
 
     if (!success(ret)) {
-        print("NtAllocateVirtualMemory returned ");
-        print_hex((uint32_t)ret);
-        print("\n");
+        print("NtAllocateVirtualMemory returned {}\n", ret);
         return nullptr;
     }
 
@@ -228,9 +226,7 @@ void* RtlCreateHeap(uint32_t, void*, size_t reserve_size, size_t commit_size,
                                   MEM_COMMIT, PAGE_READWRITE);
 
     if (!success(ret)) {
-        print("NtAllocateVirtualMemory returned ");
-        print_hex((uint32_t)ret);
-        print("\n");
+        print("NtAllocateVirtualMemory returned {}\n", ret);
         return nullptr;
     }
 
@@ -264,9 +260,7 @@ void* RtlDestroyHeap(void* heap_handle) {
     auto ret = NtFreeVirtualMemory(NtCurrentProcess(), &heap_handle, &region_size, MEM_RELEASE);
 
     if (!success(ret)) {
-        print("NtFreeVirtualMemory returned ");
-        print_hex((uint32_t)ret);
-        print("\n");
+        print("NtFreeVirtualMemory returned {}\n", ret);
         return nullptr;
     }
 

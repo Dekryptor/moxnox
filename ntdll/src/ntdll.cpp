@@ -8,6 +8,8 @@
 
 using namespace std;
 
+import print;
+
 extern uint8_t __image_base__;
 
 static_assert(sizeof(PEB_LDR_DATA) == 0x58);
@@ -21,24 +23,6 @@ static bool initialized = false;
 extern "C"
 bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
-}
-
-void print(string_view s) {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    IO_STATUS_BLOCK iosb;
-
-    NtWriteFile(peb->ProcessParameters->StandardError, 0, nullptr, nullptr, &iosb, s.data(),
-                (uint32_t)s.size(), nullptr, nullptr);
-}
-
-void print_hex(uint64_t num, unsigned int padding) {
-    char s[17];
-    span sp(s, sizeof(s));
-
-    sp = sp_itoa_hex(sp, num, padding);
-
-    print(string_view(s, (size_t)(sp.data() - s)));
 }
 
 template<typename T>
@@ -65,25 +49,19 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
     }
 
     if (!found || exp_dir.VirtualAddress == 0) {
-        print("no export directory in ");
-        print(name);
-        print("\n");
+        print("no export directory in {}\n", name);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
     }
 
     if (exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
-        print("invalid export directory in ");
-        print(name);
-        print("\n");
+        print("invalid export directory in {}\n", name);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
     }
 
     const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)dll_base + exp_dir.VirtualAddress);
 
     if (ied.NumberOfFunctions == 0) {
-        print("no exports in ");
-        print(name);
-        print("\n");
+        print("no exports in {}\n", name);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
     }
 
@@ -100,11 +78,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
             auto ord = (uint16_t)(v & 0xffff);
 
             if (ord < ied.Base || ord >= ied.Base + ied.NumberOfFunctions || funcs[ord - ied.Base] == 0) {
-                print("Ordinal ");
-                print_hex(ord); // FIXME - decimal
-                print(" in ");
-                print(name);
-                print(" not found.\n");
+                print("Ordinal {} in {} not found.\n", ord, name);
                 NtTerminateProcess(NtCurrentProcess(), nt_status::ORDINAL_NOT_FOUND);
             }
 
@@ -135,11 +109,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
         }
 
         if (!ord || funcs[*ord] == 0) {
-            print("Could not resolve ");
-            print(func);
-            print(" in ");
-            print(name);
-            print(".\n");
+            print("Could not resolve {} in {}.\n", func, name);
             NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
         }
 
@@ -219,8 +189,7 @@ static void resolve_imports_img(void* base) {
         free(u16buf);
 
         if (!ent) {
-            print(name);
-            print(" not loaded.\n");
+            print("{} not loaded.\n", name);
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
         }
 
@@ -314,9 +283,7 @@ static void resolve_relocations_img(void* base) {
                 }
 
                 default:
-                    print("Unsupported relocation type ");
-                    print_hex(type);
-                    print(".\n");
+                    print("Unsupported relocation type {:x}.\n", type);
                     NtTerminateProcess(NtCurrentProcess(), nt_status::ILLEGAL_DLL_RELOCATION);
                     return;
             }
@@ -378,9 +345,7 @@ static void toggle_protections_img(void* base, bool enable) {
         auto ret = NtProtectVirtualMemory(NtCurrentProcess(), &addr, &size, new_prot, &old_prot);
 
         if (!success(ret)) {
-            print("NtProtectVirtualMemory returned ");
-            print_hex((uint32_t)ret);
-            print(".\n");
+            print("NtProtectVirtualMemory returned {}.\n", ret);
             NtTerminateProcess(NtCurrentProcess(), ret);
         }
     }
@@ -640,9 +605,7 @@ static void load_dlls_img(LDR_DATA_TABLE_ENTRY& ent) {
         }
 
         if (!load_dll(name)) {
-            print("Could not load ");
-            print(name);
-            print(".\n");
+            print("Could not load {}.\n", name);
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
         }
     }

@@ -60,7 +60,3 @@ struct ci_char_traits : public std::char_traits<char16_t> {
 };
 
 using u16string_view_ci = std::basic_string_view<char16_t, ci_char_traits>;
-
-// ntdll.cpp
-void print(std::string_view s);
-void print_hex(uint64_t num, unsigned int padding = 0);

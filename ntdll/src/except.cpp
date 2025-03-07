@@ -6,6 +6,7 @@
 #include <optional>
 
 import format;
+import print;
 
 using namespace std;
 
@@ -39,7 +40,7 @@ static void print_rip(uint64_t rip) {
 
     sp = format(sp, "\n");
 
-    print(string_view(s, (size_t)(sp.data() - s)));
+    print("{}", string_view(s, (size_t)(sp.data() - s)));
 }
 
 static span<const uint8_t> find_pdata(const LDR_DATA_TABLE_ENTRY& ldr) {
@@ -376,12 +377,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
                         break;
 
                     default: {
-                        char s[50];
-                        auto sp = span(s, sizeof(s));
-
-                        sp = format(sp, "unrecognized unwind opcode {:x}\n", c.code);
-
-                        print(string_view(s, (size_t)(sp.data() - s)));
+                        print("unrecognized unwind opcode {:x}\n", c.code);
                         free(codesptr);
                         return false;
                     }
@@ -479,7 +475,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         }
 
         sp = format(sp, "{}", *context);
-        print(string_view(s, (size_t)(sp.data() - s)));
+        print("{}", string_view(s, (size_t)(sp.data() - s)));
 
         // FIXME - DWARF information in stack trace?
 
