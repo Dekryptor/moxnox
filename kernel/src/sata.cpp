@@ -6,6 +6,7 @@
 #include "mem.h"
 
 import print;
+import bsod;
 
 using namespace std;
 

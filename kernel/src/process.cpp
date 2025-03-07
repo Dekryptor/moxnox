@@ -6,6 +6,7 @@
 #include <pe.h>
 
 import print;
+import bsod;
 
 using namespace std;
 

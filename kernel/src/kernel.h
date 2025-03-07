@@ -132,11 +132,6 @@ bool init_fb_console();
 void copy_edid(loader_block* lb);
 extern enum console_type console_type;
 
-// bsod.cpp
-__attribute__((noreturn)) void bsod(std::string_view msg, std::source_location sl = std::source_location::current(),
-                                    bool skip_caller = false);
-__attribute__((noreturn)) void _assert(const char* msg, const char* file, unsigned int line);
-
 // interrupts.cpp
 extern volatile uint8_t* const local_apic;
 bool init_interrupts();

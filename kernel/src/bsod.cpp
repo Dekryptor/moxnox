@@ -1,500 +1,62 @@
-#include "kernel.h"
-#include "spinlock.h"
+module;
+
+#include <string_view>
+#include <source_location>
+#include <span>
+#include <nt.h>
 #include "cpu_block.h"
-#include "objects.h"
-#include "pipe.h"
-#include "handle.h"
+
+export module bsod;
 
 import format;
-import print;
-import dwarf;
 
 using namespace std;
 
-// console.cpp (FIXME)
-extern object_ref console_pipe;
-extern unsigned int console_cols;
+extern "C++" void disable_preempt();
+extern "C++" void enable_preempt();
 
-static spinlock bsod_lock;
+extern "C++" __attribute__((noreturn)) void _bsod(string_view msg, source_location sl,
+                                                  bool skip_caller);
 
-static kernel_image* get_kernel_image_from_address(uint64_t addr) {
-    auto le = kernel_images.next;
+#define PAGE_SIZE 4096 // FIXME - only define in one place
 
-    while (le != &kernel_images) {
-        auto& ent = containing_record<kernel_image>(le);
+export
+__attribute__((noreturn))
+void bsod(string_view msg, source_location sl = source_location::current(),
+          bool skip_caller = false) {
+    _bsod(msg, sl, skip_caller);
+}
 
-        if (addr >= (uintptr_t)ent.base_address && addr < (uintptr_t)ent.base_address + ent.size)
-            return &ent;
+export
+template<typename... Args>
+struct bsod_format {
+    __attribute__((noreturn))
+    bsod_format(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args,
+                const source_location& sl = source_location::current()) {
+        disable_preempt();
 
-        le = le->next;
+        auto& cb = *get_cpu_block();
+
+        auto sp = span(cb.printk_scratch, PAGE_SIZE);
+
+        sp = format_to(sp, fmt.sv, args...);
+
+        bsod(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)), sl,
+             true);
+
+        enable_preempt();
     }
-
-    return nullptr;
-}
-
-static void print_rip(pipe& p, uint64_t rip) {
-    char s[200];
-    auto sp = span(s, sizeof(s));
-
-    sp = format(sp, "{:16x}", rip);
-
-    auto img = get_kernel_image_from_address(rip);
-
-    if (img) {
-        // FIXME - also get filename and line no. from DWARF
-
-        sp = format(sp, " ({}!", img->name);
-
-        auto func_start = dwarf_find_function(img->debug_info, img->debug_abbrev,
-                                              img->debug_rnglists, img->debug_addr,
-                                              img->debug_str, img->debug_str_offsets,
-                                              rip, sp);
-
-        if (func_start != 0) {
-            if (rip != func_start)
-                sp = format(sp, "+{:x}", rip - func_start);
-        } else {
-            // erase exclamation mark
-            sp = span(sp.data() - 1, sp.size() + 1);
-
-            sp = format(sp, "+{:x}", rip - (uintptr_t)img->base_address);
-        }
-
-        sp = format(sp, ")");
-    }
-
-    sp = format(sp, "\n");
-
-    p.write(string_view(s, (size_t)(sp.data() - s)));
-}
-
-static const RUNTIME_FUNCTION* find_runtime_function(const kernel_image& img,
-                                                     uint64_t rip) {
-    rip -= (uintptr_t)img.base_address;
-
-    auto pdata = find_pdata(img);
-    if (pdata.empty())
-        return nullptr;
-
-    span<RUNTIME_FUNCTION> rt_funcs((RUNTIME_FUNCTION*)pdata.data(),
-                                    pdata.size() / sizeof(RUNTIME_FUNCTION));
-
-    for (const auto& f : rt_funcs) {
-        if (rip >= f.BeginAddress && rip < f.EndAddress)
-            return &f;
-
-        if (f.BeginAddress > rip) // stored in order
-            break;
-    }
-
-    return nullptr;
-}
-
-static optional<uint64_t> read_uint64_t(uint64_t addr) {
-    // FIXME - do this safely
-    return *(uint64_t*)addr;
-}
-
-enum class unwind_opcode {
-    UWOP_PUSH_NONVOL = 0,
-    UWOP_ALLOC_LARGE = 1,
-    UWOP_ALLOC_SMALL = 2,
-    UWOP_SET_FPREG = 3,
-    UWOP_SAVE_NONVOL = 4,
-    UWOP_SAVE_NONVOL_FAR = 5,
-    UWOP_SAVE_XMM128 = 8,
-    UWOP_SAVE_XMM128_FAR = 9,
-    UWOP_PUSH_MACHFRAME = 10,
 };
 
-enum class unwind_register {
-    rax = 0,
-    rcx = 1,
-    rdx = 2,
-    rbx = 3,
-    rsp = 4,
-    rbp = 5,
-    rsi = 6,
-    rdi = 7,
-    r8 = 8,
-    r9 = 9,
-    r10 = 10,
-    r11 = 11,
-    r12 = 12,
-    r13 = 13,
-    r14 = 14,
-    r15 = 15
-};
-
-static uint64_t get_register(const CONTEXT& context, enum unwind_register reg) {
-    switch (reg) {
-        case unwind_register::rax:
-            return context.Rax;
-        case unwind_register::rcx:
-            return context.Rcx;
-        case unwind_register::rdx:
-            return context.Rdx;
-        case unwind_register::rbx:
-            return context.Rbx;
-        case unwind_register::rsp:
-            return context.Rsp;
-        case unwind_register::rbp:
-            return context.Rbp;
-        case unwind_register::rsi:
-            return context.Rsi;
-        case unwind_register::rdi:
-            return context.Rdi;
-        case unwind_register::r8:
-            return context.R8;
-        case unwind_register::r9:
-            return context.R9;
-        case unwind_register::r10:
-            return context.R10;
-        case unwind_register::r11:
-            return context.R11;
-        case unwind_register::r12:
-            return context.R12;
-        case unwind_register::r13:
-            return context.R13;
-        case unwind_register::r14:
-            return context.R14;
-        case unwind_register::r15:
-            return context.R15;
-    }
-
-    return 0;
-}
-
-static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t value) {
-    switch (reg) {
-        case unwind_register::rax:
-            context.Rax = value;
-            break;
-        case unwind_register::rcx:
-            context.Rcx = value;
-            break;
-        case unwind_register::rdx:
-            context.Rdx = value;
-            break;
-        case unwind_register::rbx:
-            context.Rbx = value;
-            break;
-        case unwind_register::rsp:
-            context.Rsp = value;
-            break;
-        case unwind_register::rbp:
-            context.Rbp = value;
-            break;
-        case unwind_register::rsi:
-            context.Rsi = value;
-            break;
-        case unwind_register::rdi:
-            context.Rdi = value;
-            break;
-        case unwind_register::r8:
-            context.R8 = value;
-            break;
-        case unwind_register::r9:
-            context.R9 = value;
-            break;
-        case unwind_register::r10:
-            context.R10 = value;
-            break;
-        case unwind_register::r11:
-            context.R11 = value;
-            break;
-        case unwind_register::r12:
-            context.R12 = value;
-            break;
-        case unwind_register::r13:
-            context.R13 = value;
-            break;
-        case unwind_register::r14:
-            context.R14 = value;
-            break;
-        case unwind_register::r15:
-            context.R15 = value;
-            break;
-    }
-}
-
-static bool unwind_context2(CONTEXT& context, const kernel_image& img,
-                            const RUNTIME_FUNCTION* prt_func,
-                            bool& machine_frame) {
-    uint32_t func_offset;
-    uint64_t frame = context.Rsp;
-
-    while (true) {
-        const auto& rt_func = *prt_func;
-
-        if (rt_func.UnwindInfoAddress > img.size - sizeof(UNWIND_INFO))
-            return false;
-
-        auto& ui = *(UNWIND_INFO*)((uint8_t*)img.base_address + rt_func.UnwindInfoAddress);
-
-        if (ui.version != 1)
-            return false;
-
-        if (ui.unwind_codes_count == 0)
-            return true;
-
-        if (ui.unwind_codes_count > 0) {
-            if (rt_func.UnwindInfoAddress > img.size - sizeof(UNWIND_INFO) - (ui.unwind_codes_count * sizeof(UNWIND_CODE)))
-                return false;
-
-            if (context.Rip >= (uintptr_t)img.base_address + rt_func.BeginAddress &&
-                context.Rip < (uintptr_t)img.base_address + rt_func.BeginAddress + ui.prologue_bytes) {
-                func_offset = (uint32_t)(context.Rip - (uintptr_t)img.base_address - rt_func.BeginAddress);
-            } else
-                func_offset = 0xffffffff;
-
-            span codes((UNWIND_CODE*)((uint8_t*)img.base_address + rt_func.UnwindInfoAddress + sizeof(UNWIND_INFO)),
-                       ui.unwind_codes_count);
-
-            if (ui.frame_register != 0) {
-                frame = get_register(context, (enum unwind_register)ui.frame_register);
-                frame -= ui.frame_offset * 16;
-            }
-
-            for (size_t i = 0; i < codes.size(); i++) {
-                const auto& c = codes[i];
-
-                if (c.offset > func_offset)
-                    continue;
-
-                switch ((enum unwind_opcode)c.code) {
-                    case unwind_opcode::UWOP_PUSH_NONVOL: { // push reg (.seh_pushreg)
-                        auto val = read_uint64_t(context.Rsp);
-
-                        if (!val.has_value())
-                            return false;
-
-                        set_register(context, (enum unwind_register)c.info, *val);
-                        context.Rsp += sizeof(uint64_t);
-                        break;
-                    }
-
-                    case unwind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n (.seh_stackalloc)
-                        if (c.info == 0) {
-                            if (i == codes.size() - 1)
-                                return false;
-
-                            context.Rsp += *(uint16_t*)&codes[i + 1] * 8;
-                            i++;
-                        } else {
-                            if (i >= codes.size() - 2)
-                                return false;
-
-                            context.Rsp += *(uint32_t*)&codes[i + 1];
-                            i += 2;
-                        }
-                        break;
-
-                    case unwind_opcode::UWOP_ALLOC_SMALL: // sub rsp, n (.seh_stackalloc)
-                        context.Rsp += (c.info * 8) + 8;
-                        break;
-
-                    case unwind_opcode::UWOP_SET_FPREG: // lea framereg, [rsp + n] (.seh_setframe)
-                        context.Rsp = frame;
-                        break;
-
-                    case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg (.seh_savereg)
-                        if (i == codes.size() - 1)
-                            return false;
-
-                        set_register(context, (enum unwind_register)c.info,
-                                    frame + *(uint16_t*)&codes[i + 1] * 8);
-                        i++;
-                        break;
-
-                    case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg (.seh_savereg)
-                        if (i >= codes.size() - 2)
-                            return false;
-
-                        set_register(context, (enum unwind_register)c.info,
-                                    frame + *(uint32_t*)&codes[i + 1]);
-                        i += 2;
-                        break;
-
-                    case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg (.seh_savexmm)
-                        if (i == codes.size() - 1)
-                            return false;
-
-                        i++;
-                        break;
-
-                    case unwind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg (.seh_savexmm)
-                        if (i >= codes.size() - 2)
-                            return false;
-
-                        i += 2;
-                        break;
-
-                    case unwind_opcode::UWOP_PUSH_MACHFRAME: { // interrupt (.seh_pushframe)
-                        if (c.info != 0)
-                            context.Rsp += sizeof(uint64_t);
-
-                        auto val = read_uint64_t(context.Rsp);
-
-                        if (!val.has_value())
-                            return false;
-
-                        context.Rip = *val;
-
-                        val = read_uint64_t(context.Rsp + (3 * sizeof(uint64_t)));
-
-                        if (!val.has_value())
-                            return false;
-
-                        context.Rsp = *val;
-                        machine_frame = true;
-                        break;
-                    }
-
-                    default:
-                        return false;
-                }
-            }
-        }
-
-        if (!(ui.flags & UNW_FLAG_CHAININFO))
-            break;
-
-        uint8_t* addr = (uint8_t*)img.base_address;
-        addr += rt_func.UnwindInfoAddress;
-        addr += ui.unwind_codes_count * sizeof(UNWIND_CODE);
-
-        if (ui.unwind_codes_count & 1)
-            addr += sizeof(UNWIND_CODE);
-
-        prt_func = (RUNTIME_FUNCTION*)addr;
-    }
-
-    return true;
-}
-
-static bool unwind_context(CONTEXT& context) {
-    bool machine_frame = false;
-
-    auto img = get_kernel_image_from_address(context.Rip);
-    if (!img)
-        return false;
-
-    auto rt_func = find_runtime_function(*img, context.Rip);
-
-    // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
-    if (rt_func) {
-        if (!unwind_context2(context, *img, rt_func, machine_frame))
-            return false;
-    }
-
-    if (!machine_frame) {
-        auto rip = read_uint64_t(context.Rsp);
-
-        if (!rip.has_value())
-            return false;
-
-        context.Rsp += sizeof(uint64_t);
-        context.Rip = *rip;
-    }
-
-    return true;
-}
-
-static void print_stacktrace(CONTEXT& context, pipe& p, bool skip_caller) {
-    // not interested in top entry (bsod function)
-    if (!unwind_context(context))
-        return;
-
-    if (skip_caller && !unwind_context(context))
-        return;
-
-    do {
-        print_rip(p, context.Rip);
-
-        if (!unwind_context(context))
-            return;
-    } while (true);
-}
-
-void bsod(string_view msg, source_location sl, bool skip_caller) {
-    __asm("cli");
-
-    lock_guard lock(bsod_lock);
-
-    if (num_cpus > 1) {
-        processors_left_to_halt = num_cpus - 1;
-
-        // send IPI to other cores to stop them
-
-        auto icr1 = (volatile uint32_t*)&local_apic[0x300];
-
-        *icr1 = 0xc0000 | halt_interrupt;
-
-        while (processors_left_to_halt > 0) { }
-    }
-
-    auto& p = static_cast<pipe&>(console_pipe.get());
-
-    // clear screen to blue and print message
-
-    p.write(
-        "\e[97;44m" // change to blue and white
-        "\e[2J" // erase screen
-        "\e[?25l" // hide cursor
-        "\e[1;1H" // move to top left
-    );
-
-    for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
-        p.write(" ");
-    }
-
-    p.write("\e[1mBSOD\e[22m\n\n");
-
-    p.write(msg);
-    p.write("\n");
-
-    auto& cb = *get_cpu_block();
-    auto sp = span(cb.printk_scratch, PAGE_SIZE);
-
-    sp = format(sp, "{}:{}, {}, CPU {:x}\n",
-                sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
-
-    p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
-
-    // FIXME - print context?
-
-    CONTEXT context;
-
-    __asm __volatile(
-        "mov %0, rsp\n"
-        "\tmov %1, rbp\n"
-        "\tcall 0f\n"
-        "\t0:\n"
-        "\tpop rax\n"
-        "\tmov %2, rax\n"
-        : "=m" (context.Rsp), "=m" (context.Rbp), "=m" (context.Rip)
-        :
-        : "rax"
-    );
-
-    p.write("\n");
-
-    print_stacktrace(context, p, skip_caller);
-
-    p.flush(true);
-
-    shutdown_pipes();
-
-    __asm("call halt_isr");
-    __builtin_unreachable();
-}
-
-void _assert(const char* msg, const char* file, unsigned int line) {
+export
+template<typename... Args>
+bsod_format(type_identity_t<checker<type_identity_t<Args>...>>, Args&&...) -> bsod_format<Args...>;
+
+export void _assert(const char* msg, const char* file, unsigned int line) {
     bsod_format("assertion failed at {}:{}: {}", file, line, msg);
     __builtin_unreachable();
 }
 
-void abort() {
+export extern "C" void abort() {
     bsod("abort() called");
 }

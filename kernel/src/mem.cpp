@@ -7,6 +7,7 @@
 #include <cstring>
 
 import print;
+import bsod;
 
 using namespace std;
 
