@@ -319,6 +319,84 @@ consteval bool valid_spec<AMD64_CONTEXT>(string_view fmt) {
     return fmt.empty();
 }
 
+span<char> sp_u16string_view(span<char> buf, u16string_view u16sv) {
+    if (buf.empty())
+        return buf;
+
+    for (unsigned int i = 0; i < u16sv.size(); i++) {
+        uint32_t cp;
+
+        if (u16sv[i] < 0xd800 || u16sv[i] > 0xdfff)
+            cp = u16sv[i];
+        else if (u16sv[i] >= 0xd800 && u16sv[i] < 0xdc00) {
+            if (i == u16sv.size() - 1)
+                return buf;
+
+            auto next = u16sv[i+1];
+
+            if (next < 0xdc00 || next > 0xdfff)
+                return buf;
+
+            cp = (((uint32_t)u16sv[i] & 0x3ff) << 10) | (next & 0x3ff);
+
+            i++;
+        } else // invalid
+            return buf;
+
+        if (cp < 0x80) {
+            buf[0] = (char)cp;
+            buf = buf.subspan(1);
+        } else if (cp < 0x800) {
+            if (buf.size() < 2)
+                return buf;
+
+            buf[0] = (char)(0xc0 | ((cp & 0x7c0) >> 6));
+            buf[1] = (char)(0x80 | (cp & 0x3f));
+
+            buf = buf.subspan(2);
+        } else if (cp < 0x10000) {
+            if (buf.size() < 3)
+                return buf;
+
+            buf[0] = (char)(0xe0 | ((cp & 0xf000) >> 12));
+            buf[1] = (char)(0x80 | ((cp & 0xfc0) >> 6));
+            buf[2] = (char)(0x80 | (cp & 0x3f));
+
+            buf = buf.subspan(3);
+        } else {
+            if (buf.size() < 4)
+                return buf;
+
+            buf[0] = (char)(0xf0 | ((cp & 0xe0000) >> 18));
+            buf[1] = (char)(0x80 | ((cp & 0x3f000) >> 12));
+            buf[2] = (char)(0x80 | ((cp & 0xfc0) >> 6));
+            buf[3] = (char)(0x80 | (cp & 0x3f));
+
+            buf = buf.subspan(4);
+        }
+    }
+
+    return buf;
+}
+
+span<char> do_format_arg(span<char> sp, string_view, u16string_view sv) {
+    return sp_u16string_view(sp, sv);
+}
+
+template<>
+consteval bool valid_spec<u16string_view>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view sv, const UNICODE_STRING& us) {
+    return do_format_arg(sp, sv, u16string_view(us.Buffer, us.Length / sizeof(char16_t)));
+}
+
+template<>
+consteval bool valid_spec<UNICODE_STRING>(string_view fmt) {
+    return fmt.empty();
+}
+
 export
 template<typename T, typename... Args>
 span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... args) {
