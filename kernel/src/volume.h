@@ -3,6 +3,8 @@
 
 class filesystem;
 
+extern const guid null_guid;
+
 class volume : public object, public cacheable {
 public:
     volume() : object(object_type::volume) { }

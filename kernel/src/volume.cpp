@@ -8,6 +8,8 @@ import bsod;
 
 using namespace std;
 
+const guid null_guid = { 0x00000000, 0x0000, 0x0000, { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
+
 static const uint64_t read_sector_size = 0x1000;
 
 void volume::probe() {
