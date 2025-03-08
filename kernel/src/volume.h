@@ -59,7 +59,7 @@ static_assert(is_readable_object_with_offset<diskpart>);
 
 class filesystem {
 public:
-    filesystem(volume& vol) : vol(vol) { }
+    filesystem(volume* vol) : vol(vol) { }
     virtual ~filesystem() { }
     virtual nt_status open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
                            object_ref& obj_ref, uint32_t create_disposition,
@@ -67,7 +67,7 @@ public:
     virtual nt_status flush(bool make_readonly) = 0;
 
     list_entry le;
-    volume& vol;
+    volume* vol;
     std::atomic<unsigned int> refcount = 0;
 };
 

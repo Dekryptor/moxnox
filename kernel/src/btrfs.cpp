@@ -34,7 +34,7 @@ static bool check_checksum(const superblock& sb) {
     return csum == *(uint32_t*)&sb;
 }
 
-btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(vol) {
+btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     vol.acquire();
 
     uint64_t read_bytes;
@@ -406,7 +406,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     if (addr + (num_pages << PAGE_SHIFT) > c.offset + c.ci.size)
         num_pages = (c.offset + c.ci.size - addr) >> PAGE_SHIFT;
 
-    auto pages_read = vol.cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
+    auto pages_read = vol->cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
                                                         num_pages);
     if (pages_read == 0)
         return 0;
@@ -429,7 +429,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
                 dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
         }
 
-        src_p = vol.cache.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + i);
+        src_p = vol->cache.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + i);
         // FIXME - find next entry rather than doing complete lookup
 
         auto src_va = phys_address(src_p->phys_address);
@@ -438,7 +438,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
         memcpy(dest_va, src_va, PAGE_SIZE);
     }
 
-    vol.cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
+    vol->cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
 
     return pages_read;
 }
@@ -511,7 +511,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             assert(ent->page_num == (addr >> PAGE_SHIFT) + j);
 
             if (ent->status == page_cache_status::dirty) {
-                if (!vol.cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
+                if (!vol->cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
                     span((uint8_t*)phys_address(ent->phys_address), PAGE_SIZE))) {
                     print("volume::write_pages failed\n");
                     cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
@@ -579,7 +579,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
         uint64_t first_page = disk_addr >> PAGE_SHIFT;
 
         while (true) {
-            auto flushed = vol.flush_cache(first_page, pages_to_flush);
+            auto flushed = vol->flush_cache(first_page, pages_to_flush);
 
             if (flushed == 0) {
                 print("volume::flush_cache failed\n");
@@ -2744,7 +2744,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
 static void write_superblocks(btrfs_filesystem& fs) {
     for (auto addr : superblock_addrs) {
-        if (addr + sizeof(superblock) >= fs.vol.size)
+        if (addr + sizeof(superblock) >= fs.vol->size)
             break;
 
         auto& sb = fs.sb;
@@ -2752,18 +2752,18 @@ static void write_superblocks(btrfs_filesystem& fs) {
         sb.sb_phys_addr = addr;
         *(uint32_t*)&sb= ~calc_crc32c(0xffffffff, span((const uint8_t*)&sb.uuid, sizeof(superblock) - sizeof(sb.checksum)));
 
-        fs.vol.cache.write(span((const uint8_t*)&fs.sb, sizeof(superblock)), addr);
+        fs.vol->cache.write(span((const uint8_t*)&fs.sb, sizeof(superblock)), addr);
     }
 
     for (auto addr : superblock_addrs) {
-        if (addr + sizeof(superblock) >= fs.vol.size)
+        if (addr + sizeof(superblock) >= fs.vol->size)
             break;
 
         auto first_page = addr >> PAGE_SHIFT;
         auto num_pages = sizeof(superblock) >> PAGE_SHIFT;
 
         while (true) {
-            auto flushed = fs.vol.flush_cache(first_page, num_pages);
+            auto flushed = fs.vol->flush_cache(first_page, num_pages);
 
             if (flushed == 0) {
                 print("volume::flush_cache failed\n");

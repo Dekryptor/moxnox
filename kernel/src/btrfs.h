@@ -521,7 +521,7 @@ public:
     ~btrfs_filesystem() override {
         free_chunk_list();
         free_root_list();
-        vol.release();
+        vol->release();
     }
 
     nt_status read_metadata(uint64_t addr, std::span<uint8_t> data);
