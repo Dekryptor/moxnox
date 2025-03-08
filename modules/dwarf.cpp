@@ -1301,6 +1301,8 @@ export uint64_t dwarf_find_function(span<const uint8_t> debug_info,
                     low_pc = *(uint64_t*)data.data();
                 else if (att_num == DW_AT::high_pc && form == DW_FORM::udata)
                     high_pc = read_uleb128(data);
+                else if (att_num == DW_AT::high_pc && form == DW_FORM::data8)
+                    high_pc = *(uint64_t*)data.data();
                 else if (att_num == DW_AT::rnglists_base && form == DW_FORM::sec_offset)
                     rnglist_base = *(uint32_t*)data.data();
                 else if (att_num == DW_AT::addr_base && form == DW_FORM::sec_offset)
