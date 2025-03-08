@@ -349,7 +349,7 @@ static T read_dw_enum(span<const uint8_t>& sp) {
 }
 
 template<typename... Args>
-void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
     char s[100];
     auto sp = span(s, sizeof(s));
 
