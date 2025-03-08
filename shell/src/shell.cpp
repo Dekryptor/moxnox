@@ -266,7 +266,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     // allocate misc block in process
 
-    void* proc_misc_block;
+    void* proc_misc_block = nullptr;
     size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
 
     status = NtAllocateVirtualMemory(proc, &proc_misc_block, 0, &proc_misc_block_size,
