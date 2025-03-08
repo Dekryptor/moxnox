@@ -10,6 +10,8 @@ import format;
 
 using namespace std;
 
+export
+extern "C++"
 void do_print(string_view s) {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;

@@ -7,10 +7,11 @@
 
 import format;
 import print;
+import dwarf;
 
 using namespace std;
 
-static LDR_DATA_TABLE_ENTRY* get_ldr_from_address(uint64_t addr) {
+static ldr_entry* get_ldr_from_address(uint64_t addr) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto& ldr_data = *peb.Ldr;
     auto le = ldr_data.InMemoryOrderModuleList.Flink;
@@ -19,7 +20,7 @@ static LDR_DATA_TABLE_ENTRY* get_ldr_from_address(uint64_t addr) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 
         if (addr >= (uintptr_t)ent.DllBase && addr < (uintptr_t)ent.DllBase + ent.SizeOfImage)
-            return &ent;
+            return CONTAINING_RECORD(&ent, ldr_entry, ldr);
 
         le = le->Flink;
     }
@@ -33,10 +34,36 @@ static void print_rip(uint64_t rip) {
 
     sp = format(sp, "{:16x}", rip);
 
-    auto ldr = get_ldr_from_address(rip);
+    auto ent = get_ldr_from_address(rip);
 
-    if (ldr)
-        sp = format(sp, " ({}+{:x})", ldr->BaseDllName, rip - (uintptr_t)ldr->DllBase);
+    if (ent) {
+        // FIXME - also get filename and line no. from DWARF
+
+        sp = format(sp, " ({}!", ent->ldr.BaseDllName);
+
+        auto debug_info = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_info, ent->size_debug_info);
+        auto debug_abbrev = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_abbrev, ent->size_debug_abbrev);
+        auto debug_rnglists = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_rnglists, ent->size_debug_rnglists);
+        auto debug_addr = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_addr, ent->size_debug_addr);
+        auto debug_str = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_str, ent->size_debug_str);
+        auto debug_str_offsets = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_str_offsets, ent->size_debug_str_offsets);
+
+        auto func_start = dwarf_find_function(debug_info, debug_abbrev, debug_rnglists,
+                                              debug_addr, debug_str, debug_str_offsets,
+                                              rip, sp);
+
+        if (func_start != 0) {
+            if (rip != func_start)
+                sp = format(sp, "+{:x}", rip - func_start);
+        } else {
+            // erase exclamation mark
+            sp = span(sp.data() - 1, sp.size() + 1);
+
+            sp = format(sp, "+{:x}", rip - (uintptr_t)ent->ldr.DllBase);
+        }
+
+        sp = format(sp, ")");
+    }
 
     sp = format(sp, "\n");
 
@@ -409,15 +436,15 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
 }
 
 static bool unwind_context(CONTEXT& context) {
-    auto ldr = get_ldr_from_address(context.Rip);
-    if (!ldr)
+    auto ent = get_ldr_from_address(context.Rip);
+    if (!ent)
         return false;
 
-    auto rt_func = find_runtime_function(*ldr, context.Rip);
+    auto rt_func = find_runtime_function(ent->ldr, context.Rip);
 
     // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
     if (rt_func) {
-        if (!unwind_context2(context, *ldr, rt_func))
+        if (!unwind_context2(context, ent->ldr, rt_func))
             return false;
     }
 
