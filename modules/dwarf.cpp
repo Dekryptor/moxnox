@@ -348,6 +348,16 @@ static T read_dw_enum(span<const uint8_t>& sp) {
     return static_cast<T>(val);
 }
 
+template<typename... Args>
+void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+    char s[100];
+    auto sp = span(s, sizeof(s));
+
+    sp = format_to(sp, fmt.sv, args...);
+
+    do_print(string_view(s, (size_t)(sp.data() - s)));
+}
+
 static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
     while (true) {
         auto att_num = read_dw_enum<enum DW_AT>(att_list);
@@ -478,12 +488,7 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
                 return false;
 
             default: {
-                char s[100];
-                span sp(s, sizeof(s));
-
-                sp = format(sp, "skipping DIE because of unknown DW_FORM value {}\n", (unsigned int)form);
-                do_print(string_view(s, (size_t)(sp.data() - s)));
-
+                print("skipping DIE because of unknown DW_FORM value {}\n", (unsigned int)form);
                 return false;
             }
         }
@@ -780,12 +785,7 @@ static void loop_through_atts(span<const uint8_t>& die, span<const uint8_t> att_
             // FIXME - DW_FORM::ref_sup8
 
             default: {
-                char s[100];
-                span sp(s, sizeof(s));
-
-                sp = format(sp, "unhandled DWARF form {:x}\n", (unsigned int)form);
-                do_print(string_view(s, (size_t)(sp.data() - s)));
-
+                print("unhandled DWARF form {:x}\n", (unsigned int)form);
                 return;
             }
         }
@@ -902,12 +902,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
             }
 
             default: {
-                char s[100];
-                span sp(s, sizeof(s));
-
-                sp = format(sp, "unhandled DWARF RLE type {:x}\n", (unsigned int)type);
-                do_print(string_view(s, (size_t)(sp.data() - s)));
-
+                print("unhandled DWARF RLE type {:x}\n", (unsigned int)type);
                 return false;
             }
         }
