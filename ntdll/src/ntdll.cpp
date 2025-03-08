@@ -9,6 +9,7 @@
 using namespace std;
 
 import print;
+import format;
 
 extern uint8_t __image_base__;
 
@@ -485,6 +486,55 @@ static void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     img.size_debug_str_offsets = img_info.size_debug_str_offsets;
 }
 
+static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FILE_HEADER& file_header,
+                                   HANDLE h, span<char> buf) {
+    auto name = string_view(s.Name, sizeof(s.Name));
+
+    while (!name.empty() && name.back() == 0) {
+        name.remove_suffix(1);
+    }
+
+    if (name.empty() || name[0] != '/' || file_header.PointerToSymbolTable == 0)
+        return format(buf, "{}", name);
+
+    // decode long section names
+
+    unsigned int num = 0;
+    uint32_t string_table = file_header.PointerToSymbolTable + (file_header.NumberOfSymbols * 18);
+
+    for (auto c : string_view(name.data() + 1, name.size() - 1)) {
+        num *= 10;
+
+        if (c < '0' || c > '9')
+            return format(buf, "{}", name);
+
+        num += (unsigned int)(c - '0');
+    }
+
+    LARGE_INTEGER off;
+    IO_STATUS_BLOCK iosb;
+
+    off.QuadPart = string_table + num;
+
+    auto status = NtReadFile(h, 0, nullptr, nullptr, &iosb, buf.data(),
+                             (uint32_t)buf.size(), &off, nullptr);
+    if (!success(status))
+        return format(buf, "{}", name);
+
+    if (iosb.Information < buf.size())
+        buf = span(buf.data(), iosb.Information);
+
+    size_t end = buf.size();
+    for (unsigned int i = 0; i < end; i++) {
+        if (buf[i] == 0) {
+            end = i;
+            break;
+        }
+    }
+
+    return buf.subspan(end);
+}
+
 static bool try_load_dll(u16string_view dir, u16string_view name) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -516,9 +566,8 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
 
     status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, h);
 
-    NtClose(h);
-
     if (!success(status)) {
+        NtClose(h);
         free(us.Buffer);
         return false;
     }
@@ -529,6 +578,7 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
     NtClose(sect);
 
     if (!success(status)) {
+        NtClose(h);
         free(us.Buffer);
         return false;
     }
@@ -537,19 +587,59 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)addr + dos_header.e_lfanew);
 
     if (nt_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
+        NtClose(h);
         NtUnmapViewOfSection(NtCurrentProcess(), addr);
         free(us.Buffer);
         return false;
     }
 
     if (!(nt_header.FileHeader.Characteristics & IMAGE_FILE_DLL)) {
+        NtClose(h);
         NtUnmapViewOfSection(NtCurrentProcess(), addr);
         free(us.Buffer);
         return false;
     }
 
-    add_ldr_entry(addr, u16string_view(us.Buffer, us.Length / sizeof(char16_t)), name, false);
+    auto& ent = add_ldr_entry(addr, u16string_view(us.Buffer, us.Length / sizeof(char16_t)),
+                              name, false);
 
+    span<IMAGE_SECTION_HEADER> sections;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+    else
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+
+    for (const auto& sect : sections) {
+        char buf[50];
+        span sp(buf, sizeof(buf));
+
+        sp = get_section_name(sect, nt_header.FileHeader, h, sp);
+
+        auto name = string_view(buf, (size_t)(sp.data() - buf));
+
+        if (name == ".debug_info") {
+            ent.offset_debug_info = sect.VirtualAddress;
+            ent.size_debug_info = sect.VirtualSize;
+        } else if (name == ".debug_abbrev") {
+            ent.offset_debug_abbrev = sect.VirtualAddress;
+            ent.size_debug_abbrev = sect.VirtualSize;
+        } else if (name == ".debug_rnglists") {
+            ent.offset_debug_rnglists = sect.VirtualAddress;
+            ent.size_debug_rnglists = sect.VirtualSize;
+        } else if (name == ".debug_str") {
+            ent.offset_debug_str = sect.VirtualAddress;
+            ent.size_debug_str = sect.VirtualSize;
+        } else if (name == ".debug_addr") {
+            ent.offset_debug_addr = sect.VirtualAddress;
+            ent.size_debug_addr = sect.VirtualSize;
+        } else if (name == ".debug_str_offsets") {
+            ent.offset_debug_str_offsets = sect.VirtualAddress;
+            ent.size_debug_str_offsets = sect.VirtualSize;
+        }
+    }
+
+    NtClose(h);
     free(us.Buffer);
 
     return true;
