@@ -434,7 +434,7 @@ static ldr_entry& add_ldr_entry(void* base, u16string_view full_name, u16string_
     return ent;
 }
 
-static void init_ldr_data(mn_image_info& ntdll_info) {
+static void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto& proc_params = *peb.ProcessParameters;
 
@@ -469,7 +469,20 @@ static void init_ldr_data(mn_image_info& ntdll_info) {
     ntdll.offset_debug_str_offsets = ntdll_info.offset_debug_str_offsets;
     ntdll.size_debug_str_offsets = ntdll_info.size_debug_str_offsets;
 
-    add_ldr_entry(peb.ImageBaseAddress, image_path, base_name, true);
+    auto& img = add_ldr_entry(img_info.base, image_path, base_name, true);
+
+    img.offset_debug_info = img_info.offset_debug_info;
+    img.size_debug_info = img_info.size_debug_info;
+    img.offset_debug_abbrev = img_info.offset_debug_abbrev;
+    img.size_debug_abbrev = img_info.size_debug_abbrev;
+    img.offset_debug_rnglists = img_info.offset_debug_rnglists;
+    img.size_debug_rnglists = img_info.size_debug_rnglists;
+    img.offset_debug_str = img_info.offset_debug_str;
+    img.size_debug_str = img_info.size_debug_str;
+    img.offset_debug_addr = img_info.offset_debug_addr;
+    img.size_debug_addr = img_info.size_debug_addr;
+    img.offset_debug_str_offsets = img_info.offset_debug_str_offsets;
+    img.size_debug_str_offsets = img_info.size_debug_str_offsets;
 }
 
 static bool try_load_dll(u16string_view dir, u16string_view name) {
@@ -688,7 +701,7 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info,
         peb.ProcessHeap = (HANDLE)heap;
         peb.Ldr = &ldr_data;
 
-        init_ldr_data(*ntdll_info);
+        init_ldr_data(*ntdll_info, *img_info);
 
         load_dlls();
 
