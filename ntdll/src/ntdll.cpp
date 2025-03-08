@@ -656,7 +656,7 @@ static void call_dll_main() {
 }
 
 extern "C"
-void mn_start_thread(void* ntdll_base, CONTEXT* context) {
+void mn_start_thread(mn_image_info* ntdll_info, CONTEXT* context) {
     if (!initialized) {
         auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
@@ -670,7 +670,7 @@ void mn_start_thread(void* ntdll_base, CONTEXT* context) {
         peb.ProcessHeap = (HANDLE)heap;
         peb.Ldr = &ldr_data;
 
-        init_ldr_data(ntdll_base);
+        init_ldr_data(ntdll_info->base);
 
         load_dlls();
 

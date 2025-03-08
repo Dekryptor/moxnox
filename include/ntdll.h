@@ -85,6 +85,10 @@ static const uint32_t DLL_PROCESS_ATTACH = 1;
 static const uint32_t DLL_THREAD_ATTACH = 2;
 static const uint32_t DLL_THREAD_DETACH = 3;
 
+struct mn_image_info {
+    void* base;
+};
+
 extern "C" {
 
 void* RtlCreateHeap(uint32_t flags, void* heap_base, size_t reserve_size, size_t commit_size,

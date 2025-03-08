@@ -2,6 +2,7 @@
 #include "cpu_block.h"
 #include "objects.h"
 #include "handle.h"
+#include <ntdll.h>
 
 import print;
 
@@ -189,6 +190,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
                                 const INITIAL_TEB& initial_teb, bool create_suspended) {
     uint16_t tid;
     CONTEXT start_context;
+    mn_image_info ntdll_info;
 
     // FIXME - desired_access
     // FIXME - object_attributes
@@ -240,6 +242,16 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
         return nt_status::NO_MEMORY;
     }
 
+    ntdll_info.base = (void*)ntdll_addr;
+
+    auto img_info_addr = ctx_addr - sizeof(ntdll_info);
+
+    if (!copy_to((void*)img_info_addr, &ntdll_info, sizeof(ntdll_info))) {
+        print("process::copy_to failed\n");
+        delete &t;
+        return nt_status::NO_MEMORY;
+    }
+
     memset(&t.context, 0, sizeof(CONTEXT));
     memset(&t.syscall_context, 0, sizeof(CONTEXT));
 
@@ -250,9 +262,9 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.SegFs = user_DS;
     t.context.SegGs = user_DS;
     t.context.Rip = ntdll_addr + mn_start_thread;
-    t.context.Rcx = ntdll_addr;
+    t.context.Rcx = img_info_addr;
     t.context.Rdx = ctx_addr;
-    t.context.Rsp = (uintptr_t)initial_teb.StackBase - sizeof(CONTEXT) - 0x20; // 0x20 for MS ABI
+    t.context.Rsp = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
 
     t.kernel_mode = false;
 
