@@ -1,6 +1,7 @@
 #include <efi.h>
 #include <string_view>
 #include <span>
+#include <string.h>
 #include <pe.h>
 #include <loaderblock.h>
 
@@ -36,6 +37,7 @@ static loader_block lb __attribute__((section (".data")));
 
 // same size as on x86 Linux
 static char cmdline[2048] __attribute__((section (".data")));
+static u16string_view wcmdline __attribute__((section (".data")));
 
 static uint8_t edid[128] __attribute__((section (".data")));
 static bool have_edid __attribute__((section (".data"))) = false;
@@ -512,20 +514,20 @@ static EFI_STATUS get_image_information(EFI_HANDLE image_handle,
 
     print("EFI stub loaded at {:x}\n", (uintptr_t)image->ImageBase);
 
-    if (image->LoadOptionsSize == 0)
+    if (image->LoadOptionsSize == 0) {
         cmdline[0] = 0;
-    else {
-        auto load_options = u16string_view((char16_t*)image->LoadOptions,
-                                           image->LoadOptionsSize / sizeof(char16_t));
+        wcmdline = u16string_view();
+    } else {
+        wcmdline = u16string_view((char16_t*)image->LoadOptions,
+                                  image->LoadOptionsSize / sizeof(char16_t));
 
-        while (!load_options.empty() && load_options.back() == 0) {
-            load_options = u16string_view(load_options.data(),
-                                          load_options.size() - 1);
+        while (!wcmdline.empty() && wcmdline.back() == 0) {
+            wcmdline = u16string_view(wcmdline.data(), wcmdline.size() - 1);
         }
 
-        utf16_to_utf8(cmdline, load_options);
+        utf16_to_utf8(cmdline, wcmdline);
 
-        auto len = utf16_to_utf8_len(load_options);
+        auto len = utf16_to_utf8_len(wcmdline);
 
         if (len >= sizeof(cmdline))
             cmdline[sizeof(cmdline) - 1] = 0;
@@ -1261,7 +1263,7 @@ static const struct {
     }
 };
 
-static EFI_STATUS find_initrd() {
+static EFI_STATUS find_initrd_devpath() {
     EFI_STATUS Status;
     EFI_GUID load_file2_guid = EFI_LOAD_FILE2_PROTOCOL_GUID;
     auto devpath = (EFI_DEVICE_PATH_PROTOCOL*)&initrd_dev_path;
@@ -1291,6 +1293,195 @@ static EFI_STATUS find_initrd() {
     Status = lf2->LoadFile(lf2, devpath, false, &initrd_size, (void*)initrd_data);
     if (EFI_ERROR(Status))
         return Status;
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS open_device_path(char16_t* path, EFI_FILE_HANDLE& file) {
+    EFI_GUID path_from_text_guid = EFI_DEVICE_PATH_FROM_TEXT_PROTOCOL_GUID;
+    EFI_GUID fs_guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    EFI_DEVICE_PATH_FROM_TEXT_PROTOCOL* path_from_text;
+    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
+    EFI_HANDLE h;
+    EFI_FILE_HANDLE root;
+    EFI_STATUS Status;
+
+    Status = bs->LocateProtocol(&path_from_text_guid, nullptr,
+                                (void**)&path_from_text);
+    if (EFI_ERROR(Status)) {
+        print_error("LocateProtocol", Status);
+        return Status;
+    }
+
+    auto devpath = path_from_text->ConvertTextToDevicePath((const CHAR16*)path);
+    if (!devpath) {
+        print("ConvertTextToDevicePath failed\n");
+        return EFI_LOAD_ERROR;
+    }
+
+    Status = bs->LocateDevicePath(&fs_guid, &devpath, &h);
+    if (EFI_ERROR(Status)) {
+        bs->FreePool(devpath);
+        return EFI_NOT_FOUND;
+    }
+
+    Status = bs->HandleProtocol(h, &fs_guid, (void**)&fs);
+    if (EFI_ERROR(Status)) {
+        bs->FreePool(devpath);
+        return EFI_NOT_FOUND;
+    }
+
+    if (devpath->Type != MEDIA_DEVICE_PATH || devpath->SubType != MEDIA_FILEPATH_DP) {
+        print("unexpected device path node type {:x}, {:x}\n",
+              devpath->Type, devpath->SubType);
+        bs->FreePool(devpath);
+        return EFI_LOAD_ERROR;
+    }
+
+    auto fp = (FILEPATH_DEVICE_PATH*)devpath;
+
+    Status = fs->OpenVolume(fs, &root);
+    if (EFI_ERROR(Status)) {
+        print_error("OpenVolume", Status);
+        bs->FreePool(devpath);
+        return Status;
+    }
+
+    Status = root->Open(root, &file, fp->PathName, EFI_FILE_MODE_READ, 0);
+    if (EFI_ERROR(Status)) {
+        print_error("Open", Status);
+        bs->FreePool(devpath);
+        root->Close(root);
+        return Status;
+    }
+
+    bs->FreePool(devpath);
+    root->Close(root);
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS open_volume(char16_t* path, EFI_LOADED_IMAGE_PROTOCOL* image,
+                              EFI_FILE_HANDLE& file) {
+    EFI_GUID fs_guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
+    EFI_FILE_HANDLE root;
+    EFI_STATUS Status;
+
+    Status = bs->HandleProtocol(image->DeviceHandle, &fs_guid, (void**)&fs);
+    if (EFI_ERROR(Status)) {
+        print_error("HandleProtocol", Status);
+        return Status;
+    }
+
+    Status = fs->OpenVolume(fs, &root);
+    if (EFI_ERROR(Status)) {
+        print_error("OpenVolume", Status);
+        return Status;
+    }
+
+    Status = root->Open(root, &file, (CHAR16*)path, EFI_FILE_MODE_READ, 0);
+    if (EFI_ERROR(Status)) {
+        print_error("Open", Status);
+        root->Close(root);
+        return Status;
+    }
+
+    root->Close(root);
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS find_initrd_file(EFI_LOADED_IMAGE_PROTOCOL* image) {
+    EFI_GUID info_guid = EFI_FILE_INFO_ID;
+    EFI_STATUS Status;
+    EFI_FILE_HANDLE file;
+    UINTN buf_size;
+    char16_t* buf;
+
+    struct {
+        EFI_FILE_INFO info;
+        char16_t filename[256];
+    } file_info;
+
+    static const char16_t prefix[] = u"initrd=";
+
+    auto cmd = wcmdline.find(prefix);
+    if (cmd == u16string_view::npos)
+        return EFI_NOT_FOUND;
+
+    u16string_view path(wcmdline.data() + cmd + (sizeof(prefix) / sizeof(char16_t)) - 1,
+                        wcmdline.size() - cmd - (sizeof(prefix) / sizeof(char16_t)) + 1);
+
+    if (auto sp = path.find(u' '); sp != u16string_view::npos)
+        path = u16string_view(path.data(), sp);
+
+    if (path.empty())
+        return EFI_NOT_FOUND;
+
+    Status = bs->AllocatePool(EfiBootServicesData, (path.size() + 1) * sizeof(char16_t),
+                              (void**)&buf);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    memcpy(buf, path.data(), path.size() * sizeof(char16_t));
+    buf[path.size()] = 0;
+
+    Status = open_device_path(buf, file);
+
+    if (Status == EFI_UNSUPPORTED || Status == EFI_NOT_FOUND) {
+        Status = open_volume(buf, image, file);
+        bs->FreePool(buf);
+
+        if (EFI_ERROR(Status)) {
+            while (true) { }
+            return Status;
+        }
+    } else if (EFI_ERROR(Status)) {
+        bs->FreePool(buf);
+        return Status;
+    }
+
+    bs->FreePool(buf);
+
+    buf_size = sizeof(file_info);
+    Status = file->GetInfo(file, &info_guid, &buf_size, &file_info);
+    if (EFI_ERROR(Status)) {
+        print_error("GetInfo", Status);
+        file->Close(file);
+        return Status;
+    }
+
+    initrd_size = file_info.info.FileSize;
+
+    if (file_info.info.FileSize == 0) {
+        file->Close(file);
+        return EFI_NOT_FOUND;
+    }
+
+    Status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData,
+                               bytes_to_pages(initrd_size), &initrd_data);
+    if (EFI_ERROR(Status)) {
+        file->Close(file);
+        return Status;
+    }
+
+    auto readbuf = (uint8_t*)initrd_data;
+
+    do {
+        // follow Linux in only reading 1MB at a time, to work around dodgy firmware
+        UINTN size = max((size_t)(1024 * 1024), (size_t)((uint8_t*)initrd_data + initrd_size - readbuf));
+
+        Status = file->Read(file, &size, readbuf);
+        if (EFI_ERROR(Status)) {
+            file->Close(file);
+            return Status;
+        }
+
+        readbuf += size;
+    } while (readbuf < (uint8_t*)initrd_data + initrd_size);
+
+    file->Close(file);
 
     return EFI_SUCCESS;
 }
@@ -1471,7 +1662,8 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     return EFI_SUCCESS; // never reached
 }
 
-static char* strstr(const char* haystack, const char* needle) {
+extern "C"
+char* strstr(const char* haystack, const char* needle) {
     size_t len = strlen(needle);
 
     while (true) {
@@ -1690,10 +1882,18 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         return Status;
     }
 
-    Status = find_initrd();
+    Status = find_initrd_devpath();
     if (EFI_ERROR(Status) && Status != EFI_NOT_FOUND) {
-        print_error("find_initrd", Status);
+        print_error("find_initrd_devpath", Status);
         return Status;
+    }
+
+    if (Status == EFI_NOT_FOUND) {
+        Status = find_initrd_file(image);
+        if (EFI_ERROR(Status) && Status != EFI_NOT_FOUND) {
+            print_error("find_initrd_file", Status);
+            return Status;
+        }
     }
 
     Status = init_framebuffer(image_handle);
