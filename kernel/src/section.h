@@ -8,6 +8,20 @@ enum class section_type {
     image
 };
 
+struct section_info {
+    uint64_t offset;
+    uint64_t size;
+};
+
+struct dwarf_info {
+    section_info debug_info;
+    section_info debug_abbrev;
+    section_info debug_rnglists;
+    section_info debug_str;
+    section_info debug_addr;
+    section_info debug_str_offsets;
+};
+
 class section : public object {
 public:
     section() : object(object_type::section) { }
@@ -44,4 +58,5 @@ public:
     spinlock alloc_lock;
     char* name = nullptr;
     size_t namelen = 0;
+    dwarf_info dwinfo;
 };

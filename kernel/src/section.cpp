@@ -4,7 +4,9 @@
 #include "mem.h"
 #include <pe.h>
 
+import format;
 import print;
+
 using namespace std;
 
 // #define debug_printk printk
@@ -138,6 +140,57 @@ public:
     bool valid = false;
     uintptr_t pa, va;
 };
+
+static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FILE_HEADER& file_header,
+                                   inode& f, span<char> buf) {
+    auto name = string_view(s.Name, sizeof(s.Name));
+
+    while (!name.empty() && name.back() == 0) {
+        name.remove_suffix(1);
+    }
+
+    if (name.empty() || name[0] != '/' || file_header.PointerToSymbolTable == 0)
+        return format(buf, "{}", name);
+
+    // decode long section names
+
+    unsigned int num = 0;
+    uint32_t string_table = file_header.PointerToSymbolTable + (file_header.NumberOfSymbols * 18);
+
+    for (auto c : string_view(name.data() + 1, name.size() - 1)) {
+        num *= 10;
+
+        if (c < '0' || c > '9')
+            return format(buf, "{}", name);
+
+        num += (unsigned int)(c - '0');
+    }
+
+    size_t copy_start = string_table + num;
+    size_t copy_end = copy_start + buf.size() - 1;
+    auto page_start = (uint64_t)(copy_start >> PAGE_SHIFT);
+    auto page_end = (uint64_t)(copy_end >> PAGE_SHIFT);
+
+    auto pinned_pages = (uint32_t)f.cache.read_into_cache_and_pin(page_start, page_end - page_start + 1);
+
+    if (pinned_pages < page_end - page_start + 1) {
+        f.cache.unpin(page_start, pinned_pages);
+        return format(buf, "{}", name);
+    }
+
+    f.cache.copy_into_buffer_and_unpin(page_start, pinned_pages, span((uint8_t*)buf.data(), buf.size()),
+                                       copy_start % PAGE_SIZE);
+
+    size_t end = buf.size();
+    for (unsigned int i = 0; i < end; i++) {
+        if (buf[i] == 0) {
+            end = i;
+            break;
+        }
+    }
+
+    return buf.subspan(end);
+}
 
 nt_status section::load_image() {
     if (!ino) {
@@ -306,11 +359,40 @@ nt_status section::load_image() {
 
     // FIXME - we should be creating our own page cache for this
 
+    memset(&dwinfo, 0, sizeof(dwinfo));
+
     for (const auto& sect : sections) {
         auto section_size = max(sect.VirtualSize, sect.SizeOfRawData);
+        char buf[50];
+        string_view name;
 
         if (section_size == 0)
             continue;
+
+        auto sp = span(buf, sizeof(buf));
+        sp = get_section_name(sect, nt_header.FileHeader, f, sp);
+
+        name = string_view(buf, (size_t)(sp.data() - buf));
+
+        if (name == ".debug_info") {
+            dwinfo.debug_info.offset = sect.VirtualAddress;
+            dwinfo.debug_info.size = sect.VirtualSize;
+        } else if (name == ".debug_abbrev") {
+            dwinfo.debug_abbrev.offset = sect.VirtualAddress;
+            dwinfo.debug_abbrev.size = sect.VirtualSize;
+        } else if (name == ".debug_rnglists") {
+            dwinfo.debug_rnglists.offset = sect.VirtualAddress;
+            dwinfo.debug_rnglists.size = sect.VirtualSize;
+        } else if (name == ".debug_str") {
+            dwinfo.debug_str.offset = sect.VirtualAddress;
+            dwinfo.debug_str.size = sect.VirtualSize;
+        } else if (name == ".debug_addr") {
+            dwinfo.debug_addr.offset = sect.VirtualAddress;
+            dwinfo.debug_addr.size = sect.VirtualSize;
+        } else if (name == ".debug_str_offsets") {
+            dwinfo.debug_str_offsets.offset = sect.VirtualAddress;
+            dwinfo.debug_str_offsets.size = sect.VirtualSize;
+        }
 
         if (sect.VirtualAddress + section_size > size) {
             debug_printk("section overflow\n");
