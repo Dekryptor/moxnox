@@ -60,3 +60,19 @@ struct ci_char_traits : public std::char_traits<char16_t> {
 };
 
 using u16string_view_ci = std::basic_string_view<char16_t, ci_char_traits>;
+
+struct ldr_entry {
+    LDR_DATA_TABLE_ENTRY ldr;
+    uint64_t offset_debug_info;
+    uint64_t size_debug_info;
+    uint64_t offset_debug_abbrev;
+    uint64_t size_debug_abbrev;
+    uint64_t offset_debug_rnglists;
+    uint64_t size_debug_rnglists;
+    uint64_t offset_debug_str;
+    uint64_t size_debug_str;
+    uint64_t offset_debug_addr;
+    uint64_t size_debug_addr;
+    uint64_t offset_debug_str_offsets;
+    uint64_t size_debug_str_offsets;
+};

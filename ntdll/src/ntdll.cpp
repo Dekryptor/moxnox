@@ -363,9 +363,9 @@ static void toggle_protections(bool enable) {
     }
 }
 
-static void add_ldr_entry(void* base, u16string_view full_name, u16string_view base_name, bool no_dll_main) {
+static ldr_entry& add_ldr_entry(void* base, u16string_view full_name, u16string_view base_name, bool no_dll_main) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
-    auto size = sizeof(LDR_DATA_TABLE_ENTRY) + ((full_name.size() + 1) * sizeof(char16_t)) + ((base_name.size() + 1) * sizeof(char16_t));
+    auto size = sizeof(ldr_entry) + ((full_name.size() + 1) * sizeof(char16_t)) + ((base_name.size() + 1) * sizeof(char16_t));
     auto ptr = RtlAllocateHeap((void*)peb.ProcessHeap, HEAP_ZERO_MEMORY, size);
 
     if (!ptr) {
@@ -373,42 +373,43 @@ static void add_ldr_entry(void* base, u16string_view full_name, u16string_view b
         NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
     }
 
-    auto& ent = *(LDR_DATA_TABLE_ENTRY*)ptr;
+    auto& ent = *(ldr_entry*)ptr;
+    auto& ldr = ent.ldr;
 
     auto& dos_header = *(IMAGE_DOS_HEADER*)base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
 
-    ent.DllBase = base;
+    ldr.DllBase = base;
 
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-        ent.EntryPoint = (uint8_t*)base + nt_header.OptionalHeader64.AddressOfEntryPoint;
-        ent.SizeOfImage = nt_header.OptionalHeader64.SizeOfImage;
+        ldr.EntryPoint = (uint8_t*)base + nt_header.OptionalHeader64.AddressOfEntryPoint;
+        ldr.SizeOfImage = nt_header.OptionalHeader64.SizeOfImage;
     } else {
-        ent.EntryPoint = (uint8_t*)base + nt_header.OptionalHeader32.AddressOfEntryPoint;
-        ent.SizeOfImage = nt_header.OptionalHeader32.SizeOfImage;
+        ldr.EntryPoint = (uint8_t*)base + nt_header.OptionalHeader32.AddressOfEntryPoint;
+        ldr.SizeOfImage = nt_header.OptionalHeader32.SizeOfImage;
     }
 
-    ent.FullDllName.Length = (uint16_t)(full_name.size() * sizeof(char16_t));
-    ent.FullDllName.MaximumLength = ent.FullDllName.Length + sizeof(char16_t);
-    ent.FullDllName.Buffer = (char16_t*)((uint8_t*)ptr + sizeof(LDR_DATA_TABLE_ENTRY));
+    ldr.FullDllName.Length = (uint16_t)(full_name.size() * sizeof(char16_t));
+    ldr.FullDllName.MaximumLength = ldr.FullDllName.Length + sizeof(char16_t);
+    ldr.FullDllName.Buffer = (char16_t*)((uint8_t*)ptr + sizeof(ldr_entry));
 
-    ent.BaseDllName.Length = (uint16_t)(base_name.size() * sizeof(char16_t));
-    ent.BaseDllName.MaximumLength = ent.BaseDllName.Length + sizeof(char16_t);
-    ent.BaseDllName.Buffer = (char16_t*)((uint8_t*)ent.FullDllName.Buffer + ent.FullDllName.MaximumLength);
+    ldr.BaseDllName.Length = (uint16_t)(base_name.size() * sizeof(char16_t));
+    ldr.BaseDllName.MaximumLength = ldr.BaseDllName.Length + sizeof(char16_t);
+    ldr.BaseDllName.Buffer = (char16_t*)((uint8_t*)ldr.FullDllName.Buffer + ldr.FullDllName.MaximumLength);
 
-    ent.LoadCount = 1;
+    ldr.LoadCount = 1;
     // FIXME - HashLinks
 
     if (no_dll_main)
-        ent.ProcessAttachCalled = 1;
+        ldr.ProcessAttachCalled = 1;
 
-    memcpy(ent.FullDllName.Buffer, full_name.data(), ent.FullDllName.Length);
-    ent.FullDllName.Buffer[full_name.size()] = 0;
+    memcpy(ldr.FullDllName.Buffer, full_name.data(), ldr.FullDllName.Length);
+    ldr.FullDllName.Buffer[full_name.size()] = 0;
 
-    memcpy(ent.BaseDllName.Buffer, base_name.data(), ent.BaseDllName.Length);
-    ent.BaseDllName.Buffer[base_name.size()] = 0;
+    memcpy(ldr.BaseDllName.Buffer, base_name.data(), ldr.BaseDllName.Length);
+    ldr.BaseDllName.Buffer[base_name.size()] = 0;
 
-    InsertTailList(&ldr_data.InLoadOrderModuleList, &ent.InLoadOrderLinks);
+    InsertTailList(&ldr_data.InLoadOrderModuleList, &ldr.InLoadOrderLinks);
 
     {
         auto le = ldr_data.InMemoryOrderModuleList.Flink;
@@ -417,8 +418,8 @@ static void add_ldr_entry(void* base, u16string_view full_name, u16string_view b
         while (le != &ldr_data.InMemoryOrderModuleList) {
             auto ent2 = CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 
-            if (ent2->DllBase > ent.DllBase) {
-                InsertHeadList(le->Blink, &ent.InMemoryOrderLinks);
+            if (ent2->DllBase > ldr.DllBase) {
+                InsertHeadList(le->Blink, &ldr.InMemoryOrderLinks);
                 done = true;
                 break;
             }
@@ -427,11 +428,13 @@ static void add_ldr_entry(void* base, u16string_view full_name, u16string_view b
         }
 
         if (!done)
-            InsertTailList(&ldr_data.InMemoryOrderModuleList, &ent.InMemoryOrderLinks);
+            InsertTailList(&ldr_data.InMemoryOrderModuleList, &ldr.InMemoryOrderLinks);
     }
+
+    return ent;
 }
 
-static void init_ldr_data(void* ntdll_base) {
+static void init_ldr_data(mn_image_info& ntdll_info) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto& proc_params = *peb.ProcessParameters;
 
@@ -451,7 +454,21 @@ static void init_ldr_data(void* ntdll_base) {
     if (auto pos = base_name.find_last_of('/'); pos != u16string_view::npos)
         base_name = u16string_view(base_name.data() + pos + 1, base_name.size() - pos - 1);
 
-    add_ldr_entry(ntdll_base, u"\\ntdll.dll", u"ntdll.dll", true); // FIXME - name and path
+    auto& ntdll = add_ldr_entry(ntdll_info.base, u"\\ntdll.dll", u"ntdll.dll", true); // FIXME - name and path
+
+    ntdll.offset_debug_info = ntdll_info.offset_debug_info;
+    ntdll.size_debug_info = ntdll_info.size_debug_info;
+    ntdll.offset_debug_abbrev = ntdll_info.offset_debug_abbrev;
+    ntdll.size_debug_abbrev = ntdll_info.size_debug_abbrev;
+    ntdll.offset_debug_rnglists = ntdll_info.offset_debug_rnglists;
+    ntdll.size_debug_rnglists = ntdll_info.size_debug_rnglists;
+    ntdll.offset_debug_str = ntdll_info.offset_debug_str;
+    ntdll.size_debug_str = ntdll_info.size_debug_str;
+    ntdll.offset_debug_addr = ntdll_info.offset_debug_addr;
+    ntdll.size_debug_addr = ntdll_info.size_debug_addr;
+    ntdll.offset_debug_str_offsets = ntdll_info.offset_debug_str_offsets;
+    ntdll.size_debug_str_offsets = ntdll_info.size_debug_str_offsets;
+
     add_ldr_entry(peb.ImageBaseAddress, image_path, base_name, true);
 }
 
@@ -670,7 +687,7 @@ void mn_start_thread(mn_image_info* ntdll_info, CONTEXT* context) {
         peb.ProcessHeap = (HANDLE)heap;
         peb.Ldr = &ldr_data;
 
-        init_ldr_data(ntdll_info->base);
+        init_ldr_data(*ntdll_info);
 
         load_dlls();
 
