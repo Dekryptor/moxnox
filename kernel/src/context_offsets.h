@@ -47,7 +47,6 @@
 #define THREAD_PENDING_SIGNAL 0xa38
 
 #define PROCESS_CR3 0x40
-#define PROCESS_NTDLL_ADDR 0xa0
 
 #define APIC_BASE 0xfffffab000000000
 #define APIC_EOI 0xb0
