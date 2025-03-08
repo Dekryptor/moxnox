@@ -1045,7 +1045,7 @@ static void get_func_name(span<const uint8_t> debug_str,
                           span<const uint8_t> cu, span<char>& sp,
                           optional<uint32_t> str_offsets_base) {
     string_view name, linkage_name;
-    optional<uint32_t> specification;
+    optional<uint32_t> specification, abstract_origin;
 
     loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
         if (att_num == DW_AT::name && form_is_string(form))
@@ -1054,6 +1054,8 @@ static void get_func_name(span<const uint8_t> debug_str,
             linkage_name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
         else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
             specification = *(uint32_t*)data.data();
+        else if (att_num == DW_AT::abstract_origin && form == DW_FORM::ref4)
+            abstract_origin = *(uint32_t*)data.data();
 
         return true;
     });
@@ -1061,65 +1063,78 @@ static void get_func_name(span<const uint8_t> debug_str,
     if (name.empty() && !linkage_name.empty())
         name = linkage_name;
 
-    if (!name.empty()) {
+    if (!name.empty() && !abstract_origin.has_value()) {
         sp = format(sp, "{}", name);
         return;
     }
 
     // if class function, we need to follow the specification
-    if (!specification.has_value()) {
+    if (!specification.has_value() && !abstract_origin.has_value()) {
         sp = format(sp, "???");
         return;
     }
 
-    uint32_t ref = *specification;
     size_t written = 0;
 
-    static const char sep[] = { ':', ':' };
-
     do {
-        name = string_view();
+        uint32_t ref;
 
-        find_die_by_reference(cu, ref, abbrev_list, [&name, &linkage_name, &debug_str, &debug_str_offsets, &str_offsets_base]
-                (enum DW_TAG tag, span<const uint8_t> die, span<const uint8_t> att_list) {
-            if (tag == DW_TAG::compile_unit)
-                return;
+        static const char sep[] = { ':', ':' };
 
-            loop_through_atts(die, att_list, [&name, &linkage_name, &debug_str, &debug_str_offsets, &str_offsets_base]
-                    (enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
-                if (att_num == DW_AT::name && form_is_string(form))
-                    name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
-                else if (att_num == DW_AT::linkage_name && form_is_string(form))
-                    linkage_name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
+        if (abstract_origin.has_value())
+            ref = *abstract_origin;
+        else if (specification.has_value())
+            ref = *specification;
 
-                return true;
+        abstract_origin = nullopt;
+        specification = nullopt;
+
+        do {
+            name = string_view();
+
+            find_die_by_reference(cu, ref, abbrev_list, [&](enum DW_TAG tag, span<const uint8_t> die, span<const uint8_t> att_list) {
+                if (tag == DW_TAG::compile_unit)
+                    return;
+
+                loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
+                    if (att_num == DW_AT::name && form_is_string(form))
+                        name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
+                    else if (att_num == DW_AT::linkage_name && form_is_string(form))
+                        linkage_name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
+                    else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
+                        specification = *(uint32_t*)data.data();
+                    else if (att_num == DW_AT::abstract_origin && form == DW_FORM::ref4)
+                        abstract_origin = *(uint32_t*)data.data();
+
+                    return true;
+                });
             });
-        });
 
-        if (name.empty())
-            break;
+            if (name.empty())
+                break;
 
-        bool write_sep = written != 0;
+            bool write_sep = written != 0;
 
-        // FIXME - only need to move what we've written, not whole buffer
-        if (name.size() < sp.size()) {
-            size_t len = name.size() + (write_sep ? sizeof(sep) : 0);
+            // FIXME - only need to move what we've written, not whole buffer
+            if (name.size() < sp.size()) {
+                size_t len = name.size() + (write_sep ? sizeof(sep) : 0);
 
-            memmove(sp.data() + len, sp.data(), sp.size() - len);
-        }
+                memmove(sp.data() + len, sp.data(), sp.size() - len);
+            }
 
-        memcpy(sp.data(), name.data(), min(name.size(), sp.size()));
-        written += name.size() + (write_sep ? sizeof(sep) : 0);
+            memcpy(sp.data(), name.data(), min(name.size(), sp.size()));
+            written += name.size() + (write_sep ? sizeof(sep) : 0);
 
-        if (write_sep && sp.size() > name.size())
-            memcpy(sp.data() + name.size(), sep, min(sizeof(sep), sp.size() - name.size()));
+            if (write_sep && sp.size() > name.size())
+                memcpy(sp.data() + name.size(), sep, min(sizeof(sep), sp.size() - name.size()));
 
-        auto ref2 = find_die_parent(cu, abbrev_list, ref);
-        if (ref2 == 0)
-            break;
+            auto ref2 = find_die_parent(cu, abbrev_list, ref);
+            if (ref2 == 0)
+                break;
 
-        ref = ref2;
-    } while (true);
+            ref = ref2;
+        } while (true);
+    } while (specification.has_value() || abstract_origin.has_value());
 
     if (written == 0) {
         if (name.empty() && !linkage_name.empty())
