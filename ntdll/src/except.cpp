@@ -65,8 +65,8 @@ static void print_rip(uint64_t rip) {
                                               rip - (uintptr_t)ent->ldr.DllBase + base, sp);
 
         if (func_start != 0) {
-            if (rip != func_start)
-                sp = format(sp, "+{:x}", rip - func_start);
+            if (rip - (uintptr_t)ent->ldr.DllBase + base != func_start)
+                sp = format(sp, "+{:x}", rip - (uintptr_t)ent->ldr.DllBase + base - func_start);
         } else {
             // erase exclamation mark
             sp = span(sp.data() - 1, sp.size() + 1);
