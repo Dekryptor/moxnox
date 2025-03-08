@@ -1298,14 +1298,14 @@ static const struct {
         {
             MEDIA_DEVICE_PATH,
             MEDIA_VENDOR_DP,
-            sizeof(VENDOR_DEVICE_PATH)
+            { sizeof(VENDOR_DEVICE_PATH), 0 }
         },
         LINUX_EFI_INITRD_MEDIA_GUID
     },
     {
         END_DEVICE_PATH_TYPE,
         END_ENTIRE_DEVICE_PATH_SUBTYPE,
-        sizeof(EFI_DEVICE_PATH_PROTOCOL)
+        { sizeof(EFI_DEVICE_PATH_PROTOCOL), 0 }
     }
 };
 
