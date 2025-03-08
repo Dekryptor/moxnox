@@ -10,6 +10,9 @@ using namespace std;
 
 extern uint16_t last_tid; // FIXME
 
+// process.cpp
+extern section* ntdll;
+
 thread* get_current_thread() {
     disable_preempt();
 
@@ -243,6 +246,18 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     }
 
     ntdll_info.base = (void*)ntdll_addr;
+    ntdll_info.offset_debug_info = ntdll->dwinfo.debug_info.offset;
+    ntdll_info.size_debug_info = ntdll->dwinfo.debug_info.size;
+    ntdll_info.offset_debug_abbrev = ntdll->dwinfo.debug_abbrev.offset;
+    ntdll_info.size_debug_abbrev = ntdll->dwinfo.debug_abbrev.size;
+    ntdll_info.offset_debug_rnglists = ntdll->dwinfo.debug_rnglists.offset;
+    ntdll_info.size_debug_rnglists = ntdll->dwinfo.debug_rnglists.size;
+    ntdll_info.offset_debug_str = ntdll->dwinfo.debug_str.offset;
+    ntdll_info.size_debug_str = ntdll->dwinfo.debug_str.size;
+    ntdll_info.offset_debug_addr = ntdll->dwinfo.debug_addr.offset;
+    ntdll_info.size_debug_addr = ntdll->dwinfo.debug_addr.size;
+    ntdll_info.offset_debug_str_offsets = ntdll->dwinfo.debug_str_offsets.offset;
+    ntdll_info.size_debug_str_offsets = ntdll->dwinfo.debug_str_offsets.size;
 
     auto img_info_addr = ctx_addr - sizeof(ntdll_info);
 

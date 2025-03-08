@@ -87,6 +87,18 @@ static const uint32_t DLL_THREAD_DETACH = 3;
 
 struct mn_image_info {
     void* base;
+    uint64_t offset_debug_info;
+    uint64_t size_debug_info;
+    uint64_t offset_debug_abbrev;
+    uint64_t size_debug_abbrev;
+    uint64_t offset_debug_rnglists;
+    uint64_t size_debug_rnglists;
+    uint64_t offset_debug_str;
+    uint64_t size_debug_str;
+    uint64_t offset_debug_addr;
+    uint64_t size_debug_addr;
+    uint64_t offset_debug_str_offsets;
+    uint64_t size_debug_str_offsets;
 };
 
 extern "C" {

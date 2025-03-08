@@ -12,7 +12,8 @@ using namespace std;
 
 static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
-static section* ntdll = nullptr;
+section* ntdll = nullptr;
+
 uintptr_t mn_start_thread, mn_signal;
 
 static_assert(sizeof(TEB) == 0x1818);
