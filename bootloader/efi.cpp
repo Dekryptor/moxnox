@@ -6,6 +6,8 @@
 
 using namespace std;
 
+import format;
+
 static EFI_SYSTEM_TABLE* systable __attribute__((section (".data")));
 static EFI_BOOT_SERVICES* bs __attribute__((section (".data")));
 
@@ -101,6 +103,30 @@ static void print_string(string_view s) {
     *t = 0;
 
     systable->ConOut->OutputString(systable->ConOut, (CHAR16*)w);
+}
+
+template<typename... Args>
+static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+    char s[100];
+    auto sp = span(s, sizeof(s));
+
+    sp = format_to(sp, fmt.sv, args...);
+
+    print_string(string_view(s, (size_t)(sp.data() - s)));
+}
+
+extern "C"
+void* memchr(const void* ptr, int ch, size_t count) {
+    auto p = (uint8_t*)ptr;
+
+    for (size_t i = 0; i < count; i++) {
+        if (*p == ch)
+            return p;
+
+        p++;
+    }
+
+    return nullptr;
 }
 
 static const char* error_string(EFI_STATUS Status) {
@@ -374,57 +400,8 @@ void* memmove(void* dest, const void* src, size_t n) {
     return orig_dest;
 }
 
-static span<char> sp_strcpy(span<char> dest, string_view src) {
-    auto to_copy = min(src.size(), dest.size());
-
-    memcpy(dest.data(), src.data(), to_copy);
-
-    return dest.subspan(to_copy);
-}
-
 static void print_error(const char* func, EFI_STATUS Status) {
-    char s[255];
-    auto sp = span(s, sizeof(s));
-
-    sp = sp_strcpy(sp, func);
-    sp = sp_strcpy(sp, " returned ");
-    sp = sp_strcpy(sp, error_string(Status));
-    sp = sp_strcpy(sp, "\n");
-
-    print_string(string_view(s, (size_t)(sp.data() - s)));
-}
-
-static span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding = 0) {
-    bool first = true;
-
-    if (dest.empty())
-        return dest;
-
-    if (num == 0 && padding == 0) {
-        dest[0] = '0';
-        return dest.subspan(1);
-    }
-
-    for (unsigned int i = 0; i < 16; i++) {
-        if (!first || padding == 16 - i || num & 0xf000000000000000) {
-            uint64_t n = num >> 60;
-
-            if (n <= 9)
-                dest[0] = (char)(n + '0');
-            else
-                dest[0] = (char)(n - 0xa + 'a');
-
-            dest = dest.subspan(1);
-            first = false;
-
-            if (dest.empty())
-                return dest;
-        }
-
-        num <<= 4;
-    }
-
-    return dest;
+    print("{} returned {}\n", func, error_string(Status));
 }
 
 static void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
@@ -533,16 +510,7 @@ static EFI_STATUS get_image_information(EFI_HANDLE image_handle,
         return Status;
     }
 
-    {
-        char s[255];
-        auto sp = span(s, sizeof(s));
-
-        sp = sp_strcpy(sp, "EFI stub loaded at ");
-        sp = sp_itoa_hex(sp, (uintptr_t)image->ImageBase);
-        sp = sp_strcpy(sp, "\n");
-
-        print_string(string_view(s, (size_t)(sp.data() - s)));
-    }
+    print("EFI stub loaded at {:x}\n", (uintptr_t)image->ImageBase);
 
     if (image->LoadOptionsSize == 0)
         cmdline[0] = 0;
@@ -709,8 +677,7 @@ static bool do_relocations(uint8_t* data, uint64_t va, IMAGE_NT_HEADERS* nt_head
                 }
 
                 default:
-                    print_string("Unsupported relocation type.\n"); // FIXME - include number
-
+                    print("Unsupported relocation type {}.\n", type);
                     return false;
             }
         }
@@ -959,7 +926,7 @@ static EFI_STATUS get_memory_map() {
 
     status = bs->GetMemoryMap(&map_size, memory_map, &key, &descriptor_size, &descriptor_version);
     if (status == EFI_SUCCESS) {
-        print_string("GetMemoryMap did not return memory map.\r\n");
+        print_string("GetMemoryMap did not return memory map.\n");
         return EFI_INVALID_PARAMETER;
     } else if (status != EFI_BUFFER_TOO_SMALL) {
         print_error("GetMemoryMap", status);
@@ -1149,14 +1116,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
     pt_offset = (va >> EFI_PAGE_SHIFT) & 0x1ff;
 
     if (pt[pt_offset].Valid) {
-        char s[255];
-        auto sp = span(s, sizeof(s));
-
-        sp = sp_strcpy(sp, "Mapping for ");
-        sp = sp_itoa_hex(sp, va);
-        sp = sp_strcpy(sp, " already set.\n");
-
-        print_string(string_view(s, (size_t)(sp.data() - s)));
+        print("Mapping for {:x} already set.\n", va);
         return EFI_INVALID_PARAMETER;
     }
 
@@ -1275,15 +1235,7 @@ static EFI_STATUS find_acpi_tables(uint64_t& addr) {
     if (rsdp->revision == 2)
         addr = rsdp->xsdt_physical_address;
     else {
-        char s[255];
-        auto sp = span(s, sizeof(s));
-
-        sp = sp_strcpy(sp, "Unrecognized ACPI revision ");
-        sp = sp_itoa_hex(sp, rsdp->revision);
-        sp = sp_strcpy(sp, "\n");
-
-        print_string(string_view(s, (size_t)(sp.data() - s)));
-
+        print("Unrecognized ACPI revision {}\n", rsdp->revision);
         return EFI_INVALID_PARAMETER;
     }
 
