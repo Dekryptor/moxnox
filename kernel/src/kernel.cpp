@@ -182,7 +182,7 @@ void main_thread() {
 
     auto& init_process = static_cast<process&>(init.get());
 
-    bsod_format("init process died (exit code {:x})", (uint64_t)init_process.exit_status);
+    bsod_format("init process died (exit code {})", init_process.exit_status);
 }
 
 static void init_images_list(span<const uint8_t> debug_info,
