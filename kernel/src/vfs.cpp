@@ -8,6 +8,7 @@
 
 import print;
 import bsod;
+import tmpfs;
 
 using namespace std;
 
@@ -93,7 +94,7 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
     while (le != &fs_list) {
         auto& fs = containing_record<::filesystem>(le);
 
-        if (fs.vol.type_guid == moxnox_partition_guid) {
+        if (fs.vol && fs.vol->type_guid == moxnox_partition_guid) {
             if (ret) {
                 print("Multiple Moxnox partitions, not sure which to choose\n");
                 return nullptr;
@@ -113,8 +114,25 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
     return ret;
 }
 
+static bool extract_initrd() {
+    auto fs = create_tmpfs();
+    if (!fs) {
+        print("create_tmpfs failed\n");
+        return false;
+    }
+
+    root.fs = fs;
+
+    // FIXME - extract cpio archive
+
+    return true;
+}
+
 bool mount_root() {
     string_view cmdline_root;
+
+    if (!initrd.empty())
+        return extract_initrd();
 
     loop_through_cmdline([&](string_view s) {
         static const char root_option[] = "root=";

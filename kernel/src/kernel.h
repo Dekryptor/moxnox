@@ -114,6 +114,7 @@ uint64_t allocate_va(uint32_t pages);
 void free_va(uint64_t va, uint32_t pages);
 uint64_t va_to_pa(uint64_t va);
 void free_lower_half_mappings();
+extern std::span<const uint8_t> initrd;
 
 // console.cpp
 enum class console_type {

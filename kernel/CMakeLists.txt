@@ -54,6 +54,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/inout.cpp
     src/print.cpp
     src/bsod.cpp
+    src/tmpfs.cpp
 )
 
 target_link_libraries(kernel format dwarf)
