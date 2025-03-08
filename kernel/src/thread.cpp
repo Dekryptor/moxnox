@@ -193,7 +193,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
                                 const INITIAL_TEB& initial_teb, bool create_suspended) {
     uint16_t tid;
     CONTEXT start_context;
-    mn_image_info ntdll_info;
+    mn_image_info ntdll_info, img_info;
 
     // FIXME - desired_access
     // FIXME - object_attributes
@@ -259,9 +259,33 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     ntdll_info.offset_debug_str_offsets = ntdll->dwinfo.debug_str_offsets.offset;
     ntdll_info.size_debug_str_offsets = ntdll->dwinfo.debug_str_offsets.size;
 
-    auto img_info_addr = ctx_addr - sizeof(ntdll_info);
+    auto ntdll_info_addr = ctx_addr - sizeof(ntdll_info);
 
-    if (!copy_to((void*)img_info_addr, &ntdll_info, sizeof(ntdll_info))) {
+    if (!copy_to((void*)ntdll_info_addr, &ntdll_info, sizeof(ntdll_info))) {
+        print("process::copy_to failed\n");
+        delete &t;
+        return nt_status::NO_MEMORY;
+    }
+
+    auto& sect = img->get();
+
+    img_info.base = (void*)img_addr;
+    img_info.offset_debug_info = sect.dwinfo.debug_info.offset;
+    img_info.size_debug_info = sect.dwinfo.debug_info.size;
+    img_info.offset_debug_abbrev = sect.dwinfo.debug_abbrev.offset;
+    img_info.size_debug_abbrev = sect.dwinfo.debug_abbrev.size;
+    img_info.offset_debug_rnglists = sect.dwinfo.debug_rnglists.offset;
+    img_info.size_debug_rnglists = sect.dwinfo.debug_rnglists.size;
+    img_info.offset_debug_str = sect.dwinfo.debug_str.offset;
+    img_info.size_debug_str = sect.dwinfo.debug_str.size;
+    img_info.offset_debug_addr = sect.dwinfo.debug_addr.offset;
+    img_info.size_debug_addr = sect.dwinfo.debug_addr.size;
+    img_info.offset_debug_str_offsets = sect.dwinfo.debug_str_offsets.offset;
+    img_info.size_debug_str_offsets = sect.dwinfo.debug_str_offsets.size;
+
+    auto img_info_addr = ntdll_info_addr - sizeof(img_info);
+
+    if (!copy_to((void*)img_info_addr, &img_info, sizeof(img_info))) {
         print("process::copy_to failed\n");
         delete &t;
         return nt_status::NO_MEMORY;
@@ -277,8 +301,9 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.SegFs = user_DS;
     t.context.SegGs = user_DS;
     t.context.Rip = ntdll_addr + mn_start_thread;
-    t.context.Rcx = img_info_addr;
-    t.context.Rdx = ctx_addr;
+    t.context.Rcx = ntdll_info_addr;
+    t.context.Rdx = img_info_addr;
+    t.context.R8 = ctx_addr;
     t.context.Rsp = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
 
     t.kernel_mode = false;

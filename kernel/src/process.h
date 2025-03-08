@@ -72,7 +72,7 @@ public:
     handle_obj* handle_arr = nullptr;
     PEB* peb = nullptr;
     RTL_USER_PROCESS_PARAMETERS* proc_params = nullptr;
-    uintptr_t ntdll_addr;
+    uintptr_t ntdll_addr, img_addr;
 
 private:
     void free_mappings();

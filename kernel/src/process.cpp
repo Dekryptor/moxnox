@@ -95,8 +95,8 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto& img = p.img->get();
 
-    auto img_base = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
-    if (!img_base) {
+    p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
+    if (!p.img_addr) {
         print("process::map_section failed\n");
         p.release();
         return {};
@@ -172,7 +172,7 @@ object_ref create_process(string_view fn, string_view curdir,
 
     curdir_file->release();
 
-    if (!p.allocate_peb(img_base, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
+    if (!p.allocate_peb(p.img_addr, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
         print("process::allocate_peb failed\n");
         p.release();
         return {};
@@ -202,7 +202,7 @@ object_ref create_process(string_view fn, string_view curdir,
     uintptr_t entry_point_ctx_addr = (uintptr_t)stackaddr + stack_size - sizeof(CONTEXT) - 0x20;
 
     memset(&entry_point_context, 0, sizeof(entry_point_context));
-    entry_point_context.Rip = img_base + img.entry_point;
+    entry_point_context.Rip = p.img_addr + img.entry_point;
     entry_point_context.Rsp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
 
     if (!p.copy_to((void*)entry_point_ctx_addr, &entry_point_context, sizeof(entry_point_context))) {
@@ -2202,8 +2202,8 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     p.img = img;
 
-    auto img_base = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
-    if (!img_base) {
+    p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
+    if (!p.img_addr) {
         print("process::map_section failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
@@ -2220,7 +2220,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     // FIXME - map time page into process
 
-    if (!p.allocate_peb(img_base, 0, 0, 0, 0, "", string_view(img.name, img.namelen))) {
+    if (!p.allocate_peb(p.img_addr, 0, 0, 0, 0, "", string_view(img.name, img.namelen))) {
         print("process::allocate_peb failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
