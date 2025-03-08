@@ -28,6 +28,16 @@ static ldr_entry* get_ldr_from_address(uint64_t addr) {
     return nullptr;
 }
 
+static uint64_t get_preferred_base(ldr_entry& ent) {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)ent.ldr.DllBase;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)ent.ldr.DllBase + dos_header.e_lfanew);
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        return nt_header.OptionalHeader64.ImageBase;
+    else
+        return nt_header.OptionalHeader32.ImageBase;
+}
+
 static void print_rip(uint64_t rip) {
     char s[1024];
     auto sp = span(s, sizeof(s));
@@ -48,9 +58,11 @@ static void print_rip(uint64_t rip) {
         auto debug_str = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_str, ent->size_debug_str);
         auto debug_str_offsets = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_str_offsets, ent->size_debug_str_offsets);
 
+        auto base = get_preferred_base(*ent);
+
         auto func_start = dwarf_find_function(debug_info, debug_abbrev, debug_rnglists,
                                               debug_addr, debug_str, debug_str_offsets,
-                                              rip, sp);
+                                              rip - (uintptr_t)ent->ldr.DllBase + base, sp);
 
         if (func_start != 0) {
             if (rip != func_start)
