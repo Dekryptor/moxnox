@@ -16,15 +16,15 @@ extern "C++" void disable_preempt();
 extern "C++" void enable_preempt();
 
 extern "C++" __attribute__((noreturn)) void _bsod(string_view msg, source_location sl,
-                                                  bool skip_caller);
+                                                  unsigned int skip_callers);
 
 #define PAGE_SIZE 4096 // FIXME - only define in one place
 
 export
 __attribute__((noreturn))
 void bsod(string_view msg, source_location sl = source_location::current(),
-          bool skip_caller = false) {
-    _bsod(msg, sl, skip_caller);
+          unsigned int skip_callers = 1) {
+    _bsod(msg, sl, skip_callers);
 }
 
 export
@@ -41,8 +41,8 @@ struct bsod_format {
 
         sp = format_to(sp, fmt.sv, args...);
 
-        bsod(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)), sl,
-             true);
+        bsod(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
+             sl, 2);
 
         enable_preempt();
     }

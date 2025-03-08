@@ -402,13 +402,15 @@ static bool unwind_context(CONTEXT& context) {
     return true;
 }
 
-static void print_stacktrace(CONTEXT& context, pipe& p, bool skip_caller) {
+static void print_stacktrace(CONTEXT& context, pipe& p, unsigned int skip_callers) {
     // not interested in top entry (bsod function)
     if (!unwind_context(context))
         return;
 
-    if (skip_caller && !unwind_context(context))
-        return;
+    for (unsigned int i = 0; i < skip_callers; i++) {
+        if (!unwind_context(context))
+            return;
+    }
 
     do {
         print_rip(p, context.Rip);
@@ -418,7 +420,8 @@ static void print_stacktrace(CONTEXT& context, pipe& p, bool skip_caller) {
     } while (true);
 }
 
-void __attribute__((noreturn)) _bsod(string_view msg, source_location sl, bool skip_caller) {
+void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
+                                     unsigned int skip_callers) {
     __asm("cli");
 
     lock_guard lock(bsod_lock);
@@ -481,7 +484,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl, bool s
 
     p.write("\n");
 
-    print_stacktrace(context, p, skip_caller);
+    print_stacktrace(context, p, skip_callers);
 
     p.flush(true);
 
