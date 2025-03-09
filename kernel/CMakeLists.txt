@@ -74,4 +74,6 @@ target_link_libraries(kernel freetype)
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
 
-install(TARGETS kernel DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS kernel DESTINATION ${CMAKE_INSTALL_PREFIX}
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
+)

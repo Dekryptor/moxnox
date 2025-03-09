@@ -26,4 +26,6 @@ target_compile_options(ntdll PRIVATE -Wall -Wextra -Wno-address-of-packed-member
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib -Wl,--allow-multiple-definition)
 target_link_libraries(ntdll format dwarf)
 
-install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX}
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
+)
