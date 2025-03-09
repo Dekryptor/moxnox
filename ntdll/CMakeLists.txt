@@ -28,4 +28,5 @@ target_link_libraries(ntdll format dwarf)
 
 install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX}
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
+    ARCHIVE EXCLUDE_FROM_ALL
 )
