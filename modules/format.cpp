@@ -85,6 +85,42 @@ span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding = 0) 
     return dest;
 }
 
+span<char> sp_itoa_oct(span<char> dest, uint64_t num, unsigned int padding = 0) {
+    bool first = true;
+
+    if (dest.empty())
+        return dest;
+
+    if (num == 0 && padding == 0) {
+        dest[0] = '0';
+        return span(dest.data() + 1, dest.size() - 1);
+    }
+
+    if (num & 0x8000000000000000) {
+        dest[0] = '1';
+        dest = span(dest.data() + 1, dest.size() - 1);
+        first = false;
+
+        if (dest.empty())
+            return dest;
+    }
+
+    for (unsigned int i = 0; i < 21; i++) {
+        if (!first || padding == 21 - i || num & 0x7000000000000000) {
+            dest[0] = (char)(((num & 0x7000000000000000) >> 60) + '0');
+            dest = span(dest.data() + 1, dest.size() - 1);
+            first = false;
+
+            if (dest.empty())
+                return dest;
+        }
+
+        num <<= 3;
+    }
+
+    return dest;
+}
+
 template<typename T>
 consteval bool valid_spec(string_view) {
     return false;
@@ -120,6 +156,24 @@ span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
         }
 
         return sp_itoa_hex(sp, (uint64_t)arg, padding);
+    } else if (fmt.size() >= 2 && fmt.front() == ':' && fmt.back() == 'o') {
+        unsigned int padding = 0;
+
+        for (size_t i = 1; i < fmt.size() - 1; i++) {
+            padding *= 10;
+            padding += (unsigned int)(fmt[i] - '0');
+        }
+
+        // FIXME - should be padded with spaces if first digit not 0
+
+        if constexpr (is_signed_v<decltype(arg)>) {
+            if (arg < 0) {
+                sp = sp_strcpy(sp, "-");
+                return sp_itoa_oct(sp, (uint64_t)-arg, padding > 0 ? (padding - 1) : 0);
+            }
+        }
+
+        return sp_itoa_oct(sp, (uint64_t)arg, padding);
     }
 
     return sp;
@@ -131,7 +185,7 @@ consteval bool valid_spec(string_view fmt) {
     if (fmt.empty())
         return true;
 
-    if (fmt.size() >= 2 && fmt.front() == ':' && fmt.back() == 'x') {
+    if (fmt.size() >= 2 && fmt.front() == ':' && (fmt.back() == 'x' || fmt.back() == 'o')) {
         for (size_t i = 1; i < fmt.size() - 1; i++) {
             if (fmt[i] < '0' || fmt[i] > '9')
                 return false;

@@ -145,7 +145,7 @@ static nt_status extract_initrd_file(tmpfs_filesystem& fs, string_view path,
     if (!success(status))
         return status;
 
-    print("file_size = {}, path = \"{}\", mode = {}\n", contents.size(), path, mode);
+    print("file_size = {}, path = \"{}\", mode = {:o}\n", contents.size(), path, mode);
 
     // FIXME - write into file if not directory
 
