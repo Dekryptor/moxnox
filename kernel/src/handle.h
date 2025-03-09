@@ -31,13 +31,7 @@ public:
         return rw->get();
     }
 
-    void reset() {
-        if (rw) {
-            visit_obj(rw->get(), [](auto&& o) {
-                o.release();
-            });
-        }
-    }
+    void reset();
 
 private:
     std::optional<std::reference_wrapper<object>> rw;

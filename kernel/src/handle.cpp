@@ -35,6 +35,14 @@ object_ref deref_handle2(handle_t h) {
     return t->proc->deref_handle2(h);
 }
 
+void object_ref::reset() {
+    if (rw) {
+        visit_obj(rw->get(), [](auto&& o) {
+            o.release();
+        });
+    }
+}
+
 bool name_object(object& obj, string_view name, bool persistent) {
     if (name.empty()) {
         // FIXME - exception

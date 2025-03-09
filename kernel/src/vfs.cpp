@@ -127,7 +127,7 @@ static constexpr bool S_ISREG(uint64_t mode) {
     return (mode & __S_IFMT) == __S_IFREG;
 }
 
-static nt_status extract_initrd_file(::filesystem& fs, string_view path,
+static nt_status extract_initrd_file(tmpfs_filesystem& fs, string_view path,
                                      uint64_t mode, span<const uint8_t> contents) {
     // FIXME - support symlinks as well at least
     if (!S_ISDIR(mode) && !S_ISREG(mode))
@@ -139,7 +139,7 @@ static nt_status extract_initrd_file(::filesystem& fs, string_view path,
 
     object_ref file;
 
-    auto status = fs.open(path, nullopt, file, FILE_CREATE,
+    auto status = fs.open(path, *fs.root_inode, file, FILE_CREATE,
                           S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0);
 
     if (!success(status))
@@ -161,8 +161,8 @@ static bool extract_initrd() {
 
     root.fs = fs;
 
-    process_cpio(initrd, [](string_view path, uint64_t mode, span<const uint8_t> contents) {
-        auto status = extract_initrd_file(*root.fs, path, mode, contents);
+    process_cpio(initrd, [&](string_view path, uint64_t mode, span<const uint8_t> contents) {
+        auto status = extract_initrd_file(*fs, path, mode, contents);
 
         if (!success(status))
             bsod_format("extract_initrd_file returned {} for {}", status, path);
