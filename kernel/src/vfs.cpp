@@ -9,6 +9,7 @@
 import print;
 import bsod;
 import tmpfs;
+import cpio;
 
 using namespace std;
 
@@ -123,7 +124,10 @@ static bool extract_initrd() {
 
     root.fs = fs;
 
-    // FIXME - extract cpio archive
+    process_cpio(initrd, [](string_view path, uint64_t mode, span<const uint8_t> contents) {
+        // FIXME
+        print("file_size = {}, path = \"{}\", mode = {}\n", contents.size(), path, mode);
+    });
 
     return true;
 }

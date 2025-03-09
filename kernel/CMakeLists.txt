@@ -55,6 +55,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/print.cpp
     src/bsod.cpp
     src/tmpfs.cpp
+    src/cpio.cpp
 )
 
 target_link_libraries(kernel format dwarf)
