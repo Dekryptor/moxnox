@@ -2611,22 +2611,6 @@ size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     return 0;
 }
 
-NTSTATUS btrfs_inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
-    if (offset >= file_size)
-        return nt_status::END_OF_FILE;
-
-    if (s.empty()) {
-        read_bytes = 0;
-        return nt_status::SUCCESS;
-    }
-
-    if (offset + s.size() > file_size)
-        s = s.subspan(0, file_size - offset);
-
-    read_bytes = cache.read(s, offset);
-    return nt_status::SUCCESS;
-}
-
 static NTSTATUS query_directory_dirent(string_view sv, enum btrfs_inode_type inode_type,
                                        span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
     switch (file_information_class) {

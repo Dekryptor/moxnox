@@ -532,3 +532,19 @@ nt_status flush_filesystems(bool make_readonly) {
 
     return nt_status::SUCCESS;
 }
+
+nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
+    if (offset >= file_size)
+        return nt_status::END_OF_FILE;
+
+    if (s.empty()) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    if (offset + s.size() > file_size)
+        s = s.subspan(0, file_size - offset);
+
+    read_bytes = cache.read(s, offset);
+    return nt_status::SUCCESS;
+}

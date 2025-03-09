@@ -30,7 +30,6 @@ public:
     nt_status create_child(string_view name,
                            uint32_t create_options,
                            optional<reference_wrapper<tmpfs_inode>>& obj);
-    NTSTATUS read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) override;
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -184,12 +183,6 @@ tmpfs_inode::~tmpfs_inode() {
         remove_entry_list(c.le);
         free(&c);
     }
-}
-
-NTSTATUS tmpfs_inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
-    print("FIXME - tmpfs_inode::read\n");
-
-    return nt_status::NOT_IMPLEMENTED;
 }
 
 NTSTATUS tmpfs_inode::query_directory(span<uint8_t> buf,
