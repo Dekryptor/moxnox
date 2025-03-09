@@ -11,11 +11,17 @@ import print;
 
 using namespace std;
 
+static const size_t NAME_MAX_LEN = 255;
+
 export class tmpfs_filesystem;
 
 class tmpfs_inode : public inode {
 public:
-    tmpfs_inode(tmpfs_filesystem& fs) : fs(fs) { }
+    tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : fs(fs) {
+        this->inode_type = inode_type;
+    }
+
+    ~tmpfs_inode();
     void release() override;
 
     nt_status open_child(string_view name, uint32_t create_disposition,
@@ -31,9 +37,18 @@ public:
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     list_entry le;
+    spinlock dentry_lock;
+    list_entry children = { &children, &children };
 
 private:
     tmpfs_filesystem& fs;
+};
+
+struct dentry {
+    class tmpfs_inode* inode;
+    list_entry le;
+    size_t name_len;
+    char name[0];
 };
 
 class tmpfs_filesystem : public filesystem {
@@ -59,7 +74,7 @@ private:
 };
 
 tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
-    root_inode = new tmpfs_inode(*this);
+    root_inode = new tmpfs_inode(*this, inode_type::directory);
     if (!root_inode) {
         print("new failed\n");
         return;
@@ -158,6 +173,19 @@ void tmpfs_inode::release() {
     delete this;
 }
 
+tmpfs_inode::~tmpfs_inode() {
+    lock_guard lock(dentry_lock);
+
+    while (!is_list_empty(children)) {
+        auto& c = containing_record<dentry>(children.next);
+
+        c.inode->release();
+
+        remove_entry_list(c.le);
+        free(&c);
+    }
+}
+
 NTSTATUS tmpfs_inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
     print("FIXME - tmpfs_inode::read\n");
 
@@ -184,10 +212,92 @@ size_t tmpfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     return 0;
 }
 
+// FIXME - make this global?
+static bool invalid_name(string_view name) {
+    if (name.empty())
+        return false;
+
+    if (name.size() > NAME_MAX_LEN)
+        return false;
+
+    if (name == "." || name == "..")
+        return false;
+
+    for (auto c : name) {
+        if (c == '/' || c == '\\' || c == 0)
+            return false;
+    }
+
+    // FIXME - check is valid UTF-8?
+
+    return true;
+}
+
 nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
                                  uint32_t create_options,
                                  optional<reference_wrapper<tmpfs_inode>>& obj) {
-    print("FIXME - tmpfs_inode::open_child\n");
+    if (inode_type != inode_type::directory)
+        return nt_status::INVALID_PARAMETER;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - iosb Information
+
+    lock_guard lock(dentry_lock);
+
+    for (auto le = children.next; le != &children; le = le->next) {
+        auto& c = containing_record<dentry>(le);
+        string_view child_name(c.name, c.name_len);
+
+        if (name == child_name) {
+            if (create_disposition == FILE_CREATE)
+                return nt_status::OBJECT_NAME_COLLISION;
+
+            if (create_disposition == FILE_OVERWRITE) {
+                print("FIXME - FILE_OVERWRITE\n");
+                return nt_status::NOT_SUPPORTED;
+            } else if (create_disposition == FILE_OVERWRITE_IF) {
+                print("FIXME - FILE_OVERWRITE_IF\n");
+                return nt_status::NOT_SUPPORTED;
+            } else if (create_disposition == FILE_SUPERSEDE) {
+                print("FIXME - FILE_SUPERSEDE\n");
+                return nt_status::NOT_SUPPORTED;
+            }
+
+            c.inode->acquire();
+            obj = *c.inode;
+
+            return nt_status::SUCCESS;
+        }
+    }
+
+    if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE)
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+
+    if (!invalid_name(name))
+        return nt_status::OBJECT_NAME_INVALID;
+
+    bool is_dir = create_options & FILE_DIRECTORY_FILE;
+
+    auto ino = new tmpfs_inode(fs, is_dir ? inode_type::directory : inode_type::file);
+    if (!ino)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto c = (dentry*)malloc(offsetof(dentry, name) + name.size());
+    if (!c) {
+        ino->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    new (c) dentry;
+
+    ino->acquire();
+
+    c->inode = ino;
+    c->name_len = name.size();
+    memcpy(c->name, name.data(), name.size());
+
+    insert_tail_list(children, c->le);
+
+    obj = *ino;
+
+    return nt_status::SUCCESS;
 }
