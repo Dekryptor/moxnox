@@ -115,6 +115,43 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
     return ret;
 }
 
+static const uint64_t __S_IFMT = 0170000;
+static const uint64_t __S_IFDIR = 0040000;
+static const uint64_t __S_IFREG = 0100000;
+
+static constexpr bool S_ISDIR(uint64_t mode) {
+    return (mode & __S_IFMT) == __S_IFDIR;
+}
+
+static constexpr bool S_ISREG(uint64_t mode) {
+    return (mode & __S_IFMT) == __S_IFREG;
+}
+
+static nt_status extract_initrd_file(::filesystem& fs, string_view path,
+                                     uint64_t mode, span<const uint8_t> contents) {
+    // FIXME - support symlinks as well at least
+    if (!S_ISDIR(mode) && !S_ISREG(mode))
+        return nt_status::SUCCESS;
+
+    // ignore root directory
+    if (S_ISDIR(mode) && path == ".")
+        return nt_status::SUCCESS;
+
+    object_ref file;
+
+    auto status = fs.open(path, nullopt, file, FILE_CREATE,
+                          S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0);
+
+    if (!success(status))
+        return status;
+
+    print("file_size = {}, path = \"{}\", mode = {}\n", contents.size(), path, mode);
+
+    // FIXME - write into file if not directory
+
+    return nt_status::SUCCESS;
+}
+
 static bool extract_initrd() {
     auto fs = create_tmpfs();
     if (!fs) {
@@ -125,8 +162,10 @@ static bool extract_initrd() {
     root.fs = fs;
 
     process_cpio(initrd, [](string_view path, uint64_t mode, span<const uint8_t> contents) {
-        // FIXME
-        print("file_size = {}, path = \"{}\", mode = {}\n", contents.size(), path, mode);
+        auto status = extract_initrd_file(*root.fs, path, mode, contents);
+
+        if (!success(status))
+            bsod_format("extract_initrd_file returned {} for {}", status, path);
     });
 
     return true;
