@@ -307,6 +307,19 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     if (create_options & FILE_NON_DIRECTORY_FILE && create_options & FILE_DIRECTORY_FILE)
         return nt_status::INVALID_PARAMETER;
 
+    switch (create_disposition) {
+        case FILE_SUPERSEDE:
+        case FILE_OPEN:
+        case FILE_CREATE:
+        case FILE_OPEN_IF:
+        case FILE_OVERWRITE:
+        case FILE_OVERWRITE_IF:
+            break;
+
+        default:
+            return nt_status::INVALID_PARAMETER;
+    }
+
     if (!object_attributes->ObjectName) // FIXME - is this allowed if RootDirectory is set?
         return nt_status::INVALID_PARAMETER;
 
