@@ -13,6 +13,7 @@
 using namespace std;
 
 import format;
+import print;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;
@@ -28,23 +29,6 @@ static unsigned int utf8_chars = 0;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
-}
-
-template<typename... Args>
-void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
-    char buf[4096];
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    IO_STATUS_BLOCK iosb;
-
-    auto sp = span(buf, sizeof(buf));
-
-    sp = format_to(sp, fmt.sv, args...);
-
-    auto sv = string_view(buf, (size_t)(sp.data() - buf));
-
-    NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr,
-                &iosb, sv.data(), (uint32_t)sv.size(), nullptr, nullptr);
 }
 
 extern "C"

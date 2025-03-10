@@ -23,12 +23,15 @@ target_compile_options(shelllib PRIVATE -Wall -Wextra -Wno-address-of-packed-mem
 set(SRC_FILES src/shell.cpp)
 
 add_executable(shell ${SRC_FILES})
+target_sources(shell PUBLIC FILE_SET CXX_MODULES FILES
+    src/print.cpp
+)
 
-target_compile_options(shell PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe)
+target_compile_options(shell PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse)
 target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(shell shelllib)
-target_link_libraries(shell ntdll ntdllcrt)
+target_link_libraries(shell -lntdll ntdllcrt)
 target_link_libraries(shell format)
 
 install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX})

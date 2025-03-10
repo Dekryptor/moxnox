@@ -477,7 +477,7 @@ struct TEB {
     void* ResourceRetValue;
 };
 
-static __inline TEB* NtCurrentTeb() {
+__inline __attribute((always_inline)) TEB* NtCurrentTeb() {
     TEB* ret;
 
     __asm("mov %0, gs:%1"
