@@ -190,9 +190,7 @@ NTSTATUS tmpfs_inode::query_directory(span<uint8_t> buf,
     return nt_status::NOT_IMPLEMENTED;
 }
 
-size_t tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME - tmpfs_inode::read_into_cache\n");
-
+size_t tmpfs_inode::read_into_cache(uint64_t, uint64_t) {
     return 0;
 }
 
