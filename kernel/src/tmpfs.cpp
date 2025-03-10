@@ -43,6 +43,7 @@ private:
 struct dentry {
     class tmpfs_inode* inode;
     list_entry le;
+    unsigned int index;
     size_t name_len;
     char name[0];
 };
@@ -182,12 +183,69 @@ tmpfs_inode::~tmpfs_inode() {
     }
 }
 
+static nt_status query_directory_dirent(const dentry& d, span<uint8_t> buf,
+                                        FILE_INFORMATION_CLASS file_information_class) {
+    switch (file_information_class) {
+        case FILE_INFORMATION_CLASS::DirectoryInformation: {
+            if (buf.size() < offsetof(FILE_DIRECTORY_INFORMATION, FileName))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto sv = string_view(d.name, d.name_len);
+            auto utf16len = utf8_to_utf16_len(sv);
+            auto len = offsetof(FILE_DIRECTORY_INFORMATION, FileName) + (utf16len * sizeof(char16_t));
+
+            if (buf.size() < len)
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
+
+            fdi.NextEntryOffset = 0;
+            fdi.FileIndex = 0;
+            fdi.CreationTime.QuadPart = 0; // FIXME
+            fdi.LastAccessTime.QuadPart = 0; // FIXME
+            fdi.LastWriteTime.QuadPart = 0; // FIXME
+            fdi.ChangeTime.QuadPart = 0; // FIXME
+            fdi.EndOfFile.QuadPart = d.inode->file_size; // FIXME - should be holding lock
+            fdi.AllocationSize.QuadPart = 0; // FIXME
+            fdi.FileAttributes = d.inode->inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0;
+            fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
+            utf8_to_utf16(span(fdi.FileName, utf16len), sv);
+
+            buf = buf.subspan(0, len);
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            print("tmpfs query_directory_dirent: unhandled info class {:x}\n",
+                  (unsigned int)file_information_class);
+            return nt_status::INVALID_INFO_CLASS;
+    }
+}
+
 NTSTATUS tmpfs_inode::query_directory(span<uint8_t> buf,
                                       FILE_INFORMATION_CLASS file_information_class,
                                       uint64_t& index)  {
-    print("FIXME - tmpfs_inode::query_directory\n");
+    if (inode_type != inode_type::directory)
+        return nt_status::NOT_A_DIRECTORY;
 
-    return nt_status::NOT_IMPLEMENTED;
+    lock_guard lock(dentry_lock);
+
+    // FIXME - children should be RB tree rather than linked list
+    for (auto le = children.next; le != &children; le = le->next) {
+        auto& d = containing_record<dentry>(le);
+
+        if (d.index < index)
+            continue;
+
+        auto ret = query_directory_dirent(d, buf, file_information_class);
+
+        index = d.index + 1;
+
+        return ret;
+    }
+
+    return nt_status::NO_MORE_FILES;
 }
 
 size_t tmpfs_inode::read_into_cache(uint64_t, uint64_t) {
@@ -280,6 +338,11 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
     c->inode = ino;
     c->name_len = name.size();
     memcpy(c->name, name.data(), name.size());
+
+    if (is_list_empty(children))
+        c->index = 0;
+    else
+        c->index = containing_record<dentry>(children.prev).index + 1;
 
     insert_tail_list(children, c->le);
 
