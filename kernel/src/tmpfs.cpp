@@ -196,9 +196,7 @@ size_t tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     return 0;
 }
 
-size_t tmpfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME - tmpfs_inode::flush_cache\n");
-
+size_t tmpfs_inode::flush_cache(uint64_t, uint64_t) {
     return 0;
 }
 
