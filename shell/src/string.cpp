@@ -1,9 +1,14 @@
-#include "shell.h"
+module;
+
 #include <nt.h>
+#include <string_view>
+#include <span>
+
+export module shelllib;
 
 using namespace std;
 
-size_t utf16_to_utf8_len(u16string_view u16sv) {
+export size_t utf16_to_utf8_len(u16string_view u16sv) {
     size_t len = 0;
 
     for (unsigned int i = 0; i < u16sv.size(); i++) {
@@ -39,7 +44,7 @@ size_t utf16_to_utf8_len(u16string_view u16sv) {
     return len;
 }
 
-void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
+export void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
     if (buf.empty())
         return;
 
@@ -100,7 +105,7 @@ void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
     }
 }
 
-size_t utf8_to_utf16_len(string_view sv) {
+export size_t utf8_to_utf16_len(string_view sv) {
     size_t ret = 0;
 
     while (!sv.empty()) {
@@ -133,7 +138,7 @@ size_t utf8_to_utf16_len(string_view sv) {
     return ret;
 }
 
-void utf8_to_utf16(span<char16_t> buf, string_view sv) {
+export void utf8_to_utf16(span<char16_t> buf, string_view sv) {
     if (buf.empty())
         return;
 
@@ -197,7 +202,7 @@ void utf8_to_utf16(span<char16_t> buf, string_view sv) {
     }
 }
 
-void print(string_view s) {
+export void print(string_view s) {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
@@ -239,7 +244,7 @@ static span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int paddin
     return dest;
 }
 
-void print_hex(uint64_t num, unsigned int padding) {
+export void print_hex(uint64_t num, unsigned int padding) {
     char s[17];
     span sp(s, sizeof(s));
 

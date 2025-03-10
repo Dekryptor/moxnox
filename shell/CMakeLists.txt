@@ -7,7 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
-add_library(shelllib src/string.cpp)
+add_library(shelllib STATIC)
+target_sources(shelllib PUBLIC FILE_SET CXX_MODULES FILES
+    src/string.cpp
+)
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 

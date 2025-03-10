@@ -8,10 +8,10 @@
 #include <span>
 #include <charconv>
 #include <chrono>
-#include "shell.h"
 
 using namespace std;
 
+import shelllib;
 import format;
 import print;
 

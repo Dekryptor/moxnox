@@ -1,7 +1,9 @@
-#include "shell.h"
 #include <nt.h>
+#include <string_view>
 
 using namespace std;
+
+import shelllib;
 
 extern "C"
 void startup() {

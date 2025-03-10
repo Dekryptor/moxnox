@@ -2,7 +2,8 @@
 #include <ntdll.h>
 #include <string_view>
 #include <span>
-#include "shell.h"
+
+import shelllib;
 
 using namespace std;
 

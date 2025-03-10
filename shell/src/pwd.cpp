@@ -1,7 +1,10 @@
 #include <ntdll.h>
-#include "shell.h"
+#include <string_view>
+#include <span>
 
 using namespace std;
+
+import shelllib;
 
 extern "C"
 void* malloc(size_t size) {

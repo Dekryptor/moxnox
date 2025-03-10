@@ -3,7 +3,8 @@
 #include <string_view>
 #include <span>
 #include <string.h>
-#include "shell.h"
+
+import shelllib;
 
 using namespace std;
 

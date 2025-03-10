@@ -1,5 +1,7 @@
 #include <ntdll.h>
-#include "shell.h"
+#include <string_view>
+
+import shelllib;
 
 using namespace std;
 
