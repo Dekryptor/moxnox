@@ -1227,11 +1227,11 @@ static uint64_t dwarf_find_function2(span<const uint8_t> debug_addr,
         return 0;
 
     loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
-                                           span<const uint8_t> att_list, unsigned int depth,
+                                           span<const uint8_t> att_list, unsigned int,
                                            uint32_t) -> bool {
         optional<uint64_t> low_pc, high_pc, func_length;
 
-        if (tag != DW_TAG::subprogram || depth != 1)
+        if (tag != DW_TAG::subprogram)
             return true;
 
         auto orig_die = die;
