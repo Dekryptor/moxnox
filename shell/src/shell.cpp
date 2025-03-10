@@ -30,36 +30,6 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
-static void print(const chrono::year_month_day& ymd) {
-    char s[13];
-    char* ptr = s;
-
-    auto tcr = to_chars(ptr, s + sizeof(s), (int)ymd.year());
-    ptr = tcr.ptr;
-    *ptr = '-';
-    ptr++;
-
-    if ((unsigned int)ymd.month() < 10) {
-        *ptr = '0';
-        ptr++;
-    }
-
-    tcr = to_chars(ptr, s + sizeof(s), (unsigned int)ymd.month());
-    ptr = tcr.ptr;
-    *ptr = '-';
-    ptr++;
-
-    if ((unsigned int)ymd.day() < 10) {
-        *ptr = '0';
-        ptr++;
-    }
-
-    tcr = to_chars(ptr, s + sizeof(s), (unsigned int)ymd.day());
-    ptr = tcr.ptr;
-
-    print(string_view(s, ptr));
-}
-
 static void print(const chrono::hh_mm_ss<chrono::seconds>& hms) {
     char s[9];
     char* ptr = s;
@@ -428,8 +398,7 @@ static void time() {
     auto ymd = system_time_to_ymd(time.QuadPart);
     auto hms = system_time_to_hms(time.QuadPart);
 
-    print(ymd);
-    print(" ");
+    print("{} ", ymd);
     print(hms);
     print("\n");
 }

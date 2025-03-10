@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <string_view>
 #include <source_location>
+#include <chrono>
 #include <stdint.h>
 #include <nt.h>
 
@@ -448,6 +449,29 @@ span<char> do_format_arg(span<char> sp, string_view sv, const UNICODE_STRING& us
 
 template<>
 consteval bool valid_spec<UNICODE_STRING>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, const chrono::year_month_day& ymd) {
+    sp = sp_itoa(sp, (int)ymd.year());
+    sp = sp_strcpy(sp, "-");
+
+    if ((unsigned int)ymd.month() < 10)
+        sp = sp_strcpy(sp, "0");
+
+    sp = sp_itoa(sp, (unsigned int)ymd.month());
+    sp = sp_strcpy(sp, "-");
+
+    if ((unsigned int)ymd.day() < 10)
+        sp = sp_strcpy(sp, "0");
+
+    sp = sp_itoa(sp, (unsigned int)ymd.day());
+
+    return sp;
+}
+
+template<>
+consteval bool valid_spec<chrono::year_month_day>(string_view fmt) {
     return fmt.empty();
 }
 
