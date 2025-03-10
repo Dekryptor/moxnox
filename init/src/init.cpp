@@ -9,56 +9,7 @@
 
 using namespace std;
 
-void print(string_view s) {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    IO_STATUS_BLOCK iosb;
-
-    NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr, &iosb, s.data(),
-                (uint32_t)s.size(), nullptr, nullptr);
-}
-
-span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding) {
-    bool first = true;
-
-    if (dest.empty())
-        return dest;
-
-    if (num == 0 && padding == 0) {
-        dest[0] = '0';
-        return dest.subspan(1);
-    }
-
-    for (unsigned int i = 0; i < 16; i++) {
-        if (!first || padding == 16 - i || num & 0xf000000000000000) {
-            uint64_t n = num >> 60;
-
-            if (n <= 9)
-                dest[0] = (char)(n + '0');
-            else
-                dest[0] = (char)(n - 0xa + 'a');
-
-            dest = dest.subspan(1);
-            first = false;
-
-            if (dest.empty())
-                return dest;
-        }
-
-        num <<= 4;
-    }
-
-    return dest;
-}
-
-void print_hex(uint64_t num, unsigned int padding) {
-    char s[17];
-    span sp(s, sizeof(s));
-
-    sp = sp_itoa_hex(sp, num, padding);
-
-    print(string_view(s, (size_t)(sp.data() - s)));
-}
+import print;
 
 extern "C"
 void* malloc(size_t size) {
@@ -108,9 +59,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
     free(us.Buffer);
 
     if (!success(status)) {
-        print("NtCreateFile returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateFile returned {}\n", status);
         return;
     }
 
@@ -121,9 +70,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
     NtClose(file);
 
     if (!success(status)) {
-        print("NtCreateSection returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateSection returned {}\n", status);
         return;
     }
 
@@ -133,9 +80,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
                             sizeof(SECTION_IMAGE_INFORMATION), nullptr);
 
     if (!success(status)) {
-        print("NtQuerySection returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtQuerySection returned {}\n", status);
         NtClose(sect);
         return;
     }
@@ -148,9 +93,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
     NtClose(sect);
 
     if (!success(status)) {
-        print("NtCreateProcess returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateProcess returned {}\n", status);
         return;
     }
 
@@ -161,9 +104,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
-            print("NtDuplicateObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtDuplicateObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -174,9 +115,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
-            print("NtDuplicateObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtDuplicateObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -187,9 +126,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
-            print("NtDuplicateObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtDuplicateObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -200,9 +137,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
                                    &curdirh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
-            print("NtDuplicateObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtDuplicateObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -213,18 +148,14 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
     status = NtQueryInformationProcess(proc, PROCESSINFOCLASS::BasicInformation, &pbi, sizeof(pbi),
                                        nullptr);
     if (!success(status)) {
-        print("NtQueryInformationProcess returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtQueryInformationProcess returned {}\n", status);
         NtClose(proc);
         return;
     }
 
     status = NtReadVirtualMemory(proc, pbi.PebBaseAddress, &newpeb, sizeof(PEB), nullptr);
     if (!success(status)) {
-        print("NtReadVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtReadVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -233,9 +164,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
 
     status = NtReadVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
     if (!success(status)) {
-        print("NtReadVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtReadVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -258,9 +187,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
 
     status = NtWriteVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
     if (!success(status)) {
-        print("NtWriteVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtWriteVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -269,9 +196,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
                                   peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
                                   params.CurrentDirectory.DosPath.Length, nullptr);
     if (!success(status)) {
-        print("NtWriteVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtWriteVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -286,9 +211,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
     status = NtAllocateVirtualMemory(proc, &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
-        print("NtAllocateVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtAllocateVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -309,9 +232,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
                             &initial_teb, true);
 
     if (!success(status)) {
-        print("NtCreateThread returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateThread returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -333,9 +254,7 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
             continue;
 
         if (!success(status)) {
-            print("NtWaitForSingleObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtWaitForSingleObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -373,9 +292,7 @@ static void do_serial() {
     }
 
     if (!success(status)) {
-        print("NtCreateFile returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateFile returned {}\n", status);
         NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
         return;
     }
@@ -404,9 +321,7 @@ static void create_thread(void(*func)()) {
     status = NtAllocateVirtualMemory(NtCurrentProcess(), &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
-        print("NtAllocateVirtualMemory returned "); // FIXME - should be to stderr
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtAllocateVirtualMemory returned {}\n", status); // FIXME - should be to stderr
         return;
     }
 
@@ -426,9 +341,7 @@ static void create_thread(void(*func)()) {
                             &initial_teb, true);
 
     if (!success(status)) {
-        print("NtCreateThread returned "); // FIXME - should be to stderr
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateThread returned {}\n", status); // FIXME - should be to stderr
         return;
     }
 
