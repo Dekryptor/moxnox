@@ -27,9 +27,6 @@ public:
     nt_status open_child(string_view name, uint32_t create_disposition,
                          uint32_t create_options,
                          optional<reference_wrapper<tmpfs_inode>>& obj);
-    nt_status create_child(string_view name,
-                           uint32_t create_options,
-                           optional<reference_wrapper<tmpfs_inode>>& obj);
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
