@@ -575,7 +575,9 @@ nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written
         return nt_status::SUCCESS;
     }
 
-    // FIXME - extend file_size
+    // FIXME - should have lock for this
+    if (file_size < offset + s.size())
+        file_size = offset + s.size();
 
     written_bytes = cache.write(s, offset);
 
