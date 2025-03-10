@@ -34,7 +34,9 @@ target_link_libraries(shell shelllib)
 target_link_libraries(shell -lntdll ntdllcrt)
 target_link_libraries(shell format)
 
-install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
+)
 
 ###
 
