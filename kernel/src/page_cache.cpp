@@ -362,7 +362,7 @@ uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_p
 
     // FIXME - lock range
 
-    if (!pin(first_page, num_pages, nullptr))
+    if (!pin(first_page, num_pages, &first_unread))
         return 0;
 
     if (first_unread) {
