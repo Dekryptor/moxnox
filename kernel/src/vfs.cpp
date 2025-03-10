@@ -145,8 +145,6 @@ static nt_status extract_initrd_file(tmpfs_filesystem& fs, string_view path,
     if (!success(status))
         return status;
 
-    print("file_size = {}, path = \"{}\", mode = {:o}\n", contents.size(), path, mode);
-
     if (!S_ISREG(mode))
         return nt_status::SUCCESS;
 
