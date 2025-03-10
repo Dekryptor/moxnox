@@ -64,3 +64,5 @@ target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${C
 target_compile_options(freetype PRIVATE -mno-stack-arg-probe)
 target_include_directories(freetype PRIVATE include)
 target_include_directories(freetype PRIVATE freetype/include)
+
+install(SCRIPT initrd.cmake)
