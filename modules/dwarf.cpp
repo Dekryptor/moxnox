@@ -5,6 +5,7 @@ module;
 #include <string_view>
 #include <stdlib.h>
 #include <optional>
+#include <utility>
 
 export module dwarf;
 
@@ -1085,6 +1086,8 @@ static void get_func_name(span<const uint8_t> debug_str,
             ref = *abstract_origin;
         else if (specification.has_value())
             ref = *specification;
+        else
+            unreachable();
 
         abstract_origin = nullopt;
         specification = nullopt;
