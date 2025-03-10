@@ -218,8 +218,11 @@ static void keyboard_event_recv() {
 
                 if (input_mode & ENABLE_PROCESSED_INPUT && sv.size() == 1 && sv[0] == '\x03')
                     p.handle_ctrl_c();
-                else
-                    p.write(sv);
+                else {
+                    uint64_t written_bytes;
+
+                    p.write(sv, written_bytes);
+                }
             }
         }
     } while (true);

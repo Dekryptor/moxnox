@@ -355,11 +355,13 @@ void unimplemented_syscall(const char* name) {
         auto objrw_stderr = t.proc->get_stderr();
 
         if (objrw_stderr) {
+            uint64_t written_bytes;
+
             // FIXME - make sure process has permissions to write to handle
 
             visit_obj(objrw_stderr.get(), [&](auto&& o) {
                 if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>) {
-                    o.write(span((uint8_t*)s, (size_t)(sp.data() - s))); // FIXME - handle short writes
+                    o.write(span((uint8_t*)s, (size_t)(sp.data() - s)), written_bytes); // FIXME - handle short writes
                     written = true;
                 }
             });

@@ -42,42 +42,42 @@ NTSTATUS file::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
     return status;
 }
 
-size_t file::write(span<const uint8_t> s) {
-    size_t ret;
+NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    NTSTATUS status;
 
     visit_obj(ino, [&](auto&& o) {
         if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>) {
-            ret = o.write(s);
+            status = o.write(s, written_bytes);
         } else if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>) {
-            ret = o.write(s, file_offset);
+            status = o.write(s, file_offset, written_bytes);
 
-            if (ret > 0) {
+            if (success(status) && written_bytes > 0) {
                 lock_guard l(lock);
-                file_offset += ret;
+                file_offset += written_bytes;
             }
         } else
-            ret = 0;
+            status = nt_status::INTERNAL_ERROR;
     });
 
-    return ret;
+    return status;
 }
 
-size_t file::write(span<const uint8_t> s, uint64_t offset) {
-    size_t ret;
+NTSTATUS file::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
+    NTSTATUS status;
 
     visit_obj(ino, [&](auto&& o) {
         if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
-            ret = o.write(s, offset);
+            status = o.write(s, offset, written_bytes);
         else
-            ret = 0;
+            status = nt_status::INTERNAL_ERROR;
     });
 
-    if (ret > 0) {
+    if (success(status) && written_bytes > 0) {
         lock_guard l(lock);
-        file_offset = offset + ret;
+        file_offset = offset + written_bytes;
     }
 
-    return ret;
+    return status;
 }
 
 NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,

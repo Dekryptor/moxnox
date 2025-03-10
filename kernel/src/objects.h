@@ -33,13 +33,13 @@ concept object_has_on_wake = requires(T t) {
 };
 
 template<typename T>
-concept is_writable_object_with_offset = requires(T t, std::span<const uint8_t> s, uint64_t offset) {
-    { t.write(s, offset) } -> std::convertible_to<size_t>;
+concept is_writable_object_with_offset = requires(T t, std::span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
+    { t.write(s, offset, written_bytes) } -> std::convertible_to<NTSTATUS>;
 };
 
 template<typename T>
-concept is_writable_object_without_offset = requires(T t, std::span<const uint8_t> s) {
-    { t.write(s) } -> std::convertible_to<size_t>;
+concept is_writable_object_without_offset = requires(T t, std::span<const uint8_t> s, uint64_t& written_bytes) {
+    { t.write(s, written_bytes) } -> std::convertible_to<NTSTATUS>;
 };
 
 // FIXME - version of this specifying offset

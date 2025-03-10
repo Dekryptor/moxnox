@@ -34,8 +34,9 @@ public:
 
     NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes);
     NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
-    size_t write(std::span<const uint8_t> s);
-    size_t write(std::span<const uint8_t> s, uint64_t offset);
+    NTSTATUS write(std::span<const uint8_t> s, uint64_t& written_bytes);
+    NTSTATUS write(std::span<const uint8_t> s, uint64_t offset,
+                   uint64_t& written_bytes);
     NTSTATUS query_directory(HANDLE event, PIO_APC_ROUTINE apc_routine,
                              void* apc_context, IO_STATUS_BLOCK& io_status_block,
                              void* file_information, uint32_t length,

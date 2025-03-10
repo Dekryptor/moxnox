@@ -20,10 +20,10 @@ public:
 
     virtual NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes);
 
-    virtual size_t write(std::span<const uint8_t> s);
+    virtual NTSTATUS write(std::span<const uint8_t> s, uint64_t& written_bytes);
 
-    size_t write(std::string_view sv) {
-        return write(std::span((uint8_t*)sv.data(), sv.length()));
+    NTSTATUS write(std::string_view sv, uint64_t& written_bytes) {
+        return write(std::span((uint8_t*)sv.data(), sv.length()), written_bytes);
     }
 
     virtual nt_status ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {

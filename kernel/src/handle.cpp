@@ -161,9 +161,11 @@ void write(object_ref& h, span<const uint8_t> s) {
         return;
     }
 
+    uint64_t written_bytes;
+
     visit_obj(obj, [&](auto&& o) {
         if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
-            o.write(s);
+            o.write(s, written_bytes);
     });
 }
 

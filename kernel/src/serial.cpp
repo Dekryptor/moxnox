@@ -25,7 +25,7 @@ public:
             fg_proc->get().release();
     }
 
-    size_t write(span<const uint8_t> s) override;
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     NTSTATUS console_set_foreground(span<const uint8_t> inbuf);
 
 private:
@@ -39,7 +39,7 @@ private:
 class serial_out_pipe : public pipe {
 public:
     serial_out_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
-    size_t write(span<const uint8_t> s) override;
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status flush(bool go_readonly) override;
 
     bool ready = true;
@@ -66,8 +66,8 @@ public:
         return recv_pipe.read(s, read_bytes);
     }
 
-    size_t write(std::span<const uint8_t> s) override {
-        return send_pipe.write(s);
+    nt_status write(std::span<const uint8_t> s, uint64_t& written_bytes) override {
+        return send_pipe.write(s, written_bytes);
     }
 
     NTSTATUS ioctl(uint32_t code, span<const uint8_t> inbuf, span<uint8_t> outbuf, uintptr_t& written) override;
@@ -204,12 +204,16 @@ size_t serial_out_pipe::do_write(span<const uint8_t> s) {
     return size;
 }
 
-size_t serial_out_pipe::write(span<const uint8_t> s) {
-    if (readonly)
-        return 0;
+nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    if (readonly) {
+        written_bytes = 0;
+        return nt_status::MEDIA_WRITE_PROTECTED;
+    }
 
-    if (!(output_mode & ENABLE_PROCESSED_OUTPUT))
-        return do_write(s);
+    if (!(output_mode & ENABLE_PROCESSED_OUTPUT)) {
+        written_bytes = do_write(s);
+        return nt_status::SUCCESS;
+    }
 
     int last_bs = -1;
 
@@ -229,33 +233,53 @@ size_t serial_out_pipe::write(span<const uint8_t> s) {
 
     do_write(s.subspan((size_t)(last_bs + 1), s.size() - (size_t)(last_bs + 1)));
 
-    return s.size();
+    written_bytes = s.size();
+
+    return nt_status::SUCCESS;
 }
 
-size_t serial_in_pipe::write(span<const uint8_t> s) {
+nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
     if (!(input_mode & ENABLE_PROCESSED_INPUT))
-        return pipe::write(s);
+        return pipe::write(s, written_bytes);
 
     // handle VT100 weirdness
 
-    size_t ret = 0;
+    size_t tmp;
     int last_run_start = -1;
+    nt_status status;
+
+    written_bytes = 0;
 
     for (size_t i = 0; i < s.size(); i++) {
         auto c = s[i];
 
         if (c == '\r' || c == 0x7f || c == '\x03') {
             if (last_run_start == -1)
-                ret += pipe::write(s.subspan(0, (size_t)i));
+                status = pipe::write(s.subspan(0, (size_t)i), tmp);
             else
-                ret += pipe::write(s.subspan((size_t)(last_run_start + 1), i - (size_t)(last_run_start + 1)));
+                status = pipe::write(s.subspan((size_t)(last_run_start + 1), i - (size_t)(last_run_start + 1)), tmp);
+
+            if (!success(status))
+                return status;
+
+            written_bytes += tmp;
 
             if (c == '\r') {
                 c = '\n';
-                ret += pipe::write(span(&c, 1));
+                status = pipe::write(span(&c, 1), tmp);
+
+                if (!success(status))
+                    return status;
+
+                written_bytes += tmp;
             } else if (c == 0x7f) {
                 c = '\b';
-                ret += pipe::write(span(&c, 1));
+                status = pipe::write(span(&c, 1), tmp);
+
+                if (!success(status))
+                    return status;
+
+                written_bytes += tmp;
             } else if (c == '\x03')
                 handle_ctrl_c();
 
@@ -263,9 +287,14 @@ size_t serial_in_pipe::write(span<const uint8_t> s) {
         }
     }
 
-    ret += pipe::write(s.subspan((size_t)(last_run_start + 1), s.size() - (size_t)(last_run_start + 1)));
+    status = pipe::write(s.subspan((size_t)(last_run_start + 1), s.size() - (size_t)(last_run_start + 1)), tmp);
 
-    return ret;
+    if (!success(status))
+        return status;
+
+    written_bytes += tmp;
+
+    return nt_status::SUCCESS;
 }
 
 extern "C"
@@ -298,6 +327,7 @@ void serial_isr_func(uint8_t iir) {
         pipe.buf_unread--;
     } else if ((iir & 0xe) == 0x4 || (iir & 0xe) == 0xc) { // data available or character timeout
         uint8_t c;
+        uint64_t written_bytes;
 
         __asm __volatile (
             "in al, dx\n"
@@ -307,7 +337,7 @@ void serial_isr_func(uint8_t iir) {
 
         auto& p = static_cast<serial_in_pipe&>(com1_recv_handle.get());
 
-        p.write(span(&c, 1));
+        p.write(span(&c, 1), written_bytes);
     }
 }
 

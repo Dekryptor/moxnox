@@ -93,14 +93,18 @@ pipe::~pipe() {
     free_va((uintptr_t)buf, buf_pages);
 }
 
-size_t pipe::write(span<const uint8_t> s) {
-    if (readonly)
-        return 0;
+nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    if (readonly) {
+        written_bytes = 0;
+        return nt_status::MEDIA_WRITE_PROTECTED;
+    }
 
     auto size = s.size();
 
-    if (s.empty())
-        return 0;
+    if (s.empty()) {
+        written_bytes = 0;
+        return nt_status::SUCCESS;
+    }
 
     do {
         unsigned int release_count = 0;
@@ -179,7 +183,8 @@ size_t pipe::write(span<const uint8_t> s) {
             break;
     } while (true);
 
-    return size;
+    written_bytes = size;
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {

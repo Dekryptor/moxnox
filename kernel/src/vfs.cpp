@@ -492,24 +492,29 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     }
 
     size_t written;
+    nt_status status;
 
     if (byte_offset) {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
-                written = o.write(buf, (uint64_t)byte_offset->QuadPart);
+                status = o.write(buf, (uint64_t)byte_offset->QuadPart, written);
 
             o.release();
         });
     } else {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
-                written = o.write(buf);
+                status = o.write(buf, written);
 
             o.release();
         });
     }
 
-    // FIXME - propagating errors from write function
+    if (!success(status)) {
+        io_status_block->Status = status;
+        io_status_block->Information = 0;
+        return status;
+    }
 
     io_status_block->Status = nt_status::SUCCESS;
     io_status_block->Information = written;

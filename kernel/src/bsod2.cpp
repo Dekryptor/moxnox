@@ -34,6 +34,7 @@ static kernel_image* get_kernel_image_from_address(uint64_t addr) {
 }
 
 static void print_rip(pipe& p, uint64_t rip) {
+    uint64_t written;
     char s[200];
     auto sp = span(s, sizeof(s));
 
@@ -66,7 +67,7 @@ static void print_rip(pipe& p, uint64_t rip) {
 
     sp = format(sp, "\n");
 
-    p.write(string_view(s, (size_t)(sp.data() - s)));
+    p.write(string_view(s, (size_t)(sp.data() - s)), written);
 }
 
 static const RUNTIME_FUNCTION* find_runtime_function(const kernel_image& img,
@@ -439,6 +440,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     }
 
     auto& p = static_cast<pipe&>(console_pipe.get());
+    uint64_t written;
 
     // clear screen to blue and print message
 
@@ -446,17 +448,18 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
         "\e[97;44m" // change to blue and white
         "\e[2J" // erase screen
         "\e[?25l" // hide cursor
-        "\e[1;1H" // move to top left
+        "\e[1;1H", // move to top left
+        written
     );
 
     for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
-        p.write(" ");
+        p.write(" ", written);
     }
 
-    p.write("\e[1mBSOD\e[22m\n\n");
+    p.write("\e[1mBSOD\e[22m\n\n", written);
 
-    p.write(msg);
-    p.write("\n");
+    p.write(msg, written);
+    p.write("\n", written);
 
     auto& cb = *get_cpu_block();
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
@@ -464,7 +467,8 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     sp = format(sp, "{}:{}, {}, CPU {:x}\n",
                 sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
 
-    p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
+    p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
+            written);
 
     // FIXME - print context?
 
@@ -482,7 +486,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
         : "rax"
     );
 
-    p.write("\n");
+    p.write("\n", written);
 
     print_stacktrace(context, p, skip_callers);
 
