@@ -34,9 +34,9 @@ static kernel_image* get_kernel_image_from_address(uint64_t addr) {
 }
 
 static void print_rip(pipe& p, uint64_t rip) {
+    auto& cb = *get_cpu_block();
     uint64_t written;
-    char s[200];
-    auto sp = span(s, sizeof(s));
+    auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
     sp = format(sp, "{:16x}", rip);
 
@@ -67,7 +67,8 @@ static void print_rip(pipe& p, uint64_t rip) {
 
     sp = format(sp, "\n");
 
-    p.write(string_view(s, (size_t)(sp.data() - s)), written);
+    p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
+            written);
 }
 
 static const RUNTIME_FUNCTION* find_runtime_function(const kernel_image& img,
