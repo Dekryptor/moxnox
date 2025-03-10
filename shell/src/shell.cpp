@@ -12,6 +12,8 @@
 
 using namespace std;
 
+import format;
+
 static char* buf = nullptr;
 static unsigned int buflen = 0;
 static unsigned int cursor_pos = 0;
@@ -26,13 +28,6 @@ static unsigned int utf8_chars = 0;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
-}
-
-static void print(integral auto i) {
-    char s[21];
-
-    auto [ptr, ec] = to_chars(s, s + sizeof(s), i);
-    print(string_view(s, (size_t)(ptr - s)));
 }
 
 static void print(const chrono::year_month_day& ymd) {
@@ -100,6 +95,23 @@ static void print(const chrono::hh_mm_ss<chrono::seconds>& hms) {
     print(string_view(s, ptr));
 }
 
+template<typename... Args>
+void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+    char buf[4096];
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
+
+    auto sp = span(buf, sizeof(buf));
+
+    sp = format_to(sp, fmt.sv, args...);
+
+    auto sv = string_view(buf, (size_t)(sp.data() - buf));
+
+    NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr, nullptr,
+                &iosb, sv.data(), (uint32_t)sv.size(), nullptr, nullptr);
+}
+
 extern "C"
 void* malloc(size_t size) {
     return RtlAllocateHeap(GetProcessHeap(), 0, size);
@@ -133,9 +145,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     NtClose(sect);
 
     if (!success(status)) {
-        print("NtCreateProcess returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateProcess returned {}\n", status);
         return;
     }
 
@@ -146,9 +156,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                    &stdinh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
-            print("NtDuplicateObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtDuplicateObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -159,9 +167,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                    &stdouth, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
-            print("NtDuplicateObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtDuplicateObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -172,9 +178,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                    &stderrh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
-            print("NtDuplicateObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtDuplicateObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -185,9 +189,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                    &curdirh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
-            print("NtDuplicateObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtDuplicateObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -198,18 +200,14 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     status = NtQueryInformationProcess(proc, PROCESSINFOCLASS::BasicInformation, &pbi, sizeof(pbi),
                                        nullptr);
     if (!success(status)) {
-        print("NtQueryInformationProcess returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtQueryInformationProcess returned {}\n", status);
         NtClose(proc);
         return;
     }
 
     status = NtReadVirtualMemory(proc, pbi.PebBaseAddress, &newpeb, sizeof(PEB), nullptr);
     if (!success(status)) {
-        print("NtReadVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtReadVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -218,9 +216,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     status = NtReadVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
     if (!success(status)) {
-        print("NtReadVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtReadVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -241,9 +237,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                   peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
                                   params.CurrentDirectory.DosPath.Length, nullptr);
     if (!success(status)) {
-        print("NtWriteVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtWriteVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -272,9 +266,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     status = NtAllocateVirtualMemory(proc, &proc_misc_block, 0, &proc_misc_block_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
-        print("NtAllocateVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtAllocateVirtualMemory returned {}\n", status);
         free(misc_block);
         NtClose(proc);
         return;
@@ -293,9 +285,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     status = NtWriteVirtualMemory(proc, proc_misc_block, misc_block,
                                   (uint32_t)misc_block_size, nullptr);
     if (!success(status)) {
-        print("NtWriteVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtWriteVirtualMemory returned {}\n", status);
         free(misc_block);
         NtClose(proc);
         return;
@@ -307,9 +297,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     status = NtWriteVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
     if (!success(status)) {
-        print("NtWriteVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtWriteVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -324,9 +312,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     status = NtAllocateVirtualMemory(proc, &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
-        print("NtAllocateVirtualMemory returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtAllocateVirtualMemory returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -347,9 +333,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                             &initial_teb, true);
 
     if (!success(status)) {
-        print("NtCreateThread returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateThread returned {}\n", status);
         NtClose(proc);
         return;
     }
@@ -371,9 +355,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
             continue;
 
         if (!success(status)) {
-            print("NtWaitForSingleObject returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtWaitForSingleObject returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -390,9 +372,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                        &this_proc, sizeof(this_proc), nullptr, 0);
 
         if (!success(status)) {
-            print("NtDeviceIoControlFile returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtDeviceIoControlFile returned {}\n", status);
             NtClose(proc);
             return;
         }
@@ -439,15 +419,11 @@ static void time() {
     auto status = NtQuerySystemTime(&time);
 
     if (!success(status)) {
-        print("NtQuerySystemTime returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtQuerySystemTime returned {}\n", status);
         return;
     }
 
-    print("System time is ");
-    print(time.QuadPart);
-    print("\n");
+    print("System time is {}\n", time.QuadPart);
 
     auto ymd = system_time_to_ymd(time.QuadPart);
     auto hms = system_time_to_hms(time.QuadPart);
@@ -465,9 +441,7 @@ static void timer() {
 
     status = NtCreateTimer(&h, TIMER_ALL_ACCESS, nullptr, TIMER_TYPE::SynchronizationTimer);
     if (!success(status)) {
-        print("NtCreateTimer returned "); // FIXME - should be to stderr
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateTimer returned {}\n", status); // FIXME - should be to stderr
         return;
     }
 
@@ -476,9 +450,7 @@ static void timer() {
     status = NtSetTimer(h, &due_time, nullptr, nullptr, false,
                         1000, nullptr);
     if (!success(status)) {
-        print("NtSetTimer returned "); // FIXME - should be to stderr
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtSetTimer returned {}\n", status); // FIXME - should be to stderr
         NtClose(h);
         return;
     }
@@ -486,9 +458,7 @@ static void timer() {
     for (unsigned int i = 0; i < 3; i++) {
         status = NtWaitForSingleObject(h, false, nullptr);
         if (!success(status)) {
-            print("NtWaitForSingleObject returned "); // FIXME - should be to stderr
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtWaitForSingleObject returned {}\n", status); // FIXME - should be to stderr
             NtClose(h);
             return;
         }
@@ -508,9 +478,7 @@ static void halt() {
 
     // shouldn't return
 
-    print("NtShutdownSystem returned ");
-    print_hex((uint32_t)status, 8);
-    print("\n");
+    print("NtShutdownSystem returned {}\n", status);
 }
 
 static void reboot() {
@@ -518,9 +486,7 @@ static void reboot() {
 
     // shouldn't return
 
-    print("NtShutdownSystem returned ");
-    print_hex((uint32_t)status, 8);
-    print("\n");
+    print("NtShutdownSystem returned {}\n", status);
 }
 
 static void try_run_program(string_view program, string_view cmdline) {
@@ -593,17 +559,13 @@ static void try_run_program(string_view program, string_view cmdline) {
     }
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND || status == nt_status::OBJECT_PATH_NOT_FOUND) {
-        print(program); // FIXME - stderr
-        print(": command not found\n");
+        print("{}: command not found\n", program); // FIXME - stderr
         return;
     } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
-        print(program); // FIXME - stderr
-        print(": is a directory\n");
+        print("{}: is a directory\n", program); // FIXME - stderr
         return;
     } else if (!success(status)) {
-        print("NtCreateFile returned "); // FIXME - stderr
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateFile returned {}\n", status); // FIXME - stderr
         return;
     }
 
@@ -614,13 +576,10 @@ static void try_run_program(string_view program, string_view cmdline) {
     NtClose(file);
 
     if (status == nt_status::INVALID_IMAGE_FORMAT) {
-        print(program); // FIXME - stderr
-        print(": not an executable\n");
+        print("{}: not an executable\n", program); // FIXME - stderr
         return;
     } else if (!success(status)) {
-        print("NtCreateSection returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtCreateSection returned {}\n", status);
         return;
     }
 
@@ -630,25 +589,21 @@ static void try_run_program(string_view program, string_view cmdline) {
     if (!success(status)) {
         NtClose(sect);
 
-        print("NtQuerySection returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("NtQuerySection returned {}\n", status); // FIXME - stderr
         return;
     }
 
     if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
         NtClose(sect);
 
-        print(program); // FIXME - stderr
-        print(": not an executable\n");
+        print("{}: not an executable\n", program); // FIXME - stderr
         return;
     }
 
     if (sii.Machine != IMAGE_FILE_MACHINE_AMD64) {
         NtClose(sect);
 
-        print(program); // FIXME - stderr
-        print(": unsupported architecture\n");
+        print("{}: unsupported architecture\n", program); // FIXME - stderr
         return;
     }
 
@@ -822,7 +777,7 @@ static void handle_delete() {
 
     auto sv = string_view(&buf[cursor_pos], buflen - cursor_pos);
 
-    print(sv);
+    print("{}", sv);
 
     for (auto c : sv) {
         // skip if not start of code point
@@ -922,7 +877,7 @@ static void handle_char2(char32_t c) {
     buflen += cp_len;
 
     print("\x1b[K"); // erase rest of line
-    print(string_view(buf + cursor_pos, buflen - cursor_pos));
+    print("{}", string_view(buf + cursor_pos, buflen - cursor_pos));
 
     cursor_pos += cp_len;
 
@@ -1051,7 +1006,7 @@ static void handle_backspace() {
 
     auto sv = string_view(&buf[cursor_pos], buflen - cursor_pos);
 
-    print(sv);
+    print("{}", sv);
 
     for (auto c : sv) {
         // skip if not start of code point
@@ -1202,9 +1157,7 @@ void startup() {
                                  s, sizeof(s), nullptr, nullptr);
 
         if (!success(status)) {
-            print("NtReadFile returned "); // FIXME - should be to stderr
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtReadFile returned {}\n", status); // FIXME - should be to stderr
             break;
         }
 
