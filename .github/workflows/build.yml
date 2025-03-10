@@ -21,7 +21,7 @@ jobs:
           cmake -DCMAKE_TOOLCHAIN_FILE=clang-amd64.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_INSTALL_PREFIX=${PWD}/install \
+            -DCMAKE_INSTALL_PREFIX=${PWD}/install/release \
             -S ${SHORT_SHA} -B release-work && \
           cmake --build release-work --parallel `nproc` && \
           cmake --install release-work
