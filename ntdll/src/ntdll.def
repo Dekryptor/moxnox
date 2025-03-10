@@ -10,3 +10,4 @@ memcmp
 memset
 memmove
 strlen
+memchr
