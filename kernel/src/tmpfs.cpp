@@ -205,7 +205,7 @@ static nt_status query_directory_dirent(const dentry& d, span<uint8_t> buf,
             fdi.LastAccessTime.QuadPart = 0; // FIXME
             fdi.LastWriteTime.QuadPart = 0; // FIXME
             fdi.ChangeTime.QuadPart = 0; // FIXME
-            fdi.EndOfFile.QuadPart = d.inode->file_size; // FIXME - should be holding lock
+            fdi.EndOfFile.QuadPart = (int64_t)d.inode->file_size; // FIXME - should be holding lock
             fdi.AllocationSize.QuadPart = 0; // FIXME
             fdi.FileAttributes = d.inode->inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0;
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
