@@ -147,7 +147,20 @@ static nt_status extract_initrd_file(tmpfs_filesystem& fs, string_view path,
 
     print("file_size = {}, path = \"{}\", mode = {:o}\n", contents.size(), path, mode);
 
-    // FIXME - write into file if not directory
+    if (!S_ISREG(mode))
+        return nt_status::SUCCESS;
+
+    auto& ino = static_cast<inode&>(file.get());
+    uint64_t offset = 0, written;
+
+    while (!contents.empty()) {
+        status = ino.write(contents, offset, written);
+        if (!success(status))
+            return status;
+
+        contents = span(contents.data() + written, contents.size() - written);
+        offset += written;
+    }
 
     return nt_status::SUCCESS;
 }
@@ -551,5 +564,22 @@ nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
         s = s.subspan(0, file_size - offset);
 
     read_bytes = cache.read(s, offset);
+    return nt_status::SUCCESS;
+}
+
+nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
+    // FIXME - don't allow if FS readonly
+
+    if (s.empty()) {
+        written_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    // FIXME - extend file_size
+
+    written_bytes = cache.write(s, offset);
+
+    // FIXME - mark inode as dirty
+
     return nt_status::SUCCESS;
 }
