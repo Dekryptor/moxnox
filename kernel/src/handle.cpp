@@ -100,13 +100,11 @@ bool name_object(object& obj, string_view name, bool persistent) {
     return true;
 }
 
-object_ref open_object(string_view name) {
+nt_status open_object(string_view name, object_ref& obj) {
     if (name.empty()) {
-        print("Invalid name\n");
-        return {};
+        obj = {};
+        return nt_status::OBJECT_NAME_INVALID;
     }
-
-    object* obj = nullptr;
 
     {
         lock_guard lock(name_lock);
@@ -123,8 +121,8 @@ object_ref open_object(string_view name) {
                         o.acquire();
                     });
 
-                    obj = ne.obj;
-                    break;
+                    obj = *ne.obj;
+                    return nt_status::SUCCESS;
                 }
             }
 
@@ -132,12 +130,8 @@ object_ref open_object(string_view name) {
         }
     }
 
-    if (!obj) {
-        print("Not found\n");
-        return {};
-    }
-
-    return *obj;
+    obj = {};
+    return nt_status::OBJECT_NAME_NOT_FOUND;
 }
 
 void write(object_ref& h, span<const uint8_t> s) {

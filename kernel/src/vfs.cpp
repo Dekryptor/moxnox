@@ -54,9 +54,11 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
         cmdline_root = string_view(cmdline_root.data() + sizeof(prefix) - 1,
                                    cmdline_root.size() - sizeof(prefix) + 1);
 
-        auto ref = open_object(cmdline_root);
-        if (!ref)
-            bsod_format("could not find root volume /dev/{}", cmdline_root);
+        object_ref ref;
+
+        auto status = open_object(cmdline_root, ref);
+        if (!success(status))
+            bsod_format("Error {} while trying to open root volume /dev/{}", status, cmdline_root);
 
         if (ref.get().type != object_type::volume) {
             bsod_format("root volume /dev/{} is not a block device",
@@ -390,11 +392,11 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
         if (create_disposition != FILE_OPEN)
             return nt_status::NOT_SUPPORTED;
 
-        ino_ref = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
-
-        if (!ino_ref) {
+        status = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()),
+                             ino_ref);
+        if (!success(status)) {
             free(name);
-            return nt_status::OBJECT_NAME_NOT_FOUND;
+            return status;
         }
     } else {
         if (root_dir) {

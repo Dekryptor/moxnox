@@ -64,9 +64,9 @@ static object_ref create_init_process() {
         p.acquire();
         initin = object_ref{p};
     } else {
-        initin = open_object("keyboard");
-        if (!initin)
-            bsod("Could not open keyboard object.");
+        auto status = open_object("keyboard", initin);
+        if (!success(status))
+            bsod_format("Error {} when trying to open keyboard object", status);
     }
 
     return create_process("/init.exe", "/", initin, initout, initout);
@@ -96,10 +96,12 @@ static void keywait() {
         p = static_cast<pipe*>(&console_pipe.get());
         p->acquire();
     } else {
-        auto keybh = open_object("keyboard");
+        object_ref keybh;
 
-        if (!keybh) {
-            print("/dev/keyboard not found\n");
+        auto status = open_object("keyboard", keybh);
+
+        if (!success(status)) {
+            print("Error {} while trying to open /dev/keyboard\n", status);
             return;
         }
 
