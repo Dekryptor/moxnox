@@ -453,7 +453,7 @@ consteval bool valid_spec<UNICODE_STRING>(string_view fmt) {
 }
 
 span<char> do_format_arg(span<char> sp, string_view, const chrono::year_month_day& ymd) {
-    sp = sp_itoa(sp, (int)ymd.year());
+    sp = sp_itoa(sp, (uint64_t)(int)ymd.year());
     sp = sp_strcpy(sp, "-");
 
     if ((unsigned int)ymd.month() < 10)
@@ -479,19 +479,19 @@ span<char> do_format_arg(span<char> sp, string_view, const chrono::hh_mm_ss<chro
     if (hms.hours().count() < 10)
         sp = sp_strcpy(sp, "0");
 
-    sp = sp_itoa(sp, hms.hours().count());
+    sp = sp_itoa(sp, (uint64_t)hms.hours().count());
     sp = sp_strcpy(sp, ":");
 
     if (hms.minutes().count() < 10)
         sp = sp_strcpy(sp, "0");
 
-    sp = sp_itoa(sp, hms.minutes().count());
+    sp = sp_itoa(sp, (uint64_t)hms.minutes().count());
     sp = sp_strcpy(sp, ":");
 
     if (hms.seconds().count() < 10)
         sp = sp_strcpy(sp, "0");
 
-    sp = sp_itoa(sp, hms.seconds().count());
+    sp = sp_itoa(sp, (uint64_t)hms.seconds().count());
 
     return sp;
 }
