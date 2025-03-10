@@ -16,7 +16,7 @@ target_sources(init PUBLIC FILE_SET CXX_MODULES FILES
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
-target_compile_options(init PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe)
+target_compile_options(init PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse)
 target_link_options(init PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(init format)
