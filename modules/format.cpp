@@ -475,6 +475,32 @@ consteval bool valid_spec<chrono::year_month_day>(string_view fmt) {
     return fmt.empty();
 }
 
+span<char> do_format_arg(span<char> sp, string_view, const chrono::hh_mm_ss<chrono::seconds>& hms) {
+    if (hms.hours().count() < 10)
+        sp = sp_strcpy(sp, "0");
+
+    sp = sp_itoa(sp, hms.hours().count());
+    sp = sp_strcpy(sp, ":");
+
+    if (hms.minutes().count() < 10)
+        sp = sp_strcpy(sp, "0");
+
+    sp = sp_itoa(sp, hms.minutes().count());
+    sp = sp_strcpy(sp, ":");
+
+    if (hms.seconds().count() < 10)
+        sp = sp_strcpy(sp, "0");
+
+    sp = sp_itoa(sp, hms.seconds().count());
+
+    return sp;
+}
+
+template<>
+consteval bool valid_spec<chrono::hh_mm_ss<chrono::seconds>>(string_view fmt) {
+    return fmt.empty();
+}
+
 export
 template<typename T, typename... Args>
 span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... args) {

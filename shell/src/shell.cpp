@@ -30,41 +30,6 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
-static void print(const chrono::hh_mm_ss<chrono::seconds>& hms) {
-    char s[9];
-    char* ptr = s;
-
-    if (hms.hours().count() < 10) {
-        *ptr = '0';
-        ptr++;
-    }
-
-    auto tcr = to_chars(ptr, s + sizeof(s), hms.hours().count());
-    ptr = tcr.ptr;
-    *ptr = ':';
-    ptr++;
-
-    if (hms.minutes().count() < 10) {
-        *ptr = '0';
-        ptr++;
-    }
-
-    tcr = to_chars(ptr, s + sizeof(s), hms.minutes().count());
-    ptr = tcr.ptr;
-    *ptr = ':';
-    ptr++;
-
-    if (hms.seconds().count() < 10) {
-        *ptr = '0';
-        ptr++;
-    }
-
-    tcr = to_chars(ptr, s + sizeof(s), hms.seconds().count());
-    ptr = tcr.ptr;
-
-    print(string_view(s, ptr));
-}
-
 template<typename... Args>
 void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
     char buf[4096];
@@ -398,9 +363,7 @@ static void time() {
     auto ymd = system_time_to_ymd(time.QuadPart);
     auto hms = system_time_to_hms(time.QuadPart);
 
-    print("{} ", ymd);
-    print(hms);
-    print("\n");
+    print("{} {}\n", ymd, hms);
 }
 
 static void timer() {
