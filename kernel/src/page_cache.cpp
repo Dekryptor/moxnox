@@ -357,16 +357,58 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
     return true;
 }
 
-uint64_t page_cache::read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages) {
-    if (!pin(page_num, num_pages, nullptr))
+uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages) {
+    page_cache_entry* first_unread = nullptr;
+
+    // FIXME - lock range
+
+    if (!pin(first_page, num_pages, nullptr))
         return 0;
 
-    auto read_pages = dev.read_into_cache(page_num, num_pages);
+    if (first_unread) {
+        page_cache_entry* ent = first_unread;
 
-    if (read_pages < num_pages)
-        unpin(page_num + read_pages, num_pages - read_pages);
+        while (true) {
+            page_cache_entry* range_start;
+            page_cache_entry* range_end;
+            uint64_t range_length;
 
-    return read_pages;
+            if (!find_unread_range(range_start, range_end, range_length, ent,
+                                   first_page, num_pages))
+                break;
+
+            // read data into pages
+
+            {
+                uint64_t page_num_start = range_start->page_num;
+                uint64_t pages_left = range_length;
+
+                // FIXME - do this asynchronously (i.e. using all the free slots, and only waiting at end or when none left)
+                // FIXME - better if we could allocate contiguous physical pages? (folios?)
+
+                while (pages_left > 0) {
+                    auto ret = dev.read_into_cache(page_num_start, pages_left);
+
+                    if (ret == 0) {
+                        clean_pages(range_start, range_length - pages_left);
+                        unpin(page_num_start + ret,
+                              first_page + num_pages - page_num_start - ret);
+                        return page_num_start + ret - first_page;
+                    }
+
+                    page_num_start += ret;
+                    pages_left -= ret;
+                }
+            }
+
+            clean_pages(range_start, range_length);
+
+            if (range_end->page_num == first_page + num_pages - 1)
+                break;
+        }
+    }
+
+    return num_pages;
 }
 
 size_t page_cache::read(std::span<uint8_t> data, uint64_t offset) {

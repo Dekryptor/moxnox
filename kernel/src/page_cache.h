@@ -43,7 +43,7 @@ public:
     page_cache_entry* find_page_cache_entry(uint64_t page_num);
     size_t write(std::span<const uint8_t> data, uint64_t offset);
     bool read_and_pin(uint64_t offset, uint64_t length);
-    uint64_t read_into_cache_and_pin(uint64_t page_num, uint64_t num_pages);
+    uint64_t read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages);
     size_t read(std::span<uint8_t> data, uint64_t offset);
 
     spinlock cache_lock;
