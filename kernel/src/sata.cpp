@@ -242,17 +242,6 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     return num_pages;
 }
 
-NTSTATUS sata_device::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) {
-    // FIXME - clear page cache in destructor
-
-    // FIXME - return error if offset past end of device
-    // FIXME - truncate data buffer if we would read past end of device
-
-    // FIXME - return errors properly
-    read_bytes = cache.read(data, offset);
-    return nt_status::SUCCESS;
-}
-
 uint8_t sata_device::get_slot() {
     wait_for_object(slot_semaphore.get(), false);
 

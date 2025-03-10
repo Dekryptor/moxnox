@@ -460,7 +460,6 @@ public:
     bool identify();
     uint8_t get_slot();
     void release_slot(uint8_t slot);
-    NTSTATUS read(std::span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) override;
     size_t read_uncached(std::span<uint8_t> data, uint64_t offset);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;

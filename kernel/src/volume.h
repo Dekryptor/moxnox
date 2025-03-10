@@ -20,7 +20,7 @@ public:
 
     virtual void release() = 0;
 
-    virtual NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) = 0;
+    nt_status read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
 
     void probe();
     bool check_for_partitions();
@@ -50,7 +50,6 @@ public:
             delete this;
     }
 
-    NTSTATUS read(std::span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) override;
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     volume& parent;

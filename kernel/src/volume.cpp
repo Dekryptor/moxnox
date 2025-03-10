@@ -255,6 +255,17 @@ bool volume::check_for_partitions() {
     return true;
 }
 
+nt_status volume::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) {
+    // FIXME - clear page cache in destructor
+
+    // FIXME - return error if offset past end of device
+    // FIXME - truncate data buffer if we would read past end of device
+
+    // FIXME - return errors properly
+    read_bytes = cache.read(data, offset);
+    return nt_status::SUCCESS;
+}
+
 diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t size, const guid& partition_guid, const guid& type_guid) : parent(parent), disk_offset(disk_offset) {
     parent.acquire();
 
@@ -266,17 +277,6 @@ diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, 
 
 diskpart::~diskpart() {
     parent.release();
-}
-
-NTSTATUS diskpart::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) {
-    // FIXME - clear page cache in destructor
-
-    // FIXME - return error if offset past end of device
-    // FIXME - truncate data buffer if we would read past end of device
-
-    // FIXME - return errors properly
-    read_bytes = cache.read(data, offset);
-    return nt_status::SUCCESS;
 }
 
 #if 0
