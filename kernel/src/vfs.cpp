@@ -391,6 +391,11 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
             return nt_status::NOT_SUPPORTED;
 
         ino_ref = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()));
+
+        if (!ino_ref) {
+            free(name);
+            return nt_status::OBJECT_NAME_NOT_FOUND;
+        }
     } else {
         if (root_dir) {
             status = open_inode(string_view(name, namelen), static_cast<inode&>(static_cast<file&>(root_dir.get()).ino),
