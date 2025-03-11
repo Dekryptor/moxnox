@@ -244,7 +244,6 @@ class file;
 nt_status create_section(const std::optional<std::reference_wrapper<file>>& file, bool image,
                          size_t size, object_ref& ref);
 uint64_t get_image_size(void* image);
-std::span<const uint8_t> find_pdata(const kernel_image& img);
 
 // string.cpp
 size_t utf16_to_utf8_len(std::u16string_view u16sv);
