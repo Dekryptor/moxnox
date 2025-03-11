@@ -10,6 +10,8 @@ export module unwind;
 
 using namespace std;
 
+extern "C++" optional<uint64_t> read_uint64_t(uint64_t addr);
+
 static span<const uint8_t> find_pdata(void* img_addr) {
     const auto& dos_header = *(IMAGE_DOS_HEADER*)img_addr;
 
@@ -59,11 +61,6 @@ static const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t ri
     }
 
     return nullptr;
-}
-
-static optional<uint64_t> read_uint64_t(uint64_t addr) {
-    // FIXME - do this safely
-    return *(uint64_t*)addr;
 }
 
 enum class unwind_opcode {

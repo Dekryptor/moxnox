@@ -83,6 +83,19 @@ static void print_rip(uint64_t rip) {
     print("{}", string_view(s, (size_t)(sp.data() - s)));
 }
 
+optional<uint64_t> read_uint64_t(uint64_t addr) {
+    NTSTATUS status;
+    uint64_t ret;
+    uint32_t bytes_read;
+
+    status = NtReadVirtualMemory(NtCurrentProcess(), (void*)addr, &ret, sizeof(uint64_t),
+                                 &bytes_read);
+    if (!success(status) || bytes_read != sizeof(uint64_t))
+        return nullopt;
+
+    return ret;
+}
+
 static bool do_unwind_context(CONTEXT& context) {
     auto ent = get_ldr_from_address(context.Rip);
     if (!ent)

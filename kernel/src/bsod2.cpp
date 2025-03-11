@@ -73,6 +73,11 @@ static void print_rip(pipe& p, uint64_t rip) {
             written);
 }
 
+optional<uint64_t> read_uint64_t(uint64_t addr) {
+    // FIXME - do this safely
+    return *(uint64_t*)addr;
+}
+
 static bool do_unwind_context(CONTEXT& context) {
     auto img = get_kernel_image_from_address(context.Rip);
     if (!img)
