@@ -82,13 +82,13 @@ static void print_rip(uint64_t rip) {
     print("{}", string_view(s, (size_t)(sp.data() - s)));
 }
 
-static span<const uint8_t> find_pdata(const LDR_DATA_TABLE_ENTRY& ldr) {
-    const auto& dos_header = *(IMAGE_DOS_HEADER*)ldr.DllBase;
+static span<const uint8_t> find_pdata(void* img_addr) {
+    const auto& dos_header = *(IMAGE_DOS_HEADER*)img_addr;
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
         return span<const uint8_t>();
 
-    const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)ldr.DllBase + dos_header.e_lfanew);
+    const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_addr + dos_header.e_lfanew);
 
     if (nt_header.Signature != IMAGE_NT_SIGNATURE)
         return span<const uint8_t>();
@@ -102,19 +102,18 @@ static span<const uint8_t> find_pdata(const LDR_DATA_TABLE_ENTRY& ldr) {
 
     for (const auto& sect : sections) {
         if (string_view(sect.Name) == ".pdata")
-            return span((uint8_t*)ldr.DllBase + sect.VirtualAddress, sect.VirtualSize);
+            return span((uint8_t*)img_addr + sect.VirtualAddress, sect.VirtualSize);
     }
 
     return span<const uint8_t>();
 }
 
-static const RUNTIME_FUNCTION* find_runtime_function(const LDR_DATA_TABLE_ENTRY& ldr,
-                                                     uint64_t rip) {
-    rip -= (uintptr_t)ldr.DllBase;
+static const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t rip) {
+    rip -= (uintptr_t)img_addr;
 
     // FIXME - how do JITted programs provide their pdata?
 
-    auto pdata = find_pdata(ldr);
+    auto pdata = find_pdata(img_addr);
     if (pdata.empty())
         return nullptr;
 
@@ -268,7 +267,7 @@ static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t va
     }
 }
 
-static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
+static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                             const RUNTIME_FUNCTION* prt_func) {
     UNWIND_INFO ui;
     NTSTATUS status;
@@ -280,10 +279,10 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
     while (true) {
         const auto& rt_func = *prt_func;
 
-        if (rt_func.UnwindInfoAddress > ldr.SizeOfImage - sizeof(UNWIND_INFO))
+        if (rt_func.UnwindInfoAddress > img_size - sizeof(UNWIND_INFO))
             return false;
 
-        status = NtReadVirtualMemory(NtCurrentProcess(), (uint8_t*)ldr.DllBase + rt_func.UnwindInfoAddress,
+        status = NtReadVirtualMemory(NtCurrentProcess(), (uint8_t*)img_addr + rt_func.UnwindInfoAddress,
                                     &ui, sizeof(UNWIND_INFO), &bytes_read);
         if (!success(status) || bytes_read != sizeof(UNWIND_INFO))
             return false;
@@ -295,23 +294,23 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
             return true;
 
         if (ui.unwind_codes_count > 0) {
-            if (rt_func.UnwindInfoAddress > ldr.SizeOfImage - sizeof(UNWIND_INFO) - (ui.unwind_codes_count * sizeof(UNWIND_CODE)))
+            if (rt_func.UnwindInfoAddress > img_size - sizeof(UNWIND_INFO) - (ui.unwind_codes_count * sizeof(UNWIND_CODE)))
                 return false;
 
             auto codesptr = (UNWIND_CODE*)malloc(ui.unwind_codes_count * sizeof(UNWIND_CODE));
             if (!codesptr)
                 return false;
 
-            if (context.Rip >= (uintptr_t)ldr.DllBase + rt_func.BeginAddress &&
-                context.Rip < (uintptr_t)ldr.DllBase + rt_func.BeginAddress + ui.prologue_bytes) {
-                func_offset = (uint32_t)(context.Rip - (uintptr_t)ldr.DllBase - rt_func.BeginAddress);
+            if (context.Rip >= (uintptr_t)img_addr + rt_func.BeginAddress &&
+                context.Rip < (uintptr_t)img_addr + rt_func.BeginAddress + ui.prologue_bytes) {
+                func_offset = (uint32_t)(context.Rip - (uintptr_t)img_addr - rt_func.BeginAddress);
             } else
                 func_offset = 0xffffffff;
 
             span codes(codesptr, ui.unwind_codes_count);
 
             status = NtReadVirtualMemory(NtCurrentProcess(),
-                                        (uint8_t*)ldr.DllBase + rt_func.UnwindInfoAddress + sizeof(UNWIND_INFO),
+                                        (uint8_t*)img_addr + rt_func.UnwindInfoAddress + sizeof(UNWIND_INFO),
                                         codesptr, ui.unwind_codes_count * sizeof(UNWIND_CODE), &bytes_read);
             if (!success(status) || bytes_read != ui.unwind_codes_count * sizeof(UNWIND_CODE)) {
                 free(codesptr);
@@ -429,7 +428,7 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
         if (!(ui.flags & UNW_FLAG_CHAININFO))
             break;
 
-        uint8_t* addr = (uint8_t*)ldr.DllBase;
+        uint8_t* addr = (uint8_t*)img_addr;
         addr += rt_func.UnwindInfoAddress;
         addr += ui.unwind_codes_count * sizeof(UNWIND_CODE);
 
@@ -447,16 +446,12 @@ static bool unwind_context2(CONTEXT& context, const LDR_DATA_TABLE_ENTRY& ldr,
     return true;
 }
 
-static bool unwind_context(CONTEXT& context) {
-    auto ent = get_ldr_from_address(context.Rip);
-    if (!ent)
-        return false;
-
-    auto rt_func = find_runtime_function(ent->ldr, context.Rip);
+static bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size) {
+    auto rt_func = find_runtime_function(img_addr, context.Rip);
 
     // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
     if (rt_func) {
-        if (!unwind_context2(context, ent->ldr, rt_func))
+        if (!unwind_context2(context, img_addr, img_size, rt_func))
             return false;
     }
 
@@ -469,6 +464,14 @@ static bool unwind_context(CONTEXT& context) {
     context.Rip = *rip;
 
     return true;
+}
+
+static bool do_unwind_context(CONTEXT& context) {
+    auto ent = get_ldr_from_address(context.Rip);
+    if (!ent)
+        return false;
+
+    return unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage);
 }
 
 extern "C"
@@ -523,7 +526,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         do {
             print_rip(context->Rip);
 
-            if (!unwind_context(*context))
+            if (!do_unwind_context(*context))
                 break;
         } while (true);
     }
