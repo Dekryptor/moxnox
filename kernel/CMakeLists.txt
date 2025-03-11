@@ -56,10 +56,9 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/bsod.cpp
     src/tmpfs.cpp
     src/cpio.cpp
-    src/unwind.cpp
 )
 
-target_link_libraries(kernel format dwarf)
+target_link_libraries(kernel format dwarf unwind)
 
 include_directories(../freetype/include)
 

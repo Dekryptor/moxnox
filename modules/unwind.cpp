@@ -41,6 +41,8 @@ static span<const uint8_t> find_pdata(void* img_addr) {
 static const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t rip) {
     rip -= (uintptr_t)img_addr;
 
+    // FIXME - how do JITted programs provide their pdata?
+
     auto pdata = find_pdata(img_addr);
     if (pdata.empty())
         return nullptr;
