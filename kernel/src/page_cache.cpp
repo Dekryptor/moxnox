@@ -281,19 +281,54 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
 }
 
 size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
+    uint64_t written = 0;
+
     if (data.empty())
         return 0;
 
-    // FIXME - handle offset not being aligned to page (need to read)
     // FIXME - handle offset + data.size() not being aligned to page (need to read)
 
     uint64_t first_page = offset >> PAGE_SHIFT;
+
+    if (offset & (PAGE_SIZE - 1)) {
+        auto inpage_offset = offset & (PAGE_SIZE - 1);
+
+        if (read_into_cache_and_pin(first_page, 1) == 0)
+            return 0;
+
+        lock_guard lg(cache_lock);
+
+        auto ent = find_page_cache_entry(first_page);
+
+        assert(ent->page_num == first_page);
+
+        auto ent_va = phys_address(ent->phys_address);
+
+        memcpy((uint8_t*)ent_va + inpage_offset, data.data(),
+               min(data.size(), PAGE_SIZE - inpage_offset));
+
+        ent->status = page_cache_status::dirty;
+        ent->refcount--; // unpin
+
+        written = min(data.size(), PAGE_SIZE - inpage_offset);
+
+        if (written == data.size())
+            return written;
+
+        offset += written;
+        first_page = offset >> PAGE_SHIFT;
+
+        data = data.subspan(written);
+    }
+
     uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
 
     if (!write_pages(first_page, num_pages, data))
-        return 0;
+        return written;
 
-    return data.size();
+    written += data.size();
+
+    return written;
 }
 
 bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
