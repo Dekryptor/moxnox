@@ -269,12 +269,8 @@ static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t va
 
 static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                             const RUNTIME_FUNCTION* prt_func) {
-    UNWIND_INFO ui;
-    NTSTATUS status;
-    uint32_t bytes_read;
     uint32_t func_offset;
     uint64_t frame = context.Rsp;
-    RUNTIME_FUNCTION rt_func2;
 
     while (true) {
         const auto& rt_func = *prt_func;
@@ -282,10 +278,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
         if (rt_func.UnwindInfoAddress > img_size - sizeof(UNWIND_INFO))
             return false;
 
-        status = NtReadVirtualMemory(NtCurrentProcess(), (uint8_t*)img_addr + rt_func.UnwindInfoAddress,
-                                    &ui, sizeof(UNWIND_INFO), &bytes_read);
-        if (!success(status) || bytes_read != sizeof(UNWIND_INFO))
-            return false;
+        auto& ui = *(UNWIND_INFO*)((uint8_t*)img_addr + rt_func.UnwindInfoAddress);
 
         if (ui.version != 1)
             return false;
@@ -297,25 +290,14 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
             if (rt_func.UnwindInfoAddress > img_size - sizeof(UNWIND_INFO) - (ui.unwind_codes_count * sizeof(UNWIND_CODE)))
                 return false;
 
-            auto codesptr = (UNWIND_CODE*)malloc(ui.unwind_codes_count * sizeof(UNWIND_CODE));
-            if (!codesptr)
-                return false;
-
             if (context.Rip >= (uintptr_t)img_addr + rt_func.BeginAddress &&
                 context.Rip < (uintptr_t)img_addr + rt_func.BeginAddress + ui.prologue_bytes) {
                 func_offset = (uint32_t)(context.Rip - (uintptr_t)img_addr - rt_func.BeginAddress);
             } else
                 func_offset = 0xffffffff;
 
-            span codes(codesptr, ui.unwind_codes_count);
-
-            status = NtReadVirtualMemory(NtCurrentProcess(),
-                                        (uint8_t*)img_addr + rt_func.UnwindInfoAddress + sizeof(UNWIND_INFO),
-                                        codesptr, ui.unwind_codes_count * sizeof(UNWIND_CODE), &bytes_read);
-            if (!success(status) || bytes_read != ui.unwind_codes_count * sizeof(UNWIND_CODE)) {
-                free(codesptr);
-                return false;
-            }
+            span codes((UNWIND_CODE*)((uint8_t*)img_addr + rt_func.UnwindInfoAddress + sizeof(UNWIND_INFO)),
+                       ui.unwind_codes_count);
 
             if (ui.frame_register != 0) {
                 frame = get_register(context, (enum unwind_register)ui.frame_register);
@@ -332,10 +314,8 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                     case unwind_opcode::UWOP_PUSH_NONVOL: { // push reg (.seh_pushreg)
                         auto val = read_uint64_t(context.Rsp);
 
-                        if (!val.has_value()) {
-                            free(codesptr);
+                        if (!val.has_value())
                             return false;
-                        }
 
                         set_register(context, (enum unwind_register)c.info, *val);
                         context.Rsp += sizeof(uint64_t);
@@ -344,18 +324,14 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                     case unwind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n (.seh_stackalloc)
                         if (c.info == 0) {
-                            if (i == codes.size() - 1) {
-                                free(codesptr);
+                            if (i == codes.size() - 1)
                                 return false;
-                            }
 
                             context.Rsp += *(uint16_t*)&codes[i + 1] * 8;
                             i++;
                         } else {
-                            if (i >= codes.size() - 2) {
-                                free(codesptr);
+                            if (i >= codes.size() - 2)
                                 return false;
-                            }
 
                             context.Rsp += *(uint32_t*)&codes[i + 1];
                             i += 2;
@@ -371,10 +347,8 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                         break;
 
                     case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg (.seh_savereg)
-                        if (i == codes.size() - 1) {
-                            free(codesptr);
+                        if (i == codes.size() - 1)
                             return false;
-                        }
 
                         set_register(context, (enum unwind_register)c.info,
                                     frame + *(uint16_t*)&codes[i + 1] * 8);
@@ -382,10 +356,8 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                         break;
 
                     case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg (.seh_savereg)
-                        if (i >= codes.size() - 2) {
-                            free(codesptr);
+                        if (i >= codes.size() - 2)
                             return false;
-                        }
 
                         set_register(context, (enum unwind_register)c.info,
                                     frame + *(uint32_t*)&codes[i + 1]);
@@ -393,19 +365,15 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                         break;
 
                     case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg (.seh_savexmm)
-                        if (i == codes.size() - 1) {
-                            free(codesptr);
+                        if (i == codes.size() - 1)
                             return false;
-                        }
 
                         i++;
                         break;
 
                     case unwind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg (.seh_savexmm)
-                        if (i >= codes.size() - 2) {
-                            free(codesptr);
+                        if (i >= codes.size() - 2)
                             return false;
-                        }
 
                         i += 2;
                         break;
@@ -416,13 +384,10 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                     default: {
                         print("unrecognized unwind opcode {:x}\n", c.code);
-                        free(codesptr);
                         return false;
                     }
                 }
             }
-
-            free(codesptr);
         }
 
         if (!(ui.flags & UNW_FLAG_CHAININFO))
@@ -435,12 +400,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
         if (ui.unwind_codes_count & 1)
             addr += sizeof(UNWIND_CODE);
 
-        status = NtReadVirtualMemory(NtCurrentProcess(), addr, &rt_func2,
-                                     sizeof(RUNTIME_FUNCTION), &bytes_read);
-        if (!success(status) || bytes_read != sizeof(RUNTIME_FUNCTION))
-            return false;
-
-        prt_func = &rt_func2;
+        prt_func = (RUNTIME_FUNCTION*)addr;
     }
 
     return true;
