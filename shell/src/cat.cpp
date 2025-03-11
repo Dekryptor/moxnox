@@ -5,6 +5,7 @@
 #include <string.h>
 
 import shelllib;
+import print;
 
 using namespace std;
 
@@ -82,22 +83,6 @@ static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv) {
     }
 }
 
-void print(u16string_view sv) {
-    auto len = utf16_to_utf8_len(sv);
-    if (len == 0)
-        return;
-
-    auto s = (char*)RtlAllocateHeap(GetProcessHeap(), 0, len);
-    if (!s)
-        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-    utf16_to_utf8(span(s, len), sv);
-
-    print(string_view(s, len));
-
-    RtlFreeHeap(GetProcessHeap(), 0, s);
-}
-
 extern "C"
 void* malloc(size_t size) {
     return RtlAllocateHeap(GetProcessHeap(), 0, size);
@@ -128,11 +113,7 @@ static void cat_file(u16string_view fn) {
                           FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr, 0);
 
     if (!success(status)) {
-        print("cat: "); // FIXME - stderr
-        print(fn);
-        print(": NtCreateFile returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("cat: {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
         return;
     }
 
@@ -146,11 +127,7 @@ static void cat_file(u16string_view fn) {
             break;
 
         if (!success(status)) {
-            print("cat: "); // FIXME - stderr
-            print(fn);
-            print(": NtReadFile returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("cat: {}: NtReadFile returned {}\n", fn, status); // FIXME - stderr
             break;
         }
 
@@ -161,11 +138,7 @@ static void cat_file(u16string_view fn) {
                              nullptr, nullptr, &iosb, buf,
                              (uint32_t)iosb.Information, nullptr, nullptr);
         if (!success(status)) {
-            print("cat: "); // FIXME - stderr
-            print(fn);
-            print(": NtWriteFile returned ");
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("cat: {}: NtWriteFile returned {}\n", fn, status); // FIXME - stderr
             break;
         }
     }

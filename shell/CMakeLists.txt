@@ -10,25 +10,19 @@ enable_language(ASM)
 add_library(shelllib STATIC)
 target_sources(shelllib PUBLIC FILE_SET CXX_MODULES FILES
     src/string.cpp
+    src/print.cpp
 )
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 target_compile_options(shelllib PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe)
-# target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
-
-# target_link_libraries(shell ntdll ntdllcrt)
-
-# install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX})
+target_link_libraries(shelllib format)
 
 ###
 
 set(SRC_FILES src/shell.cpp)
 
 add_executable(shell ${SRC_FILES})
-target_sources(shell PUBLIC FILE_SET CXX_MODULES FILES
-    src/print.cpp
-)
 
 target_compile_options(shell PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse)
 target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
@@ -73,7 +67,8 @@ target_compile_options(cat PRIVATE -Wall -Wextra -Wno-address-of-packed-member -
 target_link_options(cat PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(cat shelllib)
-target_link_libraries(cat ntdll ntdllcrt)
+target_link_libraries(cat format)
+target_link_libraries(cat -lntdll ntdllcrt)
 
 install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX})
 
