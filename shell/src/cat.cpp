@@ -112,7 +112,10 @@ static void cat_file(u16string_view fn) {
     status = NtCreateFile(&file, FILE_READ_DATA | SYNCHRONIZE, &oa, &iosb, nullptr, 0, 0,
                           FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr, 0);
 
-    if (!success(status)) {
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        print("cat: {}: No such file or directory\n", fn); // FIXME - stderr
+        return;
+    } else if (!success(status)) {
         print("cat: {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
         return;
     }
