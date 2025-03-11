@@ -72,13 +72,13 @@ static void print_rip(pipe& p, uint64_t rip) {
             written);
 }
 
-static span<const uint8_t> find_pdata(const kernel_image& img) {
-    const auto& dos_header = *(IMAGE_DOS_HEADER*)img.base_address;
+static span<const uint8_t> find_pdata(void* img_addr) {
+    const auto& dos_header = *(IMAGE_DOS_HEADER*)img_addr;
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
         return span<const uint8_t>();
 
-    const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img.base_address + dos_header.e_lfanew);
+    const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_addr + dos_header.e_lfanew);
 
     if (nt_header.Signature != IMAGE_NT_SIGNATURE)
         return span<const uint8_t>();
@@ -94,17 +94,16 @@ static span<const uint8_t> find_pdata(const kernel_image& img) {
 
     for (const auto& sect : sections) {
         if (string_view(sect.Name) == ".pdata")
-            return span((uint8_t*)img.base_address + sect.VirtualAddress, sect.VirtualSize);
+            return span((uint8_t*)img_addr + sect.VirtualAddress, sect.VirtualSize);
     }
 
     return span<const uint8_t>();
 }
 
-static const RUNTIME_FUNCTION* find_runtime_function(const kernel_image& img,
-                                                     uint64_t rip) {
-    rip -= (uintptr_t)img.base_address;
+static const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t rip) {
+    rip -= (uintptr_t)img_addr;
 
-    auto pdata = find_pdata(img);
+    auto pdata = find_pdata(img_addr);
     if (pdata.empty())
         return nullptr;
 
@@ -412,7 +411,7 @@ static bool unwind_context(CONTEXT& context) {
     if (!img)
         return false;
 
-    auto rt_func = find_runtime_function(*img, context.Rip);
+    auto rt_func = find_runtime_function(img->base_address, context.Rip);
 
     // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
     if (rt_func) {
