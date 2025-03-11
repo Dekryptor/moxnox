@@ -7,6 +7,7 @@ module;
 
 export module tmpfs;
 
+import bsod;
 import print;
 
 using namespace std;
@@ -248,8 +249,31 @@ NTSTATUS tmpfs_inode::query_directory(span<uint8_t> buf,
     return nt_status::NO_MORE_FILES;
 }
 
-size_t tmpfs_inode::read_into_cache(uint64_t, uint64_t) {
-    return 0;
+size_t tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    page_cache_entry* ent;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                ent = cache.find_page_cache_entry(page_num);
+            else
+                ent = &containing_record<page_cache_entry>(ent->le.next);
+        }
+
+        assert(ent->page_num == page_num + i);
+
+        if (ent->status == page_cache_status::allocated) {
+            auto ent_va = phys_address(ent->phys_address);
+
+            memset(ent_va, 0, PAGE_SIZE);
+
+            ent->status = page_cache_status::clean;
+        }
+    }
+
+    return num_pages;
 }
 
 size_t tmpfs_inode::flush_cache(uint64_t, uint64_t) {
