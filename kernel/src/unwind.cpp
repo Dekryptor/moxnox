@@ -38,7 +38,7 @@ static span<const uint8_t> find_pdata(void* img_addr) {
     return span<const uint8_t>();
 }
 
-export const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t rip) {
+static const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t rip) {
     rip -= (uintptr_t)img_addr;
 
     auto pdata = find_pdata(img_addr);
@@ -59,7 +59,7 @@ export const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t ri
     return nullptr;
 }
 
-export optional<uint64_t> read_uint64_t(uint64_t addr) {
+static optional<uint64_t> read_uint64_t(uint64_t addr) {
     // FIXME - do this safely
     return *(uint64_t*)addr;
 }
@@ -187,7 +187,7 @@ static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t va
     }
 }
 
-export bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
+static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                             const RUNTIME_FUNCTION* prt_func,
                             bool& machine_frame) {
     uint32_t func_offset;
@@ -337,6 +337,32 @@ export bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
             addr += sizeof(UNWIND_CODE);
 
         prt_func = (RUNTIME_FUNCTION*)addr;
+    }
+
+    return true;
+}
+
+export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size) {
+    bool machine_frame = false;
+
+    auto rt_func = find_runtime_function(img_addr, context.Rip);
+
+    // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
+    if (rt_func) {
+        if (!unwind_context2(context, img_addr, img_size, rt_func,
+                             machine_frame)) {
+            return false;
+        }
+    }
+
+    if (!machine_frame) {
+        auto rip = read_uint64_t(context.Rsp);
+
+        if (!rip.has_value())
+            return false;
+
+        context.Rsp += sizeof(uint64_t);
+        context.Rip = *rip;
     }
 
     return true;

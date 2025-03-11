@@ -73,50 +73,28 @@ static void print_rip(pipe& p, uint64_t rip) {
             written);
 }
 
-static bool unwind_context(CONTEXT& context) {
-    bool machine_frame = false;
-
+static bool do_unwind_context(CONTEXT& context) {
     auto img = get_kernel_image_from_address(context.Rip);
     if (!img)
         return false;
 
-    auto rt_func = find_runtime_function(img->base_address, context.Rip);
-
-    // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
-    if (rt_func) {
-        if (!unwind_context2(context, img->base_address, img->size,
-                             rt_func, machine_frame)) {
-            return false;
-        }
-    }
-
-    if (!machine_frame) {
-        auto rip = read_uint64_t(context.Rsp);
-
-        if (!rip.has_value())
-            return false;
-
-        context.Rsp += sizeof(uint64_t);
-        context.Rip = *rip;
-    }
-
-    return true;
+    return unwind_context(context, img->base_address, img->size);
 }
 
 static void print_stacktrace(CONTEXT& context, pipe& p, unsigned int skip_callers) {
     // not interested in top entry (bsod function)
-    if (!unwind_context(context))
+    if (!do_unwind_context(context))
         return;
 
     for (unsigned int i = 0; i < skip_callers; i++) {
-        if (!unwind_context(context))
+        if (!do_unwind_context(context))
             return;
     }
 
     do {
         print_rip(p, context.Rip);
 
-        if (!unwind_context(context))
+        if (!do_unwind_context(context))
             return;
     } while (true);
 }
