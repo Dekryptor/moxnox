@@ -950,6 +950,8 @@ void unmap_and_free_page(uint64_t va) {
     auto pa = ((uint64_t)pt_entry.PageFrameNumber) << PAGE_SHIFT;
 
     free_page(pa);
+
+    pt_entry.Valid = 0;
 }
 
 void unmap_page(uint64_t va) {

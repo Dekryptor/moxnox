@@ -181,6 +181,14 @@ static bool extract_initrd() {
             bsod_format("extract_initrd_file returned {} for {}", status, path);
     });
 
+    auto num_pages = bytes_to_pages(initrd.size());
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        unmap_and_free_page((uintptr_t)(initrd.data() + (i << PAGE_SHIFT)));
+    }
+
+    initrd = span<uint8_t>();
+
     return true;
 }
 
