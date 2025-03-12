@@ -72,11 +72,11 @@ ACPI_STATUS AcpiOsTableOverride(ACPI_TABLE_HEADER* /*ExistingTable*/,
 
 extern "C"
 ACPI_STATUS AcpiOsPhysicalTableOverride(ACPI_TABLE_HEADER* /*ExistingTable*/,
-                                        ACPI_PHYSICAL_ADDRESS* /*NewAddress*/,
+                                        ACPI_PHYSICAL_ADDRESS* NewAddress,
                                         UINT32* /*NewTableLength*/) {
-    print("FIXME - AcpiOsPhysicalTableOverride\n");
+    *NewAddress = 0;
 
-    return AE_ERROR;
+    return AE_OK;
 }
 
 extern "C"
