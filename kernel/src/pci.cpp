@@ -29,7 +29,7 @@ static span<const uint8_t> find_mcfg() {
 
     auto& mcfg = mcfgw->get();
 
-    if (mcfg.Length < offsetof(apic_mcfg, items)) {
+    if (mcfg.Length < sizeof(ACPI_TABLE_MCFG)) {
         print("MCFG was shorter than expected.\n");
         return span<const uint8_t>();
     }
@@ -274,9 +274,8 @@ void init_pci() {
         return;
     }
 
-    const auto& tbl = *(apic_mcfg*)mcfg.data();
-
-    auto items = span(tbl.items, (mcfg.size() - offsetof(apic_mcfg, items)) / sizeof(ACPI_MCFG_ALLOCATION));
+    auto items = span((ACPI_MCFG_ALLOCATION*)(mcfg.data() + sizeof(ACPI_TABLE_MCFG)),
+                      (mcfg.size() - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION));
 
     if (items.empty()) {
         print("No ACPI_MCFG_ALLOCATIONs found\n");
