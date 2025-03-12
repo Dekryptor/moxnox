@@ -2,25 +2,6 @@
 
 #pragma pack(push,1)
 
-enum class madt_type : uint8_t {
-    local_apic = 0,
-    io_apic = 1,
-    interrupt_source_override = 2,
-    nmi_source = 3,
-    local_apic_nmi = 4,
-    local_apic_address_override = 5,
-    io_sapic = 6,
-    local_sapic = 7,
-    platform_interrupt_sources = 8,
-    local_x2apic = 9,
-    local_x2apic_nmi = 10,
-    gicc = 11,
-    gicd = 12,
-    gic_msi_frame = 13,
-    gicr = 14,
-    gic_its = 15
-};
-
 typedef struct {
     uint8_t id;
     uint8_t reserved;

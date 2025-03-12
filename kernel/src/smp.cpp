@@ -217,10 +217,10 @@ bool init_smp() {
 
     auto data = madt;
     while (data.size() > 2) {
-        auto type = (enum madt_type)data[0];
+        auto type = data[0];
         auto length = data[1];
 
-        if (type == madt_type::local_apic && length >= 2 + sizeof(madt_local_apic)) {
+        if (type == ACPI_MADT_TYPE_LOCAL_APIC && length >= 2 + sizeof(madt_local_apic)) {
             auto& ent = *(madt_local_apic*)&data[2];
 
             if (ent.apic_id != bsp_id && (ent.enabled || ent.online_capable)) {
@@ -298,10 +298,10 @@ bool init_smp() {
 
     data = madt;
     while (data.size() > 2) {
-        auto type = (enum madt_type)data[0];
+        auto type = data[0];
         auto length = data[1];
 
-        if (type == madt_type::local_apic && length >= 2 + sizeof(madt_local_apic)) {
+        if (type == ACPI_MADT_TYPE_LOCAL_APIC && length >= 2 + sizeof(madt_local_apic)) {
             auto& ent = *(madt_local_apic*)&data[2];
 
             if (ent.apic_id != bsp_id && (ent.enabled || ent.online_capable)) {
