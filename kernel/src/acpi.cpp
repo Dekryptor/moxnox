@@ -13,7 +13,7 @@ export module acpi;
 import format;
 import print;
 
-export void acpi_test() {
+export void init_acpi() {
     ACPI_STATUS Status;
 
     Status = AcpiInitializeSubsystem();
@@ -51,9 +51,7 @@ ACPI_STATUS AcpiOsTerminate() {
 
 extern "C"
 ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer() {
-    print("FIXME - AcpiOsGetRootPointer\n");
-
-    return 0;
+    return rsdt_pa;
 }
 
 extern "C"

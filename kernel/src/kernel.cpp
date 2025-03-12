@@ -21,6 +21,8 @@ extern uint8_t __image_base__;
 
 list_entry kernel_images = { &kernel_images, &kernel_images };
 
+uint64_t rsdt_pa;
+
 // console.cpp
 extern object_ref console_pipe;
 
@@ -167,7 +169,9 @@ void main_thread() {
     // FIXME - NVMe
     // FIXME - USB
 
-    acpi_test();
+    init_acpi();
+
+    free_lower_half_mappings();
 
     init_rtc();
 
@@ -259,6 +263,8 @@ void startup(loader_block* lb) {
     debug_addr = span((uint8_t*)(uintptr_t)lb->debug_addr_ptr, lb->debug_addr_size);
     debug_str_offsets = span((uint8_t*)(uintptr_t)lb->debug_str_offsets_ptr, lb->debug_str_offsets_size);
 
+    rsdt_pa = lb->rsdt_pa;
+
     if (!init_memory(*lb))
         goto hang;
 
@@ -282,8 +288,6 @@ void startup(loader_block* lb) {
         goto hang;
 
     _printk = safe_print;
-
-    free_lower_half_mappings();
 
     if (!add_kernel_thread(main_thread))
         goto hang;

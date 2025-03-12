@@ -99,6 +99,7 @@ struct kernel_image {
 // kernel.cpp
 extern std::string_view cmdline;
 extern list_entry kernel_images;
+extern uint64_t rsdt_pa;
 
 // mem.cpp
 bool init_memory(const loader_block& lb);
