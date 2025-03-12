@@ -13,6 +13,10 @@ export module acpi;
 import format;
 import print;
 
+static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
+    print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
+}
+
 export void init_acpi() {
     ACPI_STATUS Status;
 
@@ -34,7 +38,13 @@ export void init_acpi() {
         return;
     }
 
-    // FIXME - install handlers
+    Status = AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY,
+                                      acpi_notify_handler, nullptr);
+    if (ACPI_FAILURE(Status)) {
+        print("AcpiInstallNotifyHandler returned {}\n", Status);
+        return;
+    }
+
     // FIXME - AcpiEnableSubsystem
     // FIXME - AcpiInitializeObjects
 }
