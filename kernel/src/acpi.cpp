@@ -191,36 +191,12 @@ void AcpiOsFree(void* Memory) {
 }
 
 extern "C"
-void* AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS Where, ACPI_SIZE Length) {
-    uint64_t first_page = Where & ~(PAGE_SIZE - 1);
-    uint64_t last_page = (Where + Length - 1) & ~(PAGE_SIZE - 1);
-    auto num_pages = (uint32_t)(last_page - first_page + 1);
-
-    if (num_pages == 0)
-        return nullptr;
-
-    auto va = allocate_va(num_pages);
-    if (!va) {
-        print("allocate_va failed\n");
-        return nullptr;
-    }
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        if (!map_page(first_page + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-            for (uint64_t j = 0; j < i; j++) {
-                unmap_page(va + (j << PAGE_SHIFT));
-            }
-            free_va(va, num_pages);
-            return nullptr;
-        }
-    }
-
-    return (void*)((uint8_t*)va + (Where & (PAGE_SIZE - 1)));
+void* AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS Where, ACPI_SIZE) {
+    return phys_address(Where);
 }
 
 extern "C"
-void AcpiOsUnmapMemory(void* /*LogicalAddress*/, ACPI_SIZE /*Size*/) {
-    print("FIXME - AcpiOsUnmapMemory\n");
+void AcpiOsUnmapMemory(void*, ACPI_SIZE) {
 }
 
 extern "C"
