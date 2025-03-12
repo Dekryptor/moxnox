@@ -217,14 +217,13 @@ bool init_smp() {
 
     auto data = madt;
     while (data.size() > 2) {
-        auto type = data[0];
-        auto length = data[1];
+        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
-        if (type == ACPI_MADT_TYPE_LOCAL_APIC && length >= 2 + sizeof(madt_local_apic)) {
-            auto& ent = *(madt_local_apic*)&data[2];
+        if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
+            auto& ent = *(ACPI_MADT_LOCAL_APIC*)data.data();
 
-            if (ent.apic_id != bsp_id && (ent.enabled || ent.online_capable)) {
-                uint64_t va = KERNEL_STACK | ((ent.apic_id * KERNEL_STACK_PAGES) << PAGE_SHIFT);
+            if (ent.Id != bsp_id && ent.LapicFlags & (ACPI_MADT_ENABLED | ACPI_MADT_ONLINE_CAPABLE)) {
+                uint64_t va = KERNEL_STACK | ((ent.Id * KERNEL_STACK_PAGES) << PAGE_SHIFT);
 
                 for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
                     auto pa = allocate_page();
@@ -247,7 +246,7 @@ bool init_smp() {
             }
         }
 
-        data = data.subspan(length);
+        data = data.subspan(h.Length);
     }
 
     apic_ids = (uint8_t*)malloc(ap_count + 1);
@@ -298,20 +297,19 @@ bool init_smp() {
 
     data = madt;
     while (data.size() > 2) {
-        auto type = data[0];
-        auto length = data[1];
+        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
-        if (type == ACPI_MADT_TYPE_LOCAL_APIC && length >= 2 + sizeof(madt_local_apic)) {
-            auto& ent = *(madt_local_apic*)&data[2];
+        if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
+            auto& ent = *(ACPI_MADT_LOCAL_APIC*)data.data();
 
-            if (ent.apic_id != bsp_id && (ent.enabled || ent.online_capable)) {
+            if (ent.Id != bsp_id && ent.LapicFlags & (ACPI_MADT_ENABLED | ACPI_MADT_ONLINE_CAPABLE)) {
                 print("CPU found\n");
 
-                start_ap(ent.apic_id);
+                start_ap(ent.Id);
             }
         }
 
-        data = data.subspan(length);
+        data = data.subspan(h.Length);
     }
 
     while (ap_left.load(memory_order_acq_rel) > 0) {
