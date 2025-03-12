@@ -283,10 +283,17 @@ ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32* Value, UINT32 Width)
 }
 
 extern "C"
-ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS /*Address*/, UINT32 /*Value*/, UINT32 /*Width*/) {
-    print("FIXME - AcpiOsWritePort\n");
+ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width) {
+    if (Width == 32)
+        outl((uint16_t)Address, Value);
+    else if (Width == 16)
+        outw((uint16_t)Address, (uint16_t)Value);
+    else if (Width == 8)
+        outb((uint16_t)Address, (uint8_t)Value);
+    else
+        return AE_BAD_PARAMETER;
 
-    return AE_ERROR;
+    return AE_OK;
 }
 
 extern "C"

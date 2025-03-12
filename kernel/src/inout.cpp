@@ -64,3 +64,14 @@ export void outw(uint16_t port, uint16_t val) {
         : "ax", "dx"
     );
 }
+
+export void outl(uint16_t port, uint32_t val) {
+    __asm __volatile(
+        "mov\teax, %1\n"
+        "\tmov\tdx, %0\n"
+        "\tout\tdx, eax\n"
+        :
+        : "r" (port), "r" (val)
+        : "ax", "dx"
+    );
+}
