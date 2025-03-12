@@ -193,9 +193,7 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 /*InterruptNumber*/,
 
 extern "C"
 ACPI_THREAD_ID AcpiOsGetThreadId() {
-    print("FIXME - AcpiOsGetThreadId\n");
-
-    return 0;
+    return (ACPI_THREAD_ID)get_current_thread();
 }
 
 extern "C"
