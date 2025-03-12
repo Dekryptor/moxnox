@@ -2,6 +2,7 @@
 #include "acpi.h"
 #include "objects.h"
 #include "pipe.h"
+#include "acpica.h"
 
 import print;
 import inout;
@@ -25,9 +26,9 @@ static void reboot() {
         return;
     }
 
-    auto& fadt = reinterpret_cast<const struct fadt&>(fadtw->get());
+    auto& fadt = reinterpret_cast<const ACPI_TABLE_FADT&>(fadtw->get());
 
-    if (fadt.h.Length < offsetofend(struct fadt, ResetValue)) {
+    if (fadt.Header.Length < offsetofend(ACPI_TABLE_FADT, ResetValue)) {
         print("FADT was truncated\n");
         return;
     }
@@ -42,22 +43,22 @@ static void reboot() {
         return;
     }
 
-    switch (fadt.ResetRegister.AddressSpace) {
-        case acpi_address_space::system_memory:
-            print("FIXME - acpi_address_space::system_memory\n");
+    switch (fadt.ResetRegister.SpaceId) {
+        case ACPI_ADR_SPACE_SYSTEM_MEMORY:
+            print("FIXME - ACPI_ADR_SPACE_SYSTEM_MEMORY\n");
         break;
 
-        case acpi_address_space::system_io:
+        case ACPI_ADR_SPACE_SYSTEM_IO:
             outb((uint16_t)fadt.ResetRegister.Address, fadt.ResetValue);
         break;
 
-        case acpi_address_space::pci_config:
-            print("FIXME - acpi_address_space::pci_config\n");
+        case ACPI_ADR_SPACE_PCI_CONFIG:
+            print("FIXME - ACPI_ADR_SPACE_PCI_CONFIG\n");
         break;
 
         default:
-            print("invalid value {} for ResetRegister.AddressSpace in FADT\n",
-                  (unsigned int)fadt.ResetRegister.AddressSpace);
+            print("invalid value {} for ResetRegister.SpaceId in FADT\n",
+                  (unsigned int)fadt.ResetRegister.SpaceId);
         break;
     }
 }
@@ -79,16 +80,16 @@ static void halt() {
         return;
     }
 
-    auto& fadt = reinterpret_cast<const struct fadt&>(fadtw->get());
+    auto& fadt = reinterpret_cast<const ACPI_TABLE_FADT&>(fadtw->get());
 
-    if (fadt.h.Length < offsetofend(struct fadt, XPm1aControlBlock)) {
+    if (fadt.Header.Length < offsetofend(ACPI_TABLE_FADT, XPm1aControlBlock)) {
         print("FADT was truncated\n");
         return;
     }
 
-    if (fadt.XPm1aControlBlock.AddressSpace != acpi_address_space::system_io) {
-        print("unexpected value {} for XPm1aControlBlock.AddressSpace in FADT\n",
-              (unsigned int)fadt.XPm1aControlBlock.AddressSpace);
+    if (fadt.XPm1aControlBlock.SpaceId != ACPI_ADR_SPACE_SYSTEM_IO) {
+        print("unexpected value {} for XPm1aControlBlock.SpaceId in FADT\n",
+              (unsigned int)fadt.XPm1aControlBlock.SpaceId);
         return;
     }
 
