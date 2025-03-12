@@ -64,10 +64,10 @@ ACPI_STATUS AcpiOsPredefinedOverride(const ACPI_PREDEFINED_NAMES* /*InitVal*/,
 
 extern "C"
 ACPI_STATUS AcpiOsTableOverride(ACPI_TABLE_HEADER* /*ExistingTable*/,
-                                ACPI_TABLE_HEADER** /*NewTable*/) {
-    print("FIXME - AcpiOsTableOverride\n");
+                                ACPI_TABLE_HEADER** NewTable) {
+    *NewTable = nullptr;
 
-    return AE_ERROR;
+    return AE_OK;
 }
 
 extern "C"
