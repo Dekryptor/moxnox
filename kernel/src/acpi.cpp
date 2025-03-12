@@ -139,10 +139,17 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
 }
 
 extern "C"
-ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE /*Handle*/, UINT32 /*Units*/) {
-    print("FIXME - AcpiOsSignalSemaphore\n");
+ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units) {
+    auto& sem = *static_cast<semaphore*>(Handle);
 
-    return AE_ERROR;
+    if (Units != 1) {
+        print("FIXME - AcpiOsSignalSemaphore with Units != 1\n"); // FIXME
+        return AE_ERROR;
+    }
+
+    release_semaphore(sem);
+
+    return AE_OK;
 }
 
 extern "C"
