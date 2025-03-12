@@ -144,42 +144,6 @@ void AcpiOsUnmapMemory(void* /*LogicalAddress*/, ACPI_SIZE /*Size*/) {
 }
 
 extern "C"
-ACPI_STATUS AcpiOsCreateCache(char* /*CacheName*/, UINT16 /*ObjectSize*/,
-                              UINT16 /*MaxDepth*/, ACPI_CACHE_T** /*ReturnCache*/) {
-    print("FIXME - AcpiOsCreateCache\n");
-
-    return AE_ERROR;
-}
-
-extern "C"
-ACPI_STATUS AcpiOsDeleteCache(ACPI_CACHE_T* /*Cache*/) {
-    print("FIXME - AcpiOsDeleteCache\n");
-
-    return AE_ERROR;
-}
-
-extern "C"
-ACPI_STATUS AcpiOsPurgeCache(ACPI_CACHE_T* /*Cache*/) {
-    print("FIXME - AcpiOsPurgeCache\n");
-
-    return AE_ERROR;
-}
-
-extern "C"
-void* AcpiOsAcquireObject(ACPI_CACHE_T* /*Cache*/) {
-    print("FIXME - AcpiOsAcquireObject\n");
-
-    return nullptr;
-}
-
-extern "C"
-ACPI_STATUS AcpiOsReleaseObject(ACPI_CACHE_T* /*Cache*/, void* /*Object*/) {
-    print("FIXME - AcpiOsReleaseObject\n");
-
-    return AE_ERROR;
-}
-
-extern "C"
 ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 /*InterruptNumber*/,
                                           ACPI_OSD_HANDLER /*ServiceRoutine*/,
                                           void* /*Context*/) {
