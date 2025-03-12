@@ -68,27 +68,33 @@ ACPI_STATUS AcpiOsPhysicalTableOverride(ACPI_TABLE_HEADER* /*ExistingTable*/,
 }
 
 extern "C"
-ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK* /*OutHandle*/) {
-    print("FIXME - AcpiOsCreateLock\n");
+ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK* OutHandle) {
+    *OutHandle = new spinlock;
 
-    return AE_ERROR;
+    return AE_OK;
 }
 
 extern "C"
-void AcpiOsDeleteLock(ACPI_SPINLOCK /*Handle*/) {
-    print("FIXME - AcpiOsDeleteLock\n");
+void AcpiOsDeleteLock(ACPI_SPINLOCK Handle) {
+    auto* lock = (spinlock*)Handle;
+
+    delete lock;
 }
 
 extern "C"
-ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK /*Handle*/) {
-    print("FIXME - AcpiOsAcquireLock\n");
+ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle) {
+    auto& lock = *(spinlock*)Handle;
 
-    return 0; // FIXME
+    lock.lock();
+
+    return 0;
 }
 
 extern "C"
-void AcpiOsReleaseLock(ACPI_SPINLOCK /*Handle*/, ACPI_CPU_FLAGS /*Flags*/) {
-    print("FIXME - AcpiOsReleaseLock\n");
+void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS) {
+    auto& lock = *(spinlock*)Handle;
+
+    lock.unlock();
 }
 
 extern "C"
