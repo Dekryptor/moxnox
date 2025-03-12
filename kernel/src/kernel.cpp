@@ -21,7 +21,7 @@ extern uint8_t __image_base__;
 
 list_entry kernel_images = { &kernel_images, &kernel_images };
 
-uint64_t rsdt_pa;
+uint64_t rsdp_pa;
 
 // console.cpp
 extern object_ref console_pipe;
@@ -263,7 +263,7 @@ void startup(loader_block* lb) {
     debug_addr = span((uint8_t*)(uintptr_t)lb->debug_addr_ptr, lb->debug_addr_size);
     debug_str_offsets = span((uint8_t*)(uintptr_t)lb->debug_str_offsets_ptr, lb->debug_str_offsets_size);
 
-    rsdt_pa = lb->rsdt_pa;
+    rsdp_pa = lb->rsdp_pa;
 
     if (!init_memory(*lb))
         goto hang;

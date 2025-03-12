@@ -51,7 +51,7 @@ ACPI_STATUS AcpiOsTerminate() {
 
 extern "C"
 ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer() {
-    return rsdt_pa;
+    return rsdp_pa;
 }
 
 extern "C"
