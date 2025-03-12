@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "acpica.h"
 #include "acpi.h"
 #include "pci.h"
 #include "handle.h"
@@ -36,8 +37,8 @@ static span<const uint8_t> find_mcfg() {
     return span((const uint8_t*)&mcfg, mcfg.Length);
 }
 
-static constexpr uint64_t pci_pa(const apic_mcfg_item& item, uint8_t bus, uint8_t device, uint8_t function) {
-    return item.base_address | (uint64_t)((bus - item.start_number) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12);
+static constexpr uint64_t pci_pa(const ACPI_MCFG_ALLOCATION& item, uint8_t bus, uint8_t device, uint8_t function) {
+    return item.Address | (uint64_t)((bus - item.StartBusNumber) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12);
 }
 
 static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
@@ -174,7 +175,7 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
     insert_tail_list(pci_device_list, pci_dev.le);
 }
 
-static void check_bus(uint8_t bus, const apic_mcfg_item& item) {
+static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item) {
     // FIXME - handle VA leaks?
 
     for (uint8_t dev = 0; dev < 32; dev++) {
@@ -232,11 +233,11 @@ static void check_bus(uint8_t bus, const apic_mcfg_item& item) {
     }
 }
 
-static void check_buses(const apic_mcfg_item& item) {
+static void check_buses(const ACPI_MCFG_ALLOCATION& item) {
     // FIXME - multiple PCI controllers
     // FIXME - PCI-to-PCI bridges
 
-    check_bus(item.start_number, item);
+    check_bus(item.StartBusNumber, item);
 }
 
 static void pci_device_found(void* ctx) {
@@ -275,10 +276,10 @@ void init_pci() {
 
     const auto& tbl = *(apic_mcfg*)mcfg.data();
 
-    auto items = span(tbl.items, (mcfg.size() - offsetof(apic_mcfg, items)) / sizeof(apic_mcfg_item));
+    auto items = span(tbl.items, (mcfg.size() - offsetof(apic_mcfg, items)) / sizeof(ACPI_MCFG_ALLOCATION));
 
     if (items.empty()) {
-        print("No apic_mcfg_items found\n");
+        print("No ACPI_MCFG_ALLOCATIONs found\n");
         return;
     }
 

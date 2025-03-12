@@ -1,8 +1,8 @@
 #include "kernel.h"
+#include "acpica.h"
 #include "acpi.h"
 #include "objects.h"
 #include "pipe.h"
-#include "acpica.h"
 
 import print;
 import inout;

@@ -1,5 +1,6 @@
 #include <loaderblock.h>
 #include "kernel.h"
+#include "acpica.h"
 #include "acpi.h"
 #include "mem.h"
 #include "spinlock.h"

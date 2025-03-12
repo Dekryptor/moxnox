@@ -55,18 +55,10 @@ typedef struct {
     uint32_t reserved : 30;
 } madt_local_apic;
 
-struct apic_mcfg_item {
-    uint64_t base_address;
-    uint16_t segment_group_number;
-    uint8_t start_number;
-    uint8_t end_number;
-    uint32_t reserved;
-};
-
 struct apic_mcfg {
     ACPISDTHeader header;
     uint64_t reserved;
-    apic_mcfg_item items[1];
+    ACPI_MCFG_ALLOCATION items[1];
 };
 
 #pragma pack(pop)
