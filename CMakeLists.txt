@@ -207,7 +207,6 @@ add_library(acpica
     acpica/source/components/utilities/utosi.c
     acpica/source/components/utilities/utownerid.c
     acpica/source/components/utilities/utpredef.c
-    acpica/source/components/utilities/utprint.c
     acpica/source/components/utilities/utresdecode.c
     acpica/source/components/utilities/utresrc.c
     acpica/source/components/utilities/utstate.c
@@ -224,6 +223,6 @@ add_library(acpica
 
 target_include_directories(acpica PRIVATE acpica/source/include)
 target_compile_definitions(acpica PRIVATE -D_LINUX -DACPI_NO_ERROR_MESSAGES)
-remove_definitions(-DWIN32)
+target_compile_options(acpica PRIVATE -include ${CMAKE_SOURCE_DIR}/acpica-shim.h)
 
 install(SCRIPT initrd.cmake)
