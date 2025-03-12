@@ -28,9 +28,7 @@ ACPI_STATUS AcpiOsInitialize() {
 
 extern "C"
 ACPI_STATUS AcpiOsTerminate() {
-    print("FIXME - AcpiOsTerminate\n");
-
-    return AE_ERROR;
+    return AE_OK;
 }
 
 extern "C"
