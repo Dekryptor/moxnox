@@ -122,12 +122,16 @@ ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle) {
 }
 
 extern "C"
-ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 /*Units*/,
+ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
                                 UINT16 /*Timeout*/) {
     auto& sem = *static_cast<semaphore*>(Handle);
 
     // FIXME - Timeout
-    // FIXME - Units != 1
+
+    if (Units != 1) {
+        print("FIXME - AcpiOsWaitSemaphore with Units != 1\n"); // FIXME
+        return AE_ERROR;
+    }
 
     wait_for_object(sem, true);
 
