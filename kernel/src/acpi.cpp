@@ -22,7 +22,21 @@ export void acpi_test() {
         return;
     }
 
-    // FIXME
+    Status = AcpiInitializeTables(nullptr, 16, false);
+    if (ACPI_FAILURE(Status)) {
+        print("AcpiInitializeTables returned {}\n", Status);
+        return;
+    }
+
+    Status = AcpiLoadTables();
+    if (ACPI_FAILURE(Status)) {
+        print("AcpiLoadTables returned {}\n", Status);
+        return;
+    }
+
+    // FIXME - install handlers
+    // FIXME - AcpiEnableSubsystem
+    // FIXME - AcpiInitializeObjects
 }
 
 extern "C"
