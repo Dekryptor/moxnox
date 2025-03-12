@@ -153,6 +153,8 @@ void main_thread() {
 
     init_syscalls();
 
+    init_acpi();
+
     if (!init_smp()) {
         apic_ids = (uint8_t*)malloc(1);
         if (!apic_ids) {
@@ -168,8 +170,6 @@ void main_thread() {
     init_pci();
     // FIXME - NVMe
     // FIXME - USB
-
-    init_acpi();
 
     free_lower_half_mappings();
 
