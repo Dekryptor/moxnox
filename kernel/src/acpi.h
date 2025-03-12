@@ -3,13 +3,6 @@
 #pragma pack(push,1)
 
 typedef struct {
-    uint8_t id;
-    uint8_t reserved;
-    uint32_t address;
-    uint32_t interrupt_base;
-} madt_ioapic;
-
-typedef struct {
     uint8_t bus_source;
     uint8_t irq_source;
     uint32_t gsi;

@@ -93,17 +93,16 @@ span<const uint8_t> find_madt() {
 }
 
 static uint64_t find_ioapic(span<const uint8_t> data) {
-    while (data.size() > 2) {
-        auto type = data[0];
-        auto length = data[1];
+    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
+        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
-        if (type == ACPI_MADT_TYPE_IO_APIC && length >= 2 + sizeof(madt_ioapic)) {
-            auto& ent = *(madt_ioapic*)&data[2];
+        if (h.Type == ACPI_MADT_TYPE_IO_APIC && h.Length >= sizeof(ACPI_MADT_IO_APIC)) {
+            auto& ent = *(ACPI_MADT_IO_APIC*)data.data();
 
-            return ent.address;
+            return ent.Address;
         }
 
-        data = data.subspan(length);
+        data = data.subspan(h.Length);
     }
 
     print("Could not find address of I/O APIC.\n");
