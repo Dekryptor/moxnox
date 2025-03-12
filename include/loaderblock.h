@@ -38,6 +38,7 @@ struct loader_block_text_console {
 struct loader_block {
     uint64_t map_ptr;
     uint32_t num_map_entries;
+    uint64_t rsdp_pa;
     uint64_t rsdt_pa;
     bool text_mode;
     union {

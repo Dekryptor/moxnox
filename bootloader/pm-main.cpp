@@ -138,7 +138,7 @@ struct ACPISDTHeader {
     uint32_t CreatorRevision;
 } __attribute__ ((packed));
 
-uint64_t entry_point, rsdt_address;
+uint64_t entry_point, rsdp_pa, rsdt_address;
 loader_block lb;
 
 // FIXME - move to another file?
@@ -1116,6 +1116,8 @@ static bool search_for_acpi(span<uint8_t> data) {
             } else
                 rsdt_address = rsdp.RsdtAddress;
 
+            rsdp_pa = (uint64_t)data.data();
+
             return true;
         }
 
@@ -1208,6 +1210,7 @@ void protected_mode_main() {
 
     lb.map_ptr = (uintptr_t)mem_entries;
     lb.num_map_entries = mem_entries_count;
+    lb.rsdp_pa = rsdp_pa;
     lb.rsdt_pa = rsdt_address;
     lb.cmdline = (uintptr_t)ptr_cmdline;
     lb.initrd_data = initrd_addr;
