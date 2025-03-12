@@ -224,6 +224,6 @@ add_library(acpica
 target_include_directories(acpica PRIVATE acpica/source/include)
 target_compile_definitions(acpica PRIVATE -D_LINUX -DACPI_NO_ERROR_MESSAGES -DACPI_USE_LOCAL_CACHE -DACPI_USE_SYSTEM_INTTYPES)
 target_compile_options(acpica PRIVATE -include ${CMAKE_SOURCE_DIR}/acpica-shim.h)
-target_compile_options(acpica PRIVATE -Wno-overflow -Wno-shift-count-overflow -Wno-constant-conversion)
+target_compile_options(acpica PRIVATE -Wno-overflow -Wno-shift-count-overflow -Wno-constant-conversion -gdwarf-5)
 
 install(SCRIPT initrd.cmake)
