@@ -3,6 +3,10 @@ module;
 #include <span>
 #include <string_view>
 #include "acpica.h"
+#include "kernel.h"
+#include "handle.h"
+#include "objects.h"
+#include "semaphore.h"
 
 export module acpi;
 
@@ -88,18 +92,27 @@ void AcpiOsReleaseLock(ACPI_SPINLOCK /*Handle*/, ACPI_CPU_FLAGS /*Flags*/) {
 }
 
 extern "C"
-ACPI_STATUS AcpiOsCreateSemaphore(UINT32 /*MaxUnits*/, UINT32 /*InitialUnits*/,
-                                  ACPI_SEMAPHORE* /*OutHandle*/) {
-    print("FIXME - AcpiOsCreateSemaphore\n");
+ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits,
+                                  ACPI_SEMAPHORE* OutHandle) {
+    auto ref = create_semaphore(MaxUnits);
 
-    return AE_ERROR;
+    auto& sem = static_cast<semaphore&>(ref.get());
+
+    sem.acquire();
+    sem.current_count = InitialUnits;
+
+    *OutHandle = &sem;
+
+    return AE_OK;
 }
 
 extern "C"
-ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE /*Handle*/) {
-    print("FIXME - AcpiOsDeleteSemaphore\n");
+ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle) {
+    auto& sem = *static_cast<semaphore*>(Handle);
 
-    return AE_ERROR;
+    sem.release();
+
+    return AE_OK;
 }
 
 extern "C"
