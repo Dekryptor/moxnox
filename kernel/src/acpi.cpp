@@ -120,15 +120,13 @@ ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE /*Handle*/, UINT32 /*Units*/) {
 }
 
 extern "C"
-void* AcpiOsAllocate(ACPI_SIZE /*Size*/) {
-    print("FIXME - AcpiOsAllocate\n");
-
-    return nullptr;
+void* AcpiOsAllocate(ACPI_SIZE Size) {
+    return malloc(Size);
 }
 
 extern "C"
-void AcpiOsFree(void* /*Memory*/) {
-    print("FIXME - AcpiOsFree\n");
+void AcpiOsFree(void* Memory) {
+    free(Memory);
 }
 
 extern "C"
