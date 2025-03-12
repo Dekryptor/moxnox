@@ -13,16 +13,17 @@ export void acpi_test() {
     ACPI_STATUS Status;
 
     Status = AcpiInitializeSubsystem();
-    print("AcpiInitializeSubsystem returned {}\n", Status);
+    if (ACPI_FAILURE(Status)) {
+        print("AcpiInitializeSubsystem returned {}\n", Status);
+        return;
+    }
 
     // FIXME
 }
 
 extern "C"
 ACPI_STATUS AcpiOsInitialize() {
-    print("FIXME - AcpiOsInitialize\n");
-
-    return AE_ERROR;
+    return AE_OK;
 }
 
 extern "C"
