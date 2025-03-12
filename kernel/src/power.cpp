@@ -12,9 +12,9 @@ using namespace std;
 static const uint16_t SLP_EN = 1 << 13;
 
 static void reboot() {
-    optional<reference_wrapper<const ACPISDTHeader>> fadtw;
+    optional<reference_wrapper<const ACPI_TABLE_HEADER>> fadtw;
 
-    find_acpi_table(ACPI_FACP, [&](const ACPISDTHeader& tbl) {
+    find_acpi_table(ACPI_FACP, [&](const ACPI_TABLE_HEADER& tbl) {
         if (fadtw)
             return;
 
@@ -66,9 +66,9 @@ static void reboot() {
 static void halt() {
     // FIXME - call _PTS ACPI method ("Prepare to Sleep")
 
-    optional<reference_wrapper<const ACPISDTHeader>> fadtw;
+    optional<reference_wrapper<const ACPI_TABLE_HEADER>> fadtw;
 
-    find_acpi_table(ACPI_FACP, [&](const ACPISDTHeader& tbl) {
+    find_acpi_table(ACPI_FACP, [&](const ACPI_TABLE_HEADER& tbl) {
         if (fadtw)
             return;
 

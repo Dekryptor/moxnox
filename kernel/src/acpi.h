@@ -2,18 +2,6 @@
 
 #pragma pack(push,1)
 
-typedef struct {
-    uint32_t Signature;
-    uint32_t Length;
-    uint8_t Revision;
-    uint8_t Checksum;
-    char OEMID[6];
-    char OEMTableID[8];
-    uint32_t OEMRevision;
-    uint32_t CreatorID;
-    uint32_t CreatorRevision;
-} ACPISDTHeader;
-
 enum class madt_type : uint8_t {
     local_apic = 0,
     io_apic = 1,
@@ -64,15 +52,15 @@ static const uint32_t ACPI_APIC = 0x43495041;
 static const uint32_t ACPI_MCFG = 0x4746434d;
 static const uint32_t ACPI_FACP = 0x50434146;
 
-static void find_acpi_table(uint32_t sig, std::invocable<const ACPISDTHeader&> auto func) {
+static void find_acpi_table(uint32_t sig, std::invocable<const ACPI_TABLE_HEADER&> auto func) {
     auto ptr = (uint8_t*)acpi_tables;
 
     for (unsigned int i = 0; i < acpi_count; i++) {
-        auto& tbl = *(ACPISDTHeader*)ptr;
+        auto& tbl = *(ACPI_TABLE_HEADER*)ptr;
 
         // FIXME - check checksums
 
-        if (tbl.Signature == sig)
+        if (*(uint32_t*)&tbl.Signature == sig)
             func(tbl);
 
         ptr += tbl.Length;

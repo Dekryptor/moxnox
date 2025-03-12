@@ -456,7 +456,7 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
 }
 
 static bool copy_acpi(const loader_block& lb) {
-    auto& rsdt = *(ACPISDTHeader*)lb.rsdt_pa;
+    auto& rsdt = *(ACPI_TABLE_HEADER*)lb.rsdt_pa;
 
     // checksum of RSDT / XSDT already checked by bootloader
 
@@ -464,7 +464,7 @@ static bool copy_acpi(const loader_block& lb) {
         uint32_t needed = 0;
 
         for (auto e : entries) {
-            auto& tbl = *(ACPISDTHeader*)(uintptr_t)e;
+            auto& tbl = *(ACPI_TABLE_HEADER*)(uintptr_t)e;
             uint8_t csum = 0;
 
             for (unsigned int i = 0; i < tbl.Length; i++) {
@@ -489,7 +489,7 @@ static bool copy_acpi(const loader_block& lb) {
         auto ptr = (uint8_t*)acpi_tables;
 
         for (auto e : entries) {
-            auto& tbl = *(ACPISDTHeader*)(uintptr_t)e;
+            auto& tbl = *(ACPI_TABLE_HEADER*)(uintptr_t)e;
             uint8_t csum = 0;
 
             for (unsigned int i = 0; i < tbl.Length; i++) {
@@ -506,15 +506,15 @@ static bool copy_acpi(const loader_block& lb) {
         return true;
     };
 
-    switch (rsdt.Signature) {
+    switch (*(uint32_t*)&rsdt.Signature) {
         case RSDT: {
-            auto entries = span((uint32_t*)((uint8_t*)&rsdt + sizeof(ACPISDTHeader)), (rsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint32_t));
+            auto entries = span((uint32_t*)((uint8_t*)&rsdt + sizeof(ACPI_TABLE_HEADER)), (rsdt.Length - sizeof(ACPI_TABLE_HEADER)) / sizeof(uint32_t));
 
             return func(entries);
         }
 
         case XSDT: {
-            auto entries = span((uint64_t*)((uint8_t*)&rsdt + sizeof(ACPISDTHeader)), (rsdt.Length - sizeof(ACPISDTHeader)) / sizeof(uint64_t));
+            auto entries = span((uint64_t*)((uint8_t*)&rsdt + sizeof(ACPI_TABLE_HEADER)), (rsdt.Length - sizeof(ACPI_TABLE_HEADER)) / sizeof(uint64_t));
 
             return func(entries);
         }

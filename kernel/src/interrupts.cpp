@@ -67,9 +67,9 @@ static inline uint64_t rdmsr(uint64_t msr) {
 }
 
 span<const uint8_t> find_madt() {
-    optional<reference_wrapper<const ACPISDTHeader>> madtw;
+    optional<reference_wrapper<const ACPI_TABLE_HEADER>> madtw;
 
-    find_acpi_table(ACPI_APIC, [&](const ACPISDTHeader& tbl) {
+    find_acpi_table(ACPI_APIC, [&](const ACPI_TABLE_HEADER& tbl) {
         if (madtw)
             return;
 
@@ -83,13 +83,13 @@ span<const uint8_t> find_madt() {
 
     auto& madt = madtw->get();
 
-    if (madt.Length < sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t)) {
+    if (madt.Length < sizeof(ACPI_TABLE_HEADER) + sizeof(uint32_t) + sizeof(uint32_t)) {
         print("MADT was shorter than expected.\n");
         return span<const uint8_t>();
     }
 
-    return span((uint8_t*)&madt + sizeof(ACPISDTHeader) + sizeof(uint32_t) + sizeof(uint32_t),
-                madt.Length - sizeof(ACPISDTHeader) - sizeof(uint32_t) - sizeof(uint32_t));
+    return span((uint8_t*)&madt + sizeof(ACPI_TABLE_HEADER) + sizeof(uint32_t) + sizeof(uint32_t),
+                madt.Length - sizeof(ACPI_TABLE_HEADER) - sizeof(uint32_t) - sizeof(uint32_t));
 }
 
 static uint64_t find_ioapic(span<const uint8_t> data) {

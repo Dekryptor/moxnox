@@ -13,9 +13,9 @@ atomic<unsigned int> devices_left = 0;
 static object_ref init_device_event;
 
 static span<const uint8_t> find_mcfg() {
-    optional<reference_wrapper<const ACPISDTHeader>> mcfgw;
+    optional<reference_wrapper<const ACPI_TABLE_HEADER>> mcfgw;
 
-    find_acpi_table(ACPI_MCFG, [&](const ACPISDTHeader& tbl) {
+    find_acpi_table(ACPI_MCFG, [&](const ACPI_TABLE_HEADER& tbl) {
         if (mcfgw)
             return;
 
