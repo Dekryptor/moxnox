@@ -71,7 +71,10 @@ target_compile_options(kernel PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmodules-ts>)
 target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-g0>)
 target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-fno-inline>)
 
+target_include_directories(kernel PRIVATE ../acpica/source/include)
+
 target_link_libraries(kernel freetype)
+target_link_libraries(kernel acpica)
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
 
