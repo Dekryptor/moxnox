@@ -12,6 +12,7 @@ export module acpi;
 
 import format;
 import print;
+import inout;
 
 static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
@@ -45,7 +46,12 @@ export void init_acpi() {
         return;
     }
 
-    // FIXME - AcpiEnableSubsystem
+    Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
+    if (ACPI_FAILURE (Status)) {
+        print("AcpiEnableSubsystem returned {}\n", Status);
+        return;
+    }
+
     // FIXME - AcpiInitializeObjects
 }
 
@@ -263,10 +269,17 @@ void AcpiOsStall(UINT32 /*Microseconds*/) {
 }
 
 extern "C"
-ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS /*Address*/, UINT32* /*Value*/, UINT32 /*Width*/) {
-    print("FIXME - AcpiOsReadPort\n");
+ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32* Value, UINT32 Width) {
+    if (Width == 32)
+        *Value = inl((uint16_t)Address);
+    else if (Width == 16)
+        *Value = inw((uint16_t)Address);
+    else if (Width == 8)
+        *Value = inb((uint16_t)Address);
+    else
+        return AE_BAD_PARAMETER;
 
-    return AE_ERROR;
+    return AE_OK;
 }
 
 extern "C"
