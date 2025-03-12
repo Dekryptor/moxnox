@@ -32,23 +32,23 @@ static void reboot() {
         return;
     }
 
-    if (fadt.ResetReg.BitWidth != 8) {
-        print("invalid value for ResetReg.BitWidth in FADT\n");
+    if (fadt.ResetRegister.BitWidth != 8) {
+        print("invalid value for ResetRegister.BitWidth in FADT\n");
         return;
     }
 
-    if (fadt.ResetReg.BitOffset != 0) {
-        print("invalid value for ResetReg.BitOffset in FADT\n");
+    if (fadt.ResetRegister.BitOffset != 0) {
+        print("invalid value for ResetRegister.BitOffset in FADT\n");
         return;
     }
 
-    switch (fadt.ResetReg.AddressSpace) {
+    switch (fadt.ResetRegister.AddressSpace) {
         case acpi_address_space::system_memory:
             print("FIXME - acpi_address_space::system_memory\n");
         break;
 
         case acpi_address_space::system_io:
-            outb((uint16_t)fadt.ResetReg.Address, fadt.ResetValue);
+            outb((uint16_t)fadt.ResetRegister.Address, fadt.ResetValue);
         break;
 
         case acpi_address_space::pci_config:
@@ -56,8 +56,8 @@ static void reboot() {
         break;
 
         default:
-            print("invalid value {} for ResetReg.AddressSpace in FADT\n",
-                  (unsigned int)fadt.ResetReg.AddressSpace);
+            print("invalid value {} for ResetRegister.AddressSpace in FADT\n",
+                  (unsigned int)fadt.ResetRegister.AddressSpace);
         break;
     }
 }
@@ -81,33 +81,33 @@ static void halt() {
 
     auto& fadt = reinterpret_cast<const struct fadt&>(fadtw->get());
 
-    if (fadt.h.Length < offsetofend(struct fadt, X_PM1aControlBlock)) {
+    if (fadt.h.Length < offsetofend(struct fadt, XPm1aControlBlock)) {
         print("FADT was truncated\n");
         return;
     }
 
-    if (fadt.X_PM1aControlBlock.AddressSpace != acpi_address_space::system_io) {
-        print("unexpected value {} for X_PM1aControlBlock.AddressSpace in FADT\n",
-              (unsigned int)fadt.X_PM1aControlBlock.AddressSpace);
+    if (fadt.XPm1aControlBlock.AddressSpace != acpi_address_space::system_io) {
+        print("unexpected value {} for XPm1aControlBlock.AddressSpace in FADT\n",
+              (unsigned int)fadt.XPm1aControlBlock.AddressSpace);
         return;
     }
 
-    if (fadt.X_PM1aControlBlock.BitWidth != 16) {
-        print("unexpected value {} for X_PM1aControlBlock.BitWidth in FADT\n",
-              fadt.X_PM1aControlBlock.BitWidth);
+    if (fadt.XPm1aControlBlock.BitWidth != 16) {
+        print("unexpected value {} for XPm1aControlBlock.BitWidth in FADT\n",
+              fadt.XPm1aControlBlock.BitWidth);
         return;
     }
 
-    if (fadt.X_PM1aControlBlock.BitOffset != 0) {
-        print("unexpected value {} for X_PM1aControlBlock.BitOffset in FADT\n",
-              fadt.X_PM1aControlBlock.BitOffset);
+    if (fadt.XPm1aControlBlock.BitOffset != 0) {
+        print("unexpected value {} for XPm1aControlBlock.BitOffset in FADT\n",
+              fadt.XPm1aControlBlock.BitOffset);
         return;
     }
 
     // FIXME - parse DSDT AML to find what _S5 SLP_TYP should actually be
     static const uint16_t SLP_TYP5 = 0;
 
-    outw((uint16_t)fadt.X_PM1aControlBlock.Address, SLP_EN | SLP_TYP5);
+    outw((uint16_t)fadt.XPm1aControlBlock.Address, SLP_EN | SLP_TYP5);
 }
 
 NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
