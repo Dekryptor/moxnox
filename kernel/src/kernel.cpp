@@ -8,6 +8,7 @@
 
 import print;
 import bsod;
+import acpi;
 
 using namespace std;
 
@@ -165,6 +166,8 @@ void main_thread() {
     init_pci();
     // FIXME - NVMe
     // FIXME - USB
+
+    acpi_test();
 
     init_rtc();
 
