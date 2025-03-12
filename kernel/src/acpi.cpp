@@ -44,10 +44,10 @@ ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer() {
 
 extern "C"
 ACPI_STATUS AcpiOsPredefinedOverride(const ACPI_PREDEFINED_NAMES* /*InitVal*/,
-                                     ACPI_STRING* /*NewVal*/) {
-    print("FIXME - AcpiOsPredefinedOverride\n");
+                                     ACPI_STRING* NewVal) {
+    *NewVal = nullptr;
 
-    return AE_ERROR;
+    return AE_OK;
 }
 
 extern "C"
