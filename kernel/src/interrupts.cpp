@@ -115,20 +115,19 @@ static uint32_t get_irq_gsi(uint8_t irq) {
 
     // check source overrides in MADT
 
-    while (data.size() > 2) {
-        auto type = data[0];
-        auto length = data[1];
+    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
+        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
-        if (type == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE && length >= 2 + sizeof(madt_source_override)) {
-            auto& ent = *(madt_source_override*)&data[2];
+        if (h.Type == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE && h.Length >= sizeof(ACPI_MADT_INTERRUPT_OVERRIDE)) {
+            auto& ent = *(ACPI_MADT_INTERRUPT_OVERRIDE*)data.data();
 
-            if (ent.bus_source == 0 && ent.irq_source == irq)
-                return ent.gsi;
+            if (ent.Bus == 0 && ent.SourceIrq == irq)
+                return ent.GlobalIrq;
 
             break;
         }
 
-        data = data.subspan(length);
+        data = data.subspan(h.Length);
     }
 
     return irq;

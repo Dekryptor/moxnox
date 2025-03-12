@@ -3,13 +3,6 @@
 #pragma pack(push,1)
 
 typedef struct {
-    uint8_t bus_source;
-    uint8_t irq_source;
-    uint32_t gsi;
-    uint16_t flags;
-} madt_source_override;
-
-typedef struct {
     uint8_t processor_id;
     uint8_t apic_id;
     uint32_t enabled : 1;
