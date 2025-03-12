@@ -14,12 +14,47 @@ import format;
 import print;
 import inout;
 
+using namespace std;
+
+struct acpi_irq_handler {
+    ACPI_OSD_HANDLER service_routine;
+    void* context;
+    list_entry le;
+};
+
+static spinlock irq_handlers_lock;
+static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
+
+static const uint8_t ACPI_IRQ = 9; // FIXME - don't hardcode
+
+static const uint8_t acpi_interrupt = 0x25;
+
+extern "C" void acpi_isr();
+
 static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
 }
 
+extern "C"
+void acpi_isr_func() {
+    lock_guard lock(irq_handlers_lock);
+
+    for (auto le = irq_handlers.next; le != &irq_handlers; le = le->next) {
+        auto& h = containing_record<acpi_irq_handler>(le);
+
+        if (h.service_routine(h.context) == ACPI_INTERRUPT_HANDLED)
+            break;
+    }
+}
+
 export void init_acpi() {
     ACPI_STATUS Status;
+
+    add_idt_entry(acpi_interrupt, (void*)acpi_isr, false, 0, false);
+
+    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
+
+    add_irq_handler(ACPI_IRQ, acpi_interrupt, local_apic_id);
 
     Status = AcpiInitializeSubsystem();
     if (ACPI_FAILURE(Status)) {
@@ -200,12 +235,27 @@ void AcpiOsUnmapMemory(void*, ACPI_SIZE) {
 }
 
 extern "C"
-ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 /*InterruptNumber*/,
-                                          ACPI_OSD_HANDLER /*ServiceRoutine*/,
-                                          void* /*Context*/) {
-    print("FIXME - AcpiOsInstallInterruptHandler\n");
+ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
+                                          ACPI_OSD_HANDLER ServiceRoutine,
+                                          void* Context) {
+    if (InterruptNumber != ACPI_IRQ) { // FIXME
+        print("FIXME - AcpiOsInstallInterruptHandler with unusual InterruptNumber ({}, expected {})\n", InterruptNumber, ACPI_IRQ);
+        return AE_ERROR;
+    }
 
-    return AE_ERROR;
+    auto h = new acpi_irq_handler;
+    if (!h)
+        return AE_NO_MEMORY;
+
+    h->service_routine = ServiceRoutine;
+    h->context = Context;
+
+    {
+        lock_guard lock(irq_handlers_lock);
+        insert_tail_list(irq_handlers, h->le);
+    }
+
+    return AE_OK;
 }
 
 extern "C"
