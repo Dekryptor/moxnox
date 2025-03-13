@@ -9,7 +9,6 @@
 import print;
 import bsod;
 import acpi;
-import keyboard;
 
 using namespace std;
 
@@ -149,14 +148,12 @@ void main_thread() {
 
     init_serial();
 
-    init_keyboard();
+    find_acpi_devices();
 
     print("\e[2J\e[1;1H");  // erase screen, move to top left
     print(MOXNOX_VERSION_STRING "\n");
 
     keywait();
-
-    find_acpi_devices();
 
     init_syscalls();
 

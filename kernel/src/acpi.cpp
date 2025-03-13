@@ -14,6 +14,7 @@ import format;
 import print;
 import inout;
 import rtc;
+import keyboard;
 
 using namespace std;
 
@@ -179,7 +180,8 @@ static void found_rtc(const acpi_device& d) {
 }
 
 static void found_ps2_keyboard(const acpi_device& d) {
-    print("FIXME - found_ps2_keyboard\n"); // FIXME
+    // FIXME - pass through port no. and IRQ no.
+    init_keyboard();
 }
 
 static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
