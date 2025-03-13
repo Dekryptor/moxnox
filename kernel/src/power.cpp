@@ -9,10 +9,10 @@ import inout;
 
 using namespace std;
 
-static const uint16_t SLP_EN = 1 << 13;
-
 static void reboot() {
     optional<reference_wrapper<const ACPI_TABLE_HEADER>> fadtw;
+
+    __asm __volatile("cli");
 
     find_acpi_table(ACPI_FACP, [&](const ACPI_TABLE_HEADER& tbl) {
         if (fadtw)
@@ -64,51 +64,11 @@ static void reboot() {
 }
 
 static void halt() {
-    // FIXME - call _PTS ACPI method ("Prepare to Sleep")
+    AcpiEnterSleepStatePrep(5);
 
-    optional<reference_wrapper<const ACPI_TABLE_HEADER>> fadtw;
+    __asm("cli");
 
-    find_acpi_table(ACPI_FACP, [&](const ACPI_TABLE_HEADER& tbl) {
-        if (fadtw)
-            return;
-
-        fadtw = tbl;
-    });
-
-    if (!fadtw) {
-        print("FADT not found in ACPI tables.\n");
-        return;
-    }
-
-    auto& fadt = reinterpret_cast<const ACPI_TABLE_FADT&>(fadtw->get());
-
-    if (fadt.Header.Length < offsetofend(ACPI_TABLE_FADT, XPm1aControlBlock)) {
-        print("FADT was truncated\n");
-        return;
-    }
-
-    if (fadt.XPm1aControlBlock.SpaceId != ACPI_ADR_SPACE_SYSTEM_IO) {
-        print("unexpected value {} for XPm1aControlBlock.SpaceId in FADT\n",
-              (unsigned int)fadt.XPm1aControlBlock.SpaceId);
-        return;
-    }
-
-    if (fadt.XPm1aControlBlock.BitWidth != 16) {
-        print("unexpected value {} for XPm1aControlBlock.BitWidth in FADT\n",
-              fadt.XPm1aControlBlock.BitWidth);
-        return;
-    }
-
-    if (fadt.XPm1aControlBlock.BitOffset != 0) {
-        print("unexpected value {} for XPm1aControlBlock.BitOffset in FADT\n",
-              fadt.XPm1aControlBlock.BitOffset);
-        return;
-    }
-
-    // FIXME - parse DSDT AML to find what _S5 SLP_TYP should actually be
-    static const uint16_t SLP_TYP5 = 0;
-
-    outw((uint16_t)fadt.XPm1aControlBlock.Address, SLP_EN | SLP_TYP5);
+    AcpiEnterSleepState(5);
 }
 
 NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
@@ -139,6 +99,10 @@ NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
         while (processors_left_to_halt > 0) { }
     }
 
+    disable_preempt();
+
+    __asm __volatile("sti");
+
     print("shutting down\n");
     shutdown_pipes();
 
@@ -146,6 +110,8 @@ NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
         halt();
     else
         reboot();
+
+    enable_preempt();
 
     return nt_status::INTERNAL_ERROR;
 }
