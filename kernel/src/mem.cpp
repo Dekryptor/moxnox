@@ -631,7 +631,11 @@ bool init_memory(const loader_block& lb) {
 
     // FIXME - probably should double-check that framebuffer memory is marked used
 
-    map_physical_memory(total_pages);
+    // make sure that at least the first 4GB of physical memory are mapped,
+    // because the ACPI tables live there (is this guaranteed?)
+    // FIXME - non-EFI bootloader should walk the ACPI tables and mark the memory
+    //         as mem_type::acpi (Seabios E820 reports it as reserved)
+    map_physical_memory(max(total_pages, (uint64_t)(1 << (32 - PAGE_SHIFT))));
 
     if (lb.initrd_size != 0) {
         load_initrd((void*)lb.initrd_data, lb.initrd_size);
