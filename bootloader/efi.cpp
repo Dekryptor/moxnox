@@ -1218,7 +1218,7 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
     return EFI_SUCCESS;
 }
 
-static EFI_STATUS find_acpi_tables(uint64_t& rsdp_pa, uint64_t& addr) {
+static EFI_STATUS find_acpi_tables(uint64_t& rsdp_pa) {
     EFI_GUID acpi2_guid = ACPI_20_TABLE_GUID;
     RSDP_DESCRIPTOR* rsdp = nullptr;
 
@@ -1233,13 +1233,6 @@ static EFI_STATUS find_acpi_tables(uint64_t& rsdp_pa, uint64_t& addr) {
     if (!rsdp) {
         print_string("ACPI 2.0 tables not found\n");
         return EFI_NOT_FOUND;
-    }
-
-    if (rsdp->revision == 2)
-        addr = rsdp->xsdt_physical_address;
-    else {
-        print("Unrecognized ACPI revision {}\n", rsdp->revision);
-        return EFI_INVALID_PARAMETER;
     }
 
     return EFI_SUCCESS;
@@ -1599,7 +1592,7 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
 }
 
 static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3,
-                     uint64_t rsdp_pa, uint64_t acpi_tables) {
+                     uint64_t rsdp_pa) {
     EFI_STATUS status;
     UINTN size, key, descsize;
     UINT32 version;
@@ -1608,7 +1601,6 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
     lb.map_ptr = (uintptr_t)map;
     lb.num_map_entries = num_map_entries;
     lb.rsdp_pa = rsdp_pa;
-    lb.rsdt_pa = acpi_tables;
     lb.text_mode = false;
     lb.cmdline = (uintptr_t)cmdline;
     lb.initrd_data = initrd_data;
@@ -1850,7 +1842,7 @@ extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     EFI_STATUS Status;
     EFI_LOADED_IMAGE_PROTOCOL* image;
-    uint64_t entry_point, cr3, img_pa, acpi_tables, rsdp_pa;
+    uint64_t entry_point, cr3, img_pa, rsdp_pa;
     size_t img_size;
     EFI_PHYSICAL_ADDRESS stack;
 
@@ -1879,7 +1871,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         return Status;
     }
 
-    Status = find_acpi_tables(rsdp_pa, acpi_tables);
+    Status = find_acpi_tables(rsdp_pa);
     if (EFI_ERROR(Status)) {
         print_error("find_acpi_tables", Status);
         return Status;
@@ -1948,7 +1940,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
 
     // FIXME - pass runtime services list through to kernel
 
-    Status = go(image_handle, entry_point, cr3, rsdp_pa, acpi_tables); // doesn't return unless unsuccessful
+    Status = go(image_handle, entry_point, cr3, rsdp_pa); // doesn't return unless unsuccessful
     print_error("go", Status);
 
     return Status;

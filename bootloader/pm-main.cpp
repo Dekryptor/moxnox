@@ -1211,7 +1211,6 @@ void protected_mode_main() {
     lb.map_ptr = (uintptr_t)mem_entries;
     lb.num_map_entries = mem_entries_count;
     lb.rsdp_pa = rsdp_pa;
-    lb.rsdt_pa = rsdt_address;
     lb.cmdline = (uintptr_t)ptr_cmdline;
     lb.initrd_data = initrd_addr;
     lb.initrd_size = *ptr_initrd_size;
