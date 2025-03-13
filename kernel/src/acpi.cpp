@@ -87,7 +87,11 @@ export void init_acpi() {
         return;
     }
 
-    // FIXME - AcpiInitializeObjects
+    Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
+    if (ACPI_FAILURE(Status)) {
+        print("AcpiInitializeObjects returned {}\n", Status);
+        return;
+    }
 }
 
 extern "C"
