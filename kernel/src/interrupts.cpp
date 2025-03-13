@@ -66,7 +66,7 @@ static inline uint64_t rdmsr(uint64_t msr) {
     return ((uint64_t)high << 32) | low;
 }
 
-span<const uint8_t> find_madt() {
+static span<const uint8_t> find_madt() {
     optional<reference_wrapper<const ACPI_TABLE_HEADER>> madtw;
 
     find_acpi_table(ACPI_APIC, [&](const ACPI_TABLE_HEADER& tbl) {

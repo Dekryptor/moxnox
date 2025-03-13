@@ -139,7 +139,6 @@ void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id);
 void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
                    bool user_mode);
 void enable_irq(uint8_t irq, bool enable);
-std::span<const uint8_t> find_madt();
 task_state_segment* init_tss();
 void* allocate_stack();
 

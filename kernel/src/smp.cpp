@@ -205,17 +205,27 @@ static void ap_startup() {
 }
 
 bool init_smp() {
-    auto madt = find_madt();
-    if (madt.empty()) {
-        print("MADT not found\n");
+    ACPI_TABLE_HEADER* tbl;
+    auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for MADT\n", status);
         return false;
     }
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MADT)) {
+        print("MADT table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_MADT));
+        return false;
+    }
+
+    span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
+              tbl->Length - sizeof(ACPI_TABLE_MADT));
 
     uint8_t bsp_id = current_cpu_id();
     unsigned int ap_count = 0;
 
     auto data = madt;
-    while (data.size() > 2) {
+    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
         auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
         if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
@@ -295,7 +305,7 @@ bool init_smp() {
     ap_left.store(ap_count, memory_order_acq_rel);
 
     data = madt;
-    while (data.size() > 2) {
+    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
         auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
         if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
