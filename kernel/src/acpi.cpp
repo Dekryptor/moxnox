@@ -145,10 +145,14 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
         return AE_OK;
     }
 
-    auto hid = string_view(devinfo->HardwareId.String, devinfo->HardwareId.Length);
+    string_view hid;
 
-    if (!hid.empty() && hid.back() == 0)
-        hid = string_view(hid.data(), hid.size() - 1);
+    if (devinfo->Valid & ACPI_VALID_HID) {
+        hid = string_view(devinfo->HardwareId.String, devinfo->HardwareId.Length);
+
+        if (!hid.empty() && hid.back() == 0)
+            hid = string_view(hid.data(), hid.size() - 1);
+    }
 
     name.Pointer = buf;
     name.Length = sizeof(buf);
