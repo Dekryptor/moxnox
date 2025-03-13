@@ -269,9 +269,6 @@ extern "C" void init_pat();
 // thread.cpp
 thread* get_current_thread();
 
-// rtc.cpp
-void init_rtc();
-
 template<typename T>
 concept cmdline_func = std::invocable<T, std::string_view> &&
 requires(T t, std::string_view s) { { t(s) } -> std::convertible_to<bool>; };

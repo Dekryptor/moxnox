@@ -1,7 +1,13 @@
-#include "kernel.h"
+module;
+
 #include <chrono>
 
+export module rtc;
+
 using namespace std;
+
+// timer.cpp
+extern "C" volatile int64_t system_time;
 
 template<unsigned N>
 __attribute__((naked))
@@ -34,7 +40,7 @@ static constexpr int64_t ymd_to_num(const chrono::year_month_day& d) noexcept {
     return n;
 }
 
-void init_rtc() {
+export void init_rtc() {
     struct ymdhms {
         int year;
         uint8_t month;

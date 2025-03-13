@@ -9,6 +9,7 @@
 import print;
 import bsod;
 import acpi;
+import rtc;
 
 using namespace std;
 
