@@ -15,7 +15,7 @@ static EFI_BOOT_SERVICES* bs __attribute__((section (".data")));
 static const uintptr_t KERNEL_ADDR = 0xfffff80000000000;
 
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
-static const unsigned int KERNEL_STACK_PAGES = 4;
+static const unsigned int KERNEL_STACK_PAGES = 8;
 
 static map_entry map[256] __attribute__((section (".data")));
 static unsigned int num_map_entries = 0;
