@@ -1,3 +1,5 @@
+module;
+
 #include "kernel.h"
 #include "objects.h"
 #include "spinlock.h"
@@ -6,6 +8,8 @@
 #include "mem.h"
 #include "console.h"
 #include <ioctl.h>
+
+export module keyboard;
 
 import print;
 import inout;
@@ -228,7 +232,7 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
-void init_keyboard() {
+export void init_keyboard() {
     auto pa = allocate_page();
     if (!pa) {
         print("allocate_page failed\n");

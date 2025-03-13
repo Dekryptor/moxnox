@@ -191,9 +191,6 @@ uint8_t current_cpu_id();
 void protect_kernel_pages();
 enum mapping_type characteristics_to_mapping_type(uint32_t c);
 
-// keyboard.cpp
-void init_keyboard();
-
 // event.cpp
 object_ref create_event(bool autoreset);
 void set_event(event& e);

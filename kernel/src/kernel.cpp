@@ -9,6 +9,7 @@
 import print;
 import bsod;
 import acpi;
+import keyboard;
 
 using namespace std;
 
