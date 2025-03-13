@@ -30,6 +30,15 @@ static const uint8_t ACPI_IRQ = 9; // FIXME - don't hardcode
 
 static const uint8_t acpi_interrupt = 0x25;
 
+struct acpi_device {
+    list_entry le;
+    string_view acpi_name;
+    string_view hid;
+    char buf[0];
+};
+
+static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
+
 export bool acpi_early_init_done = false;
 
 extern "C" void acpi_isr();
@@ -164,12 +173,31 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
         return AE_OK;
     }
 
-    auto sv = string_view((char*)name.Pointer, name.Length);
+    auto acpi_name = string_view((char*)name.Pointer, name.Length);
 
-    if (!sv.empty() && sv.back() == 0)
-        sv = string_view(sv.data(), sv.size() - 1);
+    if (!acpi_name.empty() && acpi_name.back() == 0)
+        acpi_name = string_view(acpi_name.data(), acpi_name.size() - 1);
 
-    print("found ACPI device {}, HID {}\n", sv, !hid.empty() ? hid : "(none)");
+    size_t bufsize = hid.size() + acpi_name.size();
+
+    auto d = (acpi_device*)malloc(offsetof(acpi_device, buf) + bufsize);
+    if (!d) {
+        print("malloc failed\n");
+        ACPI_FREE(devinfo);
+        return AE_OK;
+    }
+
+    auto ptr = d->buf;
+
+    memcpy(ptr, acpi_name.data(), acpi_name.size());
+    d->acpi_name = string_view(ptr, acpi_name.size());
+    ptr += acpi_name.size();
+
+    memcpy(ptr, hid.data(), hid.size());
+    d->hid = string_view(ptr, hid.size());
+    ptr += hid.size();
+
+    insert_tail_list(acpi_devices, d->le);
 
     if (hid == "PNP0B00")
         found_rtc(Object);
@@ -186,6 +214,12 @@ export void find_acpi_devices() {
     if (ACPI_FAILURE(status)) {
         print("AcpiGetDevices returned {}\n", status);
         return;
+    }
+
+    for (auto le = acpi_devices.next; le != &acpi_devices; le = le->next) {
+        auto& d = containing_record<acpi_device>(le);
+
+        print("found ACPI device {}, HID {}\n", d.acpi_name, !d.hid.empty() ? d.hid : "(none)");
     }
 }
 
