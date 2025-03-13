@@ -53,6 +53,16 @@ struct acpi_device_resource_io : acpi_device_resource {
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
 
+static void found_rtc(const acpi_device& d);
+
+static const struct {
+    string_view hid;
+    void (*func)(const acpi_device&);
+} pnp_hids[] = {
+    { "PNP0B00", found_rtc },
+    { "", nullptr }
+};
+
 export bool acpi_early_init_done = false;
 
 extern "C" void acpi_isr();
@@ -267,8 +277,15 @@ export void find_acpi_devices() {
 
         print("found ACPI device {}, HID {}\n", d.acpi_name, !d.hid.empty() ? d.hid : "(none)");
 
-        if (d.hid == "PNP0B00")
-            found_rtc(d);
+        for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
+            auto& p = pnp_hids[i];
+
+            if (p.hid != d.hid)
+                continue;
+
+            p.func(d);
+            break;
+        }
     }
 }
 
