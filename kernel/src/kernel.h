@@ -197,9 +197,6 @@ object_ref create_event(bool autoreset);
 void set_event(event& e);
 void reset_event(event& e);
 
-// pipe.cpp
-object_ref create_pipe(unsigned int buffer_pages);
-
 // pci.cpp
 void init_pci();
 

@@ -10,18 +10,6 @@ using namespace std;
 static spinlock flushable_pipes_lock;
 static list_entry flushable_pipes = { &flushable_pipes, &flushable_pipes };
 
-object_ref create_pipe(unsigned int buffer_pages) {
-    auto pptr = new pipe(buffer_pages);
-    if (!pptr) {
-        print("new failed\n");
-        return {};
-    }
-
-    auto& p = *pptr;
-
-    return p;
-}
-
 pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buffer_pages) {
     not_full_event.autoreset = false;
     not_full_event.signalled = true;
