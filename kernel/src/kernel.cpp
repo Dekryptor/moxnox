@@ -9,6 +9,7 @@
 import print;
 import bsod;
 import acpi;
+import null;
 
 using namespace std;
 
@@ -168,6 +169,9 @@ void main_thread() {
     }
 
     protect_kernel_pages();
+
+    if (!create_dev_null())
+        print("create_dev_null failed\n");
 
     init_pci();
     // FIXME - NVMe
