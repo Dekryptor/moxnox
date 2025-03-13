@@ -178,7 +178,7 @@ void main_thread() {
 
     free_lower_half_mappings();
 
-    init_rtc();
+    init_rtc(0x70); // FIXME
 
     if (!mount_root())
         bsod("mount_root failed");

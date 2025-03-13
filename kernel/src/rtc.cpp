@@ -4,27 +4,22 @@ module;
 
 export module rtc;
 
+import inout;
+
 using namespace std;
 
 // timer.cpp
 extern "C" volatile int64_t system_time;
 
 template<unsigned N>
-__attribute__((naked))
-static uint8_t get_rtc_register() {
-    __asm __volatile(
-        "mov al, %0\n"
-        "out 0x70, al\n"
-        "in al, 0x71\n"
-        "ret\n"
-        :
-        : "i" (N)
-        : "al"
-    );
+static uint8_t get_rtc_register(uint16_t port) {
+    outb(port, N);
+
+    return inb(port + 1);
 }
 
-static bool get_update_in_progress() {
-    return get_rtc_register<0xa>() & 0x80;
+static bool get_update_in_progress(uint16_t port) {
+    return get_rtc_register<0xa>(port) & 0x80;
 }
 
 static constexpr int64_t ymd_to_num(const chrono::year_month_day& d) noexcept {
@@ -40,7 +35,7 @@ static constexpr int64_t ymd_to_num(const chrono::year_month_day& d) noexcept {
     return n;
 }
 
-export void init_rtc() {
+export void init_rtc(uint16_t port) {
     struct ymdhms {
         int year;
         uint8_t month;
@@ -62,29 +57,29 @@ export void init_rtc() {
 
     __asm("cli");
 
-    while (get_update_in_progress()) { }
+    while (get_update_in_progress(port)) { }
 
-    now.second = get_rtc_register<0x00>();
-    now.minute = get_rtc_register<0x02>();
-    now.hour = get_rtc_register<0x04>();
-    now.day = get_rtc_register<0x07>();
-    now.month = get_rtc_register<0x08>();
-    now.year = get_rtc_register<0x09>();
+    now.second = get_rtc_register<0x00>(port);
+    now.minute = get_rtc_register<0x02>(port);
+    now.hour = get_rtc_register<0x04>(port);
+    now.day = get_rtc_register<0x07>(port);
+    now.month = get_rtc_register<0x08>(port);
+    now.year = get_rtc_register<0x09>(port);
 
     do {
         last = now;
 
-        while (get_update_in_progress()) { }
+        while (get_update_in_progress(port)) { }
 
-        now.second = get_rtc_register<0x00>();
-        now.minute = get_rtc_register<0x02>();
-        now.hour = get_rtc_register<0x04>();
-        now.day = get_rtc_register<0x07>();
-        now.month = get_rtc_register<0x08>();
-        now.year = get_rtc_register<0x09>();
+        now.second = get_rtc_register<0x00>(port);
+        now.minute = get_rtc_register<0x02>(port);
+        now.hour = get_rtc_register<0x04>(port);
+        now.day = get_rtc_register<0x07>(port);
+        now.month = get_rtc_register<0x08>(port);
+        now.year = get_rtc_register<0x09>(port);
     } while (last != now);
 
-    auto register_b = get_rtc_register<0x0b>();
+    auto register_b = get_rtc_register<0x0b>(port);
 
     __asm("sti");
 
