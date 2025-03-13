@@ -100,13 +100,31 @@ export void init_acpi() {
     }
 }
 
-static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t NestingLevel, void* Context, void** ReturnValue) {
+static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
+                                void* /*Context*/, void** /*ReturnValue*/) {
     ACPI_STATUS status;
+    char buf[80];
     ACPI_BUFFER name;
+    ACPI_DEVICE_INFO* devinfo;
+
+    status = AcpiGetObjectInfo(Object, &devinfo);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetObjectInfo returned {}\n", status);
+        return AE_OK;
+    }
+
+    auto hid = string_view(devinfo->HardwareId.String, devinfo->HardwareId.Length);
+
+    if (!hid.empty() && hid.back() == 0)
+        hid = string_view(hid.data(), hid.size() - 1);
+
+    name.Pointer = buf;
+    name.Length = sizeof(buf);
 
     status = AcpiGetName(Object, ACPI_FULL_PATHNAME, &name);
     if (ACPI_FAILURE(status)) {
         print("AcpiGetName returned {}\n", status);
+        ACPI_FREE(devinfo);
         return AE_OK;
     }
 
@@ -115,7 +133,9 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t NestingLevel, void*
     if (!sv.empty() && sv.back() == 0)
         sv = string_view(sv.data(), sv.size() - 1);
 
-    print("found ACPI device {}\n", sv);
+    print("found ACPI device {}, HID {}\n", sv, !hid.empty() ? hid : "(none)");
+
+    ACPI_FREE(devinfo);
 
     // FIXME
 
