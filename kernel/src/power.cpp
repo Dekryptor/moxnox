@@ -1,6 +1,5 @@
 #include "kernel.h"
 #include "acpica.h"
-#include "acpi.h"
 #include "objects.h"
 #include "pipe.h"
 
@@ -10,57 +9,7 @@ import inout;
 using namespace std;
 
 static void reboot() {
-    optional<reference_wrapper<const ACPI_TABLE_HEADER>> fadtw;
-
-    __asm __volatile("cli");
-
-    find_acpi_table(ACPI_FACP, [&](const ACPI_TABLE_HEADER& tbl) {
-        if (fadtw)
-            return;
-
-        fadtw = tbl;
-    });
-
-    if (!fadtw) {
-        print("FADT not found in ACPI tables.\n");
-        return;
-    }
-
-    auto& fadt = reinterpret_cast<const ACPI_TABLE_FADT&>(fadtw->get());
-
-    if (fadt.Header.Length < offsetofend(ACPI_TABLE_FADT, ResetValue)) {
-        print("FADT was truncated\n");
-        return;
-    }
-
-    if (fadt.ResetRegister.BitWidth != 8) {
-        print("invalid value for ResetRegister.BitWidth in FADT\n");
-        return;
-    }
-
-    if (fadt.ResetRegister.BitOffset != 0) {
-        print("invalid value for ResetRegister.BitOffset in FADT\n");
-        return;
-    }
-
-    switch (fadt.ResetRegister.SpaceId) {
-        case ACPI_ADR_SPACE_SYSTEM_MEMORY:
-            print("FIXME - ACPI_ADR_SPACE_SYSTEM_MEMORY\n");
-        break;
-
-        case ACPI_ADR_SPACE_SYSTEM_IO:
-            outb((uint16_t)fadt.ResetRegister.Address, fadt.ResetValue);
-        break;
-
-        case ACPI_ADR_SPACE_PCI_CONFIG:
-            print("FIXME - ACPI_ADR_SPACE_PCI_CONFIG\n");
-        break;
-
-        default:
-            print("invalid value {} for ResetRegister.SpaceId in FADT\n",
-                  (unsigned int)fadt.ResetRegister.SpaceId);
-        break;
-    }
+    AcpiReset();
 }
 
 static void halt() {

@@ -5,7 +5,6 @@ extern unsigned int acpi_count;
 
 static const uint32_t ACPI_APIC = 0x43495041;
 static const uint32_t ACPI_MCFG = 0x4746434d;
-static const uint32_t ACPI_FACP = 0x50434146;
 
 static void find_acpi_table(uint32_t sig, std::invocable<const ACPI_TABLE_HEADER&> auto func) {
     auto ptr = (uint8_t*)acpi_tables;
