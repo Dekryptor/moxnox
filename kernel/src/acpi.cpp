@@ -39,7 +39,8 @@ struct acpi_device {
 };
 
 enum class acpi_device_resource_type {
-    io
+    io,
+    irq
 };
 
 struct acpi_device_resource {
@@ -49,6 +50,10 @@ struct acpi_device_resource {
 
 struct acpi_device_resource_io : acpi_device_resource {
     ACPI_RESOURCE_IO io;
+};
+
+struct acpi_device_resource_irq : acpi_device_resource {
+    ACPI_RESOURCE_IRQ irq;
 };
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
@@ -181,6 +186,19 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
     auto& d = *(acpi_device*)ctx;
 
     switch (res->Type) {
+        case ACPI_RESOURCE_TYPE_IRQ: {
+            auto r = new acpi_device_resource_irq;
+            if (!r) {
+                print("out of memory\n");
+                return AE_OK;
+            }
+
+            r->type = acpi_device_resource_type::irq;
+            memcpy(&r->irq, &res->Data.Irq, sizeof(ACPI_RESOURCE_IRQ));
+            insert_tail_list(d.resources, r->le);
+            break;
+        }
+
         case ACPI_RESOURCE_TYPE_IO: {
             auto r = new acpi_device_resource_io;
             if (!r) {
