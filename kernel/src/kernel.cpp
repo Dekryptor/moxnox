@@ -144,6 +144,8 @@ void main_thread() {
     if (console_type == console_type::framebuffer && !init_fb_console())
         print("init_fb_console failed\n");
 
+    init_acpi();
+
     init_serial();
 
     init_keyboard();
@@ -153,9 +155,9 @@ void main_thread() {
 
     keywait();
 
-    init_syscalls();
+    find_acpi_devices();
 
-    init_acpi();
+    init_syscalls();
 
     if (!init_smp()) {
         apic_ids = (uint8_t*)malloc(1);

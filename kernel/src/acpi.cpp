@@ -100,6 +100,38 @@ export void init_acpi() {
     }
 }
 
+static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t NestingLevel, void* Context, void** ReturnValue) {
+    ACPI_STATUS status;
+    ACPI_BUFFER name;
+
+    status = AcpiGetName(Object, ACPI_FULL_PATHNAME, &name);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetName returned {}\n", status);
+        return AE_OK;
+    }
+
+    auto sv = string_view((char*)name.Pointer, name.Length);
+
+    if (!sv.empty() && sv.back() == 0)
+        sv = string_view(sv.data(), sv.size() - 1);
+
+    print("found ACPI device {}\n", sv);
+
+    // FIXME
+
+    return AE_OK;
+}
+
+export void find_acpi_devices() {
+    ACPI_STATUS status;
+
+    status = AcpiGetDevices(nullptr, found_device, nullptr, nullptr);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetDevices returned {}\n", status);
+        return;
+    }
+}
+
 extern "C"
 ACPI_STATUS AcpiOsInitialize() {
     return AE_OK;
