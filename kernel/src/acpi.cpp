@@ -29,7 +29,7 @@ static const uint8_t ACPI_IRQ = 9; // FIXME - don't hardcode
 
 static const uint8_t acpi_interrupt = 0x25;
 
-static bool early_init_done = false;
+export bool acpi_early_init_done = false;
 
 extern "C" void acpi_isr();
 
@@ -69,8 +69,6 @@ export void init_acpi_early() {
         print("AcpiLoadTables returned {}\n", Status);
         return;
     }
-
-    early_init_done = true;
 }
 
 export void init_acpi() {
@@ -199,7 +197,7 @@ ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle) {
 extern "C"
 ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
                                 UINT16 /*Timeout*/) {
-    if (!early_init_done)
+    if (!acpi_early_init_done)
         return AE_OK;
 
     auto& sem = *static_cast<semaphore*>(Handle);
@@ -218,7 +216,7 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
 
 extern "C"
 ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units) {
-    if (!early_init_done)
+    if (!acpi_early_init_done)
         return AE_OK;
 
     auto& sem = *static_cast<semaphore*>(Handle);

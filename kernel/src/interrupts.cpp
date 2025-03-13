@@ -1,6 +1,5 @@
 #include "kernel.h"
 #include "acpica.h"
-#include "acpi.h"
 #include "objects.h"
 #include "cpu_block.h"
 #include "mem.h"
@@ -64,32 +63,6 @@ static inline uint64_t rdmsr(uint64_t msr) {
     );
 
     return ((uint64_t)high << 32) | low;
-}
-
-static span<const uint8_t> find_madt() {
-    optional<reference_wrapper<const ACPI_TABLE_HEADER>> madtw;
-
-    find_acpi_table(ACPI_APIC, [&](const ACPI_TABLE_HEADER& tbl) {
-        if (madtw)
-            return;
-
-        madtw = tbl;
-    });
-
-    if (!madtw) {
-        print("MADT not found in ACPI tables.\n");
-        return span<const uint8_t>();
-    }
-
-    auto& madt = madtw->get();
-
-    if (madt.Length < sizeof(ACPI_TABLE_HEADER) + sizeof(uint32_t) + sizeof(uint32_t)) {
-        print("MADT was shorter than expected.\n");
-        return span<const uint8_t>();
-    }
-
-    return span((uint8_t*)&madt + sizeof(ACPI_TABLE_HEADER) + sizeof(uint32_t) + sizeof(uint32_t),
-                madt.Length - sizeof(ACPI_TABLE_HEADER) - sizeof(uint32_t) - sizeof(uint32_t));
 }
 
 static uint64_t find_ioapic(span<const uint8_t> data) {
@@ -186,6 +159,22 @@ void enable_irq(uint8_t irq, bool enable) {
 static bool init_apic() {
     // FIXME - can we assume that nothing's disabled the APIC? (Check EFI specs?)
 
+    ACPI_TABLE_HEADER* tbl;
+    auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for MADT\n", status);
+        return false;
+    }
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MADT)) {
+        print("MADT table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_MADT));
+        return false;
+    }
+
+    span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
+              tbl->Length - sizeof(ACPI_TABLE_MADT));
+
     if (!check_cpu_for_apic())
         return false;
 
@@ -209,10 +198,6 @@ static bool init_apic() {
     auto spurious_interrupt_reg = (volatile uint32_t*)&local_apic[0xf0];
 
     *spurious_interrupt_reg = spurious_interrupt | 0x100;
-
-    madt = find_madt();
-    if (madt.empty())
-        return false;
 
     auto io_apic_pa = find_ioapic(madt);
     if (!io_apic_pa)

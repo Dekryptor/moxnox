@@ -139,6 +139,8 @@ static void keywait() {
 }
 
 void main_thread() {
+    acpi_early_init_done = true;
+
     if (console_type == console_type::framebuffer && !init_fb_console())
         print("init_fb_console failed\n");
 
