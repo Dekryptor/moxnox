@@ -1,6 +1,5 @@
 #include "kernel.h"
 #include "acpica.h"
-#include "acpi.h"
 #include "pci.h"
 #include "handle.h"
 
@@ -11,31 +10,6 @@ using namespace std;
 static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
 atomic<unsigned int> devices_left = 0;
 static object_ref init_device_event;
-
-static span<const uint8_t> find_mcfg() {
-    optional<reference_wrapper<const ACPI_TABLE_HEADER>> mcfgw;
-
-    find_acpi_table(ACPI_MCFG, [&](const ACPI_TABLE_HEADER& tbl) {
-        if (mcfgw)
-            return;
-
-        mcfgw = tbl;
-    });
-
-    if (!mcfgw) {
-        print("MCFG not found in ACPI tables.\n");
-        return span<const uint8_t>();
-    }
-
-    auto& mcfg = mcfgw->get();
-
-    if (mcfg.Length < sizeof(ACPI_TABLE_MCFG)) {
-        print("MCFG was shorter than expected.\n");
-        return span<const uint8_t>();
-    }
-
-    return span((const uint8_t*)&mcfg, mcfg.Length);
-}
 
 static constexpr uint64_t pci_pa(const ACPI_MCFG_ALLOCATION& item, uint8_t bus, uint8_t device, uint8_t function) {
     return item.Address | (uint64_t)((bus - item.StartBusNumber) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12);
@@ -266,16 +240,21 @@ static void pci_device_found(void* ctx) {
 }
 
 void init_pci() {
-    auto mcfg = find_mcfg();
-
-    if (mcfg.empty()) {
-        print("Could not find MCFG ACPI entry.\n");
-        // FIXME - do it the traditional way if this is the case?
+    ACPI_TABLE_HEADER* tbl;
+    auto status = AcpiGetTable((char*)ACPI_SIG_MCFG, 1, &tbl);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for MCFG\n", status);
         return;
     }
 
-    auto items = span((ACPI_MCFG_ALLOCATION*)(mcfg.data() + sizeof(ACPI_TABLE_MCFG)),
-                      (mcfg.size() - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION));
+    if (tbl->Length < sizeof(ACPI_TABLE_MCFG)) {
+        print("MCFG table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_MCFG));
+        return;
+    }
+
+    auto items = span((ACPI_MCFG_ALLOCATION*)((uint8_t*)tbl + sizeof(ACPI_TABLE_MCFG)),
+                      (tbl->Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION));
 
     if (items.empty()) {
         print("No ACPI_MCFG_ALLOCATIONs found\n");
