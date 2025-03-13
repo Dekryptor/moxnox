@@ -13,6 +13,7 @@ export module acpi;
 import format;
 import print;
 import inout;
+import rtc;
 
 using namespace std;
 
@@ -100,6 +101,37 @@ export void init_acpi() {
     }
 }
 
+static void found_rtc(ACPI_HANDLE obj) {
+    ACPI_STATUS status;
+
+    struct {
+        optional<uint16_t> port;
+    } data;
+
+    auto l = [](ACPI_RESOURCE* res, void* ctx) -> ACPI_STATUS {
+        auto& d = *(decltype(&data))ctx;
+
+        if (res->Type == ACPI_RESOURCE_TYPE_IO)
+            d.port = res->Data.Io.Minimum;
+
+        return AE_OK;
+    };
+
+    status = AcpiWalkResources(obj, (char*)"_CRS", l, &data);
+
+    if (ACPI_FAILURE(status)) {
+        print("AcpiWalkResources returned {}\n", status);
+        return;
+    }
+
+    if (!data.port.has_value()) {
+        print("no I/O port found for RTC\n");
+        return;
+    }
+
+    init_rtc(data.port.value());
+}
+
 static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
                                 void* /*Context*/, void** /*ReturnValue*/) {
     ACPI_STATUS status;
@@ -135,9 +167,10 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
 
     print("found ACPI device {}, HID {}\n", sv, !hid.empty() ? hid : "(none)");
 
-    ACPI_FREE(devinfo);
+    if (hid == "PNP0B00")
+        found_rtc(Object);
 
-    // FIXME
+    ACPI_FREE(devinfo);
 
     return AE_OK;
 }

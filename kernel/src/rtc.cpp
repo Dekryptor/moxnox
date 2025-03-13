@@ -51,8 +51,6 @@ export void init_rtc(uint16_t port) {
         }
     };
 
-    // FIXME - what happens if RTC not present, as in microvm?
-
     ymdhms now, last;
 
     __asm("cli");

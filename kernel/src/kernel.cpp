@@ -9,7 +9,6 @@
 import print;
 import bsod;
 import acpi;
-import rtc;
 
 using namespace std;
 
@@ -177,8 +176,6 @@ void main_thread() {
     // FIXME - USB
 
     free_lower_half_mappings();
-
-    init_rtc(0x70); // FIXME
 
     if (!mount_root())
         bsod("mount_root failed");

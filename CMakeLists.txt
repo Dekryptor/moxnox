@@ -171,6 +171,19 @@ add_library(acpica
     acpica/source/components/parser/psutils.c
     acpica/source/components/parser/pswalk.c
     acpica/source/components/parser/psxface.c
+    acpica/source/components/resources/rsaddr.c
+    acpica/source/components/resources/rscalc.c
+    acpica/source/components/resources/rscreate.c
+    acpica/source/components/resources/rsdumpinfo.c
+    acpica/source/components/resources/rsinfo.c
+    acpica/source/components/resources/rsio.c
+    acpica/source/components/resources/rsirq.c
+    acpica/source/components/resources/rslist.c
+    acpica/source/components/resources/rsmemory.c
+    acpica/source/components/resources/rsmisc.c
+    acpica/source/components/resources/rsserial.c
+    acpica/source/components/resources/rsutils.c
+    acpica/source/components/resources/rsxface.c
     acpica/source/components/tables/tbdata.c
     acpica/source/components/tables/tbfadt.c
     acpica/source/components/tables/tbfind.c
