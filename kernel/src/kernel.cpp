@@ -281,13 +281,18 @@ void startup(loader_block* lb) {
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
 
-    init_acpi_early();
-
     if (!init_interrupts())
         goto hang;
 
     if (!init_console(fb, tc))
         goto hang;
+
+    init_acpi_early();
+
+    if (!init_apic())
+        goto hang;
+
+    __asm("sti");
 
     _printk = safe_print;
 

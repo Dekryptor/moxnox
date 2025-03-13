@@ -141,6 +141,7 @@ void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
 void enable_irq(uint8_t irq, bool enable);
 task_state_segment* init_tss();
 void* allocate_stack();
+bool init_apic();
 
 // ints.S
 extern "C" void page_fault_isr();

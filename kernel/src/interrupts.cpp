@@ -156,7 +156,7 @@ void enable_irq(uint8_t irq, bool enable) {
     __asm __volatile("sti");
 }
 
-static bool init_apic() {
+bool init_apic() {
     // FIXME - can we assume that nothing's disabled the APIC? (Check EFI specs?)
 
     ACPI_TABLE_HEADER* tbl;
@@ -487,17 +487,12 @@ bool init_interrupts() {
     if (!setup_idt())
         return false;
 
-    if (!init_apic())
-        return false;
-
     auto tss = init_tss();
     if (!tss)
         return false;
 
     if (!setup_gdt(tss))
         return false;
-
-    __asm("sti");
 
     return true;
 }
