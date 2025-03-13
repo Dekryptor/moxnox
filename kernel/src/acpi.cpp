@@ -34,7 +34,21 @@ struct acpi_device {
     list_entry le;
     string_view acpi_name;
     string_view hid;
+    list_entry resources = { &resources, &resources };
     char buf[0];
+};
+
+enum class acpi_device_resource_type {
+    io
+};
+
+struct acpi_device_resource {
+    list_entry le;
+    enum acpi_device_resource_type type;
+};
+
+struct acpi_device_resource_io : acpi_device_resource {
+    ACPI_RESOURCE_IO io;
 };
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
@@ -110,35 +124,66 @@ export void init_acpi() {
     }
 }
 
-static void found_rtc(ACPI_HANDLE obj) {
-    ACPI_STATUS status;
+static void found_rtc(const acpi_device& d) {
+    optional<uint16_t> port;
 
-    struct {
-        optional<uint16_t> port;
-    } data;
+    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
 
-    auto l = [](ACPI_RESOURCE* res, void* ctx) -> ACPI_STATUS {
-        auto& d = *(decltype(&data))ctx;
+        if (r.type != acpi_device_resource_type::io)
+            continue;
 
-        if (res->Type == ACPI_RESOURCE_TYPE_IO)
-            d.port = res->Data.Io.Minimum;
+        auto& io = *reinterpret_cast<acpi_device_resource_io*>(&r);
 
-        return AE_OK;
-    };
-
-    status = AcpiWalkResources(obj, (char*)"_CRS", l, &data);
-
-    if (ACPI_FAILURE(status)) {
-        print("AcpiWalkResources returned {}\n", status);
-        return;
+        port = io.io.Minimum;
+        break;
     }
 
-    if (!data.port.has_value()) {
+    if (!port.has_value()) {
         print("no I/O port found for RTC\n");
         return;
     }
 
-    init_rtc(data.port.value());
+    init_rtc(port.value());
+}
+
+static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
+    auto& d = *(acpi_device*)ctx;
+
+    switch (res->Type) {
+        case ACPI_RESOURCE_TYPE_IO: {
+            auto r = new acpi_device_resource_io;
+            if (!r) {
+                print("out of memory\n");
+                return AE_OK;
+            }
+
+            r->type = acpi_device_resource_type::io;
+            memcpy(&r->io, &res->Data.Io, sizeof(ACPI_RESOURCE_IO));
+            insert_tail_list(d.resources, r->le);
+            break;
+        }
+
+        case ACPI_RESOURCE_TYPE_END_TAG:
+            break;
+
+        default:
+            print("FIXME - unhandled ACPI resource type {}\n", res->Type);
+            break;
+    }
+
+    return AE_OK;
+}
+
+static void find_device_resources(acpi_device& d, ACPI_HANDLE obj) {
+    ACPI_STATUS status;
+
+    status = AcpiWalkResources(obj, (char*)"_CRS", find_device_resources_cb, &d);
+
+    if (ACPI_FAILURE(status) && status != AE_NOT_FOUND) {
+        print("AcpiWalkResources returned {}\n", status);
+        return;
+    }
 }
 
 static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
@@ -187,6 +232,8 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
         return AE_OK;
     }
 
+    new (d) acpi_device;
+
     auto ptr = d->buf;
 
     memcpy(ptr, acpi_name.data(), acpi_name.size());
@@ -199,10 +246,9 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
 
     insert_tail_list(acpi_devices, d->le);
 
-    if (hid == "PNP0B00")
-        found_rtc(Object);
-
     ACPI_FREE(devinfo);
+
+    find_device_resources(*d, Object);
 
     return AE_OK;
 }
@@ -220,6 +266,9 @@ export void find_acpi_devices() {
         auto& d = containing_record<acpi_device>(le);
 
         print("found ACPI device {}, HID {}\n", d.acpi_name, !d.hid.empty() ? d.hid : "(none)");
+
+        if (d.hid == "PNP0B00")
+            found_rtc(d);
     }
 }
 
