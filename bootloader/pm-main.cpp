@@ -1160,6 +1160,8 @@ static void set_graphics_info() {
     }
 }
 
+static constexpr uint64_t START_RSP = KERNEL_STACK + (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20; // 0x20 for MS ABI
+
 extern "C"
 void protected_mode_main() {
     if (pm_vbe_selected_mode == 0xffff) {
@@ -1229,7 +1231,11 @@ void protected_mode_main() {
         "push 0x18\n\t"
         "lea eax, long_mode_start\n\t"
         "push eax\n\t"
+        "mov eax, %0\n\t"
+        "mov edx, %1\n\t"
         "retf\n\t"
+        :
+        : "i" (START_RSP & 0xffffffff), "i" (START_RSP >> 32)
     );
 
 halt:
