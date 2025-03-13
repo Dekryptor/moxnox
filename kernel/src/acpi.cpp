@@ -54,12 +54,28 @@ struct acpi_device_resource_io : acpi_device_resource {
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
 
 static void found_rtc(const acpi_device& d);
+static void found_ps2_keyboard(const acpi_device& d);
 
 static const struct {
     string_view hid;
     void (*func)(const acpi_device&);
 } pnp_hids[] = {
     { "PNP0B00", found_rtc },
+    { "PNP0300", found_ps2_keyboard },
+    { "PNP0301", found_ps2_keyboard },
+    { "PNP0302", found_ps2_keyboard },
+    { "PNP0303", found_ps2_keyboard },
+    { "PNP0304", found_ps2_keyboard },
+    { "PNP0305", found_ps2_keyboard },
+    { "PNP0306", found_ps2_keyboard },
+    { "PNP0309", found_ps2_keyboard },
+    { "PNP030A", found_ps2_keyboard },
+    { "PNP030B", found_ps2_keyboard },
+    { "PNP0320", found_ps2_keyboard },
+    { "PNP0343", found_ps2_keyboard },
+    { "PNP0344", found_ps2_keyboard },
+    { "PNP0345", found_ps2_keyboard },
+    { "CPQA0D7", found_ps2_keyboard },
     { "", nullptr }
 };
 
@@ -155,6 +171,10 @@ static void found_rtc(const acpi_device& d) {
     }
 
     init_rtc(port.value());
+}
+
+static void found_ps2_keyboard(const acpi_device& d) {
+    print("FIXME - found_ps2_keyboard\n"); // FIXME
 }
 
 static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
