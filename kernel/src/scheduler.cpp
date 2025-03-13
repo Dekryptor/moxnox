@@ -73,6 +73,7 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
 
     // 0x20 because of MS ABI, minus 8 for return address
     t.context.Rsp = (uintptr_t)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x28);
+    *(uint64_t*)t.context.Rsp = 0;
 
     t.context.EFlags = 0x202; // IF, reserved flag
     t.context.SegCs = kernel_CS;
