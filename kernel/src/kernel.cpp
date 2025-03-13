@@ -281,6 +281,8 @@ void startup(loader_block* lb) {
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
 
+    init_acpi_early();
+
     if (!init_interrupts())
         goto hang;
 

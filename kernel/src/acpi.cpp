@@ -29,6 +29,8 @@ static const uint8_t ACPI_IRQ = 9; // FIXME - don't hardcode
 
 static const uint8_t acpi_interrupt = 0x25;
 
+static bool early_init_done = false;
+
 extern "C" void acpi_isr();
 
 static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
@@ -47,14 +49,8 @@ void acpi_isr_func() {
     }
 }
 
-export void init_acpi() {
+export void init_acpi_early() {
     ACPI_STATUS Status;
-
-    add_idt_entry(acpi_interrupt, (void*)acpi_isr, false, 0, false);
-
-    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
-
-    add_irq_handler(ACPI_IRQ, acpi_interrupt, local_apic_id);
 
     Status = AcpiInitializeSubsystem();
     if (ACPI_FAILURE(Status)) {
@@ -73,6 +69,18 @@ export void init_acpi() {
         print("AcpiLoadTables returned {}\n", Status);
         return;
     }
+
+    early_init_done = true;
+}
+
+export void init_acpi() {
+    ACPI_STATUS Status;
+
+    add_idt_entry(acpi_interrupt, (void*)acpi_isr, false, 0, false);
+
+    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
+
+    add_irq_handler(ACPI_IRQ, acpi_interrupt, local_apic_id);
 
     Status = AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY,
                                       acpi_notify_handler, nullptr);
@@ -191,6 +199,9 @@ ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle) {
 extern "C"
 ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
                                 UINT16 /*Timeout*/) {
+    if (!early_init_done)
+        return AE_OK;
+
     auto& sem = *static_cast<semaphore*>(Handle);
 
     // FIXME - Timeout
@@ -207,6 +218,9 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
 
 extern "C"
 ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units) {
+    if (!early_init_done)
+        return AE_OK;
+
     auto& sem = *static_cast<semaphore*>(Handle);
 
     if (Units != 1) {
