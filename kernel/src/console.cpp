@@ -1523,6 +1523,9 @@ bool init_fb_console() {
     FT_Error error;
     unsigned int dpi;
 
+    // FIXME - allow setting on cmdline
+    static const unsigned int font_size = 12;
+
     error = FT_Init_FreeType(&ft);
     if (error) {
         print("FT_Init_FreeType failed ({:x})\n", error);
@@ -1543,7 +1546,7 @@ bool init_fb_console() {
         return false;
     }
 
-    error = FT_Set_Char_Size(face, 18 * 64, 0, dpi, 0);
+    error = FT_Set_Char_Size(face, font_size * 64, 0, dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;
@@ -1556,7 +1559,7 @@ bool init_fb_console() {
         return false;
     }
 
-    error = FT_Set_Char_Size(face_bold, 18 * 64, 0, dpi, 0);
+    error = FT_Set_Char_Size(face_bold, font_size * 64, 0, dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;
