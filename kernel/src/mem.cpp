@@ -309,7 +309,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         }
     }
 
-    volatile auto& pt_entry = pt[(va & 0x1ff000) >> PAGE_SHIFT];
+    HARDWARE_PTE pt_entry;
 
     *(uint64_t*)&pt_entry = 0;
 
@@ -358,6 +358,8 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
     }
 
     pt_entry.Owner = (type == mapping_type::no_access || va & 0x8000000000000000) ? 0 : 1;
+
+    *(volatile uint64_t*)&pt[(va & 0x1ff000) >> PAGE_SHIFT] = *(uint64_t*)&pt_entry;
 
     return true;
 }
