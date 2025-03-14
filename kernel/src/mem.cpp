@@ -23,7 +23,7 @@ static uint64_t vablock_size;
 static uint8_t* const initrd_addr = (uint8_t*)0xfffffa5000000000;
 
 static spinlock pa_spinlock, va_spinlock, heap_spinlock, tlb_spinlock;
-static spinlock pml4_spinlock, pdpt_spinlock, pdt_spinlock;
+static spinlock mapping_spinlock;
 static spinlock protect_page_spinlock;
 
 span<const uint8_t> initrd;
@@ -230,86 +230,94 @@ uint64_t allocate_page() {
     return 0;
 }
 
-bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
-    auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
-    auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((va & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
-    auto pdt = span((HARDWARE_PTE*)(SELFMAP_PDT | (((va & 0xffffc0000000) >> 30) << PAGE_SHIFT)), 512);
-    auto pt = span((HARDWARE_PTE*)(SELFMAP | (((va & 0xffffffe00000) >> 21) << PAGE_SHIFT)), 512);
+__attribute__((always_inline))
+static uint64_t inline __readcr3() {
+    uint64_t ret;
 
-    volatile auto& pml4_entry = pml4[(va & 0xff8000000000) >> 39];
+    __asm__ __volatile__ (
+        "mov\t%0, cr3"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
+    lock_guard lock(mapping_spinlock);
+
+    auto pml4_entry_ptr = (volatile uint64_t*)phys_address((__readcr3() & 0xfffffffffffff000) | (((va & 0xff8000000000) >> 39) << 3));
+
+    HARDWARE_PTE pml4_entry;
+
+    *(uint64_t*)&pml4_entry = *pml4_entry_ptr;
 
     if (!pml4_entry.Valid) {
         uint64_t page = allocate_page(); // FIXME - should there be an allocate_zeroed_page?
         if (page == 0)
             return false;
 
-        {
-            lock_guard lock(pml4_spinlock);
-
-            if (!pml4_entry.Valid) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                pml4_entry.PageFrameNumber = page >> PAGE_SHIFT;
+        pml4_entry.PageFrameNumber = page >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-                pml4_entry.Valid = 1;
-                pml4_entry.Write = 1;
-                pml4_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
+        pml4_entry.Valid = 1;
+        pml4_entry.Write = 1;
+        pml4_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
-                memset(pdpt.data(), 0, PAGE_SIZE);
-            } else
-                free_page(page);
-        }
+        memset(phys_address(page), 0, PAGE_SIZE);
+
+        *pml4_entry_ptr = *(uint64_t*)&pml4_entry;
     }
 
-    volatile auto& pdpt_entry = pdpt[(va & 0x7fc0000000) >> 30];
+    auto pdpt_entry_ptr = (volatile uint64_t*)phys_address((pml4_entry.PageFrameNumber << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
+
+    HARDWARE_PTE pdpt_entry;
+
+    *(uint64_t*)&pdpt_entry = *pdpt_entry_ptr;
 
     if (!pdpt_entry.Valid) {
         uint64_t page = allocate_page();
         if (page == 0)
             return false;
 
-        {
-            lock_guard lock(pdpt_spinlock);
-
-            if (!pdpt_entry.Valid) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                pdpt_entry.PageFrameNumber = page >> PAGE_SHIFT;
+        pdpt_entry.PageFrameNumber = page >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-                pdpt_entry.Valid = 1;
-                pdpt_entry.Write = 1;
-                pdpt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
+        pdpt_entry.Valid = 1;
+        pdpt_entry.Write = 1;
+        pdpt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
-                memset(pdt.data(), 0, PAGE_SIZE);
-            } else
-                free_page(page);
-        }
+        memset(phys_address(page), 0, PAGE_SIZE);
+
+        *pdpt_entry_ptr = *(uint64_t*)&pdpt_entry;
     }
 
-    volatile auto& pdt_entry = pdt[(va & 0x3fe00000) >> 21];
+    auto pdt_entry_ptr = (volatile uint64_t*)phys_address((pdpt_entry.PageFrameNumber << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
+
+    HARDWARE_PTE pdt_entry;
+
+    *(uint64_t*)&pdt_entry = *pdt_entry_ptr;
 
     if (!pdt_entry.Valid) {
         uint64_t page = allocate_page();
         if (page == 0)
             return false;
 
-        {
-            lock_guard lock(pdt_spinlock);
-
-            if (!pdt_entry.Valid) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                pdt_entry.PageFrameNumber = page >> PAGE_SHIFT;
+        pdt_entry.PageFrameNumber = page >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-                pdt_entry.Valid = 1;
-                pdt_entry.Write = 1;
-                pdt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
+        pdt_entry.Valid = 1;
+        pdt_entry.Write = 1;
+        pdt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
 
-                memset(pt.data(), 0, PAGE_SIZE);
-            } else
-                free_page(page);
-        }
+        memset(phys_address(page), 0, PAGE_SIZE);
+
+        *pdt_entry_ptr = *(uint64_t*)&pdt_entry;
     }
+
+    auto pt_entry_ptr = (volatile uint64_t*)phys_address((pdt_entry.PageFrameNumber << PAGE_SHIFT) | (((va & 0x1ff000) >> 12) << 3));
 
     HARDWARE_PTE pt_entry;
 
@@ -361,7 +369,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     pt_entry.Owner = (type == mapping_type::no_access || va & 0x8000000000000000) ? 0 : 1;
 
-    *(volatile uint64_t*)&pt[(va & 0x1ff000) >> PAGE_SHIFT] = *(uint64_t*)&pt_entry;
+    *pt_entry_ptr = *(uint64_t*)&pt_entry;
 
     return true;
 }
