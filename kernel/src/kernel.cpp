@@ -14,15 +14,13 @@ import null;
 using namespace std;
 
 extern uint64_t __CTOR_LIST__;
+extern uint8_t __image_base__;
 
 static char cmdline_arr[255];
 string_view cmdline;
-
-extern uint8_t __image_base__;
-
 list_entry kernel_images = { &kernel_images, &kernel_images };
-
 uint64_t rsdp_pa;
+bool init_smp_finished = false;
 
 // console.cpp
 extern object_ref console_pipe;
@@ -172,6 +170,8 @@ void main_thread() {
 
         apic_ids[0] = current_cpu_id();
     }
+
+    init_smp_finished = true;
 
     protect_kernel_pages();
 

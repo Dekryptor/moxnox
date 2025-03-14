@@ -36,9 +36,10 @@ static const uint32_t PIT_HZ = 1193182;
 static const unsigned int KERNEL_STACK_PAGES = 8; // 32KB
 static const unsigned int KERNEL_GUARD_PAGES = 1;
 
-static const uint8_t halt_interrupt = 0x31;
-static const uint8_t spurious_interrupt = 0xff;
 static const uint8_t yield_interrupt = 0x30;
+static const uint8_t halt_interrupt = 0x31;
+static const uint8_t invalidate_tlb_interrupt = 0xfe;
+static const uint8_t spurious_interrupt = 0xff;
 
 static const uint16_t user_CS = 0x3b;
 static const uint16_t user_DS = 0x33;
@@ -100,6 +101,7 @@ struct kernel_image {
 extern std::string_view cmdline;
 extern list_entry kernel_images;
 extern uint64_t rsdp_pa;
+extern bool init_smp_finished;
 
 // mem.cpp
 bool init_memory(const loader_block& lb);
@@ -260,6 +262,7 @@ extern "C" void serial_isr();
 // mem.S
 extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
 extern "C" void init_pat();
+extern "C" void invalidate_tlb_isr();
 
 // thread.cpp
 thread* get_current_thread();

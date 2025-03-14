@@ -1,6 +1,7 @@
 .intel_syntax noprefix
 
 #include "dwarf.S"
+#include "context_offsets.h"
 
 .equ IA32_PAT_MSR, 0x277
 
@@ -68,6 +69,16 @@
 .uleb128 0
 
 .debug_info_end:
+
+.bss
+
+.global invalidate_tlb_processors_left
+invalidate_tlb_processors_left:
+.space 4
+
+.global tlb_va
+tlb_va:
+.space 8
 
 .text
 
@@ -194,5 +205,20 @@ init_pat:
 
     ret
 init_pat_end:
+
+.global invalidate_tlb_isr
+invalidate_tlb_isr:
+    push rax
+
+    mov rax, QWORD PTR [rip+tlb_va]
+    invlpg [rax]
+
+    lock dec DWORD PTR [rip+invalidate_tlb_processors_left]
+
+    xor rax, rax
+    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
+    pop rax
+    iretq
+invalidate_tlb_isr_end:
 
 .text_end:
