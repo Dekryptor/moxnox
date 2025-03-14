@@ -71,7 +71,7 @@ target_link_options(kernel PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup -W
 
 target_compile_options(kernel PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmodules-ts>)
 target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-g0>)
-target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-fno-inline>)
+target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-fno-inline -fno-omit-frame-pointer>)
 
 target_include_directories(kernel PRIVATE ../acpica/source/include)
 
