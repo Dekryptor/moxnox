@@ -269,7 +269,8 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         *pml4_entry_ptr = *(uint64_t*)&pml4_entry;
     }
 
-    auto pdpt_entry_ptr = (volatile uint64_t*)phys_address((pml4_entry.PageFrameNumber << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
+    uint64_t pfn = pml4_entry.PageFrameNumber;
+    auto pdpt_entry_ptr = (volatile uint64_t*)phys_address((pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
 
     HARDWARE_PTE pdpt_entry;
 
@@ -293,7 +294,8 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         *pdpt_entry_ptr = *(uint64_t*)&pdpt_entry;
     }
 
-    auto pdt_entry_ptr = (volatile uint64_t*)phys_address((pdpt_entry.PageFrameNumber << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
+    pfn = pdpt_entry.PageFrameNumber;
+    auto pdt_entry_ptr = (volatile uint64_t*)phys_address((pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
 
     HARDWARE_PTE pdt_entry;
 
@@ -317,7 +319,8 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         *pdt_entry_ptr = *(uint64_t*)&pdt_entry;
     }
 
-    auto pt_entry_ptr = (volatile uint64_t*)phys_address((pdt_entry.PageFrameNumber << PAGE_SHIFT) | (((va & 0x1ff000) >> 12) << 3));
+    pfn = pdt_entry.PageFrameNumber;
+    auto pt_entry_ptr = (volatile uint64_t*)phys_address((pfn << PAGE_SHIFT) | (((va & 0x1ff000) >> 12) << 3));
 
     HARDWARE_PTE pt_entry;
 
