@@ -62,16 +62,10 @@ extern "C" volatile uint32_t invalidate_tlb_processors_left;
 constexpr uint64_t PHYS_MEMORY_MASK = 0xffffff0000000000;
 static const uint64_t PHYS_MEMORY = 0xffff990000000000;
 
-class allocator {
+class allocator_4k {
 public:
-    virtual void* malloc() = 0;
-    virtual void free(void* ptr) = 0;
-};
-
-class allocator_4k : public ::allocator {
-public:
-    void* malloc() override;
-    void free(void* ptr) override;
+    void* malloc();
+    void free(void* ptr);
 };
 
 struct allocator_2k_cb {
@@ -105,10 +99,10 @@ struct allocator_1k_cb {
 static_assert(sizeof(allocator_1k_cb) <= PAGE_SIZE);
 
 template<typename T>
-class allocator2 : public ::allocator {
+class allocator2 {
 public:
-    void* malloc() override;
-    void free(void* ptr) override;
+    void* malloc();
+    void free(void* ptr);
 
     using cb_type = T;
 
