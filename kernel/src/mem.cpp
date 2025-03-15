@@ -17,11 +17,14 @@ enum class page_state {
 };
 
 struct page {
+    list_entry le;
     page_state state;
 };
 
 static page* pages = (page*)0xfffffa0000000000;
 static uint64_t total_pages;
+static spinlock pa_spinlock;
+static list_entry free_page_list = { &free_page_list, &free_page_list };
 
 static const uint64_t heap_block = 0xfffffaf000000000;
 static unsigned int heap_pages = 0;
@@ -31,7 +34,7 @@ static uint64_t vablock_size;
 
 static uint8_t* const initrd_addr = (uint8_t*)0xfffffa5000000000;
 
-static spinlock pa_spinlock, va_spinlock, heap_spinlock, tlb_spinlock;
+static spinlock va_spinlock, heap_spinlock, tlb_spinlock;
 static spinlock mapping_spinlock;
 static spinlock protect_page_spinlock;
 
@@ -215,14 +218,15 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 uint64_t allocate_page() {
     lock_guard lock(pa_spinlock);
 
-    for (uint64_t i = 0; i < total_pages; i++) {
-        if (pages[i].state == page_state::free) {
-            pages[i].state = page_state::used;
-            return i << PAGE_SHIFT;
-        }
-    }
+    if (is_list_empty(free_page_list))
+        return 0;
 
-    return 0;
+    auto& p = containing_record<page>(free_page_list.next);
+
+    remove_entry_list(p.le);
+    p.state = page_state::used;
+
+    return (&p - pages) << PAGE_SHIFT;
 }
 
 __attribute__((always_inline))
@@ -395,7 +399,11 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
     lock_guard lock(pa_spinlock);
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        pages[pfn].state = page_state::free;
+        if (pages[pfn].state != page_state::free) {
+            insert_tail_list(free_page_list, pages[pfn].le);
+            pages[pfn].state = page_state::free;
+        }
+
         pfn++;
     }
 }
@@ -407,7 +415,11 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     lock_guard lock(pa_spinlock);
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        pages[pfn].state = page_state::used;
+        if (pages[pfn].state == page_state::free) {
+            remove_entry_list(pages[pfn].le);
+            pages[pfn].state = page_state::used;
+        }
+
         pfn++;
     }
 }
@@ -566,12 +578,14 @@ bool init_memory(const loader_block& lb) {
 
     // populate memblock from loader block
 
+    for (uint64_t i = 0; i < total_pages; i++) {
+        pages[i].state = page_state::used;
+    }
+
     for (auto& map : map_entries) {
         // bootloader memory also gets marked as free (inc. page tables)
         if (map.type == mem_type::free || map.type == mem_type::bootloader)
             mark_mem_as_free(map.addr, map.len);
-        else
-            mark_mem_as_used(map.addr, map.len);
     }
 
     // subtract memblock itself, and scratch that we've used
@@ -838,11 +852,15 @@ void operator delete(void* ptr, size_t) noexcept {
 }
 
 void free_page(uint64_t pa) {
-    pa >>= PAGE_SHIFT;
+    auto pfn = pa >>= PAGE_SHIFT;
 
     lock_guard lock(pa_spinlock);
 
-    pages[pa].state = page_state::free;
+    if (pages[pfn].state == page_state::free) // FIXME - warning for this
+        return;
+
+    insert_tail_list(free_page_list, pages[pfn].le);
+    pages[pfn].state = page_state::free;
 }
 
 void unmap_and_free_page(uint64_t va) {
