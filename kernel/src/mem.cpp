@@ -75,9 +75,10 @@ struct allocator_2k_cb {
 
     static constexpr unsigned int NUM_PAGES = 488;
     static constexpr unsigned int PAGES_PER_BITMAP_BYTE = 4;
+    static constexpr enum page_state page_state_type = page_state::allocator_2k;
 
     list_entry le;
-    uint8_t bitmap[NUM_PAGES / 4];
+    uint8_t bitmap[NUM_PAGES / PAGES_PER_BITMAP_BYTE];
     uint64_t pfns[NUM_PAGES];
 };
 
@@ -90,9 +91,10 @@ struct allocator_1k_cb {
 
     static constexpr unsigned int NUM_PAGES = 480;
     static constexpr unsigned int PAGES_PER_BITMAP_BYTE = 2;
+    static constexpr enum page_state page_state_type = page_state::allocator_1k;
 
     list_entry le;
-    uint8_t bitmap[NUM_PAGES / 2];
+    uint8_t bitmap[NUM_PAGES / PAGES_PER_BITMAP_BYTE];
     uint64_t pfns[NUM_PAGES];
 };
 
@@ -1455,97 +1457,105 @@ allocator_2k_cb::allocator_2k_cb() {
     memset(bitmap, 0, sizeof(bitmap));
 }
 
-uint64_t allocator_2k_cb::malloc_pa() {
-    for (unsigned int i = 0; i < NUM_PAGES / 4; i++) {
+template<typename T>
+static uint64_t allocator_cb_malloc_pa(T& alloc) {
+    static constexpr unsigned int BITMAP_BITS_PER_PAGE = 8 / T::PAGES_PER_BITMAP_BYTE;
+    static constexpr size_t GRANULARITY = PAGE_SIZE / BITMAP_BITS_PER_PAGE;
+
+    for (unsigned int i = 0; i < T::NUM_PAGES / T::PAGES_PER_BITMAP_BYTE; i++) {
         unsigned int bit;
 
-        if (bitmap[i] == 0xff || bitmap[i] == 0x00)
+        if (alloc.bitmap[i] == 0xff || alloc.bitmap[i] == 0x00)
             continue;
 
-        if ((bitmap[i] & 0xc0) == 0x40)
-            bit = 7;
-        else if ((bitmap[i] & 0xc0) == 0x80)
-            bit = 6;
-        else if ((bitmap[i] & 0x30) == 0x10)
-            bit = 5;
-        else if ((bitmap[i] & 0x30) == 0x20)
-            bit = 4;
-        else if ((bitmap[i] & 0xc) == 0x4)
-            bit = 3;
-        else if ((bitmap[i] & 0xc) == 0x8)
-            bit = 2;
-        else if ((bitmap[i] & 0x3) == 0x1)
-            bit = 1;
-        else if ((bitmap[i] & 0x3) == 0x2)
-            bit = 0;
-        else
+        auto b2 = alloc.bitmap[i];
+        bool found = false;
+
+        bit = 0;
+
+        for (unsigned j = 0; j < T::PAGES_PER_BITMAP_BYTE; j++) {
+            if ((b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1)) != (1 << BITMAP_BITS_PER_PAGE) - 1 && (b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1)) != 0x00) {
+                for (unsigned int k = 0; k < BITMAP_BITS_PER_PAGE; k++) {
+                    if (!(b2 & 0x01)) {
+                        found = true;
+                        break;
+                    }
+
+                    bit++;
+                    b2 >>= 1;
+                }
+
+                if (found)
+                    break;
+            } else {
+                b2 >>= BITMAP_BITS_PER_PAGE;
+                bit += BITMAP_BITS_PER_PAGE;
+            }
+        }
+
+        if (!found)
             continue;
 
-        assert(!(bitmap[i] & (1 << bit)));
-        bitmap[i] |= 1 << bit;
+        assert(!(alloc.bitmap[i] & (1 << bit)));
+        alloc.bitmap[i] |= 1 << bit;
 
-        switch (bit) {
-            case 7:
-                return pfns[i * 4] << PAGE_SHIFT;
-            case 6:
-                return (pfns[i * 4] << PAGE_SHIFT) + 0x800;
-            case 5:
-                return pfns[(i * 4) + 1] << PAGE_SHIFT;
-            case 4:
-                return (pfns[(i * 4) + 1] << PAGE_SHIFT) + 0x800;
-            case 3:
-                return pfns[(i * 4) + 2] << PAGE_SHIFT;
-            case 2:
-                return (pfns[(i * 4) + 2] << PAGE_SHIFT) + 0x800;
-            case 1:
-                return pfns[(i * 4) + 3] << PAGE_SHIFT;
-            case 0:
-                return (pfns[(i * 4) + 3] << PAGE_SHIFT) + 0x800;
+        unsigned int index = (i * T::PAGES_PER_BITMAP_BYTE) + T::PAGES_PER_BITMAP_BYTE - 1;
+
+        for (unsigned int j = 0; j < T::PAGES_PER_BITMAP_BYTE; j++) {
+            if (bit < BITMAP_BITS_PER_PAGE) {
+                uint64_t addr = (alloc.pfns[index] << PAGE_SHIFT) + ((BITMAP_BITS_PER_PAGE - 1) * GRANULARITY);
+
+                for (unsigned int k = 0; j < BITMAP_BITS_PER_PAGE; k++) {
+                    if (bit == 0)
+                        return addr;
+
+                    bit--;
+                    addr -= GRANULARITY;
+                }
+            }
+
+            index--;
+            bit -= BITMAP_BITS_PER_PAGE;
         }
     }
 
-    auto pfn = allocate_page(page_state::allocator_2k) >> PAGE_SHIFT;
+    auto pfn = allocate_page(T::page_state_type) >> PAGE_SHIFT;
 
     if (!pfn)
         return 0;
 
     auto& p = pages[pfn];
 
-    p.allocator.cb = this;
+    p.allocator.cb = &alloc;
 
     bool found = false;
 
-    for (unsigned int i = 0; i < NUM_PAGES / 4; i++) {
+    for (unsigned int i = 0; i < T::NUM_PAGES / T::PAGES_PER_BITMAP_BYTE; i++) {
         unsigned int bit;
 
-        if (bitmap[i] == 0xff)
+        if (alloc.bitmap[i] == 0xff)
             continue;
 
-        if (!(bitmap[i] & 0xc0)) {
-            bit = 7;
-            p.allocator.index = i * 4;
-            found = true;
-        } else if (!(bitmap[i] & 0x30)) {
-            bit = 5;
-            p.allocator.index = (i * 4) + 1;
-            found = true;
-        } else if (!(bitmap[i] & 0xc)) {
-            bit = 3;
-            p.allocator.index = (i * 4) + 2;
-            found = true;
-        } else if (!(bitmap[i] & 0x3)) {
-            bit = 1;
-            p.allocator.index = (i * 4) + 3;
-            found = true;
+        auto b2 = alloc.bitmap[i];
+
+        for (unsigned int j = 0; j < T::PAGES_PER_BITMAP_BYTE; j++) {
+            if (!(b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1))) {
+                bit = (j * BITMAP_BITS_PER_PAGE) + BITMAP_BITS_PER_PAGE - 1;
+                p.allocator.index = (i * T::PAGES_PER_BITMAP_BYTE) + T::PAGES_PER_BITMAP_BYTE - 1 - j;
+                found = true;
+                break;
+            }
+
+            b2 >>= BITMAP_BITS_PER_PAGE;
         }
 
         if (!found)
             continue;
 
-        assert(!(bitmap[i] & 1 << bit));
+        assert(!(alloc.bitmap[i] & 1 << bit));
 
-        bitmap[i] |= 1 << bit;
-        pfns[p.allocator.index] = pfn;
+        alloc.bitmap[i] |= 1 << bit;
+        alloc.pfns[p.allocator.index] = pfn;
 
         return pfn << PAGE_SHIFT;
     }
@@ -1553,6 +1563,14 @@ uint64_t allocator_2k_cb::malloc_pa() {
     free_page(pfn << PAGE_SHIFT);
 
     return 0;
+}
+
+uint64_t allocator_2k_cb::malloc_pa() {
+    return allocator_cb_malloc_pa(*this);
+}
+
+uint64_t allocator_1k_cb::malloc_pa() {
+    return allocator_cb_malloc_pa(*this);
 }
 
 template<typename T>
@@ -1647,96 +1665,3 @@ allocator_1k_cb::allocator_1k_cb() {
     memset(bitmap, 0, sizeof(bitmap));
 }
 
-uint64_t allocator_1k_cb::malloc_pa() {
-    for (unsigned int i = 0; i < NUM_PAGES / 2; i++) {
-        unsigned int bit;
-
-        if (bitmap[i] == 0xff || bitmap[i] == 0x00)
-            continue;
-
-        if ((bitmap[i] & 0xf0) != 0xf0 && (bitmap[i] & 0xf0) != 0x00) {
-            if (!(bitmap[i] & 0x80))
-                bit = 7;
-            else if (!(bitmap[i] & 0x40))
-                bit = 6;
-            else if (!(bitmap[i] & 0x20))
-                bit = 5;
-            else if (!(bitmap[i] & 0x10))
-                bit = 4;
-        } else if ((bitmap[i] & 0xf) != 0xf && (bitmap[i] & 0xf) != 0x0) {
-            if (!(bitmap[i] & 0x8))
-                bit = 3;
-            else if (!(bitmap[i] & 0x4))
-                bit = 2;
-            else if (!(bitmap[i] & 0x2))
-                bit = 1;
-            else if (!(bitmap[i] & 0x1))
-                bit = 0;
-        } else
-            continue;
-
-        assert(!(bitmap[i] & (1 << bit)));
-        bitmap[i] |= 1 << bit;
-
-        switch (bit) {
-            case 7:
-                return pfns[i * 2] << PAGE_SHIFT;
-            case 6:
-                return (pfns[i * 2] << PAGE_SHIFT) + 0x400;
-            case 5:
-                return (pfns[i * 2] << PAGE_SHIFT) + 0x800;
-            case 4:
-                return (pfns[i * 2] << PAGE_SHIFT) + 0xc00;
-            case 3:
-                return pfns[(i * 2) + 1] << PAGE_SHIFT;
-            case 2:
-                return (pfns[(i * 2) + 1] << PAGE_SHIFT) + 0x400;
-            case 1:
-                return (pfns[(i * 2) + 1] << PAGE_SHIFT) + 0x800;
-            case 0:
-                return (pfns[(i * 2) + 1] << PAGE_SHIFT) + 0xc00;
-        }
-    }
-
-    auto pfn = allocate_page(page_state::allocator_1k) >> PAGE_SHIFT;
-
-    if (!pfn)
-        return 0;
-
-    auto& p = pages[pfn];
-
-    p.allocator.cb = this;
-
-    bool found = false;
-
-    for (unsigned int i = 0; i < NUM_PAGES / 2; i++) {
-        unsigned int bit;
-
-        if (bitmap[i] == 0xff)
-            continue;
-
-        if (!(bitmap[i] & 0xf0)) {
-            bit = 7;
-            p.allocator.index = i * 2;
-            found = true;
-        } else if (!(bitmap[i] & 0xf)) {
-            bit = 3;
-            p.allocator.index = (i * 2) + 1;
-            found = true;
-        }
-
-        if (!found)
-            continue;
-
-        assert(!(bitmap[i] & 1 << bit));
-
-        bitmap[i] |= 1 << bit;
-        pfns[p.allocator.index] = pfn;
-
-        return pfn << PAGE_SHIFT;
-    }
-
-    free_page(pfn << PAGE_SHIFT);
-
-    return 0;
-}
