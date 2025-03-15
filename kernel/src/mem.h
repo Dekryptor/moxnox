@@ -23,13 +23,6 @@ struct HARDWARE_PTE {
     uint64_t NoExecute:1;
 };
 
-struct alloc_header {
-    uint32_t size : 31;
-    uint32_t free : 1;
-};
-
-static_assert(sizeof(alloc_header) == 4);
-
 struct gdt_entry {
     uint16_t LimitLow;
     uint16_t BaseLow;

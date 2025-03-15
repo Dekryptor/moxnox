@@ -48,9 +48,6 @@ static uint64_t total_pages, free_pages;
 static spinlock pa_spinlock;
 static list_entry free_page_list = { &free_page_list, &free_page_list };
 
-static const uint64_t heap_block = 0xfffffaf000000000;
-static unsigned int heap_pages = 0;
-
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
 
@@ -709,6 +706,7 @@ export bool init_memory(const loader_block& lb) {
     return true;
 }
 
+#if 0
 static void invalidate_tlb(void* va) {
     lock_guard lock(tlb_spinlock);
 
@@ -733,13 +731,10 @@ static void invalidate_tlb(void* va) {
         while (invalidate_tlb_processors_left > 0) { }
     }
 }
+#endif
 
 static void* malloc_aligned(size_t size, size_t align) {
-    // round to multiple of 4
-    if (size & 3)
-        size = ((size >> 2) + 1) << 2;
-
-    if (size == 0 || size >= 0x80000000)
+    if (size == 0)
         return nullptr;
 
     if (size < align)
@@ -763,162 +758,6 @@ static void* malloc_aligned(size_t size, size_t align) {
         bsod_format("malloc asked to do multi-page allocation ({:x} bytes)\n", size);
         return nullptr;
     }
-
-    alloc_header* ah = nullptr;
-
-    lock_guard lock(heap_spinlock);
-
-    // allocate from existing pages if possible
-
-    if (heap_pages > 0) {
-        auto h = (alloc_header*)heap_block;
-        alloc_header* last = nullptr;
-
-        do {
-            if (h->free) {
-                if (last && last->free) { // merge adjacent free entries
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                    last->size += h->size + sizeof(alloc_header);
-#pragma GCC diagnostic pop
-                    h = last;
-                }
-
-                auto ptr = (uint8_t*)h + sizeof(alloc_header);
-
-                if (h->size == size && !((uintptr_t)ptr & (align - 1))) {
-                    h->free = 0;
-                    return ptr;
-                }
-
-                if (h->size > size && !((uintptr_t)ptr & (align - 1))) {
-                    auto nh = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + size);
-
-                    if (nh < (void*)(heap_block | (heap_pages << PAGE_SHIFT))) {
-                        nh->free = 1;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                        nh->size = h->size - size - sizeof(alloc_header);
-#pragma GCC diagnostic pop
-                    }
-
-                    h->free = 0;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                    h->size = size;
-#pragma GCC diagnostic pop
-                    return ptr;
-                }
-
-                if (align != 1) {
-                    auto padding = ((uintptr_t)ptr & ~(align - 1)) + align - (uintptr_t)ptr;
-
-                    if (h->size >= size + padding) {
-                        auto h_size = h->size;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                        h->size = padding - sizeof(alloc_header);
-#pragma GCC diagnostic pop
-
-                        h = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + h->size);
-                        ptr = (uint8_t*)h + sizeof(alloc_header);
-
-                        h->free = 0;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                        h->size = size;
-#pragma GCC diagnostic pop
-
-                        auto nh = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + size);
-
-                        if (nh < (void*)(heap_block | (heap_pages << PAGE_SHIFT))) {
-                            nh->free = 1;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                            nh->size = h_size - size - sizeof(alloc_header) - padding;
-#pragma GCC diagnostic pop
-                        }
-
-                        return ptr;
-                    }
-                }
-            }
-
-            last = h;
-            h = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + h->size);
-        } while (h < (void*)(heap_block | (heap_pages << PAGE_SHIFT)));
-
-        if (last && last->free)
-            ah = last;
-    }
-
-    // allocate new pages
-
-    unsigned int new_pages = bytes_to_pages(sizeof(alloc_header) + size + align - 1);
-
-    for (unsigned int i = 0; i < new_pages; i++) {
-        // FIXME - die if heap_pages too large for virtual address
-
-        auto pa = allocate_page();
-        if (!pa) {
-            print("allocate_page failed\n");
-            return nullptr;
-        }
-
-        auto va = (void*)(heap_block | (heap_pages << PAGE_SHIFT));
-
-        if (!map_page(pa, (uintptr_t)va, mapping_type::read_write)) {
-            print("map_page failed\n");
-            return nullptr;
-        }
-
-        invalidate_tlb(va);
-
-        if (ah) {
-            ah->size = (uint32_t)ah->size + PAGE_SIZE;
-            // FIXME - handle case when size would overflow 31 bits
-        } else {
-            ah = (alloc_header*)va;
-            ah->free = 1;
-            ah->size = PAGE_SIZE - sizeof(alloc_header);
-        }
-
-        heap_pages++;
-    }
-
-    auto ptr = (uint8_t*)ah + sizeof(alloc_header);
-
-    if ((uintptr_t)ptr & (align - 1)) {
-        auto padding = ((uintptr_t)ptr & ~(align - 1)) + align - (uintptr_t)ptr;
-
-        ah->free = 1;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        ah->size = padding - sizeof(alloc_header);
-#pragma GCC diagnostic pop
-
-        ah = (alloc_header*)((uint8_t*)ah + sizeof(alloc_header) + ah->size);
-        ptr = (uint8_t*)ah + sizeof(alloc_header);
-    }
-
-    ah->free = 0;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-    ah->size = size;
-#pragma GCC diagnostic pop
-
-    auto ah2 = (alloc_header*)((uint8_t*)ptr + size);
-
-    if ((uintptr_t)ah2 & (PAGE_SIZE - 1)) {
-        ah2->free = 1;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        ah2->size = (uint32_t)((heap_block | (heap_pages << PAGE_SHIFT)) - (uintptr_t)ah2 - sizeof(alloc_header));
-#pragma GCC diagnostic pop
-    }
-
-    return ptr;
 }
 
 extern "C"
@@ -987,11 +826,8 @@ void free(void* ptr) {
             default:
                 bsod_format("free called for unexpected page state {}", (unsigned int)page.state);
         }
-    }
-
-    auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
-
-    ah->free = 1;
+    } else
+        bsod_format("free called for non-physical address {:x}", (uintptr_t)ptr);
 }
 
 export
