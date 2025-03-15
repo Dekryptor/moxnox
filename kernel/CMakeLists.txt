@@ -10,7 +10,6 @@ enable_language(ASM)
 configure_file(src/font.S.in ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 set(SRC_FILES src/kernel.cpp
-    src/mem.cpp
     src/console.cpp
     src/interrupts.cpp
     src/ints.S
@@ -59,6 +58,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/rtc.cpp
     src/keyboard.cpp
     src/null.cpp
+    src/mem.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

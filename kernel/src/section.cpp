@@ -6,6 +6,7 @@
 
 import format;
 import print;
+import mem;
 
 using namespace std;
 

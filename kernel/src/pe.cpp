@@ -3,6 +3,7 @@
 #include <span>
 
 import print;
+import mem;
 
 using namespace std;
 

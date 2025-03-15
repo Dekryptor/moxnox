@@ -14,6 +14,7 @@
 
 import print;
 import inout;
+import mem;
 
 using namespace std;
 

@@ -1,3 +1,5 @@
+module;
+
 #include <loaderblock.h>
 #include "kernel.h"
 #include "acpica.h"
@@ -5,6 +7,8 @@
 #include "spinlock.h"
 #include <span>
 #include <cstring>
+
+export module mem;
 
 import print;
 import bsod;
@@ -38,9 +42,9 @@ static spinlock va_spinlock, heap_spinlock, tlb_spinlock;
 static spinlock mapping_spinlock;
 static spinlock protect_page_spinlock;
 
-span<const uint8_t> initrd;
-extern uint64_t tlb_va;
-extern volatile uint32_t invalidate_tlb_processors_left;
+export span<const uint8_t> initrd;
+extern "C" uint64_t tlb_va;
+extern "C" volatile uint32_t invalidate_tlb_processors_left;
 
 static bool treat_as_free(enum mem_type type) {
     switch (type) {
@@ -54,6 +58,8 @@ static bool treat_as_free(enum mem_type type) {
     }
 }
 
+export
+extern "C"
 void* memset(void* s, int c, size_t n) {
     void* orig_s = s;
 
@@ -85,6 +91,8 @@ void* memset(void* s, int c, size_t n) {
     return orig_s;
 }
 
+export
+extern "C"
 int memcmp(const void* s1, const void* s2, size_t n) {
     // FIXME - not completely accurate, as 1 or -1 is messed up by endianness
 
@@ -215,7 +223,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
     return true;
 }
 
-uint64_t allocate_page() {
+export uint64_t allocate_page() {
     lock_guard lock(pa_spinlock);
 
     if (is_list_empty(free_page_list))
@@ -241,7 +249,7 @@ static uint64_t inline __readcr3() {
     return ret;
 }
 
-bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
+export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
     lock_guard lock(mapping_spinlock);
 
     auto pml4_entry_ptr = (volatile uint64_t*)phys_address((__readcr3() & 0xfffffffffffff000) | (((va & 0xff8000000000) >> 39) << 3));
@@ -424,7 +432,7 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     }
 }
 
-void free_lower_half_mappings() {
+export void free_lower_half_mappings() {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
 
     for (unsigned int i = 0; i < 256; i++) {
@@ -533,7 +541,7 @@ static bool load_initrd(void* data, uintptr_t size) {
     return true;
 }
 
-bool init_memory(const loader_block& lb) {
+export bool init_memory(const loader_block& lb) {
     uint64_t num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
     uint64_t memblock_pa;
@@ -835,23 +843,31 @@ void free(void* ptr) {
     ah->free = 1;
 }
 
+export
+extern "C++"
 void* operator new(size_t count) {
     return malloc_aligned(count, 1);
 }
 
+export
+extern "C++"
 void* operator new(size_t count, align_val_t al) {
     return malloc_aligned(count, (size_t)al);
 }
 
+export
+extern "C++"
 void operator delete(void* ptr) noexcept {
     free(ptr);
 }
 
+export
+extern "C++"
 void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
 }
 
-void free_page(uint64_t pa) {
+export void free_page(uint64_t pa) {
     auto pfn = pa >>= PAGE_SHIFT;
 
     lock_guard lock(pa_spinlock);
@@ -863,7 +879,7 @@ void free_page(uint64_t pa) {
     pages[pfn].state = page_state::free;
 }
 
-void unmap_and_free_page(uint64_t va) {
+export void unmap_and_free_page(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
     if (!pt_entry.Valid)
@@ -876,7 +892,7 @@ void unmap_and_free_page(uint64_t va) {
     pt_entry.Valid = 0;
 }
 
-void unmap_page(uint64_t va) {
+export void unmap_page(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
     pt_entry.Valid = 0;
@@ -888,7 +904,7 @@ void unmap_page(uint64_t va) {
     );
 }
 
-void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
+export void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
     lock_guard lock(protect_page_spinlock);
 
     // FIXME - do we really need the spinlock?
@@ -950,7 +966,7 @@ void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool
     pt_entry.Owner = (type == mapping_type::no_access || ks) ? 0 : 1;
 }
 
-void protect_page(uint64_t va, enum mapping_type type) {
+export void protect_page(uint64_t va, enum mapping_type type) {
     volatile auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
     protect_page2(pt_entry, type, va & 0x8000000000000000);
@@ -986,7 +1002,7 @@ static void mark_vamem_as_used(uint64_t off, size_t num_pages) {
     }
 }
 
-bool init_vablock() {
+export bool init_vablock() {
     vablock_size = bytes_to_pages((total_pages + 7) / 8) * 2 << PAGE_SHIFT;
 
     // VA block reserved is 64 GB, don't go over this
@@ -1041,7 +1057,7 @@ static uint64_t trailing_ones(uint64_t n) {
     return ret;
 }
 
-uint64_t allocate_va(uint32_t num_pages) {
+export uint64_t allocate_va(uint32_t num_pages) {
     auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
     uint64_t run_start = 0;
     uint64_t run_length = 0;
@@ -1120,7 +1136,7 @@ uint64_t allocate_va(uint32_t num_pages) {
     return 0;
 }
 
-void free_va(uint64_t va, uint32_t num_pages) {
+export void free_va(uint64_t va, uint32_t num_pages) {
     va -= (uintptr_t)vablock;
     va >>= PAGE_SHIFT;
 
@@ -1138,12 +1154,14 @@ void free_va(uint64_t va, uint32_t num_pages) {
     }
 }
 
-uint64_t va_to_pa(uint64_t va) {
+export uint64_t va_to_pa(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
     return (uint64_t)pt_entry.PageFrameNumber << PAGE_SHIFT;
 }
 
+export
+extern "C"
 void* memchr(const void* ptr, int ch, size_t count) {
     auto p = (uint8_t*)ptr;
 
@@ -1157,6 +1175,8 @@ void* memchr(const void* ptr, int ch, size_t count) {
     return nullptr;
 }
 
+export
+extern "C"
 int strcmp(const char* s1, const char* s2) {
     size_t i = 0;
 
@@ -1178,6 +1198,8 @@ int strcmp(const char* s1, const char* s2) {
     }
 }
 
+export
+extern "C"
 char* strcpy(char* dest, const char* src) {
     char* orig_dest = dest;
 
@@ -1192,6 +1214,8 @@ char* strcpy(char* dest, const char* src) {
     return orig_dest;
 }
 
+export
+extern "C"
 long int strtol(const char* nptr, char** endptr, int base) {
     long int val;
 
@@ -1216,6 +1240,8 @@ long int strtol(const char* nptr, char** endptr, int base) {
     }
 }
 
+export
+extern "C"
 char* strstr(const char* haystack, const char* needle) {
     size_t len = strlen(needle);
 
@@ -1241,6 +1267,8 @@ char* strstr(const char* haystack, const char* needle) {
     return nullptr;
 }
 
+export
+extern "C"
 void* memmove(void* dest, const void* src, size_t n) {
     auto orig_dest = dest;
 
@@ -1270,6 +1298,8 @@ void* memmove(void* dest, const void* src, size_t n) {
     return orig_dest;
 }
 
+export
+extern "C"
 int strncmp(const char* s1, const char* s2, size_t n) {
     for (size_t i = 0; i < n; i++) {
         char c1 = s1[i];

@@ -5,6 +5,7 @@
 #include <ntdll.h>
 
 import print;
+import mem;
 
 using namespace std;
 

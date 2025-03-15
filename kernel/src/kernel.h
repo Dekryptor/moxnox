@@ -103,22 +103,6 @@ extern list_entry kernel_images;
 extern uint64_t rsdp_pa;
 extern bool init_smp_finished;
 
-// mem.cpp
-bool init_memory(const loader_block& lb);
-bool map_page(uint64_t pa, uint64_t va, enum mapping_type type);
-uint64_t allocate_page();
-void unmap_and_free_page(uint64_t va);
-void free_page(uint64_t pa);
-void unmap_page(uint64_t va);
-void protect_page(uint64_t va, enum mapping_type type);
-void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks);
-bool init_vablock();
-uint64_t allocate_va(uint32_t pages);
-void free_va(uint64_t va, uint32_t pages);
-uint64_t va_to_pa(uint64_t va);
-void free_lower_half_mappings();
-extern std::span<const uint8_t> initrd;
-
 // console.cpp
 enum class console_type {
     text,

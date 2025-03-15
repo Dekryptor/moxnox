@@ -10,6 +10,7 @@ import print;
 import bsod;
 import tmpfs;
 import cpio;
+import mem;
 
 using namespace std;
 
