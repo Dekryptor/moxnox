@@ -12,6 +12,7 @@ import print;
 import bsod;
 import mem;
 import config;
+import list;
 
 using namespace std;
 
@@ -3273,5 +3274,14 @@ void btrfs_filesystem::go_readonly() {
         auto& t = static_cast<::thread&>(flush_thread_obj.get());
 
         t.send_signal((uint64_t)nt_status::MEDIA_WRITE_PROTECTED);
+    }
+}
+
+chunk::~chunk() {
+    while (!is_list_empty(space_list)) {
+        auto& s = containing_record<chunk_space>(space_list.next);
+
+        remove_entry_list(s.le);
+        free(&s);
     }
 }

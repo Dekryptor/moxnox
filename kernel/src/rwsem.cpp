@@ -5,6 +5,7 @@
 #include "thread.h"
 
 import bsod;
+import list;
 
 static void inline disable_interrupts() {
     __asm __volatile("cli");

@@ -6,6 +6,7 @@
 import print;
 
 using namespace std;
+import list;
 
 object_ref create_semaphore(unsigned int maximum_count) {
     auto sptr = new semaphore;

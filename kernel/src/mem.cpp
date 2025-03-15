@@ -13,6 +13,7 @@ export module mem;
 import print;
 import bsod;
 import config;
+import list;
 
 using namespace std;
 

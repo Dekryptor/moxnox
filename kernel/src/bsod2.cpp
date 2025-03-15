@@ -12,6 +12,7 @@ import dwarf;
 import bsod;
 import unwind;
 import config;
+import list;
 
 using namespace std;
 

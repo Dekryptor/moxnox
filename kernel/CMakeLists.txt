@@ -60,6 +60,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/null.cpp
     src/mem.cpp
     src/config.cpp
+    src/list.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)
