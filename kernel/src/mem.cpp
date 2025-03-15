@@ -99,7 +99,7 @@ struct allocator_1k_cb {
 static_assert(sizeof(allocator_1k_cb) <= PAGE_SIZE);
 
 template<typename T>
-class allocator2 {
+class allocator {
 public:
     void* malloc();
     void free(void* ptr);
@@ -111,8 +111,8 @@ public:
 };
 
 static allocator_4k alloc4k;
-static allocator2<allocator_2k_cb> alloc2k;
-static allocator2<allocator_1k_cb> alloc1k;
+static ::allocator<allocator_2k_cb> alloc2k;
+static ::allocator<allocator_1k_cb> alloc1k;
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -1579,7 +1579,7 @@ void allocator_2k_cb::free(unsigned int index) {
 }
 
 template<typename T>
-void* allocator2<T>::malloc() {
+void* ::allocator<T>::malloc() {
     // FIXME - move calls to allocate_page out of this object's spinlock
 
     lock_guard l(lock);
@@ -1606,7 +1606,7 @@ void* allocator2<T>::malloc() {
 }
 
 template<typename T>
-void allocator2<T>::free(void* ptr) {
+void ::allocator<T>::free(void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
     auto& p = pages[pfn];
 
