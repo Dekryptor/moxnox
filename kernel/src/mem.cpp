@@ -1497,7 +1497,7 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
             if (bit < BITMAP_BITS_PER_PAGE) {
                 uint64_t addr = (pfns[index] << PAGE_SHIFT) + ((BITMAP_BITS_PER_PAGE - 1) * GRANULARITY);
 
-                for (unsigned int k = 0; j < BITMAP_BITS_PER_PAGE; k++) {
+                for (unsigned int k = 0; k < BITMAP_BITS_PER_PAGE; k++) {
                     if (bit == 0)
                         return addr;
 
