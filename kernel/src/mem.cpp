@@ -77,18 +77,16 @@ struct allocator_cb {
     }
 
     uint64_t malloc_pa();
-    void free(unsigned int index);
+    void free(uint64_t index);
 
     static constexpr unsigned int NUM_PAGES = N;
-    static constexpr unsigned int PAGES_PER_BITMAP_BYTE = P;
+    static constexpr unsigned int PAGES_PER_BITMAP_BLOCK = P;
     static constexpr enum page_state page_state_type = S;
 
     list_entry le;
-    uint8_t bitmap[NUM_PAGES / PAGES_PER_BITMAP_BYTE];
+    uint64_t bitmap[NUM_PAGES / PAGES_PER_BITMAP_BLOCK];
     uint64_t pfns[NUM_PAGES];
 };
-
-static_assert(sizeof(allocator_cb<488, 4, page_state::allocator_2k>) <= PAGE_SIZE);
 
 template<unsigned N, unsigned P, enum page_state S>
 class allocator {
@@ -103,9 +101,9 @@ public:
 };
 
 static allocator_4k alloc4k;
-static ::allocator<488, 4, page_state::allocator_2k> alloc2k;
-static ::allocator<480, 2, page_state::allocator_1k> alloc1k;
-static ::allocator<453, 1, page_state::allocator_512> alloc512;
+static ::allocator<488, 32, page_state::allocator_2k> alloc2k;
+static ::allocator<480, 16, page_state::allocator_1k> alloc1k;
+static ::allocator<448, 8, page_state::allocator_512> alloc512;
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -1452,13 +1450,13 @@ void allocator_4k::free(void* ptr) {
 
 template<unsigned N, unsigned P, enum page_state S>
 uint64_t allocator_cb<N, P, S>::malloc_pa() {
-    static constexpr unsigned int BITMAP_BITS_PER_PAGE = 8 / PAGES_PER_BITMAP_BYTE;
+    static constexpr unsigned int BITMAP_BITS_PER_PAGE = sizeof(uint64_t) * 8 / PAGES_PER_BITMAP_BLOCK;
     static constexpr size_t GRANULARITY = PAGE_SIZE / BITMAP_BITS_PER_PAGE;
 
-    for (unsigned int i = 0; i < NUM_PAGES / PAGES_PER_BITMAP_BYTE; i++) {
+    for (unsigned int i = 0; i < NUM_PAGES / PAGES_PER_BITMAP_BLOCK; i++) {
         unsigned int bit;
 
-        if (bitmap[i] == 0xff || bitmap[i] == 0x00)
+        if (bitmap[i] == 0xffffffffffffffff || bitmap[i] == 0)
             continue;
 
         auto b2 = bitmap[i];
@@ -1466,10 +1464,10 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
 
         bit = 0;
 
-        for (unsigned j = 0; j < PAGES_PER_BITMAP_BYTE; j++) {
-            if ((b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1)) != (1 << BITMAP_BITS_PER_PAGE) - 1 && (b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1)) != 0x00) {
+        for (unsigned j = 0; j < PAGES_PER_BITMAP_BLOCK; j++) {
+            if ((b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1)) != (1 << BITMAP_BITS_PER_PAGE) - 1 && (b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1)) != 0) {
                 for (unsigned int k = 0; k < BITMAP_BITS_PER_PAGE; k++) {
-                    if (!(b2 & 0x01)) {
+                    if (!(b2 & 0x1)) {
                         found = true;
                         break;
                     }
@@ -1492,9 +1490,9 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         assert(!(bitmap[i] & (1 << bit)));
         bitmap[i] |= 1 << bit;
 
-        unsigned int index = (i * PAGES_PER_BITMAP_BYTE) + PAGES_PER_BITMAP_BYTE - 1;
+        unsigned int index = (i * PAGES_PER_BITMAP_BLOCK) + PAGES_PER_BITMAP_BLOCK - 1;
 
-        for (unsigned int j = 0; j < PAGES_PER_BITMAP_BYTE; j++) {
+        for (unsigned int j = 0; j < PAGES_PER_BITMAP_BLOCK; j++) {
             if (bit < BITMAP_BITS_PER_PAGE) {
                 uint64_t addr = (pfns[index] << PAGE_SHIFT) + ((BITMAP_BITS_PER_PAGE - 1) * GRANULARITY);
 
@@ -1505,10 +1503,10 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
                     bit--;
                     addr -= GRANULARITY;
                 }
+            } else {
+                index--;
+                bit -= BITMAP_BITS_PER_PAGE;
             }
-
-            index--;
-            bit -= BITMAP_BITS_PER_PAGE;
         }
     }
 
@@ -1523,18 +1521,18 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
 
     bool found = false;
 
-    for (unsigned int i = 0; i < NUM_PAGES / PAGES_PER_BITMAP_BYTE; i++) {
+    for (unsigned int i = 0; i < NUM_PAGES / PAGES_PER_BITMAP_BLOCK; i++) {
         unsigned int bit;
 
-        if (bitmap[i] == 0xff)
+        if (bitmap[i] == 0xffffffffffffffff)
             continue;
 
         auto b2 = bitmap[i];
 
-        for (unsigned int j = 0; j < PAGES_PER_BITMAP_BYTE; j++) {
+        for (unsigned int j = 0; j < PAGES_PER_BITMAP_BLOCK; j++) {
             if (!(b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1))) {
                 bit = (j * BITMAP_BITS_PER_PAGE) + BITMAP_BITS_PER_PAGE - 1;
-                p.allocator.index = (i * PAGES_PER_BITMAP_BYTE) + PAGES_PER_BITMAP_BYTE - 1 - j;
+                p.allocator.index = (i * PAGES_PER_BITMAP_BLOCK) + PAGES_PER_BITMAP_BLOCK - 1 - j;
                 found = true;
                 break;
             }
@@ -1559,19 +1557,19 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
 }
 
 template<unsigned N, unsigned P, enum page_state S>
-void allocator_cb<N, P, S>::free(unsigned int index) {
-    auto& b = bitmap[index / 8];
-    unsigned int bit = 7 - (index & 7);
+void allocator_cb<N, P, S>::free(uint64_t index) {
+    auto& b = bitmap[index / 64];
+    unsigned int bit = 63 - (index & 63);
 
     assert(b & (1 << bit));
 
-    b &= (uint8_t)~(1 << bit);
+    b &= ~(1 << bit);
 
-    static constexpr unsigned int BITMAP_BITS_PER_PAGE = 8 / PAGES_PER_BITMAP_BYTE;
+    static constexpr unsigned int BITMAP_BITS_PER_PAGE = sizeof(uint64_t) * 8 / PAGES_PER_BITMAP_BLOCK;
 
     auto b2 = b;
 
-    for (unsigned int i = 0; i < 8 / BITMAP_BITS_PER_PAGE; i++) {
+    for (unsigned int i = 0; i < sizeof(uint64_t) * 8 / BITMAP_BITS_PER_PAGE; i++) {
         if ((bit < BITMAP_BITS_PER_PAGE) && b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1))
             return;
 
@@ -1621,12 +1619,12 @@ void ::allocator<N, P, S>::free(void* ptr) {
 
     auto off = (uintptr_t)ptr & (PAGE_SIZE - 1);
 
-    static constexpr size_t GRANULARITY = PAGE_SIZE * cb_type::PAGES_PER_BITMAP_BYTE / 8;
+    static constexpr size_t GRANULARITY = PAGE_SIZE * cb_type::PAGES_PER_BITMAP_BLOCK / (8 * sizeof(uint64_t));
 
     assert(!(off & (GRANULARITY - 1)));
     assert(cb.pfns[p.allocator.index] == pfn);
 
-    unsigned int index = p.allocator.index * 8 / cb_type::PAGES_PER_BITMAP_BYTE;
+    uint64_t index = p.allocator.index * 8 * sizeof(uint64_t) / cb_type::PAGES_PER_BITMAP_BLOCK;
 
     while (off > 0) {
         off -= GRANULARITY;
