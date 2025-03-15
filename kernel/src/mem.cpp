@@ -1654,23 +1654,25 @@ uint64_t allocator_1k_cb::malloc_pa() {
         if (bitmap[i] == 0xff || bitmap[i] == 0x00)
             continue;
 
-        if ((bitmap[i] & 0xc0) == 0x40)
-            bit = 7;
-        else if ((bitmap[i] & 0xc0) == 0x80)
-            bit = 6;
-        else if ((bitmap[i] & 0x30) == 0x10)
-            bit = 5;
-        else if ((bitmap[i] & 0x30) == 0x20)
-            bit = 4;
-        else if ((bitmap[i] & 0xc) == 0x4)
-            bit = 3;
-        else if ((bitmap[i] & 0xc) == 0x8)
-            bit = 2;
-        else if ((bitmap[i] & 0x3) == 0x1)
-            bit = 1;
-        else if ((bitmap[i] & 0x3) == 0x2)
-            bit = 0;
-        else
+        if ((bitmap[i] & 0xf0) != 0xf0 && (bitmap[i] & 0xf0) != 0x00) {
+            if (!(bitmap[i] & 0x80))
+                bit = 7;
+            else if (!(bitmap[i] & 0x40))
+                bit = 6;
+            else if (!(bitmap[i] & 0x20))
+                bit = 5;
+            else if (!(bitmap[i] & 0x10))
+                bit = 4;
+        } else if ((bitmap[i] & 0xf) != 0xf && (bitmap[i] & 0xf) != 0x0) {
+            if (!(bitmap[i] & 0x8))
+                bit = 3;
+            else if (!(bitmap[i] & 0x4))
+                bit = 2;
+            else if (!(bitmap[i] & 0x2))
+                bit = 1;
+            else if (!(bitmap[i] & 0x1))
+                bit = 0;
+        } else
             continue;
 
         assert(!(bitmap[i] & (1 << bit)));
