@@ -15,7 +15,7 @@ struct page {
     bool used;
 };
 
-static page* memblock = (page*)0xfffffa0000000000;
+static page* pages = (page*)0xfffffa0000000000;
 static uint64_t total_pages;
 
 static const uint64_t heap_block = 0xfffffaf000000000;
@@ -211,8 +211,8 @@ uint64_t allocate_page() {
     lock_guard lock(pa_spinlock);
 
     for (uint64_t i = 0; i < total_pages; i++) {
-        if (!memblock[i].used) {
-            memblock[i].used = true;
+        if (!pages[i].used) {
+            pages[i].used = true;
             return i << PAGE_SHIFT;
         }
     }
@@ -367,17 +367,17 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
     return true;
 }
 
-static bool map_memblock(uint64_t pa, uint64_t pages, uint64_t& scratch_pages) {
-    uint64_t scratch_pa = pa + (pages << PAGE_SHIFT);
-    uint64_t va = (uintptr_t)memblock;
+static bool map_memblock(uint64_t pa, uint64_t num_pages, uint64_t& scratch_pages) {
+    uint64_t scratch_pa = pa + (num_pages << PAGE_SHIFT);
+    uint64_t va = (uintptr_t)pages;
 
-    while (pages > 0) {
+    while (num_pages > 0) {
         if (!map_page_with_scratch(va, pa, scratch_pa, scratch_pages))
             return false;
 
         va += PAGE_SIZE;
         pa += PAGE_SIZE;
-        pages--;
+        num_pages--;
     }
 
     return true;
@@ -385,24 +385,24 @@ static bool map_memblock(uint64_t pa, uint64_t pages, uint64_t& scratch_pages) {
 
 static void mark_mem_as_free(uint64_t pa, size_t len) {
     uint64_t pfn = pa >> PAGE_SHIFT;
-    uint64_t pages = len >> PAGE_SHIFT;
+    uint64_t num_pages = len >> PAGE_SHIFT;
 
     lock_guard lock(pa_spinlock);
 
-    for (uint64_t i = 0; i < pages; i++) {
-        memblock[pfn].used = false;
+    for (uint64_t i = 0; i < num_pages; i++) {
+        pages[pfn].used = false;
         pfn++;
     }
 }
 
 static void mark_mem_as_used(uint64_t pa, size_t len) {
     uint64_t pfn = pa >> PAGE_SHIFT;
-    uint64_t pages = len >> PAGE_SHIFT;
+    uint64_t num_pages = len >> PAGE_SHIFT;
 
     lock_guard lock(pa_spinlock);
 
-    for (uint64_t i = 0; i < pages; i++) {
-        memblock[pfn].used = true;
+    for (uint64_t i = 0; i < num_pages; i++) {
+        pages[pfn].used = true;
         pfn++;
     }
 }
@@ -453,7 +453,7 @@ void free_lower_half_mappings() {
     );
 }
 
-static bool map_physical_memory(uint64_t pages) {
+static bool map_physical_memory(uint64_t num_pages) {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
     auto& pml4_entry = pml4[(PHYS_MEMORY & 0xff8000000000) >> 39];
     auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((PHYS_MEMORY & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
@@ -477,7 +477,7 @@ static bool map_physical_memory(uint64_t pages) {
 
     // FIXME - if more than 512GB, will need to allocate second pml4 entry
 
-    uint64_t gigabytes = (pages + PAGES_PER_GIGABYTE - 1) / PAGES_PER_GIGABYTE;
+    uint64_t gigabytes = (num_pages + PAGES_PER_GIGABYTE - 1) / PAGES_PER_GIGABYTE;
     auto* pdpt_entry = &pdpt[(PHYS_MEMORY & 0x7fc0000000) >> 30];
 
     for (unsigned int i = 0; i < gigabytes; i++) {
@@ -496,9 +496,9 @@ static bool map_physical_memory(uint64_t pages) {
 }
 
 static bool load_initrd(void* data, uintptr_t size) {
-    auto pages = bytes_to_pages(size);
+    auto num_pages = bytes_to_pages(size);
 
-    for (unsigned int i = 0; i < pages; i++) {
+    for (unsigned int i = 0; i < num_pages; i++) {
         auto pa = allocate_page();
         if (!pa)
             bsod("allocate_page failed in load_initrd");
@@ -837,7 +837,7 @@ void free_page(uint64_t pa) {
 
     lock_guard lock(pa_spinlock);
 
-    memblock[pa].used = false;
+    pages[pa].used = false;
 }
 
 void unmap_and_free_page(uint64_t va) {
@@ -933,32 +933,32 @@ void protect_page(uint64_t va, enum mapping_type type) {
     protect_page2(pt_entry, type, va & 0x8000000000000000);
 }
 
-static void mark_vamem_as_used(uint64_t off, size_t pages) {
+static void mark_vamem_as_used(uint64_t off, size_t num_pages) {
     if (off & 63) {
         auto& b = vablock[off >> 6];
 
-        while (off & 63 && pages != 0) {
+        while (off & 63 && num_pages != 0) {
             b &= ~((uint64_t)1 << (63 - (off & 63)));
             off++;
-            pages--;
+            num_pages--;
         }
     }
 
-    if (pages == 0)
+    if (num_pages == 0)
         return;
 
-    memset(vablock + (off >> 6), 0, (pages >> 6) * sizeof(uint64_t));
+    memset(vablock + (off >> 6), 0, (num_pages >> 6) * sizeof(uint64_t));
 
-    if (pages & 63) {
-        off += pages & (uint64_t)~63;
-        pages &= 63;
+    if (num_pages & 63) {
+        off += num_pages & (uint64_t)~63;
+        num_pages &= 63;
 
         auto& b = vablock[off >> 6];
 
-        while (pages != 0) {
+        while (num_pages != 0) {
             b &= ~((uint64_t)1 << (63 - (off & 63)));
             off++;
-            pages--;
+            num_pages--;
         }
     }
 }
@@ -970,10 +970,10 @@ bool init_vablock() {
     if (vablock_size > 0x200000)
         vablock_size = 0x200000;
 
-    auto pages = vablock_size >> PAGE_SHIFT;
+    auto num_pages = vablock_size >> PAGE_SHIFT;
     auto va = (uintptr_t)vablock;
 
-    for (unsigned int i = 0; i < pages; i++) {
+    for (unsigned int i = 0; i < num_pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
             print("allocate_page failed\n");
@@ -991,7 +991,7 @@ bool init_vablock() {
     // 0 = used, 1 = free
     memset(vablock, 0xff, vablock_size);
 
-    mark_vamem_as_used(0, pages);
+    mark_vamem_as_used(0, num_pages);
 
     return true;
 }
@@ -1018,14 +1018,14 @@ static uint64_t trailing_ones(uint64_t n) {
     return ret;
 }
 
-uint64_t allocate_va(uint32_t pages) {
+uint64_t allocate_va(uint32_t num_pages) {
     auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
     uint64_t run_start = 0;
     uint64_t run_length = 0;
     uint64_t mask;
 
-    if (pages < 64)
-        mask = (((uint64_t)1 << pages) - 1) << (uint64_t)(64 - pages);
+    if (num_pages < 64)
+        mask = (((uint64_t)1 << num_pages) - 1) << (uint64_t)(64 - num_pages);
 
     lock_guard lock(va_spinlock);
 
@@ -1040,10 +1040,10 @@ uint64_t allocate_va(uint32_t pages) {
 
             run_length += leading_ones(mb[i]);
 
-            if (run_length >= pages) {
-                mark_vamem_as_used(run_start, pages);
+            if (run_length >= num_pages) {
+                mark_vamem_as_used(run_start, num_pages);
 
-                uint64_t run_end = run_start + pages;
+                uint64_t run_end = run_start + num_pages;
 
                 last_i = run_end / 64;
                 last_j = run_end % 64;
@@ -1053,13 +1053,13 @@ uint64_t allocate_va(uint32_t pages) {
         } else
             run_length = 0;
 
-        if (pages < 64) {
+        if (num_pages < 64) {
             auto m = mask;
-            for (uint64_t j = 0; j < 64 - pages; j++) {
+            for (uint64_t j = 0; j < 64 - num_pages; j++) {
                 if (j >= last_j && (mb[i] & m) == m) {
                     mb[i] &= ~m;
                     last_i = i;
-                    last_j = j + pages;
+                    last_j = j + num_pages;
                     return (uintptr_t)vablock + (((i * 64) + j) << PAGE_SHIFT);
                 }
 
@@ -1089,15 +1089,15 @@ uint64_t allocate_va(uint32_t pages) {
 
     // FIXME - if we reach the end, issue IPIs to clear TLBs on other CPUs, and start again from beginning
 
-    if (run_length >= pages) {
-        mark_vamem_as_used(run_start, pages);
+    if (run_length >= num_pages) {
+        mark_vamem_as_used(run_start, num_pages);
         return (uintptr_t)vablock + (run_start << PAGE_SHIFT);
     }
 
     return 0;
 }
 
-void free_va(uint64_t va, uint32_t pages) {
+void free_va(uint64_t va, uint32_t num_pages) {
     va -= (uintptr_t)vablock;
     va >>= PAGE_SHIFT;
 
@@ -1105,7 +1105,7 @@ void free_va(uint64_t va, uint32_t pages) {
 
     auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
 
-    for (unsigned int n = 0; n < pages; n++) {
+    for (unsigned int n = 0; n < num_pages; n++) {
         uint64_t i = va / 64;
         uint64_t j = 63 - (va % 64);
 
