@@ -79,6 +79,7 @@ struct allocator_2k_cb {
     void free(unsigned int index);
 
     static constexpr unsigned int NUM_PAGES = 488;
+    static constexpr unsigned int PAGES_PER_BITMAP_BYTE = 4;
 
     list_entry le;
     uint8_t bitmap[NUM_PAGES / 4];
@@ -104,6 +105,7 @@ struct allocator_1k_cb {
     void free(unsigned int index);
 
     static constexpr unsigned int NUM_PAGES = 480;
+    static constexpr unsigned int PAGES_PER_BITMAP_BYTE = 2;
 
     list_entry le;
     uint8_t bitmap[NUM_PAGES / 2];
@@ -1622,25 +1624,38 @@ void* allocator_1k::malloc() {
     return allocator_malloc(this);
 }
 
-void allocator_2k::free(void* ptr) {
+template<typename T>
+static void allocator_free(T* alloc, void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
     auto& p = pages[pfn];
 
-    auto& cb = *(allocator_2k_cb*)p.allocator.cb;
+    auto& cb = *(typename T::cb_type*)p.allocator.cb;
 
     auto off = (uintptr_t)ptr & (PAGE_SIZE - 1);
 
-    assert(off == 0 || off == 0x800);
+    static constexpr size_t GRANULARITY = PAGE_SIZE * T::cb_type::PAGES_PER_BITMAP_BYTE / 8;
+
+    assert(!(off & (GRANULARITY - 1)));
     assert(cb.pfns[p.allocator.index] == pfn);
 
-    unsigned int index = p.allocator.index * 2;
+    unsigned int index = p.allocator.index * 8 / T::cb_type::PAGES_PER_BITMAP_BYTE;
 
-    if (off == 0x800)
+    while (off > 0) {
+        off -= GRANULARITY;
         index++;
+    }
 
-    lock_guard l(lock);
+    lock_guard l(alloc->lock);
 
     cb.free(index);
+}
+
+void allocator_2k::free(void* ptr) {
+    allocator_free(this, ptr);
+}
+
+void allocator_1k::free(void* ptr) {
+    allocator_free(this, ptr);
 }
 
 allocator_1k_cb::allocator_1k_cb() {
@@ -1758,27 +1773,3 @@ void allocator_1k_cb::free(unsigned int index) {
 #endif
 }
 
-void allocator_1k::free(void* ptr) {
-    auto pfn = phys_memory_pfn(ptr);
-    auto& p = pages[pfn];
-
-    auto& cb = *(allocator_1k_cb*)p.allocator.cb;
-
-    auto off = (uintptr_t)ptr & (PAGE_SIZE - 1);
-
-    assert(off == 0 || off == 0x400 || off == 0x800 || off == 0xc00);
-    assert(cb.pfns[p.allocator.index] == pfn);
-
-    unsigned int index = p.allocator.index * 4;
-
-    if (off == 0x400)
-        index++;
-    else if (off == 0x800)
-        index += 2;
-    else if (off == 0xc00)
-        index += 3;
-
-    lock_guard l(lock);
-
-    cb.free(index);
-}
