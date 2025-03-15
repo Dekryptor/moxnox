@@ -68,53 +68,46 @@ public:
     void free(void* ptr);
 };
 
-struct allocator_2k_cb {
-    allocator_2k_cb();
-    uint64_t malloc_pa();
-    void free(unsigned int index);
+template<unsigned N, unsigned P, enum page_state S>
+struct allocator_cb {
+    allocator_cb() {
+        memset(bitmap, 0, sizeof(bitmap));
+    }
 
-    static constexpr unsigned int NUM_PAGES = 488;
-    static constexpr unsigned int PAGES_PER_BITMAP_BYTE = 4;
-    static constexpr enum page_state page_state_type = page_state::allocator_2k;
+    uint64_t malloc_pa() {
+        return allocator_cb_malloc_pa(*this);
+    }
 
-    list_entry le;
-    uint8_t bitmap[NUM_PAGES / PAGES_PER_BITMAP_BYTE];
-    uint64_t pfns[NUM_PAGES];
-};
+    void free(unsigned int index) {
+        allocator_cb_free(*this, index);
+    }
 
-static_assert(sizeof(allocator_2k_cb) <= PAGE_SIZE);
-
-struct allocator_1k_cb {
-    allocator_1k_cb();
-    uint64_t malloc_pa();
-    void free(unsigned int index);
-
-    static constexpr unsigned int NUM_PAGES = 480;
-    static constexpr unsigned int PAGES_PER_BITMAP_BYTE = 2;
-    static constexpr enum page_state page_state_type = page_state::allocator_1k;
+    static constexpr unsigned int NUM_PAGES = N;
+    static constexpr unsigned int PAGES_PER_BITMAP_BYTE = P;
+    static constexpr enum page_state page_state_type = S;
 
     list_entry le;
     uint8_t bitmap[NUM_PAGES / PAGES_PER_BITMAP_BYTE];
     uint64_t pfns[NUM_PAGES];
 };
 
-static_assert(sizeof(allocator_1k_cb) <= PAGE_SIZE);
+static_assert(sizeof(allocator_cb<488, 4, page_state::allocator_2k>) <= PAGE_SIZE);
 
-template<typename T>
+template<unsigned N, unsigned P, enum page_state S>
 class allocator {
 public:
     void* malloc();
     void free(void* ptr);
 
-    using cb_type = T;
+    using cb_type = allocator_cb<N, P, S>;
 
     spinlock lock;
     list_entry control_blocks = { &control_blocks, &control_blocks };
 };
 
 static allocator_4k alloc4k;
-static ::allocator<allocator_2k_cb> alloc2k;
-static ::allocator<allocator_1k_cb> alloc1k;
+static ::allocator<488, 4, page_state::allocator_2k> alloc2k;
+static ::allocator<480, 2, page_state::allocator_1k> alloc1k;
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -1453,12 +1446,8 @@ void allocator_4k::free(void* ptr) {
     free_page(pfn << PAGE_SHIFT);
 }
 
-allocator_2k_cb::allocator_2k_cb() {
-    memset(bitmap, 0, sizeof(bitmap));
-}
-
 template<typename T>
-static uint64_t allocator_cb_malloc_pa(T& alloc) {
+uint64_t allocator_cb_malloc_pa(T& alloc) {
     static constexpr unsigned int BITMAP_BITS_PER_PAGE = 8 / T::PAGES_PER_BITMAP_BYTE;
     static constexpr size_t GRANULARITY = PAGE_SIZE / BITMAP_BITS_PER_PAGE;
 
@@ -1565,14 +1554,6 @@ static uint64_t allocator_cb_malloc_pa(T& alloc) {
     return 0;
 }
 
-uint64_t allocator_2k_cb::malloc_pa() {
-    return allocator_cb_malloc_pa(*this);
-}
-
-uint64_t allocator_1k_cb::malloc_pa() {
-    return allocator_cb_malloc_pa(*this);
-}
-
 template<typename T>
 void allocator_cb_free(T& alloc, unsigned int index) {
     auto& b = alloc.bitmap[index / 8];
@@ -1600,31 +1581,23 @@ void allocator_cb_free(T& alloc, unsigned int index) {
 #endif
 }
 
-void allocator_2k_cb::free(unsigned int index) {
-    allocator_cb_free(*this, index);
-}
-
-void allocator_1k_cb::free(unsigned int index) {
-    allocator_cb_free(*this, index);
-}
-
-template<typename T>
-void* ::allocator<T>::malloc() {
+template<unsigned N, unsigned P, enum page_state S>
+void* ::allocator<N, P, S>::malloc() {
     // FIXME - move calls to allocate_page out of this object's spinlock
 
     lock_guard l(lock);
 
     for (auto le = control_blocks.next; le != &control_blocks; le = le->next) {
-        auto& cb = containing_record<T>(le);
+        auto& cb = containing_record<cb_type>(le);
 
         auto pa = cb.malloc_pa();
         if (pa)
             return phys_address(pa);
     }
 
-    auto cb = (T*)phys_address(allocate_page());
+    auto cb = (cb_type*)phys_address(allocate_page());
 
-    new (cb) T;
+    new (cb) cb_type;
 
     insert_tail_list(control_blocks, cb->le);
 
@@ -1635,21 +1608,21 @@ void* ::allocator<T>::malloc() {
     return phys_address(pa);
 }
 
-template<typename T>
-void ::allocator<T>::free(void* ptr) {
+template<unsigned N, unsigned P, enum page_state S>
+void ::allocator<N, P, S>::free(void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
     auto& p = pages[pfn];
 
-    auto& cb = *(T*)p.allocator.cb;
+    auto& cb = *(cb_type*)p.allocator.cb;
 
     auto off = (uintptr_t)ptr & (PAGE_SIZE - 1);
 
-    static constexpr size_t GRANULARITY = PAGE_SIZE * T::PAGES_PER_BITMAP_BYTE / 8;
+    static constexpr size_t GRANULARITY = PAGE_SIZE * cb_type::PAGES_PER_BITMAP_BYTE / 8;
 
     assert(!(off & (GRANULARITY - 1)));
     assert(cb.pfns[p.allocator.index] == pfn);
 
-    unsigned int index = p.allocator.index * 8 / T::PAGES_PER_BITMAP_BYTE;
+    unsigned int index = p.allocator.index * 8 / cb_type::PAGES_PER_BITMAP_BYTE;
 
     while (off > 0) {
         off -= GRANULARITY;
@@ -1660,8 +1633,3 @@ void ::allocator<T>::free(void* ptr) {
 
     cb.free(index);
 }
-
-allocator_1k_cb::allocator_1k_cb() {
-    memset(bitmap, 0, sizeof(bitmap));
-}
-
