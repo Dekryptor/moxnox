@@ -68,9 +68,3 @@ struct task_state_segment {
 static_assert(sizeof(task_state_segment) == 0x68);
 
 static const uint16_t TSS_SEGMENT = 0x18;
-
-static const uint64_t PHYS_MEMORY = 0xffff990000000000;
-
-static inline void* phys_address(uint64_t pa) {
-    return (void*)(PHYS_MEMORY | pa);
-}

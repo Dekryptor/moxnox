@@ -5,7 +5,6 @@ module;
 #include "spinlock.h"
 #include "qwerty.h"
 #include "handle.h"
-#include "mem.h"
 #include "console.h"
 #include <ioctl.h>
 

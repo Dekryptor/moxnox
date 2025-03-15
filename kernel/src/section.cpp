@@ -1,7 +1,6 @@
 #include "kernel.h"
 #include "objects.h"
 #include "handle.h"
-#include "mem.h"
 #include <pe.h>
 
 import format;

@@ -3,7 +3,6 @@
 #include "pci.h"
 #include "sata.h"
 #include "spinlock.h"
-#include "mem.h"
 
 import print;
 import bsod;

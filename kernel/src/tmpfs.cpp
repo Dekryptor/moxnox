@@ -9,6 +9,7 @@ export module tmpfs;
 
 import bsod;
 import print;
+import mem;
 
 using namespace std;
 

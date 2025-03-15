@@ -46,6 +46,12 @@ export span<const uint8_t> initrd;
 extern "C" uint64_t tlb_va;
 extern "C" volatile uint32_t invalidate_tlb_processors_left;
 
+static const uint64_t PHYS_MEMORY = 0xffff990000000000;
+
+export inline void* phys_address(uint64_t pa) {
+    return (void*)(PHYS_MEMORY | pa);
+}
+
 static bool treat_as_free(enum mem_type type) {
     switch (type) {
         case mem_type::free:

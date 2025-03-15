@@ -15,6 +15,7 @@ import print;
 import inout;
 import rtc;
 import keyboard;
+import mem;
 
 using namespace std;
 
