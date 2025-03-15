@@ -21,7 +21,8 @@ export enum class page_state {
     used,
     allocator_4k,
     allocator_2k,
-    allocator_1k
+    allocator_1k,
+    allocator_512
 };
 
 struct page {
@@ -103,6 +104,7 @@ public:
 static allocator_4k alloc4k;
 static ::allocator<488, 4, page_state::allocator_2k> alloc2k;
 static ::allocator<480, 2, page_state::allocator_1k> alloc1k;
+static ::allocator<453, 1, page_state::allocator_512> alloc512;
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -727,7 +729,9 @@ static void* malloc_aligned(size_t size, size_t align) {
     if (size == 0 || size >= 0x80000000)
         return nullptr;
 
-    if (size <= 1024)
+    if (size <= 512)
+        return alloc512.malloc();
+    else if (size <= 1024)
         return alloc1k.malloc();
     else if (size <= 2048)
         return alloc2k.malloc();
@@ -936,6 +940,10 @@ void free(void* ptr) {
 
             case page_state::allocator_1k:
                 alloc1k.free(ptr);
+                return;
+
+            case page_state::allocator_512:
+                alloc512.free(ptr);
                 return;
 
             default:
