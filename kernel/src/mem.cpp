@@ -23,7 +23,16 @@ export enum class page_state {
 };
 
 struct page {
-    list_entry le;
+    union {
+        struct {
+            list_entry le;
+        } free;
+        struct {
+            void* cb;
+            unsigned int index;
+        } alloc2k;
+    };
+
     page_state state;
 };
 
@@ -66,6 +75,7 @@ public:
 struct allocator_2k_cb {
     allocator_2k_cb();
     uint64_t malloc_pa();
+    void free(unsigned int index);
 
     static constexpr unsigned int NUM_PAGES = 488;
 
@@ -276,9 +286,9 @@ export uint64_t allocate_page(enum page_state state = page_state::used) {
     if (is_list_empty(free_page_list))
         return 0;
 
-    auto& p = containing_record<page>(free_page_list.next);
+    auto& p = *(page*)((uint8_t*)free_page_list.next - offsetof(page, free.le));
 
-    remove_entry_list(p.le);
+    remove_entry_list(p.free.le);
     p.state = state;
 
     free_pages--;
@@ -457,7 +467,7 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (pages[pfn].state != page_state::free) {
-            insert_tail_list(free_page_list, pages[pfn].le);
+            insert_tail_list(free_page_list, pages[pfn].free.le);
             pages[pfn].state = page_state::free;
             free_pages++;
         }
@@ -474,7 +484,7 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (pages[pfn].state == page_state::free) {
-            remove_entry_list(pages[pfn].le);
+            remove_entry_list(pages[pfn].free.le);
             pages[pfn].state = page_state::used;
         }
 
@@ -955,7 +965,7 @@ export void free_page(uint64_t pa) {
     if (pages[pfn].state == page_state::free) // FIXME - warning for this
         return;
 
-    insert_tail_list(free_page_list, pages[pfn].le);
+    insert_tail_list(free_page_list, pages[pfn].free.le);
     pages[pfn].state = page_state::free;
 
     free_pages++;
@@ -1422,33 +1432,50 @@ allocator_2k_cb::allocator_2k_cb() {
 
 uint64_t allocator_2k_cb::malloc_pa() {
     for (unsigned int i = 0; i < NUM_PAGES / 4; i++) {
+        unsigned int bit;
+
         if (bitmap[i] == 0xff || bitmap[i] == 0x00)
             continue;
 
-        if ((bitmap[i] & 0xc0) == 0x80) {
-            bitmap[i] |= 0x40;
-            return (pfns[i * 4] << PAGE_SHIFT) + 0x800;
-        } else if ((bitmap[i] & 0xc0) == 0x40) {
-            bitmap[i] |= 0x80;
-            return pfns[i * 4] << PAGE_SHIFT;
-        } else if ((bitmap[i] & 0x30) == 0x20) {
-            bitmap[i] |= 0x10;
-            return (pfns[(i * 4) + 1] << PAGE_SHIFT) + 0x800;
-        } else if ((bitmap[i] & 0x30) == 0x10) {
-            bitmap[i] |= 0x20;
-            return pfns[(i * 4) + 1] << PAGE_SHIFT;
-        } else if ((bitmap[i] & 0xc) == 0x8) {
-            bitmap[i] |= 0x4;
-            return (pfns[(i * 4) + 2] << PAGE_SHIFT) + 0x800;
-        } else if ((bitmap[i] & 0xc) == 0x4) {
-            bitmap[i] |= 0x8;
-            return pfns[(i * 4) + 2] << PAGE_SHIFT;
-        } else if ((bitmap[i] & 0x3) == 0x2) {
-            bitmap[i] |= 0x1;
-            return (pfns[(i * 4) + 3] << PAGE_SHIFT) + 0x800;
-        } else if ((bitmap[i] & 0x3) == 0x1) {
-            bitmap[i] |= 0x2;
-            return pfns[(i * 4) + 3] << PAGE_SHIFT;
+        if ((bitmap[i] & 0xc0) == 0x40)
+            bit = 7;
+        else if ((bitmap[i] & 0xc0) == 0x80)
+            bit = 6;
+        else if ((bitmap[i] & 0x30) == 0x10)
+            bit = 5;
+        else if ((bitmap[i] & 0x30) == 0x20)
+            bit = 4;
+        else if ((bitmap[i] & 0xc) == 0x4)
+            bit = 3;
+        else if ((bitmap[i] & 0xc) == 0x8)
+            bit = 2;
+        else if ((bitmap[i] & 0x3) == 0x1)
+            bit = 1;
+        else if ((bitmap[i] & 0x3) == 0x2)
+            bit = 0;
+        else
+            continue;
+
+        assert(!(bitmap[i] & (1 << bit)));
+        bitmap[i] |= 1 << bit;
+
+        switch (bit) {
+            case 7:
+                return pfns[i * 4] << PAGE_SHIFT;
+            case 6:
+                return (pfns[i * 4] << PAGE_SHIFT) + 0x800;
+            case 5:
+                return pfns[(i * 4) + 1] << PAGE_SHIFT;
+            case 4:
+                return (pfns[(i * 4) + 1] << PAGE_SHIFT) + 0x800;
+            case 3:
+                return pfns[(i * 4) + 2] << PAGE_SHIFT;
+            case 2:
+                return (pfns[(i * 4) + 2] << PAGE_SHIFT) + 0x800;
+            case 1:
+                return pfns[(i * 4) + 3] << PAGE_SHIFT;
+            case 0:
+                return (pfns[(i * 4) + 3] << PAGE_SHIFT) + 0x800;
         }
     }
 
@@ -1457,30 +1484,71 @@ uint64_t allocator_2k_cb::malloc_pa() {
     if (!pfn)
         return 0;
 
+    auto& p = pages[pfn];
+
+    p.alloc2k.cb = this;
+
+    bool found = false;
+
     for (unsigned int i = 0; i < NUM_PAGES / 4; i++) {
+        unsigned int bit;
+
         if (bitmap[i] == 0xff)
             continue;
 
         if (!(bitmap[i] & 0xc0)) {
-            bitmap[i] |= 0x80;
-            pfns[i * 4] = pfn;
-            return pfn << PAGE_SHIFT;
+            bit = 7;
+            p.alloc2k.index = i * 4;
+            found = true;
         } else if (!(bitmap[i] & 0x30)) {
-            bitmap[i] |= 0x20;
-            pfns[(i * 4) + 1] = pfn;
-            return pfn << PAGE_SHIFT;
+            bit = 5;
+            p.alloc2k.index = (i * 4) + 1;
+            found = true;
         } else if (!(bitmap[i] & 0xc)) {
-            bitmap[i] |= 0x8;
-            pfns[(i * 4) + 2] = pfn;
-            return pfn << PAGE_SHIFT;
+            bit = 3;
+            p.alloc2k.index = (i * 4) + 2;
+            found = true;
         } else if (!(bitmap[i] & 0x3)) {
-            bitmap[i] |= 0x2;
-            pfns[(i * 4) + 3] = pfn;
-            return pfn << PAGE_SHIFT;
+            bit = 1;
+            p.alloc2k.index = (i * 4) + 3;
+            found = true;
         }
+
+        if (!found)
+            continue;
+
+        assert(!(bitmap[i] & 1 << bit));
+
+        bitmap[i] |= 1 << bit;
+        pfns[p.alloc2k.index] = pfn;
+
+        return pfn << PAGE_SHIFT;
     }
 
     return 0;
+}
+
+void allocator_2k_cb::free(unsigned int index) {
+    auto& b = bitmap[index / 8];
+    unsigned int bit = 7 - (index & 7);
+
+    assert(b & (1 << bit));
+
+    b &= (uint8_t)~(1 << bit);
+
+    if ((bit == 7 || bit == 6) && b & 0xc0)
+        return;
+    else if ((bit == 5 || bit == 4) && b & 0x30)
+        return;
+    else if ((bit == 3 || bit == 2) && b & 0xc)
+        return;
+    else if ((bit == 1 || bit == 0) && b & 0x3)
+        return;
+
+    free_page(pfns[index / 2]);
+#ifdef DEBUG
+    pfns[index / 2] = 0;
+#endif
 }
 
 void* allocator_2k::malloc() {
@@ -1510,5 +1578,22 @@ void* allocator_2k::malloc() {
 }
 
 void allocator_2k::free(void* ptr) {
-    // FIXME
+    auto pfn = phys_memory_pfn(ptr);
+    auto& p = pages[pfn];
+
+    auto& cb = *(allocator_2k_cb*)p.alloc2k.cb;
+
+    auto off = (uintptr_t)ptr & (PAGE_SIZE - 1);
+
+    assert(off == 0 || off == 0x800);
+    assert(cb.pfns[p.alloc2k.index] == pfn);
+
+    unsigned int index = p.alloc2k.index * 2;
+
+    if (off == 0x800)
+        index++;
+
+    lock_guard l(lock);
+
+    cb.free(index);
 }
