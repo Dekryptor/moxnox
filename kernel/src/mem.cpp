@@ -16,7 +16,6 @@ struct page {
 };
 
 static page* memblock = (page*)0xfffffa0000000000;
-static uint64_t memblock_size;
 static uint64_t total_pages;
 
 static const uint64_t heap_block = 0xfffffaf000000000;
@@ -559,8 +558,6 @@ bool init_memory(const loader_block& lb) {
 
     if (!map_memblock(memblock_pa, num_memblock_pages, scratch_pages))
         return false;
-
-    memblock_size = num_memblock_pages << PAGE_SHIFT;
 
     // populate memblock from loader block
 
