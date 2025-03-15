@@ -59,6 +59,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/keyboard.cpp
     src/null.cpp
     src/mem.cpp
+    src/config.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

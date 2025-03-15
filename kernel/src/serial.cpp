@@ -6,6 +6,7 @@
 
 import print;
 import inout;
+import config;
 
 using namespace std;
 

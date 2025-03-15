@@ -1,5 +1,7 @@
 #include "kernel.h"
 
+import mem;
+
 using namespace std;
 
 size_t utf16_to_utf8_len(u16string_view u16sv) {

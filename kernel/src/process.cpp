@@ -8,6 +8,7 @@
 import print;
 import bsod;
 import mem;
+import config;
 
 using namespace std;
 

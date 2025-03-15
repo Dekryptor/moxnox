@@ -11,6 +11,7 @@ import bsod;
 import tmpfs;
 import cpio;
 import mem;
+import config;
 
 using namespace std;
 

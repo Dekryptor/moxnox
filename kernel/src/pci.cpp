@@ -5,6 +5,7 @@
 
 import print;
 import mem;
+import config;
 
 using namespace std;
 

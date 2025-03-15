@@ -11,6 +11,7 @@ import print;
 import dwarf;
 import bsod;
 import unwind;
+import config;
 
 using namespace std;
 
