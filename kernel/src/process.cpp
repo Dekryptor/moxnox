@@ -272,7 +272,8 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
 
     auto num_pages = sect.size >> PAGE_SHIFT;
 
-    auto pm = malloc(offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages));
+    size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
+    auto pm = malloc_large(pm_size);
     if (!pm) {
         print("out of memory\n");
         return 0;
@@ -315,7 +316,8 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
 
             if (address < m2.address + m2.size && address + m.size > m2.address) { // collision
                 print("collision\n");
-                delete &m;
+                m.~mapping_section();
+                free_large(pm, pm_size);
                 return 0;
             }
         }
@@ -719,7 +721,12 @@ void process::free_mappings() {
             case proc_map_type::section: {
                 auto& ms = static_cast<mapping_section&>(m);
 
-                delete &ms;
+                auto num_pages = ms.size >> PAGE_SHIFT;
+
+                size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
+
+                ms.~mapping_section();
+                free_large(&ms, pm_size);
 
                 break;
             }
@@ -1345,7 +1352,11 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
         case proc_map_type::section: {
             auto& ms = static_cast<mapping_section&>(m);
 
-            delete &ms;
+            auto num_pages = ms.size >> PAGE_SHIFT;
+            size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
+
+            ms.~mapping_section();
+            free_large(&ms, pm_size);
 
             break;
         }
@@ -2121,6 +2132,7 @@ NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintpt
 }
 
 NTSTATUS process::unmap_view_of_section(void* base_address) {
+    uint64_t num_pages;
     auto addr = (uintptr_t)base_address;
 
     mapping_section* ms2 = nullptr;
@@ -2138,7 +2150,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 
                 auto& ms = static_cast<mapping_section&>(m);
 
-                auto num_pages = ms.size >> PAGE_SHIFT;
+                num_pages = ms.size >> PAGE_SHIFT;
 
                 for (unsigned int i = 0; i < num_pages; i++) {
                     // FIXME - unmap_proc_page should take range
@@ -2160,7 +2172,10 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
     if (!ms2)
         return nt_status::NO_MEMORY;
 
-    delete ms2;
+    ms2->~mapping_section();
+
+    size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
+    free_large(ms2, pm_size);
 
     return nt_status::SUCCESS;
 }
