@@ -17,7 +17,8 @@ using namespace std;
 
 export enum class page_state {
     free,
-    used
+    used,
+    allocator_4k
 };
 
 struct page {
@@ -46,7 +47,22 @@ export span<const uint8_t> initrd;
 extern "C" uint64_t tlb_va;
 extern "C" volatile uint32_t invalidate_tlb_processors_left;
 
+static const uint64_t PHYS_MEMORY_MASK = 0xffffff0000000000;
 static const uint64_t PHYS_MEMORY = 0xffff990000000000;
+
+class allocator {
+public:
+    virtual void* malloc(size_t size) = 0;
+    virtual void free(void* ptr) = 0;
+};
+
+class allocator_4k : public ::allocator {
+public:
+    void* malloc(size_t size) override;
+    void free(void* ptr) override;
+};
+
+static allocator_4k alloc4k;
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -664,6 +680,9 @@ static void* malloc_aligned(size_t size, size_t align) {
     if (size == 0 || size >= 0x80000000)
         return nullptr;
 
+    if (size <= 4096)
+        return alloc4k.malloc(size);
+
     alloc_header* ah = nullptr;
 
     lock_guard lock(heap_spinlock);
@@ -839,10 +858,31 @@ void* calloc(size_t nmemb, size_t size) {
     return ptr;
 }
 
+static constexpr bool is_phys_memory(void* ptr) {
+    return ((uintptr_t)ptr & PHYS_MEMORY_MASK) == PHYS_MEMORY;
+}
+
+static constexpr uint64_t phys_memory_pfn(void* ptr) {
+    return ((uintptr_t)ptr & ~PHYS_MEMORY_MASK) >> PAGE_SHIFT;
+}
+
 extern "C"
 void free(void* ptr) {
     if (!ptr)
         return;
+
+    if (is_phys_memory(ptr)) {
+        auto& page = pages[phys_memory_pfn(ptr)];
+
+        switch (page.state) {
+            case page_state::allocator_4k:
+                alloc4k.free(ptr);
+                return;
+
+            default:
+                bsod_format("free called for unexpected page state {}", (unsigned int)page.state);
+        }
+    }
 
     auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
 
@@ -1323,4 +1363,19 @@ int strncmp(const char* s1, const char* s2, size_t n) {
     }
 
     return 0;
+}
+
+void* allocator_4k::malloc(size_t) {
+    auto p = allocate_page(page_state::allocator_4k);
+
+    if (!p)
+        return nullptr;
+
+    return phys_address(p);
+}
+
+void allocator_4k::free(void* ptr) {
+    auto pfn = phys_memory_pfn(ptr);
+
+    free_page(pfn << PAGE_SHIFT);
 }
