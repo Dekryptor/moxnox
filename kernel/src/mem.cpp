@@ -11,8 +11,13 @@ import bsod;
 
 using namespace std;
 
-static uint8_t* memblock = (uint8_t*)0xfffffa0000000000;
+struct page {
+    bool used;
+};
+
+static page* memblock = (page*)0xfffffa0000000000;
 static uint64_t memblock_size;
+static uint64_t total_pages;
 
 static const uint64_t heap_block = 0xfffffaf000000000;
 static unsigned int heap_pages = 0;
@@ -204,26 +209,12 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 }
 
 uint64_t allocate_page() {
-    // FIXME - SSE?
-    // FIXME - BMI1 instruction set?
-
-    auto mb = span((uint64_t*)memblock, memblock_size / sizeof(uint64_t));
-
     lock_guard lock(pa_spinlock);
 
-    for (unsigned int i = 0; i < mb.size(); i++) {
-        if (mb[i] != 0) {
-            uint64_t v = mb[i];
-
-            for (uint64_t j = 0; j < 64; j++) {
-                if (v & 1) {
-                    mb[i] &= ~((uint64_t)1 << j);
-                    j = (j & (uint64_t)~7) + 7 - (j & 7);
-                    return ((i * 64) + j) << PAGE_SHIFT;
-                }
-
-                v >>= 1;
-            }
+    for (uint64_t i = 0; i < total_pages; i++) {
+        if (!memblock[i].used) {
+            memblock[i].used = true;
+            return i << PAGE_SHIFT;
         }
     }
 
@@ -394,72 +385,26 @@ static bool map_memblock(uint64_t pa, uint64_t pages, uint64_t& scratch_pages) {
 }
 
 static void mark_mem_as_free(uint64_t pa, size_t len) {
-    uint64_t off = pa >> PAGE_SHIFT;
+    uint64_t pfn = pa >> PAGE_SHIFT;
     uint64_t pages = len >> PAGE_SHIFT;
 
     lock_guard lock(pa_spinlock);
 
-    if (off & 7) {
-        auto& b = memblock[off >> 3];
-
-        while (off & 7 && pages != 0) {
-            b |= (uint8_t)(1 << (7 - (off & 7)));
-            off++;
-            pages--;
-        }
-    }
-
-    if (pages == 0)
-        return;
-
-    memset(memblock + (off >> 3), 0xff, pages >> 3);
-
-    if (pages & 7) {
-        off += pages & (uint64_t)~7;
-        pages &= 7;
-
-        auto& b = memblock[off >> 3];
-
-        while (pages != 0) {
-            b |= (uint8_t)(1 << (7 - (off & 7)));
-            off++;
-            pages--;
-        }
+    for (uint64_t i = 0; i < pages; i++) {
+        memblock[pfn].used = false;
+        pfn++;
     }
 }
 
 static void mark_mem_as_used(uint64_t pa, size_t len) {
-    uint64_t off = pa >> PAGE_SHIFT;
+    uint64_t pfn = pa >> PAGE_SHIFT;
     uint64_t pages = len >> PAGE_SHIFT;
 
     lock_guard lock(pa_spinlock);
 
-    if (off & 7) {
-        auto& b = memblock[off >> 3];
-
-        while (off & 7 && pages != 0) {
-            b &= (uint8_t)~(1 << (7 - (off & 7)));
-            off++;
-            pages--;
-        }
-    }
-
-    if (pages == 0)
-        return;
-
-    memset(memblock + (off >> 3), 0, pages >> 3);
-
-    if (pages & 7) {
-        off += pages & (uint64_t)~7;
-        pages &= 7;
-
-        auto& b = memblock[off >> 3];
-
-        while (pages != 0) {
-            b &= (uint8_t)~(1 << (7 - (off & 7)));
-            off++;
-            pages--;
-        }
+    for (uint64_t i = 0; i < pages; i++) {
+        memblock[pfn].used = true;
+        pfn++;
     }
 }
 
@@ -509,7 +454,7 @@ void free_lower_half_mappings() {
     );
 }
 
-static bool map_physical_memory(uint64_t total_pages) {
+static bool map_physical_memory(uint64_t pages) {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
     auto& pml4_entry = pml4[(PHYS_MEMORY & 0xff8000000000) >> 39];
     auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((PHYS_MEMORY & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
@@ -533,7 +478,7 @@ static bool map_physical_memory(uint64_t total_pages) {
 
     // FIXME - if more than 512GB, will need to allocate second pml4 entry
 
-    uint64_t gigabytes = (total_pages + PAGES_PER_GIGABYTE - 1) / PAGES_PER_GIGABYTE;
+    uint64_t gigabytes = (pages + PAGES_PER_GIGABYTE - 1) / PAGES_PER_GIGABYTE;
     auto* pdpt_entry = &pdpt[(PHYS_MEMORY & 0x7fc0000000) >> 30];
 
     for (unsigned int i = 0; i < gigabytes; i++) {
@@ -573,7 +518,7 @@ static bool load_initrd(void* data, uintptr_t size) {
 }
 
 bool init_memory(const loader_block& lb) {
-    uint64_t total_pages, num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
+    uint64_t num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
     uint64_t memblock_pa;
     auto lb_map = (map_entry*)lb.map_ptr;
@@ -593,8 +538,8 @@ bool init_memory(const loader_block& lb) {
     auto& m = map_entries[num_map_entries - 1];
     total_pages = (m.addr + m.len) >> PAGE_SHIFT;
 
-    num_memblock_bytes = (total_pages + 7) / 8;
-    num_memblock_pages = (num_memblock_bytes + PAGE_SIZE - 1) >> PAGE_SHIFT;
+    num_memblock_bytes = total_pages * sizeof(page);
+    num_memblock_pages = bytes_to_pages(num_memblock_bytes);
 
     scratch_pages = orig_scratch_pages = 5; // pages needed for paging tables
     needed_pages = num_memblock_pages + scratch_pages;
@@ -616,24 +561,19 @@ bool init_memory(const loader_block& lb) {
         return false;
 
     memblock_size = num_memblock_pages << PAGE_SHIFT;
-    memset(memblock, 0, memblock_size);
 
     // populate memblock from loader block
 
-    // 0 = reserved, 1 = free
     for (auto& map : map_entries) {
-        if (map.type == mem_type::free)
+        // bootloader memory also gets marked as free (inc. page tables)
+        if (map.type == mem_type::free || map.type == mem_type::bootloader)
             mark_mem_as_free(map.addr, map.len);
+        else
+            mark_mem_as_used(map.addr, map.len);
     }
 
     // subtract memblock itself, and scratch that we've used
     mark_mem_as_used(memblock_pa, (num_memblock_pages + (orig_scratch_pages - scratch_pages)) << PAGE_SHIFT);
-
-    // mark bootloader memory as free (inc. page tables)
-    for (auto& map : map_entries) {
-        if (map.type == mem_type::bootloader)
-            mark_mem_as_free(map.addr, map.len);
-    }
 
     mark_mem_as_used(0, PAGE_SIZE);
 
@@ -900,12 +840,7 @@ void free_page(uint64_t pa) {
 
     lock_guard lock(pa_spinlock);
 
-    auto mb = span((uint64_t*)memblock, memblock_size / sizeof(uint64_t));
-
-    uint64_t i = pa / 64;
-    uint64_t j = pa % 64;
-
-    mb[i] |= (uint64_t)1 << (((j >> 3) << 3) + 7 - (j & 7));
+    memblock[pa].used = false;
 }
 
 void unmap_and_free_page(uint64_t va) {
