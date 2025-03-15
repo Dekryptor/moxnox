@@ -15,7 +15,7 @@ import bsod;
 
 using namespace std;
 
-enum class page_state {
+export enum class page_state {
     free,
     used
 };
@@ -223,7 +223,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
     return true;
 }
 
-export uint64_t allocate_page() {
+export uint64_t allocate_page(enum page_state state = page_state::used) {
     lock_guard lock(pa_spinlock);
 
     if (is_list_empty(free_page_list))
@@ -232,7 +232,7 @@ export uint64_t allocate_page() {
     auto& p = containing_record<page>(free_page_list.next);
 
     remove_entry_list(p.le);
-    p.state = page_state::used;
+    p.state = state;
 
     return (uint64_t)(&p - pages) << PAGE_SHIFT;
 }
