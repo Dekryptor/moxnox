@@ -25,7 +25,8 @@ export enum class page_state {
     allocator_1k,
     allocator_512,
     allocator_256,
-    allocator_128
+    allocator_128,
+    allocator_64
 };
 
 struct page {
@@ -108,6 +109,14 @@ static ::allocator<480, 16, page_state::allocator_1k> alloc1k;
 static ::allocator<448, 8, page_state::allocator_512> alloc512;
 static ::allocator<408, 4, page_state::allocator_256> alloc256;
 static ::allocator<336, 2, page_state::allocator_128> alloc128;
+static ::allocator<255, 1, page_state::allocator_64> alloc64;
+
+static_assert(sizeof(decltype(alloc2k)::cb_type) <= PAGE_SIZE);
+static_assert(sizeof(decltype(alloc1k)::cb_type) <= PAGE_SIZE);
+static_assert(sizeof(decltype(alloc512)::cb_type) <= PAGE_SIZE);
+static_assert(sizeof(decltype(alloc256)::cb_type) <= PAGE_SIZE);
+static_assert(sizeof(decltype(alloc128)::cb_type) <= PAGE_SIZE);
+static_assert(sizeof(decltype(alloc64)::cb_type) <= PAGE_SIZE);
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -732,7 +741,9 @@ static void* malloc_aligned(size_t size, size_t align) {
     if (size == 0 || size >= 0x80000000)
         return nullptr;
 
-    if (size <= 128)
+    if (size <= 64)
+        return alloc64.malloc();
+    else if (size <= 128)
         return alloc128.malloc();
     else if (size <= 256)
         return alloc256.malloc();
@@ -959,6 +970,10 @@ void free(void* ptr) {
 
             case page_state::allocator_128:
                 alloc128.free(ptr);
+                return;
+
+            case page_state::allocator_64:
+                alloc64.free(ptr);
                 return;
 
             default:
@@ -1468,7 +1483,7 @@ template<unsigned N, unsigned P, enum page_state S>
 uint64_t allocator_cb<N, P, S>::malloc_pa() {
     static constexpr unsigned int BITMAP_BITS_PER_PAGE = sizeof(uint64_t) * 8 / PAGES_PER_BITMAP_BLOCK;
     static constexpr size_t GRANULARITY = PAGE_SIZE / BITMAP_BITS_PER_PAGE;
-    static constexpr uint64_t MASK = ((uint64_t)1 << BITMAP_BITS_PER_PAGE) - 1;
+    static constexpr uint64_t MASK = BITMAP_BITS_PER_PAGE == 64 ? 0xffffffffffffffff : ((uint64_t)1 << BITMAP_BITS_PER_PAGE) - 1;
 
     for (unsigned int i = 0; i < NUM_PAGES / PAGES_PER_BITMAP_BLOCK; i++) {
         unsigned int bit;
@@ -1496,7 +1511,9 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
                 if (found)
                     break;
             } else {
-                b2 >>= BITMAP_BITS_PER_PAGE;
+                if constexpr (BITMAP_BITS_PER_PAGE < 64)
+                    b2 >>= BITMAP_BITS_PER_PAGE;
+
                 bit += BITMAP_BITS_PER_PAGE;
             }
         }
@@ -1554,7 +1571,8 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
                 break;
             }
 
-            b2 >>= BITMAP_BITS_PER_PAGE;
+            if constexpr (BITMAP_BITS_PER_PAGE < 64)
+                b2 >>= BITMAP_BITS_PER_PAGE;
         }
 
         if (!found)
@@ -1583,7 +1601,7 @@ void allocator_cb<N, P, S>::free(uint64_t index) {
     b &= ~(1 << bit);
 
     static constexpr unsigned int BITMAP_BITS_PER_PAGE = sizeof(uint64_t) * 8 / PAGES_PER_BITMAP_BLOCK;
-    static constexpr uint64_t MASK = ((uint64_t)1 << BITMAP_BITS_PER_PAGE) - 1;
+    static constexpr uint64_t MASK = BITMAP_BITS_PER_PAGE == 64 ? 0xffffffffffffffff : ((uint64_t)1 << BITMAP_BITS_PER_PAGE) - 1;
 
     auto b2 = b;
 
@@ -1592,7 +1610,9 @@ void allocator_cb<N, P, S>::free(uint64_t index) {
             return;
 
         bit -= BITMAP_BITS_PER_PAGE;
-        b2 >>= BITMAP_BITS_PER_PAGE;
+
+        if constexpr (BITMAP_BITS_PER_PAGE < 64)
+            b2 >>= BITMAP_BITS_PER_PAGE;
     }
 
     free_page(pfns[index / BITMAP_BITS_PER_PAGE]);
