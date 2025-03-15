@@ -27,7 +27,7 @@ struct page {
 };
 
 static page* pages = (page*)0xfffffa0000000000;
-static uint64_t total_pages;
+static uint64_t total_pages, free_pages;
 static spinlock pa_spinlock;
 static list_entry free_page_list = { &free_page_list, &free_page_list };
 
@@ -256,6 +256,8 @@ export uint64_t allocate_page(enum page_state state = page_state::used) {
     remove_entry_list(p.le);
     p.state = state;
 
+    free_pages--;
+
     return (uint64_t)(&p - pages) << PAGE_SHIFT;
 }
 
@@ -432,6 +434,7 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
         if (pages[pfn].state != page_state::free) {
             insert_tail_list(free_page_list, pages[pfn].le);
             pages[pfn].state = page_state::free;
+            free_pages++;
         }
 
         pfn++;
@@ -923,6 +926,8 @@ export void free_page(uint64_t pa) {
 
     insert_tail_list(free_page_list, pages[pfn].le);
     pages[pfn].state = page_state::free;
+
+    free_pages++;
 }
 
 export void unmap_and_free_page(uint64_t va) {
