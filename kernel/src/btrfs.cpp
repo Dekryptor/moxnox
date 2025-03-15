@@ -1524,12 +1524,12 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     uint64_t new_addr;
     key first_key;
 
-    auto new_tree = (uint8_t*)malloc(fs.sb.node_size);
+    auto new_tree = (uint8_t*)malloc_large(fs.sb.node_size);
     if (!new_tree)
         return nt_status::INSUFFICIENT_RESOURCES;
 
     if (auto status = allocate_metadata(fs, new_addr); !success(status)) {
-        free(new_tree);
+        free_large(new_tree, fs.sb.node_size);
         return status;
     }
 
@@ -1554,7 +1554,7 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     th2.num_items = 1;
 
     if (auto status = add_metadata_change(fs, new_addr, level, th.tree_id, false); !success(status)) {
-        free(new_tree);
+        free_large(new_tree, fs.sb.node_size);
         return status;
     }
 
@@ -1567,7 +1567,7 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     memset(&items2[1], 0, fs.sb.node_size - sizeof(tree_header) - sizeof(internal_node));
 
     if (!fs.cache.write(span(new_tree, fs.sb.node_size), th2.address)) { // FIXME - return status
-        free(new_tree);
+        free_large(new_tree, fs.sb.node_size);
         return nt_status::INTERNAL_ERROR;
     }
 
