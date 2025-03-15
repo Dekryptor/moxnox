@@ -1555,27 +1555,39 @@ uint64_t allocator_2k_cb::malloc_pa() {
     return 0;
 }
 
-void allocator_2k_cb::free(unsigned int index) {
-    auto& b = bitmap[index / 8];
+template<typename T>
+void allocator_cb_free(T& alloc, unsigned int index) {
+    auto& b = alloc.bitmap[index / 8];
     unsigned int bit = 7 - (index & 7);
 
     assert(b & (1 << bit));
 
     b &= (uint8_t)~(1 << bit);
 
-    if ((bit == 7 || bit == 6) && b & 0xc0)
-        return;
-    else if ((bit == 5 || bit == 4) && b & 0x30)
-        return;
-    else if ((bit == 3 || bit == 2) && b & 0xc)
-        return;
-    else if ((bit == 1 || bit == 0) && b & 0x3)
-        return;
+    static constexpr unsigned int BITMAP_BITS_PER_PAGE = 8 / T::PAGES_PER_BITMAP_BYTE;
 
-    free_page(pfns[index / 2]);
+    auto b2 = b;
+
+    for (unsigned int i = 0; i < 8 / BITMAP_BITS_PER_PAGE; i++) {
+        if ((bit < BITMAP_BITS_PER_PAGE) && b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1))
+            return;
+
+        bit -= BITMAP_BITS_PER_PAGE;
+        b2 >>= BITMAP_BITS_PER_PAGE;
+    }
+
+    free_page(alloc.pfns[index / BITMAP_BITS_PER_PAGE]);
 #ifdef DEBUG
-    pfns[index / 2] = 0;
+    alloc.pfns[index / BITMAP_BITS_PER_PAGE] = 0;
 #endif
+}
+
+void allocator_2k_cb::free(unsigned int index) {
+    allocator_cb_free(*this, index);
+}
+
+void allocator_1k_cb::free(unsigned int index) {
+    allocator_cb_free(*this, index);
 }
 
 template<typename T>
@@ -1725,23 +1737,4 @@ uint64_t allocator_1k_cb::malloc_pa() {
     free_page(pfn << PAGE_SHIFT);
 
     return 0;
-}
-
-void allocator_1k_cb::free(unsigned int index) {
-    auto& b = bitmap[index / 8];
-    unsigned int bit = 7 - (index & 7);
-
-    assert(b & (1 << bit));
-
-    b &= (uint8_t)~(1 << bit);
-
-    if ((bit == 7 || bit == 6 || bit == 5 || bit == 4) && b & 0xf0)
-        return;
-    else if ((bit == 3 || bit == 2 || bit == 1 || bit == 0) && b & 0xf)
-        return;
-
-    free_page(pfns[index / 4]);
-#ifdef DEBUG
-    pfns[index / 4] = 0;
-#endif
 }
