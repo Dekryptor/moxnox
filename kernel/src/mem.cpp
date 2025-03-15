@@ -234,7 +234,7 @@ export uint64_t allocate_page() {
     remove_entry_list(p.le);
     p.state = page_state::used;
 
-    return (&p - pages) << PAGE_SHIFT;
+    return (uint64_t)(&p - pages) << PAGE_SHIFT;
 }
 
 __attribute__((always_inline))
