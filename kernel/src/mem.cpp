@@ -75,10 +75,7 @@ struct allocator_cb {
     }
 
     uint64_t malloc_pa();
-
-    void free(unsigned int index) {
-        allocator_cb_free(*this, index);
-    }
+    void free(unsigned int index);
 
     static constexpr unsigned int NUM_PAGES = N;
     static constexpr unsigned int PAGES_PER_BITMAP_BYTE = P;
@@ -1552,16 +1549,16 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
     return 0;
 }
 
-template<typename T>
-void allocator_cb_free(T& alloc, unsigned int index) {
-    auto& b = alloc.bitmap[index / 8];
+template<unsigned N, unsigned P, enum page_state S>
+void allocator_cb<N, P, S>::free(unsigned int index) {
+    auto& b = bitmap[index / 8];
     unsigned int bit = 7 - (index & 7);
 
     assert(b & (1 << bit));
 
     b &= (uint8_t)~(1 << bit);
 
-    static constexpr unsigned int BITMAP_BITS_PER_PAGE = 8 / T::PAGES_PER_BITMAP_BYTE;
+    static constexpr unsigned int BITMAP_BITS_PER_PAGE = 8 / PAGES_PER_BITMAP_BYTE;
 
     auto b2 = b;
 
@@ -1573,9 +1570,9 @@ void allocator_cb_free(T& alloc, unsigned int index) {
         b2 >>= BITMAP_BITS_PER_PAGE;
     }
 
-    free_page(alloc.pfns[index / BITMAP_BITS_PER_PAGE]);
+    free_page(pfns[index / BITMAP_BITS_PER_PAGE]);
 #ifdef DEBUG
-    alloc.pfns[index / BITMAP_BITS_PER_PAGE] = 0;
+    pfns[index / BITMAP_BITS_PER_PAGE] = 0;
 #endif
 }
 
