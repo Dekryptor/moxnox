@@ -31,11 +31,7 @@ struct page {
         struct {
             void* cb;
             unsigned int index;
-        } alloc2k;
-        struct {
-            void* cb;
-            unsigned int index;
-        } alloc1k;
+        } allocator;
     };
 
     page_state state;
@@ -1524,7 +1520,7 @@ uint64_t allocator_2k_cb::malloc_pa() {
 
     auto& p = pages[pfn];
 
-    p.alloc2k.cb = this;
+    p.allocator.cb = this;
 
     bool found = false;
 
@@ -1536,19 +1532,19 @@ uint64_t allocator_2k_cb::malloc_pa() {
 
         if (!(bitmap[i] & 0xc0)) {
             bit = 7;
-            p.alloc2k.index = i * 4;
+            p.allocator.index = i * 4;
             found = true;
         } else if (!(bitmap[i] & 0x30)) {
             bit = 5;
-            p.alloc2k.index = (i * 4) + 1;
+            p.allocator.index = (i * 4) + 1;
             found = true;
         } else if (!(bitmap[i] & 0xc)) {
             bit = 3;
-            p.alloc2k.index = (i * 4) + 2;
+            p.allocator.index = (i * 4) + 2;
             found = true;
         } else if (!(bitmap[i] & 0x3)) {
             bit = 1;
-            p.alloc2k.index = (i * 4) + 3;
+            p.allocator.index = (i * 4) + 3;
             found = true;
         }
 
@@ -1558,7 +1554,7 @@ uint64_t allocator_2k_cb::malloc_pa() {
         assert(!(bitmap[i] & 1 << bit));
 
         bitmap[i] |= 1 << bit;
-        pfns[p.alloc2k.index] = pfn;
+        pfns[p.allocator.index] = pfn;
 
         return pfn << PAGE_SHIFT;
     }
@@ -1630,14 +1626,14 @@ void allocator_2k::free(void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
     auto& p = pages[pfn];
 
-    auto& cb = *(allocator_2k_cb*)p.alloc2k.cb;
+    auto& cb = *(allocator_2k_cb*)p.allocator.cb;
 
     auto off = (uintptr_t)ptr & (PAGE_SIZE - 1);
 
     assert(off == 0 || off == 0x800);
-    assert(cb.pfns[p.alloc2k.index] == pfn);
+    assert(cb.pfns[p.allocator.index] == pfn);
 
-    unsigned int index = p.alloc2k.index * 2;
+    unsigned int index = p.allocator.index * 2;
 
     if (off == 0x800)
         index++;
@@ -1707,7 +1703,7 @@ uint64_t allocator_1k_cb::malloc_pa() {
 
     auto& p = pages[pfn];
 
-    p.alloc1k.cb = this;
+    p.allocator.cb = this;
 
     bool found = false;
 
@@ -1719,11 +1715,11 @@ uint64_t allocator_1k_cb::malloc_pa() {
 
         if (!(bitmap[i] & 0xf0)) {
             bit = 7;
-            p.alloc1k.index = i * 2;
+            p.allocator.index = i * 2;
             found = true;
         } else if (!(bitmap[i] & 0xf)) {
             bit = 3;
-            p.alloc1k.index = (i * 2) + 1;
+            p.allocator.index = (i * 2) + 1;
             found = true;
         }
 
@@ -1733,7 +1729,7 @@ uint64_t allocator_1k_cb::malloc_pa() {
         assert(!(bitmap[i] & 1 << bit));
 
         bitmap[i] |= 1 << bit;
-        pfns[p.alloc1k.index] = pfn;
+        pfns[p.allocator.index] = pfn;
 
         return pfn << PAGE_SHIFT;
     }
@@ -1766,14 +1762,14 @@ void allocator_1k::free(void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
     auto& p = pages[pfn];
 
-    auto& cb = *(allocator_1k_cb*)p.alloc1k.cb;
+    auto& cb = *(allocator_1k_cb*)p.allocator.cb;
 
     auto off = (uintptr_t)ptr & (PAGE_SIZE - 1);
 
     assert(off == 0 || off == 0x400 || off == 0x800 || off == 0xc00);
-    assert(cb.pfns[p.alloc1k.index] == pfn);
+    assert(cb.pfns[p.allocator.index] == pfn);
 
-    unsigned int index = p.alloc1k.index * 4;
+    unsigned int index = p.allocator.index * 4;
 
     if (off == 0x400)
         index++;
