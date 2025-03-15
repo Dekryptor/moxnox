@@ -759,6 +759,10 @@ static void* malloc_aligned(size_t size, size_t align) {
         return alloc2k.malloc();
     else if (size <= 4096)
         return alloc4k.malloc();
+    else {
+        bsod_format("malloc asked to do multi-page allocation ({:x} bytes)\n", size);
+        return nullptr;
+    }
 
     alloc_header* ah = nullptr;
 
