@@ -1592,12 +1592,12 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     uint64_t new_addr;
     nt_status status;
 
-    auto new_tree = (uint8_t*)malloc(fs.sb.node_size);
+    auto new_tree = (uint8_t*)malloc_large(fs.sb.node_size);
     if (!new_tree)
         return nt_status::INSUFFICIENT_RESOURCES;
 
     if (auto status = allocate_metadata(fs, new_addr); !success(status)) {
-        free(new_tree);
+        free_large(new_tree, fs.sb.node_size);
         return status;
     }
 
@@ -1637,26 +1637,26 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
            0, fs.sb.node_size - to_copy - sizeof(tree_header) - (th2.num_items * sizeof(leaf_node)));
 
     if (auto status = add_metadata_change(fs, new_addr, 0, th.tree_id, false); !success(status)) {
-        free(new_tree);
+        free_large(new_tree, fs.sb.node_size);
         return status;
     }
 
     // write both trees into cache
 
     if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) { // FIXME - return status
-        free(new_tree);
+        free_large(new_tree, fs.sb.node_size);
         return nt_status::INTERNAL_ERROR;
     }
 
     if (!fs.cache.write(span(new_tree, fs.sb.node_size), th2.address)) { // FIXME - return status
-        free(new_tree);
+        free_large(new_tree, fs.sb.node_size);
         return nt_status::INTERNAL_ERROR;
     }
 
     if (!p.data[1]) {
         status = add_new_level(fs, p, r, 1);
         if (!success(status)) {
-            free(new_tree);
+            free_large(new_tree, fs.sb.node_size);
             return status;
         }
     }
@@ -1665,16 +1665,16 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     status = insert_internal_node(fs, p, r, 1, items2[0].k, new_addr);
     if (!success(status)) {
         p.slots[1]--;
-        free(new_tree);
+        free_large(new_tree, fs.sb.node_size);
         return status;
     }
 
     if (p.slots[0] < split_point || split_point == 0) {
         p.slots[1]--;
-        free(new_tree);
+        free_large(new_tree, fs.sb.node_size);
     } else {
         p.slots[0] -= split_point;
-        free(p.data[0]);
+        free_large(p.data[0], fs.sb.node_size);
         p.data[0] = new_tree;
     }
 
