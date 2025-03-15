@@ -110,6 +110,7 @@ static ::allocator<448, 8, page_state::allocator_512> alloc512;
 static ::allocator<408, 4, page_state::allocator_256> alloc256;
 static ::allocator<336, 2, page_state::allocator_128> alloc128;
 static ::allocator<255, 1, page_state::allocator_64> alloc64;
+// FIXME - alloc32, alloc16, alloc8?
 
 static_assert(sizeof(decltype(alloc2k)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc1k)::cb_type) <= PAGE_SIZE);
