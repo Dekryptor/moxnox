@@ -1575,7 +1575,7 @@ bool init_fb_console() {
 
     cursor_x = cursor_y = 0;
 
-    console = (console_info*)malloc(console_cols * console_rows * sizeof(console_info));
+    console = (console_info*)malloc_large(console_cols * console_rows * sizeof(console_info));
     if (!console) {
         print("out of memory\n");
         return false;
