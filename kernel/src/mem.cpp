@@ -18,7 +18,8 @@ using namespace std;
 export enum class page_state {
     free,
     used,
-    allocator_4k
+    allocator_4k,
+    allocator_2k
 };
 
 struct page {
@@ -52,17 +53,41 @@ static const uint64_t PHYS_MEMORY = 0xffff990000000000;
 
 class allocator {
 public:
-    virtual void* malloc(size_t size) = 0;
+    virtual void* malloc() = 0;
     virtual void free(void* ptr) = 0;
 };
 
 class allocator_4k : public ::allocator {
 public:
-    void* malloc(size_t size) override;
+    void* malloc() override;
     void free(void* ptr) override;
 };
 
+struct allocator_2k_cb {
+    allocator_2k_cb();
+    uint64_t malloc_pa();
+
+    static constexpr unsigned int NUM_PAGES = 488;
+
+    list_entry le;
+    uint8_t bitmap[NUM_PAGES / 4];
+    uint64_t pfns[NUM_PAGES];
+};
+
+static_assert(sizeof(allocator_2k_cb) <= PAGE_SIZE);
+
+class allocator_2k : public ::allocator {
+public:
+    void* malloc() override;
+    void free(void* ptr) override;
+
+private:
+    spinlock lock;
+    list_entry control_blocks = { &control_blocks, &control_blocks };
+};
+
 static allocator_4k alloc4k;
+static allocator_2k alloc2k;
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -683,8 +708,10 @@ static void* malloc_aligned(size_t size, size_t align) {
     if (size == 0 || size >= 0x80000000)
         return nullptr;
 
-    if (size <= 4096)
-        return alloc4k.malloc(size);
+    if (size <= 2048)
+        return alloc2k.malloc();
+    else if (size <= 4096)
+        return alloc4k.malloc();
 
     alloc_header* ah = nullptr;
 
@@ -880,6 +907,10 @@ void free(void* ptr) {
         switch (page.state) {
             case page_state::allocator_4k:
                 alloc4k.free(ptr);
+                return;
+
+            case page_state::allocator_2k:
+                alloc2k.free(ptr);
                 return;
 
             default:
@@ -1370,7 +1401,7 @@ int strncmp(const char* s1, const char* s2, size_t n) {
     return 0;
 }
 
-void* allocator_4k::malloc(size_t) {
+void* allocator_4k::malloc() {
     auto p = allocate_page(page_state::allocator_4k);
 
     if (!p)
@@ -1383,4 +1414,101 @@ void allocator_4k::free(void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
 
     free_page(pfn << PAGE_SHIFT);
+}
+
+allocator_2k_cb::allocator_2k_cb() {
+    memset(bitmap, 0, sizeof(bitmap));
+}
+
+uint64_t allocator_2k_cb::malloc_pa() {
+    for (unsigned int i = 0; i < NUM_PAGES / 4; i++) {
+        if (bitmap[i] == 0xff || bitmap[i] == 0x00)
+            continue;
+
+        if ((bitmap[i] & 0xc0) == 0x80) {
+            bitmap[i] |= 0x40;
+            return (pfns[i * 4] << PAGE_SHIFT) + 0x800;
+        } else if ((bitmap[i] & 0xc0) == 0x40) {
+            bitmap[i] |= 0x80;
+            return pfns[i * 4] << PAGE_SHIFT;
+        } else if ((bitmap[i] & 0x30) == 0x20) {
+            bitmap[i] |= 0x10;
+            return (pfns[(i * 4) + 1] << PAGE_SHIFT) + 0x800;
+        } else if ((bitmap[i] & 0x30) == 0x10) {
+            bitmap[i] |= 0x20;
+            return pfns[(i * 4) + 1] << PAGE_SHIFT;
+        } else if ((bitmap[i] & 0xc) == 0x8) {
+            bitmap[i] |= 0x4;
+            return (pfns[(i * 4) + 2] << PAGE_SHIFT) + 0x800;
+        } else if ((bitmap[i] & 0xc) == 0x4) {
+            bitmap[i] |= 0x8;
+            return pfns[(i * 4) + 2] << PAGE_SHIFT;
+        } else if ((bitmap[i] & 0x3) == 0x2) {
+            bitmap[i] |= 0x1;
+            return (pfns[(i * 4) + 3] << PAGE_SHIFT) + 0x800;
+        } else if ((bitmap[i] & 0x3) == 0x1) {
+            bitmap[i] |= 0x2;
+            return pfns[(i * 4) + 3] << PAGE_SHIFT;
+        }
+    }
+
+    auto pfn = allocate_page(page_state::allocator_2k) >> PAGE_SHIFT;
+
+    if (!pfn)
+        return 0;
+
+    for (unsigned int i = 0; i < NUM_PAGES / 4; i++) {
+        if (bitmap[i] == 0xff)
+            continue;
+
+        if (!(bitmap[i] & 0xc0)) {
+            bitmap[i] |= 0x80;
+            pfns[i * 4] = pfn;
+            return pfn << PAGE_SHIFT;
+        } else if (!(bitmap[i] & 0x30)) {
+            bitmap[i] |= 0x20;
+            pfns[(i * 4) + 1] = pfn;
+            return pfn << PAGE_SHIFT;
+        } else if (!(bitmap[i] & 0xc)) {
+            bitmap[i] |= 0x8;
+            pfns[(i * 4) + 2] = pfn;
+            return pfn << PAGE_SHIFT;
+        } else if (!(bitmap[i] & 0x3)) {
+            bitmap[i] |= 0x2;
+            pfns[(i * 4) + 3] = pfn;
+            return pfn << PAGE_SHIFT;
+        }
+    }
+
+    return 0;
+}
+
+void* allocator_2k::malloc() {
+    // FIXME - move calls to allocate_page out of this object's spinlock
+
+    lock_guard l(lock);
+
+    for (auto le = control_blocks.next; le != &control_blocks; le = le->next) {
+        auto& cb = containing_record<allocator_2k_cb>(le);
+
+        auto pa = cb.malloc_pa();
+        if (pa)
+            return phys_address(pa);
+    }
+
+    auto cb = (allocator_2k_cb*)phys_address(allocate_page());
+
+    new (cb) allocator_2k_cb;
+
+    insert_tail_list(control_blocks, cb->le);
+
+    auto pa = cb->malloc_pa();
+    if (!pa)
+        return nullptr;
+
+    return phys_address(pa);
+}
+
+void allocator_2k::free(void* ptr) {
+    // FIXME
 }
