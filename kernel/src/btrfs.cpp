@@ -225,7 +225,17 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 }
 
+void* btrfs_filesystem::operator new(size_t size) {
+    return malloc_large(size);
+}
+
+void btrfs_filesystem::operator delete(void* ptr, size_t size) {
+    free_large(ptr, size);
+}
+
 bool btrfs_probe(volume& vol) {
+    // FIXME - need quick is_btrfs function before we do allocations?
+
     auto fs = new btrfs_filesystem(vol);
     if (!fs) {
         print("new failed\n");

@@ -1677,3 +1677,56 @@ void ::allocator<N, P, S>::free(void* ptr) {
 
     cb.free(index);
 }
+
+export void* malloc_large(size_t size) {
+    uint64_t num_pages = bytes_to_pages(size);
+
+    auto va = allocate_va((uint32_t)num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return nullptr;
+    }
+
+    for (size_t i = 0; i < num_pages; i++) {
+        auto pa = allocate_page();
+        if (!pa) {
+            print("allocate_page failed\n");
+
+            for (size_t j = 0; j < i; j++) {
+                auto pa = va_to_pa(va + (j << PAGE_SHIFT));
+
+                free_page(pa);
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, (uint32_t)num_pages);
+
+            return nullptr;
+        }
+
+        if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
+            free_page(pa);
+
+            for (size_t j = 0; j < i; j++) {
+                auto pa = va_to_pa(va + (j << PAGE_SHIFT));
+
+                free_page(pa);
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, (uint32_t)num_pages);
+
+            return nullptr;
+        }
+    }
+
+    return (void*)va;
+}
+
+export void free_large(void* ptr, size_t size) {
+    uint64_t num_pages = bytes_to_pages(size);
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        unmap_and_free_page((uint64_t)ptr + (i << PAGE_SHIFT));
+    }
+}
