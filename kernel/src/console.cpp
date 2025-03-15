@@ -1338,7 +1338,7 @@ void safe_print(string_view s) {
 static void console_event_recv() {
     auto buf_size = console_buffer_pages << PAGE_SHIFT;
 
-    auto buf = (uint8_t*)malloc(buf_size);
+    auto buf = (uint8_t*)malloc_large(buf_size);
     if (!buf)
         return;
 
@@ -1355,7 +1355,7 @@ static void console_event_recv() {
             early_print(string_view((char*)buf, read_bytes));
     } while (true);
 
-    free(buf);
+    free_large(buf, buf_size);
 }
 
 bool init_console(const loader_block_framebuffer& fb,
