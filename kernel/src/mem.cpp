@@ -24,7 +24,8 @@ export enum class page_state {
     allocator_2k,
     allocator_1k,
     allocator_512,
-    allocator_256
+    allocator_256,
+    allocator_128
 };
 
 struct page {
@@ -106,6 +107,7 @@ static ::allocator<488, 32, page_state::allocator_2k> alloc2k;
 static ::allocator<480, 16, page_state::allocator_1k> alloc1k;
 static ::allocator<448, 8, page_state::allocator_512> alloc512;
 static ::allocator<408, 4, page_state::allocator_256> alloc256;
+static ::allocator<336, 2, page_state::allocator_128> alloc128;
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -730,7 +732,9 @@ static void* malloc_aligned(size_t size, size_t align) {
     if (size == 0 || size >= 0x80000000)
         return nullptr;
 
-    if (size <= 256)
+    if (size <= 128)
+        return alloc128.malloc();
+    else if (size <= 256)
         return alloc256.malloc();
     else if (size <= 512)
         return alloc512.malloc();
@@ -951,6 +955,10 @@ void free(void* ptr) {
 
             case page_state::allocator_256:
                 alloc256.free(ptr);
+                return;
+
+            case page_state::allocator_128:
+                alloc128.free(ptr);
                 return;
 
             default:
@@ -1460,6 +1468,7 @@ template<unsigned N, unsigned P, enum page_state S>
 uint64_t allocator_cb<N, P, S>::malloc_pa() {
     static constexpr unsigned int BITMAP_BITS_PER_PAGE = sizeof(uint64_t) * 8 / PAGES_PER_BITMAP_BLOCK;
     static constexpr size_t GRANULARITY = PAGE_SIZE / BITMAP_BITS_PER_PAGE;
+    static constexpr uint64_t MASK = ((uint64_t)1 << BITMAP_BITS_PER_PAGE) - 1;
 
     for (unsigned int i = 0; i < NUM_PAGES / PAGES_PER_BITMAP_BLOCK; i++) {
         unsigned int bit;
@@ -1473,7 +1482,7 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         bit = 0;
 
         for (unsigned j = 0; j < PAGES_PER_BITMAP_BLOCK; j++) {
-            if ((b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1)) != (1 << BITMAP_BITS_PER_PAGE) - 1 && (b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1)) != 0) {
+            if ((b2 & MASK) != MASK && (b2 & MASK) != 0) {
                 for (unsigned int k = 0; k < BITMAP_BITS_PER_PAGE; k++) {
                     if (!(b2 & 0x1)) {
                         found = true;
@@ -1538,7 +1547,7 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         auto b2 = bitmap[i];
 
         for (unsigned int j = 0; j < PAGES_PER_BITMAP_BLOCK; j++) {
-            if (!(b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1))) {
+            if (!(b2 & MASK)) {
                 bit = (j * BITMAP_BITS_PER_PAGE) + BITMAP_BITS_PER_PAGE - 1;
                 p.allocator.index = (i * PAGES_PER_BITMAP_BLOCK) + PAGES_PER_BITMAP_BLOCK - 1 - j;
                 found = true;
@@ -1574,11 +1583,12 @@ void allocator_cb<N, P, S>::free(uint64_t index) {
     b &= ~(1 << bit);
 
     static constexpr unsigned int BITMAP_BITS_PER_PAGE = sizeof(uint64_t) * 8 / PAGES_PER_BITMAP_BLOCK;
+    static constexpr uint64_t MASK = ((uint64_t)1 << BITMAP_BITS_PER_PAGE) - 1;
 
     auto b2 = b;
 
     for (unsigned int i = 0; i < sizeof(uint64_t) * 8 / BITMAP_BITS_PER_PAGE; i++) {
-        if ((bit < BITMAP_BITS_PER_PAGE) && b2 & ((1 << BITMAP_BITS_PER_PAGE) - 1))
+        if ((bit < BITMAP_BITS_PER_PAGE) && b2 & MASK)
             return;
 
         bit -= BITMAP_BITS_PER_PAGE;
