@@ -291,7 +291,7 @@ nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
 bool btrfs_filesystem::load_chunks() {
     list_entry new_chunk_list = { &new_chunk_list, &new_chunk_list };
 
-    btrfs_path p;
+    btrfs_path p(sb.node_size);
 
     auto status = find_item(*chunk_root, {0, key_type::CHUNK_ITEM, 0}, p, false);
     if (!success(status))
@@ -629,7 +629,7 @@ void btrfs_filesystem::free_root_list() {
 }
 
 static nt_status find_last_inode_number(btrfs_filesystem& fs, root& r) {
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
     bool done = false;
 
     auto status = fs.find_item(r, {BTRFS_LAST_FREE_OBJECTID, key_type::INODE_ITEM, 0},
@@ -668,7 +668,7 @@ static nt_status find_last_inode_number(btrfs_filesystem& fs, root& r) {
 bool btrfs_filesystem::load_roots() {
     list_entry new_root_list = { &new_root_list, &new_root_list };
 
-    btrfs_path p;
+    btrfs_path p(sb.node_size);
 
     auto status = find_item(*root_root, {0, key_type::ROOT_ITEM, 0}, p, false);
     if (!success(status))
@@ -788,7 +788,7 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 bool btrfs_inode::load_inode() {
     nt_status status;
     bool found_inode_item = false;
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
 
     shared_lock lg(fs.trans_lock);
 
@@ -974,7 +974,7 @@ root* btrfs_filesystem::find_root(uint64_t root_num) {
 static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
     auto& r = *fs.free_space_root;
     auto search_key = key{c.offset, key_type::FREE_SPACE_INFO, c.ci.size};
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
 
     auto status = fs.find_item(r, search_key, p, false);
     if (!success(status))
@@ -1316,6 +1316,13 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
     return nt_status::SUCCESS;
 }
 
+btrfs_path::~btrfs_path() {
+    for (unsigned int i = 0; i < BTRFS_MAX_LEVEL; i++) {
+        if (data[i])
+            free_large(data[i], node_size);
+    }
+}
+
 nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
                                       bool cow) {
     uint64_t addr = r.ri.block_number;
@@ -1325,7 +1332,7 @@ nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
     // FIXME - error if level >= BTRFS_MAX_LEVEL
 
     for (unsigned int i = 0; i <= level; i++) {
-        p.data[i] = (uint8_t*)malloc(sb.node_size);
+        p.data[i] = (uint8_t*)malloc_large(sb.node_size);
         if (!p.data[i])
             return nt_status::INSUFFICIENT_RESOURCES;
     }
@@ -1734,7 +1741,7 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
 
 static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
                              span<const uint8_t> data) {
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
     nt_status status;
 
     // check if data too big for any tree
@@ -1894,7 +1901,7 @@ nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
 }
 
 nt_status btrfs_filesystem::remove_item(root& r, const key& k) {
-    btrfs_path p;
+    btrfs_path p(sb.node_size);
     nt_status status;
 
     status = find_item(r, k, p, true);
@@ -2009,7 +2016,7 @@ bool btrfs_filesystem::move_path_forward(btrfs_path& p) {
 
 nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     nt_status status;
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
 
     status = fs.find_item(*r, {inode, key_type::DIR_INDEX, 0xffffffffffffffff},
                           p, false);
@@ -2048,7 +2055,7 @@ static btrfs_time get_btrfs_time() {
 
 static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode,
                                    int64_t diff, const btrfs_time& cur_time) {
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
     nt_status status;
 
     status = fs.find_item(r, {inode, key_type::INODE_ITEM, 0}, p, true);
@@ -2258,7 +2265,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
 
     do {
         auto k = key{inode, key_type::DIR_ITEM, hash};
-        btrfs_path p;
+        btrfs_path p(fs.sb.node_size);
 
         auto status = fs.find_item(*r, k, p, false);
         if (!success(status))
@@ -2681,7 +2688,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
     do {
         auto k = key{inode, key_type::DIR_INDEX, index};
-        btrfs_path p;
+        btrfs_path p(fs.sb.node_size);
 
         auto status = fs.find_item(*r, k, p, false);
         if (!success(status))
@@ -2777,7 +2784,7 @@ static void write_superblocks(btrfs_filesystem& fs) {
 }
 
 static nt_status flush_root(btrfs_filesystem& fs, root& r) {
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
 
     auto status = fs.find_item(*fs.root_root, {r.id, key_type::ROOT_ITEM, 0}, p, true);
     if (!success(status))
@@ -2822,7 +2829,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
                                         int delta) {
     auto& r = *fs.free_space_root;
     nt_status status;
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
     chunk* c = find_chunk(fs, address);
 
     if (!c) {
@@ -2863,7 +2870,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
 static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
                                    uint64_t length) {
     auto& r = *fs.free_space_root;
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
 
     auto status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
                                p, true);
@@ -2942,7 +2949,7 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
 static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
                                 uint64_t length) {
     auto& r = *fs.free_space_root;
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
 
     auto status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
                                p, true);
@@ -3022,7 +3029,7 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
 }
 
 static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delta) {
-    btrfs_path p;
+    btrfs_path p(fs.sb.node_size);
     key search_key = {c.offset, key_type::BLOCK_GROUP_ITEM, c.ci.size};
 
     auto status = fs.find_item(*fs.extent_root, search_key, p, true);

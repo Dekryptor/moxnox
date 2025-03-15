@@ -453,21 +453,17 @@ static_assert(sizeof(block_group_item) == 24);
 static const unsigned int BTRFS_MAX_LEVEL = 8;
 
 struct btrfs_path {
-    btrfs_path() {
+    btrfs_path(size_t node_size) : node_size(node_size) {
         for (unsigned int i = 0; i < BTRFS_MAX_LEVEL; i++) {
             data[i] = nullptr;
         }
     }
 
-    ~btrfs_path() {
-        for (unsigned int i = 0; i < BTRFS_MAX_LEVEL; i++) {
-            if (data[i])
-                free(data[i]);
-        }
-    }
+    ~btrfs_path();
 
     uint8_t* data[BTRFS_MAX_LEVEL];
     uint32_t slots[BTRFS_MAX_LEVEL];
+    size_t node_size; // FIXME - we shouldn't need this
 };
 
 class btrfs_filesystem;
