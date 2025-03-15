@@ -96,7 +96,8 @@ public:
     void* malloc() override;
     void free(void* ptr) override;
 
-private:
+    using cb_type = allocator_2k_cb;
+
     spinlock lock;
     list_entry control_blocks = { &control_blocks, &control_blocks };
 };
@@ -120,7 +121,8 @@ public:
     void* malloc() override;
     void free(void* ptr) override;
 
-private:
+    using cb_type = allocator_1k_cb;
+
     spinlock lock;
     list_entry control_blocks = { &control_blocks, &control_blocks };
 };
@@ -1589,30 +1591,39 @@ void allocator_2k_cb::free(unsigned int index) {
 #endif
 }
 
-void* allocator_2k::malloc() {
-    // FIXME - move calls to allocate_page out of this object's spinlock
+template<typename T>
+static void* allocator_malloc(T* alloc) {
+    // FIXME - move calls to allocate_page out of object's spinlock
 
-    lock_guard l(lock);
+    lock_guard l(alloc->lock);
 
-    for (auto le = control_blocks.next; le != &control_blocks; le = le->next) {
-        auto& cb = containing_record<allocator_2k_cb>(le);
+    for (auto le = alloc->control_blocks.next; le != &alloc->control_blocks; le = le->next) {
+        auto& cb = containing_record<typename T::cb_type>(le);
 
         auto pa = cb.malloc_pa();
         if (pa)
             return phys_address(pa);
     }
 
-    auto cb = (allocator_2k_cb*)phys_address(allocate_page());
+    auto cb = (typename T::cb_type*)phys_address(allocate_page());
 
-    new (cb) allocator_2k_cb;
+    new (cb) typename T::cb_type;
 
-    insert_tail_list(control_blocks, cb->le);
+    insert_tail_list(alloc->control_blocks, cb->le);
 
     auto pa = cb->malloc_pa();
     if (!pa)
         return nullptr;
 
     return phys_address(pa);
+}
+
+void* allocator_2k::malloc() {
+    return allocator_malloc(this);
+}
+
+void* allocator_1k::malloc() {
+    return allocator_malloc(this);
 }
 
 void allocator_2k::free(void* ptr) {
@@ -1749,32 +1760,6 @@ void allocator_1k_cb::free(unsigned int index) {
 #ifdef DEBUG
     pfns[index / 4] = 0;
 #endif
-}
-
-void* allocator_1k::malloc() {
-    // FIXME - move calls to allocate_page out of this object's spinlock
-
-    lock_guard l(lock);
-
-    for (auto le = control_blocks.next; le != &control_blocks; le = le->next) {
-        auto& cb = containing_record<allocator_1k_cb>(le);
-
-        auto pa = cb.malloc_pa();
-        if (pa)
-            return phys_address(pa);
-    }
-
-    auto cb = (allocator_1k_cb*)phys_address(allocate_page());
-
-    new (cb) allocator_1k_cb;
-
-    insert_tail_list(control_blocks, cb->le);
-
-    auto pa = cb->malloc_pa();
-    if (!pa)
-        return nullptr;
-
-    return phys_address(pa);
 }
 
 void allocator_1k::free(void* ptr) {
