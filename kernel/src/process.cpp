@@ -708,7 +708,10 @@ void process::free_mappings() {
                         free_page(mv.pages[i].pa);
                 }
 
-                delete &mv;
+                size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
+
+                mv.~mapping_vm();
+                free_large(&mv, pm_size);
 
                 break;
             }
@@ -1032,7 +1035,8 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         return nt_status::NO_MEMORY;
     }
 
-    auto pm = malloc(offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages));
+    size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
+    auto pm = malloc_large(pm_size);
     if (!pm)
         return nt_status::INSUFFICIENT_RESOURCES;
 
@@ -1079,7 +1083,8 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
             if (addr < m2.address + m2.size && addr + m.size > m2.address) { // collision
                 print("collision\n");
-                delete &m;
+                m.~mapping_vm();
+                free_large(pm, pm_size);
                 return nt_status::NO_MEMORY;
             }
         }
@@ -1089,7 +1094,8 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
     if (addr == 0) {
         if (last_addr >= MAX_USERSPACE_ADDRESS - m.size) {
-            delete &m;
+            m.~mapping_vm();
+            free_large(pm, pm_size);
             return nt_status::NO_MEMORY;
         }
 
@@ -1328,7 +1334,10 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
                     free_page(mv.pages[i].pa);
             }
 
-            delete &mv;
+            size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
+
+            mv.~mapping_vm();
+            free_large(&mv, pm_size);
 
             break;
         }
