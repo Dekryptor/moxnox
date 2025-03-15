@@ -742,6 +742,9 @@ static void* malloc_aligned(size_t size, size_t align) {
     if (size == 0 || size >= 0x80000000)
         return nullptr;
 
+    if (size < align)
+        size = align;
+
     if (size <= 64)
         return alloc64.malloc();
     else if (size <= 128)
