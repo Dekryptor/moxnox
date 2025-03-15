@@ -11,8 +11,13 @@ import bsod;
 
 using namespace std;
 
+enum class page_state {
+    free,
+    used
+};
+
 struct page {
-    bool used;
+    page_state state;
 };
 
 static page* pages = (page*)0xfffffa0000000000;
@@ -211,8 +216,8 @@ uint64_t allocate_page() {
     lock_guard lock(pa_spinlock);
 
     for (uint64_t i = 0; i < total_pages; i++) {
-        if (!pages[i].used) {
-            pages[i].used = true;
+        if (pages[i].state == page_state::free) {
+            pages[i].state = page_state::used;
             return i << PAGE_SHIFT;
         }
     }
@@ -390,7 +395,7 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
     lock_guard lock(pa_spinlock);
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        pages[pfn].used = false;
+        pages[pfn].state = page_state::free;
         pfn++;
     }
 }
@@ -402,7 +407,7 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     lock_guard lock(pa_spinlock);
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        pages[pfn].used = true;
+        pages[pfn].state = page_state::used;
         pfn++;
     }
 }
@@ -837,7 +842,7 @@ void free_page(uint64_t pa) {
 
     lock_guard lock(pa_spinlock);
 
-    pages[pa].used = false;
+    pages[pa].state = page_state::free;
 }
 
 void unmap_and_free_page(uint64_t va) {
