@@ -19,7 +19,8 @@ export enum class page_state {
     free,
     used,
     allocator_4k,
-    allocator_2k
+    allocator_2k,
+    allocator_1k
 };
 
 struct page {
@@ -31,6 +32,10 @@ struct page {
             void* cb;
             unsigned int index;
         } alloc2k;
+        struct {
+            void* cb;
+            unsigned int index;
+        } alloc1k;
     };
 
     page_state state;
@@ -96,8 +101,33 @@ private:
     list_entry control_blocks = { &control_blocks, &control_blocks };
 };
 
+struct allocator_1k_cb {
+    allocator_1k_cb();
+    uint64_t malloc_pa();
+    void free(unsigned int index);
+
+    static constexpr unsigned int NUM_PAGES = 480;
+
+    list_entry le;
+    uint8_t bitmap[NUM_PAGES / 2];
+    uint64_t pfns[NUM_PAGES];
+};
+
+static_assert(sizeof(allocator_1k_cb) <= PAGE_SIZE);
+
+class allocator_1k : public ::allocator {
+public:
+    void* malloc() override;
+    void free(void* ptr) override;
+
+private:
+    spinlock lock;
+    list_entry control_blocks = { &control_blocks, &control_blocks };
+};
+
 static allocator_4k alloc4k;
 static allocator_2k alloc2k;
+static allocator_1k alloc1k;
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -718,7 +748,9 @@ static void* malloc_aligned(size_t size, size_t align) {
     if (size == 0 || size >= 0x80000000)
         return nullptr;
 
-    if (size <= 2048)
+    if (size <= 1024)
+        return alloc1k.malloc();
+    else if (size <= 2048)
         return alloc2k.malloc();
     else if (size <= 4096)
         return alloc4k.malloc();
@@ -921,6 +953,10 @@ void free(void* ptr) {
 
             case page_state::allocator_2k:
                 alloc2k.free(ptr);
+                return;
+
+            case page_state::allocator_1k:
+                alloc1k.free(ptr);
                 return;
 
             default:
@@ -1525,6 +1561,8 @@ uint64_t allocator_2k_cb::malloc_pa() {
         return pfn << PAGE_SHIFT;
     }
 
+    free_page(pfn << PAGE_SHIFT);
+
     return 0;
 }
 
@@ -1592,6 +1630,172 @@ void allocator_2k::free(void* ptr) {
 
     if (off == 0x800)
         index++;
+
+    lock_guard l(lock);
+
+    cb.free(index);
+}
+
+allocator_1k_cb::allocator_1k_cb() {
+    memset(bitmap, 0, sizeof(bitmap));
+}
+
+uint64_t allocator_1k_cb::malloc_pa() {
+    for (unsigned int i = 0; i < NUM_PAGES / 2; i++) {
+        unsigned int bit;
+
+        if (bitmap[i] == 0xff || bitmap[i] == 0x00)
+            continue;
+
+        if ((bitmap[i] & 0xc0) == 0x40)
+            bit = 7;
+        else if ((bitmap[i] & 0xc0) == 0x80)
+            bit = 6;
+        else if ((bitmap[i] & 0x30) == 0x10)
+            bit = 5;
+        else if ((bitmap[i] & 0x30) == 0x20)
+            bit = 4;
+        else if ((bitmap[i] & 0xc) == 0x4)
+            bit = 3;
+        else if ((bitmap[i] & 0xc) == 0x8)
+            bit = 2;
+        else if ((bitmap[i] & 0x3) == 0x1)
+            bit = 1;
+        else if ((bitmap[i] & 0x3) == 0x2)
+            bit = 0;
+        else
+            continue;
+
+        assert(!(bitmap[i] & (1 << bit)));
+        bitmap[i] |= 1 << bit;
+
+        switch (bit) {
+            case 7:
+                return pfns[i * 2] << PAGE_SHIFT;
+            case 6:
+                return (pfns[i * 2] << PAGE_SHIFT) + 0x400;
+            case 5:
+                return (pfns[i * 2] << PAGE_SHIFT) + 0x800;
+            case 4:
+                return (pfns[i * 2] << PAGE_SHIFT) + 0xc00;
+            case 3:
+                return pfns[(i * 2) + 1] << PAGE_SHIFT;
+            case 2:
+                return (pfns[(i * 2) + 1] << PAGE_SHIFT) + 0x400;
+            case 1:
+                return (pfns[(i * 2) + 1] << PAGE_SHIFT) + 0x800;
+            case 0:
+                return (pfns[(i * 2) + 1] << PAGE_SHIFT) + 0xc00;
+        }
+    }
+
+    auto pfn = allocate_page(page_state::allocator_1k) >> PAGE_SHIFT;
+
+    if (!pfn)
+        return 0;
+
+    auto& p = pages[pfn];
+
+    p.alloc1k.cb = this;
+
+    bool found = false;
+
+    for (unsigned int i = 0; i < NUM_PAGES / 2; i++) {
+        unsigned int bit;
+
+        if (bitmap[i] == 0xff)
+            continue;
+
+        if (!(bitmap[i] & 0xf0)) {
+            bit = 7;
+            p.alloc1k.index = i * 2;
+            found = true;
+        } else if (!(bitmap[i] & 0xf)) {
+            bit = 3;
+            p.alloc1k.index = (i * 2) + 1;
+            found = true;
+        }
+
+        if (!found)
+            continue;
+
+        assert(!(bitmap[i] & 1 << bit));
+
+        bitmap[i] |= 1 << bit;
+        pfns[p.alloc1k.index] = pfn;
+
+        return pfn << PAGE_SHIFT;
+    }
+
+    free_page(pfn << PAGE_SHIFT);
+
+    return 0;
+}
+
+void allocator_1k_cb::free(unsigned int index) {
+    auto& b = bitmap[index / 8];
+    unsigned int bit = 7 - (index & 7);
+
+    assert(b & (1 << bit));
+
+    b &= (uint8_t)~(1 << bit);
+
+    if ((bit == 7 || bit == 6 || bit == 5 || bit == 4) && b & 0xf0)
+        return;
+    else if ((bit == 3 || bit == 2 || bit == 1 || bit == 0) && b & 0xf)
+        return;
+
+    free_page(pfns[index / 4]);
+#ifdef DEBUG
+    pfns[index / 4] = 0;
+#endif
+}
+
+void* allocator_1k::malloc() {
+    // FIXME - move calls to allocate_page out of this object's spinlock
+
+    lock_guard l(lock);
+
+    for (auto le = control_blocks.next; le != &control_blocks; le = le->next) {
+        auto& cb = containing_record<allocator_1k_cb>(le);
+
+        auto pa = cb.malloc_pa();
+        if (pa)
+            return phys_address(pa);
+    }
+
+    auto cb = (allocator_1k_cb*)phys_address(allocate_page());
+
+    new (cb) allocator_1k_cb;
+
+    insert_tail_list(control_blocks, cb->le);
+
+    auto pa = cb->malloc_pa();
+    if (!pa)
+        return nullptr;
+
+    return phys_address(pa);
+}
+
+void allocator_1k::free(void* ptr) {
+    auto pfn = phys_memory_pfn(ptr);
+    auto& p = pages[pfn];
+
+    auto& cb = *(allocator_1k_cb*)p.alloc1k.cb;
+
+    auto off = (uintptr_t)ptr & (PAGE_SIZE - 1);
+
+    assert(off == 0 || off == 0x400 || off == 0x800 || off == 0xc00);
+    assert(cb.pfns[p.alloc1k.index] == pfn);
+
+    unsigned int index = p.alloc1k.index * 4;
+
+    if (off == 0x400)
+        index++;
+    else if (off == 0x800)
+        index += 2;
+    else if (off == 0xc00)
+        index += 3;
 
     lock_guard l(lock);
 
