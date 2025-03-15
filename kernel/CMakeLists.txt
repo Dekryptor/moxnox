@@ -80,6 +80,7 @@ target_link_libraries(kernel freetype)
 target_link_libraries(kernel acpica)
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
+target_compile_definitions(kernel PUBLIC -D_CRTIMP=)
 
 install(TARGETS kernel DESTINATION ${CMAKE_INSTALL_PREFIX}
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
