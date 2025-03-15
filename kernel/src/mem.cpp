@@ -967,7 +967,7 @@ static void mark_vamem_as_used(uint64_t off, size_t pages) {
 }
 
 bool init_vablock() {
-    vablock_size = memblock_size * 2;
+    vablock_size = bytes_to_pages((total_pages + 7) / 8) * 2 << PAGE_SHIFT;
 
     // VA block reserved is 64 GB, don't go over this
     if (vablock_size > 0x200000)
