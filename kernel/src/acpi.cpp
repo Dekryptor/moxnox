@@ -44,7 +44,10 @@ struct acpi_device {
 
 enum class acpi_device_resource_type {
     io,
-    irq
+    irq,
+    address16,
+    address32,
+    address64
 };
 
 struct acpi_device_resource {
@@ -58,6 +61,18 @@ struct acpi_device_resource_io : acpi_device_resource {
 
 struct acpi_device_resource_irq : acpi_device_resource {
     ACPI_RESOURCE_IRQ irq;
+};
+
+struct acpi_device_resource_address16 : acpi_device_resource {
+    ACPI_RESOURCE_ADDRESS16 address16;
+};
+
+struct acpi_device_resource_address32 : acpi_device_resource {
+    ACPI_RESOURCE_ADDRESS32 address32;
+};
+
+struct acpi_device_resource_address64 : acpi_device_resource {
+    ACPI_RESOURCE_ADDRESS64 address64;
 };
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
@@ -218,6 +233,53 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
         }
 
         case ACPI_RESOURCE_TYPE_END_TAG:
+            break;
+
+        case ACPI_RESOURCE_TYPE_FIXED_MEMORY32:
+            print("FIXME - unhandled ACPI resource type ACPI_RESOURCE_TYPE_FIXED_MEMORY32\n");
+            break;
+
+        case ACPI_RESOURCE_TYPE_ADDRESS16: {
+            auto r = new acpi_device_resource_address16;
+            if (!r) {
+                print("out of memory\n");
+                return AE_OK;
+            }
+
+            r->type = acpi_device_resource_type::address16;
+            memcpy(&r->address16, &res->Data.Address16, sizeof(ACPI_RESOURCE_ADDRESS16));
+            insert_tail_list(d.resources, r->le);
+            break;
+        }
+
+        case ACPI_RESOURCE_TYPE_ADDRESS32: {
+            auto r = new acpi_device_resource_address32;
+            if (!r) {
+                print("out of memory\n");
+                return AE_OK;
+            }
+
+            r->type = acpi_device_resource_type::address32;
+            memcpy(&r->address32, &res->Data.Address32, sizeof(ACPI_RESOURCE_ADDRESS32));
+            insert_tail_list(d.resources, r->le);
+            break;
+        }
+
+        case ACPI_RESOURCE_TYPE_ADDRESS64: {
+            auto r = new acpi_device_resource_address64;
+            if (!r) {
+                print("out of memory\n");
+                return AE_OK;
+            }
+
+            r->type = acpi_device_resource_type::address64;
+            memcpy(&r->address64, &res->Data.Address64, sizeof(ACPI_RESOURCE_ADDRESS64));
+            insert_tail_list(d.resources, r->le);
+            break;
+        }
+
+        case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
+            print("FIXME - unhandled ACPI resource type ACPI_RESOURCE_TYPE_EXTENDED_IRQ\n");
             break;
 
         default:
