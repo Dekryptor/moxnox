@@ -10,7 +10,7 @@ import config;
 
 using namespace std;
 
-static const uint8_t serial_interrupt = 0x23;
+static const uint8_t serial_interrupt = 0x33;
 static const uint16_t com1_port = 0x3f8;
 static const unsigned int serial_buffer_pages = 1;
 static bool init_serial_done = false;

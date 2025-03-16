@@ -16,7 +16,7 @@ import mem;
 
 using namespace std;
 
-static const uint8_t keyboard_interrupt = 0x21;
+static const uint8_t keyboard_interrupt = 0x31;
 static const unsigned int keyboard_buffer_pages = 1;
 
 static optional<reference_wrapper<event>> keyboard_event_obj;

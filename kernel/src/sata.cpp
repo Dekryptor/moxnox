@@ -12,7 +12,7 @@ import list;
 
 using namespace std;
 
-static const uint8_t sata_interrupt = 0x22;
+static const uint8_t sata_interrupt = 0x32;
 static bool interrupt_added = false;
 
 static spinlock sata_list_lock;

@@ -32,7 +32,7 @@ static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
 
 static const uint8_t ACPI_IRQ = 9; // FIXME - don't hardcode
 
-static const uint8_t acpi_interrupt = 0x25;
+static const uint8_t acpi_interrupt = 0x30;
 
 struct acpi_device {
     list_entry le;
