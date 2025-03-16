@@ -245,7 +245,10 @@ static void pci_device_found(void* ctx) {
 void init_pci() {
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MCFG, 1, &tbl);
-    if (ACPI_FAILURE(status)) {
+
+    if (status == AE_NOT_FOUND) // no PCIe
+        return;
+    else if (ACPI_FAILURE(status)) {
         print("AcpiGetTable returned {} for MCFG\n", status);
         return;
     }
