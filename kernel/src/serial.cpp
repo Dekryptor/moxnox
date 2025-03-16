@@ -321,22 +321,12 @@ void serial_isr_func() {
             buf_read_pos -= pipe.buf_pages << PAGE_SHIFT;
         }
 
-        __asm __volatile (
-            "out dx, al\n"
-            :
-            : "d" (pipe.port), "a" (pipe.buf[buf_read_pos])
-        );
-
+        outb(pipe.port, pipe.buf[buf_read_pos]);
         pipe.buf_unread--;
     } else if ((iir & 0xe) == 0x4 || (iir & 0xe) == 0xc) { // data available or character timeout
-        uint8_t c;
         uint64_t written_bytes;
 
-        __asm __volatile (
-            "in al, dx\n"
-            : "=a" (c)
-            : "d" (com1_port)
-        );
+        auto c = inb(com1_port);
 
         auto& p = static_cast<serial_in_pipe&>(com1_recv_handle.get());
 
