@@ -38,6 +38,7 @@ struct acpi_device {
     list_entry le;
     string_view acpi_name;
     string_view hid;
+    string_view uid;
     list_entry resources = { &resources, &resources };
     char buf[0];
 };
@@ -421,7 +422,7 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
         return AE_OK;
     }
 
-    string_view hid;
+    string_view hid, uid;
 
     if (devinfo->Valid & ACPI_VALID_HID) {
         hid = string_view(devinfo->HardwareId.String, devinfo->HardwareId.Length);
@@ -429,6 +430,9 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
         if (!hid.empty() && hid.back() == 0)
             hid = string_view(hid.data(), hid.size() - 1);
     }
+
+    if (devinfo->Valid & ACPI_VALID_UID)
+        uid = string_view(devinfo->UniqueId.String, devinfo->UniqueId.Length);
 
     name.Pointer = buf;
     name.Length = sizeof(buf);
@@ -445,7 +449,7 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
     if (!acpi_name.empty() && acpi_name.back() == 0)
         acpi_name = string_view(acpi_name.data(), acpi_name.size() - 1);
 
-    size_t bufsize = hid.size() + acpi_name.size();
+    size_t bufsize = hid.size() + uid.size() + acpi_name.size();
 
     auto d = (acpi_device*)malloc(offsetof(acpi_device, buf) + bufsize);
     if (!d) {
@@ -465,6 +469,10 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
     memcpy(ptr, hid.data(), hid.size());
     d->hid = string_view(ptr, hid.size());
     ptr += hid.size();
+
+    memcpy(ptr, uid.data(), uid.size());
+    d->uid = string_view(ptr, uid.size());
+    ptr += uid.size();
 
     insert_tail_list(acpi_devices, d->le);
 
@@ -487,7 +495,9 @@ export void find_acpi_devices() {
     for (auto le = acpi_devices.next; le != &acpi_devices; le = le->next) {
         auto& d = containing_record<acpi_device>(le);
 
-        print("found ACPI device {}, HID {}\n", d.acpi_name, !d.hid.empty() ? d.hid : "(none)");
+        print("found ACPI device {}, HID {}, UID {}\n",
+              d.acpi_name, !d.hid.empty() ? d.hid : "(none)",
+              !d.uid.empty() ? d.uid : "(none)");
 
         for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
             auto& p = pnp_hids[i];
