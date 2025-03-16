@@ -232,7 +232,7 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
-export void init_keyboard() {
+export void init_keyboard(uint16_t port1, uint16_t port2) {
     auto pa = allocate_page();
     if (!pa) {
         print("allocate_page failed\n");
@@ -270,8 +270,8 @@ export void init_keyboard() {
 
     __asm __volatile("cli");
 
-    while (inb(0x64) & 1) {
-        inb(0x60);
+    while (inb(port2) & 1) {
+        inb(port1);
     }
 
     add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 0, false);
