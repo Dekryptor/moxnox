@@ -110,6 +110,42 @@ static object_ref create_serial_out_pipe(unsigned int buffer_pages, uint16_t por
     return p;
 }
 
+static bool init_serial_port(uint16_t port) {
+    // disable interrupts
+    outb(port + 1, 0);
+
+    // enable DLAB
+    outb(port + 3, 0x80);
+
+    // set divisor to 3 (38400 baud)
+
+    outb(port, 0x03);
+    outb(port + 1, 0);
+
+    // 8 bits, no parity, 1 stop bit
+    outb(port + 3, 0x03);
+
+    // enable FIFOs, clear them, and set interrupt trigger level to 14 bytes
+    outb(port + 2, 0xc7);
+
+    // put in loopback mode
+    outb(port + 4, 0x10);
+
+    // test
+    outb(port, 0xa5);
+
+    if (inb(port) != 0xa5)
+        return false;
+
+    // serial port okay, enable IRQs and put in normal mode
+    outb(port + 4, 0x0f);
+
+    // send IRQ when transmit buffer is empty or data available
+    outb(port + 1, 0x03);
+
+    return true;
+}
+
 bool init_serial() {
     if (init_serial_done)
         return true;

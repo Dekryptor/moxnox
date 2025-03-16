@@ -32,7 +32,6 @@ set(SRC_FILES src/kernel.cpp
     src/syscalls.S
     src/syscalls.cpp
     src/serial.cpp
-    src/serial.S
     src/mem.S
     src/file.cpp
     src/thread.cpp

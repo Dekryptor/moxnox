@@ -216,9 +216,6 @@ extern "C" void init_syscalls();
 extern object_ref com1_pipe_handle;
 bool init_serial();
 
-// serial.S
-extern "C" bool init_serial_port(uint16_t port);
-
 // mem.S
 extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
 extern "C" void init_pat();
