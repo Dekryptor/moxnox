@@ -100,26 +100,27 @@ static void found_serial_port(const acpi_device& d);
 static const struct {
     string_view hid;
     void (*func)(const acpi_device&);
+    void (*prelim_func)(string_view);
 } pnp_hids[] = {
-    { "PNP0B00", found_rtc },
-    { "PNP0300", found_ps2_keyboard },
-    { "PNP0301", found_ps2_keyboard },
-    { "PNP0302", found_ps2_keyboard },
-    { "PNP0303", found_ps2_keyboard },
-    { "PNP0304", found_ps2_keyboard },
-    { "PNP0305", found_ps2_keyboard },
-    { "PNP0306", found_ps2_keyboard },
-    { "PNP0309", found_ps2_keyboard },
-    { "PNP030A", found_ps2_keyboard },
-    { "PNP030B", found_ps2_keyboard },
-    { "PNP0320", found_ps2_keyboard },
-    { "PNP0343", found_ps2_keyboard },
-    { "PNP0344", found_ps2_keyboard },
-    { "PNP0345", found_ps2_keyboard },
-    { "CPQA0D7", found_ps2_keyboard },
-    { "PNP0500", found_serial_port },
-    { "PNP0501", found_serial_port },
-    { "", nullptr }
+    { "PNP0B00", found_rtc, nullptr },
+    { "PNP0300", found_ps2_keyboard, nullptr },
+    { "PNP0301", found_ps2_keyboard, nullptr },
+    { "PNP0302", found_ps2_keyboard, nullptr },
+    { "PNP0303", found_ps2_keyboard, nullptr },
+    { "PNP0304", found_ps2_keyboard, nullptr },
+    { "PNP0305", found_ps2_keyboard, nullptr },
+    { "PNP0306", found_ps2_keyboard, nullptr },
+    { "PNP0309", found_ps2_keyboard, nullptr },
+    { "PNP030A", found_ps2_keyboard, nullptr },
+    { "PNP030B", found_ps2_keyboard, nullptr },
+    { "PNP0320", found_ps2_keyboard, nullptr },
+    { "PNP0343", found_ps2_keyboard, nullptr },
+    { "PNP0344", found_ps2_keyboard, nullptr },
+    { "PNP0345", found_ps2_keyboard, nullptr },
+    { "CPQA0D7", found_ps2_keyboard, nullptr },
+    { "PNP0500", found_serial_port, prelim_found_serial_port },
+    { "PNP0501", found_serial_port, prelim_found_serial_port },
+    { "", nullptr, nullptr }
 };
 
 export bool acpi_early_init_done = false;
@@ -275,7 +276,7 @@ static void found_serial_port(const acpi_device& d) {
     if (!port.has_value() || !irq.has_value())
         return;
 
-    if (!init_serial(*port, *irq))
+    if (!init_serial(*port, *irq, d.uid))
         print("init_serial failed for port {:x}, irq {:x}\n", *port, *irq);
 }
 
@@ -431,8 +432,12 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
             hid = string_view(hid.data(), hid.size() - 1);
     }
 
-    if (devinfo->Valid & ACPI_VALID_UID)
+    if (devinfo->Valid & ACPI_VALID_UID) {
         uid = string_view(devinfo->UniqueId.String, devinfo->UniqueId.Length);
+
+        if (auto nul = uid.find('\0'); nul != string_view::npos)
+            uid = string_view(uid.data(), nul);
+    }
 
     name.Pointer = buf;
     name.Length = sizeof(buf);
@@ -495,9 +500,31 @@ export void find_acpi_devices() {
     for (auto le = acpi_devices.next; le != &acpi_devices; le = le->next) {
         auto& d = containing_record<acpi_device>(le);
 
+        if (d.hid.empty())
+            continue;
+
+        for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
+            auto& p = pnp_hids[i];
+
+            if (p.hid != d.hid)
+                continue;
+
+            if (p.prelim_func)
+                p.prelim_func(d.uid);
+
+            break;
+        }
+    }
+
+    for (auto le = acpi_devices.next; le != &acpi_devices; le = le->next) {
+        auto& d = containing_record<acpi_device>(le);
+
         print("found ACPI device {}, HID {}, UID {}\n",
               d.acpi_name, !d.hid.empty() ? d.hid : "(none)",
               !d.uid.empty() ? d.uid : "(none)");
+
+        if (d.hid.empty())
+            continue;
 
         for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
             auto& p = pnp_hids[i];

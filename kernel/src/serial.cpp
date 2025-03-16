@@ -151,7 +151,23 @@ static bool init_serial_port(uint16_t port) {
     return true;
 }
 
-export bool init_serial(uint16_t port, uint32_t irq) {
+static optional<unsigned int> parse_uid(string_view uid) {
+    if (uid.empty())
+        return nullopt;
+
+    for (auto c : uid) {
+        if (c < '0' || c > '9')
+            return nullopt;
+    }
+
+    unsigned int val;
+
+    from_chars(uid.data(), uid.data() + uid.size(), val);
+
+    return val;
+}
+
+export bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
     if (!init_serial_port(port))
         return false;
 
@@ -181,7 +197,15 @@ export bool init_serial(uint16_t port, uint32_t irq) {
 
     // FIXME - numbering assumes that ACPI devices are started in order, i.e. all from one thread
 
-    unsigned int num = serial_port_number.fetch_add(1);
+    // use _UID - 1 as number if present, otherwise start from end of numbered range
+
+    auto uidnum = parse_uid(uid);
+    unsigned int num;
+
+    if (uidnum.has_value())
+        num = *uidnum - 1;
+    else
+        num = serial_port_number.fetch_add(1);
 
     {
         char s[10];
@@ -477,4 +501,14 @@ nt_status serial_out_pipe::flush(bool go_readonly) {
     }
 
     return nt_status::SUCCESS;
+}
+
+export void prelim_found_serial_port(string_view uid) {
+    auto val = parse_uid(uid);
+
+    if (!val.has_value())
+        return;
+
+    if (*val > serial_port_number)
+        serial_port_number = *val;
 }
