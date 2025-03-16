@@ -89,7 +89,6 @@ public:
 static serial_out_pipe* com1_pipe = nullptr;
 
 export object_ref com1_pipe_handle;
-static object_ref com1_send_handle, com1_recv_handle;
 
 static object_ref create_serial_in_pipe(unsigned int buffer_pages) {
     auto pptr = new serial_in_pipe(buffer_pages);
@@ -164,13 +163,13 @@ export bool init_serial() {
     if (!init_serial_port(com1_port))
         return true;
 
-    com1_send_handle = create_serial_out_pipe(serial_buffer_pages, com1_port);
+    auto com1_send_handle = create_serial_out_pipe(serial_buffer_pages, com1_port);
     if (!com1_send_handle) {
         print("create_serial_out_pipe failed\n");
         return false;
     }
 
-    com1_recv_handle = create_serial_in_pipe(serial_buffer_pages);
+    auto com1_recv_handle = create_serial_in_pipe(serial_buffer_pages);
     if (!com1_recv_handle) {
         print("create_serial_in_pipe failed\n");
         return false;
@@ -373,9 +372,7 @@ bool serial_duplex_pipe::isr_func() {
 
         auto c = inb(com1_port);
 
-        auto& p = static_cast<serial_in_pipe&>(com1_recv_handle.get());
-
-        p.write(span(&c, 1), written_bytes);
+        recv_pipe.write(span(&c, 1), written_bytes);
     }
 
     return true;
