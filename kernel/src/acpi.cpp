@@ -124,18 +124,16 @@ static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
 }
 
 static bool acpi_isr_func(void*) {
-    // FIXME - how do we know if this is for us?
-
     lock_guard lock(irq_handlers_lock);
 
     for (auto le = irq_handlers.next; le != &irq_handlers; le = le->next) {
         auto& h = containing_record<acpi_irq_handler>(le);
 
         if (h.service_routine(h.context) == ACPI_INTERRUPT_HANDLED)
-            break;
+            return true;
     }
 
-    return true;
+    return false;
 }
 
 export void init_acpi_early() {
