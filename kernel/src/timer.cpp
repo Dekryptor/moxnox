@@ -149,7 +149,7 @@ timer::~timer() {
 }
 
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
-    SystemTime->QuadPart = system_time + system_time_offset;
+    SystemTime->QuadPart = (int64_t)((uint64_t)system_time + system_time_offset);
 
     return nt_status::SUCCESS;
 }
