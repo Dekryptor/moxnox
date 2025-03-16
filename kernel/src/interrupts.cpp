@@ -16,6 +16,7 @@ import print;
 import bsod;
 import mem;
 import config;
+import list;
 
 using namespace std;
 
@@ -52,6 +53,20 @@ struct isr_func_info {
 };
 
 static isr_func_info isr_funcs[0x20];
+
+struct irq {
+    list_entry le;
+    uint32_t number;
+    spinlock lock;
+    list_entry handlers = { &handlers, &handlers };
+};
+
+struct irq_handler_info {
+    list_entry le;
+    isr_func_type func;
+};
+
+static list_entry irqs = { &irqs, &irqs };
 
 extern "C" void dynamic_isr_30();
 extern "C" void dynamic_isr_31();
@@ -187,35 +202,62 @@ export uint8_t add_isr(isr_func_type isr_func, void* ctx) {
     return 0;
 }
 
-export bool add_irq_handler(uint32_t irq, isr_func_type func, uint32_t apic_id) {
+static void irq_handler(void* ctx) {
+    auto& i = *(irq*)ctx;
+
+    {
+        lock_guard lock(i.lock);
+
+        for (auto le = i.handlers.next; le != &i.handlers; le = le->next) {
+            auto& h = containing_record<irq_handler_info>(le);
+
+            h.func(nullptr);
+        }
+    }
+}
+
+static irq* find_irq(uint32_t number, uint32_t apic_id) {
+    {
+        lock_guard lock(irq_lock);
+
+        for (auto le = irqs.next; le != &irqs; le = le->next) {
+            auto& i = containing_record<irq>(le);
+
+            if (i.number == number)
+                return &i;
+        }
+    }
+
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
     if (ACPI_FAILURE(status)) {
         print("AcpiGetTable returned {} for MADT\n", status);
-        return false;
+        return nullptr;
     }
 
     if (tbl->Length < sizeof(ACPI_TABLE_MADT)) {
         print("MADT table was {:x} bytes, expected at least {:x}\n",
               tbl->Length, sizeof(ACPI_TABLE_MADT));
-        return false;
+        return nullptr;
     }
 
     span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
               tbl->Length - sizeof(ACPI_TABLE_MADT));
 
-    auto gsi = get_irq_gsi(madt, irq);
-
-    auto vec = add_isr(func, nullptr);
-    if (vec == 0) {
-        print("add_isr failed\n");
-        return false;
-    }
-
+    auto gsi = get_irq_gsi(madt, number);
     ACPI_MADT_IO_APIC* ioapic = nullptr;
+    uint8_t vec = 0;
+
+    auto i = new irq;
+
+    i->number = number;
 
     do {
         lock_guard lock(irq_lock);
+
+        vec = add_isr(irq_handler, i);
+        if (vec == 0)
+            break;
 
         ioapic = find_ioapic(madt, gsi);
 
@@ -234,12 +276,38 @@ export bool add_irq_handler(uint32_t irq, isr_func_type func, uint32_t apic_id) 
 
         write_reg(0x10 + (gsi * 2), vec);
         write_reg(0x11 + (gsi * 2), apic_id);
+
+        insert_tail_list(irqs, i->le);
     } while (false);
+
+    if (vec == 0) {
+        print("add_isr failed\n");
+        return nullptr;
+    }
 
     if (!ioapic) { // print outside of lock
         print("Could not find I/O APIC for GSI {:x}.\n", gsi);
         // FIXME - free interrupt number
+        return nullptr;
+    }
+
+    return i;
+}
+
+export bool add_irq_handler(uint32_t number, isr_func_type func, uint32_t apic_id) {
+    auto irq = find_irq(number, apic_id);
+    if (!irq)
         return false;
+
+    auto info = new irq_handler_info;
+    if (!info)
+        return false;
+
+    info->func = func;
+
+    {
+        lock_guard lock(irq->lock);
+        insert_tail_list(irq->handlers, info->le);
     }
 
     return true;
