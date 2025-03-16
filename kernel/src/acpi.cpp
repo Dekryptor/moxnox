@@ -213,8 +213,28 @@ static void found_rtc(const acpi_device& d) {
 }
 
 static void found_ps2_keyboard(const acpi_device& d) {
-    // FIXME - pass through port no. and IRQ no.
-    init_keyboard(0x60, 0x64);
+    optional<uint16_t> port1, port2;
+
+    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        if (r.type == acpi_device_resource_type::io) {
+            auto& r2 = static_cast<acpi_device_resource_io&>(r);
+
+            if (r2.io.IoDecode == ACPI_DECODE_16) {
+                if (port1.has_value() && !port2.has_value())
+                    port2 = r2.io.Minimum;
+                else if (!port1.has_value())
+                    port1 = r2.io.Minimum;
+            }
+        }
+    }
+
+    if (!port1.has_value() || !port2.has_value())
+        return;
+
+    // FIXME - also pass through IRQ no.
+    init_keyboard(*port1, *port2);
 }
 
 static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
