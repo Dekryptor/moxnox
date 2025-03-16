@@ -45,6 +45,7 @@ struct acpi_device {
 enum class acpi_device_resource_type {
     io,
     irq,
+    extended_irq,
     address16,
     address32,
     address64,
@@ -62,6 +63,10 @@ struct acpi_device_resource_io : acpi_device_resource {
 
 struct acpi_device_resource_irq : acpi_device_resource {
     ACPI_RESOURCE_IRQ irq;
+};
+
+struct acpi_device_resource_extended_irq : acpi_device_resource {
+    ACPI_RESOURCE_EXTENDED_IRQ extended_irq;
 };
 
 struct acpi_device_resource_address16 : acpi_device_resource {
@@ -292,9 +297,18 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
             break;
         }
 
-        case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
-            print("FIXME - unhandled ACPI resource type ACPI_RESOURCE_TYPE_EXTENDED_IRQ\n");
+        case ACPI_RESOURCE_TYPE_EXTENDED_IRQ: {
+            auto r = new acpi_device_resource_extended_irq;
+            if (!r) {
+                print("out of memory\n");
+                return AE_OK;
+            }
+
+            r->type = acpi_device_resource_type::extended_irq;
+            memcpy(&r->extended_irq, &res->Data.ExtendedIrq, sizeof(ACPI_RESOURCE_EXTENDED_IRQ));
+            insert_tail_list(d.resources, r->le);
             break;
+        }
 
         default:
             print("FIXME - unhandled ACPI resource type {}\n", res->Type);
