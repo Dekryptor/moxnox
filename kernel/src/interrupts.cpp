@@ -61,9 +61,11 @@ struct irq {
     list_entry handlers = { &handlers, &handlers };
 };
 
+using irq_func_type = bool (*)();
+
 struct irq_handler_info {
     list_entry le;
-    isr_func_type func;
+    irq_func_type func;
 };
 
 static list_entry irqs = { &irqs, &irqs };
@@ -211,7 +213,8 @@ static void irq_handler(void* ctx) {
         for (auto le = i.handlers.next; le != &i.handlers; le = le->next) {
             auto& h = containing_record<irq_handler_info>(le);
 
-            h.func(nullptr);
+            if (h.func())
+                return;
         }
     }
 }
@@ -294,7 +297,7 @@ static irq* find_irq(uint32_t number, uint32_t apic_id) {
     return i;
 }
 
-export bool add_irq_handler(uint32_t number, isr_func_type func, uint32_t apic_id) {
+export bool add_irq_handler(uint32_t number, irq_func_type func, uint32_t apic_id) {
     auto irq = find_irq(number, apic_id);
     if (!irq)
         return false;

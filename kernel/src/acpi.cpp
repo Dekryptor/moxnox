@@ -123,7 +123,9 @@ static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
 }
 
-static void acpi_isr_func(void*) {
+static bool acpi_isr_func() {
+    // FIXME - how do we know if this is for us?
+
     lock_guard lock(irq_handlers_lock);
 
     for (auto le = irq_handlers.next; le != &irq_handlers; le = le->next) {
@@ -132,6 +134,8 @@ static void acpi_isr_func(void*) {
         if (h.service_routine(h.context) == ACPI_INTERRUPT_HANDLED)
             break;
     }
+
+    return true;
 }
 
 export void init_acpi_early() {

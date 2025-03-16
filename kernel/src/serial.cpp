@@ -21,7 +21,7 @@ static const uint16_t com1_port = 0x3f8;
 static const unsigned int serial_buffer_pages = 1;
 static bool init_serial_done = false;
 
-static void serial_isr_func(void*);
+static bool serial_isr_func();
 
 class serial_in_pipe : public pipe {
 public:
@@ -343,11 +343,11 @@ nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
     return nt_status::SUCCESS;
 }
 
-static void serial_isr_func(void*) {
+static bool serial_isr_func() {
     auto iir = inb(0x3fa); // interrupt identification register, COM1
 
     if (iir & 1) // not us
-        return;
+        return false;
 
     if ((iir & 0x0e) == 0x2) { // transmitter holding register empty
         auto& pipe = *com1_pipe;
@@ -356,7 +356,7 @@ static void serial_isr_func(void*) {
 
         if (pipe.buf_unread == 0) {
             pipe.ready = true;
-            return;
+            return true;
         }
 
         size_t buf_read_pos = pipe.buf_write_pos + (pipe.buf_pages << PAGE_SHIFT) - pipe.buf_unread;
@@ -376,6 +376,8 @@ static void serial_isr_func(void*) {
 
         p.write(span(&c, 1), written_bytes);
     }
+
+    return true;
 }
 
 NTSTATUS serial_in_pipe::console_set_foreground(span<const uint8_t> inbuf) {
