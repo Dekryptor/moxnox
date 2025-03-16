@@ -44,7 +44,7 @@ using isr_func_type = void (*)();
 
 static const uint8_t MIN_DYNAMIC_INTERRUPT = 0x30;
 
-static spinlock isr_lock;
+static spinlock isr_lock, irq_lock;
 static isr_func_type isr_funcs[0x20];
 
 extern "C" void dynamic_isr_30();
@@ -141,9 +141,22 @@ static ACPI_MADT_IO_APIC* find_ioapic(span<const uint8_t> madt, uint32_t gsi) {
         if (h.Type == ACPI_MADT_TYPE_IO_APIC && h.Length >= sizeof(ACPI_MADT_IO_APIC)) {
             auto& ent = *(ACPI_MADT_IO_APIC*)data.data();
 
-            // FIXME - GSI
+            if (gsi >= ent.GlobalIrqBase) {
+                volatile uint32_t* IOREGSEL = (uint32_t*)phys_address(ent.Address);
+                volatile uint32_t* IOREGWIN = (uint32_t*)phys_address(ent.Address + 0x10);
 
-            return &ent;
+                auto read_reg = [&](uint32_t reg) -> uint32_t {
+                    *IOREGSEL = reg;
+
+                    return *IOREGWIN;
+                };
+
+                auto IOAPICVER = read_reg(1);
+                auto max_entry = (IOAPICVER & 0xff0000) >> 16;
+
+                if (gsi <= ent.GlobalIrqBase + max_entry)
+                    return &ent;
+            }
         }
 
         data = data.subspan(h.Length);
@@ -169,29 +182,36 @@ export bool add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
     span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
               tbl->Length - sizeof(ACPI_TABLE_MADT));
 
-    // FIXME - handle multiple I/O APICs (send to right one)
-
     auto gsi = get_irq_gsi(madt, irq);
 
-    auto ioapic = find_ioapic(madt, gsi);
+    ACPI_MADT_IO_APIC* ioapic = nullptr;
 
-    if (!ioapic) {
+    do {
+        lock_guard lock(irq_lock);
+
+        ioapic = find_ioapic(madt, gsi);
+
+        if (!ioapic)
+            break;
+
+        auto ioapic_address = phys_address(ioapic->Address);
+
+        volatile uint32_t* IOREGSEL = (uint32_t*)ioapic_address;
+        volatile uint32_t* IOREGWIN = (uint32_t*)((uint8_t*)ioapic_address + 0x10);
+
+        auto write_reg = [&](uint32_t reg, uint32_t val) {
+            *IOREGSEL = reg;
+            *IOREGWIN = val;
+        };
+
+        write_reg(0x10 + (gsi * 2), vec);
+        write_reg(0x11 + (gsi * 2), apic_id);
+    } while (false);
+
+    if (!ioapic) { // print outside of lock
         print("Could not find I/O APIC for GSI {:x}.\n", gsi);
         return false;
     }
-
-    auto ioapic_address = phys_address(ioapic->Address);
-
-    volatile uint32_t* IOREGSEL = (uint32_t*)ioapic_address;
-    volatile uint32_t* IOREGWIN = (uint32_t*)((uint8_t*)ioapic_address + 0x10);
-
-    auto write_reg = [&](uint32_t reg, uint32_t val) {
-        *IOREGSEL = reg;
-        *IOREGWIN = val;
-    };
-
-    write_reg(0x10 + (gsi * 2), vec);
-    write_reg(0x11 + (gsi * 2), apic_id);
 
     return true;
 };
