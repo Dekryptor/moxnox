@@ -25,6 +25,8 @@ string_view cmdline;
 list_entry kernel_images = { &kernel_images, &kernel_images };
 uint64_t rsdp_pa;
 bool init_smp_finished = false;
+static loader_block_framebuffer lb_fb;
+static loader_block_text_console lb_tc;
 
 // console.cpp
 extern object_ref console_pipe;
@@ -149,13 +151,18 @@ static void keywait() {
 void main_thread() {
     acpi_early_init_done = true;
 
+    if (!init_console(lb_fb, lb_tc))
+        bsod("init_console failed\n");
+
+    _printk = safe_print;
+
+    init_acpi();
+
     if (console_type == console_type::framebuffer && !init_fb_console())
         print("init_fb_console failed\n");
 
     print("\e[2J\e[1;1H");  // erase screen, move to top left
     print(MOXNOX_VERSION_STRING "\n");
-
-    init_acpi();
 
     find_acpi_devices();
 
@@ -236,17 +243,15 @@ static void init_images_list(span<const uint8_t> debug_info,
 
 extern "C"
 void startup(loader_block* lb) {
-    loader_block_framebuffer fb;
-    loader_block_text_console tc;
     span<const uint8_t> debug_info, debug_abbrev, debug_rnglists, debug_str,
                         debug_addr, debug_str_offsets;
 
     // FIXME - should restart if anything fails before we can show error message
 
     if (lb->text_mode)
-        memcpy(&tc, &lb->text_console, sizeof(tc));
+        memcpy(&lb_tc, &lb->text_console, sizeof(lb_tc));
     else
-        memcpy(&fb, &lb->framebuffer, sizeof(fb));
+        memcpy(&lb_fb, &lb->framebuffer, sizeof(lb_fb));
 
     if (lb->cmdline) {
         size_t len = strlen((char*)lb->cmdline);
@@ -300,12 +305,7 @@ void startup(loader_block* lb) {
     if (!init_apic())
         goto hang;
 
-    if (!init_console(fb, tc))
-        goto hang;
-
     __asm("sti");
-
-    _printk = safe_print;
 
     if (!add_kernel_thread(main_thread))
         goto hang;
