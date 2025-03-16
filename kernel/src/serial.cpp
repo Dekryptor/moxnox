@@ -1,8 +1,11 @@
+module;
+
 #include "kernel.h"
 #include "objects.h"
 #include "handle.h"
-#include <console.h>
 #include <ioctl.h>
+
+export module serial;
 
 import print;
 import inout;
@@ -10,6 +13,9 @@ import config;
 import interrupts;
 
 using namespace std;
+
+const uint32_t ENABLE_PROCESSED_INPUT = 0x1;
+const uint32_t ENABLE_PROCESSED_OUTPUT = 0x1;
 
 static const uint16_t com1_port = 0x3f8;
 static const unsigned int serial_buffer_pages = 1;
@@ -81,7 +87,7 @@ public:
 
 static serial_out_pipe* com1_pipe = nullptr;
 
-object_ref com1_pipe_handle;
+export object_ref com1_pipe_handle;
 static object_ref com1_send_handle, com1_recv_handle;
 
 static object_ref create_serial_in_pipe(unsigned int buffer_pages) {
@@ -146,7 +152,7 @@ static bool init_serial_port(uint16_t port) {
     return true;
 }
 
-bool init_serial() {
+export bool init_serial() {
     if (init_serial_done)
         return true;
 

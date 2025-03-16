@@ -212,10 +212,6 @@ void utf8_to_utf16(std::span<char16_t> buf, std::string_view sv);
 // syscalls.S
 extern "C" void init_syscalls();
 
-// serial.cpp
-extern object_ref com1_pipe_handle;
-bool init_serial();
-
 // mem.S
 extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
 extern "C" void init_pat();

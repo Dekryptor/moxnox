@@ -13,6 +13,7 @@ import null;
 import mem;
 import list;
 import interrupts;
+import serial;
 
 using namespace std;
 

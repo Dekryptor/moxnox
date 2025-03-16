@@ -31,7 +31,6 @@ set(SRC_FILES src/kernel.cpp
     src/string.cpp
     src/syscalls.S
     src/syscalls.cpp
-    src/serial.cpp
     src/mem.S
     src/file.cpp
     src/thread.cpp
@@ -57,6 +56,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/config.cpp
     src/list.cpp
     src/interrupts.cpp
+    src/serial.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

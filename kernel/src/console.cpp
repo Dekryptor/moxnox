@@ -15,6 +15,7 @@ import print;
 import inout;
 import mem;
 import config;
+import serial;
 
 using namespace std;
 
