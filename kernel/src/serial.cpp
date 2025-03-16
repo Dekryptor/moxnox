@@ -192,17 +192,10 @@ export bool init_serial() {
         return false;
     }
 
-    auto int_num = add_isr(serial_isr_func);
-    if (int_num == 0) {
-        print("add_isr failed\n");
-        return false;
-    }
-
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     // IRQ 4 = COM1 and COM3
-    if (!add_irq_handler(4, int_num, local_apic_id)) {
-        // FIXME - free interrupt number
+    if (!add_irq_handler(4, serial_isr_func, local_apic_id)) {
         print("add_irq_handler failed\n");
         return false;
     }

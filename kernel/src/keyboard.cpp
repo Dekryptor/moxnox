@@ -282,19 +282,12 @@ export void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         inb(port1);
     }
 
-    auto int_num = add_isr(keyboard_isr_func);
-    if (int_num == 0) {
-        print("add_isr failed\n");
-        return;
-    }
-
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     __asm __volatile("sti");
 
     // IRQ 1 = keyboard (FIXME - use number in ACPI)
-    if (!add_irq_handler(1, int_num, local_apic_id)) {
-        // FIXME - free interrupt number
+    if (!add_irq_handler(1, keyboard_isr_func, local_apic_id)) {
         print("add_irq_handler failed\n");
         return;
     }

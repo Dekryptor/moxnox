@@ -165,7 +165,22 @@ static ACPI_MADT_IO_APIC* find_ioapic(span<const uint8_t> madt, uint32_t gsi) {
     return nullptr;
 }
 
-export bool add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
+export uint8_t add_isr(isr_func_type isr_func) {
+    lock_guard lock(isr_lock);
+
+    auto sp = span(isr_funcs);
+
+    for (uint8_t i = 0; i < sp.size(); i++) {
+        if (!sp[i]) {
+            sp[i] = isr_func;
+            return MIN_DYNAMIC_INTERRUPT + i;
+        }
+    }
+
+    return 0;
+}
+
+export bool add_irq_handler(uint8_t irq, isr_func_type func, uint32_t apic_id) {
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
     if (ACPI_FAILURE(status)) {
@@ -183,6 +198,12 @@ export bool add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
               tbl->Length - sizeof(ACPI_TABLE_MADT));
 
     auto gsi = get_irq_gsi(madt, irq);
+
+    auto vec = add_isr(func);
+    if (vec == 0) {
+        print("add_isr failed\n");
+        return false;
+    }
 
     ACPI_MADT_IO_APIC* ioapic = nullptr;
 
@@ -210,6 +231,7 @@ export bool add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
 
     if (!ioapic) { // print outside of lock
         print("Could not find I/O APIC for GSI {:x}.\n", gsi);
+        // FIXME - free interrupt number
         return false;
     }
 
@@ -287,21 +309,6 @@ void handle_dynamic_isr(uint8_t int_num) {
         return;
 
     func();
-}
-
-export uint8_t add_isr(isr_func_type isr_func) {
-    lock_guard lock(isr_lock);
-
-    auto sp = span(isr_funcs);
-
-    for (uint8_t i = 0; i < sp.size(); i++) {
-        if (!sp[i]) {
-            sp[i] = isr_func;
-            return MIN_DYNAMIC_INTERRUPT + i;
-        }
-    }
-
-    return 0;
 }
 
 static bool setup_idt() {

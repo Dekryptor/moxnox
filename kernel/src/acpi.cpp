@@ -159,17 +159,10 @@ export void init_acpi_early() {
 export void init_acpi() {
     ACPI_STATUS Status;
 
-    auto int_num = add_isr(acpi_isr_func);
-    if (int_num == 0) {
-        print("add_isr failed\n");
-        return;
-    }
-
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    if (!add_irq_handler(ACPI_IRQ, int_num, local_apic_id)) {
+    if (!add_irq_handler(ACPI_IRQ, acpi_isr_func, local_apic_id)) {
         print("add_irq_handler failed\n");
-        // FIXME - free interrupt number
         return;
     }
 
