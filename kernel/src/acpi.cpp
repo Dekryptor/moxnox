@@ -165,7 +165,7 @@ export void init_acpi() {
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    if (!add_irq_handler(ACPI_IRQ, acpi_isr_func, local_apic_id)) {
+    if (!add_irq_handler(ACPI_IRQ, local_apic_id, acpi_isr_func)) {
         print("add_irq_handler failed\n");
         return;
     }

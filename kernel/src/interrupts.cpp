@@ -297,7 +297,7 @@ static irq* find_irq(uint32_t number, uint32_t apic_id) {
     return i;
 }
 
-export bool add_irq_handler(uint32_t number, irq_func_type func, uint32_t apic_id) {
+export bool add_irq_handler(uint32_t number, uint32_t apic_id, irq_func_type func) {
     auto irq = find_irq(number, apic_id);
     if (!irq)
         return false;

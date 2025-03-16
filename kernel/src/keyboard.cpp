@@ -286,7 +286,7 @@ export void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 
     __asm __volatile("sti");
 
-    if (!add_irq_handler(irq, keyboard_isr_func, local_apic_id)) {
+    if (!add_irq_handler(irq, local_apic_id, keyboard_isr_func)) {
         print("add_irq_handler failed\n");
         return;
     }
