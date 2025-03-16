@@ -86,8 +86,6 @@ public:
     serial_out_pipe& send_pipe;
 };
 
-static serial_out_pipe* com1_pipe = nullptr;
-
 export object_ref com1_pipe_handle;
 
 static object_ref create_serial_in_pipe(unsigned int buffer_pages) {
@@ -175,7 +173,7 @@ export bool init_serial() {
         return false;
     }
 
-    com1_pipe = &static_cast<serial_out_pipe&>(com1_send_handle.get());
+    auto com1_pipe = &static_cast<serial_out_pipe&>(com1_send_handle.get());
 
     auto& com1_recv_pipe = static_cast<serial_in_pipe&>(com1_recv_handle.get());
 
@@ -350,23 +348,21 @@ bool serial_duplex_pipe::isr_func() {
         return false;
 
     if ((iir & 0x0e) == 0x2) { // transmitter holding register empty
-        auto& pipe = *com1_pipe;
+        lock_guard l(send_pipe.lock);
 
-        lock_guard l(pipe.lock);
-
-        if (pipe.buf_unread == 0) {
-            pipe.ready = true;
+        if (send_pipe.buf_unread == 0) {
+            send_pipe.ready = true;
             return true;
         }
 
-        size_t buf_read_pos = pipe.buf_write_pos + (pipe.buf_pages << PAGE_SHIFT) - pipe.buf_unread;
+        size_t buf_read_pos = send_pipe.buf_write_pos + (send_pipe.buf_pages << PAGE_SHIFT) - send_pipe.buf_unread;
 
-        while (buf_read_pos >= pipe.buf_pages << PAGE_SHIFT) {
-            buf_read_pos -= pipe.buf_pages << PAGE_SHIFT;
+        while (buf_read_pos >= send_pipe.buf_pages << PAGE_SHIFT) {
+            buf_read_pos -= send_pipe.buf_pages << PAGE_SHIFT;
         }
 
-        outb(pipe.port, pipe.buf[buf_read_pos]);
-        pipe.buf_unread--;
+        outb(send_pipe.port, send_pipe.buf[buf_read_pos]);
+        send_pipe.buf_unread--;
     } else if ((iir & 0xe) == 0x4 || (iir & 0xe) == 0xc) { // data available or character timeout
         uint64_t written_bytes;
 
