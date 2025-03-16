@@ -81,8 +81,6 @@ keyboard_isr:
     mov [rsp+0x28], r10
     mov [rsp+0x20], r11
 
-    in al, 0x60
-    mov cl, al
     call keyboard_isr_func
 
     xor rax, rax

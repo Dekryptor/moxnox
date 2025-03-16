@@ -285,7 +285,9 @@ export void init_keyboard(uint16_t port1, uint16_t port2) {
 }
 
 extern "C"
-void keyboard_isr_func(uint8_t code) {
+void keyboard_isr_func() {
+    auto code = inb(0x60);
+
     {
         lock_guard lock(keyboard_lock);
 
