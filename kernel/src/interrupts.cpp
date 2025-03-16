@@ -61,11 +61,12 @@ struct irq {
     list_entry handlers = { &handlers, &handlers };
 };
 
-using irq_func_type = bool (*)();
+using irq_func_type = bool (*)(void*);
 
 struct irq_handler_info {
     list_entry le;
     irq_func_type func;
+    void* ctx;
 };
 
 static list_entry irqs = { &irqs, &irqs };
@@ -213,7 +214,7 @@ static void irq_handler(void* ctx) {
         for (auto le = i.handlers.next; le != &i.handlers; le = le->next) {
             auto& h = containing_record<irq_handler_info>(le);
 
-            if (h.func())
+            if (h.func(h.ctx))
                 return;
         }
     }
@@ -297,7 +298,8 @@ static irq* find_irq(uint32_t number, uint32_t apic_id) {
     return i;
 }
 
-export bool add_irq_handler(uint32_t number, uint32_t apic_id, irq_func_type func) {
+export bool add_irq_handler(uint32_t number, uint32_t apic_id,
+                            irq_func_type func, void* ctx) {
     auto irq = find_irq(number, apic_id);
     if (!irq)
         return false;
@@ -307,6 +309,7 @@ export bool add_irq_handler(uint32_t number, uint32_t apic_id, irq_func_type fun
         return false;
 
     info->func = func;
+    info->ctx = ctx;
 
     {
         lock_guard lock(irq->lock);

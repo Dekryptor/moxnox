@@ -21,7 +21,7 @@ static const uint16_t com1_port = 0x3f8;
 static const unsigned int serial_buffer_pages = 1;
 static bool init_serial_done = false;
 
-static bool serial_isr_func();
+static bool serial_isr_func(void*);
 
 class serial_in_pipe : public pipe {
 public:
@@ -195,7 +195,7 @@ export bool init_serial() {
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     // IRQ 4 = COM1 and COM3
-    if (!add_irq_handler(4, local_apic_id, serial_isr_func)) {
+    if (!add_irq_handler(4, local_apic_id, serial_isr_func, nullptr)) {
         print("add_irq_handler failed\n");
         return false;
     }
@@ -343,7 +343,7 @@ nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
     return nt_status::SUCCESS;
 }
 
-static bool serial_isr_func() {
+static bool serial_isr_func(void*) {
     auto iir = inb(com1_port + 2); // interrupt identification register, COM1
 
     if (iir & 1) // not us

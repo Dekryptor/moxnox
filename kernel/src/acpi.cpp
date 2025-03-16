@@ -123,7 +123,7 @@ static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
 }
 
-static bool acpi_isr_func() {
+static bool acpi_isr_func(void*) {
     // FIXME - how do we know if this is for us?
 
     lock_guard lock(irq_handlers_lock);
@@ -165,7 +165,7 @@ export void init_acpi() {
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    if (!add_irq_handler(ACPI_IRQ, local_apic_id, acpi_isr_func)) {
+    if (!add_irq_handler(ACPI_IRQ, local_apic_id, acpi_isr_func, nullptr)) {
         print("add_irq_handler failed\n");
         return;
     }
