@@ -151,7 +151,7 @@ static bool init_serial_port(uint16_t port) {
 
 export bool init_serial(uint16_t port, uint32_t irq) {
     if (!init_serial_port(port))
-        return true;
+        return false;
 
     auto com1_send_handle = create_serial_out_pipe(serial_buffer_pages, port);
     if (!com1_send_handle) {

@@ -19,6 +19,7 @@ import keyboard;
 import mem;
 import list;
 import interrupts;
+import serial;
 
 using namespace std;
 
@@ -273,7 +274,8 @@ static void found_serial_port(const acpi_device& d) {
     if (!port.has_value() || !irq.has_value())
         return;
 
-    print("FIXME - serial port (port {:x}, IRQ {:x})\n", *port, *irq); // FIXME
+    if (!init_serial(*port, *irq))
+        print("init_serial failed for port {:x}, irq {:x}\n", *port, *irq);
 }
 
 static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
