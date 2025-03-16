@@ -18,7 +18,6 @@ const uint32_t ENABLE_PROCESSED_INPUT = 0x1;
 const uint32_t ENABLE_PROCESSED_OUTPUT = 0x1;
 
 static const unsigned int serial_buffer_pages = 1;
-static bool init_serial_done = false;
 
 static bool serial_isr_func(void*);
 
@@ -150,14 +149,7 @@ static bool init_serial_port(uint16_t port) {
     return true;
 }
 
-export bool init_serial(uint16_t port) {
-    if (init_serial_done)
-        return true;
-
-    init_serial_done = true;
-
-    // FIXME - COM2, COM3, COM4
-
+export bool init_serial(uint16_t port, uint32_t irq) {
     if (!init_serial_port(port))
         return true;
 
@@ -192,8 +184,7 @@ export bool init_serial(uint16_t port) {
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    // IRQ 4 = COM1 and COM3
-    if (!add_irq_handler(4, local_apic_id, serial_isr_func, pptr)) {
+    if (!add_irq_handler(irq, local_apic_id, serial_isr_func, pptr)) {
         print("add_irq_handler failed\n");
         return false;
     }

@@ -157,7 +157,7 @@ void main_thread() {
 
     init_acpi();
 
-    init_serial(0x3f8); // FIXME
+    init_serial(0x3f8, 4); // FIXME
 
     find_acpi_devices();
 
