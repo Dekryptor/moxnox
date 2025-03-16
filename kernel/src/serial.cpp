@@ -344,7 +344,7 @@ nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
 }
 
 static bool serial_isr_func() {
-    auto iir = inb(0x3fa); // interrupt identification register, COM1
+    auto iir = inb(com1_port + 2); // interrupt identification register, COM1
 
     if (iir & 1) // not us
         return false;
