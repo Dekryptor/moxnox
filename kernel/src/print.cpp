@@ -8,8 +8,7 @@ module;
 export module print;
 
 import format;
-
-#define PAGE_SIZE 4096 // FIXME - only define in one place
+import config;
 
 using namespace std;
 

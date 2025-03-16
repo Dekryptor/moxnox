@@ -9,6 +9,7 @@ module;
 export module bsod;
 
 import format;
+import config;
 
 using namespace std;
 
@@ -17,8 +18,6 @@ extern "C++" void enable_preempt();
 
 extern "C++" __attribute__((noreturn)) void _bsod(string_view msg, source_location sl,
                                                   unsigned int skip_callers);
-
-#define PAGE_SIZE 4096 // FIXME - only define in one place
 
 export
 __attribute__((noreturn))
