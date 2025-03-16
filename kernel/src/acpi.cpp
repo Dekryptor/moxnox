@@ -93,6 +93,7 @@ static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
 
 static void found_rtc(const acpi_device& d);
 static void found_ps2_keyboard(const acpi_device& d);
+static void found_serial_port(const acpi_device& d);
 
 static const struct {
     string_view hid;
@@ -114,6 +115,8 @@ static const struct {
     { "PNP0344", found_ps2_keyboard },
     { "PNP0345", found_ps2_keyboard },
     { "CPQA0D7", found_ps2_keyboard },
+    { "PNP0500", found_serial_port },
+    { "PNP0501", found_serial_port },
     { "", nullptr }
 };
 
@@ -242,6 +245,35 @@ static void found_ps2_keyboard(const acpi_device& d) {
         return;
 
     init_keyboard(*port1, *port2, *irq);
+}
+
+static void found_serial_port(const acpi_device& d) {
+    optional<uint16_t> port;
+    optional<uint32_t> irq;
+
+    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        if (r.type == acpi_device_resource_type::io) {
+            auto& r2 = static_cast<acpi_device_resource_io&>(r);
+
+            if (r2.io.IoDecode == ACPI_DECODE_16 && !port.has_value())
+                port = r2.io.Minimum;
+        } else if (r.type == acpi_device_resource_type::irq) {
+            auto& r2 = static_cast<acpi_device_resource_irq&>(r);
+
+            irq = r2.irq.Interrupt;
+        } else if (r.type == acpi_device_resource_type::extended_irq) {
+            auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
+
+            irq = r2.extended_irq.Interrupt;
+        }
+    }
+
+    if (!port.has_value() || !irq.has_value())
+        return;
+
+    print("FIXME - serial port (port {:x}, IRQ {:x})\n", *port, *irq); // FIXME
 }
 
 static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
