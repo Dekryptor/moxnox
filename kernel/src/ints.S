@@ -500,4 +500,37 @@ single_step_isr:
     .seh_endproc
 single_step_isr_end:
 
+dynamic_isr 30
+dynamic_isr 31
+dynamic_isr 32
+dynamic_isr 33
+dynamic_isr 34
+dynamic_isr 35
+dynamic_isr 36
+dynamic_isr 37
+dynamic_isr 38
+dynamic_isr 39
+dynamic_isr 3a
+dynamic_isr 3b
+dynamic_isr 3c
+dynamic_isr 3d
+dynamic_isr 3e
+dynamic_isr 3f
+dynamic_isr 40
+dynamic_isr 41
+dynamic_isr 42
+dynamic_isr 43
+dynamic_isr 44
+dynamic_isr 45
+dynamic_isr 46
+dynamic_isr 47
+dynamic_isr 48
+dynamic_isr 49
+dynamic_isr 4a
+dynamic_isr 4b
+dynamic_isr 4c
+dynamic_isr 4d
+dynamic_isr 4e
+dynamic_isr 4f
+
 .text_end:

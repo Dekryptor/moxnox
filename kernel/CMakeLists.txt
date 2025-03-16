@@ -19,12 +19,10 @@ set(SRC_FILES src/kernel.cpp
     src/smp.cpp
     src/smp.S
     src/pe.cpp
-    src/keyboard.S
     src/event.cpp
     src/pipe.cpp
     src/pci.cpp
     src/sata.cpp
-    src/sata.S
     src/semaphore.cpp
     src/volume.cpp
     src/btrfs.cpp
@@ -43,7 +41,6 @@ set(SRC_FILES src/kernel.cpp
     src/rwsem.cpp
     src/vfs.cpp
     src/bsod2.cpp
-    src/acpi.S
     ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 add_executable(kernel ${SRC_FILES})

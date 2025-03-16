@@ -13,9 +13,6 @@ import interrupts;
 
 using namespace std;
 
-static const uint8_t sata_interrupt = 0x32;
-static bool interrupt_added = false;
-
 static spinlock sata_list_lock;
 static list_entry sata_list = { &sata_list, &sata_list };
 
@@ -625,7 +622,6 @@ void sata_card::isr() {
     }
 }
 
-extern "C"
 void sata_isr_func() {
     lock_guard lock(sata_list_lock);
 
@@ -667,9 +663,10 @@ void init_sata(const pci_device& dev) {
         return;
     }
 
-    if (!interrupt_added) {
-        add_idt_entry(sata_interrupt, (void*)sata_isr, false, 0, false);
-        interrupt_added = true;
+    auto int_num = add_isr(sata_isr_func);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return;
     }
 
     auto& msi = *(volatile pci_msi*)dev.msi.data();
@@ -678,9 +675,9 @@ void init_sata(const pci_device& dev) {
 
     if (msi.message_control & 0x80) { // 64-bit
         msi.v64.message_address_high = 0;
-        msi.v64.message_data = sata_interrupt;
+        msi.v64.message_data = int_num;
     } else
-        msi.v32.message_data = sata_interrupt;
+        msi.v32.message_data = int_num;
 
     msi.message_control = msi.message_control | 1; // enable
 

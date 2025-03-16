@@ -42,6 +42,46 @@ static volatile uint8_t* const io_apic = (uint8_t*)0xfffffae000000000;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
 static span<const uint8_t> madt;
 
+using isr_func_type = void (*)();
+
+static const uint8_t MIN_DYNAMIC_INTERRUPT = 0x30;
+
+static spinlock isr_lock;
+static isr_func_type isr_funcs[0x20];
+
+extern "C" void dynamic_isr_30();
+extern "C" void dynamic_isr_31();
+extern "C" void dynamic_isr_32();
+extern "C" void dynamic_isr_33();
+extern "C" void dynamic_isr_34();
+extern "C" void dynamic_isr_35();
+extern "C" void dynamic_isr_36();
+extern "C" void dynamic_isr_37();
+extern "C" void dynamic_isr_38();
+extern "C" void dynamic_isr_39();
+extern "C" void dynamic_isr_3a();
+extern "C" void dynamic_isr_3b();
+extern "C" void dynamic_isr_3c();
+extern "C" void dynamic_isr_3d();
+extern "C" void dynamic_isr_3e();
+extern "C" void dynamic_isr_3f();
+extern "C" void dynamic_isr_40();
+extern "C" void dynamic_isr_41();
+extern "C" void dynamic_isr_42();
+extern "C" void dynamic_isr_43();
+extern "C" void dynamic_isr_44();
+extern "C" void dynamic_isr_45();
+extern "C" void dynamic_isr_46();
+extern "C" void dynamic_isr_47();
+extern "C" void dynamic_isr_48();
+extern "C" void dynamic_isr_49();
+extern "C" void dynamic_isr_4a();
+extern "C" void dynamic_isr_4b();
+extern "C" void dynamic_isr_4c();
+extern "C" void dynamic_isr_4d();
+extern "C" void dynamic_isr_4e();
+extern "C" void dynamic_isr_4f();
+
 static bool check_cpu_for_apic() {
     uint32_t eax, ebx, ecx, edx;
 
@@ -206,6 +246,42 @@ export void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
     i.zero2 = 0;
 }
 
+extern "C"
+void handle_dynamic_isr(uint8_t int_num) {
+    isr_func_type func;
+
+    if (int_num < MIN_DYNAMIC_INTERRUPT)
+        return;
+
+    if ((uint8_t)(int_num - MIN_DYNAMIC_INTERRUPT) > sizeof(isr_funcs) / sizeof(isr_funcs[0]))
+        return;
+
+    {
+        lock_guard lock(isr_lock);
+        func = isr_funcs[int_num - MIN_DYNAMIC_INTERRUPT];
+    }
+
+    if (!func)
+        return;
+
+    func();
+}
+
+export uint8_t add_isr(isr_func_type isr_func) {
+    lock_guard lock(isr_lock);
+
+    auto sp = span(isr_funcs);
+
+    for (uint8_t i = 0; i < sp.size(); i++) {
+        if (!sp[i]) {
+            sp[i] = isr_func;
+            return MIN_DYNAMIC_INTERRUPT + i;
+        }
+    }
+
+    return 0;
+}
+
 static bool setup_idt() {
     auto idt_page = allocate_page();
     if (idt_page == 0) {
@@ -241,6 +317,39 @@ static bool setup_idt() {
     // FIXME - int 13 (SIMD exception)
     // FIXME - int 14 (virtualization exception)
     // FIXME - int 15 (control protection exception)
+
+    add_idt_entry(0x30, (void*)dynamic_isr_30, false, 0, false);
+    add_idt_entry(0x31, (void*)dynamic_isr_31, false, 0, false);
+    add_idt_entry(0x32, (void*)dynamic_isr_32, false, 0, false);
+    add_idt_entry(0x33, (void*)dynamic_isr_33, false, 0, false);
+    add_idt_entry(0x34, (void*)dynamic_isr_34, false, 0, false);
+    add_idt_entry(0x35, (void*)dynamic_isr_35, false, 0, false);
+    add_idt_entry(0x36, (void*)dynamic_isr_36, false, 0, false);
+    add_idt_entry(0x37, (void*)dynamic_isr_37, false, 0, false);
+    add_idt_entry(0x38, (void*)dynamic_isr_38, false, 0, false);
+    add_idt_entry(0x39, (void*)dynamic_isr_39, false, 0, false);
+    add_idt_entry(0x3a, (void*)dynamic_isr_3a, false, 0, false);
+    add_idt_entry(0x3b, (void*)dynamic_isr_3b, false, 0, false);
+    add_idt_entry(0x3c, (void*)dynamic_isr_3c, false, 0, false);
+    add_idt_entry(0x3d, (void*)dynamic_isr_3d, false, 0, false);
+    add_idt_entry(0x3e, (void*)dynamic_isr_3e, false, 0, false);
+    add_idt_entry(0x3f, (void*)dynamic_isr_3f, false, 0, false);
+    add_idt_entry(0x40, (void*)dynamic_isr_40, false, 0, false);
+    add_idt_entry(0x41, (void*)dynamic_isr_41, false, 0, false);
+    add_idt_entry(0x42, (void*)dynamic_isr_42, false, 0, false);
+    add_idt_entry(0x43, (void*)dynamic_isr_43, false, 0, false);
+    add_idt_entry(0x44, (void*)dynamic_isr_44, false, 0, false);
+    add_idt_entry(0x45, (void*)dynamic_isr_45, false, 0, false);
+    add_idt_entry(0x46, (void*)dynamic_isr_46, false, 0, false);
+    add_idt_entry(0x47, (void*)dynamic_isr_47, false, 0, false);
+    add_idt_entry(0x48, (void*)dynamic_isr_48, false, 0, false);
+    add_idt_entry(0x49, (void*)dynamic_isr_49, false, 0, false);
+    add_idt_entry(0x4a, (void*)dynamic_isr_4a, false, 0, false);
+    add_idt_entry(0x4b, (void*)dynamic_isr_4b, false, 0, false);
+    add_idt_entry(0x4c, (void*)dynamic_isr_4c, false, 0, false);
+    add_idt_entry(0x4d, (void*)dynamic_isr_4d, false, 0, false);
+    add_idt_entry(0x4e, (void*)dynamic_isr_4e, false, 0, false);
+    add_idt_entry(0x4f, (void*)dynamic_isr_4f, false, 0, false);
 
     add_idt_entry(halt_interrupt, (void*)halt_isr, false, 0, false);
     add_idt_entry(spurious_interrupt, (void*)spurious_isr, false, 0, false);

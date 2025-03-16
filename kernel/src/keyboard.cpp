@@ -17,7 +17,6 @@ import interrupts;
 
 using namespace std;
 
-static const uint8_t keyboard_interrupt = 0x31;
 static const unsigned int keyboard_buffer_pages = 1;
 
 static optional<reference_wrapper<event>> keyboard_event_obj;
@@ -39,6 +38,8 @@ static uint32_t input_mode = ENABLE_PROCESSED_INPUT;
 
 static bool keyboard_initialized = false;
 static uint16_t keyboard_port1;
+
+void keyboard_isr_func();
 
 class keyboard_pipe : public pipe {
 public:
@@ -281,12 +282,16 @@ export void init_keyboard(uint16_t port1, uint16_t port2) {
         inb(port1);
     }
 
-    add_idt_entry(keyboard_interrupt, (void*)keyboard_isr, false, 0, false);
+    auto int_num = add_isr(keyboard_isr_func);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return;
+    }
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     // IRQ 1 = keyboard
-    add_irq_handler(1, keyboard_interrupt, local_apic_id);
+    add_irq_handler(1, int_num, local_apic_id);
 
     __asm __volatile("sti");
 
@@ -294,7 +299,6 @@ export void init_keyboard(uint16_t port1, uint16_t port2) {
     keyboard_initialized = true;
 }
 
-extern "C"
 void keyboard_isr_func() {
     auto code = inb(keyboard_port1);
 

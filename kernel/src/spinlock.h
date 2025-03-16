@@ -10,7 +10,7 @@ public:
         __asm __volatile(
             "mov rax, cr8\n"
             "mov %0, rax\n"
-            "mov rax, 4\n"
+            "mov rax, 5\n"
             "mov cr8, rax\n"
             : "=m" (current_cr8)
             :
@@ -51,7 +51,7 @@ public:
         __asm __volatile(
             "mov rax, cr8\n"
             "mov %0, rax\n"
-            "mov rax, 4\n"
+            "mov rax, 5\n"
             "mov cr8, rax\n"
             : "=m" (current_cr8)
             :

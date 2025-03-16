@@ -11,10 +11,11 @@ import interrupts;
 
 using namespace std;
 
-static const uint8_t serial_interrupt = 0x33;
 static const uint16_t com1_port = 0x3f8;
 static const unsigned int serial_buffer_pages = 1;
 static bool init_serial_done = false;
+
+void serial_isr_func();
 
 class serial_in_pipe : public pipe {
 public:
@@ -149,12 +150,16 @@ bool init_serial() {
         return false;
     }
 
-    add_idt_entry(serial_interrupt, (void*)serial_isr, false, 0, false);
+    auto int_num = add_isr(serial_isr_func);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return false;
+    }
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     // IRQ 4 = COM1 and COM3
-    add_irq_handler(4, serial_interrupt, local_apic_id);
+    add_irq_handler(4, int_num, local_apic_id);
 
     return true;
 }
@@ -299,7 +304,6 @@ nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
     return nt_status::SUCCESS;
 }
 
-extern "C"
 void serial_isr_func() {
     auto iir = inb(0x3fa); // interrupt identification register, COM1
 

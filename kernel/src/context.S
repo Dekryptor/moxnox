@@ -155,10 +155,10 @@
     pop rax
 .endm
 
-.macro isr name, func
-    .seh_proc "\name"
-    .global "\name"
-"\name":
+.macro dynamic_isr num
+    .seh_proc "dynamic_isr_\num"
+    .global "dynamic_isr_\num"
+"dynamic_isr_\num":
     .seh_pushframe
     sub rsp, 0x58
     .seh_stackalloc 0x58
@@ -177,7 +177,8 @@
     mov [rsp+0x28], r10
     mov [rsp+0x20], r11
 
-    call \func
+    mov cl, 0x\num
+    call handle_dynamic_isr
 
     xor rax, rax
     mov DWORD PTR [APIC_BASE+APIC_EOI], eax
@@ -198,5 +199,5 @@
     add rsp, 0x58
     iretq
     .seh_endproc
-"\name" "_end":
+"dynamic_isr_\num" "_end":
 .endm

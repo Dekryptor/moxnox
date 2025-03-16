@@ -54,11 +54,6 @@
 .quad init_serial_port
 .quad init_serial_port_end - init_serial_port
 
-.uleb128 2
-.asciz "serial_isr"
-.quad serial_isr
-.quad serial_isr_end - serial_isr
-
 .uleb128 0
 
 .debug_info_end:
@@ -135,7 +130,5 @@ init_serial_port:
 
     ret
 init_serial_port_end:
-
-isr serial_isr, serial_isr_func
 
 .text_end:

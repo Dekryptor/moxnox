@@ -33,8 +33,6 @@ static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
 
 static const uint8_t ACPI_IRQ = 9; // FIXME - don't hardcode
 
-static const uint8_t acpi_interrupt = 0x30;
-
 struct acpi_device {
     list_entry le;
     string_view acpi_name;
@@ -121,13 +119,10 @@ static const struct {
 
 export bool acpi_early_init_done = false;
 
-extern "C" void acpi_isr();
-
 static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
 }
 
-extern "C"
 void acpi_isr_func() {
     lock_guard lock(irq_handlers_lock);
 
@@ -164,11 +159,15 @@ export void init_acpi_early() {
 export void init_acpi() {
     ACPI_STATUS Status;
 
-    add_idt_entry(acpi_interrupt, (void*)acpi_isr, false, 0, false);
+    auto int_num = add_isr(acpi_isr_func);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return;
+    }
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    add_irq_handler(ACPI_IRQ, acpi_interrupt, local_apic_id);
+    add_irq_handler(ACPI_IRQ, int_num, local_apic_id);
 
     Status = AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY,
                                       acpi_notify_handler, nullptr);

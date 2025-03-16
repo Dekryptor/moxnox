@@ -172,12 +172,6 @@ void init_pci();
 // sata.cpp
 void init_sata(const pci_device& dev);
 
-// keyboard.S
-extern "C" void keyboard_isr();
-
-// sata.S
-extern "C" void sata_isr();
-
 // semaphore.cpp
 object_ref create_semaphore(unsigned int maximum_count);
 void release_semaphore(semaphore& s);
@@ -224,7 +218,6 @@ bool init_serial();
 
 // serial.S
 extern "C" bool init_serial_port(uint16_t port);
-extern "C" void serial_isr();
 
 // mem.S
 extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
