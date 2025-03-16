@@ -173,11 +173,11 @@ export bool init_serial() {
         return false;
     }
 
-    auto com1_pipe = &static_cast<serial_out_pipe&>(com1_send_handle.get());
+    auto& com1_send_pipe = static_cast<serial_out_pipe&>(com1_send_handle.get());
 
     auto& com1_recv_pipe = static_cast<serial_in_pipe&>(com1_recv_handle.get());
 
-    auto pptr = new serial_duplex_pipe(com1_recv_pipe, *com1_pipe);
+    auto pptr = new serial_duplex_pipe(com1_recv_pipe, com1_send_pipe);
     if (!pptr) {
         print("new failed\n");
         return false;
