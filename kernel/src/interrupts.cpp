@@ -1,3 +1,5 @@
+module;
+
 #include "kernel.h"
 #include "acpica.h"
 #include "objects.h"
@@ -6,6 +8,8 @@
 #include <span>
 #include <optional>
 #include <functional>
+
+export module interrupts;
 
 import format;
 import print;
@@ -33,7 +37,7 @@ typedef struct {
     uint32_t zero2;
 } idt_entry;
 
-volatile uint8_t* const local_apic = (uint8_t*)APIC_BASE;
+export volatile uint8_t* const local_apic = (uint8_t*)APIC_BASE;
 static volatile uint8_t* const io_apic = (uint8_t*)0xfffffae000000000;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
 static span<const uint8_t> madt;
@@ -108,7 +112,7 @@ static uint32_t get_irq_gsi(uint8_t irq) {
     return irq;
 }
 
-void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
+export void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
     // FIXME - handle multiple I/O APICs (send to right one)
 
     volatile uint32_t* IOREGSEL = (uint32_t*)io_apic;
@@ -125,40 +129,7 @@ void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
     write_reg(0x11 + (gsi * 2), apic_id);
 };
 
-void enable_irq(uint8_t irq, bool enable) {
-    // FIXME - handle multiple I/O APICs (send to right one)
-
-    volatile uint32_t* IOREGSEL = (uint32_t*)io_apic;
-    volatile uint32_t* IOREGWIN = (uint32_t*)(io_apic + 0x10);
-
-    auto read_reg = [&](uint32_t reg) -> uint32_t {
-        *IOREGSEL = reg;
-
-        return *IOREGWIN;
-    };
-
-    auto write_reg = [&](uint32_t reg, uint32_t val) {
-        *IOREGSEL = reg;
-        *IOREGWIN = val;
-    };
-
-    auto gsi = get_irq_gsi(irq);
-
-    __asm __volatile("cli");
-
-    auto val = read_reg(0x10 + (gsi * 2));
-
-    if (enable)
-        val &= (uint32_t)~0x10000;
-    else
-        val |= 0x10000;
-
-    write_reg(0x10 + (gsi * 2), val);
-
-    __asm __volatile("sti");
-}
-
-bool init_apic() {
+export bool init_apic() {
     // FIXME - can we assume that nothing's disabled the APIC? (Check EFI specs?)
 
     ACPI_TABLE_HEADER* tbl;
@@ -213,8 +184,8 @@ bool init_apic() {
     return true;
 }
 
-void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
-                   bool user_mode) {
+export void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
+                          bool user_mode) {
     auto& i = idt[vector];
     auto addr = (uintptr_t)func;
 
@@ -292,7 +263,7 @@ static bool setup_idt() {
     return true;
 }
 
-void* allocate_stack() {
+export void* allocate_stack() {
     auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     if (!stack) {
         print("allocate_va failed\n");
@@ -337,7 +308,7 @@ void* allocate_stack() {
     return stack;
 }
 
-task_state_segment* init_tss() {
+export task_state_segment* init_tss() {
     auto pa = allocate_page();
     if (!pa) {
         print("allocate_page failed\n");
@@ -485,7 +456,7 @@ static bool setup_gdt(task_state_segment* tss) {
     return true;
 }
 
-bool init_interrupts() {
+export bool init_interrupts() {
     if (!setup_idt())
         return false;
 

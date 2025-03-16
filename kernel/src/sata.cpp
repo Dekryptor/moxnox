@@ -9,6 +9,7 @@ import bsod;
 import mem;
 import config;
 import list;
+import interrupts;
 
 using namespace std;
 

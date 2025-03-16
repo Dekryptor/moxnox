@@ -5,6 +5,7 @@
 
 import print;
 import inout;
+import interrupts;
 
 using namespace std;
 

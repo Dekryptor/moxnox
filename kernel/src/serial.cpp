@@ -7,6 +7,7 @@
 import print;
 import inout;
 import config;
+import interrupts;
 
 using namespace std;
 

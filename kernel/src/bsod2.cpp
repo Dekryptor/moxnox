@@ -13,6 +13,7 @@ import bsod;
 import unwind;
 import config;
 import list;
+import interrupts;
 
 using namespace std;
 

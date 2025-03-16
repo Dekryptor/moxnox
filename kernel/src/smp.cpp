@@ -8,6 +8,7 @@
 import print;
 import mem;
 import config;
+import interrupts;
 
 using namespace std;
 

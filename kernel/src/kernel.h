@@ -111,17 +111,6 @@ bool init_fb_console();
 void copy_edid(loader_block* lb);
 extern enum console_type console_type;
 
-// interrupts.cpp
-extern volatile uint8_t* const local_apic;
-bool init_interrupts();
-void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id);
-void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
-                   bool user_mode);
-void enable_irq(uint8_t irq, bool enable);
-task_state_segment* init_tss();
-void* allocate_stack();
-bool init_apic();
-
 // ints.S
 extern "C" void page_fault_isr();
 extern "C" void double_fault_isr();

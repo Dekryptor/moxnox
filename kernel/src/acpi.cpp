@@ -18,6 +18,7 @@ import rtc;
 import keyboard;
 import mem;
 import list;
+import interrupts;
 
 using namespace std;
 

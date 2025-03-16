@@ -12,6 +12,7 @@ import acpi;
 import null;
 import mem;
 import list;
+import interrupts;
 
 using namespace std;
 
