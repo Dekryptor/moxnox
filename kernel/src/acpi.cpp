@@ -585,12 +585,55 @@ ACPI_STATUS AcpiOsWriteMemory(ACPI_PHYSICAL_ADDRESS /*Address*/, UINT64 /*Value*
     return AE_ERROR;
 }
 
-extern "C"
-ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID* /*PciId*/, UINT32 /*Reg*/,
-                                       UINT64* /*Value*/, UINT32 /*Width*/) {
-    print("FIXME - AcpiOsReadPciConfiguration\n");
+static constexpr uint64_t pci_pa(const ACPI_MCFG_ALLOCATION& item, uint8_t bus, uint8_t device, uint8_t function) {
+    return item.Address | (uint64_t)((bus - item.StartBusNumber) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12);
+}
 
-    return AE_ERROR;
+extern "C"
+ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID* PciId, UINT32 Reg,
+                                       UINT64* Value, UINT32 Width) {
+    ACPI_TABLE_HEADER* tbl;
+
+    auto status = AcpiGetTable((char*)ACPI_SIG_MCFG, 1, &tbl);
+    if (ACPI_FAILURE(status))
+        return status;
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MCFG))
+        return AE_ERROR;
+
+    auto items = span((ACPI_MCFG_ALLOCATION*)((uint8_t*)tbl + sizeof(ACPI_TABLE_MCFG)),
+                      (tbl->Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION));
+
+    if (items.empty())
+        return AE_NOT_FOUND;
+
+    for (auto& it : items) {
+        if (it.PciSegment != PciId->Segment)
+            continue;
+
+        if (PciId->Bus < it.StartBusNumber || PciId->Bus > it.EndBusNumber)
+            continue;
+
+        auto pa = pci_pa(it, (uint8_t)PciId->Bus, (uint8_t)PciId->Device, (uint8_t)PciId->Function) + Reg;
+        auto va = phys_address(pa);
+
+        if (Width == 8) {
+            *Value = *(volatile uint8_t*)va;
+            return AE_OK;
+        } else if (Width == 16) {
+            *Value = *(volatile uint16_t*)va;
+            return AE_OK;
+        } else if (Width == 32) {
+            *Value = *(volatile uint32_t*)va;
+            return AE_OK;
+        } else if (Width == 64) {
+            *Value = *(volatile uint64_t*)va;
+            return AE_OK;
+        } else
+            return AE_BAD_PARAMETER;
+    }
+
+    return AE_NOT_FOUND;
 }
 
 extern "C"
