@@ -299,7 +299,9 @@ nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
 }
 
 extern "C"
-void serial_isr_func(uint8_t iir) {
+void serial_isr_func() {
+    auto iir = inb(0x3fa); // interrupt identification register, COM1
+
     if (iir & 1) // not us
         return;
 
