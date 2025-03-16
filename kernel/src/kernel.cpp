@@ -296,12 +296,12 @@ void startup(loader_block* lb) {
     if (!init_interrupts())
         goto hang;
 
-    if (!init_console(fb, tc))
-        goto hang;
-
     init_acpi_early();
 
     if (!init_apic())
+        goto hang;
+
+    if (!init_console(fb, tc))
         goto hang;
 
     __asm("sti");
