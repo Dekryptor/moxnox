@@ -31,6 +31,14 @@ public:
         return rw->get();
     }
 
+    void swap(object_ref& that) {
+        std::optional<std::reference_wrapper<object>> rw2;
+
+        rw2 = that.rw;
+        that.rw = rw;
+        this->rw = rw;
+    }
+
     void reset();
 
 private:

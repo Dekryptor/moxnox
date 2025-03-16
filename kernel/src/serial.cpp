@@ -155,39 +155,41 @@ export bool init_serial(uint16_t port, uint32_t irq) {
     if (!init_serial_port(port))
         return false;
 
-    auto com1_send_handle = create_serial_out_pipe(serial_buffer_pages, port);
-    if (!com1_send_handle) {
+    auto send_handle = create_serial_out_pipe(serial_buffer_pages, port);
+    if (!send_handle) {
         print("create_serial_out_pipe failed\n");
         return false;
     }
 
-    auto com1_recv_handle = create_serial_in_pipe(serial_buffer_pages);
-    if (!com1_recv_handle) {
+    auto recv_handle = create_serial_in_pipe(serial_buffer_pages);
+    if (!recv_handle) {
         print("create_serial_in_pipe failed\n");
         return false;
     }
 
-    auto& com1_send_pipe = static_cast<serial_out_pipe&>(com1_send_handle.get());
+    auto& send_pipe = static_cast<serial_out_pipe&>(send_handle.get());
 
-    auto& com1_recv_pipe = static_cast<serial_in_pipe&>(com1_recv_handle.get());
+    auto& recv_pipe = static_cast<serial_in_pipe&>(recv_handle.get());
 
-    auto pptr = new serial_duplex_pipe(com1_recv_pipe, com1_send_pipe, port);
+    auto pptr = new serial_duplex_pipe(recv_pipe, send_pipe, port);
     if (!pptr) {
         print("new failed\n");
         return false;
     }
 
-    com1_pipe_handle = object_ref{*pptr};
+    auto pipe_handle = object_ref{*pptr};
 
     // FIXME - numbering assumes that ACPI devices are started in order, i.e. all from one thread
+
+    unsigned int num = serial_port_number.fetch_add(1);
 
     {
         char s[10];
         auto sp = span(s, sizeof(s));
 
-        sp = format(sp, "ttyS{}", serial_port_number.fetch_add(1));
+        sp = format(sp, "ttyS{}", num);
 
-        if (!name_object(com1_pipe_handle.get(), string_view(s, (size_t)(sp.data() - s)))) {
+        if (!name_object(pipe_handle.get(), string_view(s, (size_t)(sp.data() - s)))) {
             print("name_object failed\n");
             return false;
         }
@@ -199,6 +201,9 @@ export bool init_serial(uint16_t port, uint32_t irq) {
         print("add_irq_handler failed\n");
         return false;
     }
+
+    if (num == 0)
+        com1_pipe_handle.swap(pipe_handle);
 
     return true;
 }
@@ -344,7 +349,7 @@ nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
 }
 
 bool serial_duplex_pipe::isr_func() {
-    auto iir = inb(port + 2); // interrupt identification register, COM1
+    auto iir = inb(port + 2); // interrupt identification register
 
     if (iir & 1) // not us
         return false;
