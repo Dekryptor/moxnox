@@ -8,6 +8,7 @@ module;
 export module serial;
 
 import print;
+import format;
 import inout;
 import config;
 import interrupts;
@@ -18,6 +19,7 @@ const uint32_t ENABLE_PROCESSED_INPUT = 0x1;
 const uint32_t ENABLE_PROCESSED_OUTPUT = 0x1;
 
 static const unsigned int serial_buffer_pages = 1;
+static atomic<unsigned int> serial_port_number = 0;
 
 static bool serial_isr_func(void*);
 
@@ -177,9 +179,18 @@ export bool init_serial(uint16_t port, uint32_t irq) {
 
     com1_pipe_handle = object_ref{*pptr};
 
-    if (!name_object(com1_pipe_handle.get(), "ttyS0")) {
-        print("name_object failed\n");
-        return false;
+    // FIXME - numbering assumes that ACPI devices are started in order, i.e. all from one thread
+
+    {
+        char s[10];
+        auto sp = span(s, sizeof(s));
+
+        sp = format(sp, "ttyS{}", serial_port_number.fetch_add(1));
+
+        if (!name_object(com1_pipe_handle.get(), string_view(s, (size_t)(sp.data() - s)))) {
+            print("name_object failed\n");
+            return false;
+        }
     }
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
