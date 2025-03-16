@@ -40,12 +40,18 @@ typedef struct {
 export volatile uint8_t* const local_apic = (uint8_t*)APIC_BASE;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
 
-using isr_func_type = void (*)();
+using isr_func_type = void (*)(void*);
 
 static const uint8_t MIN_DYNAMIC_INTERRUPT = 0x30;
 
 static spinlock isr_lock, irq_lock;
-static isr_func_type isr_funcs[0x20];
+
+struct isr_func_info {
+    isr_func_type func;
+    void* ctx;
+};
+
+static isr_func_info isr_funcs[0x20];
 
 extern "C" void dynamic_isr_30();
 extern "C" void dynamic_isr_31();
@@ -165,14 +171,15 @@ static ACPI_MADT_IO_APIC* find_ioapic(span<const uint8_t> madt, uint32_t gsi) {
     return nullptr;
 }
 
-export uint8_t add_isr(isr_func_type isr_func) {
+export uint8_t add_isr(isr_func_type isr_func, void* ctx) {
     lock_guard lock(isr_lock);
 
     auto sp = span(isr_funcs);
 
     for (uint8_t i = 0; i < sp.size(); i++) {
-        if (!sp[i]) {
-            sp[i] = isr_func;
+        if (!sp[i].func) {
+            sp[i].func = isr_func;
+            sp[i].ctx = ctx;
             return MIN_DYNAMIC_INTERRUPT + i;
         }
     }
@@ -199,7 +206,7 @@ export bool add_irq_handler(uint32_t irq, isr_func_type func, uint32_t apic_id) 
 
     auto gsi = get_irq_gsi(madt, irq);
 
-    auto vec = add_isr(func);
+    auto vec = add_isr(func, nullptr);
     if (vec == 0) {
         print("add_isr failed\n");
         return false;
@@ -293,6 +300,7 @@ export void add_idt_entry(uint8_t vector, void* func, bool trap, uint8_t ist,
 extern "C"
 void handle_dynamic_isr(uint8_t int_num) {
     isr_func_type func;
+    void* ctx;
 
     if (int_num < MIN_DYNAMIC_INTERRUPT)
         return;
@@ -302,13 +310,14 @@ void handle_dynamic_isr(uint8_t int_num) {
 
     {
         lock_guard lock(isr_lock);
-        func = isr_funcs[int_num - MIN_DYNAMIC_INTERRUPT];
+        func = isr_funcs[int_num - MIN_DYNAMIC_INTERRUPT].func;
+        ctx = isr_funcs[int_num - MIN_DYNAMIC_INTERRUPT].ctx;
     }
 
     if (!func)
         return;
 
-    func();
+    func(ctx);
 }
 
 static bool setup_idt() {

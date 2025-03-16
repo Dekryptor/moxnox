@@ -622,7 +622,7 @@ void sata_card::isr() {
     }
 }
 
-void sata_isr_func() {
+static void sata_isr_func(void*) {
     lock_guard lock(sata_list_lock);
 
     auto le = sata_list.next;
@@ -663,7 +663,7 @@ void init_sata(const pci_device& dev) {
         return;
     }
 
-    auto int_num = add_isr(sata_isr_func);
+    auto int_num = add_isr(sata_isr_func, nullptr);
     if (int_num == 0) {
         print("add_isr failed\n");
         return;

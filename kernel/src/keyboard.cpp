@@ -39,7 +39,7 @@ static uint32_t input_mode = ENABLE_PROCESSED_INPUT;
 static bool keyboard_initialized = false;
 static uint16_t keyboard_port1;
 
-void keyboard_isr_func();
+static void keyboard_isr_func(void*);
 
 class keyboard_pipe : public pipe {
 public:
@@ -295,7 +295,7 @@ export void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     keyboard_initialized = true;
 }
 
-void keyboard_isr_func() {
+static void keyboard_isr_func(void*) {
     auto code = inb(keyboard_port1);
 
     {

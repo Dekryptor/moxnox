@@ -123,7 +123,7 @@ static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
 }
 
-void acpi_isr_func() {
+static void acpi_isr_func(void*) {
     lock_guard lock(irq_handlers_lock);
 
     for (auto le = irq_handlers.next; le != &irq_handlers; le = le->next) {
