@@ -1,7 +1,7 @@
 name: build
 on: [push]
 jobs:
-  x86_64-pc-linux-gnu:
+  x86_64 Clang:
     runs-on: ubuntu-rolling
     steps:
       - run: apt-get update
