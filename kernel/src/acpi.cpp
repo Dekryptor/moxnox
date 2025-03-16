@@ -49,7 +49,8 @@ enum class acpi_device_resource_type {
     address16,
     address32,
     address64,
-    fixed_memory32
+    fixed_memory32,
+    dma
 };
 
 struct acpi_device_resource {
@@ -83,6 +84,10 @@ struct acpi_device_resource_address64 : acpi_device_resource {
 
 struct acpi_device_resource_fixed_memory32 : acpi_device_resource {
     ACPI_RESOURCE_FIXED_MEMORY32 fixed_memory32;
+};
+
+struct acpi_device_resource_dma : acpi_device_resource {
+    ACPI_RESOURCE_DMA dma;
 };
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
@@ -225,6 +230,19 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
 
             r->type = acpi_device_resource_type::irq;
             memcpy(&r->irq, &res->Data.Irq, sizeof(ACPI_RESOURCE_IRQ));
+            insert_tail_list(d.resources, r->le);
+            break;
+        }
+
+        case ACPI_RESOURCE_TYPE_DMA: {
+            auto r = new acpi_device_resource_dma;
+            if (!r) {
+                print("out of memory\n");
+                return AE_OK;
+            }
+
+            r->type = acpi_device_resource_type::dma;
+            memcpy(&r->dma, &res->Data.Dma, sizeof(ACPI_RESOURCE_DMA));
             insert_tail_list(d.resources, r->le);
             break;
         }
