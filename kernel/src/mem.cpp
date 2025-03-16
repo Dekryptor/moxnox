@@ -646,7 +646,12 @@ export bool init_memory(const loader_block& lb) {
     num_memblock_bytes = total_pages * sizeof(page);
     num_memblock_pages = bytes_to_pages(num_memblock_bytes);
 
-    scratch_pages = orig_scratch_pages = 5; // pages needed for paging tables
+    orig_scratch_pages = 5; // pages needed for paging tables
+
+    orig_scratch_pages += num_memblock_pages / 512; // for second-level pages
+    orig_scratch_pages += num_memblock_pages / (512 * 512); // for third-level pages
+
+    scratch_pages = orig_scratch_pages;
     needed_pages = num_memblock_pages + scratch_pages;
 
     // allocate physical pages for memblock
