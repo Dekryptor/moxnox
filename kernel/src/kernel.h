@@ -147,6 +147,7 @@ extern "C" void pit_delay(uint16_t delay);
 void init_timer();
 void init_lapic_timer(bool ap);
 extern volatile int64_t system_time;
+extern uint64_t system_time_offset;
 
 class object_ref;
 

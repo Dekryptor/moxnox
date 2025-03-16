@@ -2042,7 +2042,7 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
 }
 
 static btrfs_time get_btrfs_time() {
-    auto now = (uint64_t)system_time;
+    auto now = (uint64_t)(system_time + system_time_offset);
     btrfs_time ret;
 
     ret.nanoseconds = (uint32_t)((now % SYSTEM_TIME_RESOLUTION) * (1000000000 / SYSTEM_TIME_RESOLUTION));

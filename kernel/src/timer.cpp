@@ -22,6 +22,7 @@ list_entry active_timer_list = { &active_timer_list, &active_timer_list };
 
 // FIXME - this should be in a page that userspace can read directly
 volatile int64_t system_time = 0;
+uint64_t system_time_offset = 0;
 
 void init_lapic_timer(bool ap) {
     if (ap) {
@@ -147,7 +148,7 @@ timer::~timer() {
 }
 
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
-    SystemTime->QuadPart = system_time;
+    SystemTime->QuadPart = system_time + system_time_offset;
 
     return nt_status::SUCCESS;
 }

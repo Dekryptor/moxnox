@@ -10,6 +10,7 @@ using namespace std;
 
 // timer.cpp
 extern "C" volatile int64_t system_time;
+extern "C" volatile uint64_t system_time_offset;
 
 template<unsigned N>
 static uint8_t get_rtc_register(uint16_t port) {
@@ -103,5 +104,5 @@ export void init_rtc(uint16_t port) {
 
     auto day_num = ymd_to_num(ymd);
 
-    system_time = ((day_num * 86400) + (now.hour * 3600) + (now.minute * 60) + now.second) * 10000000;
+    system_time_offset = (((day_num * 86400) + (now.hour * 3600) + (now.minute * 60) + now.second) * 10000000) - system_time;
 }
