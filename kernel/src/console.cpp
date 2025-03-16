@@ -1374,7 +1374,7 @@ bool init_console(const loader_block_framebuffer& fb,
         return true;
     });
 
-    if (console_opt == "/dev/ttyS0" && init_serial()) {
+    if (console_opt == "/dev/ttyS0" && init_serial(0x3f8)) { // FIXME
         auto& p = static_cast<pipe&>(com1_pipe_handle.get());
 
         p.acquire();

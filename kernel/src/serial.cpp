@@ -17,7 +17,6 @@ using namespace std;
 const uint32_t ENABLE_PROCESSED_INPUT = 0x1;
 const uint32_t ENABLE_PROCESSED_OUTPUT = 0x1;
 
-static const uint16_t com1_port = 0x3f8;
 static const unsigned int serial_buffer_pages = 1;
 static bool init_serial_done = false;
 
@@ -61,7 +60,7 @@ private:
 
 class serial_duplex_pipe : public pipe {
 public:
-    serial_duplex_pipe(serial_in_pipe& recv_pipe, serial_out_pipe& send_pipe) : pipe(0), recv_pipe(recv_pipe), send_pipe(send_pipe) {
+    serial_duplex_pipe(serial_in_pipe& recv_pipe, serial_out_pipe& send_pipe, uint16_t port) : pipe(0), recv_pipe(recv_pipe), send_pipe(send_pipe), port(port) {
         recv_pipe.acquire();
         send_pipe.acquire();
     }
@@ -84,6 +83,7 @@ public:
 
     serial_in_pipe& recv_pipe;
     serial_out_pipe& send_pipe;
+    uint16_t port;
 };
 
 export object_ref com1_pipe_handle;
@@ -150,7 +150,7 @@ static bool init_serial_port(uint16_t port) {
     return true;
 }
 
-export bool init_serial() {
+export bool init_serial(uint16_t port) {
     if (init_serial_done)
         return true;
 
@@ -158,10 +158,10 @@ export bool init_serial() {
 
     // FIXME - COM2, COM3, COM4
 
-    if (!init_serial_port(com1_port))
+    if (!init_serial_port(port))
         return true;
 
-    auto com1_send_handle = create_serial_out_pipe(serial_buffer_pages, com1_port);
+    auto com1_send_handle = create_serial_out_pipe(serial_buffer_pages, port);
     if (!com1_send_handle) {
         print("create_serial_out_pipe failed\n");
         return false;
@@ -177,7 +177,7 @@ export bool init_serial() {
 
     auto& com1_recv_pipe = static_cast<serial_in_pipe&>(com1_recv_handle.get());
 
-    auto pptr = new serial_duplex_pipe(com1_recv_pipe, com1_send_pipe);
+    auto pptr = new serial_duplex_pipe(com1_recv_pipe, com1_send_pipe, port);
     if (!pptr) {
         print("new failed\n");
         return false;
@@ -342,7 +342,7 @@ nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
 }
 
 bool serial_duplex_pipe::isr_func() {
-    auto iir = inb(com1_port + 2); // interrupt identification register, COM1
+    auto iir = inb(port + 2); // interrupt identification register, COM1
 
     if (iir & 1) // not us
         return false;
@@ -366,7 +366,7 @@ bool serial_duplex_pipe::isr_func() {
     } else if ((iir & 0xe) == 0x4 || (iir & 0xe) == 0xc) { // data available or character timeout
         uint64_t written_bytes;
 
-        auto c = inb(com1_port);
+        auto c = inb(port);
 
         recv_pipe.write(span(&c, 1), written_bytes);
     }
