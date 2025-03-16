@@ -129,9 +129,11 @@ bool volume::check_for_partitions() {
     size_t table_start_aligned = table_start & ~(read_sector_size - 1);
     size_t table_end_aligned = table_end & ~(read_sector_size - 1) ? ((table_end & ~(read_sector_size - 1)) + read_sector_size) : table_end;
 
-    auto buf = (uint8_t*)malloc(table_end_aligned - table_start_aligned);
+    size_t bufsize = table_end_aligned - table_start_aligned;
+
+    auto buf = (uint8_t*)malloc_large(bufsize);
     if (!buf) {
-        print("malloc failed\n");
+        print("malloc_large failed\n");
         return false;
     }
 
@@ -139,11 +141,11 @@ bool volume::check_for_partitions() {
 
     if (!success(status)) {
         print("volume::read returned {}\n", status);
-        free(buf);
+        free_large(buf, bufsize);
         return false;
     } else if (read_bytes < table_end_aligned - table_start_aligned) {
         print("volume::read failed\n");
-        free(buf);
+        free_large(buf, bufsize);
         return false;
     }
 
@@ -154,7 +156,7 @@ bool volume::check_for_partitions() {
     auto pw = new part_wait;
     if (!pw) {
         print("new failed\n");
-        free(buf);
+        free_large(buf, bufsize);
         return false;
     }
 
@@ -178,7 +180,7 @@ bool volume::check_for_partitions() {
 
     if (pw->left == 0) {
         delete pw;
-        free(buf);
+        free_large(buf, bufsize);
         return true;
     }
 
@@ -198,7 +200,7 @@ bool volume::check_for_partitions() {
                                         part.unique_partition_guid, part.partition_type_guid);
             if (!partdev) {
                 print("new failed\n");
-                free(buf);
+                free_large(buf, bufsize);
                 return false;
             }
 
@@ -217,7 +219,7 @@ bool volume::check_for_partitions() {
                     partdev->volume_name = (char*)malloc(partdev->volume_name_len);
                     if (!partdev->volume_name) {
                         print("malloc failed\n");
-                        free(buf);
+                        free_large(buf, bufsize);
                         return false;
                     }
 
@@ -237,7 +239,7 @@ bool volume::check_for_partitions() {
 
                     if (!name_object(*partdev, sv, true)) {
                         print("name_object failed\n");
-                        free(buf);
+                        free_large(buf, bufsize);
                         return false;
                     }
                 }
@@ -249,7 +251,7 @@ bool volume::check_for_partitions() {
         ptr += size_of_partition_entry;
     }
 
-    free(buf);
+    free_large(buf, bufsize);
 
     wait_for_object(pw->event.get(), false);
 
