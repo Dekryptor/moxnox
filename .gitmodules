@@ -1,9 +1,9 @@
-[submodule "freetype-new"]
-	path = freetype
-	url = https://gitlab.freedesktop.org/freetype/freetype
 [submodule "efi/code"]
 	path = gnu-efi
 	url = https://git.code.sf.net/p/gnu-efi/code
 [submodule "acpica"]
 	path = acpica
 	url = https://github.com/acpica/acpica
+[submodule "freetype"]
+	path = freetype
+	url = https://git.burntcomma.com/maharmstone/freetype
