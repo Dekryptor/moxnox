@@ -237,7 +237,7 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
-export void init_keyboard(uint16_t port1, uint16_t port2) {
+export void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     if (keyboard_initialized) // can only be one PS/2 keyboard(?)
         return;
 
@@ -290,7 +290,7 @@ export void init_keyboard(uint16_t port1, uint16_t port2) {
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    // IRQ 1 = keyboard
+    // IRQ 1 = keyboard (FIXME - use number in ACPI)
     add_irq_handler(1, int_num, local_apic_id);
 
     __asm __volatile("sti");

@@ -214,6 +214,7 @@ static void found_rtc(const acpi_device& d) {
 
 static void found_ps2_keyboard(const acpi_device& d) {
     optional<uint16_t> port1, port2;
+    optional<uint32_t> irq;
 
     for (auto le = d.resources.next; le != &d.resources; le = le->next) {
         auto& r = containing_record<acpi_device_resource>(le);
@@ -227,14 +228,21 @@ static void found_ps2_keyboard(const acpi_device& d) {
                 else if (!port1.has_value())
                     port1 = r2.io.Minimum;
             }
+        } else if (r.type == acpi_device_resource_type::irq) {
+            auto& r2 = static_cast<acpi_device_resource_irq&>(r);
+
+            irq = r2.irq.Interrupt;
+        } else if (r.type == acpi_device_resource_type::extended_irq) {
+            auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
+
+            irq = r2.extended_irq.Interrupt;
         }
     }
 
-    if (!port1.has_value() || !port2.has_value())
+    if (!port1.has_value() || !port2.has_value() || !irq.has_value())
         return;
 
-    // FIXME - also pass through IRQ no.
-    init_keyboard(*port1, *port2);
+    init_keyboard(*port1, *port2, *irq);
 }
 
 static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
