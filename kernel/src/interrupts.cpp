@@ -109,7 +109,7 @@ static inline uint64_t rdmsr(uint64_t msr) {
     return ((uint64_t)high << 32) | low;
 }
 
-static uint32_t get_irq_gsi(span<const uint8_t> madt, uint8_t irq) {
+static uint32_t get_irq_gsi(span<const uint8_t> madt, uint32_t irq) {
     auto data = madt;
 
     // check source overrides in MADT
@@ -180,7 +180,7 @@ export uint8_t add_isr(isr_func_type isr_func) {
     return 0;
 }
 
-export bool add_irq_handler(uint8_t irq, isr_func_type func, uint32_t apic_id) {
+export bool add_irq_handler(uint32_t irq, isr_func_type func, uint32_t apic_id) {
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
     if (ACPI_FAILURE(status)) {

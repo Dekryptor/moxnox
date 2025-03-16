@@ -286,8 +286,7 @@ export void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 
     __asm __volatile("sti");
 
-    // IRQ 1 = keyboard (FIXME - use number in ACPI)
-    if (!add_irq_handler(1, keyboard_isr_func, local_apic_id)) {
+    if (!add_irq_handler(irq, keyboard_isr_func, local_apic_id)) {
         print("add_irq_handler failed\n");
         return;
     }
