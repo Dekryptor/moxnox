@@ -80,6 +80,7 @@ public:
     }
 
     NTSTATUS ioctl(uint32_t code, span<const uint8_t> inbuf, span<uint8_t> outbuf, uintptr_t& written) override;
+    bool isr_func();
 
     serial_in_pipe& recv_pipe;
     serial_out_pipe& send_pipe;
@@ -195,7 +196,7 @@ export bool init_serial() {
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     // IRQ 4 = COM1 and COM3
-    if (!add_irq_handler(4, local_apic_id, serial_isr_func, nullptr)) {
+    if (!add_irq_handler(4, local_apic_id, serial_isr_func, pptr)) {
         print("add_irq_handler failed\n");
         return false;
     }
@@ -343,7 +344,7 @@ nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
     return nt_status::SUCCESS;
 }
 
-static bool serial_isr_func(void*) {
+bool serial_duplex_pipe::isr_func() {
     auto iir = inb(com1_port + 2); // interrupt identification register, COM1
 
     if (iir & 1) // not us
@@ -378,6 +379,12 @@ static bool serial_isr_func(void*) {
     }
 
     return true;
+}
+
+static bool serial_isr_func(void* ctx) {
+    auto& pipe = *(serial_duplex_pipe*)ctx;
+
+    return pipe.isr_func();
 }
 
 NTSTATUS serial_in_pipe::console_set_foreground(span<const uint8_t> inbuf) {
