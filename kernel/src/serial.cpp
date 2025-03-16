@@ -201,7 +201,11 @@ export bool init_serial() {
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     // IRQ 4 = COM1 and COM3
-    add_irq_handler(4, int_num, local_apic_id);
+    if (!add_irq_handler(4, int_num, local_apic_id)) {
+        // FIXME - free interrupt number
+        print("add_irq_handler failed\n");
+        return false;
+    }
 
     return true;
 }

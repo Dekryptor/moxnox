@@ -290,10 +290,14 @@ export void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    // IRQ 1 = keyboard (FIXME - use number in ACPI)
-    add_irq_handler(1, int_num, local_apic_id);
-
     __asm __volatile("sti");
+
+    // IRQ 1 = keyboard (FIXME - use number in ACPI)
+    if (!add_irq_handler(1, int_num, local_apic_id)) {
+        // FIXME - free interrupt number
+        print("add_irq_handler failed\n");
+        return;
+    }
 
     keyboard_port1 = port1;
     keyboard_initialized = true;

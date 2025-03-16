@@ -38,9 +38,7 @@ typedef struct {
 } idt_entry;
 
 export volatile uint8_t* const local_apic = (uint8_t*)APIC_BASE;
-static volatile uint8_t* const io_apic = (uint8_t*)0xfffffae000000000;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
-static span<const uint8_t> madt;
 
 using isr_func_type = void (*)();
 
@@ -111,25 +109,7 @@ static inline uint64_t rdmsr(uint64_t msr) {
     return ((uint64_t)high << 32) | low;
 }
 
-static uint64_t find_ioapic(span<const uint8_t> data) {
-    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
-        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
-
-        if (h.Type == ACPI_MADT_TYPE_IO_APIC && h.Length >= sizeof(ACPI_MADT_IO_APIC)) {
-            auto& ent = *(ACPI_MADT_IO_APIC*)data.data();
-
-            return ent.Address;
-        }
-
-        data = data.subspan(h.Length);
-    }
-
-    print("Could not find address of I/O APIC.\n");
-
-    return 0;
-}
-
-static uint32_t get_irq_gsi(uint8_t irq) {
+static uint32_t get_irq_gsi(span<const uint8_t> madt, uint8_t irq) {
     auto data = madt;
 
     // check source overrides in MADT
@@ -152,26 +132,27 @@ static uint32_t get_irq_gsi(uint8_t irq) {
     return irq;
 }
 
-export void add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
-    // FIXME - handle multiple I/O APICs (send to right one)
+static ACPI_MADT_IO_APIC* find_ioapic(span<const uint8_t> madt, uint32_t gsi) {
+    auto data = madt;
 
-    volatile uint32_t* IOREGSEL = (uint32_t*)io_apic;
-    volatile uint32_t* IOREGWIN = (uint32_t*)(io_apic + 0x10);
+    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
+        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
-    auto write_reg = [&](uint32_t reg, uint32_t val) {
-        *IOREGSEL = reg;
-        *IOREGWIN = val;
-    };
+        if (h.Type == ACPI_MADT_TYPE_IO_APIC && h.Length >= sizeof(ACPI_MADT_IO_APIC)) {
+            auto& ent = *(ACPI_MADT_IO_APIC*)data.data();
 
-    auto gsi = get_irq_gsi(irq);
+            // FIXME - GSI
 
-    write_reg(0x10 + (gsi * 2), vec);
-    write_reg(0x11 + (gsi * 2), apic_id);
-};
+            return &ent;
+        }
 
-export bool init_apic() {
-    // FIXME - can we assume that nothing's disabled the APIC? (Check EFI specs?)
+        data = data.subspan(h.Length);
+    }
 
+    return nullptr;
+}
+
+export bool add_irq_handler(uint8_t irq, uint8_t vec, uint32_t apic_id) {
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
     if (ACPI_FAILURE(status)) {
@@ -187,6 +168,36 @@ export bool init_apic() {
 
     span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
               tbl->Length - sizeof(ACPI_TABLE_MADT));
+
+    // FIXME - handle multiple I/O APICs (send to right one)
+
+    auto gsi = get_irq_gsi(madt, irq);
+
+    auto ioapic = find_ioapic(madt, gsi);
+
+    if (!ioapic) {
+        print("Could not find I/O APIC for GSI {:x}.\n", gsi);
+        return false;
+    }
+
+    auto ioapic_address = phys_address(ioapic->Address);
+
+    volatile uint32_t* IOREGSEL = (uint32_t*)ioapic_address;
+    volatile uint32_t* IOREGWIN = (uint32_t*)((uint8_t*)ioapic_address + 0x10);
+
+    auto write_reg = [&](uint32_t reg, uint32_t val) {
+        *IOREGSEL = reg;
+        *IOREGWIN = val;
+    };
+
+    write_reg(0x10 + (gsi * 2), vec);
+    write_reg(0x11 + (gsi * 2), apic_id);
+
+    return true;
+};
+
+export bool init_apic() {
+    // FIXME - can we assume that nothing's disabled the APIC? (Check EFI specs?)
 
     if (!check_cpu_for_apic())
         return false;
@@ -211,15 +222,6 @@ export bool init_apic() {
     auto spurious_interrupt_reg = (volatile uint32_t*)&local_apic[0xf0];
 
     *spurious_interrupt_reg = spurious_interrupt | 0x100;
-
-    auto io_apic_pa = find_ioapic(madt);
-    if (!io_apic_pa)
-        return false;
-
-    if (!map_page(io_apic_pa, (uintptr_t)io_apic, mapping_type::no_cache)) {
-        print("map_page failed for I/O APIC\n");
-        return false;
-    }
 
     return true;
 }

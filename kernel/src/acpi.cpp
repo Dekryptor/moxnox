@@ -167,7 +167,11 @@ export void init_acpi() {
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    add_irq_handler(ACPI_IRQ, int_num, local_apic_id);
+    if (!add_irq_handler(ACPI_IRQ, int_num, local_apic_id)) {
+        print("add_irq_handler failed\n");
+        // FIXME - free interrupt number
+        return;
+    }
 
     Status = AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY,
                                       acpi_notify_handler, nullptr);
