@@ -164,6 +164,12 @@ export void init_acpi_early() {
     }
 }
 
+static uint32_t power_button_pressed(void*) {
+    print("FIXME - power button pressed\n"); // FIXME
+
+    return 0;
+}
+
 export void init_acpi() {
     ACPI_STATUS Status;
 
@@ -190,6 +196,13 @@ export void init_acpi() {
     Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
     if (ACPI_FAILURE(Status)) {
         print("AcpiInitializeObjects returned {}\n", Status);
+        return;
+    }
+
+    Status = AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON,
+                                          power_button_pressed, nullptr);
+    if (ACPI_FAILURE(Status)) {
+        print("AcpiInstallFixedEventHandler returned {}\n", Status);
         return;
     }
 }
