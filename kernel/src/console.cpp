@@ -1333,6 +1333,7 @@ static void early_print(string_view s) {
 void safe_print(string_view s) {
     write(console_pipe, s);
 
+    // FIXME - this should be hidden behind a cmdline option
     if (console_type != console_type::other && com1_pipe_handle)
         write(com1_pipe_handle, s);
 }
