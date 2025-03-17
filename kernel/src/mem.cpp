@@ -67,7 +67,7 @@ extern "C" volatile uint32_t invalidate_tlb_processors_left;
 constexpr uint64_t PHYS_MEMORY_MASK = 0xffffff0000000000;
 static const uint64_t PHYS_MEMORY = 0xffff990000000000;
 
-static constexpr uint8_t MAX_FOLIO_ORDER = 1; // 8KB
+static constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
 
 static list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 
