@@ -1468,7 +1468,7 @@ void allocator_cb<N, P, S>::free(uint64_t index) {
             b2 >>= BITMAP_BITS_PER_PAGE;
     }
 
-    free_page(pfns[index / BITMAP_BITS_PER_PAGE]);
+    free_page(pfns[index / BITMAP_BITS_PER_PAGE] << PAGE_SHIFT);
 #ifdef DEBUG
     pfns[index / BITMAP_BITS_PER_PAGE] = 0;
 #endif
