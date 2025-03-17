@@ -151,6 +151,10 @@ static void keywait() {
 void main_thread() {
     acpi_early_init_done = true;
 
+    free_lower_half_mappings();
+
+    setup_folios();
+
     init_acpi();
 
     find_acpi_devices();
@@ -190,8 +194,6 @@ void main_thread() {
     init_pci();
     // FIXME - NVMe
     // FIXME - USB
-
-    free_lower_half_mappings();
 
     if (!mount_root())
         bsod("mount_root failed");

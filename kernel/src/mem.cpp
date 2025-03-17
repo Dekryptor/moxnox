@@ -20,6 +20,7 @@ using namespace std;
 export enum class page_state : uint8_t {
     free,
     used,
+    folio_following,
     allocator_4k,
     allocator_2k,
     allocator_1k,
@@ -66,6 +67,10 @@ extern "C" volatile uint32_t invalidate_tlb_processors_left;
 
 constexpr uint64_t PHYS_MEMORY_MASK = 0xffffff0000000000;
 static const uint64_t PHYS_MEMORY = 0xffff990000000000;
+
+static constexpr uint8_t MAX_FOLIO_ORDER = 1; // 8KB
+
+static list_entry folio_free_lists[MAX_FOLIO_ORDER];
 
 class allocator_4k {
 public:
@@ -300,11 +305,55 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
     return true;
 }
 
+static void fragment_folio(uint64_t pfn) {
+    uint8_t order = pages[pfn].order - 1;
+
+    // break folio into smaller pieces
+
+    remove_entry_list(pages[pfn].free.le);
+
+    while (order > 0) {
+        pages[pfn].state = page_state::free;
+
+        for (uint64_t i = 0; i < (uint64_t)1 << order; i++) {
+            pages[pfn].order = order;
+            pfn++;
+        }
+
+        insert_tail_list(folio_free_lists[order - 1], pages[pfn].free.le);
+        order--;
+    }
+
+    pages[pfn].state = page_state::free;
+    pages[pfn].order = 0;
+    insert_tail_list(free_page_list, pages[pfn].free.le);
+    pfn++;
+
+    pages[pfn].order = 0;
+}
+
 export uint64_t allocate_page(enum page_state state = page_state::used) {
     lock_guard lock(pa_spinlock);
 
-    if (is_list_empty(free_page_list))
+    if (is_list_empty(free_page_list)) {
+        for (unsigned int i = 1; i <= MAX_FOLIO_ORDER; i++) {
+            if (!is_list_empty(folio_free_lists[i - 1])) {
+                auto& p = *(page*)((uint8_t*)folio_free_lists[i - 1].next - offsetof(page, free.le));
+                auto pfn = (uint64_t)(&p - pages);
+
+                fragment_folio(pfn);
+
+                auto pfn2 = pfn + ((uint64_t)1 << i) - 1;
+
+                pages[pfn2].state = state;
+                free_pages--;
+
+                return pfn2 << PAGE_SHIFT;
+            }
+        }
+
         return 0;
+    }
 
     auto& p = *(page*)((uint8_t*)free_page_list.next - offsetof(page, free.le));
 
@@ -556,6 +605,75 @@ export void free_lower_half_mappings() {
         :
         : "rax"
     );
+}
+
+static uint8_t find_max_order(uint64_t pfn) {
+    auto ret = (uint8_t)countr_zero(pfn);
+    if (ret == 0)
+        return 0;
+
+    if (ret > MAX_FOLIO_ORDER)
+        ret = MAX_FOLIO_ORDER;
+
+    // make sure doesn't overflow end
+    if (pfn + (1 << ret) >= total_pages) {
+        auto tmp = (uint64_t)(total_pages - pfn);
+
+        ret = (uint8_t)((sizeof(uint64_t) * 8) - (uint8_t)countl_zero(tmp) - 1);
+    }
+
+    return ret;
+}
+
+static uint64_t last_page;
+
+export void setup_folios() {
+    for (unsigned int i = 0; i < MAX_FOLIO_ORDER + 1; i++) {
+        folio_free_lists[i].next = &folio_free_lists[i];
+        folio_free_lists[i].prev = &folio_free_lists[i];
+    }
+
+    lock_guard lock(pa_spinlock);
+
+    for (uint64_t i = 0; i < total_pages; i += 2) {
+        last_page = i;
+
+        if (pages[i].state != page_state::free)
+            continue;
+
+        auto max_order = find_max_order(i);
+        if (max_order == 0)
+            continue;
+
+        uint64_t run_length = 1;
+
+        for (uint64_t j = 1; j < (uint64_t)1 << max_order; j++) {
+            if (pages[i + j].state == page_state::free)
+                run_length++;
+            else
+                break;
+        }
+
+        if (run_length == 1)
+            continue;
+
+        auto order = (uint8_t)((sizeof(uint64_t) * 8) - (uint8_t)countl_zero(run_length) - 1);
+
+        run_length = 1 << order;
+
+        for (uint64_t j = 0; j < run_length; j++) {
+            pages[i + j].order = order;
+
+            if (j != 0)
+                pages[i + j].state = page_state::folio_following;
+
+            remove_entry_list(pages[i + j].free.le);
+        }
+
+        insert_tail_list(folio_free_lists[order - 1], pages[i].free.le);
+
+        i += run_length - 2;
+    }
 }
 
 static bool map_physical_memory(uint64_t num_pages) {
