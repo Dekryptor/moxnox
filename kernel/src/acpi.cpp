@@ -164,8 +164,19 @@ export void init_acpi_early() {
     }
 }
 
+static void power_button_pressed_thread() {
+    // FIXME - should be calling NtShutdownSystem (why does it not work?)
+
+    AcpiEnterSleepStatePrep(5);
+    __asm("cli");
+    AcpiEnterSleepState(5);
+
+    print("power off\n");
+}
+
 static uint32_t power_button_pressed(void*) {
-    print("FIXME - power button pressed\n"); // FIXME
+    // interrupts are disabled here
+    add_kernel_thread(power_button_pressed_thread);
 
     return 0;
 }
