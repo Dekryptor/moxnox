@@ -237,7 +237,7 @@ bool volume::check_for_partitions() {
 
                     auto sv = string_view(partdev->volume_name, partdev->volume_name_len);
 
-                    if (!name_object(*partdev, sv, true)) {
+                    if (!name_object(*partdev, sv)) {
                         print("name_object failed\n");
                         free_large(buf, bufsize);
                         return false;
