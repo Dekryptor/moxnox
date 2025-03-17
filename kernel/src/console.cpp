@@ -1381,7 +1381,7 @@ bool init_console(const loader_block_framebuffer& fb,
 
         // FIXME - these BSODs won't actually get displayed; do we need to initialize the FB in this case?
 
-        if (!console_opt.starts_with(prefix))
+        if (console_opt.size() < sizeof(prefix) - 1 || memcmp(prefix, console_opt.data(), sizeof(prefix) - 1))
             bsod_format("unable to parse console option {}", console_opt);
 
         auto sv = string_view(console_opt.data() + sizeof(prefix) - 1,
