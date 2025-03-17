@@ -1317,7 +1317,7 @@ static void refresh_framebuffer() {
 }
 
 static void early_print(string_view s) {
-    if (framebuffer.empty()) {
+    if (console_type == console_type::text) {
         do_print<false>(s);
         return;
     }
