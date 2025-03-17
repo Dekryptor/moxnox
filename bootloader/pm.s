@@ -139,7 +139,6 @@ _have_long_mode:
 .section .text
 .globl long_mode_start
 long_mode_start:
-    # mov rsp, 0xfffff90000007fe0 # KERNEL_STACK + (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20 (0x20 for MS ABI)
     shl rdx, 32
     mov eax, eax # clear top half
     or rdx, rax
