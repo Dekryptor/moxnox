@@ -37,7 +37,7 @@ static unsigned int modifier = 0;
 static uint32_t input_mode = ENABLE_PROCESSED_INPUT;
 
 static bool keyboard_initialized = false;
-static uint16_t keyboard_port1;
+static uint16_t keyboard_port1, keyboard_port2;
 
 static bool keyboard_isr_func(void*);
 
@@ -292,11 +292,13 @@ export void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     }
 
     keyboard_port1 = port1;
+    keyboard_port2 = port2;
     keyboard_initialized = true;
 }
 
 static bool keyboard_isr_func(void*) {
-    // FIXME - detect if IRQ is for us
+    if (!inb(keyboard_port2) & 0x1) // not for us
+        return false;
 
     auto code = inb(keyboard_port1);
 
