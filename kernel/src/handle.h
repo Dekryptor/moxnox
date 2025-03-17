@@ -36,7 +36,7 @@ public:
 
         rw2 = that.rw;
         that.rw = rw;
-        this->rw = rw;
+        this->rw = rw2;
     }
 
     void reset();
