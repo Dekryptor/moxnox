@@ -151,20 +151,20 @@ static void keywait() {
 void main_thread() {
     acpi_early_init_done = true;
 
+    init_acpi();
+
+    find_acpi_devices();
+
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
 
     _printk = safe_print;
-
-    init_acpi();
 
     if (console_type == console_type::framebuffer && !init_fb_console())
         print("init_fb_console failed\n");
 
     print("\e[2J\e[1;1H");  // erase screen, move to top left
     print(MOXNOX_VERSION_STRING "\n");
-
-    find_acpi_devices();
 
     keywait();
 

@@ -16,6 +16,7 @@ import inout;
 import mem;
 import config;
 import serial;
+import bsod;
 
 using namespace std;
 
@@ -1374,12 +1375,22 @@ bool init_console(const loader_block_framebuffer& fb,
         return true;
     });
 
-    if (console_opt == "/dev/ttyS0" && init_serial(0x3f8, 4, "1")) { // FIXME
-        auto& p = static_cast<pipe&>(com1_pipe_handle.get());
+    if (!console_opt.empty()) {
+        static const char prefix[] = "/dev/";
 
-        p.acquire();
+        // FIXME - these BSODs won't actually get displayed; do we need to initialize the FB in this case?
 
-        console_pipe = object_ref{p};
+        if (!console_opt.starts_with(prefix))
+            bsod_format("unable to parse console option {}", console_opt);
+
+        auto sv = string_view(console_opt.data() + sizeof(prefix) - 1,
+                              console_opt.size() - sizeof(prefix) + 1);
+
+        auto status = open_object(sv, console_pipe);
+        if (!success(status))
+            bsod_format("open_object returned {} trying to open console {}", status, console_opt);
+
+        // FIXME - make sure is actually pipe
 
         console_cols = 80; // FIXME
         console_rows = 25; // FIXME
