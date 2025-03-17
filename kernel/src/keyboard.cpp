@@ -297,7 +297,7 @@ export void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 }
 
 static bool keyboard_isr_func(void*) {
-    if (!inb(keyboard_port2) & 0x1) // not for us
+    if (!(inb(keyboard_port2) & 0x1)) // not for us
         return false;
 
     auto code = inb(keyboard_port1);
