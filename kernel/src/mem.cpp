@@ -17,7 +17,7 @@ import list;
 
 using namespace std;
 
-export enum class page_state {
+export enum class page_state : uint8_t {
     free,
     used,
     allocator_4k,
@@ -30,6 +30,9 @@ export enum class page_state {
 };
 
 struct page {
+    page_state state;
+    uint8_t order;
+
     union {
         struct {
             list_entry le;
@@ -39,9 +42,9 @@ struct page {
             unsigned int index;
         } allocator;
     };
-
-    page_state state;
 };
+
+static_assert(sizeof(struct page) == 24);
 
 page* pages = (page*)0xfffffa0000000000;
 static uint64_t total_pages, free_pages;
@@ -674,6 +677,7 @@ export bool init_memory(const loader_block& lb) {
 
     for (uint64_t i = 0; i < total_pages; i++) {
         pages[i].state = page_state::used;
+        pages[i].order = 0;
     }
 
     for (auto& map : map_entries) {
