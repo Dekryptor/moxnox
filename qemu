@@ -9,4 +9,5 @@ qemu-system-x86_64 -M q35 -enable-kvm -cpu host \
 -serial stdio \
 -s
 
+#-serial telnet:localhost:4321,server,nowait
 #--trace "ahci_trigger_irq" --trace "ahci_cmd_done" --trace "ahci_reset_port"
