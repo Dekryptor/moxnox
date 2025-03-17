@@ -50,7 +50,6 @@ static_assert(sizeof(struct page) == 24);
 page* pages = (page*)0xfffffa0000000000;
 static uint64_t total_pages, free_pages;
 static spinlock pa_spinlock;
-static list_entry free_page_list = { &free_page_list, &free_page_list };
 
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
@@ -70,7 +69,7 @@ static const uint64_t PHYS_MEMORY = 0xffff990000000000;
 
 static constexpr uint8_t MAX_FOLIO_ORDER = 1; // 8KB
 
-static list_entry folio_free_lists[MAX_FOLIO_ORDER];
+static list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 
 class allocator_4k {
 public:
@@ -320,13 +319,13 @@ static void fragment_folio(uint64_t pfn) {
             pfn++;
         }
 
-        insert_tail_list(folio_free_lists[order - 1], pages[pfn].free.le);
+        insert_tail_list(folio_free_lists[order], pages[pfn].free.le);
         order--;
     }
 
     pages[pfn].state = page_state::free;
     pages[pfn].order = 0;
-    insert_tail_list(free_page_list, pages[pfn].free.le);
+    insert_tail_list(folio_free_lists[0], pages[pfn].free.le);
     pfn++;
 
     pages[pfn].order = 0;
@@ -335,10 +334,10 @@ static void fragment_folio(uint64_t pfn) {
 export uint64_t allocate_page(enum page_state state = page_state::used) {
     lock_guard lock(pa_spinlock);
 
-    if (is_list_empty(free_page_list)) {
+    if (is_list_empty(folio_free_lists[0])) {
         for (unsigned int i = 1; i <= MAX_FOLIO_ORDER; i++) {
-            if (!is_list_empty(folio_free_lists[i - 1])) {
-                auto& p = *(page*)((uint8_t*)folio_free_lists[i - 1].next - offsetof(page, free.le));
+            if (!is_list_empty(folio_free_lists[i])) {
+                auto& p = *(page*)((uint8_t*)folio_free_lists[i].next - offsetof(page, free.le));
                 auto pfn = (uint64_t)(&p - pages);
 
                 fragment_folio(pfn);
@@ -355,7 +354,7 @@ export uint64_t allocate_page(enum page_state state = page_state::used) {
         return 0;
     }
 
-    auto& p = *(page*)((uint8_t*)free_page_list.next - offsetof(page, free.le));
+    auto& p = *(page*)((uint8_t*)folio_free_lists[0].next - offsetof(page, free.le));
 
     remove_entry_list(p.free.le);
     p.state = state;
@@ -536,7 +535,7 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (pages[pfn].state != page_state::free) {
-            insert_tail_list(free_page_list, pages[pfn].free.le);
+            insert_tail_list(folio_free_lists[0], pages[pfn].free.le);
             pages[pfn].state = page_state::free;
             free_pages++;
         }
@@ -628,7 +627,7 @@ static uint8_t find_max_order(uint64_t pfn) {
 static uint64_t last_page;
 
 export void setup_folios() {
-    for (unsigned int i = 0; i < MAX_FOLIO_ORDER + 1; i++) {
+    for (unsigned int i = 1; i < MAX_FOLIO_ORDER + 1; i++) {
         folio_free_lists[i].next = &folio_free_lists[i];
         folio_free_lists[i].prev = &folio_free_lists[i];
     }
@@ -670,7 +669,7 @@ export void setup_folios() {
             remove_entry_list(pages[i + j].free.le);
         }
 
-        insert_tail_list(folio_free_lists[order - 1], pages[i].free.le);
+        insert_tail_list(folio_free_lists[order], pages[i].free.le);
 
         i += run_length - 2;
     }
@@ -748,6 +747,9 @@ export bool init_memory(const loader_block& lb) {
     unsigned int num_map_entries = lb.num_map_entries;
     uint64_t memblock_pa;
     auto lb_map = (map_entry*)lb.map_ptr;
+
+    folio_free_lists[0].next = &folio_free_lists[0];
+    folio_free_lists[0].prev = &folio_free_lists[0];
 
     init_pat();
 
@@ -989,7 +991,7 @@ export void free_page(uint64_t pa) {
     if (pages[pfn].state == page_state::free) // FIXME - warning for this
         return;
 
-    insert_tail_list(free_page_list, pages[pfn].free.le);
+    insert_tail_list(folio_free_lists[0], pages[pfn].free.le);
     pages[pfn].state = page_state::free;
 
     free_pages++;
