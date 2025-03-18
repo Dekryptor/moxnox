@@ -1423,8 +1423,8 @@ bool init_console(const loader_block_framebuffer& fb,
             return false;
         }
 
-        auto pages = bytes_to_pages(size);
-        auto va = allocate_va(pages);
+        auto num_pages = bytes_to_pages(size);
+        auto va = allocate_va(num_pages);
         if (!va) {
             print("allocate_va failed\n");
             return false;
@@ -1432,14 +1432,14 @@ bool init_console(const loader_block_framebuffer& fb,
 
         framebuffer = span((uint32_t*)va, fb.pixels_per_scan_line * fb.height);
 
-        for (unsigned int i = 0; i < pages; i++) {
+        for (unsigned int i = 0; i < num_pages; i++) {
             if (!map_page((uintptr_t)fb.phys_address + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
                 print("map_page failed\n");
                 return false;
             }
         }
 
-        va = allocate_va(pages);
+        va = allocate_va(num_pages);
         if (!va) {
             print("allocate_va failed\n");
             return false;
@@ -1447,7 +1447,7 @@ bool init_console(const loader_block_framebuffer& fb,
 
         shadow_framebuffer = span((uint32_t*)va, fb.pixels_per_scan_line * fb.height);
 
-        for (unsigned int i = 0; i < pages; i++) {
+        for (unsigned int i = 0; i < num_pages; i++) {
             auto pa = allocate_page();
             if (!pa) {
                 print("allocate_page failed\n");
