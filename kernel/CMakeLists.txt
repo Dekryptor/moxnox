@@ -25,7 +25,6 @@ set(SRC_FILES src/kernel.cpp
     src/sata.cpp
     src/semaphore.cpp
     src/volume.cpp
-    src/btrfs.cpp
     src/process.cpp
     src/section.cpp
     src/string.cpp
@@ -57,6 +56,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/list.cpp
     src/interrupts.cpp
     src/serial.cpp
+    src/btrfs.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

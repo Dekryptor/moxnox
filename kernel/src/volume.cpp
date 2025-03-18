@@ -8,6 +8,7 @@ import bsod;
 import mem;
 import config;
 import list;
+import btrfs;
 
 using namespace std;
 

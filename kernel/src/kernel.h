@@ -176,9 +176,6 @@ void init_sata(const pci_device& dev);
 object_ref create_semaphore(unsigned int maximum_count);
 void release_semaphore(semaphore& s);
 
-// btrfs.cpp
-bool btrfs_probe(volume& vol);
-
 class inode;
 
 // vfs.cpp

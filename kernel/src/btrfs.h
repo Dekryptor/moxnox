@@ -1,9 +1,6 @@
 #pragma once
 
 #include <array>
-#include "page_cache.h"
-#include "rwsem.h"
-#include "handle.h"
 
 using btrfs_uuid = std::array<uint8_t, 16>;
 

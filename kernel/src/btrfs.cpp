@@ -1,18 +1,26 @@
+module;
+
 #include "kernel.h"
 #include "objects.h"
-#include "btrfs.h"
 #include "handle.h"
 #include "crc32c.h"
 #include "tick_rate.h"
 #include "timer.h"
+#include "page_cache.h"
+#include "rwsem.h"
+#include "handle.h"
 #include <shared_mutex>
 #include <variant>
+
+export module btrfs;
 
 import print;
 import bsod;
 import mem;
 import config;
 import list;
+
+#include "btrfs.h"
 
 using namespace std;
 
@@ -237,7 +245,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 }
 
-bool btrfs_probe(volume& vol) {
+export bool btrfs_probe(volume& vol) {
     // FIXME - need quick is_btrfs function before we do allocations?
 
     auto fs = new btrfs_filesystem(vol);
