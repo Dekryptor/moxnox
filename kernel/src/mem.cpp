@@ -21,6 +21,7 @@ export enum class page_state : uint8_t {
     free,
     used,
     folio_following,
+    allocator_8k,
     allocator_4k,
     allocator_2k,
     allocator_1k,
@@ -72,7 +73,8 @@ static constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
 static list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 static uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
-class allocator_4k {
+template<unsigned N, enum page_state S>
+class allocator_multipage {
 public:
     void* malloc();
     void free(void* ptr);
@@ -108,7 +110,8 @@ public:
     list_entry control_blocks = { &control_blocks, &control_blocks };
 };
 
-static allocator_4k alloc4k;
+static allocator_multipage<1, page_state::allocator_8k> alloc8k;
+static allocator_multipage<0, page_state::allocator_4k> alloc4k;
 static ::allocator<488, 32, page_state::allocator_2k> alloc2k;
 static ::allocator<480, 16, page_state::allocator_1k> alloc1k;
 static ::allocator<448, 8, page_state::allocator_512> alloc512;
@@ -895,8 +898,10 @@ static void* malloc_aligned(size_t size, size_t align) {
         return alloc2k.malloc();
     else if (size <= 4096)
         return alloc4k.malloc();
+    else if (size <= 8192)
+        return alloc8k.malloc();
     else {
-        bsod_format("malloc asked to do multi-page allocation ({:x} bytes)\n", size);
+        bsod_format("malloc asked to do over-large allocation ({:x} bytes)\n", size);
         return nullptr;
     }
 }
@@ -936,6 +941,10 @@ void free(void* ptr) {
         auto& page = pages[phys_memory_pfn(ptr)];
 
         switch (page.state) {
+            case page_state::allocator_8k:
+                alloc8k.free(ptr);
+                return;
+
             case page_state::allocator_4k:
                 alloc4k.free(ptr);
                 return;
@@ -1449,8 +1458,9 @@ int strncmp(const char* s1, const char* s2, size_t n) {
     return 0;
 }
 
-void* allocator_4k::malloc() {
-    auto p = allocate_page(page_state::allocator_4k);
+template<unsigned N, enum page_state S>
+void* allocator_multipage<N, S>::malloc() {
+    auto p = allocate_folio(N, S);
 
     if (!p)
         return nullptr;
@@ -1458,7 +1468,8 @@ void* allocator_4k::malloc() {
     return phys_address(p);
 }
 
-void allocator_4k::free(void* ptr) {
+template<unsigned N, enum page_state S>
+void allocator_multipage<N, S>::free(void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
 
     free_folio(pfn << PAGE_SHIFT);
