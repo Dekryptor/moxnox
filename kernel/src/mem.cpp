@@ -338,39 +338,40 @@ static void fragment_folio(uint64_t pfn) {
 
     pfn++;
 
+    pages[pfn].state = page_state::free;
     pages[pfn].order = 0;
+    insert_tail_list(folio_free_lists[0], pages[pfn].free.le);
+    free_folios[0]++;
 }
 
 export uint64_t allocate_page(enum page_state state = page_state::used) {
     lock_guard lock(pa_spinlock);
 
-    if (is_list_empty(folio_free_lists[0])) {
-        for (unsigned int i = 1; i <= MAX_FOLIO_ORDER; i++) {
-            if (!is_list_empty(folio_free_lists[i])) {
-                auto& p = *(page*)((uint8_t*)folio_free_lists[i].next - offsetof(page, free.le));
-                auto pfn = (uint64_t)(&p - pages);
+    for (unsigned int i = 0; i <= MAX_FOLIO_ORDER; i++) {
+        if (is_list_empty(folio_free_lists[i]))
+            continue;
 
-                fragment_folio(pfn);
+        auto& p = *(page*)((uint8_t*)folio_free_lists[i].next - offsetof(page, free.le));
+        auto orig_pfn = (uint64_t)(&p - pages);
+        uint64_t pfn;
 
-                auto pfn2 = pfn + ((uint64_t)1 << i) - 1;
+        if (i == 0)
+            pfn = orig_pfn;
+        else {
+            fragment_folio(orig_pfn);
 
-                pages[pfn2].state = state;
-
-                return pfn2 << PAGE_SHIFT;
-            }
+            pfn = orig_pfn + ((uint64_t)1 << i) - 1;
         }
 
-        return 0;
+        remove_entry_list(pages[pfn].free.le);
+        pages[pfn].state = state;
+
+        free_folios[0]--;
+
+        return pfn << PAGE_SHIFT;
     }
 
-    auto& p = *(page*)((uint8_t*)folio_free_lists[0].next - offsetof(page, free.le));
-
-    remove_entry_list(p.free.le);
-    p.state = state;
-
-    free_folios[0]--;
-
-    return (uint64_t)(&p - pages) << PAGE_SHIFT;
+    return 0;
 }
 
 __attribute__((always_inline))
