@@ -1,10 +1,5 @@
 #pragma once
 
-#include "objects.h"
-#include "spinlock.h"
-#include "handle.h"
-#include "page_cache.h"
-
 static const unsigned int SATA_NUM_CMD_TABLES = 32;
 
 static const uint32_t ATA_DEV_BUSY = 0x80;

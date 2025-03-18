@@ -169,9 +169,6 @@ void reset_event(event& e);
 // pci.cpp
 void init_pci();
 
-// sata.cpp
-void init_sata(const pci_device& dev);
-
 // semaphore.cpp
 object_ref create_semaphore(unsigned int maximum_count);
 void release_semaphore(semaphore& s);

@@ -1,8 +1,14 @@
+module;
+
 #include "kernel.h"
 #include "list.h"
 #include "pci.h"
-#include "sata.h"
 #include "spinlock.h"
+#include "objects.h"
+#include "handle.h"
+#include "page_cache.h"
+
+export module sata;
 
 import print;
 import bsod;
@@ -10,6 +16,8 @@ import mem;
 import config;
 import list;
 import interrupts;
+
+#include "sata.h"
 
 using namespace std;
 
@@ -639,7 +647,7 @@ static constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) 
     return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
 }
 
-void init_sata(const pci_device& dev) {
+export void init_sata(const pci_device& dev) {
     auto abarmem = dev.bar[5];
 
     if (dev.msi.empty()) {
