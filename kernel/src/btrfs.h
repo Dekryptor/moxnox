@@ -512,9 +512,6 @@ public:
         vol->release();
     }
 
-    void* operator new(size_t size);
-    void operator delete(void* ptr, size_t size);
-
     nt_status read_metadata(uint64_t addr, std::span<uint8_t> data);
     nt_status open_inode(uint64_t subvol, uint64_t inode, std::optional<std::reference_wrapper<btrfs_inode>>& obj);
     nt_status open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
