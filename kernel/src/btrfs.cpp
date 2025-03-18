@@ -457,8 +457,8 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
         src_p = vol->cache.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + i);
         // FIXME - find next entry rather than doing complete lookup
 
-        auto src_va = phys_address(src_p->phys_address);
-        auto dest_va = phys_address(dest_p->phys_address);
+        auto src_va = get_phys_address(*src_p);
+        auto dest_va = get_phys_address(*dest_p);
 
         memcpy(dest_va, src_va, PAGE_SIZE);
     }
@@ -501,7 +501,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
     // set WRITTEN flag
 
-    auto& th = *(tree_header*)phys_address(first_page->phys_address);
+    auto& th = *(tree_header*)get_phys_address(*first_page);
     th.flags |= HEADER_FLAG_WRITTEN;
 
     // calculate hash
@@ -514,10 +514,10 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             span<const uint8_t> sp;
 
             if (j == 0) {
-                sp = span((const uint8_t*)phys_address(ent->phys_address) + offsetof(tree_header, fs_uuid),
+                sp = span((const uint8_t*)get_phys_address(*ent) + offsetof(tree_header, fs_uuid),
                           PAGE_SIZE - offsetof(tree_header, fs_uuid));
             } else
-                sp = span((const uint8_t*)phys_address(ent->phys_address), PAGE_SIZE);
+                sp = span((const uint8_t*)get_phys_address(*ent), PAGE_SIZE);
 
             crc32 = calc_crc32c(crc32, sp);
 
@@ -537,7 +537,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
             if (ent->status == page_cache_status::dirty) {
                 if (!vol->cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
-                    span((uint8_t*)phys_address(ent->phys_address), PAGE_SIZE))) {
+                    span((uint8_t*)get_phys_address(*ent), PAGE_SIZE))) {
                     print("volume::write_pages failed\n");
                     cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
                     return false;
@@ -2495,7 +2495,7 @@ size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages
                 dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
         }
 
-        auto dest_va = phys_address(dest_p->phys_address);
+        auto dest_va = get_phys_address(*dest_p);
 
         memset(dest_va, 0, PAGE_SIZE);
     }
@@ -2531,7 +2531,7 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
                 dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
         }
 
-        auto dest_va = phys_address(dest_p->phys_address);
+        auto dest_va = get_phys_address(*dest_p);
 
         uint64_t offset = (page_num + i) << PAGE_SHIFT;
         auto to_copy = min((uint64_t)PAGE_SIZE, ie.ed.decoded_size - offset);
@@ -2583,8 +2583,8 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
         src_p = fs.cache.find_page_cache_entry((addr >> PAGE_SHIFT) + i);
         // FIXME - find next entry rather than doing complete lookup
 
-        auto src_va = phys_address(src_p->phys_address);
-        auto dest_va = phys_address(dest_p->phys_address);
+        auto src_va = get_phys_address(*src_p);
+        auto dest_va = get_phys_address(*dest_p);
 
         memcpy(dest_va, src_va, PAGE_SIZE);
     }

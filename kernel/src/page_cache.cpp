@@ -128,7 +128,7 @@ void page_cache::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
 
         // copy pages into data
 
-        auto ent_va = phys_address(ent->phys_address);
+        auto ent_va = get_phys_address(*ent);
 
         if (i == 0 && offset & (PAGE_SIZE - 1)) {
             size_t off = offset & (PAGE_SIZE - 1);
@@ -159,7 +159,7 @@ void page_cache::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pa
 
         // copy pages into data
 
-        auto ent_va = phys_address(ent->phys_address);
+        auto ent_va = get_phys_address(*ent);
 
         if (i == 0 && offset & (PAGE_SIZE - 1)) {
             size_t off = offset & (PAGE_SIZE - 1);
@@ -271,7 +271,7 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
 
             assert(ent->page_num == first_page + i);
 
-            auto ent_va = phys_address(ent->phys_address);
+            auto ent_va = get_phys_address(*ent);
 
             memcpy(ent_va, data.data() + (i << PAGE_SHIFT), PAGE_SIZE);
 
@@ -304,7 +304,7 @@ size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
 
             assert(ent->page_num == first_page);
 
-            auto ent_va = phys_address(ent->phys_address);
+            auto ent_va = get_phys_address(*ent);
 
             memcpy((uint8_t*)ent_va + inpage_offset, data.data(),
                 min(data.size(), PAGE_SIZE - inpage_offset));
@@ -350,7 +350,7 @@ size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
 
         assert(ent->page_num == first_page);
 
-        auto ent_va = phys_address(ent->phys_address);
+        auto ent_va = get_phys_address(*ent);
 
         memcpy(ent_va, data.data(), data.size());
 
@@ -540,4 +540,8 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
     range_end = ent;
 
     return true;
+}
+
+void* get_phys_address(const page_cache_entry& ent) {
+    return phys_address(ent.phys_address);
 }

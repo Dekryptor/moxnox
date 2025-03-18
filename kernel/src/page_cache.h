@@ -59,3 +59,5 @@ public:
 
     page_cache cache{*this};
 };
+
+void* get_phys_address(const page_cache_entry& ent);

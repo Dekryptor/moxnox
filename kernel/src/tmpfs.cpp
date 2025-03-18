@@ -268,7 +268,7 @@ size_t tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         assert(ent->page_num == page_num + i);
 
         if (ent->status == page_cache_status::allocated) {
-            auto ent_va = phys_address(ent->phys_address);
+            auto ent_va = get_phys_address(*ent);
 
             memset(ent_va, 0, PAGE_SIZE);
 

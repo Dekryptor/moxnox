@@ -315,7 +315,7 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
     for (uint64_t i = 0; i < read_pages; i++) {
         // FIXME - steal pages?
-        memcpy(phys_address(dst->phys_address), phys_address(src->phys_address),
+        memcpy(get_phys_address(*dst), get_phys_address(*src),
                PAGE_SIZE);
         dst->status = page_cache_status::clean;
 
@@ -343,7 +343,7 @@ size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
         assert(ent->page_num == page_num + i);
 
         if (ent->status == page_cache_status::dirty) {
-            auto dirty_page = span((uint8_t*)phys_address(ent->phys_address), PAGE_SIZE);
+            auto dirty_page = span((uint8_t*)get_phys_address(*ent), PAGE_SIZE);
 
             if (!parent.cache.write_pages(page_num + (disk_offset >> PAGE_SHIFT) + i,
                                           1, dirty_page)) {
