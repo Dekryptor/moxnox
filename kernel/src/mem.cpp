@@ -1009,8 +1009,8 @@ export void free_folio(uint64_t pa) {
 
     lock_guard lock(pa_spinlock);
 
-    if (pages[pfn].state == page_state::free) // FIXME - warning for this
-        return;
+    if (pages[pfn].state == page_state::free)
+        bsod_format("free_folio called for PFN {:x} that is already free", pfn);
 
     insert_tail_list(folio_free_lists[pages[pfn].order], pages[pfn].free.le);
     pages[pfn].state = page_state::free;
