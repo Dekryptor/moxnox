@@ -236,7 +236,7 @@ mapping_section::~mapping_section() {
 
     for (unsigned int i = 0; i < num_pages; i++) {
         if (pages[i].pa)
-            free_page(pages[i].pa);
+            free_folio(pages[i].pa);
     }
 
     sect.release();
@@ -249,7 +249,7 @@ process::~process() {
         img->get().release();
 
     if (cr3)
-        free_page(cr3);
+        free_folio(cr3);
 }
 
 uintptr_t process::map_section(section& sect, uintptr_t address) {
@@ -684,7 +684,7 @@ void process::terminate() {
             auto pa = va_to_pa((uintptr_t)handle_arr + (i << PAGE_SHIFT));
 
             unmap_page((uintptr_t)handle_arr + (i << PAGE_SHIFT));
-            free_page(pa);
+            free_folio(pa);
         }
 
         free_va((uintptr_t)handle_arr, handle_arr_pages);
@@ -707,7 +707,7 @@ void process::free_mappings() {
 
                 for (unsigned int i = 0; i < num_pages; i++) {
                     if (mv.pages[i].pa)
-                        free_page(mv.pages[i].pa);
+                        free_folio(mv.pages[i].pa);
                 }
 
                 size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
@@ -896,7 +896,7 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
             auto va = allocate_va(needed_pages);
             if (!va) {
                 print("allocate_page failed\n");
-                free_page(pa);
+                free_folio(pa);
                 obj.handle_count--;
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
@@ -926,7 +926,7 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
             if (!map_page(pa, va + (handle_arr_pages << PAGE_SHIFT), mapping_type::read_write)) {
                 // FIXME - exception
                 print("map_page failed\n");
-                free_page(pa);
+                free_folio(pa);
 
                 for (unsigned int i = 0; i < handle_arr_pages; i++) {
                     unmap_page(va + (i << PAGE_SHIFT));
@@ -1338,7 +1338,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
 
             for (unsigned int i = 0; i < num_pages; i++) {
                 if (mv.pages[i].pa)
-                    free_page(mv.pages[i].pa);
+                    free_folio(mv.pages[i].pa);
             }
 
             size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
@@ -2028,7 +2028,7 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
         print("map_page failed\n");
         unmap_page(va2);
         free_va(va2, 2);
-        free_page(pa_new);
+        free_folio(pa_new);
         return false;
     }
 
@@ -2054,7 +2054,7 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
     }
 
     if (beaten_to_it)
-        free_page(pa_new);
+        free_folio(pa_new);
 
     return map_page(pa, va, pages[offset >> PAGE_SHIFT].protect);
 }

@@ -38,7 +38,7 @@ pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buf
             for (unsigned int j = 0; j < i; j++) {
                 auto pa = va_to_pa(va + (j << PAGE_SHIFT));
 
-                free_page(pa);
+                free_folio(pa);
                 unmap_page(va + (j << PAGE_SHIFT));
             }
 
@@ -53,11 +53,11 @@ pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buf
             for (unsigned int j = 0; j < i; j++) {
                 auto pa = va_to_pa(va + (j << PAGE_SHIFT));
 
-                free_page(pa);
+                free_folio(pa);
                 unmap_page(va + (j << PAGE_SHIFT));
             }
 
-            free_page(pa);
+            free_folio(pa);
             free_va(va, buffer_pages);
             return;
         }
@@ -75,7 +75,7 @@ pipe::~pipe() {
     for (unsigned int i = 0; i < buf_pages; i++) {
         auto pa = va_to_pa(va);
 
-        free_page(pa);
+        free_folio(pa);
         unmap_page(va);
 
         va += PAGE_SIZE;

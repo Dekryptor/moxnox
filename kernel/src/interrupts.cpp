@@ -500,7 +500,7 @@ export void* allocate_stack() {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
                 auto pa = va_to_pa(va);
 
-                free_page(pa);
+                free_folio(pa);
                 unmap_page(va);
             }
 
@@ -516,7 +516,7 @@ export void* allocate_stack() {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
                 auto pa = va_to_pa(va);
 
-                free_page(pa);
+                free_folio(pa);
                 unmap_page(va);
             }
 
@@ -541,7 +541,7 @@ export task_state_segment* init_tss() {
 
     auto stack = allocate_stack();
     if (!stack) {
-        free_page(pa);
+        free_folio(pa);
         return nullptr;
     }
 
@@ -549,7 +549,7 @@ export task_state_segment* init_tss() {
 
     stack = allocate_stack();
     if (!stack) {
-        free_page(pa);
+        free_folio(pa);
         return nullptr;
     }
 

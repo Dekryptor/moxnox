@@ -995,7 +995,7 @@ void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
 }
 
-export void free_page(uint64_t pa) {
+export void free_folio(uint64_t pa) {
     auto pfn = pa >>= PAGE_SHIFT;
 
     lock_guard lock(pa_spinlock);
@@ -1003,10 +1003,10 @@ export void free_page(uint64_t pa) {
     if (pages[pfn].state == page_state::free) // FIXME - warning for this
         return;
 
-    insert_tail_list(folio_free_lists[0], pages[pfn].free.le);
+    insert_tail_list(folio_free_lists[pages[pfn].order], pages[pfn].free.le);
     pages[pfn].state = page_state::free;
 
-    free_folios[0]++;
+    free_folios[pages[pfn].order]++;
 }
 
 export void unmap_and_free_page(uint64_t va) {
@@ -1017,7 +1017,7 @@ export void unmap_and_free_page(uint64_t va) {
 
     auto pa = ((uint64_t)pt_entry.PageFrameNumber) << PAGE_SHIFT;
 
-    free_page(pa);
+    free_folio(pa);
 
     pt_entry.Valid = 0;
 }
@@ -1461,7 +1461,7 @@ void* allocator_4k::malloc() {
 void allocator_4k::free(void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
 
-    free_page(pfn << PAGE_SHIFT);
+    free_folio(pfn << PAGE_SHIFT);
 }
 
 template<unsigned N, unsigned P, enum page_state S>
@@ -1571,7 +1571,7 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         return pfn << PAGE_SHIFT;
     }
 
-    free_page(pfn << PAGE_SHIFT);
+    free_folio(pfn << PAGE_SHIFT);
 
     return 0;
 }
@@ -1600,7 +1600,7 @@ void allocator_cb<N, P, S>::free(uint64_t index) {
             b2 >>= BITMAP_BITS_PER_PAGE;
     }
 
-    free_page(pfns[index / BITMAP_BITS_PER_PAGE] << PAGE_SHIFT);
+    free_folio(pfns[index / BITMAP_BITS_PER_PAGE] << PAGE_SHIFT);
 #ifdef DEBUG
     pfns[index / BITMAP_BITS_PER_PAGE] = 0;
 #endif
@@ -1676,7 +1676,7 @@ export void* malloc_large(size_t size) {
             for (size_t j = 0; j < i; j++) {
                 auto pa = va_to_pa(va + (j << PAGE_SHIFT));
 
-                free_page(pa);
+                free_folio(pa);
                 unmap_page(va + (j << PAGE_SHIFT));
             }
 
@@ -1686,12 +1686,12 @@ export void* malloc_large(size_t size) {
         }
 
         if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-            free_page(pa);
+            free_folio(pa);
 
             for (size_t j = 0; j < i; j++) {
                 auto pa = va_to_pa(va + (j << PAGE_SHIFT));
 
-                free_page(pa);
+                free_folio(pa);
                 unmap_page(va + (j << PAGE_SHIFT));
             }
 

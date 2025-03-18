@@ -100,7 +100,7 @@ thread::~thread() {
         for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
             auto pa = va_to_pa(va);
 
-            free_page(pa);
+            free_folio(pa);
             unmap_page(va);
 
             va += PAGE_SIZE;

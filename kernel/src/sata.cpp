@@ -320,7 +320,7 @@ bool sata_device::identify() {
     if (port.is & HBA_PxIS_TFES) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
         release_slot(slot);
-        free_page(pa);
+        free_folio(pa);
         return false;
     }
 
@@ -328,7 +328,7 @@ bool sata_device::identify() {
 
     release_slot(slot);
 
-    free_page(pa);
+    free_folio(pa);
 
     return true;
 }
@@ -348,15 +348,15 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     auto fb_pa = allocate_page();
     if (!fb_pa) {
         print("allocate_page failed\n");
-        free_page(clb_pa);
+        free_folio(clb_pa);
         return;
     }
 
     clb = allocate_va(1);
     if (!clb) {
         print("allocate_va failed\n");
-        free_page(fb_pa);
-        free_page(clb_pa);
+        free_folio(fb_pa);
+        free_folio(clb_pa);
         return;
     }
 
@@ -364,8 +364,8 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     if (!fb) {
         print("allocate_va failed\n");
         free_va(clb, 1);
-        free_page(fb_pa);
-        free_page(clb_pa);
+        free_folio(fb_pa);
+        free_folio(clb_pa);
         return;
     }
 
@@ -373,8 +373,8 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         print("map_page failed\n");
         free_va(fb, 1);
         free_va(clb, 1);
-        free_page(fb_pa);
-        free_page(clb_pa);
+        free_folio(fb_pa);
+        free_folio(clb_pa);
         return;
     }
 
@@ -383,8 +383,8 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         unmap_page(clb);
         free_va(fb, 1);
         free_va(clb, 1);
-        free_page(fb_pa);
-        free_page(clb_pa);
+        free_folio(fb_pa);
+        free_folio(clb_pa);
         return;
     }
 
@@ -409,8 +409,8 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         unmap_page(clb);
         free_va(fb, 1);
         free_va(clb, 1);
-        free_page(fb_pa);
-        free_page(clb_pa);
+        free_folio(fb_pa);
+        free_folio(clb_pa);
         return;
     }
 
@@ -423,7 +423,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
                 auto pa = va_to_pa(va3 + (j << PAGE_SHIFT));
 
                 unmap_page(va3 + (j << PAGE_SHIFT));
-                free_page(pa);
+                free_folio(pa);
             }
 
             free_va(va3, cmdtbl_pages);
@@ -431,8 +431,8 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
             unmap_page(clb);
             free_va(fb, 1);
             free_va(clb, 1);
-            free_page(fb_pa);
-            free_page(clb_pa);
+            free_folio(fb_pa);
+            free_folio(clb_pa);
             return;
         }
 
@@ -448,13 +448,13 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         if (!map_page(pa, va3 + (i << PAGE_SHIFT), mapping_type::no_cache)) {
             print("map_page failed\n");
 
-            free_page(pa);
+            free_folio(pa);
 
             for (unsigned int j = 0; j < i; j++) {
                 auto pa = va_to_pa(va3 + (j << PAGE_SHIFT));
 
                 unmap_page(va3 + (j << PAGE_SHIFT));
-                free_page(pa);
+                free_folio(pa);
             }
 
             free_va(va3, cmdtbl_pages);
@@ -462,8 +462,8 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
             unmap_page(clb);
             free_va(fb, 1);
             free_va(clb, 1);
-            free_page(fb_pa);
-            free_page(clb_pa);
+            free_folio(fb_pa);
+            free_folio(clb_pa);
             return;
         }
     }

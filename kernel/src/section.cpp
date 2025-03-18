@@ -110,7 +110,7 @@ void section::free_pa() {
 
     for (unsigned int i = 0; i < num_pages; i++) {
         if (pages[i].pa)
-            free_page(pages[i].pa);
+            free_folio(pages[i].pa);
     }
 
     free(pages);
@@ -135,7 +135,7 @@ public:
         if (!valid)
             return;
 
-        free_page(pa);
+        free_folio(pa);
     }
 
     bool valid = false;
@@ -316,7 +316,7 @@ nt_status section::load_image() {
             debug_printk("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
-                free_page(pages[j].pa);
+                free_folio(pages[j].pa);
             }
 
             free(pages);
