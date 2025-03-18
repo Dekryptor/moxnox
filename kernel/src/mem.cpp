@@ -1005,54 +1005,58 @@ void operator delete(void* ptr, size_t) noexcept {
 }
 
 static void try_to_compact(uint64_t pfn) {
-    uint64_t first_pfn, second_pfn;
-    uint8_t order = pages[pfn].order;
+    while (true) {
+        uint64_t first_pfn, second_pfn;
+        uint8_t order = pages[pfn].order;
 
-    if (order == MAX_FOLIO_ORDER)
-        return;
-
-    auto num_pages = (uint64_t)1 << order;
-
-    if (pfn & ((uint64_t)1 << order)) { // compact left
-        if (pfn < num_pages)
+        if (order == MAX_FOLIO_ORDER)
             return;
 
-        if (pages[pfn - num_pages].state != page_state::free)
-            return;
+        auto num_pages = (uint64_t)1 << order;
 
-        if (pages[pfn - num_pages].order != order)
-            return;
+        if (pfn & ((uint64_t)1 << order)) { // compact left
+            if (pfn < num_pages)
+                return;
 
-        first_pfn = pfn - num_pages;
-        second_pfn = pfn;
-    } else { // compact right
-        if (pfn + num_pages >= total_pages)
-            return;
+            if (pages[pfn - num_pages].state != page_state::free)
+                return;
 
-        if (pages[pfn + num_pages].state != page_state::free)
-            return;
+            if (pages[pfn - num_pages].order != order)
+                return;
 
-        if (pages[pfn + num_pages].order != order)
-            return;
+            first_pfn = pfn - num_pages;
+            second_pfn = pfn;
+        } else { // compact right
+            if (pfn + num_pages >= total_pages)
+                return;
 
-        first_pfn = pfn;
-        second_pfn = pfn + num_pages;
+            if (pages[pfn + num_pages].state != page_state::free)
+                return;
+
+            if (pages[pfn + num_pages].order != order)
+                return;
+
+            first_pfn = pfn;
+            second_pfn = pfn + num_pages;
+        }
+
+        remove_entry_list(pages[first_pfn].free.le);
+        remove_entry_list(pages[second_pfn].free.le);
+
+        free_folios[order] -= 2;
+
+        for (uint64_t i = 0; i < num_pages * 2; i++) {
+            pages[first_pfn + i].order++;
+        }
+
+        pages[second_pfn].state = page_state::folio_following;
+
+        insert_tail_list(folio_free_lists[order + 1], pages[first_pfn].free.le);
+
+        free_folios[order + 1]++;
+
+        pfn = first_pfn;
     }
-
-    remove_entry_list(pages[first_pfn].free.le);
-    remove_entry_list(pages[second_pfn].free.le);
-
-    free_folios[order] -= 2;
-
-    for (uint64_t i = 0; i < num_pages * 2; i++) {
-        pages[first_pfn + i].order++;
-    }
-
-    pages[second_pfn].state = page_state::folio_following;
-
-    insert_tail_list(folio_free_lists[order + 1], pages[first_pfn].free.le);
-
-    free_folios[order + 1]++;
 }
 
 export void free_folio(uint64_t pa) {
