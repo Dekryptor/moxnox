@@ -872,6 +872,17 @@ static EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type
 
     for (unsigned int i = 0; i < num_map_entries; i++) {
         if (map[i].addr + map[i].len == start) {
+            if (map[i].type == type) {
+                map[i].len += len;
+                return EFI_SUCCESS;
+            }
+
+            if (i < num_map_entries - 1 && map[i+1].addr == start + len && map[i+1].type == type) {
+                map[i+1].addr = start;
+                map[i+1].len += len;
+                return EFI_SUCCESS;
+            }
+
             insert_map_entry(i+1);
 
             map[i+1].addr = start;
@@ -1057,6 +1068,12 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
             return status;
         }
 
+        status = add_map_entry(new_page, EFI_PAGE_SIZE, mem_type::paging_table);
+        if (EFI_ERROR(status)) {
+            print_error("add_map_entry", status);
+            return status;
+        }
+
         memset((void*)new_page, 0, EFI_PAGE_SIZE);
 
         pml4t[pml4t_offset].Valid = 1;
@@ -1080,6 +1097,12 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
             return status;
         }
 
+        status = add_map_entry(new_page, EFI_PAGE_SIZE, mem_type::paging_table);
+        if (EFI_ERROR(status)) {
+            print_error("add_map_entry", status);
+            return status;
+        }
+
         memset((void*)new_page, 0, EFI_PAGE_SIZE);
 
         pdpt[pdpt_offset].Valid = 1;
@@ -1100,6 +1123,12 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
         status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
         if (EFI_ERROR(status)) {
             print_error("AllocatePages", status);
+            return status;
+        }
+
+        status = add_map_entry(new_page, EFI_PAGE_SIZE, mem_type::paging_table);
+        if (EFI_ERROR(status)) {
+            print_error("add_map_entry", status);
             return status;
         }
 
@@ -1158,6 +1187,12 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
     status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
     if (EFI_ERROR(status)) {
         print_error("AllocatePages", status);
+        return status;
+    }
+
+    status = add_map_entry(addr, EFI_PAGE_SIZE, mem_type::paging_table);
+    if (EFI_ERROR(status)) {
+        print_error("add_map_entry", status);
         return status;
     }
 
