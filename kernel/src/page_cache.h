@@ -44,6 +44,7 @@ public:
     bool read_and_pin(uint64_t offset, uint64_t length);
     uint64_t read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages);
     size_t read(std::span<uint8_t> data, uint64_t offset);
+    page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
 
     spinlock cache_lock;
     list_entry cache = { &cache, &cache };

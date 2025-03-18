@@ -185,7 +185,7 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
             auto& e = cmdtbl.prdt_entry[i];
 
             if (i != 0)
-                p = &containing_record<page_cache_entry>(p->le.next);
+                p = cache.next_page_cache_entry(*p);
 
             // FIXME - make sure device supports 64-bit PAs
 
@@ -781,7 +781,7 @@ size_t sata_device::flush_cache(uint64_t page_num, uint64_t num_pages) {
             auto& e = cmdtbl.prdt_entry[i];
 
             if (i != 0)
-                p = &containing_record<page_cache_entry>(p->le.next);
+                p = cache.next_page_cache_entry(*p);
 
             assert(p->page_num == page_num + i);
 
@@ -848,7 +848,7 @@ size_t sata_device::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
         for (unsigned int i = 0; i < num_pages; i++) {
             if (i != 0)
-                p = &containing_record<page_cache_entry>(p->le.next);
+                p = cache.next_page_cache_entry(*p);
 
             assert(p->page_num == page_num + i);
 

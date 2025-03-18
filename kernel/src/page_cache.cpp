@@ -81,10 +81,7 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
     }
 
     for (uint64_t page_num = first_page + 1; page_num < first_page + num_pages; page_num++) {
-        if (p->le.next == &cache)
-            ent = nullptr;
-        else
-            ent = &containing_record<page_cache_entry>(p->le.next);
+        ent = next_page_cache_entry(*p);
 
         if (!ent || ent->page_num != page_num) {
             p = create_new_page_cache_entry(page_num);
@@ -122,7 +119,7 @@ void page_cache::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
         if (i == 0)
             ent = find_page_cache_entry(first_page);
         else
-            ent = &containing_record<page_cache_entry>(ent->le.next);
+            ent = next_page_cache_entry(*ent);
 
         assert(ent->page_num == first_page + i);
 
@@ -153,7 +150,7 @@ void page_cache::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pa
         if (i == 0)
             ent = find_page_cache_entry(first_page);
         else
-            ent = &containing_record<page_cache_entry>(ent->le.next);
+            ent = next_page_cache_entry(*ent);
 
         assert(ent->page_num == first_page + i);
 
@@ -185,7 +182,7 @@ void page_cache::unpin(uint64_t first_page, uint64_t num_pages) {
         if (i == 0)
             ent = find_page_cache_entry(first_page);
         else
-            ent = &containing_record<page_cache_entry>(ent->le.next);
+            ent = next_page_cache_entry(*ent);
 
         assert(ent->page_num == first_page + i);
 
@@ -201,7 +198,7 @@ void page_cache::clean_pages(page_cache_entry* range_start, uint64_t range_lengt
         // FIXME - assert that status is page_cache_status::allocated
 
         p->status = page_cache_status::clean;
-        p = &containing_record<page_cache_entry>(p->le.next);
+        p = next_page_cache_entry(*p);
     }
 }
 
@@ -214,12 +211,10 @@ bool page_cache::find_unread_range(page_cache_entry*& range_start,
     // find first contiguous unread range
 
     while (ent->status != page_cache_status::allocated) {
-        if (ent->le.next == &cache) {
-            ent = nullptr;
-            return false;
-        }
+        ent = next_page_cache_entry(*ent);
 
-        ent = &containing_record<page_cache_entry>(ent->le.next);
+        if (!ent)
+            return false;
     }
 
     range_start = ent;
@@ -230,17 +225,16 @@ bool page_cache::find_unread_range(page_cache_entry*& range_start,
 
     if (range_left != 0) {
         for (uint64_t i = 0; i < range_left; i++) {
-            ent = &containing_record<page_cache_entry>(ent->le.next);
+            auto orig_ent = ent;
 
-            if (ent->status != page_cache_status::allocated) {
-                ent = &containing_record<page_cache_entry>(ent->le.prev);
+            ent = next_page_cache_entry(*ent);
+
+            if (!ent || ent->status != page_cache_status::allocated) {
+                ent = orig_ent;
                 break;
             }
 
             range_length++;
-
-            if (ent->le.next == &cache)
-                break;
         }
     }
 
@@ -267,7 +261,7 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
             if (i == 0)
                 ent = find_page_cache_entry(first_page);
             else
-                ent = &containing_record<page_cache_entry>(ent->le.next);
+                ent = next_page_cache_entry(*ent);
 
             assert(ent->page_num == first_page + i);
 
@@ -509,12 +503,10 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
         ent = &containing_record<page_cache_entry>(cache.next);
 
     while (ent->status != page_cache_status::dirty) {
-        if (ent->le.next == &cache) {
-            ent = nullptr;
-            return false;
-        }
+        ent = next_page_cache_entry(*ent);
 
-        ent = &containing_record<page_cache_entry>(ent->le.next);
+        if (!ent)
+            return false;
     }
 
     range_start = ent;
@@ -522,7 +514,10 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
     range_length = 1;
 
     while (true) {
-        auto ent2 = &containing_record<page_cache_entry>(ent->le.next);
+        auto ent2 = next_page_cache_entry(*ent);
+
+        if (!ent2)
+            break;
 
         if (ent2->page_num != range_start->page_num + range_length)
             break;
@@ -532,9 +527,6 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
 
         ent = ent2;
         range_length++;
-
-        if (ent->le.next == &cache)
-            break;
     }
 
     range_end = ent;
@@ -544,4 +536,11 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
 
 void* get_phys_address(const page_cache_entry& ent) {
     return phys_address(ent.phys_address);
+}
+
+page_cache_entry* page_cache::next_page_cache_entry(const page_cache_entry& ent) {
+    if (ent.le.next == &cache)
+        return nullptr;
+
+    return &containing_record<page_cache_entry>(ent.le.next);
 }

@@ -262,7 +262,7 @@ size_t tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
             if (i == 0)
                 ent = cache.find_page_cache_entry(page_num);
             else
-                ent = &containing_record<page_cache_entry>(ent->le.next);
+                ent = cache.next_page_cache_entry(*ent);
         }
 
         assert(ent->page_num == page_num + i);

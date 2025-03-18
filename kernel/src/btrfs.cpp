@@ -451,7 +451,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
             if (i == 0)
                 dest_p = cache.find_page_cache_entry(page_num);
             else
-                dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
+                dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
         src_p = vol->cache.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + i);
@@ -522,7 +522,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             crc32 = calc_crc32c(crc32, sp);
 
             if (j != pages_per_tree - 1)
-                ent = &containing_record<page_cache_entry>(ent->le.next);
+                ent = cache.next_page_cache_entry(*ent);
         }
 
         *(uint32_t*)&th = ~crc32;
@@ -547,7 +547,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             disk_addr += PAGE_SIZE;
 
             if (j != pages_per_tree - 1)
-                ent = &containing_record<page_cache_entry>(ent->le.next);
+                ent = cache.next_page_cache_entry(*ent);
         }
     }
 
@@ -557,7 +557,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             ent->status = page_cache_status::clean;
 
         if (j != pages_per_tree - 1)
-            ent = &containing_record<page_cache_entry>(ent->le.next);
+            ent = cache.next_page_cache_entry(*ent);
     }
 
     cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
@@ -2492,7 +2492,7 @@ size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages
             if (i == 0)
                 dest_p = cache.find_page_cache_entry(page_num);
             else
-                dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
+                dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
         auto dest_va = get_phys_address(*dest_p);
@@ -2528,7 +2528,7 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
             if (i == 0)
                 dest_p = cache.find_page_cache_entry(page_num);
             else
-                dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
+                dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
         auto dest_va = get_phys_address(*dest_p);
@@ -2577,7 +2577,7 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
             if (i == 0)
                 dest_p = cache.find_page_cache_entry(page_num);
             else
-                dest_p = &containing_record<page_cache_entry>(dest_p->le.next);
+                dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
         src_p = fs.cache.find_page_cache_entry((addr >> PAGE_SHIFT) + i);

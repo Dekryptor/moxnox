@@ -320,8 +320,8 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         dst->status = page_cache_status::clean;
 
         if (i != read_pages - 1) {
-            src = &containing_record<page_cache_entry>(src->le.next);
-            dst = &containing_record<page_cache_entry>(dst->le.next);
+            src = parent.cache.next_page_cache_entry(*src);
+            dst = cache.next_page_cache_entry(*dst);
         }
     }
 
@@ -354,7 +354,7 @@ size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
         }
 
         if (i != num_pages - 1)
-            ent = &containing_record<page_cache_entry>(ent->le.next);
+            ent = cache.next_page_cache_entry(*ent);
 
         flushed++;
     }
