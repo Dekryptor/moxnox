@@ -273,7 +273,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
     auto num_pages = sect.size >> PAGE_SHIFT;
 
     size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
-    auto pm = malloc_large(pm_size);
+    auto pm = vmalloc(pm_size);
     if (!pm) {
         print("out of memory\n");
         return 0;
@@ -1043,7 +1043,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     }
 
     size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
-    auto pm = malloc_large(pm_size);
+    auto pm = vmalloc(pm_size);
     if (!pm)
         return nt_status::INSUFFICIENT_RESOURCES;
 

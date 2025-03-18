@@ -1324,7 +1324,7 @@ nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
     // FIXME - error if level >= BTRFS_MAX_LEVEL
 
     for (unsigned int i = 0; i <= level; i++) {
-        p.data[i] = (uint8_t*)malloc_large(sb.node_size);
+        p.data[i] = (uint8_t*)vmalloc(sb.node_size);
         if (!p.data[i])
             return nt_status::INSUFFICIENT_RESOURCES;
     }
@@ -1409,7 +1409,7 @@ static nt_status split_internal_tree(btrfs_filesystem& fs, btrfs_path& p,
     uint64_t new_addr;
     nt_status status;
 
-    auto new_tree = (uint8_t*)malloc_large(fs.sb.node_size);
+    auto new_tree = (uint8_t*)vmalloc(fs.sb.node_size);
     if (!new_tree)
         return nt_status::INSUFFICIENT_RESOURCES;
 
@@ -1516,7 +1516,7 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     uint64_t new_addr;
     key first_key;
 
-    auto new_tree = (uint8_t*)malloc_large(fs.sb.node_size);
+    auto new_tree = (uint8_t*)vmalloc(fs.sb.node_size);
     if (!new_tree)
         return nt_status::INSUFFICIENT_RESOURCES;
 
@@ -1584,7 +1584,7 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     uint64_t new_addr;
     nt_status status;
 
-    auto new_tree = (uint8_t*)malloc_large(fs.sb.node_size);
+    auto new_tree = (uint8_t*)vmalloc(fs.sb.node_size);
     if (!new_tree)
         return nt_status::INSUFFICIENT_RESOURCES;
 

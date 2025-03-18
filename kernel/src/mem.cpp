@@ -1670,7 +1670,7 @@ void ::allocator<N, P, S>::free(void* ptr) {
     cb.free(index);
 }
 
-export void* malloc_large(size_t size) {
+export void* vmalloc(size_t size) {
     uint64_t num_pages = bytes_to_pages(size);
 
     auto va = allocate_va((uint32_t)num_pages);

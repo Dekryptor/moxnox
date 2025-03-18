@@ -131,9 +131,9 @@ bool volume::check_for_partitions() {
 
     size_t bufsize = table_end_aligned - table_start_aligned;
 
-    auto buf = (uint8_t*)malloc_large(bufsize);
+    auto buf = (uint8_t*)vmalloc(bufsize);
     if (!buf) {
-        print("malloc_large failed\n");
+        print("vmalloc failed\n");
         return false;
     }
 

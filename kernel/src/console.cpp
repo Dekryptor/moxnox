@@ -1341,7 +1341,7 @@ void safe_print(string_view s) {
 static void console_event_recv() {
     auto buf_size = console_buffer_pages << PAGE_SHIFT;
 
-    auto buf = (uint8_t*)malloc_large(buf_size);
+    auto buf = (uint8_t*)vmalloc(buf_size);
     if (!buf)
         return;
 
@@ -1589,7 +1589,7 @@ bool init_fb_console() {
 
     cursor_x = cursor_y = 0;
 
-    console = (console_info*)malloc_large(console_cols * console_rows * sizeof(console_info));
+    console = (console_info*)vmalloc(console_cols * console_rows * sizeof(console_info));
     if (!console) {
         print("out of memory\n");
         return false;
