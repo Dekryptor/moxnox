@@ -141,11 +141,11 @@ bool volume::check_for_partitions() {
 
     if (!success(status)) {
         print("volume::read returned {}\n", status);
-        free_large(buf, bufsize);
+        vfree(buf, bufsize);
         return false;
     } else if (read_bytes < table_end_aligned - table_start_aligned) {
         print("volume::read failed\n");
-        free_large(buf, bufsize);
+        vfree(buf, bufsize);
         return false;
     }
 
@@ -156,7 +156,7 @@ bool volume::check_for_partitions() {
     auto pw = new part_wait;
     if (!pw) {
         print("new failed\n");
-        free_large(buf, bufsize);
+        vfree(buf, bufsize);
         return false;
     }
 
@@ -180,7 +180,7 @@ bool volume::check_for_partitions() {
 
     if (pw->left == 0) {
         delete pw;
-        free_large(buf, bufsize);
+        vfree(buf, bufsize);
         return true;
     }
 
@@ -200,7 +200,7 @@ bool volume::check_for_partitions() {
                                         part.unique_partition_guid, part.partition_type_guid);
             if (!partdev) {
                 print("new failed\n");
-                free_large(buf, bufsize);
+                vfree(buf, bufsize);
                 return false;
             }
 
@@ -219,7 +219,7 @@ bool volume::check_for_partitions() {
                     partdev->volume_name = (char*)malloc(partdev->volume_name_len);
                     if (!partdev->volume_name) {
                         print("malloc failed\n");
-                        free_large(buf, bufsize);
+                        vfree(buf, bufsize);
                         return false;
                     }
 
@@ -239,7 +239,7 @@ bool volume::check_for_partitions() {
 
                     if (!name_object(*partdev, sv)) {
                         print("name_object failed\n");
-                        free_large(buf, bufsize);
+                        vfree(buf, bufsize);
                         return false;
                     }
                 }
@@ -251,7 +251,7 @@ bool volume::check_for_partitions() {
         ptr += size_of_partition_entry;
     }
 
-    free_large(buf, bufsize);
+    vfree(buf, bufsize);
 
     wait_for_object(pw->event.get(), false);
 

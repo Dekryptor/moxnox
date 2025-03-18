@@ -317,7 +317,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
             if (address < m2.address + m2.size && address + m.size > m2.address) { // collision
                 print("collision\n");
                 m.~mapping_section();
-                free_large(pm, pm_size);
+                vfree(pm, pm_size);
                 return 0;
             }
         }
@@ -713,7 +713,7 @@ void process::free_mappings() {
                 size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
 
                 mv.~mapping_vm();
-                free_large(&mv, pm_size);
+                vfree(&mv, pm_size);
 
                 break;
             }
@@ -726,7 +726,7 @@ void process::free_mappings() {
                 size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
 
                 ms.~mapping_section();
-                free_large(&ms, pm_size);
+                vfree(&ms, pm_size);
 
                 break;
             }
@@ -1091,7 +1091,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
             if (addr < m2.address + m2.size && addr + m.size > m2.address) { // collision
                 print("collision\n");
                 m.~mapping_vm();
-                free_large(pm, pm_size);
+                vfree(pm, pm_size);
                 return nt_status::NO_MEMORY;
             }
         }
@@ -1102,7 +1102,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     if (addr == 0) {
         if (last_addr >= MAX_USERSPACE_ADDRESS - m.size) {
             m.~mapping_vm();
-            free_large(pm, pm_size);
+            vfree(pm, pm_size);
             return nt_status::NO_MEMORY;
         }
 
@@ -1344,7 +1344,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
             size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
 
             mv.~mapping_vm();
-            free_large(&mv, pm_size);
+            vfree(&mv, pm_size);
 
             break;
         }
@@ -1356,7 +1356,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
             size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
 
             ms.~mapping_section();
-            free_large(&ms, pm_size);
+            vfree(&ms, pm_size);
 
             break;
         }
@@ -2175,7 +2175,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
     ms2->~mapping_section();
 
     size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
-    free_large(ms2, pm_size);
+    vfree(ms2, pm_size);
 
     return nt_status::SUCCESS;
 }

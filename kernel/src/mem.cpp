@@ -1715,7 +1715,7 @@ export void* vmalloc(size_t size) {
     return (void*)va;
 }
 
-export void free_large(void* ptr, size_t size) {
+export void vfree(void* ptr, size_t size) {
     uint64_t num_pages = bytes_to_pages(size);
 
     for (unsigned int i = 0; i < num_pages; i++) {

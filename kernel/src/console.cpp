@@ -1358,7 +1358,7 @@ static void console_event_recv() {
             early_print(string_view((char*)buf, read_bytes));
     } while (true);
 
-    free_large(buf, buf_size);
+    vfree(buf, buf_size);
 }
 
 bool init_console(const loader_block_framebuffer& fb,

@@ -1311,7 +1311,7 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
 btrfs_path::~btrfs_path() {
     for (unsigned int i = 0; i < BTRFS_MAX_LEVEL; i++) {
         if (data[i])
-            free_large(data[i], node_size);
+            vfree(data[i], node_size);
     }
 }
 
@@ -1415,7 +1415,7 @@ static nt_status split_internal_tree(btrfs_filesystem& fs, btrfs_path& p,
 
     status = allocate_metadata(fs, new_addr);
     if (!success(status)) {
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return status;
     }
 
@@ -1434,24 +1434,24 @@ static nt_status split_internal_tree(btrfs_filesystem& fs, btrfs_path& p,
 
     status = add_metadata_change(fs, new_addr, level, th.tree_id, false);
     if (!success(status)) {
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return status;
     }
 
     if (!fs.cache.write(span((uint8_t*)&th, fs.sb.node_size), th.address)) { // FIXME - return status
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return nt_status::INTERNAL_ERROR;
     }
 
     if (!fs.cache.write(span((uint8_t*)&th2, fs.sb.node_size), th2.address)) { // FIXME - return status
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return nt_status::INTERNAL_ERROR;
     }
 
     if (!p.data[level + 1]) {
         status = add_new_level(fs, p, r, level + 1);
         if (!success(status)) {
-            free_large(new_tree, fs.sb.node_size);
+            vfree(new_tree, fs.sb.node_size);
             return status;
         }
     }
@@ -1460,16 +1460,16 @@ static nt_status split_internal_tree(btrfs_filesystem& fs, btrfs_path& p,
     status = insert_internal_node(fs, p, r, level + 1, items2[0].k, new_addr);
     if (!success(status)) {
         p.slots[level + 1]--;
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return status;
     }
 
     if (p.slots[level] < split_point) {
         p.slots[level + 1]--;
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
     } else {
         p.slots[level] -= split_point;
-        free_large(p.data[level], fs.sb.node_size);
+        vfree(p.data[level], fs.sb.node_size);
         p.data[level] = new_tree;
     }
 
@@ -1521,7 +1521,7 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
         return nt_status::INSUFFICIENT_RESOURCES;
 
     if (auto status = allocate_metadata(fs, new_addr); !success(status)) {
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return status;
     }
 
@@ -1546,7 +1546,7 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     th2.num_items = 1;
 
     if (auto status = add_metadata_change(fs, new_addr, level, th.tree_id, false); !success(status)) {
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return status;
     }
 
@@ -1559,7 +1559,7 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     memset(&items2[1], 0, fs.sb.node_size - sizeof(tree_header) - sizeof(internal_node));
 
     if (!fs.cache.write(span(new_tree, fs.sb.node_size), th2.address)) { // FIXME - return status
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return nt_status::INTERNAL_ERROR;
     }
 
@@ -1589,7 +1589,7 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
         return nt_status::INSUFFICIENT_RESOURCES;
 
     if (auto status = allocate_metadata(fs, new_addr); !success(status)) {
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return status;
     }
 
@@ -1629,26 +1629,26 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
            0, fs.sb.node_size - to_copy - sizeof(tree_header) - (th2.num_items * sizeof(leaf_node)));
 
     if (auto status = add_metadata_change(fs, new_addr, 0, th.tree_id, false); !success(status)) {
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return status;
     }
 
     // write both trees into cache
 
     if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) { // FIXME - return status
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return nt_status::INTERNAL_ERROR;
     }
 
     if (!fs.cache.write(span(new_tree, fs.sb.node_size), th2.address)) { // FIXME - return status
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return nt_status::INTERNAL_ERROR;
     }
 
     if (!p.data[1]) {
         status = add_new_level(fs, p, r, 1);
         if (!success(status)) {
-            free_large(new_tree, fs.sb.node_size);
+            vfree(new_tree, fs.sb.node_size);
             return status;
         }
     }
@@ -1657,16 +1657,16 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     status = insert_internal_node(fs, p, r, 1, items2[0].k, new_addr);
     if (!success(status)) {
         p.slots[1]--;
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
         return status;
     }
 
     if (p.slots[0] < split_point || split_point == 0) {
         p.slots[1]--;
-        free_large(new_tree, fs.sb.node_size);
+        vfree(new_tree, fs.sb.node_size);
     } else {
         p.slots[0] -= split_point;
-        free_large(p.data[0], fs.sb.node_size);
+        vfree(p.data[0], fs.sb.node_size);
         p.data[0] = new_tree;
     }
 
