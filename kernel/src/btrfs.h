@@ -546,6 +546,7 @@ public:
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };
     bool readonly = false;
     object_ref flush_thread_obj;
+    uint8_t node_folio_order;
 
 private:
     bool load_chunks();

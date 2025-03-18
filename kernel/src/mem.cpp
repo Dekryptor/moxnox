@@ -68,7 +68,7 @@ extern "C" volatile uint32_t invalidate_tlb_processors_left;
 constexpr uint64_t PHYS_MEMORY_MASK = 0xffffff0000000000;
 static const uint64_t PHYS_MEMORY = 0xffff990000000000;
 
-static constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
+export constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
 
 static list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 static uint64_t free_folios[MAX_FOLIO_ORDER + 1];
@@ -928,7 +928,7 @@ static constexpr bool is_phys_memory(void* ptr) {
     return ((uintptr_t)ptr & PHYS_MEMORY_MASK) == PHYS_MEMORY;
 }
 
-constexpr uint64_t phys_memory_pfn(void* ptr) {
+export constexpr uint64_t phys_memory_pfn(void* ptr) {
     return ((uintptr_t)ptr & ~PHYS_MEMORY_MASK) >> PAGE_SHIFT;
 }
 
