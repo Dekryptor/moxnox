@@ -49,7 +49,6 @@ public:
     spinlock cache_lock;
 
 private:
-    void clean_pages(page_cache_entry* range_start, uint64_t range_length);
     bool find_unread_range(page_cache_entry*& range_start,
                            page_cache_entry*& range_end, uint64_t& range_length,
                            page_cache_entry*& ent, uint64_t first_page,

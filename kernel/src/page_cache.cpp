@@ -245,15 +245,16 @@ void page_cache::unpin(uint64_t first_page, uint64_t num_pages) {
     }
 }
 
-void page_cache::clean_pages(page_cache_entry* range_start, uint64_t range_length) {
-    lock_guard lg(cache_lock);
+static void clean_pages(page_cache& cache, page_cache_entry* range_start,
+                        uint64_t range_length) {
+    lock_guard lg(cache.cache_lock);
 
     auto p = range_start;
     for (uint64_t i = 0; i < range_length; i++) {
         // FIXME - assert that status is page_cache_status::allocated
 
         p->status = page_cache_status::clean;
-        p = next_page_cache_entry(*p);
+        p = cache.next_page_cache_entry(*p);
     }
 }
 
@@ -463,7 +464,7 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
                 }
             }
 
-            clean_pages(range_start, range_length);
+            clean_pages(*this, range_start, range_length);
 
             if (range_end->tree.key == first_page + num_pages - 1)
                 break;
@@ -506,7 +507,7 @@ uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_p
                     auto ret = dev.read_into_cache(page_num_start, pages_left);
 
                     if (ret == 0) {
-                        clean_pages(range_start, range_length - pages_left);
+                        clean_pages(*this, range_start, range_length - pages_left);
                         unpin(page_num_start + ret,
                               first_page + num_pages - page_num_start - ret);
                         return page_num_start + ret - first_page;
@@ -517,7 +518,7 @@ uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_p
                 }
             }
 
-            clean_pages(range_start, range_length);
+            clean_pages(*this, range_start, range_length);
 
             if (range_end->tree.key == first_page + num_pages - 1)
                 break;
