@@ -74,7 +74,7 @@ static list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 static uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
 template<unsigned N, enum page_state S>
-class allocator_multipage {
+class allocator_folio {
 public:
     void* malloc();
     void free(void* ptr);
@@ -110,8 +110,8 @@ public:
     list_entry control_blocks = { &control_blocks, &control_blocks };
 };
 
-static allocator_multipage<1, page_state::allocator_8k> alloc8k;
-static allocator_multipage<0, page_state::allocator_4k> alloc4k;
+static allocator_folio<1, page_state::allocator_8k> alloc8k;
+static allocator_folio<0, page_state::allocator_4k> alloc4k;
 static ::allocator<488, 32, page_state::allocator_2k> alloc2k;
 static ::allocator<480, 16, page_state::allocator_1k> alloc1k;
 static ::allocator<448, 8, page_state::allocator_512> alloc512;
@@ -1516,7 +1516,7 @@ int strncmp(const char* s1, const char* s2, size_t n) {
 }
 
 template<unsigned N, enum page_state S>
-void* allocator_multipage<N, S>::malloc() {
+void* allocator_folio<N, S>::malloc() {
     auto p = allocate_folio(N, S);
 
     if (!p)
@@ -1526,7 +1526,7 @@ void* allocator_multipage<N, S>::malloc() {
 }
 
 template<unsigned N, enum page_state S>
-void allocator_multipage<N, S>::free(void* ptr) {
+void allocator_folio<N, S>::free(void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
 
     free_folio(pfn << PAGE_SHIFT);
