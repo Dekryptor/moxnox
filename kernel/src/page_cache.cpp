@@ -413,7 +413,7 @@ size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
     return written;
 }
 
-bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
+static bool read_and_pin(page_cache& cache, uint64_t offset, uint64_t length) {
     if (length == 0)
         return true;
 
@@ -427,7 +427,7 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
 
     // FIXME - lock range
 
-    if (!pin(first_page, num_pages, &first_unread))
+    if (!cache.pin(first_page, num_pages, &first_unread))
         return false;
 
     if (first_unread) {
@@ -438,7 +438,7 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
             page_cache_entry* range_end;
             uint64_t range_length;
 
-            if (!find_unread_range(*this, range_start, range_end, range_length, ent,
+            if (!find_unread_range(cache, range_start, range_end, range_length, ent,
                                    first_page, num_pages))
                 break;
 
@@ -452,7 +452,7 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
                 // FIXME - better if we could allocate contiguous physical pages? (folios?)
 
                 while (pages_left > 0) {
-                    auto ret = dev.read_into_cache(page_num_start, pages_left);
+                    auto ret = cache.dev.read_into_cache(page_num_start, pages_left);
 
                     if (ret == 0) {
                         print("read_into_cache failed\n");
@@ -464,7 +464,7 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
                 }
             }
 
-            clean_pages(*this, range_start, range_length);
+            clean_pages(cache, range_start, range_length);
 
             if (range_end->tree.key == first_page + num_pages - 1)
                 break;
@@ -532,7 +532,7 @@ size_t page_cache::read(std::span<uint8_t> data, uint64_t offset) {
     if (data.empty())
         return 0;
 
-    if (!read_and_pin(offset, data.size()))
+    if (!read_and_pin(*this, offset, data.size()))
         return 0;
 
     uint64_t first_page = offset >> PAGE_SHIFT;

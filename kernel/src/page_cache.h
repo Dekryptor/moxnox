@@ -47,12 +47,10 @@ public:
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
 
     spinlock cache_lock;
+    cacheable& dev;
 
 private:
-    bool read_and_pin(uint64_t offset, uint64_t length);
-
     tree_entry* root = nullptr;
-    cacheable& dev;
 };
 
 class cacheable {
