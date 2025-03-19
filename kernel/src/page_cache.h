@@ -9,7 +9,6 @@ enum class page_cache_status {
 };
 
 struct page_cache_entry {
-    list_entry le;
     struct page_cache_entry* parent;
     struct page_cache_entry* left;
     struct page_cache_entry* right;
@@ -50,7 +49,6 @@ public:
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
 
     spinlock cache_lock;
-    list_entry cache = { &cache, &cache };
     page_cache_entry* root = nullptr;
 
 private:

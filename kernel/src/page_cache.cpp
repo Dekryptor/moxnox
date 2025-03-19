@@ -11,25 +11,16 @@ import list;
 using namespace std;
 
 page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
-    // returns page cache entry, or previous one if not found
+    page_cache_entry* ret = root;
 
-    page_cache_entry* last_p = nullptr;
-
-    auto le = cache.next;
-    while (le != &cache) {
-        auto& p = containing_record<page_cache_entry>(le);
-
-        if (p.page_num == page_num)
-            return &p;
-
-        if (p.page_num > page_num)
-            return last_p;
-
-        last_p = &p;
-        le = le->next;
+    while (ret && ret->page_num != page_num) {
+        if (page_num < ret->page_num)
+            ret = ret->left;
+        else
+            ret = ret->right;
     }
 
-    return last_p;
+    return ret;
 }
 
 static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
@@ -85,15 +76,10 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
 
     ent = find_page_cache_entry(first_page);
 
-    if (!ent || ent->page_num != first_page) {
+    if (!ent) {
         p = create_new_page_cache_entry(first_page);
         if (!p) // FIXME - throw error
             return false;
-
-        if (!ent) // first entry
-            insert_head_list(cache, p->le);
-        else
-            insert_head_list(ent->le, p->le);
 
         if (first_unread)
             *first_unread = p;
@@ -114,11 +100,6 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
             p = create_new_page_cache_entry(page_num);
             if (!p) // FIXME - throw error
                 return false;
-
-            if (!ent) // first entry
-                insert_tail_list(cache, p->le);
-            else
-                insert_head_list(*ent->le.prev, p->le);
 
             if (first_unread && !*first_unread)
                 *first_unread = p;
@@ -525,11 +506,16 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
 
     // find first contiguous dirty range
 
-    if (is_list_empty(cache))
+    if (!root)
         return false;
 
-    if (!ent)
-        ent = &containing_record<page_cache_entry>(cache.next);
+    if (!ent) { // get first entry
+        ent = root;
+
+        while (ent->left) {
+            ent = ent->left;
+        }
+    }
 
     while (ent->status != page_cache_status::dirty) {
         ent = next_page_cache_entry(*ent);
@@ -568,8 +554,23 @@ void* get_phys_address(const page_cache_entry& ent) {
 }
 
 page_cache_entry* page_cache::next_page_cache_entry(const page_cache_entry& ent) {
-    if (ent.le.next == &cache)
-        return nullptr;
+    page_cache_entry* ret;
 
-    return &containing_record<page_cache_entry>(ent.le.next);
+    if (ent.right) {
+        ret = ent.right;
+
+        while (ret->left) {
+            ret = ret->left;
+        }
+    } else {
+        const page_cache_entry* last_ent = &ent;
+
+        ret = last_ent->parent;
+        while (ret && ret->right == last_ent) {
+            last_ent = ret;
+            ret = ret->parent;
+        }
+    }
+
+    return ret;
 }
