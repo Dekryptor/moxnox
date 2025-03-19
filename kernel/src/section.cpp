@@ -7,6 +7,7 @@ import format;
 import print;
 import mem;
 import config;
+import pe;
 
 using namespace std;
 

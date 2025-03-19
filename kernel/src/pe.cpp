@@ -1,6 +1,10 @@
+module;
+
 #include "kernel.h"
 #include <pe.h>
 #include <span>
+
+export module pe;
 
 import print;
 import mem;
@@ -8,9 +12,9 @@ import config;
 
 using namespace std;
 
-extern uint8_t __image_base__;
+extern "C" uint8_t __image_base__;
 
-enum mapping_type characteristics_to_mapping_type(uint32_t c) {
+export enum mapping_type characteristics_to_mapping_type(uint32_t c) {
     if (c & IMAGE_SCN_MEM_WRITE && !(c & IMAGE_SCN_MEM_EXECUTE))
         return mapping_type::read_write;
     else if (c & IMAGE_SCN_MEM_WRITE && c & IMAGE_SCN_MEM_EXECUTE)
@@ -23,7 +27,7 @@ enum mapping_type characteristics_to_mapping_type(uint32_t c) {
     return mapping_type::read_only;
 }
 
-void protect_kernel_pages() {
+export void protect_kernel_pages() {
     const auto& dos_header = *(IMAGE_DOS_HEADER*)&__image_base__;
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {

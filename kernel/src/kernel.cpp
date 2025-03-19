@@ -16,6 +16,7 @@ import interrupts;
 import serial;
 import pci;
 import vfs;
+import pe;
 
 using namespace std;
 
