@@ -10,6 +10,9 @@ enum class page_cache_status {
 
 struct page_cache_entry {
     list_entry le;
+    struct page_cache_entry* parent;
+    struct page_cache_entry* left;
+    struct page_cache_entry* right;
     uint64_t page_num;
     std::atomic<uint32_t> refcount;
     enum page_cache_status status;
@@ -48,6 +51,7 @@ public:
 
     spinlock cache_lock;
     list_entry cache = { &cache, &cache };
+    page_cache_entry* root = nullptr;
 
 private:
     cacheable& dev;

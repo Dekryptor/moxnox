@@ -51,6 +51,31 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     return p;
 }
 
+static void insert_into_tree(page_cache& cache, page_cache_entry& p) {
+    page_cache_entry* ptr = cache.root;
+    page_cache_entry* new_parent = nullptr;
+
+    while (ptr) {
+        new_parent = ptr;
+
+        if (p.page_num < ptr->page_num)
+            ptr = ptr->left;
+        else
+            ptr = ptr->right;
+    }
+
+    p.parent = new_parent;
+    p.left = nullptr;
+    p.right = nullptr;
+
+    if (!new_parent)
+        cache.root = &p;
+    else if (p.page_num < new_parent->page_num)
+        new_parent->left = &p;
+    else
+        new_parent->right = &p;
+}
+
 bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
                      page_cache_entry** first_unread) {
     lock_guard lg(cache_lock);
@@ -72,6 +97,8 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
 
         if (first_unread)
             *first_unread = p;
+
+        insert_into_tree(*this, *p);
     } else {
         ent->refcount++;
         p = ent;
@@ -95,6 +122,8 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
 
             if (first_unread && !*first_unread)
                 *first_unread = p;
+
+            insert_into_tree(*this, *p);
         } else {
             ent->refcount++;
             p = ent;
