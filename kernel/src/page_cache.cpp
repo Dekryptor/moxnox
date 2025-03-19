@@ -258,16 +258,16 @@ static void clean_pages(page_cache& cache, page_cache_entry* range_start,
     }
 }
 
-bool page_cache::find_unread_range(page_cache_entry*& range_start,
-                                   page_cache_entry*& range_end,
-                                   uint64_t& range_length, page_cache_entry*& ent,
-                                   uint64_t first_page, uint64_t num_pages) {
-    lock_guard lg(cache_lock);
+static bool find_unread_range(page_cache& cache, page_cache_entry*& range_start,
+                              page_cache_entry*& range_end,
+                              uint64_t& range_length, page_cache_entry*& ent,
+                              uint64_t first_page, uint64_t num_pages) {
+    lock_guard lg(cache.cache_lock);
 
     // find first contiguous unread range
 
     while (ent->status != page_cache_status::allocated) {
-        ent = next_page_cache_entry(*ent);
+        ent = cache.next_page_cache_entry(*ent);
 
         if (!ent)
             return false;
@@ -283,7 +283,7 @@ bool page_cache::find_unread_range(page_cache_entry*& range_start,
         for (uint64_t i = 0; i < range_left; i++) {
             auto orig_ent = ent;
 
-            ent = next_page_cache_entry(*ent);
+            ent = cache.next_page_cache_entry(*ent);
 
             if (!ent || ent->status != page_cache_status::allocated) {
                 ent = orig_ent;
@@ -438,7 +438,7 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
             page_cache_entry* range_end;
             uint64_t range_length;
 
-            if (!find_unread_range(range_start, range_end, range_length, ent,
+            if (!find_unread_range(*this, range_start, range_end, range_length, ent,
                                    first_page, num_pages))
                 break;
 
@@ -490,7 +490,7 @@ uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_p
             page_cache_entry* range_end;
             uint64_t range_length;
 
-            if (!find_unread_range(range_start, range_end, range_length, ent,
+            if (!find_unread_range(*this, range_start, range_end, range_length, ent,
                                    first_page, num_pages))
                 break;
 

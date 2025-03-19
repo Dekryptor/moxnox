@@ -49,10 +49,6 @@ public:
     spinlock cache_lock;
 
 private:
-    bool find_unread_range(page_cache_entry*& range_start,
-                           page_cache_entry*& range_end, uint64_t& range_length,
-                           page_cache_entry*& ent, uint64_t first_page,
-                           uint64_t num_pages);
     bool read_and_pin(uint64_t offset, uint64_t length);
 
     tree_entry* root = nullptr;
