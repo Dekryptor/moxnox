@@ -546,8 +546,7 @@ size_t page_cache::read(std::span<uint8_t> data, uint64_t offset) {
 }
 
 bool page_cache::find_dirty_range(page_cache_entry*& range_start,
-                                  page_cache_entry*& range_end,
-                                  uint64_t& range_length, page_cache_entry*& ent) {
+                                  uint64_t& range_length) {
     lock_guard lg(cache_lock);
 
     // find first contiguous dirty range
@@ -555,8 +554,8 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
     if (!root)
         return false;
 
-    if (!ent) // get first entry
-        ent = &tree_containing_record<page_cache_entry>(get_tree_minimum(root));
+    // get first entry
+    auto ent = &tree_containing_record<page_cache_entry>(get_tree_minimum(root));
 
     while (ent->status != page_cache_status::dirty) {
         ent = next_page_cache_entry(*ent);
@@ -584,8 +583,6 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
         ent = ent2;
         range_length++;
     }
-
-    range_end = ent;
 
     return true;
 }

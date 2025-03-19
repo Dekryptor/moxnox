@@ -3165,7 +3165,6 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
 nt_status btrfs_filesystem::flush(bool make_readonly) {
     lock_guard lock(trans_lock);
 
-    page_cache_entry* ent = nullptr;
     nt_status status;
 
     // FIXME - should have rwsem held exclusively
@@ -3209,14 +3208,12 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
 
     while (true) {
         page_cache_entry* start;
-        page_cache_entry* end;
-        uint64_t range_length;
+        uint64_t num_pages;
 
-        if (!cache.find_dirty_range(start, end, range_length, ent))
+        if (!cache.find_dirty_range(start, num_pages))
             break;
 
         auto first_page = start->tree.key;
-        auto num_pages = end->tree.key - start->tree.key + 1;
 
         while (true) {
             auto flushed = flush_cache(first_page, num_pages);
