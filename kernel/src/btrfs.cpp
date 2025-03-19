@@ -20,6 +20,7 @@ import mem;
 import config;
 import list;
 import vfs;
+import string;
 
 #include "btrfs.h"
 

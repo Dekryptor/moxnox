@@ -17,6 +17,7 @@ import cpio;
 import mem;
 import config;
 import list;
+import string;
 
 using namespace std;
 

@@ -25,7 +25,6 @@ set(SRC_FILES src/kernel.cpp
     src/volume.cpp
     src/process.cpp
     src/section.cpp
-    src/string.cpp
     src/syscalls.S
     src/syscalls.cpp
     src/mem.S
@@ -57,6 +56,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/sata.cpp
     src/pci.cpp
     src/vfs.cpp
+    src/string.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

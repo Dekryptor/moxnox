@@ -5,6 +5,7 @@
 
 import format;
 import print;
+import string;
 
 using namespace std;
 
