@@ -576,6 +576,7 @@ export nt_status flush_filesystems(bool make_readonly) {
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
     if (offset >= file_size)
         return nt_status::END_OF_FILE;
@@ -592,6 +593,7 @@ nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
     // FIXME - don't allow if FS readonly
 
