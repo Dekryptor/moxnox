@@ -783,7 +783,7 @@ size_t sata_device::flush_cache(uint64_t page_num, uint64_t num_pages) {
             if (i != 0)
                 p = cache.next_page_cache_entry(*p);
 
-            assert(p->page_num == page_num + i);
+            assert(p->tree.key == page_num + i);
 
             // FIXME - make sure device supports 64-bit PAs
 
@@ -850,7 +850,7 @@ size_t sata_device::flush_cache(uint64_t page_num, uint64_t num_pages) {
             if (i != 0)
                 p = cache.next_page_cache_entry(*p);
 
-            assert(p->page_num == page_num + i);
+            assert(p->tree.key == page_num + i);
 
             p->status = page_cache_status::clean;
         }

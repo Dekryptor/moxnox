@@ -8,11 +8,15 @@ enum class page_cache_status {
     dirty
 };
 
+struct tree_entry {
+    tree_entry* parent;
+    tree_entry* left;
+    tree_entry* right;
+    uint64_t key;
+};
+
 struct page_cache_entry {
-    struct page_cache_entry* parent;
-    struct page_cache_entry* left;
-    struct page_cache_entry* right;
-    uint64_t page_num;
+    tree_entry tree;
     std::atomic<uint32_t> refcount;
     enum page_cache_status status;
     uint64_t phys_address;
@@ -49,7 +53,7 @@ public:
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
 
     spinlock cache_lock;
-    page_cache_entry* root = nullptr;
+    tree_entry* root = nullptr;
 
 private:
     cacheable& dev;

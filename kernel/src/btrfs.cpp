@@ -533,7 +533,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
         uint64_t disk_addr = addr - c.offset + c.ci.stripes[i].offset;
 
         for (unsigned j = 0; j < pages_per_tree; j++) {
-            assert(ent->page_num == (addr >> PAGE_SHIFT) + j);
+            assert(ent->tree.key == (addr >> PAGE_SHIFT) + j);
 
             if (ent->status == page_cache_status::dirty) {
                 if (!vol->cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
@@ -3215,8 +3215,8 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         if (!cache.find_dirty_range(start, end, range_length, ent))
             break;
 
-        auto first_page = start->page_num;
-        auto num_pages = end->page_num - start->page_num + 1;
+        auto first_page = start->tree.key;
+        auto num_pages = end->tree.key - start->tree.key + 1;
 
         while (true) {
             auto flushed = flush_cache(first_page, num_pages);

@@ -10,11 +10,11 @@ import list;
 
 using namespace std;
 
-page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
-    page_cache_entry* ret = root;
+static tree_entry* find_tree_entry(tree_entry* root, uint64_t key) {
+    tree_entry* ret = root;
 
-    while (ret && ret->page_num != page_num) {
-        if (page_num < ret->page_num)
+    while (ret && ret->key != key) {
+        if (key < ret->key)
             ret = ret->left;
         else
             ret = ret->right;
@@ -23,12 +23,82 @@ page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
     return ret;
 }
 
+static tree_entry* get_tree_minimum(tree_entry* root) {
+    tree_entry* ret = root;
+
+    while (ret->left) {
+        ret = ret->left;
+    }
+
+    return ret;
+}
+
+static void insert_into_tree(tree_entry*& root, tree_entry& ent) {
+    tree_entry* ptr = root;
+    tree_entry* new_parent = nullptr;
+
+    while (ptr) {
+        new_parent = ptr;
+
+        if (ent.key < ptr->key)
+            ptr = ptr->left;
+        else
+            ptr = ptr->right;
+    }
+
+    ent.parent = new_parent;
+    ent.left = nullptr;
+    ent.right = nullptr;
+
+    if (!new_parent)
+        root = &ent;
+    else if (ent.key < new_parent->key)
+        new_parent->left = &ent;
+    else
+        new_parent->right = &ent;
+}
+
+static tree_entry* next_tree_entry(const tree_entry& ent) {
+    tree_entry* ret;
+
+    if (ent.right) {
+        ret = ent.right;
+
+        while (ret->left) {
+            ret = ret->left;
+        }
+    } else {
+        const tree_entry* last_ent = &ent;
+
+        ret = last_ent->parent;
+        while (ret && ret->right == last_ent) {
+            last_ent = ret;
+            ret = ret->parent;
+        }
+    }
+
+    return ret;
+}
+
+template<typename T>
+T& tree_containing_record(tree_entry* tree) {
+    return *(T*)((uint8_t*)tree - offsetof(T, tree));
+}
+
+page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
+    auto tree = find_tree_entry(root, page_num);
+    if (!tree)
+        return nullptr;
+
+    return &tree_containing_record<page_cache_entry>(tree);
+}
+
 static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     auto p = new page_cache_entry;
     if (!p)
         return nullptr;
 
-    p->page_num = page_num;
+    p->tree.key = page_num;
     p->refcount = 1;
     p->status = page_cache_status::allocated;
     p->phys_address = allocate_page();
@@ -40,31 +110,6 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     }
 
     return p;
-}
-
-static void insert_into_tree(page_cache& cache, page_cache_entry& p) {
-    page_cache_entry* ptr = cache.root;
-    page_cache_entry* new_parent = nullptr;
-
-    while (ptr) {
-        new_parent = ptr;
-
-        if (p.page_num < ptr->page_num)
-            ptr = ptr->left;
-        else
-            ptr = ptr->right;
-    }
-
-    p.parent = new_parent;
-    p.left = nullptr;
-    p.right = nullptr;
-
-    if (!new_parent)
-        cache.root = &p;
-    else if (p.page_num < new_parent->page_num)
-        new_parent->left = &p;
-    else
-        new_parent->right = &p;
 }
 
 bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
@@ -84,7 +129,7 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
         if (first_unread)
             *first_unread = p;
 
-        insert_into_tree(*this, *p);
+        insert_into_tree(root, p->tree);
     } else {
         ent->refcount++;
         p = ent;
@@ -96,7 +141,7 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
     for (uint64_t page_num = first_page + 1; page_num < first_page + num_pages; page_num++) {
         ent = next_page_cache_entry(*p);
 
-        if (!ent || ent->page_num != page_num) {
+        if (!ent || ent->tree.key != page_num) {
             p = create_new_page_cache_entry(page_num);
             if (!p) // FIXME - throw error
                 return false;
@@ -104,7 +149,7 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
             if (first_unread && !*first_unread)
                 *first_unread = p;
 
-            insert_into_tree(*this, *p);
+            insert_into_tree(root, p->tree);
         } else {
             ent->refcount++;
             p = ent;
@@ -131,7 +176,7 @@ void page_cache::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
         else
             ent = next_page_cache_entry(*ent);
 
-        assert(ent->page_num == first_page + i);
+        assert(ent->tree.key == first_page + i);
 
         // copy pages into data
 
@@ -162,7 +207,7 @@ void page_cache::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pa
         else
             ent = next_page_cache_entry(*ent);
 
-        assert(ent->page_num == first_page + i);
+        assert(ent->tree.key == first_page + i);
 
         // copy pages into data
 
@@ -194,7 +239,7 @@ void page_cache::unpin(uint64_t first_page, uint64_t num_pages) {
         else
             ent = next_page_cache_entry(*ent);
 
-        assert(ent->page_num == first_page + i);
+        assert(ent->tree.key == first_page + i);
 
         ent->refcount--;
     }
@@ -229,7 +274,7 @@ bool page_cache::find_unread_range(page_cache_entry*& range_start,
 
     range_start = ent;
 
-    uint64_t range_left = first_page + num_pages - range_start->page_num - 1;
+    uint64_t range_left = first_page + num_pages - range_start->tree.key - 1;
 
     range_length = 1;
 
@@ -273,7 +318,7 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
             else
                 ent = next_page_cache_entry(*ent);
 
-            assert(ent->page_num == first_page + i);
+            assert(ent->tree.key == first_page + i);
 
             auto ent_va = get_phys_address(*ent);
 
@@ -306,7 +351,7 @@ size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
 
             auto ent = find_page_cache_entry(first_page);
 
-            assert(ent->page_num == first_page);
+            assert(ent->tree.key == first_page);
 
             auto ent_va = get_phys_address(*ent);
 
@@ -352,7 +397,7 @@ size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
 
         auto ent = find_page_cache_entry(first_page);
 
-        assert(ent->page_num == first_page);
+        assert(ent->tree.key == first_page);
 
         auto ent_va = get_phys_address(*ent);
 
@@ -399,7 +444,7 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
             // read data into pages
 
             {
-                uint64_t page_num_start = range_start->page_num;
+                uint64_t page_num_start = range_start->tree.key;
                 uint64_t pages_left = range_length;
 
                 // FIXME - do this asynchronously (i.e. using all the free slots, and only waiting at end or when none left)
@@ -420,7 +465,7 @@ bool page_cache::read_and_pin(uint64_t offset, uint64_t length) {
 
             clean_pages(range_start, range_length);
 
-            if (range_end->page_num == first_page + num_pages - 1)
+            if (range_end->tree.key == first_page + num_pages - 1)
                 break;
         }
     }
@@ -451,7 +496,7 @@ uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_p
             // read data into pages
 
             {
-                uint64_t page_num_start = range_start->page_num;
+                uint64_t page_num_start = range_start->tree.key;
                 uint64_t pages_left = range_length;
 
                 // FIXME - do this asynchronously (i.e. using all the free slots, and only waiting at end or when none left)
@@ -474,7 +519,7 @@ uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_p
 
             clean_pages(range_start, range_length);
 
-            if (range_end->page_num == first_page + num_pages - 1)
+            if (range_end->tree.key == first_page + num_pages - 1)
                 break;
         }
     }
@@ -509,13 +554,8 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
     if (!root)
         return false;
 
-    if (!ent) { // get first entry
-        ent = root;
-
-        while (ent->left) {
-            ent = ent->left;
-        }
-    }
+    if (!ent) // get first entry
+        ent = &tree_containing_record<page_cache_entry>(get_tree_minimum(root));
 
     while (ent->status != page_cache_status::dirty) {
         ent = next_page_cache_entry(*ent);
@@ -534,7 +574,7 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
         if (!ent2)
             break;
 
-        if (ent2->page_num != range_start->page_num + range_length)
+        if (ent2->tree.key != range_start->tree.key + range_length)
             break;
 
         if (ent2->status != page_cache_status::dirty)
@@ -554,23 +594,9 @@ void* get_phys_address(const page_cache_entry& ent) {
 }
 
 page_cache_entry* page_cache::next_page_cache_entry(const page_cache_entry& ent) {
-    page_cache_entry* ret;
+    auto ret = next_tree_entry(ent.tree);
+    if (!ret)
+        return nullptr;
 
-    if (ent.right) {
-        ret = ent.right;
-
-        while (ret->left) {
-            ret = ret->left;
-        }
-    } else {
-        const page_cache_entry* last_ent = &ent;
-
-        ret = last_ent->parent;
-        while (ret && ret->right == last_ent) {
-            last_ent = ret;
-            ret = ret->parent;
-        }
-    }
-
-    return ret;
+    return &tree_containing_record<page_cache_entry>(ret);
 }

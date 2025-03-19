@@ -340,7 +340,7 @@ size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
     auto ent = cache.find_page_cache_entry(page_num);
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        assert(ent->page_num == page_num + i);
+        assert(ent->tree.key == page_num + i);
 
         if (ent->status == page_cache_status::dirty) {
             auto dirty_page = span((uint8_t*)get_phys_address(*ent), PAGE_SIZE);
