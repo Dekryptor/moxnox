@@ -1,3 +1,5 @@
+module;
+
 #include "kernel.h"
 #include "spinlock.h"
 #include "objects.h"
@@ -5,6 +7,8 @@
 #include "handle.h"
 #include "rwsem.h"
 #include <shared_mutex>
+
+export module vfs;
 
 import print;
 import bsod;
@@ -38,7 +42,7 @@ static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
 static mount root(0);
 
-void add_fs_to_list(::filesystem& fs) {
+export void add_fs_to_list(::filesystem& fs) {
     lock_guard lock(fs_lock);
     insert_tail_list(fs_list, fs.le);
 }
@@ -195,7 +199,7 @@ static bool extract_initrd() {
     return true;
 }
 
-bool mount_root() {
+export bool mount_root() {
     string_view cmdline_root;
 
     if (!initrd.empty())
@@ -225,9 +229,9 @@ bool mount_root() {
     return true;
 }
 
-nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir,
-                     object_ref& obj_ref, uint32_t create_disposition,
-                     uint32_t create_options) {
+export nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir,
+                            object_ref& obj_ref, uint32_t create_disposition,
+                            uint32_t create_options) {
     if (dir && fn.empty()) {
         dir->get().acquire();
         obj_ref = dir->get();
@@ -246,6 +250,7 @@ nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& d
                          create_options);
 }
 
+export extern "C"
 NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                     IO_STATUS_BLOCK* io_status_block, void* buffer,
                     uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
@@ -315,6 +320,7 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     return nt_status::SUCCESS;
 }
 
+export extern "C"
 NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
                       const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block,
                       const LARGE_INTEGER*, uint32_t, uint32_t, uint32_t create_disposition,
@@ -472,6 +478,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     return nt_status::SUCCESS;
 }
 
+export extern "C"
 NTSTATUS NtClose(HANDLE handle) {
     auto t = get_current_thread();
     auto p = t->proc;
@@ -482,6 +489,7 @@ NTSTATUS NtClose(HANDLE handle) {
     return p->close_handle(handle);
 }
 
+export extern "C"
 NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                      IO_STATUS_BLOCK* io_status_block, const void* buffer,
                      uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
@@ -551,7 +559,7 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     return nt_status::SUCCESS;
 }
 
-nt_status flush_filesystems(bool make_readonly) {
+export nt_status flush_filesystems(bool make_readonly) {
     lock_guard lock(fs_lock);
 
     // FIXME - what should we do if there's a failure - carry on?

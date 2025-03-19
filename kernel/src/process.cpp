@@ -10,6 +10,7 @@ import bsod;
 import mem;
 import config;
 import list;
+import vfs;
 
 using namespace std;
 

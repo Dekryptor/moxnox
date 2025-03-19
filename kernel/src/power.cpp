@@ -6,6 +6,7 @@
 import print;
 import inout;
 import interrupts;
+import vfs;
 
 using namespace std;
 

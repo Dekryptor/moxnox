@@ -19,6 +19,7 @@ import bsod;
 import mem;
 import config;
 import list;
+import vfs;
 
 #include "btrfs.h"
 

@@ -34,7 +34,6 @@ set(SRC_FILES src/kernel.cpp
     src/power.cpp
     src/page_cache.cpp
     src/rwsem.cpp
-    src/vfs.cpp
     src/bsod2.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
@@ -57,6 +56,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/btrfs.cpp
     src/sata.cpp
     src/pci.cpp
+    src/vfs.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)
