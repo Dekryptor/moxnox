@@ -33,6 +33,92 @@ static tree_entry* get_tree_minimum(tree_entry* root) {
     return ret;
 }
 
+static void left_rotate(tree_entry*& root, tree_entry* x) {
+    auto y = x->right;
+
+    x->right = y->left;
+
+    if (y->left)
+        y->left->parent = x;
+
+    y->parent = x->parent;
+
+    if (!x->parent)
+        root = y;
+    else if (x == x->parent->left)
+        x->parent->left = y;
+    else
+        x->parent->right = y;
+
+    y->left = x;
+    x->parent = y;
+}
+
+static void right_rotate(tree_entry*& root, tree_entry* x) {
+    auto y = x->left;
+
+    x->left = y->right;
+
+    if (y->right)
+        y->right->parent = x;
+
+    y->parent = x->parent;
+
+    if (!x->parent)
+        root = y;
+    else if (x == x->parent->left)
+        x->parent->left = y;
+    else
+        x->parent->right = y;
+
+    y->right = x;
+    x->parent = y;
+}
+
+static void insert_fixup(tree_entry*& root, tree_entry* z) {
+    while (z->parent && z->parent->colour == tree_colour::red) {
+        if (z->parent == z->parent->parent->left) {
+            auto y = z->parent->parent->right;
+
+            if (y && y->colour == tree_colour::red) {
+                y->colour = tree_colour::black;
+                z->parent->colour = tree_colour::black;
+                z->parent->parent->colour = tree_colour::red;
+                z = z->parent->parent;
+            } else {
+                if (z == z->parent->right) {
+                    z = z->parent;
+                    left_rotate(root, z);
+                }
+
+                z->parent->colour = tree_colour::black;
+                z->parent->parent->colour = tree_colour::red;
+                right_rotate(root, z->parent->parent);
+            }
+        } else {
+            auto y = z->parent->parent->left;
+
+            if (y && y->colour == tree_colour::red) {
+                y->colour = tree_colour::black;
+                z->parent->colour = tree_colour::black;
+                z->parent->parent->colour = tree_colour::red;
+                z = z->parent->parent;
+            } else {
+                if (z == z->parent->left) {
+                    z = z->parent;
+                    right_rotate(root, z);
+                }
+
+                z->parent->colour = tree_colour::black;
+                z->parent->parent->colour = tree_colour::red;
+                left_rotate(root, z->parent->parent);
+            }
+        }
+    }
+
+    root->colour = tree_colour::black;
+}
+
 static void insert_into_tree(tree_entry*& root, tree_entry& ent) {
     tree_entry* ptr = root;
     tree_entry* new_parent = nullptr;
@@ -49,6 +135,7 @@ static void insert_into_tree(tree_entry*& root, tree_entry& ent) {
     ent.parent = new_parent;
     ent.left = nullptr;
     ent.right = nullptr;
+    ent.colour = tree_colour::red;
 
     if (!new_parent)
         root = &ent;
@@ -56,6 +143,8 @@ static void insert_into_tree(tree_entry*& root, tree_entry& ent) {
         new_parent->left = &ent;
     else
         new_parent->right = &ent;
+
+    insert_fixup(root, &ent);
 }
 
 static tree_entry* next_tree_entry(const tree_entry& ent) {

@@ -8,10 +8,16 @@ enum class page_cache_status {
     dirty
 };
 
+enum class tree_colour {
+    red,
+    black
+};
+
 struct tree_entry {
     tree_entry* parent;
     tree_entry* left;
     tree_entry* right;
+    enum tree_colour colour;
     uint64_t key;
 };
 
