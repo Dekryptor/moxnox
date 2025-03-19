@@ -166,9 +166,6 @@ object_ref create_event(bool autoreset);
 void set_event(event& e);
 void reset_event(event& e);
 
-// pci.cpp
-void init_pci();
-
 // semaphore.cpp
 object_ref create_semaphore(unsigned int maximum_count);
 void release_semaphore(semaphore& s);

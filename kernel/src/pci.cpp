@@ -1,7 +1,11 @@
+module;
+
 #include "kernel.h"
 #include "acpica.h"
 #include "pci.h"
 #include "handle.h"
+
+export module pci;
 
 import print;
 import mem;
@@ -243,7 +247,7 @@ static void pci_device_found(void* ctx) {
         set_event(static_cast<event&>(init_device_event.get()));
 }
 
-void init_pci() {
+export  void init_pci() {
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MCFG, 1, &tbl);
 

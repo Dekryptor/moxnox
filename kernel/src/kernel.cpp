@@ -14,6 +14,7 @@ import mem;
 import list;
 import interrupts;
 import serial;
+import pci;
 
 using namespace std;
 
