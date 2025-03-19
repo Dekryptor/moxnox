@@ -56,7 +56,7 @@ static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static FT_Face face = nullptr, face_bold = nullptr;
 static unsigned int font_width, font_height, font_descender;
-static bool fb_console_started = false;
+static bool fb_console_started = false, text_console_started = false;
 static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
 static spinlock cursor_lock;
@@ -1318,6 +1318,9 @@ static void refresh_framebuffer() {
 
 static void early_print(string_view s) {
     if (console_type == console_type::text) {
+        if (!text_console_started)
+            return;
+
         do_print<false>(s);
         return;
     }
@@ -1415,6 +1418,8 @@ bool init_console(const loader_block_framebuffer& fb,
                 text_console_putc(x, y, ' ', console_colour::black, console_colour::light_grey);
             }
         }
+
+        text_console_started = true;
     } else {
         uint32_t size = fb.pixels_per_scan_line * fb.height * sizeof(uint32_t);
 
