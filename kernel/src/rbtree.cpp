@@ -10,21 +10,24 @@ export enum class tree_colour {
     black
 };
 
-export struct rbtree_node {
-    rbtree_node* parent;
-    rbtree_node* left;
-    rbtree_node* right;
+export template<typename KeyType>
+struct rbtree_node {
+    rbtree_node<KeyType>* parent;
+    rbtree_node<KeyType>* left;
+    rbtree_node<KeyType>* right;
     enum tree_colour colour;
-    uint64_t key;
+    KeyType key;
 };
 
-export template<typename T>
-T& rbtree_containing_record(rbtree_node* tree) {
+export template<typename T, typename KeyType>
+T& rbtree_containing_record(rbtree_node<KeyType>* tree) {
     return *(T*)((uint8_t*)tree - offsetof(T, tree));
 }
 
-export rbtree_node* find_rbtree_node(rbtree_node* root, uint64_t key) {
-    rbtree_node* ret = root;
+export
+template<typename KeyType>
+rbtree_node<KeyType>* find_rbtree_node(rbtree_node<KeyType>* root, KeyType key) {
+    rbtree_node<KeyType>* ret = root;
 
     while (ret && ret->key != key) {
         if (key < ret->key)
@@ -36,8 +39,10 @@ export rbtree_node* find_rbtree_node(rbtree_node* root, uint64_t key) {
     return ret;
 }
 
-export rbtree_node* get_tree_minimum(rbtree_node* root) {
-    rbtree_node* ret = root;
+export
+template<typename KeyType>
+rbtree_node<KeyType>* get_tree_minimum(rbtree_node<KeyType>* root) {
+    rbtree_node<KeyType>* ret = root;
 
     while (ret->left) {
         ret = ret->left;
@@ -46,7 +51,8 @@ export rbtree_node* get_tree_minimum(rbtree_node* root) {
     return ret;
 }
 
-static void left_rotate(rbtree_node*& root, rbtree_node* x) {
+template<typename KeyType>
+void left_rotate(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
     auto y = x->right;
 
     x->right = y->left;
@@ -67,7 +73,8 @@ static void left_rotate(rbtree_node*& root, rbtree_node* x) {
     x->parent = y;
 }
 
-static void right_rotate(rbtree_node*& root, rbtree_node* x) {
+template<typename KeyType>
+void right_rotate(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
     auto y = x->left;
 
     x->left = y->right;
@@ -88,7 +95,8 @@ static void right_rotate(rbtree_node*& root, rbtree_node* x) {
     x->parent = y;
 }
 
-static void insert_fixup(rbtree_node*& root, rbtree_node* z) {
+template<typename KeyType>
+void insert_fixup(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* z) {
     while (z->parent && z->parent->colour == tree_colour::red) {
         if (z->parent == z->parent->parent->left) {
             auto y = z->parent->parent->right;
@@ -132,9 +140,11 @@ static void insert_fixup(rbtree_node*& root, rbtree_node* z) {
     root->colour = tree_colour::black;
 }
 
-export void insert_into_rbtree(rbtree_node*& root, rbtree_node& ent) {
-    rbtree_node* ptr = root;
-    rbtree_node* new_parent = nullptr;
+export
+template<typename KeyType>
+void insert_into_rbtree(rbtree_node<KeyType>*& root, rbtree_node<KeyType>& ent) {
+    rbtree_node<KeyType>* ptr = root;
+    rbtree_node<KeyType>* new_parent = nullptr;
 
     while (ptr) {
         new_parent = ptr;
@@ -160,8 +170,10 @@ export void insert_into_rbtree(rbtree_node*& root, rbtree_node& ent) {
     insert_fixup(root, &ent);
 }
 
-export rbtree_node* next_rbtree_node(const rbtree_node& ent) {
-    rbtree_node* ret;
+export
+template<typename KeyType>
+rbtree_node<KeyType>* next_rbtree_node(const rbtree_node<KeyType>& ent) {
+    rbtree_node<KeyType>* ret;
 
     if (ent.right) {
         ret = ent.right;
@@ -170,7 +182,7 @@ export rbtree_node* next_rbtree_node(const rbtree_node& ent) {
             ret = ret->left;
         }
     } else {
-        const rbtree_node* last_ent = &ent;
+        const rbtree_node<KeyType>* last_ent = &ent;
 
         ret = last_ent->parent;
         while (ret && ret->right == last_ent) {

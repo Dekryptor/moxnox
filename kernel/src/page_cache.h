@@ -7,7 +7,7 @@ enum class page_cache_status {
 };
 
 struct page_cache_entry {
-    rbtree_node tree;
+    rbtree_node<uint64_t> tree;
     std::atomic<uint32_t> refcount;
     enum page_cache_status status;
     uint64_t phys_address;
@@ -40,7 +40,7 @@ public:
     cacheable& dev;
 
 private:
-    rbtree_node* root = nullptr;
+    rbtree_node<uint64_t>* root = nullptr;
 };
 
 class cacheable {
