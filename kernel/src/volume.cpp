@@ -310,18 +310,23 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     if (read_pages == 0)
         return 0;
 
-    auto* src = parent.cache.find_page_cache_entry(page_num + (disk_offset >> PAGE_SHIFT));
-    auto* dst = cache.find_page_cache_entry(page_num);
+    {
+        lock_guard lock1(parent.cache.cache_lock);
+        lock_guard lock2(cache.cache_lock);
 
-    for (uint64_t i = 0; i < read_pages; i++) {
-        // FIXME - steal pages?
-        memcpy(get_phys_address(*dst), get_phys_address(*src),
-               PAGE_SIZE);
-        dst->status = page_cache_status::clean;
+        auto* src = parent.cache.find_page_cache_entry(page_num + (disk_offset >> PAGE_SHIFT));
+        auto* dst = cache.find_page_cache_entry(page_num);
 
-        if (i != read_pages - 1) {
-            src = parent.cache.next_page_cache_entry(*src);
-            dst = cache.next_page_cache_entry(*dst);
+        for (uint64_t i = 0; i < read_pages; i++) {
+            // FIXME - steal pages?
+            memcpy(get_phys_address(*dst), get_phys_address(*src),
+                   PAGE_SIZE);
+            dst->status = page_cache_status::clean;
+
+            if (i != read_pages - 1) {
+                src = parent.cache.next_page_cache_entry(*src);
+                dst = cache.next_page_cache_entry(*dst);
+            }
         }
     }
 
