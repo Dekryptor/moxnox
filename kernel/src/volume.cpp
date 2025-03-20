@@ -1,6 +1,8 @@
 #include "kernel.h"
 #include "objects.h"
 #include "spinlock.h"
+#include "volume.h"
+#include "event.h"
 #include "handle.h"
 
 import print;

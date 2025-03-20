@@ -6,6 +6,7 @@ module;
 #include "qwerty.h"
 #include "handle.h"
 #include "console.h"
+#include "visit_object.h"
 #include <ioctl.h>
 
 export module keyboard;

@@ -5,6 +5,9 @@ module;
 #include "objects.h"
 #include "cpu_block.h"
 #include "mem.h"
+#include "spinlock.h"
+#include "thread.h"
+#include "process.h"
 #include <span>
 #include <optional>
 #include <functional>

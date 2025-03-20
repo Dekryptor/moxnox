@@ -3,6 +3,7 @@ module;
 #include "kernel.h"
 #include "objects.h"
 #include "handle.h"
+#include "visit_object.h"
 #include <ioctl.h>
 
 export module serial;

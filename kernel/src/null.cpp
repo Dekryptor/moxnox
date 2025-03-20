@@ -2,6 +2,8 @@ module;
 
 #include "kernel.h"
 #include "objects.h"
+#include "event.h"
+#include "pipe.h"
 #include "handle.h"
 
 export module null;

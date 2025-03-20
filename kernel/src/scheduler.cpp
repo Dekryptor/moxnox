@@ -3,6 +3,7 @@
 #include "cpu_block.h"
 #include "spinlock.h"
 #include "handle.h"
+#include "visit_object.h"
 #include <cstdlib>
 #include <optional>
 #include <atomic>

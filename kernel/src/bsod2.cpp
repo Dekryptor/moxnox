@@ -2,6 +2,7 @@
 #include "spinlock.h"
 #include "cpu_block.h"
 #include "objects.h"
+#include "event.h"
 #include "pipe.h"
 #include "handle.h"
 #include <pe.h>

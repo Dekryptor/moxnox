@@ -4,6 +4,7 @@
 #include "context_offsets.h"
 #include "objects.h"
 #include "handle.h"
+#include "process.h"
 #include <string_view>
 
 import print;

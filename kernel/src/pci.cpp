@@ -3,6 +3,8 @@ module;
 #include "kernel.h"
 #include "acpica.h"
 #include "pci.h"
+#include "objects.h"
+#include "event.h"
 #include "handle.h"
 
 export module pci;

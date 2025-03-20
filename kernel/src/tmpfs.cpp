@@ -3,7 +3,9 @@ module;
 #include "kernel.h"
 #include "objects.h"
 #include "handle.h"
+#include "spinlock.h"
 #include "volume.h"
+#include "inode.h"
 
 export module tmpfs;
 

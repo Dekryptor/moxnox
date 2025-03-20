@@ -2,6 +2,7 @@
 #include "objects.h"
 #include "mem.h"
 #include "handle.h"
+#include "visit_object.h"
 #include <limits>
 #include <pe.h>
 

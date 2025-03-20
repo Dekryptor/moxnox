@@ -1,5 +1,7 @@
 #include "kernel.h"
 #include "objects.h"
+#include "event.h"
+#include "thread.h"
 #include "spinlock.h"
 #include "handle.h"
 

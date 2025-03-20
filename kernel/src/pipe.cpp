@@ -1,7 +1,11 @@
 #include "kernel.h"
 #include "list.h"
 #include "objects.h"
+#include "event.h"
+#include "pipe.h"
+#include "thread.h"
 #include "handle.h"
+#include "spinlock.h"
 
 import print;
 import mem;

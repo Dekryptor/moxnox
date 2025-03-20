@@ -2,6 +2,7 @@
 #include "objects.h"
 #include "spinlock.h"
 #include "handle.h"
+#include "visit_object.h"
 
 import print;
 import list;

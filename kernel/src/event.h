@@ -21,4 +21,4 @@ public:
 };
 
 static_assert(is_sync_object<event>);
-static_assert(object_has_on_wake<timer>);
+static_assert(object_has_on_wake<event>);

@@ -2,6 +2,10 @@
 #include "cpu_block.h"
 #include "objects.h"
 #include "handle.h"
+#include "thread.h"
+#include "section.h"
+#include "process.h"
+#include "visit_object.h"
 #include <ntdll.h>
 
 import print;

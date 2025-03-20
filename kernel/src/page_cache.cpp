@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "objects.h"
+#include "spinlock.h"
 #include "page_cache.h"
 
 import print;

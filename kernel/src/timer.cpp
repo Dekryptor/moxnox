@@ -1,5 +1,8 @@
 #include "kernel.h"
 #include "objects.h"
+#include "timer.h"
+#include "process.h"
+#include "thread.h"
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "handle.h"

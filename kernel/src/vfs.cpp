@@ -6,6 +6,7 @@ module;
 #include "volume.h"
 #include "handle.h"
 #include "rwsem.h"
+#include "visit_object.h"
 #include <shared_mutex>
 
 export module vfs;
