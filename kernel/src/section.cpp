@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "handle.h"
 #include "spinlock.h"
+import rbtree;
 #include "visit_object.h"
 #include <pe.h>
 

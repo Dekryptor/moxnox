@@ -2,6 +2,7 @@
 #include "cpu_block.h"
 #include "spinlock.h"
 #include "handle.h"
+import rbtree;
 #include "visit_object.h"
 #include <cstdlib>
 #include <optional>

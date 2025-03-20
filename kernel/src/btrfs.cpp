@@ -7,6 +7,7 @@ import objects;
 #include "tick_rate.h"
 #include "timer.h"
 #include "spinlock.h"
+import rbtree;
 #include "inode.h"
 #include "thread.h"
 #include "page_cache.h"

@@ -4,9 +4,11 @@ module;
 #include "kernel.h"
 #include "spinlock.h"
 import objects;
+import rbtree;
 #include "volume.h"
 #include "handle.h"
 #include "rwsem.h"
+import rbtree;
 #include "visit_object.h"
 
 export module vfs;

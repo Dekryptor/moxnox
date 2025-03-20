@@ -4,6 +4,7 @@ module;
 import objects;
 #include "handle.h"
 #include "spinlock.h"
+import rbtree;
 #include "volume.h"
 #include "inode.h"
 

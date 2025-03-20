@@ -1,8 +1,22 @@
 module;
 
-#include "rbtree.h"
+#include <stdint.h>
+#include <stddef.h>
 
 export module rbtree;
+
+export enum class tree_colour {
+    red,
+    black
+};
+
+export struct rbtree_node {
+    rbtree_node* parent;
+    rbtree_node* left;
+    rbtree_node* right;
+    enum tree_colour colour;
+    uint64_t key;
+};
 
 export template<typename T>
 T& rbtree_containing_record(rbtree_node* tree) {

@@ -5,6 +5,7 @@ module;
 #include "qwerty.h"
 #include "handle.h"
 #include "console.h"
+import rbtree;
 #include "visit_object.h"
 #include <ioctl.h>
 

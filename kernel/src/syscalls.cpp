@@ -2,6 +2,7 @@
 #include "nt.h"
 #include "handle.h"
 #include "spinlock.h"
+import rbtree;
 #include "visit_object.h"
 
 import format;

@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "spinlock.h"
+import rbtree;
 #include "page_cache.h"
 
 import print;
@@ -7,7 +8,6 @@ import bsod;
 import mem;
 import config;
 import list;
-import rbtree;
 
 using namespace std;
 

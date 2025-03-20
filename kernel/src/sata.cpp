@@ -6,6 +6,7 @@ module;
 #include "spinlock.h"
 import objects;
 #include "handle.h"
+import rbtree;
 #include "page_cache.h"
 #include "volume.h"
 #include "event.h"
