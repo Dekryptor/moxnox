@@ -1366,17 +1366,30 @@ static void shadow_blit(unsigned int x, unsigned int y, unsigned int width,
 static void refresh_framebuffer() {
     auto* c = &console[0];
 
-    // FIXME - do adjacent changed characters in a block
-
     for (unsigned int y = 0; y < console_rows; y++) {
         for (unsigned int x = 0; x < console_cols; x++) {
-            if (c->changed) {
-                shadow_blit(x * font_width, y * font_height, font_width,
-                            font_height);
-                c->changed = false;
+            if (!c->changed) {
+                c++;
+                continue;
             }
 
+            unsigned int run =  1;
+
+            c->changed = false;
             c++;
+
+            for (unsigned int i = x + 1; i < console_cols; i++) {
+                if (!c->changed)
+                    break;
+
+                run++;
+                c->changed = false;
+                c++;
+            }
+
+            shadow_blit(x * font_width, y * font_height, run * font_width,
+                        font_height);
+            x += run - 1;
         }
     }
 }
