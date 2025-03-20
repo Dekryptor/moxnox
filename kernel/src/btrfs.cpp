@@ -2588,8 +2588,11 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
                 dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
-        src_p = fs.cache.find_page_cache_entry((addr >> PAGE_SHIFT) + i);
-        // FIXME - find next entry rather than doing complete lookup
+        // FIXME - find next entry rather than doing complete lookup(?)
+        {
+            lock_guard lg(fs.cache.cache_lock);
+            src_p = fs.cache.find_page_cache_entry((addr >> PAGE_SHIFT) + i);
+        }
 
         auto src_va = get_phys_address(*src_p);
         auto dest_va = get_phys_address(*dest_p);
