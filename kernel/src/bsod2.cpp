@@ -2,9 +2,8 @@
 #include "spinlock.h"
 #include "cpu_block.h"
 import objects;
-#include "event.h"
+import event;
 #include "pipe.h"
-#include "handle.h"
 #include <pe.h>
 
 import format;

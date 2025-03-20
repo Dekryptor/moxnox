@@ -5,6 +5,7 @@ import objects;
 #include "handle.h"
 #include "spinlock.h"
 import rbtree;
+import event;
 #include "visit_object.h"
 #include <pe.h>
 

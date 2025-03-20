@@ -15,7 +15,6 @@
 
 class thread;
 class object;
-class event;
 class volume;
 class filesystem;
 class pipe;
@@ -150,11 +149,6 @@ extern uint8_t* apic_ids;
 extern unsigned int num_cpus;
 bool init_smp();
 uint8_t current_cpu_id();
-
-// event.cpp
-object_ref create_event(bool autoreset);
-void set_event(event& e);
-void reset_event(event& e);
 
 class inode;
 

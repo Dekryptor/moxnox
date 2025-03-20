@@ -4,7 +4,6 @@ module;
 #include "acpica.h"
 #include "pci.h"
 import objects;
-#include "event.h"
 #include "handle.h"
 
 export module pci;
@@ -14,6 +13,7 @@ import mem;
 import config;
 import list;
 import sata;
+import event;
 
 using namespace std;
 

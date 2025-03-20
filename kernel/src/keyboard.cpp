@@ -6,6 +6,7 @@ module;
 #include "handle.h"
 #include "console.h"
 import rbtree;
+import event;
 #include "visit_object.h"
 #include <ioctl.h>
 
@@ -15,6 +16,7 @@ import print;
 import inout;
 import mem;
 import interrupts;
+import event;
 
 using namespace std;
 

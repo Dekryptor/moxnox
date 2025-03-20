@@ -3,7 +3,6 @@ import objects;
 #include "spinlock.h"
 import rbtree;
 #include "volume.h"
-#include "event.h"
 #include "handle.h"
 
 import print;
@@ -12,6 +11,7 @@ import mem;
 import config;
 import list;
 import btrfs;
+import event;
 
 using namespace std;
 

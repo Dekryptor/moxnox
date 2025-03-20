@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include "acpica.h"
 import objects;
-#include "event.h"
+import event;
 #include "pipe.h"
 
 import print;

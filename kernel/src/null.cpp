@@ -2,9 +2,11 @@ module;
 
 #include "kernel.h"
 import objects;
-#include "event.h"
+import event;
 #include "pipe.h"
-#include "handle.h"
+
+// FIXME - from handle.h
+bool name_object(object& obj, std::string_view name, bool persistent = true);
 
 export module null;
 

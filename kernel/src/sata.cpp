@@ -9,7 +9,6 @@ import objects;
 import rbtree;
 #include "page_cache.h"
 #include "volume.h"
-#include "event.h"
 
 export module sata;
 
@@ -20,6 +19,7 @@ import config;
 import list;
 import interrupts;
 import semaphore;
+import event;
 
 #include "sata.h"
 

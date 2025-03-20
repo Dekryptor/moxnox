@@ -9,6 +9,7 @@ import rbtree;
 #include "handle.h"
 #include "rwsem.h"
 import rbtree;
+import event;
 #include "visit_object.h"
 
 export module vfs;

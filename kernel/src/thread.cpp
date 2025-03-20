@@ -6,6 +6,7 @@ import objects;
 #include "section.h"
 #include "process.h"
 import rbtree;
+import event;
 #include "visit_object.h"
 #include <ntdll.h>
 

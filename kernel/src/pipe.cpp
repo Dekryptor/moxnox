@@ -1,10 +1,9 @@
 #include "kernel.h"
 #include "list.h"
 import objects;
-#include "event.h"
+import event;
 #include "pipe.h"
 #include "thread.h"
-#include "handle.h"
 #include "spinlock.h"
 
 import print;
