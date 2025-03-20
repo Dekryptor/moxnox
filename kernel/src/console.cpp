@@ -87,6 +87,7 @@ struct console_info {
     uint32_t fg;
     bool bold;
     FT_UInt glyph;
+    bool changed;
 };
 
 static console_info* console;
@@ -228,6 +229,7 @@ static void print_char(char32_t c) {
 
                 for (unsigned int i = cursor_x; i < console_cols; i++) {
                     console[(cursor_y * console_cols) + i].glyph = glyph;
+                    console[(cursor_y * console_cols) + i].changed = true;
                 }
             }
         }
@@ -259,6 +261,7 @@ static void print_char(char32_t c) {
                 auto glyph = FT_Get_Char_Index(font, ' ');
 
                 console[(cursor_y * console_cols) + cursor_x].glyph = glyph;
+                console[(cursor_y * console_cols) + cursor_x].changed = true;
             }
         } else {
             if (cursor_x > 0) { // FIXME
@@ -285,6 +288,7 @@ static void print_char(char32_t c) {
                 p.bg = bg_colour;
                 p.fg = fg_colour;
                 p.bold = bold;
+                p.changed = true;
             }
         } else {
             text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
@@ -1282,6 +1286,11 @@ static void refresh_shadow_framebuffer() {
 
     for (unsigned int y = 0; y < console_rows; y++) {
         for (unsigned int x = 0; x < console_cols; x++) {
+            if (!c->changed) {
+                c++;
+                continue;
+            }
+
             bool is_cursor = show_cursor && x == cursor_x && y == cursor_y;
 
             rect(x * font_width, y * font_height, font_width, font_height, is_cursor ? c->fg : c->bg);
@@ -1305,6 +1314,7 @@ static void refresh_shadow_framebuffer() {
                 }
             }
 
+            c->changed = false;
             c++;
         }
     }
@@ -1607,6 +1617,7 @@ bool init_fb_console() {
         console[i].fg = DEFAULT_FG_COLOUR;
         console[i].bold = false;
         console[i].glyph = glyph;
+        console[i].changed = false;
     }
 
     if (!add_kernel_thread(console_event_recv)) {
