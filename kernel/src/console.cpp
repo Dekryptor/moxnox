@@ -856,6 +856,7 @@ static void erase_in_display(string_view s) {
                     c->fg = fg_colour;
                     c->glyph = glyph;
                     c->bold = bold;
+                    c->changed = true;
                     c++;
                 }
             } else {
@@ -879,6 +880,7 @@ static void erase_in_display(string_view s) {
                     c->fg = fg_colour;
                     c->glyph = glyph;
                     c->bold = bold;
+                    c->changed = true;
                     c++;
                 }
             } else {
@@ -903,6 +905,7 @@ static void erase_in_display(string_view s) {
                     c->fg = fg_colour;
                     c->glyph = glyph;
                     c->bold = bold;
+                    c->changed = true;
                     c++;
                 }
             } else {
