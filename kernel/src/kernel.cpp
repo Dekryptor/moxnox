@@ -18,6 +18,7 @@ import serial;
 import pci;
 import vfs;
 import pe;
+import pipe;
 
 using namespace std;
 

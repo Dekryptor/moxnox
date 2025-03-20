@@ -5,6 +5,7 @@ module;
 #include "spinlock.h"
 import rbtree;
 import event;
+import pipe;
 #include "visit_object.h"
 #include <ioctl.h>
 

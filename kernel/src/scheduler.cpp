@@ -4,6 +4,7 @@
 #include "handle.h"
 import rbtree;
 import event;
+import pipe;
 #include "visit_object.h"
 #include <cstdlib>
 #include <optional>

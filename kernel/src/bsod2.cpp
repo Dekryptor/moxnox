@@ -3,7 +3,7 @@
 #include "cpu_block.h"
 import objects;
 import event;
-#include "pipe.h"
+import pipe;
 #include <pe.h>
 
 import format;

@@ -1,10 +1,13 @@
+module;
+
 #include "kernel.h"
 #include "list.h"
 import objects;
 import event;
-#include "pipe.h"
 #include "thread.h"
 #include "spinlock.h"
+
+export module pipe;
 
 import print;
 import mem;
@@ -12,6 +15,57 @@ import config;
 import list;
 
 using namespace std;
+
+export class pipe : public object {
+public:
+    pipe(unsigned int buffer_pages);
+    virtual ~pipe();
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    virtual NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes);
+
+    virtual NTSTATUS write(std::span<const uint8_t> s, uint64_t& written_bytes);
+
+    NTSTATUS write(std::string_view sv, uint64_t& written_bytes) {
+        return write(std::span((uint8_t*)sv.data(), sv.length()), written_bytes);
+    }
+
+    virtual nt_status ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    virtual nt_status flush(bool go_readonly) {
+        if (go_readonly)
+            readonly = true;
+
+        return nt_status::SUCCESS;
+    }
+
+    bool signalled = false;
+    uint8_t* buf;
+    unsigned int buf_pages;
+    size_t buf_unread = 0;
+    size_t buf_write_pos = 0;
+    spinlock lock;
+    event not_full_event;
+    bool readonly = false;
+    list_entry flushable_le;
+    bool exclusive = true;
+};
+
+static_assert(is_sync_object<pipe>);
+static_assert(is_readable_object_without_offset<pipe>);
+static_assert(is_writable_object_without_offset<pipe>);
+static_assert(has_ioctls<pipe>);
+static_assert(has_exclusive_field<pipe>);
 
 static spinlock flushable_pipes_lock;
 static list_entry flushable_pipes = { &flushable_pipes, &flushable_pipes };
@@ -245,13 +299,13 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
     return nt_status::SUCCESS;
 }
 
-void add_to_flushable_pipes_list(pipe& p) {
+export void add_to_flushable_pipes_list(pipe& p) {
     lock_guard lock(flushable_pipes_lock);
 
     insert_tail_list(flushable_pipes, p.flushable_le);
 }
 
-void shutdown_pipes() {
+export void shutdown_pipes() {
     while (true) {
         pipe* p;
 

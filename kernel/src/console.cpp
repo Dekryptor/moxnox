@@ -17,6 +17,7 @@ import mem;
 import config;
 import serial;
 import bsod;
+import pipe;
 
 using namespace std;
 

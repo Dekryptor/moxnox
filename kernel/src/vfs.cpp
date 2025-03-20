@@ -10,6 +10,7 @@ import rbtree;
 #include "rwsem.h"
 import rbtree;
 import event;
+import pipe;
 #include "visit_object.h"
 
 export module vfs;

@@ -2,7 +2,7 @@
 #include "acpica.h"
 import objects;
 import event;
-#include "pipe.h"
+import pipe;
 
 import print;
 import inout;

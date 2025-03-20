@@ -17,7 +17,6 @@ class thread;
 class object;
 class volume;
 class filesystem;
-class pipe;
 
 #define offsetofend(TYPE, MEMBER) (offsetof(TYPE, MEMBER) + sizeof(((TYPE *)0)->MEMBER))
 
