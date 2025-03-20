@@ -6,7 +6,6 @@ import objects;
 #include "spinlock.h"
 import rbtree;
 #include "inode.h"
-#include "volume.h"
 
 export module tmpfs;
 
@@ -16,6 +15,7 @@ import mem;
 import config;
 import list;
 import string;
+import volume;
 
 using namespace std;
 

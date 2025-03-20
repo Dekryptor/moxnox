@@ -20,7 +20,6 @@ set(SRC_FILES src/kernel.cpp
     src/console.cpp
     src/scheduler.cpp
     src/handle.cpp
-    src/volume.cpp
     src/process.cpp
     src/section.cpp
     src/file.cpp
@@ -60,6 +59,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/timer.cpp
     src/syscalls.cpp
     src/smp.cpp
+    src/volume.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

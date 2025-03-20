@@ -7,6 +7,7 @@ import pipe;
 import timer;
 import objects;
 #include "inode.h"
+import volume;
 #include "visit_object.h"
 
 using namespace std;

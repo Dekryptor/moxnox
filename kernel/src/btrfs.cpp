@@ -12,7 +12,6 @@ import rbtree;
 #include "page_cache.h"
 #include "rwsem.h"
 #include "handle.h"
-#include "volume.h"
 #include <shared_mutex>
 #include <variant>
 
@@ -26,6 +25,7 @@ import list;
 import vfs;
 import string;
 import timer;
+import volume;
 
 #include "btrfs.h"
 
@@ -252,7 +252,9 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 }
 
-export bool btrfs_probe(volume& vol) {
+export
+extern "C++" // FIXME
+bool btrfs_probe(volume& vol) {
     // FIXME - need quick is_btrfs function before we do allocations?
 
     auto fs = new btrfs_filesystem(vol);

@@ -1,22 +1,99 @@
+module;
+
 #include "kernel.h"
 import objects;
 #include "spinlock.h"
 import rbtree;
 #include "inode.h"
-#include "volume.h"
 #include "handle.h"
+#include "page_cache.h"
+#include "volume.h"
+
+export module volume;
 
 import print;
 import bsod;
 import mem;
 import config;
 import list;
-import btrfs;
+// import btrfs;
 import event;
 
 using namespace std;
 
-const guid null_guid = { 0x00000000, 0x0000, 0x0000, { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
+export const guid null_guid = { 0x00000000, 0x0000, 0x0000, { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
+
+export class filesystem;
+
+export class volume : public object, public cacheable {
+public:
+    volume() : object(object_type::volume) { }
+
+    virtual ~volume() {
+        if (volume_name)
+            free(volume_name);
+    }
+
+    void acquire() {
+        refcount++;
+    }
+
+    virtual void release() = 0;
+
+    nt_status read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
+
+    void probe();
+    bool check_for_partitions();
+
+    unsigned int part_num = 0;
+    unsigned int sector_size;
+    uint64_t size;
+    guid partition_guid = null_guid;
+    guid type_guid = null_guid;
+    char* volume_name = nullptr;
+    size_t volume_name_len = 0;
+
+    spinlock mount_lock;
+    optional<reference_wrapper<filesystem>> filesystem;
+};
+
+static_assert(is_readable_object_with_offset<volume>);
+
+// btrfs.cpp
+extern "C++" bool btrfs_probe(volume& vol); // FIXME - avoiding circular dependency
+
+export class diskpart : public volume {
+public:
+    diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length,
+             const guid& partition_guid, const guid& type_guid);
+    ~diskpart();
+
+    void release() override {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
+    volume& parent;
+    uint64_t disk_offset;
+};
+
+static_assert(is_readable_object_with_offset<diskpart>);
+
+export class filesystem {
+public:
+    filesystem(volume* vol) : vol(vol) { }
+    virtual ~filesystem() { }
+    virtual nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
+                           object_ref& obj_ref, uint32_t create_disposition,
+                           uint32_t create_options) = 0;
+    virtual nt_status flush(bool make_readonly) = 0;
+
+    list_entry le;
+    volume* vol;
+    atomic<unsigned int> refcount = 0;
+};
 
 static const uint64_t read_sector_size = 0x1000;
 

@@ -6,13 +6,13 @@ module;
 import objects;
 import rbtree;
 #include "inode.h"
-#include "volume.h"
 #include "handle.h"
 #include "rwsem.h"
 import rbtree;
 import event;
 import pipe;
 import timer;
+import volume;
 #include "visit_object.h"
 
 export module vfs;
