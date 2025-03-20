@@ -2,10 +2,8 @@ name: build
 on: [push]
 jobs:
   x86_64 Clang:
-    runs-on: ubuntu-rolling
+    runs-on: ubuntu-moxnox
     steps:
-      - run: apt-get update
-      - run: apt-get install -y git cmake ninja-build g++-mingw-w64-x86-64 g++-mingw-w64-i686 clang lld clang-tools g++ nodejs cpio s3cmd
       - run: echo "SHORT_SHA=`echo ${{ github.sha }} | cut -c1-8`" >> $GITHUB_ENV
       - run: git clone --recurse-submodules https://${{ secrets.GITHUB_TOKEN }}@git.burntcomma.com/${{ github.repository }} ${SHORT_SHA}
       - run: cd ${SHORT_SHA} && git checkout ${{ github.sha }}
