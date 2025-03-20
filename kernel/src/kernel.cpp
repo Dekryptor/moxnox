@@ -2,7 +2,7 @@
 #include <version.h>
 #include "kernel.h"
 #include "context_offsets.h"
-#include "objects.h"
+import objects;
 #include "handle.h"
 #include "process.h"
 #include <string_view>

@@ -1,6 +1,6 @@
 #include "kernel.h"
 #include "list.h"
-#include "objects.h"
+import objects;
 #include "event.h"
 #include "pipe.h"
 #include "thread.h"

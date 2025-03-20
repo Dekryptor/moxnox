@@ -1,5 +1,5 @@
 #include "kernel.h"
-#include "objects.h"
+import objects;
 #include "mem.h"
 #include "handle.h"
 #include "visit_object.h"

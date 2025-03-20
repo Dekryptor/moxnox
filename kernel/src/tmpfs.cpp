@@ -1,7 +1,7 @@
 module;
 
 #include "kernel.h"
-#include "objects.h"
+import objects;
 #include "handle.h"
 #include "spinlock.h"
 #include "volume.h"

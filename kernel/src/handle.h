@@ -1,7 +1,5 @@
 #pragma once
 
-#include "objects.h"
-
 class object_ref {
 public:
     object_ref() = default;

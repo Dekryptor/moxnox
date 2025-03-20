@@ -1,7 +1,7 @@
 module;
 
 #include "kernel.h"
-#include "objects.h"
+import objects;
 #include "event.h"
 #include "pipe.h"
 #include "handle.h"

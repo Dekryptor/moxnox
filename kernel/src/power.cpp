@@ -1,6 +1,6 @@
 #include "kernel.h"
 #include "acpica.h"
-#include "objects.h"
+import objects;
 #include "event.h"
 #include "pipe.h"
 

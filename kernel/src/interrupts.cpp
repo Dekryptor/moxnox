@@ -2,7 +2,7 @@ module;
 
 #include "kernel.h"
 #include "acpica.h"
-#include "objects.h"
+import objects;
 #include "cpu_block.h"
 #include "mem.h"
 #include "spinlock.h"

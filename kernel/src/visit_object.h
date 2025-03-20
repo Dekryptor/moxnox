@@ -1,5 +1,7 @@
 #pragma once
 
+import objects;
+
 template<typename T>
 static void visit_obj(object& obj, const T& func);
 

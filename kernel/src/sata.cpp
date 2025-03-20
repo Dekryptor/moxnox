@@ -4,7 +4,7 @@ module;
 #include "list.h"
 #include "pci.h"
 #include "spinlock.h"
-#include "objects.h"
+import objects;
 #include "handle.h"
 #include "page_cache.h"
 #include "volume.h"

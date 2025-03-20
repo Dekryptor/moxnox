@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include "spinlock.h"
 #include "cpu_block.h"
-#include "objects.h"
+import objects;
 #include "event.h"
 #include "pipe.h"
 #include "handle.h"

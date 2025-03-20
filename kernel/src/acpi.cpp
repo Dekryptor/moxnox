@@ -5,7 +5,7 @@ module;
 #include "acpica.h"
 #include "kernel.h"
 #include "handle.h"
-#include "objects.h"
+import objects;
 #include "semaphore.h"
 #include "tick_rate.h"
 

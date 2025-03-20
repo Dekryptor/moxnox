@@ -1,6 +1,6 @@
 #include "kernel.h"
 #include "cpu_block.h"
-#include "objects.h"
+import objects;
 #include "handle.h"
 #include "thread.h"
 #include "section.h"

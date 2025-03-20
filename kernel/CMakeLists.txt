@@ -58,6 +58,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/string.cpp
     src/pe.cpp
     src/rbtree.cpp
+    src/objects.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

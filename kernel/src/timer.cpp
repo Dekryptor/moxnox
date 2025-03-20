@@ -1,5 +1,5 @@
 #include "kernel.h"
-#include "objects.h"
+import objects;
 #include "timer.h"
 #include "process.h"
 #include "thread.h"

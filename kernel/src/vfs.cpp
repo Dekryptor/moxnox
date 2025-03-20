@@ -2,7 +2,7 @@ module;
 
 #include "kernel.h"
 #include "spinlock.h"
-#include "objects.h"
+import objects;
 #include "volume.h"
 #include "handle.h"
 #include "rwsem.h"

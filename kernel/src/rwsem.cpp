@@ -1,7 +1,7 @@
 #include "kernel.h"
 #include "rwsem.h"
 #include "cpu_block.h"
-#include "objects.h"
+import objects;
 #include "thread.h"
 
 import bsod;

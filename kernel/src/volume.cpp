@@ -1,5 +1,5 @@
 #include "kernel.h"
-#include "objects.h"
+import objects;
 #include "spinlock.h"
 #include "volume.h"
 #include "event.h"

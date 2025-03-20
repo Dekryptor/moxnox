@@ -1,6 +1,6 @@
 #include "kernel.h"
 #include "spinlock.h"
-#include "objects.h"
+import objects;
 #include "handle.h"
 #include "cp437.h"
 #include "cpu_block.h"

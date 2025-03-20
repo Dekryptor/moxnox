@@ -3,7 +3,7 @@ module;
 #include "kernel.h"
 #include "acpica.h"
 #include "pci.h"
-#include "objects.h"
+import objects;
 #include "event.h"
 #include "handle.h"
 

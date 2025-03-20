@@ -1,6 +1,5 @@
 #include "kernel.h"
 #include "acpica.h"
-#include "objects.h"
 #include "cpu_block.h"
 #include "mem.h"
 #include <atomic>
