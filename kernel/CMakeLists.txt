@@ -33,6 +33,7 @@ set(SRC_FILES src/kernel.cpp
     src/page_cache.cpp
     src/rwsem.cpp
     src/bsod2.cpp
+    src/rbtree.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 add_executable(kernel ${SRC_FILES})

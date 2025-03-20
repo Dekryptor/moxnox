@@ -1,6 +1,7 @@
 #pragma once
 
 #include "objects.h"
+#include "rbtree.h"
 
 enum class page_cache_status {
     allocated,
@@ -8,21 +9,8 @@ enum class page_cache_status {
     dirty
 };
 
-enum class tree_colour {
-    red,
-    black
-};
-
-struct tree_entry {
-    tree_entry* parent;
-    tree_entry* left;
-    tree_entry* right;
-    enum tree_colour colour;
-    uint64_t key;
-};
-
 struct page_cache_entry {
-    tree_entry tree;
+    rbtree_node tree;
     std::atomic<uint32_t> refcount;
     enum page_cache_status status;
     uint64_t phys_address;
@@ -55,7 +43,7 @@ public:
     cacheable& dev;
 
 private:
-    tree_entry* root = nullptr;
+    rbtree_node* root = nullptr;
 };
 
 class cacheable {
