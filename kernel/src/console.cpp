@@ -689,6 +689,10 @@ static void move_cursor(string_view s) {
         }
     }
 
+    // old position
+    if constexpr (FB)
+        console[(cursor_y * console_cols) + cursor_x].changed = true;
+
     if (s.back() == 'A') { // up
         if (cursor_y > param - 1)
             cursor_y -= param;
@@ -738,6 +742,10 @@ static void move_cursor(string_view s) {
         else
             cursor_y = param - 1;
     }
+
+    // new position
+    if constexpr (FB)
+        console[(cursor_y * console_cols) + cursor_x].changed = true;
 }
 
 template<bool FB>
