@@ -9,27 +9,28 @@ enable_language(ASM)
 
 configure_file(src/font.S.in ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
+set(SRC_ASM_FILES src/ints.S
+    src/timer.S
+    src/smp.S
+    src/syscalls.S
+    src/mem.S
+    ${CMAKE_CURRENT_BINARY_DIR}/font.S)
+
 set(SRC_FILES src/kernel.cpp
     src/console.cpp
-    src/ints.S
-    src/timer.S
     src/scheduler.cpp
     src/handle.cpp
-    src/smp.S
     src/volume.cpp
     src/process.cpp
     src/section.cpp
-    src/syscalls.S
-    src/mem.S
     src/file.cpp
     src/thread.cpp
     src/power.cpp
     src/page_cache.cpp
     src/rwsem.cpp
-    src/bsod2.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/font.S)
+    src/bsod2.cpp)
 
-add_executable(kernel ${SRC_FILES})
+add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
 target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/inout.cpp
     src/print.cpp
