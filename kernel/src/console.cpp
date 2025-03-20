@@ -9,6 +9,7 @@ import objects;
 #include <bit>
 #include <ft2build.h>
 #include <freetype/freetype.h>
+#include <freetype/ftbitmap.h>
 #include <console.h>
 
 import print;
@@ -18,6 +19,7 @@ import config;
 import serial;
 import bsod;
 import pipe;
+import rbtree;
 
 using namespace std;
 
@@ -75,8 +77,17 @@ extern uint64_t console_font_bold_size;
 static const auto console_font = span(&console_font_data, console_font_size);
 static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
 
+struct glyph_info {
+    rbtree_node<FT_UInt> tree;
+    FT_Int bitmap_left;
+    FT_Int bitmap_top;
+    FT_Bitmap bitmap;
+};
+
+// FIXME - LRU for glyphs, and free these occasionally?
 struct font_info {
     FT_Face face = nullptr;
+    rbtree_node<FT_UInt>* glyphs = nullptr; // FIXME - destructor for this
 };
 
 static font_info face, face_bold;
@@ -1247,26 +1258,56 @@ loop:
         text_console_move_cursor((uint8_t)cursor_x, (uint8_t)cursor_y);
 }
 
+static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
+    auto* tree = find_rbtree_node(font.glyphs, glyph);
+    if (tree)
+        return &rbtree_containing_record<glyph_info>(tree);
+
+    auto error = FT_Load_Glyph(font.face, glyph, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
+    if (error) // FIXME - report somehow
+        return nullptr;
+
+    auto gi = new glyph_info;
+    if (!gi)
+        return nullptr;
+
+    gi->tree.key = glyph;
+    gi->bitmap_left = font.face->glyph->bitmap_left;
+    gi->bitmap_top = font.face->glyph->bitmap_top;
+
+    FT_Bitmap_Init(&gi->bitmap);
+
+    error = FT_Bitmap_Copy(ft, &font.face->glyph->bitmap, &gi->bitmap);
+    if (error) {
+        FT_Bitmap_Done(ft, &gi->bitmap);
+        delete gi;
+    }
+
+    insert_into_rbtree(font.glyphs, gi->tree);
+
+    return gi;
+}
+
 static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y,
                          bool is_cursor) {
     auto& font = c.bold ? face_bold : face;
 
-    auto error = FT_Load_Glyph(font.face, c.glyph, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
-    if (error)
+    auto gi = load_glyph(font, c.glyph);
+    if (!gi)
         return;
 
-    auto& bitmap = font.face->glyph->bitmap;
+    auto& bitmap = gi->bitmap;
     auto buf = bitmap.buffer;
 
     auto width = (unsigned int)bitmap.width;
-    if ((int)fb_x + font.face->glyph->bitmap_left + (int)width > (int)fb_width)
-        width = (unsigned int)((int)fb_width - (int)fb_x - font.face->glyph->bitmap_left);
+    if ((int)fb_x + gi->bitmap_left + (int)width > (int)fb_width)
+        width = (unsigned int)((int)fb_width - (int)fb_x - gi->bitmap_left);
 
-    int y = (int)fb_y - font.face->glyph->bitmap_top;
+    int y = (int)fb_y - gi->bitmap_top;
     int bottom = y + (int)bitmap.rows;
 
     if (y < 0) {
-        buf += bitmap.width * ((unsigned int)font.face->glyph->bitmap_top - fb_y);
+        buf += bitmap.width * ((unsigned int)gi->bitmap_top - fb_y);
         y = 0;
     }
 
@@ -1289,7 +1330,7 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
     uint32_t bg_colour_b = bg & 0xff;
     uint32_t fg_colour_b = fg & 0xff;
 
-    auto base = shadow_framebuffer.data() + ((uint32_t)y * fb_pixels_per_scan_line) + fb_x + font.face->glyph->bitmap_left;
+    auto base = shadow_framebuffer.data() + ((uint32_t)y * fb_pixels_per_scan_line) + fb_x + gi->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
