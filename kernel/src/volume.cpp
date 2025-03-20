@@ -2,6 +2,7 @@
 import objects;
 #include "spinlock.h"
 import rbtree;
+#include "inode.h"
 #include "volume.h"
 #include "handle.h"
 

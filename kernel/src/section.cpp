@@ -5,6 +5,8 @@ import rbtree;
 import event;
 import pipe;
 import timer;
+import objects;
+#include "inode.h"
 #include "visit_object.h"
 #include <pe.h>
 

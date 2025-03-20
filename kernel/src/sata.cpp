@@ -8,6 +8,7 @@ import objects;
 #include "handle.h"
 import rbtree;
 #include "page_cache.h"
+#include "inode.h"
 #include "volume.h"
 
 export module sata;

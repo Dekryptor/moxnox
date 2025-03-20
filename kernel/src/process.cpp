@@ -8,6 +8,7 @@ import rbtree;
 import event;
 import pipe;
 import timer;
+#include "inode.h"
 #include "visit_object.h"
 #include <pe.h>
 

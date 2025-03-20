@@ -2,10 +2,12 @@
 #include "cpu_block.h"
 import objects;
 #include "handle.h"
+#include "spinlock.h"
 #include "thread.h"
+import rbtree;
+#include "inode.h"
 #include "section.h"
 #include "process.h"
-import rbtree;
 import event;
 import pipe;
 import timer;

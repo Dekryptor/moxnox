@@ -5,6 +5,7 @@ module;
 #include "spinlock.h"
 import objects;
 import rbtree;
+#include "inode.h"
 #include "volume.h"
 #include "handle.h"
 #include "rwsem.h"

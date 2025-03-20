@@ -12,6 +12,7 @@ import rbtree;
 #include "page_cache.h"
 #include "rwsem.h"
 #include "handle.h"
+#include "volume.h"
 #include <shared_mutex>
 #include <variant>
 

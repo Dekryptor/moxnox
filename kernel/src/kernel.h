@@ -15,8 +15,6 @@
 
 class thread;
 class object;
-class volume;
-class filesystem;
 
 #define offsetofend(TYPE, MEMBER) (offsetof(TYPE, MEMBER) + sizeof(((TYPE *)0)->MEMBER))
 
@@ -142,8 +140,6 @@ extern uint8_t* apic_ids;
 extern unsigned int num_cpus;
 bool init_smp();
 uint8_t current_cpu_id();
-
-class inode;
 
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;
