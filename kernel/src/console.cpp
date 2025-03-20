@@ -55,7 +55,6 @@ static const unsigned int console_buffer_pages = 4;
 static span<uint32_t> framebuffer, shadow_framebuffer;
 static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
-static FT_Face face = nullptr, face_bold = nullptr;
 static unsigned int font_width, font_height, font_descender;
 static bool fb_console_started = false, text_console_started = false;
 static uint8_t utf8_buf[5];
@@ -75,6 +74,12 @@ extern uint64_t console_font_bold_size;
 
 static const auto console_font = span(&console_font_data, console_font_size);
 static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
+
+struct font_info {
+    FT_Face face = nullptr;
+};
+
+static font_info face, face_bold;
 
 class console : public pipe {
 public:
@@ -197,7 +202,7 @@ static void console_overflow(unsigned int rows = 1) {
 
         auto c = &console[(console_rows - rows) * console_cols];
 
-        auto font = bold ? face_bold : face;
+        auto font = bold ? face_bold.face : face.face;
         auto glyph = FT_Get_Char_Index(font, ' ');
 
         for (unsigned int i = 0; i < console_cols * console_rows; i++) {
@@ -229,7 +234,7 @@ static void print_char(char32_t c) {
     if (c == '\n') {
         if constexpr (FB) {
             if (console) {
-                auto font = bold ? face_bold : face;
+                auto font = bold ? face_bold.face : face.face;
                 auto glyph = FT_Get_Char_Index(font, ' ');
 
                 for (unsigned int i = cursor_x; i < console_cols; i++) {
@@ -265,7 +270,7 @@ static void print_char(char32_t c) {
             }
 
             if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT) {
-                auto font = bold ? face_bold : face;
+                auto font = bold ? face_bold.face : face.face;
                 auto glyph = FT_Get_Char_Index(font, ' ');
 
                 if (console[(cursor_y * console_cols) + cursor_x].glyph != glyph) {
@@ -291,7 +296,7 @@ static void print_char(char32_t c) {
             if (console) {
                 auto& p = console[(cursor_y * console_cols) + cursor_x];
 
-                auto font = bold ? face_bold : face;
+                auto font = bold ? face_bold.face : face.face;
                 auto glyph = FT_Get_Char_Index(font, c);
 
                 p.glyph = glyph;
@@ -775,7 +780,7 @@ static void erase_in_line(string_view s) {
             if constexpr (FB) {
                 auto* c = &console[(cursor_y * console_cols) + cursor_x];
 
-                auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
+                auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
 
                 for (unsigned int x = cursor_x + 1; x < console_cols; x++) {
                     c->bg = bg_colour;
@@ -799,7 +804,7 @@ static void erase_in_line(string_view s) {
             if constexpr (FB) {
                 auto* c = &console[cursor_y * console_cols];
 
-                auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
+                auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
 
                 for (unsigned int x = 0; x <= cursor_x; x++) {
                     c->bg = bg_colour;
@@ -823,7 +828,7 @@ static void erase_in_line(string_view s) {
             if constexpr (FB) {
                 auto* c = &console[cursor_y * console_cols];
 
-                auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
+                auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
 
                 for (unsigned int x = 0; x < console_cols; x++) {
                     c->bg = bg_colour;
@@ -866,7 +871,7 @@ static void erase_in_display(string_view s) {
             if constexpr (FB) {
                 auto* c = &console[(cursor_y * console_cols) + cursor_x];
 
-                auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
+                auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
 
                 for (unsigned int i = (cursor_y * console_cols) + cursor_x; i < console_cols * console_rows; i++) {
                     c->bg = bg_colour;
@@ -890,7 +895,7 @@ static void erase_in_display(string_view s) {
             if constexpr (FB) {
                 auto* c = &console[0];
 
-                auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
+                auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
 
                 for (unsigned int i = 0; i <= (cursor_y * console_cols) + cursor_x; i++) {
                     c->bg = bg_colour;
@@ -915,7 +920,7 @@ static void erase_in_display(string_view s) {
             if constexpr (FB) {
                 auto* c = &console[0];
 
-                auto glyph = FT_Get_Char_Index(bold ? face_bold : face, ' ');
+                auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
 
                 for (unsigned int i = 0; i < console_cols * console_rows; i++) {
                     c->bg = bg_colour;
@@ -990,7 +995,7 @@ static void scroll_down(string_view s) {
 
         auto c = &console[0];
 
-        auto font = bold ? face_bold : face;
+        auto font = bold ? face_bold.face : face.face;
         auto glyph = FT_Get_Char_Index(font, ' ');
 
         for (unsigned int i = 0; i < console_cols * console_rows; i++) {
@@ -1244,24 +1249,24 @@ loop:
 
 static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y,
                          bool is_cursor) {
-    auto font = c.bold ? face_bold : face;
+    auto& font = c.bold ? face_bold : face;
 
-    auto error = FT_Load_Glyph(font, c.glyph, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
+    auto error = FT_Load_Glyph(font.face, c.glyph, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
     if (error)
         return;
 
-    auto& bitmap = font->glyph->bitmap;
+    auto& bitmap = font.face->glyph->bitmap;
     auto buf = bitmap.buffer;
 
     auto width = (unsigned int)bitmap.width;
-    if ((int)fb_x + font->glyph->bitmap_left + (int)width > (int)fb_width)
-        width = (unsigned int)((int)fb_width - (int)fb_x - font->glyph->bitmap_left);
+    if ((int)fb_x + font.face->glyph->bitmap_left + (int)width > (int)fb_width)
+        width = (unsigned int)((int)fb_width - (int)fb_x - font.face->glyph->bitmap_left);
 
-    int y = (int)fb_y - font->glyph->bitmap_top;
+    int y = (int)fb_y - font.face->glyph->bitmap_top;
     int bottom = y + (int)bitmap.rows;
 
     if (y < 0) {
-        buf += bitmap.width * ((unsigned int)font->glyph->bitmap_top - fb_y);
+        buf += bitmap.width * ((unsigned int)font.face->glyph->bitmap_top - fb_y);
         y = 0;
     }
 
@@ -1284,7 +1289,7 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
     uint32_t bg_colour_b = bg & 0xff;
     uint32_t fg_colour_b = fg & 0xff;
 
-    auto base = shadow_framebuffer.data() + ((uint32_t)y * fb_pixels_per_scan_line) + fb_x + font->glyph->bitmap_left;
+    auto base = shadow_framebuffer.data() + ((uint32_t)y * fb_pixels_per_scan_line) + fb_x + font.face->glyph->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
@@ -1648,34 +1653,34 @@ bool init_fb_console() {
         dpi = 72;
 
     error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_data, (FT_Long)console_font_size,
-                               0, &face);
+                               0, &face.face);
     if (error) {
         print("FT_New_Memory_Face failed ({:x})\n", error);
         return false;
     }
 
-    error = FT_Set_Char_Size(face, font_size * 64, 0, dpi, 0);
+    error = FT_Set_Char_Size(face.face, font_size * 64, 0, dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;
     }
 
     error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_bold_data, (FT_Long)console_font_bold_size,
-                               0, &face_bold);
+                               0, &face_bold.face);
     if (error) {
         print("FT_New_Memory_Face failed ({:x})\n", error);
         return false;
     }
 
-    error = FT_Set_Char_Size(face_bold, font_size * 64, 0, dpi, 0);
+    error = FT_Set_Char_Size(face_bold.face, font_size * 64, 0, dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;
     }
 
-    font_width = (unsigned int)(face->size->metrics.max_advance / 64);
-    font_height = (unsigned int)(face->size->metrics.height / 64);
-    font_descender = (unsigned int)(-face->size->metrics.descender / 64);
+    font_width = (unsigned int)(face.face->size->metrics.max_advance / 64);
+    font_height = (unsigned int)(face.face->size->metrics.height / 64);
+    font_descender = (unsigned int)(-face.face->size->metrics.descender / 64);
 
     console_cols = fb_width / font_width;
     console_rows = fb_height / font_height;
@@ -1688,7 +1693,7 @@ bool init_fb_console() {
         return false;
     }
 
-    auto glyph = FT_Get_Char_Index(face, ' ');
+    auto glyph = FT_Get_Char_Index(face.face, ' ');
 
     for (unsigned int i = 0; i < console_cols * console_rows; i++) {
         console[i].bg = DEFAULT_BG_COLOUR;
