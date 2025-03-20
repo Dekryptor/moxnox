@@ -8,6 +8,7 @@ module;
 import rbtree;
 import event;
 import pipe;
+import timer;
 #include "visit_object.h"
 #include <ioctl.h>
 

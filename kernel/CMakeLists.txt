@@ -13,7 +13,6 @@ set(SRC_FILES src/kernel.cpp
     src/console.cpp
     src/ints.S
     src/timer.S
-    src/timer.cpp
     src/scheduler.cpp
     src/handle.cpp
     src/smp.cpp
@@ -59,6 +58,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/semaphore.cpp
     src/event.cpp
     src/pipe.cpp
+    src/timer.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

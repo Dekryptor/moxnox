@@ -8,6 +8,7 @@ import print;
 import mem;
 import config;
 import interrupts;
+import timer;
 
 using namespace std;
 

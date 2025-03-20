@@ -21,6 +21,7 @@ import list;
 import interrupts;
 import serial;
 import semaphore;
+import timer;
 
 using namespace std;
 

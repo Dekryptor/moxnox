@@ -1,17 +1,55 @@
+module;
+
 #include "kernel.h"
 import objects;
-#include "timer.h"
 #include "process.h"
 #include "thread.h"
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "handle.h"
 
+export module timer;
+
 import print;
 import list;
 import interrupts;
 
 using namespace std;
+
+export class timer : public object {
+public:
+    timer() : object(object_type::timer) { }
+    ~timer();
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    void on_wake();
+
+    NTSTATUS set(int64_t due_time, PTIMER_APC_ROUTINE timer_apc_routine,
+                 void* timer_context, bool resume_timer, int32_t period,
+                 bool* previous_state);
+
+    bool signalled = false;
+    bool active = false;
+    list_entry le;
+    uint64_t ticks_left;
+    uint64_t orig_ticks;
+    bool periodic;
+    bool autoreset;
+};
+
+static_assert(is_sync_object<timer>);
+static_assert(object_has_on_wake<timer>);
+
+static_assert(offsetof(timer, le) == TIMER_LE);
+static_assert(offsetof(timer, ticks_left) == TIMER_TICKS_LEFT);
 
 static const uint8_t timer_interrupt = 0x20;
 static const uint8_t timer_ap_interrupt = 0x24;
@@ -22,13 +60,16 @@ volatile uint64_t timer_count;
 
 uint32_t apic_timer_freq;
 
-list_entry active_timer_list = { &active_timer_list, &active_timer_list };
+export extern "C" {
+    list_entry active_timer_list = { &active_timer_list, &active_timer_list };
 
-// FIXME - this should be in a page that userspace can read directly
-volatile int64_t system_time = 0;
-uint64_t system_time_offset = 0;
+    // FIXME - this should be in a page that userspace can read directly
+    volatile int64_t system_time = 0;
+    uint64_t system_time_offset = 0;
+}
 
-void init_lapic_timer(bool ap) {
+
+export void init_lapic_timer(bool ap) {
     if (ap) {
         auto timer_div = (volatile uint32_t*)&local_apic[0x3e0];
         *timer_div = 3; // 16
@@ -45,7 +86,7 @@ void init_lapic_timer(bool ap) {
     *timer_initial = apic_timer_freq / TICK_RATE;
 }
 
-void init_timer() {
+export void init_timer() {
     __asm __volatile("cli");
 
     // setup APIC timer
@@ -73,7 +114,7 @@ void init_timer() {
     init_lapic_timer(false);
 }
 
-object_ref create_timer(bool autoreset) {
+export object_ref create_timer(bool autoreset) {
     auto tptr = new timer;
     if (!tptr) {
         print("new failed\n");
@@ -151,12 +192,14 @@ timer::~timer() {
     }
 }
 
+extern "C"
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
     SystemTime->QuadPart = (int64_t)((uint64_t)system_time + system_time_offset);
 
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                        TIMER_TYPE timer_type) {
     auto t = get_current_thread();
@@ -222,6 +265,7 @@ NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
                     PTIMER_APC_ROUTINE timer_apc_routine, void* timer_context,
                     bool resume_timer, int32_t period, bool* previous_state) {

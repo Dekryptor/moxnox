@@ -7,7 +7,6 @@ template<typename T>
 static void visit_obj(object& obj, const T& func);
 
 #include "thread.h"
-#include "timer.h"
 #include "volume.h"
 #include "inode.h"
 #include "process.h"

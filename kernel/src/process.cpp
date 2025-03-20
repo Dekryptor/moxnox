@@ -7,6 +7,7 @@ import objects;
 import rbtree;
 import event;
 import pipe;
+import timer;
 #include "visit_object.h"
 #include <pe.h>
 

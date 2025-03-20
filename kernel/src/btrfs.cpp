@@ -5,7 +5,6 @@ import objects;
 #include "handle.h"
 #include "crc32c.h"
 #include "tick_rate.h"
-#include "timer.h"
 #include "spinlock.h"
 import rbtree;
 #include "inode.h"
@@ -25,6 +24,7 @@ import config;
 import list;
 import vfs;
 import string;
+import timer;
 
 #include "btrfs.h"
 

@@ -19,6 +19,7 @@ import pci;
 import vfs;
 import pe;
 import pipe;
+import timer;
 
 using namespace std;
 

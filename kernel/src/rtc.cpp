@@ -5,12 +5,9 @@ module;
 export module rtc;
 
 import inout;
+import timer;
 
 using namespace std;
-
-// timer.cpp
-extern "C" volatile int64_t system_time;
-extern "C" volatile uint64_t system_time_offset;
 
 template<unsigned N>
 static uint8_t get_rtc_register(uint16_t port) {
