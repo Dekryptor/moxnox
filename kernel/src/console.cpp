@@ -199,6 +199,10 @@ static void console_overflow(unsigned int rows = 1) {
         auto font = bold ? face_bold : face;
         auto glyph = FT_Get_Char_Index(font, ' ');
 
+        for (unsigned int i = 0; i < console_cols * console_rows; i++) {
+            console[i].changed = true;
+        }
+
         for (unsigned int i = 0; i < console_cols * rows; i++) {
             c->bg = bg_colour;
             c->fg = fg_colour;
