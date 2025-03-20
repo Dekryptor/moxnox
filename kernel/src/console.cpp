@@ -1050,6 +1050,10 @@ static void set_cursor_position(string_view s) {
         }
     }
 
+    // old position
+    if constexpr (FB)
+        console[(cursor_y * console_cols) + cursor_x].changed = true;
+
     if (x == 0)
         x = 1;
 
@@ -1064,6 +1068,10 @@ static void set_cursor_position(string_view s) {
 
     cursor_x = x - 1;
     cursor_y = y - 1;
+
+    // new position
+    if constexpr (FB)
+        console[(cursor_y * console_cols) + cursor_x].changed = true;
 }
 
 template<bool FB>
