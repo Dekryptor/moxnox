@@ -1,6 +1,6 @@
 [submodule "efi/code"]
 	path = gnu-efi
-	url = https://git.code.sf.net/p/gnu-efi/code
+	url = https://git.burntcomma.com/maharmstone/gnu-efi
 [submodule "freetype"]
 	path = freetype
 	url = https://git.burntcomma.com/maharmstone/freetype
