@@ -523,8 +523,10 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
             crc32 = calc_crc32c(crc32, sp);
 
-            if (j != pages_per_tree - 1)
+            if (j != pages_per_tree - 1) {
+                lock_guard lock(cache.cache_lock);
                 ent = cache.next_page_cache_entry(*ent);
+            }
         }
 
         *(uint32_t*)&th = ~crc32;
@@ -548,8 +550,10 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
             disk_addr += PAGE_SIZE;
 
-            if (j != pages_per_tree - 1)
+            if (j != pages_per_tree - 1) {
+                lock_guard lock(cache.cache_lock);
                 ent = cache.next_page_cache_entry(*ent);
+            }
         }
     }
 
@@ -558,8 +562,10 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
         if (ent->status == page_cache_status::dirty)
             ent->status = page_cache_status::clean;
 
-        if (j != pages_per_tree - 1)
+        if (j != pages_per_tree - 1) {
+            lock_guard lock(cache.cache_lock);
             ent = cache.next_page_cache_entry(*ent);
+        }
     }
 
     cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
