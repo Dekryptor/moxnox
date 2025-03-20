@@ -9,6 +9,7 @@ import mem;
 import config;
 import interrupts;
 import timer;
+import syscalls;
 
 using namespace std;
 

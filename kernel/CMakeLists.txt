@@ -21,7 +21,6 @@ set(SRC_FILES src/kernel.cpp
     src/process.cpp
     src/section.cpp
     src/syscalls.S
-    src/syscalls.cpp
     src/mem.S
     src/file.cpp
     src/thread.cpp
@@ -59,6 +58,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/event.cpp
     src/pipe.cpp
     src/timer.cpp
+    src/syscalls.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

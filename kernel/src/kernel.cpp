@@ -20,6 +20,7 @@ import vfs;
 import pe;
 import pipe;
 import timer;
+import syscalls;
 
 using namespace std;
 

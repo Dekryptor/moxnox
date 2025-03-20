@@ -1,3 +1,5 @@
+module;
+
 #include "kernel.h"
 #include "nt.h"
 #include "handle.h"
@@ -10,12 +12,20 @@ import objects;
 #include "inode.h"
 #include "visit_object.h"
 
+export module syscalls;
+
 import format;
 import print;
 import string;
 
 using namespace std;
 
+// syscalls.S
+export {
+    extern "C" void init_syscalls();
+}
+
+extern "C"
 NTSTATUS NtDisplayString(const UNICODE_STRING* string) {
     auto u16sv = u16string_view(string->Buffer, string->Length / sizeof(char16_t));
     auto buflen = utf16_to_utf8_len(u16sv);
@@ -1130,6 +1140,7 @@ NTSTATUS user_NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     return NtShutdownSystem(action);
 }
 
+extern "C"
 NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE /*event*/, PIO_APC_ROUTINE /*apc_routine*/, void* /*apc_context*/,
                                IO_STATUS_BLOCK* iosb, uint32_t control_code, const void* input_buffer,
                                uint32_t input_buffer_len, void* output_buffer, uint32_t output_buffer_len) {

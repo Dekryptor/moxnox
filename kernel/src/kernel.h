@@ -155,9 +155,6 @@ nt_status create_section(const std::optional<std::reference_wrapper<file>>& file
                          size_t size, object_ref& ref);
 uint64_t get_image_size(void* image);
 
-// syscalls.S
-extern "C" void init_syscalls();
-
 // thread.cpp
 thread* get_current_thread();
 
