@@ -15,6 +15,13 @@ import bsod;
 import config;
 import list;
 
+// mem.S
+export {
+    extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
+    extern "C" void init_pat();
+    extern "C" void invalidate_tlb_isr();
+}
+
 using namespace std;
 
 export enum class page_state : uint8_t {

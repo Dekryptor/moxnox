@@ -180,11 +180,6 @@ uint64_t get_image_size(void* image);
 // syscalls.S
 extern "C" void init_syscalls();
 
-// mem.S
-extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
-extern "C" void init_pat();
-extern "C" void invalidate_tlb_isr();
-
 // thread.cpp
 thread* get_current_thread();
 
