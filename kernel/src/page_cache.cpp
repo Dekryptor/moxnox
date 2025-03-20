@@ -8,6 +8,7 @@ import bsod;
 import mem;
 import config;
 import list;
+import rbtree;
 
 using namespace std;
 
@@ -16,7 +17,7 @@ page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
     if (!tree)
         return nullptr;
 
-    return &tree_containing_record<page_cache_entry>(tree);
+    return &rbtree_containing_record<page_cache_entry>(tree);
 }
 
 static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
@@ -55,7 +56,7 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
         if (first_unread)
             *first_unread = p;
 
-        insert_into_tree(root, p->tree);
+        insert_into_rbtree(root, p->tree);
     } else {
         ent->refcount++;
         p = ent;
@@ -75,7 +76,7 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
             if (first_unread && !*first_unread)
                 *first_unread = p;
 
-            insert_into_tree(root, p->tree);
+            insert_into_rbtree(root, p->tree);
         } else {
             ent->refcount++;
             p = ent;
@@ -481,7 +482,7 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
         return false;
 
     // get first entry
-    auto ent = &tree_containing_record<page_cache_entry>(get_tree_minimum(root));
+    auto ent = &rbtree_containing_record<page_cache_entry>(get_tree_minimum(root));
 
     while (ent->status != page_cache_status::dirty) {
         ent = next_page_cache_entry(*ent);
@@ -522,5 +523,5 @@ page_cache_entry* page_cache::next_page_cache_entry(const page_cache_entry& ent)
     if (!ret)
         return nullptr;
 
-    return &tree_containing_record<page_cache_entry>(ret);
+    return &rbtree_containing_record<page_cache_entry>(ret);
 }

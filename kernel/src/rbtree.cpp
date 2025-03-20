@@ -1,6 +1,15 @@
+module;
+
 #include "rbtree.h"
 
-rbtree_node* find_rbtree_node(rbtree_node* root, uint64_t key) {
+export module rbtree;
+
+export template<typename T>
+T& rbtree_containing_record(rbtree_node* tree) {
+    return *(T*)((uint8_t*)tree - offsetof(T, tree));
+}
+
+export rbtree_node* find_rbtree_node(rbtree_node* root, uint64_t key) {
     rbtree_node* ret = root;
 
     while (ret && ret->key != key) {
@@ -13,7 +22,7 @@ rbtree_node* find_rbtree_node(rbtree_node* root, uint64_t key) {
     return ret;
 }
 
-rbtree_node* get_tree_minimum(rbtree_node* root) {
+export rbtree_node* get_tree_minimum(rbtree_node* root) {
     rbtree_node* ret = root;
 
     while (ret->left) {
@@ -109,7 +118,7 @@ static void insert_fixup(rbtree_node*& root, rbtree_node* z) {
     root->colour = tree_colour::black;
 }
 
-void insert_into_tree(rbtree_node*& root, rbtree_node& ent) {
+export void insert_into_rbtree(rbtree_node*& root, rbtree_node& ent) {
     rbtree_node* ptr = root;
     rbtree_node* new_parent = nullptr;
 
@@ -137,7 +146,7 @@ void insert_into_tree(rbtree_node*& root, rbtree_node& ent) {
     insert_fixup(root, &ent);
 }
 
-rbtree_node* next_rbtree_node(const rbtree_node& ent) {
+export rbtree_node* next_rbtree_node(const rbtree_node& ent) {
     rbtree_node* ret;
 
     if (ent.right) {

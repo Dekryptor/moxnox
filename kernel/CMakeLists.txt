@@ -33,7 +33,6 @@ set(SRC_FILES src/kernel.cpp
     src/page_cache.cpp
     src/rwsem.cpp
     src/bsod2.cpp
-    src/rbtree.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 add_executable(kernel ${SRC_FILES})
@@ -58,6 +57,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/vfs.cpp
     src/string.cpp
     src/pe.cpp
+    src/rbtree.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)
