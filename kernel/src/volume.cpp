@@ -342,7 +342,12 @@ size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
         return 0;
 
     uint64_t flushed = 0;
-    auto ent = cache.find_page_cache_entry(page_num);
+    page_cache_entry* ent;
+
+    {
+        lock_guard lock(cache.cache_lock);
+        ent = cache.find_page_cache_entry(page_num);
+    }
 
     for (uint64_t i = 0; i < num_pages; i++) {
         assert(ent->tree.key == page_num + i);
@@ -358,8 +363,10 @@ size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
             ent->status = page_cache_status::clean;
         }
 
-        if (i != num_pages - 1)
+        if (i != num_pages - 1) {
+            lock_guard lock(cache.cache_lock);
             ent = cache.next_page_cache_entry(*ent);
+        }
 
         flushed++;
     }
