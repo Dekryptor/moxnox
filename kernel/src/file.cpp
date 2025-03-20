@@ -4,6 +4,20 @@
 
 using namespace std;
 
+file::file(object& ino) : object(object_type::file), ino(ino) {
+    visit_obj(ino, [](auto&& o) {
+        o.acquire();
+    });
+}
+
+file::~file() {
+    visit_obj(ino, [](auto&& o) {
+        o.release();
+    });
+
+    free(name);
+}
+
 NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
     NTSTATUS status;
 
