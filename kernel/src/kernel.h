@@ -13,17 +13,12 @@
 #include "nt.h"
 #include "list.h"
 
-struct loader_block;
 class thread;
 class object;
-struct cpu_block;
 class event;
-struct task_state_segment;
-struct pci_device;
 class volume;
 class filesystem;
 class pipe;
-struct HARDWARE_PTE;
 
 #define offsetofend(TYPE, MEMBER) (offsetof(TYPE, MEMBER) + sizeof(((TYPE *)0)->MEMBER))
 
@@ -209,8 +204,6 @@ static void loop_through_cmdline(cmdline_func auto func) {
         }
     }
 }
-
-struct page_cache_entry;
 
 #ifdef NDEBUG
 #define assert(_Expression) ((void)0)
