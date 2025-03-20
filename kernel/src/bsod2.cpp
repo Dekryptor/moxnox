@@ -14,6 +14,7 @@ import unwind;
 import config;
 import list;
 import interrupts;
+import smp;
 
 using namespace std;
 

@@ -8,6 +8,7 @@ import print;
 import inout;
 import interrupts;
 import vfs;
+import smp;
 
 using namespace std;
 

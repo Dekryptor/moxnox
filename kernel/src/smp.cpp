@@ -1,8 +1,12 @@
+module;
+
 #include "kernel.h"
 #include "acpica.h"
 #include "cpu_block.h"
 #include "mem.h"
 #include <atomic>
+
+export module smp;
 
 import print;
 import mem;
@@ -14,10 +18,10 @@ import syscalls;
 using namespace std;
 
 // in smp.S
-extern uint8_t ap_trampoline;
-extern uint8_t ap_trampoline_end;
-extern uint8_t ap_trampoline_cr3;
-extern uint64_t ap_trampoline_start_func;
+extern "C" uint8_t ap_trampoline;
+extern "C" uint8_t ap_trampoline_end;
+extern "C" uint8_t ap_trampoline_cr3;
+extern "C" uint64_t ap_trampoline_start_func;
 
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
 
@@ -30,8 +34,8 @@ struct gdt_ptr {
 
 static gdt_ptr bsp_gdt, bsp_idt;
 
-uint8_t* apic_ids;
-unsigned int num_cpus;
+export uint8_t* apic_ids;
+export unsigned int num_cpus;
 
 static void start_ap(uint8_t i) {
     // FIXME - should we be disabling interrupts here?
@@ -79,7 +83,7 @@ static void start_ap(uint8_t i) {
     }
 }
 
-uint8_t current_cpu_id() {
+export uint8_t current_cpu_id() {
     uint32_t eax, ebx, ecx, edx;
 
     __asm__ __volatile__ (
@@ -208,7 +212,7 @@ static void ap_startup() {
     );
 }
 
-bool init_smp() {
+export bool init_smp() {
     add_idt_entry(invalidate_tlb_interrupt, (void*)invalidate_tlb_isr, false, 0, false);
 
     ACPI_TABLE_HEADER* tbl;

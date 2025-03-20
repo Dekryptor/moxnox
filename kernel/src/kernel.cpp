@@ -21,6 +21,7 @@ import pe;
 import pipe;
 import timer;
 import syscalls;
+import smp;
 
 using namespace std;
 

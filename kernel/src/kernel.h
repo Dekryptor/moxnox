@@ -135,12 +135,6 @@ bool init_cpu_block(unsigned int cpu_no);
 void disable_preempt();
 void enable_preempt();
 
-// smp.cpp
-extern uint8_t* apic_ids;
-extern unsigned int num_cpus;
-bool init_smp();
-uint8_t current_cpu_id();
-
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;
 object_ref create_process(std::string_view fn, std::string_view curdir,
