@@ -1348,16 +1348,37 @@ static void refresh_shadow_framebuffer() {
                 }
             }
 
-            c->changed = false;
             c++;
         }
     }
 }
 
-static void refresh_framebuffer() {
-    // FIXME - only copy changed parts?
+static void shadow_blit(unsigned int x, unsigned int y, unsigned int width,
+                        unsigned int height) {
+    for (unsigned int i = 0; i < height; i++) {
+        memcpy(framebuffer.data() + (fb_pixels_per_scan_line * y) + x,
+               shadow_framebuffer.data() + (fb_pixels_per_scan_line * y) + x,
+               width * sizeof(uint32_t));
+        y++;
+    }
+}
 
-    memcpy_aligned(framebuffer.data(), shadow_framebuffer.data(), framebuffer.size_bytes());
+static void refresh_framebuffer() {
+    auto* c = &console[0];
+
+    // FIXME - do adjacent changed characters in a block
+
+    for (unsigned int y = 0; y < console_rows; y++) {
+        for (unsigned int x = 0; x < console_cols; x++) {
+            if (c->changed) {
+                shadow_blit(x * font_width, y * font_height, font_width,
+                            font_height);
+                c->changed = false;
+            }
+
+            c++;
+        }
+    }
 }
 
 static void early_print(string_view s) {
