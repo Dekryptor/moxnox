@@ -6,8 +6,8 @@ module;
 #include "kernel.h"
 #include "handle.h"
 import objects;
-#include "semaphore.h"
 #include "tick_rate.h"
+#include "spinlock.h"
 
 export module acpi;
 
@@ -20,6 +20,7 @@ import mem;
 import list;
 import interrupts;
 import serial;
+import semaphore;
 
 using namespace std;
 

@@ -1,9 +1,10 @@
+#include <limits>
 #include "kernel.h"
 import objects;
 #include "mem.h"
 #include "handle.h"
+#include "spinlock.h"
 #include "visit_object.h"
-#include <limits>
 #include <pe.h>
 
 import print;

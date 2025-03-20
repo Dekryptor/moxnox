@@ -1,5 +1,6 @@
 module;
 
+#include <shared_mutex>
 #include "kernel.h"
 #include "spinlock.h"
 import objects;
@@ -7,7 +8,6 @@ import objects;
 #include "handle.h"
 #include "rwsem.h"
 #include "visit_object.h"
-#include <shared_mutex>
 
 export module vfs;
 

@@ -1,16 +1,43 @@
+module;
+
 #include "kernel.h"
 import objects;
-#include "semaphore.h"
 #include "thread.h"
 #include "spinlock.h"
 #include "handle.h"
 
-import print;
+export module semaphore;
 
-using namespace std;
+import print;
 import list;
 
-object_ref create_semaphore(unsigned int maximum_count) {
+using namespace std;
+
+export class semaphore : public object {
+public:
+    semaphore() : object(object_type::semaphore) { }
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    void on_wake();
+
+    bool signalled = false;
+    unsigned int maximum_count;
+    unsigned int current_count;
+    spinlock lock;
+};
+
+static_assert(is_sync_object<semaphore>);
+static_assert(object_has_on_wake<semaphore>);
+
+export object_ref create_semaphore(unsigned int maximum_count) {
     auto sptr = new semaphore;
     if (!sptr) {
         print("new failed\n");
@@ -27,7 +54,7 @@ object_ref create_semaphore(unsigned int maximum_count) {
     return s;
 }
 
-void release_semaphore(semaphore& s) {
+export void release_semaphore(semaphore& s) {
     unsigned int release_count = 0;
 
     // FIXME - what if not held by current thread?

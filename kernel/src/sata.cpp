@@ -8,7 +8,6 @@ import objects;
 #include "handle.h"
 #include "page_cache.h"
 #include "volume.h"
-#include "semaphore.h"
 #include "event.h"
 
 export module sata;
@@ -19,6 +18,7 @@ import mem;
 import config;
 import list;
 import interrupts;
+import semaphore;
 
 #include "sata.h"
 

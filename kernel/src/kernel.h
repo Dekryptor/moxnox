@@ -20,7 +20,6 @@ struct cpu_block;
 class event;
 struct task_state_segment;
 struct pci_device;
-class semaphore;
 class volume;
 class filesystem;
 class pipe;
@@ -161,10 +160,6 @@ uint8_t current_cpu_id();
 object_ref create_event(bool autoreset);
 void set_event(event& e);
 void reset_event(event& e);
-
-// semaphore.cpp
-object_ref create_semaphore(unsigned int maximum_count);
-void release_semaphore(semaphore& s);
 
 class inode;
 

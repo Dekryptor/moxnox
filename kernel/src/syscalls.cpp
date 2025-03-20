@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "nt.h"
 #include "handle.h"
+#include "spinlock.h"
 #include "visit_object.h"
 
 import format;

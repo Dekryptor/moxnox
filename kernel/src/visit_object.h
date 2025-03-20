@@ -1,6 +1,7 @@
 #pragma once
 
 import objects;
+import semaphore;
 
 template<typename T>
 static void visit_obj(object& obj, const T& func);
@@ -9,7 +10,6 @@ static void visit_obj(object& obj, const T& func);
 #include "timer.h"
 #include "event.h"
 #include "pipe.h"
-#include "semaphore.h"
 #include "volume.h"
 #include "inode.h"
 #include "process.h"

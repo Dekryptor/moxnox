@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "handle.h"
+#include "spinlock.h"
 #include "visit_object.h"
 #include <pe.h>
 
