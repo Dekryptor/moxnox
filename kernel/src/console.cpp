@@ -1412,9 +1412,13 @@ static void early_print(string_view s) {
     if (!fb_console_started)
         return;
 
+    disable_preempt();
+
     do_print<true>(s);
     refresh_shadow_framebuffer();
     refresh_framebuffer();
+
+    enable_preempt();
 }
 
 void safe_print(string_view s) {
