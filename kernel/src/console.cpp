@@ -232,6 +232,9 @@ static void print_char(char32_t c) {
                 auto glyph = FT_Get_Char_Index(font, ' ');
 
                 for (unsigned int i = cursor_x; i < console_cols; i++) {
+                    if (console[(cursor_y * console_cols) + i].glyph != glyph)
+                        continue;
+
                     console[(cursor_y * console_cols) + i].glyph = glyph;
                     console[(cursor_y * console_cols) + i].changed = true;
                 }
@@ -264,8 +267,10 @@ static void print_char(char32_t c) {
                 auto font = bold ? face_bold : face;
                 auto glyph = FT_Get_Char_Index(font, ' ');
 
-                console[(cursor_y * console_cols) + cursor_x].glyph = glyph;
-                console[(cursor_y * console_cols) + cursor_x].changed = true;
+                if (console[(cursor_y * console_cols) + cursor_x].glyph != glyph) {
+                    console[(cursor_y * console_cols) + cursor_x].glyph = glyph;
+                    console[(cursor_y * console_cols) + cursor_x].changed = true;
+                }
             }
         } else {
             if (cursor_x > 0) { // FIXME
