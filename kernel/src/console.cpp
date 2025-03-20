@@ -1087,12 +1087,16 @@ static void handle_escape_sequence(string_view s) {
         else if (s == "?25h") {
             show_cursor = true;
 
-            if constexpr (!FB)
+            if constexpr (FB)
+                console[(cursor_y * console_cols) + cursor_x].changed = true;
+            else
                 enable_cursor();
         } else if (s == "?25l") {
             show_cursor = false;
 
-            if constexpr (!FB)
+            if constexpr (FB)
+                console[(cursor_y * console_cols) + cursor_x].changed = true;
+            else
                 disable_cursor();
         }
     }
