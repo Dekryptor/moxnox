@@ -2121,15 +2121,33 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::create_child(string_view name,
-                                    uint32_t create_options,
+static bool validate_name(string_view name) {
+    if (name.empty())
+        return false;
+
+    if (name == "." || name == "..")
+        return false;
+
+    if (name.size() >= 256)
+        return false;
+
+    for (auto c : name) {
+        if (c == '\0' || c == '/' || c == '\\')
+            return false;
+    }
+
+    return true;
+}
+
+nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
                                     optional<reference_wrapper<btrfs_inode>>& obj) {
     nt_status status;
     inode_item ii;
     bool is_dir = create_options & FILE_DIRECTORY_FILE;
     uint64_t new_inode;
 
-    // FIXME - check name valid (not too long, not empty, not . or .., no forbidden characters)
+    if (!validate_name(name))
+        return nt_status::OBJECT_NAME_INVALID;
 
     if (r->next_inode_number == 0) {
         status = find_last_inode_number(fs, *r);
