@@ -40,19 +40,19 @@ static constexpr uint64_t BTRFS_BLOCK_GROUP_RAID6 = 1 << 8;
 static constexpr uint64_t BTRFS_BLOCK_GROUP_RAID1C3 = 1 << 9;
 static constexpr uint64_t BTRFS_BLOCK_GROUP_RAID1C4 = 1 << 10;
 
-static const uint64_t BTRFS_ROOT_ROOT = 0x1;
-static const uint64_t BTRFS_ROOT_EXTENT = 0x2;
-static const uint64_t BTRFS_ROOT_CHUNK = 0x3;
-static const uint64_t BTRFS_ROOT_DEVTREE = 0x4;
-static const uint64_t BTRFS_ROOT_FSTREE = 0x5;
-static const uint64_t BTRFS_ROOT_TREEDIR = 0x6;
-static const uint64_t BTRFS_ROOT_CHECKSUM = 0x7;
-static const uint64_t BTRFS_ROOT_UUID = 0x9;
-static const uint64_t BTRFS_ROOT_FREE_SPACE = 0xa;
-static const uint64_t BTRFS_ROOT_DATA_RELOC = 0xfffffffffffffff7;
+static constexpr uint64_t BTRFS_ROOT_TREE_OBJECTID = 0x1;
+static constexpr uint64_t BTRFS_EXTENT_TREE_OBJECTID = 0x2;
+static constexpr uint64_t BTRFS_CHUNK_TREE_OBJECTID = 0x3;
+static constexpr uint64_t BTRFS_DEV_TREE_OBJECTID = 0x4;
+static constexpr uint64_t BTRFS_FS_TREE_OBJECTID = 0x5;
+static constexpr uint64_t BTRFS_ROOT_TREE_DIR_OBJECTID = 0x6;
+static constexpr uint64_t BTRFS_CSUM_TREE_OBJECTID = 0x7;
+static constexpr uint64_t BTRFS_UUID_TREE_OBJECTID = 0x9;
+static constexpr uint64_t BTRFS_FREE_SPACE_TREE_OBJECTID = 0xa;
+static constexpr uint64_t BTRFS_DATA_RELOC_TREE_OBJECTID = 0xfffffffffffffff7;
 
-static const uint64_t BTRFS_FIRST_FREE_OBJECTID = 0x100;
-static const uint64_t BTRFS_LAST_FREE_OBJECTID = 0xffffffffffffff00;
+static constexpr uint64_t BTRFS_FIRST_FREE_OBJECTID = 0x100;
+static constexpr uint64_t BTRFS_LAST_FREE_OBJECTID = 0xffffffffffffff00;
 
 static const uint64_t SUBVOL_ROOT_INODE = 0x100;
 

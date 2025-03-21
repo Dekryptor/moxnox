@@ -204,7 +204,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         }
 
         auto& r = *rptr;
-        r.id = BTRFS_ROOT_ROOT;
+        r.id = BTRFS_ROOT_TREE_OBJECTID;
         r.ri.block_number = sb.root_tree_addr;
         r.ri.root_level = sb.root_level;
 
@@ -220,7 +220,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         }
 
         auto& r = *rptr;
-        r.id = BTRFS_ROOT_CHUNK;
+        r.id = BTRFS_CHUNK_TREE_OBJECTID;
         r.ri.block_number = sb.chunk_tree_addr;
         r.ri.root_level = sb.chunk_root_level;
 
@@ -240,7 +240,8 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
     // FIXME - default subvol
 
-    root_inode = new btrfs_inode(*this, BTRFS_ROOT_FSTREE, SUBVOL_ROOT_INODE, btrfs_inode_type::directory);
+    root_inode = new btrfs_inode(*this, BTRFS_FS_TREE_OBJECTID, SUBVOL_ROOT_INODE,
+                                 btrfs_inode_type::directory);
     if (!root_inode) {
         print("new failed\n");
         return;
@@ -768,15 +769,15 @@ bool btrfs_filesystem::load_roots() {
         memcpy(&r.ri, data.data(), sizeof(root_item));
         insert_tail_list(new_root_list, r.le);
 
-        if (r.id == BTRFS_ROOT_EXTENT)
+        if (r.id == BTRFS_EXTENT_TREE_OBJECTID)
             extent_root = &r;
-        else if (r.id == BTRFS_ROOT_DEVTREE)
+        else if (r.id == BTRFS_DEV_TREE_OBJECTID)
             dev_root = &r;
-        else if (r.id == BTRFS_ROOT_FSTREE)
+        else if (r.id == BTRFS_FS_TREE_OBJECTID)
             fs_root = &r;
-        else if (r.id == BTRFS_ROOT_CHECKSUM)
+        else if (r.id == BTRFS_CSUM_TREE_OBJECTID)
             csum_root = &r;
-        else if (r.id == BTRFS_ROOT_FREE_SPACE)
+        else if (r.id == BTRFS_FREE_SPACE_TREE_OBJECTID)
             free_space_root = &r;
 
         if (!move_path_forward(p))
@@ -1362,7 +1363,7 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
                 r.ri.generation = fs.sb.generation;
                 r.ri.generation2 = fs.sb.generation;
 
-                if (r.id != BTRFS_ROOT_ROOT && !r.is_dirty) {
+                if (r.id != BTRFS_ROOT_TREE_OBJECTID && !r.is_dirty) {
                     insert_tail_list(fs.dirty_root_list, r.dirty_le);
                     r.is_dirty = true;
                 }
@@ -1656,7 +1657,7 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     r.ri.generation = fs.sb.generation;
     r.ri.generation2 = fs.sb.generation;
 
-    if (r.id != BTRFS_ROOT_ROOT && !r.is_dirty) {
+    if (r.id != BTRFS_ROOT_TREE_OBJECTID && !r.is_dirty) {
         insert_tail_list(fs.dirty_root_list, r.dirty_le);
         r.is_dirty = true;
     }
