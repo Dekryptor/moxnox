@@ -36,14 +36,19 @@ static const uint32_t S_IFDIR = 0040000;
 
 static const uint64_t superblock_addrs[] = { 0x10000, 0x4000000, 0x4000000000, 0x4000000000000 };
 
-static const uint64_t supported_incompat_flags = BTRFS_INCOMPAT_FLAGS_MIXED_BACKREF | BTRFS_INCOMPAT_FLAGS_MIXED_GROUPS |
-                                                 BTRFS_INCOMPAT_FLAGS_BIG_METADATA | BTRFS_INCOMPAT_FLAGS_EXTENDED_IREF |
-                                                 BTRFS_INCOMPAT_FLAGS_SKINNY_METADATA | BTRFS_INCOMPAT_FLAGS_NO_HOLES;
+// FIXME - BTRFS_FEATURE_INCOMPAT_DEFAULT_SUBVOL
+// FIXME - BTRFS_FEATURE_INCOMPAT_COMPRESS_LZO
+// FIXME - BTRFS_FEATURE_INCOMPAT_COMPRESS_ZSTD
+static const uint64_t supported_incompat_flags = BTRFS_FEATURE_INCOMPAT_MIXED_BACKREF |
+                                                 BTRFS_FEATURE_INCOMPAT_BIG_METADATA |
+                                                 BTRFS_FEATURE_INCOMPAT_EXTENDED_IREF |
+                                                 BTRFS_FEATURE_INCOMPAT_SKINNY_METADATA |
+                                                 BTRFS_FEATURE_INCOMPAT_NO_HOLES;
 
+// FIXME - BTRFS_FEATURE_COMPAT_RO_VERITY
 static const uint64_t supported_compat_ro_flags = BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE |
                                                   BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID |
                                                   BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE;
-// FIXME - BTRFS_FEATURE_COMPAT_RO_VERITY
 
 static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
                                uint8_t level);
@@ -99,7 +104,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         readonly = true;
     }
 
-    sb.incompat_flags |= BTRFS_INCOMPAT_FLAGS_SKINNY_METADATA;
+    sb.incompat_flags |= BTRFS_FEATURE_INCOMPAT_SKINNY_METADATA;
 
     if (sb.num_devices != 1) {
         print("Multiple devices not supported\n");

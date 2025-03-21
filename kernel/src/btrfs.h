@@ -6,23 +6,27 @@ using btrfs_uuid = std::array<uint8_t, 16>;
 
 static const uint64_t btrfs_magic = 0x4d5f53665248425f;
 
-static const uint64_t BTRFS_INCOMPAT_FLAGS_MIXED_BACKREF = 0x0001;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_DEFAULT_SUBVOL = 0x0002;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_MIXED_GROUPS = 0x0004;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_COMPRESS_LZO = 0x0008;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_COMPRESS_ZSTD = 0x0010;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_BIG_METADATA = 0x0020;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_EXTENDED_IREF = 0x0040;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_RAID56 = 0x0080;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_SKINNY_METADATA = 0x0100;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_NO_HOLES = 0x0200;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_METADATA_UUID = 0x0400;
-static const uint64_t BTRFS_INCOMPAT_FLAGS_RAID1C34 = 0x0800;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_MIXED_BACKREF = 1 << 0;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_DEFAULT_SUBVOL = 1 << 1;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_MIXED_GROUPS = 1 << 2;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_COMPRESS_LZO = 1 << 3;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_COMPRESS_ZSTD = 1 << 4;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_BIG_METADATA = 1 << 5;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_EXTENDED_IREF = 1 << 6;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_RAID56 = 1 << 7;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_SKINNY_METADATA = 1 << 8;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_NO_HOLES = 1 << 9;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_METADATA_UUID = 1 << 10;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_RAID1C34 = 1 << 11;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_ZONED = 1 << 12;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_EXTENT_TREE_V2 = 1 << 13;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_RAID_STRIPE_TREE = 1 << 14;
+static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_SIMPLE_QUOTA = 1 << 16;
 
-static const uint64_t BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE = 0x1;
-static const uint64_t BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID = 0x2;
-static const uint64_t BTRFS_FEATURE_COMPAT_RO_VERITY = 0x4;
-static const uint64_t BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE = 0x8;
+static constexpr uint64_t BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE = 1 << 0;
+static constexpr uint64_t BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID = 1 << 1;
+static constexpr uint64_t BTRFS_FEATURE_COMPAT_RO_VERITY = 1 << 2;
+static constexpr uint64_t BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE = 1 << 3;
 
 static const uint64_t BLOCK_FLAG_DATA = 0x001;
 static const uint64_t BLOCK_FLAG_SYSTEM = 0x002;
