@@ -217,19 +217,19 @@ struct btrfs_chunk {
     btrfs_stripe stripe[1];
 } __attribute__((packed));
 
-struct tree_header {
+struct btrfs_header {
     std::array<uint8_t, 32> csum;
-    btrfs_uuid fs_uuid;
-    uint64_t address;
+    btrfs_uuid fsid;
+    uint64_t bytenr;
     uint64_t flags;
     btrfs_uuid chunk_tree_uuid;
     uint64_t generation;
-    uint64_t tree_id;
-    uint32_t num_items;
+    uint64_t owner;
+    uint32_t nritems;
     uint8_t level;
 } __attribute__((packed));
 
-static_assert(sizeof(tree_header) == 101);
+static_assert(sizeof(btrfs_header) == 101);
 
 static const uint64_t HEADER_FLAG_WRITTEN = 1;
 
