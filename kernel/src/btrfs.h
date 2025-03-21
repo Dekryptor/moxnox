@@ -356,13 +356,13 @@ struct extent_data2 {
 
 static_assert(sizeof(extent_data2) == 32);
 
-struct inode_ref {
+struct btrfs_inode_ref {
     uint64_t index;
-    uint16_t n;
+    uint16_t name_len;
     char name[1];
 } __attribute__((packed));
 
-static_assert(offsetof(inode_ref, name) == 10);
+static_assert(offsetof(btrfs_inode_ref, name) == 10);
 
 struct chunk_space {
     list_entry le;

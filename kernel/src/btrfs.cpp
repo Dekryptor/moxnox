@@ -2294,13 +2294,13 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
     // create INODE_REF
 
-    size_t ir_size = offsetof(inode_ref, name) + name.size();
-    auto ir = (inode_ref*)malloc(ir_size);
+    size_t ir_size = offsetof(btrfs_inode_ref, name) + name.size();
+    auto ir = (btrfs_inode_ref*)malloc(ir_size);
     if (!ir)
         return nt_status::INSUFFICIENT_RESOURCES;
 
     ir->index = index;
-    ir->n = (uint16_t)name.size();
+    ir->name_len = (uint16_t)name.size();
     memcpy(ir->name, name.data(), name.size());
 
     status = insert_item(fs, *r, {new_inode, key_type::INODE_REF, inode},
