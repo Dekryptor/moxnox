@@ -37,7 +37,6 @@ public:
 };
 
 static_assert(is_sync_object<semaphore>);
-static_assert(is_sync_object2<semaphore>);
 static_assert(object_has_on_wake<semaphore>);
 
 export object_ref create_semaphore(unsigned int maximum_count) {

@@ -13,6 +13,7 @@ import volume;
 #include <cstdlib>
 #include <optional>
 #include <atomic>
+#include <utility>
 
 import print;
 import bsod;
@@ -348,21 +349,14 @@ nt_status wait_for_object(object& obj, bool interruptible) {
             return nt_status::SUCCESS;
         }
 
-        bool has_waiters_list = false;
-
         visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_sync_object2<remove_reference_t<decltype(o)>>) {
+            if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
                 insert_tail_list(o.waiters, current_thread->wait_le);
-                current_thread->status = thread_status::waiting_other;
-                has_waiters_list = true;
-            }
+            else
+                unreachable();
         });
 
-        if (!has_waiters_list) {
-            current_thread->waiting_for = obj;
-            current_thread->status = thread_status::waiting_object;
-        }
-
+        current_thread->status = thread_status::waiting_other;
         current_thread->current_cpu = 0xffffffff;
         current_thread->wait_interruptible = interruptible;
     }

@@ -36,7 +36,6 @@ public:
 };
 
 static_assert(is_sync_object<event>);
-static_assert(is_sync_object2<event>);
 static_assert(object_has_on_wake<event>);
 
 export object_ref create_event(bool autoreset) {

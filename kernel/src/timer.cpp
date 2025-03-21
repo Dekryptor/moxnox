@@ -48,7 +48,6 @@ public:
 };
 
 static_assert(is_sync_object<timer>);
-static_assert(is_sync_object2<timer>);
 static_assert(object_has_on_wake<timer>);
 
 static_assert(offsetof(timer, le) == TIMER_LE);

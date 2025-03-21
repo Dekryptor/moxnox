@@ -64,7 +64,6 @@ public:
 };
 
 static_assert(is_sync_object<pipe>);
-static_assert(is_sync_object2<pipe>);
 static_assert(is_readable_object_without_offset<pipe>);
 static_assert(is_writable_object_without_offset<pipe>);
 static_assert(has_ioctls<pipe>);

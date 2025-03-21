@@ -37,11 +37,8 @@ public:
 
 export
 template<typename T>
-concept is_sync_object = is_same_v<decltype(T::signalled), bool>;
-
-export
-template<typename T>
-concept is_sync_object2 = is_same_v<decltype(T::waiters), list_entry>;
+concept is_sync_object = is_same_v<decltype(T::signalled), bool> &&
+    is_same_v<decltype(T::waiters), list_entry>;
 
 export
 template<typename T>

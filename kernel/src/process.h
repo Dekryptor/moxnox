@@ -83,7 +83,6 @@ private:
 };
 
 static_assert(is_sync_object<process>);
-static_assert(is_sync_object2<process>);
 
 static_assert(offsetof(process, cr3) == PROCESS_CR3);
 

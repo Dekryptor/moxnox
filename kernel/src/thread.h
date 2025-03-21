@@ -35,7 +35,6 @@ static_assert(offsetof(AMD64_CONTEXT, FltSave) == CONTEXT_FXSAVE); // must be al
 enum class thread_status {
     runnable,
     running,
-    waiting_object,
     waiting_other,
     dead
 };
@@ -70,7 +69,6 @@ public:
     enum thread_status status;
     uint32_t tid;
     void* kernel_stack = nullptr;
-    std::optional<std::reference_wrapper<object>> waiting_for; // FIXME - multiple objects
     process* proc = nullptr;
     uint64_t affinity = 0xffffffffffffffff;
     void* syscall_stack = nullptr;
@@ -87,7 +85,6 @@ public:
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);
-static_assert(is_sync_object2<thread>);
 
 static_assert(offsetof(thread, context) == THREAD_CONTEXT);
 static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
