@@ -26,7 +26,6 @@ set(SRC_FILES src/kernel.cpp
     src/thread.cpp
     src/power.cpp
     src/page_cache.cpp
-    src/rwsem.cpp
     src/bsod2.cpp)
 
 add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
@@ -60,6 +59,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/syscalls.cpp
     src/smp.cpp
     src/volume.cpp
+    src/rwsem.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind)

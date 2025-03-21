@@ -7,7 +7,6 @@ import objects;
 import rbtree;
 #include "inode.h"
 #include "handle.h"
-#include "rwsem.h"
 import rbtree;
 import event;
 import pipe;
@@ -25,6 +24,7 @@ import mem;
 import config;
 import list;
 import string;
+import rwsem;
 
 using namespace std;
 

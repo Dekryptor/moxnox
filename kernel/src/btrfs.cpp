@@ -10,7 +10,6 @@ import rbtree;
 #include "inode.h"
 #include "thread.h"
 #include "page_cache.h"
-#include "rwsem.h"
 #include "handle.h"
 #include <shared_mutex>
 #include <variant>
@@ -26,6 +25,7 @@ import vfs;
 import string;
 import timer;
 import volume;
+import rwsem;
 
 #include "btrfs.h"
 

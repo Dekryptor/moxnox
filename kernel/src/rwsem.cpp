@@ -1,11 +1,27 @@
+module;
+
 #include "kernel.h"
-#include "rwsem.h"
 #include "cpu_block.h"
 import objects;
 #include "thread.h"
 
+export module rwsem;
+
 import bsod;
 import list;
+
+export class rwsem {
+public:
+    void lock();
+    void unlock();
+    void lock_shared();
+    void unlock_shared();
+
+    unsigned int shared_count = 0;
+    bool exclusive = false;
+    list_entry wait_list_shared = { &wait_list_shared, &wait_list_shared };
+    list_entry wait_list_exclusive = { &wait_list_exclusive, &wait_list_exclusive };
+};
 
 static void inline disable_interrupts() {
     __asm __volatile("cli");
