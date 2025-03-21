@@ -94,10 +94,9 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         return;
     }
 
-    // FIXME - still mount but readonly
-    if (sb.compat_ro_flags & ~supported_compat_ro_flags) {
-        print("Unsupported compat_ro_flags {:x}\n", sb.compat_ro_flags & ~supported_compat_ro_flags);
-        return;
+    if (!readonly && sb.compat_ro_flags & ~supported_compat_ro_flags) {
+        print("Unsupported compat_ro_flags {:x}, mounting readonly\n", sb.compat_ro_flags & ~supported_compat_ro_flags);
+        readonly = true;
     }
 
     sb.incompat_flags |= BTRFS_INCOMPAT_FLAGS_SKINNY_METADATA;
@@ -247,7 +246,6 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     valid = true;
 
     // FIXME - set readonly if underlying disk is RO
-    // FIXME - set readonly if unrecognized compat_ro flag
 
     if (!readonly) {
         refcount++;
