@@ -10,6 +10,7 @@ export module semaphore;
 
 import print;
 import list;
+import bsod;
 
 using namespace std;
 
@@ -32,9 +33,11 @@ public:
     unsigned int maximum_count;
     unsigned int current_count;
     spinlock lock;
+    list_entry waiters = { &waiters, &waiters };
 };
 
 static_assert(is_sync_object<semaphore>);
+static_assert(is_sync_object2<semaphore>);
 static_assert(object_has_on_wake<semaphore>);
 
 export object_ref create_semaphore(unsigned int maximum_count) {
@@ -64,25 +67,18 @@ export void release_semaphore(semaphore& s) {
         lock_guard l1(sl);
         lock_guard l2(s.lock);
 
-        // signal waiting threads
+        // wake up one thread
 
         s.current_count--;
 
-        {
-            auto le = thread_list.next;
+        if (!is_list_empty(s.waiters)) {
+            auto& t = *(thread*)((uint8_t*)s.waiters.next - offsetof(thread, wait_le));
 
-            while (le != &thread_list) {
-                auto& thr = containing_record<thread>(le);
+            assert(t.status == thread_status::waiting_other);
 
-                if (thr.status == thread_status::waiting_object && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(&s)) {
-                    thr.status = thread_status::runnable;
-                    thr.waiting_for = nullopt;
-                    release_count++;
-                    break;
-                }
-
-                le = le->next;
-            }
+            remove_entry_list(t.wait_le);
+            t.status = thread_status::runnable;
+            release_count++;
         }
 
         if (release_count == 0)
