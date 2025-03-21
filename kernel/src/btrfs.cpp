@@ -2950,12 +2950,12 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
 
     auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
-    if (it.size < sizeof(free_space_info))
+    if (it.size < sizeof(btrfs_free_space_info))
         return nt_status::DISK_CORRUPT_ERROR;
 
-    auto& fsi = *(free_space_info*)data.data();
+    auto& fsi = *(btrfs_free_space_info*)data.data();
 
-    fsi.count = (uint32_t)((int32_t)fsi.count + delta);
+    fsi.extent_count = (uint32_t)((int32_t)fsi.extent_count + delta);
 
     // copy tree back into page cache and mark dirty
 

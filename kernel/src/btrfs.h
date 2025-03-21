@@ -435,12 +435,12 @@ struct metadata_change {
     list_entry le;
 };
 
-struct free_space_info {
-    uint32_t count;
+struct btrfs_free_space_info {
+    uint32_t extent_count;
     uint32_t flags;
 } __attribute__((packed));
 
-static_assert(sizeof(free_space_info) == 8);
+static_assert(sizeof(btrfs_free_space_info) == 8);
 
 struct block_group_item {
     uint64_t used;
