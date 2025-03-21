@@ -53,7 +53,7 @@ static const uint64_t supported_compat_ro_flags = BTRFS_FEATURE_COMPAT_RO_FREE_S
 static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
                                uint8_t level);
 static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
-                                      root& r, uint8_t level, const key& k,
+                                      root& r, uint8_t level, const btrfs_key& k,
                                       uint64_t address);
 
 static bool check_checksum(const btrfs_super_block& sb) {
@@ -148,19 +148,19 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     auto chunk_array = span(sb.sys_chunk_array.data(), sb.sys_chunk_array_size);
 
     while (!chunk_array.empty()) {
-        if (chunk_array.size() < sizeof(key)) {
+        if (chunk_array.size() < sizeof(btrfs_key)) {
             print("Chunk array truncated\n");
             return;
         }
 
-        auto& k = *(key*)chunk_array.data();
+        auto& k = *(btrfs_key*)chunk_array.data();
 
-        if (k.obj_type != key_type::CHUNK_ITEM) {
+        if (k.type != key_type::CHUNK_ITEM) {
             print("Unexpected item in chunk array\n");
             return;
         }
 
-        chunk_array = chunk_array.subspan(sizeof(key));
+        chunk_array = chunk_array.subspan(sizeof(btrfs_key));
 
         if (chunk_array.size() < offsetof(btrfs_chunk, stripe)) {
             print("Chunk array truncated\n");
@@ -354,7 +354,7 @@ bool btrfs_filesystem::load_chunks() {
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.obj_type != key_type::CHUNK_ITEM) {
+        if (k.type != key_type::CHUNK_ITEM) {
             if (!move_path_forward(p))
                 break;
 
@@ -704,8 +704,8 @@ static nt_status find_last_inode_number(btrfs_filesystem& fs, root& r) {
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.obj_type == key_type::INODE_ITEM) {
-            r.next_inode_number = k.obj_id + 1;
+        if (k.type == key_type::INODE_ITEM) {
+            r.next_inode_number = k.objectid + 1;
             return nt_status::SUCCESS;
         }
 
@@ -740,7 +740,7 @@ bool btrfs_filesystem::load_roots() {
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.obj_type != key_type::ROOT_ITEM) {
+        if (k.type != key_type::ROOT_ITEM) {
             if (!move_path_forward(p))
                 break;
 
@@ -764,7 +764,7 @@ bool btrfs_filesystem::load_roots() {
 
         auto& r = *rptr;
 
-        r.id = k.obj_id;
+        r.id = k.objectid;
         memcpy(&r.ri, data.data(), sizeof(btrfs_root_item));
         insert_tail_list(new_root_list, r.le);
 
@@ -883,12 +883,12 @@ bool btrfs_inode::load_inode() {
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.obj_id != inode)
+        if (k.objectid != inode)
             break;
 
         auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
-        switch (k.obj_type) {
+        switch (k.type) {
             case key_type::INODE_ITEM:
                 if (data.size() < sizeof(btrfs_inode_item)) {
                     print("INODE_ITEM was short\n");
@@ -1050,7 +1050,7 @@ root* btrfs_filesystem::find_root(uint64_t root_num) {
 
 static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
     auto& r = *fs.free_space_root;
-    auto search_key = key{c.offset, key_type::FREE_SPACE_INFO, c.ci.length};
+    auto search_key = btrfs_key{c.offset, key_type::FREE_SPACE_INFO, c.ci.length};
     btrfs_path p(fs.sb.nodesize);
 
     auto status = fs.find_item(r, search_key, p, false);
@@ -1085,16 +1085,16 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.obj_id >= c.offset + c.ci.length)
+        if (k.objectid >= c.offset + c.ci.length)
             break;
 
-        switch (k.obj_type) {
+        switch (k.type) {
             case key_type::FREE_SPACE_EXTENT: {
                 auto s = (chunk_space*)malloc(sizeof(chunk_space));
 
                 // FIXME - these should be in some sort of tree rather than a linked list
 
-                s->offset = k.obj_id;
+                s->offset = k.objectid;
                 s->length = k.offset;
                 insert_tail_list(c.space_list, s->le);
 
@@ -1400,7 +1400,7 @@ btrfs_path::~btrfs_path() {
     }
 }
 
-nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
+nt_status btrfs_filesystem::find_item(root& r, const btrfs_key& k, btrfs_path& p,
                                       bool cow) {
     uint64_t addr = r.ri.bytenr;
     uint8_t level = r.ri.level;
@@ -1562,7 +1562,7 @@ static nt_status split_internal_tree(btrfs_filesystem& fs, btrfs_path& p,
 }
 
 static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
-                                      root& r, uint8_t level, const key& k,
+                                      root& r, uint8_t level, const btrfs_key& k,
                                       uint64_t address) {
     nt_status status;
     size_t max_items = (fs.sb.nodesize - sizeof(btrfs_header)) / sizeof(btrfs_key_ptr);
@@ -1599,7 +1599,7 @@ static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
 static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
                                uint8_t level) {
     uint64_t new_addr;
-    key first_key;
+    btrfs_key first_key;
 
     auto new_tree = (uint8_t*)phys_address(allocate_folio(fs.node_folio_order));
     if (!new_tree)
@@ -1816,7 +1816,7 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
     return nt_status::SUCCESS;
 }
 
-static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
+static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
                              span<const uint8_t> data) {
     btrfs_path p(fs.sb.nodesize);
     nt_status status;
@@ -1977,7 +1977,7 @@ nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_filesystem::remove_item(root& r, const key& k) {
+nt_status btrfs_filesystem::remove_item(root& r, const btrfs_key& k) {
     btrfs_path p(sb.nodesize);
     nt_status status;
 
@@ -1994,7 +1994,7 @@ nt_status btrfs_filesystem::remove_item(root& r, const key& k) {
     return remove_item2(p);
 }
 
-nt_status btrfs_filesystem::change_key(btrfs_path& p, const key& k) {
+nt_status btrfs_filesystem::change_key(btrfs_path& p, const btrfs_key& k) {
     auto& th = *(btrfs_header*)p.data[0];
     auto* items = (btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header));
 
@@ -2108,7 +2108,7 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     auto& th = *(btrfs_header*)p.data[0];
     auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
-    if (items[p.slots[0]].key.obj_id != inode || items[p.slots[0]].key.obj_type != key_type::DIR_INDEX) {
+    if (items[p.slots[0]].key.objectid != inode || items[p.slots[0]].key.type != key_type::DIR_INDEX) {
         ret = 1;
         return nt_status::SUCCESS;
     }
@@ -2145,7 +2145,7 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
     auto& it = items[p.slots[0]];
     const auto& found_key = it.key;
 
-    if (found_key.obj_id != inode || found_key.obj_type != key_type::INODE_ITEM)
+    if (found_key.objectid != inode || found_key.type != key_type::INODE_ITEM)
         return nt_status::DISK_CORRUPT_ERROR;
 
     auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
@@ -2243,8 +2243,8 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
     if (!di)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    di->location.obj_id = new_inode;
-    di->location.obj_type = key_type::INODE_ITEM;
+    di->location.objectid = new_inode;
+    di->location.type = key_type::INODE_ITEM;
     di->location.offset = 0;
     di->transid = fs.sb.generation;
     di->data_len = 0;
@@ -2356,10 +2356,10 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
 
     auto hash = calc_crc32c(0xfffffffe, name);
 
-    optional<key> dir_item_key;
+    optional<btrfs_key> dir_item_key;
 
     do {
-        auto k = key{inode, key_type::DIR_ITEM, hash};
+        auto k = btrfs_key{inode, key_type::DIR_ITEM, hash};
         btrfs_path p(fs.sb.nodesize);
 
         auto status = fs.find_item(*r, k, p, false);
@@ -2415,10 +2415,10 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
 
         auto& v = *dir_item_key;
 
-        if (v.obj_type == key_type::ROOT_ITEM)
-            return fs.open_inode(v.obj_id, SUBVOL_ROOT_INODE, obj);
+        if (v.type == key_type::ROOT_ITEM)
+            return fs.open_inode(v.objectid, SUBVOL_ROOT_INODE, obj);
         else
-            return fs.open_inode(r->id, v.obj_id, obj);
+            return fs.open_inode(r->id, v.objectid, obj);
     } else {
         if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE)
             return nt_status::OBJECT_NAME_NOT_FOUND;
@@ -2777,7 +2777,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
     char name[256]; // FIXME - reference page cache directly
     size_t name_len;
-    key dir_index_key;
+    btrfs_key dir_index_key;
     enum btrfs_inode_type inode_type;
     uint64_t found_index;
     bool found = false;
@@ -2785,7 +2785,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     shared_lock lg(fs.trans_lock);
 
     do {
-        auto k = key{inode, key_type::DIR_INDEX, index};
+        auto k = btrfs_key{inode, key_type::DIR_INDEX, index};
         btrfs_path p(fs.sb.nodesize);
 
         auto status = fs.find_item(*r, k, p, false);
@@ -2801,7 +2801,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
         const auto& it = items[p.slots[0]];
         const auto& found_key = it.key;
 
-        if (found_key.obj_id != k.obj_id || found_key.obj_type != k.obj_type)
+        if (found_key.objectid != k.objectid || found_key.type != k.type)
             break;
 
         if (found_key.offset < index)
@@ -2899,7 +2899,7 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
     const auto& it = items[p.slots[0]];
     const auto& k = it.key;
 
-    if (k.obj_id != r.id || k.obj_type != key_type::ROOT_ITEM) {
+    if (k.objectid != r.id || k.type != key_type::ROOT_ITEM) {
         print("Root item not found\n");
         return nt_status::DISK_CORRUPT_ERROR;
     }
@@ -2945,7 +2945,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
     auto& it = items[p.slots[0]];
     const auto& found_key = it.key;
 
-    if (found_key.obj_id != c->offset || found_key.obj_type != key_type::FREE_SPACE_INFO)
+    if (found_key.objectid != c->offset || found_key.type != key_type::FREE_SPACE_INFO)
         return nt_status::INTERNAL_ERROR;
 
     auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
@@ -2987,13 +2987,13 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.obj_id > address) {
+        if (k.objectid > address) {
             if (!fs.move_path_back(p))
                 return nt_status::OBJECT_NAME_NOT_FOUND;
             continue;
         }
 
-        if (k.obj_id > address || k.obj_id + k.offset < address + length || k.obj_type != key_type::FREE_SPACE_EXTENT)
+        if (k.objectid > address || k.objectid + k.offset < address + length || k.type != key_type::FREE_SPACE_EXTENT)
             return nt_status::OBJECT_NAME_NOT_FOUND;
 
         break;
@@ -3005,7 +3005,7 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
     const auto& it = items[p.slots[0]];
     auto k = it.key;
 
-    if (k.obj_id == address && k.offset == length) {
+    if (k.objectid == address && k.offset == length) {
         // removing whole entry
         status = fs.remove_item2(p);
         if (!success(status))
@@ -3014,24 +3014,24 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
         status = adjust_free_space_info(fs, address, -1);
         if (!success(status))
             return status;
-    } else if (k.obj_id == address) {
+    } else if (k.objectid == address) {
         // removing start
-        status = fs.change_key(p, {k.obj_id + length, key_type::FREE_SPACE_EXTENT, k.offset - length});
+        status = fs.change_key(p, {k.objectid + length, key_type::FREE_SPACE_EXTENT, k.offset - length});
         if (!success(status))
             return status;
-    } else if (k.obj_id + k.offset == address + length) {
+    } else if (k.objectid + k.offset == address + length) {
         // removing end
-        status = fs.change_key(p, {k.obj_id, key_type::FREE_SPACE_EXTENT, k.offset - length});
+        status = fs.change_key(p, {k.objectid, key_type::FREE_SPACE_EXTENT, k.offset - length});
         if (!success(status))
             return status;
     } else {
         // removing middle
 
-        status = fs.change_key(p, {k.obj_id, key_type::FREE_SPACE_EXTENT, address - k.obj_id});
+        status = fs.change_key(p, {k.objectid, key_type::FREE_SPACE_EXTENT, address - k.objectid});
         if (!success(status))
             return status;
 
-        status = insert_item(fs, r, {address + length, key_type::FREE_SPACE_EXTENT, k.obj_id + k.offset - address - length},
+        status = insert_item(fs, r, {address + length, key_type::FREE_SPACE_EXTENT, k.objectid + k.offset - address - length},
                              span<const uint8_t>());
         if (!success(status))
             return status;
@@ -3059,8 +3059,8 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
     auto& th = *(btrfs_header*)p.data[0];
     auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
-    key next_k;
-    key prev_k{0, (enum key_type)0, 0};
+    btrfs_key next_k;
+    btrfs_key prev_k{0, (enum key_type)0, 0};
 
     if (p.slots[0] < th.nritems)
         next_k = items[p.slots[0]].key;
@@ -3071,17 +3071,17 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
         auto& th2 = *(btrfs_header*)p.data[0];
         auto items2 = span((btrfs_item*)((uint8_t*)&th2 + sizeof(btrfs_header)), th2.nritems);
 
-        if (items2[p.slots[0]].key.obj_type == key_type::FREE_SPACE_EXTENT)
+        if (items2[p.slots[0]].key.type == key_type::FREE_SPACE_EXTENT)
             prev_k = items2[p.slots[0]].key;
     }
 
-    if (prev_k.obj_type == key_type::FREE_SPACE_EXTENT &&
-        next_k.obj_type == key_type::FREE_SPACE_EXTENT &&
-        prev_k.obj_id + prev_k.offset == address &&
-        next_k.obj_id == address + length) {
+    if (prev_k.type == key_type::FREE_SPACE_EXTENT &&
+        next_k.type == key_type::FREE_SPACE_EXTENT &&
+        prev_k.objectid + prev_k.offset == address &&
+        next_k.objectid == address + length) {
         // bridge
 
-        status = fs.change_key(p, {prev_k.obj_id, key_type::FREE_SPACE_EXTENT, prev_k.offset + length + next_k.offset});
+        status = fs.change_key(p, {prev_k.objectid, key_type::FREE_SPACE_EXTENT, prev_k.offset + length + next_k.offset});
         if (!success(status))
             return status;
 
@@ -3096,14 +3096,14 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
         return nt_status::SUCCESS;
     }
 
-    if (prev_k.obj_type == key_type::FREE_SPACE_EXTENT &&
-        prev_k.obj_id + prev_k.offset == address) {
+    if (prev_k.type == key_type::FREE_SPACE_EXTENT &&
+        prev_k.objectid + prev_k.offset == address) {
         // extend previous
-        return fs.change_key(p, {prev_k.obj_id, key_type::FREE_SPACE_EXTENT, prev_k.offset + length});
+        return fs.change_key(p, {prev_k.objectid, key_type::FREE_SPACE_EXTENT, prev_k.offset + length});
     }
 
-    if (next_k.obj_type == key_type::FREE_SPACE_EXTENT &&
-        next_k.obj_id == address + length) {
+    if (next_k.type == key_type::FREE_SPACE_EXTENT &&
+        next_k.objectid == address + length) {
         // extend next
 
         if (!fs.move_path_forward(p))
@@ -3128,7 +3128,7 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
 
 static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delta) {
     btrfs_path p(fs.sb.nodesize);
-    key search_key = {c.offset, key_type::BLOCK_GROUP_ITEM, c.ci.length};
+    btrfs_key search_key = {c.offset, key_type::BLOCK_GROUP_ITEM, c.ci.length};
 
     auto status = fs.find_item(*fs.extent_root, search_key, p, true);
     if (!success(status))

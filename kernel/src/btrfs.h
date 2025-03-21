@@ -184,20 +184,20 @@ enum class key_type : uint8_t {
     STRING_ITEM = 0xfd
 };
 
-struct key {
-    uint64_t obj_id;
-    key_type obj_type;
+struct btrfs_key {
+    uint64_t objectid;
+    key_type type;
     uint64_t offset;
 
-    bool operator==(const key& k) const = default;
+    bool operator==(const btrfs_key& k) const = default;
 
-    std::strong_ordering operator<=>(const key& k) const {
-        auto cmp = obj_id <=> k.obj_id;
+    std::strong_ordering operator<=>(const btrfs_key& k) const {
+        auto cmp = objectid <=> k.objectid;
 
         if (cmp != std::strong_ordering::equal)
             return cmp;
 
-        cmp = obj_type <=> k.obj_type;
+        cmp = type <=> k.type;
 
         if (cmp != std::strong_ordering::equal)
             return cmp;
@@ -206,7 +206,7 @@ struct key {
     }
 } __attribute__((packed));
 
-static_assert(sizeof(key) == 17);
+static_assert(sizeof(btrfs_key) == 17);
 
 struct btrfs_stripe {
     uint64_t devid;
@@ -244,7 +244,7 @@ static_assert(sizeof(btrfs_header) == 101);
 static const uint64_t HEADER_FLAG_WRITTEN = 1;
 
 struct btrfs_item {
-    key key;
+    btrfs_key key;
     uint32_t offset;
     uint32_t size;
 } __attribute__((packed));
@@ -252,7 +252,7 @@ struct btrfs_item {
 static_assert(sizeof(btrfs_item) == 25);
 
 struct btrfs_key_ptr {
-    key key;
+    btrfs_key key;
     uint64_t blockptr;
     uint64_t generation;
 } __attribute__((packed));
@@ -296,7 +296,7 @@ struct btrfs_root_item {
     uint64_t last_snapshot;
     uint64_t flags;
     uint32_t refs;
-    key drop_progress;
+    btrfs_key drop_progress;
     uint8_t drop_level;
     uint8_t level;
     uint64_t generation_v2;
@@ -329,7 +329,7 @@ enum class btrfs_inode_type : uint8_t {
 };
 
 struct btrfs_dir_item {
-    key location;
+    btrfs_key location;
     uint64_t transid;
     uint16_t data_len;
     uint16_t name_len;
@@ -529,10 +529,10 @@ public:
                    uint32_t create_options) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
-    nt_status remove_item(root& r, const key& k);
+    nt_status remove_item(root& r, const btrfs_key& k);
     nt_status remove_item2(btrfs_path& p);
-    nt_status change_key(btrfs_path& p, const key& k);
-    nt_status find_item(root& r, const key& k, btrfs_path& p, bool cow);
+    nt_status change_key(btrfs_path& p, const btrfs_key& k);
+    nt_status find_item(root& r, const btrfs_key& k, btrfs_path& p, bool cow);
     bool move_path_back(btrfs_path& p);
     bool move_path_forward(btrfs_path& p);
     root* find_root(uint64_t root_num);
