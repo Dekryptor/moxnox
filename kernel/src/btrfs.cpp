@@ -162,13 +162,13 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
         chunk_array = chunk_array.subspan(sizeof(key));
 
-        if (chunk_array.size() < offsetof(chunk_item, stripes)) {
+        if (chunk_array.size() < offsetof(btrfs_chunk, stripe)) {
             print("Chunk array truncated\n");
             return;
         }
 
-        auto& ci = *(chunk_item*)chunk_array.data();
-        size_t chunk_size = offsetof(chunk_item, stripes) + (sizeof(chunk_item_stripe) * ci.num_stripes);
+        auto& ci = *(btrfs_chunk*)chunk_array.data();
+        size_t chunk_size = offsetof(btrfs_chunk, stripe) + (sizeof(btrfs_stripe) * ci.num_stripes);
 
         if (chunk_array.size() < chunk_size) {
             print("Chunk array truncated\n");
@@ -363,14 +363,14 @@ bool btrfs_filesystem::load_chunks() {
 
         auto data = span((const uint8_t*)&th + sizeof(tree_header) + it.offset, it.size);
 
-        if (data.size() < offsetof(chunk_item, stripes)) {
+        if (data.size() < offsetof(btrfs_chunk, stripe)) {
             print("Chunk item truncated\n");
             fail = true;
             break;
         }
 
-        auto& ci = *(chunk_item*)data.data();
-        size_t chunk_size = offsetof(chunk_item, stripes) + (sizeof(chunk_item_stripe) * ci.num_stripes);
+        auto& ci = *(btrfs_chunk*)data.data();
+        size_t chunk_size = offsetof(btrfs_chunk, stripe) + (sizeof(btrfs_stripe) * ci.num_stripes);
 
         if (data.size() < chunk_size) {
             print("Chunk array truncated\n");
@@ -419,7 +419,7 @@ static chunk* find_chunk(const btrfs_filesystem& fs, uint64_t address) {
     for (auto le = fs.chunk_list.next; le != &fs.chunk_list; le = le->next) {
         auto& c = containing_record<chunk>(le);
 
-        if (address >= c.offset && address < c.offset + c.ci.size)
+        if (address >= c.offset && address < c.offset + c.ci.length)
             return &c;
     }
 
@@ -459,10 +459,10 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     // FIXME - choose stripe and device
     // FIXME - handle missing devices
 
-    uint64_t disk_addr = addr - c.offset + c.ci.stripes[0].offset;
+    uint64_t disk_addr = addr - c.offset + c.ci.stripe[0].offset;
 
-    if (addr + (num_pages << PAGE_SHIFT) > c.offset + c.ci.size)
-        num_pages = (c.offset + c.ci.size - addr) >> PAGE_SHIFT;
+    if (addr + (num_pages << PAGE_SHIFT) > c.offset + c.ci.length)
+        num_pages = (c.offset + c.ci.length - addr) >> PAGE_SHIFT;
 
     auto pages_read = vol->cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
                                                         num_pages);
@@ -568,7 +568,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
     for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
         auto ent = first_page;
-        uint64_t disk_addr = addr - c.offset + c.ci.stripes[i].offset;
+        uint64_t disk_addr = addr - c.offset + c.ci.stripe[i].offset;
 
         for (unsigned j = 0; j < pages_per_tree; j++) {
             assert(ent->tree.key == (addr >> PAGE_SHIFT) + j);
@@ -626,7 +626,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
     auto& c = *pc;
     uint64_t pages_written = 0;
 
-    while (addr < c.ci.size) {
+    while (addr < c.ci.length) {
         if (!flush_tree(c, addr))
             break;
 
@@ -642,7 +642,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     uint64_t pages_to_flush = pages_written;
     for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
-        uint64_t disk_addr = (page_num << PAGE_SHIFT) - c.offset + c.ci.stripes[i].offset;
+        uint64_t disk_addr = (page_num << PAGE_SHIFT) - c.offset + c.ci.stripe[i].offset;
         uint64_t first_page = disk_addr >> PAGE_SHIFT;
 
         while (true) {
@@ -1050,7 +1050,7 @@ root* btrfs_filesystem::find_root(uint64_t root_num) {
 
 static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
     auto& r = *fs.free_space_root;
-    auto search_key = key{c.offset, key_type::FREE_SPACE_INFO, c.ci.size};
+    auto search_key = key{c.offset, key_type::FREE_SPACE_INFO, c.ci.length};
     btrfs_path p(fs.sb.nodesize);
 
     auto status = fs.find_item(r, search_key, p, false);
@@ -1085,7 +1085,7 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
         const auto& it = items[p.slots[0]];
         const auto& k = it.k;
 
-        if (k.obj_id >= c.offset + c.ci.size)
+        if (k.obj_id >= c.offset + c.ci.length)
             break;
 
         switch (k.obj_type) {
@@ -3128,7 +3128,7 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
 
 static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delta) {
     btrfs_path p(fs.sb.nodesize);
-    key search_key = {c.offset, key_type::BLOCK_GROUP_ITEM, c.ci.size};
+    key search_key = {c.offset, key_type::BLOCK_GROUP_ITEM, c.ci.length};
 
     auto status = fs.find_item(*fs.extent_root, search_key, p, true);
     if (!success(status))

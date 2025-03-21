@@ -198,23 +198,23 @@ struct key {
 
 static_assert(sizeof(key) == 17);
 
-struct chunk_item_stripe {
-    uint64_t dev_id;
+struct btrfs_stripe {
+    uint64_t devid;
     uint64_t offset;
     btrfs_uuid dev_uuid;
 } __attribute__((packed));
 
-struct chunk_item {
-    uint64_t size;
-    uint64_t root_id;
-    uint64_t stripe_length;
+struct btrfs_chunk {
+    uint64_t length;
+    uint64_t owner;
+    uint64_t stripe_len;
     uint64_t type;
-    uint32_t opt_io_alignment;
-    uint32_t opt_io_width;
+    uint32_t io_align;
+    uint32_t io_width;
     uint32_t sector_size;
     uint16_t num_stripes;
     uint16_t sub_stripes;
-    chunk_item_stripe stripes[1];
+    btrfs_stripe stripe[1];
 } __attribute__((packed));
 
 struct tree_header {
@@ -383,7 +383,7 @@ struct chunk {
     list_entry space_pending_le;
     int64_t delta;
     uint64_t last_allocation_end = 0;
-    chunk_item ci; // must be last item
+    btrfs_chunk ci; // must be last item
 };
 
 struct root {
