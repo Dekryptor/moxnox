@@ -233,21 +233,21 @@ static_assert(sizeof(btrfs_header) == 101);
 
 static const uint64_t HEADER_FLAG_WRITTEN = 1;
 
-struct leaf_node {
-    key k;
+struct btrfs_item {
+    key key;
     uint32_t offset;
     uint32_t size;
 } __attribute__((packed));
 
-static_assert(sizeof(leaf_node) == 25);
+static_assert(sizeof(btrfs_item) == 25);
 
-struct internal_node {
-    key k;
-    uint64_t address;
+struct btrfs_key_ptr {
+    key key;
+    uint64_t blockptr;
     uint64_t generation;
 } __attribute__((packed));
 
-static_assert(sizeof(internal_node) == 33);
+static_assert(sizeof(btrfs_key_ptr) == 33);
 
 struct btrfs_time {
     uint64_t seconds;
