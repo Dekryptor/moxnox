@@ -205,8 +205,8 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
         auto& r = *rptr;
         r.id = BTRFS_ROOT_TREE_OBJECTID;
-        r.ri.block_number = sb.root;
-        r.ri.root_level = sb.root_level;
+        r.ri.bytenr = sb.root;
+        r.ri.level = sb.root_level;
 
         root_root = &r;
         insert_tail_list(root_list, r.le);
@@ -221,8 +221,8 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
         auto& r = *rptr;
         r.id = BTRFS_CHUNK_TREE_OBJECTID;
-        r.ri.block_number = sb.chunk_root;
-        r.ri.root_level = sb.chunk_root_level;
+        r.ri.bytenr = sb.chunk_root;
+        r.ri.level = sb.chunk_root_level;
 
         chunk_root = &r;
         insert_tail_list(root_list, r.le);
@@ -749,7 +749,7 @@ bool btrfs_filesystem::load_roots() {
 
         auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
-        if (data.size() < sizeof(root_item)) {
+        if (data.size() < sizeof(btrfs_root_item)) {
             print("Root item truncated\n");
             fail = true;
             break;
@@ -765,7 +765,7 @@ bool btrfs_filesystem::load_roots() {
         auto& r = *rptr;
 
         r.id = k.obj_id;
-        memcpy(&r.ri, data.data(), sizeof(root_item));
+        memcpy(&r.ri, data.data(), sizeof(btrfs_root_item));
         insert_tail_list(new_root_list, r.le);
 
         if (r.id == BTRFS_EXTENT_TREE_OBJECTID)
@@ -1358,9 +1358,9 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
                 return nt_status::INTERNAL_ERROR;
 
             if (i == BTRFS_MAX_LEVEL - 1 || !p.data[i + 1]) { // top
-                r.ri.block_number = addr;
+                r.ri.bytenr = addr;
                 r.ri.generation = fs.sb.generation;
-                r.ri.generation2 = fs.sb.generation;
+                r.ri.generation_v2 = fs.sb.generation;
 
                 if (r.id != BTRFS_ROOT_TREE_OBJECTID && !r.is_dirty) {
                     insert_tail_list(fs.dirty_root_list, r.dirty_le);
@@ -1402,8 +1402,8 @@ btrfs_path::~btrfs_path() {
 
 nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
                                       bool cow) {
-    uint64_t addr = r.ri.block_number;
-    uint8_t level = r.ri.root_level;
+    uint64_t addr = r.ri.bytenr;
+    uint8_t level = r.ri.level;
     nt_status status;
 
     // FIXME - error if level >= BTRFS_MAX_LEVEL
@@ -1651,10 +1651,10 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     p.data[level] = new_tree;
     p.slots[level] = 0;
 
-    r.ri.block_number = new_addr;
-    r.ri.root_level = level;
+    r.ri.bytenr = new_addr;
+    r.ri.level = level;
     r.ri.generation = fs.sb.generation;
-    r.ri.generation2 = fs.sb.generation;
+    r.ri.generation_v2 = fs.sb.generation;
 
     if (r.id != BTRFS_ROOT_TREE_OBJECTID && !r.is_dirty) {
         insert_tail_list(fs.dirty_root_list, r.dirty_le);
@@ -2906,14 +2906,14 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
 
     auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
-    if (data.size() < sizeof(root_item)) {
+    if (data.size() < sizeof(btrfs_root_item)) {
         print("Root item truncated\n");
         return nt_status::DISK_CORRUPT_ERROR;
     }
 
-    auto& ri = *(root_item*)data.data();
+    auto& ri = *(btrfs_root_item*)data.data();
 
-    memcpy(&ri, &r.ri, sizeof(root_item));
+    memcpy(&ri, &r.ri, sizeof(btrfs_root_item));
 
     // copy tree back into page cache and mark dirty
 
@@ -3258,18 +3258,18 @@ static void update_superblock_backup(btrfs_filesystem& fs) {
     fs.sb.super_roots[0].chunk_root = fs.sb.chunk_root;
     fs.sb.super_roots[0].chunk_root_gen = fs.sb.chunk_root_generation;
     fs.sb.super_roots[0].chunk_root_level = fs.sb.chunk_root_level;
-    fs.sb.super_roots[0].extent_root = fs.extent_root->ri.block_number;
+    fs.sb.super_roots[0].extent_root = fs.extent_root->ri.bytenr;
     fs.sb.super_roots[0].extent_root_gen = fs.extent_root->ri.generation;
-    fs.sb.super_roots[0].extent_root_level = fs.extent_root->ri.root_level;
-    fs.sb.super_roots[0].fs_root = fs.fs_root->ri.block_number;
+    fs.sb.super_roots[0].extent_root_level = fs.extent_root->ri.level;
+    fs.sb.super_roots[0].fs_root = fs.fs_root->ri.bytenr;
     fs.sb.super_roots[0].fs_root_gen = fs.fs_root->ri.generation;
-    fs.sb.super_roots[0].fs_root_level = fs.fs_root->ri.root_level;
-    fs.sb.super_roots[0].dev_root = fs.dev_root->ri.block_number;
+    fs.sb.super_roots[0].fs_root_level = fs.fs_root->ri.level;
+    fs.sb.super_roots[0].dev_root = fs.dev_root->ri.bytenr;
     fs.sb.super_roots[0].dev_root_gen = fs.dev_root->ri.generation;
-    fs.sb.super_roots[0].dev_root_level = fs.dev_root->ri.root_level;
-    fs.sb.super_roots[0].csum_root = fs.csum_root->ri.block_number;
+    fs.sb.super_roots[0].dev_root_level = fs.dev_root->ri.level;
+    fs.sb.super_roots[0].csum_root = fs.csum_root->ri.bytenr;
     fs.sb.super_roots[0].csum_root_gen = fs.csum_root->ri.generation;
-    fs.sb.super_roots[0].csum_root_level = fs.csum_root->ri.root_level;
+    fs.sb.super_roots[0].csum_root_level = fs.csum_root->ri.level;
     fs.sb.super_roots[0].total_bytes = fs.sb.total_bytes;
     fs.sb.super_roots[0].bytes_used = fs.sb.bytes_used;
     fs.sb.super_roots[0].num_devices = fs.sb.num_devices;
@@ -3349,8 +3349,8 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
 
     // FIXME - send SATA command to ensure cache flushed
 
-    sb.root_level = root_root->ri.root_level;
-    sb.root = root_root->ri.block_number;
+    sb.root_level = root_root->ri.level;
+    sb.root = root_root->ri.bytenr;
 
     write_superblocks(*this);
 

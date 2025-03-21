@@ -276,20 +276,20 @@ struct btrfs_inode_item {
 
 static_assert(sizeof(btrfs_inode_item) == 160);
 
-struct root_item {
+struct btrfs_root_item {
     btrfs_inode_item inode;
     uint64_t generation;
-    uint64_t objid;
-    uint64_t block_number;
+    uint64_t root_dirid;
+    uint64_t bytenr;
     uint64_t byte_limit;
     uint64_t bytes_used;
-    uint64_t last_snapshot_generation;
+    uint64_t last_snapshot;
     uint64_t flags;
-    uint32_t num_references;
+    uint32_t refs;
     key drop_progress;
     uint8_t drop_level;
-    uint8_t root_level;
-    uint64_t generation2;
+    uint8_t level;
+    uint64_t generation_v2;
     btrfs_uuid uuid;
     btrfs_uuid parent_uuid;
     btrfs_uuid received_uuid;
@@ -304,7 +304,7 @@ struct root_item {
     uint64_t reserved[8];
 } __attribute__((packed));
 
-static_assert(sizeof(root_item) == 439);
+static_assert(sizeof(btrfs_root_item) == 439);
 
 enum class btrfs_inode_type : uint8_t {
     unknown = 0,
@@ -389,7 +389,7 @@ struct chunk {
 struct root {
     list_entry le;
     uint64_t id;
-    root_item ri;
+    btrfs_root_item ri;
     std::atomic<uint64_t> next_inode_number = 0;
     bool is_dirty = false;
     list_entry dirty_le;
