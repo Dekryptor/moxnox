@@ -104,6 +104,7 @@ target_compile_options(mkdir PRIVATE -Wall -Wextra -Wno-address-of-packed-member
 target_link_options(mkdir PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(mkdir shelllib)
-target_link_libraries(mkdir ntdll ntdllcrt)
+target_link_libraries(mkdir format)
+target_link_libraries(mkdir -lntdll ntdllcrt)
 
 install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX})

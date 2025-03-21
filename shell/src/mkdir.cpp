@@ -5,6 +5,7 @@
 #include <string.h>
 
 import shelllib;
+import print;
 
 using namespace std;
 
@@ -82,22 +83,6 @@ static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv) {
     }
 }
 
-void print(u16string_view sv) {
-    auto len = utf16_to_utf8_len(sv);
-    if (len == 0)
-        return;
-
-    auto s = (char*)RtlAllocateHeap(GetProcessHeap(), 0, len);
-    if (!s)
-        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-    utf16_to_utf8(span(s, len), sv);
-
-    print(string_view(s, len));
-
-    RtlFreeHeap(GetProcessHeap(), 0, s);
-}
-
 extern "C"
 void* malloc(size_t size) {
     return RtlAllocateHeap(GetProcessHeap(), 0, size);
@@ -128,26 +113,16 @@ static void mkdir(u16string_view fn) {
                           0, FILE_CREATE, FILE_DIRECTORY_FILE, nullptr, 0);
 
     if (status == nt_status::OBJECT_NAME_COLLISION) {
-        print("mkdir: "); // FIXME - stderr
-        print(fn);
-        print(": File exists\n");
+        print("mkdir: {}: File exists\n", fn); // FIXME - stderr
         return;
     } else if (status == nt_status::OBJECT_PATH_NOT_FOUND) {
-        print("mkdir: "); // FIXME - stderr
-        print(fn);
-        print(": Path not found\n");
+        print("mkdir: {}:: Path not found\n", fn); // FIXME - stderr
         return;
     } else if (status == nt_status::OBJECT_NAME_INVALID) {
-        print("mkdir: "); // FIXME - stderr
-        print(fn);
-        print(": Invalid name\n");
+        print("mkdir: {}: Invalid name\n", fn); // FIXME - stderr
         return;
     } else if (!success(status)) {
-        print("mkdir: "); // FIXME - stderr
-        print(fn);
-        print(": NtCreateFile returned ");
-        print_hex((uint32_t)status, 8);
-        print("\n");
+        print("mkdir: {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
         return;
     }
 
