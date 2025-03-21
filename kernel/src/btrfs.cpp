@@ -77,7 +77,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         return;
     }
 
-    if (sb.magic != btrfs_magic)
+    if (sb.magic != BTRFS_MAGIC)
         return;
 
     // FIXME - if checksum fails, try other superblock addresses

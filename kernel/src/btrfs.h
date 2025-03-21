@@ -4,7 +4,7 @@
 
 using btrfs_uuid = std::array<uint8_t, 16>;
 
-static const uint64_t btrfs_magic = 0x4d5f53665248425f;
+static constexpr uint64_t BTRFS_MAGIC = 0x4d5f53665248425f;
 
 static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_MIXED_BACKREF = 1 << 0;
 static constexpr uint64_t BTRFS_FEATURE_INCOMPAT_DEFAULT_SUBVOL = 1 << 1;
