@@ -26,8 +26,6 @@ using namespace std;
 
 uint16_t last_tid = 0; // FIXME - too small?
 
-static const uint16_t kernel_CS = 0x8;
-static const uint16_t kernel_DS = 0x10;
 static const uint64_t time_slice = 50; // ticks
 
 list_entry thread_list = { &thread_list, &thread_list };
@@ -40,86 +38,6 @@ volatile uint64_t sync_lock_val = 0;
 #ifdef DEBUG
 uint32_t sync_lock_cpu = 0xffffffff;
 #endif
-
-static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
-    func(param1, param2);
-
-    get_current_thread()->terminate();
-}
-
-object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
-    uint16_t tid;
-
-    auto tptr = new (align_val_t(16)) thread;
-    if (!tptr) {
-        print("new failed\n");
-        return {};
-    }
-
-    auto& t = *tptr;
-
-    // FIXME - spinlock for last_tid (or use atomics)
-    if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-        print("Thread limit reached.\n");
-        delete &t;
-        return {};
-    }
-
-    last_tid++;
-    tid = last_tid;
-
-    t.tid = tid;
-
-    t.kernel_stack = allocate_stack();
-    if (!t.kernel_stack) {
-        print("allocate_stack failed\n");
-        delete &t;
-        return {};
-    }
-
-    memset(&t.context, 0, sizeof(t.context));
-    t.context.Rip = (uintptr_t)kernel_thread_start;
-    t.context.Rcx = (uintptr_t)func;
-    t.context.Rdx = (uintptr_t)param1;
-    t.context.R8 = (uintptr_t)param2;
-
-    // 0x20 because of MS ABI, minus 8 for return address
-    t.context.Rsp = (uintptr_t)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x28);
-    *(uint64_t*)t.context.Rsp = 0;
-
-    t.context.EFlags = 0x202; // IF, reserved flag
-    t.context.SegCs = kernel_CS;
-    t.context.SegDs = kernel_DS;
-    t.context.SegEs = kernel_DS;
-    t.context.SegFs = kernel_DS;
-    t.context.SegGs = kernel_DS;
-    t.context.SegSs = kernel_DS;
-    t.kernel_mode = true;
-    t.teb = nullptr;
-
-    t.status = thread_status::runnable;
-
-    {
-        sync_lock sl;
-        lock_guard lock(sl);
-        insert_tail_list(thread_list, t.le);
-    }
-
-    t.acquire(); // for active thread list
-
-    return t;
-}
-
-object_ref add_kernel_thread(void (*func)(void*), void* param) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-function-type"
-    return add_kernel_thread((void(*)(void*, void*))func, param, nullptr);
-#pragma GCC diagnostic pop
-}
-
-object_ref add_kernel_thread(void (*func)()) {
-    return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
-}
 
 static thread* pick_runnable_thread(thread* current) {
     list_entry* le;

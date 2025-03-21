@@ -126,9 +126,6 @@ class object_ref;
 
 // scheduler.cpp
 extern list_entry thread_list, thread_list_dead;
-object_ref add_kernel_thread(void (*func)());
-object_ref add_kernel_thread(void (*func)(void*), void* param);
-object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);
 extern "C" void scheduler();
 nt_status wait_for_object(object& obj, bool interruptible);
 bool init_cpu_block(unsigned int cpu_no);
@@ -151,6 +148,9 @@ uint64_t get_image_size(void* image);
 
 // thread.cpp
 thread* get_current_thread();
+object_ref add_kernel_thread(void (*func)());
+object_ref add_kernel_thread(void (*func)(void*), void* param);
+object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);
 
 template<typename T>
 concept cmdline_func = std::invocable<T, std::string_view> &&
