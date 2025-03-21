@@ -47,7 +47,7 @@ void rwsem::lock() { // exclusive
     auto& t = *get_cpu_block()->current_thread;
 
     insert_tail_list(wait_list_exclusive, t.wait_le);
-    t.status = thread_status::waiting_other;
+    t.status = thread_status::waiting;
     t.current_cpu = 0xffffffff;
     t.wait_interruptible = false;
     yield();
@@ -56,7 +56,7 @@ void rwsem::lock() { // exclusive
 static void wake_up_exclusive_thread(rwsem& sem) {
     auto& t = *(thread*)((uint8_t*)sem.wait_list_exclusive.next - offsetof(thread, wait_le));
 
-    assert(t.status == thread_status::waiting_other);
+    assert(t.status == thread_status::waiting);
 
     remove_entry_list(t.wait_le);
     t.status = thread_status::runnable;
@@ -82,7 +82,7 @@ void rwsem::unlock() { // exclusive
     while (!is_list_empty(wait_list_shared)) {
         auto& t = *(thread*)((uint8_t*)wait_list_shared.next - offsetof(thread, wait_le));
 
-        assert(t.status == thread_status::waiting_other);
+        assert(t.status == thread_status::waiting);
 
         remove_entry_list(t.wait_le);
         t.status = thread_status::runnable;
@@ -108,7 +108,7 @@ void rwsem::lock_shared() {
     auto& t = *get_cpu_block()->current_thread;
 
     insert_tail_list(wait_list_shared, t.wait_le);
-    t.status = thread_status::waiting_other;
+    t.status = thread_status::waiting;
     t.current_cpu = 0xffffffff;
     t.wait_interruptible = false;
     yield();

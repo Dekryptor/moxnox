@@ -356,7 +356,7 @@ nt_status wait_for_object(object& obj, bool interruptible) {
                 unreachable();
         });
 
-        current_thread->status = thread_status::waiting_other;
+        current_thread->status = thread_status::waiting;
         current_thread->current_cpu = 0xffffffff;
         current_thread->wait_interruptible = interruptible;
     }

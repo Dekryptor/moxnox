@@ -141,7 +141,7 @@ void timer_expired(timer* tptr) {
     while (!is_list_empty(t.waiters)) {
         auto& thr = *(thread*)((uint8_t*)t.waiters.next - offsetof(thread, wait_le));
 
-        assert(thr.status == thread_status::waiting_other);
+        assert(thr.status == thread_status::waiting);
 
         remove_entry_list(thr.wait_le);
         thr.status = thread_status::runnable;

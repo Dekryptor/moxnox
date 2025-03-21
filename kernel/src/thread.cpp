@@ -74,7 +74,7 @@ void thread::terminate() {
         while (!is_list_empty(waiters)) {
             auto& t = *(thread*)((uint8_t*)waiters.next - offsetof(thread, wait_le));
 
-            assert(t.status == thread_status::waiting_other);
+            assert(t.status == thread_status::waiting);
 
             remove_entry_list(t.wait_le);
             t.status = thread_status::runnable;
@@ -489,7 +489,7 @@ void thread::send_signal(uint64_t code) {
         sync_lock sl;
         lock_guard l(sl);
 
-        if (status == thread_status::waiting_other && wait_interruptible) {
+        if (status == thread_status::waiting && wait_interruptible) {
             status = thread_status::runnable;
             remove_entry_list(wait_le);
         }

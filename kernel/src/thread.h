@@ -35,7 +35,7 @@ static_assert(offsetof(AMD64_CONTEXT, FltSave) == CONTEXT_FXSAVE); // must be al
 enum class thread_status {
     runnable,
     running,
-    waiting_other,
+    waiting,
     dead
 };
 
