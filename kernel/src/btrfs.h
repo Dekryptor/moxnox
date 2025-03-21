@@ -345,26 +345,26 @@ enum class btrfs_extent_type : uint8_t {
     prealloc = 2
 };
 
-struct extent_data {
+struct btrfs_file_extent_item {
     uint64_t generation;
-    uint64_t decoded_size;
+    uint64_t ram_bytes;
     uint8_t compression;
     uint8_t encryption;
-    uint16_t encoding;
+    uint16_t other_encoding;
     enum btrfs_extent_type type;
     uint8_t data[1];
 } __attribute__((packed));
 
-static_assert(offsetof(extent_data, data) == 21);
+static_assert(offsetof(btrfs_file_extent_item, data) == 21);
 
-struct extent_data2 {
-    uint64_t address;
-    uint64_t size;
+struct btrfs_file_extent_item2 {
+    uint64_t disk_bytenr;
+    uint64_t disk_num_bytes;
     uint64_t offset;
     uint64_t num_bytes;
 };
 
-static_assert(sizeof(extent_data2) == 32);
+static_assert(sizeof(btrfs_file_extent_item2) == 32);
 
 struct btrfs_inode_ref {
     uint64_t index;
@@ -408,7 +408,7 @@ struct root {
 struct inode_extent {
     list_entry le;
     uint64_t offset;
-    extent_data ed;
+    btrfs_file_extent_item ed;
 };
 
 static constexpr uint64_t BTRFS_EXTENT_FLAG_DATA = 1 << 0;

@@ -900,9 +900,9 @@ bool btrfs_inode::load_inode() {
             break;
 
             case key_type::EXTENT_DATA: {
-                auto& ed = *(extent_data*)data.data();
+                auto& ed = *(btrfs_file_extent_item*)data.data();
 
-                if (data.size() < offsetof(extent_data, data)) {
+                if (data.size() < offsetof(btrfs_file_extent_item, data)) {
                     print("EXTENT_DATA was short\n");
                     break;
                 }
@@ -917,18 +917,18 @@ bool btrfs_inode::load_inode() {
                     break;
                 }
 
-                if (ed.encoding != 0) {
+                if (ed.other_encoding != 0) {
                     print("Other encodings not supported\n");
                     break;
                 }
 
                 if (ed.type == btrfs_extent_type::regular || ed.type == btrfs_extent_type::prealloc) {
-                    if (data.size() < offsetof(extent_data, data) + sizeof(extent_data2)) {
+                    if (data.size() < offsetof(btrfs_file_extent_item, data) + sizeof(btrfs_file_extent_item2)) {
                         print("EXTENT_DATA was short\n");
                         break;
                     }
                 } else if (ed.type == btrfs_extent_type::inline_extent) {
-                    if (data.size() < offsetof(extent_data, data) + ed.decoded_size) {
+                    if (data.size() < offsetof(btrfs_file_extent_item, data) + ed.ram_bytes) {
                         print("EXTENT_DATA was short\n");
                         break;
                     }
@@ -938,9 +938,9 @@ bool btrfs_inode::load_inode() {
                 }
 
                 if (ed.type == btrfs_extent_type::regular) {
-                    auto& ed2 = *(extent_data2*)ed.data;
+                    auto& ed2 = *(btrfs_file_extent_item2*)ed.data;
 
-                    if (ed2.address == 0 || ed2.size == 0) // skip sparse extents
+                    if (ed2.disk_bytenr == 0 || ed2.disk_num_bytes == 0) // skip sparse extents
                         break;
                 }
 
@@ -2594,10 +2594,10 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
         return 0;
     }
 
-    if (page_num >= bytes_to_pages(ie.ed.decoded_size))
+    if (page_num >= bytes_to_pages(ie.ed.ram_bytes))
         return 0;
 
-    num_pages = min(num_pages, (uint64_t)bytes_to_pages(ie.ed.decoded_size) - page_num);
+    num_pages = min(num_pages, (uint64_t)bytes_to_pages(ie.ed.ram_bytes) - page_num);
 
     if (num_pages == 0)
         return 0;
@@ -2617,7 +2617,7 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
         auto dest_va = get_phys_address(*dest_p);
 
         uint64_t offset = (page_num + i) << PAGE_SHIFT;
-        auto to_copy = min((uint64_t)PAGE_SIZE, ie.ed.decoded_size - offset);
+        auto to_copy = min((uint64_t)PAGE_SIZE, ie.ed.ram_bytes - offset);
 
         memcpy(dest_va, ie.ed.data + offset, to_copy);
 
@@ -2634,9 +2634,9 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
         return 0;
     }
 
-    const auto& ed2 = *(extent_data2*)ie.ed.data;
+    const auto& ed2 = *(btrfs_file_extent_item2*)ie.ed.data;
 
-    uint64_t addr = ed2.address + ed2.offset + (page_num << PAGE_SHIFT) - ie.offset;
+    uint64_t addr = ed2.disk_bytenr + ed2.offset + (page_num << PAGE_SHIFT) - ie.offset;
 
     num_pages = min(num_pages, ed2.num_bytes >> PAGE_SHIFT);
 
@@ -2692,7 +2692,7 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     while (le != &extents) {
         auto& ie = containing_record<inode_extent>(le);
 
-        if (ie.offset + ie.ed.decoded_size < page_num << PAGE_SHIFT) {
+        if (ie.offset + ie.ed.ram_bytes < page_num << PAGE_SHIFT) {
             le = le->next;
             continue;
         }
@@ -2710,7 +2710,7 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
                 return read_extent_into_cache(page_num, num_pages, ie);
 
             case btrfs_extent_type::prealloc: {
-                auto pages_to_zero = min(num_pages, ie.ed.decoded_size >> PAGE_SHIFT);
+                auto pages_to_zero = min(num_pages, ie.ed.ram_bytes >> PAGE_SHIFT);
                 return read_zeroes_into_cache(page_num, pages_to_zero);
             }
 
