@@ -93,6 +93,11 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         return;
     }
 
+    if (!(sb.incompat_flags & BTRFS_FEATURE_INCOMPAT_MIXED_BACKREF)) {
+        print("Not mounting as BTRFS_FEATURE_INCOMPAT_MIXED_BACKREF not set\n");
+        return;
+    }
+
     // FIXME - support free space cache?
     if (!(sb.compat_ro_flags & (BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE | BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID))) {
         print("free space cache not supported\n");
