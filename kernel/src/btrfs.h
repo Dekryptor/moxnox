@@ -249,35 +249,35 @@ struct btrfs_key_ptr {
 
 static_assert(sizeof(btrfs_key_ptr) == 33);
 
-struct btrfs_time {
-    uint64_t seconds;
-    uint32_t nanoseconds;
+struct btrfs_timespec {
+    uint64_t sec;
+    uint32_t nsec;
 } __attribute__((packed));
 
-struct inode_item {
+struct btrfs_inode_item {
     uint64_t generation;
     uint64_t transid;
-    uint64_t st_size;
-    uint64_t st_blocks;
+    uint64_t size;
+    uint64_t nbytes;
     uint64_t block_group;
-    uint32_t st_nlink;
-    uint32_t st_uid;
-    uint32_t st_gid;
-    uint32_t st_mode;
-    uint64_t st_rdev;
+    uint32_t nlink;
+    uint32_t uid;
+    uint32_t gid;
+    uint32_t mode;
+    uint64_t rdev;
     uint64_t flags;
     uint64_t sequence;
-    uint8_t reserved[32];
-    btrfs_time st_atime;
-    btrfs_time st_ctime;
-    btrfs_time st_mtime;
-    btrfs_time otime;
+    uint64_t reserved[4];
+    btrfs_timespec atime;
+    btrfs_timespec ctime;
+    btrfs_timespec mtime;
+    btrfs_timespec otime;
 } __attribute__((packed));
 
-static_assert(sizeof(inode_item) == 160);
+static_assert(sizeof(btrfs_inode_item) == 160);
 
 struct root_item {
-    inode_item inode;
+    btrfs_inode_item inode;
     uint64_t generation;
     uint64_t objid;
     uint64_t block_number;
@@ -297,10 +297,10 @@ struct root_item {
     uint64_t otransid;
     uint64_t stransid;
     uint64_t rtransid;
-    btrfs_time ctime;
-    btrfs_time otime;
-    btrfs_time stime;
-    btrfs_time rtime;
+    btrfs_timespec ctime;
+    btrfs_timespec otime;
+    btrfs_timespec stime;
+    btrfs_timespec rtime;
     uint64_t reserved[8];
 } __attribute__((packed));
 
@@ -490,7 +490,7 @@ public:
     btrfs_filesystem& fs;
     list_entry le;
     uint64_t inode;
-    inode_item ii;
+    btrfs_inode_item ii;
     list_entry extents = { &extents, &extents };
 
 private:

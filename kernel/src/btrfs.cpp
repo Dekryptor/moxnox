@@ -890,12 +890,12 @@ bool btrfs_inode::load_inode() {
 
         switch (k.obj_type) {
             case key_type::INODE_ITEM:
-                if (data.size() < sizeof(inode_item)) {
+                if (data.size() < sizeof(btrfs_inode_item)) {
                     print("INODE_ITEM was short\n");
                     break;
                 }
 
-                memcpy(&ii, data.data(), min(data.size(), sizeof(inode_item)));
+                memcpy(&ii, data.data(), min(data.size(), sizeof(btrfs_inode_item)));
                 found_inode_item = true;
             break;
 
@@ -972,10 +972,10 @@ bool btrfs_inode::load_inode() {
         return false;
     }
 
-    file_size = ii.st_size;
+    file_size = ii.size;
 
     if (this->inode_type == inode_type::unknown) {
-        switch ((ii.st_mode & 0xf000) >> 12) {
+        switch ((ii.mode & 0xf000) >> 12) {
             case 1:
                 this->inode_type = inode_type::fifo;
                 break;
@@ -2118,20 +2118,20 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     return nt_status::SUCCESS;
 }
 
-static btrfs_time get_btrfs_time() {
+static btrfs_timespec get_btrfs_time() {
     auto now = (uint64_t)system_time + system_time_offset;
-    btrfs_time ret;
+    btrfs_timespec ret;
 
-    ret.nanoseconds = (uint32_t)((now % SYSTEM_TIME_RESOLUTION) * (1000000000 / SYSTEM_TIME_RESOLUTION));
+    ret.nsec = (uint32_t)((now % SYSTEM_TIME_RESOLUTION) * (1000000000 / SYSTEM_TIME_RESOLUTION));
     now /= SYSTEM_TIME_RESOLUTION;
 
-    ret.seconds = now - 11644473600;
+    ret.sec = now - 11644473600;
 
     return ret;
 }
 
 static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode,
-                                   int64_t diff, const btrfs_time& cur_time) {
+                                   int64_t diff, const btrfs_timespec& cur_time) {
     btrfs_path p(fs.sb.nodesize);
     nt_status status;
 
@@ -2150,15 +2150,15 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
 
     auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
-    if (it.size < sizeof(inode_item))
+    if (it.size < sizeof(btrfs_inode_item))
         return nt_status::DISK_CORRUPT_ERROR;
 
-    auto& ii = *(inode_item*)data.data();
+    auto& ii = *(btrfs_inode_item*)data.data();
 
-    ii.st_size = (uint64_t)((int64_t)ii.st_size + diff);
+    ii.size = (uint64_t)((int64_t)ii.size + diff);
     ii.sequence++;
-    ii.st_ctime = cur_time;
-    ii.st_mtime = cur_time;
+    ii.ctime = cur_time;
+    ii.mtime = cur_time;
 
     // copy tree back into page cache and mark dirty
 
@@ -2189,7 +2189,7 @@ static bool validate_name(string_view name) {
 nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
                                     optional<reference_wrapper<btrfs_inode>>& obj) {
     nt_status status;
-    inode_item ii;
+    btrfs_inode_item ii;
     bool is_dir = create_options & FILE_DIRECTORY_FILE;
     uint64_t new_inode;
 
@@ -2208,22 +2208,22 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
     // create INODE_ITEM
 
-    memset(&ii, 0, sizeof(inode_item));
+    memset(&ii, 0, sizeof(btrfs_inode_item));
     ii.generation = fs.sb.generation;
     ii.transid = fs.sb.generation;
-    ii.st_nlink = 1;
-    ii.st_uid = 0; // FIXME
-    ii.st_gid = 0; // FIXME
+    ii.nlink = 1;
+    ii.uid = 0; // FIXME
+    ii.gid = 0; // FIXME
 
     // FIXME - do we inherit mode from parent?
     if (is_dir)
-        ii.st_mode = S_IFDIR | 0755;
+        ii.mode = S_IFDIR | 0755;
     else
-        ii.st_mode = S_IFREG | 0644;
+        ii.mode = S_IFREG | 0644;
 
     ii.sequence = 0; // FIXME?
-    ii.st_ctime = cur_time;
-    ii.st_mtime = cur_time;
+    ii.ctime = cur_time;
+    ii.mtime = cur_time;
     ii.otime = cur_time;
 
     status = insert_item(fs, *r, {new_inode, key_type::INODE_ITEM, 0},
@@ -2335,7 +2335,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
     auto bi = new btrfs_inode(fs, r->id, new_inode,
                               is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file);
 
-    memcpy(&bi->ii, &ii, sizeof(inode_item));
+    memcpy(&bi->ii, &ii, sizeof(btrfs_inode_item));
     bi->file_size = 0;
 
     {
