@@ -401,17 +401,17 @@ struct inode_extent {
     extent_data ed;
 };
 
-static const uint64_t EXTENT_ITEM_DATA = 0x001;
-static const uint64_t EXTENT_ITEM_TREE_BLOCK = 0x002;
-static const uint64_t EXTENT_ITEM_SHARED_BACKREFS = 0x100;
+static constexpr uint64_t BTRFS_EXTENT_FLAG_DATA = 1 << 0;
+static constexpr uint64_t BTRFS_EXTENT_FLAG_TREE_BLOCK = 1 << 1;
+static constexpr uint64_t BTRFS_BLOCK_FLAG_FULL_BACKREF = 1 << 8;
 
-struct extent_item {
-    uint64_t refcount;
+struct btrfs_extent_item {
+    uint64_t refs;
     uint64_t generation;
     uint64_t flags;
 };
 
-static_assert(sizeof(extent_item) == 24);
+static_assert(sizeof(btrfs_extent_item) == 24);
 
 struct tree_block_ref {
     uint64_t offset;
@@ -420,7 +420,7 @@ struct tree_block_ref {
 static_assert(sizeof(tree_block_ref) == 8);
 
 struct extent_item_tbr {
-    extent_item ei;
+    btrfs_extent_item ei;
     key_type type;
     tree_block_ref tbr;
 } __attribute__((packed));

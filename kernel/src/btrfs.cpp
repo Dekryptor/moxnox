@@ -3206,9 +3206,9 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
         } else {
             extent_item_tbr eitbr;
 
-            eitbr.ei.refcount = 1;
+            eitbr.ei.refs = 1;
             eitbr.ei.generation = fs.sb.generation;
-            eitbr.ei.flags = EXTENT_ITEM_TREE_BLOCK;
+            eitbr.ei.flags = BTRFS_EXTENT_FLAG_TREE_BLOCK;
             eitbr.type = key_type::TREE_BLOCK_REF;
             eitbr.tbr.offset = mc.root;
 
