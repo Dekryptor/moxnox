@@ -56,69 +56,69 @@ static constexpr uint64_t BTRFS_LAST_FREE_OBJECTID = 0xffffffffffffff00;
 
 static const uint64_t SUBVOL_ROOT_INODE = 0x100;
 
-struct dev_item {
-    uint64_t dev_id;
-    uint64_t num_bytes;
+struct btrfs_dev_item {
+    uint64_t devid;
+    uint64_t total_bytes;
     uint64_t bytes_used;
-    uint32_t optimal_io_align;
-    uint32_t optimal_io_width;
-    uint32_t minimal_io_size;
+    uint32_t io_align;
+    uint32_t io_width;
+    uint32_t sector_size;
     uint64_t type;
     uint64_t generation;
     uint64_t start_offset;
     uint32_t dev_group;
     uint8_t seek_speed;
     uint8_t bandwidth;
-    btrfs_uuid device_uuid;
-    btrfs_uuid fs_uuid;
+    btrfs_uuid uuid;
+    btrfs_uuid fsid;
 } __attribute__((packed));
 
-struct superblock_backup {
-    uint64_t root_tree_addr;
-    uint64_t root_tree_generation;
-    uint64_t chunk_tree_addr;
-    uint64_t chunk_tree_generation;
-    uint64_t extent_tree_addr;
-    uint64_t extent_tree_generation;
-    uint64_t fs_tree_addr;
-    uint64_t fs_tree_generation;
-    uint64_t dev_root_addr;
-    uint64_t dev_root_generation;
-    uint64_t csum_root_addr;
-    uint64_t csum_root_generation;
+struct btrfs_root_backup {
+    uint64_t tree_root;
+    uint64_t tree_root_gen;
+    uint64_t chunk_root;
+    uint64_t chunk_root_gen;
+    uint64_t extent_root;
+    uint64_t extent_root_gen;
+    uint64_t fs_root;
+    uint64_t fs_root_gen;
+    uint64_t dev_root;
+    uint64_t dev_root_gen;
+    uint64_t csum_root;
+    uint64_t csum_root_gen;
     uint64_t total_bytes;
     uint64_t bytes_used;
     uint64_t num_devices;
-    uint64_t reserved[4];
-    uint8_t root_level;
+    uint64_t unused_64[4];
+    uint8_t tree_root_level;
     uint8_t chunk_root_level;
     uint8_t extent_root_level;
     uint8_t fs_root_level;
     uint8_t dev_root_level;
     uint8_t csum_root_level;
-    uint8_t reserved2[10];
+    uint8_t unused_8[10];
 } __attribute__((packed));
 
-struct superblock {
-    uint8_t checksum[32];
-    btrfs_uuid uuid;
-    uint64_t sb_phys_addr;
+struct btrfs_super_block {
+    uint8_t csum[32];
+    btrfs_uuid fsid;
+    uint64_t bytenr;
     uint64_t flags;
     uint64_t magic;
     uint64_t generation;
-    uint64_t root_tree_addr;
-    uint64_t chunk_tree_addr;
-    uint64_t log_tree_addr;
-    uint64_t log_root_transid;
+    uint64_t root;
+    uint64_t chunk_root;
+    uint64_t log_root;
+    uint64_t __unused_log_root_transid;
     uint64_t total_bytes;
     uint64_t bytes_used;
     uint64_t root_dir_objectid;
     uint64_t num_devices;
-    uint32_t sector_size;
-    uint32_t node_size;
-    uint32_t leaf_size;
-    uint32_t stripe_size;
-    uint32_t n;
+    uint32_t sectorsize;
+    uint32_t nodesize;
+    uint32_t __unused_leafsize;
+    uint32_t stripesize;
+    uint32_t sys_chunk_array_size;
     uint64_t chunk_root_generation;
     uint64_t compat_flags;
     uint64_t compat_ro_flags;
@@ -127,18 +127,19 @@ struct superblock {
     uint8_t root_level;
     uint8_t chunk_root_level;
     uint8_t log_root_level;
-    dev_item dev_item;
+    btrfs_dev_item dev_item;
     std::array<char, 0x100> label;
     uint64_t cache_generation;
     uint64_t uuid_tree_generation;
     btrfs_uuid metadata_uuid;
-    uint64_t reserved[28];
+    uint64_t nr_global_roots;
+    uint64_t reserved[27];
     std::array<uint8_t, 0x800> sys_chunk_array;
-    std::array<superblock_backup, 4> backup;
-    uint8_t reserved2[565];
+    std::array<btrfs_root_backup, 4> super_roots;
+    uint8_t padding[565];
 } __attribute__((packed));
 
-static_assert(sizeof(superblock) == 4096);
+static_assert(sizeof(btrfs_super_block) == 4096);
 
 enum class key_type : uint8_t {
     INODE_ITEM = 0x01,
@@ -528,7 +529,7 @@ public:
     nt_status flush(bool make_readonly) override;
     void flush_thread();
 
-    superblock sb;
+    btrfs_super_block sb;
     bool valid = false;
     list_entry chunk_list = { &chunk_list, &chunk_list };
     list_entry root_list = { &root_list, &root_list };

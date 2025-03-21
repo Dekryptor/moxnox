@@ -56,8 +56,8 @@ static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
                                       root& r, uint8_t level, const key& k,
                                       uint64_t address);
 
-static bool check_checksum(const superblock& sb) {
-    auto csum = ~calc_crc32c(0xffffffff, span((const uint8_t*)&sb.uuid, sizeof(superblock) - sizeof(sb.checksum)));
+static bool check_checksum(const btrfs_super_block& sb) {
+    auto csum = ~calc_crc32c(0xffffffff, span((const uint8_t*)&sb.fsid, sizeof(btrfs_super_block) - sizeof(sb.csum)));
 
     return csum == *(uint32_t*)&sb;
 }
@@ -66,13 +66,13 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     vol.acquire();
 
     uint64_t read_bytes;
-    auto status = vol.read(span((uint8_t*)&sb, sizeof(superblock)), superblock_addrs[0],
+    auto status = vol.read(span((uint8_t*)&sb, sizeof(btrfs_super_block)), superblock_addrs[0],
                            read_bytes);
 
     if (!success(status)) {
         print("volume::read returned {}\n", status);
         return;
-    } else if (read_bytes < sizeof(superblock)) {
+    } else if (read_bytes < sizeof(btrfs_super_block)) {
         print("volume::read failed\n");
         return;
     }
@@ -116,17 +116,17 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         return;
     }
 
-    if (sb.node_size & (PAGE_SIZE - 1)) {
+    if (sb.nodesize & (PAGE_SIZE - 1)) {
         print("btrfs node size not multiple of CPU page size\n");
         return;
     }
 
-    if (sb.node_size & (sb.node_size - 1)) {
-        print("btrfs node size {:x} not a power of two\n", sb.node_size);
+    if (sb.nodesize & (sb.nodesize - 1)) {
+        print("btrfs node size {:x} not a power of two\n", sb.nodesize);
         return;
     }
 
-    node_folio_order = (uint8_t)((sizeof(uint32_t) * 8) - countl_zero((uint32_t)sb.node_size) - 1 - PAGE_SHIFT);
+    node_folio_order = (uint8_t)((sizeof(uint32_t) * 8) - countl_zero((uint32_t)sb.nodesize) - 1 - PAGE_SHIFT);
 
     if (node_folio_order > MAX_FOLIO_ORDER) {
         print("btrfs metadata folio order {} larger than maximum {}\n", node_folio_order, MAX_FOLIO_ORDER);
@@ -134,7 +134,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 
     // FIXME - subpage on ARM?
-    if (sb.sector_size != PAGE_SIZE) {
+    if (sb.sectorsize != PAGE_SIZE) {
         print("btrfs sector size is not CPU page size\n");
         return;
     }
@@ -145,7 +145,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 
     // FIXME - make sure sb.n < sizeof(sb.sys_chunk_array)
-    auto chunk_array = span(sb.sys_chunk_array.data(), sb.n);
+    auto chunk_array = span(sb.sys_chunk_array.data(), sb.sys_chunk_array_size);
 
     while (!chunk_array.empty()) {
         if (chunk_array.size() < sizeof(key)) {
@@ -205,7 +205,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
         auto& r = *rptr;
         r.id = BTRFS_ROOT_TREE_OBJECTID;
-        r.ri.block_number = sb.root_tree_addr;
+        r.ri.block_number = sb.root;
         r.ri.root_level = sb.root_level;
 
         root_root = &r;
@@ -221,7 +221,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
         auto& r = *rptr;
         r.id = BTRFS_CHUNK_TREE_OBJECTID;
-        r.ri.block_number = sb.chunk_tree_addr;
+        r.ri.block_number = sb.chunk_root;
         r.ri.root_level = sb.chunk_root_level;
 
         chunk_root = &r;
@@ -255,8 +255,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     sb.generation++;
 
     // clear log tree (FIXME - replay this)
-    sb.log_tree_addr = 0;
-    sb.log_root_transid = 0;
+    sb.log_root = 0;
     sb.log_root_level = 0;
 
     valid = true;
@@ -304,7 +303,7 @@ bool btrfs_probe(volume& vol) {
 }
 
 nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
-    assert(data.size() == sb.node_size);
+    assert(data.size() == sb.nodesize);
 
     if (!cache.read(data, addr)) {
         print("Short read\n");
@@ -316,7 +315,7 @@ nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
     const auto& th = *(tree_header*)data.data();
     if (th.flags & HEADER_FLAG_WRITTEN) {
         auto crc32 = ~calc_crc32c(0xffffffff, span((const uint8_t*)&th.fs_uuid,
-                                sb.node_size - sizeof(th.csum)));
+                                sb.nodesize - sizeof(th.csum)));
 
         if (*(uint32_t*)&th != crc32) {
             print("metadata csum error\n");
@@ -337,7 +336,7 @@ nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
 bool btrfs_filesystem::load_chunks() {
     list_entry new_chunk_list = { &new_chunk_list, &new_chunk_list };
 
-    btrfs_path p(sb.node_size);
+    btrfs_path p(sb.nodesize);
 
     auto status = find_item(*chunk_root, {0, key_type::CHUNK_ITEM, 0}, p, false);
     if (!success(status))
@@ -506,7 +505,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
 }
 
 bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
-    unsigned int pages_per_tree = sb.node_size >> PAGE_SHIFT;
+    unsigned int pages_per_tree = sb.nodesize >> PAGE_SHIFT;
 
     if (c.ci.type & BTRFS_BLOCK_GROUP_RAID0) {
         print("RAID0 not supported\n");
@@ -609,7 +608,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 }
 
 size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    unsigned int pages_per_tree = sb.node_size >> PAGE_SHIFT;
+    unsigned int pages_per_tree = sb.nodesize >> PAGE_SHIFT;
     uint64_t addr = page_num << PAGE_SHIFT;
 
     if (page_num % pages_per_tree) // not aligned to tree
@@ -631,7 +630,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
         if (!flush_tree(c, addr))
             break;
 
-        addr += sb.node_size;
+        addr += sb.nodesize;
         pages_written += pages_per_tree;
 
         if (pages_written >= num_pages)
@@ -684,7 +683,7 @@ void btrfs_filesystem::free_root_list() {
 }
 
 static nt_status find_last_inode_number(btrfs_filesystem& fs, root& r) {
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
     bool done = false;
 
     auto status = fs.find_item(r, {BTRFS_LAST_FREE_OBJECTID, key_type::INODE_ITEM, 0},
@@ -723,7 +722,7 @@ static nt_status find_last_inode_number(btrfs_filesystem& fs, root& r) {
 bool btrfs_filesystem::load_roots() {
     list_entry new_root_list = { &new_root_list, &new_root_list };
 
-    btrfs_path p(sb.node_size);
+    btrfs_path p(sb.nodesize);
 
     auto status = find_item(*root_root, {0, key_type::ROOT_ITEM, 0}, p, false);
     if (!success(status))
@@ -866,7 +865,7 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
 bool btrfs_inode::load_inode() {
     nt_status status;
     bool found_inode_item = false;
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
 
     shared_lock lg(fs.trans_lock);
 
@@ -1052,7 +1051,7 @@ root* btrfs_filesystem::find_root(uint64_t root_num) {
 static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
     auto& r = *fs.free_space_root;
     auto search_key = key{c.offset, key_type::FREE_SPACE_INFO, c.ci.size};
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
 
     auto status = fs.find_item(r, search_key, p, false);
     if (!success(status))
@@ -1134,18 +1133,18 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
             if (s.offset + s.length < c.last_allocation_end)
                 continue;
 
-            if (s.offset <= c.last_allocation_end && s.offset + s.length >= c.last_allocation_end + fs.sb.node_size) {
-                if (s.offset == c.last_allocation_end && s.length == fs.sb.node_size) {
+            if (s.offset <= c.last_allocation_end && s.offset + s.length >= c.last_allocation_end + fs.sb.nodesize) {
+                if (s.offset == c.last_allocation_end && s.length == fs.sb.nodesize) {
                     // remove whole thing
                     remove_entry_list(s.le);
                     free(&s);
                 } else if (s.offset == c.last_allocation_end) {
                     // remove beginning
-                    s.offset += fs.sb.node_size;
-                    s.length -= fs.sb.node_size;
-                } else if (s.offset + s.length == c.last_allocation_end + fs.sb.node_size) {
+                    s.offset += fs.sb.nodesize;
+                    s.length -= fs.sb.nodesize;
+                } else if (s.offset + s.length == c.last_allocation_end + fs.sb.nodesize) {
                     // remove end
-                    s.length -= fs.sb.node_size;
+                    s.length -= fs.sb.nodesize;
                 } else {
                     // remove middle
 
@@ -1153,7 +1152,7 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
                     if (!s2)
                         return nt_status::INSUFFICIENT_RESOURCES;
 
-                    s2->offset = c.last_allocation_end + fs.sb.node_size;
+                    s2->offset = c.last_allocation_end + fs.sb.nodesize;
                     s2->length = s.offset + s.length - s2->offset;
                     insert_head_list(s.le, s2->le);
 
@@ -1161,25 +1160,25 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
                 }
 
                 addr = c.last_allocation_end;
-                c.last_allocation_end = addr + fs.sb.node_size;
+                c.last_allocation_end = addr + fs.sb.nodesize;
 
                 return nt_status::SUCCESS;
             }
 
-            if (s.length < fs.sb.node_size)
+            if (s.length < fs.sb.nodesize)
                 continue;
 
             addr = s.offset;
 
-            if (s.length == fs.sb.node_size) {
+            if (s.length == fs.sb.nodesize) {
                 remove_entry_list(s.le);
                 free(&s);
             } else {
-                s.offset += fs.sb.node_size;
-                s.length -= fs.sb.node_size;
+                s.offset += fs.sb.nodesize;
+                s.length -= fs.sb.nodesize;
             }
 
-            c.last_allocation_end = addr + fs.sb.node_size;
+            c.last_allocation_end = addr + fs.sb.nodesize;
 
             return nt_status::SUCCESS;
         }
@@ -1188,18 +1187,18 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
     for (auto le = c.space_list.next; le != &c.space_list; le = le->next) {
         auto& s = containing_record<chunk_space>(le);
 
-        if (s.length >= fs.sb.node_size) {
+        if (s.length >= fs.sb.nodesize) {
             addr = s.offset;
 
-            if (s.length == fs.sb.node_size) {
+            if (s.length == fs.sb.nodesize) {
                 remove_entry_list(s.le);
                 free(&s);
             } else {
-                s.offset += fs.sb.node_size;
-                s.length -= fs.sb.node_size;
+                s.offset += fs.sb.nodesize;
+                s.length -= fs.sb.nodesize;
             }
 
-            c.last_allocation_end = addr + fs.sb.node_size;
+            c.last_allocation_end = addr + fs.sb.nodesize;
 
             return nt_status::SUCCESS;
         }
@@ -1355,7 +1354,7 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
             th.address = addr;
             th.generation = fs.sb.generation;
 
-            if (!fs.cache.write(span(p.data[i], fs.sb.node_size), th.address)) // FIXME - return status
+            if (!fs.cache.write(span(p.data[i], fs.sb.nodesize), th.address)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
 
             if (i == BTRFS_MAX_LEVEL - 1 || !p.data[i + 1]) { // top
@@ -1386,7 +1385,7 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
             items[p.slots[i]].address = prev_th.address;
             items[p.slots[i]].generation = fs.sb.generation;
 
-            if (!fs.cache.write(span(p.data[i], fs.sb.node_size), th.address)) // FIXME - return status
+            if (!fs.cache.write(span(p.data[i], fs.sb.nodesize), th.address)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
     }
@@ -1416,7 +1415,7 @@ nt_status btrfs_filesystem::find_item(root& r, const key& k, btrfs_path& p,
     }
 
     do {
-        status = read_metadata(addr, span(p.data[level], sb.node_size));
+        status = read_metadata(addr, span(p.data[level], sb.nodesize));
         if (!success(status))
             return status;
 
@@ -1524,12 +1523,12 @@ static nt_status split_internal_tree(btrfs_filesystem& fs, btrfs_path& p,
         return status;
     }
 
-    if (!fs.cache.write(span((uint8_t*)&th, fs.sb.node_size), th.address)) { // FIXME - return status
+    if (!fs.cache.write(span((uint8_t*)&th, fs.sb.nodesize), th.address)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
 
-    if (!fs.cache.write(span((uint8_t*)&th2, fs.sb.node_size), th2.address)) { // FIXME - return status
+    if (!fs.cache.write(span((uint8_t*)&th2, fs.sb.nodesize), th2.address)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
@@ -1566,7 +1565,7 @@ static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
                                       root& r, uint8_t level, const key& k,
                                       uint64_t address) {
     nt_status status;
-    size_t max_items = (fs.sb.node_size - sizeof(tree_header)) / sizeof(internal_node);
+    size_t max_items = (fs.sb.nodesize - sizeof(tree_header)) / sizeof(internal_node);
 
     {
         auto& th = *(tree_header*)p.data[level];
@@ -1591,7 +1590,7 @@ static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
 
     th.num_items++;
 
-    if (!fs.cache.write(span(p.data[level], fs.sb.node_size), th.address)) // FIXME - return status
+    if (!fs.cache.write(span(p.data[level], fs.sb.nodesize), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -1642,9 +1641,9 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
     items2[0].address = th.address;
     items2[0].generation = fs.sb.generation;
 
-    memset(&items2[1], 0, fs.sb.node_size - sizeof(tree_header) - sizeof(internal_node));
+    memset(&items2[1], 0, fs.sb.nodesize - sizeof(tree_header) - sizeof(internal_node));
 
-    if (!fs.cache.write(span(new_tree, fs.sb.node_size), th2.address)) { // FIXME - return status
+    if (!fs.cache.write(span(new_tree, fs.sb.nodesize), th2.address)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
@@ -1702,8 +1701,8 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     memcpy(items2, &items[split_point], sizeof(leaf_node) * (th.num_items - split_point));
 
     // move trailing entries to new tree
-    memcpy(new_tree + fs.sb.node_size - to_copy,
-           p.data[0] + fs.sb.node_size - total_data, to_copy);
+    memcpy(new_tree + fs.sb.nodesize - to_copy,
+           p.data[0] + fs.sb.nodesize - total_data, to_copy);
 
     for (unsigned int i = 0; i < th2.num_items; i++) {
         items2[i].offset += (uint32_t)(total_data - to_copy);
@@ -1712,7 +1711,7 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
     th.num_items = split_point;
 
     memset(new_tree + sizeof(tree_header) + (th2.num_items * sizeof(leaf_node)),
-           0, fs.sb.node_size - to_copy - sizeof(tree_header) - (th2.num_items * sizeof(leaf_node)));
+           0, fs.sb.nodesize - to_copy - sizeof(tree_header) - (th2.num_items * sizeof(leaf_node)));
 
     if (auto status = add_metadata_change(fs, new_addr, 0, th.tree_id, false); !success(status)) {
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
@@ -1721,12 +1720,12 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
 
     // write both trees into cache
 
-    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) { // FIXME - return status
+    if (!fs.cache.write(span(p.data[0], fs.sb.nodesize), th.address)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
 
-    if (!fs.cache.write(span(new_tree, fs.sb.node_size), th2.address)) { // FIXME - return status
+    if (!fs.cache.write(span(new_tree, fs.sb.nodesize), th2.address)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
@@ -1773,13 +1772,13 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
     if (p.slots[0] >= split_point)
         sum = size_used - sum;
 
-    if (fs.sb.node_size - sizeof(tree_header) - sum < space_needed) {
+    if (fs.sb.nodesize - sizeof(tree_header) - sum < space_needed) {
         if (p.slots[0] < split_point) {
             while (split_point > 0) {
                 sum += sizeof(leaf_node) + items[split_point - 1].size;
                 split_point--;
 
-                if (fs.sb.node_size - sizeof(tree_header) - sum >= space_needed)
+                if (fs.sb.nodesize - sizeof(tree_header) - sum >= space_needed)
                     break;
             }
 
@@ -1790,7 +1789,7 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
                 sum += sizeof(leaf_node) + items[split_point].size;
                 split_point++;
 
-                if (fs.sb.node_size - sizeof(tree_header) - sum >= space_needed)
+                if (fs.sb.nodesize - sizeof(tree_header) - sum >= space_needed)
                     break;
             }
 
@@ -1819,11 +1818,11 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
 
 static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
                              span<const uint8_t> data) {
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
     nt_status status;
 
     // check if data too big for any tree
-    if (data.size() > fs.sb.node_size - sizeof(tree_header) - sizeof(leaf_node))
+    if (data.size() > fs.sb.nodesize - sizeof(tree_header) - sizeof(leaf_node))
         return nt_status::INTERNAL_ERROR;
 
     status = fs.find_item(r, k, p, true);
@@ -1845,7 +1844,7 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
 
         unsigned int size_used = data_size + (unsigned int)(th.num_items * sizeof(leaf_node));
 
-        if (size_used + sizeof(leaf_node) + data.size() > fs.sb.node_size - sizeof(tree_header)) {
+        if (size_used + sizeof(leaf_node) + data.size() > fs.sb.nodesize - sizeof(tree_header)) {
             status = split_tree(fs, p, r, size_used, sizeof(leaf_node) + data.size());
             if (!success(status))
                 return status;
@@ -1884,7 +1883,7 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
     }
 
     if (p.slots[0] == 0)
-        items[p.slots[0]].offset = (uint32_t)(fs.sb.node_size - sizeof(tree_header) - data.size());
+        items[p.slots[0]].offset = (uint32_t)(fs.sb.nodesize - sizeof(tree_header) - data.size());
     else
         items[p.slots[0]].offset = (uint32_t)(items[p.slots[0] - 1].offset - data.size());
 
@@ -1905,14 +1904,14 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const key& k,
 
             items2[p.slots[i + 1]].k = items[0].k;
 
-            if (!fs.cache.write(span(p.data[i + 1], fs.sb.node_size), th2.address)) // FIXME - return status
+            if (!fs.cache.write(span(p.data[i + 1], fs.sb.nodesize), th2.address)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
     }
 
     // copy tree back into page cache and mark dirty
 
-    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
+    if (!fs.cache.write(span(p.data[0], fs.sb.nodesize), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -1934,8 +1933,8 @@ nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
                 after_item += items[i].size;
         }
 
-        memmove(p.data[0] + sb.node_size - data_size + items[p.slots[0]].size,
-                p.data[0] + sb.node_size - data_size,
+        memmove(p.data[0] + sb.nodesize - data_size + items[p.slots[0]].size,
+                p.data[0] + sb.nodesize - data_size,
                 after_item);
 
         for (unsigned int i = p.slots[0] + 1; i < th.num_items; i++) {
@@ -1961,7 +1960,7 @@ nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
 
             items2[p.slots[i + 1]].k = items[0].k;
 
-            if (!cache.write(span(p.data[i + 1], sb.node_size), th2.address)) // FIXME - return status
+            if (!cache.write(span(p.data[i + 1], sb.nodesize), th2.address)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
     }
@@ -1972,14 +1971,14 @@ nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
 
     // copy tree back into page cache and mark dirty
 
-    if (!cache.write(span(p.data[0], sb.node_size), th.address)) // FIXME - return status
+    if (!cache.write(span(p.data[0], sb.nodesize), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
 }
 
 nt_status btrfs_filesystem::remove_item(root& r, const key& k) {
-    btrfs_path p(sb.node_size);
+    btrfs_path p(sb.nodesize);
     nt_status status;
 
     status = find_item(r, k, p, true);
@@ -2013,14 +2012,14 @@ nt_status btrfs_filesystem::change_key(btrfs_path& p, const key& k) {
 
             items2[p.slots[i + 1]].k = items[0].k;
 
-            if (!cache.write(span(p.data[i + 1], sb.node_size), th2.address)) // FIXME - return status
+            if (!cache.write(span(p.data[i + 1], sb.nodesize), th2.address)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
     }
 
     // copy tree back into page cache and mark dirty
 
-    if (!cache.write(span(p.data[0], sb.node_size), th.address)) // FIXME - return status
+    if (!cache.write(span(p.data[0], sb.nodesize), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -2045,7 +2044,7 @@ bool btrfs_filesystem::move_path_back(btrfs_path& p) {
             const auto& th = *(tree_header*)p.data[j];
             auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
-            auto status = read_metadata(items[p.slots[j]].address, span(p.data[j - 1], sb.node_size));
+            auto status = read_metadata(items[p.slots[j]].address, span(p.data[j - 1], sb.nodesize));
             if (!success(status)) // FIXME
                 return false;
 
@@ -2079,7 +2078,7 @@ bool btrfs_filesystem::move_path_forward(btrfs_path& p) {
             const auto& th = *(tree_header*)p.data[j];
             auto items = span((internal_node*)((uint8_t*)&th + sizeof(tree_header)), th.num_items);
 
-            auto status = read_metadata(items[p.slots[j]].address, span(p.data[j - 1], sb.node_size));
+            auto status = read_metadata(items[p.slots[j]].address, span(p.data[j - 1], sb.nodesize));
             if (!success(status)) // FIXME
                 return false;
 
@@ -2094,7 +2093,7 @@ bool btrfs_filesystem::move_path_forward(btrfs_path& p) {
 
 nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     nt_status status;
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
 
     status = fs.find_item(*r, {inode, key_type::DIR_INDEX, 0xffffffffffffffff},
                           p, false);
@@ -2133,7 +2132,7 @@ static btrfs_time get_btrfs_time() {
 
 static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode,
                                    int64_t diff, const btrfs_time& cur_time) {
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
     nt_status status;
 
     status = fs.find_item(r, {inode, key_type::INODE_ITEM, 0}, p, true);
@@ -2163,7 +2162,7 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
 
     // copy tree back into page cache and mark dirty
 
-    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
+    if (!fs.cache.write(span(p.data[0], fs.sb.nodesize), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -2361,7 +2360,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
 
     do {
         auto k = key{inode, key_type::DIR_ITEM, hash};
-        btrfs_path p(fs.sb.node_size);
+        btrfs_path p(fs.sb.nodesize);
 
         auto status = fs.find_item(*r, k, p, false);
         if (!success(status))
@@ -2787,7 +2786,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
     do {
         auto k = key{inode, key_type::DIR_INDEX, index};
-        btrfs_path p(fs.sb.node_size);
+        btrfs_path p(fs.sb.nodesize);
 
         auto status = fs.find_item(*r, k, p, false);
         if (!success(status))
@@ -2847,23 +2846,23 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
 static void write_superblocks(btrfs_filesystem& fs) {
     for (auto addr : superblock_addrs) {
-        if (addr + sizeof(superblock) >= fs.vol->size)
+        if (addr + sizeof(btrfs_super_block) >= fs.vol->size)
             break;
 
         auto& sb = fs.sb;
 
-        sb.sb_phys_addr = addr;
-        *(uint32_t*)&sb= ~calc_crc32c(0xffffffff, span((const uint8_t*)&sb.uuid, sizeof(superblock) - sizeof(sb.checksum)));
+        sb.bytenr = addr;
+        *(uint32_t*)&sb= ~calc_crc32c(0xffffffff, span((const uint8_t*)&sb.fsid, sizeof(btrfs_super_block) - sizeof(sb.csum)));
 
-        fs.vol->cache.write(span((const uint8_t*)&fs.sb, sizeof(superblock)), addr);
+        fs.vol->cache.write(span((const uint8_t*)&fs.sb, sizeof(btrfs_super_block)), addr);
     }
 
     for (auto addr : superblock_addrs) {
-        if (addr + sizeof(superblock) >= fs.vol->size)
+        if (addr + sizeof(btrfs_super_block) >= fs.vol->size)
             break;
 
         auto first_page = addr >> PAGE_SHIFT;
-        auto num_pages = sizeof(superblock) >> PAGE_SHIFT;
+        auto num_pages = sizeof(btrfs_super_block) >> PAGE_SHIFT;
 
         while (true) {
             auto flushed = fs.vol->flush_cache(first_page, num_pages);
@@ -2883,7 +2882,7 @@ static void write_superblocks(btrfs_filesystem& fs) {
 }
 
 static nt_status flush_root(btrfs_filesystem& fs, root& r) {
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
 
     auto status = fs.find_item(*fs.root_root, {r.id, key_type::ROOT_ITEM, 0}, p, true);
     if (!success(status))
@@ -2918,7 +2917,7 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
 
     // copy tree back into page cache and mark dirty
 
-    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
+    if (!fs.cache.write(span(p.data[0], fs.sb.nodesize), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -2928,7 +2927,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
                                         int delta) {
     auto& r = *fs.free_space_root;
     nt_status status;
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
     chunk* c = find_chunk(fs, address);
 
     if (!c) {
@@ -2960,7 +2959,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
 
     // copy tree back into page cache and mark dirty
 
-    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
+    if (!fs.cache.write(span(p.data[0], fs.sb.nodesize), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -2969,7 +2968,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
 static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
                                    uint64_t length) {
     auto& r = *fs.free_space_root;
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
 
     auto status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
                                p, true);
@@ -3048,7 +3047,7 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
 static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
                                 uint64_t length) {
     auto& r = *fs.free_space_root;
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
 
     auto status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
                                p, true);
@@ -3128,7 +3127,7 @@ static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
 }
 
 static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delta) {
-    btrfs_path p(fs.sb.node_size);
+    btrfs_path p(fs.sb.nodesize);
     key search_key = {c.offset, key_type::BLOCK_GROUP_ITEM, c.ci.size};
 
     auto status = fs.find_item(*fs.extent_root, search_key, p, true);
@@ -3151,7 +3150,7 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
 
     bgi.used = (uint64_t)((int64_t)bgi.used + delta);
 
-    if (!fs.cache.write(span(p.data[0], fs.sb.node_size), th.address)) // FIXME - return status
+    if (!fs.cache.write(span(p.data[0], fs.sb.nodesize), th.address)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     fs.sb.bytes_used = (uint64_t)((int64_t)fs.sb.bytes_used + delta);
@@ -3186,13 +3185,13 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
                 return status;
             }
 
-            status = add_free_space(fs, mc.address, fs.sb.node_size);
+            status = add_free_space(fs, mc.address, fs.sb.nodesize);
             if (!success(status)) {
                 print("add_free_space returned {}\n", status);
                 return status;
             }
 
-            c->delta -= fs.sb.node_size;
+            c->delta -= fs.sb.nodesize;
 
             auto sc = new chunk_space;
             if (!sc)
@@ -3202,7 +3201,7 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
                 insert_tail_list(fs.space_pending_chunks, c->space_pending_le);
 
             sc->offset = mc.address;
-            sc->length = fs.sb.node_size;
+            sc->length = fs.sb.nodesize;
             insert_tail_list(c->pending_space_list, sc->le);
         } else {
             extent_item_tbr eitbr;
@@ -3220,13 +3219,13 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
                 return status;
             }
 
-            status = remove_free_space(fs, mc.address, fs.sb.node_size);
+            status = remove_free_space(fs, mc.address, fs.sb.nodesize);
             if (!success(status)) {
                 print("remove_free_space returned {}\n", status);
                 return status;
             }
 
-            c->delta += fs.sb.node_size;
+            c->delta += fs.sb.nodesize;
         }
 
         remove_entry_list(mc.le);
@@ -3250,30 +3249,30 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
 }
 
 static void update_superblock_backup(btrfs_filesystem& fs) {
-    memmove(&fs.sb.backup[1], &fs.sb.backup[0],
-            sizeof(superblock_backup) * (fs.sb.backup.size() - 1));
+    memmove(&fs.sb.super_roots[1], &fs.sb.super_roots[0],
+            sizeof(btrfs_root_backup) * (fs.sb.super_roots.size() - 1));
 
-    fs.sb.backup[0].root_tree_addr = fs.sb.root_tree_addr;
-    fs.sb.backup[0].root_tree_generation = fs.sb.generation;
-    fs.sb.backup[0].chunk_tree_addr = fs.sb.chunk_tree_addr;
-    fs.sb.backup[0].chunk_tree_generation = fs.sb.chunk_root_generation;
-    fs.sb.backup[0].extent_tree_addr = fs.extent_root->ri.block_number;
-    fs.sb.backup[0].extent_tree_generation = fs.extent_root->ri.generation;
-    fs.sb.backup[0].extent_root_level = fs.extent_root->ri.root_level;
-    fs.sb.backup[0].fs_tree_addr = fs.fs_root->ri.block_number;
-    fs.sb.backup[0].fs_tree_generation = fs.fs_root->ri.generation;
-    fs.sb.backup[0].fs_root_level = fs.fs_root->ri.root_level;
-    fs.sb.backup[0].dev_root_addr = fs.dev_root->ri.block_number;
-    fs.sb.backup[0].dev_root_generation = fs.dev_root->ri.generation;
-    fs.sb.backup[0].dev_root_level = fs.dev_root->ri.root_level;
-    fs.sb.backup[0].csum_root_addr = fs.csum_root->ri.block_number;
-    fs.sb.backup[0].csum_root_generation = fs.csum_root->ri.generation;
-    fs.sb.backup[0].csum_root_level = fs.csum_root->ri.root_level;
-    fs.sb.backup[0].total_bytes = fs.sb.total_bytes;
-    fs.sb.backup[0].bytes_used = fs.sb.bytes_used;
-    fs.sb.backup[0].num_devices = fs.sb.num_devices;
-    fs.sb.backup[0].root_level = fs.sb.root_level;
-    fs.sb.backup[0].chunk_root_level = fs.sb.chunk_root_level;
+    fs.sb.super_roots[0].tree_root = fs.sb.root;
+    fs.sb.super_roots[0].tree_root_gen = fs.sb.generation;
+    fs.sb.super_roots[0].tree_root_level = fs.sb.root_level;
+    fs.sb.super_roots[0].chunk_root = fs.sb.chunk_root;
+    fs.sb.super_roots[0].chunk_root_gen = fs.sb.chunk_root_generation;
+    fs.sb.super_roots[0].chunk_root_level = fs.sb.chunk_root_level;
+    fs.sb.super_roots[0].extent_root = fs.extent_root->ri.block_number;
+    fs.sb.super_roots[0].extent_root_gen = fs.extent_root->ri.generation;
+    fs.sb.super_roots[0].extent_root_level = fs.extent_root->ri.root_level;
+    fs.sb.super_roots[0].fs_root = fs.fs_root->ri.block_number;
+    fs.sb.super_roots[0].fs_root_gen = fs.fs_root->ri.generation;
+    fs.sb.super_roots[0].fs_root_level = fs.fs_root->ri.root_level;
+    fs.sb.super_roots[0].dev_root = fs.dev_root->ri.block_number;
+    fs.sb.super_roots[0].dev_root_gen = fs.dev_root->ri.generation;
+    fs.sb.super_roots[0].dev_root_level = fs.dev_root->ri.root_level;
+    fs.sb.super_roots[0].csum_root = fs.csum_root->ri.block_number;
+    fs.sb.super_roots[0].csum_root_gen = fs.csum_root->ri.generation;
+    fs.sb.super_roots[0].csum_root_level = fs.csum_root->ri.root_level;
+    fs.sb.super_roots[0].total_bytes = fs.sb.total_bytes;
+    fs.sb.super_roots[0].bytes_used = fs.sb.bytes_used;
+    fs.sb.super_roots[0].num_devices = fs.sb.num_devices;
 }
 
 nt_status btrfs_filesystem::flush(bool make_readonly) {
@@ -3351,11 +3350,9 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
     // FIXME - send SATA command to ensure cache flushed
 
     sb.root_level = root_root->ri.root_level;
-    sb.root_tree_addr = root_root->ri.block_number;
+    sb.root = root_root->ri.block_number;
 
     write_superblocks(*this);
-
-    // FIXME - write superblock backups
 
     // FIXME - send SATA command again to ensure cache flushed
 
