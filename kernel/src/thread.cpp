@@ -485,22 +485,14 @@ void thread::send_signal(uint64_t code) {
 
     // if currently doing an interruptible wait, wake up
 
-    optional<reference_wrapper<object>> waiting_for2;
-
     {
         sync_lock sl;
         lock_guard l(sl);
 
-        if (status == thread_status::waiting_object && wait_interruptible) {
+        if (status == thread_status::waiting_other && wait_interruptible) {
             status = thread_status::runnable;
-            swap(waiting_for, waiting_for2);
+            remove_entry_list(wait_le);
         }
-    }
-
-    if (waiting_for2.has_value()) {
-        visit_obj(*waiting_for2, [](auto&& o) {
-            o.release();
-        });
     }
 
     // FIXME - send IPI to service signal, if currently running on a CPU in userspace?
