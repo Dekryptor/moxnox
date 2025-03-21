@@ -13,6 +13,7 @@ import print;
 import mem;
 import config;
 import list;
+import bsod;
 
 using namespace std;
 
@@ -59,9 +60,11 @@ public:
     bool readonly = false;
     list_entry flushable_le;
     bool exclusive = true;
+    list_entry waiters = { &waiters, &waiters };
 };
 
 static_assert(is_sync_object<pipe>);
+static_assert(is_sync_object2<pipe>);
 static_assert(is_readable_object_without_offset<pipe>);
 static_assert(is_writable_object_without_offset<pipe>);
 static_assert(has_ioctls<pipe>);
@@ -193,20 +196,14 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
             if (!signalled) {
                 signalled = true;
 
-                {
-                    auto le = thread_list.next;
+                while (!is_list_empty(waiters)) {
+                    auto& t = *(thread*)((uint8_t*)waiters.next - offsetof(thread, wait_le));
 
-                    while (le != &thread_list) {
-                        auto& thr = containing_record<thread>(le);
+                    assert(t.status == thread_status::waiting_other);
 
-                        if (thr.status == thread_status::waiting_object && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(this)) {
-                            thr.status = thread_status::runnable;
-                            thr.waiting_for = nullopt;
-                            release_count++;
-                        }
-
-                        le = le->next;
-                    }
+                    remove_entry_list(t.wait_le);
+                    t.status = thread_status::runnable;
+                    release_count++;
                 }
             }
 
