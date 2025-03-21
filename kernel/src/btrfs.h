@@ -6,10 +6,6 @@ using btrfs_uuid = std::array<uint8_t, 16>;
 
 static const uint64_t btrfs_magic = 0x4d5f53665248425f;
 
-static const uint64_t BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_CACHE = 0x1;
-static const uint64_t BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_CACHE_VALID = 0x2;
-static const uint64_t BTRFS_COMPAT_RO_FLAGS_VERITY = 0x4;
-
 static const uint64_t BTRFS_INCOMPAT_FLAGS_MIXED_BACKREF = 0x0001;
 static const uint64_t BTRFS_INCOMPAT_FLAGS_DEFAULT_SUBVOL = 0x0002;
 static const uint64_t BTRFS_INCOMPAT_FLAGS_MIXED_GROUPS = 0x0004;
@@ -23,8 +19,10 @@ static const uint64_t BTRFS_INCOMPAT_FLAGS_NO_HOLES = 0x0200;
 static const uint64_t BTRFS_INCOMPAT_FLAGS_METADATA_UUID = 0x0400;
 static const uint64_t BTRFS_INCOMPAT_FLAGS_RAID1C34 = 0x0800;
 
-static const uint64_t BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_TREE = 0x1;
-static const uint64_t BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_TREE_VALID = 0x2;
+static const uint64_t BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE = 0x1;
+static const uint64_t BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID = 0x2;
+static const uint64_t BTRFS_FEATURE_COMPAT_RO_VERITY = 0x4;
+static const uint64_t BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE = 0x8;
 
 static const uint64_t BLOCK_FLAG_DATA = 0x001;
 static const uint64_t BLOCK_FLAG_SYSTEM = 0x002;

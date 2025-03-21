@@ -40,6 +40,11 @@ static const uint64_t supported_incompat_flags = BTRFS_INCOMPAT_FLAGS_MIXED_BACK
                                                  BTRFS_INCOMPAT_FLAGS_BIG_METADATA | BTRFS_INCOMPAT_FLAGS_EXTENDED_IREF |
                                                  BTRFS_INCOMPAT_FLAGS_SKINNY_METADATA | BTRFS_INCOMPAT_FLAGS_NO_HOLES;
 
+static const uint64_t supported_compat_ro_flags = BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE |
+                                                  BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID |
+                                                  BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE;
+// FIXME - BTRFS_FEATURE_COMPAT_RO_VERITY
+
 static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
                                uint8_t level);
 static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
@@ -84,8 +89,14 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 
     // FIXME - support free space cache?
-    if (!(sb.compat_ro_flags & (BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_TREE | BTRFS_COMPAT_RO_FLAGS_FREE_SPACE_TREE_VALID))) {
+    if (!(sb.compat_ro_flags & (BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE | BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID))) {
         print("free space cache not supported\n");
+        return;
+    }
+
+    // FIXME - still mount but readonly
+    if (sb.compat_ro_flags & ~supported_compat_ro_flags) {
+        print("Unsupported compat_ro_flags {:x}\n", sb.compat_ro_flags & ~supported_compat_ro_flags);
         return;
     }
 
