@@ -18,6 +18,7 @@ class cacheable;
 class page_cache {
 public:
     page_cache(cacheable& dev) : dev(dev) { }
+    ~page_cache();
 
     bool pin(uint64_t first_page, uint64_t num_pages,
              page_cache_entry** first_unread);

@@ -11,6 +11,30 @@ import list;
 
 using namespace std;
 
+static void free_cache_entry(rbtree_node<uint64_t>* tree) {
+    auto& r = rbtree_containing_record<page_cache_entry>(tree);
+
+    // FIXME - is recursion going to be a problem here?
+
+    if (tree->left)
+        free_cache_entry(tree->left);
+
+    if (tree->right)
+        free_cache_entry(tree->right);
+
+    if (r.status != page_cache_status::allocated)
+        free_folio(r.phys_address);
+
+    free(&r);
+}
+
+page_cache::~page_cache() {
+    lock_guard lock(cache_lock);
+
+    if (root)
+        free_cache_entry(root);
+}
+
 page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
     auto tree = find_rbtree_node(root, page_num);
     if (!tree)
