@@ -45,10 +45,10 @@ static const uint64_t supported_incompat_flags = BTRFS_FEATURE_INCOMPAT_MIXED_BA
                                                  BTRFS_FEATURE_INCOMPAT_SKINNY_METADATA |
                                                  BTRFS_FEATURE_INCOMPAT_NO_HOLES;
 
+// FIXME - BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE
 // FIXME - BTRFS_FEATURE_COMPAT_RO_VERITY
 static const uint64_t supported_compat_ro_flags = BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE |
-                                                  BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID |
-                                                  BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE;
+                                                  BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID;
 
 static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
                                uint8_t level);
