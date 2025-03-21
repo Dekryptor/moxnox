@@ -40,8 +40,6 @@ thread* get_current_thread() {
 }
 
 void thread::terminate() {
-    unsigned int release_count = 0;
-
     if (proc) {
         bool last_thread;
         size_t region_size = 0;
@@ -80,14 +78,9 @@ void thread::terminate() {
 
             remove_entry_list(t.wait_le);
             t.status = thread_status::runnable;
-            release_count++;
         }
 
         remove_entry_list(this->le);
-
-        for (unsigned int i = 0; i < release_count; i++) {
-            release();
-        }
 
         if (current_cpu != 0xffffffff)
             insert_tail_list(thread_list_dead, this->le); // FIXME - release these in scheduler

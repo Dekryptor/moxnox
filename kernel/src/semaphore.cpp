@@ -58,35 +58,30 @@ export object_ref create_semaphore(unsigned int maximum_count) {
 }
 
 export void release_semaphore(semaphore& s) {
-    unsigned int release_count = 0;
+    unsigned int waiter_count = 0;
 
     // FIXME - what if not held by current thread?
 
-    {
-        sync_lock sl;
-        lock_guard l1(sl);
-        lock_guard l2(s.lock);
+    sync_lock sl;
+    lock_guard l1(sl);
+    lock_guard l2(s.lock);
 
-        // wake up one thread
+    // wake up one thread
 
-        s.current_count--;
+    s.current_count--;
 
-        if (!is_list_empty(s.waiters)) {
-            auto& t = *(thread*)((uint8_t*)s.waiters.next - offsetof(thread, wait_le));
+    if (!is_list_empty(s.waiters)) {
+        auto& t = *(thread*)((uint8_t*)s.waiters.next - offsetof(thread, wait_le));
 
-            assert(t.status == thread_status::waiting_other);
+        assert(t.status == thread_status::waiting_other);
 
-            remove_entry_list(t.wait_le);
-            t.status = thread_status::runnable;
-            release_count++;
-        }
-
-        if (release_count == 0)
-            s.signalled = true;
+        remove_entry_list(t.wait_le);
+        t.status = thread_status::runnable;
+        waiter_count++;
     }
 
-    if (release_count == 1)
-        s.release();
+    if (waiter_count == 0)
+        s.signalled = true;
 }
 
 void semaphore::on_wake() {

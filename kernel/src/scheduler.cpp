@@ -313,10 +313,6 @@ nt_status wait_for_object(object& obj, bool interruptible) {
     if (!(rflags & 0x200)) // IF flag not set
         bsod("calling wait_for_object with interrupts disabled");
 #endif
-    visit_obj(obj, [](auto&& o) {
-        o.acquire();
-    });
-
     auto current_thread = get_current_thread();
 
     __asm("cli");
@@ -328,8 +324,6 @@ nt_status wait_for_object(object& obj, bool interruptible) {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
                 sigopt = o.signalled;
-            else
-                o.release();
         });
 
         if (!sigopt.has_value()) {
@@ -350,10 +344,6 @@ nt_status wait_for_object(object& obj, bool interruptible) {
 
             release_sync_lock();
             __asm("sti");
-
-            visit_obj(obj, [&](auto&& o) {
-                o.release();
-            });
 
             return nt_status::SUCCESS;
         }
@@ -452,7 +442,19 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE
 
     // FIXME - check handle has SYNCHRONIZE access
 
-    return wait_for_object(objrw.get(), alertable);
+    auto& obj = objrw.get();
+
+    visit_obj(obj, [](auto&& o) {
+        o.acquire();
+    });
+
+    auto status = wait_for_object(objrw.get(), alertable);
+
+    visit_obj(obj, [](auto&& o) {
+        o.release();
+    });
+
+    return status;
 }
 
 void disable_preempt() {

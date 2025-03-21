@@ -158,7 +158,6 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
     }
 
     do {
-        unsigned int release_count = 0;
         size_t to_copy;
 
         {
@@ -203,7 +202,6 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
                     remove_entry_list(t.wait_le);
                     t.status = thread_status::runnable;
-                    release_count++;
                 }
             }
 
@@ -213,10 +211,6 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
                 if (buf_unread == buf_pages << PAGE_SHIFT)
                     not_full_event.signalled = false;
             }
-        }
-
-        for (unsigned int i = 0; i < release_count; i++) {
-            release();
         }
 
         if (s.empty())

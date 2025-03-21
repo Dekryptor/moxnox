@@ -644,8 +644,6 @@ void load_ntdll() {
 }
 
 void process::terminate() {
-    unsigned int release_count = 0;
-
     // wake up threads waiting for process to terminate
 
     {
@@ -659,12 +657,7 @@ void process::terminate() {
 
             remove_entry_list(t.wait_le);
             t.status = thread_status::runnable;
-            release_count++;
         }
-    }
-
-    for (unsigned int i = 0; i < release_count; i++) {
-        release();
     }
 
     // close open handles

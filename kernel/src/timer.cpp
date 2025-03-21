@@ -135,7 +135,7 @@ void timer_expired(timer* tptr) {
     // interrupts disabled and sync_lock held
 
     auto& t = *tptr;
-    unsigned int release_count = 0;
+    unsigned int waiter_count = 0;
 
     // signal waiting threads
 
@@ -146,17 +146,12 @@ void timer_expired(timer* tptr) {
 
         remove_entry_list(thr.wait_le);
         thr.status = thread_status::runnable;
-        release_count++;
+        waiter_count++;
     }
 
     // if autoreset, only signal if nothing waiting when fired
-    if (!t.autoreset || release_count == 0)
+    if (!t.autoreset || waiter_count == 0)
         t.signalled = true;
-
-    // FIXME - how can we do this outside of lock?
-    for (unsigned int i = 0; i < release_count; i++) {
-        t.release();
-    }
 
     if (!t.periodic) {
         t.active = false;

@@ -53,7 +53,7 @@ export object_ref create_event(bool autoreset) {
 }
 
 void event::set_holding_sync_lock() {
-    unsigned int release_count = 0;
+    unsigned int waiter_count = 0;
 
     // signal waiting threads
 
@@ -64,16 +64,12 @@ void event::set_holding_sync_lock() {
 
         remove_entry_list(t.wait_le);
         t.status = thread_status::runnable;
-        release_count++;
+        waiter_count++;
     }
 
     // if autoreset, only signal if nothing waiting when fired
-    if (!autoreset || release_count == 0)
+    if (!autoreset || waiter_count == 0)
         signalled = true;
-
-    for (unsigned int i = 0; i < release_count; i++) {
-        release();
-    }
 }
 
 export void set_event(event& e) {
