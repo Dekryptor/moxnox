@@ -442,13 +442,13 @@ struct btrfs_free_space_info {
 
 static_assert(sizeof(btrfs_free_space_info) == 8);
 
-struct block_group_item {
+struct btrfs_block_group_item {
     uint64_t used;
-    uint64_t chunk_tree;
+    uint64_t chunk_objectid;
     uint64_t flags;
 } __attribute__((packed));
 
-static_assert(sizeof(block_group_item) == 24);
+static_assert(sizeof(btrfs_block_group_item) == 24);
 
 static const unsigned int BTRFS_MAX_LEVEL = 8;
 

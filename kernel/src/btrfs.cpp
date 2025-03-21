@@ -3143,10 +3143,10 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
     const auto& it = items[p.slots[0]];
     const auto& k = it.key;
 
-    if (k != search_key || it.size < sizeof(block_group_item))
+    if (k != search_key || it.size < sizeof(btrfs_block_group_item))
         return nt_status::DISK_CORRUPT_ERROR;
 
-    auto& bgi = *(block_group_item*)((uint8_t*)&th + sizeof(btrfs_header) + it.offset);
+    auto& bgi = *(btrfs_block_group_item*)((uint8_t*)&th + sizeof(btrfs_header) + it.offset);
 
     bgi.used = (uint64_t)((int64_t)bgi.used + delta);
 
