@@ -175,7 +175,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
             return;
         }
 
-        if (ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
+        if (ci.type & (BTRFS_BLOCK_GROUP_RAID0 | BTRFS_BLOCK_GROUP_RAID1 | BTRFS_BLOCK_GROUP_RAID10 | BTRFS_BLOCK_GROUP_RAID5 | BTRFS_BLOCK_GROUP_RAID6 | BTRFS_BLOCK_GROUP_RAID1C3 | BTRFS_BLOCK_GROUP_RAID1C4)) {
             print("RAID not supported\n");
             return;
         }
@@ -378,7 +378,7 @@ bool btrfs_filesystem::load_chunks() {
             break;
         }
 
-        if (ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID1 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6 | BLOCK_FLAG_RAID1C3 | BLOCK_FLAG_RAID1C4)) {
+        if (ci.type & (BTRFS_BLOCK_GROUP_RAID0 | BTRFS_BLOCK_GROUP_RAID1 | BTRFS_BLOCK_GROUP_RAID10 | BTRFS_BLOCK_GROUP_RAID5 | BTRFS_BLOCK_GROUP_RAID6 | BTRFS_BLOCK_GROUP_RAID1C3 | BTRFS_BLOCK_GROUP_RAID1C4)) {
             print("RAID not supported\n");
             fail = true;
             break;
@@ -440,16 +440,16 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
 
     auto& c = *pc;
 
-    if (c.ci.type & BLOCK_FLAG_RAID0) {
+    if (c.ci.type & BTRFS_BLOCK_GROUP_RAID0) {
         print("RAID0 not supported\n");
         return 0;
-    } else if (c.ci.type & BLOCK_FLAG_RAID10) {
+    } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID10) {
         print("RAID10 not supported\n");
         return 0;
-    } else if (c.ci.type & BLOCK_FLAG_RAID5) {
+    } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID5) {
         print("RAID10 not supported\n");
         return 0;
-    } else if (c.ci.type & BLOCK_FLAG_RAID6) {
+    } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID6) {
         print("RAID10 not supported\n");
         return 0;
     }
@@ -507,16 +507,16 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
 bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
     unsigned int pages_per_tree = sb.node_size >> PAGE_SHIFT;
 
-    if (c.ci.type & BLOCK_FLAG_RAID0) {
+    if (c.ci.type & BTRFS_BLOCK_GROUP_RAID0) {
         print("RAID0 not supported\n");
         return false;
-    } else if (c.ci.type & BLOCK_FLAG_RAID10) {
+    } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID10) {
         print("RAID10 not supported\n");
         return false;
-    } else if (c.ci.type & BLOCK_FLAG_RAID5) {
+    } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID5) {
         print("RAID5 not supported\n");
         return false;
-    } else if (c.ci.type & BLOCK_FLAG_RAID6) {
+    } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID6) {
         print("RAID6 not supported\n");
         return false;
     }
@@ -1215,11 +1215,11 @@ static nt_status allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
 
         // FIXME - skip if chunk is readonly
 
-        if (!(c.ci.type & BLOCK_FLAG_METADATA))
+        if (!(c.ci.type & BTRFS_BLOCK_GROUP_METADATA))
             continue;
 
         // skip unsupported RAID types
-        if (c.ci.type & (BLOCK_FLAG_RAID0 | BLOCK_FLAG_RAID10 | BLOCK_FLAG_RAID5 | BLOCK_FLAG_RAID6))
+        if (c.ci.type & (BTRFS_BLOCK_GROUP_RAID0 | BTRFS_BLOCK_GROUP_RAID10 | BTRFS_BLOCK_GROUP_RAID5 | BTRFS_BLOCK_GROUP_RAID6))
             continue;
 
         status = allocate_metadata_in_chunk(fs, c, addr);
