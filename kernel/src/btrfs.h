@@ -318,16 +318,16 @@ enum class btrfs_inode_type : uint8_t {
     ea = 8
 };
 
-struct dir_item {
-    key k;
+struct btrfs_dir_item {
+    key location;
     uint64_t transid;
-    uint16_t m;
-    uint16_t n;
+    uint16_t data_len;
+    uint16_t name_len;
     btrfs_inode_type type;
     char name[1];
 } __attribute__((packed));
 
-static_assert(offsetof(dir_item, name) == 30);
+static_assert(offsetof(btrfs_dir_item, name) == 30);
 
 enum class btrfs_extent_type : uint8_t {
     inline_extent = 0,

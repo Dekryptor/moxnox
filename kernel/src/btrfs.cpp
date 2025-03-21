@@ -2238,17 +2238,17 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
     auto hash = calc_crc32c(0xfffffffe, name);
 
-    size_t di_size = offsetof(dir_item, name) + name.size();
-    auto di = (dir_item*)malloc(di_size);
+    size_t di_size = offsetof(btrfs_dir_item, name) + name.size();
+    auto di = (btrfs_dir_item*)malloc(di_size);
     if (!di)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    di->k.obj_id = new_inode;
-    di->k.obj_type = key_type::INODE_ITEM;
-    di->k.offset = 0;
+    di->location.obj_id = new_inode;
+    di->location.obj_type = key_type::INODE_ITEM;
+    di->location.offset = 0;
     di->transid = fs.sb.generation;
-    di->m = 0;
-    di->n = (uint16_t)name.size();
+    di->data_len = 0;
+    di->name_len = (uint16_t)name.size();
     di->type = is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file;
     memcpy(di->name, name.data(), name.size());
 
@@ -2380,19 +2380,19 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
 
         auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
-        while (data.size() >= offsetof(dir_item, name)) {
-            const auto& di = *(dir_item*)data.data();
+        while (data.size() >= offsetof(btrfs_dir_item, name)) {
+            const auto& di = *(btrfs_dir_item*)data.data();
 
-            if (data.size() < offsetof(dir_item, name) + di.m + di.n)
+            if (data.size() < offsetof(btrfs_dir_item, name) + di.data_len + di.name_len)
                 break;
 
-            if (string_view(di.name, di.n) == name) {
-                dir_item_key = di.k;
+            if (string_view(di.name, di.name_len) == name) {
+                dir_item_key = di.location;
                 break;
             }
 
-            data = data.subspan(offsetof(dir_item, name) + di.m + di.n,
-                                data.size() - offsetof(dir_item, name) - di.m - di.n);
+            data = data.subspan(offsetof(btrfs_dir_item, name) + di.data_len + di.name_len,
+                                data.size() - offsetof(btrfs_dir_item, name) - di.data_len - di.name_len);
         }
     } while (false);
 
@@ -2811,21 +2811,21 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
         // FIXME - return actual error if data malformed
 
-        if (data.size() < offsetof(dir_item, name))
+        if (data.size() < offsetof(btrfs_dir_item, name))
             break;
 
-        const auto& di = *(dir_item*)data.data();
+        const auto& di = *(btrfs_dir_item*)data.data();
 
-        if (data.size() < offsetof(dir_item, name) + di.m + di.n)
+        if (data.size() < offsetof(btrfs_dir_item, name) + di.data_len + di.name_len)
             break;
 
-        if (di.n > sizeof(name))
+        if (di.name_len > sizeof(name))
             break;
 
-        memcpy(name, di.name, di.n);
-        name_len = di.n;
+        memcpy(name, di.name, di.name_len);
+        name_len = di.name_len;
 
-        dir_index_key = di.k;
+        dir_index_key = di.location;
         inode_type = di.type;
         found_index = found_key.offset;
 
