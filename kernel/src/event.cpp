@@ -10,6 +10,7 @@ export module event;
 
 import print;
 import list;
+import bsod;
 
 using namespace std;
 
@@ -31,9 +32,11 @@ public:
 
     bool signalled = false;
     bool autoreset;
+    list_entry waiters = { &waiters, &waiters };
 };
 
 static_assert(is_sync_object<event>);
+static_assert(is_sync_object2<event>);
 static_assert(object_has_on_wake<event>);
 
 export object_ref create_event(bool autoreset) {
@@ -54,23 +57,14 @@ void event::set_holding_sync_lock() {
 
     // signal waiting threads
 
-    {
-        auto le = thread_list.next;
+    while (!is_list_empty(waiters)) {
+        auto& t = *(thread*)((uint8_t*)waiters.next - offsetof(thread, wait_le));
 
-        while (le != &thread_list) {
-            auto& thr = containing_record<thread>(le);
+        assert(t.status == thread_status::waiting_other);
 
-            if (thr.status == thread_status::waiting_object && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(this)) {
-                thr.status = thread_status::runnable;
-                thr.waiting_for = nullopt;
-                release_count++;
-
-                if (autoreset)
-                    break;
-            }
-
-            le = le->next;
-        }
+        remove_entry_list(t.wait_le);
+        t.status = thread_status::runnable;
+        release_count++;
     }
 
     // if autoreset, only signal if nothing waiting when fired
