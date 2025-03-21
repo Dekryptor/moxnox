@@ -83,9 +83,11 @@ public:
     uint64_t pending_signal = 0;
     bool wait_interruptible;
     list_entry wait_le;
+    list_entry waiters = { &waiters, &waiters };
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);
+static_assert(is_sync_object2<thread>);
 
 static_assert(offsetof(thread, context) == THREAD_CONTEXT);
 static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
