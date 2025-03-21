@@ -73,6 +73,7 @@ public:
     PEB* peb = nullptr;
     RTL_USER_PROCESS_PARAMETERS* proc_params = nullptr;
     uintptr_t ntdll_addr, img_addr;
+    list_entry waiters = { &waiters, &waiters };
 
 private:
     void free_mappings();
@@ -82,6 +83,7 @@ private:
 };
 
 static_assert(is_sync_object<process>);
+static_assert(is_sync_object2<process>);
 
 static_assert(offsetof(process, cr3) == PROCESS_CR3);
 

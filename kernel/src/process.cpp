@@ -652,18 +652,14 @@ void process::terminate() {
         sync_lock sl;
         lock_guard lock(sl);
 
-        auto le = thread_list.next;
+        while (!is_list_empty(waiters)) {
+            auto& t = *(thread*)((uint8_t*)waiters.next - offsetof(thread, wait_le));
 
-        while (le != &thread_list) {
-            auto& t = containing_record<thread>(le);
+            assert(t.status == thread_status::waiting_other);
 
-            if (t.status == thread_status::waiting_object && t.waiting_for.has_value() && &t.waiting_for->get() == static_cast<object*>(this)) {
-                t.status = thread_status::runnable;
-                t.waiting_for = nullopt;
-                release_count++;
-            }
-
-            le = le->next;
+            remove_entry_list(t.wait_le);
+            t.status = thread_status::runnable;
+            release_count++;
         }
     }
 
