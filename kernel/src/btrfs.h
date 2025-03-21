@@ -540,6 +540,9 @@ public:
     root* chunk_root;
     root* extent_root = nullptr;
     root* free_space_root = nullptr;
+    root* csum_root = nullptr;
+    root* dev_root = nullptr;
+    root* fs_root = nullptr;
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
     list_entry metadata_changes = { &metadata_changes, &metadata_changes };
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };

@@ -770,12 +770,35 @@ bool btrfs_filesystem::load_roots() {
 
         if (r.id == BTRFS_ROOT_EXTENT)
             extent_root = &r;
+        else if (r.id == BTRFS_ROOT_DEVTREE)
+            dev_root = &r;
+        else if (r.id == BTRFS_ROOT_FSTREE)
+            fs_root = &r;
+        else if (r.id == BTRFS_ROOT_CHECKSUM)
+            csum_root = &r;
         else if (r.id == BTRFS_ROOT_FREE_SPACE)
             free_space_root = &r;
 
         if (!move_path_forward(p))
             break;
     } while (true);
+
+    if (!extent_root) {
+        print("no extent root\n");
+        fail = true;
+    } else if (!dev_root) {
+        print("no dev root\n");
+        fail = true;
+    } else if (!fs_root) {
+        print("no fs root\n");
+        fail = true;
+    } else if (!csum_root) {
+        print("no csum root\n");
+        fail = true;
+    } else if (!free_space_root) {
+        print("no free space root\n");
+        fail = true;
+    }
 
     if (fail) {
         swap_lists(root_list, new_root_list);
@@ -3225,6 +3248,33 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
     return nt_status::SUCCESS;
 }
 
+static void update_superblock_backup(btrfs_filesystem& fs) {
+    memmove(&fs.sb.backup[1], &fs.sb.backup[0],
+            sizeof(superblock_backup) * (fs.sb.backup.size() - 1));
+
+    fs.sb.backup[0].root_tree_addr = fs.sb.root_tree_addr;
+    fs.sb.backup[0].root_tree_generation = fs.sb.generation;
+    fs.sb.backup[0].chunk_tree_addr = fs.sb.chunk_tree_addr;
+    fs.sb.backup[0].chunk_tree_generation = fs.sb.chunk_root_generation;
+    fs.sb.backup[0].extent_tree_addr = fs.extent_root->ri.block_number;
+    fs.sb.backup[0].extent_tree_generation = fs.extent_root->ri.generation;
+    fs.sb.backup[0].extent_root_level = fs.extent_root->ri.root_level;
+    fs.sb.backup[0].fs_tree_addr = fs.fs_root->ri.block_number;
+    fs.sb.backup[0].fs_tree_generation = fs.fs_root->ri.generation;
+    fs.sb.backup[0].fs_root_level = fs.fs_root->ri.root_level;
+    fs.sb.backup[0].dev_root_addr = fs.dev_root->ri.block_number;
+    fs.sb.backup[0].dev_root_generation = fs.dev_root->ri.generation;
+    fs.sb.backup[0].dev_root_level = fs.dev_root->ri.root_level;
+    fs.sb.backup[0].csum_root_addr = fs.csum_root->ri.block_number;
+    fs.sb.backup[0].csum_root_generation = fs.csum_root->ri.generation;
+    fs.sb.backup[0].csum_root_level = fs.csum_root->ri.root_level;
+    fs.sb.backup[0].total_bytes = fs.sb.total_bytes;
+    fs.sb.backup[0].bytes_used = fs.sb.bytes_used;
+    fs.sb.backup[0].num_devices = fs.sb.num_devices;
+    fs.sb.backup[0].root_level = fs.sb.root_level;
+    fs.sb.backup[0].chunk_root_level = fs.sb.chunk_root_level;
+}
+
 nt_status btrfs_filesystem::flush(bool make_readonly) {
     lock_guard lock(trans_lock);
 
@@ -3238,6 +3288,8 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
 
         return nt_status::SUCCESS;
     }
+
+    update_superblock_backup(*this);
 
     status = do_metadata_changes(*this);
     if (!success(status)) {
