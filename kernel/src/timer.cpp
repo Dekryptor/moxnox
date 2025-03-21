@@ -13,6 +13,7 @@ export module timer;
 import print;
 import list;
 import interrupts;
+import bsod;
 
 using namespace std;
 
@@ -43,9 +44,11 @@ public:
     uint64_t orig_ticks;
     bool periodic;
     bool autoreset;
+    list_entry waiters = { &waiters, &waiters };
 };
 
 static_assert(is_sync_object<timer>);
+static_assert(is_sync_object2<timer>);
 static_assert(object_has_on_wake<timer>);
 
 static_assert(offsetof(timer, le) == TIMER_LE);
@@ -136,23 +139,14 @@ void timer_expired(timer* tptr) {
 
     // signal waiting threads
 
-    {
-        auto le = thread_list.next;
+    while (!is_list_empty(t.waiters)) {
+        auto& thr = *(thread*)((uint8_t*)t.waiters.next - offsetof(thread, wait_le));
 
-        while (le != &thread_list) {
-            auto& thr = containing_record<thread>(le);
+        assert(thr.status == thread_status::waiting_other);
 
-            if (thr.status == thread_status::waiting_object && thr.waiting_for.has_value() && &thr.waiting_for->get() == static_cast<object*>(&t)) {
-                thr.status = thread_status::runnable;
-                thr.waiting_for = nullopt;
-                release_count++;
-
-                if (t.autoreset)
-                    break;
-            }
-
-            le = le->next;
-        }
+        remove_entry_list(thr.wait_le);
+        thr.status = thread_status::runnable;
+        release_count++;
     }
 
     // if autoreset, only signal if nothing waiting when fired
