@@ -243,6 +243,11 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
     sb.generation++;
 
+    // clear log tree (FIXME - replay this)
+    sb.log_tree_addr = 0;
+    sb.log_root_transid = 0;
+    sb.log_root_level = 0;
+
     valid = true;
 
     // FIXME - set readonly if underlying disk is RO
