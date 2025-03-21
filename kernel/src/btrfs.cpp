@@ -126,7 +126,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         return;
     }
 
-    node_folio_order = (uint8_t)((sizeof(uint32_t) * 8) - countl_zero((uint32_t)sb.nodesize) - 1 - PAGE_SHIFT);
+    node_folio_order = (uint8_t)((sizeof(uint32_t) * 8) - (uint8_t)countl_zero((uint32_t)sb.nodesize) - 1 - PAGE_SHIFT);
 
     if (node_folio_order > MAX_FOLIO_ORDER) {
         print("btrfs metadata folio order {} larger than maximum {}\n", node_folio_order, MAX_FOLIO_ORDER);
