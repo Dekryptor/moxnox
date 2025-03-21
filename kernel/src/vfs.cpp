@@ -469,6 +469,8 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
             delete f;
             return status;
         }
+
+        f->release();
     } else {
         status = p->add_handle(ino_ref.get(), 0, shared_okay, h); // FIXME - access mask
         if (!success(status)) {
