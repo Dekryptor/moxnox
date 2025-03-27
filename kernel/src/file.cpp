@@ -155,8 +155,23 @@ NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& 
     return ret;
 }
 
-extern "C"
-NTSTATUS user_NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer,
-                                   uint32_t buffer_size, FILE_INFORMATION_CLASS file_information_class) {
+NTSTATUS NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer,
+                              uint32_t buffer_size, FILE_INFORMATION_CLASS file_information_class) {
+    auto objrw = deref_handle2(file_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    auto& obj = objrw.get();
+
+    if (obj.type != object_type::file)
+        return nt_status::INVALID_HANDLE;
+
+    auto& f = static_cast<file&>(obj);
+
+    return f.set_information(*iosb, buffer, buffer_size, file_information_class);
+}
+
+NTSTATUS file::set_information(IO_STATUS_BLOCK& iosb, void* buffer, uint32_t buffer_size,
+                               FILE_INFORMATION_CLASS file_information_class) {
     return nt_status::NOT_IMPLEMENTED;
 }
