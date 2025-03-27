@@ -69,7 +69,7 @@ public:
 
     nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
                    object_ref& obj_ref, uint32_t create_disposition,
-                   uint32_t create_options) override;
+                   uint32_t create_options, unsigned int& create_result) override;
     nt_status flush(bool make_readonly) override;
 
     tmpfs_inode* root_inode = nullptr;
@@ -102,9 +102,8 @@ export tmpfs_filesystem* create_tmpfs() {
 
 nt_status tmpfs_filesystem::open(string_view fn,
                                  const optional<reference_wrapper<inode>>& root_dir,
-                                 object_ref& obj_ref,
-                                 uint32_t create_disposition,
-                                 uint32_t create_options) {
+                                 object_ref& obj_ref, uint32_t create_disposition,
+                                 uint32_t create_options, unsigned int& create_result) {
     if (readonly && create_disposition != FILE_OPEN)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
@@ -152,6 +151,9 @@ nt_status tmpfs_filesystem::open(string_view fn,
 
         if (last_bit) {
             obj_ref = obj;
+
+            // FIXME - create_result
+
             return nt_status::SUCCESS;
         }
 

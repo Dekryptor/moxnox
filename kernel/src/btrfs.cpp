@@ -2492,7 +2492,7 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
 
 nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& root_dir,
                                  object_ref& obj_ref, uint32_t create_disposition,
-                                 uint32_t create_options) {
+                                 uint32_t create_options, unsigned int& create_result) {
 
     if (readonly && create_disposition != FILE_OPEN)
         return nt_status::MEDIA_WRITE_PROTECTED;

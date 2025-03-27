@@ -42,11 +42,12 @@ object_ref create_process(string_view fn, string_view curdir,
                           object_ref& stderrobj) {
     nt_status status;
     object_ref img_inode_ref, curdir_ref;
+    unsigned int create_result;
 
     // FIXME - merge with NtCreateProcess?
 
     status = open_inode(fn, nullopt, img_inode_ref, FILE_OPEN,
-                        FILE_NON_DIRECTORY_FILE);
+                        FILE_NON_DIRECTORY_FILE, create_result);
     if (!success(status)) { // FIXME - return status
         print("open_inode failed for {}: {}\n", fn, status);
         return {};
@@ -60,7 +61,7 @@ object_ref create_process(string_view fn, string_view curdir,
     auto& img_inode = static_cast<inode&>(img_inode_ref.get());
 
     status = open_inode(curdir, nullopt, curdir_ref, FILE_OPEN,
-                        FILE_NON_DIRECTORY_FILE);
+                        FILE_NON_DIRECTORY_FILE, create_result);
     if (!success(status)) { // FIXME - return status
         print("open_inode failed for {}: {}\n", curdir, status);
         return {};
@@ -615,9 +616,10 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 void load_ntdll() {
     nt_status status;
     object_ref inode_ref;
+    unsigned int create_result;
 
     status = open_inode("/ntdll.dll", nullopt, inode_ref, FILE_OPEN,
-                        FILE_NON_DIRECTORY_FILE);
+                        FILE_NON_DIRECTORY_FILE, create_result);
     if (!success(status))
         bsod_format("open_inode returned {} for ntdll.dll", status);
 

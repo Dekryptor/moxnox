@@ -155,9 +155,11 @@ static nt_status extract_initrd_file(tmpfs_filesystem& fs, string_view path,
         return nt_status::SUCCESS;
 
     object_ref file;
+    unsigned int create_result;
 
     auto status = fs.open(path, *fs.root_inode, file, FILE_CREATE,
-                          S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0);
+                          S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0,
+                          create_result);
 
     if (!success(status))
         return status;
@@ -239,7 +241,7 @@ export bool mount_root() {
 
 export nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir,
                             object_ref& obj_ref, uint32_t create_disposition,
-                            uint32_t create_options) {
+                            uint32_t create_options, unsigned int& create_result) {
     if (dir && fn.empty()) {
         dir->get().acquire();
         obj_ref = dir->get();
@@ -255,7 +257,7 @@ export nt_status open_inode(string_view fn, const optional<reference_wrapper<ino
     // FIXME - /dev
 
     return root.fs->open(fn, dir, obj_ref, create_disposition,
-                         create_options);
+                         create_options, create_result);
 }
 
 export extern "C"
@@ -412,6 +414,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
 
     static const string_view dev_prefix = "/dev/";
     object_ref ino_ref;
+    unsigned int create_result;
 
     if (namelen > dev_prefix.size() && string_view(name, dev_prefix.size()) == dev_prefix) {
         if (create_disposition != FILE_OPEN)
@@ -423,13 +426,15 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
             free(name);
             return status;
         }
+
+        create_result = FILE_OPENED;
     } else {
         if (root_dir) {
             status = open_inode(string_view(name, namelen), static_cast<inode&>(static_cast<file&>(root_dir.get()).ino),
-                                ino_ref, create_disposition, create_options);
+                                ino_ref, create_disposition, create_options, create_result);
         } else {
             status = open_inode(string_view(name, namelen), nullopt, ino_ref,
-                                create_disposition, create_options);
+                                create_disposition, create_options, create_result);
         }
 
         if (!success(status)) {
@@ -483,7 +488,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
 
     *file_handle = h;
 
-    io_status_block->Information = FILE_OPENED;
+    io_status_block->Information = create_result;
 
     return nt_status::SUCCESS;
 }

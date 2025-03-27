@@ -87,7 +87,7 @@ public:
     virtual ~filesystem() { }
     virtual nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
                            object_ref& obj_ref, uint32_t create_disposition,
-                           uint32_t create_options) = 0;
+                           uint32_t create_options, unsigned int& create_result) = 0;
     virtual nt_status flush(bool make_readonly) = 0;
 
     list_entry le;
