@@ -1089,6 +1089,14 @@ enum class SHUTDOWN_ACTION {
     ShutdownPowerOff
 };
 
+struct FILE_BASIC_INFORMATION {
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    uint32_t FileAttributes;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1161,4 +1169,6 @@ NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action);
 NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine, void* apc_context,
                                IO_STATUS_BLOCK* iosb, uint32_t control_code, const void* input_buffer,
                                uint32_t input_buffer_len, void* output_buffer, uint32_t output_buffer_len);
+NTSTATUS NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer, uint32_t buffer_size,
+                              FILE_INFORMATION_CLASS file_information_class);
 };
