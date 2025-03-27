@@ -154,3 +154,9 @@ NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& 
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer,
+                                   uint32_t buffer_size, FILE_INFORMATION_CLASS file_information_class) {
+    return nt_status::NOT_IMPLEMENTED;
+}
