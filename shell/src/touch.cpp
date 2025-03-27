@@ -111,7 +111,7 @@ static void touch(u16string_view fn) {
 
     status = NtCreateFile(&file, FILE_WRITE_ATTRIBUTES, &oa, &iosb, nullptr,
                           FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN_IF,
-                          FILE_NON_DIRECTORY_FILE, nullptr, 0);
+                          0, nullptr, 0);
 
     if (!success(status)) {
         print("touch: {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
