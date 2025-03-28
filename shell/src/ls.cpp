@@ -81,7 +81,7 @@ static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv) {
     }
 }
 
-static void ls() {
+static void ls(bool long_mode) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
     char buf[4096];
@@ -130,6 +130,7 @@ extern "C"
 void startup() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
+    bool long_mode = false;
 
     auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
                                   peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
@@ -151,7 +152,19 @@ void startup() {
 
     parse_cmdline(cmdline, argv);
 
-    ls();
+    // FIXME - options, then --, then files or directories
+
+    for (auto arg : argv) {
+        if (arg.empty())
+            continue;
+
+        // FIXME - die if unrecognized option
+
+        if (arg == u"-l")
+            long_mode = true;
+    }
+
+    ls(long_mode);
 
     if (buf)
         RtlFreeHeap(GetProcessHeap(), 0, buf);
