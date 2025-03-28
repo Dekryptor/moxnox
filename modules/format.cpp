@@ -127,9 +127,22 @@ span<char> sp_itoa_oct(span<char> dest, uint64_t num, unsigned int padding = 0, 
     if (dest.empty())
         return dest;
 
-    if (num == 0 && padding == 0) {
-        dest[0] = '0';
-        return span(dest.data() + 1, dest.size() - 1);
+    if (num == 0) {
+        if (padding == 0) {
+            dest[0] = '0';
+            return span(dest.data() + 1, dest.size() - 1);
+        } else if (!zero_pad) {
+            for (unsigned int i = 0; i < padding - 1; i++) {
+                dest[0] = ' ';
+                dest = span(dest.data() + 1, dest.size() - 1);
+
+                if (dest.empty())
+                    return dest;
+            }
+
+            dest[0] = '0';
+            return span(dest.data() + 1, dest.size() - 1);
+        }
     }
 
     if (num & 0x8000000000000000) {
@@ -142,10 +155,18 @@ span<char> sp_itoa_oct(span<char> dest, uint64_t num, unsigned int padding = 0, 
     }
 
     for (unsigned int i = 0; i < 21; i++) {
-        if (!first || padding == 21 - i || num & 0x7000000000000000) {
-            dest[0] = (char)(((num & 0x7000000000000000) >> 60) + '0');
+        if (!first || padding >= 21 - i || num & 0x7000000000000000) {
+            uint64_t n = (num & 0x7000000000000000) >> 60;
+
+            if (n == 0 && first && !zero_pad)
+                dest[0] = ' ';
+            else
+                dest[0] = (char)(n + '0');
+
+            if (first && n != 0)
+                first = false;
+
             dest = span(dest.data() + 1, dest.size() - 1);
-            first = false;
 
             if (dest.empty())
                 return dest;
@@ -175,7 +196,7 @@ span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
         base = int_format_base::hex;
         fmt = string_view(fmt.data(), fmt.size() - 1);
     } else if (!fmt.empty() && fmt.back() == 'o') {
-        base = int_format_base::dec;
+        base = int_format_base::oct;
         fmt = string_view(fmt.data(), fmt.size() - 1);
     }
 
