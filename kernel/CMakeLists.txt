@@ -41,7 +41,6 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/null.cpp
     src/mem.cpp
     src/config.cpp
-    src/list.cpp
     src/interrupts.cpp
     src/serial.cpp
     src/btrfs.cpp
@@ -62,7 +61,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/rwsem.cpp
 )
 
-target_link_libraries(kernel format dwarf unwind)
+target_link_libraries(kernel format dwarf unwind list)
 
 include_directories(../freetype/include)
 
