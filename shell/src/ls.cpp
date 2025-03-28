@@ -6,6 +6,8 @@
 using namespace std;
 
 import shelllib;
+import format;
+import print;
 
 static unsigned int count_cmdline_args(u16string_view cmdline) {
     unsigned int argc = 0;
@@ -96,26 +98,30 @@ static void ls(bool long_mode) {
         if (status == nt_status::NO_MORE_FILES)
             break;
         else if (!success(status)) {
-            print("NtQueryDirectoryFile returned "); // FIXME - should be to stderr
-            print_hex((uint32_t)status, 8);
-            print("\n");
+            print("NtQueryDirectoryFile returned {}\n", status); // FIXME - should be to stderr
             NtTerminateThread(NtCurrentThread(), status);
             return;
         }
 
         auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf;
         auto u16sv = u16string_view(fdi.FileName, fdi.FileNameLength / sizeof(char16_t));
-        auto len = utf16_to_utf8_len(u16sv);
-        char s[255];
 
-        utf16_to_utf8(s, u16sv);
+        if (long_mode) {
+            // FIXME - permissions
+            // FIXME - hardlink count(?)
+            // FIXME - username
+            // FIXME - group
 
-        // FIXME - print times and file sizes (and attributes?)
+            // FIXME - calculate how many spaces needed for padding
+            print("{:9} ", fdi.EndOfFile.QuadPart);
+
+            // FIXME - date
+        }
 
         if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             print("\e[01;34m");
 
-        print(string_view(s, len));
+        print("{}", u16sv);
 
         if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             print("\e[0m");
