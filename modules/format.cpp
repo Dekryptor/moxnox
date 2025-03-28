@@ -253,6 +253,9 @@ consteval bool valid_spec(string_view fmt) {
         if (fmt.back() == 'x' || fmt.back() == 'o')
             fmt = string_view(fmt.data(), fmt.size() - 1);
 
+        if (fmt.size() == 3 && fmt[1] == '{' && fmt[2] == '}')
+            return true;
+
         for (size_t i = 1; i < fmt.size(); i++) {
             if (fmt[i] < '0' || fmt[i] > '9')
                 return false;
@@ -631,7 +634,21 @@ struct checker {
             if (s.front() == '{') {
                 num_entries++;
 
-                auto end = s.find('}');
+                unsigned int depth = 1;
+                size_t end = string_view::npos;
+
+                for (unsigned int i = 1; i < s.size(); i++) {
+                    if (s[i] == '{')
+                        depth++;
+                    else if (s[i] == '}') {
+                        depth--;
+                        if (depth == 0) {
+                            end = i;
+                            break;
+                        }
+                    }
+                }
+
                 if (end == string_view::npos)
                     checker_failure();
 
@@ -653,7 +670,20 @@ struct checker {
 
         while (!s.empty()) {
             if (s.front() == '{') {
-                auto end = s.find('}');
+                unsigned int depth = 1;
+                size_t end = string_view::npos;
+
+                for (unsigned int i = 1; i < s.size(); i++) {
+                    if (s[i] == '{')
+                        depth++;
+                    else if (s[i] == '}') {
+                        depth--;
+                        if (depth == 0) {
+                            end = i;
+                            break;
+                        }
+                    }
+                }
 
                 spec[pos] = s.substr(1, end - 1);
 
