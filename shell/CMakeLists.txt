@@ -56,6 +56,7 @@ target_link_options(ls PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(ls shelllib)
 target_link_libraries(ls format)
+target_link_libraries(ls list)
 target_link_libraries(ls -lntdll ntdllcrt)
 
 install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX})

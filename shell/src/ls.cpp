@@ -8,6 +8,7 @@ using namespace std;
 import shelllib;
 import format;
 import print;
+import list;
 
 static unsigned int count_cmdline_args(u16string_view cmdline) {
     unsigned int argc = 0;
@@ -83,12 +84,19 @@ static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv) {
     }
 }
 
+struct ls_entry {
+    list_entry le;
+    FILE_DIRECTORY_INFORMATION fdi;
+};
+
 static void ls(bool long_mode) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
     char buf[4096];
 
     bool first = true;
+
+    list_entry list = { &list, &list };
 
     while (true) {
         auto status = NtQueryDirectoryFile(peb->ProcessParameters->CurrentDirectory.Handle, 0, nullptr, nullptr,
@@ -104,6 +112,28 @@ static void ls(bool long_mode) {
         }
 
         auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf;
+
+        size_t ent_len = offsetof(ls_entry, fdi.FileName) + fdi.FileNameLength;
+
+        auto ent = (ls_entry*)RtlAllocateHeap(GetProcessHeap(), 0, ent_len);
+        if (!ent)
+            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+
+        memcpy(&ent->fdi, &fdi, offsetof(FILE_DIRECTORY_INFORMATION, FileName) + fdi.FileNameLength);
+
+        insert_tail_list(list, ent->le);
+
+        first = false;
+    }
+
+    // FIXME - sort
+
+    while (!is_list_empty(list)) {
+        auto& ent = containing_record<ls_entry>(list.next);
+        auto& fdi = ent.fdi;
+
+        remove_entry_list(ent.le);
+
         auto u16sv = u16string_view(fdi.FileName, fdi.FileNameLength / sizeof(char16_t));
 
         if (long_mode) {
@@ -128,7 +158,7 @@ static void ls(bool long_mode) {
 
         print("\n");
 
-        first = false;
+        RtlFreeHeap(GetProcessHeap(), 0, &ent);
     }
 }
 
