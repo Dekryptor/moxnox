@@ -11,7 +11,7 @@
 #include <charconv>
 #include <loaderblock.h>
 #include "nt.h"
-#include "list.h"
+import list;
 
 class thread;
 class object;

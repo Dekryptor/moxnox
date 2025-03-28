@@ -2,9 +2,13 @@ module;
 
 #include <stdint.h>
 #include <stddef.h>
-#include "list.h"
 
 export module list;
+
+export struct list_entry {
+    struct list_entry* next;
+    struct list_entry* prev;
+};
 
 export template<typename T>
 T& containing_record(list_entry* le) {

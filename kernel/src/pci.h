@@ -1,7 +1,5 @@
 #pragma once
 
-#include "list.h"
-
 enum class pci_class : uint8_t {
     unclassified = 0,
     mass_storage = 1,

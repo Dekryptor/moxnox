@@ -3,9 +3,10 @@ module;
 #include <nt.h>
 #include <atomic>
 #include <span>
-#include "list.h"
 
 export module objects;
+
+import list;
 
 using namespace std;
 
