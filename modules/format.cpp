@@ -19,21 +19,21 @@ span<char> sp_strcpy(span<char> dest, string_view src) {
     return span(dest.data() + to_copy, dest.size() - to_copy);
 }
 
-span<char> sp_itoa(span<char> dest, uint64_t num) {
+span<char> sp_itoa(span<char> dest, uint64_t num, unsigned int padding = 0) {
     bool first = true;
 
     if (dest.empty())
         return dest;
 
-    if (num == 0) {
+    if (num == 0 && padding == 0) {
         dest[0] = '0';
         return span(dest.data() + 1, dest.size() - 1);
     }
 
     uint64_t place = 10000000000000000000ull;
 
-    while (place > 0) {
-        if (!first || num >= place) {
+    for (unsigned int i = 0; i < 20; i++) {
+        if (!first || padding == 20 - i || num >= place) {
             uint64_t digit = num / place;
 
             dest[0] = (char)(digit + '0');
@@ -128,27 +128,34 @@ consteval bool valid_spec(string_view) {
 }
 
 span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
-    if (fmt.empty()) {
-        if constexpr (is_signed_v<decltype(arg)>) {
-            if (arg < 0) {
-                sp = sp_strcpy(sp, "-");
-                return sp_itoa(sp, (uint64_t)-arg);
-            }
-        }
+    enum class int_format_base {
+        dec,
+        hex,
+        oct
+    };
 
-        return sp_itoa(sp, (uint64_t)arg);
+    auto base = int_format_base::dec;
+
+    if (!fmt.empty() && fmt.back() == 'x') {
+        base = int_format_base::hex;
+        fmt = string_view(fmt.data(), fmt.size() - 1);
+    } else if (!fmt.empty() && fmt.back() == 'o') {
+        base = int_format_base::dec;
+        fmt = string_view(fmt.data(), fmt.size() - 1);
     }
 
-    if (fmt.size() >= 2 && fmt.front() == ':' && fmt.back() == 'x') {
-        unsigned int padding = 0;
+    unsigned int padding = 0;
 
-        for (size_t i = 1; i < fmt.size() - 1; i++) {
+    if (fmt.size() >= 2 && fmt.front() == ':') {
+        for (size_t i = 1; i < fmt.size(); i++) {
             padding *= 10;
             padding += (unsigned int)(fmt[i] - '0');
         }
+    }
 
-        // FIXME - should be padded with spaces if first digit not 0
+    // FIXME - should be padded with spaces if first digit not 0
 
+    if (base == int_format_base::hex) {
         if constexpr (is_signed_v<decltype(arg)>) {
             if (arg < 0) {
                 sp = sp_strcpy(sp, "-");
@@ -157,16 +164,7 @@ span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
         }
 
         return sp_itoa_hex(sp, (uint64_t)arg, padding);
-    } else if (fmt.size() >= 2 && fmt.front() == ':' && fmt.back() == 'o') {
-        unsigned int padding = 0;
-
-        for (size_t i = 1; i < fmt.size() - 1; i++) {
-            padding *= 10;
-            padding += (unsigned int)(fmt[i] - '0');
-        }
-
-        // FIXME - should be padded with spaces if first digit not 0
-
+    } else if (base == int_format_base::oct) {
         if constexpr (is_signed_v<decltype(arg)>) {
             if (arg < 0) {
                 sp = sp_strcpy(sp, "-");
@@ -175,9 +173,16 @@ span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
         }
 
         return sp_itoa_oct(sp, (uint64_t)arg, padding);
-    }
+    } else {
+        if constexpr (is_signed_v<decltype(arg)>) {
+            if (arg < 0) {
+                sp = sp_strcpy(sp, "-");
+                return sp_itoa(sp, (uint64_t)-arg, padding > 0 ? (padding - 1) : 0);
+            }
+        }
 
-    return sp;
+        return sp_itoa(sp, (uint64_t)arg, padding);
+    }
 }
 
 template<typename T>
@@ -186,8 +191,11 @@ consteval bool valid_spec(string_view fmt) {
     if (fmt.empty())
         return true;
 
-    if (fmt.size() >= 2 && fmt.front() == ':' && (fmt.back() == 'x' || fmt.back() == 'o')) {
-        for (size_t i = 1; i < fmt.size() - 1; i++) {
+    if (fmt.size() >= 2 && fmt.front() == ':') {
+        if (fmt.back() == 'x' || fmt.back() == 'o')
+            fmt = string_view(fmt.data(), fmt.size() - 1);
+
+        for (size_t i = 1; i < fmt.size(); i++) {
             if (fmt[i] < '0' || fmt[i] > '9')
                 return false;
         }
