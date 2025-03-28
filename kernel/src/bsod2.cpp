@@ -44,7 +44,7 @@ static void print_rip(pipe& p, uint64_t rip) {
     uint64_t written;
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
-    sp = format(sp, "{:16x}", rip);
+    sp = format(sp, "{:016x}", rip);
 
     auto img = get_kernel_image_from_address(rip);
 

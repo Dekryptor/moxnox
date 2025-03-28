@@ -43,7 +43,7 @@ static void print_rip(uint64_t rip) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = format(sp, "{:16x}", rip);
+    sp = format(sp, "{:016x}", rip);
 
     auto ent = get_ldr_from_address(rip);
 
@@ -142,7 +142,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
             break;
 
             default:
-                sp = format(sp, "Unhandled exception {:8x}\n", exception->ExceptionCode);
+                sp = format(sp, "Unhandled exception {:08x}\n", exception->ExceptionCode);
             break;
         }
 
