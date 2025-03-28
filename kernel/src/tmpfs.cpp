@@ -377,6 +377,8 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
 
     ino->acquire();
 
+    ino->file_size = 0;
+
     c->inode = ino;
     c->name_len = name.size();
     memcpy(c->name, name.data(), name.size());
