@@ -585,7 +585,20 @@ span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... arg
         fmt = string_view(fmt.data() + brack, fmt.size() - brack);
     }
 
-    auto close = fmt.find('}');
+    unsigned int depth = 1;
+    size_t close = string_view::npos;
+
+    for (unsigned int i = 1; i < fmt.size(); i++) {
+        if (fmt[i] == '{')
+            depth++;
+        else if (fmt[i] == '}') {
+            depth--;
+            if (depth == 0) {
+                close = i;
+                break;
+            }
+        }
+    }
 
     if (close == string_view::npos)
         return sp;
