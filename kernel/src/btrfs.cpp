@@ -2732,7 +2732,8 @@ size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     return 0;
 }
 
-static NTSTATUS query_directory_dirent(string_view sv, enum btrfs_inode_type inode_type,
+static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrfs_key& k,
+                                       string_view sv, enum btrfs_inode_type inode_type,
                                        span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::DirectoryInformation: {
@@ -2748,6 +2749,30 @@ static NTSTATUS query_directory_dirent(string_view sv, enum btrfs_inode_type ino
             auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
 
             // FIXME - get info from inode
+            // FIXME - subvolumes
+
+            btrfs_path p(fs.sb.nodesize);
+
+            auto status = fs.find_item(r, k, p, false);
+            if (!success(status))
+                return status;
+
+            auto& th = *(btrfs_header*)p.data[0];
+            auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+            if (p.slots[0] >= th.nritems)
+                return nt_status::DISK_CORRUPT_ERROR;
+
+            const auto& it = items[p.slots[0]];
+            const auto& found_key = it.key;
+
+            if (found_key.objectid != k.objectid || found_key.type != k.type)
+                return nt_status::DISK_CORRUPT_ERROR;
+
+            if (it.size < sizeof(btrfs_inode_item))
+                return nt_status::DISK_CORRUPT_ERROR;
+
+            auto& ii = *(btrfs_inode_item*)((const uint8_t*)&th + sizeof(btrfs_header) + it.offset);
 
             fdi.NextEntryOffset = 0;
             fdi.FileIndex = 0;
@@ -2755,7 +2780,7 @@ static NTSTATUS query_directory_dirent(string_view sv, enum btrfs_inode_type ino
             fdi.LastAccessTime.QuadPart = 0; // FIXME
             fdi.LastWriteTime.QuadPart = 0; // FIXME
             fdi.ChangeTime.QuadPart = 0; // FIXME
-            fdi.EndOfFile.QuadPart = 0; // FIXME
+            fdi.EndOfFile.QuadPart = ii.size;
             fdi.AllocationSize.QuadPart = 0; // FIXME
             fdi.FileAttributes = inode_type == btrfs_inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
@@ -2838,7 +2863,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     if (!found)
         return nt_status::NO_MORE_FILES;
 
-    auto ret = query_directory_dirent(string_view(name, name_len),
+    auto ret = query_directory_dirent(fs, *r, dir_index_key, string_view(name, name_len),
                                       inode_type, buf,
                                       file_information_class);
 
