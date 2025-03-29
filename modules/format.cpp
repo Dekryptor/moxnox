@@ -183,7 +183,7 @@ consteval bool valid_spec(string_view) {
     return false;
 }
 
-span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
+span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg, optional<uint64_t> arg2 = nullopt) {
     enum class int_format_base {
         dec,
         hex,
@@ -200,16 +200,22 @@ span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg) {
         fmt = string_view(fmt.data(), fmt.size() - 1);
     }
 
-    unsigned int padding = 0;
+    unsigned int padding;
     bool zero_pad = false;
 
-    if (fmt.size() >= 2 && fmt.front() == ':') {
-        for (size_t i = 1; i < fmt.size(); i++) {
-            if (i == 1 && fmt[i] == '0')
-                zero_pad = true;
+    if (arg2.has_value())
+        padding = (unsigned int)*arg2;
+    else {
+        padding = 0;
 
-            padding *= 10;
-            padding += (unsigned int)(fmt[i] - '0');
+        if (fmt.size() >= 2 && fmt.front() == ':') {
+            for (size_t i = 1; i < fmt.size(); i++) {
+                if (i == 1 && fmt[i] == '0')
+                    zero_pad = true;
+
+                padding *= 10;
+                padding += (unsigned int)(fmt[i] - '0');
+            }
         }
     }
 
@@ -667,7 +673,7 @@ struct checker {
 export
 template<typename... Args>
 span<char> format_to(span<char> sp, string_view fmt, const tuple<Args...>& args) {
-    constexpr size_t num_args = sizeof...(Args);
+    static constexpr size_t num_args = sizeof...(Args);
 
     if constexpr (num_args == 0)
         return sp_strcpy(sp, fmt);
@@ -686,11 +692,13 @@ span<char> format_to(span<char> sp, string_view fmt, const tuple<Args...>& args)
 
         unsigned int depth = 1;
         size_t close = string_view::npos;
+        bool nested = false;
 
         for (unsigned int i = 1; i < fmt.size(); i++) {
-            if (fmt[i] == '{')
+            if (fmt[i] == '{') {
                 depth++;
-            else if (fmt[i] == '}') {
+                nested = true;
+            } else if (fmt[i] == '}') {
                 depth--;
                 if (depth == 0) {
                     close = i;
@@ -702,7 +710,20 @@ span<char> format_to(span<char> sp, string_view fmt, const tuple<Args...>& args)
         if (close == string_view::npos)
             return sp;
 
-        sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), get<0>(args));
+        if constexpr (num_args >= 2) {
+            if constexpr (is_integral_v<tuple_element_t<0, remove_cvref_t<decltype(args)>>> && is_integral_v<tuple_element_t<1, remove_cvref_t<decltype(args)>>>) {
+                if (nested)
+                    sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), get<0>(args), get<1>(args));
+                else
+                    sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), get<0>(args));
+            } else {
+                sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), get<0>(args));
+                nested = false;
+            }
+        } else {
+            sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), get<0>(args));
+            nested = false;
+        }
 
         fmt = string_view(fmt.data() + close + 1, fmt.size() - close - 1);
 
@@ -710,9 +731,10 @@ span<char> format_to(span<char> sp, string_view fmt, const tuple<Args...>& args)
             return sp;
 
         if constexpr (num_args >= 2) {
-            auto t2 = apply([](auto, auto... rest) { return make_tuple(rest...); }, args);
-
-            return format_to(sp, fmt, t2);
+            if (nested)
+                return format_to(sp, fmt, apply([](auto, auto, auto... rest) { return make_tuple(rest...); }, args));
+            else
+                return format_to(sp, fmt, apply([](auto, auto... rest) { return make_tuple(rest...); }, args));
         } else
             return sp_strcpy(sp, fmt);
     }
