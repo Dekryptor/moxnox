@@ -1,6 +1,9 @@
 module;
 
-#include "kernel.h"
+#include <stdint.h>
+#include <string_view>
+#include <span>
+#include <string.h>
 
 export module string;
 
