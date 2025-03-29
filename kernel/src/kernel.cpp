@@ -251,6 +251,15 @@ static void init_images_list(span<const uint8_t> debug_info,
     insert_tail_list(kernel_images, img->le);
 }
 
+// FIXME - should be in string module, but currently ICEs GCC 15 if placed there
+extern "C"
+int toupper(int c) {
+    if (c >= 'a' && c <= 'z')
+        return c - 'a' + 'A';
+    else
+        return c;
+}
+
 extern "C"
 void startup(loader_block* lb) {
     span<const uint8_t> debug_info, debug_abbrev, debug_rnglists, debug_str,

@@ -209,14 +209,6 @@ export void utf8_to_utf16(span<char16_t> buf, string_view sv) {
 }
 
 extern "C"
-int toupper(int c) {
-    if (c >= 'a' && c <= 'z')
-        return c - 'a' + 'A';
-    else
-        return c;
-}
-
-extern "C"
 int tolower(int c) {
     if (c >= 'A' && c <= 'Z')
         return c - 'A' + 'a';
