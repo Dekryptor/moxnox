@@ -6,6 +6,7 @@ module;
 #include <stdlib.h>
 #include <optional>
 #include <utility>
+#include <tuple>
 
 export module dwarf;
 
@@ -354,7 +355,7 @@ static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args..
     char s[100];
     auto sp = span(s, sizeof(s));
 
-    sp = format_to(sp, fmt.sv, args...);
+    sp = format_to(sp, fmt.sv, make_tuple(args...));
 
     do_print(string_view(s, (size_t)(sp.data() - s)));
 }

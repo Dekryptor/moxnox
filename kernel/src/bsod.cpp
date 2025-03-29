@@ -3,6 +3,7 @@ module;
 #include <string_view>
 #include <source_location>
 #include <span>
+#include <tuple>
 #include <nt.h>
 #include "cpu_block.h"
 
@@ -38,7 +39,7 @@ struct bsod_format {
 
         auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
-        sp = format_to(sp, fmt.sv, args...);
+        sp = format_to(sp, fmt.sv, make_tuple(args...));
 
         bsod(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
              sl, 2);

@@ -570,57 +570,6 @@ consteval bool valid_spec<chrono::hh_mm_ss<chrono::seconds>>(string_view fmt) {
     return fmt.empty();
 }
 
-export
-template<typename T, typename... Args>
-span<char> format_to(span<char> sp, string_view fmt, const T& arg, Args&&... args) {
-    // FIXME - {{ and }} escaping
-
-    auto brack = fmt.find('{');
-
-    if (brack == string_view::npos)
-        return sp_strcpy(sp, fmt);
-
-    if (brack != 0) {
-        sp = sp_strcpy(sp, string_view(fmt.data(), brack));
-        fmt = string_view(fmt.data() + brack, fmt.size() - brack);
-    }
-
-    unsigned int depth = 1;
-    size_t close = string_view::npos;
-
-    for (unsigned int i = 1; i < fmt.size(); i++) {
-        if (fmt[i] == '{')
-            depth++;
-        else if (fmt[i] == '}') {
-            depth--;
-            if (depth == 0) {
-                close = i;
-                break;
-            }
-        }
-    }
-
-    if (close == string_view::npos)
-        return sp;
-
-    sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), arg);
-
-    fmt = string_view(fmt.data() + close + 1, fmt.size() - close - 1);
-
-    if (fmt.empty())
-        return sp;
-
-    if constexpr (sizeof...(args) > 0)
-        return format_to(sp, fmt, args...);
-    else
-        return sp_strcpy(sp, fmt);
-}
-
-export
-span<char> format_to(span<char> sp, string_view fmt) {
-    return sp_strcpy(sp, fmt);
-}
-
 void checker_failure();
 
 template<typename T, typename... Args>
@@ -717,6 +666,62 @@ struct checker {
 
 export
 template<typename... Args>
+span<char> format_to(span<char> sp, string_view fmt, const tuple<Args...>& args) {
+    constexpr size_t num_args = sizeof...(Args);
+
+    if constexpr (num_args == 0)
+        return sp_strcpy(sp, fmt);
+    else {
+        // FIXME - {{ and }} escaping
+
+        auto brack = fmt.find('{');
+
+        if (brack == string_view::npos)
+            return sp_strcpy(sp, fmt);
+
+        if (brack != 0) {
+            sp = sp_strcpy(sp, string_view(fmt.data(), brack));
+            fmt = string_view(fmt.data() + brack, fmt.size() - brack);
+        }
+
+        unsigned int depth = 1;
+        size_t close = string_view::npos;
+
+        for (unsigned int i = 1; i < fmt.size(); i++) {
+            if (fmt[i] == '{')
+                depth++;
+            else if (fmt[i] == '}') {
+                depth--;
+                if (depth == 0) {
+                    close = i;
+                    break;
+                }
+            }
+        }
+
+        if (close == string_view::npos)
+            return sp;
+
+        sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), get<0>(args));
+
+        fmt = string_view(fmt.data() + close + 1, fmt.size() - close - 1);
+
+        if (fmt.empty())
+            return sp;
+
+        if constexpr (num_args >= 2) {
+            auto t2 = apply([](auto, auto... rest) { return make_tuple(rest...); }, args);
+
+            return format_to(sp, fmt, t2);
+        } else
+            return sp_strcpy(sp, fmt);
+    }
+}
+
+export
+template<typename... Args>
 span<char> format(span<char> sp, type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
-    return format_to(sp, fmt.sv, args...);
+    auto t = make_tuple(args...);
+
+    return format_to(sp, fmt.sv, t);
 }

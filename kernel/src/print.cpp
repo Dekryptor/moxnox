@@ -2,6 +2,7 @@ module;
 
 #include <span>
 #include <string_view>
+#include <tuple>
 #include <nt.h>
 #include "cpu_block.h"
 
@@ -25,7 +26,7 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
 
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
-    sp = format_to(sp, fmt.sv, args...);
+    sp = format_to(sp, fmt.sv, make_tuple(args...));
 
     _printk(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
 

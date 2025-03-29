@@ -2,6 +2,7 @@ module;
 
 #include <string_view>
 #include <span>
+#include <tuple>
 #include <nt.h>
 
 export module print;
@@ -28,7 +29,9 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
 
     auto sp = span(buf, sizeof(buf));
 
-    sp = format_to(sp, fmt.sv, args...);
+    auto t = make_tuple(args...);
+
+    sp = format_to(sp, fmt.sv, t);
 
     do_print(string_view(buf, (size_t)(sp.data() - buf)));
 }
