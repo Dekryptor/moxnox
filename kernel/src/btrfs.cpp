@@ -2732,6 +2732,10 @@ size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     return 0;
 }
 
+static int64_t unix_to_win_time(const btrfs_timespec& t) {
+    return (t.sec * 10000000) + (t.nsec / 100) + 116444736000000000;
+}
+
 static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrfs_key& k,
                                        string_view sv, enum btrfs_inode_type inode_type,
                                        span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
@@ -2748,7 +2752,6 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
 
             auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
 
-            // FIXME - get info from inode
             // FIXME - subvolumes
 
             btrfs_path p(fs.sb.nodesize);
@@ -2776,10 +2779,10 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
 
             fdi.NextEntryOffset = 0;
             fdi.FileIndex = 0;
-            fdi.CreationTime.QuadPart = 0; // FIXME
-            fdi.LastAccessTime.QuadPart = 0; // FIXME
-            fdi.LastWriteTime.QuadPart = 0; // FIXME
-            fdi.ChangeTime.QuadPart = 0; // FIXME
+            fdi.CreationTime.QuadPart = unix_to_win_time(ii.otime);
+            fdi.LastAccessTime.QuadPart = unix_to_win_time(ii.atime);
+            fdi.LastWriteTime.QuadPart = unix_to_win_time(ii.mtime);
+            fdi.ChangeTime.QuadPart = unix_to_win_time(ii.ctime);
             fdi.EndOfFile.QuadPart = ii.size;
             fdi.AllocationSize.QuadPart = 0; // FIXME
             fdi.FileAttributes = inode_type == btrfs_inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
