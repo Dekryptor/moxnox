@@ -2517,49 +2517,52 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
     reference_wrapper<btrfs_inode> dirrw{!root_dir ? *root_inode : static_cast<btrfs_inode&>(root_dir->get())};
     dirrw.get().acquire();
 
-    // get trans_lock RO if FILE_OPEN, RW otherwise
-    variant<shared_lock<rwsem>, lock_guard<rwsem>> lg;
+    auto l = [&]() -> nt_status {
+        // FIXME - die if anything in middle not directory
 
-    if (create_disposition == FILE_OPEN)
-        lg.emplace<shared_lock<rwsem>>(trans_lock);
-    else
-        lg.emplace<lock_guard<rwsem>>(trans_lock);
+        while (true) {
+            auto sl = fn.find("/");
+            auto& dir = dirrw.get();
+            bool last_bit = sl == string_view::npos;
+            optional<reference_wrapper<btrfs_inode>> objrw;
 
-    // FIXME - transaction lock (RO if FILE_OPEN, RW otherwise)
+            // FIXME - .. and .
 
-    // FIXME - die if anything in middle not directory
+            auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
+                                        last_bit ? create_disposition : FILE_OPEN,
+                                        create_options, objrw);
+            if (!success(status)) {
+                dir.release();
 
-    while (true) {
-        auto sl = fn.find("/");
-        auto& dir = dirrw.get();
-        bool last_bit = sl == string_view::npos;
-        optional<reference_wrapper<btrfs_inode>> objrw;
+                if (!last_bit && status == nt_status::OBJECT_NAME_NOT_FOUND)
+                    status = nt_status::OBJECT_PATH_NOT_FOUND;
 
-        // FIXME - .. and .
+                return status;
+            }
 
-        auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
-                                     last_bit ? create_disposition : FILE_OPEN,
-                                     create_options, objrw);
-        if (!success(status)) {
+            auto& obj = objrw->get();
+
             dir.release();
 
-            if (!last_bit && status == nt_status::OBJECT_NAME_NOT_FOUND)
-                status = nt_status::OBJECT_PATH_NOT_FOUND;
+            if (last_bit) {
+                obj_ref = obj;
+                return nt_status::SUCCESS;
+            }
 
-            return status;
+            fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
+            dirrw = obj;
         }
+    };
 
-        auto& obj = objrw->get();
+    // get trans_lock RO if FILE_OPEN, RW otherwise
+    if (create_disposition == FILE_OPEN) {
+        shared_lock lock(trans_lock);
 
-        dir.release();
+        return l();
+    } else {
+        lock_guard lock(trans_lock);
 
-        if (last_bit) {
-            obj_ref = obj;
-            return nt_status::SUCCESS;
-        }
-
-        fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
-        dirrw = obj;
+        return l();
     }
 }
 
