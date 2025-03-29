@@ -128,6 +128,20 @@ static void ls(bool long_mode) {
 
     // FIXME - sort
 
+    uint64_t max_size = 0;
+
+    for (auto le = list.next; le != &list; le = le->next) {
+        auto& ent = containing_record<ls_entry>(le);
+
+        max_size = max(max_size, (uint64_t)ent.fdi.EndOfFile.QuadPart);
+    }
+
+    unsigned int size_padding = 0;
+    while (max_size > 0) {
+        size_padding++;
+        max_size /= 10;
+    }
+
     while (!is_list_empty(list)) {
         auto& ent = containing_record<ls_entry>(list.next);
         auto& fdi = ent.fdi;
@@ -142,8 +156,7 @@ static void ls(bool long_mode) {
             // FIXME - username
             // FIXME - group
 
-            // FIXME - calculate how many spaces needed for padding
-            print("{:9} ", fdi.EndOfFile.QuadPart);
+            print("{:{}} ", fdi.EndOfFile.QuadPart, size_padding);
 
             // FIXME - date
         }
