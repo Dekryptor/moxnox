@@ -240,7 +240,7 @@ static void found_rtc(const acpi_device& d) {
         return;
     }
 
-    init_rtc(port.value());
+    init_rtc(*port);
 }
 
 static void found_ps2_keyboard(const acpi_device& d) {
