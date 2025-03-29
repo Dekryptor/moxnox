@@ -3,6 +3,7 @@
 #include <string_view>
 #include <span>
 #include <chrono>
+#include <algorithm>
 
 using namespace std;
 
@@ -153,14 +154,14 @@ static void ls(bool long_mode) {
     IO_STATUS_BLOCK iosb;
     char buf[4096];
 
-    bool first = true;
+    unsigned int num_entries = 0;
 
     list_entry list = { &list, &list };
 
     while (true) {
         auto status = NtQueryDirectoryFile(peb->ProcessParameters->CurrentDirectory.Handle, 0, nullptr, nullptr,
                                            &iosb, buf, sizeof(buf), FILE_INFORMATION_CLASS::DirectoryInformation,
-                                           false, nullptr, first);
+                                           false, nullptr, num_entries == 0 ? true : false);
 
         if (status == nt_status::NO_MORE_FILES)
             break;
@@ -182,10 +183,11 @@ static void ls(bool long_mode) {
 
         insert_tail_list(list, ent->le);
 
-        first = false;
+        num_entries++;
     }
 
-    // FIXME - sort
+    if (is_list_empty(list))
+        return;
 
     uint64_t max_size = 0;
 
@@ -201,11 +203,31 @@ static void ls(bool long_mode) {
         max_size /= 10;
     }
 
-    while (!is_list_empty(list)) {
-        auto& ent = containing_record<ls_entry>(list.next);
-        auto& fdi = ent.fdi;
+    auto arr = (ls_entry**)RtlAllocateHeap(GetProcessHeap(), 0, sizeof(ls_entry*) * num_entries);
+    if (!arr)
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
 
-        remove_entry_list(ent.le);
+    {
+        auto ptr = arr;
+
+        for (auto le = list.next; le != &list; le = le->next) {
+            auto& ent = containing_record<ls_entry>(le);
+
+            *ptr = &ent;
+            ptr++;
+        }
+    }
+
+    ranges::sort(span(arr, num_entries), [](ls_entry* a, ls_entry* b) -> bool {
+        auto name1 = u16string_view(a->fdi.FileName, a->fdi.FileNameLength / sizeof(char16_t));
+        auto name2 = u16string_view(b->fdi.FileName, b->fdi.FileNameLength / sizeof(char16_t));
+
+        return name1 < name2;
+    });
+
+    for (unsigned int i = 0; i < num_entries; i++) {
+        auto& ent = *arr[i];
+        auto& fdi = ent.fdi;
 
         auto u16sv = u16string_view(fdi.FileName, fdi.FileNameLength / sizeof(char16_t));
 
@@ -233,6 +255,8 @@ static void ls(bool long_mode) {
 
         RtlFreeHeap(GetProcessHeap(), 0, &ent);
     }
+
+    RtlFreeHeap(GetProcessHeap(), 0, arr);
 }
 
 extern "C"
