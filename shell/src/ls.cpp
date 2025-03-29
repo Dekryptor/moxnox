@@ -2,6 +2,7 @@
 #include <ntdll.h>
 #include <string_view>
 #include <span>
+#include <chrono>
 
 using namespace std;
 
@@ -84,6 +85,64 @@ static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv) {
     }
 }
 
+static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
+    signed long long j, e, f, g, h;
+    uint8_t day, month;
+    uint16_t year;
+
+    auto num = (int)(system_time / (int64_t)864000000000);
+
+    j = num + 2305814;
+
+    f = (4 * j) + 274277;
+    f /= 146097;
+    f *= 3;
+    f /= 4;
+    f += j;
+    f += 1363;
+
+    e = (4 * f) + 3;
+    g = (e % 1461) / 4;
+    h = (5 * g) + 2;
+
+    day = (uint8_t)(((h % 153) / 5) + 1);
+    month = (uint8_t)(((h / 153) + 2) % 12 + 1);
+    year = static_cast<uint16_t>((e / 1461) - 4716 + ((14 - month) / 12));
+
+    return {chrono::year{year}, chrono::month{month}, chrono::day{day}};
+}
+
+static constexpr chrono::hh_mm_ss<chrono::seconds> system_time_to_hms(int64_t system_time) noexcept {
+    auto secs = (unsigned int)((system_time % (int64_t)864000000000) / 10000000);
+
+    return chrono::hh_mm_ss{chrono::seconds{secs}};
+}
+
+static void print_date(int64_t tm) {
+    auto ymd = system_time_to_ymd(tm);
+    auto hms = system_time_to_hms(tm);
+
+    static const char* months[] = {
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+    };
+
+    // FIXME - different format if not recent (last six months)
+
+    print("{} {:2} {:02}:{:02}", months[(unsigned int)ymd.month() - 1], (unsigned int)ymd.day(),
+          hms.hours().count(), hms.minutes().count());
+}
+
 struct ls_entry {
     list_entry le;
     FILE_DIRECTORY_INFORMATION fdi;
@@ -158,7 +217,8 @@ static void ls(bool long_mode) {
 
             print("{:{}} ", fdi.EndOfFile.QuadPart, size_padding);
 
-            // FIXME - date
+            print_date(fdi.LastWriteTime.QuadPart);
+            print(" ");
         }
 
         if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
