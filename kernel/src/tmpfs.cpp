@@ -46,7 +46,7 @@ public:
     list_entry le;
     spinlock dentry_lock;
     list_entry children = { &children, &children };
-    uint64_t mtime = 0, ctime = 0, otime = 0, atime = 0;
+    uint64_t mtime, ctime, otime, atime;
 
 private:
     tmpfs_filesystem& fs;
@@ -88,6 +88,13 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
         print("new failed\n");
         return;
     }
+
+    auto cur_time = (uint64_t)system_time + system_time_offset;
+
+    root_inode->atime = cur_time;
+    root_inode->ctime = cur_time;
+    root_inode->mtime = cur_time;
+    root_inode->otime = cur_time;
 
     insert_tail_list(inode_list, root_inode->le);
 }
