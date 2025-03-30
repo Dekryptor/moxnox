@@ -2746,6 +2746,17 @@ static int64_t unix_to_win_time(const btrfs_timespec& t) {
     return (int64_t)((t.sec * 10000000) + (t.nsec / 100) + 116444736000000000);
 }
 
+static btrfs_timespec win_to_unix_time(int64_t t) {
+    btrfs_timespec ret;
+
+    t -= 116444736000000000;
+
+    ret.sec = (uint64_t)(t / 10000000);
+    ret.nsec = (uint32_t)((t % 10000000) * 100);
+
+    return ret;
+}
+
 static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrfs_key& k,
                                        string_view sv, enum btrfs_inode_type inode_type,
                                        span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
@@ -3494,7 +3505,78 @@ chunk::~chunk() {
 
 NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer,
                                       FILE_INFORMATION_CLASS file_information_class) {
-    print("FIXME - btrfs_inode::set_information\n"); // FIXME
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
 
-    return nt_status::NOT_IMPLEMENTED;
+    switch (file_information_class) {
+        case FILE_INFORMATION_CLASS::BasicInformation:
+            return set_basic_information(buffer);
+
+        default:
+            print("btrfs_inode::set_information: unhandle file information class {}\n",
+                  (unsigned int)file_information_class);
+            return nt_status::NOT_IMPLEMENTED;
+    }
+}
+
+nt_status btrfs_inode::set_basic_information(std::span<const uint8_t> buffer) {
+    if (buffer.size() < sizeof(FILE_BASIC_INFORMATION))
+        return nt_status::INVALID_PARAMETER;
+
+    const auto& fbi = *(FILE_BASIC_INFORMATION*)buffer.data();
+
+    if (fbi.CreationTime.QuadPart != 0 || fbi.LastAccessTime.QuadPart != 0 ||
+        fbi.LastWriteTime.QuadPart != 0 || fbi.ChangeTime.QuadPart != 0) {
+
+        btrfs_path p(fs.sb.nodesize);
+        nt_status status;
+
+        lock_guard lock(fs.trans_lock);
+
+        status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, true);
+        if (!success(status))
+            return status;
+
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+        auto& it = items[p.slots[0]];
+        const auto& found_key = it.key;
+
+        if (found_key.objectid != inode || found_key.type != key_type::INODE_ITEM)
+            return nt_status::DISK_CORRUPT_ERROR;
+
+        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+        if (it.size < sizeof(btrfs_inode_item))
+            return nt_status::DISK_CORRUPT_ERROR;
+
+        auto& ii = *(btrfs_inode_item*)data.data();
+
+        ii.sequence++;
+
+        // FIXME - setting times to -1 or -2
+        // FIXME - subsequent writes etc. shouldn't clobber set time
+
+        if (fbi.CreationTime.QuadPart != 0)
+            ii.otime = win_to_unix_time(fbi.CreationTime.QuadPart);
+
+        if (fbi.LastAccessTime.QuadPart != 0)
+            ii.atime = win_to_unix_time(fbi.LastAccessTime.QuadPart);
+
+        if (fbi.LastWriteTime.QuadPart != 0)
+            ii.mtime = win_to_unix_time(fbi.LastWriteTime.QuadPart);
+
+        if (fbi.ChangeTime.QuadPart != 0)
+            ii.ctime = win_to_unix_time(fbi.ChangeTime.QuadPart);
+
+        // copy tree back into page cache and mark dirty
+
+        if (!fs.cache.write(span(p.data[0], fs.sb.nodesize), th.bytenr)) // FIXME - return status
+            return nt_status::INTERNAL_ERROR;
+    }
+
+    // FIXME - FileAttributes
+
+    return nt_status::SUCCESS;
 }
