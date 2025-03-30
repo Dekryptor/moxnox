@@ -2349,7 +2349,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 }
 
 nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
-                                  uint32_t create_options,
+                                  uint32_t create_options, unsigned int& create_result,
                                   optional<reference_wrapper<btrfs_inode>>& obj) {
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
@@ -2396,21 +2396,27 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         }
     } while (false);
 
-    // FIXME - iosb Information
-
     if (dir_item_key.has_value()) {
-        if (create_disposition == FILE_CREATE)
-            return nt_status::OBJECT_NAME_COLLISION;
+        switch (create_disposition) {
+            case FILE_CREATE:
+                return nt_status::OBJECT_NAME_COLLISION;
 
-        if (create_disposition == FILE_OVERWRITE) {
-            print("FIXME - FILE_OVERWRITE\n");
-            return nt_status::NOT_SUPPORTED;
-        } else if (create_disposition == FILE_OVERWRITE_IF) {
-            print("FIXME - FILE_OVERWRITE_IF\n");
-            return nt_status::NOT_SUPPORTED;
-        } else if (create_disposition == FILE_SUPERSEDE) {
-            print("FIXME - FILE_SUPERSEDE\n");
-            return nt_status::NOT_SUPPORTED;
+            case FILE_SUPERSEDE:
+                print("FIXME - FILE_SUPERSEDE\n");
+                return nt_status::NOT_SUPPORTED;
+
+            case FILE_OVERWRITE:
+                print("FIXME - FILE_OVERWRITE\n");
+                return nt_status::NOT_SUPPORTED;
+
+            case FILE_OVERWRITE_IF:
+                print("FIXME - FILE_OVERWRITE_IF\n");
+                return nt_status::NOT_SUPPORTED;
+
+            case FILE_OPEN:
+            case FILE_OPEN_IF:
+                create_result = FILE_OPENED;
+                break;
         }
 
         auto& v = *dir_item_key;
@@ -2420,13 +2426,17 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         else
             return fs.open_inode(r->id, v.objectid, obj);
     } else {
-        if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE)
+        if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE) {
+            create_result = FILE_DOES_NOT_EXIST;
             return nt_status::OBJECT_NAME_NOT_FOUND;
+        }
 
         auto status = create_child(name, create_options, obj);
 
         if (!success(status))
             return status;
+
+        create_result = FILE_CREATED;
 
         return status;
     }
@@ -2525,12 +2535,14 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
             auto& dir = dirrw.get();
             bool last_bit = sl == string_view::npos;
             optional<reference_wrapper<btrfs_inode>> objrw;
+            unsigned int result;
 
             // FIXME - .. and .
 
             auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
-                                        last_bit ? create_disposition : FILE_OPEN,
-                                        create_options, objrw);
+                                         last_bit ? create_disposition : FILE_OPEN,
+                                         create_options, last_bit ? create_result : result,
+                                         objrw);
             if (!success(status)) {
                 dir.release();
 

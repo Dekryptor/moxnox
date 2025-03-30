@@ -486,7 +486,7 @@ public:
     void release() override;
 
     nt_status open_child(std::string_view name, uint32_t create_disposition,
-                         uint32_t create_options,
+                         uint32_t create_options, unsigned int& create_result,
                          std::optional<std::reference_wrapper<btrfs_inode>>& obj);
     nt_status create_child(std::string_view name,
                            uint32_t create_options,
