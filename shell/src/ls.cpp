@@ -119,7 +119,7 @@ static constexpr chrono::hh_mm_ss<chrono::seconds> system_time_to_hms(int64_t sy
     return chrono::hh_mm_ss{chrono::seconds{secs}};
 }
 
-static void print_date(int64_t tm) {
+static void print_date(int64_t tm, int64_t now) {
     auto ymd = system_time_to_ymd(tm);
     auto hms = system_time_to_hms(tm);
 
@@ -138,10 +138,15 @@ static void print_date(int64_t tm) {
         "Dec"
     };
 
-    // FIXME - different format if not recent (last six months)
+    static const int64_t SIX_MONTHS = 157784760000000;
 
-    print("{} {:2} {:02}:{:02}", months[(unsigned int)ymd.month() - 1], (unsigned int)ymd.day(),
-          hms.hours().count(), hms.minutes().count());
+    if (tm <= now && tm >= now - SIX_MONTHS) {
+        print("{} {:2} {:02}:{:02}", months[(unsigned int)ymd.month() - 1], (unsigned int)ymd.day(),
+              hms.hours().count(), hms.minutes().count());
+    } else {
+        print("{} {:2}  {}", months[(unsigned int)ymd.month() - 1], (unsigned int)ymd.day(),
+              (int)ymd.year());
+    }
 }
 
 struct ls_entry {
@@ -222,8 +227,15 @@ static void ls(bool long_mode) {
         auto name1 = u16string_view(a->fdi.FileName, a->fdi.FileNameLength / sizeof(char16_t));
         auto name2 = u16string_view(b->fdi.FileName, b->fdi.FileNameLength / sizeof(char16_t));
 
+        // FIXME - should be case-insensitive comparison
+
         return name1 < name2;
     });
+
+    LARGE_INTEGER now;
+
+    if (auto status = NtQuerySystemTime(&now); !success(status))
+        NtTerminateThread(NtCurrentThread(), status);
 
     for (unsigned int i = 0; i < num_entries; i++) {
         auto& ent = *arr[i];
@@ -239,7 +251,7 @@ static void ls(bool long_mode) {
 
             print("{:{}} ", fdi.EndOfFile.QuadPart, size_padding);
 
-            print_date(fdi.LastWriteTime.QuadPart);
+            print_date(fdi.LastWriteTime.QuadPart, now.QuadPart);
             print(" ");
         }
 
