@@ -16,6 +16,7 @@ import config;
 import list;
 import string;
 import volume;
+import timer;
 
 using namespace std;
 
@@ -45,7 +46,7 @@ public:
     list_entry le;
     spinlock dentry_lock;
     list_entry children = { &children, &children };
-    int64_t mtime = 0, ctime = 0, otime = 0, atime = 0;
+    uint64_t mtime = 0, ctime = 0, otime = 0, atime = 0;
 
 private:
     tmpfs_filesystem& fs;
@@ -215,10 +216,10 @@ static nt_status query_directory_dirent(const dentry& d, span<uint8_t> buf,
 
             fdi.NextEntryOffset = 0;
             fdi.FileIndex = 0;
-            fdi.CreationTime.QuadPart = d.inode->otime;
-            fdi.LastAccessTime.QuadPart = d.inode->atime;
-            fdi.LastWriteTime.QuadPart = d.inode->mtime;
-            fdi.ChangeTime.QuadPart = d.inode->ctime;
+            fdi.CreationTime.QuadPart = (int64_t)d.inode->otime;
+            fdi.LastAccessTime.QuadPart = (int64_t)d.inode->atime;
+            fdi.LastWriteTime.QuadPart = (int64_t)d.inode->mtime;
+            fdi.ChangeTime.QuadPart = (int64_t)d.inode->ctime;
             fdi.EndOfFile.QuadPart = (int64_t)d.inode->file_size;
             fdi.AllocationSize.QuadPart = 0; // FIXME
             fdi.FileAttributes = d.inode->inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0;
@@ -376,11 +377,17 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
+    auto cur_time = (uint64_t)system_time + system_time_offset;
+
     new (c) dentry;
 
     ino->acquire();
 
     ino->file_size = 0;
+    ino->atime = cur_time;
+    ino->ctime = cur_time;
+    ino->mtime = cur_time;
+    ino->otime = cur_time;
 
     c->inode = ino;
     c->name_len = name.size();
