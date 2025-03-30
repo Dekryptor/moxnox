@@ -2733,7 +2733,7 @@ size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 static int64_t unix_to_win_time(const btrfs_timespec& t) {
-    return (t.sec * 10000000) + (t.nsec / 100) + 116444736000000000;
+    return (int64_t)((t.sec * 10000000) + (t.nsec / 100) + 116444736000000000);
 }
 
 static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrfs_key& k,
