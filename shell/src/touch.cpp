@@ -9,41 +9,6 @@ import print;
 
 using namespace std;
 
-static unsigned int count_cmdline_args(u16string_view cmdline) {
-    unsigned int argc = 0;
-
-    while (!cmdline.empty()) {
-        while (cmdline.front() == ' ' || cmdline.front() == '\t') {
-            cmdline = u16string_view(cmdline.data() + 1, cmdline.size() - 1);
-        }
-
-        if (cmdline.empty())
-            break;
-
-        size_t end = cmdline.size();
-
-        if (cmdline.front() == u'"') {
-            if (auto q = cmdline.find(u'"', 1); q != string_view::npos && q < end) {
-                end = q - 1;
-                cmdline = u16string_view(cmdline.data() + end + 2, cmdline.size() - end - 2);
-            } else
-                cmdline = u"";
-        } else {
-            if (auto sp = cmdline.find(u' '); sp != string_view::npos && sp < end)
-                end = sp;
-
-            if (auto tab = cmdline.find(u'\t'); tab != string_view::npos && tab < end)
-                end = tab;
-
-            cmdline = u16string_view(cmdline.data() + end, cmdline.size() - end);
-        }
-
-        argc++;
-    }
-
-    return argc;
-}
-
 extern "C"
 void* malloc(size_t size) {
     return RtlAllocateHeap(GetProcessHeap(), 0, size);
