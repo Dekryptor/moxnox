@@ -49,7 +49,7 @@ uint64_t parse_int(span<char, 8> sp) {
     return ret;
 }
 
-export void process_cpio(span<const uint8_t> data, invocable<string_view, uint64_t, span<const uint8_t>> auto func) {
+export void process_cpio(span<const uint8_t> data, invocable<string_view, uint64_t, span<const uint8_t>, uint64_t> auto func) {
     do {
         if (data.size() < sizeof(cpio_entry))
             return;
@@ -64,6 +64,7 @@ export void process_cpio(span<const uint8_t> data, invocable<string_view, uint64
         }
 
         auto mode = parse_int(ent.mode);
+        auto mtime = parse_int(ent.mtime);
         auto file_size = parse_int(ent.file_size);
         auto path_size = parse_int(ent.path_size);
 
@@ -95,7 +96,7 @@ export void process_cpio(span<const uint8_t> data, invocable<string_view, uint64
 
         auto contents = span(data.data(), file_size);
 
-        func(path, mode, contents);
+        func(path, mode, contents, mtime);
 
         padding = (file_size % 4) ? (4 - (file_size % 4)) : 0;
 

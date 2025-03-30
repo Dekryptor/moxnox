@@ -24,7 +24,7 @@ static const size_t NAME_MAX_LEN = 255;
 
 export class tmpfs_filesystem;
 
-class tmpfs_inode : public inode {
+export class tmpfs_inode : public inode {
 public:
     tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : fs(fs) {
         this->inode_type = inode_type;

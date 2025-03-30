@@ -144,8 +144,13 @@ static constexpr bool S_ISREG(uint64_t mode) {
     return (mode & __S_IFMT) == __S_IFREG;
 }
 
+static uint64_t unix_to_system_time(uint64_t t) {
+    return (t * 10000000) + 116444736000000000;
+}
+
 static nt_status extract_initrd_file(tmpfs_filesystem& fs, string_view path,
-                                     uint64_t mode, span<const uint8_t> contents) {
+                                     uint64_t mode, span<const uint8_t> contents,
+                                     uint64_t mtime) {
     // FIXME - support symlinks as well at least
     if (!S_ISDIR(mode) && !S_ISREG(mode))
         return nt_status::SUCCESS;
@@ -164,10 +169,13 @@ static nt_status extract_initrd_file(tmpfs_filesystem& fs, string_view path,
     if (!success(status))
         return status;
 
+    auto& ino = static_cast<tmpfs_inode&>(file.get());
+
+    ino.mtime = unix_to_system_time(mtime);
+
     if (!S_ISREG(mode))
         return nt_status::SUCCESS;
 
-    auto& ino = static_cast<inode&>(file.get());
     uint64_t offset = 0, written;
 
     while (!contents.empty()) {
@@ -191,8 +199,8 @@ static bool extract_initrd() {
 
     root.fs = fs;
 
-    process_cpio(initrd, [&](string_view path, uint64_t mode, span<const uint8_t> contents) {
-        auto status = extract_initrd_file(*fs, path, mode, contents);
+    process_cpio(initrd, [&](string_view path, uint64_t mode, span<const uint8_t> contents, uint64_t mtime) {
+        auto status = extract_initrd_file(*fs, path, mode, contents, mtime);
 
         if (!success(status))
             bsod_format("extract_initrd_file returned {} for {}", status, path);
