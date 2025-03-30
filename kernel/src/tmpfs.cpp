@@ -42,6 +42,7 @@ public:
                              FILE_INFORMATION_CLASS file_information_class) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
+    nt_status set_basic_information(std::span<const uint8_t> buffer);
 
     list_entry le;
     spinlock dentry_lock;
@@ -77,8 +78,6 @@ public:
     tmpfs_inode* root_inode = nullptr;
     spinlock inode_lock;
     list_entry inode_list = { &inode_list, &inode_list };
-
-private:
     bool readonly = false;
 };
 
@@ -416,7 +415,42 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
 
 NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer,
                                       FILE_INFORMATION_CLASS file_information_class) {
-    print("FIXME - tmpfs_inode::set_information\n"); // FIXME
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
 
-    return nt_status::NOT_IMPLEMENTED;
+    switch (file_information_class) {
+        case FILE_INFORMATION_CLASS::BasicInformation:
+            return set_basic_information(buffer);
+
+        default:
+            print("tmpfs_inode::set_information: unhandle file information class {}\n",
+                  (unsigned int)file_information_class);
+            return nt_status::NOT_IMPLEMENTED;
+    }
+}
+
+nt_status tmpfs_inode::set_basic_information(std::span<const uint8_t> buffer) {
+    if (buffer.size() < sizeof(FILE_BASIC_INFORMATION))
+        return nt_status::INVALID_PARAMETER;
+
+    const auto& fbi = *(FILE_BASIC_INFORMATION*)buffer.data();
+
+    // FIXME - setting times to -1 or -2
+    // FIXME - subsequent writes etc. shouldn't clobber set time
+
+    if (fbi.CreationTime.QuadPart != 0)
+        otime = (uint64_t)fbi.CreationTime.QuadPart;
+
+    if (fbi.LastAccessTime.QuadPart != 0)
+        atime = (uint64_t)fbi.LastAccessTime.QuadPart;
+
+    if (fbi.LastWriteTime.QuadPart != 0)
+        mtime = (uint64_t)fbi.LastWriteTime.QuadPart;
+
+    if (fbi.ChangeTime.QuadPart != 0)
+        ctime = (uint64_t)fbi.ChangeTime.QuadPart;
+
+    // FIXME - FileAttributes
+
+    return nt_status::SUCCESS;
 }
