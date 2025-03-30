@@ -2783,7 +2783,7 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
             fdi.LastAccessTime.QuadPart = unix_to_win_time(ii.atime);
             fdi.LastWriteTime.QuadPart = unix_to_win_time(ii.mtime);
             fdi.ChangeTime.QuadPart = unix_to_win_time(ii.ctime);
-            fdi.EndOfFile.QuadPart = ii.size;
+            fdi.EndOfFile.QuadPart = (int64_t)ii.size;
             fdi.AllocationSize.QuadPart = 0; // FIXME
             fdi.FileAttributes = inode_type == btrfs_inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
