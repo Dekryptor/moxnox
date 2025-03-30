@@ -9,7 +9,7 @@ enable_language(ASM)
 
 add_library(shelllib STATIC)
 target_sources(shelllib PUBLIC FILE_SET CXX_MODULES FILES
-    src/string.cpp
+    src/shelllib.cpp
     src/print.cpp
 )
 
