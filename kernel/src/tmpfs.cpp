@@ -45,6 +45,7 @@ public:
     list_entry le;
     spinlock dentry_lock;
     list_entry children = { &children, &children };
+    int64_t mtime = 0, ctime = 0, otime = 0, atime = 0;
 
 private:
     tmpfs_filesystem& fs;
@@ -210,13 +211,15 @@ static nt_status query_directory_dirent(const dentry& d, span<uint8_t> buf,
 
             auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
 
+            // FIXME - should be holding lock for values in inode(?)
+
             fdi.NextEntryOffset = 0;
             fdi.FileIndex = 0;
-            fdi.CreationTime.QuadPart = 0; // FIXME
-            fdi.LastAccessTime.QuadPart = 0; // FIXME
-            fdi.LastWriteTime.QuadPart = 0; // FIXME
-            fdi.ChangeTime.QuadPart = 0; // FIXME
-            fdi.EndOfFile.QuadPart = (int64_t)d.inode->file_size; // FIXME - should be holding lock
+            fdi.CreationTime.QuadPart = d.inode->otime;
+            fdi.LastAccessTime.QuadPart = d.inode->atime;
+            fdi.LastWriteTime.QuadPart = d.inode->mtime;
+            fdi.ChangeTime.QuadPart = d.inode->ctime;
+            fdi.EndOfFile.QuadPart = (int64_t)d.inode->file_size;
             fdi.AllocationSize.QuadPart = 0; // FIXME
             fdi.FileAttributes = d.inode->inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0;
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
