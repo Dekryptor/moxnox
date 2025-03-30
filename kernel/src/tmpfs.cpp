@@ -38,7 +38,7 @@ public:
                          optional<reference_wrapper<tmpfs_inode>>& obj);
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
-    NTSTATUS set_information(IO_STATUS_BLOCK& iosb, span<const uint8_t> buffer,
+    NTSTATUS set_information(span<const uint8_t> buffer,
                              FILE_INFORMATION_CLASS file_information_class) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -414,7 +414,7 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
     return nt_status::SUCCESS;
 }
 
-NTSTATUS tmpfs_inode::set_information(IO_STATUS_BLOCK& iosb, span<const uint8_t> buffer,
+NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer,
                                       FILE_INFORMATION_CLASS file_information_class) {
     print("FIXME - tmpfs_inode::set_information\n"); // FIXME
 

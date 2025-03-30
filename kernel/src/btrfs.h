@@ -493,7 +493,7 @@ public:
                            std::optional<std::reference_wrapper<btrfs_inode>>& obj);
     NTSTATUS query_directory(std::span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
-    NTSTATUS set_information(IO_STATUS_BLOCK& iosb, std::span<const uint8_t> buffer,
+    NTSTATUS set_information(std::span<const uint8_t> buffer,
                              FILE_INFORMATION_CLASS file_information_class) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;

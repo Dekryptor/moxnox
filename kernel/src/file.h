@@ -31,7 +31,7 @@ public:
                              void* file_information, uint32_t length,
                              FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
                              const UNICODE_STRING* file_name, bool restart_scan);
-    NTSTATUS set_information(IO_STATUS_BLOCK& iosb, void* buffer, uint32_t buffer_size,
+    NTSTATUS set_information(void* buffer, uint32_t buffer_size,
                              FILE_INFORMATION_CLASS file_information_class);
 };
 

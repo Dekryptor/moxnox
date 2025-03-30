@@ -168,14 +168,16 @@ NTSTATUS NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* b
 
     auto& f = static_cast<file&>(obj);
 
-    return f.set_information(*iosb, buffer, buffer_size, file_information_class);
+    iosb->Information = 0;
+
+    return f.set_information(buffer, buffer_size, file_information_class);
 }
 
-NTSTATUS file::set_information(IO_STATUS_BLOCK& iosb, void* buffer, uint32_t buffer_size,
+NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
                                FILE_INFORMATION_CLASS file_information_class) {
     if (ino.type != object_type::inode)
         return nt_status::INVALID_PARAMETER;
 
-    return static_cast<inode&>(ino).set_information(iosb, span((uint8_t*)buffer, buffer_size),
+    return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
                                                     file_information_class);
 }

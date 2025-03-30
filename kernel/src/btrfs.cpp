@@ -3492,7 +3492,7 @@ chunk::~chunk() {
     }
 }
 
-NTSTATUS btrfs_inode::set_information(IO_STATUS_BLOCK& iosb, span<const uint8_t> buffer,
+NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer,
                                       FILE_INFORMATION_CLASS file_information_class) {
     print("FIXME - btrfs_inode::set_information\n"); // FIXME
 
