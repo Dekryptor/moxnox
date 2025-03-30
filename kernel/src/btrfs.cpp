@@ -867,8 +867,6 @@ bool btrfs_inode::load_inode() {
     bool found_inode_item = false;
     btrfs_path p(fs.sb.nodesize);
 
-    shared_lock lg(fs.trans_lock);
-
     status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, false);
     if (!success(status)) // FIXME - return this somehow
         return false;
