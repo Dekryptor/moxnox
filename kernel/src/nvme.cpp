@@ -279,6 +279,7 @@ private:
     uint32_t admin_cq_head = 0;
     unsigned int doorbell_stride;
     uint64_t controller_info_phys = 0;
+    uint64_t maximum_transfer_size;
 };
 
 nvme::nvme(span<volatile uint8_t> bar) {
@@ -467,6 +468,13 @@ bool nvme::identify_controller() {
         print("not an I/O controller\n");
         return false;
     }
+
+    uint8_t mpsmin = (*(&regs->cap) & 0xf000000000000) >> 48;
+
+    if (controller_info.mdts == 0)
+        maximum_transfer_size = 0;
+    else
+        maximum_transfer_size = 1 << (controller_info.mdts + mpsmin + 12);
 
     return true;
 }
