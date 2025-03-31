@@ -1,14 +1,11 @@
 #pragma once
 
-#include <cstdint>
 #include <string_view>
 #include <cstring>
 #include <atomic>
 #include <functional>
 #include <optional>
 #include <span>
-#include <source_location>
-#include <charconv>
 #include <loaderblock.h>
 #include "nt.h"
 import list;
