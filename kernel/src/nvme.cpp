@@ -7,6 +7,8 @@ export module nvme;
 
 import print;
 
+static uint32_t VERSION_SUPPORTED = 0x00020200; // 2.2.0
+
 struct nvme_regs {
     uint64_t cap;
     uint32_t vs;
@@ -44,11 +46,23 @@ struct nvme_regs {
 static_assert(sizeof(nvme_regs) == 0x1000);
 
 export void init_nvme(const pci_device& dev) {
-    volatile auto regs = (nvme_regs*)dev.bar[0].data();
+    volatile auto* regs = (nvme_regs*)dev.bar[0].data();
 
     if (dev.bar[0].size() < sizeof(nvme_regs)) {
         print("init_nvme: BAR0 was {:x} bytes, expected at least {:x}\n",
               dev.bar[0].size(), sizeof(nvme_regs));
+        return;
+    }
+
+    uint32_t version = *(&regs->vs);
+
+    if (version > VERSION_SUPPORTED) {
+        auto version_major = version >> 16;
+        auto version_minor = (version >> 8) & 0xff;
+        auto version_tertiary = version & 0xff;
+
+        print("unsupported NVMe version {}.{}.{}\n",
+              version_major, version_minor, version_tertiary);
         return;
     }
 
