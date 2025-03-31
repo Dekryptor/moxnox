@@ -9,6 +9,8 @@ import print;
 
 static uint32_t VERSION_SUPPORTED = 0x00020200; // 2.2.0
 
+static uint8_t CSS_NCSS = 0x01;
+
 struct nvme_regs {
     uint64_t cap;
     uint32_t vs;
@@ -63,6 +65,14 @@ export void init_nvme(const pci_device& dev) {
 
         print("unsupported NVMe version {}.{}.{}\n",
               version_major, version_minor, version_tertiary);
+        return;
+    }
+
+    uint64_t cap = *(&regs->cap);
+    uint8_t css = (cap & 0x1fe000000000) >> 37;
+
+    if (!(css & CSS_NCSS)) {
+        print("controller does not support NVMe command set\n");
         return;
     }
 
