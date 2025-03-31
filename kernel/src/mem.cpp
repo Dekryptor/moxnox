@@ -1786,3 +1786,12 @@ export void vfree(void* ptr, size_t size) {
         unmap_and_free_page((uint64_t)ptr + (i << PAGE_SHIFT));
     }
 }
+
+export void inline __attribute__((always_inline)) barrier() {
+    __asm__ __volatile__ (
+        ""
+        :
+        :
+        : "memory"
+    );
+}

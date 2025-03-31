@@ -134,7 +134,9 @@ void nvme::reset_controller() {
 
     // set EN to 0
     *cc &= ~CC_EN;
+
     // wait for CSTS.RDY to become 0
+    barrier();
     while (*csts & CSTS_RDY) { }
 
     // clear AMS bits (set to 000, round robin)
@@ -151,7 +153,9 @@ void nvme::reset_controller() {
     regs->acq = admin_cq;
 
     // set EN to 1
+    barrier();
     *cc |= CC_EN;
+
     // wait for CSTS.RDY to become 1
     while (!(*csts & CSTS_RDY)) { }
 }
