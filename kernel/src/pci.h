@@ -55,6 +55,8 @@ struct pci_header0 : pci_header {
 
 static_assert(sizeof(pci_header0) == 0x40);
 
+struct pci_msix;
+
 struct pci_device {
     list_entry le;
     volatile pci_header0* header;
@@ -63,6 +65,7 @@ struct pci_device {
     uint8_t function;
     std::span<volatile uint8_t> bar[6];
     std::span<volatile uint8_t> msi;
+    volatile pci_msix* msix = nullptr;
 };
 
 enum class pci_mass_storage {
@@ -127,3 +130,13 @@ struct pci_msi : pci_capability {
 } __attribute__((packed));
 
 static_assert(sizeof(pci_msi) == 24);
+
+struct pci_msix : pci_capability {
+    uint16_t message_control;
+    uint32_t bir : 3;
+    uint32_t table_offset : 29;
+    uint32_t pending_bit_bir : 3;
+    uint32_t pending_bit_offset : 29;
+} __attribute__((packed));
+
+static_assert(sizeof(pci_msix) == 12);

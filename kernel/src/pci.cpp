@@ -59,19 +59,29 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
 
             // FIXME - MSI-X if supported as well
 
-            if (cap.type == pci_capability_type::msi) {
-                volatile auto& msi = *(pci_msi*)ptr;
-                size_t len;
+            switch (cap.type) {
+                case pci_capability_type::msi: {
+                    volatile auto& msi = *(pci_msi*)ptr;
+                    size_t len;
 
-                if (msi.message_control & 0x80) { // 64-bit
-                    if (msi.message_control & 0x100) // per-vector masking
-                        len = sizeof(pci_msi);
-                    else
-                        len = offsetof(pci_msi, v64.reserved);
-                } else
-                    len = offsetof(pci_msi, v32.message_data) + sizeof(uint16_t);
+                    if (msi.message_control & 0x80) { // 64-bit
+                        if (msi.message_control & 0x100) // per-vector masking
+                            len = sizeof(pci_msi);
+                        else
+                            len = offsetof(pci_msi, v64.reserved);
+                    } else
+                        len = offsetof(pci_msi, v32.message_data) + sizeof(uint16_t);
 
-                pci_dev.msi = span((volatile uint8_t*)((uintptr_t)&h | ((uintptr_t)ptr & (PAGE_SIZE - 1))), len);
+                    pci_dev.msi = span((volatile uint8_t*)((uintptr_t)&h | ((uintptr_t)ptr & (PAGE_SIZE - 1))), len);
+                    break;
+                }
+
+                case pci_capability_type::msix:
+                    pci_dev.msix = (volatile pci_msix*)((uintptr_t)&h | ((uintptr_t)ptr & (PAGE_SIZE - 1)));
+                    break;
+
+                default:
+                    break;
             }
 
             if (cap.next == 0)
