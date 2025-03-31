@@ -59,6 +59,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/smp.cpp
     src/volume.cpp
     src/rwsem.cpp
+    src/nvme.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list)

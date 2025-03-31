@@ -14,6 +14,7 @@ import config;
 import list;
 import sata;
 import event;
+import nvme;
 
 using namespace std;
 
@@ -232,6 +233,10 @@ static void pci_device_found(void* ctx) {
             switch ((enum pci_mass_storage)dev.header->sub_class) {
                 case pci_mass_storage::sata:
                     init_sata(dev);
+                break;
+
+                case pci_mass_storage::nonvolatile_memory:
+                    init_nvme(dev);
                 break;
 
                 default:
