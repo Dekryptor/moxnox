@@ -2,11 +2,14 @@ module;
 
 #include "kernel.h"
 #include "pci.h"
+#include <span>
 
 export module nvme;
 
 import print;
 import config;
+
+using namespace std;
 
 static uint32_t VERSION_SUPPORTED = 0x00020200; // 2.2.0
 
@@ -56,36 +59,26 @@ struct nvme_regs {
 
 static_assert(sizeof(nvme_regs) == 0x1000);
 
-static void reset_controller(volatile uint32_t* cc, volatile uint32_t* csts) {
-    // set EN to 0
-    *cc &= ~CC_EN;
-    // wait for CSTS.RDY to become 0
-    while (*csts & CSTS_RDY) { }
+class nvme {
+public:
+    nvme(span<volatile uint8_t> bar);
 
-    // clear AMS bits (set to 000, round robin)
-    *cc &= ~CC_AMS;
+    bool initialized = false;
 
-    // set MPS
-    *cc &= ~CC_MPS;
-    *cc |= (PAGE_SHIFT - 12) << CC_MPS_SHIFT;
+private:
+    void reset_controller();
 
-    // clear CSS bits (set to 000, NVM commmand set)
-    *cc &= ~CC_CSS;
+    volatile nvme_regs* regs;
+};
 
-    // set EN to 1
-    *cc |= CC_EN;
-    // wait for CSTS.RDY to become 1
-    while (!(*csts & CSTS_RDY)) { }
-}
-
-export void init_nvme(const pci_device& dev) {
-    volatile auto* regs = (nvme_regs*)dev.bar[0].data();
-
-    if (dev.bar[0].size() < sizeof(nvme_regs)) {
+nvme::nvme(span<volatile uint8_t> bar) {
+    if (bar.size() < sizeof(nvme_regs)) {
         print("init_nvme: BAR0 was {:x} bytes, expected at least {:x}\n",
-              dev.bar[0].size(), sizeof(nvme_regs));
+              bar.size(), sizeof(nvme_regs));
         return;
     }
+
+    regs = (nvme_regs*)bar.data();
 
     uint32_t version = *(&regs->vs);
 
@@ -115,7 +108,41 @@ export void init_nvme(const pci_device& dev) {
         return;
     }
 
+    reset_controller();
+
+    initialized = true;
+}
+
+void nvme::reset_controller() {
+    volatile uint32_t* cc = &regs->cc;
+    volatile uint32_t* csts = &regs->csts;
+
+    // set EN to 0
+    *cc &= ~CC_EN;
+    // wait for CSTS.RDY to become 0
+    while (*csts & CSTS_RDY) { }
+
+    // clear AMS bits (set to 000, round robin)
+    *cc &= ~CC_AMS;
+
+    // set MPS
+    *cc &= ~CC_MPS;
+    *cc |= (PAGE_SHIFT - 12) << CC_MPS_SHIFT;
+
+    // clear CSS bits (set to 000, NVM commmand set)
+    *cc &= ~CC_CSS;
+
+    // set EN to 1
+    *cc |= CC_EN;
+    // wait for CSTS.RDY to become 1
+    while (!(*csts & CSTS_RDY)) { }
+}
+
+export void init_nvme(const pci_device& dev) {
+    nvme n(dev.bar[0]);
+
     print("FIXME - init_nvme\n"); // FIXME
 
-    reset_controller(&regs->cc, &regs->csts);
+    if (!n.initialized)
+        return;
 }
