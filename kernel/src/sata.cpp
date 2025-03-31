@@ -552,7 +552,7 @@ static void init_sata_device(void* ctx, void* ctx2) {
         dev.model_number.remove_suffix(1);
     }
 
-    print("Found disk: {}\n", dev.model_number);
+    print("Found SATA disk: {}\n", dev.model_number);
 
     dev.sector_size = 512; // FIXME - get from identify block
     dev.size = dev.identify_block.user_addressable_sectors * dev.sector_size;

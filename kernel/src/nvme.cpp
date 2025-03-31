@@ -3,6 +3,7 @@ module;
 #include "kernel.h"
 #include "pci.h"
 #include <span>
+#include <bit>
 
 export module nvme;
 
@@ -134,15 +135,142 @@ struct nvme_completion {
 
 static_assert(sizeof(nvme_completion) == 16);
 
+struct nvme_identify_data {
+    uint16_t vid;
+    uint16_t ssvid;
+    char sn[20];
+    char mn[40];
+    char fr[8];
+    uint8_t rab;
+    uint8_t ieee[3];
+    uint8_t cmic;
+    uint8_t mdts;
+    uint16_t cntlid;
+    uint32_t ver;
+    uint32_t rtd3r;
+    uint32_t rtd3e;
+    uint32_t oaes;
+    uint32_t ctratt;
+    uint16_t rrls;
+    uint8_t bpcap;
+    uint8_t reserved1;
+    uint32_t nssl;
+    uint16_t reserved2;
+    uint8_t plsi;
+    uint8_t cntrltype;
+    uint8_t fguid[16];
+    uint16_t crdt1;
+    uint16_t crdt2;
+    uint16_t crdt3;
+    uint8_t crcap;
+    uint8_t reserved3[105];
+    uint8_t reserved4[13];
+    uint8_t nvmsr;
+    uint8_t vwci;
+    uint8_t mec;
+    uint16_t oacs;
+    uint8_t acl;
+    uint8_t aerl;
+    uint8_t frmw;
+    uint8_t lpa;
+    uint8_t elpe;
+    uint8_t npss;
+    uint8_t avscc;
+    uint8_t apsta;
+    uint16_t wctemp;
+    uint16_t cctemp;
+    uint16_t mtfa;
+    uint32_t hmpre;
+    uint32_t hmmin;
+    uint8_t tnvmcap[16];
+    uint8_t unvmcap[16];
+    uint32_t rpmbs;
+    uint16_t edstt;
+    uint8_t dsto;
+    uint8_t fwug;
+    uint16_t kas;
+    uint16_t hctma;
+    uint16_t mntmt;
+    uint16_t mxtmt;
+    uint32_t sanicap;
+    uint32_t hmminds;
+    uint16_t hmmaxd;
+    uint16_t nsetidmax;
+    uint16_t endgidmax;
+    uint8_t anatt;
+    uint8_t anacap;
+    uint32_t anagrpmax;
+    uint32_t nanagrpid;
+    uint32_t pels;
+    uint16_t did;
+    uint8_t kpioc;
+    uint8_t reserved5;
+    uint16_t mptfawr;
+    uint8_t reserved6[6];
+    uint8_t megcap[16];
+    uint8_t tmpthha;
+    uint8_t reserved7;
+    uint16_t cqt;
+    uint8_t reserved8[124];
+    uint8_t sqes;
+    uint8_t cqes;
+    uint16_t maxcmd;
+    uint32_t nn;
+    uint16_t oncs;
+    uint16_t fuses;
+    uint8_t fna;
+    uint8_t vwc;
+    uint16_t awun;
+    uint16_t awupf;
+    uint8_t icsvscc;
+    uint8_t nwpc;
+    uint16_t acwu;
+    uint16_t cdfs;
+    uint32_t sgls;
+    uint32_t mnan;
+    uint8_t maxdna[16];
+    uint32_t maxcna;
+    uint32_t oaqd;
+    uint8_t rhiri;
+    uint8_t hirt;
+    uint16_t cmmrtd;
+    uint16_t nmmrtd;
+    uint8_t minmrtg;
+    uint8_t maxmrtg;
+    uint8_t trattr;
+    uint8_t reserved9;
+    uint16_t mcudmq;
+    uint16_t mnsudmq;
+    uint16_t mcmr;
+    uint16_t nmcmr;
+    uint16_t mcdqpc;
+    uint8_t reserved10[180];
+    char subnqn[256];
+    uint8_t reserved11[768];
+    uint32_t ioccsz;
+    uint32_t iorcsz;
+    uint16_t icdoff;
+    uint8_t fcatt;
+    uint8_t msdbd;
+    uint16_t ofcs;
+    uint8_t dctype;
+    uint8_t reserved12[241];
+    uint8_t psd[32][32];
+    uint8_t vs[1024];
+} __attribute((packed));
+
+static_assert(sizeof(nvme_identify_data) == 4096);
+
 class nvme {
 public:
     nvme(span<volatile uint8_t> bar);
+    ~nvme();
 
     bool initialized = false;
 
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
-    bool identify();
+    bool identify_controller();
 
     volatile nvme_regs* regs;
     void* admin_sq;
@@ -150,6 +278,7 @@ private:
     uint32_t admin_sq_tail = 0;
     uint32_t admin_cq_head = 0;
     unsigned int doorbell_stride;
+    uint64_t controller_info_phys = 0;
 };
 
 nvme::nvme(span<volatile uint8_t> bar) {
@@ -209,10 +338,15 @@ nvme::nvme(span<volatile uint8_t> bar) {
     admin_sq = phys_address(admin_sq_phys);
     admin_cq = phys_address(admin_cq_phys);
 
-    if (!identify())
+    if (!identify_controller())
         return;
 
     initialized = true;
+}
+
+nvme::~nvme() {
+    if (controller_info_phys)
+        free_folio(controller_info_phys);
 }
 
 void nvme::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys) {
@@ -255,12 +389,21 @@ void nvme::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys) {
     while (!(*csts & CSTS_RDY)) { }
 }
 
-bool nvme::identify() {
+static constexpr unsigned int bytes_to_folio_order(size_t s) {
+    uint32_t p = bytes_to_pages(s);
+
+    if (p == 0)
+        return 0;
+
+    return 32 - countl_zero(p - 1);
+}
+
+bool nvme::identify_controller() {
     auto& sqe = *(nvme_identify_command*)((uint8_t*)admin_sq + (admin_sq_tail * sizeof(nvme_command)));
 
-    auto p = allocate_page();
+    auto p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_data)));
     if (!p) {
-        print("allocate_page failed\n");
+        print("allocate_folio failed\n");
         return false;
     }
 
@@ -308,9 +451,17 @@ bool nvme::identify() {
         return false;
     }
 
-    // FIXME - interpret returned data
+    controller_info_phys = p;
 
-    free_folio(p);
+    const auto& controller_info = *(nvme_identify_data*)phys_address(controller_info_phys);
+
+    string_view model_number(controller_info.mn, sizeof(controller_info.mn));
+
+    while (!model_number.empty() && (model_number.back() == 0 || model_number.back() == ' ')) {
+        model_number = string_view(model_number.data(), model_number.size() - 1);
+    }
+
+    print("Found NVMe device: {}\n", model_number);
 
     return true;
 }
