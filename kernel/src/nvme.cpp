@@ -8,6 +8,7 @@ export module nvme;
 
 import print;
 import config;
+import mem;
 
 using namespace std;
 
@@ -69,6 +70,8 @@ private:
     void reset_controller();
 
     volatile nvme_regs* regs;
+    uint64_t admin_sq;
+    uint64_t admin_cq;
 };
 
 nvme::nvme(span<volatile uint8_t> bar) {
@@ -108,6 +111,18 @@ nvme::nvme(span<volatile uint8_t> bar) {
         return;
     }
 
+    admin_sq = allocate_page();
+    if (!admin_sq) {
+        print("allocate_page failed\n");
+        return;
+    }
+
+    admin_cq = allocate_page();
+    if (!admin_cq) {
+        print("allocate_page failed\n");
+        return;
+    }
+
     reset_controller();
 
     initialized = true;
@@ -131,6 +146,9 @@ void nvme::reset_controller() {
 
     // clear CSS bits (set to 000, NVM commmand set)
     *cc &= ~CC_CSS;
+
+    regs->asq = admin_sq;
+    regs->acq = admin_cq;
 
     // set EN to 1
     *cc |= CC_EN;
