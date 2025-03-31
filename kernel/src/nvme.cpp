@@ -463,6 +463,11 @@ bool nvme::identify_controller() {
 
     print("Found NVMe device: {}\n", model_number);
 
+    if (controller_info.cntrltype != 1) {
+        print("not an I/O controller\n");
+        return false;
+    }
+
     return true;
 }
 
