@@ -12,6 +12,14 @@ static uint32_t VERSION_SUPPORTED = 0x00020200; // 2.2.0
 
 static uint8_t CSS_NCSS = 0x01;
 
+static uint32_t CC_AMS = 0x00003800;
+static uint32_t CC_MPS = 0x00000780;
+static unsigned int CC_MPS_SHIFT = 7;
+static uint32_t CC_CSS = 0x00000070;
+static uint32_t CC_EN = 0x00000001;
+
+static uint32_t CSTS_RDY = 0x00000001;
+
 struct nvme_regs {
     uint64_t cap;
     uint32_t vs;
@@ -47,6 +55,28 @@ struct nvme_regs {
 } __attribute((packed));
 
 static_assert(sizeof(nvme_regs) == 0x1000);
+
+static void reset_controller(volatile uint32_t* cc, volatile uint32_t* csts) {
+    // set EN to 0
+    *cc &= ~CC_EN;
+    // wait for CSTS.RDY to become 0
+    while (*csts & CSTS_RDY) { }
+
+    // clear AMS bits (set to 000, round robin)
+    *cc &= ~CC_AMS;
+
+    // set MPS
+    *cc &= ~CC_MPS;
+    *cc |= (PAGE_SHIFT - 12) << CC_MPS_SHIFT;
+
+    // clear CSS bits (set to 000, NVM commmand set)
+    *cc &= ~CC_CSS;
+
+    // set EN to 1
+    *cc |= CC_EN;
+    // wait for CSTS.RDY to become 1
+    while (!(*csts & CSTS_RDY)) { }
+}
 
 export void init_nvme(const pci_device& dev) {
     volatile auto* regs = (nvme_regs*)dev.bar[0].data();
@@ -86,4 +116,6 @@ export void init_nvme(const pci_device& dev) {
     }
 
     print("FIXME - init_nvme\n"); // FIXME
+
+    reset_controller(&regs->cc, &regs->csts);
 }
