@@ -6,6 +6,7 @@ module;
 export module nvme;
 
 import print;
+import config;
 
 static uint32_t VERSION_SUPPORTED = 0x00020200; // 2.2.0
 
@@ -73,6 +74,14 @@ export void init_nvme(const pci_device& dev) {
 
     if (!(css & CSS_NCSS)) {
         print("controller does not support NVMe command set\n");
+        return;
+    }
+
+    uint8_t mpsmax = (cap & 0xf0000000000000) >> 52;
+    uint8_t mpsmin = (cap & 0xf000000000000) >> 48;
+
+    if ((unsigned int)(mpsmin + 12) > PAGE_SHIFT || (unsigned int)(mpsmax + 12) < PAGE_SHIFT) {
+        print("NVMe controller does not support page size of {}\n", PAGE_SIZE);
         return;
     }
 
