@@ -311,7 +311,7 @@ private:
 
     volatile nvme_regs* regs;
     unsigned int doorbell_stride;
-    uint64_t controller_info_phys = 0;
+    nvme_identify_data* controller_info = nullptr;
     uint64_t maximum_transfer_size;
     nvme_queue admin_queue;
 };
@@ -404,8 +404,8 @@ nvme::nvme(const pci_device& dev) {
 }
 
 nvme::~nvme() {
-    if (controller_info_phys)
-        free_folio(controller_info_phys);
+    if (controller_info)
+        free_folio(phys_memory_pfn(controller_info) << PAGE_SHIFT);
 }
 
 void nvme::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys) {
@@ -539,11 +539,9 @@ bool nvme::identify_controller(nvme_queue& queue) {
         return false;
     }
 
-    controller_info_phys = p;
+    controller_info = (nvme_identify_data*)phys_address(p);
 
-    const auto& controller_info = *(nvme_identify_data*)phys_address(controller_info_phys);
-
-    string_view model_number(controller_info.mn, sizeof(controller_info.mn));
+    string_view model_number(controller_info->mn, sizeof(controller_info->mn));
 
     while (!model_number.empty() && (model_number.back() == 0 || model_number.back() == ' ')) {
         model_number = string_view(model_number.data(), model_number.size() - 1);
@@ -551,17 +549,17 @@ bool nvme::identify_controller(nvme_queue& queue) {
 
     print("Found NVMe device: {}\n", model_number);
 
-    if (controller_info.cntrltype != 1) {
+    if (controller_info->cntrltype != 1) {
         print("not an I/O controller\n");
         return false;
     }
 
     uint8_t mpsmin = (*(&regs->cap) & 0xf000000000000) >> 48;
 
-    if (controller_info.mdts == 0)
+    if (controller_info->mdts == 0)
         maximum_transfer_size = 0;
     else
-        maximum_transfer_size = 1 << (controller_info.mdts + mpsmin + 12);
+        maximum_transfer_size = 1 << (controller_info->mdts + mpsmin + 12);
 
     return true;
 }
