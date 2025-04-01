@@ -286,6 +286,7 @@ public:
 
     uint8_t get_slot();
     void release_slot(uint8_t slot);
+    void isr();
 
     void* sq = nullptr;
     void* cq = nullptr;
@@ -301,7 +302,6 @@ class nvme {
 public:
     nvme(const pci_device& dev);
     ~nvme();
-    void admin_isr();
 
     bool initialized = false;
 
@@ -316,8 +316,8 @@ private:
     nvme_queue admin_queue;
 };
 
-static void nvme_admin_isr_func(void* ctx) {
-    ((nvme*)ctx)->admin_isr();
+static void nvme_isr_func(void* ctx) {
+    ((nvme_queue*)ctx)->isr();
 }
 
 nvme::nvme(const pci_device& dev) {
@@ -386,7 +386,7 @@ nvme::nvme(const pci_device& dev) {
     auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
 
     // FIXME - free this in dtor or if we fail here
-    auto int_num = add_isr(nvme_admin_isr_func, this);
+    auto int_num = add_isr(nvme_isr_func, &admin_queue);
     if (int_num == 0) {
         print("add_isr failed\n");
         return;
@@ -588,8 +588,8 @@ export void init_nvme(const pci_device& dev) {
         return;
 }
 
-void nvme::admin_isr() {
-    auto& comp = *(nvme_completion*)((uint8_t*)admin_queue.cq + (admin_queue.cq_head * sizeof(nvme_completion)));
+void nvme_queue::isr() {
+    auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
 
-    set_event(static_cast<event&>(admin_queue.event[comp.cid].get()));
+    set_event(static_cast<::event&>(event[comp.cid].get()));
 }
