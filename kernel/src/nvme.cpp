@@ -276,11 +276,19 @@ public:
         }
     }
 
+    ~nvme_queue() {
+        if (sq)
+            free_folio(phys_memory_pfn(sq) << PAGE_SHIFT);
+
+        if (cq)
+            free_folio(phys_memory_pfn(cq) << PAGE_SHIFT);
+    }
+
     uint8_t get_slot();
     void release_slot(uint8_t slot);
 
-    void* sq;
-    void* cq;
+    void* sq = nullptr;
+    void* cq = nullptr;
     uint32_t sq_tail = 0;
     uint32_t cq_head = 0;
     object_ref sem;
