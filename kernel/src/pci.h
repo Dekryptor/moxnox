@@ -63,7 +63,7 @@ struct pci_device {
     uint8_t bus;
     uint8_t device;
     uint8_t function;
-    std::span<volatile uint8_t> bar[6];
+    std::array<std::span<volatile uint8_t>, 6> bar;
     std::span<volatile uint8_t> msi;
     volatile pci_msix* msix = nullptr;
 };
@@ -131,6 +131,10 @@ struct pci_msi : pci_capability {
 
 static_assert(sizeof(pci_msi) == 24);
 
+static constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
+    return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
+}
+
 struct pci_msix : pci_capability {
     uint16_t message_control;
     uint32_t bir : 3;
@@ -140,3 +144,12 @@ struct pci_msix : pci_capability {
 } __attribute__((packed));
 
 static_assert(sizeof(pci_msix) == 12);
+
+struct msix_entry {
+    uint32_t message_address_low;
+    uint32_t message_address_high;
+    uint32_t message_data;
+    uint32_t vector_control;
+} __attribute__((packed));
+
+static_assert(sizeof(msix_entry) == 16);

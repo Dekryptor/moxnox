@@ -4,12 +4,15 @@ module;
 #include "pci.h"
 #include <span>
 #include <bit>
+#include "handle.h"
 
 export module nvme;
 
 import print;
 import config;
 import mem;
+import interrupts;
+import event;
 
 using namespace std;
 
@@ -263,8 +266,9 @@ static_assert(sizeof(nvme_identify_data) == 4096);
 
 class nvme {
 public:
-    nvme(span<volatile uint8_t> bar);
+    nvme(const pci_device& dev);
     ~nvme();
+    void admin_isr();
 
     bool initialized = false;
 
@@ -280,9 +284,16 @@ private:
     unsigned int doorbell_stride;
     uint64_t controller_info_phys = 0;
     uint64_t maximum_transfer_size;
+    object_ref admin_queue_event;
 };
 
-nvme::nvme(span<volatile uint8_t> bar) {
+static void nvme_admin_isr_func(void* ctx) {
+    ((nvme*)ctx)->admin_isr();
+}
+
+nvme::nvme(const pci_device& dev) {
+    auto bar = dev.bar[0];
+
     if (bar.size() < sizeof(nvme_regs)) {
         print("init_nvme: BAR0 was {:x} bytes, expected at least {:x}\n",
               bar.size(), sizeof(nvme_regs));
@@ -334,10 +345,30 @@ nvme::nvme(span<volatile uint8_t> bar) {
         return;
     }
 
+    // enable MSI-X
+    dev.msix->message_control |= 0x8000;
+
     reset_controller(admin_sq_phys, admin_cq_phys);
 
     admin_sq = phys_address(admin_sq_phys);
     admin_cq = phys_address(admin_cq_phys);
+
+    // set up admin queue interrupt
+    auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+
+    // FIXME - free this in dtor or if we fail here
+    auto int_num = add_isr(nvme_admin_isr_func, this);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return;
+    }
+
+    admin_queue_event = create_event(true);
+
+    vec.message_data = int_num;
+    vec.message_address_high = 0;
+    vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+    vec.vector_control &= ~1; // unmask
 
     if (!identify_controller())
         return;
@@ -354,7 +385,6 @@ void nvme::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys) {
     volatile uint32_t* cc = &regs->cc;
     volatile uint32_t* csts = &regs->csts;
     volatile uint32_t* aqa = &regs->aqa;
-    volatile uint32_t* intms = &regs->intms;
 
     // set EN to 0
     *cc &= ~CC_EN;
@@ -372,9 +402,6 @@ void nvme::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys) {
 
     // clear CSS bits (set to 000, NVM commmand set)
     *cc &= ~CC_CSS;
-
-    // disable interrupts for now
-    *intms = 0xffffffff;
 
     regs->asq = admin_sq_phys;
     regs->acq = admin_cq_phys;
@@ -430,7 +457,7 @@ bool nvme::identify_controller() {
     if (admin_sq_tail == ADMIN_QUEUE_SIZE)
         admin_sq_tail = 0;
 
-    // FIXME - wait for completion
+    wait_for_object(admin_queue_event.get(), false);
 
     // FIXME - get right entry
     auto& comp = *(nvme_completion*)((uint8_t*)admin_cq + (admin_cq_head * sizeof(nvme_completion)));
@@ -482,8 +509,29 @@ bool nvme::identify_controller() {
 export void init_nvme(const pci_device& dev) {
     print("FIXME - init_nvme\n"); // FIXME
 
-    nvme n(dev.bar[0]);
+    // FIXME - support MSI too?
+    if (!dev.msix) {
+        print("MSI-X not supported for NVMe device\n");
+        return;
+    }
+
+    if (dev.msix->bir >= dev.bar.size()) {
+        print("invalid value {} for NVMe MSI-X BIR\n", dev.msix->bir);
+        return;
+    }
+
+    if ((size_t)(dev.msix->table_offset << 3) >= dev.bar[dev.msix->bir].size()) {
+        print("NVMe MSI-X table offset {:x} overflowed BAR {}\n",
+              dev.msix->table_offset << 3, dev.msix->bir);
+        return;
+    }
+
+    nvme n(dev);
 
     if (!n.initialized)
         return;
+}
+
+void nvme::admin_isr() {
+    set_event(static_cast<event&>(admin_queue_event.get()));
 }

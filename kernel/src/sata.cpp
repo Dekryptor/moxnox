@@ -647,12 +647,10 @@ static void sata_isr_func(void*) {
     }
 }
 
-static constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
-    return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
-}
-
 export void init_sata(const pci_device& dev) {
     auto abarmem = dev.bar[5];
+
+    // FIXME - also support MSI-X?
 
     if (dev.msi.empty()) {
         print("MSI not available for SATA device\n");
