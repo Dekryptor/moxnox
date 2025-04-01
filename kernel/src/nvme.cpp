@@ -19,6 +19,7 @@ import semaphore;
 using namespace std;
 
 static const uint32_t VERSION_SUPPORTED = 0x00020200; // 2.2.0
+static const unsigned int MAX_NAMESPACES = 1024;
 
 static const uint16_t QUEUE_SIZE = 32;
 
@@ -35,6 +36,7 @@ static const uint32_t CSTS_RDY = 0x00000001;
 static const uint8_t NVME_ADMIN_OPCODE_IDENTIFY = 0x06;
 
 static const uint8_t NVME_IDENTIFY_CNS_CONTROLLER = 0x01;
+static const uint8_t NVME_IDENTIFY_CNS_ACTIVE_NAMESPACES = 0x02;
 
 struct nvme_regs {
     uint64_t cap;
@@ -292,6 +294,7 @@ public:
     void* cq = nullptr;
     uint32_t sq_tail = 0;
     uint32_t cq_head = 0;
+    spinlock sq_lock, cq_lock;
     object_ref sem;
     object_ref event[QUEUE_SIZE];
     spinlock slot_lock;
@@ -308,6 +311,7 @@ public:
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
     bool identify_controller(nvme_queue& queue);
+    bool identify_active_namespaces(nvme_queue& queue);
 
     volatile nvme_regs* regs;
     unsigned int doorbell_stride;
@@ -398,6 +402,9 @@ nvme::nvme(const pci_device& dev) {
     vec.vector_control &= ~1; // unmask
 
     if (!identify_controller(admin_queue))
+        return;
+
+    if (!identify_active_namespaces(admin_queue))
         return;
 
     initialized = true;
@@ -507,29 +514,37 @@ bool nvme::identify_controller(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    queue.sq_tail++;
+    {
+        lock_guard lock(queue.sq_lock);
 
-    auto sq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000);
+        queue.sq_tail++;
 
-    *sq_doorbell = queue.sq_tail;
+        auto sq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000);
 
-    if (queue.sq_tail == QUEUE_SIZE)
-        queue.sq_tail = 0;
+        *sq_doorbell = queue.sq_tail;
 
-    wait_for_object(queue.event[slot].get(), false);
+        if (queue.sq_tail == QUEUE_SIZE)
+            queue.sq_tail = 0;
+    }
 
-    auto& comp = *(nvme_completion*)((uint8_t*)queue.cq + (queue.cq_head * sizeof(nvme_completion)));
+    uint16_t status;
 
-    auto status = comp.status;
+    {
+        lock_guard lock(queue.cq_lock);
 
-    queue.cq_head++;
+        auto& comp = *(nvme_completion*)((uint8_t*)queue.cq + (queue.cq_head * sizeof(nvme_completion)));
 
-    if (queue.cq_head == QUEUE_SIZE)
-        queue.cq_head = 0;
+        status = comp.status;
 
-    auto cq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000 + doorbell_stride);
+        queue.cq_head++;
 
-    *cq_doorbell = queue.cq_head;
+        if (queue.cq_head == QUEUE_SIZE)
+            queue.cq_head = 0;
+
+        auto cq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000 + doorbell_stride);
+
+        *cq_doorbell = queue.cq_head;
+    }
 
     queue.release_slot(slot);
 
@@ -560,6 +575,87 @@ bool nvme::identify_controller(nvme_queue& queue) {
         maximum_transfer_size = 0;
     else
         maximum_transfer_size = 1 << (controller_info->mdts + mpsmin + 12);
+
+    return true;
+}
+
+bool nvme::identify_active_namespaces(nvme_queue& queue) {
+    auto slot = queue.get_slot();
+
+    auto& sqe = *(nvme_identify_command*)((uint8_t*)queue.sq + (queue.sq_tail * sizeof(nvme_command)));
+
+    auto p = allocate_folio(bytes_to_folio_order(MAX_NAMESPACES * sizeof(uint32_t)));
+    if (!p) {
+        print("allocate_folio failed\n");
+        queue.release_slot(slot);
+        return false;
+    }
+
+    memset(&sqe, 0, sizeof(sqe));
+
+    sqe.opc = NVME_ADMIN_OPCODE_IDENTIFY;
+    sqe.fuse = 0;
+    sqe.psdt = 0; // use PRPs
+    sqe.cid = slot;
+    sqe.nsid = 0;
+    sqe.dptr.prp1 = p;
+    sqe.cns = NVME_IDENTIFY_CNS_ACTIVE_NAMESPACES;
+    sqe.cntid = 0;
+    sqe.cnssid = 0;
+    sqe.csi = 0;
+
+    {
+        lock_guard lock(queue.sq_lock);
+
+        queue.sq_tail++;
+
+        auto sq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000);
+
+        *sq_doorbell = queue.sq_tail;
+
+        if (queue.sq_tail == QUEUE_SIZE)
+            queue.sq_tail = 0;
+    }
+
+    wait_for_object(queue.event[slot].get(), false);
+
+    uint16_t status;
+
+    {
+        lock_guard lock(queue.cq_lock);
+
+        auto& comp = *(nvme_completion*)((uint8_t*)queue.cq + (queue.cq_head * sizeof(nvme_completion)));
+
+        status = comp.status;
+
+        queue.cq_head++;
+
+        if (queue.cq_head == QUEUE_SIZE)
+            queue.cq_head = 0;
+
+        auto cq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000 + doorbell_stride);
+
+        *cq_doorbell = queue.cq_head;
+    }
+
+    queue.release_slot(slot);
+
+    if (status != 0) {
+        print("NVMe identify returned status {:x}\n", status);
+        free_folio(p);
+        return false;
+    }
+
+    auto ns_list = (uint32_t*)phys_address(p);
+
+    for (unsigned int i = 0; i < MAX_NAMESPACES; i++) {
+        if (ns_list[i] == 0)
+            break;
+
+        print("found NVMe namespace {}\n", ns_list[i]); // FIXME
+    }
+
+    free_folio(p);
 
     return true;
 }
