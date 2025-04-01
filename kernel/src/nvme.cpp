@@ -20,7 +20,7 @@ using namespace std;
 
 static const uint32_t VERSION_SUPPORTED = 0x00020200; // 2.2.0
 
-static const uint16_t ADMIN_QUEUE_SIZE = 32;
+static const uint16_t QUEUE_SIZE = 32;
 
 static const uint8_t CSS_NCSS = 0x01;
 
@@ -266,6 +266,29 @@ struct nvme_identify_data {
 
 static_assert(sizeof(nvme_identify_data) == 4096);
 
+class nvme_queue {
+public:
+    nvme_queue() {
+        sem = create_semaphore(QUEUE_SIZE);
+
+        for (unsigned int i = 0; i < QUEUE_SIZE; i++) {
+            event[i] = create_event(true);
+        }
+    }
+
+    uint8_t get_slot();
+    void release_slot(uint8_t slot);
+
+    void* sq;
+    void* cq;
+    uint32_t sq_tail = 0;
+    uint32_t cq_head = 0;
+    object_ref sem;
+    object_ref event[QUEUE_SIZE];
+    spinlock slot_lock;
+    uint32_t allocated_slots = 0;
+};
+
 class nvme {
 public:
     nvme(const pci_device& dev);
@@ -276,22 +299,13 @@ public:
 
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
-    bool identify_controller();
-    uint8_t get_admin_queue_slot();
-    void release_admin_queue_slot(uint8_t slot);
+    bool identify_controller(nvme_queue& queue);
 
     volatile nvme_regs* regs;
-    void* admin_sq;
-    void* admin_cq;
-    uint32_t admin_sq_tail = 0;
-    uint32_t admin_cq_head = 0;
     unsigned int doorbell_stride;
     uint64_t controller_info_phys = 0;
     uint64_t maximum_transfer_size;
-    object_ref admin_queue_semaphore;
-    object_ref admin_queue_event[ADMIN_QUEUE_SIZE];
-    spinlock admin_queue_slot_lock;
-    uint32_t admin_queue_allocated_slots = 0;
+    nvme_queue admin_queue;
 };
 
 static void nvme_admin_isr_func(void* ctx) {
@@ -357,8 +371,8 @@ nvme::nvme(const pci_device& dev) {
 
     reset_controller(admin_sq_phys, admin_cq_phys);
 
-    admin_sq = phys_address(admin_sq_phys);
-    admin_cq = phys_address(admin_cq_phys);
+    admin_queue.sq = phys_address(admin_sq_phys);
+    admin_queue.cq = phys_address(admin_cq_phys);
 
     // set up admin queue interrupt
     auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
@@ -370,18 +384,12 @@ nvme::nvme(const pci_device& dev) {
         return;
     }
 
-    admin_queue_semaphore = create_semaphore(ADMIN_QUEUE_SIZE);
-
-    for (unsigned int i = 0; i < ADMIN_QUEUE_SIZE; i++) {
-        admin_queue_event[i] = create_event(true);
-    }
-
     vec.message_data = int_num;
     vec.message_address_high = 0;
     vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
     vec.vector_control &= ~1; // unmask
 
-    if (!identify_controller())
+    if (!identify_controller(admin_queue))
         return;
 
     initialized = true;
@@ -418,7 +426,7 @@ void nvme::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys) {
     regs->acq = admin_cq_phys;
 
     // set admin queue size
-    *aqa = ((ADMIN_QUEUE_SIZE - 1) << 16) | (ADMIN_QUEUE_SIZE - 1);
+    *aqa = ((QUEUE_SIZE - 1) << 16) | (QUEUE_SIZE - 1);
 
     // set EN to 1
     barrier();
@@ -437,17 +445,17 @@ static constexpr unsigned int bytes_to_folio_order(size_t s) {
     return 32 - countl_zero(p - 1);
 }
 
-uint8_t nvme::get_admin_queue_slot() {
-    wait_for_object(admin_queue_semaphore.get(), false);
+uint8_t nvme_queue::get_slot() {
+    wait_for_object(sem.get(), false);
 
-    lock_guard l(admin_queue_slot_lock);
+    lock_guard l(slot_lock);
 
     uint32_t mask = 1;
     uint8_t c = 0;
 
     while (true) {
-        if (!(admin_queue_allocated_slots & mask)) {
-            admin_queue_allocated_slots |= mask;
+        if (!(allocated_slots & mask)) {
+            allocated_slots |= mask;
             return c;
         }
 
@@ -456,25 +464,25 @@ uint8_t nvme::get_admin_queue_slot() {
     }
 }
 
-void nvme::release_admin_queue_slot(uint8_t slot) {
+void nvme_queue::release_slot(uint8_t slot) {
     {
-        lock_guard l(admin_queue_slot_lock);
+        lock_guard l(slot_lock);
 
-        admin_queue_allocated_slots &= ~(1 << (uint32_t)slot);
+        allocated_slots &= ~(1 << (uint32_t)slot);
     }
 
-    release_semaphore(static_cast<semaphore&>(admin_queue_semaphore.get()));
+    release_semaphore(static_cast<semaphore&>(sem.get()));
 }
 
-bool nvme::identify_controller() {
-    auto slot = get_admin_queue_slot();
+bool nvme::identify_controller(nvme_queue& queue) {
+    auto slot = queue.get_slot();
 
-    auto& sqe = *(nvme_identify_command*)((uint8_t*)admin_sq + (admin_sq_tail * sizeof(nvme_command)));
+    auto& sqe = *(nvme_identify_command*)((uint8_t*)queue.sq + (queue.sq_tail * sizeof(nvme_command)));
 
     auto p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_data)));
     if (!p) {
         print("allocate_folio failed\n");
-        release_admin_queue_slot(slot);
+        queue.release_slot(slot);
         return false;
     }
 
@@ -491,31 +499,31 @@ bool nvme::identify_controller() {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    admin_sq_tail++;
+    queue.sq_tail++;
 
     auto sq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000);
 
-    *sq_doorbell = admin_sq_tail;
+    *sq_doorbell = queue.sq_tail;
 
-    if (admin_sq_tail == ADMIN_QUEUE_SIZE)
-        admin_sq_tail = 0;
+    if (queue.sq_tail == QUEUE_SIZE)
+        queue.sq_tail = 0;
 
-    wait_for_object(admin_queue_event[slot].get(), false);
+    wait_for_object(queue.event[slot].get(), false);
 
-    auto& comp = *(nvme_completion*)((uint8_t*)admin_cq + (admin_cq_head * sizeof(nvme_completion)));
+    auto& comp = *(nvme_completion*)((uint8_t*)queue.cq + (queue.cq_head * sizeof(nvme_completion)));
 
     auto status = comp.status;
 
-    admin_cq_head++;
+    queue.cq_head++;
 
-    if (admin_cq_head == ADMIN_QUEUE_SIZE)
-        admin_cq_head = 0;
+    if (queue.cq_head == QUEUE_SIZE)
+        queue.cq_head = 0;
 
     auto cq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000 + doorbell_stride);
 
-    *cq_doorbell = admin_cq_head;
+    *cq_doorbell = queue.cq_head;
 
-    release_admin_queue_slot(slot);
+    queue.release_slot(slot);
 
     if (status != 0) {
         print("NVMe identify returned status {:x}\n", status);
@@ -575,7 +583,7 @@ export void init_nvme(const pci_device& dev) {
 }
 
 void nvme::admin_isr() {
-    auto& comp = *(nvme_completion*)((uint8_t*)admin_cq + (admin_cq_head * sizeof(nvme_completion)));
+    auto& comp = *(nvme_completion*)((uint8_t*)admin_queue.cq + (admin_queue.cq_head * sizeof(nvme_completion)));
 
-    set_event(static_cast<event&>(admin_queue_event[comp.cid].get()));
+    set_event(static_cast<event&>(admin_queue.event[comp.cid].get()));
 }
