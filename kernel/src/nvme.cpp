@@ -502,6 +502,8 @@ void nvme_queue::release_slot(uint8_t slot) {
 void nvme_queue::submit(nvme_request& req) {
     req.event = create_event(true);
 
+    // FIXME - if get_slot would block, we should be queueing this on a waitlist instead
+
     auto slot = get_slot();
 
     req.sqe.cid = slot;
@@ -525,8 +527,6 @@ void nvme_queue::submit(nvme_request& req) {
         if (sq_tail == QUEUE_SIZE)
             sq_tail = 0;
     }
-
-    wait_for_object(req.event.get(), false);
 }
 
 bool nvme::identify_controller(nvme_queue& queue) {
@@ -553,6 +553,8 @@ bool nvme::identify_controller(nvme_queue& queue) {
     sqe.csi = 0;
 
     queue.submit(req);
+
+    wait_for_object(req.event.get(), false);
 
     if (req.cqe.status != 0) {
         print("NVMe identify returned status {:x}\n", req.cqe.status);
@@ -609,6 +611,8 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
     sqe.csi = 0;
 
     queue.submit(req);
+
+    wait_for_object(req.event.get(), false);
 
     if (req.cqe.status != 0) {
         print("NVMe identify returned status {:x}\n", req.cqe.status);
