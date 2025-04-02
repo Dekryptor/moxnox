@@ -270,6 +270,11 @@ static_assert(sizeof(nvme_identify_data) == 4096);
 
 class nvme;
 
+struct nvme_request {
+    nvme_command sqe;
+    nvme_completion cqe;
+};
+
 class nvme_queue {
 public:
     nvme_queue(nvme& controller) : controller(controller) {
@@ -292,7 +297,7 @@ public:
     uint8_t get_slot();
     void release_slot(uint8_t slot);
     void isr();
-    void submit(nvme_command& sqe, nvme_completion& cqe);
+    void submit(nvme_request& req);
 
     void* sq = nullptr;
     void* cq = nullptr;
@@ -493,16 +498,16 @@ void nvme_queue::release_slot(uint8_t slot) {
     release_semaphore(static_cast<semaphore&>(sem.get()));
 }
 
-void nvme_queue::submit(nvme_command& sqe, nvme_completion& cqe) {
+void nvme_queue::submit(nvme_request& req) {
     auto slot = get_slot();
 
-    sqe.cid = slot;
+    req.sqe.cid = slot;
 
     {
         lock_guard lock(sq_lock);
 
         memcpy((uint8_t*)sq + (sq_tail * sizeof(nvme_command)),
-               &sqe, sizeof(sqe));
+               &req.sqe, sizeof(req.sqe));
 
         barrier();
 
@@ -523,7 +528,7 @@ void nvme_queue::submit(nvme_command& sqe, nvme_completion& cqe) {
 
         auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
 
-        memcpy(&cqe, &comp, sizeof(cqe));
+        memcpy(&req.cqe, &comp, sizeof(req.cqe));
 
         barrier();
 
@@ -547,10 +552,11 @@ bool nvme::identify_controller(nvme_queue& queue) {
         return false;
     }
 
-    nvme_identify_command sqe;
-    nvme_completion cqe;
+    nvme_request req;
 
-    memset(&sqe, 0, sizeof(sqe));
+    memset(&req.sqe, 0, sizeof(req.sqe));
+
+    auto& sqe = *reinterpret_cast<nvme_identify_command*>(&req.sqe);
 
     sqe.opc = NVME_ADMIN_OPCODE_IDENTIFY;
     sqe.fuse = 0;
@@ -562,10 +568,10 @@ bool nvme::identify_controller(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    queue.submit(*reinterpret_cast<nvme_command*>(&sqe), cqe);
+    queue.submit(req);
 
-    if (cqe.status != 0) {
-        print("NVMe identify returned status {:x}\n", cqe.status);
+    if (req.cqe.status != 0) {
+        print("NVMe identify returned status {:x}\n", req.cqe.status);
         free_folio(p);
         return false;
     }
@@ -602,10 +608,11 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
         return false;
     }
 
-    nvme_identify_command sqe;
-    nvme_completion cqe;
+    nvme_request req;
 
-    memset(&sqe, 0, sizeof(sqe));
+    memset(&req.sqe, 0, sizeof(req.sqe));
+
+    auto& sqe = *reinterpret_cast<nvme_identify_command*>(&req.sqe);
 
     sqe.opc = NVME_ADMIN_OPCODE_IDENTIFY;
     sqe.fuse = 0;
@@ -617,10 +624,10 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    queue.submit(*reinterpret_cast<nvme_command*>(&sqe), cqe);
+    queue.submit(req);
 
-    if (cqe.status != 0) {
-        print("NVMe identify returned status {:x}\n", cqe.status);
+    if (req.cqe.status != 0) {
+        print("NVMe identify returned status {:x}\n", req.cqe.status);
         free_folio(p);
         return false;
     }
