@@ -292,7 +292,7 @@ public:
     uint8_t get_slot();
     void release_slot(uint8_t slot);
     void isr();
-    void submit(uint8_t slot, nvme_command& sqe, nvme_completion& cqe);
+    void submit(nvme_command& sqe, nvme_completion& cqe);
 
     void* sq = nullptr;
     void* cq = nullptr;
@@ -493,7 +493,11 @@ void nvme_queue::release_slot(uint8_t slot) {
     release_semaphore(static_cast<semaphore&>(sem.get()));
 }
 
-void nvme_queue::submit(uint8_t slot, nvme_command& sqe, nvme_completion& cqe) {
+void nvme_queue::submit(nvme_command& sqe, nvme_completion& cqe) {
+    auto slot = get_slot();
+
+    sqe.cid = slot;
+
     {
         lock_guard lock(sq_lock);
 
@@ -532,6 +536,8 @@ void nvme_queue::submit(uint8_t slot, nvme_command& sqe, nvme_completion& cqe) {
 
         *cq_doorbell = cq_head;
     }
+
+    release_slot(slot);
 }
 
 bool nvme::identify_controller(nvme_queue& queue) {
@@ -541,8 +547,6 @@ bool nvme::identify_controller(nvme_queue& queue) {
         return false;
     }
 
-    auto slot = queue.get_slot();
-
     nvme_identify_command sqe;
     nvme_completion cqe;
 
@@ -551,7 +555,6 @@ bool nvme::identify_controller(nvme_queue& queue) {
     sqe.opc = NVME_ADMIN_OPCODE_IDENTIFY;
     sqe.fuse = 0;
     sqe.psdt = 0; // use PRPs
-    sqe.cid = slot;
     sqe.nsid = 0;
     sqe.dptr.prp1 = p;
     sqe.cns = NVME_IDENTIFY_CNS_CONTROLLER;
@@ -559,9 +562,7 @@ bool nvme::identify_controller(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    queue.submit(slot, *reinterpret_cast<nvme_command*>(&sqe), cqe);
-
-    queue.release_slot(slot);
+    queue.submit(*reinterpret_cast<nvme_command*>(&sqe), cqe);
 
     if (cqe.status != 0) {
         print("NVMe identify returned status {:x}\n", cqe.status);
@@ -601,8 +602,6 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
         return false;
     }
 
-    auto slot = queue.get_slot();
-
     nvme_identify_command sqe;
     nvme_completion cqe;
 
@@ -611,7 +610,6 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
     sqe.opc = NVME_ADMIN_OPCODE_IDENTIFY;
     sqe.fuse = 0;
     sqe.psdt = 0; // use PRPs
-    sqe.cid = slot;
     sqe.nsid = 0;
     sqe.dptr.prp1 = p;
     sqe.cns = NVME_IDENTIFY_CNS_ACTIVE_NAMESPACES;
@@ -619,9 +617,7 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    queue.submit(slot, *reinterpret_cast<nvme_command*>(&sqe), cqe);
-
-    queue.release_slot(slot);
+    queue.submit(*reinterpret_cast<nvme_command*>(&sqe), cqe);
 
     if (cqe.status != 0) {
         print("NVMe identify returned status {:x}\n", cqe.status);
