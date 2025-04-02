@@ -306,15 +306,22 @@ export void init_pci() {
 
     init_device_event = create_event(true);
 
-    {
-        auto le = pci_device_list.next;
-        while (le != &pci_device_list) {
-            auto& dev = containing_record<pci_device>(le);
+    unsigned int nvme_num = 0;
 
-            add_kernel_thread(pci_device_found, &dev);
+    for (auto le = pci_device_list.next; le != &pci_device_list; le = le->next) {
+        auto& dev = containing_record<pci_device>(le);
 
-            le = le->next;
+        if (dev.header->class_code == pci_class::mass_storage &&
+          (enum pci_mass_storage)dev.header->sub_class == pci_mass_storage::nonvolatile_memory) {
+            dev.num = nvme_num;
+            nvme_num++;
         }
+    }
+
+    for (auto le = pci_device_list.next; le != &pci_device_list; le = le->next) {
+        auto& dev = containing_record<pci_device>(le);
+
+        add_kernel_thread(pci_device_found, &dev);
     }
 
     wait_for_object(init_device_event.get(), false);

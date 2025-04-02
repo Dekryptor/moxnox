@@ -66,6 +66,7 @@ struct pci_device {
     std::array<std::span<volatile uint8_t>, 6> bar;
     std::span<volatile uint8_t> msi;
     volatile pci_msix* msix = nullptr;
+    unsigned int num;
 };
 
 enum class pci_mass_storage {

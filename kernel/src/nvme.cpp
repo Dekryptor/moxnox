@@ -77,6 +77,7 @@ public:
     bool initialized = false;
     list_entry le;
     volatile nvme_regs* regs;
+    unsigned int controller_num;
     unsigned int doorbell_stride;
 
 private:
@@ -101,6 +102,8 @@ nvme_controller::nvme_controller(const pci_device& dev) {
               bar.size(), sizeof(nvme_regs));
         return;
     }
+
+    controller_num = dev.num;
 
     regs = (nvme_regs*)bar.data();
 
@@ -458,8 +461,9 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
         auto block_size = 1 << ((nsinfo.lbaf[fidxl] & 0xf0000) >> 16);
 
-        print("found NVMe namespace {}, block size {}, capacity {}\n",
-              req2.req.sqe.nsid, block_size, nsinfo.nsze * block_size); // FIXME
+        // FIXME - format byte counts nicely
+        print("found /dev/nvme{}n{}: block size {}, capacity {}\n",
+              controller_num, req2.req.sqe.nsid, block_size, nsinfo.nsze * block_size); // FIXME
 
         // FIXME - readonly if nsattr & 1
 
