@@ -268,9 +268,11 @@ struct nvme_identify_data {
 
 static_assert(sizeof(nvme_identify_data) == 4096);
 
+class nvme;
+
 class nvme_queue {
 public:
-    nvme_queue() {
+    nvme_queue(nvme& controller) : controller(controller) {
         sem = create_semaphore(QUEUE_SIZE);
 
         for (unsigned int i = 0; i < QUEUE_SIZE; i++) {
@@ -286,9 +288,11 @@ public:
             free_folio(phys_memory_pfn(cq) << PAGE_SHIFT);
     }
 
+    nvme& controller;
     uint8_t get_slot();
     void release_slot(uint8_t slot);
     void isr();
+    void submit(uint8_t slot, nvme_command& sqe);
 
     void* sq = nullptr;
     void* cq = nullptr;
@@ -307,17 +311,17 @@ public:
     ~nvme();
 
     bool initialized = false;
+    volatile nvme_regs* regs;
 
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
     bool identify_controller(nvme_queue& queue);
     bool identify_active_namespaces(nvme_queue& queue);
 
-    volatile nvme_regs* regs;
     unsigned int doorbell_stride;
     nvme_identify_data* controller_info = nullptr;
     uint64_t maximum_transfer_size;
-    nvme_queue admin_queue;
+    nvme_queue admin_queue{*this};
 };
 
 static void nvme_isr_func(void* ctx) {
@@ -489,17 +493,38 @@ void nvme_queue::release_slot(uint8_t slot) {
     release_semaphore(static_cast<semaphore&>(sem.get()));
 }
 
+void nvme_queue::submit(uint8_t slot, nvme_command& sqe) {
+    {
+        lock_guard lock(sq_lock);
+
+        memcpy((uint8_t*)sq + (sq_tail * sizeof(nvme_command)),
+               &sqe, sizeof(sqe));
+
+        barrier();
+
+        sq_tail++;
+
+        auto sq_doorbell = (volatile uint32_t*)((uint8_t*)controller.regs + 0x1000);
+
+        *sq_doorbell = sq_tail;
+
+        if (sq_tail == QUEUE_SIZE)
+            sq_tail = 0;
+    }
+
+    wait_for_object(event[slot].get(), false);
+}
+
 bool nvme::identify_controller(nvme_queue& queue) {
-    auto slot = queue.get_slot();
-
-    auto& sqe = *(nvme_identify_command*)((uint8_t*)queue.sq + (queue.sq_tail * sizeof(nvme_command)));
-
     auto p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_data)));
     if (!p) {
         print("allocate_folio failed\n");
-        queue.release_slot(slot);
         return false;
     }
+
+    auto slot = queue.get_slot();
+
+    nvme_identify_command sqe;
 
     memset(&sqe, 0, sizeof(sqe));
 
@@ -514,18 +539,7 @@ bool nvme::identify_controller(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    {
-        lock_guard lock(queue.sq_lock);
-
-        queue.sq_tail++;
-
-        auto sq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000);
-
-        *sq_doorbell = queue.sq_tail;
-
-        if (queue.sq_tail == QUEUE_SIZE)
-            queue.sq_tail = 0;
-    }
+    queue.submit(slot, *reinterpret_cast<nvme_command*>(&sqe));
 
     uint16_t status;
 
@@ -580,16 +594,15 @@ bool nvme::identify_controller(nvme_queue& queue) {
 }
 
 bool nvme::identify_active_namespaces(nvme_queue& queue) {
-    auto slot = queue.get_slot();
-
-    auto& sqe = *(nvme_identify_command*)((uint8_t*)queue.sq + (queue.sq_tail * sizeof(nvme_command)));
-
     auto p = allocate_folio(bytes_to_folio_order(MAX_NAMESPACES * sizeof(uint32_t)));
     if (!p) {
         print("allocate_folio failed\n");
-        queue.release_slot(slot);
         return false;
     }
+
+    auto slot = queue.get_slot();
+
+    nvme_identify_command sqe;
 
     memset(&sqe, 0, sizeof(sqe));
 
@@ -604,20 +617,7 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    {
-        lock_guard lock(queue.sq_lock);
-
-        queue.sq_tail++;
-
-        auto sq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000);
-
-        *sq_doorbell = queue.sq_tail;
-
-        if (queue.sq_tail == QUEUE_SIZE)
-            queue.sq_tail = 0;
-    }
-
-    wait_for_object(queue.event[slot].get(), false);
+    queue.submit(slot, *reinterpret_cast<nvme_command*>(&sqe));
 
     uint16_t status;
 
