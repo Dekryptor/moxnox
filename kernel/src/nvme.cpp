@@ -527,29 +527,6 @@ void nvme_queue::submit(nvme_request& req) {
     }
 
     wait_for_object(req.event.get(), false);
-
-    {
-        lock_guard lock(cq_lock);
-
-        auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
-
-        memcpy(&req.cqe, &comp, sizeof(req.cqe));
-
-        reqs[slot] = nullptr;
-
-        barrier();
-
-        cq_head++;
-
-        if (cq_head == QUEUE_SIZE)
-            cq_head = 0;
-
-        auto cq_doorbell = (volatile uint32_t*)((uint8_t*)controller.regs + 0x1000 + controller.doorbell_stride);
-
-        *cq_doorbell = cq_head;
-    }
-
-    release_slot(slot);
 }
 
 bool nvme::identify_controller(nvme_queue& queue) {
@@ -680,7 +657,35 @@ export void init_nvme(const pci_device& dev) {
 void nvme_queue::isr() {
     auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
 
-    // FIXME - can we trust the NVMe controller not to return dodgy cid values?
+    if (comp.cid >= QUEUE_SIZE) {
+        print("NVMe completion for unknown cid {:x}, ignoring\n", comp.cid);
+        return;
+    }
 
-    set_event(static_cast<::event&>(reqs[comp.cid]->event.get()));
+    auto& req = *reqs[comp.cid];
+
+    {
+        lock_guard lock(cq_lock);
+
+        auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
+
+        memcpy(&req.cqe, &comp, sizeof(req.cqe));
+
+        reqs[comp.cid] = nullptr;
+
+        barrier();
+
+        cq_head++;
+
+        if (cq_head == QUEUE_SIZE)
+            cq_head = 0;
+
+        auto cq_doorbell = (volatile uint32_t*)((uint8_t*)controller.regs + 0x1000 + controller.doorbell_stride);
+
+        *cq_doorbell = cq_head;
+    }
+
+    release_slot((uint8_t)comp.cid);
+
+    set_event(static_cast<::event&>(req.event.get()));
 }
