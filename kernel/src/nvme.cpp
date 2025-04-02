@@ -545,6 +545,9 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
                 delete &req2;
                 continue;
             }
+
+            dev.sector_size = block_size;
+            dev.size = nsinfo.nsze * block_size;
         }
 
         dev.probe();
