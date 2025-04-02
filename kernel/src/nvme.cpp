@@ -35,6 +35,7 @@ static const uint32_t CSTS_RDY = 0x00000001;
 
 static const uint8_t NVME_ADMIN_OPCODE_IDENTIFY = 0x06;
 
+static const uint8_t NVME_IDENTIFY_CNS_NAMESPACE = 0x00;
 static const uint8_t NVME_IDENTIFY_CNS_CONTROLLER = 0x01;
 static const uint8_t NVME_IDENTIFY_CNS_ACTIVE_NAMESPACES = 0x02;
 
@@ -142,7 +143,7 @@ struct nvme_completion {
 
 static_assert(sizeof(nvme_completion) == 16);
 
-struct nvme_identify_data {
+struct nvme_identify_controller_data {
     uint16_t vid;
     uint16_t ssvid;
     char sn[20];
@@ -266,7 +267,55 @@ struct nvme_identify_data {
     uint8_t vs[1024];
 } __attribute((packed));
 
-static_assert(sizeof(nvme_identify_data) == 4096);
+static_assert(sizeof(nvme_identify_controller_data) == 4096);
+
+struct nvme_identify_namespace_data {
+    uint64_t nsze;
+    uint64_t ncap;
+    uint64_t nuse;
+    uint8_t nsfeat;
+    uint8_t nlbaf;
+    uint8_t flbas;
+    uint8_t mc;
+    uint8_t dpc;
+    uint8_t dps;
+    uint8_t nmic;
+    uint8_t rescap;
+    uint8_t fpi;
+    uint8_t dlfeat;
+    uint16_t nawun;
+    uint16_t nawupf;
+    uint16_t nacwu;
+    uint16_t nabsn;
+    uint16_t nabo;
+    uint16_t nabspf;
+    uint16_t noiob;
+    uint8_t nvmcap[16];
+    uint16_t npwg;
+    uint16_t npwa;
+    uint16_t npdg;
+    uint16_t npda;
+    uint16_t nows;
+    uint16_t mssrl;
+    uint32_t mcl;
+    uint8_t msrc;
+    uint8_t kpios;
+    uint8_t nulbaf;
+    uint8_t reserved;
+    uint32_t kpiodaag;
+    uint32_t reserved2;
+    uint32_t anagrpid;
+    uint8_t reserved3[3];
+    uint8_t nsattr;
+    uint16_t nvmsetid;
+    uint16_t endgid;
+    uint8_t nguid[16];
+    uint64_t eui64;
+    uint32_t lbaf[64];
+    uint8_t vs[3712];
+} __attribute((packed));
+
+static_assert(sizeof(nvme_identify_namespace_data) == 4096);
 
 class nvme;
 
@@ -323,9 +372,9 @@ public:
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
     bool identify_controller(nvme_queue& queue);
-    bool identify_active_namespaces(nvme_queue& queue);
+    bool identify_namespaces(nvme_queue& queue);
 
-    nvme_identify_data* controller_info = nullptr;
+    nvme_identify_controller_data* controller_info = nullptr;
     uint64_t maximum_transfer_size;
     nvme_queue admin_queue{*this};
 };
@@ -414,7 +463,7 @@ nvme::nvme(const pci_device& dev) {
     if (!identify_controller(admin_queue))
         return;
 
-    if (!identify_active_namespaces(admin_queue))
+    if (!identify_namespaces(admin_queue))
         return;
 
     initialized = true;
@@ -530,7 +579,7 @@ void nvme_queue::submit(nvme_request& req) {
 }
 
 bool nvme::identify_controller(nvme_queue& queue) {
-    auto p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_data)));
+    auto p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_controller_data)));
     if (!p) {
         print("allocate_folio failed\n");
         return false;
@@ -562,7 +611,7 @@ bool nvme::identify_controller(nvme_queue& queue) {
         return false;
     }
 
-    controller_info = (nvme_identify_data*)phys_address(p);
+    controller_info = (nvme_identify_controller_data*)phys_address(p);
 
     string_view model_number(controller_info->mn, sizeof(controller_info->mn));
 
@@ -587,7 +636,13 @@ bool nvme::identify_controller(nvme_queue& queue) {
     return true;
 }
 
-bool nvme::identify_active_namespaces(nvme_queue& queue) {
+struct nvme_namespace_req {
+    list_entry le;
+    nvme_request req;
+    uint64_t p;
+};
+
+bool nvme::identify_namespaces(nvme_queue& queue) {
     auto p = allocate_folio(bytes_to_folio_order(MAX_NAMESPACES * sizeof(uint32_t)));
     if (!p) {
         print("allocate_folio failed\n");
@@ -621,15 +676,65 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
     }
 
     auto ns_list = (uint32_t*)phys_address(p);
+    list_entry list = { &list, &list };
 
     for (unsigned int i = 0; i < MAX_NAMESPACES; i++) {
         if (ns_list[i] == 0)
             break;
 
-        print("found NVMe namespace {}\n", ns_list[i]); // FIXME
+        auto req2 = new nvme_namespace_req;
+        if (!req2) {
+            print("malloc failed\n");
+            free_folio(p);
+            return false;
+        }
+
+        req2->p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_namespace_data)));
+        if (!req2->p) {
+            print("allocate_folio failed\n");
+            free_folio(req2->p);
+            return false;
+        }
+
+        memset(&req2->req.sqe, 0, sizeof(req2->req.sqe));
+
+        auto& sqe2 = *reinterpret_cast<nvme_identify_command*>(&req2->req.sqe);
+
+        sqe2.opc = NVME_ADMIN_OPCODE_IDENTIFY;
+        sqe2.fuse = 0;
+        sqe2.psdt = 0; // use PRPs
+        sqe2.nsid = ns_list[i];
+        sqe2.dptr.prp1 = req2->p;
+        sqe2.cns = NVME_IDENTIFY_CNS_NAMESPACE;
+        sqe2.cntid = 0;
+        sqe2.cnssid = 0;
+        sqe2.csi = 0;
+
+        insert_tail_list(list, req2->le);
+
+        queue.submit(req2->req);
     }
 
     free_folio(p);
+
+    while (!is_list_empty(list)) {
+        auto& req2 = containing_record<nvme_namespace_req>(list.next);
+
+        remove_entry_list(req2.le);
+
+        wait_for_object(req2.req.event.get(), false);
+
+        auto& nsinfo = *(nvme_identify_namespace_data*)phys_address(req2.p);
+
+        print("found NVMe namespace {}\n", req2.req.sqe.nsid); // FIXME
+
+        // FIXME - get block size
+        // FIXME - get capacity
+        // FIXME - readonly if nsattr & 1
+
+        free_folio(req2.p);
+        delete &req2;
+    }
 
     return true;
 }
