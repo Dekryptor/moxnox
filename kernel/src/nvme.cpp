@@ -92,6 +92,7 @@ private:
     nvme_identify_controller_data* controller_info = nullptr;
     uint64_t maximum_transfer_size;
     nvme_queue admin_queue{*this};
+    nvme_queue io_queue{*this};
     list_entry namespaces = { &namespaces, &namespaces };
 };
 
@@ -721,6 +722,9 @@ bool nvme_controller::create_io_queues(nvme_queue& queue) {
             return false;
         }
     }
+
+    io_queue.cq = phys_address(cq);
+    io_queue.sq = phys_address(sq);
 
     return true;
 }
