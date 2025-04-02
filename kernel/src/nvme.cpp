@@ -311,7 +311,7 @@ struct nvme_identify_namespace_data {
     uint16_t endgid;
     uint8_t nguid[16];
     uint64_t eui64;
-    uint32_t lbaf[64];
+    array<uint32_t, 64> lbaf;
     uint8_t vs[3712];
 } __attribute((packed));
 
@@ -726,9 +726,30 @@ bool nvme::identify_namespaces(nvme_queue& queue) {
 
         auto& nsinfo = *(nvme_identify_namespace_data*)phys_address(req2.p);
 
-        print("found NVMe namespace {}\n", req2.req.sqe.nsid); // FIXME
+        auto fidxl = nsinfo.flbas & 0xf;
 
-        // FIXME - get block size
+        auto num_lba_formats = min(nsinfo.nlbaf, (uint8_t)nsinfo.lbaf.size());
+
+        if (num_lba_formats > 16)
+            fidxl |= (nsinfo.flbas & 0x30) >> 1;
+
+        if (fidxl >= num_lba_formats) {
+            print("skipping NVMe namespace {}: FIDXL was {}, expected 0 to {}\n",
+                  req2.req.sqe.nsid, fidxl, num_lba_formats - 1);
+            free_folio(req2.p);
+            delete &req2;
+        }
+
+        if (!(nsinfo.lbaf[fidxl] & 0xf0000)) {
+            print("skipping NVMe namespace {}: LBADS was 0\n", req2.req.sqe.nsid);
+            free_folio(req2.p);
+            delete &req2;
+        }
+
+        auto block_size = 1 << ((nsinfo.lbaf[fidxl] & 0xf0000) >> 16);
+
+        print("found NVMe namespace {}, block size {}\n", req2.req.sqe.nsid, block_size); // FIXME
+
         // FIXME - get capacity
         // FIXME - readonly if nsattr & 1
 
