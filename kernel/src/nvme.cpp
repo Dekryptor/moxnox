@@ -380,6 +380,11 @@ bool nvme_controller::identify_controller(nvme_queue& queue) {
     else
         maximum_transfer_size = 1 << (controller_info->mdts + mpsmin + 12);
 
+    volatile uint32_t* cc = &regs->cc;
+
+    *cc = (*cc & ~CC_IOCQES_MASK) | (controller_info->mincqes << CC_IOCQES_SHIFT);
+    *cc = (*cc & ~CC_IOSQES_MASK) | (controller_info->minsqes << CC_IOSQES_SHIFT);
+
     return true;
 }
 

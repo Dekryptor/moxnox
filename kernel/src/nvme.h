@@ -7,6 +7,10 @@ static const unsigned int MAX_NAMESPACES = 1024;
 
 static const uint8_t CSS_NCSS = 0x01;
 
+static uint32_t CC_IOCQES_MASK = 0x00f00000;
+static unsigned int CC_IOCQES_SHIFT = 20;
+static uint32_t CC_IOSQES_MASK = 0x000f0000;
+static unsigned int CC_IOSQES_SHIFT = 16;
 static const uint32_t CC_AMS = 0x00003800;
 static const uint32_t CC_MPS = 0x00000780;
 static const unsigned int CC_MPS_SHIFT = 7;
@@ -202,8 +206,10 @@ struct nvme_identify_controller_data {
     uint8_t reserved7;
     uint16_t cqt;
     uint8_t reserved8[124];
-    uint8_t sqes;
-    uint8_t cqes;
+    uint8_t minsqes : 4;
+    uint8_t maxsqes : 4;
+    uint8_t mincqes : 4;
+    uint8_t maxcqes : 4;
     uint16_t maxcmd;
     uint32_t nn;
     uint16_t oncs;
