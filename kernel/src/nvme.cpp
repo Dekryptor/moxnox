@@ -273,6 +273,7 @@ class nvme;
 struct nvme_request {
     nvme_command sqe;
     nvme_completion cqe;
+    object_ref event;
 };
 
 class nvme_queue {
@@ -281,7 +282,7 @@ public:
         sem = create_semaphore(QUEUE_SIZE);
 
         for (unsigned int i = 0; i < QUEUE_SIZE; i++) {
-            event[i] = create_event(true);
+            reqs[i] = nullptr;
         }
     }
 
@@ -305,9 +306,9 @@ public:
     uint32_t cq_head = 0;
     spinlock sq_lock, cq_lock;
     object_ref sem;
-    object_ref event[QUEUE_SIZE];
     spinlock slot_lock;
     uint32_t allocated_slots = 0;
+    nvme_request* reqs[QUEUE_SIZE];
 };
 
 class nvme {
@@ -499,6 +500,8 @@ void nvme_queue::release_slot(uint8_t slot) {
 }
 
 void nvme_queue::submit(nvme_request& req) {
+    req.event = create_event(true);
+
     auto slot = get_slot();
 
     req.sqe.cid = slot;
@@ -508,6 +511,8 @@ void nvme_queue::submit(nvme_request& req) {
 
         memcpy((uint8_t*)sq + (sq_tail * sizeof(nvme_command)),
                &req.sqe, sizeof(req.sqe));
+
+        reqs[slot] = &req;
 
         barrier();
 
@@ -521,7 +526,7 @@ void nvme_queue::submit(nvme_request& req) {
             sq_tail = 0;
     }
 
-    wait_for_object(event[slot].get(), false);
+    wait_for_object(req.event.get(), false);
 
     {
         lock_guard lock(cq_lock);
@@ -529,6 +534,8 @@ void nvme_queue::submit(nvme_request& req) {
         auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
 
         memcpy(&req.cqe, &comp, sizeof(req.cqe));
+
+        reqs[slot] = nullptr;
 
         barrier();
 
@@ -673,5 +680,7 @@ export void init_nvme(const pci_device& dev) {
 void nvme_queue::isr() {
     auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
 
-    set_event(static_cast<::event&>(event[comp.cid].get()));
+    // FIXME - can we trust the NVMe controller not to return dodgy cid values?
+
+    set_event(static_cast<::event&>(reqs[comp.cid]->event.get()));
 }
