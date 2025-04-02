@@ -643,42 +643,84 @@ void nvme_queue::isr() {
 bool nvme_controller::create_io_queues(nvme_queue& queue) {
     // FIXME - should be creating one pair of queues for each CPU?
 
-    auto p = allocate_folio(bytes_to_folio_order((1 << controller_info->mincqes) * QUEUE_SIZE));
-    if (!p) {
+    // FIXME - set up interrupt
+
+    // create completion queue
+
+    auto cq = allocate_folio(bytes_to_folio_order((1 << controller_info->mincqes) * QUEUE_SIZE));
+    if (!cq) {
         print("allocate_folio failed\n");
         return false;
     }
 
-    // FIXME - set up interrupt
+    {
+        nvme_request req;
 
-    nvme_request req;
+        memset(&req.sqe, 0, sizeof(req.sqe));
 
-    memset(&req.sqe, 0, sizeof(req.sqe));
+        auto& sqe = *reinterpret_cast<nvme_create_cq_command*>(&req.sqe);
 
-    auto& sqe = *reinterpret_cast<nvme_create_cq_command*>(&req.sqe);
+        sqe.opc = NVME_ADMIN_OPCODE_CREATE_CQ;
+        sqe.fuse = 0;
+        sqe.psdt = 0; // use PRPs
+        sqe.nsid = 0;
+        sqe.dptr.prp1 = cq;
+        sqe.qid = 1;
+        sqe.qsize = QUEUE_SIZE;
+        sqe.pc = 1;
+        sqe.ien = 1;
+        sqe.iv = 1;
 
-    sqe.opc = NVME_ADMIN_OPCODE_CREATE_CQ;
-    sqe.fuse = 0;
-    sqe.psdt = 0; // use PRPs
-    sqe.nsid = 0;
-    sqe.dptr.prp1 = p;
-    sqe.qid = 1;
-    sqe.qsize = QUEUE_SIZE;
-    sqe.pc = 1;
-    sqe.ien = 1;
-    sqe.iv = 1;
+        queue.submit(req);
 
-    queue.submit(req);
+        wait_for_object(req.event.get(), false);
 
-    wait_for_object(req.event.get(), false);
+        if (req.cqe.status != 0) {
+            print("NVMe create completion queue returned status {:x}\n", req.cqe.status);
+            free_folio(cq);
+            return false;
+        }
+    }
 
-    if (req.cqe.status != 0) {
-        print("NVMe create queue returned status {:x}\n", req.cqe.status);
-        free_folio(p);
+    // create submission queue
+
+    auto sq = allocate_folio(bytes_to_folio_order((1 << controller_info->minsqes) * QUEUE_SIZE));
+    if (!sq) {
+        print("allocate_folio failed\n");
+        // FIXME - delete CQ and free its buffer
         return false;
     }
 
-    // FIXME - create submission queue
+    {
+        nvme_request req;
+
+        memset(&req.sqe, 0, sizeof(req.sqe));
+
+        auto& sqe = *reinterpret_cast<nvme_create_sq_command*>(&req.sqe);
+
+        sqe.opc = NVME_ADMIN_OPCODE_CREATE_SQ;
+        sqe.fuse = 0;
+        sqe.psdt = 0; // use PRPs
+        sqe.nsid = 0;
+        sqe.dptr.prp1 = sq;
+        sqe.qid = 1;
+        sqe.qsize = QUEUE_SIZE;
+        sqe.pc = 1;
+        sqe.qprio = 0;
+        sqe.cqid = 1;
+        sqe.nvmsetid = 0;
+
+        queue.submit(req);
+
+        wait_for_object(req.event.get(), false);
+
+        if (req.cqe.status != 0) {
+            print("NVMe create submission queue returned status {:x}\n", req.cqe.status);
+            // FIXME - delete CQ and free its buffer
+            free_folio(sq);
+            return false;
+        }
+    }
 
     return true;
 }

@@ -19,6 +19,7 @@ static const uint32_t CC_EN = 0x00000001;
 
 static const uint32_t CSTS_RDY = 0x00000001;
 
+static const uint8_t NVME_ADMIN_OPCODE_CREATE_SQ = 0x01;
 static const uint8_t NVME_ADMIN_OPCODE_CREATE_CQ = 0x05;
 static const uint8_t NVME_ADMIN_OPCODE_IDENTIFY = 0x06;
 
@@ -139,6 +140,30 @@ struct nvme_create_cq_command {
 } __attribute((packed));
 
 static_assert(sizeof(nvme_create_cq_command) == 64);
+
+struct nvme_create_sq_command {
+    struct {
+        uint32_t opc : 8;
+        uint32_t fuse : 2;
+        uint32_t reserved : 4;
+        uint32_t psdt : 2;
+        uint32_t cid : 16;
+    };
+    uint32_t nsid;
+    uint32_t reserved2[4];
+    nvme_dptr dptr;
+    uint16_t qid;
+    uint16_t qsize;
+    uint32_t pc : 1;
+    uint32_t qprio : 2;
+    uint32_t reserved3 : 13;
+    uint32_t cqid : 16;
+    uint32_t nvmsetid : 16;
+    uint32_t reserved4 : 16;
+    uint32_t reserved5[3];
+} __attribute((packed));
+
+static_assert(sizeof(nvme_create_sq_command) == 64);
 
 struct nvme_completion {
     uint32_t dw0;
