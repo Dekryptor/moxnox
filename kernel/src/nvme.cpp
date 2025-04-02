@@ -11,11 +11,13 @@ module;
 export module nvme;
 
 import print;
+import format;
 import config;
 import mem;
 import interrupts;
 import event;
 import semaphore;
+import volume;
 
 using namespace std;
 
@@ -79,6 +81,7 @@ public:
     volatile nvme_regs* regs;
     unsigned int controller_num;
     unsigned int doorbell_stride;
+    spinlock namespaces_lock;
 
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
@@ -88,6 +91,37 @@ private:
     nvme_identify_controller_data* controller_info = nullptr;
     uint64_t maximum_transfer_size;
     nvme_queue admin_queue{*this};
+    list_entry namespaces = { &namespaces, &namespaces };
+};
+
+class nvme_namespace : public volume {
+public:
+    nvme_namespace(nvme_controller& controller) : controller(controller) { }
+
+    ~nvme_namespace() {
+        lock_guard lock(controller.namespaces_lock);
+        remove_entry_list(le);
+    }
+
+    void release() override {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override {
+        print("FIXME: nvme_namespace::read_into_cache: {:x}, {:x}\n", page_num, num_pages); // FIXME
+
+        return 0;
+    }
+
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override {
+        print("FIXME: nvme_namespace::flush_cache: {:x}, {:x}\n", page_num, num_pages); // FIXME
+
+        return 0;
+    }
+
+    list_entry le;
+    nvme_controller& controller;
 };
 
 static void nvme_isr_func(void* ctx) {
@@ -451,12 +485,14 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
                   req2.req.sqe.nsid, fidxl, num_lba_formats - 1);
             free_folio(req2.p);
             delete &req2;
+            continue;
         }
 
         if (!(nsinfo.lbaf[fidxl] & 0xf0000)) {
             print("skipping NVMe namespace {}: LBADS was 0\n", req2.req.sqe.nsid);
             free_folio(req2.p);
             delete &req2;
+            continue;
         }
 
         auto block_size = 1 << ((nsinfo.lbaf[fidxl] & 0xf0000) >> 16);
@@ -466,6 +502,37 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
               controller_num, req2.req.sqe.nsid, block_size, nsinfo.nsze * block_size); // FIXME
 
         // FIXME - readonly if nsattr & 1
+
+        auto pdev = new nvme_namespace(*this);
+        if (!pdev) {
+            print("malloc failed\n");
+            free_folio(req2.p);
+            delete &req2;
+            continue;
+        }
+
+        {
+            lock_guard lock(namespaces_lock);
+            insert_tail_list(namespaces, pdev->le);
+        }
+
+        {
+            char s[50];
+            auto sp = span(s, sizeof(s));
+
+            sp = format(sp, "nvme{}n{}", controller_num, req2.req.sqe.nsid);
+
+            if (!name_object(*pdev, string_view(s, (size_t)(sp.data() - s)))) {
+                print("name_object failed\n");
+                delete pdev;
+                free_folio(req2.p);
+                delete &req2;
+                continue;
+            }
+        }
+
+        pdev->probe();
+        pdev->release();
 
         free_folio(req2.p);
         delete &req2;
