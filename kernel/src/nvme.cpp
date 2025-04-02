@@ -511,9 +511,11 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
             continue;
         }
 
+        auto& dev = *pdev;
+
         {
             lock_guard lock(namespaces_lock);
-            insert_tail_list(namespaces, pdev->le);
+            insert_tail_list(namespaces, dev.le);
         }
 
         {
@@ -522,17 +524,31 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
             sp = format(sp, "nvme{}n{}", controller_num, req2.req.sqe.nsid);
 
-            if (!name_object(*pdev, string_view(s, (size_t)(sp.data() - s)))) {
+            auto sv = string_view(s, (size_t)(sp.data() - s));
+
+            dev.volume_name_len = sv.size();
+            dev.volume_name = (char*)malloc(sv.size());
+            if (!dev.volume_name) {
+                print("malloc failed\n");
+                dev.release();
+                free_folio(req2.p);
+                delete &req2;
+                continue;
+            }
+
+            memcpy(dev.volume_name, sv.data(), sv.size());
+
+            if (!name_object(dev, sv)) {
                 print("name_object failed\n");
-                delete pdev;
+                dev.release();
                 free_folio(req2.p);
                 delete &req2;
                 continue;
             }
         }
 
-        pdev->probe();
-        pdev->release();
+        dev.probe();
+        dev.release();
 
         free_folio(req2.p);
         delete &req2;
