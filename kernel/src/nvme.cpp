@@ -38,7 +38,7 @@ struct nvme_request {
 
 class nvme_queue {
 public:
-    nvme_queue(nvme_controller& controller) : controller(controller) {
+    nvme_queue(nvme_controller& controller, unsigned int queue_id) : controller(controller), queue_id(queue_id) {
         sem = create_semaphore(QUEUE_SIZE);
 
         for (unsigned int i = 0; i < QUEUE_SIZE; i++) {
@@ -55,6 +55,7 @@ public:
     }
 
     nvme_controller& controller;
+    unsigned int queue_id;
     uint8_t get_slot();
     void release_slot(uint8_t slot);
     void isr();
@@ -64,7 +65,7 @@ public:
     void* cq = nullptr;
     uint32_t sq_tail = 0;
     uint32_t cq_head = 0;
-    spinlock sq_lock, cq_lock;
+    spinlock sq_lock;
     object_ref sem;
     spinlock slot_lock;
     uint32_t allocated_slots = 0;
@@ -82,23 +83,23 @@ public:
     unsigned int controller_num;
     unsigned int doorbell_stride;
     spinlock namespaces_lock;
+    nvme_identify_controller_data* controller_info = nullptr;
+    nvme_queue io_queue{*this, 1};
 
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
     bool identify_controller(nvme_queue& queue);
-    bool create_io_queues(nvme_queue& queue);
+    bool create_io_queues(const pci_device& dev, nvme_queue& queue);
     bool identify_namespaces(nvme_queue& queue);
 
-    nvme_identify_controller_data* controller_info = nullptr;
     uint64_t maximum_transfer_size;
-    nvme_queue admin_queue{*this};
-    nvme_queue io_queue{*this};
+    nvme_queue admin_queue{*this, 0};
     list_entry namespaces = { &namespaces, &namespaces };
 };
 
 class nvme_namespace : public volume {
 public:
-    nvme_namespace(nvme_controller& controller) : controller(controller) { }
+    nvme_namespace(nvme_controller& controller, uint32_t nsid) : controller(controller), nsid(nsid) { }
 
     ~nvme_namespace() {
         lock_guard lock(controller.namespaces_lock);
@@ -110,11 +111,7 @@ public:
             delete this;
     }
 
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override {
-        print("FIXME: nvme_namespace::read_into_cache: {:x}, {:x}\n", page_num, num_pages); // FIXME
-
-        return 0;
-    }
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
 
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override {
         print("FIXME: nvme_namespace::flush_cache: {:x}, {:x}\n", page_num, num_pages); // FIXME
@@ -124,6 +121,7 @@ public:
 
     list_entry le;
     nvme_controller& controller;
+    uint32_t nsid;
 };
 
 static void nvme_isr_func(void* ctx) {
@@ -212,7 +210,7 @@ nvme_controller::nvme_controller(const pci_device& dev) {
     if (!identify_controller(admin_queue))
         return;
 
-    if (!create_io_queues(admin_queue))
+    if (!create_io_queues(dev, admin_queue))
         return;
 
     if (!identify_namespaces(admin_queue))
@@ -309,11 +307,22 @@ void nvme_queue::submit(nvme_request& req) {
 
     req.sqe.cid = slot;
 
+    size_t sqe_size;
+
+    if (queue_id == 0)
+        sqe_size = sizeof(nvme_command);
+    else
+        sqe_size = 1 << controller.controller_info->minsqes;
+
     {
         lock_guard lock(sq_lock);
 
-        memcpy((uint8_t*)sq + (sq_tail * sizeof(nvme_command)),
-               &req.sqe, sizeof(req.sqe));
+        memcpy((uint8_t*)sq + (sq_tail * sqe_size), &req.sqe, sizeof(req.sqe));
+
+        if (sizeof(req.sqe) < sqe_size) {
+            memset((uint8_t*)sq + (sq_tail * sqe_size) + sizeof(req.sqe),
+                   0, sqe_size - sizeof(req.sqe));
+        }
 
         reqs[slot] = &req;
 
@@ -321,12 +330,12 @@ void nvme_queue::submit(nvme_request& req) {
 
         sq_tail++;
 
-        auto sq_doorbell = (volatile uint32_t*)((uint8_t*)controller.regs + 0x1000);
-
-        *sq_doorbell = sq_tail;
-
         if (sq_tail == QUEUE_SIZE)
             sq_tail = 0;
+
+        auto sq_doorbell = (volatile uint32_t*)((uint8_t*)controller.regs + 0x1000 + (2 * controller.doorbell_stride * queue_id));
+
+        *sq_doorbell = sq_tail;
     }
 }
 
@@ -505,7 +514,25 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
             continue;
         }
 
-        auto block_size = 1 << ((nsinfo.lbaf[fidxl] & 0xf0000) >> 16);
+        auto block_size = (unsigned int)1 << ((nsinfo.lbaf[fidxl] & 0xf0000) >> 16);
+
+        // FIXME - support block_size > PAGE_SIZE?
+
+        if (block_size > PAGE_SIZE) {
+            print("skipping NVMe namespace {}: block size {} more than page size {}\n",
+                  req2.req.sqe.nsid, block_size, PAGE_SIZE);
+            free_folio(req2.p);
+            delete &req2;
+            continue;
+        }
+
+        if (PAGE_SIZE % block_size) {
+            print("skipping NVMe namespace {}: page size {} not a multiple of block size {}\n",
+                  req2.req.sqe.nsid, PAGE_SIZE, block_size);
+            free_folio(req2.p);
+            delete &req2;
+            continue;
+        }
 
         // FIXME - format byte counts nicely
         print("found /dev/nvme{}n{}: block size {}, capacity {}\n",
@@ -513,7 +540,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
         // FIXME - readonly if nsattr & 1
 
-        auto pdev = new nvme_namespace(*this);
+        auto pdev = new nvme_namespace(*this, req2.req.sqe.nsid);
         if (!pdev) {
             print("malloc failed\n");
             free_folio(req2.p);
@@ -606,7 +633,14 @@ export void init_nvme(const pci_device& dev) {
 }
 
 void nvme_queue::isr() {
-    auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
+    size_t cqe_size;
+
+    if (queue_id == 0)
+        cqe_size = sizeof(nvme_completion);
+    else
+        cqe_size = 1 << controller.controller_info->mincqes;
+
+    auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * cqe_size));
 
     if (comp.cid >= QUEUE_SIZE) {
         print("NVMe completion for unknown cid {:x}, ignoring\n", comp.cid);
@@ -615,36 +649,28 @@ void nvme_queue::isr() {
 
     auto& req = *reqs[comp.cid];
 
-    {
-        lock_guard lock(cq_lock);
+    memcpy(&req.cqe, &comp, sizeof(req.cqe));
 
-        auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
+    reqs[comp.cid] = nullptr;
 
-        memcpy(&req.cqe, &comp, sizeof(req.cqe));
+    barrier();
 
-        reqs[comp.cid] = nullptr;
+    cq_head++;
 
-        barrier();
+    if (cq_head == QUEUE_SIZE)
+        cq_head = 0;
 
-        cq_head++;
+    auto cq_doorbell = (volatile uint32_t*)((uint8_t*)controller.regs + 0x1000 + (((2 * queue_id) + 1) * controller.doorbell_stride));
 
-        if (cq_head == QUEUE_SIZE)
-            cq_head = 0;
-
-        auto cq_doorbell = (volatile uint32_t*)((uint8_t*)controller.regs + 0x1000 + controller.doorbell_stride);
-
-        *cq_doorbell = cq_head;
-    }
+    *cq_doorbell = cq_head;
 
     release_slot((uint8_t)comp.cid);
 
     set_event(static_cast<::event&>(req.event.get()));
 }
 
-bool nvme_controller::create_io_queues(nvme_queue& queue) {
+bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue) {
     // FIXME - should be creating one pair of queues for each CPU?
-
-    // FIXME - set up interrupt
 
     // create completion queue
 
@@ -667,7 +693,7 @@ bool nvme_controller::create_io_queues(nvme_queue& queue) {
         sqe.nsid = 0;
         sqe.dptr.prp1 = cq;
         sqe.qid = 1;
-        sqe.qsize = QUEUE_SIZE;
+        sqe.qsize = QUEUE_SIZE - 1;
         sqe.pc = 1;
         sqe.ien = 1;
         sqe.iv = 1;
@@ -705,7 +731,7 @@ bool nvme_controller::create_io_queues(nvme_queue& queue) {
         sqe.nsid = 0;
         sqe.dptr.prp1 = sq;
         sqe.qid = 1;
-        sqe.qsize = QUEUE_SIZE;
+        sqe.qsize = QUEUE_SIZE - 1;
         sqe.pc = 1;
         sqe.qprio = 0;
         sqe.cqid = 1;
@@ -726,5 +752,83 @@ bool nvme_controller::create_io_queues(nvme_queue& queue) {
     io_queue.cq = phys_address(cq);
     io_queue.sq = phys_address(sq);
 
+    // set up interrupt
+
+    auto vecs = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+
+    // FIXME - free this in dtor or if we fail here
+    auto int_num = add_isr(nvme_isr_func, &io_queue);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        // FIXME - delete CQ and SQ
+        return false;
+    }
+
+    vecs[1].message_data = int_num;
+    vecs[1].message_address_high = 0;
+    vecs[1].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+    vecs[1].vector_control &= ~1; // unmask
+
     return true;
+}
+
+size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME: nvme_namespace::read_into_cache: {:x}, {:x}\n", page_num, num_pages); // FIXME
+
+    // FIXME - maximum transfer size
+
+    // uint64_t num_blocks = (num_pages << PAGE_SHIFT) / sector_size;
+
+    // put read request into controller's IO queue
+
+    auto& queue = controller.io_queue;
+
+    nvme_request req;
+
+    memset(&req.sqe, 0, sizeof(req.sqe));
+
+    auto& sqe = *reinterpret_cast<nvme_read_command*>(&req.sqe);
+
+    // FIXME - reading multiple pages
+
+    uint64_t prp;
+
+    {
+        lock_guard lg(cache.cache_lock);
+
+        auto* p = cache.find_page_cache_entry(page_num);
+
+        prp = p->phys_address;
+    }
+
+    sqe.opc = NVME_IO_OPCODE_READ;
+    sqe.fuse = 0;
+    sqe.psdt = 0; // use PRPs
+    sqe.nsid = nsid;
+    sqe.elbtu = 0;
+    sqe.mptr = 0;
+    sqe.dptr.prp1 = prp; // FIXME
+    sqe.slba = (page_num << PAGE_SHIFT) / sector_size;
+    sqe.nlb = 0; // FIXME - (uint16_t)(num_blocks - 1);
+    sqe.cetype = 0;
+    sqe.stc = 0;
+    sqe.prinfo = 0;
+    sqe.fua = 0;
+    sqe.lr = 0;
+    sqe.dsm = 0;
+    sqe.elbtl = 0;
+    sqe.elbat = 0;
+    sqe.elbatm = 0;
+
+    queue.submit(req);
+
+    wait_for_object(req.event.get(), false);
+
+    if (req.cqe.status != 0) {
+        print("NVMe read returned status {:x}\n", req.cqe.status);
+        // FIXME - translate into nt_status and return somehow
+        return 0;
+    }
+
+    return 1;
 }
