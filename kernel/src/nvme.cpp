@@ -292,7 +292,7 @@ public:
     uint8_t get_slot();
     void release_slot(uint8_t slot);
     void isr();
-    void submit(uint8_t slot, nvme_command& sqe);
+    void submit(uint8_t slot, nvme_command& sqe, nvme_completion& cqe);
 
     void* sq = nullptr;
     void* cq = nullptr;
@@ -312,13 +312,13 @@ public:
 
     bool initialized = false;
     volatile nvme_regs* regs;
+    unsigned int doorbell_stride;
 
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
     bool identify_controller(nvme_queue& queue);
     bool identify_active_namespaces(nvme_queue& queue);
 
-    unsigned int doorbell_stride;
     nvme_identify_data* controller_info = nullptr;
     uint64_t maximum_transfer_size;
     nvme_queue admin_queue{*this};
@@ -493,7 +493,7 @@ void nvme_queue::release_slot(uint8_t slot) {
     release_semaphore(static_cast<semaphore&>(sem.get()));
 }
 
-void nvme_queue::submit(uint8_t slot, nvme_command& sqe) {
+void nvme_queue::submit(uint8_t slot, nvme_command& sqe, nvme_completion& cqe) {
     {
         lock_guard lock(sq_lock);
 
@@ -513,6 +513,25 @@ void nvme_queue::submit(uint8_t slot, nvme_command& sqe) {
     }
 
     wait_for_object(event[slot].get(), false);
+
+    {
+        lock_guard lock(cq_lock);
+
+        auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * sizeof(nvme_completion)));
+
+        memcpy(&cqe, &comp, sizeof(cqe));
+
+        barrier();
+
+        cq_head++;
+
+        if (cq_head == QUEUE_SIZE)
+            cq_head = 0;
+
+        auto cq_doorbell = (volatile uint32_t*)((uint8_t*)controller.regs + 0x1000 + controller.doorbell_stride);
+
+        *cq_doorbell = cq_head;
+    }
 }
 
 bool nvme::identify_controller(nvme_queue& queue) {
@@ -525,6 +544,7 @@ bool nvme::identify_controller(nvme_queue& queue) {
     auto slot = queue.get_slot();
 
     nvme_identify_command sqe;
+    nvme_completion cqe;
 
     memset(&sqe, 0, sizeof(sqe));
 
@@ -539,31 +559,12 @@ bool nvme::identify_controller(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    queue.submit(slot, *reinterpret_cast<nvme_command*>(&sqe));
-
-    uint16_t status;
-
-    {
-        lock_guard lock(queue.cq_lock);
-
-        auto& comp = *(nvme_completion*)((uint8_t*)queue.cq + (queue.cq_head * sizeof(nvme_completion)));
-
-        status = comp.status;
-
-        queue.cq_head++;
-
-        if (queue.cq_head == QUEUE_SIZE)
-            queue.cq_head = 0;
-
-        auto cq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000 + doorbell_stride);
-
-        *cq_doorbell = queue.cq_head;
-    }
+    queue.submit(slot, *reinterpret_cast<nvme_command*>(&sqe), cqe);
 
     queue.release_slot(slot);
 
-    if (status != 0) {
-        print("NVMe identify returned status {:x}\n", status);
+    if (cqe.status != 0) {
+        print("NVMe identify returned status {:x}\n", cqe.status);
         free_folio(p);
         return false;
     }
@@ -603,6 +604,7 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
     auto slot = queue.get_slot();
 
     nvme_identify_command sqe;
+    nvme_completion cqe;
 
     memset(&sqe, 0, sizeof(sqe));
 
@@ -617,31 +619,12 @@ bool nvme::identify_active_namespaces(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
-    queue.submit(slot, *reinterpret_cast<nvme_command*>(&sqe));
-
-    uint16_t status;
-
-    {
-        lock_guard lock(queue.cq_lock);
-
-        auto& comp = *(nvme_completion*)((uint8_t*)queue.cq + (queue.cq_head * sizeof(nvme_completion)));
-
-        status = comp.status;
-
-        queue.cq_head++;
-
-        if (queue.cq_head == QUEUE_SIZE)
-            queue.cq_head = 0;
-
-        auto cq_doorbell = (volatile uint32_t*)((uint8_t*)regs + 0x1000 + doorbell_stride);
-
-        *cq_doorbell = queue.cq_head;
-    }
+    queue.submit(slot, *reinterpret_cast<nvme_command*>(&sqe), cqe);
 
     queue.release_slot(slot);
 
-    if (status != 0) {
-        print("NVMe identify returned status {:x}\n", status);
+    if (cqe.status != 0) {
+        print("NVMe identify returned status {:x}\n", cqe.status);
         free_folio(p);
         return false;
     }
