@@ -39,6 +39,9 @@ static const uint8_t NVME_IDENTIFY_CNS_NAMESPACE = 0x00;
 static const uint8_t NVME_IDENTIFY_CNS_CONTROLLER = 0x01;
 static const uint8_t NVME_IDENTIFY_CNS_ACTIVE_NAMESPACES = 0x02;
 
+static spinlock nvme_lock;
+static list_entry nvme_controllers = { &nvme_controllers, &nvme_controllers };
+
 struct nvme_regs {
     uint64_t cap;
     uint32_t vs;
@@ -317,7 +320,7 @@ struct nvme_identify_namespace_data {
 
 static_assert(sizeof(nvme_identify_namespace_data) == 4096);
 
-class nvme;
+class nvme_controller;
 
 struct nvme_request {
     nvme_command sqe;
@@ -327,7 +330,7 @@ struct nvme_request {
 
 class nvme_queue {
 public:
-    nvme_queue(nvme& controller) : controller(controller) {
+    nvme_queue(nvme_controller& controller) : controller(controller) {
         sem = create_semaphore(QUEUE_SIZE);
 
         for (unsigned int i = 0; i < QUEUE_SIZE; i++) {
@@ -343,7 +346,7 @@ public:
             free_folio(phys_memory_pfn(cq) << PAGE_SHIFT);
     }
 
-    nvme& controller;
+    nvme_controller& controller;
     uint8_t get_slot();
     void release_slot(uint8_t slot);
     void isr();
@@ -360,12 +363,13 @@ public:
     nvme_request* reqs[QUEUE_SIZE];
 };
 
-class nvme {
+class nvme_controller {
 public:
-    nvme(const pci_device& dev);
-    ~nvme();
+    nvme_controller(const pci_device& dev);
+    ~nvme_controller();
 
     bool initialized = false;
+    list_entry le;
     volatile nvme_regs* regs;
     unsigned int doorbell_stride;
 
@@ -383,7 +387,7 @@ static void nvme_isr_func(void* ctx) {
     ((nvme_queue*)ctx)->isr();
 }
 
-nvme::nvme(const pci_device& dev) {
+nvme_controller::nvme_controller(const pci_device& dev) {
     auto bar = dev.bar[0];
 
     if (bar.size() < sizeof(nvme_regs)) {
@@ -469,12 +473,12 @@ nvme::nvme(const pci_device& dev) {
     initialized = true;
 }
 
-nvme::~nvme() {
+nvme_controller::~nvme_controller() {
     if (controller_info)
         free_folio(phys_memory_pfn(controller_info) << PAGE_SHIFT);
 }
 
-void nvme::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys) {
+void nvme_controller::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys) {
     volatile uint32_t* cc = &regs->cc;
     volatile uint32_t* csts = &regs->csts;
     volatile uint32_t* aqa = &regs->aqa;
@@ -578,7 +582,7 @@ void nvme_queue::submit(nvme_request& req) {
     }
 }
 
-bool nvme::identify_controller(nvme_queue& queue) {
+bool nvme_controller::identify_controller(nvme_queue& queue) {
     auto p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_controller_data)));
     if (!p) {
         print("allocate_folio failed\n");
@@ -642,7 +646,7 @@ struct nvme_namespace_req {
     uint64_t p;
 };
 
-bool nvme::identify_namespaces(nvme_queue& queue) {
+bool nvme_controller::identify_namespaces(nvme_queue& queue) {
     auto p = allocate_folio(bytes_to_folio_order(MAX_NAMESPACES * sizeof(uint32_t)));
     if (!p) {
         print("allocate_folio failed\n");
@@ -748,9 +752,9 @@ bool nvme::identify_namespaces(nvme_queue& queue) {
 
         auto block_size = 1 << ((nsinfo.lbaf[fidxl] & 0xf0000) >> 16);
 
-        print("found NVMe namespace {}, block size {}\n", req2.req.sqe.nsid, block_size); // FIXME
+        print("found NVMe namespace {}, block size {}, capacity {}\n",
+              req2.req.sqe.nsid, block_size, nsinfo.nsze * block_size); // FIXME
 
-        // FIXME - get capacity
         // FIXME - readonly if nsattr & 1
 
         free_folio(req2.p);
@@ -778,10 +782,21 @@ export void init_nvme(const pci_device& dev) {
         return;
     }
 
-    nvme n(dev);
-
-    if (!n.initialized)
+    auto n = new nvme_controller(dev);
+    if (!n) {
+        print("malloc failed\n");
         return;
+    }
+
+    if (!n->initialized) {
+        delete n;
+        return;
+    }
+
+    {
+        lock_guard lock(nvme_lock);
+        insert_tail_list(nvme_controllers, n->le);
+    }
 }
 
 void nvme_queue::isr() {
