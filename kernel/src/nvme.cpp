@@ -86,6 +86,7 @@ public:
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
     bool identify_controller(nvme_queue& queue);
+    bool create_io_queues(nvme_queue& queue);
     bool identify_namespaces(nvme_queue& queue);
 
     nvme_identify_controller_data* controller_info = nullptr;
@@ -210,6 +211,9 @@ nvme_controller::nvme_controller(const pci_device& dev) {
     if (!identify_controller(admin_queue))
         return;
 
+    if (!create_io_queues(admin_queue))
+        return;
+
     if (!identify_namespaces(admin_queue))
         return;
 
@@ -257,13 +261,13 @@ void nvme_controller::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq
     while (!(*csts & CSTS_RDY)) { }
 }
 
-static constexpr unsigned int bytes_to_folio_order(size_t s) {
+static constexpr uint8_t bytes_to_folio_order(size_t s) {
     uint32_t p = bytes_to_pages(s);
 
     if (p == 0)
         return 0;
 
-    return 32 - countl_zero(p - 1);
+    return (uint8_t)(32 - countl_zero(p - 1));
 }
 
 uint8_t nvme_queue::get_slot() {
@@ -634,4 +638,47 @@ void nvme_queue::isr() {
     release_slot((uint8_t)comp.cid);
 
     set_event(static_cast<::event&>(req.event.get()));
+}
+
+bool nvme_controller::create_io_queues(nvme_queue& queue) {
+    // FIXME - should be creating one pair of queues for each CPU?
+
+    auto p = allocate_folio(bytes_to_folio_order((1 << controller_info->mincqes) * QUEUE_SIZE));
+    if (!p) {
+        print("allocate_folio failed\n");
+        return false;
+    }
+
+    // FIXME - set up interrupt
+
+    nvme_request req;
+
+    memset(&req.sqe, 0, sizeof(req.sqe));
+
+    auto& sqe = *reinterpret_cast<nvme_create_cq_command*>(&req.sqe);
+
+    sqe.opc = NVME_ADMIN_OPCODE_CREATE_CQ;
+    sqe.fuse = 0;
+    sqe.psdt = 0; // use PRPs
+    sqe.nsid = 0;
+    sqe.dptr.prp1 = p;
+    sqe.qid = 1;
+    sqe.qsize = QUEUE_SIZE;
+    sqe.pc = 1;
+    sqe.ien = 1;
+    sqe.iv = 1;
+
+    queue.submit(req);
+
+    wait_for_object(req.event.get(), false);
+
+    if (req.cqe.status != 0) {
+        print("NVMe create queue returned status {:x}\n", req.cqe.status);
+        free_folio(p);
+        return false;
+    }
+
+    // FIXME - create submission queue
+
+    return true;
 }
