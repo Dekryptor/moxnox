@@ -778,8 +778,6 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
 }
 
 size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME: nvme_namespace::read_into_cache: {:x}, {:x}\n", page_num, num_pages); // FIXME
-
     static constexpr size_t PRP_LIST_ENTRIES = PAGE_SIZE / sizeof(uint64_t);
 
     if (num_pages << PAGE_SHIFT > controller.maximum_transfer_size)
