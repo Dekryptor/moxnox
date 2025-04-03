@@ -205,7 +205,7 @@ nvme_controller::nvme_controller(const pci_device& dev) {
     vec.message_data = int_num;
     vec.message_address_high = 0;
     vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
-    vec.vector_control &= ~1; // unmask
+    vec.vector_control &= ~(uint32_t)1; // unmask
 
     if (!identify_controller(admin_queue))
         return;
@@ -396,8 +396,8 @@ bool nvme_controller::identify_controller(nvme_queue& queue) {
 
     volatile uint32_t* cc = &regs->cc;
 
-    *cc = (*cc & ~CC_IOCQES_MASK) | (controller_info->mincqes << CC_IOCQES_SHIFT);
-    *cc = (*cc & ~CC_IOSQES_MASK) | (controller_info->minsqes << CC_IOSQES_SHIFT);
+    *cc = (*cc & ~CC_IOCQES_MASK) | (uint32_t)(controller_info->mincqes << CC_IOCQES_SHIFT);
+    *cc = (*cc & ~CC_IOSQES_MASK) | (uint32_t)(controller_info->minsqes << CC_IOSQES_SHIFT);
 
     return true;
 }
@@ -492,7 +492,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
         auto& nsinfo = *(nvme_identify_namespace_data*)phys_address(req2.p);
 
-        auto fidxl = nsinfo.flbas & 0xf;
+        auto fidxl = (size_t)(nsinfo.flbas & 0xf);
 
         auto num_lba_formats = min(nsinfo.nlbaf, (uint8_t)nsinfo.lbaf.size());
 
@@ -767,7 +767,7 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
     vecs[1].message_data = int_num;
     vecs[1].message_address_high = 0;
     vecs[1].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
-    vecs[1].vector_control &= ~1; // unmask
+    vecs[1].vector_control &= ~(uint32_t)1; // unmask
 
     return true;
 }
