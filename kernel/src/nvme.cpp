@@ -85,6 +85,7 @@ public:
     spinlock namespaces_lock;
     nvme_identify_controller_data* controller_info = nullptr;
     nvme_queue io_queue{*this, 1};
+    uint64_t maximum_transfer_size;
 
 private:
     void reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq_phys);
@@ -92,7 +93,6 @@ private:
     bool create_io_queues(const pci_device& dev, nvme_queue& queue);
     bool identify_namespaces(nvme_queue& queue);
 
-    uint64_t maximum_transfer_size;
     nvme_queue admin_queue{*this, 0};
     list_entry namespaces = { &namespaces, &namespaces };
 };
@@ -775,9 +775,14 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
 size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     print("FIXME: nvme_namespace::read_into_cache: {:x}, {:x}\n", page_num, num_pages); // FIXME
 
-    // FIXME - maximum transfer size
+    if (num_pages << PAGE_SHIFT > controller.maximum_transfer_size)
+        num_pages = controller.maximum_transfer_size >> PAGE_SHIFT;
 
-    // uint64_t num_blocks = (num_pages << PAGE_SHIFT) / sector_size;
+    // FIXME - reading multiple pages
+    if (num_pages > 2)
+        num_pages = 2;
+
+    uint64_t num_blocks = (num_pages << PAGE_SHIFT) / sector_size;
 
     // put read request into controller's IO queue
 
@@ -789,16 +794,22 @@ size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
     auto& sqe = *reinterpret_cast<nvme_read_command*>(&req.sqe);
 
-    // FIXME - reading multiple pages
+    uint64_t prp1, prp2;
 
-    uint64_t prp;
-
-    {
+    if (num_pages <= 2) {
         lock_guard lg(cache.cache_lock);
 
         auto* p = cache.find_page_cache_entry(page_num);
 
-        prp = p->phys_address;
+        prp1 = p->phys_address;
+
+        if (num_pages == 2) {
+            p = cache.next_page_cache_entry(*p);
+            prp2 = p->phys_address;
+        } else
+            prp2 = 0;
+    } else {
+        // FIXME
     }
 
     sqe.opc = NVME_IO_OPCODE_READ;
@@ -807,9 +818,10 @@ size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     sqe.nsid = nsid;
     sqe.elbtu = 0;
     sqe.mptr = 0;
-    sqe.dptr.prp1 = prp; // FIXME
+    sqe.dptr.prp1 = prp1;
+    sqe.dptr.prp2 = prp2;
     sqe.slba = (page_num << PAGE_SHIFT) / sector_size;
-    sqe.nlb = 0; // FIXME - (uint16_t)(num_blocks - 1);
+    sqe.nlb = (uint16_t)(num_blocks - 1);
     sqe.cetype = 0;
     sqe.stc = 0;
     sqe.prinfo = 0;
@@ -830,5 +842,5 @@ size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         return 0;
     }
 
-    return 1;
+    return num_pages;
 }
