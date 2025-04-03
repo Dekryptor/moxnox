@@ -23,6 +23,7 @@ static const uint8_t NVME_ADMIN_OPCODE_CREATE_SQ = 0x01;
 static const uint8_t NVME_ADMIN_OPCODE_CREATE_CQ = 0x05;
 static const uint8_t NVME_ADMIN_OPCODE_IDENTIFY = 0x06;
 
+static const uint8_t NVME_IO_OPCODE_WRITE = 0x01;
 static const uint8_t NVME_IO_OPCODE_READ = 0x02;
 
 static const uint8_t NVME_IDENTIFY_CNS_NAMESPACE = 0x00;
@@ -205,6 +206,43 @@ struct nvme_read_command {
 } __attribute((packed));
 
 static_assert(sizeof(nvme_read_command) == 64);
+
+struct nvme_write_command {
+    struct {
+        uint32_t opc : 8;
+        uint32_t fuse : 2;
+        uint32_t reserved : 4;
+        uint32_t psdt : 2;
+        uint32_t cid : 16;
+    };
+    uint32_t nsid;
+    uint64_t lbtu : 48;
+    uint64_t reserved2 : 16;
+    uint64_t mptr;
+    nvme_dptr dptr;
+    uint64_t slba;
+    uint16_t nlb;
+    uint16_t cetype : 4;
+    uint16_t dtype : 4;
+    uint16_t stc : 1;
+    uint16_t reserved3 : 1;
+    uint16_t prinfo : 4;
+    uint16_t fua : 1;
+    uint16_t lr : 1;
+    union {
+        struct {
+            uint16_t dsm : 8;
+            uint16_t reserved4 : 8;
+        };
+        uint16_t cev;
+    };
+    uint16_t dspec;
+    uint32_t lbtl;
+    uint16_t lbat;
+    uint16_t lbatm;
+} __attribute((packed));
+
+static_assert(sizeof(nvme_write_command) == 64);
 
 struct nvme_completion {
     uint32_t dw0;

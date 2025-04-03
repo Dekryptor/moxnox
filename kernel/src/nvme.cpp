@@ -112,12 +112,7 @@ public:
     }
 
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override {
-        print("FIXME: nvme_namespace::flush_cache: {:x}, {:x}\n", page_num, num_pages); // FIXME
-
-        return 0;
-    }
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     list_entry le;
     nvme_controller& controller;
@@ -866,6 +861,102 @@ size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
     if (req.cqe.status != 0) {
         print("NVMe read returned status {:x}\n", req.cqe.status);
+        // FIXME - translate into nt_status and return somehow
+        return 0;
+    }
+
+    return num_pages;
+}
+
+size_t nvme_namespace::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    static constexpr size_t PRP_LIST_ENTRIES = PAGE_SIZE / sizeof(uint64_t);
+
+    if (num_pages << PAGE_SHIFT > controller.maximum_transfer_size)
+        num_pages = controller.maximum_transfer_size >> PAGE_SHIFT;
+
+    // FIXME - support linked PRP lists (last entry should be pointer to next list)
+    // not an issue on Qemu, which only supports transfers up to 512KB - is this
+    // larger on real hardware?
+    if (num_pages >= PRP_LIST_ENTRIES)
+        num_pages = PRP_LIST_ENTRIES;
+
+    uint64_t num_blocks = (num_pages << PAGE_SHIFT) / sector_size;
+
+    // put write request into controller's IO queue
+
+    auto& queue = controller.io_queue;
+
+    nvme_request req;
+
+    memset(&req.sqe, 0, sizeof(req.sqe));
+
+    auto& sqe = *reinterpret_cast<nvme_write_command*>(&req.sqe);
+
+    uint64_t prp1, prp2;
+
+    if (num_pages <= 2) {
+        lock_guard lg(cache.cache_lock);
+
+        auto* p = cache.find_page_cache_entry(page_num);
+
+        prp1 = p->phys_address;
+
+        if (num_pages == 2) {
+            p = cache.next_page_cache_entry(*p);
+            prp2 = p->phys_address;
+        } else
+            prp2 = 0;
+    } else {
+        prp2 = allocate_folio(0);
+        if (!prp2) {
+            print("allocate_folio failed\n");
+            return 0;
+        }
+
+        auto ptr = (uint64_t*)phys_address(prp2);
+
+        lock_guard lg(cache.cache_lock);
+
+        auto* p = cache.find_page_cache_entry(page_num);
+
+        prp1 = p->phys_address;
+
+        for (uint64_t i = 1; i < num_pages; i++) {
+            p = cache.next_page_cache_entry(*p);
+            *ptr = p->phys_address;
+            ptr++;
+        }
+    }
+
+    sqe.opc = NVME_IO_OPCODE_WRITE;
+    sqe.fuse = 0;
+    sqe.psdt = 0; // use PRPs
+    sqe.nsid = nsid;
+    sqe.lbtu = 0;
+    sqe.mptr = 0;
+    sqe.dptr.prp1 = prp1;
+    sqe.dptr.prp2 = prp2;
+    sqe.slba = (page_num << PAGE_SHIFT) / sector_size;
+    sqe.nlb = (uint16_t)(num_blocks - 1);
+    sqe.cetype = 0;
+    sqe.stc = 0;
+    sqe.prinfo = 0;
+    sqe.fua = 0;
+    sqe.lr = 0;
+    sqe.dsm = 0;
+    sqe.lbtl = 0;
+    sqe.lbat = 0;
+    sqe.lbatm = 0;
+
+    queue.submit(req);
+
+    wait_for_object(req.event.get(), false);
+
+    if (num_pages > 2)
+        free_folio(prp2);
+
+    if (req.cqe.status != 0) {
+        print("NVMe write returned status {:x}\n", req.cqe.status);
         // FIXME - translate into nt_status and return somehow
         return 0;
     }
