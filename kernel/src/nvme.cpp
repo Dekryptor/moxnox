@@ -647,11 +647,16 @@ void nvme_queue::isr() {
         return;
     }
 
-    auto& req = *reqs[comp.cid];
+    nvme_request* req;
 
-    memcpy(&req.cqe, &comp, sizeof(req.cqe));
+    { // FIXME - atomic swap instead?
+        lock_guard lock(sq_lock);
 
-    reqs[comp.cid] = nullptr;
+        req = reqs[comp.cid];
+        reqs[comp.cid] = nullptr;
+    }
+
+    memcpy(&req->cqe, &comp, sizeof(req->cqe));
 
     barrier();
 
@@ -666,7 +671,7 @@ void nvme_queue::isr() {
 
     release_slot((uint8_t)comp.cid);
 
-    set_event(static_cast<::event&>(req.event.get()));
+    set_event(static_cast<::event&>(req->event.get()));
 }
 
 bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue) {
@@ -775,12 +780,16 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
 size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     print("FIXME: nvme_namespace::read_into_cache: {:x}, {:x}\n", page_num, num_pages); // FIXME
 
+    static constexpr size_t PRP_LIST_ENTRIES = PAGE_SIZE / sizeof(uint64_t);
+
     if (num_pages << PAGE_SHIFT > controller.maximum_transfer_size)
         num_pages = controller.maximum_transfer_size >> PAGE_SHIFT;
 
-    // FIXME - reading multiple pages
-    if (num_pages > 2)
-        num_pages = 2;
+    // FIXME - support linked PRP lists (last entry should be pointer to next list)
+    // not an issue on Qemu, which only supports transfers up to 512KB - is this
+    // larger on real hardware?
+    if (num_pages >= PRP_LIST_ENTRIES)
+        num_pages = PRP_LIST_ENTRIES;
 
     uint64_t num_blocks = (num_pages << PAGE_SHIFT) / sector_size;
 
@@ -809,7 +818,25 @@ size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         } else
             prp2 = 0;
     } else {
-        // FIXME
+        prp2 = allocate_folio(0);
+        if (!prp2) {
+            print("allocate_folio failed\n");
+            return 0;
+        }
+
+        auto ptr = (uint64_t*)phys_address(prp2);
+
+        lock_guard lg(cache.cache_lock);
+
+        auto* p = cache.find_page_cache_entry(page_num);
+
+        prp1 = p->phys_address;
+
+        for (uint64_t i = 1; i < num_pages; i++) {
+            p = cache.next_page_cache_entry(*p);
+            *ptr = p->phys_address;
+            ptr++;
+        }
     }
 
     sqe.opc = NVME_IO_OPCODE_READ;
@@ -835,6 +862,9 @@ size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     queue.submit(req);
 
     wait_for_object(req.event.get(), false);
+
+    if (num_pages > 2)
+        free_folio(prp2);
 
     if (req.cqe.status != 0) {
         print("NVMe read returned status {:x}\n", req.cqe.status);
