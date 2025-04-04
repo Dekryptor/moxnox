@@ -1686,7 +1686,7 @@ bool init_fb_console() {
         return false;
     }
 
-    if (have_edid) {
+    if (have_edid && edid[21] != 0) {
         uint8_t screen_x_cm = edid[21];
 
         dpi = (fb_width * 254) / ((uint16_t)screen_x_cm * 100);
