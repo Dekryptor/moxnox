@@ -42,6 +42,7 @@ struct acpi_device {
     string_view hid;
     string_view uid;
     list_entry resources = { &resources, &resources };
+    span<string_view> cids;
     char buf[0];
 };
 
@@ -450,6 +451,7 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
     }
 
     string_view hid, uid;
+    ACPI_PNP_DEVICE_ID_LIST* cids = nullptr;
 
     if (devinfo->Valid & ACPI_VALID_HID) {
         hid = string_view(devinfo->HardwareId.String, devinfo->HardwareId.Length);
@@ -457,6 +459,9 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
         if (!hid.empty() && hid.back() == 0)
             hid = string_view(hid.data(), hid.size() - 1);
     }
+
+    if (devinfo->Valid & ACPI_VALID_CID)
+        cids = &devinfo->CompatibleIdList;
 
     if (devinfo->Valid & ACPI_VALID_UID) {
         uid = string_view(devinfo->UniqueId.String, devinfo->UniqueId.Length);
@@ -482,6 +487,19 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
 
     size_t bufsize = hid.size() + uid.size() + acpi_name.size();
 
+    if (cids) {
+        for (uint32_t i = 0; i < cids->Count; i++) {
+            auto sv = string_view(cids->Ids[i].String, cids->Ids[i].Length);
+
+            if (!sv.empty() && sv.back() == 0)
+                sv = string_view(sv.data(), sv.size() - 1);
+
+            bufsize += sv.size();
+        }
+
+        bufsize += sizeof(string_view) * cids->Count;
+    }
+
     auto d = (acpi_device*)malloc(offsetof(acpi_device, buf) + bufsize);
     if (!d) {
         print("malloc failed\n");
@@ -505,6 +523,25 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
     d->uid = string_view(ptr, uid.size());
     ptr += uid.size();
 
+    if (cids) {
+        d->cids = span((string_view*)ptr, cids->Count);
+
+        ptr += sizeof(string_view) * cids->Count;
+
+        for (uint32_t i = 0; i < cids->Count; i++) {
+            auto sv = string_view(cids->Ids[i].String, cids->Ids[i].Length);
+
+            if (!sv.empty() && sv.back() == 0)
+                sv = string_view(sv.data(), sv.size() - 1);
+
+            memcpy(ptr, sv.data(), sv.size());
+
+            d->cids[i] = string_view(ptr, sv.size());
+
+            ptr += sv.size();
+        }
+    }
+
     insert_tail_list(acpi_devices, d->le);
 
     ACPI_FREE(devinfo);
@@ -521,6 +558,36 @@ export void find_acpi_devices() {
     if (ACPI_FAILURE(status)) {
         print("AcpiGetDevices returned {}\n", status);
         return;
+    }
+
+    // replace unrecognized HIDs with recognized CIDs
+    for (auto le = acpi_devices.next; le != &acpi_devices; le = le->next) {
+        bool found = false;
+        auto& d = containing_record<acpi_device>(le);
+
+        for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
+            if (pnp_hids[i].hid == d.hid) {
+                found = true;
+                break;
+            }
+        }
+
+        if (found)
+            continue;
+
+        for (auto c : d.cids) {
+            for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
+                if (pnp_hids[i].hid == c) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) {
+                d.hid = c;
+                break;
+            }
+        }
     }
 
     for (auto le = acpi_devices.next; le != &acpi_devices; le = le->next) {
