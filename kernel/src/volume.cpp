@@ -232,14 +232,9 @@ bool volume::check_for_partitions() {
 
     // FIXME - check CRC32 of partition list
 
-    auto pw = new part_wait;
-    if (!pw) {
-        print("new failed\n");
-        vfree(buf, bufsize);
-        return false;
-    }
+    part_wait pw;
 
-    pw->event = create_event(false);
+    pw.event = create_event(false);
 
     for (unsigned int i = 0; i < number_of_partition_entries; i++) {
         auto& part = *(efi_partition_entry*)ptr;
@@ -251,14 +246,13 @@ bool volume::check_for_partitions() {
                 continue;
             }
 
-            pw->left++;
+            pw.left++;
         }
 
         ptr += size_of_partition_entry;
     }
 
-    if (pw->left == 0) {
-        delete pw;
+    if (pw.left == 0) {
         vfree(buf, bufsize);
         return true;
     }
@@ -324,7 +318,7 @@ bool volume::check_for_partitions() {
                 }
             }
 
-            add_kernel_thread(partition_found, partdev, pw);
+            add_kernel_thread(partition_found, partdev, &pw);
         }
 
         ptr += size_of_partition_entry;
@@ -332,9 +326,7 @@ bool volume::check_for_partitions() {
 
     vfree(buf, bufsize);
 
-    wait_for_object(pw->event.get(), false);
-
-    delete pw;
+    wait_for_object(pw.event.get(), false);
 
     return true;
 }
