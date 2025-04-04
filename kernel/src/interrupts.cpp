@@ -208,6 +208,7 @@ export uint8_t add_isr(isr_func_type isr_func, void* ctx) {
     return 0;
 }
 
+// FIXME - we could remove the search if we add the int_num as a parameter instead
 export void remove_isr(isr_func_type isr_func, void* ctx) {
     lock_guard lock(isr_lock);
 

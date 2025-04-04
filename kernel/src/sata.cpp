@@ -670,6 +670,8 @@ export void init_sata(const pci_device& dev) {
         return;
     }
 
+    sc->isr_registered = true;
+
     auto& msi = *(volatile pci_msi*)dev.msi.data();
 
     msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
@@ -850,4 +852,9 @@ size_t sata_device::flush_cache(uint64_t page_num, uint64_t num_pages) {
     }
 
     return num_pages;
+}
+
+sata_card::~sata_card() {
+    if (isr_registered)
+        remove_isr(sata_isr_func, this);
 }

@@ -479,6 +479,7 @@ public:
 class sata_card {
 public:
     sata_card(const pci_device& dev) : dev(dev) { }
+    ~sata_card();
     void isr();
 
     const pci_device& dev;
@@ -488,4 +489,5 @@ public:
     std::atomic<unsigned int> init_left = 0;
     spinlock port_list_lock;
     list_entry port_list = { &port_list, &port_list };
+    bool isr_registered = false;
 };
