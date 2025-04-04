@@ -4,6 +4,7 @@ module;
 #include "pci.h"
 #include <span>
 #include <bit>
+#include <shared_mutex>
 #include "handle.h"
 #include "spinlock.h"
 #include "nvme.h"
@@ -19,6 +20,7 @@ import event;
 import semaphore;
 import volume;
 import bsod;
+import rwsem;
 
 using namespace std;
 
@@ -127,6 +129,7 @@ public:
     list_entry le;
     nvme_controller& controller;
     uint32_t nsid;
+    rwsem flush_sem;
 };
 
 static void nvme_isr_func(void* ctx) {
@@ -974,6 +977,8 @@ size_t nvme_namespace::flush_cache(uint64_t page_num, uint64_t num_pages) {
     sqe.lbat = 0;
     sqe.lbatm = 0;
 
+    shared_lock lock(flush_sem);
+
     queue.submit(req);
 
     wait_for_object(req.event.get(), false);
@@ -991,5 +996,25 @@ size_t nvme_namespace::flush_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 void nvme_namespace::flush() {
-    print("FIXME - nvme_namespace::flush\n"); // FIXME
+    auto& queue = controller.io_queue;
+
+    nvme_request req;
+
+    memset(&req.sqe, 0, sizeof(req.sqe));
+
+    auto& sqe = req.sqe;
+
+    sqe.opc = NVME_IO_OPCODE_FLUSH;
+    sqe.nsid = nsid;
+
+    lock_guard lock(flush_sem);
+
+    queue.submit(req);
+
+    wait_for_object(req.event.get(), false);
+
+    if (req.cqe.status != 0) {
+        print("NVMe flush returned status {:x}\n", req.cqe.status);
+        // FIXME - translate into nt_status and return?
+    }
 }

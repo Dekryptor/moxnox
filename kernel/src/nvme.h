@@ -23,6 +23,7 @@ static const uint8_t NVME_ADMIN_OPCODE_CREATE_SQ = 0x01;
 static const uint8_t NVME_ADMIN_OPCODE_CREATE_CQ = 0x05;
 static const uint8_t NVME_ADMIN_OPCODE_IDENTIFY = 0x06;
 
+static const uint8_t NVME_IO_OPCODE_FLUSH = 0x00;
 static const uint8_t NVME_IO_OPCODE_WRITE = 0x01;
 static const uint8_t NVME_IO_OPCODE_READ = 0x02;
 
