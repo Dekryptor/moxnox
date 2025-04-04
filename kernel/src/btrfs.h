@@ -49,6 +49,7 @@ static constexpr uint64_t BTRFS_ROOT_TREE_DIR_OBJECTID = 0x6;
 static constexpr uint64_t BTRFS_CSUM_TREE_OBJECTID = 0x7;
 static constexpr uint64_t BTRFS_UUID_TREE_OBJECTID = 0x9;
 static constexpr uint64_t BTRFS_FREE_SPACE_TREE_OBJECTID = 0xa;
+static constexpr uint64_t BTRFS_BLOCK_GROUP_TREE_OBJECTID = 0xb;
 static constexpr uint64_t BTRFS_DATA_RELOC_TREE_OBJECTID = 0xfffffffffffffff7;
 
 static constexpr uint64_t BTRFS_FIRST_FREE_OBJECTID = 0x100;
@@ -557,6 +558,7 @@ public:
     root* csum_root = nullptr;
     root* dev_root = nullptr;
     root* fs_root = nullptr;
+    root* block_group_root = nullptr;
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
     list_entry metadata_changes = { &metadata_changes, &metadata_changes };
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };

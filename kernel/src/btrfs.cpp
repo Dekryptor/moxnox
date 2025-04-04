@@ -45,10 +45,10 @@ static const uint64_t supported_incompat_flags = BTRFS_FEATURE_INCOMPAT_MIXED_BA
                                                  BTRFS_FEATURE_INCOMPAT_SKINNY_METADATA |
                                                  BTRFS_FEATURE_INCOMPAT_NO_HOLES;
 
-// FIXME - BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE
 // FIXME - BTRFS_FEATURE_COMPAT_RO_VERITY
 static const uint64_t supported_compat_ro_flags = BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE |
-                                                  BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID;
+                                                  BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID |
+                                                  BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE;
 
 static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
                                uint8_t level);
@@ -778,6 +778,10 @@ bool btrfs_filesystem::load_roots() {
             csum_root = &r;
         else if (r.id == BTRFS_FREE_SPACE_TREE_OBJECTID)
             free_space_root = &r;
+        else if (sb.compat_ro_flags & BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE &&
+                 r.id == BTRFS_BLOCK_GROUP_TREE_OBJECTID) {
+            block_group_root = &r;
+        }
 
         if (!move_path_forward(p))
             break;
@@ -798,6 +802,9 @@ bool btrfs_filesystem::load_roots() {
     } else if (!free_space_root) {
         print("no free space root\n");
         fail = true;
+    } else if (!block_group_root && sb.compat_ro_flags & BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE) {
+        print("no block group root\n");
+        fail = true;
     }
 
     if (fail) {
@@ -806,6 +813,9 @@ bool btrfs_filesystem::load_roots() {
         swap_lists(root_list, new_root_list);
         return false;
     }
+
+    if (!(sb.compat_ro_flags & BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE))
+        block_group_root = extent_root;
 
     remove_entry_list(root_root->le);
     insert_head_list(new_root_list, root_root->le);
@@ -3208,7 +3218,7 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
     btrfs_path p(fs.sb.nodesize);
     btrfs_key search_key = {c.offset, key_type::BLOCK_GROUP_ITEM, c.ci.length};
 
-    auto status = fs.find_item(*fs.extent_root, search_key, p, true);
+    auto status = fs.find_item(*fs.block_group_root, search_key, p, true);
     if (!success(status))
         return status;
 
