@@ -283,7 +283,9 @@ consteval bool valid_spec(string_view fmt) {
     return false;
 }
 
-span<char> do_format_arg(span<char> sp, string_view, byte_size<unsigned_integral auto> arg) {
+template<typename T>
+requires (unsigned_integral<T>)
+span<char> do_format_arg(span<char> sp, string_view, byte_size<T> arg) {
     auto val = (uint64_t)arg.val;
 
     static const uint16_t decimals[] = {
