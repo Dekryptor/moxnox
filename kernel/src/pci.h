@@ -55,6 +55,33 @@ struct pci_header0 : pci_header {
 
 static_assert(sizeof(pci_header0) == 0x40);
 
+struct pci_header1 : pci_header {
+    uint32_t bar[2];
+    uint8_t primary_bus_number;
+    uint8_t secondary_bus_number;
+    uint8_t subordinate_bus_number;
+    uint8_t secondary_latency_timer;
+    uint8_t io_base;
+    uint8_t io_limit;
+    uint16_t secondary_status;
+    uint16_t memory_base;
+    uint16_t memory_limit;
+    uint16_t prefetchable_memory_base;
+    uint16_t prefetchable_memory_limit;
+    uint32_t prefetchable_base_upper;
+    uint32_t prefetchable_limit_upper;
+    uint16_t io_base_upper;
+    uint16_t io_limit_upper;
+    uint8_t capability_pointer;
+    uint8_t reserved[3];
+    uint32_t expansion_rom;
+    uint8_t interrupt_line;
+    uint8_t interrupt_pin;
+    uint16_t bridge_control;
+};
+
+static_assert(sizeof(pci_header1) == 0x40);
+
 struct pci_msix;
 
 struct pci_device {
@@ -79,6 +106,21 @@ enum class pci_mass_storage {
     sata = 6,
     serial_attached_scsi = 7,
     nonvolatile_memory = 8
+};
+
+enum class pci_bridge {
+    host_bridge = 0x00,
+    isa_bridge = 0x01,
+    eisa_bridge = 0x02,
+    mca_bridge = 0x03,
+    pci_to_pci_bridge = 0x04,
+    pcmcia_bridge = 0x05,
+    nubus_bridge = 0x06,
+    cardbus_bridge = 0x07,
+    raceway_bridge = 0x08,
+    semitransparent_pci_to_pci = 0x09,
+    infiniband_to_pci = 0x0a,
+    other = 0x80
 };
 
 enum class pci_capability_type : uint8_t {

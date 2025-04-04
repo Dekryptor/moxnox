@@ -26,17 +26,7 @@ static constexpr uint64_t pci_pa(const ACPI_MCFG_ALLOCATION& item, uint8_t bus, 
     return item.Address | (uint64_t)((bus - item.StartBusNumber) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12);
 }
 
-static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
-    print("{:02x}:{:02x}:{:x} {:04x}:{:04x}\n", bus, dev, func, h.vendor_id, h.device_id);
-
-    // FIXME - header type 1 (PCI-to-PCI bridge)
-    // FIXME - header type 2 (PCI-to-CardBus bridge)
-
-    if ((h.header_type & 0x7f) != 0) {
-        print("Unhandled PCI header type {:x}\n", (uint8_t)(h.header_type & 0x7f));
-        return;
-    }
-
+static void device_found0(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
     volatile auto& h0 = *(pci_header0*)&h;
 
     auto ppci_dev = new pci_device;
@@ -168,6 +158,38 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
     }
 
     insert_tail_list(pci_device_list, pci_dev.le);
+}
+
+static void device_found1(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
+    volatile auto& h1 = *(pci_header1*)&h;
+
+    if (h1.class_code != pci_class::bridge)
+        return;
+
+    if ((enum pci_bridge)h1.sub_class != pci_bridge::pci_to_pci_bridge)
+        return;
+
+    print("FIXME - PCI-to-PCI bridge (bus {:x}, dev {:x}, func {:x})\n", bus, dev, func);
+}
+
+static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
+    print("{:02x}:{:02x}:{:x} {:04x}:{:04x}\n", bus, dev, func, h.vendor_id, h.device_id);
+
+    switch (h.header_type & 0x7f) {
+        case 0:
+            device_found0(h, bus, dev, func);
+            break;
+
+        case 1:
+            device_found1(h, bus, dev, func);
+            break;
+
+        // FIXME - header type 2? (PCI-to-CardBus bridge)
+
+        default:
+            print("Unhandled PCI header type {:x}\n", (uint8_t)(h.header_type & 0x7f));
+            break;
+    }
 }
 
 static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item) {
