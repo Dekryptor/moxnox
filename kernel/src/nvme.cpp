@@ -18,6 +18,7 @@ import interrupts;
 import event;
 import semaphore;
 import volume;
+import bsod;
 
 using namespace std;
 
@@ -70,6 +71,7 @@ public:
     spinlock slot_lock;
     uint32_t allocated_slots = 0;
     nvme_request* reqs[QUEUE_SIZE];
+    uint8_t exp_cq_p = 1;
 };
 
 class nvme_controller {
@@ -635,38 +637,53 @@ void nvme_queue::isr() {
     else
         cqe_size = 1 << controller.controller_info->mincqes;
 
-    auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * cqe_size));
+    auto old_cq_head = cq_head;
 
-    if (comp.cid >= QUEUE_SIZE) {
-        print("NVMe completion for unknown cid {:x}, ignoring\n", comp.cid);
+    lock_guard lock(sq_lock);
+
+    while (cq_head != sq_tail) {
+        auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * cqe_size));
+
+        if (comp.p != exp_cq_p)
+            break;
+
+        if (comp.cid >= QUEUE_SIZE)
+            bsod_format("NVMe completion for unknown cid {:x}\n", (uint16_t)comp.cid);
+
+        memcpy(&reqs[comp.cid]->cqe, &comp, sizeof(reqs[comp.cid]->cqe));
+
+        cq_head++;
+
+        if (cq_head == QUEUE_SIZE) {
+            cq_head = 0;
+            exp_cq_p = exp_cq_p == 1 ? 0 : 1;
+        }
+    }
+
+    if (cq_head == old_cq_head)
         return;
-    }
 
-    nvme_request* req;
+    while (old_cq_head != cq_head) {
+        auto& comp = *(nvme_completion*)((uint8_t*)cq + (old_cq_head * cqe_size));
 
-    { // FIXME - atomic swap instead?
-        lock_guard lock(sq_lock);
-
-        req = reqs[comp.cid];
+        auto& req = *reqs[comp.cid];
         reqs[comp.cid] = nullptr;
-    }
 
-    memcpy(&req->cqe, &comp, sizeof(req->cqe));
+        release_slot((uint8_t)comp.cid);
+
+        set_event(static_cast<::event&>(req.event.get()));
+
+        old_cq_head++;
+
+        if (old_cq_head == QUEUE_SIZE)
+            old_cq_head = 0;
+    }
 
     barrier();
-
-    cq_head++;
-
-    if (cq_head == QUEUE_SIZE)
-        cq_head = 0;
 
     auto cq_doorbell = (volatile uint32_t*)((uint8_t*)controller.regs + 0x1000 + (((2 * queue_id) + 1) * controller.doorbell_stride));
 
     *cq_doorbell = cq_head;
-
-    release_slot((uint8_t)comp.cid);
-
-    set_event(static_cast<::event&>(req->event.get()));
 }
 
 bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue) {
@@ -679,6 +696,8 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
         print("allocate_folio failed\n");
         return false;
     }
+
+    memset(phys_address(cq), 0, (1 << controller_info->mincqes) * QUEUE_SIZE);
 
     {
         nvme_request req;
