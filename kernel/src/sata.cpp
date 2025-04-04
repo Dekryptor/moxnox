@@ -860,3 +860,7 @@ sata_card::~sata_card() {
     if (isr_registered)
         remove_isr(sata_isr_func, this);
 }
+
+void sata_device::flush() {
+    print("FIXME - sata_device::flush\n"); // FIXME
+}

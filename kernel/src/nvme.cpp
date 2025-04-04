@@ -119,6 +119,8 @@ public:
             delete this;
     }
 
+    void flush() override;
+
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
@@ -986,4 +988,8 @@ size_t nvme_namespace::flush_cache(uint64_t page_num, uint64_t num_pages) {
     }
 
     return num_pages;
+}
+
+void nvme_namespace::flush() {
+    print("FIXME - nvme_namespace::flush\n"); // FIXME
 }

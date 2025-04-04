@@ -459,6 +459,7 @@ public:
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     void isr();
+    void flush() override;
 
     list_entry le;
     volatile HBA_PORT& port;
