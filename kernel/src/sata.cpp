@@ -12,6 +12,7 @@ import rbtree;
 export module sata;
 
 import print;
+import format;
 import bsod;
 import mem;
 import config;
@@ -552,8 +553,6 @@ static void init_sata_device(void* ctx, void* ctx2) {
         dev.model_number.remove_suffix(1);
     }
 
-    print("Found SATA disk: {}\n", dev.model_number);
-
     dev.sector_size = 512; // FIXME - get from identify block
     dev.size = dev.identify_block.user_addressable_sectors * dev.sector_size;
     dev.dev_num = num_sata_devices.fetch_add(1);
@@ -582,6 +581,9 @@ static void init_sata_device(void* ctx, void* ctx2) {
 
         memcpy(dev.volume_name, name, dev.volume_name_len);
     }
+
+    print("found /dev/{}: {}, block size {}, capacity {}\n", string_view(dev.volume_name, dev.volume_name_len),
+          dev.model_number, byte_size(dev.sector_size), byte_size(dev.size));
 
     dev.probe();
 
