@@ -997,7 +997,26 @@ size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
 size_t nvme_namespace::flush_cache(uint64_t page_num, uint64_t num_pages) {
     page_cache_iterator iter(*this, page_num);
 
-    return dio_write(page_num, num_pages, iter);
+    auto flushed = dio_write(page_num, num_pages, iter);
+
+    // mark page cache entries as clean
+
+    {
+        lock_guard lg(cache.cache_lock);
+
+        auto* p = cache.find_page_cache_entry(page_num);
+
+        for (unsigned int i = 0; i < flushed; i++) {
+            if (i != 0)
+                p = cache.next_page_cache_entry(*p);
+
+            assert(p->tree.key == page_num + i);
+
+            p->status = page_cache_status::clean;
+        }
+    }
+
+    return flushed;
 }
 
 void nvme_namespace::flush() {
