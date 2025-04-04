@@ -746,7 +746,7 @@ export void init_sata(const pci_device& dev) {
 }
 
 size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
-                              pfn_iterator auto& it) {
+                              pfn_iterator& it) {
     // FIXME - proper error handling
     // FIXME - asynchronous mode
 
@@ -818,8 +818,7 @@ size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
     wait_for_object(events[slot].get(), false);
 
     if (port.is & HBA_PxIS_TFES) {
-        // FIXME - GCC fails in other TU with this line uncommented(???)
-        // print("Error writing to disk\n");
+        print("Error writing to disk\n");
         release_slot(slot);
         return 0;
     }

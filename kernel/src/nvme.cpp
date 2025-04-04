@@ -129,7 +129,7 @@ public:
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator auto& it);
+                     pfn_iterator& it);
 
     list_entry le;
     nvme_controller& controller;
@@ -903,10 +903,8 @@ size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
-                                 pfn_iterator auto& it) {
+                                 pfn_iterator& it) {
     static constexpr size_t PRP_LIST_ENTRIES = PAGE_SIZE / sizeof(uint64_t);
-
-    static const uint8_t NVME_IO_OPCODE_WRITE = 0x01;
 
     if (num_pages << PAGE_SHIFT > controller.maximum_transfer_size)
         num_pages = controller.maximum_transfer_size >> PAGE_SHIFT;
@@ -942,8 +940,7 @@ size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
     } else {
         prp2 = allocate_folio(0);
         if (!prp2) {
-            // FIXME - GCC fails in other TU with this line uncommented(???)
-            // print("allocate_folio failed\n");
+            print("allocate_folio failed\n");
             return 0;
         }
 

@@ -5,7 +5,7 @@ static const unsigned int SATA_NUM_CMD_TABLES = 32;
 static const uint32_t ATA_DEV_BUSY = 0x80;
 static const uint32_t ATA_DEV_DRQ = 0x08;
 
-#define HBA_PxIS_TFES 0x40000000 // task file error status
+static const uint32_t HBA_PxIS_TFES = 0x40000000; // task file error status
 
 static const uint32_t HBA_PxCMD_ST = 0x00000001;
 static const uint32_t HBA_PxCMD_FRE = 0x00000010;
@@ -128,7 +128,7 @@ struct HBA_PRDT_ENTRY {
 
 static_assert(sizeof(HBA_PRDT_ENTRY) == 0x10);
 
-#define NUM_PRDT_ENTRIES 8
+static const unsigned int NUM_PRDT_ENTRIES = 8;
 
 struct HBA_CMD_TBL {
     uint8_t cfis[64];
@@ -461,7 +461,7 @@ public:
     void isr();
     void flush() override;
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator auto& it);
+                     pfn_iterator& it);
 
     list_entry le;
     volatile HBA_PORT& port;

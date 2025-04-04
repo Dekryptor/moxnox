@@ -24,9 +24,6 @@ export {
 
 using namespace std;
 
-export template<typename T>
-concept pfn_iterator = input_iterator<T> && is_same_v<typename T::value_type, uint64_t>;
-
 export enum class page_state : uint8_t {
     free,
     used,
