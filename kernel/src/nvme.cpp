@@ -378,14 +378,6 @@ bool nvme_controller::identify_controller(nvme_queue& queue) {
 
     controller_info = (nvme_identify_controller_data*)phys_address(p);
 
-    string_view model_number(controller_info->mn, sizeof(controller_info->mn));
-
-    while (!model_number.empty() && (model_number.back() == 0 || model_number.back() == ' ')) {
-        model_number = string_view(model_number.data(), model_number.size() - 1);
-    }
-
-    print("Found NVMe device: {}\n", model_number);
-
     if (controller_info->cntrltype != 1) {
         print("not an I/O controller\n");
         return false;
@@ -538,8 +530,14 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
             continue;
         }
 
-        print("found /dev/nvme{}n{}: block size {}, capacity {}\n",
-              controller_num, req2.req.sqe.nsid, byte_size(block_size), byte_size(nsinfo.nsze * block_size));
+        string_view model_number(controller_info->mn, sizeof(controller_info->mn));
+
+        while (!model_number.empty() && (model_number.back() == 0 || model_number.back() == ' ')) {
+            model_number = string_view(model_number.data(), model_number.size() - 1);
+        }
+
+        print("found /dev/nvme{}n{}: {}, block size {}, capacity {}\n", controller_num,
+              req2.req.sqe.nsid, model_number, byte_size(block_size), byte_size(nsinfo.nsze * block_size));
 
         // FIXME - readonly if nsattr & 1
 
