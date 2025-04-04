@@ -37,6 +37,8 @@ struct nvme_request {
     object_ref event;
 };
 
+static void nvme_isr_func(void* ctx);
+
 class nvme_queue {
 public:
     nvme_queue(nvme_controller& controller, unsigned int queue_id) : controller(controller), queue_id(queue_id) {
@@ -53,6 +55,9 @@ public:
 
         if (cq)
             free_folio(phys_memory_pfn(cq) << PAGE_SHIFT);
+
+        if (isr_registered)
+            remove_isr(nvme_isr_func, this);
     }
 
     nvme_controller& controller;
@@ -72,6 +77,7 @@ public:
     uint32_t allocated_slots = 0;
     nvme_request* reqs[QUEUE_SIZE];
     uint8_t exp_cq_p = 1;
+    bool isr_registered = false;
 };
 
 class nvme_controller {
@@ -192,12 +198,13 @@ nvme_controller::nvme_controller(const pci_device& dev) {
     // set up admin queue interrupt
     auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
 
-    // FIXME - free this in dtor or if we fail here
     auto int_num = add_isr(nvme_isr_func, &admin_queue);
     if (int_num == 0) {
         print("add_isr failed\n");
         return;
     }
+
+    admin_queue.isr_registered = true;
 
     vec.message_data = int_num;
     vec.message_address_high = 0;
@@ -774,13 +781,14 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
 
     auto vecs = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
 
-    // FIXME - free this in dtor or if we fail here
     auto int_num = add_isr(nvme_isr_func, &io_queue);
     if (int_num == 0) {
         print("add_isr failed\n");
         // FIXME - delete CQ and SQ
         return false;
     }
+
+    io_queue.isr_registered = true;
 
     vecs[1].message_data = int_num;
     vecs[1].message_address_high = 0;

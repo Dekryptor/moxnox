@@ -208,6 +208,19 @@ export uint8_t add_isr(isr_func_type isr_func, void* ctx) {
     return 0;
 }
 
+export void remove_isr(isr_func_type isr_func, void* ctx) {
+    lock_guard lock(isr_lock);
+
+    auto sp = span(isr_funcs);
+
+    for (uint8_t i = 0; i < sp.size(); i++) {
+        if (sp[i].func == isr_func && sp[i].ctx == ctx) {
+            sp[i].func = nullptr;
+            break;
+        }
+    }
+}
+
 static void irq_handler(void* ctx) {
     auto& i = *(irq*)ctx;
 
