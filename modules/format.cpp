@@ -286,6 +286,19 @@ consteval bool valid_spec(string_view fmt) {
 span<char> do_format_arg(span<char> sp, string_view, byte_size<unsigned_integral auto> arg) {
     auto val = (uint64_t)arg.val;
 
+    static const uint16_t decimals[] = {
+        0x33, // 0.05 * 1024
+        0x99, // 0.15 * 1024
+        0x100, // 0.25 * 1024
+        0x166, // 0.35 * 1024
+        0x1cc, // 0.45 * 1024
+        0x233, // 0.55 * 1024
+        0x299, // 0.65 * 1024
+        0x300, // 0.75 * 1024
+        0x366, // 0.85 * 1024
+        0x3cc // 0.95 * 1024
+    };
+
     if (val < 1024) {
         sp = sp_itoa(sp, (uint64_t)arg.val);
         sp = sp_strcpy(sp, " bytes");
@@ -315,7 +328,32 @@ span<char> do_format_arg(span<char> sp, string_view, byte_size<unsigned_integral
         suffix = " EB";
     }
 
-    sp = sp_itoa(sp, val >> shift);
+    auto decimal = (val >> (shift - 10)) & 0x3ff;
+
+    sp = sp_itoa(sp, (val >> shift) + (decimal >= decimals[9] ? 1 : 0));
+    sp = sp_strcpy(sp, ".");
+
+    if (decimal >= decimals[9] || decimal < decimals[0])
+        sp = sp_strcpy(sp, "0");
+    else if (decimal >= decimals[8])
+        sp = sp_strcpy(sp, "9");
+    else if (decimal >= decimals[7])
+        sp = sp_strcpy(sp, "8");
+    else if (decimal >= decimals[6])
+        sp = sp_strcpy(sp, "7");
+    else if (decimal >= decimals[5])
+        sp = sp_strcpy(sp, "6");
+    else if (decimal >= decimals[4])
+        sp = sp_strcpy(sp, "5");
+    else if (decimal >= decimals[3])
+        sp = sp_strcpy(sp, "4");
+    else if (decimal >= decimals[2])
+        sp = sp_strcpy(sp, "3");
+    else if (decimal >= decimals[1])
+        sp = sp_strcpy(sp, "2");
+    else
+        sp = sp_strcpy(sp, "1");
+
     sp = sp_strcpy(sp, suffix);
 
     return sp;
