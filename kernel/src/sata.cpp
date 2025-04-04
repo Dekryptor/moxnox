@@ -634,17 +634,8 @@ void sata_card::isr() {
     }
 }
 
-static void sata_isr_func(void*) {
-    lock_guard lock(sata_list_lock);
-
-    auto le = sata_list.next;
-    while (le != &sata_list) {
-        auto& sc = containing_record<sata_card>(le);
-
-        sc.isr();
-
-        le = le->next;
-    }
+static void sata_isr_func(void* ctx) {
+    ((sata_card*)ctx)->isr();
 }
 
 export void init_sata(const pci_device& dev) {
@@ -673,7 +664,7 @@ export void init_sata(const pci_device& dev) {
         return;
     }
 
-    auto int_num = add_isr(sata_isr_func, nullptr);
+    auto int_num = add_isr(sata_isr_func, sc);
     if (int_num == 0) {
         print("add_isr failed\n");
         return;
