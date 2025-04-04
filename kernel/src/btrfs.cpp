@@ -3435,7 +3435,7 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         }
     }
 
-    // FIXME - send SATA command to ensure cache flushed
+    vol->flush();
 
     sb.root_level = root_root->ri.level;
     sb.root = root_root->ri.bytenr;
