@@ -96,8 +96,6 @@ public:
     atomic<unsigned int> refcount = 0;
 };
 
-static const uint64_t read_sector_size = 0x1000;
-
 void volume::probe() {
     bool has_parts = false;
 
@@ -129,29 +127,29 @@ static void partition_found(void* ctx1, void* ctx2) {
 }
 
 bool volume::check_for_partitions() {
-    auto first_sect = (uint8_t*)malloc(read_sector_size);
-    if (!first_sect) {
+    auto first_sects = (uint8_t*)malloc(sector_size * 2);
+    if (!first_sects) {
         print("malloc failed\n");
         return false;
     }
 
     uint64_t read_bytes;
-    auto status = read(span(first_sect, read_sector_size), 0, read_bytes);
+    auto status = read(span(first_sects, sector_size * 2), 0, read_bytes);
 
     if (!success(status)) {
         print("volume::read returned {}\n", status);
-        free(first_sect);
+        free(first_sects);
         return false;
-    } else if (read_bytes < read_sector_size) {
+    } else if (read_bytes < sector_size * 2) {
         print("volume::read failed\n");
-        free(first_sect);
+        free(first_sects);
         return false;
     }
 
-    auto& mbr = *(master_boot_record*)first_sect;
+    auto& mbr = *(master_boot_record*)first_sects;
 
     if (mbr.signature != mbr_signature) { // not an MBR or GPT
-        free(first_sect);
+        free(first_sects);
         return false;
     }
 
@@ -166,17 +164,17 @@ bool volume::check_for_partitions() {
     }
 
     if (!has_gpt) {
-        free(first_sect);
+        free(first_sects);
         return false;
     }
 
-    auto& gpt = *(efi_partition_table_header*)(first_sect + 0x200);
+    auto& gpt = *(efi_partition_table_header*)(first_sects + sector_size);
 
     // FIXME - if GPT not valid, get alternative version from end of disk
 
     if (gpt.signature != gpt_signature) {
         print("Invalid GPT signature\n");
-        free(first_sect);
+        free(first_sects);
         return false;
     }
 
@@ -184,18 +182,18 @@ bool volume::check_for_partitions() {
 
     if (gpt.this_lba != 1) {
         print("Invalid LBA value in GPT\n");
-        free(first_sect);
+        free(first_sects);
         return false;
     }
 
     if (gpt.number_of_partition_entries == 0) {
-        free(first_sect);
+        free(first_sects);
         return true;
     }
 
     if (gpt.size_of_partition_entry < 128) {
         print("partition entry size was 0x{:x}, expected at least 0x80\n", gpt.size_of_partition_entry);
-        free(first_sect);
+        free(first_sects);
         return false;
     }
 
@@ -205,14 +203,12 @@ bool volume::check_for_partitions() {
 
     // FIXME - store disk GUID
 
-    free(first_sect);
+    free(first_sects);
 
     size_t table_start = partition_entry_lba * sector_size;
     size_t table_end = table_start + (size_of_partition_entry * number_of_partition_entries);
-    size_t table_start_aligned = table_start & ~(read_sector_size - 1);
-    size_t table_end_aligned = table_end & ~(read_sector_size - 1) ? ((table_end & ~(read_sector_size - 1)) + read_sector_size) : table_end;
 
-    size_t bufsize = table_end_aligned - table_start_aligned;
+    size_t bufsize = table_end - table_start;
 
     auto buf = (uint8_t*)vmalloc(bufsize);
     if (!buf) {
@@ -220,19 +216,19 @@ bool volume::check_for_partitions() {
         return false;
     }
 
-    status = read(span(buf, table_end_aligned - table_start_aligned), table_start_aligned, read_bytes);
+    status = read(span(buf, table_end - table_start), table_start, read_bytes);
 
     if (!success(status)) {
         print("volume::read returned {}\n", status);
         vfree(buf, bufsize);
         return false;
-    } else if (read_bytes < table_end_aligned - table_start_aligned) {
+    } else if (read_bytes < table_end - table_start) {
         print("volume::read failed\n");
         vfree(buf, bufsize);
         return false;
     }
 
-    auto ptr = buf + table_start - table_start_aligned;
+    auto ptr = buf;
 
     // FIXME - check CRC32 of partition list
 
@@ -267,7 +263,7 @@ bool volume::check_for_partitions() {
         return true;
     }
 
-    ptr = buf + table_start - table_start_aligned;
+    ptr = buf;
 
     for (unsigned int i = 0; i < number_of_partition_entries; i++) {
         auto& part = *(efi_partition_entry*)ptr;
