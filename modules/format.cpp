@@ -11,6 +11,16 @@ export module format;
 
 using namespace std;
 
+export template<unsigned_integral T>
+class byte_size {
+public:
+    byte_size(T val) : val(val) { }
+
+    static constexpr bool is_byte_size = true;
+
+    T val;
+};
+
 span<char> sp_strcpy(span<char> dest, string_view src) {
     auto to_copy = min(src.size(), dest.size());
 
@@ -271,6 +281,50 @@ consteval bool valid_spec(string_view fmt) {
     }
 
     return false;
+}
+
+span<char> do_format_arg(span<char> sp, string_view, byte_size<unsigned_integral auto> arg) {
+    auto val = (uint64_t)arg.val;
+
+    if (val < 1024) {
+        sp = sp_itoa(sp, (uint64_t)arg.val);
+        sp = sp_strcpy(sp, " bytes");
+        return sp;
+    }
+
+    unsigned int shift;
+    string_view suffix;
+
+    if (val < 1 << 20) {
+        shift = 10;
+        suffix = " KB";
+    } else if (val < 1 << 30) {
+        shift = 20;
+        suffix = " MB";
+    } else if (val < (uint64_t)1 << 40) {
+        shift = 30;
+        suffix = " GB";
+    } else if (val < (uint64_t)1 << 50) {
+        shift = 40;
+        suffix = " TB";
+    } else if (val < (uint64_t)1 << 60) {
+        shift = 50;
+        suffix = " PB";
+    } else {
+        shift = 60;
+        suffix = " EB";
+    }
+
+    sp = sp_itoa(sp, val >> shift);
+    sp = sp_strcpy(sp, suffix);
+
+    return sp;
+}
+
+template<typename T>
+requires (T::is_byte_size)
+consteval bool valid_spec(string_view fmt) {
+    return fmt.empty();
 }
 
 span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {

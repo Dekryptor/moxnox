@@ -531,9 +531,8 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
             continue;
         }
 
-        // FIXME - format byte counts nicely
         print("found /dev/nvme{}n{}: block size {}, capacity {}\n",
-              controller_num, req2.req.sqe.nsid, block_size, nsinfo.nsze * block_size); // FIXME
+              controller_num, req2.req.sqe.nsid, byte_size(block_size), byte_size(nsinfo.nsze * block_size));
 
         // FIXME - readonly if nsattr & 1
 
