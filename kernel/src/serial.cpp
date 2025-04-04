@@ -296,7 +296,7 @@ size_t serial_out_pipe::do_write(span<const uint8_t> s) {
             break;
     } while (true);
 
-    return s.data() - orig_s.data();
+    return (uint64_t)(s.data() - orig_s.data());
 }
 
 nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
