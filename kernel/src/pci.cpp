@@ -252,13 +252,15 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
                     return;
                 }
 
-                if (h.vendor_id == 0xffff) {
+                const volatile auto& h2 = *(pci_header*)va;
+
+                if (h2.vendor_id == 0xffff) {
                     unmap_page(va);
                     free_va(va, 1);
                     continue;
                 }
 
-                device_found(h, bus, dev, func, buses);
+                device_found(h2, bus, dev, func, buses);
             }
         }
     }
