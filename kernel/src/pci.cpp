@@ -22,6 +22,11 @@ static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
 atomic<unsigned int> devices_left = 0;
 static object_ref init_device_event;
 
+struct check_bus_entry {
+    list_entry le;
+    uint8_t num;
+};
+
 static constexpr uint64_t pci_pa(const ACPI_MCFG_ALLOCATION& item, uint8_t bus, uint8_t device, uint8_t function) {
     return item.Address | (uint64_t)((bus - item.StartBusNumber) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12);
 }
@@ -160,7 +165,7 @@ static void device_found0(const volatile pci_header& h, uint8_t bus, uint8_t dev
     insert_tail_list(pci_device_list, pci_dev.le);
 }
 
-static void device_found1(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
+static void device_found1(const volatile pci_header& h, list_entry& buses) {
     volatile auto& h1 = *(pci_header1*)&h;
 
     if (h1.class_code != pci_class::bridge)
@@ -169,10 +174,18 @@ static void device_found1(const volatile pci_header& h, uint8_t bus, uint8_t dev
     if ((enum pci_bridge)h1.sub_class != pci_bridge::pci_to_pci_bridge)
         return;
 
-    print("FIXME - PCI-to-PCI bridge (bus {:x}, dev {:x}, func {:x})\n", bus, dev, func);
+    auto e = new check_bus_entry;
+    if (!e) {
+        print("malloc failed\n");
+        return;
+    }
+
+    e->num = h1.secondary_bus_number;
+    insert_tail_list(buses, e->le);
 }
 
-static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
+static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
+                         uint8_t func, list_entry& buses) {
     print("{:02x}:{:02x}:{:x} {:04x}:{:04x}\n", bus, dev, func, h.vendor_id, h.device_id);
 
     switch (h.header_type & 0x7f) {
@@ -181,7 +194,7 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
             break;
 
         case 1:
-            device_found1(h, bus, dev, func);
+            device_found1(h, buses);
             break;
 
         // FIXME - header type 2? (PCI-to-CardBus bridge)
@@ -192,7 +205,8 @@ static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
     }
 }
 
-static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item) {
+static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
+                      list_entry& buses) {
     // FIXME - handle VA leaks?
 
     for (uint8_t dev = 0; dev < 32; dev++) {
@@ -220,7 +234,7 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item) {
 
         bool multifunction = h.header_type & 0x80;
 
-        device_found(h, bus, dev, 0);
+        device_found(h, bus, dev, 0, buses);
 
         if (multifunction) {
             for (uint8_t func = 1; func < 8; func++) {
@@ -244,17 +258,35 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item) {
                     continue;
                 }
 
-                device_found(h, bus, dev, func);
+                device_found(h, bus, dev, func, buses);
             }
         }
     }
 }
 
 static void check_buses(const ACPI_MCFG_ALLOCATION& item) {
-    // FIXME - multiple PCI controllers
-    // FIXME - PCI-to-PCI bridges
+    list_entry buses = { &buses, &buses };
 
-    check_bus(item.StartBusNumber, item);
+    {
+        auto e = new check_bus_entry;
+        if (!e) {
+            print("malloc failed\n");
+            return;
+        }
+
+        e->num = item.StartBusNumber;
+        insert_tail_list(buses, e->le);
+    }
+
+    while (!is_list_empty(buses)) {
+        auto& e = containing_record<check_bus_entry>(buses.next);
+
+        remove_entry_list(e.le);
+
+        check_bus(e.num, item, buses);
+
+        free(&e);
+    }
 }
 
 static void pci_device_found(void* ctx) {
