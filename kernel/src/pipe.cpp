@@ -143,12 +143,12 @@ pipe::~pipe() {
 }
 
 nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    auto orig_s = s;
+
     if (readonly) {
         written_bytes = 0;
         return nt_status::MEDIA_WRITE_PROTECTED;
     }
-
-    auto size = s.size();
 
     if (s.empty()) {
         written_bytes = 0;
@@ -220,7 +220,8 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
             break;
     } while (true);
 
-    written_bytes = size;
+    written_bytes = (uint64_t)(s.data() - orig_s.data());
+
     return nt_status::SUCCESS;
 }
 
