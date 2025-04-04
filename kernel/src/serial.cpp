@@ -242,50 +242,61 @@ export bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
 }
 
 size_t serial_out_pipe::do_write(span<const uint8_t> s) {
-    auto size = s.size();
+    auto orig_s = s;
 
     if (s.empty())
         return 0;
 
-    lock_guard l(lock);
+    do {
+        size_t to_copy;
 
-    if (ready) {
-        // send first character
-        __asm __volatile (
-            "out dx, al\n"
-            :
-            : "d" (port), "a" (s[0])
-        );
+        {
+            lock_guard l(lock);
 
-        ready = false;
-        s = s.subspan(1);
+            if (ready) {
+                // send first character
+                outb(port, s[0]);
 
-        if (s.empty())
-            return size;
-    }
+                ready = false;
+                s = s.subspan(1);
 
-    size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
-    size_t to_copy = min(s.size(), buf_left);
+                if (s.empty())
+                    break;
+            }
 
-    if (to_copy > 0) {
-        if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
-            auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
+            size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
 
-            memcpy(&buf[buf_write_pos], s.data(), first_bit);
+            to_copy = min(s.size(), buf_left);
 
-            buf_write_pos = 0;
-            buf_unread += first_bit;
-            to_copy -= first_bit;
-            s = s.subspan(first_bit);
+            if (to_copy > 0) {
+                if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
+                    auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
+
+                    memcpy(&buf[buf_write_pos], s.data(), first_bit);
+
+                    buf_write_pos = 0;
+                    buf_unread += first_bit;
+                    to_copy -= first_bit;
+                    s = s.subspan(first_bit);
+                }
+
+                memcpy(&buf[buf_write_pos], s.data(), to_copy);
+                buf_write_pos += to_copy;
+                buf_unread += to_copy;
+                s = s.subspan(to_copy);
+            }
         }
 
-        memcpy(&buf[buf_write_pos], s.data(), to_copy);
-        buf_write_pos += to_copy;
-        buf_unread += to_copy;
-        s = s.subspan(to_copy);
-    }
+        if (s.empty())
+            break;
 
-    return size;
+        // block while we wait for space to become available
+
+        if (wait_for_object(not_full_event, true) == nt_status::ALERTED)
+            break;
+    } while (true);
+
+    return s.data() - orig_s.data();
 }
 
 nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
@@ -388,7 +399,9 @@ bool serial_duplex_pipe::isr_func() {
         return false;
 
     if ((iir & 0x0e) == 0x2) { // transmitter holding register empty
-        lock_guard l(send_pipe.lock);
+        sync_lock sl;
+        lock_guard l(sl);
+        lock_guard l2(send_pipe.lock);
 
         if (send_pipe.buf_unread == 0) {
             send_pipe.ready = true;
@@ -403,6 +416,9 @@ bool serial_duplex_pipe::isr_func() {
 
         outb(send_pipe.port, send_pipe.buf[buf_read_pos]);
         send_pipe.buf_unread--;
+
+        if (!not_full_event.signalled)
+            not_full_event.set_holding_sync_lock();
     } else if ((iir & 0xe) == 0x4 || (iir & 0xe) == 0xc) { // data available or character timeout
         uint64_t written_bytes;
 
