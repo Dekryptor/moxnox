@@ -52,4 +52,33 @@ public:
     page_cache cache{*this};
 };
 
+struct page_cache_iterator {
+    using difference_type = std::ptrdiff_t;
+    using value_type = uint64_t;
+
+    page_cache_iterator(cacheable& c, uint64_t page_num) : c(&c) {
+        std::lock_guard lg(c.cache.cache_lock);
+
+        p = c.cache.find_page_cache_entry(page_num);
+    }
+
+    uint64_t operator*() const {
+        return p->phys_address;
+    }
+
+    page_cache_iterator& operator++() {
+        std::lock_guard lg(c->cache.cache_lock);
+
+        p = c->cache.next_page_cache_entry(*p);
+
+        return *this;
+    }
+
+    void operator++(int) { ++*this; }
+
+private:
+    cacheable* c;
+    page_cache_entry* p;
+};
+
 void* get_phys_address(const page_cache_entry& ent);

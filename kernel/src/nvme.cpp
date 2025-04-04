@@ -8,6 +8,8 @@ module;
 #include "handle.h"
 #include "spinlock.h"
 #include "nvme.h"
+import rbtree;
+#include "page_cache.h"
 
 export module nvme;
 
@@ -125,6 +127,9 @@ public:
 
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
+
+    size_t dio_write(uint64_t page_num, uint64_t num_pages,
+                     pfn_iterator auto& it);
 
     list_entry le;
     nvme_controller& controller;
@@ -897,8 +902,11 @@ size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     return num_pages;
 }
 
-size_t nvme_namespace::flush_cache(uint64_t page_num, uint64_t num_pages) {
+size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
+                                 pfn_iterator auto& it) {
     static constexpr size_t PRP_LIST_ENTRIES = PAGE_SIZE / sizeof(uint64_t);
+
+    static const uint8_t NVME_IO_OPCODE_WRITE = 0x01;
 
     if (num_pages << PAGE_SHIFT > controller.maximum_transfer_size)
         num_pages = controller.maximum_transfer_size >> PAGE_SHIFT;
@@ -923,36 +931,27 @@ size_t nvme_namespace::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     uint64_t prp1, prp2;
 
+    prp1 = *it;
+
     if (num_pages <= 2) {
-        lock_guard lg(cache.cache_lock);
-
-        auto* p = cache.find_page_cache_entry(page_num);
-
-        prp1 = p->phys_address;
-
         if (num_pages == 2) {
-            p = cache.next_page_cache_entry(*p);
-            prp2 = p->phys_address;
+            it++;
+            prp2 = *it;
         } else
             prp2 = 0;
     } else {
         prp2 = allocate_folio(0);
         if (!prp2) {
-            print("allocate_folio failed\n");
+            // FIXME - GCC fails in other TU with this line uncommented(???)
+            // print("allocate_folio failed\n");
             return 0;
         }
 
         auto ptr = (uint64_t*)phys_address(prp2);
 
-        lock_guard lg(cache.cache_lock);
-
-        auto* p = cache.find_page_cache_entry(page_num);
-
-        prp1 = p->phys_address;
-
         for (uint64_t i = 1; i < num_pages; i++) {
-            p = cache.next_page_cache_entry(*p);
-            *ptr = p->phys_address;
+            it++;
+            *ptr = *it;
             ptr++;
         }
     }
@@ -993,6 +992,12 @@ size_t nvme_namespace::flush_cache(uint64_t page_num, uint64_t num_pages) {
     }
 
     return num_pages;
+}
+
+size_t nvme_namespace::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    page_cache_iterator iter(*this, page_num);
+
+    return dio_write(page_num, num_pages, iter);
 }
 
 void nvme_namespace::flush() {
