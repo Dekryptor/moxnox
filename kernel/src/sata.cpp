@@ -161,7 +161,8 @@ size_t sata_device::read_uncached(span<uint8_t> data, uint64_t offset) {
 }
 #endif
 
-uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+uint64_t sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
+                               pfn_iterator& it) {
     // FIXME - proper error handling
     // FIXME - asynchronous mode
 
@@ -181,27 +182,21 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     if (num_pages > NUM_PRDT_ENTRIES)
         num_pages = NUM_PRDT_ENTRIES;
 
-    {
-        lock_guard lg(cache.cache_lock);
+    for (unsigned int i = 0; i < num_pages; i++) {
+        auto& e = cmdtbl.prdt_entry[i];
 
-        auto* p = cache.find_page_cache_entry(page_num);
+        if (i != 0)
+            it++;
 
-        for (unsigned int i = 0; i < num_pages; i++) {
-            auto& e = cmdtbl.prdt_entry[i];
+        // FIXME - make sure device supports 64-bit PAs
 
-            if (i != 0)
-                p = cache.next_page_cache_entry(*p);
-
-            // FIXME - make sure device supports 64-bit PAs
-
-            e.dba = (uint32_t)p->phys_address;
-            e.dbau = (uint32_t)(p->phys_address >> 32);
+        e.dba = (uint32_t)*it;
+        e.dbau = (uint32_t)(*it >> 32);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-            e.dbc = (unsigned int)(PAGE_SIZE - 1); // FIXME - what if device not whole number of pages?
+        e.dbc = (unsigned int)(PAGE_SIZE - 1); // FIXME - what if device not whole number of pages?
 #pragma GCC diagnostic pop
-            e.i = 0; // interrupt
-        }
+        e.i = 0; // interrupt
     }
 
     cmdtbl.prdt_entry[num_pages - 1].i = 1;
@@ -253,6 +248,12 @@ uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     release_slot(slot);
 
     return num_pages;
+}
+
+uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    page_cache_iterator iter(*this, page_num);
+
+    return dio_read(page_num, num_pages, iter);
 }
 
 uint8_t sata_device::get_slot() {
