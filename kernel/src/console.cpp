@@ -333,6 +333,15 @@ static void print_char(char32_t c) {
             }
         }
     }
+
+    if constexpr (FB) {
+        if (show_cursor) {
+            auto& p = console[(cursor_y * console_cols) + cursor_x];
+
+            p.changed = true;
+        }
+
+    }
 }
 
 template<bool FB>
