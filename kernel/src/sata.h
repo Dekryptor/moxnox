@@ -456,7 +456,6 @@ public:
     uint8_t get_slot();
     void release_slot(uint8_t slot);
     size_t read_uncached(std::span<uint8_t> data, uint64_t offset);
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     void isr();
     void flush() override;
     size_t dio_read(uint64_t page_num, uint64_t num_pages,

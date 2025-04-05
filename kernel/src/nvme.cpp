@@ -125,7 +125,6 @@ public:
 
     void flush() override;
 
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t dio_read(uint64_t page_num, uint64_t num_pages,
                     pfn_iterator& it) override;
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
@@ -891,12 +890,6 @@ size_t nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
     }
 
     return num_pages;
-}
-
-size_t nvme_namespace::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    page_cache_iterator iter(*this, page_num);
-
-    return dio_read(page_num, num_pages, iter);
 }
 
 size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,

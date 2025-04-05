@@ -250,12 +250,6 @@ uint64_t sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
     return num_pages;
 }
 
-uint64_t sata_device::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    page_cache_iterator iter(*this, page_num);
-
-    return dio_read(page_num, num_pages, iter);
-}
-
 uint8_t sata_device::get_slot() {
     wait_for_object(slot_semaphore.get(), false);
 
