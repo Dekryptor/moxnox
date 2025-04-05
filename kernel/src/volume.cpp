@@ -394,36 +394,9 @@ uint64_t diskpart::dio_read(uint64_t page_num, uint64_t num_pages,
 }
 
 uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    // FIXME - make sure that partition is aligned to page boundaries
+    page_cache_iterator iter(*this, page_num);
 
-    auto read_pages = parent.cache.read_into_cache_and_pin(page_num + (disk_offset >> PAGE_SHIFT), num_pages);
-
-    if (read_pages == 0)
-        return 0;
-
-    {
-        lock_guard lock1(parent.cache.cache_lock);
-        lock_guard lock2(cache.cache_lock);
-
-        auto* src = parent.cache.find_page_cache_entry(page_num + (disk_offset >> PAGE_SHIFT));
-        auto* dst = cache.find_page_cache_entry(page_num);
-
-        for (uint64_t i = 0; i < read_pages; i++) {
-            // FIXME - steal pages?
-            memcpy(get_phys_address(*dst), get_phys_address(*src),
-                   PAGE_SIZE);
-            dst->status = page_cache_status::clean;
-
-            if (i != read_pages - 1) {
-                src = parent.cache.next_page_cache_entry(*src);
-                dst = cache.next_page_cache_entry(*dst);
-            }
-        }
-    }
-
-    parent.cache.unpin(page_num + (disk_offset >> PAGE_SHIFT), read_pages);
-
-    return read_pages;
+    return dio_read(page_num, num_pages, iter);
 }
 
 size_t diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
