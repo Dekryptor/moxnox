@@ -745,9 +745,6 @@ size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
     // FIXME - proper error handling
     // FIXME - asynchronous mode
 
-    if (fua)
-        print("FIXME - sata_device::dio_write fua\n"); // FIXME
-
     port.is = 0xffffffff; // clear interrupt bits
 
     uint8_t slot = get_slot();
@@ -822,6 +819,10 @@ size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
     }
 
     release_slot(slot);
+
+    // do a flush, as WRITE DMA FUA EXT is apparently hardly ever supported
+    if (num_pages != 0 && fua)
+        flush();
 
     return num_pages;
 }
