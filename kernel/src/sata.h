@@ -461,7 +461,7 @@ public:
     void isr();
     void flush() override;
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator& it);
+                     pfn_iterator& it) override;
 
     list_entry le;
     volatile HBA_PORT& port;

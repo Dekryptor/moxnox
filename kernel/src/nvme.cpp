@@ -127,9 +127,8 @@ public:
 
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
-
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator& it);
+                     pfn_iterator& it) override;
 
     list_entry le;
     nvme_controller& controller;
