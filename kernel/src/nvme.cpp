@@ -126,7 +126,8 @@ public:
     void flush() override;
 
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t dio_read(uint64_t page_num, uint64_t num_pages, pfn_iterator& it);
+    size_t dio_read(uint64_t page_num, uint64_t num_pages,
+                    pfn_iterator& it) override;
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
                      pfn_iterator& it) override;
 

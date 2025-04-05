@@ -41,6 +41,8 @@ public:
 
     virtual void release() = 0;
     virtual void flush() = 0;
+    virtual uint64_t dio_read(uint64_t page_num, uint64_t num_pages,
+                              pfn_iterator& it) = 0;
     virtual size_t dio_write(uint64_t page_num, uint64_t num_pages,
                              pfn_iterator& it) = 0;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages);
@@ -83,6 +85,8 @@ public:
     }
 
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    uint64_t dio_read(uint64_t page_num, uint64_t num_pages,
+                      pfn_iterator& it) override;
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
                      pfn_iterator& it) override;
     volume& parent;
@@ -380,6 +384,14 @@ size_t diskpart::read_uncached(span<uint8_t> s, uint64_t offset) {
     return parent.read_uncached(s, offset);
 }
 #endif
+
+uint64_t diskpart::dio_read(uint64_t page_num, uint64_t num_pages,
+                            pfn_iterator& it) {
+    // FIXME - reduce num_pages if would overflow partition
+
+    return parent.dio_read(page_num + (disk_offset >> PAGE_SHIFT), num_pages,
+                           it);
+}
 
 uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     // FIXME - make sure that partition is aligned to page boundaries
