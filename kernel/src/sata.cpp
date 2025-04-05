@@ -8,6 +8,7 @@ import objects;
 import rbtree;
 #include "page_cache.h"
 #include "inode.h"
+#include <shared_mutex>
 
 export module sata;
 
@@ -21,6 +22,7 @@ import interrupts;
 import semaphore;
 import event;
 import volume;
+import rwsem;
 
 #include "sata.h"
 
@@ -745,80 +747,84 @@ size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
     // FIXME - proper error handling
     // FIXME - asynchronous mode
 
-    port.is = 0xffffffff; // clear interrupt bits
+    {
+        shared_lock lock(flush_sem);
 
-    uint8_t slot = get_slot();
+        port.is = 0xffffffff; // clear interrupt bits
 
-    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+        uint8_t slot = get_slot();
 
-    cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
-    cmd.w = 0; // read
+        volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
 
-    auto& cmdtbl = *cmd_tables[slot];
+        cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
+        cmd.w = 0; // read
 
-    memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
+        auto& cmdtbl = *cmd_tables[slot];
 
-    if (num_pages > NUM_PRDT_ENTRIES)
-        num_pages = NUM_PRDT_ENTRIES;
+        memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
 
-    for (unsigned int i = 0; i < num_pages; i++) {
-        auto& e = cmdtbl.prdt_entry[i];
+        if (num_pages > NUM_PRDT_ENTRIES)
+            num_pages = NUM_PRDT_ENTRIES;
 
-        if (i != 0)
-            it++;
+        for (unsigned int i = 0; i < num_pages; i++) {
+            auto& e = cmdtbl.prdt_entry[i];
 
-        // FIXME - make sure device supports 64-bit PAs
+            if (i != 0)
+                it++;
 
-        e.dba = (uint32_t)*it;
-        e.dbau = (uint32_t)(*it >> 32);
+            // FIXME - make sure device supports 64-bit PAs
+
+            e.dba = (uint32_t)*it;
+            e.dbau = (uint32_t)(*it >> 32);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        e.dbc = (unsigned int)(PAGE_SIZE - 1); // FIXME - what if device not whole number of pages?
+            e.dbc = (unsigned int)(PAGE_SIZE - 1); // FIXME - what if device not whole number of pages?
 #pragma GCC diagnostic pop
-        e.i = 0; // interrupt
-    }
+            e.i = 0; // interrupt
+        }
 
-    cmdtbl.prdt_entry[num_pages - 1].i = 1;
+        cmdtbl.prdt_entry[num_pages - 1].i = 1;
 
-    cmd.prdtl = (uint16_t)num_pages;
+        cmd.prdtl = (uint16_t)num_pages;
 
-    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+        volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
 
-    cmdfis.fis_type = FIS_TYPE::REG_H2D;
-    cmdfis.c = 1; // command
-    cmdfis.command = ata_command::WRITE_DMA_EX;
+        cmdfis.fis_type = FIS_TYPE::REG_H2D;
+        cmdfis.c = 1; // command
+        cmdfis.command = ata_command::WRITE_DMA_EX;
 
-    uint64_t lba = page_num * (PAGE_SIZE / sector_size);
-    auto num_sectors = (uint16_t)(num_pages * (PAGE_SIZE / sector_size));
+        uint64_t lba = page_num * (PAGE_SIZE / sector_size);
+        auto num_sectors = (uint16_t)(num_pages * (PAGE_SIZE / sector_size));
 
-    cmdfis.lba0 = (uint8_t)lba;
-    cmdfis.lba1 = (uint8_t)(lba >> 8);
-    cmdfis.lba2 = (uint8_t)(lba >> 16);
-    cmdfis.device = 0x40; // LBA mode
+        cmdfis.lba0 = (uint8_t)lba;
+        cmdfis.lba1 = (uint8_t)(lba >> 8);
+        cmdfis.lba2 = (uint8_t)(lba >> 16);
+        cmdfis.device = 0x40; // LBA mode
 
-    cmdfis.lba3 = (uint8_t)(lba >> 24);
-    cmdfis.lba4 = (uint8_t)(lba >> 32);
-    cmdfis.lba5 = (uint8_t)(lba >> 40);
+        cmdfis.lba3 = (uint8_t)(lba >> 24);
+        cmdfis.lba4 = (uint8_t)(lba >> 32);
+        cmdfis.lba5 = (uint8_t)(lba >> 40);
 
-    cmdfis.countl = (uint8_t)num_sectors;
-    cmdfis.counth = (uint8_t)(num_sectors >> 8);
+        cmdfis.countl = (uint8_t)num_sectors;
+        cmdfis.counth = (uint8_t)(num_sectors >> 8);
 
-    pending_slots |= 1 << slot;
+        pending_slots |= 1 << slot;
 
-    {
-        lock_guard lock(ci_lock);
-        port.ci |= 1 << slot;
-    }
+        {
+            lock_guard lock(ci_lock);
+            port.ci |= 1 << slot;
+        }
 
-    wait_for_object(events[slot].get(), false);
+        wait_for_object(events[slot].get(), false);
 
-    if (port.is & HBA_PxIS_TFES) {
-        print("Error writing to disk\n");
+        if (port.is & HBA_PxIS_TFES) {
+            print("Error writing to disk\n");
+            release_slot(slot);
+            return 0;
+        }
+
         release_slot(slot);
-        return 0;
     }
-
-    release_slot(slot);
 
     // do a flush, as WRITE DMA FUA EXT is apparently hardly ever supported
     if (num_pages != 0 && fua)
@@ -833,6 +839,8 @@ sata_card::~sata_card() {
 }
 
 void sata_device::flush() {
+    lock_guard lock(flush_sem);
+
     // FIXME - proper error handling
     // FIXME - asynchronous mode
 
