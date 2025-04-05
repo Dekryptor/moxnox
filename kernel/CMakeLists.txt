@@ -60,6 +60,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/volume.cpp
     src/rwsem.cpp
     src/nvme.cpp
+    src/virtio.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list)

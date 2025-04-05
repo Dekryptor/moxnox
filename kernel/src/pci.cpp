@@ -15,12 +15,25 @@ import list;
 import sata;
 import event;
 import nvme;
+import virtio;
 
 using namespace std;
+
+static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
 atomic<unsigned int> devices_left = 0;
 static object_ref init_device_event;
+
+static const struct {
+    uint16_t vendor_id;
+    uint16_t device_id;
+    void (*func)(pci_device&);
+} pci_ids[] = {
+    { PCI_VENDOR_ID_REDHAT, 0x1003, found_virtio_pci },
+    { PCI_VENDOR_ID_REDHAT, 0x1043, found_virtio_pci },
+    { 0x0000, 0x0000, nullptr }
+};
 
 struct check_bus_entry {
     list_entry le;
@@ -304,26 +317,40 @@ static void check_buses(const ACPI_MCFG_ALLOCATION& item) {
 static void pci_device_found(void* ctx) {
     auto& dev = *(pci_device*)ctx;
 
-    switch (dev.header->class_code) {
-        case pci_class::mass_storage: {
-            switch ((enum pci_mass_storage)dev.header->sub_class) {
-                case pci_mass_storage::sata:
-                    init_sata(dev);
-                break;
+    bool found = false;
+    auto vendor_id = dev.header->vendor_id;
+    auto device_id = dev.header->device_id;
 
-                case pci_mass_storage::nonvolatile_memory:
-                    init_nvme(dev);
-                break;
-
-                default:
-                    break;
-            }
-
+    for (unsigned int i = 0; pci_ids[i].vendor_id != 0x0000; i++) {
+        if (pci_ids[i].vendor_id == vendor_id && pci_ids[i].device_id == device_id) {
+            pci_ids[i].func(dev);
+            found = true;
             break;
         }
+    }
 
-        default:
-            break;
+    if (!found) {
+        switch (dev.header->class_code) {
+            case pci_class::mass_storage: {
+                switch ((enum pci_mass_storage)dev.header->sub_class) {
+                    case pci_mass_storage::sata:
+                        init_sata(dev);
+                    break;
+
+                    case pci_mass_storage::nonvolatile_memory:
+                        init_nvme(dev);
+                    break;
+
+                    default:
+                        break;
+                }
+
+                break;
+            }
+
+            default:
+                break;
+        }
     }
 
     if (--devices_left == 0)
