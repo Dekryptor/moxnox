@@ -77,6 +77,13 @@ struct kernel_image {
     char name[0];
 };
 
+class module_init {
+public:
+    module_init(void (*func)()) {
+        func();
+    }
+};
+
 // kernel.cpp
 extern std::string_view cmdline;
 extern list_entry kernel_images;

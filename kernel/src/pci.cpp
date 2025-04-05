@@ -15,25 +15,21 @@ import list;
 import sata;
 import event;
 import nvme;
-import virtio;
 
 using namespace std;
-
-static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
 atomic<unsigned int> devices_left = 0;
 static object_ref init_device_event;
 
-static const struct {
+export struct pci_recognizer {
+    list_entry le;
     uint16_t vendor_id;
     uint16_t device_id;
     void (*func)(pci_device&);
-} pci_ids[] = {
-    { PCI_VENDOR_ID_REDHAT, 0x1003, found_virtio_pci },
-    { PCI_VENDOR_ID_REDHAT, 0x1043, found_virtio_pci },
-    { 0x0000, 0x0000, nullptr }
 };
+
+export list_entry pci_ids = { &pci_ids, &pci_ids };
 
 struct check_bus_entry {
     list_entry le;
@@ -321,9 +317,11 @@ static void pci_device_found(void* ctx) {
     auto vendor_id = dev.header->vendor_id;
     auto device_id = dev.header->device_id;
 
-    for (unsigned int i = 0; pci_ids[i].vendor_id != 0x0000; i++) {
-        if (pci_ids[i].vendor_id == vendor_id && pci_ids[i].device_id == device_id) {
-            pci_ids[i].func(dev);
+    for (auto le = pci_ids.next; le != &pci_ids; le = le->next) {
+        auto& ent = containing_record<pci_recognizer>(le);
+
+        if (ent.vendor_id == vendor_id && ent.device_id == device_id) {
+            ent.func(dev);
             found = true;
             break;
         }
