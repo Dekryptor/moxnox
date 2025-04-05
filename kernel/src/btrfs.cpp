@@ -62,6 +62,23 @@ static bool check_checksum(const btrfs_super_block& sb) {
     return csum == *(uint32_t*)&sb;
 }
 
+struct folio_iter : public pfn_iterator {
+    folio_iter(uint64_t page_num) : page_num(page_num) { }
+
+    uint64_t operator*() const override {
+        return page_num;
+    }
+
+    folio_iter& operator++() override {
+        page_num++;
+
+        return *this;
+    }
+
+private:
+    uint64_t page_num;
+};
+
 btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     vol.acquire();
 
@@ -73,15 +90,13 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
     sb = (btrfs_super_block*)phys_address(sb_pa);
 
-    uint64_t read_bytes;
-    auto status = vol.read(span((uint8_t*)sb, sizeof(btrfs_super_block)), superblock_addrs[0],
-                           read_bytes);
+    auto iter = folio_iter(sb_pa);
 
-    if (!success(status)) {
-        print("volume::read returned {}\n", status);
-        return;
-    } else if (read_bytes < sizeof(btrfs_super_block)) {
-        print("volume::read failed\n");
+    auto read_pages = vol.dio_read(superblock_addrs[0] >> PAGE_SHIFT,
+                                   bytes_to_pages(sizeof(btrfs_super_block)),
+                                   iter);
+    if (read_pages == 0) {
+        print("volume::dio_read failed\n");
         return;
     }
 
