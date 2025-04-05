@@ -81,6 +81,7 @@ public:
 
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t dio_write(uint64_t page_num, uint64_t num_pages, pfn_iterator& it);
     volume& parent;
     uint64_t disk_offset;
 };
@@ -410,40 +411,50 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     return read_pages;
 }
 
-size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    // FIXME - need lock? Others shouldn't be writing into bits of the page cache we're flushing
-
-    if (!cache.pin(page_num, num_pages, nullptr))
-        return 0;
-
-    uint64_t flushed = 0;
-    page_cache_entry* ent;
-
-    {
-        lock_guard lock(cache.cache_lock);
-        ent = cache.find_page_cache_entry(page_num);
-    }
+size_t diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
+                           pfn_iterator& it) {
+    size_t flushed = 0;
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        assert(ent->tree.key == page_num + i);
+        if (i != 0)
+            it++;
 
-        if (ent->status == page_cache_status::dirty) {
-            auto dirty_page = span((uint8_t*)get_phys_address(*ent), PAGE_SIZE);
+        auto dirty_page = span((uint8_t*)phys_address(*it), PAGE_SIZE);
 
-            if (!parent.cache.write_pages(page_num + (disk_offset >> PAGE_SHIFT) + i,
-                                          1, dirty_page)) {
-                break;
-            }
-
-            ent->status = page_cache_status::clean;
-        }
-
-        if (i != num_pages - 1) {
-            lock_guard lock(cache.cache_lock);
-            ent = cache.next_page_cache_entry(*ent);
+        if (!parent.cache.write_pages(page_num + (disk_offset >> PAGE_SHIFT) + i,
+                                      1, dirty_page)) {
+            break;
         }
 
         flushed++;
+    }
+
+    return flushed;
+}
+
+size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    if (!cache.pin(page_num, num_pages, nullptr))
+        return 0;
+
+    page_cache_iterator iter(*this, page_num);
+
+    auto flushed = dio_write(page_num, num_pages, iter);
+
+    // mark page cache entries as clean
+
+    {
+        lock_guard lg(cache.cache_lock);
+
+        auto* p = cache.find_page_cache_entry(page_num);
+
+        for (unsigned int i = 0; i < flushed; i++) {
+            if (i != 0)
+                p = cache.next_page_cache_entry(*p);
+
+            assert(p->tree.key == page_num + i);
+
+            p->status = page_cache_status::clean;
+        }
     }
 
     cache.unpin(page_num, num_pages);
