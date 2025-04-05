@@ -416,23 +416,10 @@ uint64_t diskpart::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
 size_t diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
                            pfn_iterator& it) {
-    size_t flushed = 0;
+    // FIXME - reduce num_pages if would overflow partition
 
-    for (uint64_t i = 0; i < num_pages; i++) {
-        if (i != 0)
-            it++;
-
-        auto dirty_page = span((uint8_t*)phys_address(*it), PAGE_SIZE);
-
-        if (!parent.cache.write_pages(page_num + (disk_offset >> PAGE_SHIFT) + i,
-                                      1, dirty_page)) {
-            break;
-        }
-
-        flushed++;
-    }
-
-    return flushed;
+    return parent.dio_write(page_num + (disk_offset >> PAGE_SHIFT), num_pages,
+                            it);
 }
 
 size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
@@ -442,6 +429,12 @@ size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
     page_cache_iterator iter(*this, page_num);
 
     auto flushed = dio_write(page_num, num_pages, iter);
+
+    if (flushed < num_pages)
+        cache.unpin(page_num + flushed, num_pages - flushed);
+
+    if (flushed == 0)
+        return 0;
 
     // mark page cache entries as clean
 
@@ -460,28 +453,7 @@ size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
         }
     }
 
-    cache.unpin(page_num, num_pages);
+    cache.unpin(page_num, flushed);
 
-    if (flushed == 0)
-        return 0;
-
-    uint64_t flushed2 = 0;
-    uint64_t cur_page = page_num + (disk_offset >> PAGE_SHIFT);
-
-    while (true) {
-        auto done = parent.flush_cache(cur_page, flushed);
-
-        if (done == 0)
-            break;
-
-        flushed2 += min(done, flushed);
-
-        if (done >= flushed)
-            break;
-
-        cur_page += done;
-        flushed -= done;
-    }
-
-    return flushed2;
+    return flushed;
 }
