@@ -43,6 +43,7 @@ public:
     virtual void flush() = 0;
     virtual size_t dio_write(uint64_t page_num, uint64_t num_pages,
                              pfn_iterator& it) = 0;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages);
 
     nt_status read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
 
@@ -82,7 +83,6 @@ public:
     }
 
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
                      pfn_iterator& it) override;
     volume& parent;
@@ -422,7 +422,7 @@ size_t diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
                             it);
 }
 
-size_t diskpart::flush_cache(uint64_t page_num, uint64_t num_pages) {
+size_t volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
     if (!cache.pin(page_num, num_pages, nullptr))
         return 0;
 

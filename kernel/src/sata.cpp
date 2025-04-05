@@ -828,31 +828,6 @@ size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
     return num_pages;
 }
 
-size_t sata_device::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    page_cache_iterator iter(*this, page_num);
-
-    auto flushed = dio_write(page_num, num_pages, iter);
-
-    // mark page cache entries as clean
-
-    {
-        lock_guard lg(cache.cache_lock);
-
-        auto* p = cache.find_page_cache_entry(page_num);
-
-        for (unsigned int i = 0; i < flushed; i++) {
-            if (i != 0)
-                p = cache.next_page_cache_entry(*p);
-
-            assert(p->tree.key == page_num + i);
-
-            p->status = page_cache_status::clean;
-        }
-    }
-
-    return flushed;
-}
-
 sata_card::~sata_card() {
     if (isr_registered)
         remove_isr(sata_isr_func, this);
