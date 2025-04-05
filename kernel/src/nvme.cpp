@@ -886,9 +886,6 @@ size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
                                  pfn_iterator& it, bool fua) {
     static constexpr size_t PRP_LIST_ENTRIES = PAGE_SIZE / sizeof(uint64_t);
 
-    if (fua)
-        print("FIXME: nvme_namespace::dio_write fua\n");
-
     if (num_pages << PAGE_SHIFT > controller.maximum_transfer_size)
         num_pages = controller.maximum_transfer_size >> PAGE_SHIFT;
 
@@ -949,7 +946,7 @@ size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
     sqe.cetype = 0;
     sqe.stc = 0;
     sqe.prinfo = 0;
-    sqe.fua = 0;
+    sqe.fua = fua ? 1 : 0;
     sqe.lr = 0;
     sqe.dsm = 0;
     sqe.lbtl = 0;
