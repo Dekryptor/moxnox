@@ -2956,6 +2956,8 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 }
 
 static void write_superblocks(btrfs_filesystem& fs) {
+    // FIXME - write the superblocks asynchronously and wait (will need multiple copies of superblock in memory, for the different addresses)
+
     for (auto addr : superblock_addrs) {
         if (addr + sizeof(btrfs_super_block) >= fs.vol->size)
             break;
@@ -2965,30 +2967,13 @@ static void write_superblocks(btrfs_filesystem& fs) {
         sb.bytenr = addr;
         *(uint32_t*)&sb= ~calc_crc32c(0xffffffff, span((const uint8_t*)&sb.fsid, sizeof(btrfs_super_block) - sizeof(sb.csum)));
 
-        fs.vol->cache.write(span((const uint8_t*)fs.sb, sizeof(btrfs_super_block)), addr);
-    }
+        auto iter = folio_iter(phys_memory_pfn(fs.sb) << PAGE_SHIFT);
 
-    for (auto addr : superblock_addrs) {
-        if (addr + sizeof(btrfs_super_block) >= fs.vol->size)
-            break;
-
-        auto first_page = addr >> PAGE_SHIFT;
-        auto num_pages = sizeof(btrfs_super_block) >> PAGE_SHIFT;
-
-        while (true) {
-            auto flushed = fs.vol->flush_cache(first_page, num_pages);
-
-            if (flushed == 0) {
-                print("volume::flush_cache failed\n");
-                return;
-            }
-
-            if (flushed == num_pages)
-                break;
-
-            first_page += flushed;
-            num_pages -= flushed;
-        }
+        auto written_pages = fs.vol->dio_write(addr >> PAGE_SHIFT,
+                                               bytes_to_pages(sizeof(btrfs_super_block)),
+                                               iter);
+        if (written_pages == 0) // FIXME - go readonly if this happens?
+            print("volume::dio_write failed\n");
     }
 }
 
