@@ -85,6 +85,8 @@ static_assert(sizeof(pci_header1) == 0x40);
 struct pci_msix;
 
 struct pci_device {
+    ~pci_device();
+
     list_entry le;
     volatile pci_header0* header;
     uint8_t bus;
@@ -94,6 +96,7 @@ struct pci_device {
     std::span<volatile uint8_t> msi;
     volatile pci_msix* msix = nullptr;
     unsigned int num;
+    list_entry vendor_specific_caps = { &vendor_specific_caps, &vendor_specific_caps };
 };
 
 enum class pci_mass_storage {
@@ -196,3 +199,8 @@ struct msix_entry {
 } __attribute__((packed));
 
 static_assert(sizeof(msix_entry) == 16);
+
+struct vendor_specific_cap {
+    list_entry le;
+    void* ptr;
+};

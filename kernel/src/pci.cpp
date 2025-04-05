@@ -52,8 +52,6 @@ static void device_found0(const volatile pci_header& h, uint8_t bus, uint8_t dev
         while (true) {
             auto& cap = *(pci_capability*)ptr;
 
-            // FIXME - MSI-X if supported as well
-
             switch (cap.type) {
                 case pci_capability_type::msi: {
                     volatile auto& msi = *(pci_msi*)ptr;
@@ -74,6 +72,18 @@ static void device_found0(const volatile pci_header& h, uint8_t bus, uint8_t dev
                 case pci_capability_type::msix:
                     pci_dev.msix = (volatile pci_msix*)((uintptr_t)&h | ((uintptr_t)ptr & (PAGE_SIZE - 1)));
                     break;
+
+                case pci_capability_type::vendor_specific: {
+                    auto ent = new vendor_specific_cap;
+                    if (!ent) {
+                        print("new failed\n");
+                        return;
+                    }
+
+                    ent->ptr = (void*)((uintptr_t)&h | ((uintptr_t)(ptr + sizeof(pci_capability)) & (PAGE_SIZE - 1)));
+
+                    insert_tail_list(pci_dev.vendor_specific_caps, ent->le);
+                }
 
                 default:
                     break;
@@ -382,4 +392,14 @@ export void init_pci() {
 
     wait_for_object(init_device_event.get(), false);
     init_device_event.reset();
+}
+
+pci_device::~pci_device() {
+    while (!is_list_empty(vendor_specific_caps)) {
+        auto& ent = containing_record<vendor_specific_cap>(vendor_specific_caps.next);
+
+        remove_entry_list(ent.le);
+
+        delete &ent;
+    }
 }
