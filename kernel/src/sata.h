@@ -73,6 +73,7 @@ enum class FIS_TYPE : uint8_t {
 enum class ata_command : uint8_t {
     READ_DMA_EX = 0x25,
     WRITE_DMA_EX = 0x35,
+    FLUSH_CACHE_EX = 0xea,
     IDENTIFY = 0xec
 };
 

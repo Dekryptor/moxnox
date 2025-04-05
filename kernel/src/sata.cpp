@@ -829,5 +829,41 @@ sata_card::~sata_card() {
 }
 
 void sata_device::flush() {
-    print("FIXME - sata_device::flush\n"); // FIXME
+    // FIXME - proper error handling
+    // FIXME - asynchronous mode
+
+    port.is = 0xffffffff; // clear interrupt bits
+
+    uint8_t slot = get_slot();
+
+    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+
+    cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
+    cmd.w = 0; // read
+
+    auto& cmdtbl = *cmd_tables[slot];
+
+    memset(&cmdtbl, 0, sizeof(cmdtbl));
+
+    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+
+    cmdfis.fis_type = FIS_TYPE::REG_H2D;
+    cmdfis.c = 1; // command
+    cmdfis.command = ata_command::FLUSH_CACHE_EX;
+
+    cmdfis.device = 0;
+
+    pending_slots |= 1 << slot;
+
+    {
+        lock_guard lock(ci_lock);
+        port.ci |= 1 << slot;
+    }
+
+    wait_for_object(events[slot].get(), false);
+
+    if (port.is & HBA_PxIS_TFES)
+        print("Error flushing disk\n"); // FIXME - return nt_status?
+
+    release_slot(slot);
 }
