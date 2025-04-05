@@ -7,6 +7,7 @@ module;
 #include "spinlock.h"
 #include <span>
 #include <cstring>
+#include <bit>
 
 export module mem;
 
@@ -1794,4 +1795,13 @@ export void inline __attribute__((always_inline)) barrier() {
         :
         : "memory"
     );
+}
+
+export constexpr uint8_t bytes_to_folio_order(size_t s) {
+    uint32_t p = bytes_to_pages(s);
+
+    if (p == 0)
+        return 0;
+
+    return (uint8_t)(32 - countl_zero(p - 1));
 }

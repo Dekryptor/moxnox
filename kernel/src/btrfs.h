@@ -524,6 +524,9 @@ public:
         free_chunk_list();
         free_root_list();
         vol->release();
+
+        if (sb)
+            free_folio(phys_memory_pfn(sb) << PAGE_SHIFT);
     }
 
     nt_status read_metadata(uint64_t addr, std::span<uint8_t> data);
@@ -543,7 +546,7 @@ public:
     nt_status flush(bool make_readonly) override;
     void flush_thread();
 
-    btrfs_super_block sb;
+    btrfs_super_block* sb = nullptr;
     bool valid = false;
     list_entry chunk_list = { &chunk_list, &chunk_list };
     list_entry root_list = { &root_list, &root_list };

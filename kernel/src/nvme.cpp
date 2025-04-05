@@ -3,7 +3,6 @@ module;
 #include "kernel.h"
 #include "pci.h"
 #include <span>
-#include <bit>
 #include <shared_mutex>
 #include "handle.h"
 #include "spinlock.h"
@@ -271,15 +270,6 @@ void nvme_controller::reset_controller(uint64_t admin_sq_phys, uint64_t admin_cq
 
     // wait for CSTS.RDY to become 1
     while (!(*csts & CSTS_RDY)) { }
-}
-
-static constexpr uint8_t bytes_to_folio_order(size_t s) {
-    uint32_t p = bytes_to_pages(s);
-
-    if (p == 0)
-        return 0;
-
-    return (uint8_t)(32 - countl_zero(p - 1));
 }
 
 uint8_t nvme_queue::get_slot() {
