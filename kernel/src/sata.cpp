@@ -741,9 +741,12 @@ export void init_sata(const pci_device& dev) {
 }
 
 size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
-                              pfn_iterator& it) {
+                              pfn_iterator& it, bool fua) {
     // FIXME - proper error handling
     // FIXME - asynchronous mode
+
+    if (fua)
+        print("FIXME - sata_device::dio_write fua\n"); // FIXME
 
     port.is = 0xffffffff; // clear interrupt bits
 

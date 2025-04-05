@@ -127,7 +127,7 @@ public:
     size_t dio_read(uint64_t page_num, uint64_t num_pages,
                     pfn_iterator& it) override;
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator& it) override;
+                     pfn_iterator& it, bool fua) override;
 
     list_entry le;
     nvme_controller& controller;
@@ -883,8 +883,11 @@ size_t nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
 }
 
 size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
-                                 pfn_iterator& it) {
+                                 pfn_iterator& it, bool fua) {
     static constexpr size_t PRP_LIST_ENTRIES = PAGE_SIZE / sizeof(uint64_t);
+
+    if (fua)
+        print("FIXME: nvme_namespace::dio_write fua\n");
 
     if (num_pages << PAGE_SHIFT > controller.maximum_transfer_size)
         num_pages = controller.maximum_transfer_size >> PAGE_SHIFT;

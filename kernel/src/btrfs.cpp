@@ -2971,7 +2971,7 @@ static void write_superblocks(btrfs_filesystem& fs) {
 
         auto written_pages = fs.vol->dio_write(addr >> PAGE_SHIFT,
                                                bytes_to_pages(sizeof(btrfs_super_block)),
-                                               iter);
+                                               iter, true);
         if (written_pages == 0) // FIXME - go readonly if this happens?
             print("volume::dio_write failed\n");
     }

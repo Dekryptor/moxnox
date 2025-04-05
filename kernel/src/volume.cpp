@@ -44,7 +44,7 @@ public:
     virtual uint64_t dio_read(uint64_t page_num, uint64_t num_pages,
                               pfn_iterator& it) = 0;
     virtual size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                             pfn_iterator& it) = 0;
+                             pfn_iterator& it, bool fua = false) = 0;
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
@@ -88,7 +88,7 @@ public:
     uint64_t dio_read(uint64_t page_num, uint64_t num_pages,
                       pfn_iterator& it) override;
     size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator& it) override;
+                     pfn_iterator& it, bool fua) override;
     volume& parent;
     uint64_t disk_offset;
 };
@@ -400,11 +400,11 @@ uint64_t volume::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 size_t diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
-                           pfn_iterator& it) {
+                           pfn_iterator& it, bool fua) {
     // FIXME - reduce num_pages if would overflow partition
 
     return parent.dio_write(page_num + (disk_offset >> PAGE_SHIFT), num_pages,
-                            it);
+                            it, fua);
 }
 
 size_t volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
