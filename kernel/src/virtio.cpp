@@ -36,20 +36,30 @@ static void init_virtio_pci() {
 
 static module_init init(init_virtio_pci);
 
+class virt_queue {
+public:
+    virtq<QUEUE_SIZE> queue;
+    uint16_t num;
+
+    void write(virtio_pci_notify_cap& notify_cfg, pci_device& dev,
+               string_view msg);
+};
+
 class virtio_pci_device {
 public:
     virtio_pci_device(pci_device& dev);
+    ~virtio_pci_device();
     void finalize();
 
     pci_device& dev;
     bool initialized = false;
 
 private:
-    virtq<QUEUE_SIZE>* add_virtqueue(uint16_t num);
+    virt_queue* add_virtqueue(uint16_t num);
 
     volatile virtio_pci_common_cfg* common;
     virtio_pci_notify_cap* notify_cfg = nullptr;
-    virtq<QUEUE_SIZE>* virtqueue1;
+    virt_queue* virtqueue1;
 };
 
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
@@ -86,7 +96,7 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
-virtq<QUEUE_SIZE>* virtio_pci_device::add_virtqueue(uint16_t num) {
+virt_queue* virtio_pci_device::add_virtqueue(uint16_t num) {
     common->queue_select = num;
 
     if (common->queue_size < QUEUE_SIZE) {
@@ -97,32 +107,31 @@ virtq<QUEUE_SIZE>* virtio_pci_device::add_virtqueue(uint16_t num) {
 
     common->queue_size = QUEUE_SIZE;
 
-    auto pa = allocate_folio(bytes_to_folio_order(sizeof(virtq<QUEUE_SIZE>)));
+    auto pa = allocate_folio(bytes_to_folio_order(sizeof(virt_queue)));
     if (!pa) {
         print("allocate folio failed\n");
         return nullptr;
     }
 
-    auto& queue = *(virtq<QUEUE_SIZE>*)phys_address(pa);
+    auto& vq = *(virt_queue*)phys_address(pa);
 
-    memset(&queue, 0, sizeof(queue));
+    memset(&vq, 0, sizeof(vq));
 
     // FIXME - set up interrupts (queue_msix_vector)
 
     write_volatile64(&common->queue_desc, pa);
-    write_volatile64(&common->queue_driver, pa + ((uintptr_t)&queue.available - (uintptr_t)&queue));
-    write_volatile64(&common->queue_device, pa + ((uintptr_t)&queue.used - (uintptr_t)&queue));
+    write_volatile64(&common->queue_driver, pa + ((uintptr_t)&vq.queue.available - (uintptr_t)&vq.queue));
+    write_volatile64(&common->queue_device, pa + ((uintptr_t)&vq.queue.used - (uintptr_t)&vq.queue));
 
     common->queue_notify_off = num;
 
     common->queue_enable = 1;
 
-    return &queue;
+    return &vq;
 }
 
-static void write_virtqueue(virtq<QUEUE_SIZE>& queue,
-                            virtio_pci_notify_cap& notify_cfg, pci_device& dev,
-                            string_view msg) {
+void virt_queue::write(virtio_pci_notify_cap& notify_cfg, pci_device& dev,
+                       string_view msg) {
     uint16_t idx = 0; // FIXME
 
     auto buf = malloc(msg.size());
@@ -151,7 +160,8 @@ static void write_virtqueue(virtq<QUEUE_SIZE>& queue,
     print("addr = {:x}\n", (uintptr_t)addr);
 
     *addr = 1;
-    // FIXME - send notification
+
+    // FIXME - wait for completion and free buf
 }
 
 virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
@@ -254,10 +264,15 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
     initialized = true;
 }
 
+virtio_pci_device::~virtio_pci_device() {
+    virtqueue1->~virt_queue();
+    free_folio(phys_memory_pfn(virtqueue1) << PAGE_SHIFT);
+}
+
 void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 
-    write_virtqueue(*virtqueue1, *notify_cfg, dev, "hello world\n"); // FIXME
+    virtqueue1->write(*notify_cfg, dev, "hello world\n"); // FIXME
 }
 
 void found_virtio_pci(pci_device& dev) {
