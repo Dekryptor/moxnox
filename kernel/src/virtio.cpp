@@ -36,6 +36,14 @@ static void init_virtio_pci() {
 
 static module_init init(init_virtio_pci);
 
+class virtio_pci_device {
+public:
+    virtio_pci_device(pci_device& dev);
+
+    pci_device& dev;
+    bool initialized = false;
+};
+
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
     if (cap.cap_len < sizeof(virtio_pci_cap) + sizeof(pci_capability)) {
         print("check_cap: capability length was {}, expected at least {}\n",
@@ -141,8 +149,8 @@ static void write_virtqueue(virtq<QUEUE_SIZE>& queue,
     // FIXME - send notification
 }
 
-void found_virtio_pci(pci_device& dev) {
-    virtio_pci_cap* common_cfg = nullptr;
+virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
+        virtio_pci_cap* common_cfg = nullptr;
     virtio_pci_cap* device_cfg = nullptr;
     virtio_pci_notify_cap* notify_cfg = nullptr;
 
@@ -161,17 +169,17 @@ void found_virtio_pci(pci_device& dev) {
     }
 
     if (!common_cfg) {
-        print("found_virtio_pci: no COMMON_CFG capability found\n");
+        print("virtio_pci_device: no COMMON_CFG capability found\n");
         return;
     }
 
     if (!device_cfg) {
-        print("found_virtio_pci: no DEVICE_CFG capability found\n");
+        print("virtio_pci_device: no DEVICE_CFG capability found\n");
         return;
     }
 
     if (!notify_cfg) {
-        print("found_virtio_pci: no NOTIFY_CFG capability found\n");
+        print("virtio_pci_device: no NOTIFY_CFG capability found\n");
         return;
     }
 
@@ -179,7 +187,7 @@ void found_virtio_pci(pci_device& dev) {
         return;
 
     if (common_cfg->length < sizeof(virtio_pci_common_cfg)) {
-        print("found_virtio_pci: common cfg length was {}, expected at least {}\n",
+        print("virtio_pci_device: common cfg length was {}, expected at least {}\n",
               common_cfg->length, sizeof(virtio_pci_common_cfg));
         return;
     }
@@ -188,7 +196,7 @@ void found_virtio_pci(pci_device& dev) {
         return;
 
     if (device_cfg->length < sizeof(virtio_console_config)) {
-        print("found_virtio_pci: device cfg length was {}, expected at least {}\n",
+        print("virtio_pci_device: device cfg length was {}, expected at least {}\n",
               device_cfg->length, sizeof(virtio_console_config));
         return;
     }
@@ -197,14 +205,12 @@ void found_virtio_pci(pci_device& dev) {
         return;
 
     if (notify_cfg->cap_len < sizeof(virtio_pci_notify_cap) + sizeof(pci_capability)) {
-        print("found_virtio_pci: notify capability length was {}, expected at least {}\n",
+        print("virtio_pci_device: notify capability length was {}, expected at least {}\n",
               notify_cfg->cap_len, sizeof(virtio_pci_notify_cap) + sizeof(pci_capability));
         return;
     }
 
     auto& common = *(volatile virtio_pci_common_cfg*)(dev.bar[common_cfg->bar].data() + common_cfg->offset);
-
-    print("FIXME: found_virtio_pci\n"); // FIXME
 
     common.device_status = 0;
 
@@ -244,4 +250,14 @@ void found_virtio_pci(pci_device& dev) {
     common.device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 
     write_virtqueue(*virtqueue0, *notify_cfg, dev, "hello world\n");
+
+    initialized = true;
+}
+
+void found_virtio_pci(pci_device& dev) {
+    print("FIXME: found_virtio_pci\n"); // FIXME
+
+    virtio_pci_device v(dev);
+
+    // FIXME
 }
