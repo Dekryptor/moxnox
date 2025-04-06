@@ -39,6 +39,7 @@ static module_init init(init_virtio_pci);
 class virt_queue {
 public:
     virtq<QUEUE_SIZE> queue;
+    list_entry le;
     uint16_t num;
     volatile uint32_t* notification_addr;
 
@@ -50,16 +51,17 @@ public:
     virtio_pci_device(pci_device& dev);
     ~virtio_pci_device();
     void finalize();
+    bool write_virtqueue(uint16_t num, string_view msg);
 
     pci_device& dev;
     bool initialized = false;
 
 private:
-    virt_queue* add_virtqueue(uint16_t num);
+    bool add_virtqueue(uint16_t num);
 
     volatile virtio_pci_common_cfg* common;
     virtio_pci_notify_cap* notify_cfg = nullptr;
-    virt_queue* virtqueue1;
+    list_entry virtqueues = { &virtqueues, &virtqueues };
 };
 
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
@@ -96,13 +98,13 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
-virt_queue* virtio_pci_device::add_virtqueue(uint16_t num) {
+bool virtio_pci_device::add_virtqueue(uint16_t num) {
     common->queue_select = num;
 
     if (common->queue_size < QUEUE_SIZE) {
         print("init_virtqueues: size for queue {} was {}, wanted at least {}\n",
               common->queue_select, common->queue_size, QUEUE_SIZE);
-        return nullptr;
+        return false;
     }
 
     common->queue_size = QUEUE_SIZE;
@@ -110,7 +112,7 @@ virt_queue* virtio_pci_device::add_virtqueue(uint16_t num) {
     auto pa = allocate_folio(bytes_to_folio_order(sizeof(virt_queue)));
     if (!pa) {
         print("allocate folio failed\n");
-        return nullptr;
+        return false;
     }
 
     auto& vq = *(virt_queue*)phys_address(pa);
@@ -127,11 +129,14 @@ virt_queue* virtio_pci_device::add_virtqueue(uint16_t num) {
 
     common->queue_enable = 1;
 
+    vq.num = num;
     vq.notification_addr = (volatile uint32_t*)(dev.bar[notify_cfg->bar].data() +
                                                 notify_cfg->offset +
                                                 (num * notify_cfg->notify_off_multiplier));
 
-    return &vq;
+    insert_tail_list(virtqueues, vq.le);
+
+    return true;
 }
 
 void virt_queue::write(string_view msg) {
@@ -252,23 +257,41 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
         return;
     }
 
-    virtqueue1 = add_virtqueue(1);
-
-    if (!virtqueue1)
+    if (!add_virtqueue(1))
         return;
 
     initialized = true;
 }
 
 virtio_pci_device::~virtio_pci_device() {
-    virtqueue1->~virt_queue();
-    free_folio(phys_memory_pfn(virtqueue1) << PAGE_SHIFT);
+    while (!is_list_empty(virtqueues)) {
+        auto& vq = containing_record<virt_queue>(virtqueues.next);
+
+        remove_entry_list(vq.le);
+
+        vq.~virt_queue();
+        free_folio(phys_memory_pfn(&vq) << PAGE_SHIFT);
+    }
+}
+
+bool virtio_pci_device::write_virtqueue(uint16_t num, string_view msg) {
+    for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
+        auto& vq = containing_record<virt_queue>(virtqueues.next);
+
+        if (vq.num != num)
+            continue;
+
+        vq.write(msg);
+        return true;
+    }
+
+    return false;
 }
 
 void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 
-    virtqueue1->write("hello world\n"); // FIXME
+    write_virtqueue(1, "hello world\n"); // FIXME
 }
 
 void found_virtio_pci(pci_device& dev) {
