@@ -40,9 +40,9 @@ class virt_queue {
 public:
     virtq<QUEUE_SIZE> queue;
     uint16_t num;
+    volatile uint32_t* notification_addr;
 
-    void write(virtio_pci_notify_cap& notify_cfg, pci_device& dev,
-               string_view msg);
+    void write(string_view msg);
 };
 
 class virtio_pci_device {
@@ -127,11 +127,14 @@ virt_queue* virtio_pci_device::add_virtqueue(uint16_t num) {
 
     common->queue_enable = 1;
 
+    vq.notification_addr = (volatile uint32_t*)(dev.bar[notify_cfg->bar].data() +
+                                                notify_cfg->offset +
+                                                (num * notify_cfg->notify_off_multiplier));
+
     return &vq;
 }
 
-void virt_queue::write(virtio_pci_notify_cap& notify_cfg, pci_device& dev,
-                       string_view msg) {
+void virt_queue::write(string_view msg) {
     uint16_t idx = 0; // FIXME
 
     auto buf = malloc(msg.size());
@@ -152,14 +155,7 @@ void virt_queue::write(virtio_pci_notify_cap& notify_cfg, pci_device& dev,
     barrier();
     __asm __volatile("sfence" ::: "memory");
 
-    uint32_t queue_notify_off = 1; // FIXME
-
-    auto addr = (volatile uint32_t*)(dev.bar[notify_cfg.bar].data() +
-                                     notify_cfg.offset +
-                                     (queue_notify_off * notify_cfg.notify_off_multiplier));
-    print("addr = {:x}\n", (uintptr_t)addr);
-
-    *addr = 1;
+    *notification_addr = 1;
 
     // FIXME - wait for completion and free buf
 }
@@ -272,7 +268,7 @@ virtio_pci_device::~virtio_pci_device() {
 void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 
-    virtqueue1->write(*notify_cfg, dev, "hello world\n"); // FIXME
+    virtqueue1->write("hello world\n"); // FIXME
 }
 
 void found_virtio_pci(pci_device& dev) {
