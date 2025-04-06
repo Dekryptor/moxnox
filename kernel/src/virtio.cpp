@@ -35,6 +35,8 @@ static const uint64_t VIRTIO_F_SR_IOV = (uint64_t)1 << 37;
 static const uint64_t VIRTIO_F_NOTIFICATION_DATA = (uint64_t)1 << 38;
 static const uint64_t VIRTIO_F_RING_RESET = (uint64_t)1 << 40;
 
+static const uint64_t supported_features = VIRTIO_CONSOLE_F_EMERG_WRITE;
+
 export void found_virtio_pci(pci_device& dev);
 
 static const struct {
@@ -205,7 +207,7 @@ void found_virtio_pci(pci_device& dev) {
 
     print("device features = {:016x}\n", device_features);
 
-    uint64_t driver_features = 0; // FIXME - return what we're supporting
+    uint64_t driver_features = device_features & supported_features;
 
     common.driver_feature_select = 0;
     common.driver_feature = (uint32_t)driver_features;
@@ -226,7 +228,9 @@ void found_virtio_pci(pci_device& dev) {
 
     auto& console_cfg = *(volatile virtio_console_config*)(dev.bar[device_cfg->bar].data() + device_cfg->offset);
 
-    for (auto c : string_view("hello world\n")) {
-        console_cfg.emerg_wr = c;
+    if (driver_features & VIRTIO_CONSOLE_F_EMERG_WRITE) {
+        for (auto c : string_view("hello world\n")) {
+            console_cfg.emerg_wr = c;
+        }
     }
 }
