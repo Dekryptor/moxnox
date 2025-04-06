@@ -9,6 +9,7 @@ import print;
 import bsod;
 import pci;
 import mem;
+import config;
 
 using namespace std;
 
@@ -39,8 +40,7 @@ static const uint64_t VIRTIO_F_SR_IOV = (uint64_t)1 << 37;
 static const uint64_t VIRTIO_F_NOTIFICATION_DATA = (uint64_t)1 << 38;
 static const uint64_t VIRTIO_F_RING_RESET = (uint64_t)1 << 40;
 
-static const uint64_t supported_features = VIRTIO_CONSOLE_F_EMERG_WRITE |
-                                           VIRTIO_F_RING_RESET;
+static const uint64_t supported_features = VIRTIO_CONSOLE_F_EMERG_WRITE;
 
 export void found_virtio_pci(pci_device& dev);
 
@@ -78,6 +78,12 @@ struct virtio_pci_cap {
 } __attribute((packed));
 
 static_assert(sizeof(virtio_pci_cap) == 14);
+
+struct virtio_pci_notify_cap : virtio_pci_cap {
+    uint32_t notify_off_multiplier;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_pci_notify_cap) == 18);
 
 struct virtio_pci_common_cfg {
     uint32_t device_feature_select;
@@ -155,13 +161,19 @@ struct virtq_used {
 
 template<unsigned N>
 struct virtq {
-    virtq_desc buffers;
+    virtq_desc buffers[N];
     virtq_avail<N> available;
-    uint8_t padding[4096 - sizeof(virtq_desc) - sizeof(virtq_avail<N>)];
+    uint8_t padding[4096 - (N * sizeof(virtq_desc)) - sizeof(virtq_avail<N>)];
     virtq_used<N> used;
 } __attribute((packed));
 
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
+    if (cap.cap_len < sizeof(virtio_pci_cap) + sizeof(pci_capability)) {
+        print("check_cap: capability length was {}, expected at least {}\n",
+              cap.cap_len, sizeof(virtio_pci_cap) + sizeof(pci_capability));
+        return false;
+    }
+
     if (cap.bar >= dev.bar.size()) {
         print("check_cap: cfg BAR was {}, expected 0 to {}\n",
               cap.bar, dev.bar.size());
@@ -174,7 +186,7 @@ static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
         return false;
     }
 
-    if (cap.offset + cap.length >= dev.bar[cap.bar].size()) {
+    if (cap.offset + cap.length > dev.bar[cap.bar].size()) {
         print("check_cap: cfg ended at {:x}, beyond end of BAR {} ({:x})\n",
               cap.offset + cap.length - 1, cap.bar,
               dev.bar[cap.bar].size() - 1);
@@ -184,8 +196,14 @@ static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
     return true;
 }
 
-static bool init_virtqueues(volatile virtio_pci_common_cfg& common) {
-    common.queue_select = 0;
+static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
+    *(volatile uint32_t*)addr = val & 0xffffffff;
+    *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
+}
+
+static bool init_virtqueues(volatile virtio_pci_common_cfg& common,
+                            virtq<QUEUE_SIZE>*& addr) {
+    common.queue_select = 1;
 
     if (common.queue_size < QUEUE_SIZE) {
         print("init_virtqueues: size for queue {} was {}, wanted at least {}\n",
@@ -203,35 +221,74 @@ static bool init_virtqueues(volatile virtio_pci_common_cfg& common) {
 
     auto& queue = *(virtq<QUEUE_SIZE>*)phys_address(pa);
 
+    addr = &queue;
+
     memset(&queue, 0, sizeof(queue));
 
     // FIXME - set up interrupts (queue_msix_vector)
 
-    common.queue_desc = pa;
-    common.queue_driver = pa + ((uintptr_t)&queue.available - (uintptr_t)&queue);
-    common.queue_device = pa + ((uintptr_t)&queue.used - (uintptr_t)&queue);
+    write_volatile64(&common.queue_desc, pa);
+    write_volatile64(&common.queue_driver, pa + ((uintptr_t)&queue.available - (uintptr_t)&queue));
+    write_volatile64(&common.queue_device, pa + ((uintptr_t)&queue.used - (uintptr_t)&queue));
+
+    common.queue_notify_off = 0;
 
     common.queue_enable = 1;
 
     return true;
 }
 
+static void write_virtqueue(virtq<QUEUE_SIZE>& queue,
+                            virtio_pci_notify_cap& notify_cfg, pci_device& dev,
+                            string_view msg) {
+    uint16_t idx = 0; // FIXME
+
+    auto buf = malloc(msg.size());
+    if (!buf) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memcpy(buf, msg.data(), msg.size());
+
+    queue.buffers[idx].addr = (phys_memory_pfn(buf) << PAGE_SHIFT) + ((uintptr_t)buf & (PAGE_SIZE - 1));
+    queue.buffers[idx].len = (uint32_t)msg.size();
+    queue.buffers[idx].flags = 0;
+
+    queue.available.ring[queue.available.idx % QUEUE_SIZE] = idx;
+    queue.available.idx++;
+
+    barrier();
+    __asm __volatile("sfence" ::: "memory");
+
+    uint32_t queue_notify_off = 0; // FIXME
+
+    auto addr = (volatile uint32_t*)(dev.bar[notify_cfg.bar].data() +
+                                     notify_cfg.offset +
+                                     (queue_notify_off * notify_cfg.notify_off_multiplier));
+    print("addr = {:x}\n", (uintptr_t)addr);
+
+    *addr = 1;
+    // FIXME - send notification
+}
+
 void found_virtio_pci(pci_device& dev) {
     virtio_pci_cap* common_cfg = nullptr;
     virtio_pci_cap* device_cfg = nullptr;
+    virtio_pci_notify_cap* notify_cfg = nullptr;
 
     for (auto le = dev.vendor_specific_caps.next; le != &dev.vendor_specific_caps; le = le->next) {
         auto& vs = containing_record<vendor_specific_cap>(le);
         auto& cap = *(virtio_pci_cap*)vs.ptr;
 
-        // FIXME - check cap.cap_len
-
-        // FIXME - NOTIFY_CFG, ISR_CFG
+        // FIXME - ISR_CFG
 
         if (cap.cfg_type == VIRTIO_PCI_CAP::COMMON_CFG && !common_cfg)
             common_cfg = &cap;
         else if (cap.cfg_type == VIRTIO_PCI_CAP::DEVICE_CFG && !device_cfg)
             device_cfg = &cap;
+        else if (cap.cfg_type == VIRTIO_PCI_CAP::NOTIFY_CFG && !notify_cfg)
+            notify_cfg = reinterpret_cast<virtio_pci_notify_cap*>(&cap);
     }
 
     if (!common_cfg) {
@@ -241,6 +298,11 @@ void found_virtio_pci(pci_device& dev) {
 
     if (!device_cfg) {
         print("found_virtio_pci: no DEVICE_CFG capability found\n");
+        return;
+    }
+
+    if (!notify_cfg) {
+        print("found_virtio_pci: no NOTIFY_CFG capability found\n");
         return;
     }
 
@@ -259,6 +321,15 @@ void found_virtio_pci(pci_device& dev) {
     if (device_cfg->length < sizeof(virtio_console_config)) {
         print("found_virtio_pci: device cfg length was {}, expected at least {}\n",
               device_cfg->length, sizeof(virtio_console_config));
+        return;
+    }
+
+    if (!check_cap(dev, *notify_cfg))
+        return;
+
+    if (notify_cfg->cap_len < sizeof(virtio_pci_notify_cap) + sizeof(pci_capability)) {
+        print("found_virtio_pci: notify capability length was {}, expected at least {}\n",
+              notify_cfg->cap_len, sizeof(virtio_pci_notify_cap) + sizeof(pci_capability));
         return;
     }
 
@@ -281,11 +352,6 @@ void found_virtio_pci(pci_device& dev) {
 
     print("device features = {:016x}\n", device_features);
 
-    if (!(device_features & VIRTIO_F_RING_RESET)) {
-        print("found_virtio_pci: device does not support VIRTIO_F_RING_RESET\n");
-        return;
-    }
-
     uint64_t driver_features = device_features & supported_features;
 
     common.driver_feature_select = 0;
@@ -301,16 +367,12 @@ void found_virtio_pci(pci_device& dev) {
         return;
     }
 
-    if (!init_virtqueues(common))
+    virtq<QUEUE_SIZE>* virtqueue0;
+
+    if (!init_virtqueues(common, virtqueue0))
         return;
 
     common.device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 
-    auto& console_cfg = *(volatile virtio_console_config*)(dev.bar[device_cfg->bar].data() + device_cfg->offset);
-
-    if (driver_features & VIRTIO_CONSOLE_F_EMERG_WRITE) {
-        for (auto c : string_view("hello world\n")) {
-            console_cfg.emerg_wr = c;
-        }
-    }
+    write_virtqueue(*virtqueue0, *notify_cfg, dev, "hello world\n");
 }
