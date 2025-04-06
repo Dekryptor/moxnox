@@ -368,23 +368,6 @@ diskpart::~diskpart() {
     parent.release();
 }
 
-#if 0
-size_t diskpart::read_uncached(span<uint8_t> s, uint64_t offset) {
-    if (offset >= length)
-        return 0;
-
-    if (offset + s.size() > length)
-        s = s.subspan(length - offset);
-
-    if (s.empty())
-        return 0;
-
-    offset += disk_offset;
-
-    return parent.read_uncached(s, offset);
-}
-#endif
-
 uint64_t diskpart::dio_read(uint64_t page_num, uint64_t num_pages,
                             pfn_iterator& it) {
     // FIXME - reduce num_pages if would overflow partition
