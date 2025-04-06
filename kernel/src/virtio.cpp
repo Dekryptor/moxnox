@@ -39,6 +39,99 @@ static void init_virtio_pci() {
 
 static module_init init(init_virtio_pci);
 
+enum class VIRTIO_PCI_CAP : uint8_t {
+    COMMON_CFG = 1,
+    NOTIFY_CFG = 2,
+    ISR_CFG = 3,
+    DEVICE_CFG = 4,
+    PCI_CFG = 5,
+    SHARED_MEMORY_CFG = 8,
+    VENDOR_CFG = 9
+};
+
+struct virtio_pci_cap {
+    uint8_t cap_len;
+    enum VIRTIO_PCI_CAP cfg_type;
+    uint8_t bar;
+    uint8_t id;
+    uint8_t padding[2];
+    uint32_t offset;
+    uint32_t length;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_pci_cap) == 14);
+
+struct virtio_pci_common_cfg {
+    uint32_t device_feature_select;
+    uint32_t device_feature;
+    uint32_t driver_feature_select;
+    uint32_t driver_feature;
+    uint16_t config_msix_vector;
+    uint16_t num_queues;
+    uint8_t device_status;
+    uint8_t config_generation;
+    uint16_t queue_select;
+    uint16_t queue_size;
+    uint16_t queue_msix_vector;
+    uint16_t queue_enable;
+    uint16_t queue_notify_off;
+    uint64_t queue_desc;
+    uint64_t queue_driver;
+    uint64_t queue_device;
+    uint16_t queue_notif_config_data;
+    uint16_t queue_reset;
+    uint16_t admin_queue_index;
+    uint16_t admin_queue_num;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_pci_common_cfg) == 64);
+
 void found_virtio_pci(pci_device& dev) {
-    print("FIXME: found_virtio_pci\n");
+    virtio_pci_cap* common_cfg = nullptr;
+
+    for (auto le = dev.vendor_specific_caps.next; le != &dev.vendor_specific_caps; le = le->next) {
+        auto& vs = containing_record<vendor_specific_cap>(le);
+        auto& cap = *(virtio_pci_cap*)vs.ptr;
+
+        // FIXME - check cap.cap_len
+
+        // FIXME - NOTIFY_CFG, DEVICE_CFG, ISR_CFG
+
+        if (cap.cfg_type == VIRTIO_PCI_CAP::COMMON_CFG && !common_cfg)
+            common_cfg = &cap;
+    }
+
+    if (!common_cfg) {
+        print("found_virtio_pci: no COMMON_CFG capability found\n");
+        return;
+    }
+
+    if (common_cfg->length < sizeof(virtio_pci_common_cfg)) {
+        print("found_virtio_pci: common cfg length was {}, expected at least {}\n",
+              common_cfg->length, sizeof(virtio_pci_common_cfg));
+        return;
+    }
+
+    if (common_cfg->bar >= dev.bar.size()) {
+        print("found_virtio_pci: common cfg BAR was {}, expected 0 to {}\n",
+              common_cfg->bar, dev.bar.size());
+        return;
+    }
+
+    if (common_cfg->offset >= dev.bar[common_cfg->bar].size()) {
+        print("found_virtio_pci: common cfg started at {:x}, beyond end of BAR {} ({:x})\n",
+              common_cfg->offset, common_cfg->bar, dev.bar[common_cfg->bar].size() - 1);
+        return;
+    }
+
+    if (common_cfg->offset + common_cfg->length >= dev.bar[common_cfg->bar].size()) {
+        print("found_virtio_pci: common cfg ended at {:x}, beyond end of BAR {} ({:x})\n",
+              common_cfg->offset + common_cfg->length - 1, common_cfg->bar,
+              dev.bar[common_cfg->bar].size() - 1);
+        return;
+    }
+
+    auto& common = *(volatile virtio_pci_common_cfg*)(dev.bar[common_cfg->bar].data() + common_cfg->offset);
+
+    print("FIXME: found_virtio_pci\n"); // FIXME
 }
