@@ -39,9 +39,15 @@ static module_init init(init_virtio_pci);
 class virtio_pci_device {
 public:
     virtio_pci_device(pci_device& dev);
+    void finalize();
 
     pci_device& dev;
     bool initialized = false;
+
+private:
+    volatile virtio_pci_common_cfg* common;
+    virtio_pci_notify_cap* notify_cfg = nullptr;
+    virtq<QUEUE_SIZE>* virtqueue1;
 };
 
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
@@ -152,7 +158,6 @@ static void write_virtqueue(virtq<QUEUE_SIZE>& queue,
 virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
         virtio_pci_cap* common_cfg = nullptr;
     virtio_pci_cap* device_cfg = nullptr;
-    virtio_pci_notify_cap* notify_cfg = nullptr;
 
     for (auto le = dev.vendor_specific_caps.next; le != &dev.vendor_specific_caps; le = le->next) {
         auto& vs = containing_record<vendor_specific_cap>(le);
@@ -210,48 +215,48 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
         return;
     }
 
-    auto& common = *(volatile virtio_pci_common_cfg*)(dev.bar[common_cfg->bar].data() + common_cfg->offset);
+    common = (volatile virtio_pci_common_cfg*)(dev.bar[common_cfg->bar].data() + common_cfg->offset);
 
-    common.device_status = 0;
+    common->device_status = 0;
 
-    common.device_status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
-    common.device_status |= VIRTIO_DEVICE_STATUS_DRIVER;
+    common->device_status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
+    common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER;
 
     uint64_t device_features = 0;
 
-    common.device_feature_select = 0;
-    device_features = common.device_feature;
+    common->device_feature_select = 0;
+    device_features = common->device_feature;
 
-    common.device_feature_select = 1;
-    device_features |= ((uint64_t)common.device_feature) << 32;
+    common->device_feature_select = 1;
+    device_features |= ((uint64_t)common->device_feature) << 32;
 
     print("device features = {:016x}\n", device_features);
 
     uint64_t driver_features = device_features & supported_features;
 
-    common.driver_feature_select = 0;
-    common.driver_feature = (uint32_t)driver_features;
+    common->driver_feature_select = 0;
+    common->driver_feature = (uint32_t)driver_features;
 
-    common.driver_feature_select = 1;
-    common.driver_feature = (uint32_t)(driver_features >> 32);
+    common->driver_feature_select = 1;
+    common->driver_feature = (uint32_t)(driver_features >> 32);
 
-    common.device_status |= VIRTIO_DEVICE_STATUS_FEATURES_OK;
+    common->device_status |= VIRTIO_DEVICE_STATUS_FEATURES_OK;
 
-    if (!(common.device_status & VIRTIO_DEVICE_STATUS_FEATURES_OK)) {
+    if (!(common->device_status & VIRTIO_DEVICE_STATUS_FEATURES_OK)) {
         print("found_virtio_pci: device rejected FEATURES_OK status bit\n");
         return;
     }
 
-    virtq<QUEUE_SIZE>* virtqueue0;
-
-    if (!init_virtqueues(common, virtqueue0))
+    if (!init_virtqueues(*common, virtqueue1))
         return;
 
-    common.device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
-
-    write_virtqueue(*virtqueue0, *notify_cfg, dev, "hello world\n");
-
     initialized = true;
+}
+
+void virtio_pci_device::finalize() {
+    common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
+
+    write_virtqueue(*virtqueue1, *notify_cfg, dev, "hello world\n"); // FIXME
 }
 
 void found_virtio_pci(pci_device& dev) {
@@ -259,5 +264,8 @@ void found_virtio_pci(pci_device& dev) {
 
     virtio_pci_device v(dev);
 
-    // FIXME
+    if (!v.initialized)
+        return;
+
+    v.finalize();
 }
