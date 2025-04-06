@@ -41,6 +41,7 @@ public:
     ~virt_queue();
 
     virtq<QUEUE_SIZE>* queue;
+    uint64_t queue_pa;
     list_entry le;
     uint16_t num;
     volatile uint32_t* notification_addr;
@@ -111,20 +112,50 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
 
     common->queue_size = QUEUE_SIZE;
 
+    static const size_t NUM_PAGES = bytes_to_pages(sizeof(virtq<QUEUE_SIZE>));
+
     auto pa = allocate_folio(bytes_to_folio_order(sizeof(virtq<QUEUE_SIZE>)));
     if (!pa) {
         print("allocate folio failed\n");
         return false;
     }
 
-    auto vq = new virt_queue;
-    if (!vq) {
-        print("new failed\n");
+    auto va = allocate_va(NUM_PAGES);
+    if (!va) {
+        print("allocate_va failed\n");
         free_folio(pa);
         return false;
     }
 
-    auto& queue = *(virtq<QUEUE_SIZE>*)phys_address(pa);
+    for (unsigned int i = 0; i < NUM_PAGES; i++) {
+        if (!map_page(pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::no_cache)) {
+            print("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, NUM_PAGES);
+            free_folio(pa);
+
+            return false;
+        }
+    }
+
+    auto vq = new virt_queue;
+    if (!vq) {
+        print("new failed\n");
+
+        for (unsigned int i = 0; i < NUM_PAGES; i++) {
+            unmap_page(va + (i << PAGE_SHIFT));
+        }
+
+        free_va(va, NUM_PAGES);
+        free_folio(pa);
+        return false;
+    }
+
+    auto& queue = *(virtq<QUEUE_SIZE>*)va;
 
     memset(&queue, 0, sizeof(queue));
 
@@ -140,6 +171,7 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
 
     vq->num = num;
     vq->queue = &queue;
+    vq->queue_pa = pa;
     vq->notification_addr = (volatile uint32_t*)(dev.bar[notify_cfg->bar].data() +
                                                  notify_cfg->offset +
                                                  (num * notify_cfg->notify_off_multiplier));
@@ -272,8 +304,19 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
 }
 
 virt_queue::~virt_queue() {
+    static const size_t NUM_PAGES = bytes_to_pages(sizeof(virtq<QUEUE_SIZE>));
+
     queue->~virtq<QUEUE_SIZE>();
-    free_folio(phys_memory_pfn(queue) << PAGE_SHIFT);
+
+    auto va = (uintptr_t)queue;
+
+    for (unsigned int i = 0; i < NUM_PAGES; i++) {
+        unmap_page(va + (i << PAGE_SHIFT));
+    }
+
+    free_va(va, NUM_PAGES);
+
+    free_folio(queue_pa);
 }
 
 virtio_pci_device::~virtio_pci_device() {
