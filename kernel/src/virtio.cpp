@@ -9,6 +9,8 @@ import print;
 import bsod;
 import pci;
 
+using namespace std;
+
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 static const uint8_t VIRTIO_DEVICE_STATUS_ACKNOWLEDGE = 0x01;
@@ -108,8 +110,41 @@ struct virtio_pci_common_cfg {
 
 static_assert(sizeof(virtio_pci_common_cfg) == 64);
 
+struct virtio_console_config {
+    uint16_t cols;
+    uint16_t rows;
+    uint32_t max_nr_ports;
+    uint32_t emerg_wr;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_console_config) == 12);
+
+static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
+    if (cap.bar >= dev.bar.size()) {
+        print("check_cap: cfg BAR was {}, expected 0 to {}\n",
+              cap.bar, dev.bar.size());
+        return false;
+    }
+
+    if (cap.offset >= dev.bar[cap.bar].size()) {
+        print("check_cap: cfg started at {:x}, beyond end of BAR {} ({:x})\n",
+              cap.offset, cap.bar, dev.bar[cap.bar].size() - 1);
+        return false;
+    }
+
+    if (cap.offset + cap.length >= dev.bar[cap.bar].size()) {
+        print("check_cap: cfg ended at {:x}, beyond end of BAR {} ({:x})\n",
+              cap.offset + cap.length - 1, cap.bar,
+              dev.bar[cap.bar].size() - 1);
+        return false;
+    }
+
+    return true;
+}
+
 void found_virtio_pci(pci_device& dev) {
     virtio_pci_cap* common_cfg = nullptr;
+    virtio_pci_cap* device_cfg = nullptr;
 
     for (auto le = dev.vendor_specific_caps.next; le != &dev.vendor_specific_caps; le = le->next) {
         auto& vs = containing_record<vendor_specific_cap>(le);
@@ -117,10 +152,12 @@ void found_virtio_pci(pci_device& dev) {
 
         // FIXME - check cap.cap_len
 
-        // FIXME - NOTIFY_CFG, DEVICE_CFG, ISR_CFG
+        // FIXME - NOTIFY_CFG, ISR_CFG
 
         if (cap.cfg_type == VIRTIO_PCI_CAP::COMMON_CFG && !common_cfg)
             common_cfg = &cap;
+        else if (cap.cfg_type == VIRTIO_PCI_CAP::DEVICE_CFG && !device_cfg)
+            device_cfg = &cap;
     }
 
     if (!common_cfg) {
@@ -128,28 +165,26 @@ void found_virtio_pci(pci_device& dev) {
         return;
     }
 
+    if (!device_cfg) {
+        print("found_virtio_pci: no DEVICE_CFG capability found\n");
+        return;
+    }
+
+    if (!check_cap(dev, *common_cfg))
+        return;
+
     if (common_cfg->length < sizeof(virtio_pci_common_cfg)) {
         print("found_virtio_pci: common cfg length was {}, expected at least {}\n",
               common_cfg->length, sizeof(virtio_pci_common_cfg));
         return;
     }
 
-    if (common_cfg->bar >= dev.bar.size()) {
-        print("found_virtio_pci: common cfg BAR was {}, expected 0 to {}\n",
-              common_cfg->bar, dev.bar.size());
+    if (!check_cap(dev, *device_cfg))
         return;
-    }
 
-    if (common_cfg->offset >= dev.bar[common_cfg->bar].size()) {
-        print("found_virtio_pci: common cfg started at {:x}, beyond end of BAR {} ({:x})\n",
-              common_cfg->offset, common_cfg->bar, dev.bar[common_cfg->bar].size() - 1);
-        return;
-    }
-
-    if (common_cfg->offset + common_cfg->length >= dev.bar[common_cfg->bar].size()) {
-        print("found_virtio_pci: common cfg ended at {:x}, beyond end of BAR {} ({:x})\n",
-              common_cfg->offset + common_cfg->length - 1, common_cfg->bar,
-              dev.bar[common_cfg->bar].size() - 1);
+    if (device_cfg->length < sizeof(virtio_console_config)) {
+        print("found_virtio_pci: device cfg length was {}, expected at least {}\n",
+              device_cfg->length, sizeof(virtio_console_config));
         return;
     }
 
@@ -188,4 +223,10 @@ void found_virtio_pci(pci_device& dev) {
     // FIXME - set up virtqueues etc.
 
     common.device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
+
+    auto& console_cfg = *(volatile virtio_console_config*)(dev.bar[device_cfg->bar].data() + device_cfg->offset);
+
+    for (auto c : string_view("hello world\n")) {
+        console_cfg.emerg_wr = c;
+    }
 }
