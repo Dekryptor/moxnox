@@ -184,4 +184,8 @@ void found_virtio_pci(pci_device& dev) {
         print("found_virtio_pci: device rejected FEATURES_OK status bit\n");
         return;
     }
+
+    // FIXME - set up virtqueues etc.
+
+    common.device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
