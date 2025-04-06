@@ -35,7 +35,8 @@ static const uint64_t VIRTIO_F_SR_IOV = (uint64_t)1 << 37;
 static const uint64_t VIRTIO_F_NOTIFICATION_DATA = (uint64_t)1 << 38;
 static const uint64_t VIRTIO_F_RING_RESET = (uint64_t)1 << 40;
 
-static const uint64_t supported_features = VIRTIO_CONSOLE_F_EMERG_WRITE;
+static const uint64_t supported_features = VIRTIO_CONSOLE_F_EMERG_WRITE |
+                                           VIRTIO_F_RING_RESET;
 
 export void found_virtio_pci(pci_device& dev);
 
@@ -206,6 +207,11 @@ void found_virtio_pci(pci_device& dev) {
     device_features |= ((uint64_t)common.device_feature) << 32;
 
     print("device features = {:016x}\n", device_features);
+
+    if (!(device_features & VIRTIO_F_RING_RESET)) {
+        print("found_virtio_pci: device does not support VIRTIO_F_RING_RESET\n");
+        return;
+    }
 
     uint64_t driver_features = device_features & supported_features;
 
