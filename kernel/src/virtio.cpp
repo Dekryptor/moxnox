@@ -11,6 +11,7 @@ import bsod;
 import pci;
 import mem;
 import config;
+import interrupts;
 
 using namespace std;
 
@@ -101,11 +102,17 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
+static void virtio_isr_func(void*) {
+    // FIXME
+    // volatile int wait = 1;
+    // while (wait) { }
+}
+
 bool virtio_pci_device::add_virtqueue(uint16_t num) {
     common->queue_select = num;
 
     if (common->queue_size < QUEUE_SIZE) {
-        print("init_virtqueues: size for queue {} was {}, wanted at least {}\n",
+        print("virtio_pci_device::add_virtqueue: size for queue {} was {}, wanted at least {}\n",
               common->queue_select, common->queue_size, QUEUE_SIZE);
         return false;
     }
@@ -159,19 +166,41 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
 
     memset(&queue, 0, sizeof(queue));
 
-    // FIXME - set up interrupts (queue_msix_vector)
+    vq->num = num;
+    vq->queue = &queue;
+    vq->queue_pa = pa;
+
+    auto int_num = add_isr(virtio_isr_func, vq);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        delete vq;
+        return false;
+    }
 
     write_volatile64(&common->queue_desc, pa);
     write_volatile64(&common->queue_driver, pa + ((uintptr_t)&queue.available - (uintptr_t)&queue));
     write_volatile64(&common->queue_device, pa + ((uintptr_t)&queue.used - (uintptr_t)&queue));
 
+    uint16_t msix_vector = 0; // FIXME
+
     common->queue_notify_off = num;
+    common->queue_msix_vector = msix_vector;
+
+    if (common->queue_msix_vector != msix_vector) {
+        print("virtio_pci_device::add_virtqueue: setting MSI-X vector failed\n");
+        delete vq;
+        return false;
+    }
+
+    auto vec = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+
+    vec[msix_vector].message_data = int_num;
+    vec[msix_vector].message_address_high = 0;
+    vec[msix_vector].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+    vec[msix_vector].vector_control &= ~(uint32_t)1; // unmask
 
     common->queue_enable = 1;
 
-    vq->num = num;
-    vq->queue = &queue;
-    vq->queue_pa = pa;
     vq->notification_addr = (volatile uint32_t*)(dev.bar[notify_cfg->bar].data() +
                                                  notify_cfg->offset +
                                                  (num * notify_cfg->notify_off_multiplier));
@@ -208,14 +237,17 @@ void virt_queue::write(string_view msg) {
 }
 
 virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
-        virtio_pci_cap* common_cfg = nullptr;
+    virtio_pci_cap* common_cfg = nullptr;
     virtio_pci_cap* device_cfg = nullptr;
+
+    if (!dev.msix) {
+        print("MSI-X not supported for virtio device\n");
+        return;
+    }
 
     for (auto le = dev.vendor_specific_caps.next; le != &dev.vendor_specific_caps; le = le->next) {
         auto& vs = containing_record<vendor_specific_cap>(le);
         auto& cap = *(virtio_pci_cap*)vs.ptr;
-
-        // FIXME - ISR_CFG
 
         if (cap.cfg_type == VIRTIO_PCI_CAP::COMMON_CFG && !common_cfg)
             common_cfg = &cap;
@@ -267,6 +299,9 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
         return;
     }
 
+    // Qemu's MSI-X won't work unless bus master is set and old-fashioned IRQs disabled
+    dev.header->command |= PCI_COMMAND_INTX_DISABLE | PCI_COMMAND_MASTER;
+
     common = (volatile virtio_pci_common_cfg*)(dev.bar[common_cfg->bar].data() + common_cfg->offset);
 
     common->device_status = 0;
@@ -296,6 +331,9 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
         print("found_virtio_pci: device rejected FEATURES_OK status bit\n");
         return;
     }
+
+    // enable MSI-X
+    dev.msix->message_control |= 0x8000;
 
     if (!add_virtqueue(1))
         return;

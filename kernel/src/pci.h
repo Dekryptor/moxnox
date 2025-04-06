@@ -21,6 +21,9 @@ enum class pci_class : uint8_t {
     signal_processing = 17
 };
 
+static const uint16_t PCI_COMMAND_MASTER = 0x0004;
+static const uint16_t PCI_COMMAND_INTX_DISABLE = 0x0400;
+
 struct pci_header {
     uint16_t vendor_id;
     uint16_t device_id;
