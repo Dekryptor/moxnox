@@ -240,8 +240,6 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
     common->device_feature_select = 1;
     device_features |= ((uint64_t)common->device_feature) << 32;
 
-    print("device features = {:016x}\n", device_features);
-
     uint64_t driver_features = device_features & supported_features;
 
     common->driver_feature_select = 0;
@@ -290,17 +288,15 @@ bool virtio_pci_device::write_virtqueue(uint16_t num, string_view msg) {
 
 void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
-
-    write_virtqueue(1, "hello world\n"); // FIXME
 }
 
 void found_virtio_pci(pci_device& dev) {
-    print("FIXME: found_virtio_pci\n"); // FIXME
-
     virtio_pci_device v(dev);
 
     if (!v.initialized)
         return;
 
     v.finalize();
+
+    v.write_virtqueue(1, "hello world\n"); // FIXME
 }
