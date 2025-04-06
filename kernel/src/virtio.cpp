@@ -8,10 +8,14 @@ export module virtio;
 import print;
 import bsod;
 import pci;
+import mem;
 
 using namespace std;
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
+
+// FIXME - allow dynamic queue size (maximum supported by device?)
+static const size_t QUEUE_SIZE = 32;
 
 static const uint8_t VIRTIO_DEVICE_STATUS_ACKNOWLEDGE = 0x01;
 static const uint8_t VIRTIO_DEVICE_STATUS_DRIVER = 0x02;
@@ -109,6 +113,54 @@ struct virtio_console_config {
 
 static_assert(sizeof(virtio_console_config) == 12);
 
+static const uint8_t VIRTQ_DESC_F_NEXT = 1;
+static const uint8_t VIRTQ_DESC_F_WRITE = 2;
+static const uint8_t VIRTQ_DESC_F_INDIRECT = 4;
+
+struct virtq_desc {
+    uint64_t addr;
+    uint32_t len;
+    uint16_t flags;
+    uint16_t next;
+} __attribute((packed));
+
+static_assert(sizeof(virtq_desc) == 16);
+
+static const uint16_t VIRTQ_AVAIL_F_NO_INTERRUPT = 1;
+
+template<unsigned N>
+struct virtq_avail {
+    uint16_t flags;
+    uint16_t idx;
+    uint16_t ring[N];
+    uint16_t used_event;
+} __attribute((packed));
+
+struct virtq_used_elem {
+    uint32_t id;
+    uint32_t len;
+} __attribute((packed));
+
+static_assert(sizeof(virtq_used_elem) == 8);
+
+static const uint16_t VIRTQ_USED_F_NO_NOTIFY = 1;
+
+template<unsigned N>
+struct virtq_used {
+    uint16_t flags;
+    uint16_t idx;
+    virtq_used_elem ring[N];
+    uint16_t avail_event;
+} __attribute((packed));
+
+template<unsigned N>
+struct virtq {
+    virtq_desc buffers;
+    virtq_avail<N> available;
+    uint8_t padding[4096 - sizeof(virtq_desc) - sizeof(virtq_avail<N>)];
+    virtq_used<N> used;
+} __attribute((packed));
+
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
     if (cap.bar >= dev.bar.size()) {
         print("check_cap: cfg BAR was {}, expected 0 to {}\n",
@@ -128,6 +180,38 @@ static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
               dev.bar[cap.bar].size() - 1);
         return false;
     }
+
+    return true;
+}
+
+static bool init_virtqueues(volatile virtio_pci_common_cfg& common) {
+    common.queue_select = 0;
+
+    if (common.queue_size < QUEUE_SIZE) {
+        print("init_virtqueues: size for queue {} was {}, wanted at least {}\n",
+              common.queue_select, common.queue_size, QUEUE_SIZE);
+        return false;
+    }
+
+    common.queue_size = QUEUE_SIZE;
+
+    auto pa = allocate_folio(bytes_to_folio_order(sizeof(virtq<QUEUE_SIZE>)));
+    if (!pa) {
+        print("allocate folio failed\n");
+        return false;
+    }
+
+    auto& queue = *(virtq<QUEUE_SIZE>*)phys_address(pa);
+
+    memset(&queue, 0, sizeof(queue));
+
+    // FIXME - set up interrupts (queue_msix_vector)
+
+    common.queue_desc = pa;
+    common.queue_driver = pa + ((uintptr_t)&queue.available - (uintptr_t)&queue);
+    common.queue_device = pa + ((uintptr_t)&queue.used - (uintptr_t)&queue);
+
+    common.queue_enable = 1;
 
     return true;
 }
@@ -182,6 +266,8 @@ void found_virtio_pci(pci_device& dev) {
 
     print("FIXME: found_virtio_pci\n"); // FIXME
 
+    common.device_status = 0;
+
     common.device_status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
     common.device_status |= VIRTIO_DEVICE_STATUS_DRIVER;
 
@@ -215,7 +301,8 @@ void found_virtio_pci(pci_device& dev) {
         return;
     }
 
-    // FIXME - set up virtqueues etc.
+    if (!init_virtqueues(common))
+        return;
 
     common.device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 
