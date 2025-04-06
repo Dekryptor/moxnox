@@ -11,6 +11,28 @@ import pci;
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
+static const uint8_t VIRTIO_DEVICE_STATUS_ACKNOWLEDGE = 0x01;
+static const uint8_t VIRTIO_DEVICE_STATUS_DRIVER = 0x02;
+static const uint8_t VIRTIO_DEVICE_STATUS_DRIVER_OK = 0x04;
+static const uint8_t VIRTIO_DEVICE_STATUS_FEATURES_OK = 0x08;
+static const uint8_t VIRTIO_DEVICE_STATUS_DEVICE_NEEDS_RESET = 0x40;
+static const uint8_t VIRTIO_DEVICE_STATUS_FAILED = 0x80;
+
+static const uint64_t VIRTIO_CONSOLE_F_SIZE = 1 << 0;
+static const uint64_t VIRTIO_CONSOLE_F_MULTIPORT = 1 << 1;
+static const uint64_t VIRTIO_CONSOLE_F_EMERG_WRITE = 1 << 2;
+
+static const uint64_t VIRTIO_RING_F_INDIRECT_DESC = 1 << 28;
+static const uint64_t VIRTIO_RING_F_EVENT_IDX = 1 << 29;
+static const uint64_t VIRTIO_F_VERSION_1 = (uint64_t)1 << 32;
+static const uint64_t VIRTIO_F_ACCESS_PLATFORM = (uint64_t)1 << 33;
+static const uint64_t VIRTIO_F_RING_PACKED = (uint64_t)1 << 34;
+static const uint64_t VIRTIO_F_IN_ORDER = (uint64_t)1 << 35;
+static const uint64_t VIRTIO_F_ORDER_PLATFORM = (uint64_t)1 << 36;
+static const uint64_t VIRTIO_F_SR_IOV = (uint64_t)1 << 37;
+static const uint64_t VIRTIO_F_NOTIFICATION_DATA = (uint64_t)1 << 38;
+static const uint64_t VIRTIO_F_RING_RESET = (uint64_t)1 << 40;
+
 export void found_virtio_pci(pci_device& dev);
 
 static const struct {
@@ -134,4 +156,32 @@ void found_virtio_pci(pci_device& dev) {
     auto& common = *(volatile virtio_pci_common_cfg*)(dev.bar[common_cfg->bar].data() + common_cfg->offset);
 
     print("FIXME: found_virtio_pci\n"); // FIXME
+
+    common.device_status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
+    common.device_status |= VIRTIO_DEVICE_STATUS_DRIVER;
+
+    uint64_t device_features = 0;
+
+    common.device_feature_select = 0;
+    device_features = common.device_feature;
+
+    common.device_feature_select = 1;
+    device_features |= ((uint64_t)common.device_feature) << 32;
+
+    print("device features = {:016x}\n", device_features);
+
+    uint64_t driver_features = 0; // FIXME - return what we're supporting
+
+    common.driver_feature_select = 0;
+    common.driver_feature = (uint32_t)driver_features;
+
+    common.driver_feature_select = 1;
+    common.driver_feature = (uint32_t)(driver_features >> 32);
+
+    common.device_status |= VIRTIO_DEVICE_STATUS_FEATURES_OK;
+
+    if (!(common.device_status & VIRTIO_DEVICE_STATUS_FEATURES_OK)) {
+        print("found_virtio_pci: device rejected FEATURES_OK status bit\n");
+        return;
+    }
 }
