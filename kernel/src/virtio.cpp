@@ -45,6 +45,8 @@ public:
     bool initialized = false;
 
 private:
+    virtq<QUEUE_SIZE>* add_virtqueue(uint16_t num);
+
     volatile virtio_pci_common_cfg* common;
     virtio_pci_notify_cap* notify_cfg = nullptr;
     virtq<QUEUE_SIZE>* virtqueue1;
@@ -84,41 +86,38 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
-static bool init_virtqueues(volatile virtio_pci_common_cfg& common,
-                            virtq<QUEUE_SIZE>*& addr) {
-    common.queue_select = 1;
+virtq<QUEUE_SIZE>* virtio_pci_device::add_virtqueue(uint16_t num) {
+    common->queue_select = num;
 
-    if (common.queue_size < QUEUE_SIZE) {
+    if (common->queue_size < QUEUE_SIZE) {
         print("init_virtqueues: size for queue {} was {}, wanted at least {}\n",
-              common.queue_select, common.queue_size, QUEUE_SIZE);
-        return false;
+              common->queue_select, common->queue_size, QUEUE_SIZE);
+        return nullptr;
     }
 
-    common.queue_size = QUEUE_SIZE;
+    common->queue_size = QUEUE_SIZE;
 
     auto pa = allocate_folio(bytes_to_folio_order(sizeof(virtq<QUEUE_SIZE>)));
     if (!pa) {
         print("allocate folio failed\n");
-        return false;
+        return nullptr;
     }
 
     auto& queue = *(virtq<QUEUE_SIZE>*)phys_address(pa);
-
-    addr = &queue;
 
     memset(&queue, 0, sizeof(queue));
 
     // FIXME - set up interrupts (queue_msix_vector)
 
-    write_volatile64(&common.queue_desc, pa);
-    write_volatile64(&common.queue_driver, pa + ((uintptr_t)&queue.available - (uintptr_t)&queue));
-    write_volatile64(&common.queue_device, pa + ((uintptr_t)&queue.used - (uintptr_t)&queue));
+    write_volatile64(&common->queue_desc, pa);
+    write_volatile64(&common->queue_driver, pa + ((uintptr_t)&queue.available - (uintptr_t)&queue));
+    write_volatile64(&common->queue_device, pa + ((uintptr_t)&queue.used - (uintptr_t)&queue));
 
-    common.queue_notify_off = 0;
+    common->queue_notify_off = num;
 
-    common.queue_enable = 1;
+    common->queue_enable = 1;
 
-    return true;
+    return &queue;
 }
 
 static void write_virtqueue(virtq<QUEUE_SIZE>& queue,
@@ -144,7 +143,7 @@ static void write_virtqueue(virtq<QUEUE_SIZE>& queue,
     barrier();
     __asm __volatile("sfence" ::: "memory");
 
-    uint32_t queue_notify_off = 0; // FIXME
+    uint32_t queue_notify_off = 1; // FIXME
 
     auto addr = (volatile uint32_t*)(dev.bar[notify_cfg.bar].data() +
                                      notify_cfg.offset +
@@ -247,7 +246,9 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
         return;
     }
 
-    if (!init_virtqueues(*common, virtqueue1))
+    virtqueue1 = add_virtqueue(1);
+
+    if (!virtqueue1)
         return;
 
     initialized = true;
