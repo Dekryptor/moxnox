@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <ioctl.h>
 #include "pci.h"
 #include "virtio.h"
 #include "spinlock.h"
@@ -18,6 +19,7 @@ import semaphore;
 import event;
 import chardev;
 import format;
+import serial;
 
 using namespace std;
 
@@ -86,7 +88,7 @@ private:
     virtio_pci_notify_cap* notify_cfg = nullptr;
 };
 
-class virtio_console : public virtio_pci_device, public chardev {
+class virtio_console : public virtio_pci_device, public chardev, public serial_console {
 public:
     virtio_console(pci_device& dev);
 
@@ -96,6 +98,9 @@ public:
     nt_status write(string_view sv, uint64_t& written_bytes) {
         return write(span((uint8_t*)sv.data(), sv.length()), written_bytes);
     }
+
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t>, uintptr_t&) override;
 
 private:
     virt_queue* recv_queue = nullptr;
@@ -537,11 +542,47 @@ virtio_console::virtio_console(pci_device& dev) : virtio_pci_device(dev) {
 }
 
 nt_status virtio_console::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return recv_queue->read(s, read_bytes);
+    auto buf_size = min(s.size(), PAGE_SIZE);
+    auto buf = (uint8_t*)malloc(buf_size);
+    if (!buf) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    uint64_t buf_read_bytes;
+
+    auto status = recv_queue->read(span(buf, buf_size), buf_read_bytes);
+    if (!success(status)) {
+        free(buf);
+        return status;
+    }
+
+    read_bytes = 0;
+
+    status = vt100_recv(span(buf, buf_read_bytes), [&s, &read_bytes](span<const uint8_t> s2) {
+        memcpy(s.data(), s2.data(), s2.size());
+        s = span(s.data() + s2.size(), s.size() - s2.size());
+        read_bytes += s2.size();
+
+        return nt_status::SUCCESS;
+    });
+
+    return status;
 }
 
 nt_status virtio_console::write(span<const uint8_t> s, uint64_t& written_bytes) {
     return send_queue->write(s, written_bytes);
+}
+
+nt_status virtio_console::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                                span<uint8_t>, uintptr_t&) {
+    switch (code) {
+        case IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND:
+            return console_set_foreground(inbuf);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
 }
 
 void found_virtio_pci(pci_device& dev) {

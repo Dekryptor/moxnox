@@ -32,7 +32,18 @@ static atomic<unsigned int> serial_port_number = 0;
 
 static bool serial_isr_func(void*);
 
-class serial_in_pipe : public pipe {
+export class serial_console {
+public:
+    nt_status console_set_foreground(span<const uint8_t> inbuf);
+    void handle_ctrl_c();
+    nt_status vt100_recv(span<const uint8_t> s, auto func);
+
+    spinlock fg_proc_lock;
+    optional<reference_wrapper<process>> fg_proc;
+    uint32_t input_mode = ENABLE_PROCESSED_INPUT;
+};
+
+class serial_in_pipe : public pipe, public serial_console {
 public:
     serial_in_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
 
@@ -44,14 +55,6 @@ public:
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
-    NTSTATUS console_set_foreground(span<const uint8_t> inbuf);
-
-private:
-    void handle_ctrl_c();
-
-    uint32_t input_mode = ENABLE_PROCESSED_INPUT;
-    spinlock fg_proc_lock;
-    optional<reference_wrapper<process>> fg_proc;
 };
 
 class serial_out_pipe : public pipe {
@@ -343,48 +346,39 @@ nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes)
     return nt_status::SUCCESS;
 }
 
-nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+nt_status serial_console::vt100_recv(span<const uint8_t> s, auto func) {
     if (!(input_mode & ENABLE_PROCESSED_INPUT))
-        return pipe::write(s, written_bytes);
+        return func(s);
 
     // handle VT100 weirdness
 
-    size_t tmp;
     int last_run_start = -1;
     nt_status status;
-
-    written_bytes = 0;
 
     for (size_t i = 0; i < s.size(); i++) {
         auto c = s[i];
 
         if (c == '\r' || c == 0x7f || c == '\x03') {
             if (last_run_start == -1)
-                status = pipe::write(s.subspan(0, (size_t)i), tmp);
+                status = func(s.subspan(0, (size_t)i));
             else
-                status = pipe::write(s.subspan((size_t)(last_run_start + 1), i - (size_t)(last_run_start + 1)), tmp);
+                status = func(s.subspan((size_t)(last_run_start + 1), i - (size_t)(last_run_start + 1)));
 
             if (!success(status))
                 return status;
 
-            written_bytes += tmp;
-
             if (c == '\r') {
                 c = '\n';
-                status = pipe::write(span(&c, 1), tmp);
+                status = func(span(&c, 1));
 
                 if (!success(status))
                     return status;
-
-                written_bytes += tmp;
             } else if (c == 0x7f) {
                 c = '\b';
-                status = pipe::write(span(&c, 1), tmp);
+                status = func(span(&c, 1));
 
                 if (!success(status))
                     return status;
-
-                written_bytes += tmp;
             } else if (c == '\x03')
                 handle_ctrl_c();
 
@@ -392,14 +386,22 @@ nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
         }
     }
 
-    status = pipe::write(s.subspan((size_t)(last_run_start + 1), s.size() - (size_t)(last_run_start + 1)), tmp);
+    return func(s.subspan((size_t)(last_run_start + 1), s.size() - (size_t)(last_run_start + 1)));
+}
 
-    if (!success(status))
+nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    written_bytes = 0;
+
+    return vt100_recv(s, [&](span<const uint8_t> s) {
+        size_t tmp;
+
+        auto status = pipe::write(s, tmp);
+
+        if (success(status))
+            written_bytes += tmp;
+
         return status;
-
-    written_bytes += tmp;
-
-    return nt_status::SUCCESS;
+    });
 }
 
 bool serial_duplex_pipe::isr_func() {
@@ -443,7 +445,7 @@ static bool serial_isr_func(void* ctx) {
     return pipe.isr_func();
 }
 
-NTSTATUS serial_in_pipe::console_set_foreground(span<const uint8_t> inbuf) {
+nt_status serial_console::console_set_foreground(span<const uint8_t> inbuf) {
     if (inbuf.size() != sizeof(HANDLE))
         return nt_status::INVALID_PARAMETER;
 
@@ -489,7 +491,7 @@ NTSTATUS serial_duplex_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-void serial_in_pipe::handle_ctrl_c() {
+void serial_console::handle_ctrl_c() {
     optional<reference_wrapper<process>> proc;
 
     {

@@ -65,7 +65,7 @@ static consteval HANDLE NtCurrentThread() {
     return (HANDLE)-2;
 }
 
-static constexpr bool success(NTSTATUS val) {
+constexpr bool success(NTSTATUS val) {
     return !((uint32_t)val & 0x80000000);
 }
 
