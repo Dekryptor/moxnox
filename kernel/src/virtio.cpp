@@ -437,8 +437,12 @@ virt_queue::~virt_queue() {
 void virt_queue::isr() {
     lock_guard lock(submit_lock);
 
-    while (old_used_idx != queue->used.idx) {
+    auto idx = queue->used.idx % QUEUE_SIZE;
+
+    while (old_used_idx != idx) {
         // FIXME - save length value somewhere
+
+        queue->used.ring[old_used_idx].len = 0;
 
         set_event(static_cast<event&>(events[queue->used.ring[old_used_idx].id].get()));
 
