@@ -48,6 +48,7 @@ static void cat_file(u16string_view fn) {
 
     while (true) {
         char buf[4096];
+        uint64_t read_bytes;
 
         auto status = NtReadFile(file, 0, nullptr, nullptr, &iosb,
                                  buf, sizeof(buf), nullptr, nullptr);
@@ -60,16 +61,30 @@ static void cat_file(u16string_view fn) {
             break;
         }
 
-        if (iosb.Information == 0)
+        read_bytes = iosb.Information;
+
+        if (read_bytes == 0)
             continue;
 
-        status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
-                             nullptr, nullptr, &iosb, buf,
-                             (uint32_t)iosb.Information, nullptr, nullptr);
-        if (!success(status)) {
-            print("cat: {}: NtWriteFile returned {}\n", fn, status); // FIXME - stderr
+        span sp(buf, read_bytes);
+
+        do {
+            status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
+                                 nullptr, nullptr, &iosb, sp.data(),
+                                 (uint32_t)sp.size(), nullptr, nullptr);
+            if (!success(status)) {
+                print("cat: {}: NtWriteFile returned {}\n", fn, status); // FIXME - stderr
+                break;
+            }
+
+            if (iosb.Information == sp.size())
+                break;
+
+            sp = span(sp.data() + iosb.Information, sp.size() - iosb.Information);
+        } while (true);
+
+        if (!success(status))
             break;
-        }
     }
 
     NtClose(file);
