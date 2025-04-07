@@ -59,6 +59,8 @@ NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     print("shutting down\n");
     shutdown_pipes();
 
+    shutting_down = true;
+
     if (action == SHUTDOWN_ACTION::ShutdownPowerOff)
         halt();
     else

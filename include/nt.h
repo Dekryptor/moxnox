@@ -42,7 +42,8 @@ enum class nt_status : uint32_t {
     ORDINAL_NOT_FOUND = 0xc0000138,
     CONTROL_C_EXIT = 0xc000013a,
     DLL_INIT_FAILED = 0xc0000142,
-    ILLEGAL_DLL_RELOCATION = 0xc0000269
+    ILLEGAL_DLL_RELOCATION = 0xc0000269,
+    SYSTEM_SHUTDOWN = 0xc00002eb
 };
 
 using NTSTATUS = enum nt_status;

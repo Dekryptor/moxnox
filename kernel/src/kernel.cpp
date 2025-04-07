@@ -35,6 +35,7 @@ uint64_t rsdp_pa;
 bool init_smp_finished = false;
 static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
+bool shutting_down = false;
 
 // console.cpp
 extern object_ref console_chardev;

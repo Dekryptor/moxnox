@@ -571,6 +571,9 @@ nt_status virtio_console::read(span<uint8_t> s, uint64_t& read_bytes) {
 }
 
 nt_status virtio_console::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    if (shutting_down)
+        return nt_status::SYSTEM_SHUTDOWN;
+
     return send_queue->write(s, written_bytes);
 }
 

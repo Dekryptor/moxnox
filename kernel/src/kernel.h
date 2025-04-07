@@ -89,6 +89,7 @@ extern std::string_view cmdline;
 extern list_entry kernel_images;
 extern uint64_t rsdp_pa;
 extern bool init_smp_finished;
+extern bool shutting_down;
 
 // console.cpp
 enum class console_type {
