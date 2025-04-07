@@ -14,6 +14,7 @@ import mem;
 import config;
 import interrupts;
 import semaphore;
+import event;
 
 using namespace std;
 
@@ -41,8 +42,10 @@ static module_init init(init_virtio_pci);
 
 class virt_queue {
 public:
+    virt_queue();
     ~virt_queue();
     void write(string_view msg);
+    void isr();
 
     virtq<QUEUE_SIZE>* queue;
     uint64_t queue_pa;
@@ -55,8 +58,10 @@ private:
     void release_slot(uint8_t slot);
 
     uint32_t allocated_slots = 0;
+    uint16_t old_used_idx = 0;
     spinlock slot_lock, submit_lock;
     object_ref sem{create_semaphore(QUEUE_SIZE)};
+    object_ref events[QUEUE_SIZE];
 };
 
 class virtio_pci_device {
@@ -111,10 +116,10 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
-static void virtio_isr_func(void*) {
-    // FIXME
-    // volatile int wait = 1;
-    // while (wait) { }
+static void virtio_isr_func(void* ctx) {
+    auto& vq = *(virt_queue*)ctx;
+
+    vq.isr();
 }
 
 bool virtio_pci_device::add_virtqueue(uint16_t num) {
@@ -249,7 +254,7 @@ void virt_queue::release_slot(uint8_t slot) {
 }
 
 void virt_queue::write(string_view msg) {
-    auto slot = get_slot();
+    // FIXME - do without copying
 
     auto buf = malloc(msg.size());
     if (!buf) {
@@ -258,6 +263,8 @@ void virt_queue::write(string_view msg) {
     }
 
     memcpy(buf, msg.data(), msg.size());
+
+    auto slot = get_slot();
 
     queue->buffers[slot].addr = (phys_memory_pfn(buf) << PAGE_SHIFT) + ((uintptr_t)buf & (PAGE_SIZE - 1));
     queue->buffers[slot].len = (uint32_t)msg.size();
@@ -276,9 +283,12 @@ void virt_queue::write(string_view msg) {
 
     *notification_addr = 1;
 
-    // FIXME - wait for completion and free buf
+    // FIXME - make interruptible
+    wait_for_object(events[slot].get(), false);
 
     release_slot(slot);
+
+    free(buf);
 }
 
 virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
@@ -386,6 +396,12 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
     initialized = true;
 }
 
+virt_queue::virt_queue() {
+    for (unsigned int i = 0; i < QUEUE_SIZE; i++) {
+        events[i] = create_event(true);
+    }
+}
+
 virt_queue::~virt_queue() {
     static const size_t NUM_PAGES = bytes_to_pages(sizeof(virtq<QUEUE_SIZE>));
 
@@ -400,6 +416,20 @@ virt_queue::~virt_queue() {
     free_va(va, NUM_PAGES);
 
     free_folio(queue_pa);
+}
+
+void virt_queue::isr() {
+    lock_guard lock(submit_lock);
+
+    while (old_used_idx != queue->used.idx) {
+        // FIXME - save length value somewhere
+
+        set_event(static_cast<event&>(events[queue->used.ring[old_used_idx].id].get()));
+
+        old_used_idx++;
+        if (old_used_idx == QUEUE_SIZE)
+            old_used_idx = 0;
+    }
 }
 
 virtio_pci_device::~virtio_pci_device() {
