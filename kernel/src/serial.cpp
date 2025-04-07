@@ -68,9 +68,9 @@ private:
     uint32_t output_mode = ENABLE_PROCESSED_OUTPUT;
 };
 
-class serial_duplex_pipe : public pipe {
+class serial_duplex_pipe : public chardev {
 public:
-    serial_duplex_pipe(serial_in_pipe& recv_pipe, serial_out_pipe& send_pipe, uint16_t port) : pipe(0), recv_pipe(recv_pipe), send_pipe(send_pipe), port(port) {
+    serial_duplex_pipe(serial_in_pipe& recv_pipe, serial_out_pipe& send_pipe, uint16_t port) : recv_pipe(recv_pipe), send_pipe(send_pipe), port(port) {
         recv_pipe.acquire();
         send_pipe.acquire();
     }
@@ -80,11 +80,11 @@ public:
         send_pipe.release();
     }
 
-    NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) override {
+    NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) override {
         return recv_pipe.read(s, read_bytes);
     }
 
-    nt_status write(std::span<const uint8_t> s, uint64_t& written_bytes) override {
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
         return send_pipe.write(s, written_bytes);
     }
 
@@ -426,9 +426,6 @@ bool serial_duplex_pipe::isr_func() {
 
         outb(send_pipe.port, send_pipe.buf[buf_read_pos]);
         send_pipe.buf_unread--;
-
-        if (!not_full_event.signalled)
-            not_full_event.set_holding_sync_lock();
     } else if ((iir & 0xe) == 0x4 || (iir & 0xe) == 0xc) { // data available or character timeout
         uint64_t written_bytes;
 
