@@ -17,6 +17,7 @@ import interrupts;
 import semaphore;
 import event;
 import chardev;
+import format;
 
 using namespace std;
 
@@ -98,6 +99,8 @@ public:
 private:
     virt_queue* send_queue = nullptr;
 };
+
+static atomic<uint32_t> virtio_console_num = 0;
 
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
     if (cap.cap_len < sizeof(virtio_pci_cap) + sizeof(pci_capability)) {
@@ -504,7 +507,16 @@ void found_virtio_pci(pci_device& dev) {
 
     v->finalize();
 
-    name_object(*v, "hvc0"); // FIXME
+    // FIXME - make sure devices are numbered consistently
+
+    {
+        char s[10];
+        span sp(s, sizeof(s));
+
+        sp = format(sp, "hvc{}", virtio_console_num.fetch_add(1));
+
+        name_object(*v, string_view(s, sp.data() - s));
+    }
 
     uint64_t written_bytes;
 
