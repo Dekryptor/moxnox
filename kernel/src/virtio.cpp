@@ -30,7 +30,7 @@ static const uint64_t supported_features = VIRTIO_CONSOLE_F_EMERG_WRITE;
 
 export void found_virtio_pci(pci_device& dev);
 
-static struct pci_recognizer mod_pci_ids[] = {
+static pci_recognizer mod_pci_ids[] = {
     { {}, PCI_VENDOR_ID_REDHAT, 0x1003, found_virtio_pci },
     { {}, PCI_VENDOR_ID_REDHAT, 0x1043, found_virtio_pci },
 };
