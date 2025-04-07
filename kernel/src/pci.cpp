@@ -495,7 +495,6 @@ export void init_pci() {
     init_device_event.reset();
 }
 
-extern "C++"
 pci_device::~pci_device() {
     while (!is_list_empty(vendor_specific_caps)) {
         auto& ent = containing_record<vendor_specific_cap>(vendor_specific_caps.next);
