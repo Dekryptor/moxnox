@@ -3,6 +3,7 @@ module;
 #include "kernel.h"
 #include "pci.h"
 #include "virtio.h"
+#include "spinlock.h"
 
 export module virtio;
 
@@ -12,13 +13,14 @@ import pci;
 import mem;
 import config;
 import interrupts;
+import semaphore;
 
 using namespace std;
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 // FIXME - allow dynamic queue size (maximum supported by device?)
-static const size_t QUEUE_SIZE = 32;
+const size_t QUEUE_SIZE = 32;
 
 static const uint64_t supported_features = VIRTIO_CONSOLE_F_EMERG_WRITE;
 
@@ -40,6 +42,7 @@ static module_init init(init_virtio_pci);
 class virt_queue {
 public:
     ~virt_queue();
+    void write(string_view msg);
 
     virtq<QUEUE_SIZE>* queue;
     uint64_t queue_pa;
@@ -47,7 +50,13 @@ public:
     uint16_t num;
     volatile uint32_t* notification_addr;
 
-    void write(string_view msg);
+private:
+    uint8_t get_slot();
+    void release_slot(uint8_t slot);
+
+    uint32_t allocated_slots = 0;
+    spinlock slot_lock, submit_lock;
+    object_ref sem{create_semaphore(QUEUE_SIZE)};
 };
 
 class virtio_pci_device {
@@ -210,8 +219,37 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
     return true;
 }
 
+uint8_t virt_queue::get_slot() {
+    wait_for_object(sem.get(), false);
+
+    lock_guard l(slot_lock);
+
+    uint32_t mask = 1;
+    uint8_t c = 0;
+
+    while (true) {
+        if (!(allocated_slots & mask)) {
+            allocated_slots |= mask;
+            return c;
+        }
+
+        mask <<= 1;
+        c++;
+    }
+}
+
+void virt_queue::release_slot(uint8_t slot) {
+    {
+        lock_guard l(slot_lock);
+
+        allocated_slots &= ~(1 << (uint32_t)slot);
+    }
+
+    release_semaphore(static_cast<semaphore&>(sem.get()));
+}
+
 void virt_queue::write(string_view msg) {
-    uint16_t idx = 0; // FIXME
+    auto slot = get_slot();
 
     auto buf = malloc(msg.size());
     if (!buf) {
@@ -221,19 +259,26 @@ void virt_queue::write(string_view msg) {
 
     memcpy(buf, msg.data(), msg.size());
 
-    queue->buffers[idx].addr = (phys_memory_pfn(buf) << PAGE_SHIFT) + ((uintptr_t)buf & (PAGE_SIZE - 1));
-    queue->buffers[idx].len = (uint32_t)msg.size();
-    queue->buffers[idx].flags = 0;
+    queue->buffers[slot].addr = (phys_memory_pfn(buf) << PAGE_SHIFT) + ((uintptr_t)buf & (PAGE_SIZE - 1));
+    queue->buffers[slot].len = (uint32_t)msg.size();
+    queue->buffers[slot].flags = 0;
 
-    queue->available.ring[queue->available.idx % QUEUE_SIZE] = idx;
-    queue->available.idx++;
+    {
+        lock_guard lock(submit_lock);
 
-    barrier();
-    __asm __volatile("sfence" ::: "memory");
+        queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
+
+        barrier();
+        __asm __volatile("sfence" ::: "memory");
+
+        queue->available.idx++;
+    }
 
     *notification_addr = 1;
 
     // FIXME - wait for completion and free buf
+
+    release_slot(slot);
 }
 
 virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
@@ -394,4 +439,5 @@ void found_virtio_pci(pci_device& dev) {
     v.finalize();
 
     v.write_virtqueue(1, "hello world\n"); // FIXME
+    v.write_virtqueue(1, "(and again...)\n"); // FIXME
 }
