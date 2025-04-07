@@ -50,7 +50,7 @@ public:
     virt_queue();
     ~virt_queue();
     nt_status read(span<uint8_t> msg, uint64_t& read_bytes);
-    nt_status write(span<const uint8_t> msg, uint64_t& written_bytes);
+    nt_status write(span<const uint8_t> msg);
     void isr();
 
     virtq<QUEUE_SIZE>* queue;
@@ -328,7 +328,7 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
     return nt_status::SUCCESS;
 }
 
-nt_status virt_queue::write(span<const uint8_t> msg, uint64_t& written_bytes) {
+nt_status virt_queue::write(span<const uint8_t> msg) {
     // FIXME - do without copying
 
     auto buf = malloc(msg.size());
@@ -360,8 +360,6 @@ nt_status virt_queue::write(span<const uint8_t> msg, uint64_t& written_bytes) {
 
     // FIXME - make interruptible
     wait_for_object(events[slot].get(), false);
-
-    written_bytes = lengths[slot];
 
     release_slot(slot);
 
@@ -574,7 +572,12 @@ nt_status virtio_console::write(span<const uint8_t> s, uint64_t& written_bytes) 
     if (shutting_down)
         return nt_status::SYSTEM_SHUTDOWN;
 
-    return send_queue->write(s, written_bytes);
+    auto status = send_queue->write(s);
+
+    if (success(status))
+        written_bytes = s.size();
+
+    return status;
 }
 
 nt_status virtio_console::ioctl(uint32_t code, span<const uint8_t> inbuf,
