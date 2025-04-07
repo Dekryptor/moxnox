@@ -488,17 +488,23 @@ nt_status virtio_console::write(span<const uint8_t> s, uint64_t& written_bytes) 
 }
 
 void found_virtio_pci(pci_device& dev) {
-    virtio_console v(dev);
+    auto v = new virtio_console(dev);
+    if (!v) {
+        print("new failed\n");
+        return;
+    }
 
-    if (!v.initialized)
+    object_ref ref{*v};
+
+    if (!v->initialized)
         return;
 
-    v.finalize();
+    v->finalize();
 
-    name_object(v, "hvc0"); // FIXME
+    name_object(*v, "hvc0"); // FIXME
 
     uint64_t written_bytes;
 
-    v.write("hello world\n", written_bytes); // FIXME
-    v.write("(and again...)\n", written_bytes); // FIXME
+    v->write("hello world\n", written_bytes); // FIXME
+    v->write("(and again...)\n", written_bytes); // FIXME
 }
