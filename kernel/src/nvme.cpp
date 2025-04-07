@@ -597,7 +597,9 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
     return true;
 }
 
-export void init_nvme(const pci_device& dev) {
+export
+extern "C++"
+void init_nvme(const pci_device& dev) {
     // FIXME - support MSI too?
     if (!dev.msix) {
         print("MSI-X not supported for NVMe device\n");

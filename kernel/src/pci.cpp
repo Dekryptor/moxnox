@@ -14,13 +14,15 @@ import config;
 import list;
 import sata;
 import event;
-import nvme;
 
 using namespace std;
 
 static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
 atomic<unsigned int> devices_left = 0;
 static object_ref init_device_event;
+
+// nvme.cpp
+extern "C++" void init_nvme(const pci_device& dev);
 
 export struct pci_recognizer {
     list_entry le;
