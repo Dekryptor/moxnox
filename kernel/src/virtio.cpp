@@ -80,6 +80,8 @@ public:
     pci_device& dev;
     bool initialized = false;
     list_entry virtqueues = { &virtqueues, &virtqueues };
+    virtio_pci_cap* device_cfg = nullptr;
+    uint64_t negotiated_features = 0;
 
 private:
     bool add_virtqueue(uint16_t num);
@@ -370,7 +372,6 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
 
 virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
     virtio_pci_cap* common_cfg = nullptr;
-    virtio_pci_cap* device_cfg = nullptr;
 
     if (!dev.msix) {
         print("MSI-X not supported for virtio device\n");
@@ -416,12 +417,6 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
     if (!check_cap(dev, *device_cfg))
         return;
 
-    if (device_cfg->length < sizeof(virtio_console_config)) {
-        print("virtio_pci_device: device cfg length was {}, expected at least {}\n",
-              device_cfg->length, sizeof(virtio_console_config));
-        return;
-    }
-
     if (!check_cap(dev, *notify_cfg))
         return;
 
@@ -449,13 +444,13 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
     common->device_feature_select = 1;
     device_features |= ((uint64_t)common->device_feature) << 32;
 
-    uint64_t driver_features = device_features & supported_features;
+    negotiated_features = device_features & supported_features;
 
     common->driver_feature_select = 0;
-    common->driver_feature = (uint32_t)driver_features;
+    common->driver_feature = (uint32_t)negotiated_features;
 
     common->driver_feature_select = 1;
-    common->driver_feature = (uint32_t)(driver_features >> 32);
+    common->driver_feature = (uint32_t)(negotiated_features >> 32);
 
     common->device_status |= VIRTIO_DEVICE_STATUS_FEATURES_OK;
 
@@ -529,6 +524,12 @@ void virtio_pci_device::finalize() {
 }
 
 virtio_console::virtio_console(pci_device& dev) : virtio_pci_device(dev) {
+    if (device_cfg->length < sizeof(virtio_console_config)) {
+        print("virtio_pci_device: device cfg length was {}, expected at least {}\n",
+              device_cfg->length, sizeof(virtio_console_config));
+        return;
+    }
+
     for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
 
@@ -571,6 +572,21 @@ nt_status virtio_console::read(span<uint8_t> s, uint64_t& read_bytes) {
 nt_status virtio_console::write(span<const uint8_t> s, uint64_t& written_bytes) {
     if (shutting_down)
         return nt_status::SYSTEM_SHUTDOWN;
+
+    if (in_bsod) {
+        if (!(negotiated_features & VIRTIO_CONSOLE_F_EMERG_WRITE))
+            return nt_status::SYSTEM_SHUTDOWN;
+
+        auto& v = *(volatile virtio_console_config*)(dev.bar[device_cfg->bar].data() + device_cfg->offset);
+
+        for (auto c : s) {
+            v.emerg_wr = c;
+        }
+
+        written_bytes = s.size();
+
+        return nt_status::SUCCESS;
+    }
 
     // FIXME - only so we don't do an overly large malloc (should be able to do this without copying)
     if (s.size() > PAGE_SIZE)

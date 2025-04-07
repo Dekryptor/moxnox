@@ -20,10 +20,14 @@ extern "C++" void enable_preempt();
 extern "C++" __attribute__((noreturn)) void _bsod(string_view msg, source_location sl,
                                                   unsigned int skip_callers);
 
+export bool in_bsod = false;
+
 export
 __attribute__((noreturn))
 void bsod(string_view msg, source_location sl = source_location::current(),
           unsigned int skip_callers = 1) {
+    in_bsod = true;
+
     _bsod(msg, sl, skip_callers);
 }
 
