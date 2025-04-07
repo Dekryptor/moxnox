@@ -47,6 +47,7 @@ class virt_queue {
 public:
     virt_queue();
     ~virt_queue();
+    nt_status read(span<uint8_t> msg, uint64_t& read_bytes);
     nt_status write(span<const uint8_t> msg, uint64_t& written_bytes);
     void isr();
 
@@ -97,6 +98,7 @@ public:
     }
 
 private:
+    virt_queue* recv_queue = nullptr;
     virt_queue* send_queue = nullptr;
 };
 
@@ -215,7 +217,7 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
     write_volatile64(&common->queue_driver, pa + ((uintptr_t)&queue.available - (uintptr_t)&queue));
     write_volatile64(&common->queue_device, pa + ((uintptr_t)&queue.used - (uintptr_t)&queue));
 
-    uint16_t msix_vector = 0; // FIXME
+    uint16_t msix_vector = num;
 
     common->queue_notify_off = num;
     common->queue_msix_vector = msix_vector;
@@ -271,6 +273,56 @@ void virt_queue::release_slot(uint8_t slot) {
     }
 
     release_semaphore(static_cast<semaphore&>(sem.get()));
+}
+
+nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
+    // FIXME - do without copying
+
+    print("FIXME - virt_queue::read\n"); // FIXME
+
+    if (s.empty()) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    auto buf_size = min(s.size(), PAGE_SIZE);
+    auto buf = malloc(buf_size);
+    if (!buf) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto slot = get_slot();
+
+    queue->buffers[slot].addr = (phys_memory_pfn(buf) << PAGE_SHIFT) + ((uintptr_t)buf & (PAGE_SIZE - 1));
+    queue->buffers[slot].len = (uint32_t)buf_size;
+    queue->buffers[slot].flags = VIRTQ_DESC_F_WRITE;
+
+    {
+        lock_guard lock(submit_lock);
+
+        queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
+
+        barrier();
+        __asm __volatile("sfence" ::: "memory");
+
+        queue->available.idx++;
+    }
+
+    *notification_addr = 1;
+
+    // FIXME - make interruptible
+    wait_for_object(events[slot].get(), false);
+
+    read_bytes = lengths[slot];
+
+    release_slot(slot);
+
+    memcpy(s.data(), buf, read_bytes);
+
+    free(buf);
+
+    return nt_status::SUCCESS;
 }
 
 nt_status virt_queue::write(span<const uint8_t> msg, uint64_t& written_bytes) {
@@ -414,6 +466,9 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
     // enable MSI-X
     dev.msix->message_control |= 0x8000;
 
+    if (!add_virtqueue(0))
+        return;
+
     if (!add_virtqueue(1))
         return;
 
@@ -474,19 +529,17 @@ void virtio_pci_device::finalize() {
 
 virtio_console::virtio_console(pci_device& dev) : virtio_pci_device(dev) {
     for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
-        auto& vq = containing_record<virt_queue>(virtqueues.next);
+        auto& vq = containing_record<virt_queue>(le);
 
-        if (vq.num == 1) {
+        if (vq.num == 0)
+            recv_queue = &vq;
+        else if (vq.num == 1)
             send_queue = &vq;
-            break;
-        }
     }
 }
 
 nt_status virtio_console::read(span<uint8_t> s, uint64_t& read_bytes) {
-    print("FIXME - virtio_console::read\n"); // FIXME
-
-    return nt_status::NOT_IMPLEMENTED;
+    return recv_queue->read(s, read_bytes);
 }
 
 nt_status virtio_console::write(span<const uint8_t> s, uint64_t& written_bytes) {
@@ -518,8 +571,15 @@ void found_virtio_pci(pci_device& dev) {
         name_object(*v, string_view(s, (size_t)(sp.data() - s)));
     }
 
-    uint64_t written_bytes;
+    uint64_t read_bytes, written_bytes;
 
     v->write("hello world\n", written_bytes); // FIXME
     v->write("(and again...)\n", written_bytes); // FIXME
+
+    char s[10];
+    auto status = v->read(span((uint8_t*)s, sizeof(s)), read_bytes);
+    if (!success(status))
+        print("read returned {}\n", status);
+    else
+        print("read returned {} bytes (\"{}\")\n", read_bytes, string_view(s, read_bytes));
 }
