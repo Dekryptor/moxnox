@@ -51,7 +51,7 @@ static unsigned int cursor_x = 0, cursor_y = 0;
 static void early_print(string_view s);
 void (*_printk)(string_view s) = early_print;
 
-object_ref console_pipe;
+object_ref console_chardev;
 static const unsigned int console_buffer_pages = 4;
 
 static span<uint32_t> framebuffer, shadow_framebuffer;
@@ -1477,7 +1477,7 @@ static void early_print(string_view s) {
 }
 
 void safe_print(string_view s) {
-    write(console_pipe, s);
+    write(console_chardev, s);
 
     // FIXME - this should be hidden behind a cmdline option
     if (console_type != console_type::other && com1_pipe_handle)
@@ -1494,9 +1494,9 @@ static void console_event_recv() {
     do {
         uint64_t read_bytes;
 
-        wait_for_object(console_pipe.get(), false);
+        wait_for_object(console_chardev.get(), false);
 
-        auto status = static_cast<class console&>(console_pipe.get()).read(span(buf, buf_size), read_bytes);
+        auto status = static_cast<class console&>(console_chardev.get()).read(span(buf, buf_size), read_bytes);
 
         // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
 
@@ -1533,11 +1533,11 @@ bool init_console(const loader_block_framebuffer& fb,
         auto sv = string_view(console_opt.data() + sizeof(prefix) - 1,
                               console_opt.size() - sizeof(prefix) + 1);
 
-        auto status = open_object(sv, console_pipe);
+        auto status = open_object(sv, console_chardev);
         if (!success(status))
             bsod_format("open_object returned {} trying to open console {}", status, console_opt);
 
-        if (console_pipe.get().type != object_type::chardev)
+        if (console_chardev.get().type != object_type::chardev)
             bsod_format("console option {} did not point to a character device", console_opt);
 
         console_cols = 80; // FIXME
@@ -1622,9 +1622,9 @@ bool init_console(const loader_block_framebuffer& fb,
         return false;
     }
 
-    console_pipe = object_ref{*pptr};
+    console_chardev = object_ref{*pptr};
 
-    if (!name_object(console_pipe.get(), "tty")) {
+    if (!name_object(console_chardev.get(), "tty")) {
         print("name_object failed\n");
         return false;
     }

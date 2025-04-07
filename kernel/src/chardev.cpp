@@ -24,6 +24,13 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    virtual nt_status flush(bool go_readonly) {
+        if (go_readonly)
+            readonly = true;
+
+        return nt_status::SUCCESS;
+    }
+
     void acquire() {
         refcount++;
     }
@@ -36,6 +43,7 @@ public:
     bool signalled = true;
     bool exclusive = true;
     list_entry waiters = { &waiters, &waiters };
+    bool readonly = false;
 };
 
 static_assert(is_sync_object<chardev>);

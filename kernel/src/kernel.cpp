@@ -18,7 +18,7 @@ import serial;
 import pci;
 import vfs;
 import pe;
-import pipe;
+import chardev;
 import timer;
 import syscalls;
 import smp;
@@ -37,7 +37,7 @@ static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
 
 // console.cpp
-extern object_ref console_pipe;
+extern object_ref console_chardev;
 
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
@@ -69,7 +69,7 @@ void __cxa_pure_virtual() {
 }
 
 static object_ref create_init_process() {
-    auto& p = static_cast<pipe&>(console_pipe.get());
+    auto& p = static_cast<chardev&>(console_chardev.get());
 
     p.acquire();
 
@@ -108,13 +108,13 @@ static void keywait() {
     if (!do_wait)
         return;
 
-    pipe* p = nullptr;
+    chardev* p = nullptr;
 
     if (console_type == console_type::other) {
-        if (!console_pipe)
+        if (!console_chardev)
             return;
 
-        p = static_cast<pipe*>(&console_pipe.get());
+        p = static_cast<chardev*>(&console_chardev.get());
         p->acquire();
     } else {
         object_ref keybh;
@@ -133,7 +133,7 @@ static void keywait() {
             return;
         }
 
-        p = static_cast<pipe*>(&keyb);
+        p = static_cast<chardev*>(&keyb);
     }
 
     if (!p)

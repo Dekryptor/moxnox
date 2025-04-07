@@ -4,7 +4,7 @@
 #include "cpu_block.h"
 import objects;
 import event;
-import pipe;
+import chardev;
 #include <pe.h>
 
 import format;
@@ -16,11 +16,12 @@ import config;
 import list;
 import interrupts;
 import smp;
+import pipe;
 
 using namespace std;
 
 // console.cpp (FIXME)
-extern object_ref console_pipe;
+extern object_ref console_chardev;
 extern unsigned int console_cols;
 
 static spinlock bsod_lock;
@@ -40,7 +41,7 @@ static kernel_image* get_kernel_image_from_address(uint64_t addr) {
     return nullptr;
 }
 
-static void print_rip(pipe& p, uint64_t rip) {
+static void print_rip(chardev& p, uint64_t rip) {
     auto& cb = *get_cpu_block();
     uint64_t written;
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
@@ -91,7 +92,7 @@ static bool do_unwind_context(CONTEXT& context) {
     return unwind_context(context, img->base_address, img->size);
 }
 
-static void print_stacktrace(CONTEXT& context, pipe& p, unsigned int skip_callers) {
+static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_callers) {
     // not interested in top entry (bsod function)
     if (!do_unwind_context(context))
         return;
@@ -127,7 +128,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
         while (processors_left_to_halt > 0) { }
     }
 
-    auto& p = static_cast<pipe&>(console_pipe.get());
+    auto& p = static_cast<chardev&>(console_chardev.get());
     uint64_t written;
 
     // clear screen to blue and print message

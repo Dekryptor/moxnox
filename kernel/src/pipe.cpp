@@ -30,20 +30,12 @@ public:
         return write(std::span((uint8_t*)sv.data(), sv.length()), written_bytes);
     }
 
-    virtual nt_status flush(bool go_readonly) {
-        if (go_readonly)
-            readonly = true;
-
-        return nt_status::SUCCESS;
-    }
-
     uint8_t* buf;
     unsigned int buf_pages;
     size_t buf_unread = 0;
     size_t buf_write_pos = 0;
     spinlock lock;
     event not_full_event;
-    bool readonly = false;
     list_entry flushable_le;
 };
 
