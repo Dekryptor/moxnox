@@ -14,15 +14,15 @@ import print;
 
 using namespace std;
 
-class null_pipe : public pipe {
+class null_chardev : public chardev {
 public:
-    null_pipe() : pipe(0) { }
+    null_chardev() { }
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 };
 
 export bool create_dev_null() {
-    auto pptr = new null_pipe;
+    auto pptr = new null_chardev;
     if (!pptr) {
         print("new failed\n");
         return false;
@@ -38,13 +38,13 @@ export bool create_dev_null() {
     return true;
 }
 
-nt_status null_pipe::read(span<uint8_t>, uint64_t& read_bytes) {
+nt_status null_chardev::read(span<uint8_t>, uint64_t& read_bytes) {
     read_bytes = 0;
 
     return nt_status::SUCCESS;
 }
 
-nt_status null_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+nt_status null_chardev::write(span<const uint8_t> s, uint64_t& written_bytes) {
     written_bytes = s.size();
 
     return nt_status::SUCCESS;
