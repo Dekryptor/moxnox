@@ -2,6 +2,7 @@
 
 import objects;
 import semaphore;
+import chardev;
 
 template<typename T>
 static void visit_obj(object& obj, const T& func);

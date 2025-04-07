@@ -3,7 +3,7 @@ module;
 #include "kernel.h"
 import objects;
 import event;
-import pipe;
+import chardev;
 
 // FIXME - from handle.h
 bool name_object(object& obj, std::string_view name, bool persistent = true);
