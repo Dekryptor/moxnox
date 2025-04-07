@@ -46,7 +46,7 @@ class virt_queue {
 public:
     virt_queue();
     ~virt_queue();
-    void write(span<const uint8_t> msg);
+    nt_status write(span<const uint8_t> msg, uint64_t& written_bytes);
     void isr();
 
     virtq<QUEUE_SIZE>* queue;
@@ -64,6 +64,7 @@ private:
     spinlock slot_lock, submit_lock;
     object_ref sem{create_semaphore(QUEUE_SIZE)};
     object_ref events[QUEUE_SIZE];
+    uint32_t lengths[QUEUE_SIZE];
 };
 
 class virtio_pci_device {
@@ -269,13 +270,13 @@ void virt_queue::release_slot(uint8_t slot) {
     release_semaphore(static_cast<semaphore&>(sem.get()));
 }
 
-void virt_queue::write(span<const uint8_t> msg) {
+nt_status virt_queue::write(span<const uint8_t> msg, uint64_t& written_bytes) {
     // FIXME - do without copying
 
     auto buf = malloc(msg.size());
     if (!buf) {
         print("malloc failed\n");
-        return;
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     memcpy(buf, msg.data(), msg.size());
@@ -302,9 +303,13 @@ void virt_queue::write(span<const uint8_t> msg) {
     // FIXME - make interruptible
     wait_for_object(events[slot].get(), false);
 
+    written_bytes = lengths[slot];
+
     release_slot(slot);
 
     free(buf);
+
+    return nt_status::SUCCESS;
 }
 
 virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
@@ -440,9 +445,7 @@ void virt_queue::isr() {
     auto idx = queue->used.idx % QUEUE_SIZE;
 
     while (old_used_idx != idx) {
-        // FIXME - save length value somewhere
-
-        queue->used.ring[old_used_idx].len = 0;
+        lengths[queue->used.ring[old_used_idx].id] = queue->used.ring[old_used_idx].len;
 
         set_event(static_cast<event&>(events[queue->used.ring[old_used_idx].id].get()));
 
@@ -484,11 +487,7 @@ nt_status virtio_console::read(span<uint8_t> s, uint64_t& read_bytes) {
 }
 
 nt_status virtio_console::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    send_queue->write(s);
-
-    written_bytes = s.size(); // FIXME
-
-    return nt_status::SUCCESS;
+    return send_queue->write(s, written_bytes);
 }
 
 void found_virtio_pci(pci_device& dev) {
