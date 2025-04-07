@@ -167,6 +167,8 @@ void main_thread() {
 
     find_acpi_devices();
 
+    init_pci();
+
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
 
@@ -199,8 +201,6 @@ void main_thread() {
     if (!create_dev_null())
         print("create_dev_null failed\n");
 
-    init_pci();
-    // FIXME - NVMe
     // FIXME - USB
 
     if (!mount_root())
