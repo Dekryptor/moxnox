@@ -12,7 +12,6 @@ import print;
 import mem;
 import config;
 import list;
-import sata;
 import event;
 
 using namespace std;
@@ -23,6 +22,9 @@ static object_ref init_device_event;
 
 // nvme.cpp
 extern "C++" void init_nvme(const pci_device& dev);
+
+// sata.cpp
+extern "C++" void init_sata(const pci_device& dev);
 
 export struct pci_recognizer {
     list_entry le;

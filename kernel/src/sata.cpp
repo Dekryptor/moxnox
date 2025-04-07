@@ -525,7 +525,9 @@ static void sata_isr_func(void* ctx) {
     ((sata_card*)ctx)->isr();
 }
 
-export void init_sata(const pci_device& dev) {
+export
+extern "C++"
+void init_sata(const pci_device& dev) {
     auto abarmem = dev.bar[5];
 
     // FIXME - also support MSI-X?
