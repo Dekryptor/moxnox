@@ -515,7 +515,7 @@ void found_virtio_pci(pci_device& dev) {
 
         sp = format(sp, "hvc{}", virtio_console_num.fetch_add(1));
 
-        name_object(*v, string_view(s, sp.data() - s));
+        name_object(*v, string_view(s, (size_t)(sp.data() - s)));
     }
 
     uint64_t written_bytes;
