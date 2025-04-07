@@ -786,6 +786,8 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
 
         if (!f)
             return nt_status::INVALID_HANDLE;
+
+        f->get().acquire();
     }
 
     object_ref secth;
