@@ -572,6 +572,10 @@ nt_status virtio_console::write(span<const uint8_t> s, uint64_t& written_bytes) 
     if (shutting_down)
         return nt_status::SYSTEM_SHUTDOWN;
 
+    // FIXME - only so we don't do an overly large malloc (should be able to do this without copying)
+    if (s.size() > PAGE_SIZE)
+        s = span(s.data(), PAGE_SIZE);
+
     auto status = send_queue->write(s);
 
     if (success(status))
