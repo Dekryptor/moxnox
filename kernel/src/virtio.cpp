@@ -278,8 +278,6 @@ void virt_queue::release_slot(uint8_t slot) {
 nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
     // FIXME - do without copying
 
-    print("FIXME - virt_queue::read\n"); // FIXME
-
     if (s.empty()) {
         read_bytes = 0;
         return nt_status::SUCCESS;
@@ -570,16 +568,4 @@ void found_virtio_pci(pci_device& dev) {
 
         name_object(*v, string_view(s, (size_t)(sp.data() - s)));
     }
-
-    uint64_t read_bytes, written_bytes;
-
-    v->write("hello world\n", written_bytes); // FIXME
-    v->write("(and again...)\n", written_bytes); // FIXME
-
-    char s[10];
-    auto status = v->read(span((uint8_t*)s, sizeof(s)), read_bytes);
-    if (!success(status))
-        print("read returned {}\n", status);
-    else
-        print("read returned {} bytes (\"{}\")\n", read_bytes, string_view(s, read_bytes));
 }
