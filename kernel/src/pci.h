@@ -21,9 +21,6 @@ enum class pci_class : uint8_t {
     signal_processing = 17
 };
 
-static const uint16_t PCI_COMMAND_MASTER = 0x0004;
-static const uint16_t PCI_COMMAND_INTX_DISABLE = 0x0400;
-
 struct pci_header {
     uint16_t vendor_id;
     uint16_t device_id;
@@ -85,23 +82,6 @@ struct pci_header1 : pci_header {
 
 static_assert(sizeof(pci_header1) == 0x40);
 
-struct pci_msix;
-
-struct pci_device {
-    ~pci_device();
-
-    list_entry le;
-    volatile pci_header0* header;
-    uint8_t bus;
-    uint8_t device;
-    uint8_t function;
-    std::array<std::span<volatile uint8_t>, 6> bar;
-    std::span<volatile uint8_t> msi;
-    volatile pci_msix* msix = nullptr;
-    unsigned int num;
-    list_entry vendor_specific_caps = { &vendor_specific_caps, &vendor_specific_caps };
-};
-
 enum class pci_mass_storage {
     scsi_bus = 0,
     ide = 1,
@@ -152,58 +132,4 @@ enum class pci_capability_type : uint8_t {
     advanced_features = 19,
     enhanced_allocation = 20,
     flattening_portal_bridge = 21
-};
-
-struct pci_capability {
-    enum pci_capability_type type;
-    uint8_t next;
-} __attribute__((packed));
-
-static_assert(sizeof(pci_capability) == 2);
-
-struct pci_msi : pci_capability {
-    uint16_t message_control;
-    uint32_t message_address_low;
-    union {
-        struct {
-            uint16_t message_data;
-        } v32;
-        struct {
-            uint32_t message_address_high;
-            uint16_t message_data;
-            uint16_t reserved;
-            uint32_t mask;
-            uint32_t pending;
-        } v64;
-    };
-} __attribute__((packed));
-
-static_assert(sizeof(pci_msi) == 24);
-
-static constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
-    return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
-}
-
-struct pci_msix : pci_capability {
-    uint16_t message_control;
-    uint32_t bir : 3;
-    uint32_t table_offset : 29;
-    uint32_t pending_bit_bir : 3;
-    uint32_t pending_bit_offset : 29;
-} __attribute__((packed));
-
-static_assert(sizeof(pci_msix) == 12);
-
-struct msix_entry {
-    uint32_t message_address_low;
-    uint32_t message_address_high;
-    uint32_t message_data;
-    uint32_t vector_control;
-} __attribute__((packed));
-
-static_assert(sizeof(msix_entry) == 16);
-
-struct vendor_specific_cap {
-    list_entry le;
-    void* ptr;
 };

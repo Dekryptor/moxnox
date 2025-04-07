@@ -2,7 +2,6 @@ module;
 
 #include "kernel.h"
 #include <ioctl.h>
-#include "pci.h"
 #include "virtio.h"
 #include "spinlock.h"
 #include "handle.h"
@@ -20,6 +19,7 @@ import event;
 import chardev;
 import format;
 import serial;
+import pci;
 
 using namespace std;
 

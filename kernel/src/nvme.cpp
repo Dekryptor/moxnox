@@ -1,7 +1,6 @@
 module;
 
 #include "kernel.h"
-#include "pci.h"
 #include <span>
 #include <shared_mutex>
 #include "handle.h"
@@ -22,6 +21,7 @@ import semaphore;
 import volume;
 import bsod;
 import rwsem;
+import pci;
 
 using namespace std;
 

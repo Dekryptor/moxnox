@@ -1,7 +1,6 @@
 module;
 
 #include "kernel.h"
-#include "pci.h"
 #include "spinlock.h"
 import objects;
 #include "handle.h"
@@ -23,6 +22,7 @@ import semaphore;
 import event;
 import volume;
 import rwsem;
+import pci;
 
 #include "sata.h"
 

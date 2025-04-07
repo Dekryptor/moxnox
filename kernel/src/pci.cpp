@@ -20,11 +20,73 @@ static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
 atomic<unsigned int> devices_left = 0;
 static object_ref init_device_event;
 
-// nvme.cpp
-extern "C++" void init_nvme(const pci_device& dev);
+export struct msix_entry {
+    uint32_t message_address_low;
+    uint32_t message_address_high;
+    uint32_t message_data;
+    uint32_t vector_control;
+} __attribute__((packed));
 
-// sata.cpp
-extern "C++" void init_sata(const pci_device& dev);
+static_assert(sizeof(msix_entry) == 16);
+
+export struct pci_capability {
+    enum pci_capability_type type;
+    uint8_t next;
+} __attribute__((packed));
+
+static_assert(sizeof(pci_capability) == 2);
+
+export struct pci_msi : pci_capability {
+    uint16_t message_control;
+    uint32_t message_address_low;
+    union {
+        struct {
+            uint16_t message_data;
+        } v32;
+        struct {
+            uint32_t message_address_high;
+            uint16_t message_data;
+            uint16_t reserved;
+            uint32_t mask;
+            uint32_t pending;
+        } v64;
+    };
+} __attribute__((packed));
+
+static_assert(sizeof(pci_msi) == 24);
+
+struct pci_msix : pci_capability {
+    uint16_t message_control;
+    uint32_t bir : 3;
+    uint32_t table_offset : 29;
+    uint32_t pending_bit_bir : 3;
+    uint32_t pending_bit_offset : 29;
+} __attribute__((packed));
+
+static_assert(sizeof(pci_msix) == 12);
+
+export struct vendor_specific_cap {
+    list_entry le;
+    void* ptr;
+};
+
+export struct pci_device {
+    ~pci_device();
+
+    list_entry le;
+    volatile pci_header0* header;
+    uint8_t bus;
+    uint8_t device;
+    uint8_t function;
+    array<span<volatile uint8_t>, 6> bar;
+    span<volatile uint8_t> msi;
+    volatile pci_msix* msix = nullptr;
+    unsigned int num;
+    list_entry vendor_specific_caps = { &vendor_specific_caps, &vendor_specific_caps };
+};
+
+export const uint16_t PCI_COMMAND_MASTER = 0x0004;
+export const uint16_t PCI_COMMAND_INTX_DISABLE = 0x0400;
 
 export struct pci_recognizer {
     list_entry le;
@@ -39,6 +101,16 @@ struct check_bus_entry {
     list_entry le;
     uint8_t num;
 };
+
+// nvme.cpp
+extern "C++" void init_nvme(const pci_device& dev);
+
+// sata.cpp
+extern "C++" void init_sata(const pci_device& dev);
+
+export constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
+    return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
+}
 
 static constexpr uint64_t pci_pa(const ACPI_MCFG_ALLOCATION& item, uint8_t bus, uint8_t device, uint8_t function) {
     return item.Address | (uint64_t)((bus - item.StartBusNumber) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12);
