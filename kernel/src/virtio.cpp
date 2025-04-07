@@ -4,6 +4,7 @@ module;
 #include "pci.h"
 #include "virtio.h"
 #include "spinlock.h"
+#include "handle.h"
 
 export module virtio;
 
@@ -15,6 +16,7 @@ import config;
 import interrupts;
 import semaphore;
 import event;
+import chardev;
 
 using namespace std;
 
@@ -44,7 +46,7 @@ class virt_queue {
 public:
     virt_queue();
     ~virt_queue();
-    void write(string_view msg);
+    void write(span<const uint8_t> msg);
     void isr();
 
     virtq<QUEUE_SIZE>* queue;
@@ -69,17 +71,31 @@ public:
     virtio_pci_device(pci_device& dev);
     ~virtio_pci_device();
     void finalize();
-    bool write_virtqueue(uint16_t num, string_view msg);
 
     pci_device& dev;
     bool initialized = false;
+    list_entry virtqueues = { &virtqueues, &virtqueues };
 
 private:
     bool add_virtqueue(uint16_t num);
 
     volatile virtio_pci_common_cfg* common;
     virtio_pci_notify_cap* notify_cfg = nullptr;
-    list_entry virtqueues = { &virtqueues, &virtqueues };
+};
+
+class virtio_console : public virtio_pci_device, public chardev {
+public:
+    virtio_console(pci_device& dev);
+
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+
+    nt_status write(string_view sv, uint64_t& written_bytes) {
+        return write(span((uint8_t*)sv.data(), sv.length()), written_bytes);
+    }
+
+private:
+    virt_queue* send_queue = nullptr;
 };
 
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
@@ -253,7 +269,7 @@ void virt_queue::release_slot(uint8_t slot) {
     release_semaphore(static_cast<semaphore&>(sem.get()));
 }
 
-void virt_queue::write(string_view msg) {
+void virt_queue::write(span<const uint8_t> msg) {
     // FIXME - do without copying
 
     auto buf = malloc(msg.size());
@@ -442,32 +458,47 @@ virtio_pci_device::~virtio_pci_device() {
     }
 }
 
-bool virtio_pci_device::write_virtqueue(uint16_t num, string_view msg) {
-    for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
-        auto& vq = containing_record<virt_queue>(virtqueues.next);
-
-        if (vq.num != num)
-            continue;
-
-        vq.write(msg);
-        return true;
-    }
-
-    return false;
-}
-
 void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
 
+virtio_console::virtio_console(pci_device& dev) : virtio_pci_device(dev) {
+    for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
+        auto& vq = containing_record<virt_queue>(virtqueues.next);
+
+        if (vq.num == 1) {
+            send_queue = &vq;
+            break;
+        }
+    }
+}
+
+nt_status virtio_console::read(span<uint8_t> s, uint64_t& read_bytes) {
+    print("FIXME - virtio_console::read\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
+nt_status virtio_console::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    send_queue->write(s);
+
+    written_bytes = s.size(); // FIXME
+
+    return nt_status::SUCCESS;
+}
+
 void found_virtio_pci(pci_device& dev) {
-    virtio_pci_device v(dev);
+    virtio_console v(dev);
 
     if (!v.initialized)
         return;
 
     v.finalize();
 
-    v.write_virtqueue(1, "hello world\n"); // FIXME
-    v.write_virtqueue(1, "(and again...)\n"); // FIXME
+    name_object(v, "hvc0"); // FIXME
+
+    uint64_t written_bytes;
+
+    v.write("hello world\n", written_bytes); // FIXME
+    v.write("(and again...)\n", written_bytes); // FIXME
 }
