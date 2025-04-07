@@ -14,7 +14,7 @@ export enum class object_type {
     thread,
     timer,
     event,
-    pipe,
+    chardev,
     semaphore,
     volume,
     inode,

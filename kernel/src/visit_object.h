@@ -28,8 +28,8 @@ static void visit_obj(object& obj, const T& func) {
             func(static_cast<event&>(obj));
         break;
 
-        case object_type::pipe:
-            func(static_cast<pipe&>(obj));
+        case object_type::chardev:
+            func(static_cast<chardev&>(obj));
         break;
 
         case object_type::semaphore:

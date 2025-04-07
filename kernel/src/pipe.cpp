@@ -16,10 +16,22 @@ import bsod;
 
 using namespace std;
 
-export class pipe : public object {
+export class chardev : public object {
 public:
-    pipe(unsigned int buffer_pages);
-    virtual ~pipe();
+    chardev() : object(object_type::chardev) { }
+    virtual ~chardev() { }
+
+    virtual NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) = 0;
+
+    virtual NTSTATUS write(std::span<const uint8_t> s, uint64_t& written_bytes) = 0;
+
+    NTSTATUS write(std::string_view sv, uint64_t& written_bytes) {
+        return write(std::span((uint8_t*)sv.data(), sv.length()), written_bytes);
+    }
+
+    virtual nt_status ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {
+        return nt_status::NOT_SUPPORTED;
+    }
 
     void acquire() {
         refcount++;
@@ -30,16 +42,28 @@ public:
             delete this;
     }
 
-    virtual NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes);
+    bool signalled = true;
+    bool exclusive = true;
+    list_entry waiters = { &waiters, &waiters };
+};
 
-    virtual NTSTATUS write(std::span<const uint8_t> s, uint64_t& written_bytes);
+static_assert(is_sync_object<chardev>);
+static_assert(is_readable_object_without_offset<chardev>);
+static_assert(is_writable_object_without_offset<chardev>);
+static_assert(has_ioctls<chardev>);
+static_assert(has_exclusive_field<chardev>);
+
+export class pipe : public chardev {
+public:
+    pipe(unsigned int buffer_pages);
+    virtual ~pipe();
+
+    NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) override;
+
+    NTSTATUS write(std::span<const uint8_t> s, uint64_t& written_bytes) override;
 
     NTSTATUS write(std::string_view sv, uint64_t& written_bytes) {
         return write(std::span((uint8_t*)sv.data(), sv.length()), written_bytes);
-    }
-
-    virtual nt_status ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {
-        return nt_status::NOT_SUPPORTED;
     }
 
     virtual nt_status flush(bool go_readonly) {
@@ -49,7 +73,6 @@ public:
         return nt_status::SUCCESS;
     }
 
-    bool signalled = false;
     uint8_t* buf;
     unsigned int buf_pages;
     size_t buf_unread = 0;
@@ -58,20 +81,13 @@ public:
     event not_full_event;
     bool readonly = false;
     list_entry flushable_le;
-    bool exclusive = true;
-    list_entry waiters = { &waiters, &waiters };
 };
-
-static_assert(is_sync_object<pipe>);
-static_assert(is_readable_object_without_offset<pipe>);
-static_assert(is_writable_object_without_offset<pipe>);
-static_assert(has_ioctls<pipe>);
-static_assert(has_exclusive_field<pipe>);
 
 static spinlock flushable_pipes_lock;
 static list_entry flushable_pipes = { &flushable_pipes, &flushable_pipes };
 
-pipe::pipe(unsigned int buffer_pages) : object(object_type::pipe), buf_pages(buffer_pages) {
+pipe::pipe(unsigned int buffer_pages) : buf_pages(buffer_pages) {
+    signalled = false;
     not_full_event.autoreset = false;
     not_full_event.signalled = true;
 

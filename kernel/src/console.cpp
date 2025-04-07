@@ -1537,8 +1537,8 @@ bool init_console(const loader_block_framebuffer& fb,
         if (!success(status))
             bsod_format("open_object returned {} trying to open console {}", status, console_opt);
 
-        if (console_pipe.get().type != object_type::pipe)
-            bsod_format("console option {} did not point to a pipe", console_opt);
+        if (console_pipe.get().type != object_type::chardev)
+            bsod_format("console option {} did not point to a character device", console_opt);
 
         console_cols = 80; // FIXME
         console_rows = 25; // FIXME

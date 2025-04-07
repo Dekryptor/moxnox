@@ -128,8 +128,8 @@ static void keywait() {
 
         auto& keyb = keybh.get();
 
-        if (keyb.type != object_type::pipe) {
-            print("/dev/keyboard did not point to a pipe\n");
+        if (keyb.type != object_type::chardev) {
+            print("/dev/keyboard did not point to a character device\n");
             return;
         }
 
