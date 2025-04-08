@@ -63,6 +63,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/virtio.cpp
     src/chardev.cpp
     src/virtio_block.cpp
+    src/virtio_console.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list)

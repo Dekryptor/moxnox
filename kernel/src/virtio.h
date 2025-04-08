@@ -7,10 +7,6 @@ static const uint8_t VIRTIO_DEVICE_STATUS_FEATURES_OK = 0x08;
 static const uint8_t VIRTIO_DEVICE_STATUS_DEVICE_NEEDS_RESET = 0x40;
 static const uint8_t VIRTIO_DEVICE_STATUS_FAILED = 0x80;
 
-static const uint64_t VIRTIO_CONSOLE_F_SIZE = 1 << 0;
-static const uint64_t VIRTIO_CONSOLE_F_MULTIPORT = 1 << 1;
-static const uint64_t VIRTIO_CONSOLE_F_EMERG_WRITE = 1 << 2;
-
 static const uint64_t VIRTIO_RING_F_INDIRECT_DESC = 1 << 28;
 static const uint64_t VIRTIO_RING_F_EVENT_IDX = 1 << 29;
 static const uint64_t VIRTIO_F_VERSION_1 = (uint64_t)1 << 32;
@@ -74,15 +70,6 @@ struct virtio_pci_common_cfg {
 } __attribute((packed));
 
 static_assert(sizeof(virtio_pci_common_cfg) == 64);
-
-struct virtio_console_config {
-    uint16_t cols;
-    uint16_t rows;
-    uint32_t max_nr_ports;
-    uint32_t emerg_wr;
-} __attribute((packed));
-
-static_assert(sizeof(virtio_console_config) == 12);
 
 static const uint8_t VIRTQ_DESC_F_NEXT = 1;
 static const uint8_t VIRTQ_DESC_F_WRITE = 2;

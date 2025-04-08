@@ -18,9 +18,6 @@ using namespace std;
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
-// FIXME - allow dynamic queue size (maximum supported by device?)
-const size_t QUEUE_SIZE = 32;
-
 class virtio_block : public virtio_pci_device, public volume {
 public:
     virtio_block(pci_device& dev);
