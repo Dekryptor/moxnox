@@ -33,7 +33,8 @@ static const uint64_t VIRTIO_BLK_F_LIFETIME = 1 << 15;
 static const uint64_t VIRTIO_BLK_F_SECURE_ERASE = 1 << 16;
 static const uint64_t VIRTIO_BLK_F_ZONED = 1 << 17;
 
-static const uint64_t SUPPORTED_FEATURES = VIRTIO_BLK_F_BLK_SIZE;
+static const uint64_t SUPPORTED_FEATURES = VIRTIO_BLK_F_RO |
+                                           VIRTIO_BLK_F_BLK_SIZE;
 
 struct virtio_blk_config {
     uint64_t capacity;
@@ -147,6 +148,9 @@ size_t virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
 
 size_t virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
                                pfn_iterator& it, bool fua) {
+    if (negotiated_features & VIRTIO_BLK_F_RO) // FIXME - return status
+        return 0;
+
     print("FIXME - virtio_block::dio_write\n"); // FIXME
 
     return 0;
