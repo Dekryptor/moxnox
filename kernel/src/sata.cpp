@@ -51,8 +51,8 @@ static constexpr uint32_t SATA_IS_DHRS = 1 << 0;
 
 atomic<unsigned int> num_sata_devices = 0;
 
-uint64_t sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
-                               pfn_iterator& it) {
+nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
+                                pfn_iterator& it, uint64_t& read_pages) {
     // FIXME - proper error handling
     // FIXME - asynchronous mode
 
@@ -126,18 +126,21 @@ uint64_t sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
 
     if (status == nt_status::ALERTED) {
         release_slot(slot);
-        return 0;
+        read_pages = 0;
+        return nt_status::SUCCESS;
     }
 
     if (port.is & HBA_PxIS_TFES) {
         print("Error reading disk\n");
         release_slot(slot);
-        return 0;
+        return nt_status::INTERNAL_ERROR; // FIXME - translate into nt_status properly
     }
 
     release_slot(slot);
 
-    return num_pages;
+    read_pages = num_pages;
+
+    return nt_status::SUCCESS;
 }
 
 uint8_t sata_device::get_slot() {

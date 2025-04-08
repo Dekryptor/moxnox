@@ -41,8 +41,8 @@ public:
 
     virtual void release() = 0;
     virtual void flush() = 0;
-    virtual uint64_t dio_read(uint64_t page_num, uint64_t num_pages,
-                              pfn_iterator& it) = 0;
+    virtual nt_status dio_read(uint64_t page_num, uint64_t num_pages,
+                               pfn_iterator& it, uint64_t& read_pages) = 0;
     virtual nt_status dio_write(uint64_t page_num, uint64_t num_pages,
                                 pfn_iterator& it, uint64_t& written_pages,
                                 bool fua = false) = 0;
@@ -86,8 +86,8 @@ public:
         parent.flush();
     }
 
-    uint64_t dio_read(uint64_t page_num, uint64_t num_pages,
-                      pfn_iterator& it) override;
+    nt_status dio_read(uint64_t page_num, uint64_t num_pages,
+                       pfn_iterator& it, uint64_t& read_pages) override;
     nt_status dio_write(uint64_t page_num, uint64_t num_pages,
                         pfn_iterator& it, uint64_t& written_pages,
                         bool fua) override;
@@ -370,18 +370,26 @@ diskpart::~diskpart() {
     parent.release();
 }
 
-uint64_t diskpart::dio_read(uint64_t page_num, uint64_t num_pages,
-                            pfn_iterator& it) {
+nt_status diskpart::dio_read(uint64_t page_num, uint64_t num_pages,
+                             pfn_iterator& it, uint64_t& read_pages) {
     // FIXME - reduce num_pages if would overflow partition
 
     return parent.dio_read(page_num + (disk_offset >> PAGE_SHIFT), num_pages,
-                           it);
+                           it, read_pages);
 }
 
 uint64_t volume::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     page_cache_iterator iter(*this, page_num);
 
-    return dio_read(page_num, num_pages, iter);
+    uint64_t read_pages;
+
+    auto status = dio_read(page_num, num_pages, iter, read_pages);
+    if (!success(status)) {
+        print("dio_read returned {}\n", status);
+        return 0;
+    }
+
+    return read_pages;
 }
 
 nt_status diskpart::dio_write(uint64_t page_num, uint64_t num_pages,

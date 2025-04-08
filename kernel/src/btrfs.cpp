@@ -92,11 +92,13 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
     auto iter = folio_iter(sb_pa);
 
-    auto read_pages = vol.dio_read(superblock_addrs[0] >> PAGE_SHIFT,
-                                   bytes_to_pages(sizeof(btrfs_super_block)),
-                                   iter);
-    if (read_pages == 0) {
-        print("volume::dio_read failed\n");
+    uint64_t read_pages;
+
+    auto status = vol.dio_read(superblock_addrs[0] >> PAGE_SHIFT,
+                               bytes_to_pages(sizeof(btrfs_super_block)),
+                               iter, read_pages);
+    if (!success(status)) {
+        print("volume::dio_read returned {}\n", status);
         return;
     }
 

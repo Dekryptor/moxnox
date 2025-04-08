@@ -90,8 +90,8 @@ public:
     }
 
     void flush() override;
-    size_t dio_read(uint64_t page_num, uint64_t num_pages,
-                    pfn_iterator& it) override;
+    nt_status dio_read(uint64_t page_num, uint64_t num_pages,
+                       pfn_iterator& it, uint64_t& written_pages) override;
     nt_status dio_write(uint64_t page_num, uint64_t num_pages,
                         pfn_iterator& it, uint64_t& written_pages,
                         bool fua) override;
@@ -140,11 +140,11 @@ void virtio_block::flush() {
     print("FIXME - virtio_block::flush\n"); // FIXME
 }
 
-size_t virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
-                              pfn_iterator& it) {
+nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
+                                 pfn_iterator& it, uint64_t& read_pages) {
     print("FIXME - virtio_block::dio_read\n"); // FIXME
 
-    return 0;
+    return nt_status::NOT_SUPPORTED;
 }
 
 nt_status virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
