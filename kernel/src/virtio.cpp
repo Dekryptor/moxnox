@@ -5,6 +5,8 @@ module;
 #include "virtio.h"
 #include "spinlock.h"
 #include "handle.h"
+import rbtree;
+#include "page_cache.h"
 
 export module virtio;
 
@@ -20,6 +22,7 @@ import chardev;
 import format;
 import serial;
 import pci;
+import volume;
 
 using namespace std;
 
@@ -28,13 +31,14 @@ static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 // FIXME - allow dynamic queue size (maximum supported by device?)
 const size_t QUEUE_SIZE = 32;
 
-static const uint64_t supported_features = VIRTIO_CONSOLE_F_EMERG_WRITE;
-
-export void found_virtio_pci(pci_device& dev);
+export void found_virtio_pci_block(pci_device& dev);
+export void found_virtio_pci_console(pci_device& dev);
 
 static pci_recognizer mod_pci_ids[] = {
-    { {}, PCI_VENDOR_ID_REDHAT, 0x1003, found_virtio_pci },
-    { {}, PCI_VENDOR_ID_REDHAT, 0x1043, found_virtio_pci },
+    { {}, PCI_VENDOR_ID_REDHAT, 0x1001, found_virtio_pci_block },
+    { {}, PCI_VENDOR_ID_REDHAT, 0x1003, found_virtio_pci_console },
+    { {}, PCI_VENDOR_ID_REDHAT, 0x1042, found_virtio_pci_block },
+    { {}, PCI_VENDOR_ID_REDHAT, 0x1043, found_virtio_pci_console },
 };
 
 static void init_virtio_pci() {
@@ -73,7 +77,8 @@ private:
 
 class virtio_pci_device {
 public:
-    virtio_pci_device(pci_device& dev);
+    virtio_pci_device(pci_device& dev, uint64_t supported_features,
+                      uint16_t num_queues);
     ~virtio_pci_device();
     void finalize();
 
@@ -109,7 +114,29 @@ private:
     virt_queue* send_queue = nullptr;
 };
 
+class virtio_block : public virtio_pci_device, public volume {
+public:
+    virtio_block(pci_device& dev);
+
+    void release() override {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    void flush() override;
+    size_t dio_read(uint64_t page_num, uint64_t num_pages,
+                    pfn_iterator& it) override;
+    size_t dio_write(uint64_t page_num, uint64_t num_pages,
+                     pfn_iterator& it, bool fua) override;
+
+    unsigned int dev_num;
+
+private:
+    virt_queue* queue = nullptr;
+};
+
 static atomic<uint32_t> virtio_console_num = 0;
+static atomic<uint32_t> virtio_block_num = 0;
 
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
     if (cap.cap_len < sizeof(virtio_pci_cap) + sizeof(pci_capability)) {
@@ -370,7 +397,8 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
     return nt_status::SUCCESS;
 }
 
-virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
+virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_features,
+                                     uint16_t num_queues) : dev(dev) {
     virtio_pci_cap* common_cfg = nullptr;
 
     if (!dev.msix) {
@@ -462,11 +490,10 @@ virtio_pci_device::virtio_pci_device(pci_device& dev) : dev(dev) {
     // enable MSI-X
     dev.msix->message_control |= 0x8000;
 
-    if (!add_virtqueue(0))
-        return;
-
-    if (!add_virtqueue(1))
-        return;
+    for (uint16_t i = 0; i < num_queues; i++) {
+        if (!add_virtqueue(i))
+            return;
+    }
 
     initialized = true;
 }
@@ -523,7 +550,7 @@ void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
 
-virtio_console::virtio_console(pci_device& dev) : virtio_pci_device(dev) {
+virtio_console::virtio_console(pci_device& dev) : virtio_pci_device(dev, VIRTIO_CONSOLE_F_EMERG_WRITE, 2) {
     if (device_cfg->length < sizeof(virtio_console_config)) {
         print("virtio_pci_device: device cfg length was {}, expected at least {}\n",
               device_cfg->length, sizeof(virtio_console_config));
@@ -611,7 +638,7 @@ nt_status virtio_console::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-void found_virtio_pci(pci_device& dev) {
+void found_virtio_pci_console(pci_device& dev) {
     auto v = new virtio_console(dev);
     if (!v) {
         print("new failed\n");
@@ -635,4 +662,86 @@ void found_virtio_pci(pci_device& dev) {
 
         name_object(*v, string_view(s, (size_t)(sp.data() - s)));
     }
+}
+
+virtio_block::virtio_block(pci_device& dev) : virtio_pci_device(dev, 0, 1) {
+    // FIXME - device_cfg
+
+    for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
+        auto& vq = containing_record<virt_queue>(le);
+
+        if (vq.num == 0) {
+            queue = &vq;
+            break;
+        }
+    }
+}
+
+void virtio_block::flush() {
+    print("FIXME - virtio_block::flush\n"); // FIXME
+}
+
+size_t virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
+                              pfn_iterator& it) {
+    print("FIXME - virtio_block::dio_read\n"); // FIXME
+
+    return 0;
+}
+
+size_t virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
+                               pfn_iterator& it, bool fua) {
+    print("FIXME - virtio_block::dio_write\n"); // FIXME
+
+    return 0;
+}
+
+void found_virtio_pci_block(pci_device& dev) {
+    auto pv = new virtio_block(dev);
+    if (!pv) {
+        print("new failed\n");
+        return;
+    }
+
+    object_ref ref{*pv};
+
+    auto& v = *pv;
+
+    if (!v.initialized)
+        return;
+
+    v.finalize();
+
+    // FIXME - make sure devices are numbered consistently
+    v.dev_num = virtio_block_num.fetch_add(1);
+
+    if (v.dev_num < 26) {
+        char name[4];
+
+        name[0] = 'v';
+        name[1] = 'd';
+        name[2] = (char)(v.dev_num + 'a');
+        name[3] = 0;
+
+        if (!name_object(v, name)) {
+            print("name_object failed\n");
+            return;
+        }
+
+        v.volume_name_len = strlen(name);
+        v.volume_name = (char*)malloc(v.volume_name_len);
+        if (!v.volume_name) {
+            print("malloc failed\n");
+            return;
+        }
+
+        memcpy(v.volume_name, name, v.volume_name_len);
+    }
+
+    v.sector_size = 512; // FIXME - VIRTIO_BLK_F_BLK_SIZE
+    // FIXME - set v.size
+
+    print("found /dev/{}: block size {}, capacity {}\n", string_view(v.volume_name, v.volume_name_len),
+          byte_size(v.sector_size), byte_size(v.size));
+
+    v.probe();
 }
