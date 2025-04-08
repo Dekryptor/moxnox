@@ -126,8 +126,9 @@ public:
 
     size_t dio_read(uint64_t page_num, uint64_t num_pages,
                     pfn_iterator& it) override;
-    size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator& it, bool fua) override;
+    nt_status dio_write(uint64_t page_num, uint64_t num_pages,
+                        pfn_iterator& it, uint64_t& written_pages,
+                        bool fua) override;
 
     list_entry le;
     nvme_controller& controller;
@@ -884,8 +885,9 @@ size_t nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
     return num_pages;
 }
 
-size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
-                                 pfn_iterator& it, bool fua) {
+nt_status nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
+                                    pfn_iterator& it, uint64_t& written_pages,
+                                    bool fua) {
     static constexpr size_t PRP_LIST_ENTRIES = PAGE_SIZE / sizeof(uint64_t);
 
     if (num_pages << PAGE_SHIFT > controller.maximum_transfer_size)
@@ -923,7 +925,7 @@ size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
         prp2 = allocate_folio(0);
         if (!prp2) {
             print("allocate_folio failed\n");
-            return 0;
+            return nt_status::INSUFFICIENT_RESOURCES;
         }
 
         auto ptr = (uint64_t*)phys_address(prp2);
@@ -966,11 +968,13 @@ size_t nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
 
     if (req.cqe.status != 0) {
         print("NVMe write returned status {:x}\n", req.cqe.status);
-        // FIXME - translate into nt_status and return somehow
-        return 0;
+        // FIXME - properly translate into nt_status
+        return nt_status::INTERNAL_ERROR;
     }
 
-    return num_pages;
+    written_pages = num_pages;
+
+    return nt_status::SUCCESS;
 }
 
 void nvme_namespace::flush() {

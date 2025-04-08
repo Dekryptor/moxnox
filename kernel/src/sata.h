@@ -460,8 +460,9 @@ public:
     void flush() override;
     size_t dio_read(uint64_t page_num, uint64_t num_pages,
                     pfn_iterator& it) override;
-    size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator& it, bool fua) override;
+    nt_status dio_write(uint64_t page_num, uint64_t num_pages,
+                        pfn_iterator& it, uint64_t& written_pages,
+                        bool fua) override;
 
     list_entry le;
     volatile HBA_PORT& port;

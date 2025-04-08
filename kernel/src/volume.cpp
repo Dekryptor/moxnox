@@ -43,8 +43,9 @@ public:
     virtual void flush() = 0;
     virtual uint64_t dio_read(uint64_t page_num, uint64_t num_pages,
                               pfn_iterator& it) = 0;
-    virtual size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                             pfn_iterator& it, bool fua = false) = 0;
+    virtual nt_status dio_write(uint64_t page_num, uint64_t num_pages,
+                                pfn_iterator& it, uint64_t& written_pages,
+                                bool fua = false) = 0;
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
@@ -87,8 +88,9 @@ public:
 
     uint64_t dio_read(uint64_t page_num, uint64_t num_pages,
                       pfn_iterator& it) override;
-    size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator& it, bool fua) override;
+    nt_status dio_write(uint64_t page_num, uint64_t num_pages,
+                        pfn_iterator& it, uint64_t& written_pages,
+                        bool fua) override;
     volume& parent;
     uint64_t disk_offset;
 };
@@ -382,12 +384,13 @@ uint64_t volume::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     return dio_read(page_num, num_pages, iter);
 }
 
-size_t diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
-                           pfn_iterator& it, bool fua) {
+nt_status diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
+                              pfn_iterator& it, uint64_t& written_pages,
+                              bool fua) {
     // FIXME - reduce num_pages if would overflow partition
 
     return parent.dio_write(page_num + (disk_offset >> PAGE_SHIFT), num_pages,
-                            it, fua);
+                            it, written_pages, fua);
 }
 
 size_t volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
@@ -396,7 +399,13 @@ size_t volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     page_cache_iterator iter(*this, page_num);
 
-    auto flushed = dio_write(page_num, num_pages, iter);
+    uint64_t flushed;
+
+    auto status = dio_write(page_num, num_pages, iter, flushed);
+    if (!success(status)) { // FIXME - return error
+        cache.unpin(page_num, num_pages);
+        return 0;
+    }
 
     if (flushed < num_pages)
         cache.unpin(page_num + flushed, num_pages - flushed);

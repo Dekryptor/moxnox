@@ -92,8 +92,9 @@ public:
     void flush() override;
     size_t dio_read(uint64_t page_num, uint64_t num_pages,
                     pfn_iterator& it) override;
-    size_t dio_write(uint64_t page_num, uint64_t num_pages,
-                     pfn_iterator& it, bool fua) override;
+    nt_status dio_write(uint64_t page_num, uint64_t num_pages,
+                        pfn_iterator& it, uint64_t& written_pages,
+                        bool fua) override;
 
     unsigned int dev_num;
 
@@ -146,14 +147,15 @@ size_t virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
     return 0;
 }
 
-size_t virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
-                               pfn_iterator& it, bool fua) {
-    if (negotiated_features & VIRTIO_BLK_F_RO) // FIXME - return status
-        return 0;
+nt_status virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
+                                  pfn_iterator& it, uint64_t& written_pages,
+                                  bool fua) {
+    if (negotiated_features & VIRTIO_BLK_F_RO)
+        return nt_status::MEDIA_WRITE_PROTECTED;
 
     print("FIXME - virtio_block::dio_write\n"); // FIXME
 
-    return 0;
+    return nt_status::NOT_SUPPORTED;
 }
 
 void found_virtio_pci_block(pci_device& dev) {

@@ -2969,11 +2969,13 @@ static void write_superblocks(btrfs_filesystem& fs) {
 
         auto iter = folio_iter(phys_memory_pfn(fs.sb) << PAGE_SHIFT);
 
-        auto written_pages = fs.vol->dio_write(addr >> PAGE_SHIFT,
-                                               bytes_to_pages(sizeof(btrfs_super_block)),
-                                               iter, true);
-        if (written_pages == 0) // FIXME - go readonly if this happens?
-            print("volume::dio_write failed\n");
+        uint64_t written_pages;
+
+        auto status = fs.vol->dio_write(addr >> PAGE_SHIFT,
+                                        bytes_to_pages(sizeof(btrfs_super_block)),
+                                        iter, written_pages, true);
+        if (!success(status)) // FIXME - go readonly if this happens?
+            print("volume::dio_write returned {}\n", status);
     }
 }
 

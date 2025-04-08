@@ -632,8 +632,9 @@ void init_sata(const pci_device& dev) {
     wait_for_object(sc->init_event.get(), false);
 }
 
-size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
-                              pfn_iterator& it, bool fua) {
+nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
+                                 pfn_iterator& it, uint64_t& written_pages,
+                                 bool fua) {
     // FIXME - proper error handling
     // FIXME - asynchronous mode
 
@@ -710,7 +711,7 @@ size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
         if (port.is & HBA_PxIS_TFES) {
             print("Error writing to disk\n");
             release_slot(slot);
-            return 0;
+            return nt_status::INTERNAL_ERROR; // FIXME - translate to nt_status properly
         }
 
         release_slot(slot);
@@ -720,7 +721,9 @@ size_t sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
     if (num_pages != 0 && fua)
         flush();
 
-    return num_pages;
+    written_pages = num_pages;
+
+    return nt_status::SUCCESS;
 }
 
 sata_card::~sata_card() {
