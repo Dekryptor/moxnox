@@ -201,7 +201,7 @@ void found_virtio_pci_block(pci_device& dev) {
     else
         v.sector_size = 512;
 
-    // FIXME - set v.size
+    v.size = cfg.capacity * 512;
 
     print("found /dev/{}: block size {}, capacity {}\n", string_view(v.volume_name, v.volume_name_len),
           byte_size(v.sector_size), byte_size(v.size));
