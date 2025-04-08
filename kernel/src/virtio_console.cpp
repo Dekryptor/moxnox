@@ -21,6 +21,8 @@ static const uint64_t VIRTIO_CONSOLE_F_SIZE = 1 << 0;
 static const uint64_t VIRTIO_CONSOLE_F_MULTIPORT = 1 << 1;
 static const uint64_t VIRTIO_CONSOLE_F_EMERG_WRITE = 1 << 2;
 
+static const uint64_t SUPPORTED_FEATURES = VIRTIO_CONSOLE_F_EMERG_WRITE;
+
 struct virtio_console_config {
     uint16_t cols;
     uint16_t rows;
@@ -69,9 +71,9 @@ private:
 static atomic<uint32_t> virtio_console_num = 0;
 
 
-virtio_console::virtio_console(pci_device& dev) : virtio_pci_device(dev, VIRTIO_CONSOLE_F_EMERG_WRITE, 2) {
+virtio_console::virtio_console(pci_device& dev) : virtio_pci_device(dev, SUPPORTED_FEATURES, 2) {
     if (device_cfg->length < sizeof(virtio_console_config)) {
-        print("virtio_pci_device: device cfg length was {}, expected at least {}\n",
+        print("virtio_console: device cfg length was {}, expected at least {}\n",
               device_cfg->length, sizeof(virtio_console_config));
         return;
     }
