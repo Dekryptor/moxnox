@@ -116,7 +116,7 @@ public:
             delete this;
     }
 
-    void flush() override;
+    nt_status flush() override;
     nt_status dio_read(uint64_t page_num, uint64_t num_pages,
                        pfn_iterator& it, uint64_t& written_pages) override;
     nt_status dio_write(uint64_t page_num, uint64_t num_pages,
@@ -163,21 +163,18 @@ virtio_block::virtio_block(pci_device& dev) : virtio_pci_device(dev, SUPPORTED_F
     }
 }
 
-void virtio_block::flush() {
+nt_status virtio_block::flush() {
     if (!(negotiated_features & VIRTIO_BLK_F_FLUSH))
-        return;
+        return nt_status::SUCCESS;
 
     auto req = (virtio_blk_req*)malloc(sizeof(virtio_blk_req));
-    if (!req) {
-        print("malloc failed\n");
-        return;
-    }
+    if (!req)
+        return nt_status::INSUFFICIENT_RESOURCES;
 
     auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
     if (!descs) {
-        print("malloc failed\n");
         free(req);
-        return;
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     req->type = VIRTIO_BLK_T::FLUSH;
@@ -200,15 +197,21 @@ void virtio_block::flush() {
     if (!success(status)) {
         free(descs);
         free(req);
-        return; // FIXME - return status
+        return status;
     }
 
-    // FIXME - translate status into nt_status and return?
-    if (req->status != 0)
+    if (req->status != 0) {
         print("virtio_block::flush: device returned status {:x}\n", req->status);
+        free(descs);
+        free(req);
+        // FIXME - translate status into nt_status properly
+        return nt_status::INTERNAL_ERROR;
+    }
 
     free(descs);
     free(req);
+
+    return nt_status::SUCCESS;
 }
 
 nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,

@@ -40,7 +40,7 @@ public:
     }
 
     virtual void release() = 0;
-    virtual void flush() = 0;
+    virtual nt_status flush() = 0;
     virtual nt_status dio_read(uint64_t page_num, uint64_t num_pages,
                                pfn_iterator& it, uint64_t& read_pages) = 0;
     virtual nt_status dio_write(uint64_t page_num, uint64_t num_pages,
@@ -82,8 +82,8 @@ public:
             delete this;
     }
 
-    void flush() override {
-        parent.flush();
+    nt_status flush() override {
+        return parent.flush();
     }
 
     nt_status dio_read(uint64_t page_num, uint64_t num_pages,

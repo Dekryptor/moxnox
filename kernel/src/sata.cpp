@@ -734,7 +734,7 @@ sata_card::~sata_card() {
         remove_isr(sata_isr_func, this);
 }
 
-void sata_device::flush() {
+nt_status sata_device::flush() {
     lock_guard lock(flush_sem);
 
     // FIXME - proper error handling
@@ -770,8 +770,14 @@ void sata_device::flush() {
 
     wait_for_object(events[slot].get(), false);
 
-    if (port.is & HBA_PxIS_TFES)
-        print("Error flushing disk\n"); // FIXME - return nt_status?
+    if (port.is & HBA_PxIS_TFES) {
+        print("Error flushing disk\n");
+        release_slot(slot);
+        // FIXME - translate into nt_status properly
+        return nt_status::INTERNAL_ERROR;
+    }
 
     release_slot(slot);
+
+    return nt_status::SUCCESS;
 }

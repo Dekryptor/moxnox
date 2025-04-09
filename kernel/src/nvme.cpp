@@ -122,7 +122,7 @@ public:
             delete this;
     }
 
-    void flush() override;
+    nt_status flush() override;
 
     nt_status dio_read(uint64_t page_num, uint64_t num_pages,
                        pfn_iterator& it, uint64_t& read_pages) override;
@@ -979,7 +979,7 @@ nt_status nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
     return nt_status::SUCCESS;
 }
 
-void nvme_namespace::flush() {
+nt_status nvme_namespace::flush() {
     auto& queue = controller.io_queue;
 
     nvme_request req;
@@ -999,6 +999,9 @@ void nvme_namespace::flush() {
 
     if (req.cqe.status != 0) {
         print("NVMe flush returned status {:x}\n", req.cqe.status);
-        // FIXME - translate into nt_status and return?
+        // FIXME - translate into nt_status properly
+        return nt_status::INTERNAL_ERROR;
     }
+
+    return nt_status::SUCCESS;
 }
