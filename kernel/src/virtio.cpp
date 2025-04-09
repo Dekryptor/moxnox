@@ -56,8 +56,8 @@ public:
     virt_queue();
     ~virt_queue();
     nt_status read(span<uint8_t> msg, uint64_t& read_bytes);
-    nt_status read_indirect(span<uint8_t> s, uint64_t& read_bytes);
     nt_status write(span<const uint8_t> msg);
+    nt_status indirect(span<uint8_t> s, uint64_t& read_bytes);
     void isr();
 
     virtq<QUEUE_SIZE>* queue;
@@ -317,7 +317,7 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
     return nt_status::SUCCESS;
 }
 
-nt_status virt_queue::read_indirect(span<uint8_t> s, uint64_t& read_bytes) {
+nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
     if (s.empty()) {
         read_bytes = 0;
         return nt_status::SUCCESS;

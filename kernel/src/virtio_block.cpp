@@ -215,7 +215,7 @@ nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
 
     uint64_t buf_read_bytes;
 
-    auto status = queue->read_indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (num_pages + 2)), buf_read_bytes);
+    auto status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (num_pages + 2)), buf_read_bytes);
     if (!success(status)) {
         free(descs);
         free(req);
@@ -243,9 +243,73 @@ nt_status virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
     if (negotiated_features & VIRTIO_BLK_F_RO)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
-    print("FIXME - virtio_block::dio_write\n"); // FIXME
+    if (num_pages == 0) {
+        written_pages = 0;
+        return nt_status::SUCCESS;
+    }
 
-    return nt_status::NOT_SUPPORTED;
+    // don't use more than 1 page for descriptor
+    static const uint64_t MAX_PAGES = (PAGE_SIZE / sizeof(virtq_desc)) - 2;
+
+    if (num_pages > MAX_PAGES)
+        num_pages = MAX_PAGES;
+
+    auto req = (virtio_blk_req*)malloc(sizeof(virtio_blk_req));
+    if (!req)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * (num_pages + 2));
+    if (!descs) {
+        free(req);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    req->type = VIRTIO_BLK_T::OUT;
+    req->reserved = 0;
+    req->sector = (page_num << PAGE_SHIFT) / SECTOR_SIZE;
+
+    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].len = offsetof(virtio_blk_req, status);
+    descs[0].flags = VIRTQ_DESC_F_NEXT;
+    descs[0].next = 1;
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (i != 0)
+            it++;
+
+        descs[i + 1].addr = *it;
+        descs[i + 1].len = PAGE_SIZE;
+        descs[i + 1].flags = VIRTQ_DESC_F_NEXT;
+        descs[i + 1].next = (uint16_t)(i + 2);
+    }
+
+    descs[num_pages + 1].addr = descs[0].addr + descs[0].len;
+    descs[num_pages + 1].len = sizeof(virtio_blk_req) - descs[0].len;
+    descs[num_pages + 1].flags = VIRTQ_DESC_F_WRITE;
+    descs[num_pages + 1].next = 0;
+
+    uint64_t buf_read_bytes;
+
+    auto status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (num_pages + 2)), buf_read_bytes);
+    if (!success(status)) {
+        free(descs);
+        free(req);
+        return status;
+    }
+
+    if (req->status != 0) {
+        print("virtio_block::dio_write: device returned status {:x}\n", req->status);
+        free(descs);
+        free(req);
+        return nt_status::INTERNAL_ERROR; // FIXME - translate into sensible nt_status
+    }
+
+    written_pages = num_pages;
+
+    free(descs);
+    free(req);
+
+    return nt_status::SUCCESS;
 }
 
 void found_virtio_pci_block(pci_device& dev) {
