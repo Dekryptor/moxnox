@@ -15,7 +15,6 @@ import format;
 import print;
 import inout;
 import rtc;
-import keyboard;
 import mem;
 import list;
 import interrupts;
@@ -36,7 +35,7 @@ static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
 
 static const uint8_t ACPI_IRQ = 9; // FIXME - don't hardcode
 
-struct acpi_device {
+export struct acpi_device {
     list_entry le;
     string_view acpi_name;
     string_view hid;
@@ -46,7 +45,7 @@ struct acpi_device {
     char buf[0];
 };
 
-enum class acpi_device_resource_type {
+export enum class acpi_device_resource_type {
     io,
     irq,
     extended_irq,
@@ -57,48 +56,54 @@ enum class acpi_device_resource_type {
     dma
 };
 
-struct acpi_device_resource {
+export struct acpi_device_resource {
     list_entry le;
     enum acpi_device_resource_type type;
 };
 
-struct acpi_device_resource_io : acpi_device_resource {
+export struct acpi_device_resource_io : acpi_device_resource {
     ACPI_RESOURCE_IO io;
 };
 
-struct acpi_device_resource_irq : acpi_device_resource {
+export struct acpi_device_resource_irq : acpi_device_resource {
     ACPI_RESOURCE_IRQ irq;
 };
 
-struct acpi_device_resource_extended_irq : acpi_device_resource {
+export struct acpi_device_resource_extended_irq : acpi_device_resource {
     ACPI_RESOURCE_EXTENDED_IRQ extended_irq;
 };
 
-struct acpi_device_resource_address16 : acpi_device_resource {
+export struct acpi_device_resource_address16 : acpi_device_resource {
     ACPI_RESOURCE_ADDRESS16 address16;
 };
 
-struct acpi_device_resource_address32 : acpi_device_resource {
+export struct acpi_device_resource_address32 : acpi_device_resource {
     ACPI_RESOURCE_ADDRESS32 address32;
 };
 
-struct acpi_device_resource_address64 : acpi_device_resource {
+export struct acpi_device_resource_address64 : acpi_device_resource {
     ACPI_RESOURCE_ADDRESS64 address64;
 };
 
-struct acpi_device_resource_fixed_memory32 : acpi_device_resource {
+export struct acpi_device_resource_fixed_memory32 : acpi_device_resource {
     ACPI_RESOURCE_FIXED_MEMORY32 fixed_memory32;
 };
 
-struct acpi_device_resource_dma : acpi_device_resource {
+export struct acpi_device_resource_dma : acpi_device_resource {
     ACPI_RESOURCE_DMA dma;
 };
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
 
 static void found_rtc(const acpi_device& d);
-static void found_ps2_keyboard(const acpi_device& d);
 static void found_serial_port(const acpi_device& d);
+
+export struct acpi_recognizer {
+    list_entry le;
+    string_view hid;
+    void (*func)(const acpi_device&);
+    void (*prelim_func)(string_view);
+};
 
 static const struct {
     string_view hid;
@@ -106,25 +111,12 @@ static const struct {
     void (*prelim_func)(string_view);
 } pnp_hids[] = {
     { "PNP0B00", found_rtc, nullptr },
-    { "PNP0300", found_ps2_keyboard, nullptr },
-    { "PNP0301", found_ps2_keyboard, nullptr },
-    { "PNP0302", found_ps2_keyboard, nullptr },
-    { "PNP0303", found_ps2_keyboard, nullptr },
-    { "PNP0304", found_ps2_keyboard, nullptr },
-    { "PNP0305", found_ps2_keyboard, nullptr },
-    { "PNP0306", found_ps2_keyboard, nullptr },
-    { "PNP0309", found_ps2_keyboard, nullptr },
-    { "PNP030A", found_ps2_keyboard, nullptr },
-    { "PNP030B", found_ps2_keyboard, nullptr },
-    { "PNP0320", found_ps2_keyboard, nullptr },
-    { "PNP0343", found_ps2_keyboard, nullptr },
-    { "PNP0344", found_ps2_keyboard, nullptr },
-    { "PNP0345", found_ps2_keyboard, nullptr },
-    { "CPQA0D7", found_ps2_keyboard, nullptr },
     { "PNP0500", found_serial_port, prelim_found_serial_port },
     { "PNP0501", found_serial_port, prelim_found_serial_port },
     { "", nullptr, nullptr }
 };
+
+export list_entry pnp_hids2 = { &pnp_hids2, &pnp_hids2 };
 
 export bool acpi_early_init_done = false;
 
@@ -242,39 +234,6 @@ static void found_rtc(const acpi_device& d) {
     }
 
     init_rtc(*port);
-}
-
-static void found_ps2_keyboard(const acpi_device& d) {
-    optional<uint16_t> port1, port2;
-    optional<uint32_t> irq;
-
-    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
-        auto& r = containing_record<acpi_device_resource>(le);
-
-        if (r.type == acpi_device_resource_type::io) {
-            auto& r2 = static_cast<acpi_device_resource_io&>(r);
-
-            if (r2.io.IoDecode == ACPI_DECODE_16) {
-                if (port1.has_value() && !port2.has_value())
-                    port2 = r2.io.Minimum;
-                else if (!port1.has_value())
-                    port1 = r2.io.Minimum;
-            }
-        } else if (r.type == acpi_device_resource_type::irq) {
-            auto& r2 = static_cast<acpi_device_resource_irq&>(r);
-
-            irq = r2.irq.Interrupt;
-        } else if (r.type == acpi_device_resource_type::extended_irq) {
-            auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
-
-            irq = r2.extended_irq.Interrupt;
-        }
-    }
-
-    if (!port1.has_value() || !port2.has_value() || !irq.has_value())
-        return;
-
-    init_keyboard(*port1, *port2, *irq);
 }
 
 static void found_serial_port(const acpi_device& d) {
@@ -572,12 +531,30 @@ export void find_acpi_devices() {
             }
         }
 
+        for (auto le = pnp_hids2.next; le != &pnp_hids2; le = le->next) {
+            auto& p = containing_record<acpi_recognizer>(le);
+
+            if (p.hid == d.hid) {
+                found = true;
+                break;
+            }
+        }
+
         if (found)
             continue;
 
         for (auto c : d.cids) {
             for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
                 if (pnp_hids[i].hid == c) {
+                    found = true;
+                    break;
+                }
+            }
+
+            for (auto le = pnp_hids2.next; le != &pnp_hids2; le = le->next) {
+                auto& p = containing_record<acpi_recognizer>(le);
+
+                if (p.hid == c) {
                     found = true;
                     break;
                 }
@@ -607,6 +584,18 @@ export void find_acpi_devices() {
 
             break;
         }
+
+        for (auto le = pnp_hids2.next; le != &pnp_hids2; le = le->next) {
+            auto& p = containing_record<acpi_recognizer>(le);
+
+            if (p.hid != d.hid)
+                continue;
+
+            if (p.prelim_func)
+                p.prelim_func(d.uid);
+
+            break;
+        }
     }
 
     for (auto le = acpi_devices.next; le != &acpi_devices; le = le->next) {
@@ -621,6 +610,16 @@ export void find_acpi_devices() {
 
         for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
             auto& p = pnp_hids[i];
+
+            if (p.hid != d.hid)
+                continue;
+
+            p.func(d);
+            break;
+        }
+
+        for (auto le = pnp_hids2.next; le != &pnp_hids2; le = le->next) {
+            auto& p = containing_record<acpi_recognizer>(le);
 
             if (p.hid != d.hid)
                 continue;

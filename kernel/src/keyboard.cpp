@@ -13,6 +13,7 @@ import objects;
 #include "inode.h"
 import volume;
 #include "visit_object.h"
+#include "acpica.h"
 #include <ioctl.h>
 
 export module keyboard;
@@ -22,6 +23,7 @@ import inout;
 import mem;
 import interrupts;
 import event;
+import acpi;
 
 using namespace std;
 
@@ -48,6 +50,34 @@ static bool keyboard_initialized = false;
 static uint16_t keyboard_port1, keyboard_port2;
 
 static bool keyboard_isr_func(void*);
+
+static void found_ps2_keyboard(const acpi_device& d);
+
+static acpi_recognizer mod_pnp_hids[] = {
+    { {}, "PNP0300", found_ps2_keyboard, nullptr },
+    { {}, "PNP0301", found_ps2_keyboard, nullptr },
+    { {}, "PNP0302", found_ps2_keyboard, nullptr },
+    { {}, "PNP0303", found_ps2_keyboard, nullptr },
+    { {}, "PNP0304", found_ps2_keyboard, nullptr },
+    { {}, "PNP0305", found_ps2_keyboard, nullptr },
+    { {}, "PNP0306", found_ps2_keyboard, nullptr },
+    { {}, "PNP0309", found_ps2_keyboard, nullptr },
+    { {}, "PNP030A", found_ps2_keyboard, nullptr },
+    { {}, "PNP030B", found_ps2_keyboard, nullptr },
+    { {}, "PNP0320", found_ps2_keyboard, nullptr },
+    { {}, "PNP0343", found_ps2_keyboard, nullptr },
+    { {}, "PNP0344", found_ps2_keyboard, nullptr },
+    { {}, "PNP0345", found_ps2_keyboard, nullptr },
+    { {}, "CPQA0D7", found_ps2_keyboard, nullptr },
+};
+
+static void init_virtio_pci() {
+    for (unsigned int i = 0; i < sizeof(mod_pnp_hids) / sizeof(*mod_pnp_hids); i++) {
+        insert_tail_list(pnp_hids2, mod_pnp_hids[i].le);
+    }
+}
+
+static module_init init(init_virtio_pci);
 
 class keyboard_pipe : public pipe {
 public:
@@ -245,7 +275,7 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
-export void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
+static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     if (keyboard_initialized) // can only be one PS/2 keyboard(?)
         return;
 
@@ -368,4 +398,37 @@ NTSTATUS keyboard_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
         default:
             return nt_status::NOT_SUPPORTED;
     }
+}
+
+static void found_ps2_keyboard(const acpi_device& d) {
+    optional<uint16_t> port1, port2;
+    optional<uint32_t> irq;
+
+    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        if (r.type == acpi_device_resource_type::io) {
+            auto& r2 = static_cast<acpi_device_resource_io&>(r);
+
+            if (r2.io.IoDecode == ACPI_DECODE_16) {
+                if (port1.has_value() && !port2.has_value())
+                    port2 = r2.io.Minimum;
+                else if (!port1.has_value())
+                    port1 = r2.io.Minimum;
+            }
+        } else if (r.type == acpi_device_resource_type::irq) {
+            auto& r2 = static_cast<acpi_device_resource_irq&>(r);
+
+            irq = r2.irq.Interrupt;
+        } else if (r.type == acpi_device_resource_type::extended_irq) {
+            auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
+
+            irq = r2.extended_irq.Interrupt;
+        }
+    }
+
+    if (!port1.has_value() || !port2.has_value() || !irq.has_value())
+        return;
+
+    init_keyboard(*port1, *port2, *irq);
 }
