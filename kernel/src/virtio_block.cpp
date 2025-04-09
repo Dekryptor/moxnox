@@ -39,6 +39,7 @@ static const uint64_t VIRTIO_BLK_F_ZONED = 1 << 17;
 
 static const uint64_t SUPPORTED_FEATURES = VIRTIO_BLK_F_RO |
                                            VIRTIO_BLK_F_BLK_SIZE |
+                                           VIRTIO_BLK_F_FLUSH |
                                            VIRTIO_RING_F_INDIRECT_DESC;
 
 struct virtio_blk_config {
@@ -163,7 +164,51 @@ virtio_block::virtio_block(pci_device& dev) : virtio_pci_device(dev, SUPPORTED_F
 }
 
 void virtio_block::flush() {
-    print("FIXME - virtio_block::flush\n"); // FIXME
+    if (!(negotiated_features & VIRTIO_BLK_F_FLUSH))
+        return;
+
+    auto req = (virtio_blk_req*)malloc(sizeof(virtio_blk_req));
+    if (!req) {
+        print("malloc failed\n");
+        return;
+    }
+
+    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
+    if (!descs) {
+        print("malloc failed\n");
+        free(req);
+        return;
+    }
+
+    req->type = VIRTIO_BLK_T::FLUSH;
+    req->reserved = 0;
+    req->sector = 0;
+
+    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].len = offsetof(virtio_blk_req, status);
+    descs[0].flags = VIRTQ_DESC_F_NEXT;
+    descs[0].next = 1;
+
+    descs[1].addr = descs[0].addr + descs[0].len;
+    descs[1].len = sizeof(virtio_blk_req) - descs[0].len;
+    descs[1].flags = VIRTQ_DESC_F_WRITE;
+    descs[1].next = 0;
+
+    uint64_t buf_read_bytes;
+
+    auto status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2), buf_read_bytes);
+    if (!success(status)) {
+        free(descs);
+        free(req);
+        return; // FIXME - return status
+    }
+
+    // FIXME - translate status into nt_status and return?
+    if (req->status != 0)
+        print("virtio_block::flush: device returned status {:x}\n", req->status);
+
+    free(descs);
+    free(req);
 }
 
 nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
