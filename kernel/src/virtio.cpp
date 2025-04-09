@@ -23,6 +23,17 @@ export const uint8_t VIRTQ_DESC_F_NEXT = 1;
 export const uint8_t VIRTQ_DESC_F_WRITE = 2;
 export const uint8_t VIRTQ_DESC_F_INDIRECT = 4;
 
+export const uint64_t VIRTIO_RING_F_INDIRECT_DESC = 1 << 28;
+export const uint64_t VIRTIO_RING_F_EVENT_IDX = 1 << 29;
+export const uint64_t VIRTIO_F_VERSION_1 = (uint64_t)1 << 32;
+export const uint64_t VIRTIO_F_ACCESS_PLATFORM = (uint64_t)1 << 33;
+export const uint64_t VIRTIO_F_RING_PACKED = (uint64_t)1 << 34;
+export const uint64_t VIRTIO_F_IN_ORDER = (uint64_t)1 << 35;
+export const uint64_t VIRTIO_F_ORDER_PLATFORM = (uint64_t)1 << 36;
+export const uint64_t VIRTIO_F_SR_IOV = (uint64_t)1 << 37;
+export const uint64_t VIRTIO_F_NOTIFICATION_DATA = (uint64_t)1 << 38;
+export const uint64_t VIRTIO_F_RING_RESET = (uint64_t)1 << 40;
+
 export struct virtq_desc {
     uint64_t addr;
     uint32_t len;

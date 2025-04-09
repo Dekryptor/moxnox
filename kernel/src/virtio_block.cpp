@@ -38,7 +38,8 @@ static const uint64_t VIRTIO_BLK_F_SECURE_ERASE = 1 << 16;
 static const uint64_t VIRTIO_BLK_F_ZONED = 1 << 17;
 
 static const uint64_t SUPPORTED_FEATURES = VIRTIO_BLK_F_RO |
-                                           VIRTIO_BLK_F_BLK_SIZE;
+                                           VIRTIO_BLK_F_BLK_SIZE |
+                                           VIRTIO_RING_F_INDIRECT_DESC;
 
 struct virtio_blk_config {
     uint64_t capacity;
@@ -260,6 +261,11 @@ void found_virtio_pci_block(pci_device& dev) {
 
     if (!v.initialized)
         return;
+
+    if (!(v.negotiated_features & VIRTIO_RING_F_INDIRECT_DESC)) {
+        print("found_virtio_pci_block: device does not support indirect descriptors\n");
+        return;
+    }
 
     v.finalize();
 

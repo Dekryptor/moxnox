@@ -7,17 +7,6 @@ static const uint8_t VIRTIO_DEVICE_STATUS_FEATURES_OK = 0x08;
 static const uint8_t VIRTIO_DEVICE_STATUS_DEVICE_NEEDS_RESET = 0x40;
 static const uint8_t VIRTIO_DEVICE_STATUS_FAILED = 0x80;
 
-static const uint64_t VIRTIO_RING_F_INDIRECT_DESC = 1 << 28;
-static const uint64_t VIRTIO_RING_F_EVENT_IDX = 1 << 29;
-static const uint64_t VIRTIO_F_VERSION_1 = (uint64_t)1 << 32;
-static const uint64_t VIRTIO_F_ACCESS_PLATFORM = (uint64_t)1 << 33;
-static const uint64_t VIRTIO_F_RING_PACKED = (uint64_t)1 << 34;
-static const uint64_t VIRTIO_F_IN_ORDER = (uint64_t)1 << 35;
-static const uint64_t VIRTIO_F_ORDER_PLATFORM = (uint64_t)1 << 36;
-static const uint64_t VIRTIO_F_SR_IOV = (uint64_t)1 << 37;
-static const uint64_t VIRTIO_F_NOTIFICATION_DATA = (uint64_t)1 << 38;
-static const uint64_t VIRTIO_F_RING_RESET = (uint64_t)1 << 40;
-
 enum class VIRTIO_PCI_CAP : uint8_t {
     COMMON_CFG = 1,
     NOTIFY_CFG = 2,
