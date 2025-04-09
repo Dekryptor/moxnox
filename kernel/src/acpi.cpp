@@ -100,15 +100,7 @@ export struct acpi_recognizer {
     void (*prelim_func)(string_view);
 };
 
-static const struct {
-    string_view hid;
-    void (*func)(const acpi_device&);
-    void (*prelim_func)(string_view);
-} pnp_hids[] = {
-    { "", nullptr, nullptr }
-};
-
-export list_entry pnp_hids2 = { &pnp_hids2, &pnp_hids2 };
+export list_entry pnp_hids = { &pnp_hids, &pnp_hids };
 
 export bool acpi_early_init_done = false;
 
@@ -463,14 +455,7 @@ export void find_acpi_devices() {
         bool found = false;
         auto& d = containing_record<acpi_device>(le);
 
-        for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
-            if (pnp_hids[i].hid == d.hid) {
-                found = true;
-                break;
-            }
-        }
-
-        for (auto le = pnp_hids2.next; le != &pnp_hids2; le = le->next) {
+        for (auto le = pnp_hids.next; le != &pnp_hids; le = le->next) {
             auto& p = containing_record<acpi_recognizer>(le);
 
             if (p.hid == d.hid) {
@@ -483,14 +468,7 @@ export void find_acpi_devices() {
             continue;
 
         for (auto c : d.cids) {
-            for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
-                if (pnp_hids[i].hid == c) {
-                    found = true;
-                    break;
-                }
-            }
-
-            for (auto le = pnp_hids2.next; le != &pnp_hids2; le = le->next) {
+            for (auto le = pnp_hids.next; le != &pnp_hids; le = le->next) {
                 auto& p = containing_record<acpi_recognizer>(le);
 
                 if (p.hid == c) {
@@ -512,19 +490,7 @@ export void find_acpi_devices() {
         if (d.hid.empty())
             continue;
 
-        for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
-            auto& p = pnp_hids[i];
-
-            if (p.hid != d.hid)
-                continue;
-
-            if (p.prelim_func)
-                p.prelim_func(d.uid);
-
-            break;
-        }
-
-        for (auto le = pnp_hids2.next; le != &pnp_hids2; le = le->next) {
+        for (auto le = pnp_hids.next; le != &pnp_hids; le = le->next) {
             auto& p = containing_record<acpi_recognizer>(le);
 
             if (p.hid != d.hid)
@@ -547,17 +513,7 @@ export void find_acpi_devices() {
         if (d.hid.empty())
             continue;
 
-        for (unsigned int i = 0; !pnp_hids[i].hid.empty(); i++) {
-            auto& p = pnp_hids[i];
-
-            if (p.hid != d.hid)
-                continue;
-
-            p.func(d);
-            break;
-        }
-
-        for (auto le = pnp_hids2.next; le != &pnp_hids2; le = le->next) {
+        for (auto le = pnp_hids.next; le != &pnp_hids; le = le->next) {
             auto& p = containing_record<acpi_recognizer>(le);
 
             if (p.hid != d.hid)
