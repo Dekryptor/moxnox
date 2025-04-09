@@ -3447,7 +3447,12 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         }
     }
 
-    vol->flush();
+    status = vol->flush();
+    if (!success(status)) {
+        print("volume::flush returned {}, going readonly\n", status);
+        go_readonly();
+        return status;
+    }
 
     sb->root_level = root_root->ri.level;
     sb->root = root_root->ri.bytenr;
