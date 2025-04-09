@@ -14,7 +14,6 @@ export module acpi;
 import format;
 import print;
 import inout;
-import rtc;
 import mem;
 import list;
 import interrupts;
@@ -95,7 +94,6 @@ export struct acpi_device_resource_dma : acpi_device_resource {
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
 
-static void found_rtc(const acpi_device& d);
 static void found_serial_port(const acpi_device& d);
 
 export struct acpi_recognizer {
@@ -110,7 +108,6 @@ static const struct {
     void (*func)(const acpi_device&);
     void (*prelim_func)(string_view);
 } pnp_hids[] = {
-    { "PNP0B00", found_rtc, nullptr },
     { "PNP0500", found_serial_port, prelim_found_serial_port },
     { "PNP0501", found_serial_port, prelim_found_serial_port },
     { "", nullptr, nullptr }
@@ -211,29 +208,6 @@ export void init_acpi() {
         print("AcpiInstallFixedEventHandler returned {}\n", Status);
         return;
     }
-}
-
-static void found_rtc(const acpi_device& d) {
-    optional<uint16_t> port;
-
-    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
-        auto& r = containing_record<acpi_device_resource>(le);
-
-        if (r.type != acpi_device_resource_type::io)
-            continue;
-
-        auto& io = *reinterpret_cast<acpi_device_resource_io*>(&r);
-
-        port = io.io.Minimum;
-        break;
-    }
-
-    if (!port.has_value()) {
-        print("no I/O port found for RTC\n");
-        return;
-    }
-
-    init_rtc(*port);
 }
 
 static void found_serial_port(const acpi_device& d) {

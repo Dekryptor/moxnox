@@ -1,13 +1,31 @@
 module;
 
+#include "kernel.h"
 #include <chrono>
 
 export module rtc;
 
 import inout;
 import timer;
+import acpi;
+import list;
+import print;
 
 using namespace std;
+
+static void found_rtc(const acpi_device& d);
+
+static acpi_recognizer mod_pnp_hids[] = {
+    { {}, "PNP0B00", found_rtc, nullptr }
+};
+
+static void init_acpi_hids() {
+    for (unsigned int i = 0; i < sizeof(mod_pnp_hids) / sizeof(*mod_pnp_hids); i++) {
+        insert_tail_list(pnp_hids2, mod_pnp_hids[i].le);
+    }
+}
+
+static module_init init(init_acpi_hids);
 
 template<unsigned N>
 static uint8_t get_rtc_register(uint16_t port) {
@@ -33,7 +51,7 @@ static constexpr int64_t ymd_to_num(const chrono::year_month_day& d) noexcept {
     return n;
 }
 
-export void init_rtc(uint16_t port) {
+static void init_rtc(uint16_t port) {
     struct ymdhms {
         int year;
         uint8_t month;
@@ -102,4 +120,27 @@ export void init_rtc(uint16_t port) {
     auto day_num = ymd_to_num(ymd);
 
     system_time_offset = (uint64_t)((((day_num * 86400) + (now.hour * 3600) + (now.minute * 60) + now.second) * 10000000) - system_time);
+}
+
+static void found_rtc(const acpi_device& d) {
+    optional<uint16_t> port;
+
+    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        if (r.type != acpi_device_resource_type::io)
+            continue;
+
+        auto& io = *reinterpret_cast<acpi_device_resource_io*>(&r);
+
+        port = io.io.Minimum;
+        break;
+    }
+
+    if (!port.has_value()) {
+        print("no I/O port found for RTC\n");
+        return;
+    }
+
+    init_rtc(*port);
 }

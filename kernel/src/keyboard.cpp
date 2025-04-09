@@ -71,13 +71,13 @@ static acpi_recognizer mod_pnp_hids[] = {
     { {}, "CPQA0D7", found_ps2_keyboard, nullptr },
 };
 
-static void init_virtio_pci() {
+static void init_acpi_hids() {
     for (unsigned int i = 0; i < sizeof(mod_pnp_hids) / sizeof(*mod_pnp_hids); i++) {
         insert_tail_list(pnp_hids2, mod_pnp_hids[i].le);
     }
 }
 
-static module_init init(init_virtio_pci);
+static module_init init(init_acpi_hids);
 
 class keyboard_pipe : public pipe {
 public:
