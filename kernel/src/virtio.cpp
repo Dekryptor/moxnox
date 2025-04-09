@@ -13,6 +13,7 @@ import interrupts;
 import semaphore;
 import event;
 import pci;
+import acpi;
 
 using namespace std;
 
@@ -97,6 +98,20 @@ private:
     volatile virtio_pci_common_cfg* common;
     virtio_pci_notify_cap* notify_cfg = nullptr;
 };
+
+static void found_virtio_mmio(const acpi_device& d);
+
+static acpi_recognizer mod_pnp_hids[] = {
+    { {}, "LNRO0005", found_virtio_mmio, nullptr }
+};
+
+static void init_acpi_hids() {
+    for (unsigned int i = 0; i < sizeof(mod_pnp_hids) / sizeof(*mod_pnp_hids); i++) {
+        insert_tail_list(pnp_hids, mod_pnp_hids[i].le);
+    }
+}
+
+static module_init module_init_virtio_mmio(init_acpi_hids);
 
 static bool check_cap(pci_device& dev, const virtio_pci_cap& cap) {
     if (cap.cap_len < sizeof(virtio_pci_cap) + sizeof(pci_capability)) {
@@ -543,4 +558,8 @@ virtio_pci_device::~virtio_pci_device() {
 
 void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
+}
+
+static void found_virtio_mmio(const acpi_device& d) {
+    print("FIXME: found_virtio_mmio\n"); // FIXME
 }
