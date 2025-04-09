@@ -17,7 +17,6 @@ import inout;
 import mem;
 import list;
 import interrupts;
-import serial;
 import semaphore;
 import timer;
 
@@ -94,8 +93,6 @@ export struct acpi_device_resource_dma : acpi_device_resource {
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
 
-static void found_serial_port(const acpi_device& d);
-
 export struct acpi_recognizer {
     list_entry le;
     string_view hid;
@@ -108,8 +105,6 @@ static const struct {
     void (*func)(const acpi_device&);
     void (*prelim_func)(string_view);
 } pnp_hids[] = {
-    { "PNP0500", found_serial_port, prelim_found_serial_port },
-    { "PNP0501", found_serial_port, prelim_found_serial_port },
     { "", nullptr, nullptr }
 };
 
@@ -208,36 +203,6 @@ export void init_acpi() {
         print("AcpiInstallFixedEventHandler returned {}\n", Status);
         return;
     }
-}
-
-static void found_serial_port(const acpi_device& d) {
-    optional<uint16_t> port;
-    optional<uint32_t> irq;
-
-    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
-        auto& r = containing_record<acpi_device_resource>(le);
-
-        if (r.type == acpi_device_resource_type::io) {
-            auto& r2 = static_cast<acpi_device_resource_io&>(r);
-
-            if (r2.io.IoDecode == ACPI_DECODE_16 && !port.has_value())
-                port = r2.io.Minimum;
-        } else if (r.type == acpi_device_resource_type::irq) {
-            auto& r2 = static_cast<acpi_device_resource_irq&>(r);
-
-            irq = r2.irq.Interrupt;
-        } else if (r.type == acpi_device_resource_type::extended_irq) {
-            auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
-
-            irq = r2.extended_irq.Interrupt;
-        }
-    }
-
-    if (!port.has_value() || !irq.has_value())
-        return;
-
-    if (!init_serial(*port, *irq, d.uid))
-        print("init_serial failed for port {:x}, irq {:x}\n", *port, *irq);
 }
 
 static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {

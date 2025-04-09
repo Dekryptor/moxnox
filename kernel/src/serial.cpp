@@ -12,6 +12,7 @@ import objects;
 #include "inode.h"
 import volume;
 #include "visit_object.h"
+#include "acpica.h"
 #include <ioctl.h>
 
 export module serial;
@@ -21,6 +22,7 @@ import format;
 import inout;
 import config;
 import interrupts;
+import acpi;
 
 using namespace std;
 
@@ -31,6 +33,22 @@ static const unsigned int serial_buffer_pages = 1;
 static atomic<unsigned int> serial_port_number = 0;
 
 static bool serial_isr_func(void*);
+
+static void prelim_found_serial_port(string_view uid);
+static void found_serial_port(const acpi_device& d);
+
+static acpi_recognizer mod_pnp_hids[] = {
+    { {}, "PNP0500", found_serial_port, prelim_found_serial_port },
+    { {}, "PNP0501", found_serial_port, prelim_found_serial_port }
+};
+
+static void init_acpi_hids() {
+    for (unsigned int i = 0; i < sizeof(mod_pnp_hids) / sizeof(*mod_pnp_hids); i++) {
+        insert_tail_list(pnp_hids2, mod_pnp_hids[i].le);
+    }
+}
+
+static module_init init(init_acpi_hids);
 
 export class serial_console {
 public:
@@ -537,7 +555,7 @@ nt_status serial_out_pipe::flush(bool go_readonly) {
     return nt_status::SUCCESS;
 }
 
-export void prelim_found_serial_port(string_view uid) {
+static void prelim_found_serial_port(string_view uid) {
     auto val = parse_uid(uid);
 
     if (!val.has_value())
@@ -545,4 +563,34 @@ export void prelim_found_serial_port(string_view uid) {
 
     if (*val > serial_port_number)
         serial_port_number = *val;
+}
+
+static void found_serial_port(const acpi_device& d) {
+    optional<uint16_t> port;
+    optional<uint32_t> irq;
+
+    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        if (r.type == acpi_device_resource_type::io) {
+            auto& r2 = static_cast<acpi_device_resource_io&>(r);
+
+            if (r2.io.IoDecode == ACPI_DECODE_16 && !port.has_value())
+                port = r2.io.Minimum;
+        } else if (r.type == acpi_device_resource_type::irq) {
+            auto& r2 = static_cast<acpi_device_resource_irq&>(r);
+
+            irq = r2.irq.Interrupt;
+        } else if (r.type == acpi_device_resource_type::extended_irq) {
+            auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
+
+            irq = r2.extended_irq.Interrupt;
+        }
+    }
+
+    if (!port.has_value() || !irq.has_value())
+        return;
+
+    if (!init_serial(*port, *irq, d.uid))
+        print("init_serial failed for port {:x}, irq {:x}\n", *port, *irq);
 }
