@@ -147,7 +147,7 @@ static void init_virtio_pci() {
     }
 }
 
-static module_init init(init_virtio_pci);
+static module_init module_init_virtio_block(init_virtio_pci);
 
 virtio_block::virtio_block(pci_device& dev) : virtio_pci_device(dev, SUPPORTED_FEATURES, 1) {
     if (device_cfg->length < sizeof(virtio_blk_config)) {

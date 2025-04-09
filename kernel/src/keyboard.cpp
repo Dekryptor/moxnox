@@ -77,7 +77,7 @@ static void init_acpi_hids() {
     }
 }
 
-static module_init init(init_acpi_hids);
+static module_init module_init_keyboard(init_acpi_hids);
 
 class keyboard_pipe : public pipe {
 public:

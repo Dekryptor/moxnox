@@ -25,7 +25,7 @@ static void init_acpi_hids() {
     }
 }
 
-static module_init init(init_acpi_hids);
+static module_init module_init_rtc(init_acpi_hids);
 
 template<unsigned N>
 static uint8_t get_rtc_register(uint16_t port) {

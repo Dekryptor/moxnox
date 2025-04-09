@@ -47,7 +47,7 @@ static void init_virtio_pci() {
     }
 }
 
-static module_init init(init_virtio_pci);
+static module_init module_init_virtio_console(init_virtio_pci);
 
 class virtio_console : public virtio_pci_device, public chardev, public serial_console {
 public:

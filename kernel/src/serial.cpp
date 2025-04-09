@@ -48,7 +48,7 @@ static void init_acpi_hids() {
     }
 }
 
-static module_init init(init_acpi_hids);
+static module_init module_init_serial(init_acpi_hids);
 
 export class serial_console {
 public:
