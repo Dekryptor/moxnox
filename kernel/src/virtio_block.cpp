@@ -5,6 +5,7 @@ module;
 #include "handle.h"
 import rbtree;
 #include "page_cache.h"
+#include <shared_mutex>
 
 export module virtio_block;
 
@@ -15,6 +16,7 @@ import volume;
 import virtio;
 import config;
 import mem;
+import rwsem;
 
 using namespace std;
 
@@ -127,6 +129,7 @@ public:
 
 private:
     virt_queue* queue = nullptr;
+    rwsem flush_sem;
 };
 
 static atomic<uint32_t> virtio_block_num = 0;
@@ -191,9 +194,16 @@ nt_status virtio_block::flush() {
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    uint64_t buf_read_bytes;
+    nt_status status;
 
-    auto status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2), buf_read_bytes);
+    {
+        lock_guard lock(flush_sem);
+
+        uint64_t buf_read_bytes;
+
+        status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2), buf_read_bytes);
+    }
+
     if (!success(status)) {
         free(descs);
         free(req);
@@ -336,9 +346,16 @@ nt_status virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
     descs[num_pages + 1].flags = VIRTQ_DESC_F_WRITE;
     descs[num_pages + 1].next = 0;
 
-    uint64_t buf_read_bytes;
+    nt_status status;
 
-    auto status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (num_pages + 2)), buf_read_bytes);
+    {
+        shared_lock lock(flush_sem);
+
+        uint64_t buf_read_bytes;
+
+        status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (num_pages + 2)), buf_read_bytes);
+    }
+
     if (!success(status)) {
         free(descs);
         free(req);
