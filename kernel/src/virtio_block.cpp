@@ -167,14 +167,13 @@ void virtio_block::flush() {
 
 nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
                                  pfn_iterator& it, uint64_t& read_pages) {
-    print("FIXME - virtio_block::dio_read({:x}, {:x})\n", page_num, num_pages); // FIXME
-
     if (num_pages == 0) {
         read_pages = 0;
         return nt_status::SUCCESS;
     }
 
-    static const uint64_t MAX_PAGES = 1; // FIXME
+    // don't use more than 1 page for descriptor
+    static const uint64_t MAX_PAGES = (PAGE_SIZE / sizeof(virtq_desc)) - 2;
 
     if (num_pages > MAX_PAGES)
         num_pages = MAX_PAGES;
@@ -198,15 +197,20 @@ nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = *it;
-    descs[1].len = PAGE_SIZE;
-    descs[1].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
-    descs[1].next = 2;
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (i != 0)
+            it++;
 
-    descs[2].addr = descs[0].addr + descs[0].len;
-    descs[2].len = sizeof(virtio_blk_req) - descs[0].len;
-    descs[2].flags = VIRTQ_DESC_F_WRITE;
-    descs[2].next = 0;
+        descs[i + 1].addr = *it;
+        descs[i + 1].len = PAGE_SIZE;
+        descs[i + 1].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
+        descs[i + 1].next = (uint16_t)(i + 2);
+    }
+
+    descs[num_pages + 1].addr = descs[0].addr + descs[0].len;
+    descs[num_pages + 1].len = sizeof(virtio_blk_req) - descs[0].len;
+    descs[num_pages + 1].flags = VIRTQ_DESC_F_WRITE;
+    descs[num_pages + 1].next = 0;
 
     uint64_t buf_read_bytes;
 
