@@ -374,6 +374,14 @@ nt_status virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
     free(descs);
     free(req);
 
+    if (fua) {
+        status = flush();
+        if (!success(status)) {
+            print("virtio_block::flush returned {}\n", status);
+            return status;
+        }
+    }
+
     return nt_status::SUCCESS;
 }
 
