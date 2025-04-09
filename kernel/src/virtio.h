@@ -71,19 +71,6 @@ struct virtio_pci_common_cfg {
 
 static_assert(sizeof(virtio_pci_common_cfg) == 64);
 
-static const uint8_t VIRTQ_DESC_F_NEXT = 1;
-static const uint8_t VIRTQ_DESC_F_WRITE = 2;
-static const uint8_t VIRTQ_DESC_F_INDIRECT = 4;
-
-struct virtq_desc {
-    uint64_t addr;
-    uint32_t len;
-    uint16_t flags;
-    uint16_t next;
-} __attribute((packed));
-
-static_assert(sizeof(virtq_desc) == 16);
-
 static const uint16_t VIRTQ_AVAIL_F_NO_INTERRUPT = 1;
 
 template<unsigned N>
@@ -109,12 +96,4 @@ struct virtq_used {
     uint16_t idx;
     virtq_used_elem ring[N];
     uint16_t avail_event;
-} __attribute((packed));
-
-template<unsigned N>
-struct virtq {
-    virtq_desc buffers[N];
-    virtq_avail<N> available;
-    uint8_t padding[4096 - (N * sizeof(virtq_desc)) - sizeof(virtq_avail<N>)];
-    virtq_used<N> used;
 } __attribute((packed));

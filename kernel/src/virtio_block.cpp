@@ -13,8 +13,12 @@ import pci;
 import format;
 import volume;
 import virtio;
+import config;
+import mem;
 
 using namespace std;
+
+static const size_t SECTOR_SIZE = 512;
 
 static const uint64_t VIRTIO_BLK_F_BARRIER = 1 << 0;
 static const uint64_t VIRTIO_BLK_F_SIZE_MAX = 1 << 1;
@@ -77,6 +81,27 @@ struct virtio_blk_config {
 } __attribute((packed));
 
 static_assert(sizeof(virtio_blk_config) == 96);
+
+enum class VIRTIO_BLK_T : uint32_t {
+    IN = 0,
+    OUT = 1,
+    FLUSH = 4,
+    GET_ID = 8,
+    GET_LIFETIME = 10,
+    DISCARD = 11,
+    WRITE_ZEROES = 13,
+    SECURE_ERASE = 14
+};
+
+struct virtio_blk_req {
+    enum VIRTIO_BLK_T type;
+    uint32_t reserved;
+    uint64_t sector;
+    // then data
+    uint8_t status;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_blk_req) == 17);
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
@@ -142,9 +167,69 @@ void virtio_block::flush() {
 
 nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
                                  pfn_iterator& it, uint64_t& read_pages) {
-    print("FIXME - virtio_block::dio_read\n"); // FIXME
+    print("FIXME - virtio_block::dio_read({:x}, {:x})\n", page_num, num_pages); // FIXME
 
-    return nt_status::NOT_SUPPORTED;
+    if (num_pages == 0) {
+        read_pages = 0;
+        return nt_status::SUCCESS;
+    }
+
+    static const uint64_t MAX_PAGES = 1; // FIXME
+
+    if (num_pages > MAX_PAGES)
+        num_pages = MAX_PAGES;
+
+    auto req = (virtio_blk_req*)malloc(sizeof(virtio_blk_req));
+    if (!req)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * (num_pages + 2));
+    if (!descs) {
+        free(req);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    req->type = VIRTIO_BLK_T::IN;
+    req->reserved = 0;
+    req->sector = (page_num << PAGE_SHIFT) / SECTOR_SIZE;
+
+    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].len = offsetof(virtio_blk_req, status);
+    descs[0].flags = VIRTQ_DESC_F_NEXT;
+    descs[0].next = 1;
+
+    descs[1].addr = *it;
+    descs[1].len = PAGE_SIZE;
+    descs[1].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
+    descs[1].next = 2;
+
+    descs[2].addr = descs[0].addr + descs[0].len;
+    descs[2].len = sizeof(virtio_blk_req) - descs[0].len;
+    descs[2].flags = VIRTQ_DESC_F_WRITE;
+    descs[2].next = 0;
+
+    uint64_t buf_read_bytes;
+
+    auto status = queue->read_indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (num_pages + 2)), buf_read_bytes);
+    if (!success(status)) {
+        free(descs);
+        free(req);
+        return status;
+    }
+
+    if (req->status != 0) {
+        print("virtio_block::dio_read: device returned status {:x}\n", req->status);
+        free(descs);
+        free(req);
+        return nt_status::INTERNAL_ERROR; // FIXME - translate into sensible nt_status
+    }
+
+    read_pages = num_pages;
+
+    free(descs);
+    free(req);
+
+    return nt_status::SUCCESS;
 }
 
 nt_status virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
@@ -205,9 +290,9 @@ void found_virtio_pci_block(pci_device& dev) {
     if (v.negotiated_features & VIRTIO_BLK_F_BLK_SIZE)
         v.sector_size = cfg.blk_size;
     else
-        v.sector_size = 512;
+        v.sector_size = SECTOR_SIZE;
 
-    v.size = cfg.capacity * 512;
+    v.size = cfg.capacity * SECTOR_SIZE;
 
     print("found /dev/{}: block size {}, capacity {}\n", string_view(v.volume_name, v.volume_name_len),
           byte_size(v.sector_size), byte_size(v.size));

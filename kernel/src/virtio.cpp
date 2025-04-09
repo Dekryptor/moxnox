@@ -19,11 +19,33 @@ using namespace std;
 // FIXME - allow dynamic queue size (maximum supported by device?)
 const size_t QUEUE_SIZE = 32;
 
+export const uint8_t VIRTQ_DESC_F_NEXT = 1;
+export const uint8_t VIRTQ_DESC_F_WRITE = 2;
+export const uint8_t VIRTQ_DESC_F_INDIRECT = 4;
+
+export struct virtq_desc {
+    uint64_t addr;
+    uint32_t len;
+    uint16_t flags;
+    uint16_t next;
+} __attribute((packed));
+
+static_assert(sizeof(virtq_desc) == 16);
+
+template<unsigned N>
+struct virtq {
+    virtq_desc buffers[N];
+    virtq_avail<N> available;
+    uint8_t padding[4096 - (N * sizeof(virtq_desc)) - sizeof(virtq_avail<N>)];
+    virtq_used<N> used;
+} __attribute((packed));
+
 export class virt_queue {
 public:
     virt_queue();
     ~virt_queue();
     nt_status read(span<uint8_t> msg, uint64_t& read_bytes);
+    nt_status read_indirect(span<uint8_t> s, uint64_t& read_bytes);
     nt_status write(span<const uint8_t> msg);
     void isr();
 
@@ -280,6 +302,41 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
     memcpy(s.data(), buf, read_bytes);
 
     free(buf);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status virt_queue::read_indirect(span<uint8_t> s, uint64_t& read_bytes) {
+    if (s.empty()) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    auto slot = get_slot();
+
+    queue->buffers[slot].addr = (phys_memory_pfn(s.data()) << PAGE_SHIFT) + ((uintptr_t)s.data() & (PAGE_SIZE - 1));
+    queue->buffers[slot].len = (uint32_t)s.size();
+    queue->buffers[slot].flags = VIRTQ_DESC_F_INDIRECT;
+
+    {
+        lock_guard lock(submit_lock);
+
+        queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
+
+        barrier();
+        __asm __volatile("sfence" ::: "memory");
+
+        queue->available.idx++;
+    }
+
+    *notification_addr = 1;
+
+    // FIXME - make interruptible
+    wait_for_object(events[slot].get(), false);
+
+    read_bytes = lengths[slot];
+
+    release_slot(slot);
 
     return nt_status::SUCCESS;
 }
