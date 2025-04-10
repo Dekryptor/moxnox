@@ -134,20 +134,28 @@ private:
 
 static atomic<uint32_t> virtio_block_num = 0;
 
-export void found_virtio_pci_block(pci_device& dev);
+static void found_virtio_pci_block(pci_device& dev);
 
 static pci_recognizer mod_pci_ids[] = {
     { {}, PCI_VENDOR_ID_REDHAT, 0x1001, found_virtio_pci_block },
     { {}, PCI_VENDOR_ID_REDHAT, 0x1042, found_virtio_pci_block },
 };
 
-static void init_virtio_pci() {
+static bool found_virtio_mmio_block();
+
+static virtio_mmio_recognizer mod_virtio_mmio_types = {
+    {}, 2, found_virtio_mmio_block
+};
+
+static void init_virtio_block() {
     for (unsigned int i = 0; i < sizeof(mod_pci_ids) / sizeof(*mod_pci_ids); i++) {
         insert_tail_list(pci_ids, mod_pci_ids[i].le);
     }
+
+    insert_tail_list(virtio_mmio_types, mod_virtio_mmio_types.le);
 }
 
-static module_init module_init_virtio_block(init_virtio_pci);
+static module_init module_init_virtio_block(init_virtio_block);
 
 virtio_block::virtio_block(pci_device& dev) : virtio_pci_device(dev, SUPPORTED_FEATURES, 1) {
     if (device_cfg->length < sizeof(virtio_blk_config)) {
@@ -445,4 +453,12 @@ void found_virtio_pci_block(pci_device& dev) {
           byte_size(v.sector_size), byte_size(v.size));
 
     v.probe();
+}
+
+static bool found_virtio_mmio_block() {
+    print("FIXME: found_virtio_mmio_block\n"); // FIXME
+
+    // FIXME
+
+    return false;
 }

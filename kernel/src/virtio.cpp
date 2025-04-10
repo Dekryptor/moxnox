@@ -102,6 +102,14 @@ private:
     virtio_pci_notify_cap* notify_cfg = nullptr;
 };
 
+export struct virtio_mmio_recognizer {
+    list_entry le;
+    uint32_t device_id;
+    bool (*func)();
+};
+
+export list_entry virtio_mmio_types = { &virtio_mmio_types, &virtio_mmio_types };
+
 static void found_virtio_mmio(const acpi_device& d);
 
 static acpi_recognizer mod_pnp_hids[] = {
@@ -572,7 +580,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
         return false;
     }
 
-    // FIXME - support "legacy" devices (the default on Qemu)
+    // FIXME - support "legacy" version 1 devices (the default on Qemu)
     if (regs.Version != 2) {
         print("init_virtio_mmio2: unsupported version {}\n", regs.Version);
         return false;
@@ -583,7 +591,16 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
         return false;
     }
 
-    // FIXME
+    for (auto le = virtio_mmio_types.next; le != &virtio_mmio_types; le = le->next) {
+        auto& r = containing_record<virtio_mmio_recognizer>(le);
+
+        if (r.device_id != regs.DeviceID)
+            continue;
+
+        return r.func();
+    }
+
+    print("init_virtio_mmio2: device type {} not recognized\n", regs.DeviceID);
 
     return false;
 }
