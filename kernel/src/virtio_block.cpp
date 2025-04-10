@@ -144,7 +144,7 @@ static pci_recognizer mod_pci_ids[] = {
 static bool found_virtio_mmio_block(virtio_mmio_device& v);
 
 static virtio_mmio_recognizer mod_virtio_mmio_types = {
-    {}, 2, SUPPORTED_FEATURES, found_virtio_mmio_block
+    {}, 2, SUPPORTED_FEATURES, 1, found_virtio_mmio_block
 };
 
 static void init_virtio_block() {

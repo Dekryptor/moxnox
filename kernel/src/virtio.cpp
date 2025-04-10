@@ -105,12 +105,16 @@ private:
 export class virtio_mmio_device {
 public:
     virtio_mmio_device(volatile virtio_mmio_regs& regs,
-                       uint64_t supported_features);
+                       uint64_t supported_features, uint16_t num_queues);
+    ~virtio_mmio_device();
 
     bool initialized = false;
+    list_entry virtqueues = { &virtqueues, &virtqueues };
     uint64_t negotiated_features = 0;
 
 private:
+    bool add_virtqueue(uint16_t num);
+
     volatile virtio_mmio_regs& regs;
 };
 
@@ -118,6 +122,7 @@ export struct virtio_mmio_recognizer {
     list_entry le;
     uint32_t device_id;
     uint64_t supported_features;
+    uint16_t num_queues;
     bool (*func)(virtio_mmio_device&);
 };
 
@@ -585,7 +590,8 @@ void virtio_pci_device::finalize() {
 }
 
 virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs& regs,
-                                       uint64_t supported_features) : regs(regs) {
+                                       uint64_t supported_features,
+                                       uint16_t num_queues) : regs(regs) {
     regs.Status = 0;
 
     regs.Status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
@@ -614,9 +620,104 @@ virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs& regs,
         return;
     }
 
-    // FIXME - add queues
+    for (uint16_t i = 0; i < num_queues; i++) {
+        if (!add_virtqueue(i))
+            return;
+    }
 
     initialized = true;
+}
+
+virtio_mmio_device::~virtio_mmio_device() {
+    while (!is_list_empty(virtqueues)) {
+        auto& vq = containing_record<virt_queue>(virtqueues.next);
+
+        remove_entry_list(vq.le);
+
+        delete &vq;
+    }
+}
+
+bool virtio_mmio_device::add_virtqueue(uint16_t num) {
+    regs.QueueSel = num;
+
+    if (regs.QueueSizeMax < QUEUE_SIZE) {
+        print("virtio_mmio_device::add_virtqueue: max size for queue {} was {}, wanted at least {}\n",
+              regs.QueueSel, regs.QueueSizeMax, QUEUE_SIZE);
+        return false;
+    }
+
+    regs.QueueSize = QUEUE_SIZE;
+
+    static const size_t NUM_PAGES = bytes_to_pages(sizeof(virtq<QUEUE_SIZE>));
+
+    auto pa = allocate_folio(bytes_to_folio_order(sizeof(virtq<QUEUE_SIZE>)));
+    if (!pa) {
+        print("allocate folio failed\n");
+        return false;
+    }
+
+    auto va = allocate_va(NUM_PAGES);
+    if (!va) {
+        print("allocate_va failed\n");
+        free_folio(pa);
+        return false;
+    }
+
+    for (unsigned int i = 0; i < NUM_PAGES; i++) {
+        if (!map_page(pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::no_cache)) {
+            print("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, NUM_PAGES);
+            free_folio(pa);
+
+            return false;
+        }
+    }
+
+    auto vq = new virt_queue;
+    if (!vq) {
+        print("new failed\n");
+
+        for (unsigned int i = 0; i < NUM_PAGES; i++) {
+            unmap_page(va + (i << PAGE_SHIFT));
+        }
+
+        free_va(va, NUM_PAGES);
+        free_folio(pa);
+        return false;
+    }
+
+    auto& queue = *(virtq<QUEUE_SIZE>*)va;
+
+    memset(&queue, 0, sizeof(queue));
+
+    vq->num = num;
+    vq->queue = &queue;
+    vq->queue_pa = pa;
+
+    regs.QueueDescLow = pa & 0xffffffff;
+    regs.QueueDescHigh = (uint32_t)(pa >> 32);
+
+    auto queue_driver = pa + ((uintptr_t)&queue.available - (uintptr_t)&queue);
+
+    regs.QueueDriverLow = queue_driver & 0xffffffff;
+    regs.QueueDriverHigh = (uint32_t)(queue_driver >> 32);
+
+    auto queue_device = pa + ((uintptr_t)&queue.used - (uintptr_t)&queue);
+
+    regs.QueueDeviceLow = queue_device & 0xffffffff;
+    regs.QueueDeviceHigh = (uint32_t)(queue_device >> 32);
+
+    regs.QueueReady = 1;
+
+    insert_tail_list(virtqueues, vq->le);
+
+    return true;
 }
 
 static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
@@ -645,7 +746,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
         if (r.device_id != regs.DeviceID)
             continue;
 
-        virtio_mmio_device v(regs, r.supported_features);
+        virtio_mmio_device v(regs, r.supported_features, r.num_queues);
 
         if (!v.initialized) {
             print("init_virtio_mmio2: virtio_mmio_device initialization failed\n");
