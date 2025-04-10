@@ -102,10 +102,23 @@ private:
     virtio_pci_notify_cap* notify_cfg = nullptr;
 };
 
+export class virtio_mmio_device {
+public:
+    virtio_mmio_device(volatile virtio_mmio_regs& regs,
+                       uint64_t supported_features);
+
+    bool initialized = false;
+    uint64_t negotiated_features = 0;
+
+private:
+    volatile virtio_mmio_regs& regs;
+};
+
 export struct virtio_mmio_recognizer {
     list_entry le;
     uint32_t device_id;
-    bool (*func)();
+    uint64_t supported_features;
+    bool (*func)(virtio_mmio_device&);
 };
 
 export list_entry virtio_mmio_types = { &virtio_mmio_types, &virtio_mmio_types };
@@ -571,6 +584,41 @@ void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
 
+virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs& regs,
+                                       uint64_t supported_features) : regs(regs) {
+    regs.Status = 0;
+
+    regs.Status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
+    regs.Status |= VIRTIO_DEVICE_STATUS_DRIVER;
+
+    uint64_t device_features = 0;
+
+    regs.DeviceFeaturesSel = 0;
+    device_features = regs.DeviceFeatures;
+
+    regs.DeviceFeaturesSel = 1;
+    device_features |= ((uint64_t)regs.DeviceFeatures) << 32;
+
+    negotiated_features = device_features & supported_features;
+
+    regs.DriverFeaturesSel = 0;
+    regs.DriverFeatures = (uint32_t)negotiated_features;
+
+    regs.DriverFeaturesSel = 1;
+    regs.DriverFeatures = (uint32_t)(negotiated_features >> 32);
+
+    regs.Status |= VIRTIO_DEVICE_STATUS_FEATURES_OK;
+
+    if (!(regs.Status & VIRTIO_DEVICE_STATUS_FEATURES_OK)) {
+        print("virtio_mmio_device: device rejected FEATURES_OK status bit\n");
+        return;
+    }
+
+    // FIXME - add queues
+
+    initialized = true;
+}
+
 static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
     print("FIXME - init_virtio_mmio2\n");
 
@@ -597,7 +645,14 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
         if (r.device_id != regs.DeviceID)
             continue;
 
-        return r.func();
+        virtio_mmio_device v(regs, r.supported_features);
+
+        if (!v.initialized) {
+            print("init_virtio_mmio2: virtio_mmio_device initialization failed\n");
+            return false;
+        }
+
+        return r.func(v);
     }
 
     print("init_virtio_mmio2: device type {} not recognized\n", regs.DeviceID);

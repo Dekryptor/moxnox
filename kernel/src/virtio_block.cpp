@@ -141,10 +141,10 @@ static pci_recognizer mod_pci_ids[] = {
     { {}, PCI_VENDOR_ID_REDHAT, 0x1042, found_virtio_pci_block },
 };
 
-static bool found_virtio_mmio_block();
+static bool found_virtio_mmio_block(virtio_mmio_device& v);
 
 static virtio_mmio_recognizer mod_virtio_mmio_types = {
-    {}, 2, found_virtio_mmio_block
+    {}, 2, SUPPORTED_FEATURES, found_virtio_mmio_block
 };
 
 static void init_virtio_block() {
@@ -455,7 +455,7 @@ void found_virtio_pci_block(pci_device& dev) {
     v.probe();
 }
 
-static bool found_virtio_mmio_block() {
+static bool found_virtio_mmio_block(virtio_mmio_device& v) {
     print("FIXME: found_virtio_mmio_block\n"); // FIXME
 
     // FIXME
