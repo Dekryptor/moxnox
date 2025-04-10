@@ -86,3 +86,48 @@ struct virtq_used {
     virtq_used_elem ring[N];
     uint16_t avail_event;
 } __attribute((packed));
+
+struct virtio_mmio_regs {
+    uint32_t MagicValue;
+    uint32_t Version;
+    uint32_t DeviceID;
+    uint32_t VendorID;
+    uint32_t DeviceFeatures;
+    uint32_t DeviceFeaturesSel;
+    uint64_t padding1;
+    uint32_t DriverFeatures;
+    uint32_t DriverFeaturesSel;
+    uint64_t padding2;
+    uint32_t QueueSel;
+    uint32_t QueueSizeMax;
+    uint32_t QueueSize;
+    uint64_t padding3;
+    uint32_t QueueReady;
+    uint64_t padding4;
+    uint32_t QueueNotify;
+    uint8_t padding5[12];
+    uint32_t InterruptStatus;
+    uint32_t InterruptACK;
+    uint64_t padding6;
+    uint32_t Status;
+    uint8_t padding7[12];
+    uint32_t QueueDescLow;
+    uint32_t QueueDescHigh;
+    uint64_t padding8;
+    uint32_t QueueDriverLow;
+    uint32_t QueueDriverHigh;
+    uint64_t padding9;
+    uint32_t QueueDeviceLow;
+    uint32_t QueueDeviceHigh;
+    uint32_t padding10;
+    uint32_t SHMSel;
+    uint32_t SHMLenLow;
+    uint32_t SHMLenHigh;
+    uint32_t SHMBaseLow;
+    uint32_t SHMBaseHigh;
+    uint32_t QueueReset;
+    uint8_t padding11[56];
+    uint32_t ConfigGeneration;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_mmio_regs) == 0x100);

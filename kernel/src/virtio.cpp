@@ -561,9 +561,55 @@ void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
 
+static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
+    print("FIXME - init_virtio_mmio2\n");
+
+    // FIXME
+
+    return false;
+}
+
 static void init_virtio_mmio(const ACPI_RESOURCE_FIXED_MEMORY32& mem,
-                             const ACPI_RESOURCE_EXTENDED_IRQ& irq) {
+                             const ACPI_RESOURCE_EXTENDED_IRQ& /*irq*/) {
     print("FIXME - init_virtio_mmio\n"); // FIXME
+
+    if (mem.AddressLength < sizeof(virtio_mmio_regs)) {
+        print("init_virtio_mmio: AddressLength was {:x}, expected at least {:x}\n",
+              mem.AddressLength, sizeof(virtio_mmio_regs));
+        return;
+    }
+
+    uint64_t first_page = mem.Address >> PAGE_SHIFT;
+    uint64_t last_page = (mem.Address + mem.AddressLength - 1) >> PAGE_SHIFT;
+    auto num_pages = (uint32_t)(last_page - first_page + 1);
+
+    auto va = allocate_va(num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return;
+    }
+
+    for (uint32_t i = 0; i < num_pages; i++) {
+        if (!map_page((first_page + i) << PAGE_SHIFT, va + (i << PAGE_SHIFT), mapping_type::no_cache)) {
+            print("map_page failed\n");
+
+            for (uint32_t j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, num_pages);
+            return;
+        }
+    }
+
+    auto& regs = *(volatile virtio_mmio_regs*)(va + (mem.Address & (PAGE_SIZE - 1)));
+
+    if (!init_virtio_mmio2(regs)) {
+        for (uint32_t i = 0; i < num_pages; i++) {
+            unmap_page(va + (i << PAGE_SHIFT));
+        }
+        free_va(va, num_pages);
+    }
 }
 
 static void found_virtio_mmio(const acpi_device& d) {
