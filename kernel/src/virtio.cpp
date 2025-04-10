@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include "acpica.h"
 #include "virtio.h"
 #include "spinlock.h"
 
@@ -560,6 +561,40 @@ void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
 
+static void init_virtio_mmio(const ACPI_RESOURCE_FIXED_MEMORY32& mem,
+                             const ACPI_RESOURCE_EXTENDED_IRQ& irq) {
+    print("FIXME - init_virtio_mmio\n"); // FIXME
+}
+
 static void found_virtio_mmio(const acpi_device& d) {
-    print("FIXME: found_virtio_mmio\n"); // FIXME
+    optional<ACPI_RESOURCE_FIXED_MEMORY32> mem;
+    optional<ACPI_RESOURCE_EXTENDED_IRQ> irq;
+
+    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        if (r.type == acpi_device_resource_type::fixed_memory32) {
+            auto& r2 = static_cast<acpi_device_resource_fixed_memory32&>(r);
+
+            mem = r2.fixed_memory32;
+        } else if (r.type == acpi_device_resource_type::extended_irq) {
+            auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
+
+            irq = r2.extended_irq;
+        }
+
+        // FIXME - can we have non-extended IRQ here instead?
+    }
+
+    if (!mem.has_value()) {
+        print("virtio_mmio ACPI device found, but memory address not recognized\n");
+        return;
+    }
+
+    if (!irq.has_value()) {
+        print("virtio_mmio ACPI device found, but IRQ not recognized\n");
+        return;
+    }
+
+    init_virtio_mmio(*mem, *irq);
 }
