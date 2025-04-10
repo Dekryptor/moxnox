@@ -36,6 +36,8 @@ export const uint64_t VIRTIO_F_SR_IOV = (uint64_t)1 << 37;
 export const uint64_t VIRTIO_F_NOTIFICATION_DATA = (uint64_t)1 << 38;
 export const uint64_t VIRTIO_F_RING_RESET = (uint64_t)1 << 40;
 
+static const uint32_t VIRTIO_MMIO_MAGIC_VALUE = 0x74726976; // "virt"
+
 export struct virtq_desc {
     uint64_t addr;
     uint32_t len;
@@ -563,6 +565,23 @@ void virtio_pci_device::finalize() {
 
 static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
     print("FIXME - init_virtio_mmio2\n");
+
+    if (regs.MagicValue != VIRTIO_MMIO_MAGIC_VALUE) {
+        print("init_virtio_mmio2: incorrect MagicValue (found {:x}, expected {:x})\n",
+              regs.MagicValue, VIRTIO_MMIO_MAGIC_VALUE);
+        return false;
+    }
+
+    // FIXME - support "legacy" devices (the default on Qemu)
+    if (regs.Version != 2) {
+        print("init_virtio_mmio2: unsupported version {}\n", regs.Version);
+        return false;
+    }
+
+    if (regs.DeviceID == 0) {
+        // not printing an error, as per the spec
+        return false;
+    }
 
     // FIXME
 
