@@ -109,9 +109,9 @@ static_assert(sizeof(virtio_blk_req) == 17);
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
-class virtio_block : public virtio_pci_device, public volume {
+class virtio_block : public volume {
 public:
-    virtio_block(pci_device& dev);
+    virtio_block(pci_device& d);
 
     void release() override {
         if (--refcount == 0)
@@ -125,6 +125,7 @@ public:
                         pfn_iterator& it, uint64_t& written_pages,
                         bool fua) override;
 
+    virtio_pci_device dev;
     unsigned int dev_num;
 
 private:
@@ -157,14 +158,14 @@ static void init_virtio_block() {
 
 static module_init module_init_virtio_block(init_virtio_block);
 
-virtio_block::virtio_block(pci_device& dev) : virtio_pci_device(dev, SUPPORTED_FEATURES, 1) {
-    if (device_cfg->length < sizeof(virtio_blk_config)) {
+virtio_block::virtio_block(pci_device& d) : dev(d, SUPPORTED_FEATURES, 1) {
+    if (dev.device_cfg->length < sizeof(virtio_blk_config)) {
         print("virtio_block: device cfg length was {}, expected at least {}\n",
-              device_cfg->length, sizeof(virtio_blk_config));
+              dev.device_cfg->length, sizeof(virtio_blk_config));
         return;
     }
 
-    for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
+    for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
 
         if (vq.num == 0) {
@@ -175,7 +176,7 @@ virtio_block::virtio_block(pci_device& dev) : virtio_pci_device(dev, SUPPORTED_F
 }
 
 nt_status virtio_block::flush() {
-    if (!(negotiated_features & VIRTIO_BLK_F_FLUSH))
+    if (!(dev.negotiated_features & VIRTIO_BLK_F_FLUSH))
         return nt_status::SUCCESS;
 
     auto req = (virtio_blk_req*)malloc(sizeof(virtio_blk_req));
@@ -306,7 +307,7 @@ nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
 nt_status virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
                                   pfn_iterator& it, uint64_t& written_pages,
                                   bool fua) {
-    if (negotiated_features & VIRTIO_BLK_F_RO)
+    if (dev.negotiated_features & VIRTIO_BLK_F_RO)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
     if (num_pages == 0) {
@@ -404,15 +405,15 @@ void found_virtio_pci_block(pci_device& dev) {
 
     auto& v = *pv;
 
-    if (!v.initialized)
+    if (!v.dev.initialized)
         return;
 
-    if (!(v.negotiated_features & VIRTIO_RING_F_INDIRECT_DESC)) {
+    if (!(v.dev.negotiated_features & VIRTIO_RING_F_INDIRECT_DESC)) {
         print("found_virtio_pci_block: device does not support indirect descriptors\n");
         return;
     }
 
-    v.finalize();
+    v.dev.finalize();
 
     // FIXME - make sure devices are numbered consistently
     v.dev_num = virtio_block_num.fetch_add(1);
@@ -440,9 +441,9 @@ void found_virtio_pci_block(pci_device& dev) {
         memcpy(v.volume_name, name, v.volume_name_len);
     }
 
-    auto& cfg = *(volatile virtio_blk_config*)(dev.bar[v.device_cfg->bar].data() + v.device_cfg->offset);
+    auto& cfg = *(volatile virtio_blk_config*)(dev.bar[v.dev.device_cfg->bar].data() + v.dev.device_cfg->offset);
 
-    if (v.negotiated_features & VIRTIO_BLK_F_BLK_SIZE)
+    if (v.dev.negotiated_features & VIRTIO_BLK_F_BLK_SIZE)
         v.sector_size = cfg.blk_size;
     else
         v.sector_size = SECTOR_SIZE;
