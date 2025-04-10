@@ -89,6 +89,8 @@ public:
     ~virtio_pci_device();
     void finalize();
 
+    virtio_pci_device(const virtio_pci_device&) = delete;
+
     pci_device& dev;
     bool initialized = false;
     list_entry virtqueues = { &virtqueues, &virtqueues };
@@ -107,6 +109,9 @@ public:
     virtio_mmio_device(volatile virtio_mmio_regs& regs,
                        uint64_t supported_features, uint16_t num_queues);
     ~virtio_mmio_device();
+    void finalize();
+
+    virtio_mmio_device(const virtio_mmio_device&) = delete;
 
     bool initialized = false;
     list_entry virtqueues = { &virtqueues, &virtqueues };
@@ -345,7 +350,7 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
         queue->available.idx++;
     }
 
-    *notification_addr = 1;
+    *notification_addr = num;
 
     // FIXME - make interruptible
     wait_for_object(events[slot].get(), false);
@@ -384,7 +389,7 @@ nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
         queue->available.idx++;
     }
 
-    *notification_addr = 1;
+    *notification_addr = num;
 
     // FIXME - make interruptible
     wait_for_object(events[slot].get(), false);
@@ -424,7 +429,7 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
         queue->available.idx++;
     }
 
-    *notification_addr = 1;
+    *notification_addr = num;
 
     // FIXME - make interruptible
     wait_for_object(events[slot].get(), false);
@@ -625,6 +630,12 @@ virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs& regs,
             return;
     }
 
+    for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
+        auto& q = containing_record<virt_queue>(le);
+
+        q.notification_addr = &regs.QueueNotify;
+    }
+
     initialized = true;
 }
 
@@ -720,6 +731,10 @@ bool virtio_mmio_device::add_virtqueue(uint16_t num) {
     return true;
 }
 
+void virtio_mmio_device::finalize() {
+    regs.Status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
+}
+
 static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
     print("FIXME - init_virtio_mmio2\n");
 
@@ -746,14 +761,25 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
         if (r.device_id != regs.DeviceID)
             continue;
 
-        virtio_mmio_device v(regs, r.supported_features, r.num_queues);
+        auto v = new virtio_mmio_device(regs, r.supported_features, r.num_queues);
 
-        if (!v.initialized) {
-            print("init_virtio_mmio2: virtio_mmio_device initialization failed\n");
+        if (!v) {
+            print("new failed\n");
             return false;
         }
 
-        return r.func(v);
+        if (!v->initialized) {
+            print("init_virtio_mmio2: virtio_mmio_device initialization failed\n");
+            delete v;
+            return false;
+        }
+
+        if (!r.func(*v)) {
+            delete v;
+            return false;
+        }
+
+        return true;
     }
 
     print("init_virtio_mmio2: device type {} not recognized\n", regs.DeviceID);

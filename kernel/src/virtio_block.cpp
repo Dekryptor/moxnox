@@ -20,24 +20,24 @@ import rwsem;
 
 using namespace std;
 
-static const size_t SECTOR_SIZE = 512;
+const size_t SECTOR_SIZE = 512;
 
-static const uint64_t VIRTIO_BLK_F_BARRIER = 1 << 0;
-static const uint64_t VIRTIO_BLK_F_SIZE_MAX = 1 << 1;
-static const uint64_t VIRTIO_BLK_F_SEG_MAX = 1 << 2;
-static const uint64_t VIRTIO_BLK_F_GEOMETRY = 1 << 4;
-static const uint64_t VIRTIO_BLK_F_RO = 1 << 5;
-static const uint64_t VIRTIO_BLK_F_BLK_SIZE = 1 << 6;
-static const uint64_t VIRTIO_BLK_F_SCSI = 1 << 7;
-static const uint64_t VIRTIO_BLK_F_FLUSH = 1 << 9;
-static const uint64_t VIRTIO_BLK_F_TOPOLOGY = 1 << 10;
-static const uint64_t VIRTIO_BLK_F_CONFIG_WCE = 1 << 11;
-static const uint64_t VIRTIO_BLK_F_MQ = 1 << 12;
-static const uint64_t VIRTIO_BLK_F_DISCARD = 1 << 13;
-static const uint64_t VIRTIO_BLK_F_WRITE_ZEROES = 1 << 14;
-static const uint64_t VIRTIO_BLK_F_LIFETIME = 1 << 15;
-static const uint64_t VIRTIO_BLK_F_SECURE_ERASE = 1 << 16;
-static const uint64_t VIRTIO_BLK_F_ZONED = 1 << 17;
+const uint64_t VIRTIO_BLK_F_BARRIER = 1 << 0;
+const uint64_t VIRTIO_BLK_F_SIZE_MAX = 1 << 1;
+const uint64_t VIRTIO_BLK_F_SEG_MAX = 1 << 2;
+const uint64_t VIRTIO_BLK_F_GEOMETRY = 1 << 4;
+const uint64_t VIRTIO_BLK_F_RO = 1 << 5;
+const uint64_t VIRTIO_BLK_F_BLK_SIZE = 1 << 6;
+const uint64_t VIRTIO_BLK_F_SCSI = 1 << 7;
+const uint64_t VIRTIO_BLK_F_FLUSH = 1 << 9;
+const uint64_t VIRTIO_BLK_F_TOPOLOGY = 1 << 10;
+const uint64_t VIRTIO_BLK_F_CONFIG_WCE = 1 << 11;
+const uint64_t VIRTIO_BLK_F_MQ = 1 << 12;
+const uint64_t VIRTIO_BLK_F_DISCARD = 1 << 13;
+const uint64_t VIRTIO_BLK_F_WRITE_ZEROES = 1 << 14;
+const uint64_t VIRTIO_BLK_F_LIFETIME = 1 << 15;
+const uint64_t VIRTIO_BLK_F_SECURE_ERASE = 1 << 16;
+const uint64_t VIRTIO_BLK_F_ZONED = 1 << 17;
 
 static const uint64_t SUPPORTED_FEATURES = VIRTIO_BLK_F_RO |
                                            VIRTIO_BLK_F_BLK_SIZE |
@@ -109,9 +109,12 @@ static_assert(sizeof(virtio_blk_req) == 17);
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
+template<typename T>
 class virtio_block : public volume {
 public:
     virtio_block(pci_device& d);
+    virtio_block(T& t);
+    ~virtio_block();
 
     void release() override {
         if (--refcount == 0)
@@ -125,7 +128,7 @@ public:
                         pfn_iterator& it, uint64_t& written_pages,
                         bool fua) override;
 
-    virtio_pci_device dev;
+    T& dev;
     unsigned int dev_num;
 
 private:
@@ -158,7 +161,8 @@ static void init_virtio_block() {
 
 static module_init module_init_virtio_block(init_virtio_block);
 
-virtio_block::virtio_block(pci_device& d) : dev(d, SUPPORTED_FEATURES, 1) {
+template<>
+virtio_block<virtio_pci_device>::virtio_block(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 1)) {
     if (dev.device_cfg->length < sizeof(virtio_blk_config)) {
         print("virtio_block: device cfg length was {}, expected at least {}\n",
               dev.device_cfg->length, sizeof(virtio_blk_config));
@@ -175,7 +179,25 @@ virtio_block::virtio_block(pci_device& d) : dev(d, SUPPORTED_FEATURES, 1) {
     }
 }
 
-nt_status virtio_block::flush() {
+template<>
+virtio_block<virtio_mmio_device>::virtio_block(virtio_mmio_device& d) : dev(d) {
+    for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
+        auto& vq = containing_record<virt_queue>(le);
+
+        if (vq.num == 0) {
+            queue = &vq;
+            break;
+        }
+    }
+}
+
+template<typename T>
+virtio_block<T>::~virtio_block() {
+    delete &dev;
+}
+
+template<typename T>
+nt_status virtio_block<T>::flush() {
     if (!(dev.negotiated_features & VIRTIO_BLK_F_FLUSH))
         return nt_status::SUCCESS;
 
@@ -233,8 +255,9 @@ nt_status virtio_block::flush() {
     return nt_status::SUCCESS;
 }
 
-nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
-                                 pfn_iterator& it, uint64_t& read_pages) {
+template<typename T>
+nt_status virtio_block<T>::dio_read(uint64_t page_num, uint64_t num_pages,
+                                    pfn_iterator& it, uint64_t& read_pages) {
     if (num_pages == 0) {
         read_pages = 0;
         return nt_status::SUCCESS;
@@ -304,9 +327,10 @@ nt_status virtio_block::dio_read(uint64_t page_num, uint64_t num_pages,
     return nt_status::SUCCESS;
 }
 
-nt_status virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
-                                  pfn_iterator& it, uint64_t& written_pages,
-                                  bool fua) {
+template<typename T>
+nt_status virtio_block<T>::dio_write(uint64_t page_num, uint64_t num_pages,
+                                     pfn_iterator& it, uint64_t& written_pages,
+                                     bool fua) {
     if (dev.negotiated_features & VIRTIO_BLK_F_RO)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
@@ -395,7 +419,7 @@ nt_status virtio_block::dio_write(uint64_t page_num, uint64_t num_pages,
 }
 
 void found_virtio_pci_block(pci_device& dev) {
-    auto pv = new virtio_block(dev);
+    auto pv = new virtio_block<virtio_pci_device>(dev);
     if (!pv) {
         print("new failed\n");
         return;
@@ -456,10 +480,68 @@ void found_virtio_pci_block(pci_device& dev) {
     v.probe();
 }
 
-static bool found_virtio_mmio_block(virtio_mmio_device& v) {
-    print("FIXME: found_virtio_mmio_block\n"); // FIXME
+static bool found_virtio_mmio_block(virtio_mmio_device& dev) {
+    auto pv = new virtio_block<virtio_mmio_device>(dev);
+    if (!pv) {
+        print("new failed\n");
+        return false;
+    }
 
-    // FIXME
+    object_ref ref{*pv};
 
-    return false;
+    auto& v = *pv;
+
+    if (!v.dev.initialized)
+        return false;
+
+    if (!(v.dev.negotiated_features & VIRTIO_RING_F_INDIRECT_DESC)) {
+        print("found_virtio_pci_block: device does not support indirect descriptors\n");
+        return false;
+    }
+
+    v.dev.finalize();
+
+    // FIXME - make sure devices are numbered consistently
+    v.dev_num = virtio_block_num.fetch_add(1);
+
+    if (v.dev_num < 26) {
+        char name[4];
+
+        name[0] = 'v';
+        name[1] = 'd';
+        name[2] = (char)(v.dev_num + 'a');
+        name[3] = 0;
+
+        if (!name_object(v, name)) {
+            print("name_object failed\n");
+            return false;
+        }
+
+        v.volume_name_len = strlen(name);
+        v.volume_name = (char*)malloc(v.volume_name_len);
+        if (!v.volume_name) {
+            print("malloc failed\n");
+            return false;
+        }
+
+        memcpy(v.volume_name, name, v.volume_name_len);
+    }
+
+    // FIXME - get config
+
+    // auto& cfg = *(volatile virtio_blk_config*)(dev.bar[v.device_cfg->bar].data() + v.device_cfg->offset);
+    //
+    // if (v.negotiated_features & VIRTIO_BLK_F_BLK_SIZE)
+    //     v.sector_size = cfg.blk_size;
+    // else
+        v.sector_size = SECTOR_SIZE;
+
+    // v.size = cfg.capacity * SECTOR_SIZE;
+
+    print("found /dev/{}: block size {}, capacity {}\n", string_view(v.volume_name, v.volume_name_len),
+          byte_size(v.sector_size), byte_size(v.size));
+
+    v.probe();
+
+    return true;
 }
