@@ -87,7 +87,35 @@ struct virtq_used {
     uint16_t avail_event;
 } __attribute((packed));
 
-struct virtio_mmio_regs {
+struct virtio_mmio_regs_v1 {
+    uint32_t MagicValue;
+    uint32_t Version;
+    uint32_t DeviceID;
+    uint32_t VendorID;
+    uint32_t HostFeatures;
+    uint32_t HostFeaturesSel;
+    uint64_t padding1;
+    uint32_t GuestFeatures;
+    uint32_t GuestFeaturesSel;
+    uint32_t GuestPageSize;
+    uint32_t padding2;
+    uint32_t QueueSel;
+    uint32_t QueueSizeMax;
+    uint32_t QueueSize;
+    uint32_t QueueAlign;
+    uint32_t QueuePFN;
+    uint8_t padding3[12];
+    uint32_t QueueNotify;
+    uint8_t padding4[12];
+    uint32_t InterruptStatus;
+    uint32_t InterruptACK;
+    uint64_t padding5;
+    uint32_t Status;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_mmio_regs_v1) == 0x74);
+
+struct virtio_mmio_regs_v2 {
     uint32_t MagicValue;
     uint32_t Version;
     uint32_t DeviceID;
@@ -130,4 +158,4 @@ struct virtio_mmio_regs {
     uint32_t ConfigGeneration;
 } __attribute((packed));
 
-static_assert(sizeof(virtio_mmio_regs) == 0x100);
+static_assert(sizeof(virtio_mmio_regs_v2) == 0x100);

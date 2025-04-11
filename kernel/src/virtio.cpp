@@ -4,6 +4,7 @@ module;
 #include "acpica.h"
 #include "virtio.h"
 #include "spinlock.h"
+#include <variant>
 
 export module virtio;
 
@@ -51,7 +52,7 @@ template<unsigned N>
 struct virtq {
     virtq_desc buffers[N];
     virtq_avail<N> available;
-    uint8_t padding[4096 - (N * sizeof(virtq_desc)) - sizeof(virtq_avail<N>)];
+    uint8_t padding[PAGE_SIZE - (N * sizeof(virtq_desc)) - sizeof(virtq_avail<N>)];
     virtq_used<N> used;
 } __attribute((packed));
 
@@ -106,7 +107,10 @@ private:
 
 export class virtio_mmio_device {
 public:
-    virtio_mmio_device(volatile virtio_mmio_regs& regs,
+    virtio_mmio_device(volatile virtio_mmio_regs_v1& regs,
+                       uint64_t supported_features, uint16_t num_queues,
+                       void* config);
+    virtio_mmio_device(volatile virtio_mmio_regs_v2& regs,
                        uint64_t supported_features, uint16_t num_queues,
                        void* config);
     ~virtio_mmio_device();
@@ -123,7 +127,7 @@ public:
 private:
     bool add_virtqueue(uint16_t num);
 
-    volatile virtio_mmio_regs& regs;
+    variant<volatile virtio_mmio_regs_v1*, volatile virtio_mmio_regs_v2*> var_regs;
 };
 
 export struct virtio_mmio_recognizer {
@@ -597,9 +601,56 @@ void virtio_pci_device::finalize() {
     common->device_status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
 
-virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs& regs,
+virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs_v1& regs,
                                        uint64_t supported_features,
-                                       uint16_t num_queues, void* config) : config(config), regs(regs) {
+                                       uint16_t num_queues, void* config) : config(config), var_regs(&regs) {
+    regs.Status = 0;
+
+    regs.GuestPageSize = PAGE_SIZE;
+
+    regs.Status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
+    regs.Status |= VIRTIO_DEVICE_STATUS_DRIVER;
+
+    uint64_t device_features = 0;
+
+    regs.HostFeaturesSel = 0;
+    device_features = regs.HostFeatures;
+
+    regs.HostFeaturesSel = 1;
+    device_features |= ((uint64_t)regs.HostFeatures) << 32;
+
+    negotiated_features = device_features & supported_features;
+
+    regs.GuestFeaturesSel = 0;
+    regs.GuestFeatures = (uint32_t)negotiated_features;
+
+    regs.GuestFeaturesSel = 1;
+    regs.GuestFeatures = (uint32_t)(negotiated_features >> 32);
+
+    regs.Status |= VIRTIO_DEVICE_STATUS_FEATURES_OK;
+
+    if (!(regs.Status & VIRTIO_DEVICE_STATUS_FEATURES_OK)) {
+        print("virtio_mmio_device: device rejected FEATURES_OK status bit\n");
+        return;
+    }
+
+    for (uint16_t i = 0; i < num_queues; i++) {
+        if (!add_virtqueue(i))
+            return;
+    }
+
+    for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
+        auto& q = containing_record<virt_queue>(le);
+
+        q.notification_addr = &regs.QueueNotify;
+    }
+
+    initialized = true;
+}
+
+virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs_v2& regs,
+                                       uint64_t supported_features,
+                                       uint16_t num_queues, void* config) : config(config), var_regs(&regs) {
     regs.Status = 0;
 
     regs.Status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
@@ -653,15 +704,37 @@ virtio_mmio_device::~virtio_mmio_device() {
 }
 
 bool virtio_mmio_device::add_virtqueue(uint16_t num) {
-    regs.QueueSel = num;
+    if (holds_alternative<volatile virtio_mmio_regs_v2*>(var_regs)) {
+        volatile auto& regs = **get_if<volatile virtio_mmio_regs_v2*>(&var_regs);
 
-    if (regs.QueueSizeMax < QUEUE_SIZE) {
-        print("virtio_mmio_device::add_virtqueue: max size for queue {} was {}, wanted at least {}\n",
-              regs.QueueSel, regs.QueueSizeMax, QUEUE_SIZE);
-        return false;
+        regs.QueueSel = num;
+
+        if (regs.QueueSizeMax < QUEUE_SIZE) {
+            print("virtio_mmio_device::add_virtqueue: max size for queue {} was {}, wanted at least {}\n",
+                  regs.QueueSel, regs.QueueSizeMax, QUEUE_SIZE);
+            return false;
+        }
+
+        regs.QueueSize = QUEUE_SIZE;
+    } else {
+        volatile auto& regs = **get_if<volatile virtio_mmio_regs_v1*>(&var_regs);
+
+        regs.QueueSel = num;
+
+        if (regs.QueuePFN != 0) {
+            print("virtio_mmio_device::add_virtqueue: QueuePFN was {:x}, expected 0\n",
+                  regs.QueuePFN);
+            return false;
+        }
+
+        if (regs.QueueSizeMax < QUEUE_SIZE) {
+            print("virtio_mmio_device::add_virtqueue: max size for queue {} was {}, wanted at least {}\n",
+                  regs.QueueSel, regs.QueueSizeMax, QUEUE_SIZE);
+            return false;
+        }
+
+        regs.QueueSize = QUEUE_SIZE;
     }
-
-    regs.QueueSize = QUEUE_SIZE;
 
     static const size_t NUM_PAGES = bytes_to_pages(sizeof(virtq<QUEUE_SIZE>));
 
@@ -714,20 +787,31 @@ bool virtio_mmio_device::add_virtqueue(uint16_t num) {
     vq->queue = &queue;
     vq->queue_pa = pa;
 
-    regs.QueueDescLow = pa & 0xffffffff;
-    regs.QueueDescHigh = (uint32_t)(pa >> 32);
+    if (holds_alternative<volatile virtio_mmio_regs_v2*>(var_regs)) {
+        volatile auto& regs = **get_if<volatile virtio_mmio_regs_v2*>(&var_regs);
 
-    auto queue_driver = pa + ((uintptr_t)&queue.available - (uintptr_t)&queue);
+        regs.QueueDescLow = pa & 0xffffffff;
+        regs.QueueDescHigh = (uint32_t)(pa >> 32);
 
-    regs.QueueDriverLow = queue_driver & 0xffffffff;
-    regs.QueueDriverHigh = (uint32_t)(queue_driver >> 32);
+        auto queue_driver = pa + ((uintptr_t)&queue.available - (uintptr_t)&queue);
 
-    auto queue_device = pa + ((uintptr_t)&queue.used - (uintptr_t)&queue);
+        regs.QueueDriverLow = queue_driver & 0xffffffff;
+        regs.QueueDriverHigh = (uint32_t)(queue_driver >> 32);
 
-    regs.QueueDeviceLow = queue_device & 0xffffffff;
-    regs.QueueDeviceHigh = (uint32_t)(queue_device >> 32);
+        auto queue_device = pa + ((uintptr_t)&queue.used - (uintptr_t)&queue);
 
-    regs.QueueReady = 1;
+        regs.QueueDeviceLow = queue_device & 0xffffffff;
+        regs.QueueDeviceHigh = (uint32_t)(queue_device >> 32);
+
+        regs.QueueReady = 1;
+    } else {
+        volatile auto& regs = **get_if<volatile virtio_mmio_regs_v1*>(&var_regs);
+
+        regs.QueueAlign = PAGE_SIZE;
+
+        // FIXME - (theoretically) need to make sure located within first 2^(32+PAGE_SHIFT) bytes
+        regs.QueuePFN = (uint32_t)(pa >> PAGE_SHIFT);
+    }
 
     insert_tail_list(virtqueues, vq->le);
 
@@ -735,12 +819,20 @@ bool virtio_mmio_device::add_virtqueue(uint16_t num) {
 }
 
 void virtio_mmio_device::finalize() {
-    regs.Status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
+    if (holds_alternative<volatile virtio_mmio_regs_v2*>(var_regs))
+        (*get_if<volatile virtio_mmio_regs_v2*>(&var_regs))->Status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
+    else
+        (*get_if<volatile virtio_mmio_regs_v1*>(&var_regs))->Status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
 
 bool virtio_mmio_device::isr() {
-    if (!(regs.InterruptStatus & 1))
-        return false;
+    if (holds_alternative<volatile virtio_mmio_regs_v2*>(var_regs)) {
+        if (!((*get_if<volatile virtio_mmio_regs_v2*>(&var_regs))->InterruptStatus & 1))
+            return false;
+    } else {
+        if (!((*get_if<volatile virtio_mmio_regs_v1*>(&var_regs))->InterruptStatus & 1))
+            return false;
+    }
 
     for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
@@ -748,7 +840,10 @@ bool virtio_mmio_device::isr() {
         vq.isr();
     }
 
-    regs.InterruptACK |= 1;
+    if (holds_alternative<volatile virtio_mmio_regs_v2*>(var_regs))
+        (*get_if<volatile virtio_mmio_regs_v2*>(&var_regs))->InterruptACK |= 1;
+    else
+        (*get_if<volatile virtio_mmio_regs_v1*>(&var_regs))->InterruptACK |= 1;
 
     return true;
 }
@@ -759,7 +854,7 @@ static bool virtio_mmio_isr_func(void* ctx) {
     return v.isr();
 }
 
-static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs,
+static bool init_virtio_mmio2(volatile virtio_mmio_regs_v2& regs,
                               void* config, uint32_t irq) {
     if (regs.MagicValue != VIRTIO_MMIO_MAGIC_VALUE) {
         print("init_virtio_mmio2: incorrect MagicValue (found {:x}, expected {:x})\n",
@@ -767,64 +862,72 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs,
         return false;
     }
 
-    // FIXME - support "legacy" version 1 devices (the default on Qemu)
-    if (regs.Version != 2) {
-        print("init_virtio_mmio2: unsupported version {}\n", regs.Version);
+    auto func = [&config, &irq](volatile auto& regs) -> bool {
+        if (regs.DeviceID == 0) {
+            // not printing an error, as per the spec
+            return false;
+        }
+
+        for (auto le = virtio_mmio_types.next; le != &virtio_mmio_types; le = le->next) {
+            auto& r = containing_record<virtio_mmio_recognizer>(le);
+
+            if (r.device_id != regs.DeviceID)
+                continue;
+
+            auto v = new virtio_mmio_device(regs, r.supported_features,
+                                            r.num_queues, config);
+
+            if (!v) {
+                print("new failed\n");
+                return false;
+            }
+
+            if (!v->initialized) {
+                print("init_virtio_mmio2: virtio_mmio_device initialization failed\n");
+                delete v;
+                return false;
+            }
+
+            auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
+
+            if (!add_irq_handler(irq, local_apic_id, virtio_mmio_isr_func, v)) {
+                print("add_irq_handler failed\n");
+                delete v;
+                return false;
+            }
+
+            if (!r.func(*v)) {
+                // FIXME - remove IRQ handler
+                delete v;
+                return false;
+            }
+
+            return true;
+        }
+
+        print("init_virtio_mmio2: device type {} not recognized\n", regs.DeviceID);
+
         return false;
+    };
+
+    switch (regs.Version) {
+        case 1:
+            return func(*(volatile virtio_mmio_regs_v1*)&regs);
+
+        case 2:
+            return func(regs);
+
+        default:
+            print("init_virtio_mmio2: unsupported version {}\n", regs.Version);
+            return false;
     }
-
-    if (regs.DeviceID == 0) {
-        // not printing an error, as per the spec
-        return false;
-    }
-
-    for (auto le = virtio_mmio_types.next; le != &virtio_mmio_types; le = le->next) {
-        auto& r = containing_record<virtio_mmio_recognizer>(le);
-
-        if (r.device_id != regs.DeviceID)
-            continue;
-
-        auto v = new virtio_mmio_device(regs, r.supported_features,
-                                        r.num_queues, config);
-
-        if (!v) {
-            print("new failed\n");
-            return false;
-        }
-
-        if (!v->initialized) {
-            print("init_virtio_mmio2: virtio_mmio_device initialization failed\n");
-            delete v;
-            return false;
-        }
-
-        auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
-
-        if (!add_irq_handler(irq, local_apic_id, virtio_mmio_isr_func, v)) {
-            print("add_irq_handler failed\n");
-            delete v;
-            return false;
-        }
-
-        if (!r.func(*v)) {
-            // FIXME - remove IRQ handler
-            delete v;
-            return false;
-        }
-
-        return true;
-    }
-
-    print("init_virtio_mmio2: device type {} not recognized\n", regs.DeviceID);
-
-    return false;
 }
 
 static void init_virtio_mmio(const ACPI_RESOURCE_FIXED_MEMORY32& mem,
                              uint32_t irq) {
-    if (mem.AddressLength < sizeof(virtio_mmio_regs)) {
+    if (mem.AddressLength < sizeof(virtio_mmio_regs_v2)) {
         print("init_virtio_mmio: AddressLength was {:x}, expected at least {:x}\n",
-              mem.AddressLength, sizeof(virtio_mmio_regs));
+              mem.AddressLength, sizeof(virtio_mmio_regs_v2));
         return;
     }
 
@@ -851,9 +954,9 @@ static void init_virtio_mmio(const ACPI_RESOURCE_FIXED_MEMORY32& mem,
         }
     }
 
-    auto& regs = *(volatile virtio_mmio_regs*)(va + (mem.Address & (PAGE_SIZE - 1)));
+    auto& regs = *(volatile virtio_mmio_regs_v2*)(va + (mem.Address & (PAGE_SIZE - 1)));
 
-    void* config = (uint8_t*)&regs + sizeof(virtio_mmio_regs);
+    void* config = (uint8_t*)&regs + sizeof(virtio_mmio_regs_v2);
 
     if (!init_virtio_mmio2(regs, config, irq)) {
         for (uint32_t i = 0; i < num_pages; i++) {
