@@ -289,3 +289,14 @@ char* strncpy(char* dst, const char* src, size_t dsize) {
 
     return orig_dst;
 }
+
+extern "C"
+size_t strlen(const char* s) {
+    size_t i = 0;
+
+    while (s[i] != 0) {
+        i++;
+    }
+
+    return i;
+}

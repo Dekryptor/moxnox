@@ -17,12 +17,9 @@ import list;
 import interrupts;
 import smp;
 import pipe;
+import console;
 
 using namespace std;
-
-// console.cpp (FIXME)
-extern object_ref console_chardev;
-extern unsigned int console_cols;
 
 static spinlock bsod_lock;
 

@@ -91,21 +91,6 @@ extern uint64_t rsdp_pa;
 extern bool init_smp_finished;
 extern bool shutting_down;
 
-// console.cpp
-enum class console_type {
-    text,
-    framebuffer,
-    other
-};
-
-bool init_console(const loader_block_framebuffer& fb,
-                  const loader_block_text_console& tc);
-void safe_print(std::string_view s);
-extern void (*_printk)(std::string_view s);
-bool init_fb_console();
-void copy_edid(loader_block* lb);
-extern enum console_type console_type;
-
 // ints.S
 extern "C" void page_fault_isr();
 extern "C" void double_fault_isr();

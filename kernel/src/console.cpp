@@ -1,3 +1,5 @@
+module;
+
 #include "kernel.h"
 #include "spinlock.h"
 import objects;
@@ -12,6 +14,8 @@ import objects;
 #include <freetype/ftbitmap.h>
 #include <console.h>
 
+export module console;
+
 import print;
 import inout;
 import mem;
@@ -23,7 +27,7 @@ import rbtree;
 
 using namespace std;
 
-unsigned int console_cols;
+export unsigned int console_cols;
 static unsigned int console_rows;
 
 enum class console_colour : uint8_t {
@@ -48,10 +52,9 @@ enum class console_colour : uint8_t {
 static span<uint16_t> text_console;
 static unsigned int cursor_x = 0, cursor_y = 0;
 
-static void early_print(string_view s);
-void (*_printk)(string_view s) = early_print;
+export void early_print(string_view s);
 
-object_ref console_chardev;
+export object_ref console_chardev;
 static const unsigned int console_buffer_pages = 4;
 
 static span<uint32_t> framebuffer, shadow_framebuffer;
@@ -69,10 +72,10 @@ static bool show_cursor = true;
 static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
 // font.S
-extern void* console_font_data;
-extern void* console_font_bold_data;
-extern uint64_t console_font_size;
-extern uint64_t console_font_bold_size;
+extern "C" void* console_font_data;
+extern "C" void* console_font_bold_data;
+extern "C" uint64_t console_font_size;
+extern "C" uint64_t console_font_bold_size;
 
 static const auto console_font = span(&console_font_data, console_font_size);
 static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
@@ -169,17 +172,13 @@ static const size_t EDID_SIZE = 128;
 static uint8_t edid[EDID_SIZE];
 static bool have_edid;
 
-enum console_type console_type;
+export enum class console_type {
+    text,
+    framebuffer,
+    other
+};
 
-size_t strlen(const char* s) {
-    size_t i = 0;
-
-    while (s[i] != 0) {
-        i++;
-    }
-
-    return i;
-}
+export enum console_type console_type;
 
 static constexpr uint16_t text_console_val(uint8_t c, enum console_colour bg,
                                            enum console_colour fg) {
@@ -1455,7 +1454,7 @@ static void refresh_framebuffer() {
     }
 }
 
-static void early_print(string_view s) {
+void early_print(string_view s) {
     if (console_type == console_type::text) {
         if (!text_console_started)
             return;
@@ -1476,7 +1475,7 @@ static void early_print(string_view s) {
     enable_preempt();
 }
 
-void safe_print(string_view s) {
+export void safe_print(string_view s) {
     write(console_chardev, s);
 
     // FIXME - this should be hidden behind a cmdline option
@@ -1507,8 +1506,8 @@ static void console_event_recv() {
     vfree(buf, buf_size);
 }
 
-bool init_console(const loader_block_framebuffer& fb,
-                  const loader_block_text_console& tc) {
+export bool init_console(const loader_block_framebuffer& fb,
+                         const loader_block_text_console& tc) {
     string_view console_opt;
 
     loop_through_cmdline([&](string_view s) {
@@ -1682,7 +1681,7 @@ void FT_Done_Memory(FT_Memory memory) {
     free(memory);
 }
 
-bool init_fb_console() {
+export bool init_fb_console() {
     FT_Error error;
     unsigned int dpi;
 
@@ -1763,7 +1762,7 @@ bool init_fb_console() {
     return true;
 }
 
-void copy_edid(loader_block* lb) {
+export void copy_edid(loader_block* lb) {
     memcpy(edid, (void*)lb->edid, EDID_SIZE);
     have_edid = true;
 }

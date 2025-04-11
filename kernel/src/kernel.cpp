@@ -22,6 +22,7 @@ import chardev;
 import timer;
 import syscalls;
 import smp;
+import console;
 
 using namespace std;
 
@@ -37,8 +38,7 @@ static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
 bool shutting_down = false;
 
-// console.cpp
-extern object_ref console_chardev;
+void (*_printk)(string_view s) = early_print;
 
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
