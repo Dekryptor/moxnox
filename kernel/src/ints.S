@@ -60,6 +60,39 @@ dwarf_func_asm yield_isr
 dwarf_func_asm breakpoint_isr
 dwarf_func_asm single_step_isr
 
+dwarf_func_asm dynamic_isr_30
+dwarf_func_asm dynamic_isr_31
+dwarf_func_asm dynamic_isr_32
+dwarf_func_asm dynamic_isr_33
+dwarf_func_asm dynamic_isr_34
+dwarf_func_asm dynamic_isr_35
+dwarf_func_asm dynamic_isr_36
+dwarf_func_asm dynamic_isr_37
+dwarf_func_asm dynamic_isr_38
+dwarf_func_asm dynamic_isr_39
+dwarf_func_asm dynamic_isr_3a
+dwarf_func_asm dynamic_isr_3b
+dwarf_func_asm dynamic_isr_3c
+dwarf_func_asm dynamic_isr_3d
+dwarf_func_asm dynamic_isr_3e
+dwarf_func_asm dynamic_isr_3f
+dwarf_func_asm dynamic_isr_40
+dwarf_func_asm dynamic_isr_41
+dwarf_func_asm dynamic_isr_42
+dwarf_func_asm dynamic_isr_43
+dwarf_func_asm dynamic_isr_44
+dwarf_func_asm dynamic_isr_45
+dwarf_func_asm dynamic_isr_46
+dwarf_func_asm dynamic_isr_47
+dwarf_func_asm dynamic_isr_48
+dwarf_func_asm dynamic_isr_49
+dwarf_func_asm dynamic_isr_4a
+dwarf_func_asm dynamic_isr_4b
+dwarf_func_asm dynamic_isr_4c
+dwarf_func_asm dynamic_isr_4d
+dwarf_func_asm dynamic_isr_4e
+dwarf_func_asm dynamic_isr_4f
+
 .uleb128 0
 
 .debug_info_end:
