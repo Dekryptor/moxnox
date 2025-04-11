@@ -108,9 +108,10 @@ export class virtio_mmio_device {
 public:
     virtio_mmio_device(volatile virtio_mmio_regs& regs,
                        uint64_t supported_features, uint16_t num_queues,
-                       void* config);
+                       void* config, uint32_t irq);
     ~virtio_mmio_device();
     void finalize();
+    bool isr();
 
     virtio_mmio_device(const virtio_mmio_device&) = delete;
 
@@ -123,6 +124,7 @@ private:
     bool add_virtqueue(uint16_t num);
 
     volatile virtio_mmio_regs& regs;
+    uint32_t irq;
 };
 
 export struct virtio_mmio_recognizer {
@@ -183,7 +185,7 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
-static void virtio_isr_func(void* ctx) {
+static void virtio_pci_isr_func(void* ctx) {
     auto& vq = *(virt_queue*)ctx;
 
     vq.isr();
@@ -251,7 +253,7 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
     vq->queue = &queue;
     vq->queue_pa = pa;
 
-    auto int_num = add_isr(virtio_isr_func, vq);
+    auto int_num = add_isr(virtio_pci_isr_func, vq);
     if (int_num == 0) {
         print("add_isr failed\n");
         delete vq;
@@ -599,7 +601,7 @@ void virtio_pci_device::finalize() {
 virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs& regs,
                                        uint64_t supported_features,
                                        uint16_t num_queues,
-                                       void* config) : config(config), regs(regs) {
+                                       void* config, uint32_t irq) : config(config), regs(regs), irq(irq) {
     regs.Status = 0;
 
     regs.Status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
@@ -738,8 +740,29 @@ void virtio_mmio_device::finalize() {
     regs.Status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
 
+bool virtio_mmio_device::isr() {
+    if (!(regs.InterruptStatus & 1))
+        return false;
+
+    for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
+        auto& vq = containing_record<virt_queue>(le);
+
+        vq.isr();
+    }
+
+    regs.InterruptACK |= 1;
+
+    return true;
+}
+
+static bool virtio_mmio_isr_func(void* ctx) {
+    auto& v = *(virtio_mmio_device*)ctx;
+
+    return v.isr();
+}
+
 static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs,
-                              void* config) {
+                              void* config, uint32_t irq) {
     if (regs.MagicValue != VIRTIO_MMIO_MAGIC_VALUE) {
         print("init_virtio_mmio2: incorrect MagicValue (found {:x}, expected {:x})\n",
               regs.MagicValue, VIRTIO_MMIO_MAGIC_VALUE);
@@ -764,7 +787,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs,
             continue;
 
         auto v = new virtio_mmio_device(regs, r.supported_features,
-                                        r.num_queues, config);
+                                        r.num_queues, config, irq);
 
         if (!v) {
             print("new failed\n");
@@ -777,7 +800,16 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs,
             return false;
         }
 
+        auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
+
+        if (!add_irq_handler(irq, local_apic_id, virtio_mmio_isr_func, v)) {
+            print("add_irq_handler failed\n");
+            delete v;
+            return false;
+        }
+
         if (!r.func(*v)) {
+            // FIXME - remove IRQ handler
             delete v;
             return false;
         }
@@ -791,7 +823,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs,
 }
 
 static void init_virtio_mmio(const ACPI_RESOURCE_FIXED_MEMORY32& mem,
-                             const ACPI_RESOURCE_EXTENDED_IRQ& /*irq*/) {
+                             uint32_t irq) {
     if (mem.AddressLength < sizeof(virtio_mmio_regs)) {
         print("init_virtio_mmio: AddressLength was {:x}, expected at least {:x}\n",
               mem.AddressLength, sizeof(virtio_mmio_regs));
@@ -825,7 +857,7 @@ static void init_virtio_mmio(const ACPI_RESOURCE_FIXED_MEMORY32& mem,
 
     void* config = (uint8_t*)&regs + sizeof(virtio_mmio_regs);
 
-    if (!init_virtio_mmio2(regs, config)) {
+    if (!init_virtio_mmio2(regs, config, irq)) {
         for (uint32_t i = 0; i < num_pages; i++) {
             unmap_page(va + (i << PAGE_SHIFT));
         }
@@ -835,7 +867,7 @@ static void init_virtio_mmio(const ACPI_RESOURCE_FIXED_MEMORY32& mem,
 
 static void found_virtio_mmio(const acpi_device& d) {
     optional<ACPI_RESOURCE_FIXED_MEMORY32> mem;
-    optional<ACPI_RESOURCE_EXTENDED_IRQ> irq;
+    optional<uint32_t> irq;
 
     for (auto le = d.resources.next; le != &d.resources; le = le->next) {
         auto& r = containing_record<acpi_device_resource>(le);
@@ -844,13 +876,15 @@ static void found_virtio_mmio(const acpi_device& d) {
             auto& r2 = static_cast<acpi_device_resource_fixed_memory32&>(r);
 
             mem = r2.fixed_memory32;
+        } else if (r.type == acpi_device_resource_type::irq) {
+            auto& r2 = static_cast<acpi_device_resource_irq&>(r);
+
+            irq = r2.irq.Interrupt;
         } else if (r.type == acpi_device_resource_type::extended_irq) {
             auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
 
-            irq = r2.extended_irq;
+            irq = r2.extended_irq.Interrupt;
         }
-
-        // FIXME - can we have non-extended IRQ here instead?
     }
 
     if (!mem.has_value()) {
