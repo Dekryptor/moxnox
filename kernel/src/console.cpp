@@ -69,6 +69,10 @@ static char escape_buffer[50];
 static size_t escape_buffer_len = 0;
 static bool show_cursor = true;
 
+static spinlock early_print_lock;
+static char early_print_buf[PAGE_SIZE];
+static size_t early_print_buf_size = 0;
+
 static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
 // font.S
@@ -1454,17 +1458,34 @@ static void refresh_framebuffer() {
     }
 }
 
+static void add_to_early_print_buf(string_view s) {
+    lock_guard lock(early_print_lock);
+
+    if (early_print_buf_size == sizeof(early_print_buf))
+        return;
+
+    auto to_copy = min(s.size(), sizeof(early_print_buf) - early_print_buf_size);
+
+    memcpy(early_print_buf + early_print_buf_size, s.data(), to_copy);
+
+    early_print_buf_size += to_copy;
+}
+
 void early_print(string_view s) {
     if (console_type == console_type::text) {
-        if (!text_console_started)
+        if (!text_console_started) {
+            add_to_early_print_buf(s);
             return;
+        }
 
         do_print<false>(s);
         return;
     }
 
-    if (!fb_console_started)
+    if (!fb_console_started) {
+        add_to_early_print_buf(s);
         return;
+    }
 
     disable_preempt();
 
@@ -1506,6 +1527,10 @@ static void console_event_recv() {
     vfree(buf, buf_size);
 }
 
+static void flush_early_print() {
+    safe_print(string_view(early_print_buf, early_print_buf_size));
+}
+
 export bool init_console(const loader_block_framebuffer& fb,
                          const loader_block_text_console& tc) {
     string_view console_opt;
@@ -1543,6 +1568,8 @@ export bool init_console(const loader_block_framebuffer& fb,
         console_rows = 25; // FIXME
 
         console_type = console_type::other;
+
+        flush_early_print();
 
         return true;
     }
@@ -1634,6 +1661,8 @@ export bool init_console(const loader_block_framebuffer& fb,
             return false;
         }
     }
+
+    flush_early_print();
 
     return true;
 }

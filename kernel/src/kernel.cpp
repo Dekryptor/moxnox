@@ -158,6 +158,8 @@ static void keywait() {
 }
 
 void main_thread() {
+    print("\e[2J\e[1;1H");  // erase screen, move to top left
+
     acpi_early_init_done = true;
 
     free_lower_half_mappings();
@@ -178,7 +180,6 @@ void main_thread() {
     if (console_type == console_type::framebuffer && !init_fb_console())
         print("init_fb_console failed\n");
 
-    print("\e[2J\e[1;1H");  // erase screen, move to top left
     print(MOXNOX_VERSION_STRING "\n");
 
     keywait();
