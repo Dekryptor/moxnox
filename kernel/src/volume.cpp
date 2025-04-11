@@ -17,8 +17,8 @@ import bsod;
 import mem;
 import config;
 import list;
-// import btrfs;
 import event;
+import rwsem;
 
 using namespace std;
 
@@ -62,14 +62,11 @@ public:
     char* volume_name = nullptr;
     size_t volume_name_len = 0;
 
-    spinlock mount_lock;
+    rwsem mount_lock;
     optional<reference_wrapper<filesystem>> filesystem;
 };
 
 static_assert(is_readable_object_with_offset<volume>);
-
-// btrfs.cpp
-extern "C++" bool btrfs_probe(volume& vol); // FIXME - avoiding circular dependency
 
 export class diskpart : public volume {
 public:
@@ -112,14 +109,8 @@ public:
 };
 
 void volume::probe() {
-    bool has_parts = false;
-
     if (part_num == 0)
-        has_parts = check_for_partitions();
-
-    // if no partitions found or is already partition, probe for filesystems
-    if (!has_parts)
-        btrfs_probe(*this);
+        check_for_partitions();
 }
 
 struct part_wait {

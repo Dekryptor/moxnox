@@ -50,6 +50,13 @@ static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
 static mount root(0);
 
+export struct filesystem_recognizer {
+    list_entry le;
+    bool (*func)(volume&);
+};
+
+export list_entry filesystem_types = { &filesystem_types, &filesystem_types };
+
 export void add_fs_to_list(::filesystem& fs) {
     lock_guard lock(fs_lock);
     insert_tail_list(fs_list, fs.le);
@@ -84,6 +91,15 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
 
         {
             lock_guard lock(vol.mount_lock);
+
+            if (!vol.filesystem) {
+                for (auto le = filesystem_types.next; le != &filesystem_types; le = le->next) {
+                    auto& r = containing_record<filesystem_recognizer>(le);
+
+                    if (r.func(vol))
+                        break;
+                }
+            }
 
             if (!vol.filesystem) {
                 bsod_format("no recognized filesystem found on /dev/{}",

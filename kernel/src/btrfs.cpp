@@ -50,6 +50,18 @@ static const uint64_t supported_compat_ro_flags = BTRFS_FEATURE_COMPAT_RO_FREE_S
                                                   BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID |
                                                   BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE;
 
+static bool btrfs_probe(volume& v);
+
+static filesystem_recognizer mod_filesystem_type = {
+    {}, btrfs_probe
+};
+
+static void init_btrfs() {
+    insert_tail_list(filesystem_types, mod_filesystem_type.le);
+}
+
+static module_init module_init_btrfs(init_btrfs);
+
 static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
                                uint8_t level);
 static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
@@ -301,9 +313,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 }
 
-export
-extern "C++" // FIXME
-bool btrfs_probe(volume& vol) {
+static bool btrfs_probe(volume& vol) {
     // FIXME - need quick is_btrfs function before we do allocations?
 
     auto fs = new btrfs_filesystem(vol);
@@ -319,10 +329,7 @@ bool btrfs_probe(volume& vol) {
 
     add_fs_to_list(*fs);
 
-    {
-        lock_guard lg(vol.mount_lock);
-        vol.filesystem = *fs;
-    }
+    vol.filesystem = *fs;
 
     return true;
 }
