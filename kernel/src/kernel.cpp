@@ -172,6 +172,10 @@ void main_thread() {
 
     init_pci();
 
+    // if no ACPI, look for serial port at its traditional address
+    if (rsdp_pa == 0)
+        init_serial(0x3f8, 4, "");
+
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
 
