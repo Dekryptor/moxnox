@@ -138,7 +138,8 @@ struct ACPISDTHeader {
     uint32_t CreatorRevision;
 } __attribute__ ((packed));
 
-uint64_t entry_point, rsdp_pa, rsdt_address;
+uint64_t entry_point;
+static uint64_t rsdp_pa = 0, rsdt_address = 0;
 loader_block lb;
 
 // FIXME - move to another file?
@@ -561,7 +562,8 @@ static void enable_paging() {
         }
     }
 
-    map_acpi(pd);
+    if (rsdt_address != 0)
+        map_acpi(pd);
 
     pd[(SELFMAP & 0xff8000000000) >> 39].PageFrameNumber = (uintptr_t)pd.data() >> PAGE_SHIFT;
     pd[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
@@ -1192,10 +1194,8 @@ void protected_mode_main() {
 
     setup_gdt();
 
-    if (!find_acpi()) {
+    if (!find_acpi())
         print("Unable to find ACPI tables\n");
-        goto halt;
-    }
 
     if (!load_payload()) {
         print("load_payload failed\n");
