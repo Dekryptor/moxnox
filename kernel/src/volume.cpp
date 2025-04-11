@@ -89,7 +89,8 @@ public:
                         pfn_iterator& it, uint64_t& written_pages,
                         bool fua) override;
     volume& parent;
-    uint64_t disk_offset;
+    uint64_t disk_offset_pages;
+    uint64_t length_pages;
 };
 
 static_assert(is_readable_object_with_offset<diskpart>);
@@ -274,6 +275,18 @@ bool volume::check_for_partitions() {
                 continue;
             }
 
+            if (part.starting_lba * sector_size % PAGE_SIZE) {
+                print("skipping partition which doesn't start on page size boundary\n");
+                ptr += size_of_partition_entry;
+                continue;
+            }
+
+            if ((part.ending_lba - part.starting_lba + 1) * sector_size % PAGE_SIZE) {
+                print("skipping partition which doesn't end on page size boundary\n");
+                ptr += size_of_partition_entry;
+                continue;
+            }
+
             auto partdev = new diskpart(*this, i + 1, part.starting_lba * sector_size,
                                         (part.ending_lba - part.starting_lba + 1) * sector_size,
                                         part.unique_partition_guid, part.partition_type_guid);
@@ -348,8 +361,10 @@ nt_status volume::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes
     return nt_status::SUCCESS;
 }
 
-diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t size, const guid& partition_guid, const guid& type_guid) : parent(parent), disk_offset(disk_offset) {
+diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t size, const guid& partition_guid, const guid& type_guid) : parent(parent) {
     parent.acquire();
+
+    disk_offset_pages = disk_offset >> PAGE_SHIFT;
 
     this->part_num = part_num;
     this->partition_guid = partition_guid;
@@ -363,9 +378,12 @@ diskpart::~diskpart() {
 
 nt_status diskpart::dio_read(uint64_t page_num, uint64_t num_pages,
                              pfn_iterator& it, uint64_t& read_pages) {
-    // FIXME - reduce num_pages if would overflow partition
+    if (page_num >= disk_offset_pages + (size >> PAGE_SHIFT))
+        return nt_status::INVALID_PARAMETER;
 
-    return parent.dio_read(page_num + (disk_offset >> PAGE_SHIFT), num_pages,
+    num_pages = min(num_pages, disk_offset_pages + (size >> PAGE_SHIFT) - page_num);
+
+    return parent.dio_read(page_num + disk_offset_pages, num_pages,
                            it, read_pages);
 }
 
@@ -386,9 +404,12 @@ uint64_t volume::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 nt_status diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
                               pfn_iterator& it, uint64_t& written_pages,
                               bool fua) {
-    // FIXME - reduce num_pages if would overflow partition
+    if (page_num >= disk_offset_pages + (size >> PAGE_SHIFT))
+        return nt_status::INVALID_PARAMETER;
 
-    return parent.dio_write(page_num + (disk_offset >> PAGE_SHIFT), num_pages,
+    num_pages = min(num_pages, disk_offset_pages + (size >> PAGE_SHIFT) - page_num);
+
+    return parent.dio_write(page_num + disk_offset_pages, num_pages,
                             it, written_pages, fua);
 }
 
