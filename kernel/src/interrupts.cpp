@@ -295,8 +295,8 @@ static irq* find_irq(uint32_t number, uint32_t apic_id) {
             *IOREGWIN = val;
         };
 
-        write_reg(0x10 + (gsi * 2), vec);
-        write_reg(0x11 + (gsi * 2), apic_id);
+        write_reg(0x10 + ((gsi - ioapic->GlobalIrqBase) * 2), vec);
+        write_reg(0x11 + ((gsi - ioapic->GlobalIrqBase) * 2), apic_id);
 
         insert_tail_list(irqs, i->le);
     } while (false);
