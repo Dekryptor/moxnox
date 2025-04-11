@@ -108,7 +108,7 @@ export class virtio_mmio_device {
 public:
     virtio_mmio_device(volatile virtio_mmio_regs& regs,
                        uint64_t supported_features, uint16_t num_queues,
-                       void* config, uint32_t irq);
+                       void* config);
     ~virtio_mmio_device();
     void finalize();
     bool isr();
@@ -124,7 +124,6 @@ private:
     bool add_virtqueue(uint16_t num);
 
     volatile virtio_mmio_regs& regs;
-    uint32_t irq;
 };
 
 export struct virtio_mmio_recognizer {
@@ -600,8 +599,7 @@ void virtio_pci_device::finalize() {
 
 virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs& regs,
                                        uint64_t supported_features,
-                                       uint16_t num_queues,
-                                       void* config, uint32_t irq) : config(config), regs(regs), irq(irq) {
+                                       uint16_t num_queues, void* config) : config(config), regs(regs) {
     regs.Status = 0;
 
     regs.Status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
@@ -787,7 +785,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs,
             continue;
 
         auto v = new virtio_mmio_device(regs, r.supported_features,
-                                        r.num_queues, config, irq);
+                                        r.num_queues, config);
 
         if (!v) {
             print("new failed\n");
