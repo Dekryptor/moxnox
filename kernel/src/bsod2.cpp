@@ -2,18 +2,12 @@
 #include <source_location>
 #include "spinlock.h"
 #include "cpu_block.h"
-import objects;
-import event;
 import chardev;
-#include <pe.h>
 
 import format;
-import print;
 import dwarf;
-import bsod;
 import unwind;
 import config;
-import list;
 import interrupts;
 import smp;
 import pipe;
