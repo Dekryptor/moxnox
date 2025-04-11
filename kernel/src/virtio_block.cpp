@@ -527,16 +527,14 @@ static bool found_virtio_mmio_block(virtio_mmio_device& dev) {
         memcpy(v.volume_name, name, v.volume_name_len);
     }
 
-    // FIXME - get config
+    auto& cfg = *(volatile virtio_blk_config*)(dev.config);
 
-    // auto& cfg = *(volatile virtio_blk_config*)(dev.bar[v.device_cfg->bar].data() + v.device_cfg->offset);
-    //
-    // if (v.negotiated_features & VIRTIO_BLK_F_BLK_SIZE)
-    //     v.sector_size = cfg.blk_size;
-    // else
+    if (v.dev.negotiated_features & VIRTIO_BLK_F_BLK_SIZE)
+        v.sector_size = cfg.blk_size;
+    else
         v.sector_size = SECTOR_SIZE;
 
-    // v.size = cfg.capacity * SECTOR_SIZE;
+    v.size = cfg.capacity * SECTOR_SIZE;
 
     print("found /dev/{}: block size {}, capacity {}\n", string_view(v.volume_name, v.volume_name_len),
           byte_size(v.sector_size), byte_size(v.size));

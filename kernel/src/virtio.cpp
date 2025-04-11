@@ -107,7 +107,8 @@ private:
 export class virtio_mmio_device {
 public:
     virtio_mmio_device(volatile virtio_mmio_regs& regs,
-                       uint64_t supported_features, uint16_t num_queues);
+                       uint64_t supported_features, uint16_t num_queues,
+                       void* config);
     ~virtio_mmio_device();
     void finalize();
 
@@ -116,6 +117,7 @@ public:
     bool initialized = false;
     list_entry virtqueues = { &virtqueues, &virtqueues };
     uint64_t negotiated_features = 0;
+    void* config;
 
 private:
     bool add_virtqueue(uint16_t num);
@@ -596,7 +598,8 @@ void virtio_pci_device::finalize() {
 
 virtio_mmio_device::virtio_mmio_device(volatile virtio_mmio_regs& regs,
                                        uint64_t supported_features,
-                                       uint16_t num_queues) : regs(regs) {
+                                       uint16_t num_queues,
+                                       void* config) : config(config), regs(regs) {
     regs.Status = 0;
 
     regs.Status = VIRTIO_DEVICE_STATUS_ACKNOWLEDGE;
@@ -735,9 +738,8 @@ void virtio_mmio_device::finalize() {
     regs.Status |= VIRTIO_DEVICE_STATUS_DRIVER_OK;
 }
 
-static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
-    print("FIXME - init_virtio_mmio2\n");
-
+static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs,
+                              void* config) {
     if (regs.MagicValue != VIRTIO_MMIO_MAGIC_VALUE) {
         print("init_virtio_mmio2: incorrect MagicValue (found {:x}, expected {:x})\n",
               regs.MagicValue, VIRTIO_MMIO_MAGIC_VALUE);
@@ -761,7 +763,8 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
         if (r.device_id != regs.DeviceID)
             continue;
 
-        auto v = new virtio_mmio_device(regs, r.supported_features, r.num_queues);
+        auto v = new virtio_mmio_device(regs, r.supported_features,
+                                        r.num_queues, config);
 
         if (!v) {
             print("new failed\n");
@@ -789,8 +792,6 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs& regs) {
 
 static void init_virtio_mmio(const ACPI_RESOURCE_FIXED_MEMORY32& mem,
                              const ACPI_RESOURCE_EXTENDED_IRQ& /*irq*/) {
-    print("FIXME - init_virtio_mmio\n"); // FIXME
-
     if (mem.AddressLength < sizeof(virtio_mmio_regs)) {
         print("init_virtio_mmio: AddressLength was {:x}, expected at least {:x}\n",
               mem.AddressLength, sizeof(virtio_mmio_regs));
@@ -822,7 +823,9 @@ static void init_virtio_mmio(const ACPI_RESOURCE_FIXED_MEMORY32& mem,
 
     auto& regs = *(volatile virtio_mmio_regs*)(va + (mem.Address & (PAGE_SIZE - 1)));
 
-    if (!init_virtio_mmio2(regs)) {
+    void* config = (uint8_t*)&regs + sizeof(virtio_mmio_regs);
+
+    if (!init_virtio_mmio2(regs, config)) {
         for (uint32_t i = 0; i < num_pages; i++) {
             unmap_page(va + (i << PAGE_SHIFT));
         }
