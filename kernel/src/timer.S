@@ -52,45 +52,14 @@
 .asciz __FILE__ # name
 .short DW_LANG_Mips_Assembler # language
 
-.uleb128 2
-.asciz "timer_isr_ap"
-.quad timer_isr_ap
-.quad timer_isr_ap_end - timer_isr_ap
-
-.uleb128 2
-.asciz "timer_isr"
-.quad timer_isr
-.quad timer_isr_end - timer_isr
-
-.uleb128 2
-.asciz "scheduler_restore"
-.quad scheduler_restore
-.quad scheduler_restore_end - scheduler_restore
-
-.uleb128 2
-.asciz "yield"
-.quad yield
-.quad yield_end - yield
-
-.uleb128 2
-.asciz "acquire_sync_lock"
-.quad acquire_sync_lock
-.quad acquire_sync_lock_end - acquire_sync_lock
-
-.uleb128 2
-.asciz "release_sync_lock"
-.quad release_sync_lock
-.quad release_sync_lock_end - release_sync_lock
-
-.uleb128 2
-.asciz "pit_delay"
-.quad pit_delay
-.quad pit_delay_end - pit_delay
-
-.uleb128 2
-.asciz "get_cpu_block"
-.quad get_cpu_block
-.quad get_cpu_block_end - get_cpu_block
+dwarf_func_asm timer_isr_ap
+dwarf_func_asm timer_isr
+dwarf_func_asm scheduler_restore
+dwarf_func_asm yield
+dwarf_func_asm acquire_sync_lock
+dwarf_func_asm release_sync_lock
+dwarf_func_asm pit_delay
+dwarf_func_asm get_cpu_block
 
 .uleb128 0
 

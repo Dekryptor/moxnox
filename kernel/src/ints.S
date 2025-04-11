@@ -49,55 +49,16 @@
 .asciz __FILE__ # name
 .short DW_LANG_Mips_Assembler # language
 
-.uleb128 2
-.asciz "page_fault_isr"
-.quad page_fault_isr
-.quad page_fault_isr_end - page_fault_isr
-
-.uleb128 2
-.asciz "double_fault_isr"
-.quad double_fault_isr
-.quad double_fault_isr_end - double_fault_isr
-
-.uleb128 2
-.asciz "general_protection_fault_isr"
-.quad general_protection_fault_isr
-.quad general_protection_fault_isr_end - general_protection_fault_isr
-
-.uleb128 2
-.asciz "invalid_opcode_isr"
-.quad invalid_opcode_isr
-.quad invalid_opcode_isr_end - invalid_opcode_isr
-
-.uleb128 2
-.asciz "spurious_isr"
-.quad spurious_isr
-.quad spurious_isr_end - spurious_isr
-
-.uleb128 2
-.asciz "halt_isr"
-.quad halt_isr
-.quad halt_isr_end - halt_isr
-
-.uleb128 2
-.asciz "divide_by_zero_isr"
-.quad divide_by_zero_isr
-.quad divide_by_zero_isr_end - divide_by_zero_isr
-
-.uleb128 2
-.asciz "yield_isr"
-.quad yield_isr
-.quad yield_isr_end - yield_isr
-
-.uleb128 2
-.asciz "breakpoint_isr"
-.quad breakpoint_isr
-.quad breakpoint_isr_end - breakpoint_isr
-
-.uleb128 2
-.asciz "single_step_isr"
-.quad single_step_isr
-.quad single_step_isr_end - single_step_isr
+dwarf_func_asm page_fault_isr
+dwarf_func_asm double_fault_isr
+dwarf_func_asm general_protection_fault_isr
+dwarf_func_asm invalid_opcode_isr
+dwarf_func_asm spurious_isr
+dwarf_func_asm halt_isr
+dwarf_func_asm divide_by_zero_isr
+dwarf_func_asm yield_isr
+dwarf_func_asm breakpoint_isr
+dwarf_func_asm single_step_isr
 
 .uleb128 0
 

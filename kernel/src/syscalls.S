@@ -50,15 +50,8 @@
 .asciz __FILE__ # name
 .short DW_LANG_Mips_Assembler # language
 
-.uleb128 2
-.asciz "init_syscalls"
-.quad init_syscalls
-.quad init_syscalls_end - init_syscalls
-
-.uleb128 2
-.asciz "syscall_handler"
-.quad syscall_handler
-.quad syscall_handler_end - syscall_handler
+dwarf_func_asm init_syscalls
+dwarf_func_asm syscall_handler
 
 .uleb128 0
 

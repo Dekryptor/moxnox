@@ -1,5 +1,6 @@
 .intel_syntax noprefix
 
+#include "context.S"
 #include "dwarf.S"
 #include "context_offsets.h"
 
@@ -51,20 +52,9 @@
 .asciz __FILE__ # name
 .short DW_LANG_Mips_Assembler # language
 
-.uleb128 2
-.asciz "memcpy"
-.quad memcpy
-.quad memcpy_end - memcpy
-
-.uleb128 2
-.asciz "memcpy_aligned"
-.quad memcpy_aligned
-.quad memcpy_aligned_end - memcpy_aligned
-
-.uleb128 2
-.asciz "init_pat"
-.quad init_pat
-.quad init_pat_end - init_pat
+dwarf_func_asm memcpy
+dwarf_func_asm memcpy_aligned
+dwarf_func_asm init_pat
 
 .uleb128 0
 
