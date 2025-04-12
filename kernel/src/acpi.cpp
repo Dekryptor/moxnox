@@ -19,19 +19,24 @@ import list;
 import interrupts;
 import semaphore;
 import timer;
+import rwsem;
 
 using namespace std;
 
 struct acpi_irq_handler {
+    list_entry le;
     ACPI_OSD_HANDLER service_routine;
     void* context;
-    list_entry le;
 };
 
-static spinlock irq_handlers_lock;
-static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
+struct acpi_irq_num {
+    list_entry le;
+    uint32_t irq;
+    list_entry handlers = { &handlers, &handlers };
+};
 
-static const uint8_t ACPI_IRQ = 9; // FIXME - don't hardcode
+static rwsem irq_handlers_lock;
+static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
 
 export struct acpi_device {
     list_entry le;
@@ -108,10 +113,12 @@ static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
 }
 
-static bool acpi_isr_func(void*) {
+static bool acpi_isr_func(void* ctx) {
+    auto& n = *(acpi_irq_num*)ctx;
+
     lock_guard lock(irq_handlers_lock);
 
-    for (auto le = irq_handlers.next; le != &irq_handlers; le = le->next) {
+    for (auto le = n.handlers.next; le != &n.handlers; le = le->next) {
         auto& h = containing_record<acpi_irq_handler>(le);
 
         if (h.service_routine(h.context) == ACPI_INTERRUPT_HANDLED)
@@ -162,13 +169,6 @@ static uint32_t power_button_pressed(void*) {
 
 export void init_acpi() {
     ACPI_STATUS Status;
-
-    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
-
-    if (!add_irq_handler(ACPI_IRQ, local_apic_id, acpi_isr_func, nullptr)) {
-        print("add_irq_handler failed\n");
-        return;
-    }
 
     Status = AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY,
                                       acpi_notify_handler, nullptr);
@@ -681,11 +681,6 @@ extern "C"
 ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
                                           ACPI_OSD_HANDLER ServiceRoutine,
                                           void* Context) {
-    if (InterruptNumber != ACPI_IRQ) { // FIXME
-        print("FIXME - AcpiOsInstallInterruptHandler with unusual InterruptNumber ({}, expected {})\n", InterruptNumber, ACPI_IRQ);
-        return AE_ERROR;
-    }
-
     auto h = new acpi_irq_handler;
     if (!h)
         return AE_NO_MEMORY;
@@ -693,9 +688,35 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
     h->service_routine = ServiceRoutine;
     h->context = Context;
 
-    {
-        lock_guard lock(irq_handlers_lock);
-        insert_tail_list(irq_handlers, h->le);
+    lock_guard lock(irq_handlers_lock);
+
+    for (auto le = irq_handlers.next; le != &irq_handlers; le = le->next) {
+        auto& n = containing_record<acpi_irq_num>(le);
+
+        if (n.irq == InterruptNumber) {
+            insert_tail_list(n.handlers, h->le);
+            return AE_OK;
+        }
+    }
+
+    auto n = new acpi_irq_num;
+    if (!n) {
+        delete h;
+        return AE_NO_MEMORY;
+    }
+
+    n->irq = InterruptNumber;
+    insert_tail_list(irq_handlers, n->le);
+    insert_tail_list(n->handlers, h->le);
+
+    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
+
+    if (!add_irq_handler(InterruptNumber, local_apic_id, acpi_isr_func, n)) {
+        print("add_irq_handler failed\n");
+        delete h;
+        delete n;
+
+        return AE_ERROR;
     }
 
     return AE_OK;
