@@ -723,11 +723,32 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
 }
 
 extern "C"
-ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 /*InterruptNumber*/,
-                                         ACPI_OSD_HANDLER /*ServiceRoutine*/) {
-    print("FIXME - AcpiOsRemoveInterruptHandler\n");
+ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber,
+                                         ACPI_OSD_HANDLER ServiceRoutine) {
+    lock_guard lock(irq_handlers_lock);
 
-    return AE_ERROR;
+    for (auto le = irq_handlers.next; le != &irq_handlers; le = le->next) {
+        auto& n = containing_record<acpi_irq_num>(le);
+
+        if (n.irq == InterruptNumber) {
+            for (auto le2 = n.handlers.next; le2 != &n.handlers; le2 = le2->next) {
+                auto& h = containing_record<acpi_irq_handler>(le2);
+
+                if (h.service_routine == ServiceRoutine) {
+                    remove_entry_list(h.le);
+                    delete &h;
+
+                    // FIXME - if n.handlers now empty, deregister IRQ handler and free n
+
+                    return AE_OK;
+                }
+            }
+
+            return AE_NOT_FOUND;
+        }
+    }
+
+    return AE_NOT_FOUND;
 }
 
 extern "C"
