@@ -59,7 +59,7 @@ void init_xhci(const pci_device& dev) {
 
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
 
-    op_regs.USBCMD &= ~0x1; // unset run bit
+    op_regs.USBCMD &= ~(uint32_t)0x1; // unset run bit
     for (unsigned int i = 0; i < 16; i++) { // specs say we should wait up to 16ms
         if (op_regs.USBSTS & 1) // halted
             break;
