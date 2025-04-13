@@ -108,6 +108,9 @@ extern "C++" void init_nvme(const pci_device& dev);
 // sata.cpp
 extern "C++" void init_sata(const pci_device& dev);
 
+// xhci.cpp
+extern "C++" void init_xhci(const pci_device& dev);
+
 export constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
     return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
 }
@@ -405,6 +408,23 @@ static void pci_device_found(void* ctx) {
 
     if (!found) {
         switch (dev.header->class_code) {
+            case pci_class::serial_bus:
+                switch ((enum pci_serial_bus)dev.header->sub_class) {
+                    case pci_serial_bus::usb:
+                        switch (dev.header->prog_if) {
+                            case 0x30:
+                                init_xhci(dev);
+                            break;
+                        }
+                        break;
+
+                    default:
+                        break;
+                }
+
+                break;
+            break;
+
             case pci_class::mass_storage: {
                 switch ((enum pci_mass_storage)dev.header->sub_class) {
                     case pci_mass_storage::sata:

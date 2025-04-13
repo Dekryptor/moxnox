@@ -94,6 +94,19 @@ enum class pci_mass_storage {
     nonvolatile_memory = 8
 };
 
+enum class pci_serial_bus {
+    firewire = 0,
+    access = 1,
+    ssa = 2,
+    usb = 3,
+    fibre_channel = 4,
+    smbus = 5,
+    infiniband = 6,
+    ipmi = 7,
+    sercos = 8,
+    canbus = 9
+};
+
 enum class pci_bridge {
     host_bridge = 0x00,
     isa_bridge = 0x01,
