@@ -171,6 +171,7 @@ static void device_found0(const volatile pci_header& h, uint8_t bus, uint8_t dev
                     ent->ptr = (void*)((uintptr_t)&h | ((uintptr_t)(ptr + sizeof(pci_capability)) & (PAGE_SIZE - 1)));
 
                     insert_tail_list(pci_dev.vendor_specific_caps, ent->le);
+                    break;
                 }
 
                 default:
