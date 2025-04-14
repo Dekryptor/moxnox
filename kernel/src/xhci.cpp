@@ -52,6 +52,9 @@ private:
     void* command_ring = nullptr;
 };
 
+static const uint32_t XHCI_USBCMD_RS = 0x00000001;
+static const uint32_t XHCI_USBCMD_HCRST = 0x00000002;
+
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *(volatile uint32_t*)addr = val & 0xffffffff;
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
@@ -74,7 +77,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
 
-    op_regs.USBCMD &= ~(uint32_t)0x1; // unset run bit
+    op_regs.USBCMD &= ~XHCI_USBCMD_RS; // unset run bit
     for (unsigned int i = 0; i < 16; i++) { // specs say we should wait up to 16ms
         if (op_regs.USBSTS & 1) // halted
             break;
@@ -82,12 +85,12 @@ xhci::xhci(pci_device& dev) : dev(dev) {
         pit_delay(PIT_HZ / 1000); // wait 1ms
     }
 
-    op_regs.USBCMD = 0x2; // reset
+    op_regs.USBCMD = XHCI_USBCMD_HCRST; // reset
 
     // wait for reset to complete
     do {
         pit_delay(PIT_HZ / 1000); // wait 1ms
-    } while (op_regs.USBCMD & 0x2);
+    } while (op_regs.USBCMD & XHCI_USBCMD_HCRST);
 
     auto hcsparams1 = cap_regs.HCSPARAMS1;
 
@@ -116,6 +119,10 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     memset(command_ring, 0, PAGE_SIZE);
 
     write_volatile64(&op_regs.CRCR, pa | 1);
+
+    op_regs.CONFIG = (op_regs.CONFIG & ~(uint32_t)0xff) | num_slots;
+
+    op_regs.USBCMD |= XHCI_USBCMD_RS;
 
     initialized = true;
 }
