@@ -7,6 +7,7 @@ export module xhci;
 import pci;
 import print;
 import mem;
+import config;
 
 struct xhci_cap_regs {
     uint8_t CAPLENGTH;
@@ -29,8 +30,7 @@ struct xhci_op_regs {
     uint32_t PAGESIZE;
     uint32_t reserved1[2];
     uint32_t DNCTRL;
-    uint32_t CRCR;
-    uint32_t padding1;
+    uint64_t CRCR;
     uint32_t reserved2[4];
     uint64_t DCBAAP;
     uint32_t CONFIG;
@@ -49,6 +49,7 @@ private:
     pci_device& dev;
     uint8_t num_slots;
     uint64_t* dcbaa = nullptr;
+    void* command_ring = nullptr;
 };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -104,12 +105,27 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     write_volatile64(&op_regs.DCBAAP, va_to_pa(dcbaa));
 
+    // FIXME - calculate how big command ring should be (PAGE_SIZE for now)
+    auto pa = allocate_folio(0);
+    if (!pa) {
+        print("allocate_folio failed\n");
+        return;
+    }
+
+    command_ring = phys_address(pa);
+    memset(command_ring, 0, PAGE_SIZE);
+
+    write_volatile64(&op_regs.CRCR, pa | 1);
+
     initialized = true;
 }
 
 xhci::~xhci() {
     if (dcbaa)
         free(dcbaa);
+
+    if (command_ring)
+        free_folio(phys_memory_pfn(command_ring) << PAGE_SHIFT);
 }
 
 export
