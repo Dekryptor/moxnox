@@ -17,8 +17,7 @@ struct HARDWARE_PTE {
     uint64_t CopyOnWrite:1;
     uint64_t Prototype:1;
     uint64_t reserved0:1;
-    uint64_t PageFrameNumber:28;
-    uint64_t reserved1:12;
+    uint64_t PageFrameNumber:40;
     uint64_t SoftwareWsIndex:11;
     uint64_t NoExecute:1;
 };

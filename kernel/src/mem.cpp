@@ -81,6 +81,8 @@ export constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
 static list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 static uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
+static uint8_t MAXPHYADDR = 36;
+
 template<unsigned N, enum page_state S>
 class allocator_folio {
 public:
@@ -399,7 +401,7 @@ static uint64_t inline __readcr3() {
 }
 
 export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
-    if (pa >= (uint64_t)1 << 40) // out of range
+    if (pa >= (uint64_t)1 << MAXPHYADDR) // out of range
         return false;
 
     lock_guard lock(mapping_spinlock);
@@ -766,6 +768,27 @@ static bool load_initrd(void* data, uintptr_t size) {
     return true;
 }
 
+static uint8_t get_maxphyaddr() {
+    uint32_t eax, ebx, ecx, edx;
+
+    __asm__ __volatile__ (
+        "cpuid\n\t"
+        : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
+        : "0" (0x80000000)
+    );
+
+    if (eax < 0x80000008) // memory cpuid not supported
+        return 36;
+
+    __asm__ __volatile__ (
+        "cpuid\n\t"
+        : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
+        : "0" (0x80000008)
+    );
+
+    return (uint8_t)(eax & 0xff);
+}
+
 export bool init_memory(const loader_block& lb) {
     uint64_t num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
@@ -778,6 +801,8 @@ export bool init_memory(const loader_block& lb) {
     }
 
     init_pat();
+
+    MAXPHYADDR = get_maxphyaddr();
 
     // ignore any non-free entries at end of table
     while (num_map_entries > 0 && !treat_as_free(lb_map[num_map_entries - 1].type)) {
