@@ -275,20 +275,19 @@ bool volume::check_for_partitions() {
                 continue;
             }
 
-            if (part.starting_lba * sector_size % PAGE_SIZE) {
+            uint64_t start_address = part.starting_lba * (uint64_t)sector_size;
+            uint64_t part_length = (part.ending_lba - part.starting_lba + 1) * (uint64_t)sector_size;
+
+            if (start_address % PAGE_SIZE) {
                 print("skipping partition which doesn't start on page size boundary\n");
                 ptr += size_of_partition_entry;
                 continue;
             }
 
-            if ((part.ending_lba - part.starting_lba + 1) * sector_size % PAGE_SIZE) {
-                print("skipping partition which doesn't end on page size boundary\n");
-                ptr += size_of_partition_entry;
-                continue;
-            }
+            if (part_length % PAGE_SIZE)
+                part_length -= part_length % PAGE_SIZE;
 
-            auto partdev = new diskpart(*this, i + 1, part.starting_lba * sector_size,
-                                        (part.ending_lba - part.starting_lba + 1) * sector_size,
+            auto partdev = new diskpart(*this, i + 1, start_address, part_length,
                                         part.unique_partition_guid, part.partition_type_guid);
             if (!partdev) {
                 print("new failed\n");
