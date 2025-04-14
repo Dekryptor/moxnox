@@ -121,6 +121,12 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
 
+    if (cap_regs.CAPLENGTH < 0x20) {
+        print("init_xhci: CAPLENGTH was {}, expected at least {}\n",
+              cap_regs.CAPLENGTH, 0x20);
+        return;
+    }
+
     auto hcsparams1 = cap_regs.HCSPARAMS1;
 
     num_slots = hcsparams1 & 0xff;
