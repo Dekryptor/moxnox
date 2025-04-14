@@ -70,7 +70,7 @@ static size_t escape_buffer_len = 0;
 static bool show_cursor = true;
 
 static spinlock early_print_lock;
-static char early_print_buf[PAGE_SIZE];
+static char early_print_buf[65536];
 static size_t early_print_buf_size = 0;
 
 static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
