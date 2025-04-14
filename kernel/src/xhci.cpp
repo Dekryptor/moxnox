@@ -85,6 +85,7 @@ class xhci {
 public:
     xhci(pci_device& dev);
     ~xhci();
+    void init_ports();
 
     bool initialized = false;
 
@@ -99,6 +100,12 @@ private:
 
 static const uint32_t XHCI_USBCMD_RS = 0x00000001;
 static const uint32_t XHCI_USBCMD_HCRST = 0x00000002;
+
+static const uint32_t XHCI_PORTSC_CCS = 0x00000001;
+static const uint32_t XHCI_PORTSC_PED = 0x00000002;
+static const uint32_t XHCI_PORTSC_PR = 0x00000010;
+static const uint32_t XHCI_PORTSC_PP = 0x00000200;
+static const uint32_t XHCI_PORTSC_PIC = 0x0000c000;
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *(volatile uint32_t*)addr = val & 0xffffffff;
@@ -203,10 +210,6 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     op_regs.USBCMD |= XHCI_USBCMD_RS;
 
     initialized = true;
-
-    for (unsigned int i = 0; i < num_ports; i++) {
-        print("port {}: status {:08x}\n", i, op_regs.ports[i].PORTSC);
-    }
 }
 
 xhci::~xhci() {
@@ -223,6 +226,44 @@ xhci::~xhci() {
         free(seg_table);
 }
 
+void xhci::init_ports() {
+    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
+
+    for (unsigned int i = 0; i < num_ports; i++) {
+        auto portsc = op_regs.ports[i].PORTSC;
+
+        print("port {}: status {:08x}\n", i, portsc);
+
+        if (!(portsc & XHCI_PORTSC_CCS)) // ignore if no device connected
+            continue;
+
+        // reset port
+        portsc &= XHCI_PORTSC_PP | XHCI_PORTSC_PIC;
+        portsc |= XHCI_PORTSC_PR;
+
+        op_regs.ports[i].PORTSC = portsc;
+
+        bool port_enabled = false;
+
+        for (unsigned int j = 0; j < 500; j++) {
+            if (op_regs.ports[i].PORTSC & XHCI_PORTSC_PED) {
+                port_enabled = true;
+                break;
+            }
+
+            pit_delay(PIT_HZ / 1000); // wait 1ms
+        }
+
+        if (!port_enabled) {
+            print("timed out waiting for port to be enabled\n");
+            continue;
+        }
+
+        // FIXME
+    }
+}
+
 export
 extern "C++"
 void init_xhci(pci_device& dev) {
@@ -232,6 +273,8 @@ void init_xhci(pci_device& dev) {
 
     if (!x.initialized)
         return;
+
+    x.init_ports();
 
     // FIXME
 }
