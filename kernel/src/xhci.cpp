@@ -26,6 +26,15 @@ struct xhci_cap_regs {
 
 static_assert(sizeof(xhci_cap_regs) == 0x20);
 
+struct xhci_port_regs {
+    uint32_t PORTSC;
+    uint32_t PORTPMSC;
+    uint32_t PORTLI;
+    uint32_t PORTHLPMC;
+};
+
+static_assert(sizeof(xhci_port_regs) == 0x10);
+
 struct xhci_op_regs {
     uint32_t USBCMD;
     uint32_t USBSTS;
@@ -36,9 +45,11 @@ struct xhci_op_regs {
     uint32_t reserved2[4];
     uint64_t DCBAAP;
     uint32_t CONFIG;
+    uint8_t reserved3[964];
+    xhci_port_regs ports[256];
 } __attribute((packed));
 
-static_assert(sizeof(xhci_op_regs) == 0x3c);
+static_assert(sizeof(xhci_op_regs) == 0x1400);
 
 struct xhci_int_regs {
     uint32_t IMAN;
@@ -103,9 +114,14 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
 
-    if (dev.bar[0].size() < cap_regs.CAPLENGTH + sizeof(xhci_op_regs)) {
+    auto hcsparams1 = cap_regs.HCSPARAMS1;
+
+    num_slots = hcsparams1 & 0xff;
+    num_ports = (uint8_t)(hcsparams1 >> 24);
+
+    if (dev.bar[0].size() < cap_regs.CAPLENGTH + offsetof(xhci_op_regs, ports) + (num_ports * sizeof(xhci_port_regs))) {
         print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
-              dev.bar[0].size(), cap_regs.CAPLENGTH + sizeof(xhci_op_regs));
+              dev.bar[0].size(), cap_regs.CAPLENGTH + sizeof(xhci_op_regs) + (num_ports * sizeof(xhci_port_regs)));
         return;
     }
 
@@ -125,11 +141,6 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     do {
         pit_delay(PIT_HZ / 1000); // wait 1ms
     } while (op_regs.USBCMD & XHCI_USBCMD_HCRST);
-
-    auto hcsparams1 = cap_regs.HCSPARAMS1;
-
-    num_slots = hcsparams1 & 0xff;
-    num_ports = (uint8_t)(hcsparams1 >> 24);
 
     print("init_xhci: num_slots = {}, num_ports = {}\n", num_slots, num_ports);
 
@@ -192,6 +203,10 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     op_regs.USBCMD |= XHCI_USBCMD_RS;
 
     initialized = true;
+
+    for (unsigned int i = 0; i < num_ports; i++) {
+        print("port {}: status {:08x}\n", i, op_regs.ports[i].PORTSC);
+    }
 }
 
 xhci::~xhci() {
