@@ -399,6 +399,9 @@ static uint64_t inline __readcr3() {
 }
 
 export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
+    if (pa >= (uint64_t)1 << 40) // out of range
+        return false;
+
     lock_guard lock(mapping_spinlock);
 
     auto pml4_entry_ptr = (volatile uint64_t*)phys_address((__readcr3() & 0xfffffffffffff000) | (((va & 0xff8000000000) >> 39) << 3));
