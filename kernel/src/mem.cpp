@@ -885,7 +885,7 @@ static void invalidate_tlb(void* va) {
 }
 #endif
 
-static void* malloc_aligned(size_t size, size_t align) {
+export void* malloc_aligned(size_t size, size_t align) {
     if (size == 0)
         return nullptr;
 

@@ -9,6 +9,8 @@ import print;
 import mem;
 import config;
 
+using namespace std;
+
 struct xhci_cap_regs {
     uint8_t CAPLENGTH;
     uint8_t reserved;
@@ -38,6 +40,36 @@ struct xhci_op_regs {
 
 static_assert(sizeof(xhci_op_regs) == 0x3c);
 
+struct xhci_int_regs {
+    uint32_t IMAN;
+    uint32_t IMOD;
+    uint32_t ERSTSZ;
+    uint32_t reserved;
+    uint64_t ERSTBA;
+    uint64_t ERDP;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_int_regs) == 0x20);
+
+static const size_t MAX_INT_REGS = 1024;
+
+struct xhci_run_regs {
+    uint32_t MFINDEX;
+    uint8_t reserved[28];
+    xhci_int_regs int_regs[MAX_INT_REGS];
+} __attribute((packed));
+
+static_assert(sizeof(xhci_run_regs) == 0x8020);
+
+struct xhci_event_ring_segment {
+    uint64_t base_address;
+    uint16_t size;
+    uint16_t reserved1;
+    uint32_t reserved2;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_event_ring_segment) == 0x10);
+
 class xhci {
 public:
     xhci(pci_device& dev);
@@ -50,6 +82,8 @@ private:
     uint8_t num_slots;
     uint64_t* dcbaa = nullptr;
     void* command_ring = nullptr;
+    void* event_ring = nullptr;
+    xhci_event_ring_segment* seg_table = nullptr;
 };
 
 static const uint32_t XHCI_USBCMD_RS = 0x00000001;
@@ -122,6 +156,38 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     op_regs.CONFIG = (op_regs.CONFIG & ~(uint32_t)0xff) | num_slots;
 
+    if (dev.bar[0].size() < cap_regs.RTSOFF + offsetof(xhci_run_regs, int_regs) + sizeof(xhci_int_regs)) {
+        print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
+              dev.bar[0].size(), cap_regs.RTSOFF + offsetof(xhci_run_regs, int_regs) + sizeof(xhci_int_regs));
+        return;
+    }
+
+    volatile auto& run_regs = *(xhci_run_regs*)((uint8_t*)&cap_regs + cap_regs.RTSOFF);
+
+    // FIXME - calculate how big event ring should be (PAGE_SIZE for now)
+    pa = allocate_folio(0);
+    if (!pa) {
+        print("allocate_folio failed\n");
+        return;
+    }
+
+    event_ring = phys_address(pa);
+    memset(event_ring, 0, PAGE_SIZE);
+
+    seg_table = (xhci_event_ring_segment*)malloc_aligned(sizeof(xhci_event_ring_segment), 64);
+    if (!seg_table) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memset(seg_table, 0, sizeof(xhci_event_ring_segment));
+
+    volatile auto& int_reg = run_regs.int_regs[0];
+
+    int_reg.ERSTSZ = 1;
+    write_volatile64(&int_reg.ERDP, va_to_pa(event_ring));
+    write_volatile64(&int_reg.ERSTBA, va_to_pa(seg_table));
+
     op_regs.USBCMD |= XHCI_USBCMD_RS;
 
     initialized = true;
@@ -133,6 +199,12 @@ xhci::~xhci() {
 
     if (command_ring)
         free_folio(phys_memory_pfn(command_ring) << PAGE_SHIFT);
+
+    if (event_ring)
+        free_folio(phys_memory_pfn(event_ring) << PAGE_SHIFT);
+
+    if (seg_table)
+        free(seg_table);
 }
 
 export
