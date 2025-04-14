@@ -6,6 +6,7 @@ export module xhci;
 
 import pci;
 import print;
+import mem;
 
 struct xhci_cap_regs {
     uint8_t CAPLENGTH;
@@ -31,18 +32,31 @@ struct xhci_op_regs {
     uint32_t CRCR;
     uint32_t padding1;
     uint32_t reserved2[4];
-    uint32_t DCBAAP;
-    uint32_t padding2;
+    uint64_t DCBAAP;
     uint32_t CONFIG;
 } __attribute((packed));
 
 static_assert(sizeof(xhci_op_regs) == 0x3c);
 
-export
-extern "C++"
-void init_xhci(const pci_device& dev) {
-    print("FIXME - init_xhci\n");
+class xhci {
+public:
+    xhci(pci_device& dev);
+    ~xhci();
 
+    bool initialized = false;
+
+private:
+    pci_device& dev;
+    uint8_t num_slots;
+    uint64_t* dcbaa = nullptr;
+};
+
+static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
+    *(volatile uint32_t*)addr = val & 0xffffffff;
+    *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
+}
+
+xhci::xhci(pci_device& dev) : dev(dev) {
     if (dev.bar[0].size() < sizeof(xhci_cap_regs)) {
         print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
               dev.bar[0].size(), sizeof(xhci_cap_regs));
@@ -73,6 +87,40 @@ void init_xhci(const pci_device& dev) {
     do {
         pit_delay(PIT_HZ / 1000); // wait 1ms
     } while (op_regs.USBCMD & 0x2);
+
+    auto hcsparams1 = cap_regs.HCSPARAMS1;
+
+    num_slots = hcsparams1 & 0xff;
+
+    print("init_xhci: num_slots = {}\n", num_slots);
+
+    dcbaa = (uint64_t*)malloc(num_slots * sizeof(uint64_t));
+    if (!dcbaa) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memset(dcbaa, 0, num_slots * sizeof(uint64_t));
+
+    write_volatile64(&op_regs.DCBAAP, va_to_pa(dcbaa));
+
+    initialized = true;
+}
+
+xhci::~xhci() {
+    if (dcbaa)
+        free(dcbaa);
+}
+
+export
+extern "C++"
+void init_xhci(pci_device& dev) {
+    print("FIXME - init_xhci\n");
+
+    xhci x(dev);
+
+    if (!x.initialized)
+        return;
 
     // FIXME
 }
