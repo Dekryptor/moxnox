@@ -342,7 +342,7 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     auto slot = get_slot();
 
-    queue->buffers[slot].addr = (phys_memory_pfn(buf) << PAGE_SHIFT) + ((uintptr_t)buf & (PAGE_SIZE - 1));
+    queue->buffers[slot].addr = va_to_pa(buf);
     queue->buffers[slot].len = (uint32_t)buf_size;
     queue->buffers[slot].flags = VIRTQ_DESC_F_WRITE;
 
@@ -381,7 +381,7 @@ nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
 
     auto slot = get_slot();
 
-    queue->buffers[slot].addr = (phys_memory_pfn(s.data()) << PAGE_SHIFT) + ((uintptr_t)s.data() & (PAGE_SIZE - 1));
+    queue->buffers[slot].addr = va_to_pa(s.data());
     queue->buffers[slot].len = (uint32_t)s.size();
     queue->buffers[slot].flags = VIRTQ_DESC_F_INDIRECT;
 
@@ -421,7 +421,7 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
 
     auto slot = get_slot();
 
-    queue->buffers[slot].addr = (phys_memory_pfn(buf) << PAGE_SHIFT) + ((uintptr_t)buf & (PAGE_SIZE - 1));
+    queue->buffers[slot].addr = va_to_pa(buf);
     queue->buffers[slot].len = (uint32_t)msg.size();
     queue->buffers[slot].flags = 0;
 

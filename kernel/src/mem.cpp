@@ -940,6 +940,10 @@ export constexpr uint64_t phys_memory_pfn(void* ptr) {
     return ((uintptr_t)ptr & ~PHYS_MEMORY_MASK) >> PAGE_SHIFT;
 }
 
+export constexpr uint64_t va_to_pa(void* ptr) {
+    return (phys_memory_pfn(ptr) << PAGE_SHIFT) | ((uintptr_t)ptr & (PAGE_SIZE - 1));
+}
+
 extern "C"
 void free(void* ptr) {
     if (!ptr)
