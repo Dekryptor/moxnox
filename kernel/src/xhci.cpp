@@ -150,10 +150,22 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     op_regs.USBCMD = XHCI_USBCMD_HCRST; // reset
 
+    bool reset_done = false;
+
     // wait for reset to complete
-    do {
+    for (unsigned int i = 0; i < 500; i++) {
+        if (!(op_regs.USBCMD & XHCI_USBCMD_HCRST)) {
+            reset_done = true;
+            break;
+        }
+
         pit_delay(PIT_HZ / 1000); // wait 1ms
-    } while (op_regs.USBCMD & XHCI_USBCMD_HCRST);
+    }
+
+    if (!reset_done) {
+        print("init_xhci: timed out resetting controller\n");
+        return;
+    }
 
     print("init_xhci: num_slots = {}, num_ports = {}\n", num_slots, num_ports);
 
