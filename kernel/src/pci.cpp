@@ -248,7 +248,7 @@ static void device_found0(const volatile pci_header& h, uint8_t bus, uint8_t dev
                     for (unsigned int j = 0; j < pages; j++) {
                         // FIXME - if prefetchable, map as write-through (or write-combine if framebuffer)?
                         if (!map_page(pa + (j << PAGE_SHIFT), va + (j << PAGE_SHIFT), mapping_type::no_cache)) {
-                            print("map_page failed\n");
+                            print("map_page for {:x} failed\n", pa + (j << PAGE_SHIFT));
                             return;
                         }
                     }
