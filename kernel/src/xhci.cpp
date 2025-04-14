@@ -11,6 +11,8 @@ import config;
 
 using namespace std;
 
+static uint16_t EVENT_RING_SIZE = 64;
+
 struct xhci_cap_regs {
     uint8_t CAPLENGTH;
     uint8_t reserved;
@@ -218,6 +220,9 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     }
 
     memset(seg_table, 0, sizeof(xhci_event_ring_segment));
+
+    seg_table->base_address = pa;
+    seg_table->size = EVENT_RING_SIZE;
 
     volatile auto& int_reg = run_regs.int_regs[0];
 
