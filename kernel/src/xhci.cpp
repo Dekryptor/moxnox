@@ -79,7 +79,7 @@ public:
 
 private:
     pci_device& dev;
-    uint8_t num_slots;
+    uint8_t num_slots, num_ports;
     uint64_t* dcbaa = nullptr;
     void* command_ring = nullptr;
     void* event_ring = nullptr;
@@ -129,8 +129,9 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     auto hcsparams1 = cap_regs.HCSPARAMS1;
 
     num_slots = hcsparams1 & 0xff;
+    num_ports = (uint8_t)(hcsparams1 >> 24);
 
-    print("init_xhci: num_slots = {}\n", num_slots);
+    print("init_xhci: num_slots = {}, num_ports = {}\n", num_slots, num_ports);
 
     dcbaa = (uint64_t*)malloc(num_slots * sizeof(uint64_t));
     if (!dcbaa) {
