@@ -63,6 +63,8 @@ static_assert(sizeof(xhci_int_regs) == 0x20);
 
 static const uint32_t XHCI_IMAN_IE = 0x00000002;
 
+static const uint32_t XHCI_ERDP_EHB = 0x00000008;
+
 static const size_t MAX_INT_REGS = 1024;
 
 struct xhci_run_regs {
@@ -81,3 +83,14 @@ struct xhci_event_ring_segment {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_event_ring_segment) == 0x10);
+
+struct xhci_trb_common {
+    uint32_t reserved1[3];
+    uint32_t cycle : 1;
+    uint32_t reserved2 : 9;
+    uint32_t trb_type : 6;
+    uint32_t slot_type : 5;
+    uint32_t reserved3 : 11;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_common) == 0x10);

@@ -29,8 +29,10 @@ private:
     uint8_t num_slots, num_ports;
     uint64_t* dcbaa = nullptr;
     void* command_ring = nullptr;
-    void* event_ring = nullptr;
+    xhci_trb_common* event_ring = nullptr;
+    unsigned int event_ring_offset = 0;
     xhci_event_ring_segment* seg_table = nullptr;
+    uint32_t rtsoff;
 };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -145,7 +147,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
         return;
     }
 
-    event_ring = phys_address(pa);
+    event_ring = (xhci_trb_common*)phys_address(pa);
     memset(event_ring, 0, PAGE_SIZE);
 
     seg_table = (xhci_event_ring_segment*)malloc_aligned(sizeof(xhci_event_ring_segment), 64);
@@ -186,6 +188,8 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     int_reg.IMAN |= XHCI_IMAN_IE;
 
     op_regs.USBCMD |= XHCI_USBCMD_INTE | XHCI_USBCMD_RS;
+
+    rtsoff = cap_regs.RTSOFF;
 
     initialized = true;
 }
@@ -243,7 +247,22 @@ void xhci::init_ports() {
 }
 
 void xhci::isr() {
-    // FIXME
+    volatile auto& run_regs = *(xhci_run_regs*)(dev.bar[0].data() + rtsoff);
+    volatile auto& int_reg = run_regs.int_regs[0];
+
+    while (true) {
+        if (event_ring[event_ring_offset].trb_type == 0)
+            break;
+
+        print("event type {}\n", event_ring[event_ring_offset].trb_type);
+
+        event_ring_offset++;
+
+        if (event_ring_offset == EVENT_RING_SIZE)
+            event_ring_offset = 0;
+    }
+
+    write_volatile64(&int_reg.ERDP, va_to_pa(&event_ring[event_ring_offset]) | XHCI_ERDP_EHB);
 }
 
 export
