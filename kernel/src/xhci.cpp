@@ -115,6 +115,8 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
 }
 
 xhci::xhci(pci_device& dev) : dev(dev) {
+    dev.header->command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
+
     if (dev.bar[0].size() < sizeof(xhci_cap_regs)) {
         print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
               dev.bar[0].size(), sizeof(xhci_cap_regs));

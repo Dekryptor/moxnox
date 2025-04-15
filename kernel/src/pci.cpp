@@ -85,6 +85,7 @@ export struct pci_device {
     list_entry vendor_specific_caps = { &vendor_specific_caps, &vendor_specific_caps };
 };
 
+export const uint16_t PCI_COMMAND_MEMORY = 0x0002;
 export const uint16_t PCI_COMMAND_MASTER = 0x0004;
 export const uint16_t PCI_COMMAND_INTX_DISABLE = 0x0400;
 
