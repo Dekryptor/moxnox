@@ -268,14 +268,20 @@ void xhci::isr() {
 export
 extern "C++"
 void init_xhci(pci_device& dev) {
-    print("FIXME - init_xhci\n");
-
-    xhci x(dev);
-
-    if (!x.initialized)
+    auto x = new xhci(dev);
+    if (!x) {
+        print("new failed\n");
         return;
+    }
 
-    x.init_ports();
+    if (!x->initialized) {
+        delete x;
+        return;
+    }
 
-    // FIXME
+    x->init_ports();
+
+    x->enable_slot();
+
+    // FIXME - add to list of xhci controllers?
 }
