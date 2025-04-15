@@ -24,6 +24,12 @@ struct xhci_port_regs {
 
 static_assert(sizeof(xhci_port_regs) == 0x10);
 
+static const uint32_t XHCI_PORTSC_CCS = 0x00000001;
+static const uint32_t XHCI_PORTSC_PED = 0x00000002;
+static const uint32_t XHCI_PORTSC_PR = 0x00000010;
+static const uint32_t XHCI_PORTSC_PP = 0x00000200;
+static const uint32_t XHCI_PORTSC_PIC = 0x0000c000;
+
 struct xhci_op_regs {
     uint32_t USBCMD;
     uint32_t USBSTS;
@@ -40,6 +46,10 @@ struct xhci_op_regs {
 
 static_assert(sizeof(xhci_op_regs) == 0x1400);
 
+static const uint32_t XHCI_USBCMD_RS = 0x00000001;
+static const uint32_t XHCI_USBCMD_HCRST = 0x00000002;
+static const uint32_t XHCI_USBCMD_INTE = 0x00000004;
+
 struct xhci_int_regs {
     uint32_t IMAN;
     uint32_t IMOD;
@@ -50,6 +60,8 @@ struct xhci_int_regs {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_int_regs) == 0x20);
+
+static const uint32_t XHCI_IMAN_IE = 0x00000002;
 
 static const size_t MAX_INT_REGS = 1024;
 

@@ -9,6 +9,7 @@ import pci;
 import print;
 import mem;
 import config;
+import interrupts;
 
 using namespace std;
 
@@ -19,6 +20,7 @@ public:
     xhci(pci_device& dev);
     ~xhci();
     void init_ports();
+    void isr();
 
     bool initialized = false;
 
@@ -31,22 +33,22 @@ private:
     xhci_event_ring_segment* seg_table = nullptr;
 };
 
-static const uint32_t XHCI_USBCMD_RS = 0x00000001;
-static const uint32_t XHCI_USBCMD_HCRST = 0x00000002;
-
-static const uint32_t XHCI_PORTSC_CCS = 0x00000001;
-static const uint32_t XHCI_PORTSC_PED = 0x00000002;
-static const uint32_t XHCI_PORTSC_PR = 0x00000010;
-static const uint32_t XHCI_PORTSC_PP = 0x00000200;
-static const uint32_t XHCI_PORTSC_PIC = 0x0000c000;
-
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *(volatile uint32_t*)addr = val & 0xffffffff;
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
+static void xhci_isr_func(void* ctx) {
+    ((xhci*)ctx)->isr();
+}
+
 xhci::xhci(pci_device& dev) : dev(dev) {
     dev.header->command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
+
+    if (!dev.msix) { // FIXME - also support normal MSI?
+        print("init_xhci: no MSI-X capability\n");
+        return;
+    }
 
     if (dev.bar[0].size() < sizeof(xhci_cap_regs)) {
         print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
@@ -163,7 +165,27 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     write_volatile64(&int_reg.ERDP, va_to_pa(event_ring));
     write_volatile64(&int_reg.ERSTBA, va_to_pa(seg_table));
 
-    op_regs.USBCMD |= XHCI_USBCMD_RS;
+    // enable MSI-X
+    dev.msix->message_control |= 0x8000;
+
+    // set up interrupt
+    auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+
+    // FIXME - free interrupt number in destructor
+    auto int_num = add_isr(xhci_isr_func, this);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return;
+    }
+
+    vec.message_data = int_num;
+    vec.message_address_high = 0;
+    vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+    vec.vector_control &= ~(uint32_t)1; // unmask
+
+    int_reg.IMAN |= XHCI_IMAN_IE;
+
+    op_regs.USBCMD |= XHCI_USBCMD_INTE | XHCI_USBCMD_RS;
 
     initialized = true;
 }
@@ -218,6 +240,10 @@ void xhci::init_ports() {
 
         // FIXME
     }
+}
+
+void xhci::isr() {
+    // FIXME
 }
 
 export
