@@ -20,7 +20,7 @@ static const uint16_t COMMAND_RING_SIZE = 64;
 
 struct xhci_request {
     xhci_trb_common trb;
-    xhci_trb_common comp;
+    xhci_trb_command_completion comp;
     object_ref event;
 };
 
@@ -29,12 +29,16 @@ struct port_status_change {
     uint16_t port_id;
 };
 
+struct xhci_port {
+    uint16_t slot;
+};
+
 class xhci {
 public:
     xhci(pci_device& dev);
     ~xhci();
     void init_ports();
-    void enable_slot();
+    uint16_t enable_slot();
     void submit(xhci_request& req);
     void isr();
     void port_status_change_thread();
@@ -53,6 +57,7 @@ private:
     xhci_trb_common* event_ring = nullptr;
     unsigned int event_ring_offset = 0;
     xhci_event_ring_segment* seg_table = nullptr;
+    uint8_t caplength;
     uint32_t dboff;
     uint32_t rtsoff;
     xhci_request* reqs[COMMAND_RING_SIZE];
@@ -63,6 +68,7 @@ private:
     object_ref port_status_change_thread_obj;
     spinlock port_status_change_lock;
     list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
+    xhci_port* ports = nullptr;
 };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -100,6 +106,19 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     num_slots = hcsparams1 & 0xff;
     num_ports = (uint8_t)(hcsparams1 >> 24);
+
+    if (num_ports == 0) {
+        print("xhci::xhci: num_ports was 0\n");
+        return;
+    }
+
+    ports = (xhci_port*)malloc(sizeof(xhci_port) * num_ports);
+    if (!ports) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memset(ports, 0, sizeof(xhci_port) * num_ports);
 
     if (dev.bar[0].size() < cap_regs.CAPLENGTH + offsetof(xhci_op_regs, ports) + (num_ports * sizeof(xhci_port_regs))) {
         print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
@@ -241,6 +260,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     op_regs.USBCMD |= XHCI_USBCMD_INTE | XHCI_USBCMD_RS;
 
+    caplength = cap_regs.CAPLENGTH;
     dboff = cap_regs.DBOFF;
     rtsoff = cap_regs.RTSOFF;
 
@@ -252,13 +272,16 @@ xhci::~xhci() {
         free(dcbaa);
 
     if (command_ring)
-        free_folio(phys_memory_pfn(command_ring) << PAGE_SHIFT);
+        free(command_ring);
 
     if (event_ring)
-        free_folio(phys_memory_pfn(event_ring) << PAGE_SHIFT);
+        free(event_ring);
 
     if (seg_table)
         free(seg_table);
+
+    if (ports)
+        free(ports);
 }
 
 void xhci::init_ports() {
@@ -292,8 +315,6 @@ void xhci::init_ports() {
             print("timed out waiting for port to be enabled\n");
             continue;
         }
-
-        // FIXME
     }
 }
 
@@ -314,7 +335,36 @@ void xhci::isr_command_completion(xhci_trb_command_completion& comp) {
 void xhci::port_status_changed(uint16_t port_id) {
     print("xhci::port_status_changed: {}\n", port_id);
 
-    // FIXME
+    if (port_id == 0 || port_id > num_ports) {
+        print("xhci::port_status_changed: port_id {} out of range (expected 1 to {})\n", port_id, num_ports);
+        return;
+    }
+
+    port_id--;
+
+    volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)dev.bar[0].data() + caplength);
+
+    bool device_present = op_regs.ports[port_id].PORTSC & XHCI_PORTSC_CCS;
+
+    // ignore spurious messages from controller
+    if ((device_present && ports[port_id].slot != 0) || (!device_present && ports[port_id].slot == 0))
+        return;
+
+    if (!device_present) {
+        // FIXME - disable slot
+        // FIXME - if hub, handle child devices
+        return;
+    }
+
+    auto slot = enable_slot();
+    if (slot == 0) {
+        print("xhci::port_status_changed: could not enable slot\n");
+        return;
+    }
+
+    ports[port_id].slot = slot;
+
+    print("slot {}\n", slot);
 }
 
 void xhci::port_status_change_thread() {
@@ -432,7 +482,7 @@ void xhci::submit(xhci_request& req) {
     }
 }
 
-void xhci::enable_slot() {
+uint16_t xhci::enable_slot() {
     xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_enable_slot*>(&req.trb);
@@ -445,6 +495,14 @@ void xhci::enable_slot() {
     submit(req);
 
     wait_for_object(req.event.get(), false);
+
+    // FIXME - translate into nt_status?
+    if (req.comp.completion_code != 1) {
+        print("xhci::enable_slot: controller returned error {}\n", req.comp.completion_code);
+        return 0;
+    }
+
+    return req.comp.slot_id;
 }
 
 export
@@ -462,8 +520,6 @@ void init_xhci(pci_device& dev) {
     }
 
     x->init_ports();
-
-    x->enable_slot();
 
     // FIXME - add to list of xhci controllers?
 }
