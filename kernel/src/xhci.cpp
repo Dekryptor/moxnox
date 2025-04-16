@@ -134,17 +134,15 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     write_volatile64(&op_regs.DCBAAP, va_to_pa(dcbaa));
 
-    // FIXME - calculate how big command ring should be (PAGE_SIZE for now)
-    auto pa = allocate_folio(0);
-    if (!pa) {
-        print("allocate_folio failed\n");
+    command_ring = (xhci_trb_common*)malloc(COMMAND_RING_SIZE * sizeof(xhci_trb_common));
+    if (!command_ring) {
+        print("malloc failed\n");
         return;
     }
 
-    command_ring = (xhci_trb_common*)phys_address(pa);
-    memset(command_ring, 0, PAGE_SIZE);
+    memset(command_ring, 0, COMMAND_RING_SIZE * sizeof(xhci_trb_common));
 
-    write_volatile64(&op_regs.CRCR, pa | 1);
+    write_volatile64(&op_regs.CRCR, va_to_pa(command_ring) | 1);
 
     op_regs.CONFIG = (op_regs.CONFIG & ~(uint32_t)0xff) | num_slots;
 
@@ -156,15 +154,13 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     volatile auto& run_regs = *(xhci_run_regs*)((uint8_t*)&cap_regs + cap_regs.RTSOFF);
 
-    // FIXME - calculate how big event ring should be (PAGE_SIZE for now)
-    pa = allocate_folio(0);
-    if (!pa) {
-        print("allocate_folio failed\n");
+    event_ring = (xhci_trb_common*)malloc(EVENT_RING_SIZE * sizeof(xhci_trb_common));
+    if (!event_ring) {
+        print("malloc failed\n");
         return;
     }
 
-    event_ring = (xhci_trb_common*)phys_address(pa);
-    memset(event_ring, 0, PAGE_SIZE);
+    memset(event_ring, 0, EVENT_RING_SIZE * sizeof(xhci_trb_common));
 
     seg_table = (xhci_event_ring_segment*)malloc_aligned(sizeof(xhci_event_ring_segment), 64);
     if (!seg_table) {
@@ -174,7 +170,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     memset(seg_table, 0, sizeof(xhci_event_ring_segment));
 
-    seg_table->base_address = pa;
+    seg_table->base_address = va_to_pa(event_ring);
     seg_table->size = EVENT_RING_SIZE;
 
     volatile auto& int_reg = run_regs.int_regs[0];
