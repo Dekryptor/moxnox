@@ -49,6 +49,7 @@ private:
     uint32_t rtsoff;
     xhci_request* reqs[COMMAND_RING_SIZE];
     spinlock submit_lock;
+    unsigned int command_ring_index = 0;
 };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -311,18 +312,16 @@ void xhci::submit(xhci_request& req) {
 
     req.event = create_event(true);
 
-    // FIXME - if get_slot would block, we should be queueing this on a waitlist instead
-
-    // auto slot = get_slot();
-
-    unsigned int index = 0; // FIXME
-
-    auto& trb = *(xhci_trb_common*)((uint8_t*)command_ring + (index * sizeof(xhci_trb_common)));
-
-    memcpy(&trb, &req.trb, sizeof(trb));
-
     {
         lock_guard lock(submit_lock);
+
+        unsigned int index = command_ring_index;
+
+        command_ring_index++;
+
+        auto& trb = *(xhci_trb_common*)((uint8_t*)command_ring + (index * sizeof(xhci_trb_common)));
+
+        memcpy(&trb, &req.trb, sizeof(trb));
 
         reqs[index] = &req;
 
