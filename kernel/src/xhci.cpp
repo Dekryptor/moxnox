@@ -268,8 +268,6 @@ void xhci::init_ports() {
     for (unsigned int i = 0; i < num_ports; i++) {
         auto portsc = op_regs.ports[i].PORTSC;
 
-        print("port {}: status {:08x}\n", i, portsc);
-
         if (!(portsc & XHCI_PORTSC_CCS)) // ignore if no device connected
             continue;
 
