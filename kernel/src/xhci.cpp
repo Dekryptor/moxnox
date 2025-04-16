@@ -50,6 +50,7 @@ private:
     xhci_request* reqs[COMMAND_RING_SIZE];
     spinlock submit_lock;
     unsigned int command_ring_index = 0;
+    bool cycle_bit = true;
 };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -135,13 +136,18 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     write_volatile64(&op_regs.DCBAAP, va_to_pa(dcbaa));
 
-    command_ring = (xhci_trb_common*)malloc(COMMAND_RING_SIZE * sizeof(xhci_trb_common));
+    command_ring = (xhci_trb_common*)malloc((COMMAND_RING_SIZE + 1) * sizeof(xhci_trb_common));
     if (!command_ring) {
         print("malloc failed\n");
         return;
     }
 
-    memset(command_ring, 0, COMMAND_RING_SIZE * sizeof(xhci_trb_common));
+    memset(command_ring, 0, (COMMAND_RING_SIZE + 1) * sizeof(xhci_trb_common));
+
+    auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&command_ring[COMMAND_RING_SIZE]);
+    cmd_link.ring_segment_pointer = va_to_pa(command_ring);
+    cmd_link.toggle_cycle = 1;
+    cmd_link.trb_type = (uint16_t)xhci_trb_type::link;
 
     write_volatile64(&op_regs.CRCR, va_to_pa(command_ring) | 1);
 
@@ -317,11 +323,22 @@ void xhci::submit(xhci_request& req) {
 
         unsigned int index = command_ring_index;
 
-        command_ring_index++;
+        if (index == 0) {
+            auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&command_ring[COMMAND_RING_SIZE]);
+            cmd_link.cycle = cycle_bit ? 1 : 0;
+        }
 
         auto& trb = *(xhci_trb_common*)((uint8_t*)command_ring + (index * sizeof(xhci_trb_common)));
 
         memcpy(&trb, &req.trb, sizeof(trb));
+        trb.cycle = cycle_bit ? 1 : 0;
+
+        command_ring_index++;
+
+        if (command_ring_index == COMMAND_RING_SIZE) {
+            command_ring_index = 0;
+            cycle_bit = !cycle_bit;
+        }
 
         reqs[index] = &req;
 
@@ -341,7 +358,6 @@ void xhci::enable_slot() {
 
     s.slot_type = 0; // FIXME
     s.trb_type = (uint32_t)xhci_trb_type::enable_slot_command;
-    s.cycle = 1;
 
     submit(req);
 

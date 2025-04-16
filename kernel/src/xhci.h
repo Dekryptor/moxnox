@@ -154,3 +154,19 @@ struct xhci_trb_command_completion {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_trb_command_completion) == sizeof(xhci_trb_common));
+
+struct xhci_trb_link {
+    uint64_t ring_segment_pointer;
+    uint32_t reserved1 : 22;
+    uint32_t interrupter_target : 10;
+    uint16_t cycle : 1;
+    uint16_t toggle_cycle : 1;
+    uint16_t reserved2 : 2;
+    uint16_t chain : 1;
+    uint16_t interrupt_on_completion : 1;
+    uint16_t reserved3 : 4;
+    uint16_t trb_type : 6;
+    uint16_t reserved4;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_link) == sizeof(xhci_trb_common));
