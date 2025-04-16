@@ -84,6 +84,42 @@ struct xhci_event_ring_segment {
 
 static_assert(sizeof(xhci_event_ring_segment) == 0x10);
 
+enum class xhci_trb_type {
+    normal = 1,
+    setup_stage = 2,
+    data_stage = 3,
+    status_stage = 4,
+    isoch = 5,
+    link = 6,
+    event_data = 7,
+    nop_transfer = 8,
+    enable_slot_command = 9,
+    disable_slot_command = 10,
+    address_device_command =11 ,
+    configure_endpoint_command = 12,
+    evaluate_context_command = 13,
+    reset_endpoint_command = 14,
+    stop_endpoint_command = 15,
+    set_tr_dequeue_pointer_command = 16,
+    reset_device_command = 17,
+    force_event_command = 18,
+    negotiate_bandwidth_command = 19,
+    set_latency_tolerance_value_command = 20,
+    get_port_bandwidth_command = 21,
+    force_header_command = 22,
+    nop_command = 23,
+    get_extended_property_command = 24,
+    set_extended_property_command = 25,
+    transfer_event = 32,
+    command_completion_event = 33,
+    port_status_change_event = 34,
+    bandwidth_request_event = 35,
+    doorbell_event = 36,
+    host_controller_event = 37,
+    device_notification_event = 38,
+    mfindex_wrap_event = 39
+};
+
 struct xhci_trb_common {
     uint32_t reserved1[3];
     uint32_t cycle : 1;
@@ -94,3 +130,27 @@ struct xhci_trb_common {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_trb_common) == 0x10);
+
+struct xhci_trb_enable_slot {
+    uint32_t reserved1[3];
+    uint32_t cycle : 1;
+    uint32_t reserved2 : 9;
+    uint32_t trb_type : 6;
+    uint32_t slot_type : 5;
+    uint32_t reserved3 : 11;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_enable_slot) == sizeof(xhci_trb_common));
+
+struct xhci_trb_command_completion {
+    uint64_t command_trb_pointer;
+    uint32_t command_completion_parameter : 24;
+    uint32_t completion_code : 8;
+    uint16_t cycle : 1;
+    uint16_t reserved : 9;
+    uint16_t trb_type : 6;
+    uint8_t vfid;
+    uint8_t slot_id;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_command_completion) == sizeof(xhci_trb_common));

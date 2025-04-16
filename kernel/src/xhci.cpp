@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include "xhci.h"
+#include "spinlock.h"
 
 export module xhci;
 
@@ -10,29 +11,44 @@ import print;
 import mem;
 import config;
 import interrupts;
+import event;
 
 using namespace std;
 
-static uint16_t EVENT_RING_SIZE = 64;
+static const uint16_t EVENT_RING_SIZE = 64;
+static const uint16_t COMMAND_RING_SIZE = 64;
+
+struct xhci_request {
+    xhci_trb_common trb;
+    xhci_trb_common comp;
+    object_ref event;
+};
 
 class xhci {
 public:
     xhci(pci_device& dev);
     ~xhci();
     void init_ports();
+    void enable_slot();
+    void submit(xhci_request& req);
     void isr();
 
     bool initialized = false;
 
 private:
+    void isr_command_completion(xhci_trb_command_completion& comp);
+
     pci_device& dev;
     uint8_t num_slots, num_ports;
     uint64_t* dcbaa = nullptr;
-    void* command_ring = nullptr;
+    xhci_trb_common* command_ring = nullptr;
     xhci_trb_common* event_ring = nullptr;
     unsigned int event_ring_offset = 0;
     xhci_event_ring_segment* seg_table = nullptr;
+    uint32_t dboff;
     uint32_t rtsoff;
+    xhci_request* reqs[COMMAND_RING_SIZE];
+    spinlock submit_lock;
 };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -125,7 +141,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
         return;
     }
 
-    command_ring = phys_address(pa);
+    command_ring = (xhci_trb_common*)phys_address(pa);
     memset(command_ring, 0, PAGE_SIZE);
 
     write_volatile64(&op_regs.CRCR, pa | 1);
@@ -189,6 +205,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     op_regs.USBCMD |= XHCI_USBCMD_INTE | XHCI_USBCMD_RS;
 
+    dboff = cap_regs.DBOFF;
     rtsoff = cap_regs.RTSOFF;
 
     initialized = true;
@@ -246,15 +263,36 @@ void xhci::init_ports() {
     }
 }
 
+void xhci::isr_command_completion(xhci_trb_command_completion& comp) {
+    auto ptr = phys_address(comp.command_trb_pointer);
+
+    if (ptr < command_ring || ptr >= command_ring + COMMAND_RING_SIZE)
+        return;
+
+    size_t index = ((uint8_t*)ptr - (uint8_t*)command_ring) / sizeof(xhci_trb_common);
+    auto& req = *reqs[index];
+
+    memcpy(&req.comp, &comp, sizeof(comp));
+
+    set_event(static_cast<::event&>(req.event.get()));
+}
+
 void xhci::isr() {
     volatile auto& run_regs = *(xhci_run_regs*)(dev.bar[0].data() + rtsoff);
     volatile auto& int_reg = run_regs.int_regs[0];
 
     while (true) {
-        if (event_ring[event_ring_offset].trb_type == 0)
+        auto& ev = event_ring[event_ring_offset];
+
+        if (ev.trb_type == 0)
             break;
 
-        print("event type {}\n", event_ring[event_ring_offset].trb_type);
+        if ((enum xhci_trb_type)ev.trb_type == xhci_trb_type::command_completion_event) {
+            auto& comp = *reinterpret_cast<xhci_trb_command_completion*>(&ev);
+
+            isr_command_completion(comp);
+        } else
+            print("event type {}\n", ev.trb_type);
 
         event_ring_offset++;
 
@@ -263,6 +301,49 @@ void xhci::isr() {
     }
 
     write_volatile64(&int_reg.ERDP, va_to_pa(&event_ring[event_ring_offset]) | XHCI_ERDP_EHB);
+}
+
+void xhci::submit(xhci_request& req) {
+    volatile auto& doorbell = *(uint32_t*)(dev.bar[0].data() + dboff);
+
+    req.event = create_event(true);
+
+    // FIXME - if get_slot would block, we should be queueing this on a waitlist instead
+
+    // auto slot = get_slot();
+
+    unsigned int index = 0; // FIXME
+
+    auto& trb = *(xhci_trb_common*)((uint8_t*)command_ring + (index * sizeof(xhci_trb_common)));
+
+    memcpy(&trb, &req.trb, sizeof(trb));
+
+    {
+        lock_guard lock(submit_lock);
+
+        reqs[index] = &req;
+
+        barrier();
+
+        // FIXME - advance queue pointer?
+        doorbell = 0; // FIXME?
+    }
+}
+
+void xhci::enable_slot() {
+    xhci_request req;
+
+    auto& s = *reinterpret_cast<xhci_trb_enable_slot*>(&req.trb);
+
+    memset(&s, 0, sizeof(s));
+
+    s.slot_type = 0; // FIXME
+    s.trb_type = (uint32_t)xhci_trb_type::enable_slot_command;
+    s.cycle = 1;
+
+    submit(req);
+
+    wait_for_object(req.event.get(), false);
 }
 
 export
