@@ -539,8 +539,7 @@ void xhci::submit(xhci_request& req) {
 
         barrier();
 
-        // FIXME - advance queue pointer?
-        doorbell = 0; // FIXME?
+        doorbell = 0;
     }
 }
 
