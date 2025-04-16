@@ -283,12 +283,19 @@ void xhci::isr() {
         if (ev.trb_type == 0)
             break;
 
-        if ((enum xhci_trb_type)ev.trb_type == xhci_trb_type::command_completion_event) {
-            auto& comp = *reinterpret_cast<xhci_trb_command_completion*>(&ev);
+        switch ((enum xhci_trb_type)ev.trb_type) {
+            case xhci_trb_type::command_completion_event:
+                isr_command_completion(*reinterpret_cast<xhci_trb_command_completion*>(&ev));
+                break;
 
-            isr_command_completion(comp);
-        } else
-            print("event type {}\n", ev.trb_type);
+            case xhci_trb_type::port_status_change_event:
+                print("xhci::isr: port status change event\n");
+                break;
+
+            default:
+                print("xhci::isr: event type {}\n", ev.trb_type);
+                break;
+        }
 
         event_ring_offset++;
 
