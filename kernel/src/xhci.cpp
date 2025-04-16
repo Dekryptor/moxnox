@@ -26,11 +26,11 @@ struct xhci_request {
 
 struct port_status_change {
     list_entry le;
-    uint16_t port_id;
+    uint8_t port_id;
 };
 
 struct xhci_port {
-    uint16_t slot;
+    uint8_t slot;
 };
 
 class xhci {
@@ -38,7 +38,6 @@ public:
     xhci(pci_device& dev);
     ~xhci();
     void init_ports();
-    uint16_t enable_slot();
     void submit(xhci_request& req);
     void isr();
     void port_status_change_thread();
@@ -48,7 +47,9 @@ public:
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
     void isr_port_status_change(xhci_trb_port_status_change& psc);
-    void port_status_changed(uint16_t port_id);
+    void port_status_changed(uint8_t port_id);
+    uint8_t enable_slot();
+    bool address_device(uint8_t slot, uint8_t port_id);
 
     pci_device& dev;
     uint8_t num_slots, num_ports;
@@ -157,13 +158,13 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     print("init_xhci: num_slots = {}, num_ports = {}\n", num_slots, num_ports);
 
-    dcbaa = (uint64_t*)malloc(num_slots * sizeof(uint64_t));
+    dcbaa = (uint64_t*)malloc((num_slots + 1) * sizeof(uint64_t));
     if (!dcbaa) {
         print("malloc failed\n");
         return;
     }
 
-    memset(dcbaa, 0, num_slots * sizeof(uint64_t));
+    memset(dcbaa, 0, (num_slots + 1) * sizeof(uint64_t));
 
     write_volatile64(&op_regs.DCBAAP, va_to_pa(dcbaa));
 
@@ -332,7 +333,45 @@ void xhci::isr_command_completion(xhci_trb_command_completion& comp) {
     set_event(static_cast<event&>(req.event.get()));
 }
 
-void xhci::port_status_changed(uint16_t port_id) {
+bool xhci::address_device(uint8_t slot, uint8_t port_id) {
+    xhci_request req;
+
+    auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
+
+    memset(&s, 0, sizeof(s));
+
+    auto context = new xhci_input_context;
+    if (!context) {
+        print("new failed\n");
+        return false;
+    }
+
+    memset(context, 0, sizeof(*context));
+    context->control.add_context = 3; // slot and EP0
+
+    s.input_context_pointer = va_to_pa(context);
+    s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
+    s.slot_id = slot;
+
+    context->slot.route_hub_port_number = port_id + 1;
+    // FIXME - ep[0]?
+
+    submit(req);
+
+    wait_for_object(req.event.get(), false);
+
+    delete context;
+
+    // FIXME - translate into nt_status?
+    if (req.comp.completion_code != 1) {
+        print("xhci::address_device: controller returned error {}\n", req.comp.completion_code);
+        return false;
+    }
+
+    return true;
+}
+
+void xhci::port_status_changed(uint8_t port_id) {
     print("xhci::port_status_changed: {}\n", port_id);
 
     if (port_id == 0 || port_id > num_ports) {
@@ -356,15 +395,38 @@ void xhci::port_status_changed(uint16_t port_id) {
         return;
     }
 
+    auto devctx = new xhci_device_context;
+    if (!devctx) {
+        print("new failed\n");
+        return;
+    }
+
+    memset(devctx, 0, sizeof(*devctx));
+
     auto slot = enable_slot();
     if (slot == 0) {
         print("xhci::port_status_changed: could not enable slot\n");
+        delete devctx;
         return;
     }
 
     ports[port_id].slot = slot;
 
     print("slot {}\n", slot);
+
+    dcbaa[slot] = va_to_pa(devctx);
+
+    if (!address_device(slot, port_id)) {
+        print("xhci::address_device failed\n");
+        delete devctx;
+        dcbaa[slot] = 0;
+        // FIXME - disable slot
+        return;
+    }
+
+    print("received address {}\n", devctx->slot.usb_device_address);
+
+    // FIXME - get device descriptor etc.
 }
 
 void xhci::port_status_change_thread() {
@@ -482,7 +544,7 @@ void xhci::submit(xhci_request& req) {
     }
 }
 
-uint16_t xhci::enable_slot() {
+uint8_t xhci::enable_slot() {
     xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_enable_slot*>(&req.trb);

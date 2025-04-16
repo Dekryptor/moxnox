@@ -184,3 +184,90 @@ struct xhci_trb_port_status_change {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_trb_port_status_change) == sizeof(xhci_trb_common));
+
+struct xhci_trb_address_device {
+    uint64_t input_context_pointer;
+    uint32_t reserved1;
+    uint16_t cycle : 1;
+    uint16_t reserved2 : 8;
+    uint16_t bsr : 1;
+    uint16_t trb_type : 6;
+    uint8_t reserved3;
+    uint8_t slot_id;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_address_device) == sizeof(xhci_trb_common));
+
+struct xhci_slot_context {
+    uint32_t route_string : 20;
+    uint32_t speed : 4;
+    uint32_t reserved1 : 1;
+    uint32_t multi_tt : 1;
+    uint32_t hub : 1;
+    uint32_t context_entries : 5;
+    uint16_t max_exit_latency;
+    uint8_t route_hub_port_number;
+    uint8_t num_ports;
+    uint8_t parent_hub_slot_id;
+    uint8_t parent_port_number;
+    uint16_t ttt : 2;
+    uint16_t reserved2 : 4;
+    uint16_t interrupter_target : 10;
+    uint8_t usb_device_address;
+    uint16_t reserved3;
+    uint8_t reserved4 : 3;
+    uint8_t slot_state : 5;
+    uint32_t reserved5[4];
+} __attribute((packed));
+
+static_assert(sizeof(xhci_slot_context) == 0x20);
+
+struct xhci_input_control_context {
+    uint32_t drop_context;
+    uint32_t add_context;
+    uint32_t reserved1[5];
+    uint8_t configuration_value;
+    uint8_t interface_number;
+    uint8_t alternate_setting;
+    uint8_t reserved2;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_input_control_context) == 0x20);
+
+struct xhci_endpoint_context {
+    uint8_t ep_state : 3;
+    uint8_t reserved1 : 5;
+    uint8_t mult : 2;
+    uint8_t maxpstreams : 5;
+    uint8_t lsa : 1;
+    uint8_t interval;
+    uint8_t max_esit_payload_high;
+    uint8_t reserved2 : 1;
+    uint8_t cerr : 2;
+    uint8_t ep_type : 3;
+    uint8_t reserved3 : 1;
+    uint8_t hid : 1;
+    uint8_t max_burst_size;
+    uint16_t max_packet_size;
+    uint64_t tr_dequeue_pointer;
+    uint16_t average_trb_length;
+    uint16_t max_esit_payload_low;
+    uint32_t reserved4[3];
+} __attribute((packed));
+
+static_assert(sizeof(xhci_endpoint_context) == 0x20);
+
+struct xhci_device_context {
+    xhci_slot_context slot;
+    xhci_endpoint_context ep[31];
+} __attribute((packed));
+
+static_assert(sizeof(xhci_device_context) == 0x400);
+
+struct xhci_input_context {
+    xhci_input_control_context control;
+    xhci_slot_context slot;
+    xhci_endpoint_context ep[31];
+};
+
+static_assert(sizeof(xhci_input_context) == 0x420);
