@@ -305,7 +305,7 @@ void xhci::isr_command_completion(xhci_trb_command_completion& comp) {
     if (ptr < command_ring || ptr >= command_ring + COMMAND_RING_SIZE)
         return;
 
-    size_t index = ((uint8_t*)ptr - (uint8_t*)command_ring) / sizeof(xhci_trb_common);
+    size_t index = (size_t)((uint8_t*)ptr - (uint8_t*)command_ring) / sizeof(xhci_trb_common);
     auto& req = *reqs[index];
 
     memcpy(&req.comp, &comp, sizeof(comp));
