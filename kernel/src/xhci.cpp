@@ -77,8 +77,8 @@ static void xhci_isr_func(void* ctx) {
 xhci::xhci(pci_device& dev) : dev(dev) {
     dev.header->command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
-    if (!dev.msix) { // FIXME - also support normal MSI?
-        print("init_xhci: no MSI-X capability\n");
+    if (!dev.msix && dev.msi.empty()) {
+        print("init_xhci: no MSI or MSI-X capability\n");
         return;
     }
 
@@ -205,12 +205,6 @@ xhci::xhci(pci_device& dev) : dev(dev) {
         ((xhci*)ctx)->port_status_change_thread();
     }, this);
 
-    // enable MSI-X
-    dev.msix->message_control |= 0x8000;
-
-    // set up interrupt
-    auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
-
     // FIXME - free interrupt number in destructor
     auto int_num = add_isr(xhci_isr_func, this);
     if (int_num == 0) {
@@ -218,10 +212,30 @@ xhci::xhci(pci_device& dev) : dev(dev) {
         return;
     }
 
-    vec.message_data = int_num;
-    vec.message_address_high = 0;
-    vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
-    vec.vector_control &= ~(uint32_t)1; // unmask
+    if (dev.msix) {
+        // enable MSI-X
+        dev.msix->message_control |= 0x8000;
+
+        // set up interrupt
+        auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+
+        vec.message_data = int_num;
+        vec.message_address_high = 0;
+        vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+        vec.vector_control &= ~(uint32_t)1; // unmask
+    } else {
+        auto& msi = *(volatile pci_msi*)dev.msi.data();
+
+        msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+
+        if (msi.message_control & 0x80) { // 64-bit
+            msi.v64.message_address_high = 0;
+            msi.v64.message_data = int_num;
+        } else
+            msi.v32.message_data = int_num;
+
+        msi.message_control = msi.message_control | 1; // enable
+    }
 
     int_reg.IMAN |= XHCI_IMAN_IE;
 
