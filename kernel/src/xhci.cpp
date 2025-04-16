@@ -24,6 +24,11 @@ struct xhci_request {
     object_ref event;
 };
 
+struct port_status_change {
+    list_entry le;
+    uint16_t port_id;
+};
+
 class xhci {
 public:
     xhci(pci_device& dev);
@@ -32,11 +37,14 @@ public:
     void enable_slot();
     void submit(xhci_request& req);
     void isr();
+    void port_status_change_thread();
 
     bool initialized = false;
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
+    void isr_port_status_change(xhci_trb_port_status_change& psc);
+    void port_status_changed(uint16_t port_id);
 
     pci_device& dev;
     uint8_t num_slots, num_ports;
@@ -51,6 +59,10 @@ private:
     spinlock submit_lock;
     unsigned int command_ring_index = 0;
     bool cycle_bit = true;
+    object_ref port_status_change_event;
+    object_ref port_status_change_thread_obj;
+    spinlock port_status_change_lock;
+    list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
 };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -186,6 +198,13 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     write_volatile64(&int_reg.ERDP, va_to_pa(event_ring));
     write_volatile64(&int_reg.ERSTBA, va_to_pa(seg_table));
 
+    port_status_change_event = create_event(true);
+
+    // FIXME - stop thread if xhci object goes away(?)
+    port_status_change_thread_obj = add_kernel_thread([](void* ctx) {
+        ((xhci*)ctx)->port_status_change_thread();
+    }, this);
+
     // enable MSI-X
     dev.msix->message_control |= 0x8000;
 
@@ -277,7 +296,59 @@ void xhci::isr_command_completion(xhci_trb_command_completion& comp) {
 
     memcpy(&req.comp, &comp, sizeof(comp));
 
-    set_event(static_cast<::event&>(req.event.get()));
+    set_event(static_cast<event&>(req.event.get()));
+}
+
+void xhci::port_status_changed(uint16_t port_id) {
+    print("xhci::port_status_changed: {}\n", port_id);
+
+    // FIXME
+}
+
+void xhci::port_status_change_thread() {
+    while (true) {
+        wait_for_object(port_status_change_event.get(), true);
+
+        while (true) {
+            port_status_change* ent = nullptr;
+
+            {
+                lock_guard lock(port_status_change_lock);
+
+                if (!is_list_empty(port_status_change_list)) {
+                    ent = &containing_record<port_status_change>(port_status_change_list.next);
+
+                    remove_entry_list(ent->le);
+                }
+            }
+
+            if (!ent)
+                break;
+
+            auto port_id = ent->port_id;
+            delete ent;
+
+            port_status_changed(port_id);
+        }
+    }
+}
+
+void xhci::isr_port_status_change(xhci_trb_port_status_change& psc) {
+    // FIXME - doing allocation inside ISR isn't brilliant
+    auto ent = new port_status_change;
+    if (!ent) {
+        print("new failed\n");
+        return;
+    }
+
+    ent->port_id = psc.port_id;
+
+    {
+        lock_guard lock(port_status_change_lock);
+        insert_tail_list(port_status_change_list, ent->le);
+    }
+
+    set_event(static_cast<event&>(port_status_change_event.get()));
 }
 
 void xhci::isr() {
@@ -296,11 +367,11 @@ void xhci::isr() {
                 break;
 
             case xhci_trb_type::port_status_change_event:
-                print("xhci::isr: port status change event\n");
+                isr_port_status_change(*reinterpret_cast<xhci_trb_port_status_change*>(&ev));
                 break;
 
             default:
-                print("xhci::isr: event type {}\n", ev.trb_type);
+                print("xhci::isr: event type {}\n", ev.trb_type); // FIXME?
                 break;
         }
 

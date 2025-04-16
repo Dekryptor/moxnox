@@ -170,3 +170,17 @@ struct xhci_trb_link {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_trb_link) == sizeof(xhci_trb_common));
+
+struct xhci_trb_port_status_change {
+    uint8_t reserved1[3];
+    uint8_t port_id;
+    uint32_t reserved2;
+    uint8_t reserved3[3];
+    uint8_t completion_code;
+    uint16_t cycle : 1;
+    uint16_t reserved4 : 9;
+    uint16_t trb_type : 6;
+    uint16_t reserved5;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_port_status_change) == sizeof(xhci_trb_common));
