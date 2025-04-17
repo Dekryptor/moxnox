@@ -485,6 +485,7 @@ bool xhci::address_device(uint8_t slot, uint8_t port_id) {
     context->slot.context_entries = 1;
 
     context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
+    context->ep[0].max_packet_size = XHCI_EP0_TRB_LEN;
     context->ep[0].tr_dequeue_pointer = va_to_pa_phys((void*)ep0_queue) | XHCI_EP_DCS;
     context->ep[0].average_trb_length = XHCI_EP0_TRB_LEN;
 
