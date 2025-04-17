@@ -166,7 +166,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     memset(dcbaa, 0, (num_slots + 1) * sizeof(uint64_t));
 
-    write_volatile64(&op_regs.DCBAAP, va_to_pa(dcbaa));
+    write_volatile64(&op_regs.DCBAAP, va_to_pa_phys(dcbaa));
 
     command_ring = (xhci_trb_common*)malloc((COMMAND_RING_SIZE + 1) * sizeof(xhci_trb_common));
     if (!command_ring) {
@@ -177,11 +177,11 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     memset(command_ring, 0, (COMMAND_RING_SIZE + 1) * sizeof(xhci_trb_common));
 
     auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&command_ring[COMMAND_RING_SIZE]);
-    cmd_link.ring_segment_pointer = va_to_pa(command_ring);
+    cmd_link.ring_segment_pointer = va_to_pa_phys(command_ring);
     cmd_link.toggle_cycle = 1;
     cmd_link.trb_type = (uint16_t)xhci_trb_type::link;
 
-    write_volatile64(&op_regs.CRCR, va_to_pa(command_ring) | 1);
+    write_volatile64(&op_regs.CRCR, va_to_pa_phys(command_ring) | 1);
 
     op_regs.CONFIG = (op_regs.CONFIG & ~(uint32_t)0xff) | num_slots;
 
@@ -209,14 +209,14 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     memset(seg_table, 0, sizeof(xhci_event_ring_segment));
 
-    seg_table->base_address = va_to_pa(event_ring);
+    seg_table->base_address = va_to_pa_phys(event_ring);
     seg_table->size = EVENT_RING_SIZE;
 
     volatile auto& int_reg = run_regs.int_regs[0];
 
     int_reg.ERSTSZ = 1;
-    write_volatile64(&int_reg.ERDP, va_to_pa(event_ring));
-    write_volatile64(&int_reg.ERSTBA, va_to_pa(seg_table));
+    write_volatile64(&int_reg.ERDP, va_to_pa_phys(event_ring));
+    write_volatile64(&int_reg.ERSTBA, va_to_pa_phys(seg_table));
 
     port_status_change_event = create_event(true);
 
@@ -349,12 +349,23 @@ bool xhci::address_device(uint8_t slot, uint8_t port_id) {
     memset(context, 0, sizeof(*context));
     context->control.add_context = 3; // slot and EP0
 
-    s.input_context_pointer = va_to_pa(context);
+    s.input_context_pointer = va_to_pa_phys(context);
     s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
     s.slot_id = slot;
 
+    auto ep0_queue = allocate_folio(0); // FIXME
+    if (!ep0_queue) {
+        print("allocate_folio failed\n");
+        delete context;
+        return false;
+    }
+
     context->slot.route_hub_port_number = port_id + 1;
-    // FIXME - ep[0]?
+    context->slot.context_entries = 1;
+
+    context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
+    context->ep[0].tr_dequeue_pointer = va_to_pa_phys((void*)ep0_queue) | XHCI_EP_DCS;
+    context->ep[0].average_trb_length = XHCI_EP0_TRB_LEN;
 
     submit(req);
 
@@ -414,7 +425,7 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     print("slot {}\n", slot);
 
-    dcbaa[slot] = va_to_pa(devctx);
+    dcbaa[slot] = va_to_pa_phys(devctx);
 
     if (!address_device(slot, port_id)) {
         print("xhci::address_device failed\n");
@@ -505,7 +516,8 @@ void xhci::isr() {
             event_ring_offset = 0;
     }
 
-    write_volatile64(&int_reg.ERDP, va_to_pa(&event_ring[event_ring_offset]) | XHCI_ERDP_EHB);
+    write_volatile64(&int_reg.ERDP,
+                     va_to_pa_phys(&event_ring[event_ring_offset]) | XHCI_ERDP_EHB);
 }
 
 void xhci::submit(xhci_request& req) {

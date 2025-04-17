@@ -257,6 +257,20 @@ struct xhci_endpoint_context {
 
 static_assert(sizeof(xhci_endpoint_context) == 0x20);
 
+enum class XHCI_EP_TYPE {
+    ISOCH_OUT = 1,
+    BULK_OUT = 2,
+    INTERRUPT_OUT = 3,
+    CONTROL = 4,
+    ISOCH_IN = 5,
+    BULK_IN = 6,
+    INTERRUPT_IN = 7,
+};
+
+static const uint16_t XHCI_EP0_TRB_LEN = 64;
+
+static const uint32_t XHCI_EP_DCS = 0x00000001;
+
 struct xhci_device_context {
     xhci_slot_context slot;
     xhci_endpoint_context ep[31];

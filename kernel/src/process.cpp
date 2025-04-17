@@ -682,7 +682,7 @@ void process::terminate() {
 
     if (handle_arr_pages != 0) {
         for (unsigned int i = 0; i < handle_arr_pages; i++) {
-            auto pa = va_to_pa((uintptr_t)handle_arr + (i << PAGE_SHIFT));
+            auto pa = va_to_pa_lookup((uintptr_t)handle_arr + (i << PAGE_SHIFT));
 
             unmap_page((uintptr_t)handle_arr + (i << PAGE_SHIFT));
             free_folio(pa);
@@ -906,7 +906,7 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
                 // remap pages
 
                 for (unsigned int i = 0; i < handle_arr_pages; i++) {
-                    auto pa = va_to_pa((uintptr_t)handle_arr + (i << PAGE_SHIFT));
+                    auto pa = va_to_pa_lookup((uintptr_t)handle_arr + (i << PAGE_SHIFT));
 
                     if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
                         print("map_page failed\n");

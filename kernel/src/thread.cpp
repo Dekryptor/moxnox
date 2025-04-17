@@ -102,7 +102,7 @@ thread::~thread() {
     if (kernel_stack) {
         auto va = (uintptr_t)kernel_stack + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
         for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-            auto pa = va_to_pa(va);
+            auto pa = va_to_pa_lookup(va);
 
             free_folio(pa);
             unmap_page(va);

@@ -66,7 +66,7 @@ pipe::pipe(unsigned int buffer_pages) : buf_pages(buffer_pages) {
             print("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
-                auto pa = va_to_pa(va + (j << PAGE_SHIFT));
+                auto pa = va_to_pa_lookup(va + (j << PAGE_SHIFT));
 
                 free_folio(pa);
                 unmap_page(va + (j << PAGE_SHIFT));
@@ -81,7 +81,7 @@ pipe::pipe(unsigned int buffer_pages) : buf_pages(buffer_pages) {
             print("map_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
-                auto pa = va_to_pa(va + (j << PAGE_SHIFT));
+                auto pa = va_to_pa_lookup(va + (j << PAGE_SHIFT));
 
                 free_folio(pa);
                 unmap_page(va + (j << PAGE_SHIFT));
@@ -103,7 +103,7 @@ pipe::~pipe() {
     auto va = (uintptr_t)buf;
 
     for (unsigned int i = 0; i < buf_pages; i++) {
-        auto pa = va_to_pa(va);
+        auto pa = va_to_pa_lookup(va);
 
         free_folio(pa);
         unmap_page(va);

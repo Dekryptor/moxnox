@@ -968,7 +968,7 @@ export constexpr uint64_t phys_memory_pfn(void* ptr) {
     return ((uintptr_t)ptr & ~PHYS_MEMORY_MASK) >> PAGE_SHIFT;
 }
 
-export constexpr uint64_t va_to_pa(void* ptr) {
+export constexpr uint64_t va_to_pa_phys(void* ptr) {
     return (phys_memory_pfn(ptr) << PAGE_SHIFT) | ((uintptr_t)ptr & (PAGE_SIZE - 1));
 }
 
@@ -1390,7 +1390,7 @@ export void free_va(uint64_t va, uint32_t num_pages) {
     }
 }
 
-export uint64_t va_to_pa(uint64_t va) {
+export uint64_t va_to_pa_lookup(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
     return (uint64_t)pt_entry.PageFrameNumber << PAGE_SHIFT;
@@ -1782,7 +1782,7 @@ export void* vmalloc(size_t size) {
             print("allocate_page failed\n");
 
             for (size_t j = 0; j < i; j++) {
-                auto pa = va_to_pa(va + (j << PAGE_SHIFT));
+                auto pa = va_to_pa_lookup(va + (j << PAGE_SHIFT));
 
                 free_folio(pa);
                 unmap_page(va + (j << PAGE_SHIFT));
@@ -1797,7 +1797,7 @@ export void* vmalloc(size_t size) {
             free_folio(pa);
 
             for (size_t j = 0; j < i; j++) {
-                auto pa = va_to_pa(va + (j << PAGE_SHIFT));
+                auto pa = va_to_pa_lookup(va + (j << PAGE_SHIFT));
 
                 free_folio(pa);
                 unmap_page(va + (j << PAGE_SHIFT));

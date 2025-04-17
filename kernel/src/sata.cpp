@@ -321,7 +321,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
             print("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
-                auto pa = va_to_pa(va3 + (j << PAGE_SHIFT));
+                auto pa = va_to_pa_lookup(va3 + (j << PAGE_SHIFT));
 
                 unmap_page(va3 + (j << PAGE_SHIFT));
                 free_folio(pa);
@@ -352,7 +352,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
             free_folio(pa);
 
             for (unsigned int j = 0; j < i; j++) {
-                auto pa = va_to_pa(va3 + (j << PAGE_SHIFT));
+                auto pa = va_to_pa_lookup(va3 + (j << PAGE_SHIFT));
 
                 unmap_page(va3 + (j << PAGE_SHIFT));
                 free_folio(pa);

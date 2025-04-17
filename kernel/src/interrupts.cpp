@@ -515,7 +515,7 @@ export void* allocate_stack() {
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
-                auto pa = va_to_pa(va);
+                auto pa = va_to_pa_lookup(va);
 
                 free_folio(pa);
                 unmap_page(va);
@@ -531,7 +531,7 @@ export void* allocate_stack() {
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
-                auto pa = va_to_pa(va);
+                auto pa = va_to_pa_lookup(va);
 
                 free_folio(pa);
                 unmap_page(va);
