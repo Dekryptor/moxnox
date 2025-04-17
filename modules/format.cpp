@@ -188,12 +188,12 @@ span<char> sp_itoa_oct(span<char> dest, uint64_t num, unsigned int padding = 0, 
     return dest;
 }
 
-template<typename T>
-consteval bool valid_spec(string_view) {
+export template<typename T>
+consteval bool format_spec_valid(string_view) {
     return false;
 }
 
-span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg, optional<uint64_t> arg2 = nullopt) {
+export span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg, optional<uint64_t> arg2 = nullopt) {
     enum class int_format_base {
         dec,
         hex,
@@ -261,7 +261,7 @@ span<char> do_format_arg(span<char> sp, string_view fmt, integral auto arg, opti
 
 template<typename T>
 requires (integral<T>)
-consteval bool valid_spec(string_view fmt) {
+consteval bool format_spec_valid(string_view fmt) {
     if (fmt.empty())
         return true;
 
@@ -283,7 +283,7 @@ consteval bool valid_spec(string_view fmt) {
     return false;
 }
 
-template<typename T>
+export template<typename T>
 requires (unsigned_integral<T>)
 span<char> do_format_arg(span<char> sp, string_view, byte_size<T> arg) {
     auto val = (uint64_t)arg.val;
@@ -363,7 +363,7 @@ span<char> do_format_arg(span<char> sp, string_view, byte_size<T> arg) {
 
 template<typename T>
 requires (T::is_byte_size)
-consteval bool valid_spec(string_view fmt) {
+consteval bool format_spec_valid(string_view fmt) {
     return fmt.empty();
 }
 
@@ -449,27 +449,27 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
 }
 
 template<>
-consteval bool valid_spec<nt_status>(string_view fmt) {
+consteval bool format_spec_valid<nt_status>(string_view fmt) {
     return fmt.empty();
 }
 
-span<char> do_format_arg(span<char> sp, string_view, string_view arg) {
+export span<char> do_format_arg(span<char> sp, string_view, string_view arg) {
     return sp_strcpy(sp, arg);
 }
 
 template<>
-consteval bool valid_spec<string_view>(string_view fmt) {
+consteval bool format_spec_valid<string_view>(string_view fmt) {
     return fmt.empty();
 }
 
 template<>
-consteval bool valid_spec<char*>(string_view fmt) {
-    return valid_spec<string_view>(fmt);
+consteval bool format_spec_valid<char*>(string_view fmt) {
+    return format_spec_valid<string_view>(fmt);
 }
 
 template<>
-consteval bool valid_spec<const char*>(string_view fmt) {
-    return valid_spec<string_view>(fmt);
+consteval bool format_spec_valid<const char*>(string_view fmt) {
+    return format_spec_valid<string_view>(fmt);
 }
 
 span<char> do_format_arg(span<char> sp, string_view, const AMD64_CONTEXT& ctx) {
@@ -539,7 +539,7 @@ span<char> do_format_arg(span<char> sp, string_view, const AMD64_CONTEXT& ctx) {
 }
 
 template<>
-consteval bool valid_spec<AMD64_CONTEXT>(string_view fmt) {
+consteval bool format_spec_valid<AMD64_CONTEXT>(string_view fmt) {
     return fmt.empty();
 }
 
@@ -608,7 +608,7 @@ span<char> do_format_arg(span<char> sp, string_view, u16string_view sv) {
 }
 
 template<>
-consteval bool valid_spec<u16string_view>(string_view fmt) {
+consteval bool format_spec_valid<u16string_view>(string_view fmt) {
     return fmt.empty();
 }
 
@@ -617,7 +617,7 @@ span<char> do_format_arg(span<char> sp, string_view sv, const UNICODE_STRING& us
 }
 
 template<>
-consteval bool valid_spec<UNICODE_STRING>(string_view fmt) {
+consteval bool format_spec_valid<UNICODE_STRING>(string_view fmt) {
     return fmt.empty();
 }
 
@@ -640,7 +640,7 @@ span<char> do_format_arg(span<char> sp, string_view, const chrono::year_month_da
 }
 
 template<>
-consteval bool valid_spec<chrono::year_month_day>(string_view fmt) {
+consteval bool format_spec_valid<chrono::year_month_day>(string_view fmt) {
     return fmt.empty();
 }
 
@@ -666,7 +666,7 @@ span<char> do_format_arg(span<char> sp, string_view, const chrono::hh_mm_ss<chro
 }
 
 template<>
-consteval bool valid_spec<chrono::hh_mm_ss<chrono::seconds>>(string_view fmt) {
+consteval bool format_spec_valid<chrono::hh_mm_ss<chrono::seconds>>(string_view fmt) {
     return fmt.empty();
 }
 
@@ -675,7 +675,7 @@ void checker_failure();
 template<typename T, typename... Args>
 consteval void check_specs(span<string_view, sizeof...(Args) + 1> sp,
                            tuple<T, Args...>*) {
-    if (!valid_spec<remove_cvref_t<T>>(sp[0]))
+    if (!format_spec_valid<remove_cvref_t<T>>(sp[0]))
         checker_failure();
 
     if constexpr (sizeof...(Args) > 0)
