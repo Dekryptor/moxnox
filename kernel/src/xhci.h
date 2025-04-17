@@ -155,6 +155,45 @@ struct xhci_trb_command_completion {
 
 static_assert(sizeof(xhci_trb_command_completion) == sizeof(xhci_trb_common));
 
+enum class TRB_CODE {
+    INVALID = 0,
+    SUCCESS = 1,
+    DATA_BUFFER_ERROR = 2,
+    BABBLE_DETECTED = 3,
+    USB_TRANSACTION_ERROR = 4,
+    TRB_ERROR = 5,
+    STALL_ERROR = 6,
+    RESOURCE_ERROR = 7,
+    BANDWIDTH_ERROR = 8,
+    NO_SLOTS_AVAILABLE_ERROR = 9,
+    INVALID_STREAM_TYPE = 10,
+    SLOT_NOT_ENABLED = 11,
+    ENDPOINT_NOT_ENABLED = 12,
+    SHORT_PACKET = 13,
+    RING_UNDERRUN = 14,
+    RING_OVERRUN = 15,
+    VF_EVENT_RING_FULL = 16,
+    PARAMETER_ERROR = 17,
+    BANDWIDTH_OVERRUN = 18,
+    CONTEXT_STATE_ERROR = 19,
+    NO_PINT_RESPONSE = 20,
+    EVENT_RING_FULL = 21,
+    INCOMPATIBLE_DEVICE = 22,
+    MISSED_SERVICE = 23,
+    COMMAND_RING_STOPPED = 24,
+    COMMAND_ABORTED = 25,
+    STOPPED = 26,
+    STOPPED_LENGTH_INVALID = 27,
+    STOPPED_SHORT_PACKET = 28,
+    MAX_EXIT_LATENCY_TOO_LARGE = 29,
+    ISOCH_BUFFER_OVERRUN = 31,
+    EVENT_LOST = 32,
+    UNDEFINED_ERROR = 33,
+    INVALID_STREAM_ID = 34,
+    SECONDARY_BANDWIDTH_ERROR = 35,
+    SPLIT_TRANSACTION_ERROR = 36,
+};
+
 struct xhci_trb_link {
     uint64_t ring_segment_pointer;
     uint32_t reserved1 : 22;

@@ -8,6 +8,7 @@ export module xhci;
 
 import pci;
 import print;
+import format;
 import mem;
 import config;
 import interrupts;
@@ -333,6 +334,126 @@ void xhci::isr_command_completion(xhci_trb_command_completion& comp) {
     set_event(static_cast<event&>(req.event.get()));
 }
 
+template<>
+consteval bool format_spec_valid<enum TRB_CODE>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, enum TRB_CODE arg) {
+    switch (arg) {
+        case TRB_CODE::INVALID:
+            return do_format_arg(sp, "", "INVALID");
+
+        case TRB_CODE::SUCCESS:
+            return do_format_arg(sp, "", "SUCCESS");
+
+        case TRB_CODE::DATA_BUFFER_ERROR:
+            return do_format_arg(sp, "", "DATA_BUFFER_ERROR");
+
+        case TRB_CODE::BABBLE_DETECTED:
+            return do_format_arg(sp, "", "BABBLE_DETECTED");
+
+        case TRB_CODE::USB_TRANSACTION_ERROR:
+            return do_format_arg(sp, "", "USB_TRANSACTION_ERROR");
+
+        case TRB_CODE::TRB_ERROR:
+            return do_format_arg(sp, "", "TRB_ERROR");
+
+        case TRB_CODE::STALL_ERROR:
+            return do_format_arg(sp, "", "STALL_ERROR");
+
+        case TRB_CODE::RESOURCE_ERROR:
+            return do_format_arg(sp, "", "RESOURCE_ERROR");
+
+        case TRB_CODE::BANDWIDTH_ERROR:
+            return do_format_arg(sp, "", "BANDWIDTH_ERROR");
+
+        case TRB_CODE::NO_SLOTS_AVAILABLE_ERROR:
+            return do_format_arg(sp, "", "NO_SLOTS_AVAILABLE_ERROR");
+
+        case TRB_CODE::INVALID_STREAM_TYPE:
+            return do_format_arg(sp, "", "INVALID_STREAM_TYPE");
+
+        case TRB_CODE::SLOT_NOT_ENABLED:
+            return do_format_arg(sp, "", "SLOT_NOT_ENABLED");
+
+        case TRB_CODE::ENDPOINT_NOT_ENABLED:
+            return do_format_arg(sp, "", "ENDPOINT_NOT_ENABLED");
+
+        case TRB_CODE::SHORT_PACKET:
+            return do_format_arg(sp, "", "SHORT_PACKET");
+
+        case TRB_CODE::RING_UNDERRUN:
+            return do_format_arg(sp, "", "RING_UNDERRUN");
+
+        case TRB_CODE::RING_OVERRUN:
+            return do_format_arg(sp, "", "RING_OVERRUN");
+
+        case TRB_CODE::VF_EVENT_RING_FULL:
+            return do_format_arg(sp, "", "VF_EVENT_RING_FULL");
+
+        case TRB_CODE::PARAMETER_ERROR:
+            return do_format_arg(sp, "", "PARAMETER_ERROR");
+
+        case TRB_CODE::BANDWIDTH_OVERRUN:
+            return do_format_arg(sp, "", "BANDWIDTH_OVERRUN");
+
+        case TRB_CODE::CONTEXT_STATE_ERROR:
+            return do_format_arg(sp, "", "CONTEXT_STATE_ERROR");
+
+        case TRB_CODE::NO_PINT_RESPONSE:
+            return do_format_arg(sp, "", "NO_PINT_RESPONSE");
+
+        case TRB_CODE::EVENT_RING_FULL:
+            return do_format_arg(sp, "", "EVENT_RING_FULL");
+
+        case TRB_CODE::INCOMPATIBLE_DEVICE:
+            return do_format_arg(sp, "", "INCOMPATIBLE_DEVICE");
+
+        case TRB_CODE::MISSED_SERVICE:
+            return do_format_arg(sp, "", "MISSED_SERVICE");
+
+        case TRB_CODE::COMMAND_RING_STOPPED:
+            return do_format_arg(sp, "", "COMMAND_RING_STOPPED");
+
+        case TRB_CODE::COMMAND_ABORTED:
+            return do_format_arg(sp, "", "COMMAND_ABORTED");
+
+        case TRB_CODE::STOPPED:
+            return do_format_arg(sp, "", "STOPPED");
+
+        case TRB_CODE::STOPPED_LENGTH_INVALID:
+            return do_format_arg(sp, "", "STOPPED_LENGTH_INVALID");
+
+        case TRB_CODE::STOPPED_SHORT_PACKET:
+            return do_format_arg(sp, "", "STOPPED_SHORT_PACKET");
+
+        case TRB_CODE::MAX_EXIT_LATENCY_TOO_LARGE:
+            return do_format_arg(sp, "", "MAX_EXIT_LATENCY_TOO_LARGE");
+
+        case TRB_CODE::ISOCH_BUFFER_OVERRUN:
+            return do_format_arg(sp, "", "ISOCH_BUFFER_OVERRUN");
+
+        case TRB_CODE::EVENT_LOST:
+            return do_format_arg(sp, "", "EVENT_LOST");
+
+        case TRB_CODE::UNDEFINED_ERROR:
+            return do_format_arg(sp, "", "UNDEFINED_ERROR");
+
+        case TRB_CODE::INVALID_STREAM_ID:
+            return do_format_arg(sp, "", "INVALID_STREAM_ID");
+
+        case TRB_CODE::SECONDARY_BANDWIDTH_ERROR:
+            return do_format_arg(sp, "", "SECONDARY_BANDWIDTH_ERROR");
+
+        case TRB_CODE::SPLIT_TRANSACTION_ERROR:
+            return do_format_arg(sp, "", "SPLIT_TRANSACTION_ERROR");
+
+        default:
+            return do_format_arg(sp, "", (uint32_t)arg);
+    }
+}
+
 bool xhci::address_device(uint8_t slot, uint8_t port_id) {
     xhci_request req;
 
@@ -374,8 +495,8 @@ bool xhci::address_device(uint8_t slot, uint8_t port_id) {
     delete context;
 
     // FIXME - translate into nt_status?
-    if (req.comp.completion_code != 1) {
-        print("xhci::address_device: controller returned error {}\n", req.comp.completion_code);
+    if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
+        print("xhci::address_device: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
         return false;
     }
 
@@ -570,8 +691,8 @@ uint8_t xhci::enable_slot() {
     wait_for_object(req.event.get(), false);
 
     // FIXME - translate into nt_status?
-    if (req.comp.completion_code != 1) {
-        print("xhci::enable_slot: controller returned error {}\n", req.comp.completion_code);
+    if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
+        print("xhci::enable_slot: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
         return 0;
     }
 
