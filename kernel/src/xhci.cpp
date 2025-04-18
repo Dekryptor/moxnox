@@ -105,7 +105,8 @@ public:
     ~usb_device();
     bool do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_request bRequest,
                      uint16_t wValue, uint16_t wIndex);
-    bool get_descriptor();
+    bool get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
+                        uint8_t desc_index);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
 
     void acquire() {
@@ -722,24 +723,14 @@ bool usb_device::do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_
     return true;
 }
 
-bool usb_device::get_descriptor() {
-    auto dd = new usb_device_descriptor;
-    if (!dd) {
-        print("new failed\n");
-        return false;
-    }
-
-    if (!do_transfer(span((uint8_t*)dd, sizeof(*dd)),
+bool usb_device::get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
+                                uint8_t desc_index) {
+    if (!do_transfer(buf,
                      USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
-                     usb_request::GET_DESCRIPTOR, (uint8_t)usb_descriptor::DEVICE << 8, 0)) {
+                     usb_request::GET_DESCRIPTOR, ((uint8_t)desc_type << 8) | desc_index, 0)) {
         print("usb_device::do_transfer failed\n");
-        delete dd;
         return false;
     }
-
-    memcpy(&device_descriptor, dd, sizeof(*dd));
-
-    delete dd;
 
     return true;
 }
@@ -869,7 +860,8 @@ void xhci::port_status_changed(uint8_t port_id) {
         insert_tail_list(devices, d->le);
     }
 
-    if (!d->get_descriptor()) {
+    if (!d->get_descriptor(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)),
+                           usb_descriptor::DEVICE, 0)) {
         print("usb_device::get_descriptor failed\n");
         d->release();
         return;
