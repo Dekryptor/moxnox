@@ -38,9 +38,14 @@ struct xhci_port {
     uint8_t slot;
 };
 
+class xhci;
+
 class xhci_queue {
 public:
+    xhci_queue(xhci& controller) : controller(controller) { }
+
     void initialize(uint16_t size);
+    void submit(xhci_request& req);
     ~xhci_queue();
 
     bool initialized = false;
@@ -50,6 +55,7 @@ public:
     spinlock submit_lock;
     unsigned int index = 0;
     bool cycle_bit = true;
+    xhci& controller;
 };
 
 class xhci {
@@ -57,7 +63,6 @@ public:
     xhci(pci_device& dev);
     ~xhci();
     void init_ports();
-    void submit(xhci_request& req);
     void isr();
     void port_status_change_thread();
 
@@ -65,6 +70,7 @@ public:
     pci_device& dev;
     uint32_t dboff;
     uint64_t* dcbaa = nullptr;
+    xhci_queue command_queue{*this};
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
@@ -80,7 +86,6 @@ private:
     xhci_event_ring_segment* seg_table = nullptr;
     uint8_t caplength;
     uint32_t rtsoff;
-    xhci_queue command_queue;
     object_ref port_status_change_event;
     object_ref port_status_change_thread_obj;
     spinlock port_status_change_lock;
@@ -607,7 +612,7 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
     context->ep[0].tr_dequeue_pointer = va_to_pa_phys((void*)ep0_queue_pa) | XHCI_EP_DCS;
     context->ep[0].average_trb_length = XHCI_EP0_TRB_LEN;
 
-    controller.submit(req);
+    controller.command_queue.submit(req);
 
     wait_for_object(req.event.get(), false);
 
@@ -892,38 +897,36 @@ void xhci::isr() {
                      va_to_pa_phys(&event_ring[event_ring_offset]) | XHCI_ERDP_EHB);
 }
 
-void xhci::submit(xhci_request& req) {
-    volatile auto& doorbell = *(uint32_t*)(dev.bar[0].data() + dboff);
+void xhci_queue::submit(xhci_request& req) {
+    volatile auto& doorbell = *(uint32_t*)(controller.dev.bar[0].data() + controller.dboff);
 
     req.event = create_event(true);
 
     {
-        lock_guard lock(command_queue.submit_lock);
-
-        unsigned int index = command_queue.index;
+        lock_guard lock(submit_lock);
 
         if (index == 0) {
-            auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&command_queue.ring[command_queue.size]);
-            cmd_link.cycle = command_queue.cycle_bit ? 1 : 0;
+            auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
+            cmd_link.cycle = cycle_bit ? 1 : 0;
         }
 
-        auto& trb = *(xhci_trb_common*)((uint8_t*)command_queue.ring + (index * sizeof(xhci_trb_common)));
+        auto& trb = *(xhci_trb_common*)((uint8_t*)ring + (index * sizeof(xhci_trb_common)));
 
         memcpy(&trb, &req.trb, sizeof(trb));
-        trb.cycle = command_queue.cycle_bit ? 1 : 0;
+        trb.cycle = cycle_bit ? 1 : 0;
 
-        command_queue.index++;
-
-        if (command_queue.index == command_queue.size) {
-            command_queue.index = 0;
-            command_queue.cycle_bit = !command_queue.cycle_bit;
-        }
-
-        command_queue.reqs[index] = &req;
+        reqs[index] = &req;
 
         barrier();
 
         doorbell = 0;
+
+        index++;
+
+        if (index == size) {
+            index = 0;
+            cycle_bit = !cycle_bit;
+        }
     }
 }
 
@@ -940,7 +943,7 @@ uint8_t xhci::enable_slot(uint8_t slot_type) {
 #pragma GCC diagnostic pop
     s.trb_type = (uint32_t)xhci_trb_type::enable_slot_command;
 
-    submit(req);
+    command_queue.submit(req);
 
     wait_for_object(req.event.get(), false);
 
