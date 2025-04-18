@@ -38,6 +38,20 @@ struct xhci_port {
     uint8_t slot;
 };
 
+class xhci_queue {
+public:
+    void initialize(uint16_t size);
+    ~xhci_queue();
+
+    bool initialized = false;
+    uint16_t size;
+    xhci_trb_common* ring = nullptr;
+    xhci_request** reqs = nullptr;
+    spinlock submit_lock;
+    unsigned int index = 0;
+    bool cycle_bit = true;
+};
+
 class xhci {
 public:
     xhci(pci_device& dev);
@@ -61,16 +75,12 @@ private:
     bool reset_port(uint8_t port_id);
 
     uint8_t num_slots, num_ports;
-    xhci_trb_common* command_ring = nullptr;
     xhci_trb_common* event_ring = nullptr;
     unsigned int event_ring_offset = 0;
     xhci_event_ring_segment* seg_table = nullptr;
     uint8_t caplength;
     uint32_t rtsoff;
-    xhci_request* reqs[COMMAND_RING_SIZE];
-    spinlock submit_lock;
-    unsigned int command_ring_index = 0;
-    bool cycle_bit = true;
+    xhci_queue command_queue;
     object_ref port_status_change_event;
     object_ref port_status_change_thread_obj;
     spinlock port_status_change_lock;
@@ -105,6 +115,39 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
 
 static void xhci_isr_func(void* ctx) {
     ((xhci*)ctx)->isr();
+}
+
+xhci_queue::~xhci_queue() {
+    if (ring)
+        free(ring);
+
+    if (reqs)
+        free(reqs);
+}
+
+void xhci_queue::initialize(uint16_t size) {
+    ring = (xhci_trb_common*)malloc((size + 1) * sizeof(xhci_trb_common));
+    if (!ring) {
+        print("malloc failed\n");
+        return;
+    }
+
+    reqs = (xhci_request**)malloc(sizeof(xhci_request*) * size);
+    if (!reqs) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memset(ring, 0, (size + 1) * sizeof(xhci_trb_common));
+
+    auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
+    cmd_link.ring_segment_pointer = va_to_pa_phys(ring);
+    cmd_link.toggle_cycle = 1;
+    cmd_link.trb_type = (uint16_t)xhci_trb_type::link;
+
+    this->size = size;
+
+    initialized = true;
 }
 
 xhci::xhci(pci_device& dev) : dev(dev) {
@@ -226,20 +269,9 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     write_volatile64(&op_regs.DCBAAP, va_to_pa_phys(dcbaa));
 
-    command_ring = (xhci_trb_common*)malloc((COMMAND_RING_SIZE + 1) * sizeof(xhci_trb_common));
-    if (!command_ring) {
-        print("malloc failed\n");
-        return;
-    }
+    command_queue.initialize(COMMAND_RING_SIZE);
 
-    memset(command_ring, 0, (COMMAND_RING_SIZE + 1) * sizeof(xhci_trb_common));
-
-    auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&command_ring[COMMAND_RING_SIZE]);
-    cmd_link.ring_segment_pointer = va_to_pa_phys(command_ring);
-    cmd_link.toggle_cycle = 1;
-    cmd_link.trb_type = (uint16_t)xhci_trb_type::link;
-
-    write_volatile64(&op_regs.CRCR, va_to_pa_phys(command_ring) | 1);
+    write_volatile64(&op_regs.CRCR, va_to_pa_phys(command_queue.ring) | 1);
 
     op_regs.CONFIG = (op_regs.CONFIG & ~(uint32_t)0xff) | num_slots;
 
@@ -330,9 +362,6 @@ xhci::~xhci() {
     if (dcbaa)
         free(dcbaa);
 
-    if (command_ring)
-        free(command_ring);
-
     if (event_ring)
         free(event_ring);
 
@@ -403,11 +432,11 @@ void xhci::init_ports() {
 void xhci::isr_command_completion(xhci_trb_command_completion& comp) {
     auto ptr = phys_address(comp.command_trb_pointer);
 
-    if (ptr < command_ring || ptr >= command_ring + COMMAND_RING_SIZE)
+    if (ptr < command_queue.ring || ptr >= command_queue.ring + command_queue.size)
         return;
 
-    size_t index = (size_t)((uint8_t*)ptr - (uint8_t*)command_ring) / sizeof(xhci_trb_common);
-    auto& req = *reqs[index];
+    size_t index = (size_t)((uint8_t*)ptr - (uint8_t*)command_queue.ring) / sizeof(xhci_trb_common);
+    auto& req = *command_queue.reqs[index];
 
     memcpy(&req.comp, &comp, sizeof(comp));
 
@@ -869,28 +898,28 @@ void xhci::submit(xhci_request& req) {
     req.event = create_event(true);
 
     {
-        lock_guard lock(submit_lock);
+        lock_guard lock(command_queue.submit_lock);
 
-        unsigned int index = command_ring_index;
+        unsigned int index = command_queue.index;
 
         if (index == 0) {
-            auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&command_ring[COMMAND_RING_SIZE]);
-            cmd_link.cycle = cycle_bit ? 1 : 0;
+            auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&command_queue.ring[command_queue.size]);
+            cmd_link.cycle = command_queue.cycle_bit ? 1 : 0;
         }
 
-        auto& trb = *(xhci_trb_common*)((uint8_t*)command_ring + (index * sizeof(xhci_trb_common)));
+        auto& trb = *(xhci_trb_common*)((uint8_t*)command_queue.ring + (index * sizeof(xhci_trb_common)));
 
         memcpy(&trb, &req.trb, sizeof(trb));
-        trb.cycle = cycle_bit ? 1 : 0;
+        trb.cycle = command_queue.cycle_bit ? 1 : 0;
 
-        command_ring_index++;
+        command_queue.index++;
 
-        if (command_ring_index == COMMAND_RING_SIZE) {
-            command_ring_index = 0;
-            cycle_bit = !cycle_bit;
+        if (command_queue.index == command_queue.size) {
+            command_queue.index = 0;
+            command_queue.cycle_bit = !command_queue.cycle_bit;
         }
 
-        reqs[index] = &req;
+        command_queue.reqs[index] = &req;
 
         barrier();
 
