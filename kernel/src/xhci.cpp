@@ -50,18 +50,17 @@ public:
     bool initialized = false;
     pci_device& dev;
     uint32_t dboff;
+    uint64_t* dcbaa = nullptr;
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
     void isr_port_status_change(xhci_trb_port_status_change& psc);
     void port_status_changed(uint8_t port_id);
     uint8_t enable_slot(uint8_t slot_type);
-    bool address_device(uint8_t slot, uint8_t speed, uint8_t port_id);
     uint8_t get_port_slot_type(uint8_t port_id);
     bool reset_port(uint8_t port_id);
 
     uint8_t num_slots, num_ports;
-    uint64_t* dcbaa = nullptr;
     xhci_trb_common* command_ring = nullptr;
     xhci_trb_common* event_ring = nullptr;
     unsigned int event_ring_offset = 0;
@@ -81,7 +80,8 @@ private:
 
 class usb_device {
 public:
-    usb_device(xhci& controller, uint8_t slot, uint8_t speed, uint8_t port_id);
+    usb_device(xhci& controller, xhci_device_context& devctx,
+               uint8_t slot, uint8_t speed, uint8_t port_id);
     ~usb_device();
     void setup_stage();
 
@@ -93,6 +93,7 @@ public:
 
 private:
     xhci& controller;
+    xhci_device_context& devctx;
     uint8_t slot;
     spinlock ep0_submit_lock;
 };
@@ -533,7 +534,8 @@ span<char> do_format_arg(span<char> sp, string_view, enum TRB_CODE arg) {
     }
 }
 
-usb_device::usb_device(xhci& controller, uint8_t slot, uint8_t speed, uint8_t port_id) : controller(controller) {
+usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t slot,
+                       uint8_t speed, uint8_t port_id) : controller(controller), devctx(devctx) {
     xhci_request req;
 
     this->slot = slot;
@@ -584,7 +586,7 @@ usb_device::usb_device(xhci& controller, uint8_t slot, uint8_t speed, uint8_t po
 
     // FIXME - translate into nt_status?
     if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
-        print("xhci::address_device: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
+        print("usb_device::usb_device: controller returned error {} for address device\n", (enum TRB_CODE)req.comp.completion_code);
         return;
     }
 
@@ -594,6 +596,11 @@ usb_device::usb_device(xhci& controller, uint8_t slot, uint8_t speed, uint8_t po
 usb_device::~usb_device() {
     if (ep0_queue_pa)
         free_folio(ep0_queue_pa);
+
+    // FIXME - disable slot
+
+    controller.dcbaa[slot] = 0;
+    delete &devctx;
 }
 
 void usb_device::setup_stage() {
@@ -648,18 +655,6 @@ void usb_device::setup_stage() {
     }
 
     // FIXME - wait
-}
-
-bool xhci::address_device(uint8_t slot, uint8_t speed, uint8_t port_id) {
-    usb_device d(*this, slot, speed, port_id);
-
-    if (!d.initialized)
-        return false;
-
-    d.setup_stage();
-    // FIXME
-
-    return true;
 }
 
 static void copy_by_uint32(volatile void* src, volatile void* dest, size_t size) {
@@ -762,17 +757,30 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     dcbaa[slot] = va_to_pa_phys(devctx);
 
-    if (!address_device(slot, (portsc & XHCI_PORTSC_SPEED) >> XHCI_PORTSC_SPEED_SHIFT, port_id)) {
-        print("xhci::address_device failed\n");
+    auto d = new usb_device(*this, *devctx, slot,
+                            (portsc & XHCI_PORTSC_SPEED) >> XHCI_PORTSC_SPEED_SHIFT,
+                            port_id);
+    if (!d) {
+        print("new failed\n");
         delete devctx;
         dcbaa[slot] = 0;
         // FIXME - disable slot
         return;
     }
 
+    if (!d->initialized) {
+        print("usb_device::usb_device failed\n");
+        delete d;
+        return;
+    }
+
     print("received address {}\n", devctx->slot.usb_device_address);
 
     // FIXME - get device descriptor etc.
+
+    d->setup_stage();
+
+    // FIXME - put d in list of USB devices
 }
 
 void xhci::port_status_change_thread() {
