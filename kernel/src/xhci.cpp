@@ -49,8 +49,9 @@ private:
     void isr_command_completion(xhci_trb_command_completion& comp);
     void isr_port_status_change(xhci_trb_port_status_change& psc);
     void port_status_changed(uint8_t port_id);
-    uint8_t enable_slot();
+    uint8_t enable_slot(uint8_t slot_type);
     bool address_device(uint8_t slot, uint8_t port_id);
+    uint8_t get_port_slot_type(uint8_t port_id);
 
     pci_device& dev;
     uint8_t num_slots, num_ports;
@@ -481,7 +482,7 @@ bool xhci::address_device(uint8_t slot, uint8_t port_id) {
         return false;
     }
 
-    context->slot.route_hub_port_number = port_id + 1;
+    context->slot.route_hub_port_number = port_id;
     context->slot.context_entries = 1;
 
     context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
@@ -504,6 +505,52 @@ bool xhci::address_device(uint8_t slot, uint8_t port_id) {
     return true;
 }
 
+static void copy_by_uint32(volatile void* src, volatile void* dest, size_t size) {
+    auto src2 = (volatile uint32_t*)src;
+    auto dest2 = (volatile uint32_t*)dest;
+
+    while (size >= sizeof(uint32_t)) {
+        *dest2 = *src2;
+        src2++;
+        dest2++;
+        size -= sizeof(uint32_t);
+    }
+}
+
+uint8_t xhci::get_port_slot_type(uint8_t port_id) {
+    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
+
+    // FIXME - make sure we don't overflow BAR
+
+    volatile auto* ptr = (uint32_t*)(dev.bar[0].data() + (xecp << 2));
+
+    while (true) {
+        xhci_extended_capability cap;
+
+        *(uint32_t*)&cap = *ptr;
+
+        if (cap.cap_type == xhci_capability_type::supported_protocol) {
+            xhci_supported_protocol prot;
+
+            // Qemu insists that we read 32 bits at a time
+            copy_by_uint32(ptr, &prot, sizeof(prot));
+
+            if (port_id >= prot.port_offset && port_id < prot.port_offset + prot.port_count)
+                return prot.slot_type;
+        }
+
+        if (cap.next_cap == 0)
+            break;
+
+        ptr += cap.next_cap;
+    }
+
+    print("xhci::get_port_slot_type: could not find port {} in capabilities\n", port_id);
+
+    return 0;
+}
+
 void xhci::port_status_changed(uint8_t port_id) {
     print("xhci::port_status_changed: {}\n", port_id);
 
@@ -512,14 +559,15 @@ void xhci::port_status_changed(uint8_t port_id) {
         return;
     }
 
-    port_id--;
-
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)dev.bar[0].data() + caplength);
+    auto portsc = op_regs.ports[port_id - 1].PORTSC;
 
-    bool device_present = op_regs.ports[port_id].PORTSC & XHCI_PORTSC_CCS;
+    bool device_present = portsc & XHCI_PORTSC_CCS;
+
+    auto& p = ports[port_id - 1];
 
     // ignore spurious messages from controller
-    if ((device_present && ports[port_id].slot != 0) || (!device_present && ports[port_id].slot == 0))
+    if ((device_present && p.slot != 0) || (!device_present && p.slot == 0))
         return;
 
     if (!device_present) {
@@ -536,14 +584,14 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     memset(devctx, 0, sizeof(*devctx));
 
-    auto slot = enable_slot();
+    auto slot = enable_slot(get_port_slot_type(port_id));
     if (slot == 0) {
         print("xhci::port_status_changed: could not enable slot\n");
         delete devctx;
         return;
     }
 
-    ports[port_id].slot = slot;
+    p.slot = slot;
 
     print("slot {}\n", slot);
 
@@ -677,14 +725,17 @@ void xhci::submit(xhci_request& req) {
     }
 }
 
-uint8_t xhci::enable_slot() {
+uint8_t xhci::enable_slot(uint8_t slot_type) {
     xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_enable_slot*>(&req.trb);
 
     memset(&s, 0, sizeof(s));
 
-    s.slot_type = 0; // FIXME
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    s.slot_type = slot_type;
+#pragma GCC diagnostic pop
     s.trb_type = (uint32_t)xhci_trb_type::enable_slot_command;
 
     submit(req);

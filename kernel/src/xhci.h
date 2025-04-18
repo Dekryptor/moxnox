@@ -15,6 +15,9 @@ struct xhci_cap_regs {
 
 static_assert(sizeof(xhci_cap_regs) == 0x20);
 
+static const uint32_t XHCI_HCCPARAMS1_XECP = 0xffff0000;
+static const size_t XHCI_HCCPARAMS1_XECP_SHIFT = 16;
+
 struct xhci_port_regs {
     uint32_t PORTSC;
     uint32_t PORTPMSC;
@@ -321,6 +324,41 @@ struct xhci_input_context {
     xhci_input_control_context control;
     xhci_slot_context slot;
     xhci_endpoint_context ep[31];
-};
+} __attribute((packed));
 
 static_assert(sizeof(xhci_input_context) == 0x420);
+
+enum class xhci_capability_type : uint8_t {
+    usb_legacy_support = 1,
+    supported_protocol = 2,
+    extended_power_management = 3,
+    io_virtualization = 4,
+    message_interrupt = 5,
+    local_memory = 6,
+    usb_debug_capability = 10,
+    extended_message_interrupt = 17
+};
+
+struct xhci_extended_capability {
+    enum xhci_capability_type cap_type;
+    uint8_t next_cap;
+    uint16_t cap_spec;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_extended_capability) == 0x4);
+
+struct xhci_supported_protocol {
+    uint32_t cap_id : 8;
+    uint32_t next_cap : 8;
+    uint32_t revision_minor : 8;
+    uint32_t revision_major : 8;
+    uint32_t name_string;
+    uint32_t port_offset : 8;
+    uint32_t port_count : 8;
+    uint32_t protocol_defined : 12;
+    uint32_t psic : 4;
+    uint32_t slot_type : 5;
+    uint32_t reserved : 27;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_supported_protocol) == 0x10);
