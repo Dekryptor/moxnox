@@ -103,7 +103,8 @@ public:
     usb_device(xhci& controller, xhci_device_context& devctx,
                uint8_t slot, uint8_t speed, uint8_t port_id);
     ~usb_device();
-    bool do_transfer(span<uint8_t> buf);
+    bool do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_request bRequest,
+                     uint16_t wValue, uint16_t wIndex);
     bool get_descriptor();
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
 
@@ -658,7 +659,8 @@ usb_device::~usb_device() {
     }
 }
 
-bool usb_device::do_transfer(span<uint8_t> buf) {
+bool usb_device::do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_request bRequest,
+                             uint16_t wValue, uint16_t wIndex) {
     xhci_request req_setup, req_data, req_status;
 
     {
@@ -666,15 +668,21 @@ bool usb_device::do_transfer(span<uint8_t> buf) {
 
         memset(&s, 0, sizeof(s));
 
-        s.bmRequestType = 0x80; // device to host, standard, recipient is device (FIXME)
-        s.bRequest = 6; // GET_DESCRIPTOR (FIXME)
-        s.wValue = 0x100; // device (FIXME)
-        s.wIndex = 0; // FIXME
+        s.bmRequestType = bmRequestType;
+        s.bRequest = (uint8_t)bRequest;
+        s.wValue = wValue;
+        s.wIndex = wIndex;
         s.wLength = (uint16_t)buf.size();
         s.trb_transfer_length = 8;
         s.idt = 1;
         s.trb_type = (uint32_t)xhci_trb_type::setup_stage;
-        s.transfer_type = 2; // OUT (FIXME)
+
+        if (buf.empty())
+            s.transfer_type = 0; // no data
+        else if (bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)
+            s.transfer_type = 3; // IN
+        else
+            s.transfer_type = 2; // OUT
 
         ep0_queue.submit(req_setup, false);
     }
@@ -687,7 +695,7 @@ bool usb_device::do_transfer(span<uint8_t> buf) {
         s.data_buffer = va_to_pa_phys(buf.data());
         s.trb_transfer_length = (uint16_t)buf.size();
         s.trb_type = (uint16_t)xhci_trb_type::data_stage;
-        s.dir = 1; // FIXME;
+        s.dir = !!(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST);
 
         ep0_queue.submit(req_data, true);
     }
@@ -699,7 +707,7 @@ bool usb_device::do_transfer(span<uint8_t> buf) {
 
         s.ioc = 1;
         s.trb_type = (uint16_t)xhci_trb_type::status_stage;
-        s.dir = 1; // FIXME
+        s.dir = buf.empty() || !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST);
 
         ep0_queue.submit(req_status, true);
     }
@@ -721,7 +729,9 @@ bool usb_device::get_descriptor() {
         return false;
     }
 
-    if (!do_transfer(span((uint8_t*)dd, sizeof(*dd)))) {
+    if (!do_transfer(span((uint8_t*)dd, sizeof(*dd)),
+                     USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
+                     usb_request::GET_DESCRIPTOR, (uint8_t)usb_descriptor::DEVICE << 8, 0)) {
         print("usb_device::do_transfer failed\n");
         delete dd;
         return false;

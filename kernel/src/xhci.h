@@ -264,6 +264,61 @@ struct xhci_trb_setup_stage {
 
 static_assert(sizeof(xhci_trb_setup_stage) == sizeof(xhci_trb_common));
 
+static const uint8_t USB_REQUEST_TYPE_HOST_TO_DEVICE = 0x00;
+static const uint8_t USB_REQUEST_TYPE_DEVICE_TO_HOST = 0x80;
+static const uint8_t USB_REQUEST_TYPE_STANDARD = 0x00;
+static const uint8_t USB_REQUEST_TYPE_CLASS = 0x20;
+static const uint8_t USB_REQUEST_TYPE_VENDOR = 0x40;
+static const uint8_t USB_REQUEST_TYPE_RECIPIENT_DEVICE = 0x00;
+static const uint8_t USB_REQUEST_TYPE_RECIPIENT_INTERFACE = 0x01;
+static const uint8_t USB_REQUEST_TYPE_RECIPIENT_ENDPOINT = 0x02;
+static const uint8_t USB_REQUEST_TYPE_RECIPIENT_OTHER = 0x03;
+
+enum class usb_request : uint8_t {
+    GET_STATUS = 0,
+    CLEAR_FEATURE = 1,
+    SET_FEATURE = 3,
+    SET_ADDRESS = 5,
+    GET_DESCRIPTOR = 6,
+    SET_DESCRIPTOR = 7,
+    GET_CONFIGURATION = 8,
+    SET_CONFIGURATION = 9,
+    GET_INTERFACE = 10,
+    SET_INTERFACE = 11,
+    SYNCH_FRAME = 12,
+    SET_ENCRYPTION = 13,
+    GET_ENCRYPTION = 14,
+    SET_HANDSHAKE = 15,
+    GET_HANDSHAKE = 16,
+    SET_CONNECTION = 17,
+    SET_SECURITY_DATA = 18,
+    GET_SECURITY_DATA = 19,
+    SET_WUSB_DATA = 20,
+    LOOPBACK_DATA_WRITE = 21,
+    LOOPBACK_DATA_READ = 22,
+    SET_INTERFACE_DS = 23,
+    GET_FW_STATUS = 26,
+    SET_FW_STATUS = 27,
+    SET_SEL = 48,
+    SET_ISOCH_DELAY = 49,
+};
+
+enum class usb_descriptor {
+    DEVICE = 1,
+    CONFIGURATION = 2,
+    STRING = 3,
+    INTERFACE = 4,
+    ENDPOINT = 5,
+    INTERFACE_POWER = 8,
+    OTG = 9,
+    _DEBUG = 10,
+    INTERFACE_ASSOCIATION = 11,
+    BOS = 15,
+    DEVICE_CAPABILITY = 16,
+    SUPERSPEED_USB_ENDPOINT_COMPANION = 48,
+    SUPERSPEEDPLUS_ISOCHRONOUS_ENDPOINT_COMPANION = 49,
+};
+
 struct xhci_trb_data_stage {
     uint64_t data_buffer;
     uint32_t trb_transfer_length : 17;
