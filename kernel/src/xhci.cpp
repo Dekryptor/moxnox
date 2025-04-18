@@ -654,7 +654,7 @@ usb_device::~usb_device() {
     controller.dcbaa[slot] = 0;
     delete &devctx;
 
-    {
+    if (initialized) {
         lock_guard lock(controller.devices_lock);
         remove_entry_list(le);
     }
@@ -852,13 +852,12 @@ void xhci::port_status_changed(uint8_t port_id) {
         return;
     }
 
-    print("received address {}\n", devctx->slot.usb_device_address);
-
     {
         lock_guard lock(devices_lock);
-
         insert_tail_list(devices, d->le);
     }
+
+    print("received address {}\n", devctx->slot.usb_device_address);
 
     if (!d->get_descriptor(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)),
                            usb_descriptor::DEVICE, 0)) {
