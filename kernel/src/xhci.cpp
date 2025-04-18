@@ -20,6 +20,8 @@ using namespace std;
 static const uint16_t EVENT_RING_SIZE = 64;
 static const uint16_t COMMAND_RING_SIZE = 64;
 
+static const int64_t ONE_MS_TICKS = 10000;
+
 struct xhci_request {
     xhci_trb_common trb;
     xhci_trb_command_completion comp;
@@ -133,26 +135,58 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
 
-    op_regs.USBCMD &= ~XHCI_USBCMD_RS; // unset run bit
-    for (unsigned int i = 0; i < 16; i++) { // specs say we should wait up to 16ms
-        if (op_regs.USBSTS & 1) // halted
-            break;
+    {
+        auto tim_ref = create_timer(true);
+        if (!tim_ref) {
+            print("xhci::xhci: create_timer failed\n");
+            return;
+        }
 
-        pit_delay(PIT_HZ / 1000); // wait 1ms
+        auto& tim = static_cast<timer&>(tim_ref.get());
+
+        auto status = tim.set(-ONE_MS_TICKS, nullptr, nullptr, false, 1, nullptr);
+        if (!success(status)) {
+            print("xhci::xhci: timer::set returned {}\n", status);
+            return;
+        }
+
+        op_regs.USBCMD &= ~XHCI_USBCMD_RS; // unset run bit
+        for (unsigned int i = 0; i < 16; i++) { // specs say we should wait up to 16ms
+            if (op_regs.USBSTS & 1) // halted
+                break;
+
+            wait_for_object(tim, true); // wait 1ms
+        }
     }
 
     op_regs.USBCMD = XHCI_USBCMD_HCRST; // reset
 
     bool reset_done = false;
 
-    // wait for reset to complete
-    for (unsigned int i = 0; i < 500; i++) {
-        if (!(op_regs.USBCMD & XHCI_USBCMD_HCRST)) {
-            reset_done = true;
-            break;
+    {
+        auto tim_ref = create_timer(true);
+        if (!tim_ref) {
+            print("xhci::xhci: create_timer failed\n");
+            return;
         }
 
-        pit_delay(PIT_HZ / 1000); // wait 1ms
+        auto& tim = static_cast<timer&>(tim_ref.get());
+
+        auto status = tim.set(-ONE_MS_TICKS, nullptr, nullptr, false, 1, nullptr);
+        if (!success(status)) {
+            print("xhci::xhci: timer::set returned {}\n", status);
+            return;
+        }
+
+        // wait for reset to complete
+        for (unsigned int i = 0; i < 500; i++) {
+            if (!(op_regs.USBCMD & XHCI_USBCMD_HCRST)) {
+                reset_done = true;
+                break;
+            }
+
+            wait_for_object(tim, true); // wait 1ms
+        }
     }
 
     if (!reset_done) {
