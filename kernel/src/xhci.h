@@ -243,6 +243,27 @@ struct xhci_trb_address_device {
 
 static_assert(sizeof(xhci_trb_address_device) == sizeof(xhci_trb_common));
 
+struct xhci_trb_setup_stage {
+    uint8_t bmRequestType;
+    uint8_t bRequest;
+    uint16_t wValue;
+    uint16_t wIndex;
+    uint16_t wLength;
+    uint32_t trb_transfer_length : 17;
+    uint32_t reserved1 : 5;
+    uint32_t interrupter_target : 10;
+    uint32_t cycle : 1;
+    uint32_t reserved2 : 4;
+    uint32_t ioc : 1;
+    uint32_t idt : 1;
+    uint32_t reserved3 : 3;
+    uint32_t trb_type : 6;
+    uint32_t transfer_type : 2;
+    uint32_t reserved4 : 14;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_setup_stage) == sizeof(xhci_trb_common));
+
 struct xhci_slot_context {
     uint32_t route_string : 20;
     uint32_t speed : 4;
@@ -365,3 +386,22 @@ struct xhci_supported_protocol {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_supported_protocol) == 0x10);
+
+struct usb_device_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint16_t bcdUSB;
+    uint8_t bDeviceClass;
+    uint8_t bDeviceSubClass;
+    uint8_t bDeviceProtocol;
+    uint8_t bMaxPacketSize0;
+    uint16_t idVendor;
+    uint16_t idProduct;
+    uint16_t bcdDevice;
+    uint8_t iManufacturer;
+    uint8_t iProduct;
+    uint8_t iSerialNumber;
+    uint8_t bNumConfigurations;
+} __attribute((packed));
+
+static_assert(sizeof(usb_device_descriptor) == 0x12);

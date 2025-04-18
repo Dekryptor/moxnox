@@ -19,6 +19,7 @@ using namespace std;
 
 static const uint16_t EVENT_RING_SIZE = 64;
 static const uint16_t COMMAND_RING_SIZE = 64;
+static const uint16_t EP0_RING_SIZE = 64; // FIXME
 
 static const int64_t ONE_MS_TICKS = 10000;
 
@@ -47,6 +48,8 @@ public:
     void port_status_change_thread();
 
     bool initialized = false;
+    pci_device& dev;
+    uint32_t dboff;
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
@@ -57,7 +60,6 @@ private:
     uint8_t get_port_slot_type(uint8_t port_id);
     bool reset_port(uint8_t port_id);
 
-    pci_device& dev;
     uint8_t num_slots, num_ports;
     uint64_t* dcbaa = nullptr;
     xhci_trb_common* command_ring = nullptr;
@@ -65,7 +67,6 @@ private:
     unsigned int event_ring_offset = 0;
     xhci_event_ring_segment* seg_table = nullptr;
     uint8_t caplength;
-    uint32_t dboff;
     uint32_t rtsoff;
     xhci_request* reqs[COMMAND_RING_SIZE];
     spinlock submit_lock;
@@ -82,12 +83,18 @@ class usb_device {
 public:
     usb_device(xhci& controller, uint8_t slot, uint8_t speed, uint8_t port_id);
     ~usb_device();
+    void setup_stage();
 
     bool initialized = false;
     uint64_t ep0_queue_pa = 0;
+    unsigned int ep0_ring_index = 0;
+    bool ep0_cycle_bit = true;
+    xhci_request* ep0_reqs[EP0_RING_SIZE];
 
 private:
     xhci& controller;
+    uint8_t slot;
+    spinlock ep0_submit_lock;
 };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -527,7 +534,9 @@ span<char> do_format_arg(span<char> sp, string_view, enum TRB_CODE arg) {
 }
 
 usb_device::usb_device(xhci& controller, uint8_t slot, uint8_t speed, uint8_t port_id) : controller(controller) {
-        xhci_request req;
+    xhci_request req;
+
+    this->slot = slot;
 
     auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
 
@@ -587,12 +596,67 @@ usb_device::~usb_device() {
         free_folio(ep0_queue_pa);
 }
 
+void usb_device::setup_stage() {
+    xhci_request req;
+    usb_device_descriptor dd; // FIXME
+
+    auto& s = *reinterpret_cast<xhci_trb_setup_stage*>(&req.trb);
+
+    memset(&s, 0, sizeof(s));
+
+    s.bmRequestType = 0x80; // device to host, standard, recipient is device (FIXME)
+    s.bRequest = 6; // GET_DESCRIPTOR (FIXME)
+    s.wValue = 1; // device (FIXME)
+    s.wIndex = 0; // FIXME
+    s.wLength = sizeof(dd);
+    s.trb_transfer_length = 8;
+    s.ioc = 1;
+    s.idt = 1;
+    s.trb_type = (uint32_t)xhci_trb_type::setup_stage;
+    s.transfer_type = 2; // OUT (FIXME)
+
+    volatile auto& doorbell = *(uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t)));
+    auto ep0_queue = (xhci_trb_common*)phys_address(ep0_queue_pa);
+
+    {
+        lock_guard lock(ep0_submit_lock);
+
+        unsigned int index = ep0_ring_index;
+
+        if (index == 0) {
+            auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ep0_queue[EP0_RING_SIZE]);
+            cmd_link.cycle = ep0_cycle_bit ? 1 : 0;
+        }
+
+        auto& trb = *(xhci_trb_common*)((uint8_t*)ep0_queue + (index * sizeof(xhci_trb_common)));
+
+        memcpy(&trb, &req.trb, sizeof(trb));
+        trb.cycle = ep0_cycle_bit ? 1 : 0;
+
+        ep0_ring_index++;
+
+        if (ep0_ring_index == EP0_RING_SIZE) {
+            ep0_ring_index = 0;
+            ep0_cycle_bit = !ep0_cycle_bit;
+        }
+
+        ep0_reqs[index] = &req;
+
+        barrier();
+
+        doorbell = 1; // FIXME
+    }
+
+    // FIXME - wait
+}
+
 bool xhci::address_device(uint8_t slot, uint8_t speed, uint8_t port_id) {
     usb_device d(*this, slot, speed, port_id);
 
     if (!d.initialized)
         return false;
 
+    d.setup_stage();
     // FIXME
 
     return true;
