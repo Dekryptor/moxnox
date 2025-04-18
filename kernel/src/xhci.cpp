@@ -103,6 +103,7 @@ public:
     usb_device(xhci& controller, xhci_device_context& devctx,
                uint8_t slot, uint8_t speed, uint8_t port_id);
     ~usb_device();
+    bool do_transfer(span<uint8_t> buf);
     bool get_descriptor();
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
 
@@ -119,6 +120,7 @@ public:
     bool initialized = false;
     xhci_queue ep0_queue;
     uint8_t slot;
+    usb_device_descriptor device_descriptor;
 
 private:
     xhci& controller;
@@ -651,14 +653,8 @@ usb_device::~usb_device() {
     delete &devctx;
 }
 
-bool usb_device::get_descriptor() {
+bool usb_device::do_transfer(span<uint8_t> buf) {
     xhci_request req_setup, req_data, req_status;
-
-    auto dd = new usb_device_descriptor;
-    if (!dd) {
-        print("new failed\n");
-        return false;
-    }
 
     {
         auto& s = *reinterpret_cast<xhci_trb_setup_stage*>(&req_setup.trb);
@@ -669,7 +665,7 @@ bool usb_device::get_descriptor() {
         s.bRequest = 6; // GET_DESCRIPTOR (FIXME)
         s.wValue = 0x100; // device (FIXME)
         s.wIndex = 0; // FIXME
-        s.wLength = sizeof(*dd);
+        s.wLength = (uint16_t)buf.size();
         s.trb_transfer_length = 8;
         s.idt = 1;
         s.trb_type = (uint32_t)xhci_trb_type::setup_stage;
@@ -678,13 +674,13 @@ bool usb_device::get_descriptor() {
         ep0_queue.submit(req_setup, false);
     }
 
-    {
+    if (!buf.empty()) {
         auto& s = *reinterpret_cast<xhci_trb_data_stage*>(&req_data.trb);
 
         memset(&s, 0, sizeof(s));
 
-        s.data_buffer = va_to_pa_phys(dd);
-        s.trb_transfer_length = sizeof(*dd);
+        s.data_buffer = va_to_pa_phys(buf.data());
+        s.trb_transfer_length = (uint16_t)buf.size();
         s.trb_type = (uint16_t)xhci_trb_type::data_stage;
         s.dir = 1; // FIXME;
 
@@ -706,12 +702,27 @@ bool usb_device::get_descriptor() {
     wait_for_object(req_status.event.get(), false);
 
     if ((enum TRB_CODE)req_status.ev.completion_code != TRB_CODE::SUCCESS) {
-        print("usb_device::get_descriptor: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
+        print("usb_device::do_transfer: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
+        return false;
+    }
+
+    return true;
+}
+
+bool usb_device::get_descriptor() {
+    auto dd = new usb_device_descriptor;
+    if (!dd) {
+        print("new failed\n");
+        return false;
+    }
+
+    if (!do_transfer(span((uint8_t*)dd, sizeof(*dd)))) {
+        print("usb_device::do_transfer failed\n");
         delete dd;
         return false;
     }
 
-    // FIXME
+    memcpy(&device_descriptor, dd, sizeof(*dd));
 
     delete dd;
 
@@ -843,9 +854,16 @@ void xhci::port_status_changed(uint8_t port_id) {
         insert_tail_list(devices, d->le);
     }
 
-    // FIXME - get device descriptor etc.
+    if (!d->get_descriptor()) {
+        print("usb_device::get_descriptor failed\n");
+        d->release();
+        return;
+    }
 
-    d->get_descriptor();
+    print("found USB device {:04x}:{:04x}\n", d->device_descriptor.idVendor,
+          d->device_descriptor.idProduct);
+
+    // FIXME
 }
 
 void xhci::port_status_change_thread() {
