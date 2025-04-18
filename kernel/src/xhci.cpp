@@ -44,7 +44,7 @@ class xhci_queue {
 public:
     void initialize(uint16_t size, volatile uint32_t* doorbell,
                     uint32_t doorbell_val);
-    void submit(xhci_request& req);
+    void submit(xhci_request& req, bool ring_bell);
     ~xhci_queue();
 
     bool initialized = false;
@@ -98,7 +98,7 @@ public:
     usb_device(xhci& controller, xhci_device_context& devctx,
                uint8_t slot, uint8_t speed, uint8_t port_id);
     ~usb_device();
-    void setup_stage();
+    void get_descriptor();
 
     bool initialized = false;
     xhci_queue ep0_queue;
@@ -612,7 +612,7 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
     context->ep[0].tr_dequeue_pointer = va_to_pa_phys((void*)ep0_queue.ring) | XHCI_EP_DCS;
     context->ep[0].average_trb_length = XHCI_EP0_TRB_LEN;
 
-    controller.command_queue.submit(req);
+    controller.command_queue.submit(req, true);
 
     wait_for_object(req.event.get(), false);
 
@@ -634,28 +634,61 @@ usb_device::~usb_device() {
     delete &devctx;
 }
 
-void usb_device::setup_stage() {
-    xhci_request req;
-    usb_device_descriptor dd; // FIXME
+void usb_device::get_descriptor() {
+    xhci_request req_setup, req_data, req_status;
 
-    auto& s = *reinterpret_cast<xhci_trb_setup_stage*>(&req.trb);
+    auto dd = new usb_device_descriptor;
+    if (!dd) {
+        print("new failed\n");
+        return;
+    }
 
-    memset(&s, 0, sizeof(s));
+    {
+        auto& s = *reinterpret_cast<xhci_trb_setup_stage*>(&req_setup.trb);
 
-    s.bmRequestType = 0x80; // device to host, standard, recipient is device (FIXME)
-    s.bRequest = 6; // GET_DESCRIPTOR (FIXME)
-    s.wValue = 1; // device (FIXME)
-    s.wIndex = 0; // FIXME
-    s.wLength = sizeof(dd);
-    s.trb_transfer_length = 8;
-    s.ioc = 1;
-    s.idt = 1;
-    s.trb_type = (uint32_t)xhci_trb_type::setup_stage;
-    s.transfer_type = 2; // OUT (FIXME)
+        memset(&s, 0, sizeof(s));
 
-    ep0_queue.submit(req);
+        s.bmRequestType = 0x80; // device to host, standard, recipient is device (FIXME)
+        s.bRequest = 6; // GET_DESCRIPTOR (FIXME)
+        s.wValue = 0x100; // device (FIXME)
+        s.wIndex = 0; // FIXME
+        s.wLength = sizeof(*dd);
+        s.trb_transfer_length = 8;
+        s.idt = 1;
+        s.trb_type = (uint32_t)xhci_trb_type::setup_stage;
+        s.transfer_type = 2; // OUT (FIXME)
+
+        ep0_queue.submit(req_setup, false);
+    }
+
+    {
+        auto& s = *reinterpret_cast<xhci_trb_data_stage*>(&req_data.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.data_buffer = va_to_pa_phys(dd);
+        s.trb_transfer_length = sizeof(*dd);
+        s.trb_type = (uint16_t)xhci_trb_type::data_stage;
+        s.dir = 1; // FIXME;
+
+        ep0_queue.submit(req_data, true);
+    }
+
+    {
+        auto& s = *reinterpret_cast<xhci_trb_status_stage*>(&req_status.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.ioc = 1;
+        s.trb_type = (uint16_t)xhci_trb_type::status_stage;
+        s.dir = 1; // FIXME
+
+        ep0_queue.submit(req_status, true);
+    }
 
     // FIXME - wait
+
+    delete dd;
 }
 
 static void copy_by_uint32(volatile void* src, volatile void* dest, size_t size) {
@@ -779,7 +812,7 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     // FIXME - get device descriptor etc.
 
-    d->setup_stage();
+    d->get_descriptor();
 
     // FIXME - put d in list of USB devices
 }
@@ -864,7 +897,7 @@ void xhci::isr() {
                      va_to_pa_phys(&event_ring[event_ring_offset]) | XHCI_ERDP_EHB);
 }
 
-void xhci_queue::submit(xhci_request& req) {
+void xhci_queue::submit(xhci_request& req, bool ring_bell) {
     req.event = create_event(true);
 
     {
@@ -884,7 +917,8 @@ void xhci_queue::submit(xhci_request& req) {
 
         barrier();
 
-        *doorbell = doorbell_val;
+        if (ring_bell)
+            *doorbell = doorbell_val;
 
         index++;
 
@@ -908,7 +942,7 @@ uint8_t xhci::enable_slot(uint8_t slot_type) {
 #pragma GCC diagnostic pop
     s.trb_type = (uint32_t)xhci_trb_type::enable_slot_command;
 
-    command_queue.submit(req);
+    command_queue.submit(req, true);
 
     wait_for_object(req.event.get(), false);
 
