@@ -50,8 +50,9 @@ private:
     void isr_port_status_change(xhci_trb_port_status_change& psc);
     void port_status_changed(uint8_t port_id);
     uint8_t enable_slot(uint8_t slot_type);
-    bool address_device(uint8_t slot, uint8_t port_id);
+    bool address_device(uint8_t slot, uint8_t speed, uint8_t port_id);
     uint8_t get_port_slot_type(uint8_t port_id);
+    void reset_port(uint8_t port_id);
 
     pci_device& dev;
     uint8_t num_slots, num_ports;
@@ -287,37 +288,44 @@ xhci::~xhci() {
         free(ports);
 }
 
+void xhci::reset_port(uint8_t port_id) {
+    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
+    volatile auto& p = *&op_regs.ports[port_id - 1];
+    auto portsc = p.PORTSC;
+
+    // reset port
+    portsc &= XHCI_PORTSC_PP | XHCI_PORTSC_PIC;
+    portsc |= XHCI_PORTSC_PR;
+
+    p.PORTSC = portsc;
+
+    bool port_enabled = false;
+
+    for (unsigned int j = 0; j < 500; j++) {
+        if (p.PORTSC & XHCI_PORTSC_PED) {
+            port_enabled = true;
+            break;
+        }
+
+        pit_delay(PIT_HZ / 1000); // wait 1ms
+    }
+
+    if (!port_enabled)
+        print("xhci::reset_port: timed out waiting for port {} to be enabled\n", port_id);
+}
+
 void xhci::init_ports() {
     volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
 
-    for (unsigned int i = 0; i < num_ports; i++) {
+    for (uint8_t i = 0; i < num_ports; i++) {
         auto portsc = op_regs.ports[i].PORTSC;
 
         if (!(portsc & XHCI_PORTSC_CCS)) // ignore if no device connected
             continue;
 
-        // reset port
-        portsc &= XHCI_PORTSC_PP | XHCI_PORTSC_PIC;
-        portsc |= XHCI_PORTSC_PR;
-
-        op_regs.ports[i].PORTSC = portsc;
-
-        bool port_enabled = false;
-
-        for (unsigned int j = 0; j < 500; j++) {
-            if (op_regs.ports[i].PORTSC & XHCI_PORTSC_PED) {
-                port_enabled = true;
-                break;
-            }
-
-            pit_delay(PIT_HZ / 1000); // wait 1ms
-        }
-
-        if (!port_enabled) {
-            print("timed out waiting for port to be enabled\n");
-            continue;
-        }
+        reset_port(i + 1);
     }
 }
 
@@ -455,7 +463,7 @@ span<char> do_format_arg(span<char> sp, string_view, enum TRB_CODE arg) {
     }
 }
 
-bool xhci::address_device(uint8_t slot, uint8_t port_id) {
+bool xhci::address_device(uint8_t slot, uint8_t speed, uint8_t port_id) {
     xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
@@ -482,6 +490,12 @@ bool xhci::address_device(uint8_t slot, uint8_t port_id) {
         return false;
     }
 
+    // FIXME - print port speed to console
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    context->slot.speed = speed;
+#pragma GCC diagnostic pop
     context->slot.route_hub_port_number = port_id;
     context->slot.context_entries = 1;
 
@@ -576,6 +590,12 @@ void xhci::port_status_changed(uint8_t port_id) {
         return;
     }
 
+    // USB2 ports have to be reset before their speeds are valid
+    if (!(portsc & XHCI_PORTSC_PRC)) {
+        reset_port(port_id);
+        portsc = op_regs.ports[port_id - 1].PORTSC;
+    }
+
     auto devctx = new xhci_device_context;
     if (!devctx) {
         print("new failed\n");
@@ -597,7 +617,7 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     dcbaa[slot] = va_to_pa_phys(devctx);
 
-    if (!address_device(slot, port_id)) {
+    if (!address_device(slot, (portsc & XHCI_PORTSC_SPEED) >> XHCI_PORTSC_SPEED_SHIFT, port_id)) {
         print("xhci::address_device failed\n");
         delete devctx;
         dcbaa[slot] = 0;
