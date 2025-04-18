@@ -74,6 +74,7 @@ public:
     uint32_t dboff;
     uint64_t* dcbaa = nullptr;
     xhci_queue command_queue;
+    spinlock devices_lock;
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
@@ -94,7 +95,6 @@ private:
     spinlock port_status_change_lock;
     list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
     xhci_port* ports = nullptr;
-    spinlock devices_lock;
     list_entry devices = { &devices, &devices };
 };
 
@@ -651,6 +651,11 @@ usb_device::~usb_device() {
 
     controller.dcbaa[slot] = 0;
     delete &devctx;
+
+    {
+        lock_guard lock(controller.devices_lock);
+        remove_entry_list(le);
+    }
 }
 
 bool usb_device::do_transfer(span<uint8_t> buf) {
