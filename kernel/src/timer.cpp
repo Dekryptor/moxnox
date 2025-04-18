@@ -14,6 +14,7 @@ import print;
 import list;
 import interrupts;
 import bsod;
+import inout;
 
 using namespace std;
 
@@ -86,6 +87,19 @@ export void init_lapic_timer(bool ap) {
         *lvt_timer = 0x20000 | timer_interrupt; // periodic
 
     *timer_initial = apic_timer_freq / TICK_RATE;
+}
+
+export void pit_delay(uint16_t delay) {
+    outb(0x43, 0x30); // initialize channel 0 of PIT
+    outb(0x40, (uint8_t)(delay & 0xff)); // push lower byte of param
+    outb(0x40, (uint8_t)(delay >> 8)); // push higher byte of param
+
+    while (true) {
+        outb(0x43, 0xe2); // check PIT status
+
+        if (inb(0x40) & 0x80) // loop again if not yet signalled
+            break;
+    }
 }
 
 export void init_timer() {

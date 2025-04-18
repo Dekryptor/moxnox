@@ -58,7 +58,6 @@ dwarf_func_asm scheduler_restore
 dwarf_func_asm yield
 dwarf_func_asm acquire_sync_lock
 dwarf_func_asm release_sync_lock
-dwarf_func_asm pit_delay
 dwarf_func_asm get_cpu_block
 
 .uleb128 0
@@ -286,23 +285,6 @@ release_sync_lock: # clobbers rax
 #endif
     ret
 release_sync_lock_end:
-
-.global pit_delay
-pit_delay:
-    mov al, 0x30
-    out 0x43, al # initialize channel 0 of PIT
-    mov ax, cx
-    out 0x40, al # push lower byte of param
-    shr ax, 8
-    out 0x40, al # push higher byte of param
-0:
-    mov al, 0xe2
-    out 0x43, al # check PIT status
-    in al, 0x40
-    test al, 0x80
-    je 0b # loop again if not yet signalled
-    ret
-pit_delay_end:
 
 .global get_cpu_block
 get_cpu_block:

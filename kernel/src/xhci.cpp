@@ -13,6 +13,7 @@ import mem;
 import config;
 import interrupts;
 import event;
+import timer;
 
 using namespace std;
 
