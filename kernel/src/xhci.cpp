@@ -25,7 +25,10 @@ static const int64_t ONE_MS_TICKS = 10000;
 
 struct xhci_request {
     xhci_trb_common trb;
-    xhci_trb_command_completion comp;
+    union {
+        xhci_trb_command_completion comp;
+        xhci_trb_transfer_event ev;
+    };
     object_ref event;
 };
 
@@ -100,7 +103,7 @@ public:
     usb_device(xhci& controller, xhci_device_context& devctx,
                uint8_t slot, uint8_t speed, uint8_t port_id);
     ~usb_device();
-    void get_descriptor();
+    bool get_descriptor();
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
 
     void acquire() {
@@ -648,13 +651,13 @@ usb_device::~usb_device() {
     delete &devctx;
 }
 
-void usb_device::get_descriptor() {
+bool usb_device::get_descriptor() {
     xhci_request req_setup, req_data, req_status;
 
     auto dd = new usb_device_descriptor;
     if (!dd) {
         print("new failed\n");
-        return;
+        return false;
     }
 
     {
@@ -700,9 +703,19 @@ void usb_device::get_descriptor() {
         ep0_queue.submit(req_status, true);
     }
 
-    // FIXME - wait
+    wait_for_object(req_status.event.get(), false);
+
+    if ((enum TRB_CODE)req_status.ev.completion_code != TRB_CODE::SUCCESS) {
+        print("usb_device::get_descriptor: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
+        delete dd;
+        return false;
+    }
+
+    // FIXME
 
     delete dd;
+
+    return true;
 }
 
 static void copy_by_uint32(volatile void* src, volatile void* dest, size_t size) {
@@ -882,7 +895,20 @@ void xhci::isr_port_status_change(xhci_trb_port_status_change& psc) {
 }
 
 void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
-    print("FIXME - usb_device::isr_transfer_event\n");
+    if (ev.endpoint_id != 1) // FIXME - support other endpoints
+        return;
+
+    auto ptr = phys_address(ev.trb_pointer);
+
+    if (ptr < ep0_queue.ring || ptr >= ep0_queue.ring + ep0_queue.size)
+        return;
+
+    size_t index = (size_t)((uint8_t*)ptr - (uint8_t*)ep0_queue.ring) / sizeof(xhci_trb_common);
+    auto& req = *ep0_queue.reqs[index];
+
+    memcpy(&req.ev, &ev, sizeof(ev));
+
+    set_event(static_cast<event&>(req.event.get()));
 }
 
 void xhci::isr() {
