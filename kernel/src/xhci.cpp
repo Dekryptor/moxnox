@@ -55,7 +55,7 @@ private:
     uint8_t enable_slot(uint8_t slot_type);
     bool address_device(uint8_t slot, uint8_t speed, uint8_t port_id);
     uint8_t get_port_slot_type(uint8_t port_id);
-    void reset_port(uint8_t port_id);
+    bool reset_port(uint8_t port_id);
 
     pci_device& dev;
     uint8_t num_slots, num_ports;
@@ -323,7 +323,7 @@ xhci::~xhci() {
         free(ports);
 }
 
-void xhci::reset_port(uint8_t port_id) {
+bool xhci::reset_port(uint8_t port_id) {
     volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
     volatile auto& p = *&op_regs.ports[port_id - 1];
@@ -337,17 +337,33 @@ void xhci::reset_port(uint8_t port_id) {
 
     bool port_enabled = false;
 
+    auto tim_ref = create_timer(true);
+    if (!tim_ref) {
+        print("xhci::reset_port: create_timer failed\n");
+        return false;
+    }
+
+    auto& tim = static_cast<timer&>(tim_ref.get());
+
+    auto status = tim.set(-ONE_MS_TICKS, nullptr, nullptr, false, 1, nullptr);
+    if (!success(status)) {
+        print("xhci::reset_port: timer::set returned {}\n", status);
+        return false;
+    }
+
     for (unsigned int j = 0; j < 500; j++) {
         if (p.PORTSC & XHCI_PORTSC_PED) {
             port_enabled = true;
             break;
         }
 
-        pit_delay(PIT_HZ / 1000); // wait 1ms
+        wait_for_object(tim, true); // wait 1ms
     }
 
     if (!port_enabled)
         print("xhci::reset_port: timed out waiting for port {} to be enabled\n", port_id);
+
+    return port_enabled;
 }
 
 void xhci::init_ports() {
@@ -627,7 +643,9 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     // USB2 ports have to be reset before their speeds are valid
     if (!(portsc & XHCI_PORTSC_PRC)) {
-        reset_port(port_id);
+        if (!reset_port(port_id))
+            return;
+
         portsc = op_regs.ports[port_id - 1].PORTSC;
     }
 
