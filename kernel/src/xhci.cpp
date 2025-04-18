@@ -78,6 +78,18 @@ private:
     xhci_port* ports = nullptr;
 };
 
+class usb_device {
+public:
+    usb_device(xhci& controller, uint8_t slot, uint8_t speed, uint8_t port_id);
+    ~usb_device();
+
+    bool initialized = false;
+    uint64_t ep0_queue_pa = 0;
+
+private:
+    xhci& controller;
+};
+
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *(volatile uint32_t*)addr = val & 0xffffffff;
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
@@ -514,8 +526,8 @@ span<char> do_format_arg(span<char> sp, string_view, enum TRB_CODE arg) {
     }
 }
 
-bool xhci::address_device(uint8_t slot, uint8_t speed, uint8_t port_id) {
-    xhci_request req;
+usb_device::usb_device(xhci& controller, uint8_t slot, uint8_t speed, uint8_t port_id) : controller(controller) {
+        xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
 
@@ -524,7 +536,7 @@ bool xhci::address_device(uint8_t slot, uint8_t speed, uint8_t port_id) {
     auto context = new xhci_input_context;
     if (!context) {
         print("new failed\n");
-        return false;
+        return;
     }
 
     memset(context, 0, sizeof(*context));
@@ -534,11 +546,11 @@ bool xhci::address_device(uint8_t slot, uint8_t speed, uint8_t port_id) {
     s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
     s.slot_id = slot;
 
-    auto ep0_queue = allocate_folio(0); // FIXME
-    if (!ep0_queue) {
+    ep0_queue_pa = allocate_folio(0); // FIXME
+    if (!ep0_queue_pa) {
         print("allocate_folio failed\n");
         delete context;
-        return false;
+        return;
     }
 
     // FIXME - print port speed to console
@@ -552,10 +564,10 @@ bool xhci::address_device(uint8_t slot, uint8_t speed, uint8_t port_id) {
 
     context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
     context->ep[0].max_packet_size = XHCI_EP0_TRB_LEN;
-    context->ep[0].tr_dequeue_pointer = va_to_pa_phys((void*)ep0_queue) | XHCI_EP_DCS;
+    context->ep[0].tr_dequeue_pointer = va_to_pa_phys((void*)ep0_queue_pa) | XHCI_EP_DCS;
     context->ep[0].average_trb_length = XHCI_EP0_TRB_LEN;
 
-    submit(req);
+    controller.submit(req);
 
     wait_for_object(req.event.get(), false);
 
@@ -564,8 +576,24 @@ bool xhci::address_device(uint8_t slot, uint8_t speed, uint8_t port_id) {
     // FIXME - translate into nt_status?
     if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
         print("xhci::address_device: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
-        return false;
+        return;
     }
+
+    initialized = true;
+}
+
+usb_device::~usb_device() {
+    if (ep0_queue_pa)
+        free_folio(ep0_queue_pa);
+}
+
+bool xhci::address_device(uint8_t slot, uint8_t speed, uint8_t port_id) {
+    usb_device d(*this, slot, speed, port_id);
+
+    if (!d.initialized)
+        return false;
+
+    // FIXME
 
     return true;
 }
