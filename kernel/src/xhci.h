@@ -301,6 +301,22 @@ struct xhci_trb_status_stage {
 
 static_assert(sizeof(xhci_trb_status_stage) == sizeof(xhci_trb_common));
 
+struct xhci_trb_transfer_event {
+    uint64_t trb_pointer;
+    uint32_t trb_transfer_length : 24;
+    uint32_t completion_code : 8;
+    uint16_t cycle : 1;
+    uint16_t reserved1 : 1;
+    uint16_t event_data : 1;
+    uint16_t reserved2 : 7;
+    uint16_t trb_type : 6;
+    uint8_t endpoint_id : 5;
+    uint8_t reserved3 : 3;
+    uint8_t slot_id;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_transfer_event) == sizeof(xhci_trb_common));
+
 struct xhci_slot_context {
     uint32_t route_string : 20;
     uint32_t speed : 4;

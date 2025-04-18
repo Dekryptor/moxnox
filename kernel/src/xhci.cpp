@@ -91,6 +91,8 @@ private:
     spinlock port_status_change_lock;
     list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
     xhci_port* ports = nullptr;
+    spinlock devices_lock;
+    list_entry devices = { &devices, &devices };
 };
 
 class usb_device {
@@ -99,14 +101,26 @@ public:
                uint8_t slot, uint8_t speed, uint8_t port_id);
     ~usb_device();
     void get_descriptor();
+    void isr_transfer_event(const xhci_trb_transfer_event& ev);
 
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    list_entry le;
     bool initialized = false;
     xhci_queue ep0_queue;
+    uint8_t slot;
 
 private:
     xhci& controller;
     xhci_device_context& devctx;
-    uint8_t slot;
+    atomic<unsigned int> refcount = 1;
 };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -810,11 +824,15 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     print("received address {}\n", devctx->slot.usb_device_address);
 
+    {
+        lock_guard lock(devices_lock);
+
+        insert_tail_list(devices, d->le);
+    }
+
     // FIXME - get device descriptor etc.
 
     d->get_descriptor();
-
-    // FIXME - put d in list of USB devices
 }
 
 void xhci::port_status_change_thread() {
@@ -863,6 +881,10 @@ void xhci::isr_port_status_change(xhci_trb_port_status_change& psc) {
     set_event(static_cast<event&>(port_status_change_event.get()));
 }
 
+void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
+    print("FIXME - usb_device::isr_transfer_event\n");
+}
+
 void xhci::isr() {
     volatile auto& run_regs = *(xhci_run_regs*)(dev.bar[0].data() + rtsoff);
     volatile auto& int_reg = run_regs.int_regs[0];
@@ -881,6 +903,33 @@ void xhci::isr() {
             case xhci_trb_type::port_status_change_event:
                 isr_port_status_change(*reinterpret_cast<xhci_trb_port_status_change*>(&ev));
                 break;
+
+            case xhci_trb_type::transfer_event: {
+                auto& ev2 = *reinterpret_cast<xhci_trb_transfer_event*>(&ev);
+
+                usb_device* found_device = nullptr;
+
+                {
+                    lock_guard lock(devices_lock);
+
+                    for (auto le = devices.next; le != &devices; le = le->next) {
+                        auto& d = containing_record<usb_device>(le);
+
+                        if (d.slot == ev2.slot_id) {
+                            found_device = &d;
+                            d.acquire();
+                            break;
+                        }
+                    }
+                }
+
+                if (found_device) {
+                    found_device->isr_transfer_event(ev2);
+                    found_device->release();
+                }
+
+                break;
+            }
 
             default:
                 print("xhci::isr: event type {}\n", ev.trb_type); // FIXME?
