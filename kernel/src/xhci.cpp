@@ -42,7 +42,8 @@ class xhci;
 
 class xhci_queue {
 public:
-    void initialize(uint16_t size, volatile uint32_t* doorbell);
+    void initialize(uint16_t size, volatile uint32_t* doorbell,
+                    uint32_t doorbell_val);
     void submit(xhci_request& req);
     ~xhci_queue();
 
@@ -54,6 +55,7 @@ public:
     unsigned int index = 0;
     bool cycle_bit = true;
     volatile uint32_t* doorbell;
+    uint32_t doorbell_val;
 };
 
 class xhci {
@@ -128,7 +130,8 @@ xhci_queue::~xhci_queue() {
         free(reqs);
 }
 
-void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell) {
+void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
+                            uint32_t doorbell_val) {
     ring = (xhci_trb_common*)malloc((size + 1) * sizeof(xhci_trb_common));
     if (!ring) {
         print("malloc failed\n");
@@ -148,8 +151,9 @@ void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell) {
     cmd_link.toggle_cycle = 1;
     cmd_link.trb_type = (uint16_t)xhci_trb_type::link;
 
-    this->doorbell = doorbell;
     this->size = size;
+    this->doorbell = doorbell;
+    this->doorbell_val = doorbell_val;
 
     initialized = true;
 }
@@ -275,7 +279,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     dboff = cap_regs.DBOFF;
 
-    command_queue.initialize(COMMAND_RING_SIZE, (uint32_t*)(dev.bar[0].data() + dboff));
+    command_queue.initialize(COMMAND_RING_SIZE, (uint32_t*)(dev.bar[0].data() + dboff), 0);
 
     write_volatile64(&op_regs.CRCR, va_to_pa_phys(command_queue.ring) | 1);
 
@@ -917,7 +921,7 @@ void xhci_queue::submit(xhci_request& req) {
 
         barrier();
 
-        *doorbell = 0;
+        *doorbell = doorbell_val;
 
         index++;
 
