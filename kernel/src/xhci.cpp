@@ -42,9 +42,7 @@ class xhci;
 
 class xhci_queue {
 public:
-    xhci_queue(xhci& controller) : controller(controller) { }
-
-    void initialize(uint16_t size);
+    void initialize(uint16_t size, volatile uint32_t* doorbell);
     void submit(xhci_request& req);
     ~xhci_queue();
 
@@ -55,7 +53,7 @@ public:
     spinlock submit_lock;
     unsigned int index = 0;
     bool cycle_bit = true;
-    xhci& controller;
+    volatile uint32_t* doorbell;
 };
 
 class xhci {
@@ -70,7 +68,7 @@ public:
     pci_device& dev;
     uint32_t dboff;
     uint64_t* dcbaa = nullptr;
-    xhci_queue command_queue{*this};
+    xhci_queue command_queue;
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
@@ -130,7 +128,7 @@ xhci_queue::~xhci_queue() {
         free(reqs);
 }
 
-void xhci_queue::initialize(uint16_t size) {
+void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell) {
     ring = (xhci_trb_common*)malloc((size + 1) * sizeof(xhci_trb_common));
     if (!ring) {
         print("malloc failed\n");
@@ -150,6 +148,7 @@ void xhci_queue::initialize(uint16_t size) {
     cmd_link.toggle_cycle = 1;
     cmd_link.trb_type = (uint16_t)xhci_trb_type::link;
 
+    this->doorbell = doorbell;
     this->size = size;
 
     initialized = true;
@@ -274,7 +273,9 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     write_volatile64(&op_regs.DCBAAP, va_to_pa_phys(dcbaa));
 
-    command_queue.initialize(COMMAND_RING_SIZE);
+    dboff = cap_regs.DBOFF;
+
+    command_queue.initialize(COMMAND_RING_SIZE, (uint32_t*)(dev.bar[0].data() + dboff));
 
     write_volatile64(&op_regs.CRCR, va_to_pa_phys(command_queue.ring) | 1);
 
@@ -357,7 +358,6 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     op_regs.USBCMD |= XHCI_USBCMD_INTE | XHCI_USBCMD_RS;
 
     caplength = cap_regs.CAPLENGTH;
-    dboff = cap_regs.DBOFF;
     rtsoff = cap_regs.RTSOFF;
 
     initialized = true;
@@ -898,8 +898,6 @@ void xhci::isr() {
 }
 
 void xhci_queue::submit(xhci_request& req) {
-    volatile auto& doorbell = *(uint32_t*)(controller.dev.bar[0].data() + controller.dboff);
-
     req.event = create_event(true);
 
     {
@@ -919,7 +917,7 @@ void xhci_queue::submit(xhci_request& req) {
 
         barrier();
 
-        doorbell = 0;
+        *doorbell = 0;
 
         index++;
 
