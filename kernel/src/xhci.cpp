@@ -889,6 +889,21 @@ static void print_config(span<const uint8_t> buf) {
         auto type = (enum usb_descriptor)buf[1];
 
         switch (type) {
+            case usb_descriptor::DEVICE: {
+                auto& d = *(usb_device_descriptor*)buf.data();
+
+                if (len < sizeof(usb_device_descriptor)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                print("DEVICE: bcdUSB = {:x}, bDeviceClass = {}, bDeviceSubClass = {}, bDeviceProtocol = {}, bMaxPacketSize0 = {}, idVendor = {:04x}, idProduct = {:04x}, bcdDevice = {:x}, iManufacturer = {}, iProduct = {}, iSerialNumber = {}, bNumConfigurations = {}\n",
+                      d.bcdUSB, d.bDeviceClass, d.bDeviceSubClass, d.bDeviceProtocol, d.bMaxPacketSize0,
+                      d.idVendor, d.idProduct, d.bcdDevice, d.iManufacturer, d.iProduct, d.iSerialNumber,
+                      d.bNumConfigurations);
+                break;
+            }
+
             case usb_descriptor::CONFIGURATION: {
                 auto& c = *(usb_configuration_descriptor*)buf.data();
 
@@ -1038,6 +1053,8 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     print("found USB device {:04x}:{:04x}\n", d->device_descriptor.idVendor,
           d->device_descriptor.idProduct);
+
+    print_config(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)));
 
     auto cd = new usb_configuration_descriptor;
     if (!cd) {
