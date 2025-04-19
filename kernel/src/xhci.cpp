@@ -841,6 +841,20 @@ static void print_config(span<const uint8_t> buf) {
                 break;
             }
 
+            case usb_descriptor::HID: {
+                auto& h = *(usb_hid_descriptor*)buf.data();
+
+                if (len < sizeof(usb_hid_descriptor)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                print("HID: bcdHID = {:x}, bCountryCode = {}, bNumDescriptors = {}, bDescriptorType2 = {}, wDescriptorLength = {}\n",
+                      h.bcdHID, h.bCountryCode, h.bNumDescriptors, h.bDescriptorType2, h.wDescriptorLength);
+
+                break;
+            }
+
             default:
                 print("unrecognized USB descriptor type {}\n", (uint8_t)type);
                 break;

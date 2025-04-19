@@ -315,6 +315,7 @@ enum class usb_descriptor {
     INTERFACE_ASSOCIATION = 11,
     BOS = 15,
     DEVICE_CAPABILITY = 16,
+    HID = 33,
     SUPERSPEED_USB_ENDPOINT_COMPANION = 48,
     SUPERSPEEDPLUS_ISOCHRONOUS_ENDPOINT_COMPANION = 49,
 };
@@ -551,3 +552,15 @@ struct usb_endpoint_descriptor {
 } __attribute((packed));
 
 static_assert(sizeof(usb_endpoint_descriptor) == 0x7);
+
+struct usb_hid_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint16_t bcdHID;
+    uint8_t bCountryCode;
+    uint8_t bNumDescriptors;
+    uint8_t bDescriptorType2;
+    uint16_t wDescriptorLength;
+} __attribute((packed));
+
+static_assert(sizeof(usb_hid_descriptor) == 0x9);
