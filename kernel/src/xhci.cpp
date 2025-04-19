@@ -810,7 +810,8 @@ static void print_config(span<const uint8_t> buf) {
                     return;
                 }
 
-                print("CONFIGURATION: wTotalLength = {}, bNumInterfaces = {}, bConfigurationValue = {}, iConfiguration = {}, bmAttributes = {:x}, bMaxPower = {}\n", c.wTotalLength, c.bNumInterfaces, c.bConfigurationValue, c.iConfiguration, c.bmAttributes, c.bMaxPower);
+                print("CONFIGURATION: wTotalLength = {}, bNumInterfaces = {}, bConfigurationValue = {}, iConfiguration = {}, bmAttributes = {:x}, bMaxPower = {}\n",
+                      c.wTotalLength, c.bNumInterfaces, c.bConfigurationValue, c.iConfiguration, c.bmAttributes, c.bMaxPower);
                 break;
             }
 
@@ -822,7 +823,21 @@ static void print_config(span<const uint8_t> buf) {
                     return;
                 }
 
-                print("INTERFACE: bInterfaceNumber = {}, bAlternateSetting = {}, bNumEndpoints = {}, bInterfaceClass = {}, bInterfaceSubClass = {}, bInterfaceProtocol = {}, iInterface = {}\n", i.bInterfaceNumber, i.bAlternateSetting, i.bNumEndpoints, i.bInterfaceClass, i.bInterfaceSubClass, i.bInterfaceProtocol, i.iInterface);
+                print("INTERFACE: bInterfaceNumber = {}, bAlternateSetting = {}, bNumEndpoints = {}, bInterfaceClass = {}, bInterfaceSubClass = {}, bInterfaceProtocol = {}, iInterface = {}\n",
+                      i.bInterfaceNumber, i.bAlternateSetting, i.bNumEndpoints, i.bInterfaceClass, i.bInterfaceSubClass, i.bInterfaceProtocol, i.iInterface);
+                break;
+            }
+
+            case usb_descriptor::ENDPOINT: {
+                auto& e = *(usb_endpoint_descriptor*)buf.data();
+
+                if (len < sizeof(usb_endpoint_descriptor)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                print("ENDPOINT: bEndpointAddress = {} {}, bmAttributes = {:x}, wMaxPacketSize = {}, bInterval = {}\n",
+                      e.bEndpointAddress & 0xf, e.bEndpointAddress & 0x80 ? "IN" : "OUT", e.bmAttributes, e.wMaxPacketSize, e.bInterval);
                 break;
             }
 

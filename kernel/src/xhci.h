@@ -540,3 +540,14 @@ struct usb_interface_descriptor {
 } __attribute((packed));
 
 static_assert(sizeof(usb_interface_descriptor) == 0x9);
+
+struct usb_endpoint_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bEndpointAddress;
+    uint8_t bmAttributes;
+    uint16_t wMaxPacketSize;
+    uint8_t bInterval;
+} __attribute((packed));
+
+static_assert(sizeof(usb_endpoint_descriptor) == 0x7);
