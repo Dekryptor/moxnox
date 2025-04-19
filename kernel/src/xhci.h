@@ -526,3 +526,17 @@ struct usb_configuration_descriptor {
 } __attribute((packed));
 
 static_assert(sizeof(usb_configuration_descriptor) == 0x9);
+
+struct usb_interface_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bInterfaceNumber;
+    uint8_t bAlternateSetting;
+    uint8_t bNumEndpoints;
+    uint8_t bInterfaceClass;
+    uint8_t bInterfaceSubClass;
+    uint8_t bInterfaceProtocol;
+    uint8_t iInterface;
+} __attribute((packed));
+
+static_assert(sizeof(usb_interface_descriptor) == 0x9);

@@ -814,6 +814,18 @@ static void print_config(span<const uint8_t> buf) {
                 break;
             }
 
+            case usb_descriptor::INTERFACE: {
+                auto& i = *(usb_interface_descriptor*)buf.data();
+
+                if (len < sizeof(usb_interface_descriptor)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                print("INTERFACE: bInterfaceNumber = {}, bAlternateSetting = {}, bNumEndpoints = {}, bInterfaceClass = {}, bInterfaceSubClass = {}, bInterfaceProtocol = {}, iInterface = {}\n", i.bInterfaceNumber, i.bAlternateSetting, i.bNumEndpoints, i.bInterfaceClass, i.bInterfaceSubClass, i.bInterfaceProtocol, i.iInterface);
+                break;
+            }
+
             default:
                 print("unrecognized USB descriptor type {}\n", (uint8_t)type);
                 break;
