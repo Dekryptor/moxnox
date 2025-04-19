@@ -818,7 +818,8 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
     dep->num = ep_desc.endpoint_number;
     dep->dir = ep_desc.direction;
 
-    dep->queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
+    dep->queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))),
+                          ep_index + 1);
     if (!dep->queue.initialized) {
         print("xhci_queue::initialize failed\n");
         delete dep;
