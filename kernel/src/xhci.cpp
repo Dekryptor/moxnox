@@ -790,6 +790,39 @@ uint8_t xhci::get_port_slot_type(uint8_t port_id) {
     return 0;
 }
 
+static void print_config(span<const uint8_t> buf) {
+    while (!buf.empty()) {
+        auto len = buf[0];
+
+        if (len > buf.size() || len < 2) {
+            print("buffer truncated\n");
+            return;
+        }
+
+        auto type = (enum usb_descriptor)buf[1];
+
+        switch (type) {
+            case usb_descriptor::CONFIGURATION: {
+                auto& c = *(usb_configuration_descriptor*)buf.data();
+
+                if (len < sizeof(usb_configuration_descriptor)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                print("CONFIGURATION: wTotalLength = {}, bNumInterfaces = {}, bConfigurationValue = {}, iConfiguration = {}, bmAttributes = {:x}, bMaxPower = {}\n", c.wTotalLength, c.bNumInterfaces, c.bConfigurationValue, c.iConfiguration, c.bmAttributes, c.bMaxPower);
+                break;
+            }
+
+            default:
+                print("unrecognized USB descriptor type {}\n", (uint8_t)type);
+                break;
+        }
+
+        buf = buf.subspan(len);
+    }
+}
+
 void xhci::port_status_changed(uint8_t port_id) {
     print("xhci::port_status_changed: {}\n", port_id);
 
@@ -931,6 +964,8 @@ void xhci::port_status_changed(uint8_t port_id) {
         d->release();
         return;
     }
+
+    print_config(span((uint8_t*)d->config, d->config_size));
 
     // FIXME
 }
