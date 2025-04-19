@@ -1505,17 +1505,19 @@ void xhci_queue::submit(xhci_request& req, bool ring_bell) {
     {
         lock_guard lock(submit_lock);
 
-        if (index == 0) {
-            auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
-            cmd_link.cycle = cycle_bit ? 1 : 0;
-        }
-
         auto& trb = *(xhci_trb_common*)((uint8_t*)ring + (index * sizeof(xhci_trb_common)));
 
         memcpy(&trb, &req.trb, sizeof(trb));
         trb.cycle = cycle_bit ? 1 : 0;
 
         reqs[index] = &req;
+
+        if (index == (unsigned int)(size - 1)) {
+            auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
+            cmd_link.cycle = cycle_bit ? 1 : 0;
+
+            cycle_bit = !cycle_bit;
+        }
 
         barrier();
 
@@ -1524,10 +1526,8 @@ void xhci_queue::submit(xhci_request& req, bool ring_bell) {
 
         index++;
 
-        if (index == size) {
+        if (index == size)
             index = 0;
-            cycle_bit = !cycle_bit;
-        }
     }
 }
 
