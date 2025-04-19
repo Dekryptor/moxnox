@@ -1046,7 +1046,7 @@ bool xhci_queue::normal_transfer(span<uint8_t> buf) {
         s.ioc = 1;
         s.trb_type = (uint16_t)xhci_trb_type::normal;
 
-        submit(req, false);
+        submit(req, true);
     }
 
     wait_for_object(req.event.get(), false);
