@@ -98,7 +98,68 @@ private:
     list_entry devices = { &devices, &devices };
 };
 
-class usb_device {
+export enum class usb_class_code : uint8_t {
+    per_interface = 0,
+    audio = 1,
+    communications = 2,
+    hid = 3,
+    physical = 5,
+    image = 6,
+    printer = 7,
+    mass_storage = 8,
+    hub = 9,
+    cdc_data = 10,
+    smart_card = 11,
+    content_security = 13,
+    video = 14,
+    personal_healthcare = 15,
+    audio_video_devices = 16,
+    billboard_device = 17,
+    type_c_bridge = 18,
+    bulk_display_protocol_device = 19,
+    mctp_over_usb_endpoint_device = 20,
+    i3c_device = 60,
+    diagonstic_device = 220,
+    wireless_controller = 224,
+    miscellaneous = 239,
+    application_specific = 254,
+    vendor_specific = 255
+};
+
+struct usb_device_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint16_t bcdUSB;
+    enum usb_class_code bDeviceClass;
+    uint8_t bDeviceSubClass;
+    uint8_t bDeviceProtocol;
+    uint8_t bMaxPacketSize0;
+    uint16_t idVendor;
+    uint16_t idProduct;
+    uint16_t bcdDevice;
+    uint8_t iManufacturer;
+    uint8_t iProduct;
+    uint8_t iSerialNumber;
+    uint8_t bNumConfigurations;
+} __attribute((packed));
+
+static_assert(sizeof(usb_device_descriptor) == 0x12);
+
+struct usb_interface_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bInterfaceNumber;
+    uint8_t bAlternateSetting;
+    uint8_t bNumEndpoints;
+    enum usb_class_code bInterfaceClass;
+    uint8_t bInterfaceSubClass;
+    uint8_t bInterfaceProtocol;
+    uint8_t iInterface;
+} __attribute((packed));
+
+static_assert(sizeof(usb_interface_descriptor) == 0x9);
+
+export class usb_device {
 public:
     usb_device(xhci& controller, xhci_device_context& devctx,
                uint8_t slot, uint8_t speed, uint8_t port_id);
@@ -132,6 +193,14 @@ private:
     xhci_device_context& devctx;
     atomic<unsigned int> refcount = 1;
 };
+
+export struct usb_recognizer {
+    list_entry le;
+    enum usb_class_code interface_code;
+    bool (*func)(usb_device&, uint8_t);
+};
+
+export list_entry usb_interfaces = { &usb_interfaces, &usb_interfaces };
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *(volatile uint32_t*)addr = val & 0xffffffff;
@@ -978,6 +1047,46 @@ static void print_config(span<const uint8_t> buf) {
     }
 }
 
+static void probe_interfaces(usb_device& d) {
+    auto buf = span((uint8_t*)d.config, d.config_size);
+
+    while (!buf.empty()) {
+        auto len = buf[0];
+
+        if (len > buf.size() || len < 2) {
+            print("buffer truncated\n");
+            return;
+        }
+
+        auto type = (enum usb_descriptor)buf[1];
+
+        switch (type) {
+            case usb_descriptor::INTERFACE: {
+                auto& i = *(usb_interface_descriptor*)buf.data();
+
+                if (len < sizeof(usb_interface_descriptor)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                for (auto le = usb_interfaces.next; le != &usb_interfaces; le = le->next) {
+                    auto& r = containing_record<usb_recognizer>(le);
+
+                    if (r.interface_code == i.bInterfaceClass && r.func(d, i.bInterfaceNumber))
+                        break;
+                }
+
+                break;
+            }
+
+            default:
+                break;
+        }
+
+        buf = buf.subspan(len);
+    }
+}
+
 void xhci::port_status_changed(uint8_t port_id) {
     print("xhci::port_status_changed: {}\n", port_id);
 
@@ -1132,7 +1241,7 @@ void xhci::port_status_changed(uint8_t port_id) {
         return;
     }
 
-    // FIXME
+    probe_interfaces(*d);
 }
 
 void xhci::port_status_change_thread() {
