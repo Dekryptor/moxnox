@@ -58,6 +58,7 @@ public:
     ~xhci_queue();
 
     xhci_trb_common* ring = nullptr;
+    uint64_t ring_pa;
     bool initialized = false;
     uint16_t size;
     xhci_request** reqs = nullptr;
@@ -171,8 +172,21 @@ static void xhci_isr_func(void* ctx) {
 }
 
 xhci_queue::~xhci_queue() {
-    if (ring)
-        free(ring);
+    if (ring) {
+        auto size_bytes = (size + 1) * sizeof(xhci_trb_common);
+
+        uint32_t num_pages = bytes_to_pages(size_bytes);
+
+        auto va = (uintptr_t)ring;
+
+        for (unsigned int i = 0; i < num_pages; i++) {
+            unmap_page(va + (i << PAGE_SHIFT));
+        }
+
+        free_va(va, num_pages);
+
+        free_folio(ring_pa);
+    }
 
     if (reqs)
         free(reqs);
@@ -180,11 +194,41 @@ xhci_queue::~xhci_queue() {
 
 void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
                             uint32_t doorbell_val) {
-    ring = (xhci_trb_common*)malloc((size + 1) * sizeof(xhci_trb_common));
-    if (!ring) {
-        print("malloc failed\n");
+    auto size_bytes = (size + 1) * sizeof(xhci_trb_common);
+
+    uint32_t num_pages = bytes_to_pages(size_bytes);
+
+    ring_pa = allocate_folio(bytes_to_folio_order(size_bytes));
+    if (!ring_pa) {
+        print("allocate folio failed\n");
         return;
     }
+
+    auto va = allocate_va(num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        free_folio(ring_pa);
+        return;
+    }
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (!map_page(ring_pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::no_cache)) {
+            print("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, num_pages);
+            free_folio(ring_pa);
+
+            return;
+        }
+    }
+
+    ring = (xhci_trb_common*)va;
+
+    memset(ring, 0, size_bytes);
 
     reqs = (xhci_request**)malloc(sizeof(xhci_request*) * size);
     if (!reqs) {
@@ -192,10 +236,8 @@ void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
         return;
     }
 
-    memset(ring, 0, (size + 1) * sizeof(xhci_trb_common));
-
     auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
-    cmd_link.ring_segment_pointer = va_to_pa_phys(ring);
+    cmd_link.ring_segment_pointer = ring_pa;
     cmd_link.toggle_cycle = 1;
     cmd_link.trb_type = (uint16_t)xhci_trb_type::link;
 
@@ -329,7 +371,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     command_queue.initialize(COMMAND_RING_SIZE, (uint32_t*)(dev.bar[0].data() + dboff), 0);
 
-    write_volatile64(&op_regs.CRCR, va_to_pa_phys(command_queue.ring) | 1);
+    write_volatile64(&op_regs.CRCR, command_queue.ring_pa | 1);
 
     op_regs.CONFIG = (op_regs.CONFIG & ~(uint32_t)0xff) | num_slots;
 
@@ -487,12 +529,10 @@ void xhci::init_ports() {
 }
 
 void xhci::isr_command_completion(xhci_trb_command_completion& comp) {
-    auto ptr = phys_address(comp.command_trb_pointer);
-
-    if (ptr < command_queue.ring || ptr >= command_queue.ring + command_queue.size)
+    if (comp.command_trb_pointer < command_queue.ring_pa || comp.command_trb_pointer >= command_queue.ring_pa + (command_queue.size * sizeof(xhci_trb_common)))
         return;
 
-    size_t index = (size_t)((uint8_t*)ptr - (uint8_t*)command_queue.ring) / sizeof(xhci_trb_common);
+    size_t index = (size_t)(comp.command_trb_pointer - command_queue.ring_pa) / sizeof(xhci_trb_common);
     auto& req = *command_queue.reqs[index];
 
     memcpy(&req.comp, &comp, sizeof(comp));
@@ -750,7 +790,7 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
 
     context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
     context->ep[0].max_packet_size = XHCI_EP0_TRB_LEN;
-    context->ep[0].tr_dequeue_pointer = va_to_pa_phys((void*)ep0_queue.ring) | XHCI_EP_DCS;
+    context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
     context->ep[0].average_trb_length = XHCI_EP0_TRB_LEN;
 
     controller.command_queue.submit(req, true);
@@ -879,7 +919,7 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 
         ep.interval = ep_desc.bInterval; // FIXME - depends on speed?
         ep.max_packet_size = ep_desc.wMaxPacketSize;
-        ep.tr_dequeue_pointer = va_to_pa_phys((void*)dep->queue.ring) | XHCI_EP_DCS;
+        ep.tr_dequeue_pointer = dep->queue.ring_pa | XHCI_EP_DCS;
         ep.average_trb_length = ep_desc.wMaxPacketSize;
 
         controller.command_queue.submit(req, true);
@@ -1400,12 +1440,10 @@ void xhci::isr_port_status_change(xhci_trb_port_status_change& psc) {
 }
 
 void xhci_queue::isr_transfer_event(const xhci_trb_transfer_event& ev) {
-    auto ptr = phys_address(ev.trb_pointer);
-
-    if (ptr < ring || ptr >= ring + size)
+    if (ev.trb_pointer < ring_pa || ev.trb_pointer >= ring_pa + (size * sizeof(xhci_trb_common)))
         return;
 
-    size_t index = (size_t)((uint8_t*)ptr - (uint8_t*)ring) / sizeof(xhci_trb_common);
+    size_t index = (size_t)(ev.trb_pointer - ring_pa) / sizeof(xhci_trb_common);
     auto& req = *reqs[index];
 
     memcpy(&req.ev, &ev, sizeof(ev));
@@ -1414,7 +1452,7 @@ void xhci_queue::isr_transfer_event(const xhci_trb_transfer_event& ev) {
 }
 
 void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
-    if (ev.endpoint_id == 1) { // FIXME - support other endpoints
+    if (ev.endpoint_id == 1) {
         ep0_queue.isr_transfer_event(ev);
         return;
     }
@@ -1507,8 +1545,8 @@ void xhci_queue::submit(xhci_request& req, bool ring_bell) {
 
         auto& trb = *(xhci_trb_common*)((uint8_t*)ring + (index * sizeof(xhci_trb_common)));
 
+        req.trb.cycle = cycle_bit ? 1 : 0;
         memcpy(&trb, &req.trb, sizeof(trb));
-        trb.cycle = cycle_bit ? 1 : 0;
 
         reqs[index] = &req;
 
