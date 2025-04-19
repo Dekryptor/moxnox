@@ -317,6 +317,19 @@ struct xhci_trb_transfer_event {
 
 static_assert(sizeof(xhci_trb_transfer_event) == sizeof(xhci_trb_common));
 
+struct xhci_trb_configure_endpoint {
+    uint64_t input_context_pointer;
+    uint32_t reserved1;
+    uint16_t cycle : 1;
+    uint16_t reserved2 : 8;
+    uint16_t deconfigure : 1;
+    uint16_t trb_type : 6;
+    uint8_t reserved3;
+    uint8_t slot_id;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_configure_endpoint) == sizeof(xhci_trb_common));
+
 struct xhci_slot_context {
     uint32_t route_string : 20;
     uint32_t speed : 4;
@@ -365,7 +378,7 @@ struct xhci_endpoint_context {
     uint8_t cerr : 2;
     uint8_t ep_type : 3;
     uint8_t reserved3 : 1;
-    uint8_t hid : 1;
+    uint8_t host_initiate_disable : 1;
     uint8_t max_burst_size;
     uint16_t max_packet_size;
     uint64_t tr_dequeue_pointer;

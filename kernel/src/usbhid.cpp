@@ -26,7 +26,7 @@ static module_init module_init_usbhid(init_usbhid);
 static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
     auto& i = *(usb_interface_descriptor*)buf.data();
 
-    optional<uint8_t> endpoint_num;
+    usb_endpoint_descriptor* ep_desc = nullptr;
 
     // find endpoint number
 
@@ -66,12 +66,12 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
                 if (e.usage_type != USB_ENDPOINT_USAGE_TYPE_PERIODIC)
                     continue;
 
-                if (endpoint_num.has_value()) {
+                if (ep_desc) {
                     print("found_usb_keyboard: multiple potential endpoints found\n");
                     return false;
                 }
 
-                endpoint_num = (uint8_t)e.endpoint_number;
+                ep_desc = &e;
 
                 break;
             }
@@ -83,16 +83,21 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
         buf = buf.subspan(len);
     }
 
-    if (!endpoint_num.has_value()) {
+    if (!ep_desc) {
         print("found_usb_keyboard: no potential endpoint found\n");
         return false;
     }
 
-    print("found_usb_keyboard: FIXME - set up endpoint {} IN\n", *endpoint_num);
+    print("found_usb_keyboard: FIXME - set up endpoint\n");
+
+    if (!d.add_endpoint(*ep_desc)) {
+        print("usb_device::add_endpoint failed\n");
+        return false;
+    }
 
     // FIXME
 
-    return false;
+    return true;
 }
 
 static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf) {

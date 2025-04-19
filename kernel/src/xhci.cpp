@@ -15,12 +15,13 @@ import interrupts;
 import event;
 import timer;
 import usb;
+import rwsem;
 
 using namespace std;
 
 static const uint16_t EVENT_RING_SIZE = 64;
 static const uint16_t COMMAND_RING_SIZE = 64;
-static const uint16_t EP0_RING_SIZE = 64;
+static const uint16_t ENDPOINT_RING_SIZE = 64;
 
 static const int64_t ONE_MS_TICKS = 10000;
 
@@ -99,6 +100,13 @@ private:
     list_entry devices = { &devices, &devices };
 };
 
+struct device_endpoint {
+    list_entry le;
+    uint8_t num;
+    bool dir;
+    xhci_queue queue;
+};
+
 export class usb_device {
 public:
     usb_device(xhci& controller, xhci_device_context& devctx,
@@ -109,6 +117,7 @@ public:
     bool get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
                         uint8_t desc_index);
     bool set_configuration(uint8_t configuration_value);
+    bool add_endpoint(const usb_endpoint_descriptor& ep_desc);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
 
     void acquire() {
@@ -127,11 +136,14 @@ public:
     usb_device_descriptor device_descriptor;
     void* config = nullptr;
     size_t config_size;
+    list_entry endpoints = { &endpoints, &endpoints };
 
 private:
     xhci& controller;
     xhci_device_context& devctx;
     atomic<unsigned int> refcount = 1;
+    uint8_t speed, port_id;
+    rwsem endpoint_lock;
 };
 
 export struct usb_recognizer {
@@ -693,6 +705,8 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
     xhci_request req;
 
     this->slot = slot;
+    this->speed = speed;
+    this->port_id = port_id;
 
     auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
 
@@ -711,7 +725,7 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
     s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
     s.slot_id = slot;
 
-    ep0_queue.initialize(EP0_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
+    ep0_queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
     if (!ep0_queue.initialized) {
         print("xhci_queue::initialize failed\n");
         delete context;
@@ -764,6 +778,115 @@ usb_device::~usb_device() {
         else
             free_folio(phys_memory_pfn(config) << PAGE_SHIFT);
     }
+}
+
+bool usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
+    xhci_request req;
+
+    auto& s = *reinterpret_cast<xhci_trb_configure_endpoint*>(&req.trb);
+
+    memset(&s, 0, sizeof(s));
+
+    auto context = new xhci_input_context;
+    if (!context) {
+        print("new failed\n");
+        return false;
+    }
+
+    unsigned int ep_index = 1 + ((ep_desc.endpoint_number - 1) * 2) + (ep_desc.direction ? 1 : 0);
+
+    memset(context, 0, sizeof(*context));
+    context->control.add_context = 1 | (1 << (ep_index + 1)); // slot, endpoint
+
+    s.input_context_pointer = va_to_pa_phys(context);
+    s.trb_type = (uint16_t)xhci_trb_type::configure_endpoint_command;
+    s.slot_id = slot;
+
+    auto dep = new device_endpoint;
+    if (!dep) {
+        print("new failed\n");
+        delete context;
+        return false;
+    }
+
+    dep->num = ep_desc.endpoint_number;
+    dep->dir = ep_desc.direction;
+
+    dep->queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
+    if (!dep->queue.initialized) {
+        print("xhci_queue::initialize failed\n");
+        delete dep;
+        delete context;
+        return false;
+    }
+
+    {
+        lock_guard lock(endpoint_lock);
+
+        for (auto le = endpoints.next; le != &endpoints; le = le->next) {
+            auto& e = containing_record<device_endpoint>(le);
+
+            if (e.num == dep->num && !!e.dir == !!dep->dir) {
+                print("usb_device::add_endpoint: endpoint {} {} already set up\n",
+                      dep->num, dep->dir ? "IN" : "OUT");
+                delete dep;
+                delete context;
+                return false;
+            }
+        }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        context->slot.speed = speed;
+#pragma GCC diagnostic pop
+        context->slot.route_hub_port_number = port_id;
+        context->slot.context_entries = 1;
+
+        auto& ep = context->ep[ep_index];
+
+        switch (ep_desc.transfer_type) {
+            case USB_ENDPOINT_TRANSFER_TYPE_CONTROL:
+                ep.ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
+                break;
+
+            case USB_ENDPOINT_TRANSFER_TYPE_ISOCHRONOUS:
+                ep.ep_type = dep->dir ? (uint8_t)XHCI_EP_TYPE::ISOCH_IN : (uint8_t)XHCI_EP_TYPE::ISOCH_OUT;
+                break;
+
+            case USB_ENDPOINT_TRANSFER_TYPE_BULK:
+                ep.ep_type = dep->dir ? (uint8_t)XHCI_EP_TYPE::BULK_IN : (uint8_t)XHCI_EP_TYPE::BULK_OUT;
+                break;
+
+            case USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT:
+                ep.ep_type = dep->dir ? (uint8_t)XHCI_EP_TYPE::INTERRUPT_IN : (uint8_t)XHCI_EP_TYPE::INTERRUPT_OUT;
+                break;
+        }
+
+        // FIXME - max_burst_size?
+        // FIXME - max_esit_payload?
+
+        ep.interval = ep_desc.bInterval; // FIXME - depends on speed?
+        ep.max_packet_size = ep_desc.wMaxPacketSize;
+        ep.tr_dequeue_pointer = va_to_pa_phys((void*)dep->queue.ring) | XHCI_EP_DCS;
+        ep.average_trb_length = ep_desc.wMaxPacketSize;
+
+        controller.command_queue.submit(req, true);
+
+        wait_for_object(req.event.get(), false);
+
+        if ((enum TRB_CODE)req.comp.completion_code == TRB_CODE::SUCCESS)
+            insert_tail_list(endpoints, dep->le);
+    }
+
+    delete context;
+
+    // FIXME - translate into nt_status?
+    if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
+        print("usb_device::add_endpoint: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
+        return false;
+    }
+
+    return true;
 }
 
 bool usb_device::do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_request bRequest,
