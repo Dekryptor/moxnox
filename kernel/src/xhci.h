@@ -330,6 +330,26 @@ struct xhci_trb_configure_endpoint {
 
 static_assert(sizeof(xhci_trb_configure_endpoint) == sizeof(xhci_trb_common));
 
+struct xhci_trb_normal {
+    uint64_t data_buffer;
+    uint32_t trb_transfer_length : 17;
+    uint32_t td_size : 5;
+    uint32_t interrupter_target : 10;
+    uint16_t cycle : 1;
+    uint16_t ent : 1;
+    uint16_t isp : 1;
+    uint16_t ns : 1;
+    uint16_t ch : 1;
+    uint16_t ioc : 1;
+    uint16_t idt : 1;
+    uint16_t reserved1 : 2;
+    uint16_t bei : 1;
+    uint16_t trb_type : 6;
+    uint16_t reserved2;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_normal) == sizeof(xhci_trb_common));
+
 struct xhci_slot_context {
     uint32_t route_string : 20;
     uint32_t speed : 4;

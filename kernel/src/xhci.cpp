@@ -45,17 +45,24 @@ struct xhci_port {
 
 class xhci;
 
-class xhci_queue {
+export class xhci_queue {
 public:
     void initialize(uint16_t size, volatile uint32_t* doorbell,
                     uint32_t doorbell_val);
     void submit(xhci_request& req, bool ring_bell);
+    bool control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
+                          enum usb_request bRequest, uint16_t wValue,
+                          uint16_t wIndex);
+    bool normal_transfer(span<uint8_t> buf);
+    void isr_transfer_event(const xhci_trb_transfer_event& ev);
     ~xhci_queue();
 
+    xhci_trb_common* ring = nullptr;
     bool initialized = false;
     uint16_t size;
-    xhci_trb_common* ring = nullptr;
     xhci_request** reqs = nullptr;
+
+private:
     spinlock submit_lock;
     unsigned int index = 0;
     bool cycle_bit = true;
@@ -112,12 +119,10 @@ public:
     usb_device(xhci& controller, xhci_device_context& devctx,
                uint8_t slot, uint8_t speed, uint8_t port_id);
     ~usb_device();
-    bool do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_request bRequest,
-                     uint16_t wValue, uint16_t wIndex);
     bool get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
                         uint8_t desc_index);
     bool set_configuration(uint8_t configuration_value);
-    bool add_endpoint(const usb_endpoint_descriptor& ep_desc);
+    xhci_queue* add_endpoint(const usb_endpoint_descriptor& ep_desc);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
 
     void acquire() {
@@ -143,7 +148,8 @@ private:
     xhci_device_context& devctx;
     atomic<unsigned int> refcount = 1;
     uint8_t speed, port_id;
-    rwsem endpoint_lock;
+    rwsem endpoint_mutex;
+    spinlock endpoint_spinlock;
 };
 
 export struct usb_recognizer {
@@ -780,7 +786,7 @@ usb_device::~usb_device() {
     }
 }
 
-bool usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
+xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
     xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_configure_endpoint*>(&req.trb);
@@ -790,7 +796,7 @@ bool usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
     auto context = new xhci_input_context;
     if (!context) {
         print("new failed\n");
-        return false;
+        return nullptr;
     }
 
     unsigned int ep_index = 1 + ((ep_desc.endpoint_number - 1) * 2) + (ep_desc.direction ? 1 : 0);
@@ -806,7 +812,7 @@ bool usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
     if (!dep) {
         print("new failed\n");
         delete context;
-        return false;
+        return nullptr;
     }
 
     dep->num = ep_desc.endpoint_number;
@@ -817,21 +823,25 @@ bool usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
         print("xhci_queue::initialize failed\n");
         delete dep;
         delete context;
-        return false;
+        return nullptr;
     }
 
     {
-        lock_guard lock(endpoint_lock);
+        lock_guard lock(endpoint_mutex);
 
-        for (auto le = endpoints.next; le != &endpoints; le = le->next) {
-            auto& e = containing_record<device_endpoint>(le);
+        {
+            lock_guard lock2(endpoint_spinlock);
 
-            if (e.num == dep->num && !!e.dir == !!dep->dir) {
-                print("usb_device::add_endpoint: endpoint {} {} already set up\n",
-                      dep->num, dep->dir ? "IN" : "OUT");
-                delete dep;
-                delete context;
-                return false;
+            for (auto le = endpoints.next; le != &endpoints; le = le->next) {
+                auto& e = containing_record<device_endpoint>(le);
+
+                if (e.num == dep->num && !!e.dir == !!dep->dir) {
+                    print("usb_device::add_endpoint: endpoint {} {} already set up\n",
+                        dep->num, dep->dir ? "IN" : "OUT");
+                    delete dep;
+                    delete context;
+                    return nullptr;
+                }
             }
         }
 
@@ -874,8 +884,10 @@ bool usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 
         wait_for_object(req.event.get(), false);
 
-        if ((enum TRB_CODE)req.comp.completion_code == TRB_CODE::SUCCESS)
+        if ((enum TRB_CODE)req.comp.completion_code == TRB_CODE::SUCCESS) {
+            lock_guard lock2(endpoint_spinlock);
             insert_tail_list(endpoints, dep->le);
+        }
     }
 
     delete context;
@@ -883,14 +895,15 @@ bool usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
     // FIXME - translate into nt_status?
     if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
         print("usb_device::add_endpoint: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
-        return false;
+        return nullptr;
     }
 
-    return true;
+    return &dep->queue;
 }
 
-bool usb_device::do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_request bRequest,
-                             uint16_t wValue, uint16_t wIndex) {
+bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
+                                  enum usb_request bRequest, uint16_t wValue,
+                                  uint16_t wIndex) {
     xhci_request req_setup, req_data, req_status;
 
     {
@@ -914,7 +927,7 @@ bool usb_device::do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_
         else
             s.transfer_type = 2; // OUT
 
-        ep0_queue.submit(req_setup, false);
+        submit(req_setup, false);
     }
 
     if (!buf.empty()) {
@@ -927,7 +940,7 @@ bool usb_device::do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_
         s.trb_type = (uint16_t)xhci_trb_type::data_stage;
         s.dir = !!(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST);
 
-        ep0_queue.submit(req_data, true);
+        submit(req_data, true);
     }
 
     {
@@ -939,13 +952,13 @@ bool usb_device::do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_
         s.trb_type = (uint16_t)xhci_trb_type::status_stage;
         s.dir = buf.empty() || !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST);
 
-        ep0_queue.submit(req_status, true);
+        submit(req_status, true);
     }
 
     wait_for_object(req_status.event.get(), false);
 
     if ((enum TRB_CODE)req_status.ev.completion_code != TRB_CODE::SUCCESS) {
-        print("usb_device::do_transfer: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
+        print("xhci_queue::control_transfer: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
         return false;
     }
 
@@ -954,10 +967,10 @@ bool usb_device::do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_
 
 bool usb_device::get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
                                 uint8_t desc_index) {
-    if (!do_transfer(buf,
-                     USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
-                     usb_request::GET_DESCRIPTOR, (uint16_t)(((uint8_t)desc_type << 8) | desc_index), 0)) {
-        print("usb_device::do_transfer failed\n");
+    if (!ep0_queue.control_transfer(buf,
+            USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
+            usb_request::GET_DESCRIPTOR, (uint16_t)(((uint8_t)desc_type << 8) | desc_index), 0)) {
+        print("xhci_queue::control_transfer failed\n");
         return false;
     }
 
@@ -965,10 +978,39 @@ bool usb_device::get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type
 }
 
 bool usb_device::set_configuration(uint8_t configuration_value) {
-    if (!do_transfer(span<uint8_t>(),
-                     USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
-                     usb_request::SET_CONFIGURATION, configuration_value, 0)) {
-        print("usb_device::do_transfer failed\n");
+    if (!ep0_queue.control_transfer(span<uint8_t>(),
+            USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
+            usb_request::SET_CONFIGURATION, configuration_value, 0)) {
+        print("xhci_queue::control_transfer failed\n");
+        return false;
+    }
+
+    return true;
+}
+
+bool xhci_queue::normal_transfer(span<uint8_t> buf) {
+    xhci_request req;
+
+    // FIXME - can set IDT flag on short OUT transfers
+
+    {
+        auto& s = *reinterpret_cast<xhci_trb_normal*>(&req.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.data_buffer = va_to_pa_phys(buf.data());
+        s.trb_transfer_length = (uint16_t)buf.size();
+
+        s.ioc = 1;
+        s.trb_type = (uint16_t)xhci_trb_type::normal;
+
+        submit(req, false);
+    }
+
+    wait_for_object(req.event.get(), false);
+
+    if ((enum TRB_CODE)req.ev.completion_code != TRB_CODE::SUCCESS) {
+        print("xhci_queue::normal_transfer: controller returned error {}\n", (enum TRB_CODE)req.ev.completion_code);
         return false;
     }
 
@@ -1355,21 +1397,41 @@ void xhci::isr_port_status_change(xhci_trb_port_status_change& psc) {
     set_event(static_cast<event&>(port_status_change_event.get()));
 }
 
-void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
-    if (ev.endpoint_id != 1) // FIXME - support other endpoints
-        return;
-
+void xhci_queue::isr_transfer_event(const xhci_trb_transfer_event& ev) {
     auto ptr = phys_address(ev.trb_pointer);
 
-    if (ptr < ep0_queue.ring || ptr >= ep0_queue.ring + ep0_queue.size)
+    if (ptr < ring || ptr >= ring + size)
         return;
 
-    size_t index = (size_t)((uint8_t*)ptr - (uint8_t*)ep0_queue.ring) / sizeof(xhci_trb_common);
-    auto& req = *ep0_queue.reqs[index];
+    size_t index = (size_t)((uint8_t*)ptr - (uint8_t*)ring) / sizeof(xhci_trb_common);
+    auto& req = *reqs[index];
 
     memcpy(&req.ev, &ev, sizeof(ev));
 
     set_event(static_cast<event&>(req.event.get()));
+}
+
+void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
+    if (ev.endpoint_id == 1) { // FIXME - support other endpoints
+        ep0_queue.isr_transfer_event(ev);
+        return;
+    }
+
+    uint8_t num = ev.endpoint_id >> 1;
+    bool dir = ev.endpoint_id & 1;
+
+    {
+        lock_guard lock(endpoint_spinlock);
+
+        for (auto le = endpoints.next; le != &endpoints; le = le->next) {
+            auto& ep = containing_record<device_endpoint>(le);
+
+            if (ep.num == num && !!ep.dir == !!dir) {
+                ep.queue.isr_transfer_event(ev);
+                return;
+            }
+        }
+    }
 }
 
 void xhci::isr() {
