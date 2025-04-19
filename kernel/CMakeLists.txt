@@ -66,6 +66,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/console.cpp
     src/xhci.cpp
     src/usbhid.cpp
+    src/usb.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list)

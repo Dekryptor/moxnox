@@ -14,6 +14,7 @@ import config;
 import interrupts;
 import event;
 import timer;
+import usb;
 
 using namespace std;
 
@@ -97,67 +98,6 @@ private:
     xhci_port* ports = nullptr;
     list_entry devices = { &devices, &devices };
 };
-
-export enum class usb_class_code : uint8_t {
-    per_interface = 0,
-    audio = 1,
-    communications = 2,
-    hid = 3,
-    physical = 5,
-    image = 6,
-    printer = 7,
-    mass_storage = 8,
-    hub = 9,
-    cdc_data = 10,
-    smart_card = 11,
-    content_security = 13,
-    video = 14,
-    personal_healthcare = 15,
-    audio_video_devices = 16,
-    billboard_device = 17,
-    type_c_bridge = 18,
-    bulk_display_protocol_device = 19,
-    mctp_over_usb_endpoint_device = 20,
-    i3c_device = 60,
-    diagonstic_device = 220,
-    wireless_controller = 224,
-    miscellaneous = 239,
-    application_specific = 254,
-    vendor_specific = 255
-};
-
-struct usb_device_descriptor {
-    uint8_t bLength;
-    uint8_t bDescriptorType;
-    uint16_t bcdUSB;
-    enum usb_class_code bDeviceClass;
-    uint8_t bDeviceSubClass;
-    uint8_t bDeviceProtocol;
-    uint8_t bMaxPacketSize0;
-    uint16_t idVendor;
-    uint16_t idProduct;
-    uint16_t bcdDevice;
-    uint8_t iManufacturer;
-    uint8_t iProduct;
-    uint8_t iSerialNumber;
-    uint8_t bNumConfigurations;
-} __attribute((packed));
-
-static_assert(sizeof(usb_device_descriptor) == 0x12);
-
-struct usb_interface_descriptor {
-    uint8_t bLength;
-    uint8_t bDescriptorType;
-    uint8_t bInterfaceNumber;
-    uint8_t bAlternateSetting;
-    uint8_t bNumEndpoints;
-    enum usb_class_code bInterfaceClass;
-    uint8_t bInterfaceSubClass;
-    uint8_t bInterfaceProtocol;
-    uint8_t iInterface;
-} __attribute((packed));
-
-static_assert(sizeof(usb_interface_descriptor) == 0x9);
 
 export class usb_device {
 public:
