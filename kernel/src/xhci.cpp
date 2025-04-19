@@ -96,6 +96,7 @@ private:
     uint8_t num_slots, num_ports;
     xhci_trb_common* event_ring = nullptr;
     unsigned int event_ring_offset = 0;
+    bool event_ring_cycle = true;
     xhci_event_ring_segment* seg_table = nullptr;
     uint8_t caplength;
     uint32_t rtsoff;
@@ -1442,7 +1443,7 @@ void xhci::isr() {
     while (true) {
         auto& ev = event_ring[event_ring_offset];
 
-        if (ev.trb_type == 0)
+        if (!!ev.cycle != !!event_ring_cycle)
             break;
 
         switch ((enum xhci_trb_type)ev.trb_type) {
@@ -1488,8 +1489,10 @@ void xhci::isr() {
 
         event_ring_offset++;
 
-        if (event_ring_offset == EVENT_RING_SIZE)
+        if (event_ring_offset == EVENT_RING_SIZE) {
             event_ring_offset = 0;
+            event_ring_cycle = !event_ring_cycle;
+        }
     }
 
     write_volatile64(&int_reg.ERDP,
