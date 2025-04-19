@@ -591,6 +591,93 @@ span<char> do_format_arg(span<char> sp, string_view, enum TRB_CODE arg) {
     }
 }
 
+template<>
+consteval bool format_spec_valid<enum usb_class_code>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, enum usb_class_code arg) {
+    switch (arg) {
+        case usb_class_code::per_interface:
+            return do_format_arg(sp, "", "per_interface");
+
+        case usb_class_code::audio:
+            return do_format_arg(sp, "", "audio");
+
+        case usb_class_code::communications:
+            return do_format_arg(sp, "", "communications");
+
+        case usb_class_code::hid:
+            return do_format_arg(sp, "", "hid");
+
+        case usb_class_code::physical:
+            return do_format_arg(sp, "", "physical");
+
+        case usb_class_code::image:
+            return do_format_arg(sp, "", "image");
+
+        case usb_class_code::printer:
+            return do_format_arg(sp, "", "printer");
+
+        case usb_class_code::mass_storage:
+            return do_format_arg(sp, "", "mass_storage");
+
+        case usb_class_code::hub:
+            return do_format_arg(sp, "", "hub");
+
+        case usb_class_code::cdc_data:
+            return do_format_arg(sp, "", "cdc_data");
+
+        case usb_class_code::smart_card:
+            return do_format_arg(sp, "", "smart_card");
+
+        case usb_class_code::content_security:
+            return do_format_arg(sp, "", "content_security");
+
+        case usb_class_code::video:
+            return do_format_arg(sp, "", "video");
+
+        case usb_class_code::personal_healthcare:
+            return do_format_arg(sp, "", "personal_healthcare");
+
+        case usb_class_code::audio_video_devices:
+            return do_format_arg(sp, "", "audio_video_devices");
+
+        case usb_class_code::billboard_device:
+            return do_format_arg(sp, "", "billboard_device");
+
+        case usb_class_code::type_c_bridge:
+            return do_format_arg(sp, "", "type_c_bridge");
+
+        case usb_class_code::bulk_display_protocol_device:
+            return do_format_arg(sp, "", "bulk_display_protocol_device");
+
+        case usb_class_code::mctp_over_usb_endpoint_device:
+            return do_format_arg(sp, "", "mctp_over_usb_endpoint_device");
+
+        case usb_class_code::i3c_device:
+            return do_format_arg(sp, "", "i3c_device");
+
+        case usb_class_code::diagonstic_device:
+            return do_format_arg(sp, "", "diagonstic_device");
+
+        case usb_class_code::wireless_controller:
+            return do_format_arg(sp, "", "wireless_controller");
+
+        case usb_class_code::miscellaneous:
+            return do_format_arg(sp, "", "miscellaneous");
+
+        case usb_class_code::application_specific:
+            return do_format_arg(sp, "", "application_specific");
+
+        case usb_class_code::vendor_specific:
+            return do_format_arg(sp, "", "vendor_specific");
+
+        default:
+            return do_format_arg(sp, "", (uint32_t)arg);
+    }
+}
+
 usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t slot,
                        uint8_t speed, uint8_t port_id) : controller(controller), devctx(devctx) {
     xhci_request req;
