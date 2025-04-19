@@ -823,7 +823,7 @@ bool usb_device::get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type
                                 uint8_t desc_index) {
     if (!do_transfer(buf,
                      USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
-                     usb_request::GET_DESCRIPTOR, ((uint8_t)desc_type << 8) | desc_index, 0)) {
+                     usb_request::GET_DESCRIPTOR, (uint16_t)(((uint8_t)desc_type << 8) | desc_index), 0)) {
         print("usb_device::do_transfer failed\n");
         return false;
     }
