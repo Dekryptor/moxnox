@@ -134,16 +134,32 @@ export struct usb_configuration_descriptor {
 
 static_assert(sizeof(usb_configuration_descriptor) == 0x9);
 
-export  struct usb_endpoint_descriptor {
+export struct usb_endpoint_descriptor {
     uint8_t bLength;
     uint8_t bDescriptorType;
-    uint8_t bEndpointAddress;
-    uint8_t bmAttributes;
+    uint8_t endpoint_number : 4;
+    uint8_t reserved1 : 3;
+    uint8_t direction : 1;
+    uint8_t transfer_type : 2;
+    uint8_t synchronization_type : 2;
+    uint8_t usage_type : 2;
+    uint8_t reserved2 : 2;
     uint16_t wMaxPacketSize;
     uint8_t bInterval;
 } __attribute((packed));
 
 static_assert(sizeof(usb_endpoint_descriptor) == 0x7);
+
+export const uint8_t USB_ENDPOINT_DIRECTION_OUT = 0x00;
+export const uint8_t USB_ENDPOINT_DIRECTION_IN = 0x01;
+
+export const uint8_t USB_ENDPOINT_TRANSFER_TYPE_CONTROL = 0x00;
+export const uint8_t USB_ENDPOINT_TRANSFER_TYPE_ISOCHRONOUS = 0x01;
+export const uint8_t USB_ENDPOINT_TRANSFER_TYPE_BULK = 0x02;
+export const uint8_t USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT = 0x03;
+
+export const uint8_t USB_ENDPOINT_USAGE_TYPE_PERIODIC = 0x00;
+export const uint8_t USB_ENDPOINT_USAGE_TYPE_NOTIFICATION = 0x01;
 
 export struct usb_hid_descriptor {
     uint8_t bLength;

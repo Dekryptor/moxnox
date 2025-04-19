@@ -23,53 +23,123 @@ static void init_usbhid() {
 
 static module_init module_init_usbhid(init_usbhid);
 
-static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf) {
-    print("FIXME - found_usb_hid_interface\n"); // FIXME
-
+static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
     auto& i = *(usb_interface_descriptor*)buf.data();
+
+    optional<uint8_t> endpoint_num;
+
+    // find endpoint number
+
+    // skip INTERFACE
+    buf = buf.subspan(i.bLength);
+
+    while (!buf.empty()) {
+        auto len = buf[0];
+
+        if (len > buf.size() || len < 2) {
+            print("buffer truncated\n");
+            return false;
+        }
+
+        auto type = (enum usb_descriptor)buf[1];
+
+        if (type == usb_descriptor::INTERFACE)
+            break;
+
+        switch (type) {
+            case usb_descriptor::ENDPOINT: {
+                auto& e = *(usb_endpoint_descriptor*)buf.data();
+
+                if (len < sizeof(usb_endpoint_descriptor)) {
+                    print("buffer truncated\n");
+                    return false;
+                }
+
+                // look for periodic interrupt IN endpoint
+
+                if (e.direction != USB_ENDPOINT_DIRECTION_IN)
+                    break;
+
+                if (e.transfer_type != USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT)
+                    continue;
+
+                if (e.usage_type != USB_ENDPOINT_USAGE_TYPE_PERIODIC)
+                    continue;
+
+                if (endpoint_num.has_value()) {
+                    print("found_usb_keyboard: multiple potential endpoints found\n");
+                    return false;
+                }
+
+                endpoint_num = (uint8_t)e.endpoint_number;
+
+                break;
+            }
+
+            default:
+                break;
+        }
+
+        buf = buf.subspan(len);
+    }
+
+    if (!endpoint_num.has_value()) {
+        print("found_usb_keyboard: no potential endpoint found\n");
+        return false;
+    }
+
+    print("found_usb_keyboard: FIXME - set up endpoint {} IN\n", *endpoint_num);
 
     // FIXME
 
     return false;
 }
 
-static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber) {
+static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf) {
+    auto& i = *(usb_interface_descriptor*)buf.data();
+
     // FIXME - should be parsing HID descriptors
 
-    {
-        auto buf = span((uint8_t*)d.config, d.config_size);
+    // FIXME - reject anything for now that doesn't have a keyboard boot interface
+    if (i.bInterfaceSubClass != 1 || i.bInterfaceProtocol != 1)
+        return false;
 
-        while (!buf.empty()) {
-            auto len = buf[0];
+    return found_usb_keyboard(d, buf);
+}
 
-            if (len > buf.size() || len < 2) {
-                print("buffer truncated\n");
-                return false;
-            }
+static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber) {
+    auto buf = span((uint8_t*)d.config, d.config_size);
 
-            auto type = (enum usb_descriptor)buf[1];
+    while (!buf.empty()) {
+        auto len = buf[0];
 
-            switch (type) {
-                case usb_descriptor::INTERFACE: {
-                    auto& i = *(usb_interface_descriptor*)buf.data();
+        if (len > buf.size() || len < 2) {
+            print("buffer truncated\n");
+            return false;
+        }
 
-                    if (len < sizeof(usb_interface_descriptor)) {
-                        print("buffer truncated\n");
-                        return false;
-                    }
+        auto type = (enum usb_descriptor)buf[1];
 
-                    if (i.bInterfaceNumber == bInterfaceNumber)
-                        return found_usb_hid_interface(d, buf);
+        switch (type) {
+            case usb_descriptor::INTERFACE: {
+                auto& i = *(usb_interface_descriptor*)buf.data();
 
-                    break;
+                if (len < sizeof(usb_interface_descriptor)) {
+                    print("buffer truncated\n");
+                    return false;
                 }
 
-                default:
-                    break;
+                if (i.bInterfaceNumber == bInterfaceNumber)
+                    return found_usb_hid_interface(d, buf);
+
+                break;
             }
 
-            buf = buf.subspan(len);
+            default:
+                break;
         }
+
+        buf = buf.subspan(len);
     }
 
     return false;

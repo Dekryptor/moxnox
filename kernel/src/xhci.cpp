@@ -959,8 +959,10 @@ static void print_config(span<const uint8_t> buf) {
                     return;
                 }
 
-                print("ENDPOINT: bEndpointAddress = {} {}, bmAttributes = {:x}, wMaxPacketSize = {}, bInterval = {}\n",
-                      e.bEndpointAddress & 0xf, e.bEndpointAddress & 0x80 ? "IN" : "OUT", e.bmAttributes, e.wMaxPacketSize, e.bInterval);
+                print("ENDPOINT: endpoint = {} {}, transfer_type = {:x}, synchronization_type = {:x}, usage_type = {:x}, wMaxPacketSize = {}, bInterval = {}\n",
+                      e.endpoint_number, e.direction == USB_ENDPOINT_DIRECTION_IN ? "IN" : "OUT",
+                      e.transfer_type, e.synchronization_type, e.usage_type,
+                      e.wMaxPacketSize, e.bInterval);
                 break;
             }
 
