@@ -123,6 +123,8 @@ public:
     xhci_queue ep0_queue;
     uint8_t slot;
     usb_device_descriptor device_descriptor;
+    void* config = nullptr;
+    size_t config_size;
 
 private:
     xhci& controller;
@@ -658,6 +660,13 @@ usb_device::~usb_device() {
         lock_guard lock(controller.devices_lock);
         remove_entry_list(le);
     }
+
+    if (config) {
+        if (config_size < PAGE_SIZE)
+            free(config);
+        else
+            free_folio(phys_memory_pfn(config) << PAGE_SHIFT);
+    }
 }
 
 bool usb_device::do_transfer(span<uint8_t> buf, uint8_t bmRequestType, enum usb_request bRequest,
@@ -868,6 +877,60 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     print("found USB device {:04x}:{:04x}\n", d->device_descriptor.idVendor,
           d->device_descriptor.idProduct);
+
+    auto cd = new usb_configuration_descriptor;
+    if (!cd) {
+        print("new failed\n");
+        d->release();
+        return;
+    }
+
+    // FIXME - support multiple configurations?
+
+    if (!d->get_descriptor(span((uint8_t*)cd, sizeof(*cd)),
+                           usb_descriptor::CONFIGURATION, 0)) {
+        print("usb_device::get_descriptor failed\n");
+        delete cd;
+        d->release();
+        return;
+    }
+
+    if (cd->wTotalLength < sizeof(*cd)) {
+        print("xhci::port_status_changed: config descriptor was {} bytes, expected at least {}\n",
+              cd->wTotalLength, sizeof(*cd));
+        delete cd;
+        d->release();
+        return;
+    }
+
+    d->config_size = cd->wTotalLength;
+
+    delete cd;
+
+    if (d->config_size < PAGE_SIZE) {
+        d->config = malloc(d->config_size);
+        if (!d->config) {
+            print("malloc failed\n");
+            d->release();
+            return;
+        }
+    } else {
+        auto f = allocate_folio(bytes_to_folio_order(d->config_size));
+        if (!f) {
+            print("allocate_folio failed\n");
+            d->release();
+            return;
+        }
+
+        d->config = phys_address(f);
+    }
+
+    if (!d->get_descriptor(span((uint8_t*)d->config, d->config_size),
+                           usb_descriptor::CONFIGURATION, 0)) {
+        print("usb_device::get_descriptor failed\n");
+        d->release();
+        return;
+    }
 
     // FIXME
 }
