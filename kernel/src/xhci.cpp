@@ -832,6 +832,11 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
           psie_to_string(psi.psie), speed_class_to_string(speed_class),
           usb_revision >> 8, usb_revision & 0xff);
 
+    if (speed_class == usb_speed_class::unknown) {
+        print("usb_device::usb_device: ignoring device with unknown speed class\n");
+        return;
+    }
+
     auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
 
     memset(&s, 0, sizeof(s));
@@ -866,9 +871,28 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
     context->slot.context_entries = 1;
 
     context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
-    context->ep[0].max_packet_size = XHCI_EP0_TRB_LEN;
+
+    switch (speed_class) {
+        case usb_speed_class::low_speed:
+        case usb_speed_class::full_speed:
+            context->ep[0].max_packet_size = 8;
+            break;
+
+        case usb_speed_class::high_speed:
+            context->ep[0].max_packet_size = 64;
+            break;
+
+        case usb_speed_class::super_speed:
+        case usb_speed_class::super_speed_plus:
+            context->ep[0].max_packet_size = 512;
+            break;
+
+        default:
+            break;
+    }
+
     context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
-    context->ep[0].average_trb_length = XHCI_EP0_TRB_LEN;
+    context->ep[0].average_trb_length = context->ep[0].max_packet_size;
 
     controller.command_queue.submit(req, true);
 
@@ -881,6 +905,8 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
         print("usb_device::usb_device: controller returned error {} for address device\n", (enum TRB_CODE)req.comp.completion_code);
         return;
     }
+
+    // FIXME - if Full Speed, update EP0 with actual max packet size
 
     initialized = true;
 }

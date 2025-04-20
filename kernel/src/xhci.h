@@ -419,8 +419,6 @@ enum class XHCI_EP_TYPE {
     INTERRUPT_IN = 7,
 };
 
-static const uint16_t XHCI_EP0_TRB_LEN = 64;
-
 static const uint32_t XHCI_EP_DCS = 0x00000001;
 
 struct xhci_device_context {
