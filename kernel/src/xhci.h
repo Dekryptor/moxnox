@@ -472,3 +472,15 @@ struct xhci_supported_protocol {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_supported_protocol) == 0x10);
+
+struct xhci_psi {
+    uint8_t psiv : 4;
+    uint8_t psie : 2;
+    uint8_t plt : 2;
+    uint8_t pfd : 1;
+    uint8_t reserved : 5;
+    uint8_t lp : 2;
+    uint16_t psim;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_psi) == 0x4);

@@ -1,5 +1,6 @@
 module;
 
+#include <utility>
 #include "kernel.h"
 #include "xhci.h"
 #include "spinlock.h"
@@ -93,6 +94,7 @@ private:
     uint8_t enable_slot(uint8_t slot_type);
     uint8_t get_port_slot_type(uint8_t port_id);
     bool reset_port(uint8_t port_id);
+    pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
 
     uint8_t num_slots, num_ports;
     xhci_trb_common* event_ring = nullptr;
@@ -116,10 +118,20 @@ struct device_endpoint {
     xhci_queue queue;
 };
 
+enum class usb_speed_class {
+    unknown,
+    low_speed,
+    high_speed,
+    full_speed,
+    super_speed,
+    super_speed_plus
+};
+
 export class usb_device {
 public:
     usb_device(xhci& controller, xhci_device_context& devctx,
-               uint8_t slot, uint8_t speed, uint8_t port_id);
+               uint8_t slot, uint8_t speed, uint8_t port_id,
+               uint16_t usb_revision, xhci_psi& psi);
     ~usb_device();
     bool get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
                         uint8_t desc_index);
@@ -152,6 +164,7 @@ private:
     uint8_t speed, port_id;
     rwsem endpoint_mutex;
     spinlock endpoint_spinlock;
+    enum usb_speed_class speed_class;
 };
 
 export struct usb_recognizer {
@@ -747,13 +760,77 @@ span<char> do_format_arg(span<char> sp, string_view, enum usb_class_code arg) {
     }
 }
 
+static string_view psie_to_string(uint8_t psie) {
+    switch (psie) {
+        case 0:
+            return "bits/s";
+
+        case 1:
+            return "Kb/s";
+
+        case 2:
+            return "Mb/s";
+
+        case 3:
+            return "Gb/s";
+
+        default:
+            unreachable();
+    }
+}
+
+static string_view speed_class_to_string(enum usb_speed_class sc) {
+    switch (sc) {
+        case usb_speed_class::unknown:
+            return "unknown speed";
+
+        case usb_speed_class::low_speed:
+            return "Low Speed";
+
+        case usb_speed_class::high_speed:
+            return "High Speed";
+
+        case usb_speed_class::full_speed:
+            return "Full Speed";
+
+        case usb_speed_class::super_speed:
+            return "SuperSpeed";
+
+        case usb_speed_class::super_speed_plus:
+            return "SuperSpeed+";
+
+        default:
+            unreachable();
+    }
+}
+
 usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t slot,
-                       uint8_t speed, uint8_t port_id) : controller(controller), devctx(devctx) {
+                       uint8_t speed, uint8_t port_id, uint16_t usb_revision,
+                       xhci_psi& psi) : controller(controller), devctx(devctx) {
     xhci_request req;
 
     this->slot = slot;
     this->speed = speed;
     this->port_id = port_id;
+
+    speed_class = usb_speed_class::unknown;
+
+    if (psi.psim == 12 && psi.psie == 2)
+        speed_class = usb_speed_class::full_speed;
+    else if (psi.psim == 1500 && psi.psie == 1)
+        speed_class = usb_speed_class::low_speed;
+    else if (psi.psim == 480 && psi.psie == 2)
+        speed_class = usb_speed_class::high_speed;
+    else if ((usb_revision & 0xff00) == 0x0300) {
+        if (psi.lp == 0)
+            speed_class = usb_speed_class::super_speed;
+        else if (psi.lp == 1)
+            speed_class = usb_speed_class::super_speed_plus;
+    }
+
+    print("slot {}, speed {} {}, {}, USB {}.{}\n", slot, psi.psim,
+          psie_to_string(psi.psie), speed_class_to_string(speed_class),
+          usb_revision >> 8, usb_revision & 0xff);
 
     auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
 
@@ -1236,6 +1313,89 @@ static void probe_interfaces(usb_device& d) {
     }
 }
 
+pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
+    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
+
+    // FIXME - make sure we don't overflow BAR
+
+    static const uint32_t default_speeds[] = {
+        0x000c0021, // full-speed
+        0x05dc0012, // low-speed
+        0x01e00023, // high-speed
+        0x00050134, // superspeed gen1 x1
+        0x000a4135, // superspeed+ gen2 x1
+        0x000a4136, // superspeed+ gen1 x2
+        0x00144137  // superspeed+ gen2 x2
+    };
+
+    volatile auto* ptr = (uint32_t*)(dev.bar[0].data() + (xecp << 2));
+
+    while (true) {
+        xhci_extended_capability cap;
+
+        *(uint32_t*)&cap = *ptr;
+
+        if (cap.cap_type == xhci_capability_type::supported_protocol) {
+            xhci_supported_protocol prot;
+
+            // Qemu insists that we read 32 bits at a time
+            copy_by_uint32(ptr, &prot, sizeof(prot));
+
+            // FIXME - check name string
+
+            auto ptr2 = ptr + (sizeof(prot) / sizeof(uint32_t));
+            if (port_id >= prot.port_offset && port_id < prot.port_offset + prot.port_count) {
+                optional<uint32_t> found_speed = 0;
+
+                for (unsigned int i = 0; i < prot.psic; i++) {
+                    xhci_psi psi;
+
+                    copy_by_uint32(ptr2, &psi, sizeof(psi));
+                    ptr2++;
+
+                    if (psi.psiv == speed) {
+                        found_speed = *(uint32_t*)&psi;
+                        break;
+                    }
+                }
+
+                if (prot.psic == 0) {
+                    if (prot.revision_major == 2 && prot.revision_minor == 0) { // USB 2.0
+                        if (speed >= 1 && speed <= 3)
+                            found_speed = default_speeds[speed - 1];
+                    } else if (prot.revision_major == 3 && prot.revision_minor == 0) { // USB 3.0
+                        if (speed == 4)
+                            found_speed = default_speeds[speed - 1];
+                    } else if (prot.revision_major == 3 && prot.revision_minor == 0x10) { // USB 3.1
+                        if (speed >= 4 && speed <= 5)
+                            found_speed = default_speeds[speed - 1];
+                    } else if (prot.revision_major == 3 && prot.revision_minor == 0x20) { // USB 3.2
+                        if (speed >= 4 && speed <= 7)
+                            found_speed = default_speeds[speed - 1];
+                    }
+                }
+
+                if (!found_speed.has_value()) {
+                    print("xhci::get_speed: could not translate PSIV {} into speed for port {}\n", speed, port_id);
+                    return { 0, 0 };
+                }
+
+                return { *found_speed, (prot.revision_major << 8) | prot.revision_minor };
+            }
+        }
+
+        if (cap.next_cap == 0)
+            break;
+
+        ptr += cap.next_cap;
+    }
+
+    print("xhci::get_speed: could not find port {} in capabilities\n", port_id);
+
+    return { 0, 0 };
+}
+
 void xhci::port_status_changed(uint8_t port_id) {
     print("xhci::port_status_changed: {}\n", port_id);
 
@@ -1286,13 +1446,21 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     p.slot = slot;
 
-    print("slot {}\n", slot);
-
     dcbaa[slot] = va_to_pa_phys(devctx);
 
-    auto d = new usb_device(*this, *devctx, slot,
-                            (portsc & XHCI_PORTSC_SPEED) >> XHCI_PORTSC_SPEED_SHIFT,
-                            port_id);
+    uint8_t speed = (portsc & XHCI_PORTSC_SPEED) >> XHCI_PORTSC_SPEED_SHIFT;
+
+    auto [psi_num, usb_revision] = get_speed(port_id, speed);
+    if (psi_num == 0) {
+        print("xhci::get_speed failed\n");
+        delete devctx;
+        dcbaa[slot] = 0;
+        // FIXME - disable slot
+        return;
+    }
+
+    auto d = new usb_device(*this, *devctx, slot, speed, port_id,
+                            usb_revision, *(xhci_psi*)&psi_num);
     if (!d) {
         print("new failed\n");
         delete devctx;
