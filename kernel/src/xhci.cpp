@@ -830,7 +830,7 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
 
     print("slot {}, speed {} {}, {}, USB {}.{}\n", slot, psi.psim,
           psie_to_string(psi.psie), speed_class_to_string(speed_class),
-          usb_revision >> 8, usb_revision & 0xff);
+          usb_revision >> 8, (usb_revision & 0xff) >> 4);
 
     if (speed_class == usb_speed_class::unknown) {
         print("usb_device::usb_device: ignoring device with unknown speed class\n");
@@ -860,8 +860,6 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
         delete context;
         return;
     }
-
-    // FIXME - print port speed to console
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
