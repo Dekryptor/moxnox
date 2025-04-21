@@ -19,6 +19,7 @@ using namespace std;
 static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
 atomic<unsigned int> devices_left = 0;
 static object_ref init_device_event;
+export bool init_pci_done = false;
 
 export struct msix_entry {
     uint32_t message_address_low;

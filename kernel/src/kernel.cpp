@@ -172,9 +172,13 @@ void main_thread() {
     if (!init_acpi_done) {
         init_acpi();
         find_acpi_devices();
+        init_acpi_done = true;
     }
 
-    init_pci();
+    if (!init_pci_done) {
+        init_pci();
+        init_pci_done = true;
+    }
 
     // if no ACPI, look for serial port at its traditional address
     if (rsdp_pa == 0)
