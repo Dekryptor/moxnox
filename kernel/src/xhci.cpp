@@ -857,7 +857,7 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
 #pragma GCC diagnostic ignored "-Wconversion"
     context->slot.speed = speed;
 #pragma GCC diagnostic pop
-    context->slot.route_hub_port_number = port_id;
+    context->slot.root_hub_port_number = port_id;
     context->slot.context_entries = 1;
 
     uint16_t max_packet_size;
@@ -1008,7 +1008,7 @@ bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
 #pragma GCC diagnostic ignored "-Wconversion"
     context->slot.speed = speed;
 #pragma GCC diagnostic pop
-    context->slot.route_hub_port_number = port_id;
+    context->slot.root_hub_port_number = port_id;
     context->slot.context_entries = 1;
 
     context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
@@ -1092,7 +1092,7 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 #pragma GCC diagnostic ignored "-Wconversion"
         context->slot.speed = speed;
 #pragma GCC diagnostic pop
-        context->slot.route_hub_port_number = port_id;
+        context->slot.root_hub_port_number = port_id;
         context->slot.context_entries = 1;
 
         auto& ep = context->ep[ep_index];

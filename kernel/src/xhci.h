@@ -358,7 +358,7 @@ struct xhci_slot_context {
     uint32_t hub : 1;
     uint32_t context_entries : 5;
     uint16_t max_exit_latency;
-    uint8_t route_hub_port_number;
+    uint8_t root_hub_port_number;
     uint8_t num_ports;
     uint8_t parent_hub_slot_id;
     uint8_t parent_port_number;
