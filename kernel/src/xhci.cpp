@@ -96,6 +96,7 @@ private:
     uint8_t get_port_slot_type(uint8_t port_id);
     bool reset_port(uint8_t port_id);
     pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
+    bool init_scratchpad();
 
     uint8_t num_slots, num_ports;
     xhci_trb_common* event_ring = nullptr;
@@ -109,6 +110,8 @@ private:
     spinlock port_status_change_lock;
     list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
     xhci_port* ports = nullptr;
+    uint64_t* scratchpad_array = nullptr;
+    size_t scratchpad_array_size;
 };
 
 struct device_endpoint {
@@ -275,6 +278,61 @@ static void copy_by_uint32(volatile void* src, volatile void* dest, size_t size)
     }
 }
 
+bool xhci::init_scratchpad() {
+    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
+
+    xhci_hcsparams2 hcsparams2;
+
+    copy_by_uint32(&cap_regs.HCSPARAMS2, &hcsparams2, sizeof(hcsparams2));
+
+    uint16_t max_scratchpad_buffers = (hcsparams2.max_scratchpad_buffers_high << 5) | hcsparams2.max_scratchpad_buffers_low;
+
+    if (max_scratchpad_buffers == 0)
+        return true;
+
+    uint32_t op_pagesize_bits = op_regs.PAGESIZE;
+
+    op_pagesize_bits &= 0xffff; // ignore reserved bits
+
+    if (op_pagesize_bits == 0) {
+        print("xhci::init_scratchpad: PAGESIZE was 0\n");
+        return false;
+    }
+
+    uint8_t scratchpad_order = bytes_to_folio_order(1 << (countr_zero(op_pagesize_bits) + 12));
+
+    scratchpad_array_size = max_scratchpad_buffers;
+
+    scratchpad_array = (uint64_t*)malloc(sizeof(uint64_t) * scratchpad_array_size);
+    if (!scratchpad_array) {
+        print("malloc failed\n");
+        return false;
+    }
+
+    for (unsigned int i = 0; i < max_scratchpad_buffers; i++) {
+        auto buf = allocate_folio(scratchpad_order);
+        if (!buf) {
+            print("allocate_folio failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                free_folio(scratchpad_array[j]);
+            }
+
+            free(scratchpad_array);
+            scratchpad_array = nullptr;
+
+            return false;
+        }
+
+        memset(phys_address(buf), 0, 1 << (PAGE_SHIFT + scratchpad_order));
+
+        scratchpad_array[i] = buf;
+    }
+
+    return true;
+}
+
 xhci::xhci(pci_device& dev) : dev(dev) {
     dev.header->command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
@@ -320,6 +378,11 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     if (dev.bar[0].size() < cap_regs.CAPLENGTH + offsetof(xhci_op_regs, ports) + (num_ports * sizeof(xhci_port_regs))) {
         print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
               dev.bar[0].size(), cap_regs.CAPLENGTH + sizeof(xhci_op_regs) + (num_ports * sizeof(xhci_port_regs)));
+        return;
+    }
+
+    if (!init_scratchpad()) {
+        print("xhci::init_scratchpad failed\n");
         return;
     }
 
@@ -393,6 +456,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     }
 
     memset(dcbaa, 0, (num_slots + 1) * sizeof(uint64_t));
+    dcbaa[0] = va_to_pa_phys(scratchpad_array);
 
     write_volatile64(&op_regs.DCBAAP, va_to_pa_phys(dcbaa));
 
@@ -498,6 +562,13 @@ xhci::~xhci() {
 
     if (ports)
         free(ports);
+
+    if (scratchpad_array) {
+        for (size_t i = 0; i < scratchpad_array_size; i++) {
+            free_folio(scratchpad_array[i]);
+        }
+        free(scratchpad_array);
+    }
 }
 
 bool xhci::reset_port(uint8_t port_id) {

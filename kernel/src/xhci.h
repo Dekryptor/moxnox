@@ -491,3 +491,14 @@ struct xhci_hcsparams1 {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_hcsparams1) == 0x4);
+
+struct xhci_hcsparams2 {
+    uint32_t ist : 4;
+    uint32_t erst_max : 4;
+    uint32_t reserved : 13;
+    uint32_t max_scratchpad_buffers_high : 5;
+    uint32_t spr : 1;
+    uint32_t max_scratchpad_buffers_low : 5;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_hcsparams2) == 0x4);
