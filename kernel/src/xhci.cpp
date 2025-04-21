@@ -41,6 +41,7 @@ struct port_status_change {
 };
 
 struct xhci_port {
+    uint16_t usb_revision;
     uint8_t slot;
 };
 
@@ -97,6 +98,7 @@ private:
     bool reset_port(uint8_t port_id);
     pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
     bool init_scratchpad();
+    uint16_t get_port_usb_revision(uint8_t port_id);
 
     uint8_t num_slots, num_ports;
     xhci_trb_common* event_ring = nullptr;
@@ -446,6 +448,10 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     if (!reset_done) {
         print("init_xhci: timed out resetting controller\n");
         return;
+    }
+
+    for (uint8_t i = 0; i < num_ports; i++) {
+        ports[i].usb_revision = get_port_usb_revision(i + 1);
     }
 
     print("init_xhci: num_slots = {}, num_ports = {}\n", num_slots, num_ports);
@@ -1633,6 +1639,42 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
     print("xhci::get_speed: could not find port {} in capabilities\n", port_id);
 
     return { 0, 0 };
+}
+
+uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
+    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
+
+    // FIXME - make sure we don't overflow BAR
+
+    volatile auto* ptr = (uint32_t*)(dev.bar[0].data() + (xecp << 2));
+
+    while (true) {
+        xhci_extended_capability cap;
+
+        *(uint32_t*)&cap = *ptr;
+
+        if (cap.cap_type == xhci_capability_type::supported_protocol) {
+            xhci_supported_protocol prot;
+
+            // Qemu insists that we read 32 bits at a time
+            copy_by_uint32(ptr, &prot, sizeof(prot));
+
+            // FIXME - check name string
+
+            if (port_id >= prot.port_offset && port_id < prot.port_offset + prot.port_count)
+                return (prot.revision_major << 8) | prot.revision_minor;
+        }
+
+        if (cap.next_cap == 0)
+            break;
+
+        ptr += cap.next_cap;
+    }
+
+    print("xhci::get_port_usb_revision: could not find port {} in capabilities\n", port_id);
+
+    return 0;
 }
 
 void xhci::port_status_changed(uint8_t port_id) {
