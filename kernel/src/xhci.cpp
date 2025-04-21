@@ -100,6 +100,7 @@ private:
 
     uint8_t num_slots, num_ports;
     xhci_trb_common* event_ring = nullptr;
+    uint64_t event_ring_pa;
     unsigned int event_ring_offset = 0;
     bool event_ring_cycle = true;
     xhci_event_ring_segment* seg_table = nullptr;
@@ -476,13 +477,39 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     volatile auto& run_regs = *(xhci_run_regs*)((uint8_t*)&cap_regs + cap_regs.RTSOFF);
 
-    event_ring = (xhci_trb_common*)malloc(EVENT_RING_SIZE * sizeof(xhci_trb_common));
-    if (!event_ring) {
-        print("malloc failed\n");
+    size_t event_ring_bytes = EVENT_RING_SIZE * sizeof(xhci_trb_common);
+    uint32_t event_ring_num_pages = bytes_to_pages(event_ring_bytes);
+
+    event_ring_pa = allocate_folio(bytes_to_folio_order(event_ring_bytes));
+    if (!event_ring_pa) {
+        print("allocate folio failed\n");
         return;
     }
 
-    memset(event_ring, 0, EVENT_RING_SIZE * sizeof(xhci_trb_common));
+    auto va = allocate_va(event_ring_num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        free_folio(event_ring_pa);
+        return;
+    }
+
+    for (unsigned int i = 0; i < event_ring_num_pages; i++) {
+        if (!map_page(event_ring_pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::no_cache)) {
+            print("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, event_ring_num_pages);
+            free_folio(event_ring_pa);
+
+            return;
+        }
+    }
+
+    event_ring = (xhci_trb_common*)va;
+    memset(event_ring, 0, event_ring_bytes);
 
     seg_table = (xhci_event_ring_segment*)malloc_aligned(sizeof(xhci_event_ring_segment), 64);
     if (!seg_table) {
@@ -492,13 +519,13 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     memset(seg_table, 0, sizeof(xhci_event_ring_segment));
 
-    seg_table->base_address = va_to_pa_phys(event_ring);
+    seg_table->base_address = event_ring_pa;
     seg_table->size = EVENT_RING_SIZE;
 
     volatile auto& int_reg = run_regs.int_regs[0];
 
     int_reg.ERSTSZ |= (int_reg.ERSTSZ & 0xffff0000) | 1;
-    write_volatile64(&int_reg.ERDP, va_to_pa_phys(event_ring));
+    write_volatile64(&int_reg.ERDP, event_ring_pa);
     write_volatile64(&int_reg.ERSTBA, va_to_pa_phys(seg_table));
 
     port_status_change_event = create_event(true);
@@ -554,8 +581,21 @@ xhci::~xhci() {
     if (dcbaa)
         free(dcbaa);
 
-    if (event_ring)
-        free(event_ring);
+    if (event_ring) {
+        auto size_bytes = EVENT_RING_SIZE * sizeof(xhci_trb_common);
+
+        uint32_t num_pages = bytes_to_pages(size_bytes);
+
+        auto va = (uintptr_t)event_ring;
+
+        for (unsigned int i = 0; i < num_pages; i++) {
+            unmap_page(va + (i << PAGE_SHIFT));
+        }
+
+        free_va(va, num_pages);
+
+        free_folio(event_ring_pa);
+    }
 
     if (seg_table)
         free(seg_table);
@@ -1895,8 +1935,7 @@ void xhci::isr() {
         }
     }
 
-    write_volatile64(&int_reg.ERDP,
-                     va_to_pa_phys(&event_ring[event_ring_offset]) | XHCI_ERDP_EHB);
+    write_volatile64(&int_reg.ERDP, (event_ring_pa + (event_ring_offset * sizeof(xhci_trb_common))) | XHCI_ERDP_EHB);
 }
 
 void xhci_queue::submit(xhci_request& req, bool ring_bell) {
