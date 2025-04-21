@@ -482,3 +482,12 @@ struct xhci_psi {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_psi) == 0x4);
+
+struct xhci_hcsparams1 {
+    uint32_t max_slots : 8;
+    uint32_t max_interrupters : 11;
+    uint32_t reserved : 5;
+    uint32_t max_ports : 8;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_hcsparams1) == 0x4);

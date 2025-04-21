@@ -263,6 +263,18 @@ void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
     initialized = true;
 }
 
+static void copy_by_uint32(volatile void* src, volatile void* dest, size_t size) {
+    auto src2 = (volatile uint32_t*)src;
+    auto dest2 = (volatile uint32_t*)dest;
+
+    while (size >= sizeof(uint32_t)) {
+        *dest2 = *src2;
+        src2++;
+        dest2++;
+        size -= sizeof(uint32_t);
+    }
+}
+
 xhci::xhci(pci_device& dev) : dev(dev) {
     dev.header->command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
@@ -285,10 +297,12 @@ xhci::xhci(pci_device& dev) : dev(dev) {
         return;
     }
 
-    auto hcsparams1 = cap_regs.HCSPARAMS1;
+    xhci_hcsparams1 hcsparams1;
 
-    num_slots = hcsparams1 & 0xff;
-    num_ports = (uint8_t)(hcsparams1 >> 24);
+    copy_by_uint32(&cap_regs.HCSPARAMS1, &hcsparams1, sizeof(hcsparams1));
+
+    num_slots = hcsparams1.max_slots;
+    num_ports = hcsparams1.max_ports;
 
     if (num_ports == 0) {
         print("xhci::xhci: num_ports was 0\n");
@@ -1258,18 +1272,6 @@ bool xhci_queue::normal_transfer(span<uint8_t> buf) {
     }
 
     return true;
-}
-
-static void copy_by_uint32(volatile void* src, volatile void* dest, size_t size) {
-    auto src2 = (volatile uint32_t*)src;
-    auto dest2 = (volatile uint32_t*)dest;
-
-    while (size >= sizeof(uint32_t)) {
-        *dest2 = *src2;
-        src2++;
-        dest2++;
-        size -= sizeof(uint32_t);
-    }
 }
 
 uint8_t xhci::get_port_slot_type(uint8_t port_id) {
