@@ -1671,9 +1671,8 @@ export bool init_console(const loader_block_framebuffer& fb,
             print("add_kernel_thread failed\n");
             return false;
         }
-    }
-
-    flush_early_print();
+    } else
+        flush_early_print();
 
     return true;
 }
@@ -1798,6 +1797,8 @@ export bool init_fb_console() {
     }
 
     fb_console_started = true;
+
+    flush_early_print();
 
     return true;
 }
