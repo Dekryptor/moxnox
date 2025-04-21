@@ -495,7 +495,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
         if (num_lba_formats > 16)
             fidxl |= (nsinfo.flbas & 0x30) >> 1;
 
-        if (fidxl >= num_lba_formats) {
+        if (fidxl > num_lba_formats) {
             print("skipping NVMe namespace {}: FIDXL was {}, expected 0 to {}\n",
                   req2.req.sqe.nsid, fidxl, num_lba_formats - 1);
             free_folio(req2.p);
