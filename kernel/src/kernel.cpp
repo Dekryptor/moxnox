@@ -166,18 +166,19 @@ void main_thread() {
 
     setup_folios();
 
-    init_acpi();
+    if (!init_console(lb_fb, lb_tc))
+        bsod("init_console failed\n");
 
-    find_acpi_devices();
+    if (!init_acpi_done) {
+        init_acpi();
+        find_acpi_devices();
+    }
 
     init_pci();
 
     // if no ACPI, look for serial port at its traditional address
     if (rsdp_pa == 0)
         init_serial(0x3f8, 4, "");
-
-    if (!init_console(lb_fb, lb_tc))
-        bsod("init_console failed\n");
 
     _printk = safe_print;
 

@@ -24,6 +24,7 @@ import serial;
 import bsod;
 import pipe;
 import rbtree;
+import acpi;
 
 using namespace std;
 
@@ -1556,6 +1557,10 @@ export bool init_console(const loader_block_framebuffer& fb,
 
         auto sv = string_view(console_opt.data() + sizeof(prefix) - 1,
                               console_opt.size() - sizeof(prefix) + 1);
+
+        init_acpi();
+        find_acpi_devices();
+        init_acpi_done = true;
 
         auto status = open_object(sv, console_chardev);
         if (!success(status))
