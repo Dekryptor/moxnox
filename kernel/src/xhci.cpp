@@ -809,8 +809,6 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
 usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t slot,
                        uint8_t speed, uint8_t port_id, uint16_t usb_revision,
                        xhci_psi& psi) : controller(controller), devctx(devctx) {
-    xhci_request req;
-
     this->slot = slot;
     this->speed = speed;
     this->port_id = port_id;
@@ -839,10 +837,6 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
         return;
     }
 
-    auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
-
-    memset(&s, 0, sizeof(s));
-
     auto context = new xhci_input_context;
     if (!context) {
         print("new failed\n");
@@ -851,10 +845,6 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
 
     memset(context, 0, sizeof(*context));
     context->control.add_context = 3; // slot and EP0
-
-    s.input_context_pointer = va_to_pa_phys(context);
-    s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
-    s.slot_id = slot;
 
     ep0_queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
     if (!ep0_queue.initialized) {
@@ -897,17 +887,30 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
     context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
     context->ep[0].average_trb_length = max_packet_size;
 
-    controller.command_queue.submit(req, true);
+    {
+        xhci_request req;
 
-    wait_for_object(req.event.get(), false);
+        auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.input_context_pointer = va_to_pa_phys(context);
+        s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
+        s.slot_id = slot;
+
+        controller.command_queue.submit(req, true);
+
+        wait_for_object(req.event.get(), false);
+
+        // FIXME - translate into nt_status?
+        if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
+            print("usb_device::usb_device: controller returned error {} for address device\n", (enum TRB_CODE)req.comp.completion_code);
+            delete context;
+            return;
+        }
+    }
 
     delete context;
-
-    // FIXME - translate into nt_status?
-    if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
-        print("usb_device::usb_device: controller returned error {} for address device\n", (enum TRB_CODE)req.comp.completion_code);
-        return;
-    }
 
     {
         lock_guard lock(controller.devices_lock);
