@@ -86,6 +86,7 @@ public:
     uint64_t* dcbaa = nullptr;
     xhci_queue command_queue;
     spinlock devices_lock;
+    list_entry devices = { &devices, &devices };
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
@@ -108,7 +109,6 @@ private:
     spinlock port_status_change_lock;
     list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
     xhci_port* ports = nullptr;
-    list_entry devices = { &devices, &devices };
 };
 
 struct device_endpoint {
@@ -158,6 +158,8 @@ public:
     list_entry endpoints = { &endpoints, &endpoints };
 
 private:
+    bool change_ep0_max_packet_size(uint16_t max_packet_size);
+
     xhci& controller;
     xhci_device_context& devctx;
     atomic<unsigned int> refcount = 1;
@@ -868,29 +870,32 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
     context->slot.route_hub_port_number = port_id;
     context->slot.context_entries = 1;
 
-    context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
+    uint16_t max_packet_size;
 
     switch (speed_class) {
         case usb_speed_class::low_speed:
         case usb_speed_class::full_speed:
-            context->ep[0].max_packet_size = 8;
+            max_packet_size = 8;
             break;
 
         case usb_speed_class::high_speed:
-            context->ep[0].max_packet_size = 64;
+            max_packet_size = 64;
             break;
 
         case usb_speed_class::super_speed:
         case usb_speed_class::super_speed_plus:
-            context->ep[0].max_packet_size = 512;
+            max_packet_size = 512;
             break;
 
-        default:
+        case usb_speed_class::unknown:
+            unreachable();
             break;
     }
 
+    context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
+    context->ep[0].max_packet_size = max_packet_size;
     context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
-    context->ep[0].average_trb_length = context->ep[0].max_packet_size;
+    context->ep[0].average_trb_length = max_packet_size;
 
     controller.command_queue.submit(req, true);
 
@@ -904,7 +909,54 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
         return;
     }
 
-    // FIXME - if Full Speed, update EP0 with actual max packet size
+    {
+        lock_guard lock(controller.devices_lock);
+        insert_tail_list(controller.devices, le);
+    }
+
+    // if Full Speed, update EP0 with actual max packet size
+    if (speed_class == usb_speed_class::full_speed) {
+        auto buf = (uint8_t*)malloc(8);
+        if (!buf) {
+            print("malloc failed\n");
+
+            {
+                lock_guard lock(controller.devices_lock);
+                remove_entry_list(le);
+            }
+
+            return;
+        }
+
+        if (!get_descriptor(span(buf, 8), usb_descriptor::DEVICE, 0)) {
+            print("usb_device::get_descriptor failed\n");
+            free(buf);
+
+            {
+                lock_guard lock(controller.devices_lock);
+                remove_entry_list(le);
+            }
+
+            return;
+        }
+
+        auto& dd = *(usb_device_descriptor*)buf;
+        uint16_t actual_max_packet_size = dd.bMaxPacketSize0;
+        free(buf);
+
+        if (actual_max_packet_size != max_packet_size) {
+            if (!change_ep0_max_packet_size(actual_max_packet_size)) {
+                print("usb_device::change_ep0_max_packet_size failed\n");
+
+                {
+                    lock_guard lock(controller.devices_lock);
+                    remove_entry_list(le);
+                }
+
+                return;
+            }
+        }
+    }
 
     initialized = true;
 }
@@ -926,6 +978,51 @@ usb_device::~usb_device() {
         else
             free_folio(phys_memory_pfn(config) << PAGE_SHIFT);
     }
+}
+
+bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
+    xhci_request req;
+
+    // evaluate context command uses same TRB format as address device
+    auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
+
+    memset(&s, 0, sizeof(s));
+
+    auto context = new xhci_input_context;
+    if (!context) {
+        print("new failed\n");
+        return false;
+    }
+
+    memset(context, 0, sizeof(*context));
+    context->control.add_context = 3; // slot and EP0
+
+    s.input_context_pointer = va_to_pa_phys(context);
+    s.trb_type = (uint16_t)xhci_trb_type::evaluate_context_command;
+    s.slot_id = slot;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    context->slot.speed = speed;
+#pragma GCC diagnostic pop
+    context->slot.route_hub_port_number = port_id;
+    context->slot.context_entries = 1;
+
+    context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
+    context->ep[0].max_packet_size = max_packet_size;
+    context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
+    context->ep[0].average_trb_length = max_packet_size;
+
+    controller.command_queue.submit(req, true);
+
+    wait_for_object(req.event.get(), false);
+
+    if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
+        print("usb_device::change_ep0_max_packet_size: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
+        return false;
+    }
+
+    return true;
 }
 
 xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
@@ -1497,11 +1594,6 @@ void xhci::port_status_changed(uint8_t port_id) {
         print("usb_device::usb_device failed\n");
         delete d;
         return;
-    }
-
-    {
-        lock_guard lock(devices_lock);
-        insert_tail_list(devices, d->le);
     }
 
     print("received address {}\n", devctx->slot.usb_device_address);
