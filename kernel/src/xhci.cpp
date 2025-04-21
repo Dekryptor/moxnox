@@ -497,7 +497,7 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     volatile auto& int_reg = run_regs.int_regs[0];
 
-    int_reg.ERSTSZ = 1;
+    int_reg.ERSTSZ |= (int_reg.ERSTSZ & 0xffff0000) | 1;
     write_volatile64(&int_reg.ERDP, va_to_pa_phys(event_ring));
     write_volatile64(&int_reg.ERSTBA, va_to_pa_phys(seg_table));
 
