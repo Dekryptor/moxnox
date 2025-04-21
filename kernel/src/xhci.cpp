@@ -972,7 +972,8 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
     context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
     context->ep[0].average_trb_length = max_packet_size;
 
-    {
+    // some devices need an address_device with BSR set first
+    for (unsigned int i = 0; i < 2; i++) {
         xhci_request req;
 
         auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
@@ -982,6 +983,7 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
         s.input_context_pointer = va_to_pa_phys(context);
         s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
         s.slot_id = slot;
+        s.bsr = i == 0 ? 1 : 0;
 
         controller.command_queue.submit(req, true);
 
