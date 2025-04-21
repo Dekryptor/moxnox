@@ -32,9 +32,6 @@ static const uint32_t XHCI_PORTSC_PED = 0x00000002;
 static const uint32_t XHCI_PORTSC_PR = 0x00000010;
 static const uint32_t XHCI_PORTSC_PP = 0x00000200;
 static const uint32_t XHCI_PORTSC_PIC = 0x0000c000;
-static const uint32_t XHCI_PORTSC_SPEED = 0x00003c00;
-static const size_t XHCI_PORTSC_SPEED_SHIFT = 10;
-static const uint32_t XHCI_PORTSC_PRC = 0x00200000;
 
 struct xhci_op_regs {
     uint32_t USBCMD;
@@ -502,3 +499,32 @@ struct xhci_hcsparams2 {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_hcsparams2) == 0x4);
+
+struct xhci_portsc {
+    uint16_t CCS : 1;
+    uint16_t PED : 1;
+    uint16_t reserved1 : 1;
+    uint16_t OCA : 1;
+    uint16_t PR : 1;
+    uint16_t PLS : 4;
+    uint16_t PP : 1;
+    uint16_t port_speed : 4;
+    uint16_t PIC : 2;
+    uint8_t LWS : 1;
+    uint8_t CSC : 1;
+    uint8_t PEC : 1;
+    uint8_t WRC : 1;
+    uint8_t OCC : 1;
+    uint8_t PRC : 1;
+    uint8_t PLC : 1;
+    uint8_t CEC : 1;
+    uint8_t CAS : 1;
+    uint8_t WCE : 1;
+    uint8_t WDE : 1;
+    uint8_t WOE : 1;
+    uint8_t reserved2 : 2;
+    uint8_t DR : 1;
+    uint8_t WPR : 1;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_portsc) == 0x4);

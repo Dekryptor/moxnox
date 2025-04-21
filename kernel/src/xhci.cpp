@@ -1644,9 +1644,11 @@ void xhci::port_status_changed(uint8_t port_id) {
     }
 
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)dev.bar[0].data() + caplength);
-    auto portsc = op_regs.ports[port_id - 1].PORTSC;
+    xhci_portsc portsc;
 
-    bool device_present = portsc & XHCI_PORTSC_CCS;
+    copy_by_uint32(&op_regs.ports[port_id - 1].PORTSC, &portsc, sizeof(portsc));
+
+    bool device_present = portsc.CCS;
 
     auto& p = ports[port_id - 1];
 
@@ -1661,11 +1663,12 @@ void xhci::port_status_changed(uint8_t port_id) {
     }
 
     // USB2 ports have to be reset before their speeds are valid
-    if (!(portsc & XHCI_PORTSC_PRC)) {
+    if (!portsc.PRC) {
         if (!reset_port(port_id))
             return;
 
-        portsc = op_regs.ports[port_id - 1].PORTSC;
+        copy_by_uint32(&op_regs.ports[port_id - 1].PORTSC, &portsc,
+                       sizeof(portsc));
     }
 
     auto devctx = new xhci_device_context;
@@ -1687,9 +1690,7 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     dcbaa[slot] = va_to_pa_phys(devctx);
 
-    uint8_t speed = (portsc & XHCI_PORTSC_SPEED) >> XHCI_PORTSC_SPEED_SHIFT;
-
-    auto [psi_num, usb_revision] = get_speed(port_id, speed);
+    auto [psi_num, usb_revision] = get_speed(port_id, portsc.port_speed);
     if (psi_num == 0) {
         print("xhci::get_speed failed\n");
         delete devctx;
@@ -1698,7 +1699,7 @@ void xhci::port_status_changed(uint8_t port_id) {
         return;
     }
 
-    auto d = new usb_device(*this, *devctx, slot, speed, port_id,
+    auto d = new usb_device(*this, *devctx, slot, portsc.port_speed, port_id,
                             usb_revision, *(xhci_psi*)&psi_num);
     if (!d) {
         print("new failed\n");
