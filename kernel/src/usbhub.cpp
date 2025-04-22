@@ -194,6 +194,12 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
+    if (!d.set_feature(USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
+                        (uint8_t)usb_port_feature_selector::PORT_POWER, 1)) {
+        print("usb_device::set_feature failed\n");
+        return false;
+    }
+
     auto hub = new usb_hub(d, *queue, hub_desc);
     if (!hub) {
         print("new failed\n");

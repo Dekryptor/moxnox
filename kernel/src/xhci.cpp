@@ -144,6 +144,7 @@ public:
     bool get_descriptor_class(span<uint8_t> buf, enum usb_descriptor desc_type,
                               uint8_t desc_index);
     bool set_configuration(uint8_t configuration_value);
+    bool set_feature(uint8_t bmRequestType, uint8_t feature, uint16_t index);
     xhci_queue* add_endpoint(const usb_endpoint_descriptor& ep_desc);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
 
@@ -1371,6 +1372,16 @@ bool usb_device::set_configuration(uint8_t configuration_value) {
     if (!ep0_queue.control_transfer(span<uint8_t>(),
             USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
             usb_request::SET_CONFIGURATION, configuration_value, 0)) {
+        print("xhci_queue::control_transfer failed\n");
+        return false;
+    }
+
+    return true;
+}
+
+bool usb_device::set_feature(uint8_t bmRequestType, uint8_t feature, uint16_t index) {
+    if (!ep0_queue.control_transfer(span<uint8_t>(), bmRequestType,
+            usb_request::SET_FEATURE, feature, index)) {
         print("xhci_queue::control_transfer failed\n");
         return false;
     }
