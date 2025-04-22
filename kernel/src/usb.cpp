@@ -84,6 +84,7 @@ export enum class usb_descriptor {
     BOS = 15,
     DEVICE_CAPABILITY = 16,
     HID = 33,
+    HUB = 41,
     SUPERSPEED_USB_ENDPOINT_COMPANION = 48,
     SUPERSPEEDPLUS_ISOCHRONOUS_ENDPOINT_COMPANION = 49,
 };
@@ -172,3 +173,15 @@ export struct usb_hid_descriptor {
 } __attribute((packed));
 
 static_assert(sizeof(usb_hid_descriptor) == 0x9);
+
+export struct usb_hub_descriptor {
+    uint8_t bDescLength;
+    uint8_t bDescriptorType;
+    uint8_t bNbrPorts;
+    uint16_t wHubCharacteristics;
+    uint8_t bPwrOn2PwrGood;
+    uint8_t bHubContrCurrent;
+    uint8_t DeviceRemovable[0];
+} __attribute((packed));
+
+static_assert(sizeof(usb_hub_descriptor) == 0x7);

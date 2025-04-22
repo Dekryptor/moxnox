@@ -141,6 +141,8 @@ public:
     ~usb_device();
     bool get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
                         uint8_t desc_index);
+    bool get_descriptor_class(span<uint8_t> buf, enum usb_descriptor desc_type,
+                              uint8_t desc_index);
     bool set_configuration(uint8_t configuration_value);
     xhci_queue* add_endpoint(const usb_endpoint_descriptor& ep_desc);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
@@ -1353,6 +1355,18 @@ bool usb_device::get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type
     return true;
 }
 
+bool usb_device::get_descriptor_class(span<uint8_t> buf, enum usb_descriptor desc_type,
+                                      uint8_t desc_index) {
+    if (!ep0_queue.control_transfer(buf,
+            USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
+            usb_request::GET_DESCRIPTOR, (uint16_t)(((uint8_t)desc_type << 8) | desc_index), 0)) {
+        print("xhci_queue::control_transfer failed\n");
+        return false;
+    }
+
+    return true;
+}
+
 bool usb_device::set_configuration(uint8_t configuration_value) {
     if (!ep0_queue.control_transfer(span<uint8_t>(),
             USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
@@ -1427,7 +1441,7 @@ uint8_t xhci::get_port_slot_type(uint8_t port_id) {
     return 0;
 }
 
-static void print_config(span<const uint8_t> buf) {
+export void print_usb_config(span<const uint8_t> buf) {
     while (!buf.empty()) {
         auto len = buf[0];
 
@@ -1505,6 +1519,33 @@ static void print_config(span<const uint8_t> buf) {
 
                 print("HID: bcdHID = {:x}, bCountryCode = {}, bNumDescriptors = {}, bDescriptorType2 = {}, wDescriptorLength = {}\n",
                       h.bcdHID, h.bCountryCode, h.bNumDescriptors, h.bDescriptorType2, h.wDescriptorLength);
+
+                break;
+            }
+
+            case usb_descriptor::HUB: {
+                auto& h = *(usb_hub_descriptor*)buf.data();
+
+                if (len < offsetof(usb_hub_descriptor, DeviceRemovable)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                unsigned int dev_rem_bytes = (h.bNbrPorts / 8) + 1;
+
+                if (len < offsetof(usb_hub_descriptor, DeviceRemovable) + dev_rem_bytes) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                print("HUB: bNbrPorts = {}, wHubCharacteristics = {:04x}, bPwrOn2PwrGood = {}, bHubContrCurrent = {}, DeviceRemovable = ",
+                      h.bNbrPorts, h.wHubCharacteristics, h.bPwrOn2PwrGood, h.bHubContrCurrent);
+
+                for (unsigned int i = 0; i < dev_rem_bytes; i++) {
+                    print("{:02x}", h.DeviceRemovable[i]);
+                }
+
+                print("\n");
 
                 break;
             }
@@ -1769,7 +1810,7 @@ void xhci::port_status_changed(uint8_t port_id) {
     print("found USB device {:04x}:{:04x}\n", d->device_descriptor.idVendor,
           d->device_descriptor.idProduct);
 
-    print_config(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)));
+    print_usb_config(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)));
 
     auto cd = new usb_configuration_descriptor;
     if (!cd) {
@@ -1825,7 +1866,7 @@ void xhci::port_status_changed(uint8_t port_id) {
         return;
     }
 
-    print_config(span((uint8_t*)d->config, d->config_size));
+    print_usb_config(span((uint8_t*)d->config, d->config_size));
 
     auto& config = *(usb_configuration_descriptor*)d->config;
 

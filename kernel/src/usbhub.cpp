@@ -13,7 +13,7 @@ using namespace std;
 
 class usb_hub {
 public:
-    usb_hub(usb_device& d, xhci_queue& queue);
+    usb_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc);
     ~usb_hub();
 
 private:
@@ -21,6 +21,7 @@ private:
 
     usb_device& d;
     xhci_queue& queue;
+    usb_hub_descriptor* hub_desc = nullptr;
 };
 
 static bool found_usb_hub_device(usb_device& d, uint8_t bInterfaceNumber);
@@ -35,7 +36,9 @@ static void init_usbhub() {
 
 static module_init module_init_usbhub(init_usbhub);
 
-usb_hub::usb_hub(usb_device& d, xhci_queue& queue) : d(d), queue(queue) {
+usb_hub::usb_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc) : d(d), queue(queue) {
+    this->hub_desc = hub_desc;
+
     d.acquire();
 
     add_kernel_thread([](void* ctx) {
@@ -45,6 +48,9 @@ usb_hub::usb_hub(usb_device& d, xhci_queue& queue) : d(d), queue(queue) {
 
 usb_hub::~usb_hub() {
     d.release();
+
+    if (hub_desc)
+        free(hub_desc);
 }
 
 void usb_hub::recv_thread() {
@@ -68,6 +74,46 @@ void usb_hub::recv_thread() {
     }
 
     free(buf);
+}
+
+static usb_hub_descriptor* get_hub_descriptor(usb_device& d) {
+    // FIXME - "enhanced" hubs
+
+    size_t size = offsetof(usb_hub_descriptor, DeviceRemovable);
+
+    auto desc = (usb_hub_descriptor*)malloc(size);
+    if (!desc) {
+        print("malloc failed\n");
+        return nullptr;
+    }
+
+    if (!d.get_descriptor_class(span((uint8_t*)desc, size), usb_descriptor::HUB, 0)) {
+        print("found_usb_hub_interface: could not get HUB descriptor\n");
+        free(desc);
+        return nullptr;
+    }
+
+    if (desc->bDescLength > size) {
+        size = desc->bDescLength;
+
+        free(desc);
+
+        desc = (usb_hub_descriptor*)malloc(size);
+        if (!desc) {
+            print("malloc failed\n");
+            return nullptr;
+        }
+
+        if (!d.get_descriptor_class(span((uint8_t*)desc, size), usb_descriptor::HUB, 0)) {
+            print("found_usb_hub_interface: could not get HUB descriptor\n");
+            free(desc);
+            return nullptr;
+        }
+    }
+
+    print_usb_config(span((uint8_t*)desc, size));
+
+    return desc;
 }
 
 static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
@@ -142,9 +188,16 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    auto hub = new usb_hub(d, *queue);
+    auto hub_desc = get_hub_descriptor(d);
+    if (!hub_desc) {
+        print("get_hub_descriptor failed\n");
+        return false;
+    }
+
+    auto hub = new usb_hub(d, *queue, hub_desc);
     if (!hub) {
         print("new failed\n");
+        free(hub_desc);
         return false;
     }
 
