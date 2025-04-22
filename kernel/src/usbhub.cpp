@@ -15,9 +15,12 @@ class usb_hub {
 public:
     usb_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc);
     ~usb_hub();
+    void recv_thread();
+
+    bool initialized = false;
 
 private:
-    void recv_thread();
+    bool set_port_feature(enum usb_port_feature_selector feature, uint16_t index);
 
     usb_device& d;
     xhci_queue& queue;
@@ -41,9 +44,14 @@ usb_hub::usb_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc)
 
     d.acquire();
 
-    add_kernel_thread([](void* ctx) {
-        ((usb_hub*)ctx)->recv_thread();
-    }, this);
+    for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
+        if (!set_port_feature(usb_port_feature_selector::PORT_POWER, port)) {
+            print("usb_hub::set_port_feature failed\n");
+            return;
+        }
+    }
+
+    initialized = true;
 }
 
 usb_hub::~usb_hub() {
@@ -51,6 +59,17 @@ usb_hub::~usb_hub() {
 
     if (hub_desc)
         free(hub_desc);
+}
+
+bool usb_hub::set_port_feature(enum usb_port_feature_selector feature,
+                               uint16_t index) {
+    if (!d.set_feature(USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
+                       (uint8_t)feature, index)) {
+        print("usb_device::set_feature failed\n");
+        return false;
+    }
+
+    return true;
 }
 
 void usb_hub::recv_thread() {
@@ -194,18 +213,22 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    if (!d.set_feature(USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
-                        (uint8_t)usb_port_feature_selector::PORT_POWER, 1)) {
-        print("usb_device::set_feature failed\n");
-        return false;
-    }
-
     auto hub = new usb_hub(d, *queue, hub_desc);
     if (!hub) {
         print("new failed\n");
         free(hub_desc);
         return false;
     }
+
+    if (!hub->initialized) {
+        print("usb_hub::usb_hub failed\n");
+        delete hub;
+        return false;
+    }
+
+    add_kernel_thread([](void* ctx) {
+        ((usb_hub*)ctx)->recv_thread();
+    }, hub);
 
     return true;
 }
