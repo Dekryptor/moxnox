@@ -11,6 +11,10 @@ import usb;
 
 using namespace std;
 
+struct usb_hub_port {
+    uint32_t status;
+};
+
 class usb_hub {
 public:
     usb_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc);
@@ -21,10 +25,12 @@ public:
 
 private:
     bool set_port_feature(enum usb_port_feature_selector feature, uint16_t index);
+    bool get_port_status(uint8_t port, uint32_t& status);
 
     usb_device& d;
     xhci_queue& queue;
     usb_hub_descriptor* hub_desc = nullptr;
+    usb_hub_port* ports = nullptr;
 };
 
 static bool found_usb_hub_device(usb_device& d, uint8_t bInterfaceNumber);
@@ -44,11 +50,32 @@ usb_hub::usb_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc)
 
     d.acquire();
 
+    ports = (usb_hub_port*)malloc(sizeof(usb_hub_port) * hub_desc->bNbrPorts);
+    if (!ports) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memset(ports, 0, sizeof(usb_hub_port) * hub_desc->bNbrPorts);
+
     for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
         if (!set_port_feature(usb_port_feature_selector::PORT_POWER, port)) {
             print("usb_hub::set_port_feature failed\n");
             return;
         }
+    }
+
+    // get status of each port
+
+    for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
+        auto& p = ports[port - 1];
+
+        if (!get_port_status(port, p.status)) {
+            print("usb_hub::get_port_status failed\n");
+            return;
+        }
+
+        print("port {}: {:08x}\n", port, p.status);
     }
 
     initialized = true;
@@ -59,6 +86,9 @@ usb_hub::~usb_hub() {
 
     if (hub_desc)
         free(hub_desc);
+
+    if (ports)
+        free(ports);
 }
 
 bool usb_hub::set_port_feature(enum usb_port_feature_selector feature,
@@ -66,6 +96,16 @@ bool usb_hub::set_port_feature(enum usb_port_feature_selector feature,
     if (!d.set_feature(USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
                        (uint8_t)feature, index)) {
         print("usb_device::set_feature failed\n");
+        return false;
+    }
+
+    return true;
+}
+
+bool usb_hub::get_port_status(uint8_t port, uint32_t& status) {
+    if (!d.get_status(USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
+                      span((uint8_t*)&status, sizeof(status)), 0, port)) {
+        print("usb_device::get_status failed\n");
         return false;
     }
 
@@ -210,6 +250,12 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
     auto hub_desc = get_hub_descriptor(d);
     if (!hub_desc) {
         print("get_hub_descriptor failed\n");
+        return false;
+    }
+
+    if (hub_desc->bNbrPorts == 0) {
+        print("found_usb_hub_interface: number of ports was 0\n");
+        free(hub_desc);
         return false;
     }
 
