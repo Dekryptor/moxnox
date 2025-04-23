@@ -6,13 +6,38 @@ module;
 export module usbhub;
 
 import print;
+import format;
 import xhci;
 import usb;
 
 using namespace std;
 
+struct port_status {
+    uint8_t connection : 1;
+    uint8_t enabled : 1;
+    uint8_t suspended : 1;
+    uint8_t over_current : 1;
+    uint8_t reset : 1;
+    uint8_t reserved1 : 3;
+    uint8_t power : 1;
+    uint8_t low_speed : 1;
+    uint8_t high_speed : 1;
+    uint8_t test_mode : 1;
+    uint8_t indicator_control : 1;
+    uint8_t reserved2 : 3;
+    uint8_t status_changed : 1;
+    uint8_t enable_changed : 1;
+    uint8_t suspend_changed : 1;
+    uint8_t over_current_changed : 1;
+    uint8_t reset_changed : 1;
+    uint8_t reserved3 : 3;
+    uint8_t reserved4;
+} __attribute((packed));
+
+static_assert(sizeof(port_status) == 0x4);
+
 struct usb_hub_port {
-    uint32_t status;
+    port_status status;
 };
 
 class usb_hub {
@@ -25,7 +50,7 @@ public:
 
 private:
     bool set_port_feature(enum usb_port_feature_selector feature, uint16_t index);
-    bool get_port_status(uint8_t port, uint32_t& status);
+    bool get_port_status(uint8_t port, port_status& status);
 
     usb_device& d;
     xhci_queue& queue;
@@ -44,6 +69,46 @@ static void init_usbhub() {
 }
 
 static module_init module_init_usbhub(init_usbhub);
+
+template<>
+consteval bool format_spec_valid<port_status>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, const port_status& arg) {
+    sp = do_format_arg(sp, "", "connection = ");
+    sp = do_format_arg(sp, "", arg.connection);
+    sp = do_format_arg(sp, "", ", enabled = ");
+    sp = do_format_arg(sp, "", arg.enabled);
+    sp = do_format_arg(sp, "", ", suspended = ");
+    sp = do_format_arg(sp, "", arg.suspended);
+    sp = do_format_arg(sp, "", ", over_current = ");
+    sp = do_format_arg(sp, "", arg.over_current);
+    sp = do_format_arg(sp, "", ", reset = ");
+    sp = do_format_arg(sp, "", arg.reset);
+    sp = do_format_arg(sp, "", ", power = ");
+    sp = do_format_arg(sp, "", arg.power);
+    sp = do_format_arg(sp, "", ", low_speed = ");
+    sp = do_format_arg(sp, "", arg.low_speed);
+    sp = do_format_arg(sp, "", ", high_speed = ");
+    sp = do_format_arg(sp, "", arg.high_speed);
+    sp = do_format_arg(sp, "", ", test_mode = ");
+    sp = do_format_arg(sp, "", arg.test_mode);
+    sp = do_format_arg(sp, "", ", indicator_control = ");
+    sp = do_format_arg(sp, "", arg.indicator_control);
+    sp = do_format_arg(sp, "", ", status_changed = ");
+    sp = do_format_arg(sp, "", arg.status_changed);
+    sp = do_format_arg(sp, "", ", enable_changed = ");
+    sp = do_format_arg(sp, "", arg.enable_changed);
+    sp = do_format_arg(sp, "", ", suspend_changed = ");
+    sp = do_format_arg(sp, "", arg.suspend_changed);
+    sp = do_format_arg(sp, "", ", over_current_changed = ");
+    sp = do_format_arg(sp, "", arg.over_current_changed);
+    sp = do_format_arg(sp, "", ", reset_changed = ");
+    sp = do_format_arg(sp, "", arg.reset_changed);
+
+    return sp;
+}
 
 usb_hub::usb_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc) : d(d), queue(queue) {
     this->hub_desc = hub_desc;
@@ -75,7 +140,7 @@ usb_hub::usb_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc)
             return;
         }
 
-        print("port {}: {:08x}\n", port, p.status);
+        print("port {}: {}\n", port, p.status);
     }
 
     initialized = true;
@@ -102,7 +167,7 @@ bool usb_hub::set_port_feature(enum usb_port_feature_selector feature,
     return true;
 }
 
-bool usb_hub::get_port_status(uint8_t port, uint32_t& status) {
+bool usb_hub::get_port_status(uint8_t port, port_status& status) {
     if (!d.get_status(USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
                       span((uint8_t*)&status, sizeof(status)), 0, port)) {
         print("usb_device::get_status failed\n");
