@@ -136,7 +136,7 @@ enum class usb_speed_class {
 
 export class usb_device {
 public:
-    usb_device(xhci& controller, xhci_device_context<false>& devctx,
+    usb_device(xhci& controller, void* devctx,
                uint8_t slot, uint8_t speed, uint8_t port_id,
                uint16_t usb_revision, xhci_psi& psi);
     ~usb_device();
@@ -174,7 +174,7 @@ private:
     bool change_ep0_max_packet_size(uint16_t max_packet_size);
 
     xhci& controller;
-    xhci_device_context<false>& devctx;
+    void* devctx;
     atomic<unsigned int> refcount = 1;
     uint8_t speed, port_id;
     rwsem endpoint_mutex;
@@ -946,7 +946,7 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
     }
 }
 
-usb_device::usb_device(xhci& controller, xhci_device_context<false>& devctx, uint8_t slot,
+usb_device::usb_device(xhci& controller, void* devctx, uint8_t slot,
                        uint8_t speed, uint8_t port_id, uint16_t usb_revision,
                        xhci_psi& psi) : controller(controller), devctx(devctx) {
     this->slot = slot;
@@ -1123,7 +1123,11 @@ usb_device::~usb_device() {
     // FIXME - disable slot
 
     controller.dcbaa[slot] = 0;
-    delete &devctx;
+
+    if (controller.large_contexts)
+        delete (xhci_device_context<true>*)devctx;
+    else
+        delete (xhci_device_context<false>*)devctx;
 
     if (initialized) {
         lock_guard lock(controller.devices_lock);
@@ -1869,51 +1873,65 @@ void xhci::port_status_changed(uint8_t port_id) {
                        sizeof(portsc));
     }
 
-    auto devctx = new xhci_device_context<false>;
-    if (!devctx) {
-        print("new failed\n");
-        return;
+    usb_device* d;
+
+    auto func = [&]<bool LARGE>() -> bool {
+        auto devctx = new xhci_device_context<LARGE>;
+        if (!devctx) {
+            print("new failed\n");
+            return false;
+        }
+
+        memset(devctx, 0, sizeof(*devctx));
+
+        auto slot = enable_slot(get_port_slot_type(port_id));
+        if (slot == 0) {
+            print("xhci::port_status_changed: could not enable slot\n");
+            delete devctx;
+            return false;
+        }
+
+        p.slot = slot;
+
+        dcbaa[slot] = va_to_pa_phys(devctx);
+
+        auto [psi_num, usb_revision] = get_speed(port_id, portsc.port_speed);
+        if (psi_num == 0) {
+            print("xhci::get_speed failed\n");
+            delete devctx;
+            dcbaa[slot] = 0;
+            // FIXME - disable slot
+            return false;
+        }
+
+        d = new usb_device(*this, devctx, slot, portsc.port_speed, port_id,
+                           usb_revision, *(xhci_psi*)&psi_num);
+        if (!d) {
+            print("new failed\n");
+            delete devctx;
+            dcbaa[slot] = 0;
+            // FIXME - disable slot
+            return false;
+        }
+
+        if (!d->initialized) {
+            print("usb_device::usb_device failed\n");
+            delete d;
+            return false;
+        }
+
+        print("received address {}\n", devctx->slot.usb_device_address);
+
+        return true;
+    };
+
+    if (large_contexts) {
+        if (!func.template operator()<true>())
+            return;
+    } else {
+        if (!func.template operator()<false>())
+            return;
     }
-
-    memset(devctx, 0, sizeof(*devctx));
-
-    auto slot = enable_slot(get_port_slot_type(port_id));
-    if (slot == 0) {
-        print("xhci::port_status_changed: could not enable slot\n");
-        delete devctx;
-        return;
-    }
-
-    p.slot = slot;
-
-    dcbaa[slot] = va_to_pa_phys(devctx);
-
-    auto [psi_num, usb_revision] = get_speed(port_id, portsc.port_speed);
-    if (psi_num == 0) {
-        print("xhci::get_speed failed\n");
-        delete devctx;
-        dcbaa[slot] = 0;
-        // FIXME - disable slot
-        return;
-    }
-
-    auto d = new usb_device(*this, *devctx, slot, portsc.port_speed, port_id,
-                            usb_revision, *(xhci_psi*)&psi_num);
-    if (!d) {
-        print("new failed\n");
-        delete devctx;
-        dcbaa[slot] = 0;
-        // FIXME - disable slot
-        return;
-    }
-
-    if (!d->initialized) {
-        print("usb_device::usb_device failed\n");
-        delete d;
-        return;
-    }
-
-    print("received address {}\n", devctx->slot.usb_device_address);
 
     if (!d->get_descriptor(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)),
                            usb_descriptor::DEVICE, 0)) {
