@@ -1278,9 +1278,9 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
         context->slot.speed = speed;
+        context->slot.context_entries = (uint8_t)(ep_index + 1);
 #pragma GCC diagnostic pop
         context->slot.root_hub_port_number = port_id;
-        context->slot.context_entries = 1;
 
         auto& ep = context->ep[ep_index];
 
