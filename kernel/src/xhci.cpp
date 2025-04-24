@@ -1257,106 +1257,120 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 
     memset(&s, 0, sizeof(s));
 
-    auto context = new xhci_input_context<false>;
-    if (!context) {
-        print("new failed\n");
-        return nullptr;
-    }
+    device_endpoint* dep;
 
-    unsigned int ep_index = 1 + ((ep_desc.endpoint_number - 1) * 2) + (ep_desc.direction ? 1 : 0);
+    auto func = [&]<bool LARGE>() {
+        auto context = new xhci_input_context<LARGE>;
+        if (!context) {
+            print("new failed\n");
+            return false;
+        }
 
-    memset(context, 0, sizeof(*context));
-    context->control.add_context = 1 | (1 << (ep_index + 1)); // slot, endpoint
+        unsigned int ep_index = 1 + ((ep_desc.endpoint_number - 1) * 2) + (ep_desc.direction ? 1 : 0);
 
-    s.input_context_pointer = va_to_pa_phys(context);
-    s.trb_type = (uint16_t)xhci_trb_type::configure_endpoint_command;
-    s.slot_id = slot;
+        memset(context, 0, sizeof(*context));
+        context->control.add_context = 1 | (1 << (ep_index + 1)); // slot, endpoint
 
-    auto dep = new device_endpoint;
-    if (!dep) {
-        print("new failed\n");
-        delete context;
-        return nullptr;
-    }
+        s.input_context_pointer = va_to_pa_phys(context);
+        s.trb_type = (uint16_t)xhci_trb_type::configure_endpoint_command;
+        s.slot_id = slot;
 
-    dep->num = ep_desc.endpoint_number;
-    dep->dir = ep_desc.direction;
+        dep = new device_endpoint;
+        if (!dep) {
+            print("new failed\n");
+            delete context;
+            return false;
+        }
 
-    dep->queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))),
-                          ep_index + 1);
-    if (!dep->queue.initialized) {
-        print("xhci_queue::initialize failed\n");
-        delete dep;
-        delete context;
-        return nullptr;
-    }
+        dep->num = ep_desc.endpoint_number;
+        dep->dir = ep_desc.direction;
 
-    {
-        lock_guard lock(endpoint_mutex);
+        dep->queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))),
+                            ep_index + 1);
+        if (!dep->queue.initialized) {
+            print("xhci_queue::initialize failed\n");
+            delete dep;
+            delete context;
+            return false;
+        }
 
         {
-            lock_guard lock2(endpoint_spinlock);
+            lock_guard lock(endpoint_mutex);
 
-            for (auto le = endpoints.next; le != &endpoints; le = le->next) {
-                auto& e = containing_record<device_endpoint>(le);
+            {
+                lock_guard lock2(endpoint_spinlock);
 
-                if (e.num == dep->num && !!e.dir == !!dep->dir) {
-                    print("usb_device::add_endpoint: endpoint {} {} already set up\n",
-                        dep->num, dep->dir ? "IN" : "OUT");
-                    delete dep;
-                    delete context;
-                    return nullptr;
+                for (auto le = endpoints.next; le != &endpoints; le = le->next) {
+                    auto& e = containing_record<device_endpoint>(le);
+
+                    if (e.num == dep->num && !!e.dir == !!dep->dir) {
+                        print("usb_device::add_endpoint: endpoint {} {} already set up\n",
+                            dep->num, dep->dir ? "IN" : "OUT");
+                        delete dep;
+                        delete context;
+                        return false;
+                    }
                 }
             }
-        }
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        context->slot.speed = speed;
-        context->slot.context_entries = (uint8_t)(ep_index + 1);
+            context->slot.speed = speed;
+            context->slot.context_entries = (uint8_t)(ep_index + 1);
 #pragma GCC diagnostic pop
-        context->slot.root_hub_port_number = port_id;
+            context->slot.root_hub_port_number = port_id;
 
-        auto& ep = context->ep[ep_index];
+            auto& ep = context->ep[ep_index];
 
-        switch (ep_desc.transfer_type) {
-            case USB_ENDPOINT_TRANSFER_TYPE_CONTROL:
-                ep.ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
-                break;
+            switch (ep_desc.transfer_type) {
+                case USB_ENDPOINT_TRANSFER_TYPE_CONTROL:
+                    ep.ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
+                    break;
 
-            case USB_ENDPOINT_TRANSFER_TYPE_ISOCHRONOUS:
-                ep.ep_type = dep->dir ? (uint8_t)XHCI_EP_TYPE::ISOCH_IN : (uint8_t)XHCI_EP_TYPE::ISOCH_OUT;
-                break;
+                case USB_ENDPOINT_TRANSFER_TYPE_ISOCHRONOUS:
+                    ep.ep_type = dep->dir ? (uint8_t)XHCI_EP_TYPE::ISOCH_IN : (uint8_t)XHCI_EP_TYPE::ISOCH_OUT;
+                    break;
 
-            case USB_ENDPOINT_TRANSFER_TYPE_BULK:
-                ep.ep_type = dep->dir ? (uint8_t)XHCI_EP_TYPE::BULK_IN : (uint8_t)XHCI_EP_TYPE::BULK_OUT;
-                break;
+                case USB_ENDPOINT_TRANSFER_TYPE_BULK:
+                    ep.ep_type = dep->dir ? (uint8_t)XHCI_EP_TYPE::BULK_IN : (uint8_t)XHCI_EP_TYPE::BULK_OUT;
+                    break;
 
-            case USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT:
-                ep.ep_type = dep->dir ? (uint8_t)XHCI_EP_TYPE::INTERRUPT_IN : (uint8_t)XHCI_EP_TYPE::INTERRUPT_OUT;
-                break;
+                case USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT:
+                    ep.ep_type = dep->dir ? (uint8_t)XHCI_EP_TYPE::INTERRUPT_IN : (uint8_t)XHCI_EP_TYPE::INTERRUPT_OUT;
+                    break;
+            }
+
+            // FIXME - max_burst_size?
+            // FIXME - max_esit_payload?
+
+            ep.interval = find_interval(ep_desc, speed_class);
+            ep.max_packet_size = ep_desc.wMaxPacketSize;
+            ep.tr_dequeue_pointer = dep->queue.ring_pa | XHCI_EP_DCS;
+            ep.average_trb_length = ep_desc.wMaxPacketSize;
+            ep.cerr = 3;
+
+            controller.command_queue.submit(req, true);
+
+            wait_for_object(req.event.get(), false);
+
+            if ((enum TRB_CODE)req.comp.completion_code == TRB_CODE::SUCCESS) {
+                lock_guard lock2(endpoint_spinlock);
+                insert_tail_list(endpoints, dep->le);
+            }
         }
 
-        // FIXME - max_burst_size?
-        // FIXME - max_esit_payload?
+        delete context;
 
-        ep.interval = find_interval(ep_desc, speed_class);
-        ep.max_packet_size = ep_desc.wMaxPacketSize;
-        ep.tr_dequeue_pointer = dep->queue.ring_pa | XHCI_EP_DCS;
-        ep.average_trb_length = ep_desc.wMaxPacketSize;
-        ep.cerr = 3;
+        return true;
+    };
 
-        controller.command_queue.submit(req, true);
-
-        wait_for_object(req.event.get(), false);
-
-        if ((enum TRB_CODE)req.comp.completion_code == TRB_CODE::SUCCESS) {
-            lock_guard lock2(endpoint_spinlock);
-            insert_tail_list(endpoints, dep->le);
-        }
+    if (controller.large_contexts) {
+        if (!func.template operator()<true>())
+            return nullptr;
+    } else {
+        if (!func.template operator()<false>())
+            return nullptr;
     }
-
-    delete context;
 
     // FIXME - translate into nt_status?
     if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
