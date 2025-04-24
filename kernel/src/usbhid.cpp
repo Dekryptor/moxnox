@@ -182,6 +182,9 @@ static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf) {
     if (i.bInterfaceSubClass != 1 || i.bInterfaceProtocol != 1)
         return false;
 
+    if (i.bAlternateSetting)
+        return false;
+
     return found_usb_keyboard(d, buf);
 }
 
