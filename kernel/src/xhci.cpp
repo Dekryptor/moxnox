@@ -1166,6 +1166,54 @@ bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
     return true;
 }
 
+static uint8_t find_interval(const usb_endpoint_descriptor& ep_desc,
+                             enum usb_speed_class speed_class) {
+    switch (ep_desc.transfer_type) {
+        case USB_ENDPOINT_TRANSFER_TYPE_CONTROL:
+        case USB_ENDPOINT_TRANSFER_TYPE_BULK:
+            switch (speed_class) {
+                case usb_speed_class::high_speed:
+                    if (ep_desc.bInterval == 0)
+                        return 0;
+                    else
+                        return (uint8_t)(bit_width(ep_desc.bInterval) - 1);
+
+                default:
+                    return 0;
+            }
+        break;
+
+        case USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT:
+            switch (speed_class) {
+                case usb_speed_class::low_speed:
+                case usb_speed_class::full_speed:
+                    if (ep_desc.bInterval == 0)
+                        return 0;
+                    else
+                        return (uint8_t)(bit_width((unsigned int)(ep_desc.bInterval * 8)) - 1);
+
+                default:
+                    return (uint8_t)min(max(ep_desc.bInterval - 1, 0), 15);
+            }
+        break;
+
+        case USB_ENDPOINT_TRANSFER_TYPE_ISOCHRONOUS:
+            switch (speed_class) {
+                case usb_speed_class::low_speed: // low-speed isochronous not allowed
+                    return 0;
+
+                case usb_speed_class::full_speed:
+                    return (uint8_t)min(max(ep_desc.bInterval + 2, 3), 18);
+
+                default:
+                    return (uint8_t)min(max(ep_desc.bInterval - 1, 0), 15);
+            }
+        break;
+    }
+
+    return 0;
+}
+
 xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
     xhci_request req;
 
@@ -1256,7 +1304,7 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
         // FIXME - max_burst_size?
         // FIXME - max_esit_payload?
 
-        ep.interval = ep_desc.bInterval; // FIXME - depends on speed?
+        ep.interval = find_interval(ep_desc, speed_class);
         ep.max_packet_size = ep_desc.wMaxPacketSize;
         ep.tr_dequeue_pointer = dep->queue.ring_pa | XHCI_EP_DCS;
         ep.average_trb_length = ep_desc.wMaxPacketSize;
