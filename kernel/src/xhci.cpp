@@ -294,7 +294,7 @@ bool xhci::init_scratchpad() {
 
     copy_by_uint32(&cap_regs.HCSPARAMS2, &hcsparams2, sizeof(hcsparams2));
 
-    uint16_t max_scratchpad_buffers = (hcsparams2.max_scratchpad_buffers_high << 5) | hcsparams2.max_scratchpad_buffers_low;
+    uint16_t max_scratchpad_buffers = (uint16_t)(hcsparams2.max_scratchpad_buffers_high << 5) | hcsparams2.max_scratchpad_buffers_low;
 
     if (max_scratchpad_buffers == 0)
         return true;
@@ -1776,7 +1776,7 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
             // FIXME - check name string
 
             if (port_id >= prot.port_offset && port_id < prot.port_offset + prot.port_count)
-                return (prot.revision_major << 8) | prot.revision_minor;
+                return (uint16_t)(prot.revision_major << 8) | prot.revision_minor;
         }
 
         if (cap.next_cap == 0)
