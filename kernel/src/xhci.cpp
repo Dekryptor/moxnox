@@ -1155,6 +1155,7 @@ bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
     context->ep[0].max_packet_size = max_packet_size;
     context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
     context->ep[0].average_trb_length = max_packet_size;
+    context->ep[0].cerr = 3;
 
     controller.command_queue.submit(req, true);
 
