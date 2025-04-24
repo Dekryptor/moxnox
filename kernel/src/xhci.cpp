@@ -135,7 +135,7 @@ enum class usb_speed_class {
 
 export class usb_device {
 public:
-    usb_device(xhci& controller, xhci_device_context& devctx,
+    usb_device(xhci& controller, xhci_device_context<false>& devctx,
                uint8_t slot, uint8_t speed, uint8_t port_id,
                uint16_t usb_revision, xhci_psi& psi);
     ~usb_device();
@@ -173,7 +173,7 @@ private:
     bool change_ep0_max_packet_size(uint16_t max_packet_size);
 
     xhci& controller;
-    xhci_device_context& devctx;
+    xhci_device_context<false>& devctx;
     atomic<unsigned int> refcount = 1;
     uint8_t speed, port_id;
     rwsem endpoint_mutex;
@@ -943,7 +943,7 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
     }
 }
 
-usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t slot,
+usb_device::usb_device(xhci& controller, xhci_device_context<false>& devctx, uint8_t slot,
                        uint8_t speed, uint8_t port_id, uint16_t usb_revision,
                        xhci_psi& psi) : controller(controller), devctx(devctx) {
     this->slot = slot;
@@ -974,7 +974,7 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
         return;
     }
 
-    auto context = new xhci_input_context;
+    auto context = new xhci_input_context<false>;
     if (!context) {
         print("new failed\n");
         return;
@@ -1131,7 +1131,7 @@ bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
 
     memset(&s, 0, sizeof(s));
 
-    auto context = new xhci_input_context;
+    auto context = new xhci_input_context<false>;
     if (!context) {
         print("new failed\n");
         return false;
@@ -1224,7 +1224,7 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 
     memset(&s, 0, sizeof(s));
 
-    auto context = new xhci_input_context;
+    auto context = new xhci_input_context<false>;
     if (!context) {
         print("new failed\n");
         return nullptr;
@@ -1840,7 +1840,7 @@ void xhci::port_status_changed(uint8_t port_id) {
                        sizeof(portsc));
     }
 
-    auto devctx = new xhci_device_context;
+    auto devctx = new xhci_device_context<false>;
     if (!devctx) {
         print("new failed\n");
         return;

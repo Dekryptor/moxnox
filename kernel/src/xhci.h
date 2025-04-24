@@ -383,6 +383,7 @@ struct xhci_input_control_context {
 
 static_assert(sizeof(xhci_input_control_context) == 0x20);
 
+template<bool LARGE>
 struct xhci_endpoint_context {
     uint8_t ep_state : 3;
     uint8_t reserved1 : 5;
@@ -402,9 +403,11 @@ struct xhci_endpoint_context {
     uint16_t average_trb_length;
     uint16_t max_esit_payload_low;
     uint32_t reserved4[3];
+    uint8_t reserved5[LARGE ? 32 : 0];
 } __attribute((packed));
 
-static_assert(sizeof(xhci_endpoint_context) == 0x20);
+static_assert(sizeof(xhci_endpoint_context<false>) == 0x20);
+static_assert(sizeof(xhci_endpoint_context<true>) == 0x40);
 
 enum class XHCI_EP_TYPE {
     ISOCH_OUT = 1,
@@ -418,20 +421,27 @@ enum class XHCI_EP_TYPE {
 
 static const uint32_t XHCI_EP_DCS = 0x00000001;
 
+template<bool LARGE>
 struct xhci_device_context {
     xhci_slot_context slot;
-    xhci_endpoint_context ep[31];
+    uint8_t reserved[LARGE ? 32 : 0];
+    xhci_endpoint_context<LARGE> ep[31];
 } __attribute((packed));
 
-static_assert(sizeof(xhci_device_context) == 0x400);
+static_assert(sizeof(xhci_device_context<false>) == 0x400);
+static_assert(sizeof(xhci_device_context<true>) == 0x800);
 
+template<bool LARGE>
 struct xhci_input_context {
     xhci_input_control_context control;
+    uint8_t reserved1[LARGE ? 32 : 0];
     xhci_slot_context slot;
-    xhci_endpoint_context ep[31];
+    uint8_t reserved2[LARGE ? 32 : 0];
+    xhci_endpoint_context<LARGE> ep[31];
 } __attribute((packed));
 
-static_assert(sizeof(xhci_input_context) == 0x420);
+static_assert(sizeof(xhci_input_context<false>) == 0x420);
+static_assert(sizeof(xhci_input_context<true>) == 0x840);
 
 enum class xhci_capability_type : uint8_t {
     usb_legacy_support = 1,
