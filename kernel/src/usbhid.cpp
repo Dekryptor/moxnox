@@ -6,6 +6,7 @@ module;
 export module usbhid;
 
 import print;
+import format;
 import xhci;
 import usb;
 
@@ -13,7 +14,7 @@ using namespace std;
 
 class usb_keyboard {
 public:
-    usb_keyboard(usb_device& d, xhci_queue& queue);
+    usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size);
     ~usb_keyboard();
 
 private:
@@ -21,6 +22,7 @@ private:
 
     usb_device& d;
     xhci_queue& queue;
+    uint16_t packet_size;
 };
 
 static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber);
@@ -35,8 +37,10 @@ static void init_usbhid() {
 
 static module_init module_init_usbhid(init_usbhid);
 
-usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue) : d(d), queue(queue) {
+usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size) : d(d), queue(queue) {
     d.acquire();
+
+    this->packet_size = packet_size;
 
     add_kernel_thread([](void* ctx) {
         ((usb_keyboard*)ctx)->recv_thread();
@@ -48,7 +52,7 @@ usb_keyboard::~usb_keyboard() {
 }
 
 void usb_keyboard::recv_thread() {
-    auto buf = (uint8_t*)malloc(8);
+    auto buf = (uint8_t*)malloc(packet_size);
     if (!buf) {
         print("malloc failed\n");
         return;
@@ -57,15 +61,25 @@ void usb_keyboard::recv_thread() {
     print("USB keyboard thread\n");
 
     while (true) {
-        if (!queue.normal_transfer(span(buf, 8))) {
+        if (!queue.normal_transfer(span(buf, packet_size))) {
             print("xhci_queue::normal transfer failed\n");
             free(buf);
             return;
         }
 
         // FIXME
-        print("{:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}\n",
-              buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
+
+        char s[255];
+        span<char> sp(s, sizeof(s));
+
+        for (uint16_t i = 0; i < packet_size; i++) {
+            if (i != 0)
+                sp = format_to(sp, " ", make_tuple());
+
+            sp = format_to(sp, "{:02x}", make_tuple(buf[i]));
+        }
+
+        print("{}\n", string_view(s, (size_t)(sp.data() - s)));
     }
 
     free(buf);
@@ -136,6 +150,11 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
+    if (ep_desc->wMaxPacketSize == 0) {
+        print("found_usb_keyboard: wMaxPacketSize was 0\n");
+        return false;
+    }
+
     print("found_usb_keyboard: FIXME - set up endpoint\n");
 
     auto queue = d.add_endpoint(*ep_desc);
@@ -145,7 +164,7 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    auto kbd = new usb_keyboard(d, *queue);
+    auto kbd = new usb_keyboard(d, *queue, ep_desc->wMaxPacketSize);
     if (!kbd) {
         print("new failed\n");
         return false;
