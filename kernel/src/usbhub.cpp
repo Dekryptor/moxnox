@@ -25,7 +25,7 @@ struct port_status {
     uint8_t test_mode : 1;
     uint8_t indicator_control : 1;
     uint8_t reserved2 : 3;
-    uint8_t status_changed : 1;
+    uint8_t connection_changed : 1;
     uint8_t enable_changed : 1;
     uint8_t suspend_changed : 1;
     uint8_t over_current_changed : 1;
@@ -50,7 +50,10 @@ public:
 
 private:
     bool set_port_feature(enum usb_port_feature_selector feature, uint16_t index);
+    bool clear_port_feature(enum usb_port_feature_selector feature,
+                            uint16_t index);
     bool get_port_status(uint8_t port, port_status& status);
+    void port_status_change(uint8_t port);
 
     usb_device& d;
     xhci_queue& queue;
@@ -96,8 +99,8 @@ span<char> do_format_arg(span<char> sp, string_view, const port_status& arg) {
     sp = do_format_arg(sp, "", arg.test_mode);
     sp = do_format_arg(sp, "", ", indicator_control = ");
     sp = do_format_arg(sp, "", arg.indicator_control);
-    sp = do_format_arg(sp, "", ", status_changed = ");
-    sp = do_format_arg(sp, "", arg.status_changed);
+    sp = do_format_arg(sp, "", ", connection_changed = ");
+    sp = do_format_arg(sp, "", arg.connection_changed);
     sp = do_format_arg(sp, "", ", enable_changed = ");
     sp = do_format_arg(sp, "", arg.enable_changed);
     sp = do_format_arg(sp, "", ", suspend_changed = ");
@@ -177,8 +180,55 @@ bool usb_hub::get_port_status(uint8_t port, port_status& status) {
     return true;
 }
 
+bool usb_hub::clear_port_feature(enum usb_port_feature_selector feature,
+                                 uint16_t index) {
+    if (!d.clear_feature(USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
+                         (uint8_t)feature, index)) {
+        print("usb_device::set_feature failed\n");
+        return false;
+    }
+
+    return true;
+}
+
+void usb_hub::port_status_change(uint8_t port) {
+    auto new_status = (port_status*)malloc(sizeof(port_status));
+    if (!new_status) {
+        print("malloc failed\n");
+        return;
+    }
+
+    if (!get_port_status(port, *new_status)) {
+        print("usb_hub::get_port_status failed\n");
+        free(new_status);
+        return;
+    }
+
+    auto& old_status = ports[port - 1].status;
+
+    if (new_status->connection_changed) {
+        if (old_status.connection != new_status->connection) {
+            if (new_status->connection) {
+                print("usb_hub::port_status_change: new device on port {}\n", port);
+                // FIXME - process
+            } else {
+                print("usb_hub::port_status_change: device removed from port {}\n", port);
+                // FIXME - process
+            }
+
+            old_status.connection = new_status->connection;
+        }
+
+        clear_port_feature(usb_port_feature_selector::C_PORT_CONNECTION, port);
+    }
+
+    free(new_status);
+}
+
 void usb_hub::recv_thread() {
-    auto buf = (uint8_t*)malloc(2);
+    size_t msg_size = (hub_desc->bNbrPorts / 8) + 1;
+
+    auto buf = (uint8_t*)malloc(msg_size);
     if (!buf) {
         print("malloc failed\n");
         return;
@@ -187,14 +237,21 @@ void usb_hub::recv_thread() {
     print("USB hub thread\n");
 
     while (true) {
-        if (!queue.normal_transfer(span(buf, 2))) {
+        if (!queue.normal_transfer(span(buf, msg_size))) {
             print("xhci_queue::normal transfer failed\n");
             free(buf);
             return;
         }
 
-        // FIXME
-        print("{:02x} {:02x}\n", buf[0], buf[1]);
+        if (buf[0] & 1) {
+            print("usb_hub::recv_thread: hub change detected\n");
+            // FIXME - process and clear change bit (C_HUB_LOCAL_POWER or C_HUB_OVER_CURRENT)
+        }
+
+        for (uint8_t i = 0; i < hub_desc->bNbrPorts; i++) {
+            if (buf[(i + 1) / 8] & (1 << ((i + 1) % 8)))
+                port_status_change(i + 1);
+        }
     }
 
     free(buf);
