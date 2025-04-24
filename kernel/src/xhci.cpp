@@ -1311,6 +1311,7 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
         ep.max_packet_size = ep_desc.wMaxPacketSize;
         ep.tr_dequeue_pointer = dep->queue.ring_pa | XHCI_EP_DCS;
         ep.average_trb_length = ep_desc.wMaxPacketSize;
+        ep.cerr = 3;
 
         controller.command_queue.submit(req, true);
 
