@@ -46,6 +46,15 @@ public:
     ~usb_hub();
     void recv_thread();
 
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
     bool initialized = false;
 
 private:
@@ -54,11 +63,13 @@ private:
                             uint16_t index);
     bool get_port_status(uint8_t port, port_status& status);
     void port_status_change(uint8_t port);
+    void device_connected(uint8_t port);
 
     usb_device& d;
     xhci_queue& queue;
     usb_hub_descriptor* hub_desc = nullptr;
     usb_hub_port* ports = nullptr;
+    atomic<unsigned int> refcount = 1;
 };
 
 static bool found_usb_hub_device(usb_device& d, uint8_t bInterfaceNumber);
@@ -143,7 +154,17 @@ usb_hub::usb_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc)
             return;
         }
 
-        print("port {}: {}\n", port, p.status);
+        if (p.status.connection) {
+            acquire();
+
+            add_kernel_thread([](void* param1, void* param2) {
+                auto hub = (usb_hub*)param1;
+                auto port = (uint8_t)(uintptr_t)param2;
+
+                hub->device_connected(port);
+                hub->release();
+            }, this, (void*)(uintptr_t)port);
+        }
     }
 
     initialized = true;
@@ -157,6 +178,11 @@ usb_hub::~usb_hub() {
 
     if (ports)
         free(ports);
+}
+
+void usb_hub::device_connected(uint8_t port) {
+    print("usb_hub::device_connected: new device on port {}\n", port);
+    // FIXME - process
 }
 
 bool usb_hub::set_port_feature(enum usb_port_feature_selector feature,
@@ -209,8 +235,15 @@ void usb_hub::port_status_change(uint8_t port) {
     if (new_status->connection_changed) {
         if (old_status.connection != new_status->connection) {
             if (new_status->connection) {
-                print("usb_hub::port_status_change: new device on port {}\n", port);
-                // FIXME - process
+                acquire();
+
+                add_kernel_thread([](void* param1, void* param2) {
+                    auto hub = (usb_hub*)param1;
+                    auto port = (uint8_t)(uintptr_t)param2;
+
+                    hub->device_connected(port);
+                    hub->release();
+                }, this, (void*)(uintptr_t)port);
             } else {
                 print("usb_hub::port_status_change: device removed from port {}\n", port);
                 // FIXME - process
@@ -233,8 +266,6 @@ void usb_hub::recv_thread() {
         print("malloc failed\n");
         return;
     }
-
-    print("USB hub thread\n");
 
     while (true) {
         if (!queue.normal_transfer(span(buf, msg_size))) {
