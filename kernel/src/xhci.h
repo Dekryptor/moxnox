@@ -17,6 +17,7 @@ static_assert(sizeof(xhci_cap_regs) == 0x20);
 
 static const uint32_t XHCI_HCCPARAMS1_XECP = 0xffff0000;
 static const size_t XHCI_HCCPARAMS1_XECP_SHIFT = 16;
+static const uint32_t XHCI_HCCPARAMS1_CSZ = 0x00000004;
 
 struct xhci_port_regs {
     uint32_t PORTSC;

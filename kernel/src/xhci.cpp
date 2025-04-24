@@ -88,6 +88,7 @@ public:
     xhci_queue command_queue;
     spinlock devices_lock;
     list_entry devices = { &devices, &devices };
+    bool large_contexts;
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
@@ -363,6 +364,8 @@ xhci::xhci(pci_device& dev) : dev(dev) {
               cap_regs.CAPLENGTH, 0x20);
         return;
     }
+
+    large_contexts = cap_regs.HCCPARAMS1 & XHCI_HCCPARAMS1_CSZ;
 
     xhci_hcsparams1 hcsparams1;
 
@@ -974,83 +977,95 @@ usb_device::usb_device(xhci& controller, xhci_device_context<false>& devctx, uin
         return;
     }
 
-    auto context = new xhci_input_context<false>;
-    if (!context) {
-        print("new failed\n");
-        return;
-    }
+    uint16_t max_packet_size;
 
-    memset(context, 0, sizeof(*context));
-    context->control.add_context = 3; // slot and EP0
+    auto func = [&]<bool LARGE>() -> bool {
+        auto context = new xhci_input_context<LARGE>;
+        if (!context) {
+            print("new failed\n");
+            return false;
+        }
 
-    ep0_queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
-    if (!ep0_queue.initialized) {
-        print("xhci_queue::initialize failed\n");
-        delete context;
-        return;
-    }
+        memset(context, 0, sizeof(*context));
+        context->control.add_context = 3; // slot and EP0
+
+        ep0_queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
+        if (!ep0_queue.initialized) {
+            print("xhci_queue::initialize failed\n");
+            delete context;
+            return false;
+        }
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    context->slot.speed = speed;
+        context->slot.speed = speed;
 #pragma GCC diagnostic pop
-    context->slot.root_hub_port_number = port_id;
-    context->slot.context_entries = 1;
+        context->slot.root_hub_port_number = port_id;
+        context->slot.context_entries = 1;
 
-    uint16_t max_packet_size;
+        switch (speed_class) {
+            case usb_speed_class::low_speed:
+            case usb_speed_class::full_speed:
+                max_packet_size = 8;
+                break;
 
-    switch (speed_class) {
-        case usb_speed_class::low_speed:
-        case usb_speed_class::full_speed:
-            max_packet_size = 8;
-            break;
+            case usb_speed_class::high_speed:
+                max_packet_size = 64;
+                break;
 
-        case usb_speed_class::high_speed:
-            max_packet_size = 64;
-            break;
+            case usb_speed_class::super_speed:
+            case usb_speed_class::super_speed_plus:
+                max_packet_size = 512;
+                break;
 
-        case usb_speed_class::super_speed:
-        case usb_speed_class::super_speed_plus:
-            max_packet_size = 512;
-            break;
-
-        case usb_speed_class::unknown:
-            unreachable();
-            break;
-    }
-
-    context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
-    context->ep[0].max_packet_size = max_packet_size;
-    context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
-    context->ep[0].average_trb_length = max_packet_size;
-    context->ep[0].cerr = 3;
-
-    // some devices need an address_device with BSR set first
-    for (unsigned int i = 0; i < 2; i++) {
-        xhci_request req;
-
-        auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
-
-        memset(&s, 0, sizeof(s));
-
-        s.input_context_pointer = va_to_pa_phys(context);
-        s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
-        s.slot_id = slot;
-        s.bsr = i == 0 ? 1 : 0;
-
-        controller.command_queue.submit(req, true);
-
-        wait_for_object(req.event.get(), false);
-
-        // FIXME - translate into nt_status?
-        if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
-            print("usb_device::usb_device: controller returned error {} for address device\n", (enum TRB_CODE)req.comp.completion_code);
-            delete context;
-            return;
+            case usb_speed_class::unknown:
+                unreachable();
+                break;
         }
-    }
 
-    delete context;
+        context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
+        context->ep[0].max_packet_size = max_packet_size;
+        context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
+        context->ep[0].average_trb_length = max_packet_size;
+        context->ep[0].cerr = 3;
+
+        // some devices need an address_device with BSR set first
+        for (unsigned int i = 0; i < 2; i++) {
+            xhci_request req;
+
+            auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
+
+            memset(&s, 0, sizeof(s));
+
+            s.input_context_pointer = va_to_pa_phys(context);
+            s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
+            s.slot_id = slot;
+            s.bsr = i == 0 ? 1 : 0;
+
+            controller.command_queue.submit(req, true);
+
+            wait_for_object(req.event.get(), false);
+
+            // FIXME - translate into nt_status?
+            if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
+                print("usb_device::usb_device: controller returned error {} for address device\n", (enum TRB_CODE)req.comp.completion_code);
+                delete context;
+                return false;
+            }
+        }
+
+        delete context;
+
+        return true;
+    };
+
+    if (controller.large_contexts) {
+        if (!func.template operator()<true>())
+            return;
+    } else {
+        if (!func.template operator()<false>())
+            return;
+    }
 
     {
         lock_guard lock(controller.devices_lock);
