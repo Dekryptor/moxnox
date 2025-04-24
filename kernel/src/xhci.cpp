@@ -1023,6 +1023,7 @@ usb_device::usb_device(xhci& controller, xhci_device_context& devctx, uint8_t sl
     context->ep[0].max_packet_size = max_packet_size;
     context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
     context->ep[0].average_trb_length = max_packet_size;
+    context->ep[0].cerr = 3;
 
     // some devices need an address_device with BSR set first
     for (unsigned int i = 0; i < 2; i++) {
