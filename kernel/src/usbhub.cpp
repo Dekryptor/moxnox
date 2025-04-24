@@ -331,6 +331,9 @@ static usb_hub_descriptor* get_hub_descriptor(usb_device& d) {
 static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
     auto& i = *(usb_interface_descriptor*)buf.data();
 
+    if (i.bAlternateSetting)
+        return false;
+
     usb_endpoint_descriptor* ep_desc = nullptr;
 
     // find endpoint number
