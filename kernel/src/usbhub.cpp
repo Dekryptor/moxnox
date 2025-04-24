@@ -366,10 +366,10 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
                     break;
 
                 if (e.transfer_type != USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT)
-                    continue;
+                    break;
 
                 if (e.usage_type != USB_ENDPOINT_USAGE_TYPE_PERIODIC)
-                    continue;
+                    break;
 
                 if (ep_desc) {
                     print("found_usb_hub_interface: multiple potential endpoints found\n");
