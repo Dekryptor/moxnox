@@ -185,7 +185,7 @@ private:
 export struct usb_recognizer {
     list_entry le;
     enum usb_class_code interface_code;
-    bool (*func)(usb_device&, uint8_t);
+    bool (*func)(usb_device&, uint8_t, bool);
 };
 
 export list_entry usb_interfaces = { &usb_interfaces, &usb_interfaces };
@@ -1717,7 +1717,7 @@ static void probe_interfaces(usb_device& d) {
                 for (auto le = usb_interfaces.next; le != &usb_interfaces; le = le->next) {
                     auto& r = containing_record<usb_recognizer>(le);
 
-                    if (r.interface_code == i.bInterfaceClass && r.func(d, i.bInterfaceNumber))
+                    if (r.interface_code == i.bInterfaceClass && r.func(d, i.bInterfaceNumber, i.bAlternateSetting))
                         break;
                 }
 

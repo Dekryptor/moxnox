@@ -72,7 +72,8 @@ private:
     atomic<unsigned int> refcount = 1;
 };
 
-static bool found_usb_hub_device(usb_device& d, uint8_t bInterfaceNumber);
+static bool found_usb_hub_device(usb_device& d, uint8_t bInterfaceNumber,
+                                 bool bAlternateSetting);
 
 static usb_recognizer mod_usb_interfaces = {
     {}, usb_class_code::hub, found_usb_hub_device
@@ -435,8 +436,12 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
     return true;
 }
 
-static bool found_usb_hub_device(usb_device& d, uint8_t bInterfaceNumber) {
+static bool found_usb_hub_device(usb_device& d, uint8_t bInterfaceNumber,
+                                 bool bAlternateSetting) {
     auto buf = span((uint8_t*)d.config, d.config_size);
+
+    if (bAlternateSetting)
+        return false;
 
     while (!buf.empty()) {
         auto len = buf[0];

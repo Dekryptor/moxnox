@@ -25,7 +25,8 @@ private:
     uint16_t packet_size;
 };
 
-static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber);
+static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber,
+                                 bool bAlternateSetting);
 
 static usb_recognizer mod_usb_interfaces = {
     {}, usb_class_code::hid, found_usb_hid_device
@@ -182,14 +183,15 @@ static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf) {
     if (i.bInterfaceSubClass != 1 || i.bInterfaceProtocol != 1)
         return false;
 
-    if (i.bAlternateSetting)
-        return false;
-
     return found_usb_keyboard(d, buf);
 }
 
-static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber) {
+static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber,
+                                 bool bAlternateSetting) {
     auto buf = span((uint8_t*)d.config, d.config_size);
+
+    if (bAlternateSetting)
+        return false;
 
     while (!buf.empty()) {
         auto len = buf[0];
