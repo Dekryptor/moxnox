@@ -1614,6 +1614,8 @@ export void print_usb_config(span<const uint8_t> buf) {
                 break;
             }
 
+            // FIXME - STRING
+
             case usb_descriptor::INTERFACE: {
                 auto& i = *(usb_interface_descriptor*)buf.data();
 
@@ -1641,6 +1643,26 @@ export void print_usb_config(span<const uint8_t> buf) {
                       e.wMaxPacketSize, e.bInterval);
                 break;
             }
+
+            // FIXME - INTERFACE_POWER
+            // FIXME - OTG
+            // FIXME - DEBUG
+
+            case usb_descriptor::INTERFACE_ASSOCIATION: {
+                auto& i = *(usb_interface_association_descriptor*)buf.data();
+
+                if (len < sizeof(usb_interface_association_descriptor)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                print("INTERFACE ASSOCIATION: bFirstInterface = {}, bInterfaceCount = {}, bFunctionClass = {}, bFunctionSubClass = {}, bFunctionProtocol = {}, iFunction = {}\n",
+                      i.bFirstInterface, i.bInterfaceCount, i.bFunctionClass, i.bFunctionSubClass, i.bFunctionProtocol, i.iFunction);
+                break;
+            }
+
+            // FIXME - BOS
+            // FIXME - DEVICE_CAPABILITY
 
             case usb_descriptor::HID: {
                 auto& h = *(usb_hid_descriptor*)buf.data();
@@ -1682,6 +1704,9 @@ export void print_usb_config(span<const uint8_t> buf) {
 
                 break;
             }
+
+            // FIXME - SUPERSPEED_USB_ENDPOINT_COMPANION
+            // FIXME - SUPERSPEEDPLUS_ISOCHRONOUS_ENDPOINT_COMPANION
 
             default:
                 print("unrecognized USB descriptor type {}\n", (uint8_t)type);

@@ -186,6 +186,19 @@ export struct usb_hub_descriptor {
 
 static_assert(sizeof(usb_hub_descriptor) == 0x7);
 
+export struct usb_interface_association_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bFirstInterface;
+    uint8_t bInterfaceCount;
+    uint8_t bFunctionClass;
+    uint8_t bFunctionSubClass;
+    uint8_t bFunctionProtocol;
+    uint8_t iFunction;
+} __attribute((packed));
+
+static_assert(sizeof(usb_interface_association_descriptor) == 0x8);
+
 export enum usb_port_feature_selector : uint8_t {
     PORT_CONNECTION = 0,
     PORT_ENABLE = 1,
