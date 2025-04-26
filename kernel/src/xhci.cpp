@@ -73,28 +73,6 @@ private:
     uint32_t doorbell_val;
 };
 
-export template<bool LARGE>
-struct xhci_device_context {
-    xhci_slot_context slot;
-    uint8_t reserved[LARGE ? 32 : 0];
-    xhci_endpoint_context<LARGE> ep[31];
-} __attribute((packed));
-
-static_assert(sizeof(xhci_device_context<false>) == 0x400);
-static_assert(sizeof(xhci_device_context<true>) == 0x800);
-
-export struct xhci_psi {
-    uint8_t psiv : 4;
-    uint8_t psie : 2;
-    uint8_t plt : 2;
-    uint8_t pfd : 1;
-    uint8_t reserved : 5;
-    uint8_t lp : 2;
-    uint16_t psim;
-} __attribute((packed));
-
-static_assert(sizeof(xhci_psi) == 0x4);
-
 class xhci {
 public:
     xhci(pci_device& dev);
