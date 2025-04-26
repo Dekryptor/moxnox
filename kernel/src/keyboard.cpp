@@ -119,6 +119,10 @@ void keyboard_pipe::handle_ctrl_c() {
     proc->get().release();
 }
 
+static void post_evdev(enum evdev_code code, bool down) {
+    print("evdev {} {}\n", (unsigned int)code, down ? "down" : "up");
+}
+
 static void keyboard_event_recv() {
     do {
         wait_for_object(keyboard_event_obj->get(), false);
@@ -139,6 +143,11 @@ static void keyboard_event_recv() {
             if (sc == CODE_EXTD)
                 modifier |= MODIFIER_EXTD;
             else if (modifier & MODIFIER_EXTD) {
+                if ((sc & 0x7f) < sizeof(evdev_codes_modified) / sizeof(*evdev_codes_modified) &&
+                    evdev_codes_modified[sc & 0x7f] != evdev_code::KEY_RESERVED) {
+                    post_evdev(evdev_codes_modified[sc & 0x7f], !(sc & 0x80));
+                }
+
                 switch (sc) {
                     case CODE_MODIFIED_ENTER:
                         sv = "\n";
@@ -213,6 +222,11 @@ static void keyboard_event_recv() {
 
                 modifier &= ~MODIFIER_EXTD;
             } else {
+                if ((sc & 0x7f) < sizeof(evdev_codes) / sizeof(*evdev_codes) &&
+                    evdev_codes[sc & 0x7f] != evdev_code::KEY_RESERVED) {
+                    post_evdev(evdev_codes[sc & 0x7f], !(sc & 0x80));
+                }
+
                 switch (sc) {
                     case CODE_LSHIFT:
                         modifier |= MODIFIER_LSHIFT;
