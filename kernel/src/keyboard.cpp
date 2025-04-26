@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include "spinlock.h"
+import evdev;
 #include "qwerty.h"
 #include "handle.h"
 #include "console.h"
