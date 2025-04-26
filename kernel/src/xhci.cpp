@@ -1912,36 +1912,34 @@ void xhci::port_status_changed(uint8_t port_id) {
                        sizeof(portsc));
     }
 
+    auto slot = enable_slot(get_port_slot_type(port_id));
+    if (slot == 0) {
+        print("xhci::port_status_changed: could not enable slot\n");
+        return;
+    }
+
+    auto [psi_num, usb_revision] = get_speed(port_id, portsc.port_speed);
+    if (psi_num == 0) {
+        print("xhci::get_speed failed\n");
+        // FIXME - disable slot
+        return;
+    }
+
+    p.slot = slot;
+
     usb_device* d;
 
     auto func = [&]<bool LARGE>() -> bool {
         auto devctx = new xhci_device_context<LARGE>;
         if (!devctx) {
             print("new failed\n");
+            // FIXME - disable slot
             return false;
         }
 
         memset(devctx, 0, sizeof(*devctx));
 
-        auto slot = enable_slot(get_port_slot_type(port_id));
-        if (slot == 0) {
-            print("xhci::port_status_changed: could not enable slot\n");
-            delete devctx;
-            return false;
-        }
-
-        p.slot = slot;
-
         dcbaa[slot] = va_to_pa_phys(devctx);
-
-        auto [psi_num, usb_revision] = get_speed(port_id, portsc.port_speed);
-        if (psi_num == 0) {
-            print("xhci::get_speed failed\n");
-            delete devctx;
-            dcbaa[slot] = 0;
-            // FIXME - disable slot
-            return false;
-        }
 
         d = new usb_device(*this, devctx, slot, portsc.port_speed, port_id,
                            usb_revision, *(xhci_psi*)&psi_num);
