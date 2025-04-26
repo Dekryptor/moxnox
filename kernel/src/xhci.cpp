@@ -1905,6 +1905,86 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
     return 0;
 }
 
+export void usb_device_found(usb_device& d) {
+    if (!d.get_descriptor(span((uint8_t*)&d.device_descriptor, sizeof(d.device_descriptor)),
+                          usb_descriptor::DEVICE, 0)) {
+        print("usb_device::get_descriptor failed\n");
+        d.release();
+        return;
+    }
+
+    print("found USB device {:04x}:{:04x}\n", d.device_descriptor.idVendor,
+          d.device_descriptor.idProduct);
+
+    print_usb_config(span((uint8_t*)&d.device_descriptor, sizeof(d.device_descriptor)));
+
+    auto cd = new usb_configuration_descriptor;
+    if (!cd) {
+        print("new failed\n");
+        d.release();
+        return;
+    }
+
+    // FIXME - support multiple configurations?
+
+    if (!d.get_descriptor(span((uint8_t*)cd, sizeof(*cd)),
+                           usb_descriptor::CONFIGURATION, 0)) {
+        print("usb_device::get_descriptor failed\n");
+        delete cd;
+        d.release();
+        return;
+    }
+
+    if (cd->wTotalLength < sizeof(*cd)) {
+        print("xhci::port_status_changed: config descriptor was {} bytes, expected at least {}\n",
+              cd->wTotalLength, sizeof(*cd));
+        delete cd;
+        d.release();
+        return;
+    }
+
+    d.config_size = cd->wTotalLength;
+
+    delete cd;
+
+    if (d.config_size < PAGE_SIZE) {
+        d.config = malloc(d.config_size);
+        if (!d.config) {
+            print("malloc failed\n");
+            d.release();
+            return;
+        }
+    } else {
+        auto f = allocate_folio(bytes_to_folio_order(d.config_size));
+        if (!f) {
+            print("allocate_folio failed\n");
+            d.release();
+            return;
+        }
+
+        d.config = phys_address(f);
+    }
+
+    if (!d.get_descriptor(span((uint8_t*)d.config, d.config_size),
+                          usb_descriptor::CONFIGURATION, 0)) {
+        print("usb_device::get_descriptor failed\n");
+        d.release();
+        return;
+    }
+
+    print_usb_config(span((uint8_t*)d.config, d.config_size));
+
+    auto& config = *(usb_configuration_descriptor*)d.config;
+
+    if (!d.set_configuration(config.bConfigurationValue)) {
+        print("usb_device::set_configuration failed\n");
+        d.release();
+        return;
+    }
+
+    probe_interfaces(d);
+}
+
 void xhci::port_status_changed(uint8_t port_id) {
     print("xhci::port_status_changed: {}\n", port_id);
 
@@ -1999,83 +2079,7 @@ void xhci::port_status_changed(uint8_t port_id) {
             return;
     }
 
-    if (!d->get_descriptor(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)),
-                           usb_descriptor::DEVICE, 0)) {
-        print("usb_device::get_descriptor failed\n");
-        d->release();
-        return;
-    }
-
-    print("found USB device {:04x}:{:04x}\n", d->device_descriptor.idVendor,
-          d->device_descriptor.idProduct);
-
-    print_usb_config(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)));
-
-    auto cd = new usb_configuration_descriptor;
-    if (!cd) {
-        print("new failed\n");
-        d->release();
-        return;
-    }
-
-    // FIXME - support multiple configurations?
-
-    if (!d->get_descriptor(span((uint8_t*)cd, sizeof(*cd)),
-                           usb_descriptor::CONFIGURATION, 0)) {
-        print("usb_device::get_descriptor failed\n");
-        delete cd;
-        d->release();
-        return;
-    }
-
-    if (cd->wTotalLength < sizeof(*cd)) {
-        print("xhci::port_status_changed: config descriptor was {} bytes, expected at least {}\n",
-              cd->wTotalLength, sizeof(*cd));
-        delete cd;
-        d->release();
-        return;
-    }
-
-    d->config_size = cd->wTotalLength;
-
-    delete cd;
-
-    if (d->config_size < PAGE_SIZE) {
-        d->config = malloc(d->config_size);
-        if (!d->config) {
-            print("malloc failed\n");
-            d->release();
-            return;
-        }
-    } else {
-        auto f = allocate_folio(bytes_to_folio_order(d->config_size));
-        if (!f) {
-            print("allocate_folio failed\n");
-            d->release();
-            return;
-        }
-
-        d->config = phys_address(f);
-    }
-
-    if (!d->get_descriptor(span((uint8_t*)d->config, d->config_size),
-                           usb_descriptor::CONFIGURATION, 0)) {
-        print("usb_device::get_descriptor failed\n");
-        d->release();
-        return;
-    }
-
-    print_usb_config(span((uint8_t*)d->config, d->config_size));
-
-    auto& config = *(usb_configuration_descriptor*)d->config;
-
-    if (!d->set_configuration(config.bConfigurationValue)) {
-        print("usb_device::set_configuration failed\n");
-        d->release();
-        return;
-    }
-
-    probe_interfaces(*d);
+    usb_device_found(*d);
 }
 
 void xhci::port_status_change_thread() {
