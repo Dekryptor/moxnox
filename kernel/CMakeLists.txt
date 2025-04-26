@@ -68,6 +68,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/usbhid.cpp
     src/usb.cpp
     src/usbhub.cpp
+    src/evdev.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list)
