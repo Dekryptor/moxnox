@@ -1905,33 +1905,78 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
     return 0;
 }
 
-export void usb_device_found(usb_device& d) {
-    if (!d.get_descriptor(span((uint8_t*)&d.device_descriptor, sizeof(d.device_descriptor)),
+export void usb_device_found(xhci& controller, uint8_t slot, uint8_t root_port_id,
+                             uint32_t route_string, uint16_t usb_revision,
+                             uint32_t psi_num, uint8_t port_speed) {
+    usb_device* d;
+
+    auto func = [&]<bool LARGE>() -> bool {
+        auto devctx = new xhci_device_context<LARGE>;
+        if (!devctx) {
+            print("new failed\n");
+            // FIXME - disable slot
+            return false;
+        }
+
+        memset(devctx, 0, sizeof(*devctx));
+
+        controller.dcbaa[slot] = va_to_pa_phys(devctx);
+
+        d = new usb_device(controller, devctx, slot, port_speed, root_port_id,
+                           route_string, usb_revision, *(xhci_psi*)&psi_num);
+        if (!d) {
+            print("new failed\n");
+            delete devctx;
+            controller.dcbaa[slot] = 0;
+            // FIXME - disable slot
+            return false;
+        }
+
+        if (!d->initialized) {
+            print("usb_device::usb_device failed\n");
+            delete d;
+            return false;
+        }
+
+        print("received address {}\n", devctx->slot.usb_device_address);
+
+        return true;
+    };
+
+    if (controller.large_contexts) {
+        if (!func.template operator()<true>())
+            return;
+    } else {
+        if (!func.template operator()<false>())
+            return;
+    }
+
+    if (!d->get_descriptor(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)),
                           usb_descriptor::DEVICE, 0)) {
         print("usb_device::get_descriptor failed\n");
-        d.release();
+        d->release();
         return;
     }
 
-    print("found USB device {:04x}:{:04x}\n", d.device_descriptor.idVendor,
-          d.device_descriptor.idProduct);
+    print("found USB device {:04x}:{:04x}\n", d->device_descriptor.idVendor,
+          d->device_descriptor.idProduct);
 
-    print_usb_config(span((uint8_t*)&d.device_descriptor, sizeof(d.device_descriptor)));
+    print_usb_config(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)));
 
     auto cd = new usb_configuration_descriptor;
     if (!cd) {
         print("new failed\n");
-        d.release();
+        d->release();
         return;
     }
 
     // FIXME - support multiple configurations?
 
-    if (!d.get_descriptor(span((uint8_t*)cd, sizeof(*cd)),
+    if (!d->get_descriptor(span((uint8_t*)cd, sizeof(*cd)),
                            usb_descriptor::CONFIGURATION, 0)) {
         print("usb_device::get_descriptor failed\n");
         delete cd;
-        d.release();
+        d->release();
         return;
     }
 
@@ -1939,50 +1984,50 @@ export void usb_device_found(usb_device& d) {
         print("xhci::port_status_changed: config descriptor was {} bytes, expected at least {}\n",
               cd->wTotalLength, sizeof(*cd));
         delete cd;
-        d.release();
+        d->release();
         return;
     }
 
-    d.config_size = cd->wTotalLength;
+    d->config_size = cd->wTotalLength;
 
     delete cd;
 
-    if (d.config_size < PAGE_SIZE) {
-        d.config = malloc(d.config_size);
-        if (!d.config) {
+    if (d->config_size < PAGE_SIZE) {
+        d->config = malloc(d->config_size);
+        if (!d->config) {
             print("malloc failed\n");
-            d.release();
+            d->release();
             return;
         }
     } else {
-        auto f = allocate_folio(bytes_to_folio_order(d.config_size));
+        auto f = allocate_folio(bytes_to_folio_order(d->config_size));
         if (!f) {
             print("allocate_folio failed\n");
-            d.release();
+            d->release();
             return;
         }
 
-        d.config = phys_address(f);
+        d->config = phys_address(f);
     }
 
-    if (!d.get_descriptor(span((uint8_t*)d.config, d.config_size),
+    if (!d->get_descriptor(span((uint8_t*)d->config, d->config_size),
                           usb_descriptor::CONFIGURATION, 0)) {
         print("usb_device::get_descriptor failed\n");
-        d.release();
+        d->release();
         return;
     }
 
-    print_usb_config(span((uint8_t*)d.config, d.config_size));
+    print_usb_config(span((uint8_t*)d->config, d->config_size));
 
-    auto& config = *(usb_configuration_descriptor*)d.config;
+    auto& config = *(usb_configuration_descriptor*)d->config;
 
-    if (!d.set_configuration(config.bConfigurationValue)) {
+    if (!d->set_configuration(config.bConfigurationValue)) {
         print("usb_device::set_configuration failed\n");
-        d.release();
+        d->release();
         return;
     }
 
-    probe_interfaces(d);
+    probe_interfaces(*d);
 }
 
 void xhci::port_status_changed(uint8_t port_id) {
@@ -2036,50 +2081,8 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     p.slot = slot;
 
-    usb_device* d;
-
-    auto func = [&]<bool LARGE>() -> bool {
-        auto devctx = new xhci_device_context<LARGE>;
-        if (!devctx) {
-            print("new failed\n");
-            // FIXME - disable slot
-            return false;
-        }
-
-        memset(devctx, 0, sizeof(*devctx));
-
-        dcbaa[slot] = va_to_pa_phys(devctx);
-
-        d = new usb_device(*this, devctx, slot, portsc.port_speed, port_id,
-                           0, usb_revision, *(xhci_psi*)&psi_num);
-        if (!d) {
-            print("new failed\n");
-            delete devctx;
-            dcbaa[slot] = 0;
-            // FIXME - disable slot
-            return false;
-        }
-
-        if (!d->initialized) {
-            print("usb_device::usb_device failed\n");
-            delete d;
-            return false;
-        }
-
-        print("received address {}\n", devctx->slot.usb_device_address);
-
-        return true;
-    };
-
-    if (large_contexts) {
-        if (!func.template operator()<true>())
-            return;
-    } else {
-        if (!func.template operator()<false>())
-            return;
-    }
-
-    usb_device_found(*d);
+    usb_device_found(*this, slot, port_id, 0, usb_revision, psi_num,
+                     portsc.port_speed);
 }
 
 void xhci::port_status_change_thread() {

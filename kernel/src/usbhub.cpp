@@ -205,50 +205,8 @@ void usb_hub::device_connected(uint8_t port) {
 
     p.slot = slot;
 
-    usb_device* d2;
-
-    auto func = [&]<bool LARGE>() -> bool {
-        auto devctx = new xhci_device_context<LARGE>;
-        if (!devctx) {
-            print("new failed\n");
-            // FIXME - disable slot
-            return false;
-        }
-
-        memset(devctx, 0, sizeof(*devctx));
-
-        controller.dcbaa[slot] = va_to_pa_phys(devctx);
-
-        d2 = new usb_device(controller, devctx, slot, d.speed, d.port_id,
-                            port, usb_revision, *(xhci_psi*)&psi_num); // FIXME
-        if (!d2) {
-            print("new failed\n");
-            delete devctx;
-            controller.dcbaa[slot] = 0;
-            // FIXME - disable slot
-            return false;
-        }
-
-        if (!d2->initialized) {
-            print("usb_device::usb_device failed\n");
-            delete d2;
-            return false;
-        }
-
-        print("received address {}\n", devctx->slot.usb_device_address);
-
-        return true;
-    };
-
-    if (controller.large_contexts) {
-        if (!func.template operator()<true>())
-            return;
-    } else {
-        if (!func.template operator()<false>())
-            return;
-    }
-
-    usb_device_found(*d2);
+    usb_device_found(controller, slot, d.port_id, port, usb_revision,
+                     psi_num, d.speed);
 }
 
 bool usb_hub::set_port_feature(enum usb_port_feature_selector feature,
