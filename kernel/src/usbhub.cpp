@@ -9,6 +9,7 @@ import print;
 import format;
 import xhci;
 import usb;
+import mem;
 
 using namespace std;
 
@@ -38,6 +39,7 @@ static_assert(sizeof(port_status) == 0x4);
 
 struct usb_hub_port {
     port_status status;
+    uint8_t slot;
 };
 
 class usb_hub {
@@ -183,6 +185,69 @@ usb_hub::~usb_hub() {
 
 void usb_hub::device_connected(uint8_t port) {
     print("usb_hub::device_connected: new device on port {}\n", port);
+
+    auto& controller = d.controller;
+    auto& p = ports[port - 1];
+
+    // FIXME - can we rely on slot_type always being 0?
+    auto slot = controller.enable_slot(0);
+    if (slot == 0) {
+        print("usb_hub::device_connected: could not enable slot\n");
+        return;
+    }
+
+    auto [psi_num, usb_revision] = controller.get_speed(d.port_id, d.speed); // FIXME
+    if (psi_num == 0) {
+        print("xhci::get_speed failed\n");
+        // FIXME - disable slot
+        return;
+    }
+
+    p.slot = slot;
+
+    usb_device* d2;
+
+    auto func = [&]<bool LARGE>() -> bool {
+        auto devctx = new xhci_device_context<LARGE>;
+        if (!devctx) {
+            print("new failed\n");
+            // FIXME - disable slot
+            return false;
+        }
+
+        memset(devctx, 0, sizeof(*devctx));
+
+        controller.dcbaa[slot] = va_to_pa_phys(devctx);
+
+        d2 = new usb_device(controller, devctx, slot, d.speed, d.port_id,
+                            port, usb_revision, *(xhci_psi*)&psi_num); // FIXME
+        if (!d2) {
+            print("new failed\n");
+            delete devctx;
+            controller.dcbaa[slot] = 0;
+            // FIXME - disable slot
+            return false;
+        }
+
+        if (!d2->initialized) {
+            print("usb_device::usb_device failed\n");
+            delete d2;
+            return false;
+        }
+
+        print("received address {}\n", devctx->slot.usb_device_address);
+
+        return true;
+    };
+
+    if (controller.large_contexts) {
+        if (!func.template operator()<true>())
+            return;
+    } else {
+        if (!func.template operator()<false>())
+            return;
+    }
+
     // FIXME - process
 }
 

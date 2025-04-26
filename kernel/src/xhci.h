@@ -423,16 +423,6 @@ enum class XHCI_EP_TYPE {
 static const uint32_t XHCI_EP_DCS = 0x00000001;
 
 template<bool LARGE>
-struct xhci_device_context {
-    xhci_slot_context slot;
-    uint8_t reserved[LARGE ? 32 : 0];
-    xhci_endpoint_context<LARGE> ep[31];
-} __attribute((packed));
-
-static_assert(sizeof(xhci_device_context<false>) == 0x400);
-static_assert(sizeof(xhci_device_context<true>) == 0x800);
-
-template<bool LARGE>
 struct xhci_input_context {
     xhci_input_control_context control;
     uint8_t reserved1[LARGE ? 32 : 0];
@@ -478,18 +468,6 @@ struct xhci_supported_protocol {
 } __attribute((packed));
 
 static_assert(sizeof(xhci_supported_protocol) == 0x10);
-
-struct xhci_psi {
-    uint8_t psiv : 4;
-    uint8_t psie : 2;
-    uint8_t plt : 2;
-    uint8_t pfd : 1;
-    uint8_t reserved : 5;
-    uint8_t lp : 2;
-    uint16_t psim;
-} __attribute((packed));
-
-static_assert(sizeof(xhci_psi) == 0x4);
 
 struct xhci_hcsparams1 {
     uint32_t max_slots : 8;

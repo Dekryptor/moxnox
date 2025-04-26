@@ -73,6 +73,28 @@ private:
     uint32_t doorbell_val;
 };
 
+export template<bool LARGE>
+struct xhci_device_context {
+    xhci_slot_context slot;
+    uint8_t reserved[LARGE ? 32 : 0];
+    xhci_endpoint_context<LARGE> ep[31];
+} __attribute((packed));
+
+static_assert(sizeof(xhci_device_context<false>) == 0x400);
+static_assert(sizeof(xhci_device_context<true>) == 0x800);
+
+export struct xhci_psi {
+    uint8_t psiv : 4;
+    uint8_t psie : 2;
+    uint8_t plt : 2;
+    uint8_t pfd : 1;
+    uint8_t reserved : 5;
+    uint8_t lp : 2;
+    uint16_t psim;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_psi) == 0x4);
+
 class xhci {
 public:
     xhci(pci_device& dev);
@@ -80,6 +102,8 @@ public:
     void init_ports();
     void isr();
     void port_status_change_thread();
+    uint8_t enable_slot(uint8_t slot_type);
+    pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
 
     bool initialized = false;
     pci_device& dev;
@@ -94,10 +118,8 @@ private:
     void isr_command_completion(xhci_trb_command_completion& comp);
     void isr_port_status_change(xhci_trb_port_status_change& psc);
     void port_status_changed(uint8_t port_id);
-    uint8_t enable_slot(uint8_t slot_type);
     uint8_t get_port_slot_type(uint8_t port_id);
     bool reset_port(uint8_t port_id);
-    pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
     bool init_scratchpad();
     uint16_t get_port_usb_revision(uint8_t port_id);
 
@@ -137,8 +159,8 @@ enum class usb_speed_class {
 export class usb_device {
 public:
     usb_device(xhci& controller, void* devctx,
-               uint8_t slot, uint8_t speed, uint8_t port_id,
-               uint16_t usb_revision, xhci_psi& psi);
+               uint8_t slot, uint8_t speed, uint8_t root_port_id,
+               uint32_t route_string, uint16_t usb_revision, xhci_psi& psi);
     ~usb_device();
     bool get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
                         uint8_t desc_index);
@@ -169,14 +191,14 @@ public:
     void* config = nullptr;
     size_t config_size;
     list_entry endpoints = { &endpoints, &endpoints };
+    xhci& controller;
+    uint8_t speed, port_id;
 
 private:
     bool change_ep0_max_packet_size(uint16_t max_packet_size);
 
-    xhci& controller;
     void* devctx;
     atomic<unsigned int> refcount = 1;
-    uint8_t speed, port_id;
     rwsem endpoint_mutex;
     spinlock endpoint_spinlock;
     enum usb_speed_class speed_class;
@@ -947,11 +969,11 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
 }
 
 usb_device::usb_device(xhci& controller, void* devctx, uint8_t slot,
-                       uint8_t speed, uint8_t port_id, uint16_t usb_revision,
-                       xhci_psi& psi) : controller(controller), devctx(devctx) {
+                       uint8_t speed, uint8_t root_port_id, uint32_t route_string,
+                       uint16_t usb_revision, xhci_psi& psi) : controller(controller), devctx(devctx) {
     this->slot = slot;
     this->speed = speed;
-    this->port_id = port_id;
+    this->port_id = root_port_id;
 
     speed_class = usb_speed_class::unknown;
 
@@ -1000,7 +1022,14 @@ usb_device::usb_device(xhci& controller, void* devctx, uint8_t slot,
 #pragma GCC diagnostic ignored "-Wconversion"
         context->slot.speed = speed;
 #pragma GCC diagnostic pop
-        context->slot.root_hub_port_number = port_id;
+        context->slot.root_hub_port_number = root_port_id;
+        context->slot.route_string = route_string;
+        // FIXME - multi_tt
+        // FIXME - hub
+        // FIXME - num_ports
+        // FIXME - parent_hub_slot_id
+        // FIXME - parent_port_number
+        // FIXME - ttt
         context->slot.context_entries = 1;
 
         switch (speed_class) {
@@ -1942,7 +1971,7 @@ void xhci::port_status_changed(uint8_t port_id) {
         dcbaa[slot] = va_to_pa_phys(devctx);
 
         d = new usb_device(*this, devctx, slot, portsc.port_speed, port_id,
-                           usb_revision, *(xhci_psi*)&psi_num);
+                           0, usb_revision, *(xhci_psi*)&psi_num);
         if (!d) {
             print("new failed\n");
             delete devctx;
