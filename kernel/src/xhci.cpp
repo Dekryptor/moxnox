@@ -104,6 +104,9 @@ public:
     void port_status_change_thread();
     uint8_t enable_slot(uint8_t slot_type);
     pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
+    void device_found(uint8_t slot, uint8_t root_port_id,
+                      uint32_t route_string, uint16_t usb_revision,
+                      uint32_t psi_num, uint8_t port_speed);
 
     bool initialized = false;
     pci_device& dev;
@@ -1905,9 +1908,9 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
     return 0;
 }
 
-export void usb_device_found(xhci& controller, uint8_t slot, uint8_t root_port_id,
-                             uint32_t route_string, uint16_t usb_revision,
-                             uint32_t psi_num, uint8_t port_speed) {
+void xhci::device_found(uint8_t slot, uint8_t root_port_id, uint32_t route_string,
+                        uint16_t usb_revision, uint32_t psi_num,
+                        uint8_t port_speed) {
     usb_device* d;
 
     auto func = [&]<bool LARGE>() -> bool {
@@ -1920,14 +1923,14 @@ export void usb_device_found(xhci& controller, uint8_t slot, uint8_t root_port_i
 
         memset(devctx, 0, sizeof(*devctx));
 
-        controller.dcbaa[slot] = va_to_pa_phys(devctx);
+        dcbaa[slot] = va_to_pa_phys(devctx);
 
-        d = new usb_device(controller, devctx, slot, port_speed, root_port_id,
+        d = new usb_device(*this, devctx, slot, port_speed, root_port_id,
                            route_string, usb_revision, *(xhci_psi*)&psi_num);
         if (!d) {
             print("new failed\n");
             delete devctx;
-            controller.dcbaa[slot] = 0;
+            dcbaa[slot] = 0;
             // FIXME - disable slot
             return false;
         }
@@ -1943,7 +1946,7 @@ export void usb_device_found(xhci& controller, uint8_t slot, uint8_t root_port_i
         return true;
     };
 
-    if (controller.large_contexts) {
+    if (large_contexts) {
         if (!func.template operator()<true>())
             return;
     } else {
@@ -2081,8 +2084,7 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     p.slot = slot;
 
-    usb_device_found(*this, slot, port_id, 0, usb_revision, psi_num,
-                     portsc.port_speed);
+    device_found(slot, port_id, 0, usb_revision, psi_num, portsc.port_speed);
 }
 
 void xhci::port_status_change_thread() {
