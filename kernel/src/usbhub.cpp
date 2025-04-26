@@ -248,6 +248,16 @@ void usb_hub::device_connected(uint8_t port) {
             return;
     }
 
+    if (!d2->get_descriptor(span((uint8_t*)&d2->device_descriptor, sizeof(d2->device_descriptor)),
+                            usb_descriptor::DEVICE, 0)) {
+        print("usb_device::get_descriptor failed\n");
+        d2->release();
+        return;
+    }
+
+    print("found USB device {:04x}:{:04x}\n", d2->device_descriptor.idVendor,
+          d2->device_descriptor.idProduct);
+
     // FIXME - process
 }
 
