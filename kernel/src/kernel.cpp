@@ -23,6 +23,7 @@ import timer;
 import syscalls;
 import smp;
 import console;
+import evdev;
 
 using namespace std;
 
@@ -120,17 +121,17 @@ static void keywait() {
     } else {
         object_ref keybh;
 
-        auto status = open_object("keyboard", keybh);
+        auto status = open_object("ps2keyboard", keybh);
 
         if (!success(status)) {
-            print("Error {} while trying to open /dev/keyboard\n", status);
+            print("Error {} while trying to open /dev/ps2keyboard\n", status);
             return;
         }
 
         auto& keyb = keybh.get();
 
         if (keyb.type != object_type::chardev) {
-            print("/dev/keyboard did not point to a character device\n");
+            print("/dev/ps2keyboard did not point to a character device\n");
             return;
         }
 
@@ -141,16 +142,34 @@ static void keywait() {
         return;
 
     object_ref obj{*p}; // so it gets released automatically
-    uint8_t c;
 
     print("Press any key to continue...\n\e[?25l");
 
-    // FIXME - make sure this behaves properly if user presses a multi-character key (clear buffer?)
     while (true) {
-        uint64_t read_bytes;
-        auto status = p->read(span(&c, 1), read_bytes);
+        input_event ev;
+        nt_status status;
 
-        if (!success(status) || read_bytes != 0)
+        auto sp = span((uint8_t*)&ev, sizeof(ev));
+
+        while (true) {
+            uint64_t read_bytes;
+
+            status = p->read(sp, read_bytes);
+            if (!success(status))
+                break;
+
+            if (read_bytes == sp.size())
+                break;
+
+            sp = span(sp.data() + read_bytes, sp.size() - read_bytes);
+        }
+
+        if (!success(status)) {
+            print("pipe::read returned {}\n", status);
+            break;
+        }
+
+        if (ev.type == evdev_type::EV_KEY && ev.value != 0) // keydown event
             break;
     }
 
