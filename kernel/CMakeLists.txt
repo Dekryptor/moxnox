@@ -36,7 +36,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/cpio.cpp
     src/acpi.cpp
     src/rtc.cpp
-    src/keyboard.cpp
+    src/ps2keyboard.cpp
     src/null.cpp
     src/mem.cpp
     src/config.cpp

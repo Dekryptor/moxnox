@@ -17,7 +17,7 @@ import volume;
 #include "acpica.h"
 #include <ioctl.h>
 
-export module keyboard;
+export module ps2keyboard;
 
 import print;
 import inout;
