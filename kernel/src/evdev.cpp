@@ -630,3 +630,33 @@ export enum class evdev_code : uint16_t {
     BTN_TRIGGER_HAPPY40 = 0x2e7,
     KEY_MAX = 0x2ff,
 };
+
+export enum class evdev_type : uint16_t {
+    EV_SYN = 0x00,
+    EV_KEY = 0x01,
+    EV_REL = 0x02,
+    EV_ABS = 0x03,
+    EV_MSC = 0x04,
+    EV_SW = 0x05,
+    EV_LED = 0x11,
+    EV_SND = 0x12,
+    EV_REP = 0x14,
+    EV_FF = 0x15,
+    EV_PWR = 0x16,
+    EV_FF_STATUS = 0x17,
+    EV_MAX = 0x1f,
+};
+
+struct _timeval {
+    uint64_t tv_sec;
+    uint32_t tv_usec;
+};
+
+export struct input_event {
+    struct _timeval time;
+    enum evdev_type type;
+    enum evdev_code code;
+    int32_t value;
+};
+
+static_assert(sizeof(input_event) == 0x18);

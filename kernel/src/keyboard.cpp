@@ -29,9 +29,10 @@ import acpi;
 using namespace std;
 
 static const unsigned int keyboard_buffer_pages = 1;
+static const unsigned int keyboard_evdev_buffer_pages = 1;
 
 static optional<reference_wrapper<event>> keyboard_event_obj;
-static object_ref keyboard_obj;
+static object_ref keyboard_obj, keyboard_evdev_obj;
 
 static const unsigned int MODIFIER_LSHIFT = 1;
 static const unsigned int MODIFIER_RSHIFT = 2;
@@ -120,7 +121,37 @@ void keyboard_pipe::handle_ctrl_c() {
 }
 
 static void post_evdev(enum evdev_code code, bool down) {
-    print("evdev {} {}\n", (unsigned int)code, down ? "down" : "up");
+    struct input_event ev;
+    auto& p = static_cast<pipe&>(keyboard_evdev_obj.get());
+
+    // FIXME - typematic
+
+    // FIXME - Linux also has EV_SYN and EV_MSC events
+
+    // FIXME - populate time field
+    ev.time.tv_sec = 0;
+    ev.time.tv_usec = 0;
+
+    ev.type = evdev_type::EV_KEY;
+    ev.code = code;
+    ev.value = down ? 1 : 0;
+
+    auto sp = span((uint8_t*)&ev, sizeof(ev));
+
+    while (!sp.empty()) {
+        uint64_t written_bytes;
+
+        auto status = p.write(sp, written_bytes);
+        if (!success(status)) {
+            print("pipe::write returned {}\n", status);
+            return;
+        }
+
+        if (written_bytes == sp.size())
+            break;
+
+        sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
+    }
 }
 
 static void keyboard_event_recv() {
@@ -290,6 +321,24 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
+static bool add_keyboard_evdev_pipe() {
+    auto pptr = new pipe(keyboard_evdev_buffer_pages);
+    if (!pptr) {
+        print("new failed\n");
+        return false;
+    }
+
+    keyboard_evdev_obj = object_ref{*pptr};
+
+    // FIXME - put in /dev/input like on Linux
+    if (!name_object(keyboard_evdev_obj.get(), "ps2keyboard")) {
+        print("name_object failed\n");
+        return false;
+    }
+
+    return true;
+}
+
 static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     if (keyboard_initialized) // can only be one PS/2 keyboard(?)
         return;
@@ -326,6 +375,11 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 
     if (!name_object(keyboard_obj.get(), "keyboard")) {
         print("name_object failed\n");
+        return;
+    }
+
+    if (!add_keyboard_evdev_pipe()) {
+        print("add_keyboard_evdev_pipe failed\n");
         return;
     }
 
