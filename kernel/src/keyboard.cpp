@@ -7,6 +7,9 @@ export module keyboard;
 
 import pipe;
 import print;
+import evdev;
+
+using namespace std;
 
 static const unsigned int keyboard_pipe_buffer_pages = 1;
 static object_ref keyboard_pipe_obj;
@@ -26,4 +29,50 @@ export bool init_keyboard_pipe() {
     }
 
     return true;
+}
+
+static void keyboard_listen(pipe& p) {
+    // FIXME - make sure this thread dies if keyboard goes away
+
+    while (true) {
+        input_event ev;
+        nt_status status;
+
+        auto sp = span((uint8_t*)&ev, sizeof(ev));
+
+        while (true) {
+            uint64_t read_bytes;
+
+            status = p.read(sp, read_bytes);
+            if (!success(status))
+                break;
+
+            if (read_bytes == sp.size())
+                break;
+
+            sp = span(sp.data() + read_bytes, sp.size() - read_bytes);
+        }
+
+        if (!success(status)) {
+            print("pipe::read returned {}\n", status);
+            break;
+        }
+
+        if (ev.type != evdev_type::EV_KEY)
+            continue;
+
+        print("FIXME - key event\n");
+    }
+}
+
+export void register_keyboard(pipe& p) {
+    p.acquire();
+
+    add_kernel_thread([](void* ctx) {
+        auto& p = *(pipe*)ctx;
+
+        keyboard_listen(p);
+
+        p.release();
+    }, &p);
 }

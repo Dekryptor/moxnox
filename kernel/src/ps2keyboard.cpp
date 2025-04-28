@@ -337,6 +337,8 @@ static bool add_keyboard_evdev_pipe() {
         return false;
     }
 
+    register_keyboard(static_cast<pipe&>(keyboard_evdev_obj.get()));
+
     return true;
 }
 
