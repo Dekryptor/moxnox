@@ -2,6 +2,11 @@ module;
 
 #include "kernel.h"
 #include "handle.h"
+#include "spinlock.h"
+import objects;
+#include "process.h"
+#include <console.h>
+#include <ioctl.h>
 
 export module keyboard;
 
@@ -360,6 +365,29 @@ static const u8string_view codes_ctrl[] = {
     u8"\x1b[3~", // KEY_DELETE
 };
 
+class keyboard_pipe : public pipe {
+public:
+    keyboard_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
+
+    ~keyboard_pipe() {
+        lock_guard lg(fg_proc_lock);
+
+        if (fg_proc)
+            fg_proc->get().release();
+    }
+
+    NTSTATUS ioctl(uint32_t code, span<const uint8_t> inbuf, span<uint8_t> outbuf, uintptr_t& written) override;
+    void handle_ctrl_c();
+
+    uint32_t input_mode = ENABLE_PROCESSED_INPUT;
+
+private:
+    NTSTATUS console_set_foreground(span<const uint8_t> inbuf);
+
+    spinlock fg_proc_lock;
+    optional<reference_wrapper<process>> fg_proc;
+};
+
 class keyboard_context {
 public:
     keyboard_context(pipe& p) : p(p) {
@@ -381,7 +409,7 @@ private:
 };
 
 export bool init_keyboard_pipe() {
-    auto pptr = new pipe(keyboard_pipe_buffer_pages);
+    auto pptr = new keyboard_pipe(keyboard_pipe_buffer_pages);
     if (!pptr) {
         print("new failed\n");
         return false;
@@ -397,9 +425,25 @@ export bool init_keyboard_pipe() {
     return true;
 }
 
-void keyboard_context::key_event(input_event& ev) {
-    auto& k = static_cast<pipe&>(keyboard_pipe_obj.get());
+void keyboard_pipe::handle_ctrl_c() {
+    optional<reference_wrapper<process>> proc;
 
+    {
+        lock_guard lg(fg_proc_lock);
+
+        if (!fg_proc)
+            return;
+
+        proc = fg_proc;
+        proc->get().acquire();
+    }
+
+    proc->get().send_signal((uint64_t)nt_status::CONTROL_C_EXIT);
+
+    proc->get().release();
+}
+
+void keyboard_context::key_event(input_event& ev) {
     auto idx = (unsigned int)ev.code;
 
     // FIXME - handle caps lock, num lock, etc.
@@ -452,6 +496,12 @@ void keyboard_context::key_event(input_event& ev) {
     }
 
     auto sp = span((uint8_t*)val.data(), val.size());
+    auto& k = static_cast<keyboard_pipe&>(keyboard_pipe_obj.get());
+
+    if (!sp.empty() && sp.size() == 1 && sp[0] == '\x03' && k.input_mode & ENABLE_PROCESSED_INPUT) {
+        k.handle_ctrl_c();
+        return;
+    }
 
     while (!sp.empty()) {
         uint64_t written_bytes;
@@ -466,6 +516,46 @@ void keyboard_context::key_event(input_event& ev) {
             break;
 
         sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
+    }
+}
+
+NTSTATUS keyboard_pipe::console_set_foreground(span<const uint8_t> inbuf) {
+    if (inbuf.size() != sizeof(HANDLE))
+        return nt_status::INVALID_PARAMETER;
+
+    auto h = *(HANDLE*)inbuf.data();
+
+    auto obj = deref_handle2(h);
+    if (!obj)
+        return nt_status::INVALID_HANDLE;
+
+    if (obj.get().type != object_type::process)
+        return nt_status::INVALID_HANDLE;
+
+    auto& proc = static_cast<process&>(obj.get());
+
+    proc.acquire();
+
+    {
+        lock_guard lg(fg_proc_lock);
+
+        if (fg_proc)
+            fg_proc->get().release();
+
+        fg_proc = proc;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+NTSTATUS keyboard_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                              span<uint8_t>, uintptr_t&) {
+    switch (code) {
+        case IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND:
+            return console_set_foreground(inbuf);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
     }
 }
 

@@ -82,11 +82,11 @@ static void init_acpi_hids() {
 
 static module_init module_init_keyboard(init_acpi_hids);
 
-class keyboard_pipe : public pipe {
+class keyboard_pipe2 : public pipe {
 public:
-    keyboard_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
+    keyboard_pipe2(unsigned int buffer_pages) : pipe(buffer_pages) { }
 
-    ~keyboard_pipe() {
+    ~keyboard_pipe2() {
         lock_guard lg(fg_proc_lock);
 
         if (fg_proc)
@@ -103,7 +103,7 @@ private:
     optional<reference_wrapper<process>> fg_proc;
 };
 
-void keyboard_pipe::handle_ctrl_c() {
+void keyboard_pipe2::handle_ctrl_c() {
     optional<reference_wrapper<process>> proc;
 
     {
@@ -308,7 +308,7 @@ static void keyboard_event_recv() {
             }
 
             if (!sv.empty()) {
-                auto& p = static_cast<keyboard_pipe&>(keyboard_obj.get());
+                auto& p = static_cast<keyboard_pipe2&>(keyboard_obj.get());
 
                 if (input_mode & ENABLE_PROCESSED_INPUT && sv.size() == 1 && sv[0] == '\x03')
                     p.handle_ctrl_c();
@@ -368,7 +368,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         return;
     }
 
-    auto pptr = new keyboard_pipe(keyboard_buffer_pages);
+    auto pptr = new keyboard_pipe2(keyboard_buffer_pages);
     if (!pptr) {
         print("new failed\n");
         return;
@@ -426,7 +426,7 @@ static bool keyboard_isr_func(void*) {
     return true;
 }
 
-NTSTATUS keyboard_pipe::console_set_foreground(span<const uint8_t> inbuf) {
+NTSTATUS keyboard_pipe2::console_set_foreground(span<const uint8_t> inbuf) {
     if (inbuf.size() != sizeof(HANDLE))
         return nt_status::INVALID_PARAMETER;
 
@@ -461,7 +461,7 @@ NTSTATUS keyboard_pipe::console_set_foreground(span<const uint8_t> inbuf) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS keyboard_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
+NTSTATUS keyboard_pipe2::ioctl(uint32_t code, span<const uint8_t> inbuf,
                               span<uint8_t>, uintptr_t&) {
     switch (code) {
         case IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND:
