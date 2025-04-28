@@ -24,6 +24,7 @@ import syscalls;
 import smp;
 import console;
 import evdev;
+import keyboard;
 
 using namespace std;
 
@@ -230,6 +231,9 @@ void main_thread() {
 
     if (!create_dev_null())
         print("create_dev_null failed\n");
+
+    if (!init_keyboard_pipe())
+        print("init_keyboard_pipe failed\n");
 
     // FIXME - USB
 

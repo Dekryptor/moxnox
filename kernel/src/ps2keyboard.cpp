@@ -25,6 +25,7 @@ import mem;
 import interrupts;
 import event;
 import acpi;
+import keyboard;
 
 using namespace std;
 
@@ -373,7 +374,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 
     keyboard_obj = object_ref{*pptr};
 
-    if (!name_object(keyboard_obj.get(), "keyboard")) {
+    if (!name_object(keyboard_obj.get(), "keyboard2")) {
         print("name_object failed\n");
         return;
     }
