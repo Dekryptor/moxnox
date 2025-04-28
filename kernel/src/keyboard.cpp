@@ -14,6 +14,22 @@ using namespace std;
 static const unsigned int keyboard_pipe_buffer_pages = 1;
 static object_ref keyboard_pipe_obj;
 
+class keyboard_context {
+public:
+    keyboard_context(pipe& p) : p(p) {
+        p.acquire();
+    }
+
+    ~keyboard_context() {
+        p.release();
+    }
+
+    void listen_thread();
+
+private:
+    pipe& p;
+};
+
 export bool init_keyboard_pipe() {
     auto pptr = new pipe(keyboard_pipe_buffer_pages);
     if (!pptr) {
@@ -31,7 +47,7 @@ export bool init_keyboard_pipe() {
     return true;
 }
 
-static void keyboard_listen(pipe& p) {
+void keyboard_context::listen_thread() {
     // FIXME - make sure this thread dies if keyboard goes away
 
     while (true) {
@@ -66,13 +82,17 @@ static void keyboard_listen(pipe& p) {
 }
 
 export void register_keyboard(pipe& p) {
-    p.acquire();
+    auto kc = new keyboard_context(p);
+    if (!kc) {
+        print("new failed\n");
+        return;
+    }
 
     add_kernel_thread([](void* ctx) {
-        auto& p = *(pipe*)ctx;
+        auto& kc = *(keyboard_context*)ctx;
 
-        keyboard_listen(p);
+        kc.listen_thread();
 
-        p.release();
-    }, &p);
+        delete &kc;
+    }, kc);
 }
