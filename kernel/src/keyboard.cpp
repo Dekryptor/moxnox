@@ -15,7 +15,7 @@ static const unsigned int keyboard_pipe_buffer_pages = 1;
 static object_ref keyboard_pipe_obj;
 
 // UK layout
-static const std::u8string_view codes[] = {
+static const u8string_view codes[] = {
     u8"", // KEY_RESERVED
     u8"\x1b", // KEY_ESC
     u8"1", // KEY_1
@@ -130,6 +130,121 @@ static const std::u8string_view codes[] = {
     u8"\x1b[3~", // KEY_DELETE
 };
 
+static const u8string_view codes_shift[] = {
+    u8"", // KEY_RESERVED
+    u8"\x1b", // KEY_ESC
+    u8"!", // KEY_1
+    u8"\"", // KEY_2
+    u8"£", // KEY_3
+    u8"$", // KEY_4
+    u8"%", // KEY_5
+    u8"^", // KEY_6
+    u8"&", // KEY_7
+    u8"*", // KEY_8
+    u8"(", // KEY_9
+    u8")", // KEY_0
+    u8"_", // KEY_MINUS
+    u8"+", // KEY_EQUAL
+    u8"\b", // KEY_BACKSPACE
+    u8"", // KEY_TAB
+    u8"Q", // KEY_Q
+    u8"W", // KEY_W
+    u8"E", // KEY_E
+    u8"R", // KEY_R
+    u8"T", // KEY_T
+    u8"Y", // KEY_Y
+    u8"U", // KEY_U
+    u8"I", // KEY_I
+    u8"O", // KEY_O
+    u8"P", // KEY_P
+    u8"{", // KEY_LEFTBRACE
+    u8"}", // KEY_RIGHTBRACE
+    u8"", // KEY_ENTER
+    u8"", // KEY_LEFTCTRL
+    u8"A", // KEY_A
+    u8"S", // KEY_S
+    u8"D", // KEY_D
+    u8"F", // KEY_F
+    u8"G", // KEY_G
+    u8"H", // KEY_H
+    u8"J", // KEY_J
+    u8"K", // KEY_K
+    u8"L", // KEY_L
+    u8":", // KEY_SEMICOLON
+    u8"@", // KEY_APOSTROPHE
+    u8"¬", // KEY_GRAVE
+    u8"", // KEY_LEFTSHIFT
+    u8"~", // KEY_BACKSLASH
+    u8"Z", // KEY_Z
+    u8"X", // KEY_X
+    u8"C", // KEY_C
+    u8"V", // KEY_V
+    u8"B", // KEY_B
+    u8"N", // KEY_N
+    u8"M", // KEY_M
+    u8"<", // KEY_COMMA
+    u8">", // KEY_DOT
+    u8"?", // KEY_SLASH
+    u8"", // KEY_RIGHTSHIFT
+    u8"*", // KEY_KPASTERISK
+    u8"", // KEY_LEFTALT
+    u8" ", // KEY_SPACE
+    u8"", // KEY_CAPSLOCK
+    u8"", // KEY_F1
+    u8"", // KEY_F2
+    u8"", // KEY_F3
+    u8"", // KEY_F4
+    u8"", // KEY_F5
+    u8"", // KEY_F6
+    u8"", // KEY_F7
+    u8"", // KEY_F8
+    u8"", // KEY_F9
+    u8"", // KEY_F10
+    u8"", // KEY_NUMLOCK
+    u8"", // KEY_SCROLLLOCK
+    u8"", // KEY_KP7
+    u8"", // KEY_KP8
+    u8"", // KEY_KP9
+    u8"-", // KEY_KPMINUS
+    u8"", // KEY_KP4
+    u8"", // KEY_KP5
+    u8"", // KEY_KP6
+    u8"+", // KEY_KPPLUS
+    u8"", // KEY_KP1
+    u8"", // KEY_KP2
+    u8"", // KEY_KP3
+    u8"", // KEY_KP0
+    u8".", // KEY_KPDOT
+    u8"",
+    u8"", // KEY_ZENKAKUHANKAKU
+    u8"|", // KEY_102ND
+    u8"", // KEY_F11
+    u8"", // KEY_F12
+    u8"", // KEY_RO
+    u8"", // KEY_KATAKANA
+    u8"", // KEY_HIRAGANA
+    u8"", // KEY_HENKAN
+    u8"", // KEY_KATAKANAHIRAGANA
+    u8"", // KEY_MUHENKAN
+    u8"", // KEY_KPJPCOMMA
+    u8"\n", // KEY_KPENTER
+    u8"", // KEY_RIGHTCTRL
+    u8"/", // KEY_KPSLASH
+    u8"", // KEY_SYSRQ
+    u8"", // KEY_RIGHTALT
+    u8"", // KEY_LINEFEED
+    u8"\x1b[H", // KEY_HOME
+    u8"\x1b[A", // KEY_UP
+    u8"\x1b[5~", // KEY_PAGEUP
+    u8"\x1b[D", // KEY_LEFT
+    u8"\x1b[C", // KEY_RIGHT
+    u8"\x1b[F", // KEY_END
+    u8"\x1b[B", // KEY_DOWN
+    u8"\x1b[6~", // KEY_PAGEDOWN
+    u8"\x1b[2~", // KEY_INSERT
+    u8"\x1b[3~", // KEY_DELETE
+};
+
 class keyboard_context {
 public:
     keyboard_context(pipe& p) : p(p) {
@@ -146,6 +261,7 @@ private:
     void key_event(input_event& ev);
 
     pipe& p;
+    unsigned int shift_count = 0;
 };
 
 export bool init_keyboard_pipe() {
@@ -170,18 +286,41 @@ void keyboard_context::key_event(input_event& ev) {
 
     auto idx = (unsigned int)ev.code;
 
-    // FIXME - handle shift, ctrl, caps lock, num lock, etc.
+    // FIXME - handle ctrl, caps lock, num lock, etc.
+
+    if (ev.code == evdev_code::KEY_LEFTSHIFT || ev.code == evdev_code::KEY_RIGHTSHIFT) {
+        if (ev.value == 1) // key down
+            shift_count++;
+        else if (ev.value == 0) // key up
+            shift_count--;
+
+        return;
+    }
 
     if (ev.value == 0) // ignore key-ups
         return;
 
-    if (idx >= sizeof(codes) / sizeof(*codes))
-        return;
+    u8string_view val;
 
-    if (codes[idx].empty())
-        return;
+    if (shift_count != 0) {
+        if (idx >= sizeof(codes_shift) / sizeof(*codes_shift))
+            return;
 
-    auto sp = span((uint8_t*)codes[idx].data(), codes[idx].size());
+        if (codes_shift[idx].empty())
+            return;
+
+        val = codes_shift[idx];
+    } else {
+        if (idx >= sizeof(codes) / sizeof(*codes))
+            return;
+
+        if (codes[idx].empty())
+            return;
+
+        val = codes[idx];
+    }
+
+    auto sp = span((uint8_t*)val.data(), val.size());
 
     while (!sp.empty()) {
         uint64_t written_bytes;
