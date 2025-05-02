@@ -33,7 +33,6 @@ public:
     NTSTATUS allocate_vm(void** base_address, uintptr_t zero_bits, size_t* region_size,
                          uint32_t allocation_type, enum mapping_type protect);
     NTSTATUS free_vm(void** base_address, size_t* region_size, uint32_t free_type);
-    std::optional<std::reference_wrapper<object>> deref_handle(handle_t h);
     object_ref deref_handle2(handle_t h);
     NTSTATUS protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
                         enum mapping_type& old_prot);

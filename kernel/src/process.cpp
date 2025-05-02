@@ -1659,24 +1659,6 @@ bool process::allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth
     return true;
 }
 
-optional<reference_wrapper<object>> process::deref_handle(handle_t h) {
-    lock_guard lock(handle_lock);
-
-    if (h == 0 || h > no_handles)
-        return nullopt;
-
-    auto& ho = handle_arr[h - 1];
-
-    if (!ho.obj)
-        return nullopt;
-
-    visit_obj(*ho.obj, [](auto&& o) {
-        o.acquire(); // needs to be within spinlock
-    });
-
-    return *ho.obj;
-}
-
 object_ref process::deref_handle2(handle_t h) {
     if (h == NtCurrentProcess()) {
         this->acquire();
