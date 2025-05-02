@@ -2183,7 +2183,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 
 NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          HANDLE, bool, HANDLE section_handle, HANDLE, HANDLE) {
-    optional<reference_wrapper<section>> sect;
+    object_ref sect;
 
     // FIXME - desired_access
     // FIXME - object_attributes
@@ -2192,43 +2192,26 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     // FIXME - debug_port
     // FIXME - exception_port
 
-    {
-        auto objrw = deref_handle(section_handle);
-        if (!objrw)
-            return nt_status::INVALID_HANDLE;
+    sect = deref_handle2(section_handle);
+    if (!sect)
+        return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+    if (sect.get().type != object_type::section)
+        return nt_status::OBJECT_TYPE_MISMATCH;
 
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_same_v<remove_reference_t<decltype(o)>, section>)
-                sect = o;
-        });
+    auto& img = *static_cast<section*>(&sect.get());
 
-        if (!sect) {
-            visit_obj(obj, [&](auto&& o) {
-                o.release();
-            });
-
-            return nt_status::OBJECT_TYPE_MISMATCH;
-        }
-    }
-
-    auto& img = sect->get();
-
-    if (img.type != section_type::image) {
-        img.release();
+    if (img.type != section_type::image)
         return nt_status::INVALID_PARAMETER;
-    }
 
     auto pptr = new process;
-    if (!pptr) {
-        img.release();
+    if (!pptr)
         return nt_status::INSUFFICIENT_RESOURCES;
-    }
 
     auto& p = *pptr;
 
     p.img = img;
+    img.acquire();
 
     p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
     if (!p.img_addr) {
