@@ -877,41 +877,29 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
 }
 
 NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
-    process* p;
-
     if (process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
 
         if (!t->proc)
             return nt_status::INVALID_PARAMETER;
 
-        p = t->proc;
-        p->acquire();
+        return t->proc->unmap_view_of_section(base_address);
     } else {
-        auto objrw = deref_handle(process_handle);
+        auto objrw = deref_handle2(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = objrw.get();
 
-        if (obj.type != object_type::process) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        p = static_cast<process*>(&objrw->get());
+        auto& p = *static_cast<process*>(&obj);
+
+        return p.unmap_view_of_section(base_address);
     }
-
-    auto ret = p->unmap_view_of_section(base_address);
-
-    p->release();
-
-    return ret;
 }
 
 NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_class, span<uint8_t> buf,
