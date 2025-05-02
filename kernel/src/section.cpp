@@ -816,6 +816,7 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
                             uintptr_t zero_bits, size_t commit_size, LARGE_INTEGER* section_offset,
                             size_t* view_size, enum SECTION_INHERIT inherit_disposition,
                             uint32_t allocation_type, uint32_t win32_protect) {
+    object_ref proc;
     process* p;
 
     if (process_handle == NtCurrentProcess()) {
@@ -825,55 +826,38 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
             return nt_status::INVALID_PARAMETER;
 
         p = t->proc;
+
+        proc = object_ref{*p};
         p->acquire();
     } else {
-        auto objrw = deref_handle(process_handle);
-        if (!objrw)
+        proc = deref_handle2(process_handle);
+        if (!proc)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = proc.get();
 
-        if (obj.type != object_type::process) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        p = static_cast<process*>(&objrw->get());
+        p = static_cast<process*>(&obj);
     }
 
-    auto objrw = deref_handle(section_handle);
-    if (!objrw) {
-        p->release();
+    auto objrw = deref_handle2(section_handle);
+    if (!objrw)
         return nt_status::INVALID_HANDLE;
-    }
 
-    auto& obj = objrw->get();
+    auto& obj = objrw.get();
 
-    if (obj.type != object_type::section) {
-        visit_obj(obj, [](auto&& o) {
-            o.release();
-        });
-
-        p->release();
-
+    if (obj.type != object_type::section)
         return nt_status::OBJECT_TYPE_MISMATCH;
-    }
 
     auto& sect = static_cast<section&>(obj);
 
-    auto ret = p->map_view_of_section(sect, base_address, zero_bits, commit_size, section_offset,
-                                      *view_size, inherit_disposition, allocation_type,
-                                      win32_protect);
-
-    sect.release();
-    p->release();
-
-    return ret;
+    return p->map_view_of_section(sect, base_address, zero_bits, commit_size, section_offset,
+                                  *view_size, inherit_disposition, allocation_type,
+                                  win32_protect);
 }
 
 NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
