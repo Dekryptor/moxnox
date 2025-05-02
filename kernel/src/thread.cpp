@@ -8,11 +8,6 @@ import rbtree;
 #include "inode.h"
 #include "section.h"
 #include "process.h"
-import event;
-import pipe;
-import timer;
-import volume;
-#include "visit_object.h"
 #include <ntdll.h>
 
 import print;
