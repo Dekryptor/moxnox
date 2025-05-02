@@ -366,6 +366,7 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
                         const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle,
                         CLIENT_ID* client_id, const CONTEXT* thread_context,
                         const INITIAL_TEB* initial_teb, bool create_suspended) {
+    object_ref objrw;
     process* p;
 
     if (process_handle == NtCurrentProcess()) {
@@ -376,32 +377,25 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
 
         p = t->proc;
         p->acquire();
+
+        objrw = object_ref{*p};
     } else {
-        auto objrw = deref_handle(process_handle);
+        objrw = deref_handle2(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = objrw.get();
 
-        if (obj.type != object_type::process) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        p = static_cast<process*>(&objrw->get());
+        p = static_cast<process*>(&obj);
     }
 
-    auto ret = p->create_thread(*thread_handle, desired_access, object_attributes, *client_id,
-                                *thread_context, *initial_teb, create_suspended);
-
-    p->release();
-
-    return ret;
+    return p->create_thread(*thread_handle, desired_access, object_attributes, *client_id,
+                            *thread_context, *initial_teb, create_suspended);
 }
 
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
