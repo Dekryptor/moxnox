@@ -8,7 +8,11 @@ import timer;
 import objects;
 #include "inode.h"
 import volume;
-#include "visit_object.h"
+#include "handle.h"
+#include "section.h"
+#include "file.h"
+#include "thread.h"
+#include "process.h"
 #include <pe.h>
 
 import format;
@@ -774,15 +778,12 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        visit_obj(objrw.get(), [&](auto&& o) {
-            if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
-                if (o.ino.type == object_type::inode)
-                    f = o;
-                else
-                    o.release();
-            } else
-                o.release();
-        });
+        if (objrw.get().type == object_type::file) {
+            auto& f2 = *static_cast<file*>(&objrw.get());
+
+            if (f2.ino.type == object_type::inode)
+                f = f2;
+        }
 
         if (!f)
             return nt_status::INVALID_HANDLE;
