@@ -9,8 +9,13 @@ import print;
 import format;
 import xhci;
 import usb;
+import keyboard;
+import pipe;
+import evdev;
 
 using namespace std;
+
+static const size_t evdev_buffer_pages = 1;
 
 class usb_keyboard {
 public:
@@ -19,11 +24,288 @@ public:
 
 private:
     void recv_thread();
+    void post_evdev(enum evdev_code code, bool down);
 
     usb_device& d;
     xhci_queue& queue;
+    object_ref evdev_pipe;
     uint16_t packet_size;
     uint64_t status[4], last_status[4];
+};
+
+static const enum evdev_code keycodes[] = {
+    // 00
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_A,
+    evdev_code::KEY_B,
+    evdev_code::KEY_C,
+    evdev_code::KEY_D,
+    evdev_code::KEY_E,
+    evdev_code::KEY_F,
+    evdev_code::KEY_G,
+    evdev_code::KEY_H,
+    evdev_code::KEY_I,
+    evdev_code::KEY_J,
+    evdev_code::KEY_K,
+    evdev_code::KEY_L,
+    // 10
+    evdev_code::KEY_M,
+    evdev_code::KEY_N,
+    evdev_code::KEY_O,
+    evdev_code::KEY_P,
+    evdev_code::KEY_Q,
+    evdev_code::KEY_R,
+    evdev_code::KEY_S,
+    evdev_code::KEY_T,
+    evdev_code::KEY_U,
+    evdev_code::KEY_V,
+    evdev_code::KEY_W,
+    evdev_code::KEY_X,
+    evdev_code::KEY_Y,
+    evdev_code::KEY_Z,
+    evdev_code::KEY_1,
+    evdev_code::KEY_2,
+    // 20
+    evdev_code::KEY_3,
+    evdev_code::KEY_4,
+    evdev_code::KEY_5,
+    evdev_code::KEY_6,
+    evdev_code::KEY_7,
+    evdev_code::KEY_8,
+    evdev_code::KEY_9,
+    evdev_code::KEY_0,
+    evdev_code::KEY_ENTER,
+    evdev_code::KEY_ESC,
+    evdev_code::KEY_BACKSPACE,
+    evdev_code::KEY_TAB,
+    evdev_code::KEY_SPACE,
+    evdev_code::KEY_MINUS,
+    evdev_code::KEY_EQUAL,
+    evdev_code::KEY_LEFTBRACE,
+    // 30
+    evdev_code::KEY_RIGHTBRACE,
+    evdev_code::KEY_BACKSLASH,
+    evdev_code::KEY_RESERVED, // FIXME - Keyboard Non-US # and ~
+    evdev_code::KEY_SEMICOLON,
+    evdev_code::KEY_APOSTROPHE,
+    evdev_code::KEY_GRAVE,
+    evdev_code::KEY_COMMA,
+    evdev_code::KEY_DOT,
+    evdev_code::KEY_SLASH,
+    evdev_code::KEY_CAPSLOCK,
+    evdev_code::KEY_F1,
+    evdev_code::KEY_F2,
+    evdev_code::KEY_F3,
+    evdev_code::KEY_F4,
+    evdev_code::KEY_F5,
+    evdev_code::KEY_F6,
+    // 40
+    evdev_code::KEY_F7,
+    evdev_code::KEY_F8,
+    evdev_code::KEY_F9,
+    evdev_code::KEY_F10,
+    evdev_code::KEY_F11,
+    evdev_code::KEY_F12,
+    evdev_code::KEY_RESERVED, // FIXME - print screen / sysrq?
+    evdev_code::KEY_RESERVED, // FIXME - Keyboard Scroll Lock
+    evdev_code::KEY_RESERVED, // FIXME - Keyboard Pause
+    evdev_code::KEY_INSERT,
+    evdev_code::KEY_HOME,
+    evdev_code::KEY_PAGEUP,
+    evdev_code::KEY_DELETE,
+    evdev_code::KEY_END,
+    evdev_code::KEY_PAGEDOWN,
+    evdev_code::KEY_RIGHT,
+    // 50
+    evdev_code::KEY_LEFT,
+    evdev_code::KEY_DOWN,
+    evdev_code::KEY_UP,
+    evdev_code::KEY_NUMLOCK,
+    evdev_code::KEY_KPSLASH,
+    evdev_code::KEY_KPASTERISK,
+    evdev_code::KEY_KPMINUS,
+    evdev_code::KEY_KPPLUS,
+    evdev_code::KEY_KPENTER,
+    evdev_code::KEY_KP1,
+    evdev_code::KEY_KP2,
+    evdev_code::KEY_KP3,
+    evdev_code::KEY_KP4,
+    evdev_code::KEY_KP5,
+    evdev_code::KEY_KP6,
+    evdev_code::KEY_KP7,
+    // 60
+    evdev_code::KEY_KP8,
+    evdev_code::KEY_KP9,
+    evdev_code::KEY_KP0,
+    evdev_code::KEY_KPDOT,
+    evdev_code::KEY_102ND,
+    evdev_code::KEY_RESERVED, // FIXME - Keyboard Application
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 70
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 80
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 90
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // a0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // b0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // c0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // d0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // e0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // f0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
 };
 
 static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber,
@@ -44,6 +326,23 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
 
     this->packet_size = packet_size;
 
+    auto pptr = new pipe(evdev_buffer_pages);
+    if (!pptr) {
+        print("new failed\n");
+        return;
+    }
+
+    evdev_pipe = object_ref{*pptr};
+
+    // FIXME - name object with incremental number
+    // FIXME - put in /dev/input like on Linux
+    // if (!name_object(keyboard_evdev_obj.get(), "ps2keyboard")) {
+    //     print("name_object failed\n");
+    //     return false;
+    // }
+
+    register_keyboard(static_cast<pipe&>(evdev_pipe.get()));
+
     add_kernel_thread([](void* ctx) {
         ((usb_keyboard*)ctx)->recv_thread();
     }, this);
@@ -51,6 +350,40 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
 
 usb_keyboard::~usb_keyboard() {
     d.release();
+}
+
+void usb_keyboard::post_evdev(enum evdev_code code, bool down) {
+    struct input_event ev;
+    auto& p = static_cast<pipe&>(evdev_pipe.get());
+
+    // FIXME - typematic
+
+    // FIXME - Linux also has EV_SYN and EV_MSC events
+
+    // FIXME - populate time field
+    ev.time.tv_sec = 0;
+    ev.time.tv_usec = 0;
+
+    ev.type = evdev_type::EV_KEY;
+    ev.code = code;
+    ev.value = down ? 1 : 0;
+
+    auto sp = span((uint8_t*)&ev, sizeof(ev));
+
+    while (!sp.empty()) {
+        uint64_t written_bytes;
+
+        auto status = p.write(sp, written_bytes);
+        if (!success(status)) {
+            print("pipe::write returned {}\n", status);
+            return;
+        }
+
+        if (written_bytes == sp.size())
+            break;
+
+        sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
+    }
 }
 
 void usb_keyboard::recv_thread() {
@@ -92,8 +425,7 @@ void usb_keyboard::recv_thread() {
         if (!first && !memcmp(buf, last_buf, packet_size))
             continue;
 
-        // FIXME
-
+#if 0
         char s[255];
         span<char> sp(s, sizeof(s));
 
@@ -105,6 +437,7 @@ void usb_keyboard::recv_thread() {
         }
 
         print("{}\n", string_view(s, (size_t)(sp.data() - s)));
+#endif
 
         for (unsigned int i = 0; i < 4; i++) {
             status[i] = 0;
@@ -125,11 +458,13 @@ void usb_keyboard::recv_thread() {
 
             while (changed != 0) {
                 auto bit = countr_zero(changed);
+                auto code = (i * 64) + bit;
+                bool down = status[i] & (uint64_t)1 << bit;
 
-                if (status[i] & (uint64_t)1 << bit)
-                    print("KEY DOWN {}\n", (i * 64) + bit);
+                if (keycodes[code] != evdev_code::KEY_RESERVED)
+                    post_evdev(keycodes[code], down);
                 else
-                    print("KEY UP {}\n", (i * 64) + bit);
+                    print("unrecognized keycode {:x}\n", code);
 
                 changed &= ~((uint64_t)1 << bit);
             }

@@ -200,6 +200,9 @@ void main_thread() {
         init_pci_done = true;
     }
 
+    if (!init_keyboard_pipe())
+        print("init_keyboard_pipe failed\n");
+
     // if no ACPI, look for serial port at its traditional address
     if (rsdp_pa == 0)
         init_serial(0x3f8, 4, "");
@@ -231,9 +234,6 @@ void main_thread() {
 
     if (!create_dev_null())
         print("create_dev_null failed\n");
-
-    if (!init_keyboard_pipe())
-        print("init_keyboard_pipe failed\n");
 
     // FIXME - USB
 
