@@ -165,32 +165,28 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
 
     if (thread_handle == NtCurrentThread()) {
         t = get_current_thread();
-        t->acquire();
+
+        t->kill(exit_status); // if this thread, doesn't return
     } else {
-        auto objrw = deref_handle(thread_handle);
+        auto objrw = deref_handle2(thread_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = objrw.get();
 
-        if (obj.type != object_type::thread) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::thread)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        t = static_cast<thread*>(&objrw->get());
-    }
+        t = static_cast<thread*>(&obj);
 
-    if (t == get_current_thread())
+        if (t == get_current_thread())
+            t->release();
+
+        t->kill(exit_status); // if this thread, doesn't return
         t->release();
-
-    t->kill(exit_status); // if this thread, doesn't return
-    t->release();
+    }
 
     return nt_status::SUCCESS;
 }
