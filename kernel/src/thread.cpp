@@ -405,29 +405,27 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
 }
 
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
+    object_ref objrw;
     thread* t;
 
     if (thread_handle == NtCurrentThread()) {
         t = get_current_thread();
         t->acquire();
+
+        objrw = object_ref{*t};
     } else {
-        auto objrw = deref_handle(thread_handle);
+        objrw = deref_handle2(thread_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = objrw.get();
 
-        if (obj.type != object_type::thread) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::thread)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        t = static_cast<thread*>(&objrw->get());
+        t = static_cast<thread*>(&obj);
     }
 
     uint32_t count;
@@ -444,8 +442,6 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
 
     if (suspend_count)
         *suspend_count = count;
-
-    t->release();
 
     return nt_status::SUCCESS;
 }
