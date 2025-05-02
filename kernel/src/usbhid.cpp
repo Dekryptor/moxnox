@@ -59,6 +59,15 @@ void usb_keyboard::recv_thread() {
         return;
     }
 
+    auto last_buf = (uint8_t*)malloc(packet_size);
+    if (!buf) {
+        print("malloc failed\n");
+        free(buf);
+        return;
+    }
+
+    bool first = true;
+
     print("USB keyboard thread\n");
 
     while (true) {
@@ -67,6 +76,10 @@ void usb_keyboard::recv_thread() {
             free(buf);
             return;
         }
+
+        // ignore spurious wakeups, where the message doesn't change
+        if (!first && !memcmp(buf, last_buf, packet_size))
+            continue;
 
         // FIXME
 
@@ -81,8 +94,12 @@ void usb_keyboard::recv_thread() {
         }
 
         print("{}\n", string_view(s, (size_t)(sp.data() - s)));
+
+        memcpy(last_buf, buf, packet_size);
+        first = false;
     }
 
+    free(last_buf);
     free(buf);
 }
 
