@@ -2446,6 +2446,7 @@ end:
 
 NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
                              uint32_t* number_of_bytes_read) {
+    object_ref objrw;
     process* p;
 
     if (process_handle == NtCurrentProcess()) {
@@ -2456,31 +2457,24 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
 
         p = t->proc;
         p->acquire();
+
+        objrw = object_ref{*p};
     } else {
-        auto objrw = deref_handle(process_handle);
+        objrw = deref_handle2(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = objrw.get();
 
-        if (obj.type != object_type::process) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        p = static_cast<process*>(&objrw->get());
+        p = static_cast<process*>(&obj);
     }
 
-    auto ret = p->read_vm(base_address, buffer, buffer_size, number_of_bytes_read);
-
-    p->release();
-
-    return ret;
+    return p->read_vm(base_address, buffer, buffer_size, number_of_bytes_read);
 }
 
 NTSTATUS process::write_vm(void* base_address, void* buffer, uint32_t buffer_size,
