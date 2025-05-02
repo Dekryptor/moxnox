@@ -23,6 +23,7 @@ private:
     usb_device& d;
     xhci_queue& queue;
     uint16_t packet_size;
+    uint64_t status[4], last_status[4];
 };
 
 static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber,
@@ -53,6 +54,12 @@ usb_keyboard::~usb_keyboard() {
 }
 
 void usb_keyboard::recv_thread() {
+    if (packet_size < 8) {
+        print("usb_keyboard::recv_thread: packet_size was {}, expected at least 8\n",
+              packet_size);
+        return;
+    }
+
     auto buf = (uint8_t*)malloc(packet_size);
     if (!buf) {
         print("malloc failed\n");
@@ -64,6 +71,10 @@ void usb_keyboard::recv_thread() {
         print("malloc failed\n");
         free(buf);
         return;
+    }
+
+    for (unsigned int i = 0; i < 4; i++) {
+        last_status[i] = 0;
     }
 
     bool first = true;
@@ -95,8 +106,41 @@ void usb_keyboard::recv_thread() {
 
         print("{}\n", string_view(s, (size_t)(sp.data() - s)));
 
+        for (unsigned int i = 0; i < 4; i++) {
+            status[i] = 0;
+        }
+
+        for (uint16_t i = 2; i < packet_size; i++) {
+            if (buf[i] == 0)
+                continue;
+
+            status[buf[i] / 64] |= (uint64_t)1 << (buf[i] % 64);
+        }
+
+        for (unsigned int i = 0; i < 4; i++) {
+            if (status[i] == last_status[i])
+                continue;
+
+            auto changed = status[i] ^ last_status[i];
+
+            while (changed != 0) {
+                auto bit = countr_zero(changed);
+
+                if (status[i] & (uint64_t)1 << bit)
+                    print("KEY DOWN {}\n", (i * 64) + bit);
+                else
+                    print("KEY UP {}\n", (i * 64) + bit);
+
+                changed &= ~((uint64_t)1 << bit);
+            }
+        }
+
         memcpy(last_buf, buf, packet_size);
         first = false;
+
+        for (unsigned int i = 0; i < 4; i++) {
+            last_status[i] = status[i];
+        }
     }
 
     free(last_buf);
