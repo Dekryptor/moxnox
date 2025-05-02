@@ -107,7 +107,7 @@ NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE 
                               void* file_information, uint32_t length,
                               FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
                               const UNICODE_STRING* file_name, bool restart_scan) {
-    auto objrw = deref_handle2(file_handle);
+    auto objrw = deref_handle(file_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 
@@ -157,7 +157,7 @@ NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& 
 
 NTSTATUS NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer,
                               uint32_t buffer_size, FILE_INFORMATION_CLASS file_information_class) {
-    auto objrw = deref_handle2(file_handle);
+    auto objrw = deref_handle(file_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 

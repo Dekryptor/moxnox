@@ -293,7 +293,7 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     if (byte_offset && byte_offset->QuadPart < 0)
         return nt_status::INVALID_PARAMETER;
 
-    auto objrw = deref_handle2(file_handle);
+    auto objrw = deref_handle(file_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 
@@ -381,7 +381,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
     if (object_attributes->RootDirectory) {
         bool valid = false;
 
-        root_dir = deref_handle2(object_attributes->RootDirectory);
+        root_dir = deref_handle(object_attributes->RootDirectory);
 
         if (!root_dir)
             return nt_status::INVALID_HANDLE;
@@ -528,7 +528,7 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     if (byte_offset && byte_offset->QuadPart < 0)
         return nt_status::INVALID_PARAMETER;
 
-    auto objrw = deref_handle2(file_handle);
+    auto objrw = deref_handle(file_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 

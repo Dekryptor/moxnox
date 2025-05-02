@@ -25,13 +25,13 @@ struct name_entry {
 static spinlock name_lock;
 static list_entry name_list = { &name_list, &name_list };
 
-object_ref deref_handle2(handle_t h) {
+object_ref deref_handle(handle_t h) {
     auto t = get_current_thread();
 
     if (!t->proc)
         return nullopt;
 
-    return t->proc->deref_handle2(h);
+    return t->proc->deref_handle(h);
 }
 
 void object_ref::reset() {

@@ -163,7 +163,7 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
 
         t->kill(exit_status); // if this thread, doesn't return
     } else {
-        auto objrw = deref_handle2(thread_handle);
+        auto objrw = deref_handle(thread_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -371,7 +371,7 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
 
         objrw = object_ref{*p};
     } else {
-        objrw = deref_handle2(process_handle);
+        objrw = deref_handle(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -399,7 +399,7 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
 
         objrw = object_ref{*t};
     } else {
-        objrw = deref_handle2(thread_handle);
+        objrw = deref_handle(thread_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -436,7 +436,7 @@ NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_
                                   uint32_t* return_length) {
     print("FIXME - NtQueryInformationThread\n");
 
-    auto objrw = deref_handle2(thread_handle);
+    auto objrw = deref_handle(thread_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 

@@ -756,7 +756,7 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
 
         this_process = true;
     } else {
-        objrw = deref_handle2(process_handle);
+        objrw = deref_handle(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -844,7 +844,7 @@ NTSTATUS NtResumeProcess(HANDLE proc_handle) {
 
         objrw = object_ref{*p};
     } else {
-        objrw = deref_handle2(proc_handle);
+        objrw = deref_handle(proc_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -1162,7 +1162,7 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
 
         objrw = object_ref{*p};
     } else {
-        objrw = deref_handle2(proc_handle);
+        objrw = deref_handle(proc_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -1371,7 +1371,7 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
 
         objrw = object_ref{*p};
     } else {
-        objrw = deref_handle2(proc_handle);
+        objrw = deref_handle(proc_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -1659,7 +1659,7 @@ bool process::allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth
     return true;
 }
 
-object_ref process::deref_handle2(handle_t h) {
+object_ref process::deref_handle(handle_t h) {
     if (h == NtCurrentProcess()) {
         this->acquire();
         return *this;
@@ -1857,7 +1857,7 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
 
         objrw = object_ref{*p};
     } else {
-        objrw = deref_handle2(proc_handle);
+        objrw = deref_handle(proc_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -2150,7 +2150,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     // FIXME - debug_port
     // FIXME - exception_port
 
-    sect = deref_handle2(section_handle);
+    sect = deref_handle(section_handle);
     if (!sect)
         return nt_status::INVALID_HANDLE;
 
@@ -2246,7 +2246,7 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
         srcprocobj = object_ref{*srcproc};
     } else {
-        srcprocobj = deref_handle2(source_process_handle);
+        srcprocobj = deref_handle(source_process_handle);
         if (!srcprocobj)
             return nt_status::INVALID_HANDLE;
 
@@ -2271,7 +2271,7 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
         destprocobj = object_ref{*destproc};
     } else {
-        destprocobj = deref_handle2(target_process_handle);
+        destprocobj = deref_handle(target_process_handle);
         if (!destprocobj)
             return nt_status::INVALID_HANDLE;
 
@@ -2287,7 +2287,7 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
     // FIXME - source_handle of NtCurrentProcess() or NtCurrentThread() (what if source_process_handle points to different process?)
 
-    auto objrw = srcproc->deref_handle2(source_handle);
+    auto objrw = srcproc->deref_handle(source_handle);
 
     if (!objrw)
         return nt_status::INVALID_HANDLE;
@@ -2379,7 +2379,7 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
 
         objrw = object_ref{*p};
     } else {
-        objrw = deref_handle2(process_handle);
+        objrw = deref_handle(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -2469,7 +2469,7 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* b
 
         objrw = object_ref{*p};
     } else {
-        objrw = deref_handle2(process_handle);
+        objrw = deref_handle(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -2532,7 +2532,7 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
 
         objrw = object_ref{*p};
     } else {
-        objrw = deref_handle2(process_handle);
+        objrw = deref_handle(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -2560,7 +2560,7 @@ object_ref process::get_stderr() {
     if (!copy_from(&params, peb.ProcessParameters, sizeof(RTL_USER_PROCESS_PARAMETERS)))
         return nullopt;
 
-    return this->deref_handle2(params.StandardError);
+    return this->deref_handle(params.StandardError);
 }
 
 void process::send_signal(uint64_t code) {

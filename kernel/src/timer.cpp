@@ -271,7 +271,7 @@ extern "C"
 NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
                     PTIMER_APC_ROUTINE timer_apc_routine, void* timer_context,
                     bool resume_timer, int32_t period, bool* previous_state) {
-    auto objrw = deref_handle2(timer_handle);
+    auto objrw = deref_handle(timer_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 

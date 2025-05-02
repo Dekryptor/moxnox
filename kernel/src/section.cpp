@@ -774,7 +774,7 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
     size = maximum_size ? (uint64_t)maximum_size->QuadPart : 0;
 
     if (file_handle) {
-        auto objrw = deref_handle2(file_handle);
+        auto objrw = deref_handle(file_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -831,7 +831,7 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
         proc = object_ref{*p};
         p->acquire();
     } else {
-        proc = deref_handle2(process_handle);
+        proc = deref_handle(process_handle);
         if (!proc)
             return nt_status::INVALID_HANDLE;
 
@@ -845,7 +845,7 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
         p = static_cast<process*>(&obj);
     }
 
-    auto objrw = deref_handle2(section_handle);
+    auto objrw = deref_handle(section_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 
@@ -870,7 +870,7 @@ NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
 
         return t->proc->unmap_view_of_section(base_address);
     } else {
-        auto objrw = deref_handle2(process_handle);
+        auto objrw = deref_handle(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
@@ -932,7 +932,7 @@ NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_
 
 NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
                         void* section_information, size_t section_information_length, size_t* return_length) {
-    auto objrw = deref_handle2(section_handle);
+    auto objrw = deref_handle(section_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 

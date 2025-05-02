@@ -348,7 +348,7 @@ bool init_cpu_block(unsigned int cpu_no) {
 NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE_INTEGER*) {
     // FIXME - time_out
 
-    auto objrw = deref_handle2(object_handle);
+    auto objrw = deref_handle(object_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 

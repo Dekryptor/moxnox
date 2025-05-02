@@ -1149,7 +1149,7 @@ NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE /*event*/, PIO_APC_ROU
     if (!file_handle)
         return nt_status::INVALID_PARAMETER;
 
-    auto objrw = deref_handle2(file_handle);
+    auto objrw = deref_handle(file_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 

@@ -469,7 +469,7 @@ nt_status serial_console::console_set_foreground(span<const uint8_t> inbuf) {
 
     auto h = *(HANDLE*)inbuf.data();
 
-    auto obj = deref_handle2(h);
+    auto obj = deref_handle(h);
     if (!obj)
         return nt_status::INVALID_HANDLE;
 
