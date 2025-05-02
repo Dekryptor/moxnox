@@ -2611,6 +2611,7 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
 NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
                                    void* process_information, uint32_t process_information_length,
                                    uint32_t* return_length) {
+    object_ref objrw;
     process* p;
 
     if (process_handle == NtCurrentProcess()) {
@@ -2621,32 +2622,25 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
 
         p = t->proc;
         p->acquire();
+
+        objrw = object_ref{*p};
     } else {
-        auto objrw = deref_handle(process_handle);
+        objrw = deref_handle2(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = objrw.get();
 
-        if (obj.type != object_type::process) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        p = static_cast<process*>(&objrw->get());
+        p = static_cast<process*>(&obj);
     }
 
-    auto ret = p->query_info(process_information_class, span((uint8_t*)process_information, process_information_length),
-                             return_length);
-
-    p->release();
-
-    return ret;
+    return p->query_info(process_information_class, span((uint8_t*)process_information, process_information_length),
+                         return_length);
 }
 
 object_ref process::get_stderr() {
