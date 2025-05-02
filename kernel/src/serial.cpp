@@ -4,14 +4,11 @@ module;
 #include <charconv>
 #include "handle.h"
 #include "spinlock.h"
-import rbtree;
-import event;
 import pipe;
-import timer;
+import chardev;
 import objects;
-#include "inode.h"
-import volume;
-#include "visit_object.h"
+#include "thread.h"
+#include "process.h"
 #include "acpica.h"
 #include <ioctl.h>
 
@@ -473,17 +470,11 @@ nt_status serial_console::console_set_foreground(span<const uint8_t> inbuf) {
     if (!obj)
         return nt_status::INVALID_HANDLE;
 
-    optional<reference_wrapper<process>> procrw;
-
-    visit_obj(obj.get(), [&](auto&& o) {
-        if constexpr (is_same_v<remove_reference_t<decltype(o)>, process>)
-            procrw = o;
-    });
-
-    if (!procrw.has_value())
+    if (obj.get().type != object_type::process)
         return nt_status::INVALID_HANDLE;
 
-    auto& proc = procrw->get();
+    auto& proc = static_cast<process&>(obj.get());
+
     proc.acquire();
 
     {
