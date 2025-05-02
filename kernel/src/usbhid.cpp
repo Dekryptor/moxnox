@@ -156,8 +156,6 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    print("found_usb_keyboard: FIXME - set up endpoint\n");
-
     auto queue = d.add_endpoint(*ep_desc);
 
     if (!queue) {
