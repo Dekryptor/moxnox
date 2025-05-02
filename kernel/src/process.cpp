@@ -739,6 +739,7 @@ void process::free_mappings() {
 }
 
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
+    object_ref objrw;
     process* p;
     bool this_process;
 
@@ -751,25 +752,22 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
         p = t->proc;
         p->acquire();
 
+        objrw = object_ref{*p};
+
         this_process = true;
     } else {
-        auto objrw = deref_handle(process_handle);
+        objrw = deref_handle2(process_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = objrw.get();
 
-        if (obj.type != object_type::process) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        p = static_cast<process*>(&objrw->get());
+        p = static_cast<process*>(&obj);
 
         this_process = p == get_current_thread()->proc;
     }
@@ -801,14 +799,11 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
         t2->release();
     }
 
-    if (!this_process) {
-        p->release();
+    if (!this_process)
         return nt_status::SUCCESS;
-    }
 
     t->exit_status = exit_status;
 
-    p->release();
     t->terminate(); // doesn't return
 
     return nt_status::SUCCESS;
