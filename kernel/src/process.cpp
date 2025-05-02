@@ -2286,6 +2286,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
 NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
                            HANDLE* target_handle, ACCESS_MASK, uint32_t, uint32_t) {
+    object_ref srcprocobj, destprocobj;
     process* srcproc;
     process* destproc;
 
@@ -2301,88 +2302,65 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
         srcproc = t->proc;
         srcproc->acquire();
+
+        srcprocobj = object_ref{*srcproc};
     } else {
-        auto objrw = deref_handle(source_process_handle);
-        if (!objrw)
+        srcprocobj = deref_handle2(source_process_handle);
+        if (!srcprocobj)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = srcprocobj.get();
 
-        if (obj.type != object_type::process) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        srcproc = static_cast<process*>(&objrw->get());
+        srcproc = static_cast<process*>(&obj);
     }
 
     if (target_process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
 
-        if (!t->proc) {
-            srcproc->release();
+        if (!t->proc)
             return nt_status::INVALID_PARAMETER;
-        }
 
         destproc = t->proc;
         destproc->acquire();
+
+        destprocobj = object_ref{*destproc};
     } else {
-        auto objrw = deref_handle(target_process_handle);
-        if (!objrw)
+        destprocobj = deref_handle2(target_process_handle);
+        if (!destprocobj)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = destprocobj.get();
 
-        if (obj.type != object_type::process) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
-            srcproc->release();
-
+        if (obj.type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        destproc = static_cast<process*>(&objrw->get());
+        destproc = static_cast<process*>(&obj);
     }
 
     // FIXME - source_handle of NtCurrentProcess() or NtCurrentThread() (what if source_process_handle points to different process?)
 
-    auto objrw = srcproc->deref_handle(source_handle);
+    auto objrw = srcproc->deref_handle2(source_handle);
 
-    if (!objrw) {
-        destproc->release();
-        srcproc->release();
+    if (!objrw)
         return nt_status::INVALID_HANDLE;
-    }
 
-    auto& obj = objrw->get();
+    auto& obj = objrw.get();
 
     handle_t h;
     auto status = destproc->add_handle(obj, 0, true, h); // FIXME - access mask
 
-    visit_obj(obj, [](auto&& o) { // deref_handle increased refcount
-        o.release();
-    });
-
-    if (!success(status)) {
-        destproc->release();
-        srcproc->release();
+    if (!success(status))
         return status;
-    }
 
     if (target_handle)
         *target_handle = h;
-
-    destproc->release();
-    srcproc->release();
 
     return nt_status::SUCCESS;
 }
