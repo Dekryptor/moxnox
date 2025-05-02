@@ -5,7 +5,6 @@ module;
 #include "spinlock.h"
 import objects;
 #include "process.h"
-#include <console.h>
 #include <ioctl.h>
 
 export module keyboard;
@@ -15,6 +14,8 @@ import print;
 import evdev;
 
 using namespace std;
+
+const uint32_t ENABLE_PROCESSED_INPUT = 0x1;
 
 static const unsigned int keyboard_pipe_buffer_pages = 1;
 static object_ref keyboard_pipe_obj;
