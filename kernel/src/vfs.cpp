@@ -528,14 +528,14 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     if (byte_offset && byte_offset->QuadPart < 0)
         return nt_status::INVALID_PARAMETER;
 
-    auto objrw = deref_handle(file_handle);
+    auto objrw = deref_handle2(file_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 
     // FIXME - async (event)
     // FIXME - async (APC)
 
-    auto& obj = objrw->get();
+    auto& obj = objrw.get();
     bool can_write = false;
 
     if (byte_offset) {
@@ -550,13 +550,8 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
         });
     }
 
-    if (!can_write) {
-        visit_obj(obj, [&](auto&& o) {
-            o.release();
-        });
-
+    if (!can_write)
         return nt_status::INVALID_PARAMETER;
-    }
 
     size_t written;
     nt_status status;
@@ -565,15 +560,11 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
                 status = o.write(buf, (uint64_t)byte_offset->QuadPart, written);
-
-            o.release();
         });
     } else {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
                 status = o.write(buf, written);
-
-            o.release();
         });
     }
 
