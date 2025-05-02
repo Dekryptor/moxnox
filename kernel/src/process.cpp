@@ -835,6 +835,7 @@ void process::resume() {
 }
 
 NTSTATUS NtResumeProcess(HANDLE proc_handle) {
+    object_ref objrw;
     process* p;
 
     if (proc_handle == NtCurrentProcess()) {
@@ -845,28 +846,24 @@ NTSTATUS NtResumeProcess(HANDLE proc_handle) {
 
         p = t->proc;
         p->acquire();
+
+        objrw = object_ref{*p};
     } else {
-        auto objrw = deref_handle(proc_handle);
+        objrw = deref_handle2(proc_handle);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw->get();
+        auto& obj = objrw.get();
 
-        if (obj.type != object_type::process) {
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
-
+        if (obj.type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
-        }
 
         // FIXME - check access rights
 
-        p = static_cast<process*>(&objrw->get());
+        p = static_cast<process*>(&obj);
     }
 
     p->resume();
-    p->release();
 
     return nt_status::SUCCESS;
 }
