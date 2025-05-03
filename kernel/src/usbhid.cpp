@@ -30,7 +30,6 @@ private:
     xhci_queue& queue;
     object_ref evdev_pipe;
     uint16_t packet_size;
-    uint64_t status[4], last_status[4];
 };
 
 static const enum evdev_code keycodes[] = {
@@ -406,6 +405,9 @@ void usb_keyboard::recv_thread() {
         return;
     }
 
+    uint64_t status[4], last_status[4];
+    uint8_t last_mod = 0;
+
     for (unsigned int i = 0; i < 4; i++) {
         last_status[i] = 0;
     }
@@ -438,6 +440,7 @@ void usb_keyboard::recv_thread() {
 
         print("{}\n", string_view(s, (size_t)(sp.data() - s)));
 #endif
+        uint8_t mod = buf[0];
 
         for (unsigned int i = 0; i < 4; i++) {
             status[i] = 0;
@@ -448,6 +451,30 @@ void usb_keyboard::recv_thread() {
                 continue;
 
             status[buf[i] / 64] |= (uint64_t)1 << (buf[i] % 64);
+        }
+
+        if (mod != last_mod) {
+            uint8_t changed = mod ^ last_mod;
+
+            while (changed != 0) {
+                auto bit = countr_zero(changed);
+                bool down = mod & (1 << bit);
+
+                static const enum evdev_code modifiers[] = {
+                    evdev_code::KEY_LEFTCTRL,
+                    evdev_code::KEY_LEFTSHIFT,
+                    evdev_code::KEY_LEFTALT,
+                    evdev_code::KEY_LEFTMETA,
+                    evdev_code::KEY_RIGHTCTRL,
+                    evdev_code::KEY_RIGHTSHIFT,
+                    evdev_code::KEY_RIGHTALT,
+                    evdev_code::KEY_RIGHTMETA,
+                };
+
+                post_evdev(modifiers[bit], down);
+
+                changed &= (uint8_t)~(1 << bit);
+            }
         }
 
         for (unsigned int i = 0; i < 4; i++) {
@@ -476,6 +503,8 @@ void usb_keyboard::recv_thread() {
         for (unsigned int i = 0; i < 4; i++) {
             last_status[i] = status[i];
         }
+
+        last_mod = mod;
     }
 
     free(last_buf);
