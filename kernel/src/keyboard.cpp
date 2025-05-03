@@ -366,6 +366,121 @@ static const u8string_view codes_ctrl[] = {
     u8"\x1b[3~", // KEY_DELETE
 };
 
+static const bool capslock_codes[] = {
+    false, // KEY_RESERVED
+    false, // KEY_ESC
+    false, // KEY_1
+    false, // KEY_2
+    false, // KEY_3
+    false, // KEY_4
+    false, // KEY_5
+    false, // KEY_6
+    false, // KEY_7
+    false, // KEY_8
+    false, // KEY_9
+    false, // KEY_0
+    false, // KEY_MINUS
+    false, // KEY_EQUAL
+    false, // KEY_BACKSPACE
+    false, // KEY_TAB
+    true, // KEY_Q
+    true, // KEY_W
+    true, // KEY_E
+    true, // KEY_R
+    true, // KEY_T
+    true, // KEY_Y
+    true, // KEY_U
+    true, // KEY_I
+    true, // KEY_O
+    true, // KEY_P
+    false, // KEY_LEFTBRACE
+    false, // KEY_RIGHTBRACE
+    false, // KEY_ENTER
+    false, // KEY_LEFTCTRL
+    true, // KEY_A
+    true, // KEY_S
+    true, // KEY_D
+    true, // KEY_F
+    true, // KEY_G
+    true, // KEY_H
+    true, // KEY_J
+    true, // KEY_K
+    true, // KEY_L
+    false, // KEY_SEMICOLON
+    false, // KEY_APOSTROPHE
+    false, // KEY_GRAVE
+    false, // KEY_LEFTSHIFT
+    false, // KEY_BACKSLASH
+    true, // KEY_Z
+    true, // KEY_X
+    true, // KEY_C
+    true, // KEY_V
+    true, // KEY_B
+    true, // KEY_N
+    true, // KEY_M
+    false, // KEY_COMMA
+    false, // KEY_DOT
+    false, // KEY_SLASH
+    false, // KEY_RIGHTSHIFT
+    false, // KEY_KPASTERISK
+    false, // KEY_LEFTALT
+    false, // KEY_SPACE
+    false, // KEY_CAPSLOCK
+    false, // KEY_F1
+    false, // KEY_F2
+    false, // KEY_F3
+    false, // KEY_F4
+    false, // KEY_F5
+    false, // KEY_F6
+    false, // KEY_F7
+    false, // KEY_F8
+    false, // KEY_F9
+    false, // KEY_F10
+    false, // KEY_NUMLOCK
+    false, // KEY_SCROLLLOCK
+    false, // KEY_KP7
+    false, // KEY_KP8
+    false, // KEY_KP9
+    false, // KEY_KPMINUS
+    false, // KEY_KP4
+    false, // KEY_KP5
+    false, // KEY_KP6
+    false, // KEY_KPPLUS
+    false, // KEY_KP1
+    false, // KEY_KP2
+    false, // KEY_KP3
+    false, // KEY_KP0
+    false, // KEY_KPDOT
+    false,
+    false, // KEY_ZENKAKUHANKAKU
+    false, // KEY_102ND
+    false, // KEY_F11
+    false, // KEY_F12
+    false, // KEY_RO
+    false, // KEY_KATAKANA
+    false, // KEY_HIRAGANA
+    false, // KEY_HENKAN
+    false, // KEY_KATAKANAHIRAGANA
+    false, // KEY_MUHENKAN
+    false, // KEY_KPJPCOMMA
+    false, // KEY_KPENTER
+    false, // KEY_RIGHTCTRL
+    false, // KEY_KPSLASH
+    false, // KEY_SYSRQ
+    false, // KEY_RIGHTALT
+    false, // KEY_LINEFEED
+    false, // KEY_HOME
+    false, // KEY_UP
+    false, // KEY_PAGEUP
+    false, // KEY_LEFT
+    false, // KEY_RIGHT
+    false, // KEY_END
+    false, // KEY_DOWN
+    false, // KEY_PAGEDOWN
+    false, // KEY_INSERT
+    false, // KEY_DELETE
+};
+
 class keyboard_pipe : public pipe {
 public:
     keyboard_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
@@ -407,6 +522,7 @@ private:
     pipe& p;
     unsigned int shift_count = 0;
     unsigned int ctrl_count = 0;
+    bool caps_lock = false;
 };
 
 export bool init_keyboard_pipe() {
@@ -468,6 +584,17 @@ void keyboard_context::key_event(input_event& ev) {
     if (ev.value == 0) // ignore key-ups
         return;
 
+    if (ev.code == evdev_code::KEY_CAPSLOCK) {
+        // FIXME - toggle LED
+        caps_lock = !caps_lock;
+        return;
+    }
+
+    bool holding_shift = shift_count != 0;
+
+    if (caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
+        holding_shift = !holding_shift;
+
     u8string_view val;
 
     if (ctrl_count != 0) {
@@ -478,7 +605,7 @@ void keyboard_context::key_event(input_event& ev) {
             return;
 
         val = codes_ctrl[idx];
-    } else if (shift_count != 0) {
+    } else if (holding_shift) {
         if (idx >= sizeof(codes_shift) / sizeof(*codes_shift))
             return;
 
