@@ -405,8 +405,6 @@ void usb_keyboard::recv_thread() {
         last_status[i] = 0;
     }
 
-    print("USB keyboard thread\n");
-
     while (true) {
         if (!queue.normal_transfer(span(buf, packet_size))) {
             print("xhci_queue::normal transfer failed\n");
