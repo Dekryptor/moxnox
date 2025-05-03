@@ -208,19 +208,19 @@ static const u8string_view codes_shift[] = {
     u8"", // KEY_F10
     u8"", // KEY_NUMLOCK
     u8"", // KEY_SCROLLLOCK
-    u8"", // KEY_KP7
-    u8"", // KEY_KP8
-    u8"", // KEY_KP9
+    u8"\x1b[H", // KEY_KP7 (home)
+    u8"\x1b[A", // KEY_KP8 (up)
+    u8"\x1b[5~", // KEY_KP9 (page up)
     u8"-", // KEY_KPMINUS
-    u8"", // KEY_KP4
+    u8"\x1b[D", // KEY_KP4 (left)
     u8"", // KEY_KP5
-    u8"", // KEY_KP6
+    u8"\x1b[C", // KEY_KP6 (right)
     u8"+", // KEY_KPPLUS
-    u8"", // KEY_KP1
-    u8"", // KEY_KP2
-    u8"", // KEY_KP3
-    u8"", // KEY_KP0
-    u8".", // KEY_KPDOT
+    u8"\x1b[F", // KEY_KP1 (end)
+    u8"\x1b[B", // KEY_KP2 (down)
+    u8"\x1b[6~", // KEY_KP3 (page down)
+    u8"\x1b[2~", // KEY_KP0 (insert)
+    u8"\x1b[3~", // KEY_KPDOT (delete)
     u8"",
     u8"", // KEY_ZENKAKUHANKAKU
     u8"|", // KEY_102ND
@@ -481,6 +481,121 @@ static const bool capslock_codes[] = {
     false, // KEY_DELETE
 };
 
+static const bool numlock_codes[] = {
+    false, // KEY_RESERVED
+    false, // KEY_ESC
+    false, // KEY_1
+    false, // KEY_2
+    false, // KEY_3
+    false, // KEY_4
+    false, // KEY_5
+    false, // KEY_6
+    false, // KEY_7
+    false, // KEY_8
+    false, // KEY_9
+    false, // KEY_0
+    false, // KEY_MINUS
+    false, // KEY_EQUAL
+    false, // KEY_BACKSPACE
+    false, // KEY_TAB
+    false, // KEY_Q
+    false, // KEY_W
+    false, // KEY_E
+    false, // KEY_R
+    false, // KEY_T
+    false, // KEY_Y
+    false, // KEY_U
+    false, // KEY_I
+    false, // KEY_O
+    false, // KEY_P
+    false, // KEY_LEFTBRACE
+    false, // KEY_RIGHTBRACE
+    false, // KEY_ENTER
+    false, // KEY_LEFTCTRL
+    false, // KEY_A
+    false, // KEY_S
+    false, // KEY_D
+    false, // KEY_F
+    false, // KEY_G
+    false, // KEY_H
+    false, // KEY_J
+    false, // KEY_K
+    false, // KEY_L
+    false, // KEY_SEMICOLON
+    false, // KEY_APOSTROPHE
+    false, // KEY_GRAVE
+    false, // KEY_LEFTSHIFT
+    false, // KEY_BACKSLASH
+    false, // KEY_Z
+    false, // KEY_X
+    false, // KEY_C
+    false, // KEY_V
+    false, // KEY_B
+    false, // KEY_N
+    false, // KEY_M
+    false, // KEY_COMMA
+    false, // KEY_DOT
+    false, // KEY_SLASH
+    false, // KEY_RIGHTSHIFT
+    false, // KEY_KPASTERISK
+    false, // KEY_LEFTALT
+    false, // KEY_SPACE
+    false, // KEY_CAPSLOCK
+    false, // KEY_F1
+    false, // KEY_F2
+    false, // KEY_F3
+    false, // KEY_F4
+    false, // KEY_F5
+    false, // KEY_F6
+    false, // KEY_F7
+    false, // KEY_F8
+    false, // KEY_F9
+    false, // KEY_F10
+    false, // KEY_NUMLOCK
+    false, // KEY_SCROLLLOCK
+    true, // KEY_KP7
+    true, // KEY_KP8
+    true, // KEY_KP9
+    false, // KEY_KPMINUS
+    true, // KEY_KP4
+    true, // KEY_KP5
+    true, // KEY_KP6
+    false, // KEY_KPPLUS
+    true, // KEY_KP1
+    true, // KEY_KP2
+    true, // KEY_KP3
+    true, // KEY_KP0
+    true, // KEY_KPDOT
+    false,
+    false, // KEY_ZENKAKUHANKAKU
+    false, // KEY_102ND
+    false, // KEY_F11
+    false, // KEY_F12
+    false, // KEY_RO
+    false, // KEY_KATAKANA
+    false, // KEY_HIRAGANA
+    false, // KEY_HENKAN
+    false, // KEY_KATAKANAHIRAGANA
+    false, // KEY_MUHENKAN
+    false, // KEY_KPJPCOMMA
+    false, // KEY_KPENTER
+    false, // KEY_RIGHTCTRL
+    false, // KEY_KPSLASH
+    false, // KEY_SYSRQ
+    false, // KEY_RIGHTALT
+    false, // KEY_LINEFEED
+    false, // KEY_HOME
+    false, // KEY_UP
+    false, // KEY_PAGEUP
+    false, // KEY_LEFT
+    false, // KEY_RIGHT
+    false, // KEY_END
+    false, // KEY_DOWN
+    false, // KEY_PAGEDOWN
+    false, // KEY_INSERT
+    false, // KEY_DELETE
+};
+
 class keyboard_pipe : public pipe {
 public:
     keyboard_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
@@ -522,7 +637,7 @@ private:
     pipe& p;
     unsigned int shift_count = 0;
     unsigned int ctrl_count = 0;
-    bool caps_lock = false;
+    bool caps_lock = false, num_lock = false;
 };
 
 export bool init_keyboard_pipe() {
@@ -588,12 +703,19 @@ void keyboard_context::key_event(input_event& ev) {
         // FIXME - toggle LED
         caps_lock = !caps_lock;
         return;
+    } else if (ev.code == evdev_code::KEY_NUMLOCK) {
+        // FIXME - toggle LED
+        num_lock = !num_lock;
+        return;
     }
 
     bool holding_shift = shift_count != 0;
 
     if (caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
         holding_shift = !holding_shift;
+
+    if (num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
+        holding_shift = true;
 
     u8string_view val;
 
