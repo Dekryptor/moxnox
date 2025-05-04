@@ -1896,6 +1896,27 @@ void xhci::device_found(uint8_t slot, uint32_t route_string, uint16_t usb_revisi
                         uint32_t psi_num, uint8_t port_speed, unsigned int depth) {
     usb_device* d;
 
+    // wait 10ms for device to come up
+
+    {
+        auto tim_ref = create_timer(false);
+        if (!tim_ref) {
+            print("xhci::device_found: create_timer failed\n");
+            return;
+        }
+
+        auto& tim = static_cast<timer&>(tim_ref.get());
+
+        auto status = tim.set(-ONE_MS_TICKS * 10, nullptr, nullptr, false,
+                              0, nullptr);
+        if (!success(status)) {
+            print("xhci::device_found: timer::set returned {}\n", status);
+            return;
+        }
+
+        wait_for_object(tim, true);
+    }
+
     auto func = [&]<bool LARGE>() -> bool {
         auto devctx = new xhci_device_context<LARGE>;
         if (!devctx) {
