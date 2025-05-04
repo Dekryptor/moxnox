@@ -950,7 +950,7 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
     }
 }
 
-static uint8_t get_root_port(uint32_t route_string) {
+export uint8_t get_root_port(uint32_t route_string) {
     if (route_string == 0)
         return 0;
 
