@@ -400,7 +400,8 @@ void usb_keyboard::set_leds(keyboard_leds leds) {
     if (leds.caps_lock)
         buf[0] |= 1 << 1;
 
-    // FIXME - scroll lock
+    if (leds.scroll_lock)
+        buf[0] |= 1 << 2;
 
     if (!usb_hid_set_report(d, span(buf, 1), usb_hid_report_type::OUTPUT, 0,
                             interface)) {

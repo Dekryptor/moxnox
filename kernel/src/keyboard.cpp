@@ -622,7 +622,8 @@ private:
 export struct keyboard_leds {
     uint8_t caps_lock : 1;
     uint8_t num_lock : 1;
-    uint8_t : 6;
+    uint8_t scroll_lock : 1;
+    uint8_t : 5;
 };
 
 using set_leds_func = void (*)(void* ctx, keyboard_leds leds);
@@ -634,6 +635,7 @@ public:
 
         leds.caps_lock = 0;
         leds.num_lock = 0;
+        leds.scroll_lock = 0;
     }
 
     ~keyboard_context() {
@@ -721,6 +723,13 @@ void keyboard_context::key_event(input_event& ev) {
         return;
     } else if (ev.code == evdev_code::KEY_NUMLOCK) {
         leds.num_lock = leds.num_lock ? 0 : 1;
+
+        if (led_func)
+            led_func(ctx, leds);
+
+        return;
+    } else if (ev.code == evdev_code::KEY_SCROLLLOCK) {
+        leds.scroll_lock = leds.scroll_lock ? 0 : 1;
 
         if (led_func)
             led_func(ctx, leds);
