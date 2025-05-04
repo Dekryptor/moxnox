@@ -1656,9 +1656,29 @@ export void print_usb_config(span<const uint8_t> buf) {
                     return;
                 }
 
-                print("ENDPOINT: endpoint = {} {}, transfer_type = {:x}, synchronization_type = {:x}, usage_type = {:x}, wMaxPacketSize = {}, bInterval = {}\n",
+                string_view transfer_type;
+
+                switch (e.transfer_type) {
+                    case 0:
+                        transfer_type = "control";
+                        break;
+
+                    case 1:
+                        transfer_type = "isochronous";
+                        break;
+
+                    case 2:
+                        transfer_type = "bulk";
+                        break;
+
+                    case 3:
+                        transfer_type = "interrupt";
+                        break;
+                }
+
+                print("ENDPOINT: endpoint = {} {}, transfer_type = {}, synchronization_type = {:x}, usage_type = {:x}, wMaxPacketSize = {}, bInterval = {}\n",
                       e.endpoint_number, e.direction == USB_ENDPOINT_DIRECTION_IN ? "IN" : "OUT",
-                      e.transfer_type, e.synchronization_type, e.usage_type,
+                      transfer_type, e.synchronization_type, e.usage_type,
                       e.wMaxPacketSize, e.bInterval);
                 break;
             }
