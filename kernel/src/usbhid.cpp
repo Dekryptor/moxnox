@@ -86,8 +86,8 @@ static const enum evdev_code keycodes[] = {
     evdev_code::KEY_LEFTBRACE,
     // 30
     evdev_code::KEY_RIGHTBRACE,
+    evdev_code::KEY_BACKSLASH, // qemu usb-kbd uses this rather than the following?
     evdev_code::KEY_BACKSLASH,
-    evdev_code::KEY_RESERVED, // FIXME - Keyboard Non-US # and ~
     evdev_code::KEY_SEMICOLON,
     evdev_code::KEY_APOSTROPHE,
     evdev_code::KEY_GRAVE,
@@ -108,9 +108,9 @@ static const enum evdev_code keycodes[] = {
     evdev_code::KEY_F10,
     evdev_code::KEY_F11,
     evdev_code::KEY_F12,
-    evdev_code::KEY_RESERVED, // FIXME - print screen / sysrq?
-    evdev_code::KEY_RESERVED, // FIXME - Keyboard Scroll Lock
-    evdev_code::KEY_RESERVED, // FIXME - Keyboard Pause
+    evdev_code::KEY_SYSRQ,
+    evdev_code::KEY_SCROLLLOCK,
+    evdev_code::KEY_PAUSE,
     evdev_code::KEY_INSERT,
     evdev_code::KEY_HOME,
     evdev_code::KEY_PAGEUP,
@@ -141,7 +141,7 @@ static const enum evdev_code keycodes[] = {
     evdev_code::KEY_KP0,
     evdev_code::KEY_KPDOT,
     evdev_code::KEY_102ND,
-    evdev_code::KEY_RESERVED, // FIXME - Keyboard Application
+    evdev_code::KEY_COMPOSE,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
