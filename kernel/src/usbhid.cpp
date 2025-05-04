@@ -531,7 +531,7 @@ void usb_keyboard::recv_thread() {
             auto changed = status[i] ^ last_status[i];
 
             while (changed != 0) {
-                auto bit = countr_zero(changed);
+                auto bit = (unsigned int)countr_zero(changed);
                 auto code = (i * 64) + bit;
                 bool down = status[i] & (uint64_t)1 << bit;
 
