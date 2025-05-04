@@ -19,7 +19,8 @@ static const size_t evdev_buffer_pages = 1;
 
 class usb_keyboard {
 public:
-    usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size);
+    usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size,
+                 uint8_t interface);
     ~usb_keyboard();
 
 private:
@@ -30,6 +31,7 @@ private:
     xhci_queue& queue;
     object_ref evdev_pipe;
     uint16_t packet_size;
+    uint8_t interface;
 };
 
 static const enum evdev_code keycodes[] = {
@@ -320,10 +322,37 @@ static void init_usbhid() {
 
 static module_init module_init_usbhid(init_usbhid);
 
-usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size) : d(d), queue(queue) {
+enum class usb_hid_request : uint8_t {
+    GET_REPORT = 0x01,
+    GET_IDLE = 0x02,
+    GET_PROTOCOL = 0x03,
+    SET_REPORT = 0x09,
+    SET_IDLE = 0x0a,
+    SET_PROTOCOL = 0x0b,
+};
+
+enum class usb_hid_report_type : uint8_t {
+    INPUT = 0x01,
+    OUTPUT = 0x02,
+    FEATURE = 0x03,
+};
+
+static bool usb_hid_set_report(usb_device& d, span<uint8_t> buf,
+                               enum usb_hid_report_type report_type,
+                               uint8_t report_id, uint16_t interface) {
+    return d.ep0_queue.control_transfer(buf,
+                                        USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_INTERFACE,
+                                        (enum usb_request)usb_hid_request::SET_REPORT,
+                                        ((uint8_t)report_type << 8) | report_id,
+                                        interface);
+}
+
+usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size,
+                           uint8_t interface) : d(d), queue(queue) {
     d.acquire();
 
     this->packet_size = packet_size;
+    this->interface = interface;
 
     auto pptr = new pipe(evdev_buffer_pages);
     if (!pptr) {
@@ -492,7 +521,8 @@ void usb_keyboard::recv_thread() {
     free(buf);
 }
 
-static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
+static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf,
+                               uint8_t interface) {
     auto& i = *(usb_interface_descriptor*)buf.data();
 
     usb_endpoint_descriptor* ep_desc = nullptr;
@@ -569,7 +599,8 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    auto kbd = new usb_keyboard(d, *queue, ep_desc->wMaxPacketSize);
+    auto kbd = new usb_keyboard(d, *queue, ep_desc->wMaxPacketSize,
+                                interface);
     if (!kbd) {
         print("new failed\n");
         return false;
@@ -578,7 +609,8 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf) {
     return true;
 }
 
-static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf) {
+static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf,
+                                    uint8_t interface) {
     auto& i = *(usb_interface_descriptor*)buf.data();
 
     // FIXME - should be parsing HID descriptors
@@ -587,7 +619,7 @@ static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf) {
     if (i.bInterfaceSubClass != 1 || i.bInterfaceProtocol != 1)
         return false;
 
-    return found_usb_keyboard(d, buf);
+    return found_usb_keyboard(d, buf, interface);
 }
 
 static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber,
@@ -617,7 +649,7 @@ static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber,
                 }
 
                 if (i.bInterfaceNumber == bInterfaceNumber)
-                    return found_usb_hid_interface(d, buf);
+                    return found_usb_hid_interface(d, buf, bInterfaceNumber);
 
                 break;
             }
