@@ -742,7 +742,7 @@ void keyboard_context::key_event(input_event& ev) {
     if (leds.caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
         holding_shift = !holding_shift;
 
-    if (leds.num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
+    if (!leds.num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
         holding_shift = true;
 
     u8string_view val;
