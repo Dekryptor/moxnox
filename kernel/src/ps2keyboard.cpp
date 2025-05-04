@@ -152,7 +152,7 @@ static bool add_keyboard_evdev_pipe() {
         return false;
     }
 
-    register_keyboard(static_cast<pipe&>(keyboard_evdev_obj.get()));
+    register_keyboard(static_cast<pipe&>(keyboard_evdev_obj.get()), nullptr, nullptr);
 
     return true;
 }

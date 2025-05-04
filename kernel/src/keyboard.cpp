@@ -619,10 +619,21 @@ private:
     optional<reference_wrapper<process>> fg_proc;
 };
 
+export struct keyboard_leds {
+    uint8_t caps_lock : 1;
+    uint8_t num_lock : 1;
+    uint8_t : 6;
+};
+
+using set_leds_func = void (*)(void* ctx, keyboard_leds leds);
+
 class keyboard_context {
 public:
-    keyboard_context(pipe& p) : p(p) {
+    keyboard_context(pipe& p, set_leds_func led_func, void* ctx) : p(p), led_func(led_func), ctx(ctx) {
         p.acquire();
+
+        leds.caps_lock = 0;
+        leds.num_lock = 0;
     }
 
     ~keyboard_context() {
@@ -637,7 +648,9 @@ private:
     pipe& p;
     unsigned int shift_count = 0;
     unsigned int ctrl_count = 0;
-    bool caps_lock = false, num_lock = false;
+    keyboard_leds leds;
+    set_leds_func led_func;
+    void* ctx;
 };
 
 export bool init_keyboard_pipe() {
@@ -700,21 +713,27 @@ void keyboard_context::key_event(input_event& ev) {
         return;
 
     if (ev.code == evdev_code::KEY_CAPSLOCK) {
-        // FIXME - toggle LED
-        caps_lock = !caps_lock;
+        leds.caps_lock = leds.caps_lock ? 0 : 1;
+
+        if (led_func)
+            led_func(ctx, leds);
+
         return;
     } else if (ev.code == evdev_code::KEY_NUMLOCK) {
-        // FIXME - toggle LED
-        num_lock = !num_lock;
+        leds.num_lock = leds.num_lock ? 0 : 1;
+
+        if (led_func)
+            led_func(ctx, leds);
+
         return;
     }
 
     bool holding_shift = shift_count != 0;
 
-    if (caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
+    if (leds.caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
         holding_shift = !holding_shift;
 
-    if (num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
+    if (leds.num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
         holding_shift = true;
 
     u8string_view val;
@@ -810,6 +829,9 @@ NTSTATUS keyboard_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
 }
 
 void keyboard_context::listen_thread() {
+    if (led_func)
+        led_func(ctx, leds);
+
     // FIXME - make sure this thread dies if keyboard goes away
 
     while (true) {
@@ -843,8 +865,8 @@ void keyboard_context::listen_thread() {
     }
 }
 
-export void register_keyboard(pipe& p) {
-    auto kc = new keyboard_context(p);
+export void register_keyboard(pipe& p, set_leds_func led_func, void* ctx) {
+    auto kc = new keyboard_context(p, led_func, ctx);
     if (!kc) {
         print("new failed\n");
         return;

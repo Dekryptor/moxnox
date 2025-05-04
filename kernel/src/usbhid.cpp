@@ -22,6 +22,7 @@ public:
     usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size,
                  uint8_t interface);
     ~usb_keyboard();
+    void set_leds(keyboard_leds leds);
 
 private:
     void recv_thread();
@@ -369,7 +370,11 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
     //     return false;
     // }
 
-    register_keyboard(static_cast<pipe&>(evdev_pipe.get()));
+    register_keyboard(static_cast<pipe&>(evdev_pipe.get()), [](void* ctx, keyboard_leds leds) {
+        auto& kbd = *(usb_keyboard*)ctx;
+
+        kbd.set_leds(leds);
+    }, this);
 
     add_kernel_thread([](void* ctx) {
         ((usb_keyboard*)ctx)->recv_thread();
@@ -378,6 +383,33 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
 
 usb_keyboard::~usb_keyboard() {
     d.release();
+}
+
+void usb_keyboard::set_leds(keyboard_leds leds) {
+    auto buf = (uint8_t*)malloc(1);
+    if (!buf) {
+        print("malloc failed\n");
+        return;
+    }
+
+    buf[0] = 0;
+
+    if (leds.num_lock)
+        buf[0] |= 1 << 0;
+
+    if (leds.caps_lock)
+        buf[0] |= 1 << 1;
+
+    // FIXME - scroll lock
+
+    if (!usb_hid_set_report(d, span(buf, 1), usb_hid_report_type::OUTPUT, 0,
+                            interface)) {
+        print("usb_hid_set_report failed\n");
+        free(buf);
+        return;
+    }
+
+    free(buf);
 }
 
 void usb_keyboard::post_evdev(enum evdev_code code, bool down) {
