@@ -205,7 +205,7 @@ void usb_hub::device_connected(uint8_t port) {
 
     p.slot = slot;
 
-    controller.device_found(slot, (port << ((d.depth + 1) * 4)) | d.route_string,
+    controller.device_found(slot, (uint32_t)(port << ((d.depth + 1) * 4)) | d.route_string,
                             usb_revision, psi_num, d.speed, d.depth + 1);
 }
 
