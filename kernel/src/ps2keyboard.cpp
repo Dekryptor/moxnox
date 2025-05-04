@@ -22,7 +22,7 @@ using namespace std;
 
 static const unsigned int keyboard_evdev_buffer_pages = 1;
 
-static optional<reference_wrapper<event>> keyboard_event_obj;
+static optional<reference_wrapper<event>> keyboard_event_obj, keyboard_ack_event_obj;
 static object_ref keyboard_evdev_obj;
 
 static const unsigned int MODIFIER_EXTD = 4;
@@ -137,6 +137,31 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
+static void keyboard_set_leds(void*, keyboard_leds leds) {
+    while (inb(keyboard_port2) & 2) { }
+
+    outb(keyboard_port1, 0xed);
+
+    wait_for_object(keyboard_ack_event_obj->get(), false);
+
+    while (inb(keyboard_port2) & 2) { }
+
+    uint8_t state = 0;
+
+    if (leds.scroll_lock)
+        state |= 1 << 0;
+
+    if (leds.num_lock)
+        state |= 1 << 1;
+
+    if (leds.caps_lock)
+        state |= 1 << 2;
+
+    outb(keyboard_port1, state);
+
+    wait_for_object(keyboard_ack_event_obj->get(), false);
+}
+
 static bool add_keyboard_evdev_pipe() {
     auto pptr = new pipe(keyboard_evdev_buffer_pages);
     if (!pptr) {
@@ -152,7 +177,8 @@ static bool add_keyboard_evdev_pipe() {
         return false;
     }
 
-    register_keyboard(static_cast<pipe&>(keyboard_evdev_obj.get()), nullptr, nullptr);
+    register_keyboard(static_cast<pipe&>(keyboard_evdev_obj.get()),
+                      keyboard_set_leds, nullptr);
 
     return true;
 }
@@ -175,8 +201,17 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         return;
     }
 
+    auto keyboard_ack_event = create_event(true);
+    if (!keyboard_ack_event) {
+        print("create_event failed\n");
+        return;
+    }
+
     keyboard_event_obj = static_cast<event&>(keyboard_event.get());
     keyboard_event_obj->get().acquire();
+
+    keyboard_ack_event_obj = static_cast<event&>(keyboard_ack_event.get());
+    keyboard_ack_event_obj->get().acquire();
 
     if (!add_kernel_thread(keyboard_event_recv)) {
         print("add_kernel_thread failed\n");
@@ -216,6 +251,11 @@ static bool keyboard_isr_func(void*) {
 
     {
         lock_guard lock(keyboard_lock);
+
+        if (code == 0xfa) {
+            set_event(keyboard_ack_event_obj->get());
+            return true;
+        }
 
         keyboard_buffer[keyboard_buffer_write_pos] = code;
 
