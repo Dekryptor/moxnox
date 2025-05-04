@@ -344,7 +344,7 @@ static bool usb_hid_set_report(usb_device& d, span<uint8_t> buf,
     return d.ep0_queue.control_transfer(buf,
                                         USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_INTERFACE,
                                         (enum usb_request)usb_hid_request::SET_REPORT,
-                                        ((uint8_t)report_type << 8) | report_id,
+                                        (uint16_t)(((uint8_t)report_type << 8) | report_id),
                                         interface);
 }
 
