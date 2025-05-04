@@ -196,7 +196,7 @@ void usb_hub::device_connected(uint8_t port) {
         return;
     }
 
-    auto [psi_num, usb_revision] = controller.get_speed(d.port_id, d.speed); // FIXME
+    auto [psi_num, usb_revision] = controller.get_speed(d.route_string & 0xf, d.speed); // FIXME
     if (psi_num == 0) {
         print("xhci::get_speed failed\n");
         // FIXME - disable slot
@@ -205,7 +205,7 @@ void usb_hub::device_connected(uint8_t port) {
 
     p.slot = slot;
 
-    controller.device_found(slot, d.port_id, port, usb_revision,
+    controller.device_found(slot, (d.route_string << 4) | port, usb_revision,
                             psi_num, d.speed);
 }
 
