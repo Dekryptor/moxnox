@@ -196,7 +196,7 @@ void usb_hub::device_connected(uint8_t port) {
         return;
     }
 
-    auto [psi_num, usb_revision] = controller.get_speed(get_root_port(d.route_string), d.speed); // FIXME
+    auto [psi_num, usb_revision] = controller.get_speed(d.route_string & 0xf, d.speed); // FIXME
     if (psi_num == 0) {
         print("xhci::get_speed failed\n");
         // FIXME - disable slot
@@ -205,8 +205,8 @@ void usb_hub::device_connected(uint8_t port) {
 
     p.slot = slot;
 
-    controller.device_found(slot, (d.route_string << 4) | port, usb_revision,
-                            psi_num, d.speed);
+    controller.device_found(slot, (port << ((d.depth + 1) * 4)) | d.route_string,
+                            usb_revision, psi_num, d.speed, d.depth + 1);
 }
 
 bool usb_hub::set_port_feature(enum usb_port_feature_selector feature,

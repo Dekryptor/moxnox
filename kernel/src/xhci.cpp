@@ -84,7 +84,7 @@ public:
     pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
     void device_found(uint8_t slot, uint32_t route_string,
                       uint16_t usb_revision, uint32_t psi_num,
-                      uint8_t port_speed);
+                      uint8_t port_speed, unsigned int depth);
 
     bool initialized = false;
     pci_device& dev;
@@ -141,7 +141,7 @@ export class usb_device {
 public:
     usb_device(xhci& controller, void* devctx,
                uint8_t slot, uint8_t speed, uint32_t route_string,
-               uint16_t usb_revision, xhci_psi& psi);
+               uint16_t usb_revision, xhci_psi& psi, unsigned int depth);
     ~usb_device();
     bool get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
                         uint8_t desc_index);
@@ -175,6 +175,7 @@ public:
     xhci& controller;
     uint8_t speed;
     uint32_t route_string;
+    unsigned int depth;
 
 private:
     bool change_ep0_max_packet_size(uint16_t max_packet_size);
@@ -950,29 +951,13 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
     }
 }
 
-export uint8_t get_root_port(uint32_t route_string) {
-    if (route_string == 0)
-        return 0;
-
-    while (route_string & 0xfffffff0) {
-        route_string >>= 4;
-    }
-
-    return route_string & 0xf;
-}
-
-static uint32_t get_next_route_string(uint32_t route_string) {
-    unsigned int depth = (32 - countl_zero(route_string)) / 4;
-
-    return route_string & ((1 << (4 * depth)) - 1);
-}
-
 usb_device::usb_device(xhci& controller, void* devctx, uint8_t slot,
                        uint8_t speed, uint32_t route_string, uint16_t usb_revision,
-                       xhci_psi& psi) : controller(controller), devctx(devctx) {
+                       xhci_psi& psi, unsigned int depth) : controller(controller), devctx(devctx) {
     this->slot = slot;
     this->speed = speed;
     this->route_string = route_string;
+    this->depth = depth;
 
     speed_class = usb_speed_class::unknown;
 
@@ -1021,8 +1006,8 @@ usb_device::usb_device(xhci& controller, void* devctx, uint8_t slot,
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
         context->slot.speed = speed;
-        context->slot.root_hub_port_number = get_root_port(route_string);
-        context->slot.route_string = get_next_route_string(route_string);
+        context->slot.root_hub_port_number = route_string & 0xf;
+        context->slot.route_string = route_string >> 4;
 #pragma GCC diagnostic pop
         // FIXME - multi_tt
         // FIXME - hub
@@ -1196,8 +1181,8 @@ bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
         context->slot.speed = speed;
-        context->slot.root_hub_port_number = get_root_port(route_string);
-        context->slot.route_string = get_next_route_string(route_string);
+        context->slot.root_hub_port_number = route_string & 0xf;
+        context->slot.route_string = route_string >> 4;
 #pragma GCC diagnostic pop
         context->slot.context_entries = 1;
 
@@ -1347,8 +1332,8 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 #pragma GCC diagnostic ignored "-Wconversion"
             context->slot.speed = speed;
             context->slot.context_entries = (uint8_t)(ep_index + 1);
-            context->slot.root_hub_port_number = get_root_port(route_string);
-            context->slot.route_string = get_next_route_string(route_string);
+            context->slot.root_hub_port_number = route_string & 0xf;
+            context->slot.route_string = route_string >> 4;
 #pragma GCC diagnostic pop
 
             auto& ep = context->ep[ep_index];
@@ -1908,7 +1893,7 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
 }
 
 void xhci::device_found(uint8_t slot, uint32_t route_string, uint16_t usb_revision,
-                        uint32_t psi_num, uint8_t port_speed) {
+                        uint32_t psi_num, uint8_t port_speed, unsigned int depth) {
     usb_device* d;
 
     auto func = [&]<bool LARGE>() -> bool {
@@ -1924,7 +1909,7 @@ void xhci::device_found(uint8_t slot, uint32_t route_string, uint16_t usb_revisi
         dcbaa[slot] = va_to_pa_phys(devctx);
 
         d = new usb_device(*this, devctx, slot, port_speed, route_string,
-                           usb_revision, *(xhci_psi*)&psi_num);
+                           usb_revision, *(xhci_psi*)&psi_num, depth);
         if (!d) {
             print("new failed\n");
             delete devctx;
@@ -2082,7 +2067,7 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     p.slot = slot;
 
-    device_found(slot, port_id, usb_revision, psi_num, portsc.port_speed);
+    device_found(slot, port_id, usb_revision, psi_num, portsc.port_speed, 0);
 }
 
 void xhci::port_status_change_thread() {
