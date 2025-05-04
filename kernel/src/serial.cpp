@@ -23,7 +23,7 @@ import acpi;
 
 using namespace std;
 
-const uint32_t ENABLE_PROCESSED_INPUT = 0x1;
+#define ENABLE_PROCESSED_INPUT 0x1 // FIXME
 const uint32_t ENABLE_PROCESSED_OUTPUT = 0x1;
 
 static const unsigned int serial_buffer_pages = 1;

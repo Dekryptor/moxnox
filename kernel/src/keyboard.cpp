@@ -15,7 +15,7 @@ import evdev;
 
 using namespace std;
 
-const uint32_t ENABLE_PROCESSED_INPUT = 0x1;
+#define ENABLE_PROCESSED_INPUT 0x1 // FIXME
 
 static const unsigned int keyboard_pipe_buffer_pages = 1;
 static object_ref keyboard_pipe_obj;
