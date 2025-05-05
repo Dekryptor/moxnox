@@ -483,6 +483,11 @@ static bool found_usb_hub_device(usb_device& d, uint8_t bInterfaceNumber,
     if (bAlternateSetting)
         return false;
 
+    if (d.device_descriptor.bcdUSB >= 0x300) {
+        print("found_usb_hub_device: FIXME - support USB 3 hubs\n"); // FIXME
+        return false;
+    }
+
     while (!buf.empty()) {
         auto len = buf[0];
 
