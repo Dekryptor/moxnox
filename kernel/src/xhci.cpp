@@ -163,8 +163,8 @@ struct device_endpoint {
 export class usb_device {
 public:
     usb_device(xhci& controller, usb_hub& parent, void* devctx,
-               uint8_t slot, uint8_t speed, uint8_t port, uint16_t usb_revision,
-               xhci_psi& psi);
+               uint8_t slot, uint8_t speed, uint8_t port,
+               enum usb_speed_class speed_class);
     ~usb_device();
     bool get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
                         uint8_t desc_index);
@@ -932,6 +932,7 @@ span<char> do_format_arg(span<char> sp, string_view, enum usb_class_code arg) {
     }
 }
 
+#if 0
 static string_view psie_to_string(uint8_t psie) {
     switch (psie) {
         case 0:
@@ -950,6 +951,7 @@ static string_view psie_to_string(uint8_t psie) {
             unreachable();
     }
 }
+#endif
 
 static string_view speed_class_to_string(enum usb_speed_class sc) {
     switch (sc) {
@@ -1008,31 +1010,15 @@ uint32_t usb_device::find_route_string() {
 }
 
 usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t slot,
-                       uint8_t speed, uint8_t port, uint16_t usb_revision,
-                       xhci_psi& psi) : controller(controller), parent(parent), devctx(devctx) {
+                       uint8_t speed, uint8_t port, enum usb_speed_class speed_class) : controller(controller), parent(parent), devctx(devctx) {
     this->slot = slot;
     this->speed = speed;
     this->port = port;
+    this->speed_class = speed_class;
 
-    speed_class = usb_speed_class::unknown;
-
-    if (psi.psim == 1500 && psi.psie == 1)
-        speed_class = usb_speed_class::low_speed;
-    else if (psi.psim == 12 && psi.psie == 2)
-        speed_class = usb_speed_class::full_speed;
-    else if (psi.psim == 480 && psi.psie == 2)
-        speed_class = usb_speed_class::high_speed;
-    else if ((usb_revision & 0xff00) == 0x0300) {
-        if (psi.lp == 0)
-            speed_class = usb_speed_class::super_speed;
-        else if (psi.lp == 1)
-            speed_class = usb_speed_class::super_speed_plus;
-    }
-
-    print("root port {}, route_string {:x}, slot {}, speed {} {}, {}, USB {}.{}\n",
-          find_root_port(), find_route_string(), slot, psi.psim, psie_to_string(psi.psie),
-          speed_class_to_string(speed_class),
-          usb_revision >> 8, (usb_revision & 0xff) >> 4);
+    print("root port {}, route_string {:x}, slot {}, speed {}\n",
+          find_root_port(), find_route_string(), slot,
+          speed_class_to_string(speed_class));
 
     if (speed_class == usb_speed_class::unknown) {
         print("usb_device::usb_device: ignoring device with unknown speed class\n");
@@ -1992,6 +1978,22 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, uint16_t usb_revision,
         wait_for_object(tim, true);
     }
 
+    auto psi = *(xhci_psi*)&psi_num;
+    auto speed_class = usb_speed_class::unknown;
+
+    if (psi.psim == 1500 && psi.psie == 1)
+        speed_class = usb_speed_class::low_speed;
+    else if (psi.psim == 12 && psi.psie == 2)
+        speed_class = usb_speed_class::full_speed;
+    else if (psi.psim == 480 && psi.psie == 2)
+        speed_class = usb_speed_class::high_speed;
+    else if ((usb_revision & 0xff00) == 0x0300) {
+        if (psi.lp == 0)
+            speed_class = usb_speed_class::super_speed;
+        else if (psi.lp == 1)
+            speed_class = usb_speed_class::super_speed_plus;
+    }
+
     auto func = [&]<bool LARGE>() -> bool {
         auto devctx = new xhci_device_context<LARGE>;
         if (!devctx) {
@@ -2005,7 +2007,7 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, uint16_t usb_revision,
         controller.dcbaa[slot] = va_to_pa_phys(devctx);
 
         d = new usb_device(controller, *this, devctx, slot, port_speed, port,
-                           usb_revision, *(xhci_psi*)&psi_num);
+                           speed_class);
         if (!d) {
             print("new failed\n");
             delete devctx;
