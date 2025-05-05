@@ -13,26 +13,46 @@ import mem;
 
 using namespace std;
 
-struct port_status {
-    uint8_t connection : 1;
-    uint8_t enabled : 1;
-    uint8_t suspended : 1;
-    uint8_t over_current : 1;
-    uint8_t reset : 1;
-    uint8_t reserved1 : 3;
-    uint8_t power : 1;
-    uint8_t low_speed : 1;
-    uint8_t high_speed : 1;
-    uint8_t test_mode : 1;
-    uint8_t indicator_control : 1;
-    uint8_t reserved2 : 3;
-    uint8_t connection_changed : 1;
-    uint8_t enable_changed : 1;
-    uint8_t suspend_changed : 1;
-    uint8_t over_current_changed : 1;
-    uint8_t reset_changed : 1;
-    uint8_t reserved3 : 3;
-    uint8_t reserved4;
+union port_status {
+    struct {
+        uint16_t connection : 1;
+        uint16_t enabled : 1;
+        uint16_t suspended : 1;
+        uint16_t over_current : 1;
+        uint16_t reset : 1;
+        uint16_t : 3;
+        uint16_t power : 1;
+        uint16_t low_speed : 1;
+        uint16_t high_speed : 1;
+        uint16_t test_mode : 1;
+        uint16_t indicator_control : 1;
+        uint16_t : 3;
+        uint16_t connection_changed : 1;
+        uint16_t enable_changed : 1;
+        uint16_t suspend_changed : 1;
+        uint16_t over_current_changed : 1;
+        uint16_t reset_changed : 1;
+        uint16_t : 11;
+    } usb2;
+    struct {
+        uint16_t connection : 1;
+        uint16_t enabled : 1;
+        uint16_t : 1;
+        uint16_t over_current : 1;
+        uint16_t reset : 1;
+        uint16_t link_state : 4;
+        uint16_t power : 1;
+        uint16_t speed : 3;
+        uint16_t : 3;
+        uint16_t connection_changed : 1;
+        uint16_t : 2;
+        uint16_t over_current_changed : 1;
+        uint16_t reset_changed : 1;
+        uint16_t bh_reset_changed : 1;
+        uint16_t link_state_changed : 1;
+        uint16_t config_error : 1;
+        uint16_t : 8;
+    } usb3;
 } __attribute((packed));
 
 static_assert(sizeof(port_status) == 0x4);
@@ -94,35 +114,35 @@ consteval bool format_spec_valid<port_status>(string_view fmt) {
 
 span<char> do_format_arg(span<char> sp, string_view, const port_status& arg) {
     sp = do_format_arg(sp, "", "connection = ");
-    sp = do_format_arg(sp, "", arg.connection);
+    sp = do_format_arg(sp, "", arg.usb2.connection);
     sp = do_format_arg(sp, "", ", enabled = ");
-    sp = do_format_arg(sp, "", arg.enabled);
+    sp = do_format_arg(sp, "", arg.usb2.enabled);
     sp = do_format_arg(sp, "", ", suspended = ");
-    sp = do_format_arg(sp, "", arg.suspended);
+    sp = do_format_arg(sp, "", arg.usb2.suspended);
     sp = do_format_arg(sp, "", ", over_current = ");
-    sp = do_format_arg(sp, "", arg.over_current);
+    sp = do_format_arg(sp, "", arg.usb2.over_current);
     sp = do_format_arg(sp, "", ", reset = ");
-    sp = do_format_arg(sp, "", arg.reset);
+    sp = do_format_arg(sp, "", arg.usb2.reset);
     sp = do_format_arg(sp, "", ", power = ");
-    sp = do_format_arg(sp, "", arg.power);
+    sp = do_format_arg(sp, "", arg.usb2.power);
     sp = do_format_arg(sp, "", ", low_speed = ");
-    sp = do_format_arg(sp, "", arg.low_speed);
+    sp = do_format_arg(sp, "", arg.usb2.low_speed);
     sp = do_format_arg(sp, "", ", high_speed = ");
-    sp = do_format_arg(sp, "", arg.high_speed);
+    sp = do_format_arg(sp, "", arg.usb2.high_speed);
     sp = do_format_arg(sp, "", ", test_mode = ");
-    sp = do_format_arg(sp, "", arg.test_mode);
+    sp = do_format_arg(sp, "", arg.usb2.test_mode);
     sp = do_format_arg(sp, "", ", indicator_control = ");
-    sp = do_format_arg(sp, "", arg.indicator_control);
+    sp = do_format_arg(sp, "", arg.usb2.indicator_control);
     sp = do_format_arg(sp, "", ", connection_changed = ");
-    sp = do_format_arg(sp, "", arg.connection_changed);
+    sp = do_format_arg(sp, "", arg.usb2.connection_changed);
     sp = do_format_arg(sp, "", ", enable_changed = ");
-    sp = do_format_arg(sp, "", arg.enable_changed);
+    sp = do_format_arg(sp, "", arg.usb2.enable_changed);
     sp = do_format_arg(sp, "", ", suspend_changed = ");
-    sp = do_format_arg(sp, "", arg.suspend_changed);
+    sp = do_format_arg(sp, "", arg.usb2.suspend_changed);
     sp = do_format_arg(sp, "", ", over_current_changed = ");
-    sp = do_format_arg(sp, "", arg.over_current_changed);
+    sp = do_format_arg(sp, "", arg.usb2.over_current_changed);
     sp = do_format_arg(sp, "", ", reset_changed = ");
-    sp = do_format_arg(sp, "", arg.reset_changed);
+    sp = do_format_arg(sp, "", arg.usb2.reset_changed);
 
     return sp;
 }
@@ -158,7 +178,7 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descrip
             return;
         }
 
-        if (p.status.connection) {
+        if (p.status.usb2.connection) {
             acquire();
 
             add_kernel_thread([](void* param1, void* param2) {
@@ -256,9 +276,9 @@ void usb_device_hub::port_status_change(uint8_t port) {
 
     auto& old_status = ports[port - 1].status;
 
-    if (new_status->connection_changed) {
-        if (old_status.connection != new_status->connection) {
-            if (new_status->connection) {
+    if (new_status->usb2.connection_changed) {
+        if (old_status.usb2.connection != new_status->usb2.connection) {
+            if (new_status->usb2.connection) {
                 acquire();
 
                 add_kernel_thread([](void* param1, void* param2) {
@@ -273,7 +293,7 @@ void usb_device_hub::port_status_change(uint8_t port) {
                 // FIXME - process
             }
 
-            old_status.connection = new_status->connection;
+            old_status.usb2.connection = new_status->usb2.connection;
         }
 
         clear_port_feature(usb_port_feature_selector::C_PORT_CONNECTION, port);
