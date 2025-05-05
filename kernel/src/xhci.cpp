@@ -75,15 +75,27 @@ private:
 
 class xhci;
 
+enum class usb_speed_class {
+    unknown,
+    low_speed,
+    full_speed,
+    high_speed,
+    super_speed,
+    super_speed_plus
+};
+
+export class usb_device;
+
 export class usb_hub {
 public:
-    usb_hub(xhci& controller, usb_hub* parent, uint8_t port,
-            unsigned int depth) : depth(depth), parent(parent), port(port), controller(controller) { }
+    usb_hub(xhci& controller, usb_hub* parent, usb_device* device, uint8_t port,
+            unsigned int depth) : depth(depth), parent(parent), device(device), port(port), controller(controller) { }
     void device_found(uint8_t slot, uint8_t port, uint16_t usb_revision,
                       uint32_t psi_num, uint8_t port_speed);
 
     unsigned int depth;
     usb_hub* parent;
+    usb_device* device;
     uint8_t port;
 
 private:
@@ -92,7 +104,7 @@ private:
 
 class usb_root_hub : public usb_hub {
 public:
-    usb_root_hub(xhci& controller) : usb_hub(controller, nullptr, 0, 0) { }
+    usb_root_hub(xhci& controller) : usb_hub(controller, nullptr, nullptr, 0, 0) { }
 };
 
 class xhci {
@@ -148,15 +160,6 @@ struct device_endpoint {
     xhci_queue queue;
 };
 
-enum class usb_speed_class {
-    unknown,
-    low_speed,
-    high_speed,
-    full_speed,
-    super_speed,
-    super_speed_plus
-};
-
 export class usb_device {
 public:
     usb_device(xhci& controller, usb_hub& parent, void* devctx,
@@ -175,7 +178,6 @@ public:
     xhci_queue* add_endpoint(const usb_endpoint_descriptor& ep_desc);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
     uint8_t find_root_port();
-    uint32_t find_route_string();
 
     void acquire() {
         refcount++;
@@ -201,6 +203,7 @@ public:
 
 private:
     bool change_ep0_max_packet_size(uint16_t max_packet_size);
+    uint32_t find_route_string();
 
     void* devctx;
     atomic<unsigned int> refcount = 1;
@@ -956,11 +959,11 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
         case usb_speed_class::low_speed:
             return "Low Speed";
 
-        case usb_speed_class::high_speed:
-            return "High Speed";
-
         case usb_speed_class::full_speed:
             return "Full Speed";
+
+        case usb_speed_class::high_speed:
+            return "High Speed";
 
         case usb_speed_class::super_speed:
             return "SuperSpeed";
@@ -1013,10 +1016,10 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
 
     speed_class = usb_speed_class::unknown;
 
-    if (psi.psim == 12 && psi.psie == 2)
-        speed_class = usb_speed_class::full_speed;
-    else if (psi.psim == 1500 && psi.psie == 1)
+    if (psi.psim == 1500 && psi.psie == 1)
         speed_class = usb_speed_class::low_speed;
+    else if (psi.psim == 12 && psi.psie == 2)
+        speed_class = usb_speed_class::full_speed;
     else if (psi.psim == 480 && psi.psie == 2)
         speed_class = usb_speed_class::high_speed;
     else if ((usb_revision & 0xff00) == 0x0300) {
