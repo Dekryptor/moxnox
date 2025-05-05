@@ -119,6 +119,7 @@ public:
     void port_status_change_thread();
     uint8_t enable_slot(uint8_t slot_type);
     pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
+    uint8_t get_speed_num(uint8_t port_id, uint32_t psi_num);
 
     bool initialized = false;
     pci_device& dev;
@@ -1835,6 +1836,99 @@ static void probe_interfaces(usb_device& d) {
 
         buf = buf.subspan(len);
     }
+}
+
+uint8_t xhci::get_speed_num(uint8_t port_id, uint32_t psi_num) {
+    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
+
+    // FIXME - make sure we don't overflow BAR
+
+    static const uint32_t default_speeds[] = {
+        0x000c0020, // full-speed
+        0x05dc0010, // low-speed
+        0x01e00020, // high-speed
+        0x00050130, // superspeed gen1 x1
+        0x000a4130, // superspeed+ gen2 x1
+        0x000a4130, // superspeed+ gen1 x2
+        0x00144130  // superspeed+ gen2 x2
+    };
+
+    psi_num &= 0xfffffff0;
+
+    volatile auto* ptr = (uint32_t*)(dev.bar[0].data() + (xecp << 2));
+
+    while (true) {
+        xhci_extended_capability cap;
+
+        *(uint32_t*)&cap = *ptr;
+
+        if (cap.cap_type == xhci_capability_type::supported_protocol) {
+            xhci_supported_protocol prot;
+
+            // Qemu insists that we read 32 bits at a time
+            copy_by_uint32(ptr, &prot, sizeof(prot));
+
+            // FIXME - check name string
+
+            auto ptr2 = ptr + (sizeof(prot) / sizeof(uint32_t));
+            if (port_id >= prot.port_offset && port_id < prot.port_offset + prot.port_count) {
+                for (unsigned int i = 0; i < prot.psic; i++) {
+                    uint32_t num;
+
+                    copy_by_uint32(ptr2, &num, sizeof(num));
+                    ptr2++;
+
+                    if ((num & 0xfffffff0) == psi_num) {
+                        auto& psi = *(xhci_psi*)&num;
+
+                        return psi.psiv;
+                    }
+                }
+
+                if (prot.psic == 0) {
+                    if (prot.revision_major == 2 && prot.revision_minor == 0) { // USB 2.0
+                        if (default_speeds[0] == psi_num)
+                            return 1;
+                        else if (default_speeds[1] == psi_num)
+                            return 2;
+                        else if (default_speeds[2] == psi_num)
+                            return 3;
+                    } else if (prot.revision_major == 3 && prot.revision_minor == 0) { // USB 3.0
+                        if (default_speeds[3] == psi_num)
+                            return 4;
+                    } else if (prot.revision_major == 3 && prot.revision_minor == 0x10) { // USB 3.1
+                        if (default_speeds[3] == psi_num)
+                            return 4;
+                        else if (default_speeds[4] == psi_num)
+                            return 5;
+                    } else if (prot.revision_major == 3 && prot.revision_minor == 0x20) { // USB 3.2
+                        if (default_speeds[3] == psi_num)
+                            return 4;
+                        else if (default_speeds[4] == psi_num)
+                            return 5;
+                        else if (default_speeds[5] == psi_num)
+                            return 6;
+                        else if (default_speeds[6] == psi_num)
+                            return 7;
+                    }
+                }
+
+                print("xhci::get_speed_num: could not find PSIV for speed {:08x} for port {}\n", psi_num, port_id);
+
+                return 0;
+            }
+        }
+
+        if (cap.next_cap == 0)
+            break;
+
+        ptr += cap.next_cap;
+    }
+
+    print("xhci::get_speed_num: could not find port {} in capabilities\n", port_id);
+
+    return 0;
 }
 
 pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {

@@ -222,15 +222,27 @@ void usb_device_hub::device_connected(uint8_t port) {
     // FIXME - USB3 hubs
 
     enum usb_speed_class speed_class;
+    uint32_t psi_num;
 
-    if (p.status.usb2.low_speed)
+    if (p.status.usb2.low_speed) {
         speed_class = usb_speed_class::low_speed;
-    else if (p.status.usb2.high_speed)
+        psi_num = 0x05dc0010;
+    } else if (p.status.usb2.high_speed) {
         speed_class = usb_speed_class::high_speed;
-    else
+        psi_num = 0x01e00020;
+    } else {
         speed_class = usb_speed_class::full_speed;
+        psi_num = 0x000c0020;
+    }
 
-    device_found(slot, port, speed_class, d.speed);
+    auto speed = controller.get_speed_num(d.find_root_port(), psi_num);
+
+    if (speed == 0) {
+        print("usb_device_hub::device_connected: could not find speed number for port\n");
+        return;
+    }
+
+    device_found(slot, port, speed_class, speed);
 }
 
 bool usb_device_hub::set_port_feature(enum usb_port_feature_selector feature,
