@@ -77,10 +77,12 @@ class xhci;
 
 export class usb_hub {
 public:
-    usb_hub(xhci& controller) : controller(controller) { }
+    usb_hub(xhci& controller, unsigned int depth) : depth(depth), controller(controller) { }
     void device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
                       uint16_t usb_revision, uint32_t psi_num,
-                      uint8_t port_speed, unsigned int depth);
+                      uint8_t port_speed);
+
+    unsigned int depth;
 
 private:
     xhci& controller;
@@ -88,7 +90,7 @@ private:
 
 class usb_root_hub : public usb_hub {
 public:
-    usb_root_hub(xhci& controller) : usb_hub(controller) { }
+    usb_root_hub(xhci& controller) : usb_hub(controller, 0) { }
 };
 
 class xhci {
@@ -157,8 +159,7 @@ export class usb_device {
 public:
     usb_device(xhci& controller, usb_hub& parent, void* devctx,
                uint8_t slot, uint8_t speed, uint8_t root_port,
-               uint32_t route_string, uint16_t usb_revision, xhci_psi& psi,
-               unsigned int depth);
+               uint32_t route_string, uint16_t usb_revision, xhci_psi& psi);
     ~usb_device();
     bool get_descriptor(span<uint8_t> buf, enum usb_descriptor desc_type,
                         uint8_t desc_index);
@@ -193,7 +194,6 @@ public:
     uint8_t speed;
     uint8_t root_port;
     uint32_t route_string;
-    unsigned int depth;
     usb_hub& parent;
 
 private:
@@ -972,12 +972,11 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
 
 usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t slot,
                        uint8_t speed, uint8_t root_port, uint32_t route_string,
-                       uint16_t usb_revision, xhci_psi& psi, unsigned int depth) : controller(controller), parent(parent), devctx(devctx) {
+                       uint16_t usb_revision, xhci_psi& psi) : controller(controller), parent(parent), devctx(devctx) {
     this->slot = slot;
     this->speed = speed;
     this->root_port = root_port;
     this->route_string = route_string;
-    this->depth = depth;
 
     speed_class = usb_speed_class::unknown;
 
@@ -1933,8 +1932,7 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
 }
 
 void usb_hub::device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
-                           uint16_t usb_revision, uint32_t psi_num, uint8_t port_speed,
-                           unsigned int depth) {
+                           uint16_t usb_revision, uint32_t psi_num, uint8_t port_speed) {
     usb_device* d;
 
     // wait 10ms for device to come up
@@ -1971,8 +1969,7 @@ void usb_hub::device_found(uint8_t slot, uint8_t root_port, uint32_t route_strin
         controller.dcbaa[slot] = va_to_pa_phys(devctx);
 
         d = new usb_device(controller, *this, devctx, slot, port_speed, root_port,
-                           route_string, usb_revision, *(xhci_psi*)&psi_num,
-                           depth);
+                           route_string, usb_revision, *(xhci_psi*)&psi_num);
         if (!d) {
             print("new failed\n");
             delete devctx;
@@ -2131,7 +2128,7 @@ void xhci::port_status_changed(uint8_t port_id) {
     p.slot = slot;
 
     root_hub.device_found(slot, port_id, 0, usb_revision, psi_num,
-                          portsc.port_speed, 0);
+                          portsc.port_speed);
 }
 
 void xhci::port_status_change_thread() {
