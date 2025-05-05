@@ -206,8 +206,7 @@ void usb_device_hub::device_connected(uint8_t port) {
 
     p.slot = slot;
 
-    device_found(slot, port, (uint32_t)(port << ((depth - 1) * 4)) | d.route_string,
-                 usb_revision, psi_num, d.speed);
+    device_found(slot, port, usb_revision, psi_num, d.speed);
 }
 
 bool usb_device_hub::set_port_feature(enum usb_port_feature_selector feature,
