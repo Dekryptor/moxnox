@@ -1029,8 +1029,8 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
             speed_class = usb_speed_class::super_speed_plus;
     }
 
-    print("slot {}, speed {} {}, {}, USB {}.{}\n",
-          slot, psi.psim, psie_to_string(psi.psie),
+    print("root port {}, route_string {:x}, slot {}, speed {} {}, {}, USB {}.{}\n",
+          find_root_port(), find_route_string(), slot, psi.psim, psie_to_string(psi.psie),
           speed_class_to_string(speed_class),
           usb_revision >> 8, (usb_revision & 0xff) >> 4);
 
