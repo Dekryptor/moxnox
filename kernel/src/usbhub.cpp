@@ -128,7 +128,7 @@ span<char> do_format_arg(span<char> sp, string_view, const port_status& arg) {
 }
 
 usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc) :
-        usb_hub(d.controller, d.parent.depth + 1), d(d), queue(queue) {
+        usb_hub(d.controller, &d.parent, d.port, d.parent.depth + 1), d(d), queue(queue) {
     this->hub_desc = hub_desc;
 
     d.acquire();
@@ -197,7 +197,7 @@ void usb_device_hub::device_connected(uint8_t port) {
         return;
     }
 
-    auto [psi_num, usb_revision] = controller.get_speed(d.root_port, d.speed); // FIXME?
+    auto [psi_num, usb_revision] = controller.get_speed(d.find_root_port(), d.speed); // FIXME?
     if (psi_num == 0) {
         print("xhci::get_speed failed\n");
         // FIXME - disable slot
@@ -206,7 +206,7 @@ void usb_device_hub::device_connected(uint8_t port) {
 
     p.slot = slot;
 
-    device_found(slot, d.root_port, (uint32_t)(port << ((depth - 1) * 4)) | d.route_string,
+    device_found(slot, port, (uint32_t)(port << ((depth - 1) * 4)) | d.route_string,
                  usb_revision, psi_num, d.speed);
 }
 
