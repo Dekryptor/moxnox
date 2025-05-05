@@ -42,7 +42,7 @@ struct usb_hub_port {
     uint8_t slot;
 };
 
-class usb_device_hub {
+class usb_device_hub : public usb_hub {
 public:
     usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc);
     ~usb_device_hub();
@@ -127,7 +127,7 @@ span<char> do_format_arg(span<char> sp, string_view, const port_status& arg) {
     return sp;
 }
 
-usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc) : d(d), queue(queue) {
+usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc) : usb_hub(d.controller), d(d), queue(queue) {
     this->hub_desc = hub_desc;
 
     d.acquire();
@@ -205,8 +205,8 @@ void usb_device_hub::device_connected(uint8_t port) {
 
     p.slot = slot;
 
-    controller.device_found(slot, d.root_port, (uint32_t)(port << (d.depth * 4)) | d.route_string,
-                            usb_revision, psi_num, d.speed, d.depth + 1);
+    device_found(slot, d.root_port, (uint32_t)(port << (d.depth * 4)) | d.route_string,
+                 usb_revision, psi_num, d.speed, d.depth + 1);
 }
 
 bool usb_device_hub::set_port_feature(enum usb_port_feature_selector feature,

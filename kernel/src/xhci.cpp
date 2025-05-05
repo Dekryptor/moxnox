@@ -73,6 +73,24 @@ private:
     uint32_t doorbell_val;
 };
 
+class xhci;
+
+export class usb_hub {
+public:
+    usb_hub(xhci& controller) : controller(controller) { }
+    void device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
+                      uint16_t usb_revision, uint32_t psi_num,
+                      uint8_t port_speed, unsigned int depth);
+
+private:
+    xhci& controller;
+};
+
+class usb_root_hub : public usb_hub {
+public:
+    usb_root_hub(xhci& controller) : usb_hub(controller) { }
+};
+
 class xhci {
 public:
     xhci(pci_device& dev);
@@ -82,9 +100,6 @@ public:
     void port_status_change_thread();
     uint8_t enable_slot(uint8_t slot_type);
     pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
-    void device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
-                      uint16_t usb_revision, uint32_t psi_num,
-                      uint8_t port_speed, unsigned int depth);
 
     bool initialized = false;
     pci_device& dev;
@@ -94,6 +109,7 @@ public:
     spinlock devices_lock;
     list_entry devices = { &devices, &devices };
     bool large_contexts;
+    usb_root_hub root_hub{*this};
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
@@ -139,7 +155,7 @@ enum class usb_speed_class {
 
 export class usb_device {
 public:
-    usb_device(xhci& controller, void* devctx,
+    usb_device(xhci& controller, usb_hub& parent, void* devctx,
                uint8_t slot, uint8_t speed, uint8_t root_port,
                uint32_t route_string, uint16_t usb_revision, xhci_psi& psi,
                unsigned int depth);
@@ -178,6 +194,7 @@ public:
     uint8_t root_port;
     uint32_t route_string;
     unsigned int depth;
+    usb_hub& parent;
 
 private:
     bool change_ep0_max_packet_size(uint16_t max_packet_size);
@@ -953,9 +970,9 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
     }
 }
 
-usb_device::usb_device(xhci& controller, void* devctx, uint8_t slot,
+usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t slot,
                        uint8_t speed, uint8_t root_port, uint32_t route_string,
-                       uint16_t usb_revision, xhci_psi& psi, unsigned int depth) : controller(controller), devctx(devctx) {
+                       uint16_t usb_revision, xhci_psi& psi, unsigned int depth) : controller(controller), parent(parent), devctx(devctx) {
     this->slot = slot;
     this->speed = speed;
     this->root_port = root_port;
@@ -1915,9 +1932,9 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
     return 0;
 }
 
-void xhci::device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
-                        uint16_t usb_revision, uint32_t psi_num, uint8_t port_speed,
-                        unsigned int depth) {
+void usb_hub::device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
+                           uint16_t usb_revision, uint32_t psi_num, uint8_t port_speed,
+                           unsigned int depth) {
     usb_device* d;
 
     // wait 10ms for device to come up
@@ -1925,7 +1942,7 @@ void xhci::device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
     {
         auto tim_ref = create_timer(false);
         if (!tim_ref) {
-            print("xhci::device_found: create_timer failed\n");
+            print("usb_hub::device_found: create_timer failed\n");
             return;
         }
 
@@ -1934,7 +1951,7 @@ void xhci::device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
         auto status = tim.set(-ONE_MS_TICKS * 10, nullptr, nullptr, false,
                               0, nullptr);
         if (!success(status)) {
-            print("xhci::device_found: timer::set returned {}\n", status);
+            print("usb_hub::device_found: timer::set returned {}\n", status);
             return;
         }
 
@@ -1951,15 +1968,15 @@ void xhci::device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
 
         memset(devctx, 0, sizeof(*devctx));
 
-        dcbaa[slot] = va_to_pa_phys(devctx);
+        controller.dcbaa[slot] = va_to_pa_phys(devctx);
 
-        d = new usb_device(*this, devctx, slot, port_speed, root_port,
+        d = new usb_device(controller, *this, devctx, slot, port_speed, root_port,
                            route_string, usb_revision, *(xhci_psi*)&psi_num,
                            depth);
         if (!d) {
             print("new failed\n");
             delete devctx;
-            dcbaa[slot] = 0;
+            controller.dcbaa[slot] = 0;
             // FIXME - disable slot
             return false;
         }
@@ -1975,7 +1992,7 @@ void xhci::device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
         return true;
     };
 
-    if (large_contexts) {
+    if (controller.large_contexts) {
         if (!func.template operator()<true>())
             return;
     } else {
@@ -2013,7 +2030,7 @@ void xhci::device_found(uint8_t slot, uint8_t root_port, uint32_t route_string,
     }
 
     if (cd->wTotalLength < sizeof(*cd)) {
-        print("xhci::port_status_changed: config descriptor was {} bytes, expected at least {}\n",
+        print("usb_hub::device_found: config descriptor was {} bytes, expected at least {}\n",
               cd->wTotalLength, sizeof(*cd));
         delete cd;
         d->release();
@@ -2113,7 +2130,8 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     p.slot = slot;
 
-    device_found(slot, port_id, 0, usb_revision, psi_num, portsc.port_speed, 0);
+    root_hub.device_found(slot, port_id, 0, usb_revision, psi_num,
+                          portsc.port_speed, 0);
 }
 
 void xhci::port_status_change_thread() {
