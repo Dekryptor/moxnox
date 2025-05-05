@@ -217,30 +217,18 @@ void usb_device_hub::device_connected(uint8_t port) {
         return;
     }
 
-    auto [psi_num, usb_revision] = controller.get_speed(d.find_root_port(), d.speed); // FIXME?
-    if (psi_num == 0) {
-        print("xhci::get_speed failed\n");
-        // FIXME - disable slot
-        return;
-    }
-
     p.slot = slot;
 
-    auto psi = *(xhci_psi*)&psi_num;
-    auto speed_class = usb_speed_class::unknown;
+    // FIXME - USB3 hubs
 
-    if (psi.psim == 1500 && psi.psie == 1)
+    enum usb_speed_class speed_class;
+
+    if (p.status.usb2.low_speed)
         speed_class = usb_speed_class::low_speed;
-    else if (psi.psim == 12 && psi.psie == 2)
-        speed_class = usb_speed_class::full_speed;
-    else if (psi.psim == 480 && psi.psie == 2)
+    else if (p.status.usb2.high_speed)
         speed_class = usb_speed_class::high_speed;
-    else if ((usb_revision & 0xff00) == 0x0300) {
-        if (psi.lp == 0)
-            speed_class = usb_speed_class::super_speed;
-        else if (psi.lp == 1)
-            speed_class = usb_speed_class::super_speed_plus;
-    }
+    else
+        speed_class = usb_speed_class::full_speed;
 
     device_found(slot, port, speed_class, d.speed);
 }
