@@ -45,6 +45,18 @@ struct xhci_port {
     uint8_t slot;
 };
 
+export struct xhci_psi {
+    uint8_t psiv : 4;
+    uint8_t psie : 2;
+    uint8_t plt : 2;
+    uint8_t pfd : 1;
+    uint8_t reserved : 5;
+    uint8_t lp : 2;
+    uint16_t psim;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_psi) == 0x4);
+
 class xhci;
 
 export class xhci_queue {
@@ -75,23 +87,14 @@ private:
 
 class xhci;
 
-enum class usb_speed_class {
-    unknown,
-    low_speed,
-    full_speed,
-    high_speed,
-    super_speed,
-    super_speed_plus
-};
-
 export class usb_device;
 
 export class usb_hub {
 public:
     usb_hub(xhci& controller, usb_hub* parent, usb_device* device, uint8_t port,
             unsigned int depth) : depth(depth), parent(parent), device(device), port(port), controller(controller) { }
-    void device_found(uint8_t slot, uint8_t port, uint16_t usb_revision,
-                      uint32_t psi_num, uint8_t port_speed);
+    void device_found(uint8_t slot, uint8_t port, enum usb_speed_class speed_class,
+                      uint8_t port_speed);
 
     unsigned int depth;
     usb_hub* parent;
@@ -1953,8 +1956,8 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
     return 0;
 }
 
-void usb_hub::device_found(uint8_t slot, uint8_t port, uint16_t usb_revision,
-                           uint32_t psi_num, uint8_t port_speed) {
+void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class speed_class,
+                           uint8_t port_speed) {
     usb_device* d;
 
     // wait 10ms for device to come up
@@ -1976,22 +1979,6 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, uint16_t usb_revision,
         }
 
         wait_for_object(tim, true);
-    }
-
-    auto psi = *(xhci_psi*)&psi_num;
-    auto speed_class = usb_speed_class::unknown;
-
-    if (psi.psim == 1500 && psi.psie == 1)
-        speed_class = usb_speed_class::low_speed;
-    else if (psi.psim == 12 && psi.psie == 2)
-        speed_class = usb_speed_class::full_speed;
-    else if (psi.psim == 480 && psi.psie == 2)
-        speed_class = usb_speed_class::high_speed;
-    else if ((usb_revision & 0xff00) == 0x0300) {
-        if (psi.lp == 0)
-            speed_class = usb_speed_class::super_speed;
-        else if (psi.lp == 1)
-            speed_class = usb_speed_class::super_speed_plus;
     }
 
     auto func = [&]<bool LARGE>() -> bool {
@@ -2165,8 +2152,23 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     p.slot = slot;
 
-    root_hub.device_found(slot, port_id, usb_revision, psi_num,
-                          portsc.port_speed);
+    auto psi = *(xhci_psi*)&psi_num;
+    auto speed_class = usb_speed_class::unknown;
+
+    if (psi.psim == 1500 && psi.psie == 1)
+        speed_class = usb_speed_class::low_speed;
+    else if (psi.psim == 12 && psi.psie == 2)
+        speed_class = usb_speed_class::full_speed;
+    else if (psi.psim == 480 && psi.psie == 2)
+        speed_class = usb_speed_class::high_speed;
+    else if ((usb_revision & 0xff00) == 0x0300) {
+        if (psi.lp == 0)
+            speed_class = usb_speed_class::super_speed;
+        else if (psi.lp == 1)
+            speed_class = usb_speed_class::super_speed_plus;
+    }
+
+    root_hub.device_found(slot, port_id, speed_class, portsc.port_speed);
 }
 
 void xhci::port_status_change_thread() {

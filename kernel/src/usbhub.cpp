@@ -226,7 +226,23 @@ void usb_device_hub::device_connected(uint8_t port) {
 
     p.slot = slot;
 
-    device_found(slot, port, usb_revision, psi_num, d.speed);
+    auto psi = *(xhci_psi*)&psi_num;
+    auto speed_class = usb_speed_class::unknown;
+
+    if (psi.psim == 1500 && psi.psie == 1)
+        speed_class = usb_speed_class::low_speed;
+    else if (psi.psim == 12 && psi.psie == 2)
+        speed_class = usb_speed_class::full_speed;
+    else if (psi.psim == 480 && psi.psie == 2)
+        speed_class = usb_speed_class::high_speed;
+    else if ((usb_revision & 0xff00) == 0x0300) {
+        if (psi.lp == 0)
+            speed_class = usb_speed_class::super_speed;
+        else if (psi.lp == 1)
+            speed_class = usb_speed_class::super_speed_plus;
+    }
+
+    device_found(slot, port, speed_class, d.speed);
 }
 
 bool usb_device_hub::set_port_feature(enum usb_port_feature_selector feature,

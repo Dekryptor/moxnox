@@ -4,6 +4,15 @@ module;
 
 export module usb;
 
+export enum class usb_speed_class {
+    unknown,
+    low_speed,
+    full_speed,
+    high_speed,
+    super_speed,
+    super_speed_plus
+};
+
 export enum class usb_class_code : uint8_t {
     per_interface = 0,
     audio = 1,
