@@ -148,7 +148,7 @@ span<char> do_format_arg(span<char> sp, string_view, const port_status& arg) {
 }
 
 usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc) :
-        usb_hub(d.controller, &d.parent, &d, d.port, d.parent.depth + 1), d(d), queue(queue) {
+        usb_hub(d.controller, &d, d.parent.depth + 1), d(d), queue(queue) {
     this->hub_desc = hub_desc;
 
     d.acquire();

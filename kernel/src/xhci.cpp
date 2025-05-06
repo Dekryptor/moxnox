@@ -91,15 +91,12 @@ export class usb_device;
 
 export class usb_hub {
 public:
-    usb_hub(xhci& controller, usb_hub* parent, usb_device* device, uint8_t port,
-            unsigned int depth) : depth(depth), parent(parent), device(device), port(port), controller(controller) { }
+    usb_hub(xhci& controller, usb_device* device, unsigned int depth) : depth(depth), device(device), controller(controller) { }
     void device_found(uint8_t slot, uint8_t port, enum usb_speed_class speed_class,
                       uint8_t port_speed);
 
     unsigned int depth;
-    usb_hub* parent;
     usb_device* device;
-    uint8_t port;
 
 private:
     xhci& controller;
@@ -107,7 +104,7 @@ private:
 
 class usb_root_hub : public usb_hub {
 public:
-    usb_root_hub(xhci& controller) : usb_hub(controller, nullptr, nullptr, 0, 0) { }
+    usb_root_hub(xhci& controller) : usb_hub(controller, nullptr, 0) { }
 };
 
 class xhci {
@@ -983,33 +980,27 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
 }
 
 uint8_t usb_device::find_root_port() {
-    if (!parent.parent)
-        return port;
-
-    usb_hub* p = &parent;
+    auto d = this;
 
     while (true) {
-        if (p->parent->parent)
-            p = p->parent;
-        else
-            return p->port;
+        if (!d->parent.device)
+            return d->port;
+
+        d = d->parent.device;
     }
 }
 
 uint32_t usb_device::find_route_string() {
-    if (!parent.parent)
-        return 0;
-
-    uint32_t ret = port;
-    usb_hub* p = &parent;
+    uint32_t ret = 0;
+    auto d = this;
 
     while (true) {
-        if (!p->parent->parent)
+        if (!d->parent.device)
             return ret;
 
         ret <<= 4;
-        ret |= p->port; // FIXME - what if above 15?
-        p = p->parent;
+        ret |= d->port; // FIXME - what if above 15?
+        d = d->parent.device;
     }
 }
 
