@@ -176,7 +176,8 @@ public:
     bool clear_feature(uint8_t bmRequestType, uint8_t feature, uint16_t index);
     bool get_status(uint8_t bmRequestType, span<uint8_t> buf, uint16_t wValue,
                     uint16_t wIndex);
-    xhci_queue* add_endpoint(const usb_endpoint_descriptor& ep_desc);
+    xhci_queue* add_endpoint(const usb_endpoint_descriptor& ep_desc,
+                             uint8_t num_ports = 0);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
     uint8_t find_root_port();
 
@@ -1045,9 +1046,6 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
         context->slot.root_hub_port_number = find_root_port();
         context->slot.route_string = find_route_string();
 #pragma GCC diagnostic pop
-        // FIXME - multi_tt
-        // FIXME - hub
-        // FIXME - num_ports
         // FIXME - parent_hub_slot_id
         // FIXME - parent_port_number
         // FIXME - ttt
@@ -1301,7 +1299,8 @@ static uint8_t find_interval(const usb_endpoint_descriptor& ep_desc,
     return 0;
 }
 
-xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
+xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc,
+                                     uint8_t num_ports) {
     xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_configure_endpoint*>(&req.trb);
@@ -1371,6 +1370,12 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
             context->slot.root_hub_port_number = find_root_port();
             context->slot.route_string = find_route_string();
 #pragma GCC diagnostic pop
+
+            if (num_ports > 0) {
+                context->slot.hub = 1;
+                context->slot.num_ports = num_ports;
+                // FIXME - multi_tt
+            }
 
             auto& ep = context->ep[ep_index];
 

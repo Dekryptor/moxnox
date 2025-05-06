@@ -453,13 +453,6 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    auto queue = d.add_endpoint(*ep_desc);
-
-    if (!queue) {
-        print("usb_device::add_endpoint failed\n");
-        return false;
-    }
-
     auto hub_desc = get_hub_descriptor(d);
     if (!hub_desc) {
         print("get_hub_descriptor failed\n");
@@ -468,6 +461,14 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
 
     if (hub_desc->bNbrPorts == 0) {
         print("found_usb_hub_interface: number of ports was 0\n");
+        free(hub_desc);
+        return false;
+    }
+
+    auto queue = d.add_endpoint(*ep_desc, hub_desc->bNbrPorts);
+
+    if (!queue) {
+        print("usb_device::add_endpoint failed\n");
         free(hub_desc);
         return false;
     }
