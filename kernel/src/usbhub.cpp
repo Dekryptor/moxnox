@@ -282,7 +282,9 @@ void usb_device_hub::port_status_change(uint8_t port) {
         return;
     }
 
-    auto& old_status = ports[port - 1].status;
+    auto old_status = ports[port - 1].status;
+
+    ports[port - 1].status = *new_status;
 
     if (new_status->usb2.connection_changed) {
         if (old_status.usb2.connection != new_status->usb2.connection) {
@@ -300,32 +302,22 @@ void usb_device_hub::port_status_change(uint8_t port) {
                 print("usb_device_hub::port_status_change: device removed from port {}\n", port);
                 // FIXME - process
             }
-
-            old_status.usb2.connection = new_status->usb2.connection;
         }
 
         clear_port_feature(usb_port_feature_selector::C_PORT_CONNECTION, port);
     }
 
-    if (new_status->usb2.enable_changed) {
-        old_status.usb2.enabled = new_status->usb2.enabled;
+    if (new_status->usb2.enable_changed)
         clear_port_feature(usb_port_feature_selector::C_PORT_ENABLE, port);
-    }
 
-    if (new_status->usb2.suspend_changed) {
-        old_status.usb2.suspended = new_status->usb2.suspended;
+    if (new_status->usb2.suspend_changed)
         clear_port_feature(usb_port_feature_selector::C_PORT_SUSPEND, port);
-    }
 
-    if (new_status->usb2.over_current_changed) {
-        old_status.usb2.over_current = new_status->usb2.over_current;
+    if (new_status->usb2.over_current_changed)
         clear_port_feature(usb_port_feature_selector::C_PORT_OVER_CURRENT, port);
-    }
 
-    if (new_status->usb2.reset_changed) {
-        old_status.usb2.reset = new_status->usb2.reset;
+    if (new_status->usb2.reset_changed)
         clear_port_feature(usb_port_feature_selector::C_PORT_RESET, port);
-    }
 
     free(new_status);
 }
