@@ -168,26 +168,18 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descrip
         }
     }
 
-    // get status of each port
-
     for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
-        auto& p = ports[port - 1];
-
-        if (!get_port_status(port, p.status)) {
-            print("usb_device_hub::get_port_status failed\n");
+        if (!set_port_feature(usb_port_feature_selector::PORT_POWER, port)) {
+            print("usb_device_hub::set_port_feature(PORT_POWER) failed\n");
             return;
         }
+    }
 
-        if (p.status.usb2.connection) {
-            acquire();
-
-            add_kernel_thread([](void* param1, void* param2) {
-                auto hub = (usb_device_hub*)param1;
-                auto port = (uint8_t)(uintptr_t)param2;
-
-                hub->device_connected(port);
-                hub->release();
-            }, this, (void*)(uintptr_t)port);
+    // FIXME - only if hub not USB 3?
+    for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
+        if (!set_port_feature(usb_port_feature_selector::PORT_RESET, port)) {
+            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
+            return;
         }
     }
 
@@ -313,6 +305,26 @@ void usb_device_hub::port_status_change(uint8_t port) {
         }
 
         clear_port_feature(usb_port_feature_selector::C_PORT_CONNECTION, port);
+    }
+
+    if (new_status->usb2.enable_changed) {
+        old_status.usb2.enabled = new_status->usb2.enabled;
+        clear_port_feature(usb_port_feature_selector::C_PORT_ENABLE, port);
+    }
+
+    if (new_status->usb2.suspend_changed) {
+        old_status.usb2.suspended = new_status->usb2.suspended;
+        clear_port_feature(usb_port_feature_selector::C_PORT_SUSPEND, port);
+    }
+
+    if (new_status->usb2.over_current_changed) {
+        old_status.usb2.over_current = new_status->usb2.over_current;
+        clear_port_feature(usb_port_feature_selector::C_PORT_OVER_CURRENT, port);
+    }
+
+    if (new_status->usb2.reset_changed) {
+        old_status.usb2.reset = new_status->usb2.reset;
+        clear_port_feature(usb_port_feature_selector::C_PORT_RESET, port);
     }
 
     free(new_status);
