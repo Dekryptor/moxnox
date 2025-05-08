@@ -180,6 +180,7 @@ public:
                              uint8_t num_ports = 0);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
     uint8_t find_root_port();
+    pair<usb_device*, uint8_t> find_tt();
 
     void acquire() {
         refcount++;
@@ -1005,6 +1006,19 @@ uint32_t usb_device::find_route_string() {
     }
 }
 
+pair<usb_device*, uint8_t> usb_device::find_tt() {
+    auto d = this;
+
+    while (d->parent.device) {
+        if (d->speed_class < usb_speed_class::high_speed && d->parent.device->speed_class >= usb_speed_class::high_speed)
+            return { d->parent.device, d->port };
+
+        d = d->parent.device;
+    }
+
+    return { nullptr, 0 };
+}
+
 usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t slot,
                        uint8_t speed, uint8_t port, enum usb_speed_class speed_class) : controller(controller), parent(parent), devctx(devctx) {
     this->slot = slot;
@@ -1022,6 +1036,8 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
     }
 
     uint16_t max_packet_size;
+
+    auto [tt, tt_port] = find_tt();
 
     auto func = [&]<bool LARGE>() -> bool {
         auto context = new xhci_input_context<LARGE>;
@@ -1046,8 +1062,13 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
         context->slot.root_hub_port_number = find_root_port();
         context->slot.route_string = find_route_string();
 #pragma GCC diagnostic pop
-        // FIXME - parent_hub_slot_id
-        // FIXME - parent_port_number
+
+        if (tt) {
+            context->slot.parent_hub_slot_id = tt->slot;
+            context->slot.parent_port_number = tt_port;
+            // FIXME - multi_tt
+        }
+
         // FIXME - ttt
         context->slot.context_entries = 1;
 
