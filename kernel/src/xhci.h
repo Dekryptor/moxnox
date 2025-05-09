@@ -99,7 +99,7 @@ enum class xhci_trb_type {
     nop_transfer = 8,
     enable_slot_command = 9,
     disable_slot_command = 10,
-    address_device_command =11 ,
+    address_device_command = 11,
     configure_endpoint_command = 12,
     evaluate_context_command = 13,
     reset_endpoint_command = 14,
