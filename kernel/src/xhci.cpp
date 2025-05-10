@@ -181,6 +181,7 @@ public:
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
     uint8_t find_root_port();
     pair<usb_device*, uint8_t> find_tt();
+    bool set_hub_ports(uint8_t num_ports);
 
     void acquire() {
         refcount++;
@@ -2361,6 +2362,64 @@ void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
             }
         }
     }
+}
+
+bool usb_device::set_hub_ports(uint8_t num_ports) {
+    xhci_request req;
+
+    auto& s = *reinterpret_cast<xhci_trb_configure_endpoint*>(&req.trb);
+
+    memset(&s, 0, sizeof(s));
+
+    auto func = [&]<bool LARGE>() -> bool {
+        auto context = new xhci_input_context<LARGE>;
+        if (!context) {
+            print("new failed\n");
+            return false;
+        }
+
+        memset(context, 0, sizeof(*context));
+        context->control.add_context = 1; // slot
+
+        s.input_context_pointer = va_to_pa_phys(context);
+        s.trb_type = (uint16_t)xhci_trb_type::configure_endpoint_command;
+        s.slot_id = slot;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        context->slot.speed = speed;
+        context->slot.root_hub_port_number = find_root_port();
+        context->slot.route_string = find_route_string();
+#pragma GCC diagnostic pop
+        context->slot.context_entries = 1;
+
+        context->slot.hub = 1;
+        context->slot.num_ports = num_ports;
+        // FIXME - multi_tt
+
+        controller.command_queue.submit(req, true);
+
+        wait_for_object(req.event.get(), false);
+
+        delete context;
+
+        return true;
+    };
+
+    if (controller.large_contexts) {
+        if (!func.template operator()<true>())
+            return false;
+    } else {
+        if (!func.template operator()<false>())
+            return false;
+    }
+
+    if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
+        print("usb_device::set_hub_ports: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
+        return false;
+    }
+
+    return true;
 }
 
 void xhci::isr() {

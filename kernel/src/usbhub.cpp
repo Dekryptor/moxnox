@@ -513,6 +513,12 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
+    if (!d.set_hub_ports(hub_desc->bNbrPorts)) {
+        print("usb_device::set_hub_ports failed\n");
+        free(hub_desc);
+        return false;
+    }
+
     auto queue = d.add_endpoint(*ep_desc, hub_desc->bNbrPorts);
 
     if (!queue) {
