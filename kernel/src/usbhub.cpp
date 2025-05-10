@@ -10,8 +10,13 @@ import format;
 import xhci;
 import usb;
 import mem;
+import timer;
 
 using namespace std;
+
+static const unsigned int PORT_RESET_DELAY = 800; // ms
+
+static const int64_t ONE_MS_TICKS = 10000;
 
 union port_status {
     struct {
@@ -201,6 +206,45 @@ void usb_device_hub::device_connected(uint8_t port) {
 
     auto& controller = d.controller;
     auto& p = ports[port - 1];
+
+    if (!set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
+        print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
+        return;
+    }
+
+    {
+        auto tim_ref = create_timer(true);
+        if (!tim_ref) {
+            print("usb_device_hub::device_connected: create_timer failed\n");
+            return;
+        }
+
+        auto& tim = static_cast<timer&>(tim_ref.get());
+
+        auto status = tim.set(-ONE_MS_TICKS * 10, nullptr, nullptr, false,
+                              10, nullptr);
+        if (!success(status)) {
+            print("usb_device_hub::device_connected: timer::set returned {}\n", status);
+            return;
+        }
+
+        for (unsigned int i = 0; i < PORT_RESET_DELAY; i += 10) {
+            if (!get_port_status(port, p.status)) {
+                print("usb_device_hub::get_port_status failed\n");
+                return;
+            }
+
+            if (!p.status.usb2.reset)
+                break;
+
+            wait_for_object(tim, true);
+        }
+
+        if (p.status.usb2.reset) {
+            print("usb_device_hub::device_connected: reset timed out\n");
+            return;
+        }
+    }
 
     // FIXME - can we rely on slot_type always being 0?
     auto slot = controller.enable_slot(0);
