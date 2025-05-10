@@ -80,8 +80,8 @@ public:
     bool initialized = false;
 
 private:
-    bool set_port_feature(enum usb_port_feature_selector feature, uint16_t index);
-    bool clear_port_feature(enum usb_port_feature_selector feature,
+    bool set_port_feature(enum usb2_port_feature_selector feature, uint16_t index);
+    bool clear_port_feature(enum usb2_port_feature_selector feature,
                             uint16_t index);
     bool get_port_status(uint8_t port, port_status& status);
     void port_status_change(uint8_t port);
@@ -162,14 +162,14 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descrip
     memset(ports, 0, sizeof(usb_hub_port) * hub_desc->bNbrPorts);
 
     for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
-        if (!set_port_feature(usb_port_feature_selector::PORT_POWER, port)) {
+        if (!set_port_feature(usb2_port_feature_selector::PORT_POWER, port)) {
             print("usb_device_hub::set_port_feature failed\n");
             return;
         }
     }
 
     for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
-        if (!set_port_feature(usb_port_feature_selector::PORT_POWER, port)) {
+        if (!set_port_feature(usb2_port_feature_selector::PORT_POWER, port)) {
             print("usb_device_hub::set_port_feature(PORT_POWER) failed\n");
             return;
         }
@@ -177,7 +177,7 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descrip
 
     // FIXME - only if hub not USB 3?
     for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
-        if (!set_port_feature(usb_port_feature_selector::PORT_RESET, port)) {
+        if (!set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
             print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
             return;
         }
@@ -237,7 +237,7 @@ void usb_device_hub::device_connected(uint8_t port) {
     device_found(slot, port, speed_class, speed);
 }
 
-bool usb_device_hub::set_port_feature(enum usb_port_feature_selector feature,
+bool usb_device_hub::set_port_feature(enum usb2_port_feature_selector feature,
                                       uint16_t index) {
     if (!d.set_feature(USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
                        (uint8_t)feature, index)) {
@@ -258,7 +258,7 @@ bool usb_device_hub::get_port_status(uint8_t port, port_status& status) {
     return true;
 }
 
-bool usb_device_hub::clear_port_feature(enum usb_port_feature_selector feature,
+bool usb_device_hub::clear_port_feature(enum usb2_port_feature_selector feature,
                                         uint16_t index) {
     if (!d.clear_feature(USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
                          (uint8_t)feature, index)) {
@@ -304,20 +304,20 @@ void usb_device_hub::port_status_change(uint8_t port) {
             }
         }
 
-        clear_port_feature(usb_port_feature_selector::C_PORT_CONNECTION, port);
+        clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
     }
 
     if (new_status->usb2.enable_changed)
-        clear_port_feature(usb_port_feature_selector::C_PORT_ENABLE, port);
+        clear_port_feature(usb2_port_feature_selector::C_PORT_ENABLE, port);
 
     if (new_status->usb2.suspend_changed)
-        clear_port_feature(usb_port_feature_selector::C_PORT_SUSPEND, port);
+        clear_port_feature(usb2_port_feature_selector::C_PORT_SUSPEND, port);
 
     if (new_status->usb2.over_current_changed)
-        clear_port_feature(usb_port_feature_selector::C_PORT_OVER_CURRENT, port);
+        clear_port_feature(usb2_port_feature_selector::C_PORT_OVER_CURRENT, port);
 
     if (new_status->usb2.reset_changed)
-        clear_port_feature(usb_port_feature_selector::C_PORT_RESET, port);
+        clear_port_feature(usb2_port_feature_selector::C_PORT_RESET, port);
 
     free(new_status);
 }
