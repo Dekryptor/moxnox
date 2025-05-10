@@ -16,7 +16,7 @@ using namespace std;
 
 static const unsigned int PORT_RESET_DELAY = 800; // ms
 
-static const int64_t ONE_MS_TICKS = 10000;
+#define ONE_MS_TICKS 10000 // FIXME
 
 union port_status {
     struct {

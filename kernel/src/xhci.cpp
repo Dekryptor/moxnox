@@ -24,7 +24,7 @@ static const uint16_t EVENT_RING_SIZE = 64;
 static const uint16_t COMMAND_RING_SIZE = 64;
 static const uint16_t ENDPOINT_RING_SIZE = 64;
 
-static const int64_t ONE_MS_TICKS = 10000;
+#define ONE_MS_TICKS 10000 // FIXME
 
 struct xhci_request {
     xhci_trb_common trb;
