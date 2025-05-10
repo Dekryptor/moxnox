@@ -121,6 +121,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
 bool init_cpu_block(unsigned int cpu_no);
 void disable_preempt();
 void enable_preempt();
+unsigned int wake_up_waiters(list_entry& waiters);
 
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;

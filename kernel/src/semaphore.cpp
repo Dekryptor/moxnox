@@ -57,8 +57,6 @@ export object_ref create_semaphore(unsigned int maximum_count) {
 }
 
 export void release_semaphore(semaphore& s) {
-    unsigned int waiter_count = 0;
-
     // FIXME - what if not held by current thread?
 
     sync_lock sl;
@@ -69,15 +67,7 @@ export void release_semaphore(semaphore& s) {
 
     s.current_count--;
 
-    if (!is_list_empty(s.waiters)) {
-        auto& t = *(thread*)((uint8_t*)s.waiters.next - offsetof(thread, wait_le));
-
-        assert(t.status == thread_status::waiting);
-
-        remove_entry_list(t.wait_le);
-        t.status = thread_status::runnable;
-        waiter_count++;
-    }
+    auto waiter_count = wake_up_waiters(s.waiters);
 
     if (waiter_count == 0)
         s.signalled = true;

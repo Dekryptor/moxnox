@@ -69,14 +69,7 @@ void thread::terminate() {
         if (current_cpu != 0xffffffff)
             acquire();
 
-        while (!is_list_empty(waiters)) {
-            auto& t = *(thread*)((uint8_t*)waiters.next - offsetof(thread, wait_le));
-
-            assert(t.status == thread_status::waiting);
-
-            remove_entry_list(t.wait_le);
-            t.status = thread_status::runnable;
-        }
+        wake_up_waiters(waiters);
 
         remove_entry_list(this->le);
 

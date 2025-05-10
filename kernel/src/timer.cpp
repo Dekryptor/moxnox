@@ -148,19 +148,10 @@ void timer_expired(timer* tptr) {
     // interrupts disabled and sync_lock held
 
     auto& t = *tptr;
-    unsigned int waiter_count = 0;
 
     // signal waiting threads
 
-    while (!is_list_empty(t.waiters)) {
-        auto& thr = *(thread*)((uint8_t*)t.waiters.next - offsetof(thread, wait_le));
-
-        assert(thr.status == thread_status::waiting);
-
-        remove_entry_list(thr.wait_le);
-        thr.status = thread_status::runnable;
-        waiter_count++;
-    }
+    auto waiter_count = wake_up_waiters(t.waiters);
 
     // if autoreset, only signal if nothing waiting when fired
     if (!t.autoreset || waiter_count == 0)

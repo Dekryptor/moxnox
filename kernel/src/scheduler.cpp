@@ -294,6 +294,22 @@ nt_status wait_for_object(object& obj, bool interruptible,
     return nt_status::SUCCESS;
 }
 
+unsigned int wake_up_waiters(list_entry& waiters) {
+    unsigned int ret = 0;
+
+    while (!is_list_empty(waiters)) {
+        auto& t = *(thread*)((uint8_t*)waiters.next - offsetof(thread, wait_le));
+
+        assert(t.status == thread_status::waiting);
+
+        remove_entry_list(t.wait_le);
+        t.status = thread_status::runnable;
+        ret++;
+    }
+
+    return ret;
+}
+
 bool init_cpu_block(unsigned int cpu_no) {
     auto pages = bytes_to_pages(sizeof(cpu_block));
     auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);

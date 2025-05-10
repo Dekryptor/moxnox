@@ -54,12 +54,7 @@ void rwsem::lock() { // exclusive
 }
 
 static void wake_up_exclusive_thread(rwsem& sem) {
-    auto& t = *(thread*)((uint8_t*)sem.wait_list_exclusive.next - offsetof(thread, wait_le));
-
-    assert(t.status == thread_status::waiting);
-
-    remove_entry_list(t.wait_le);
-    t.status = thread_status::runnable;
+    wake_up_waiters(sem.wait_list_exclusive);
 }
 
 void rwsem::unlock() { // exclusive
@@ -79,14 +74,7 @@ void rwsem::unlock() { // exclusive
 
     exclusive = false;
 
-    while (!is_list_empty(wait_list_shared)) {
-        auto& t = *(thread*)((uint8_t*)wait_list_shared.next - offsetof(thread, wait_le));
-
-        assert(t.status == thread_status::waiting);
-
-        remove_entry_list(t.wait_le);
-        t.status = thread_status::runnable;
-    }
+    wake_up_waiters(wait_list_shared);
 
     release_sync_lock();
     enable_interrupts();
