@@ -205,7 +205,8 @@ void scheduler() {
     } while (true);
 }
 
-nt_status wait_for_object(object& obj, bool interruptible) {
+nt_status wait_for_object(object& obj, bool interruptible,
+                          optional<uint64_t> timeout) {
 #ifdef DEBUG
     uint64_t cr8 = 0, rflags = 0;
 
@@ -265,6 +266,12 @@ nt_status wait_for_object(object& obj, bool interruptible) {
             __asm("sti");
 
             return nt_status::SUCCESS;
+        }
+
+        if (timeout.has_value() && *timeout == 0) {
+            release_sync_lock();
+            __asm("sti");
+            return nt_status::TIMEOUT;
         }
 
         visit_obj(obj, [&](auto&& o) {
@@ -345,7 +352,8 @@ bool init_cpu_block(unsigned int cpu_no) {
     return true;
 }
 
-NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE_INTEGER*) {
+NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
+                               const LARGE_INTEGER* timeout) {
     // FIXME - time_out
 
     auto objrw = deref_handle(object_handle);
@@ -354,19 +362,18 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE
 
     // FIXME - check handle has SYNCHRONIZE access
 
-    auto& obj = objrw.get();
+    optional<uint64_t> t;
 
-    visit_obj(obj, [](auto&& o) {
-        o.acquire();
-    });
+    if (timeout) {
+        if (timeout->QuadPart > 0) {
+            print("FIXME - NtWaitForSingleObject positive timeout\n");
+            return nt_status::NOT_SUPPORTED;
+        }
 
-    auto status = wait_for_object(objrw.get(), alertable);
+        t = -timeout->QuadPart;
+    }
 
-    visit_obj(obj, [](auto&& o) {
-        o.release();
-    });
-
-    return status;
+    return wait_for_object(objrw.get(), alertable, t);
 }
 
 void disable_preempt() {

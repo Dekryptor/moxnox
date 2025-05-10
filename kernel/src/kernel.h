@@ -116,7 +116,8 @@ class object_ref;
 // scheduler.cpp
 extern list_entry thread_list, thread_list_dead;
 extern "C" void scheduler();
-nt_status wait_for_object(object& obj, bool interruptible);
+nt_status wait_for_object(object& obj, bool interruptible,
+                          std::optional<uint64_t> timeout = std::nullopt);
 bool init_cpu_block(unsigned int cpu_no);
 void disable_preempt();
 void enable_preempt();

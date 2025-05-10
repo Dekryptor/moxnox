@@ -6,6 +6,7 @@
 enum class nt_status : uint32_t {
     SUCCESS = 0x00000000,
     ALERTED = 0x00000101,
+    TIMEOUT = 0x00000102,
     PENDING = 0x00000103,
     BREAKPOINT = 0x80000003,
     SINGLE_STEP = 0x80000004,
