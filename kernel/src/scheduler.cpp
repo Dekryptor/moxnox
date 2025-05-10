@@ -10,6 +10,7 @@ import objects;
 #include "inode.h"
 import volume;
 #include "visit_object.h"
+#include "tick_rate.h"
 #include <cstdlib>
 #include <optional>
 #include <atomic>
@@ -30,6 +31,7 @@ static const uint64_t time_slice = 50; // ticks
 
 list_entry thread_list = { &thread_list, &thread_list };
 list_entry thread_list_dead = { &thread_list_dead, &thread_list_dead };
+list_entry thread_list_timeout = { &thread_list_timeout, &thread_list_timeout };
 
 static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
@@ -284,6 +286,13 @@ nt_status wait_for_object(object& obj, bool interruptible,
         current_thread->status = thread_status::waiting;
         current_thread->current_cpu = 0xffffffff;
         current_thread->wait_interruptible = interruptible;
+
+        if (!timeout.has_value())
+            current_thread->wait_timeout = 0;
+        else {
+            current_thread->wait_timeout = min((uint64_t)1, (*timeout * TICK_RATE) / SYSTEM_TIME_RESOLUTION);
+            insert_tail_list(thread_list_timeout, current_thread->timeout_le);
+        }
     }
 
     yield(); // releases sync_lock
@@ -301,6 +310,9 @@ unsigned int wake_up_waiters(list_entry& waiters) {
         auto& t = *(thread*)((uint8_t*)waiters.next - offsetof(thread, wait_le));
 
         assert(t.status == thread_status::waiting);
+
+        if (t.wait_timeout != 0)
+            remove_entry_list(t.timeout_le);
 
         remove_entry_list(t.wait_le);
         t.status = thread_status::runnable;

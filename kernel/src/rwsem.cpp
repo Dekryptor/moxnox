@@ -50,6 +50,7 @@ void rwsem::lock() { // exclusive
     t.status = thread_status::waiting;
     t.current_cpu = 0xffffffff;
     t.wait_interruptible = false;
+    t.wait_timeout = 0;
     yield();
 }
 
@@ -99,6 +100,7 @@ void rwsem::lock_shared() {
     t.status = thread_status::waiting;
     t.current_cpu = 0xffffffff;
     t.wait_interruptible = false;
+    t.wait_timeout = 0;
     yield();
 }
 

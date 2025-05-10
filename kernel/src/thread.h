@@ -81,6 +81,8 @@ public:
     bool wait_interruptible;
     list_entry wait_le;
     list_entry waiters = { &waiters, &waiters };
+    list_entry timeout_le;
+    uint64_t wait_timeout;
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);
