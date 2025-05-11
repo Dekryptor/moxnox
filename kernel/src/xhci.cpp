@@ -4,6 +4,7 @@ module;
 #include "kernel.h"
 #include "xhci.h"
 #include "spinlock.h"
+#include "tick_rate.h"
 
 export module xhci;
 
@@ -23,6 +24,8 @@ using namespace std;
 static const uint16_t EVENT_RING_SIZE = 64;
 static const uint16_t COMMAND_RING_SIZE = 64;
 static const uint16_t ENDPOINT_RING_SIZE = 64;
+
+static const uint64_t USB_TIMEOUT = 5 * SYSTEM_TIME_RESOLUTION; // 5 seconds
 
 #define ONE_MS_TICKS 10000 // FIXME
 
@@ -1514,7 +1517,12 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         submit(req_status, true);
     }
 
-    wait_for_object(req_status.event.get(), false);
+    auto status = wait_for_object(req_status.event.get(), false, USB_TIMEOUT);
+
+    if (status == nt_status::TIMEOUT) {
+        print("xhci_queue::control_transfer: request timed out\n");
+        return false;
+    }
 
     if ((enum TRB_CODE)req_status.ev.completion_code != TRB_CODE::SUCCESS) {
         print("xhci_queue::control_transfer: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
