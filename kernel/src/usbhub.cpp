@@ -173,13 +173,6 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descrip
         }
     }
 
-    for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
-        if (!set_port_feature(usb2_port_feature_selector::PORT_POWER, port)) {
-            print("usb_device_hub::set_port_feature(PORT_POWER) failed\n");
-            return;
-        }
-    }
-
     // FIXME - only if hub not USB 3?
     for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
         if (!set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
