@@ -373,6 +373,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "SUCCESS");
         case nt_status::ALERTED:
             return sp_strcpy(sp, "ALERTED");
+        case nt_status::TIMEOUT:
+            return sp_strcpy(sp, "TIMEOUT");
         case nt_status::PENDING:
             return sp_strcpy(sp, "PENDING");
         case nt_status::BREAKPOINT:
@@ -413,6 +415,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "OBJECT_NAME_COLLISION");
         case nt_status::OBJECT_PATH_NOT_FOUND:
             return sp_strcpy(sp, "OBJECT_PATH_NOT_FOUND");
+        case nt_status::SHARING_VIOLATION:
+            return sp_strcpy(sp, "SHARING_VIOLATION");
         case nt_status::INVALID_PAGE_PROTECTION:
             return sp_strcpy(sp, "INVALID_PAGE_PROTECTION");
         case nt_status::PROCEDURE_NOT_FOUND:
@@ -425,6 +429,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "INTEGER_DIVIDE_BY_ZERO");
         case nt_status::INSUFFICIENT_RESOURCES:
             return sp_strcpy(sp, "INSUFFICIENT_RESOURCES");
+        case nt_status::MEDIA_WRITE_PROTECTED:
+            return sp_strcpy(sp, "MEDIA_WRITE_PROTECTED");
         case nt_status::FILE_IS_A_DIRECTORY:
             return sp_strcpy(sp, "FILE_IS_A_DIRECTORY");
         case nt_status::NOT_SUPPORTED:
@@ -443,6 +449,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "DLL_INIT_FAILED");
         case nt_status::ILLEGAL_DLL_RELOCATION:
             return sp_strcpy(sp, "ILLEGAL_DLL_RELOCATION");
+        case nt_status::SYSTEM_SHUTDOWN:
+            return sp_strcpy(sp, "SYSTEM_SHUTDOWN");
         default:
             return do_format_arg(sp, ":08x", (uint32_t)arg);
     }
