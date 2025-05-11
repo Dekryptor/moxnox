@@ -185,6 +185,7 @@ public:
     uint8_t find_root_port();
     pair<usb_device*, uint8_t> find_tt();
     bool set_hub_ports(uint8_t num_ports);
+    bool set_interface(uint16_t interface, uint16_t alternate);
 
     void acquire() {
         refcount++;
@@ -2424,6 +2425,17 @@ bool usb_device::set_hub_ports(uint8_t num_ports) {
 
     if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
         print("usb_device::set_hub_ports: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
+        return false;
+    }
+
+    return true;
+}
+
+bool usb_device::set_interface(uint16_t interface, uint16_t alternate) {
+    if (!ep0_queue.control_transfer(span<uint8_t>(),
+            USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_INTERFACE,
+            usb_request::SET_INTERFACE, alternate, interface)) {
+        print("xhci_queue::control_transfer failed\n");
         return false;
     }
 
