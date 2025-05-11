@@ -1520,7 +1520,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
     auto status = wait_for_object(req_status.event.get(), false, USB_TIMEOUT);
 
     if (status == nt_status::TIMEOUT) {
-        print("xhci_queue::control_transfer: request timed out\n");
+        print("xhci_queue::control_transfer: request timed out ({})\n", (enum TRB_CODE)req_setup.ev.completion_code);
         return false;
     }
 
