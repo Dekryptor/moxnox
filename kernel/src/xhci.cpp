@@ -1501,7 +1501,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         s.data_buffer = va_to_pa_phys(buf.data());
         s.trb_transfer_length = (uint16_t)buf.size();
         s.trb_type = (uint16_t)xhci_trb_type::data_stage;
-        s.dir = !!(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST);
+        s.dir = bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST ? 1 : 0;
 
         submit(req_data, true);
     }
@@ -1513,7 +1513,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
 
         s.ioc = 1;
         s.trb_type = (uint16_t)xhci_trb_type::status_stage;
-        s.dir = buf.empty() || !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST);
+        s.dir = (buf.empty() || !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)) ? 1 : 0;
 
         submit(req_status, true);
     }
