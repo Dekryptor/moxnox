@@ -539,7 +539,7 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    auto queue = d.add_endpoint(*ep_desc, hub_desc->bNbrPorts);
+    auto queue = d.add_endpoint(*ep_desc);
 
     if (!queue) {
         print("usb_device::add_endpoint failed\n");
