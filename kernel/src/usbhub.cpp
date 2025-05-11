@@ -91,12 +91,14 @@ private:
     bool get_port_status(uint8_t port, port_status& status);
     void port_status_change(uint8_t port);
     void device_connected(uint8_t port);
+    bool get_hub_status(uint32_t& hub_status);
 
     usb_device& d;
     xhci_queue& queue;
     usb_hub_descriptor* hub_desc = nullptr;
     usb_hub_port* ports = nullptr;
     atomic<unsigned int> refcount = 1;
+    uint32_t hub_status;
 };
 
 static bool found_usb_hub_device(usb_device& d, uint8_t bInterfaceNumber,
@@ -152,6 +154,26 @@ span<char> do_format_arg(span<char> sp, string_view, const port_status& arg) {
     return sp;
 }
 
+bool usb_device_hub::get_hub_status(uint32_t& hub_status) {
+    auto buf = (uint32_t*)malloc(sizeof(uint32_t));
+    if (!buf) {
+        print("malloc failed\n");
+        return false;
+    }
+
+    if (!d.get_status(USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
+                      span((uint8_t*)buf, sizeof(*buf)), 0, 0)) {
+        print("usb_device::get_status failed\n");
+        free(buf);
+        return false;
+    }
+
+    hub_status = *buf;
+    free(buf);
+
+    return true;
+}
+
 usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc) :
         usb_hub(d.controller, &d, d.parent.depth + 1), d(d), queue(queue) {
     this->hub_desc = hub_desc;
@@ -165,6 +187,11 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descrip
     }
 
     memset(ports, 0, sizeof(usb_hub_port) * hub_desc->bNbrPorts);
+
+    if (!get_hub_status(hub_status)) {
+        print("usb_device_hub::get_hub_status failed\n");
+        return;
+    }
 
     for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
         if (!set_port_feature(usb2_port_feature_selector::PORT_POWER, port)) {
