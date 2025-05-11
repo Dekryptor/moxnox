@@ -94,3 +94,5 @@ static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
 static_assert(offsetof(thread, pending_signal) == THREAD_PENDING_SIGNAL);
+static_assert(offsetof(thread, timeout_le) == THREAD_TIMEOUT_LE);
+static_assert(offsetof(thread, wait_timeout) == THREAD_WAIT_TIMEOUT);

@@ -290,7 +290,11 @@ nt_status wait_for_object(object& obj, bool interruptible,
         if (!timeout.has_value())
             current_thread->wait_timeout = 0;
         else {
-            current_thread->wait_timeout = min((uint64_t)1, (*timeout * TICK_RATE) / SYSTEM_TIME_RESOLUTION);
+            current_thread->wait_timeout = *timeout / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+
+            if (*timeout % (SYSTEM_TIME_RESOLUTION / TICK_RATE))
+                current_thread->wait_timeout++;
+
             insert_tail_list(thread_list_timeout, current_thread->timeout_le);
         }
     }
@@ -299,6 +303,9 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
     if (interruptible && current_thread->pending_signal)
         return nt_status::ALERTED;
+
+    if (timeout.has_value() && current_thread->wait_timeout == 0)
+        return nt_status::TIMEOUT;
 
     return nt_status::SUCCESS;
 }
@@ -320,6 +327,20 @@ unsigned int wake_up_waiters(list_entry& waiters) {
     }
 
     return ret;
+}
+
+extern "C"
+void wait_timeout_expired(thread* tptr) {
+    // interrupts disabled and sync_lock held
+
+    auto& t = *tptr;
+
+    assert(t.status == thread_status::waiting);
+
+    remove_entry_list(t.timeout_le);
+    remove_entry_list(t.wait_le);
+
+    t.status = thread_status::runnable;
 }
 
 bool init_cpu_block(unsigned int cpu_no) {

@@ -123,7 +123,7 @@ timer_isr:
 
 Ltimer_isr_loop_start:
     cmp rax, rcx
-    je Ltimer_isr_loop_end
+    je Ltimer_isr_wait_timeout_start
 
     mov rdx, [rax] # set rdx to le->next
     sub rax, TIMER_LE
@@ -154,6 +154,44 @@ Ltimer_isr_loop_start:
 Ltimer_isr_not_expired:
     mov rax, rdx
     jmp Ltimer_isr_loop_start
+
+Ltimer_isr_wait_timeout_start:
+    mov rax, [rip+thread_list_timeout] # set rax to thread_list_timeout.next
+    lea rcx, [rip+thread_list_timeout] # set rcx to &thread_list_timeout
+
+Ltimer_isr_wait_timeout_loop_start:
+    cmp rax, rcx
+    je Ltimer_isr_loop_end
+
+    mov rdx, [rax] # set rdx to le->next
+    sub rax, THREAD_TIMEOUT_LE
+
+    dec QWORD PTR [rax+THREAD_WAIT_TIMEOUT] # reduce wait_timeout
+    cmp QWORD PTR [rax+THREAD_WAIT_TIMEOUT], 0
+    jne Ltimer_isr_wait_timeout_not_expired
+
+    push rax
+    push rcx
+    push rdx
+    push r8
+    push r9
+    push r10
+    push r11
+    mov rcx, rax
+    sub rsp, 0x20
+    call wait_timeout_expired
+    add rsp, 0x20
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+
+Ltimer_isr_wait_timeout_not_expired:
+    mov rax, rdx
+    jmp Ltimer_isr_wait_timeout_loop_start
 
 Ltimer_isr_loop_end:
     call release_sync_lock
