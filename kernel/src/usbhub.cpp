@@ -521,6 +521,12 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
+    // set number of ports to 4 initially
+    if (!d.set_hub_ports(4)) {
+        print("usb_device::set_hub_ports failed\n");
+        return false;
+    }
+
     auto hub_desc = get_hub_descriptor(d);
     if (!hub_desc) {
         print("get_hub_descriptor failed\n");
