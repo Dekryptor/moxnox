@@ -1320,6 +1320,7 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
     auto func = [&]<bool LARGE>() {
         auto context = (xhci_input_context<LARGE>*)input_context;
 
+        memset(&context->control, 0, sizeof(context->control));
         context->control.add_context = 1 | (1 << (ep_index + 1)); // slot, endpoint
 
         s.input_context_pointer = va_to_pa_phys(context);
@@ -1367,7 +1368,7 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-            context->slot.context_entries = (uint8_t)(ep_index + 1);
+            context->slot.context_entries = (uint8_t)(ep_index + 1); // FIXME
             context->slot.ttt = tt_think_time;
 
             context->slot.hub = num_ports > 0 ? 1 : 0;
@@ -1376,6 +1377,8 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
 #pragma GCC diagnostic pop
 
             auto& ep = context->ep[ep_index];
+
+            memset(&ep, 0, sizeof(ep));
 
             switch (ep_desc.transfer_type) {
                 case USB_ENDPOINT_TRANSFER_TYPE_CONTROL:
