@@ -215,6 +215,7 @@ private:
     uint32_t find_route_string();
 
     void* devctx;
+    void* input_context = nullptr;
     atomic<unsigned int> refcount = 1;
     rwsem endpoint_mutex;
     spinlock endpoint_spinlock;
@@ -1045,11 +1046,15 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
     auto [tt, tt_port] = find_tt();
 
     auto func = [&]<bool LARGE>() -> bool {
-        auto context = new xhci_input_context<LARGE>;
+        auto context = (xhci_input_context<LARGE>*)malloc(sizeof(xhci_input_context<LARGE>));
         if (!context) {
-            print("new failed\n");
+            print("malloc failed\n");
             return false;
         }
+
+        new (context) xhci_input_context<LARGE>;
+
+        input_context = context;
 
         memset(context, 0, sizeof(*context));
         context->control.add_context = 3; // slot and EP0
@@ -1057,7 +1062,6 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
         ep0_queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
         if (!ep0_queue.initialized) {
             print("xhci_queue::initialize failed\n");
-            delete context;
             return false;
         }
 
@@ -1122,12 +1126,9 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
             // FIXME - translate into nt_status?
             if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
                 print("usb_device::usb_device: controller returned error {} for address device\n", (enum TRB_CODE)req.comp.completion_code);
-                delete context;
                 return false;
             }
         }
-
-        delete context;
 
         return true;
     };
@@ -1201,6 +1202,9 @@ usb_device::~usb_device() {
         delete (xhci_device_context<true>*)devctx;
     else
         delete (xhci_device_context<false>*)devctx;
+
+    if (input_context)
+        free(input_context);
 
     if (initialized) {
         lock_guard lock(controller.devices_lock);
