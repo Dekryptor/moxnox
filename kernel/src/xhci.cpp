@@ -1099,7 +1099,6 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
         context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
         context->ep[0].max_packet_size = max_packet_size;
         context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
-        context->ep[0].average_trb_length = max_packet_size;
         context->ep[0].cerr = 3;
 
         // some devices need an address_device with BSR set first
@@ -1248,7 +1247,6 @@ bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
         context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
         context->ep[0].max_packet_size = max_packet_size;
         context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
-        context->ep[0].average_trb_length = max_packet_size;
         context->ep[0].cerr = 3;
 
         controller.command_queue.submit(req, true);
@@ -1422,7 +1420,6 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
             ep.interval = find_interval(ep_desc, speed_class);
             ep.max_packet_size = ep_desc.wMaxPacketSize;
             ep.tr_dequeue_pointer = dep->queue.ring_pa | XHCI_EP_DCS;
-            ep.average_trb_length = ep_desc.wMaxPacketSize;
             ep.cerr = 3;
 
             controller.command_queue.submit(req, true);
