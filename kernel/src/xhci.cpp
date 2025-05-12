@@ -1227,49 +1227,27 @@ bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
 
     memset(&s, 0, sizeof(s));
 
-    auto func = [&]<bool LARGE>() -> bool {
-        auto context = new xhci_input_context<LARGE>;
-        if (!context) {
-            print("new failed\n");
-            return false;
-        }
+    auto func = [&]<bool LARGE>() {
+        auto context = (xhci_input_context<LARGE>*)input_context;
 
-        memset(context, 0, sizeof(*context));
+        memset(&context->control, 0, sizeof(context->control));
         context->control.add_context = 3; // slot and EP0
 
         s.input_context_pointer = va_to_pa_phys(context);
         s.trb_type = (uint16_t)xhci_trb_type::evaluate_context_command;
         s.slot_id = slot;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        context->slot.speed = speed;
-        context->slot.root_hub_port_number = find_root_port();
-        context->slot.route_string = find_route_string();
-#pragma GCC diagnostic pop
-        context->slot.context_entries = 1;
-
-        context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
         context->ep[0].max_packet_size = max_packet_size;
-        context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
-        context->ep[0].cerr = 3;
 
         controller.command_queue.submit(req, true);
 
         wait_for_object(req.event.get(), false);
-
-        delete context;
-
-        return true;
     };
 
-    if (controller.large_contexts) {
-        if (!func.template operator()<true>())
-            return false;
-    } else {
-        if (!func.template operator()<false>())
-            return false;
-    }
+    if (controller.large_contexts)
+        func.template operator()<true>();
+    else
+        func.template operator()<false>();
 
     if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
         print("usb_device::change_ep0_max_packet_size: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
