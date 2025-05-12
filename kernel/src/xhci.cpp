@@ -179,12 +179,12 @@ public:
     bool clear_feature(uint8_t bmRequestType, uint8_t feature, uint16_t index);
     bool get_status(uint8_t bmRequestType, span<uint8_t> buf, uint16_t wValue,
                     uint16_t wIndex);
-    xhci_queue* add_endpoint(const usb_endpoint_descriptor& ep_desc);
+    xhci_queue* configure_endpoint(const usb_endpoint_descriptor& ep_desc,
+                                   uint8_t num_ports = 0, bool multi_tt = false,
+                                   uint8_t tt_think_time = 0);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
     uint8_t find_root_port();
     pair<usb_device*, uint8_t> find_tt();
-    bool set_hub_ports(uint8_t num_ports, bool multi_tt,
-                       uint8_t tt_think_time);
     bool set_interface(uint16_t interface, uint16_t alternate);
 
     void acquire() {
@@ -1323,14 +1323,17 @@ static uint8_t find_interval(const usb_endpoint_descriptor& ep_desc,
     return 0;
 }
 
-xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
+xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_desc,
+                                           uint8_t num_ports, bool multi_tt,
+                                           uint8_t tt_think_time) {
+    auto ep_index = (uint8_t)(1 + ((ep_desc.endpoint_number - 1) * 2) + (ep_desc.direction ? 1 : 0));
+
+    device_endpoint* dep = nullptr;
     xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_configure_endpoint*>(&req.trb);
 
     memset(&s, 0, sizeof(s));
-
-    device_endpoint* dep;
 
     auto func = [&]<bool LARGE>() {
         auto context = new xhci_input_context<LARGE>;
@@ -1339,8 +1342,6 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
             return false;
         }
 
-        unsigned int ep_index = 1 + ((ep_desc.endpoint_number - 1) * 2) + (ep_desc.direction ? 1 : 0);
-
         memset(context, 0, sizeof(*context));
         context->control.add_context = 1 | (1 << (ep_index + 1)); // slot, endpoint
 
@@ -1348,27 +1349,10 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
         s.trb_type = (uint16_t)xhci_trb_type::configure_endpoint_command;
         s.slot_id = slot;
 
-        dep = new device_endpoint;
-        if (!dep) {
-            print("new failed\n");
-            delete context;
-            return false;
-        }
-
-        dep->num = ep_desc.endpoint_number;
-        dep->dir = ep_desc.direction;
-
-        dep->queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))),
-                              ep_index + 1);
-        if (!dep->queue.initialized) {
-            print("xhci_queue::initialize failed\n");
-            delete dep;
-            delete context;
-            return false;
-        }
-
         {
             lock_guard lock(endpoint_mutex);
+
+            bool new_dep = false;
 
             {
                 lock_guard lock2(endpoint_spinlock);
@@ -1376,14 +1360,34 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
                 for (auto le = endpoints.next; le != &endpoints; le = le->next) {
                     auto& e = containing_record<device_endpoint>(le);
 
-                    if (e.num == dep->num && !!e.dir == !!dep->dir) {
-                        print("usb_device::add_endpoint: endpoint {} {} already set up\n",
-                            dep->num, dep->dir ? "IN" : "OUT");
-                        delete dep;
-                        delete context;
-                        return false;
+                    if (e.num == ep_desc.endpoint_number && !!e.dir == !!ep_desc.direction) {
+                        dep = &e;
+                        break;
                     }
                 }
+            }
+
+            if (!dep) {
+                dep = new device_endpoint;
+                if (!dep) {
+                    print("new failed\n");
+                    delete context;
+                    return false;
+                }
+
+                dep->num = ep_desc.endpoint_number;
+                dep->dir = ep_desc.direction;
+
+                dep->queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))),
+                                      ep_index + 1);
+                if (!dep->queue.initialized) {
+                    print("xhci_queue::initialize failed\n");
+                    delete dep;
+                    delete context;
+                    return false;
+                }
+
+                new_dep = true;
             }
 
             auto& devctx = *(xhci_device_context<LARGE>*)phys_address(controller.dcbaa[slot]);
@@ -1393,6 +1397,11 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
             context->slot.context_entries = (uint8_t)(ep_index + 1);
+            context->slot.ttt = tt_think_time;
+
+            context->slot.hub = num_ports > 0 ? 1 : 0;
+            context->slot.num_ports = num_ports;
+            context->slot.multi_tt = multi_tt ? 1 : 0;
 #pragma GCC diagnostic pop
 
             auto& ep = context->ep[ep_index];
@@ -1427,7 +1436,7 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 
             wait_for_object(req.event.get(), false);
 
-            if ((enum TRB_CODE)req.comp.completion_code == TRB_CODE::SUCCESS) {
+            if ((enum TRB_CODE)req.comp.completion_code == TRB_CODE::SUCCESS && new_dep) {
                 lock_guard lock2(endpoint_spinlock);
                 insert_tail_list(endpoints, dep->le);
             }
@@ -1448,7 +1457,7 @@ xhci_queue* usb_device::add_endpoint(const usb_endpoint_descriptor& ep_desc) {
 
     // FIXME - translate into nt_status?
     if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
-        print("usb_device::add_endpoint: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
+        print("usb_device::configure_endpoint: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
         return nullptr;
     }
 
@@ -2363,66 +2372,6 @@ void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
             }
         }
     }
-}
-
-bool usb_device::set_hub_ports(uint8_t num_ports, bool multi_tt,
-                               uint8_t tt_think_time) {
-    xhci_request req;
-
-    auto& s = *reinterpret_cast<xhci_trb_configure_endpoint*>(&req.trb);
-
-    memset(&s, 0, sizeof(s));
-
-    auto func = [&]<bool LARGE>() -> bool {
-        auto context = new xhci_input_context<LARGE>;
-        if (!context) {
-            print("new failed\n");
-            return false;
-        }
-
-        memset(context, 0, sizeof(*context));
-        context->control.add_context = 1; // slot
-
-        s.input_context_pointer = va_to_pa_phys(context);
-        s.trb_type = (uint16_t)xhci_trb_type::configure_endpoint_command;
-        s.slot_id = slot;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        context->slot.speed = speed;
-        context->slot.root_hub_port_number = find_root_port();
-        context->slot.route_string = find_route_string();
-        context->slot.ttt = tt_think_time;
-#pragma GCC diagnostic pop
-        context->slot.context_entries = 1;
-
-        context->slot.hub = 1;
-        context->slot.num_ports = num_ports;
-        context->slot.multi_tt = multi_tt ? 1 : 0;
-
-        controller.command_queue.submit(req, true);
-
-        wait_for_object(req.event.get(), false);
-
-        delete context;
-
-        return true;
-    };
-
-    if (controller.large_contexts) {
-        if (!func.template operator()<true>())
-            return false;
-    } else {
-        if (!func.template operator()<false>())
-            return false;
-    }
-
-    if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
-        print("usb_device::set_hub_ports: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
-        return false;
-    }
-
-    return true;
 }
 
 bool usb_device::set_interface(uint16_t interface, uint16_t alternate) {

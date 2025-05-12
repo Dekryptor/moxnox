@@ -625,10 +625,10 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf,
         return false;
     }
 
-    auto queue = d.add_endpoint(*ep_desc);
+    auto queue = d.configure_endpoint(*ep_desc);
 
     if (!queue) {
-        print("usb_device::add_endpoint failed\n");
+        print("usb_device::configure_endpoint failed\n");
         return false;
     }
 

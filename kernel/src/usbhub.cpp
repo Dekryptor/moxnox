@@ -565,8 +565,8 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
     }
 
     // set number of ports to 4 initially
-    if (!d.set_hub_ports(4, false, 0)) {
-        print("usb_device::set_hub_ports failed\n");
+    if (!d.configure_endpoint(*ep_desc, 4, false, 0)) {
+        print("usb_device::configure_endpoint failed\n");
         return false;
     }
 
@@ -585,16 +585,10 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
     if (d.speed_class == usb_speed_class::high_speed)
         tt_think_time = hub_desc->tt_think_time;
 
-    if (!d.set_hub_ports(hub_desc->bNbrPorts, multi_tt, tt_think_time)) {
-        print("usb_device::set_hub_ports failed\n");
-        free(hub_desc);
-        return false;
-    }
-
-    auto queue = d.add_endpoint(*ep_desc);
-
+    auto queue = d.configure_endpoint(*ep_desc, hub_desc->bNbrPorts, multi_tt,
+                                      tt_think_time);
     if (!queue) {
-        print("usb_device::add_endpoint failed\n");
+        print("usb_device::configure_endpoint failed\n");
         free(hub_desc);
         return false;
     }
