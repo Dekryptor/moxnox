@@ -460,6 +460,7 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
     auto orig_buf = buf;
     auto& i = *(usb_interface_descriptor*)buf.data();
     bool multi_tt = false;
+    uint8_t tt_think_time = 0;
 
     if (i.bAlternateSetting)
         return false;
@@ -564,7 +565,7 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
     }
 
     // set number of ports to 4 initially
-    if (!d.set_hub_ports(4, false)) {
+    if (!d.set_hub_ports(4, false, 0)) {
         print("usb_device::set_hub_ports failed\n");
         return false;
     }
@@ -581,7 +582,10 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    if (!d.set_hub_ports(hub_desc->bNbrPorts, multi_tt)) {
+    if (d.speed_class == usb_speed_class::high_speed)
+        tt_think_time = hub_desc->tt_think_time;
+
+    if (!d.set_hub_ports(hub_desc->bNbrPorts, multi_tt, tt_think_time)) {
         print("usb_device::set_hub_ports failed\n");
         free(hub_desc);
         return false;

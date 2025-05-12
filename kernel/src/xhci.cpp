@@ -183,7 +183,8 @@ public:
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
     uint8_t find_root_port();
     pair<usb_device*, uint8_t> find_tt();
-    bool set_hub_ports(uint8_t num_ports, bool multi_tt);
+    bool set_hub_ports(uint8_t num_ports, bool multi_tt,
+                       uint8_t tt_think_time);
     bool set_interface(uint16_t interface, uint16_t alternate);
 
     void acquire() {
@@ -1791,8 +1792,9 @@ export void print_usb_config(span<const uint8_t> buf) {
                     return;
                 }
 
-                print("HUB: bNbrPorts = {}, wHubCharacteristics = {:04x}, bPwrOn2PwrGood = {}, bHubContrCurrent = {}, DeviceRemovable = ",
-                      h.bNbrPorts, h.wHubCharacteristics, h.bPwrOn2PwrGood, h.bHubContrCurrent);
+                print("HUB: bNbrPorts = {}, power_switching_mode = {}, compound_device = {}, overcurrent_protection_mode = {}, tt_think_time = {}, port_indicators_supported = {}, bPwrOn2PwrGood = {}, bHubContrCurrent = {}, DeviceRemovable = ",
+                      h.bNbrPorts, h.power_switching_mode, h.compound_device, h.overcurrent_protection_mode, h.tt_think_time,
+                      h.port_indicators_supported, h.bPwrOn2PwrGood, h.bHubContrCurrent);
 
                 for (unsigned int i = 0; i < dev_rem_bytes; i++) {
                     print("{:02x}", h.DeviceRemovable[i]);
@@ -2363,7 +2365,8 @@ void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
     }
 }
 
-bool usb_device::set_hub_ports(uint8_t num_ports, bool multi_tt) {
+bool usb_device::set_hub_ports(uint8_t num_ports, bool multi_tt,
+                               uint8_t tt_think_time) {
     xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_configure_endpoint*>(&req.trb);
@@ -2389,6 +2392,7 @@ bool usb_device::set_hub_ports(uint8_t num_ports, bool multi_tt) {
         context->slot.speed = speed;
         context->slot.root_hub_port_number = find_root_port();
         context->slot.route_string = find_route_string();
+        context->slot.ttt = tt_think_time;
 #pragma GCC diagnostic pop
         context->slot.context_entries = 1;
 

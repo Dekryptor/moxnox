@@ -1,6 +1,7 @@
 module;
 
 #include <stdint.h>
+#include <stddef.h>
 
 export module usb;
 
@@ -187,13 +188,18 @@ export struct usb_hub_descriptor {
     uint8_t bDescLength;
     uint8_t bDescriptorType;
     uint8_t bNbrPorts;
-    uint16_t wHubCharacteristics;
+    uint8_t power_switching_mode : 2;
+    uint8_t compound_device : 1;
+    uint8_t overcurrent_protection_mode : 2;
+    uint8_t tt_think_time : 2;
+    uint8_t port_indicators_supported : 1;
+    uint8_t reserved;
     uint8_t bPwrOn2PwrGood;
     uint8_t bHubContrCurrent;
     uint8_t DeviceRemovable[0];
 } __attribute((packed));
 
-static_assert(sizeof(usb_hub_descriptor) == 0x7);
+static_assert(offsetof(usb_hub_descriptor, DeviceRemovable) == 0x7);
 
 export struct usb_interface_association_descriptor {
     uint8_t bLength;
