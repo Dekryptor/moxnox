@@ -1340,13 +1340,8 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
     memset(&s, 0, sizeof(s));
 
     auto func = [&]<bool LARGE>() {
-        auto context = new xhci_input_context<LARGE>;
-        if (!context) {
-            print("new failed\n");
-            return false;
-        }
+        auto context = (xhci_input_context<LARGE>*)input_context;
 
-        memset(context, 0, sizeof(*context));
         context->control.add_context = 1 | (1 << (ep_index + 1)); // slot, endpoint
 
         s.input_context_pointer = va_to_pa_phys(context);
@@ -1375,7 +1370,6 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
                 dep = new device_endpoint;
                 if (!dep) {
                     print("new failed\n");
-                    delete context;
                     return false;
                 }
 
@@ -1387,16 +1381,11 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
                 if (!dep->queue.initialized) {
                     print("xhci_queue::initialize failed\n");
                     delete dep;
-                    delete context;
                     return false;
                 }
 
                 new_dep = true;
             }
-
-            auto& devctx = *(xhci_device_context<LARGE>*)phys_address(controller.dcbaa[slot]);
-
-            memcpy(&context->slot, &devctx.slot, sizeof(xhci_slot_context));
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -1445,8 +1434,6 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
                 insert_tail_list(endpoints, dep->le);
             }
         }
-
-        delete context;
 
         return true;
     };
