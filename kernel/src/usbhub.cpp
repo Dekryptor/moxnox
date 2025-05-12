@@ -457,7 +457,9 @@ static usb_hub_descriptor* get_hub_descriptor(usb_device& d) {
 }
 
 static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
+    auto orig_buf = buf;
     auto& i = *(usb_interface_descriptor*)buf.data();
+    bool multi_tt = false;
 
     if (i.bAlternateSetting)
         return false;
@@ -521,8 +523,48 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
+    if (d.speed_class == usb_speed_class::high_speed) {
+        auto interface = (usb_interface_descriptor*)buf.data();
+
+        buf = orig_buf.subspan(i.bLength);
+
+        while (!buf.empty()) {
+            auto len = buf[0];
+
+            if (len > buf.size() || len < 2) {
+                print("buffer truncated\n");
+                return false;
+            }
+
+            auto type = (enum usb_descriptor)buf[1];
+
+            if (type == usb_descriptor::INTERFACE) {
+                auto& i = *(usb_interface_descriptor*)buf.data();
+
+                if (i.bInterfaceProtocol == 2) {
+                    interface = &i;
+                    break;
+                }
+            }
+
+            buf = buf.subspan(len);
+        }
+
+        if (interface->bAlternateSetting != 0) {
+            if (!d.set_interface(interface->iInterface, interface->bAlternateSetting)) {
+                print("usb_device::set_interface failed\n");
+                return false;
+            }
+        }
+
+        multi_tt = interface->bInterfaceProtocol == 2;
+
+        if (multi_tt)
+            print("hub using multi-TT\n");
+    }
+
     // set number of ports to 4 initially
-    if (!d.set_hub_ports(4)) {
+    if (!d.set_hub_ports(4, false)) {
         print("usb_device::set_hub_ports failed\n");
         return false;
     }
@@ -539,7 +581,7 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    if (!d.set_hub_ports(hub_desc->bNbrPorts)) {
+    if (!d.set_hub_ports(hub_desc->bNbrPorts, multi_tt)) {
         print("usb_device::set_hub_ports failed\n");
         free(hub_desc);
         return false;

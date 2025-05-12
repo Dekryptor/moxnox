@@ -183,7 +183,7 @@ public:
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
     uint8_t find_root_port();
     pair<usb_device*, uint8_t> find_tt();
-    bool set_hub_ports(uint8_t num_ports);
+    bool set_hub_ports(uint8_t num_ports, bool multi_tt);
     bool set_interface(uint16_t interface, uint16_t alternate);
 
     void acquire() {
@@ -207,6 +207,7 @@ public:
     uint8_t speed;
     uint8_t port;
     usb_hub& parent;
+    enum usb_speed_class speed_class;
 
 private:
     bool change_ep0_max_packet_size(uint16_t max_packet_size);
@@ -216,7 +217,6 @@ private:
     atomic<unsigned int> refcount = 1;
     rwsem endpoint_mutex;
     spinlock endpoint_spinlock;
-    enum usb_speed_class speed_class;
 };
 
 export struct usb_recognizer {
@@ -2363,7 +2363,7 @@ void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
     }
 }
 
-bool usb_device::set_hub_ports(uint8_t num_ports) {
+bool usb_device::set_hub_ports(uint8_t num_ports, bool multi_tt) {
     xhci_request req;
 
     auto& s = *reinterpret_cast<xhci_trb_configure_endpoint*>(&req.trb);
@@ -2394,7 +2394,7 @@ bool usb_device::set_hub_ports(uint8_t num_ports) {
 
         context->slot.hub = 1;
         context->slot.num_ports = num_ports;
-        // FIXME - multi_tt
+        context->slot.multi_tt = multi_tt ? 1 : 0;
 
         controller.command_queue.submit(req, true);
 
