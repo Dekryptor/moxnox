@@ -459,8 +459,8 @@ static usb_hub_descriptor* get_hub_descriptor(usb_device& d) {
     return desc;
 }
 
-static bool found_usb_hub_interface(usb_device& d, const usb_interface& interface,
-                                    span<const uint8_t> buf) {
+static bool found_usb_hub_interface(usb_device& d, const usb_device_config& config,
+                                    const usb_interface& interface) {
     bool multi_tt = false;
     uint8_t tt_think_time = 0;
 
@@ -496,40 +496,24 @@ static bool found_usb_hub_interface(usb_device& d, const usb_interface& interfac
     }
 
     if (d.speed_class == usb_speed_class::high_speed) {
-        auto interface2 = (usb_interface_descriptor*)buf.data();
+        auto* interface2 = &interface;
 
-        buf = buf.subspan(interface.desc.bLength);
+        for (auto le = config.interfaces.next; le != &config.interfaces; le = le->next) {
+            auto& i = containing_record<usb_interface>(le);
 
-        while (!buf.empty()) {
-            auto len = buf[0];
-
-            if (len > buf.size() || len < 2) {
-                print("buffer truncated\n");
-                return false;
+            if (i.desc.bInterfaceProtocol == 2) {
+                interface2 = &i;
             }
-
-            auto type = (enum usb_descriptor)buf[1];
-
-            if (type == usb_descriptor::INTERFACE) {
-                auto& i = *(usb_interface_descriptor*)buf.data();
-
-                if (i.bInterfaceProtocol == 2) {
-                    interface2 = &i;
-                    break;
-                }
-            }
-
-            buf = buf.subspan(len);
         }
 
-        if (interface2->bAlternateSetting != 0) {
-            if (!d.set_interface(interface2->iInterface, interface2->bAlternateSetting)) {
+        if (interface2->desc.bAlternateSetting != 0) {
+            if (!d.set_interface(interface2->desc.iInterface, interface2->desc.bAlternateSetting)) {
                 print("usb_device::set_interface failed\n");
                 return false;
             }
         }
 
-        multi_tt = interface2->bInterfaceProtocol == 2;
+        multi_tt = interface2->desc.bInterfaceProtocol == 2;
 
         if (multi_tt)
             print("hub using multi-TT\n");
@@ -617,7 +601,7 @@ static bool found_usb_hub_device(usb_device& d, const usb_device_config& config,
                 }
 
                 if (i.bInterfaceNumber == interface.desc.bInterfaceNumber)
-                    return found_usb_hub_interface(d, interface, buf);
+                    return found_usb_hub_interface(d, config, interface);
 
                 break;
             }
