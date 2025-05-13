@@ -20,7 +20,7 @@ static const size_t evdev_buffer_pages = 1;
 class usb_keyboard {
 public:
     usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size,
-                 uint8_t interface);
+                 const usb_interface& interface);
     ~usb_keyboard();
     void set_leds(keyboard_leds leds);
 
@@ -32,7 +32,7 @@ private:
     xhci_queue& queue;
     object_ref evdev_pipe;
     uint16_t packet_size;
-    uint8_t interface;
+    const usb_interface& interface;
 };
 
 static const enum evdev_code keycodes[] = {
@@ -349,11 +349,10 @@ static bool usb_hid_set_report(usb_device& d, span<uint8_t> buf,
 }
 
 usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size,
-                           uint8_t interface) : d(d), queue(queue) {
+                           const usb_interface& interface) : d(d), queue(queue), interface(interface) {
     d.acquire();
 
     this->packet_size = packet_size;
-    this->interface = interface;
 
     auto pptr = new pipe(evdev_buffer_pages);
     if (!pptr) {
@@ -404,7 +403,7 @@ void usb_keyboard::set_leds(keyboard_leds leds) {
         buf[0] |= 1 << 2;
 
     if (!usb_hid_set_report(d, span(buf, 1), usb_hid_report_type::OUTPUT, 0,
-                            interface)) {
+                            interface.desc.bInterfaceNumber)) {
         print("usb_hid_set_report failed\n");
         free(buf);
         return;
@@ -555,7 +554,7 @@ void usb_keyboard::recv_thread() {
 }
 
 static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf,
-                               uint8_t interface) {
+                               const usb_interface& interface) {
     auto& i = *(usb_interface_descriptor*)buf.data();
 
     usb_endpoint_descriptor* ep_desc = nullptr;
@@ -643,13 +642,11 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf,
 }
 
 static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf,
-                                    uint8_t interface) {
-    auto& i = *(usb_interface_descriptor*)buf.data();
-
+                                    const usb_interface& interface) {
     // FIXME - should be parsing HID descriptors
 
     // FIXME - reject anything for now that doesn't have a keyboard boot interface
-    if (i.bInterfaceSubClass != 1 || i.bInterfaceProtocol != 1)
+    if (interface.desc.bInterfaceSubClass != 1 || interface.desc.bInterfaceProtocol != 1)
         return false;
 
     return found_usb_keyboard(d, buf, interface);
@@ -683,7 +680,7 @@ static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
                 }
 
                 if (i.bInterfaceNumber == interface.desc.bInterfaceNumber)
-                    return found_usb_hid_interface(d, buf, interface.desc.bInterfaceNumber);
+                    return found_usb_hid_interface(d, buf, interface);
 
                 break;
             }
