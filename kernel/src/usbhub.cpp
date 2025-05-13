@@ -70,7 +70,7 @@ struct usb_hub_port {
 class usb_device_hub : public usb_hub {
 public:
     usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc,
-                   bool multi_tt);
+                   uint8_t num_ports, bool multi_tt);
     ~usb_device_hub();
     void recv_thread();
 
@@ -100,6 +100,7 @@ private:
     usb_hub_port* ports = nullptr;
     atomic<unsigned int> refcount = 1;
     uint32_t hub_status;
+    uint8_t num_ports;
 };
 
 static bool found_usb_hub_device(usb_device& d, const usb_device_config& config,
@@ -176,27 +177,28 @@ bool usb_device_hub::get_hub_status(uint32_t& hub_status) {
 }
 
 usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc,
-                               bool multi_tt) :
+                               uint8_t num_ports, bool multi_tt) :
         usb_hub(d.controller, &d, d.parent.depth + 1), d(d), queue(queue) {
     this->hub_desc = hub_desc;
     this->multi_tt = multi_tt;
+    this->num_ports = num_ports;
 
     d.acquire();
 
-    ports = (usb_hub_port*)malloc(sizeof(usb_hub_port) * hub_desc->bNbrPorts);
+    ports = (usb_hub_port*)malloc(sizeof(usb_hub_port) * num_ports);
     if (!ports) {
         print("malloc failed\n");
         return;
     }
 
-    memset(ports, 0, sizeof(usb_hub_port) * hub_desc->bNbrPorts);
+    memset(ports, 0, sizeof(usb_hub_port) * num_ports);
 
     if (!get_hub_status(hub_status)) {
         print("usb_device_hub::get_hub_status failed\n");
         return;
     }
 
-    for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
+    for (uint8_t port = 1; port <= num_ports; port++) {
         if (!set_port_feature(usb2_port_feature_selector::PORT_POWER, port)) {
             print("usb_device_hub::set_port_feature failed\n");
             return;
@@ -204,7 +206,7 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descrip
     }
 
     // FIXME - only if hub not USB 3?
-    for (uint8_t port = 1; port <= hub_desc->bNbrPorts; port++) {
+    for (uint8_t port = 1; port <= num_ports; port++) {
         if (!set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
             print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
             return;
@@ -349,29 +351,34 @@ void usb_device_hub::port_status_change(uint8_t port) {
         return;
     }
 
-    auto old_status = ports[port - 1].status;
+    if (port <= num_ports) {
+        auto old_status = ports[port - 1].status;
 
-    ports[port - 1].status = *new_status;
+        ports[port - 1].status = *new_status;
 
-    if (new_status->usb2.connection_changed) {
-        if (old_status.usb2.connection != new_status->usb2.connection) {
-            if (new_status->usb2.connection) {
-                acquire();
+        if (new_status->usb2.connection_changed) {
+            if (old_status.usb2.connection != new_status->usb2.connection) {
+                if (new_status->usb2.connection) {
+                    acquire();
 
-                add_kernel_thread([](void* param1, void* param2) {
-                    auto hub = (usb_device_hub*)param1;
-                    auto port = (uint8_t)(uintptr_t)param2;
+                    add_kernel_thread([](void* param1, void* param2) {
+                        auto hub = (usb_device_hub*)param1;
+                        auto port = (uint8_t)(uintptr_t)param2;
 
-                    hub->device_connected(port);
-                    hub->release();
-                }, this, (void*)(uintptr_t)port);
-            } else {
-                print("usb_device_hub::port_status_change: device removed from port {}\n", port);
-                // FIXME - process
+                        hub->device_connected(port);
+                        hub->release();
+                    }, this, (void*)(uintptr_t)port);
+                } else {
+                    print("usb_device_hub::port_status_change: device removed from port {}\n", port);
+                    // FIXME - process
+                }
             }
-        }
 
-        clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
+            clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
+        }
+    } else {
+        if (new_status->usb2.connection_changed)
+            clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
     }
 
     if (new_status->usb2.enable_changed)
@@ -531,16 +538,23 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
         return false;
     }
 
-    if (hub_desc->bNbrPorts == 0) {
+    auto num_ports = hub_desc->bNbrPorts;
+
+    if (num_ports == 0) {
         print("found_usb_hub_interface: number of ports was 0\n");
         free(hub_desc);
         return false;
     }
 
+    if (num_ports > 15) {
+        print("found_usb_hub_interface: bNbrPorts was {}, changing to 31\n", num_ports);
+        num_ports = 15;
+    }
+
     if (d.speed_class == usb_speed_class::high_speed)
         tt_think_time = hub_desc->tt_think_time;
 
-    auto queue = d.configure_endpoint(*ep_desc, hub_desc->bNbrPorts, multi_tt,
+    auto queue = d.configure_endpoint(*ep_desc, num_ports, multi_tt,
                                       tt_think_time);
     if (!queue) {
         print("usb_device::configure_endpoint failed\n");
@@ -548,7 +562,7 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
         return false;
     }
 
-    auto hub = new usb_device_hub(d, *queue, hub_desc, multi_tt);
+    auto hub = new usb_device_hub(d, *queue, hub_desc, num_ports, multi_tt);
     if (!hub) {
         print("new failed\n");
         free(hub_desc);
