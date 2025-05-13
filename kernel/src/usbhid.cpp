@@ -607,55 +607,16 @@ static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
     return true;
 }
 
-static bool found_usb_hid_interface(usb_device& d, const usb_interface& interface) {
+static bool found_usb_hid_device(usb_device& d, const usb_device_config&,
+                                 const usb_interface& interface) {
     // FIXME - should be parsing HID descriptors
+
+    if (interface.desc.bAlternateSetting)
+        return false;
 
     // FIXME - reject anything for now that doesn't have a keyboard boot interface
     if (interface.desc.bInterfaceSubClass != 1 || interface.desc.bInterfaceProtocol != 1)
         return false;
 
     return found_usb_keyboard(d, interface);
-}
-
-static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
-                                 const usb_interface& interface) {
-    auto& cd = *(usb_configuration_descriptor*)config.data;
-    auto buf = span((uint8_t*)config.data, cd.wTotalLength);
-
-    if (interface.desc.bAlternateSetting)
-        return false;
-
-    while (!buf.empty()) {
-        auto len = buf[0];
-
-        if (len > buf.size() || len < 2) {
-            print("buffer truncated\n");
-            return false;
-        }
-
-        auto type = (enum usb_descriptor)buf[1];
-
-        switch (type) {
-            case usb_descriptor::INTERFACE: {
-                auto& i = *(usb_interface_descriptor*)buf.data();
-
-                if (len < sizeof(usb_interface_descriptor)) {
-                    print("buffer truncated\n");
-                    return false;
-                }
-
-                if (i.bInterfaceNumber == interface.desc.bInterfaceNumber)
-                    return found_usb_hid_interface(d, interface);
-
-                break;
-            }
-
-            default:
-                break;
-        }
-
-        buf = buf.subspan(len);
-    }
-
-    return false;
 }
