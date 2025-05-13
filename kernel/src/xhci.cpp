@@ -119,6 +119,7 @@ public:
     void isr();
     void port_status_change_thread();
     uint8_t enable_slot(uint8_t slot_type);
+    bool disable_slot(uint8_t slot_id);
     pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
     uint8_t get_speed_num(uint8_t port_id, uint32_t psi_num);
 
@@ -1238,8 +1239,7 @@ usb_device_config::~usb_device_config() {
 }
 
 usb_device::~usb_device() {
-    // FIXME - disable slot
-
+    controller.disable_slot(slot);
     controller.dcbaa[slot] = 0;
 
     if (controller.large_contexts)
@@ -2174,7 +2174,7 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
         auto devctx = new xhci_device_context<LARGE>;
         if (!devctx) {
             print("new failed\n");
-            // FIXME - disable slot
+            controller.disable_slot(slot);
             return false;
         }
 
@@ -2188,7 +2188,7 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
             print("new failed\n");
             delete devctx;
             controller.dcbaa[slot] = 0;
-            // FIXME - disable slot
+            controller.disable_slot(slot);
             return false;
         }
 
@@ -2358,7 +2358,7 @@ void xhci::port_status_changed(uint8_t port_id) {
     auto [psi_num, usb_revision] = get_speed(port_id, portsc.port_speed);
     if (psi_num == 0) {
         print("xhci::get_speed failed\n");
-        // FIXME - disable slot
+        disable_slot(slot);
         return;
     }
 
@@ -2593,6 +2593,32 @@ uint8_t xhci::enable_slot(uint8_t slot_type) {
     }
 
     return req.comp.slot_id;
+}
+
+bool xhci::disable_slot(uint8_t slot_id) {
+    xhci_request req;
+
+    auto& s = *reinterpret_cast<xhci_trb_disable_slot*>(&req.trb);
+
+    memset(&s, 0, sizeof(s));
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    s.slot_id = slot_id;
+#pragma GCC diagnostic pop
+    s.trb_type = (uint32_t)xhci_trb_type::disable_slot_command;
+
+    command_queue.submit(req, true);
+
+    wait_for_object(req.event.get(), false);
+
+    // FIXME - translate into nt_status?
+    if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
+        print("xhci::disable_slot: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
+        return false;
+    }
+
+    return true;
 }
 
 export

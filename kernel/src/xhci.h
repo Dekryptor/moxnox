@@ -146,6 +146,17 @@ struct xhci_trb_enable_slot {
 
 static_assert(sizeof(xhci_trb_enable_slot) == sizeof(xhci_trb_common));
 
+struct xhci_trb_disable_slot {
+    uint32_t reserved1[3];
+    uint16_t cycle : 1;
+    uint16_t reserved2 : 9;
+    uint16_t trb_type : 6;
+    uint8_t reserved3;
+    uint8_t slot_id;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_disable_slot) == sizeof(xhci_trb_common));
+
 struct xhci_trb_command_completion {
     uint64_t command_trb_pointer;
     uint32_t command_completion_parameter : 24;
