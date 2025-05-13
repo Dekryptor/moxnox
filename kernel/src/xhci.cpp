@@ -97,6 +97,7 @@ public:
     usb_hub(xhci& controller, usb_device* device, unsigned int depth) : depth(depth), device(device), controller(controller) { }
     void device_found(uint8_t slot, uint8_t port, enum usb_speed_class speed_class,
                       uint8_t port_speed);
+    void device_removed(uint8_t port);
 
     unsigned int depth;
     usb_device* device;
@@ -2145,6 +2146,13 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
     return 0;
 }
 
+void usb_hub::device_removed(uint8_t port) {
+    print("FIXME - usb_hub::device_removed {}\n", port);
+
+    // FIXME - disable slot
+    // FIXME - if hub, handle child devices
+}
+
 void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class speed_class,
                            uint8_t port_speed) {
     usb_device* d;
@@ -2314,8 +2322,6 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
 }
 
 void xhci::port_status_changed(uint8_t port_id) {
-    print("xhci::port_status_changed: {}\n", port_id);
-
     if (port_id == 0 || port_id > num_ports) {
         print("xhci::port_status_changed: port_id {} out of range (expected 1 to {})\n", port_id, num_ports);
         return;
@@ -2335,8 +2341,7 @@ void xhci::port_status_changed(uint8_t port_id) {
         return;
 
     if (!device_present) {
-        // FIXME - disable slot
-        // FIXME - if hub, handle child devices
+        root_hub.device_removed(port_id);
         return;
     }
 
