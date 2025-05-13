@@ -69,7 +69,8 @@ struct usb_hub_port {
 
 class usb_device_hub : public usb_hub {
 public:
-    usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc);
+    usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc,
+                   bool multi_tt);
     ~usb_device_hub();
     void recv_thread();
 
@@ -174,9 +175,11 @@ bool usb_device_hub::get_hub_status(uint32_t& hub_status) {
     return true;
 }
 
-usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc) :
+usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc,
+                               bool multi_tt) :
         usb_hub(d.controller, &d, d.parent.depth + 1), d(d), queue(queue) {
     this->hub_desc = hub_desc;
+    this->multi_tt = multi_tt;
 
     d.acquire();
 
@@ -593,7 +596,7 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
         return false;
     }
 
-    auto hub = new usb_device_hub(d, *queue, hub_desc);
+    auto hub = new usb_device_hub(d, *queue, hub_desc, multi_tt);
     if (!hub) {
         print("new failed\n");
         free(hub_desc);

@@ -100,6 +100,7 @@ public:
 
     unsigned int depth;
     usb_device* device;
+    bool multi_tt = false;
 
 private:
     xhci& controller;
@@ -1075,7 +1076,7 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
         if (tt) {
             context.slot.parent_hub_slot_id = tt->slot;
             context.slot.parent_port_number = tt_port;
-            // FIXME - multi_tt
+            context.slot.multi_tt = tt->parent.multi_tt ? 1 : 0;
         }
 
         // FIXME - ttt
