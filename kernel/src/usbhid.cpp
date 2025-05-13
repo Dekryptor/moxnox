@@ -200,7 +200,7 @@ static const enum evdev_code keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_SYSRQ,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
