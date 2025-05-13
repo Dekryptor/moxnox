@@ -553,65 +553,31 @@ void usb_keyboard::recv_thread() {
     free(buf);
 }
 
-static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf,
-                               const usb_interface& interface) {
-    auto& i = *(usb_interface_descriptor*)buf.data();
-
-    usb_endpoint_descriptor* ep_desc = nullptr;
+static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
+    usb_endpoint* ep_desc = nullptr;
 
     // find endpoint number
 
-    // skip INTERFACE
-    buf = buf.subspan(i.bLength);
+    for (auto le = interface.endpoints.next; le != &interface.endpoints; le = le->next) {
+        auto& e = containing_record<usb_endpoint>(le);
 
-    while (!buf.empty()) {
-        auto len = buf[0];
+        // look for periodic interrupt IN endpoint
 
-        if (len > buf.size() || len < 2) {
-            print("buffer truncated\n");
+        if (e.desc.direction != USB_ENDPOINT_DIRECTION_IN)
+            continue;
+
+        if (e.desc.transfer_type != USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT)
+            continue;
+
+        if (e.desc.usage_type != USB_ENDPOINT_USAGE_TYPE_PERIODIC)
+            continue;
+
+        if (ep_desc) {
+            print("found_usb_keyboard: multiple potential endpoints found\n");
             return false;
         }
 
-        auto type = (enum usb_descriptor)buf[1];
-
-        if (type == usb_descriptor::INTERFACE)
-            break;
-
-        switch (type) {
-            case usb_descriptor::ENDPOINT: {
-                auto& e = *(usb_endpoint_descriptor*)buf.data();
-
-                if (len < sizeof(usb_endpoint_descriptor)) {
-                    print("buffer truncated\n");
-                    return false;
-                }
-
-                // look for periodic interrupt IN endpoint
-
-                if (e.direction != USB_ENDPOINT_DIRECTION_IN)
-                    break;
-
-                if (e.transfer_type != USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT)
-                    continue;
-
-                if (e.usage_type != USB_ENDPOINT_USAGE_TYPE_PERIODIC)
-                    continue;
-
-                if (ep_desc) {
-                    print("found_usb_keyboard: multiple potential endpoints found\n");
-                    return false;
-                }
-
-                ep_desc = &e;
-
-                break;
-            }
-
-            default:
-                break;
-        }
-
-        buf = buf.subspan(len);
+        ep_desc = &e;
     }
 
     if (!ep_desc) {
@@ -619,19 +585,19 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf,
         return false;
     }
 
-    if (ep_desc->wMaxPacketSize == 0) {
+    if (ep_desc->desc.wMaxPacketSize == 0) {
         print("found_usb_keyboard: wMaxPacketSize was 0\n");
         return false;
     }
 
-    auto queue = d.configure_endpoint(*ep_desc);
+    auto queue = d.configure_endpoint(ep_desc->desc);
 
     if (!queue) {
         print("usb_device::configure_endpoint failed\n");
         return false;
     }
 
-    auto kbd = new usb_keyboard(d, *queue, ep_desc->wMaxPacketSize,
+    auto kbd = new usb_keyboard(d, *queue, ep_desc->desc.wMaxPacketSize,
                                 interface);
     if (!kbd) {
         print("new failed\n");
@@ -641,15 +607,14 @@ static bool found_usb_keyboard(usb_device& d, span<const uint8_t> buf,
     return true;
 }
 
-static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf,
-                                    const usb_interface& interface) {
+static bool found_usb_hid_interface(usb_device& d, const usb_interface& interface) {
     // FIXME - should be parsing HID descriptors
 
     // FIXME - reject anything for now that doesn't have a keyboard boot interface
     if (interface.desc.bInterfaceSubClass != 1 || interface.desc.bInterfaceProtocol != 1)
         return false;
 
-    return found_usb_keyboard(d, buf, interface);
+    return found_usb_keyboard(d, interface);
 }
 
 static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
@@ -680,7 +645,7 @@ static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
                 }
 
                 if (i.bInterfaceNumber == interface.desc.bInterfaceNumber)
-                    return found_usb_hid_interface(d, buf, interface);
+                    return found_usb_hid_interface(d, interface);
 
                 break;
             }
