@@ -553,6 +553,18 @@ void usb_keyboard::recv_thread() {
     free(buf);
 }
 
+static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
+    if (!d.ep0_queue.control_transfer(span<uint8_t>(),
+            USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_INTERFACE,
+            (enum usb_request)usb_hid_request::SET_PROTOCOL,
+            wValue, wIndex)) {
+        print("xhci_queue::control_transfer failed\n");
+        return false;
+    }
+
+    return true;
+}
+
 static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
     usb_endpoint* ep_desc = nullptr;
 
@@ -590,8 +602,13 @@ static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
         return false;
     }
 
-    auto queue = d.configure_endpoint(ep_desc->desc);
+    // change to boot protocol
+    if (!set_protocol(d, 0, interface.desc.bInterfaceNumber)) {
+        print("found_usb_keyboard: set_protocol failed\n");
+        return false;
+    }
 
+    auto queue = d.configure_endpoint(ep_desc->desc);
     if (!queue) {
         print("usb_device::configure_endpoint failed\n");
         return false;
