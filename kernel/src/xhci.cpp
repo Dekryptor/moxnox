@@ -228,7 +228,7 @@ struct usb_endpoint {
     usb_endpoint_descriptor& desc;
 };
 
-struct usb_interface {
+export struct usb_interface {
     usb_interface(usb_interface_descriptor& desc) : desc(desc) { }
     ~usb_interface();
 
@@ -248,7 +248,7 @@ export struct usb_device_config {
 export struct usb_recognizer {
     list_entry le;
     enum usb_class_code interface_code;
-    bool (*func)(usb_device&, const usb_device_config&, uint8_t, bool);
+    bool (*func)(usb_device&, const usb_device_config&, const usb_interface&);
 };
 
 export list_entry usb_interfaces = { &usb_interfaces, &usb_interfaces };
@@ -1852,43 +1852,15 @@ export void print_usb_config(span<const uint8_t> buf) {
 }
 
 static void probe_interfaces(usb_device& d, usb_device_config& conf) {
-    auto& cd = *(usb_configuration_descriptor*)conf.data;
-    auto buf = span((uint8_t*)conf.data, cd.wTotalLength);
+    for (auto le = conf.interfaces.next; le != &conf.interfaces; le = le->next) {
+        auto& i = containing_record<usb_interface>(le);
 
-    while (!buf.empty()) {
-        auto len = buf[0];
+        for (auto le = usb_interfaces.next; le != &usb_interfaces; le = le->next) {
+            auto& r = containing_record<usb_recognizer>(le);
 
-        if (len > buf.size() || len < 2) {
-            print("buffer truncated\n");
-            return;
-        }
-
-        auto type = (enum usb_descriptor)buf[1];
-
-        switch (type) {
-            case usb_descriptor::INTERFACE: {
-                auto& i = *(usb_interface_descriptor*)buf.data();
-
-                if (len < sizeof(usb_interface_descriptor)) {
-                    print("buffer truncated\n");
-                    return;
-                }
-
-                for (auto le = usb_interfaces.next; le != &usb_interfaces; le = le->next) {
-                    auto& r = containing_record<usb_recognizer>(le);
-
-                    if (r.interface_code == i.bInterfaceClass && r.func(d, conf, i.bInterfaceNumber, i.bAlternateSetting))
-                        break;
-                }
-
-                break;
-            }
-
-            default:
+            if (r.interface_code == i.desc.bInterfaceClass && r.func(d, conf, i))
                 break;
         }
-
-        buf = buf.subspan(len);
     }
 }
 

@@ -103,7 +103,7 @@ private:
 };
 
 static bool found_usb_hub_device(usb_device& d, const usb_device_config& config,
-                                 uint8_t bInterfaceNumber, bool bAlternateSetting);
+                                 const usb_interface& interface);
 
 static usb_recognizer mod_usb_interfaces = {
     {}, usb_class_code::hub, found_usb_hub_device
@@ -617,11 +617,11 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
 }
 
 static bool found_usb_hub_device(usb_device& d, const usb_device_config& config,
-                                 uint8_t bInterfaceNumber, bool bAlternateSetting) {
+                                 const usb_interface& interface) {
     auto& cd = *(usb_configuration_descriptor*)config.data;
     auto buf = span((uint8_t*)config.data, cd.wTotalLength);
 
-    if (bAlternateSetting)
+    if (interface.desc.bAlternateSetting)
         return false;
 
     if (d.device_descriptor.bcdUSB >= 0x300) {
@@ -648,7 +648,7 @@ static bool found_usb_hub_device(usb_device& d, const usb_device_config& config,
                     return false;
                 }
 
-                if (i.bInterfaceNumber == bInterfaceNumber)
+                if (i.bInterfaceNumber == interface.desc.bInterfaceNumber)
                     return found_usb_hub_interface(d, buf);
 
                 break;

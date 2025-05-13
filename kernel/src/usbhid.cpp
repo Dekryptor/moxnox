@@ -311,7 +311,7 @@ static const enum evdev_code keycodes[] = {
 };
 
 static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
-                                 uint8_t bInterfaceNumber, bool bAlternateSetting);
+                                 const usb_interface& interface);
 
 static usb_recognizer mod_usb_interfaces = {
     {}, usb_class_code::hid, found_usb_hid_device
@@ -656,11 +656,11 @@ static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf,
 }
 
 static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
-                                 uint8_t bInterfaceNumber, bool bAlternateSetting) {
+                                 const usb_interface& interface) {
     auto& cd = *(usb_configuration_descriptor*)config.data;
     auto buf = span((uint8_t*)config.data, cd.wTotalLength);
 
-    if (bAlternateSetting)
+    if (interface.desc.bAlternateSetting)
         return false;
 
     while (!buf.empty()) {
@@ -682,8 +682,8 @@ static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
                     return false;
                 }
 
-                if (i.bInterfaceNumber == bInterfaceNumber)
-                    return found_usb_hid_interface(d, buf, bInterfaceNumber);
+                if (i.bInterfaceNumber == interface.desc.bInterfaceNumber)
+                    return found_usb_hid_interface(d, buf, interface.desc.bInterfaceNumber);
 
                 break;
             }
