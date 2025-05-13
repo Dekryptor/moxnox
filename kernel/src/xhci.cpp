@@ -221,12 +221,25 @@ private:
     spinlock endpoint_spinlock;
 };
 
-struct usb_interface {
+struct usb_endpoint {
+    usb_endpoint(usb_endpoint_descriptor& desc) : desc(desc) { }
+
     list_entry le;
-    usb_interface_descriptor desc;
+    usb_endpoint_descriptor& desc;
+};
+
+struct usb_interface {
+    usb_interface(usb_interface_descriptor& desc) : desc(desc) { }
+    ~usb_interface();
+
+    list_entry le;
+    usb_interface_descriptor& desc;
+    list_entry endpoints = { &endpoints, &endpoints };
 };
 
 export struct usb_device_config {
+    ~usb_device_config();
+
     list_entry le;
     list_entry interfaces = { &interfaces, &interfaces };
     uint8_t* data[1];
@@ -1204,6 +1217,26 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
     initialized = true;
 }
 
+usb_interface::~usb_interface() {
+    while (!is_list_empty(endpoints)) {
+        auto& e = containing_record<usb_endpoint>(endpoints.next);
+
+        remove_entry_list(e.le);
+
+        delete &e;
+    }
+}
+
+usb_device_config::~usb_device_config() {
+    while (!is_list_empty(interfaces)) {
+        auto& i = containing_record<usb_interface>(interfaces.next);
+
+        remove_entry_list(i.le);
+
+        delete &i;
+    }
+}
+
 usb_device::~usb_device() {
     // FIXME - disable slot
 
@@ -2038,6 +2071,7 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
 static bool parse_usb_config(usb_device_config& conf) {
     auto& cd = *(usb_configuration_descriptor*)conf.data;
     auto buf = span((uint8_t*)conf.data, cd.wTotalLength);
+    usb_interface* intobj = nullptr;
 
     while (!buf.empty()) {
         auto len = buf[0];
@@ -2058,15 +2092,37 @@ static bool parse_usb_config(usb_device_config& conf) {
                     return false;
                 }
 
-                auto intobj = new usb_interface;
+                intobj = new usb_interface(i);
                 if (!intobj) {
                     print("new failed\n");
                     return false;
                 }
 
-                memcpy(&intobj->desc, &i, sizeof(i));
-
                 insert_tail_list(conf.interfaces, intobj->le);
+
+                break;
+            }
+
+            case usb_descriptor::ENDPOINT: {
+                auto& e = *(usb_endpoint_descriptor*)buf.data();
+
+                if (len < sizeof(usb_endpoint_descriptor)) {
+                    print("buffer truncated\n");
+                    return false;
+                }
+
+                if (!intobj) {
+                    print("parse_usb_config: ignoring ENDPOINT before first INTERFACE\n");
+                    break;
+                }
+
+                auto ep = new usb_endpoint(e);
+                if (!ep) {
+                    print("new failed\n");
+                    return false;
+                }
+
+                insert_tail_list(intobj->endpoints, ep->le);
 
                 break;
             }
