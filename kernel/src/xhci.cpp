@@ -2054,7 +2054,7 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
                            uint8_t port_speed) {
     usb_device* d;
 
-    // wait 10ms for device to come up
+    // wait 100ms for device to come up
 
     {
         auto tim_ref = create_timer(false);
@@ -2065,7 +2065,7 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
 
         auto& tim = static_cast<timer&>(tim_ref.get());
 
-        auto status = tim.set(-ONE_MS_TICKS * 10, nullptr, nullptr, false,
+        auto status = tim.set(-ONE_MS_TICKS * 100, nullptr, nullptr, false,
                               0, nullptr);
         if (!success(status)) {
             print("usb_hub::device_found: timer::set returned {}\n", status);
