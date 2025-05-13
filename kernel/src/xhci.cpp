@@ -1046,18 +1046,18 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
     auto [tt, tt_port] = find_tt();
 
     auto func = [&]<bool LARGE>() -> bool {
-        auto context = (xhci_input_context<LARGE>*)malloc(sizeof(xhci_input_context<LARGE>));
-        if (!context) {
+        auto ptr = malloc(sizeof(xhci_input_context<LARGE>));
+        if (!ptr) {
             print("malloc failed\n");
             return false;
         }
 
-        new (context) xhci_input_context<LARGE>;
+        auto& context = *new (ptr) xhci_input_context<LARGE>;
 
-        input_context = context;
+        input_context = &context;
 
-        memset(context, 0, sizeof(*context));
-        context->control.add_context = 3; // slot and EP0
+        memset(&context, 0, sizeof(context));
+        context.control.add_context = 3; // slot and EP0
 
         ep0_queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
         if (!ep0_queue.initialized) {
@@ -1067,19 +1067,19 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        context->slot.speed = speed;
-        context->slot.root_hub_port_number = find_root_port();
-        context->slot.route_string = find_route_string();
+        context.slot.speed = speed;
+        context.slot.root_hub_port_number = find_root_port();
+        context.slot.route_string = find_route_string();
 #pragma GCC diagnostic pop
 
         if (tt) {
-            context->slot.parent_hub_slot_id = tt->slot;
-            context->slot.parent_port_number = tt_port;
+            context.slot.parent_hub_slot_id = tt->slot;
+            context.slot.parent_port_number = tt_port;
             // FIXME - multi_tt
         }
 
         // FIXME - ttt
-        context->slot.context_entries = 1;
+        context.slot.context_entries = 1;
 
         switch (speed_class) {
             case usb_speed_class::low_speed:
@@ -1101,10 +1101,10 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
                 break;
         }
 
-        context->ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
-        context->ep[0].max_packet_size = max_packet_size;
-        context->ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
-        context->ep[0].cerr = 3;
+        context.ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
+        context.ep[0].max_packet_size = max_packet_size;
+        context.ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
+        context.ep[0].cerr = 3;
 
         // some devices need an address_device with BSR set first
         for (unsigned int i = 0; i < 2; i++) {
@@ -1114,7 +1114,7 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
 
             memset(&s, 0, sizeof(s));
 
-            s.input_context_pointer = va_to_pa_phys(context);
+            s.input_context_pointer = va_to_pa_phys(&context);
             s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
             s.slot_id = slot;
             s.bsr = i == 0 ? 1 : 0;
