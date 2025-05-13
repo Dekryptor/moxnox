@@ -459,67 +459,35 @@ static usb_hub_descriptor* get_hub_descriptor(usb_device& d) {
     return desc;
 }
 
-static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
-    auto orig_buf = buf;
-    auto& i = *(usb_interface_descriptor*)buf.data();
+static bool found_usb_hub_interface(usb_device& d, const usb_interface& interface,
+                                    span<const uint8_t> buf) {
     bool multi_tt = false;
     uint8_t tt_think_time = 0;
 
-    if (i.bAlternateSetting)
+    if (interface.desc.bAlternateSetting)
         return false;
 
     usb_endpoint_descriptor* ep_desc = nullptr;
 
     // find endpoint number
 
-    // skip INTERFACE
-    buf = buf.subspan(i.bLength);
+    for (auto le = interface.endpoints.next; le != &interface.endpoints; le = le->next) {
+        auto& e = containing_record<usb_endpoint>(le);
 
-    while (!buf.empty()) {
-        auto len = buf[0];
+        if (e.desc.direction != USB_ENDPOINT_DIRECTION_IN)
+            continue;
 
-        if (len > buf.size() || len < 2) {
-            print("buffer truncated\n");
+        if (e.desc.transfer_type != USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT)
+            continue;
+
+        if (ep_desc) {
+            print("found_usb_hub_interface: multiple potential endpoints found\n");
             return false;
         }
 
-        auto type = (enum usb_descriptor)buf[1];
+        ep_desc = &e.desc;
 
-        if (type == usb_descriptor::INTERFACE)
-            break;
-
-        switch (type) {
-            case usb_descriptor::ENDPOINT: {
-                auto& e = *(usb_endpoint_descriptor*)buf.data();
-
-                if (len < sizeof(usb_endpoint_descriptor)) {
-                    print("buffer truncated\n");
-                    return false;
-                }
-
-                // look for periodic interrupt IN endpoint
-
-                if (e.direction != USB_ENDPOINT_DIRECTION_IN)
-                    break;
-
-                if (e.transfer_type != USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT)
-                    break;
-
-                if (ep_desc) {
-                    print("found_usb_hub_interface: multiple potential endpoints found\n");
-                    return false;
-                }
-
-                ep_desc = &e;
-
-                break;
-            }
-
-            default:
-                break;
-        }
-
-        buf = buf.subspan(len);
+        break;
     }
 
     if (!ep_desc) {
@@ -528,9 +496,9 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
     }
 
     if (d.speed_class == usb_speed_class::high_speed) {
-        auto interface = (usb_interface_descriptor*)buf.data();
+        auto interface2 = (usb_interface_descriptor*)buf.data();
 
-        buf = orig_buf.subspan(i.bLength);
+        buf = buf.subspan(interface.desc.bLength);
 
         while (!buf.empty()) {
             auto len = buf[0];
@@ -546,7 +514,7 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
                 auto& i = *(usb_interface_descriptor*)buf.data();
 
                 if (i.bInterfaceProtocol == 2) {
-                    interface = &i;
+                    interface2 = &i;
                     break;
                 }
             }
@@ -554,14 +522,14 @@ static bool found_usb_hub_interface(usb_device& d, span<const uint8_t> buf) {
             buf = buf.subspan(len);
         }
 
-        if (interface->bAlternateSetting != 0) {
-            if (!d.set_interface(interface->iInterface, interface->bAlternateSetting)) {
+        if (interface2->bAlternateSetting != 0) {
+            if (!d.set_interface(interface2->iInterface, interface2->bAlternateSetting)) {
                 print("usb_device::set_interface failed\n");
                 return false;
             }
         }
 
-        multi_tt = interface->bInterfaceProtocol == 2;
+        multi_tt = interface2->bInterfaceProtocol == 2;
 
         if (multi_tt)
             print("hub using multi-TT\n");
@@ -649,7 +617,7 @@ static bool found_usb_hub_device(usb_device& d, const usb_device_config& config,
                 }
 
                 if (i.bInterfaceNumber == interface.desc.bInterfaceNumber)
-                    return found_usb_hub_interface(d, buf);
+                    return found_usb_hub_interface(d, interface, buf);
 
                 break;
             }

@@ -221,7 +221,7 @@ private:
     spinlock endpoint_spinlock;
 };
 
-struct usb_endpoint {
+export struct usb_endpoint {
     usb_endpoint(usb_endpoint_descriptor& desc) : desc(desc) { }
 
     list_entry le;
