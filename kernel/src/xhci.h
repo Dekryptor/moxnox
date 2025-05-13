@@ -372,6 +372,7 @@ struct xhci_slot_context {
 
 static_assert(sizeof(xhci_slot_context) == 0x20);
 
+template<bool LARGE>
 struct xhci_input_control_context {
     uint32_t drop_context;
     uint32_t add_context;
@@ -380,9 +381,11 @@ struct xhci_input_control_context {
     uint8_t interface_number;
     uint8_t alternate_setting;
     uint8_t reserved2;
+    uint8_t reserved3[LARGE ? 32 : 0];
 } __attribute((packed));
 
-static_assert(sizeof(xhci_input_control_context) == 0x20);
+static_assert(sizeof(xhci_input_control_context<false>) == 0x20);
+static_assert(sizeof(xhci_input_control_context<true>) == 0x40);
 
 template<bool LARGE>
 struct xhci_endpoint_context {
@@ -434,10 +437,9 @@ static_assert(sizeof(xhci_device_context<true>) == 0x800);
 
 template<bool LARGE>
 struct xhci_input_context {
-    xhci_input_control_context control;
-    uint8_t reserved1[LARGE ? 32 : 0];
+    xhci_input_control_context<LARGE> control;
     xhci_slot_context slot;
-    uint8_t reserved2[LARGE ? 32 : 0];
+    uint8_t reserved1[LARGE ? 32 : 0];
     xhci_endpoint_context<LARGE> ep[31];
 } __attribute((packed));
 
