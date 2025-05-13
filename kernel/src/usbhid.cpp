@@ -310,8 +310,8 @@ static const enum evdev_code keycodes[] = {
     evdev_code::KEY_RESERVED,
 };
 
-static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber,
-                                 bool bAlternateSetting);
+static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
+                                 uint8_t bInterfaceNumber, bool bAlternateSetting);
 
 static usb_recognizer mod_usb_interfaces = {
     {}, usb_class_code::hid, found_usb_hid_device
@@ -655,9 +655,10 @@ static bool found_usb_hid_interface(usb_device& d, span<const uint8_t> buf,
     return found_usb_keyboard(d, buf, interface);
 }
 
-static bool found_usb_hid_device(usb_device& d, uint8_t bInterfaceNumber,
-                                 bool bAlternateSetting) {
-    auto buf = span((uint8_t*)d.config, d.config_size);
+static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
+                                 uint8_t bInterfaceNumber, bool bAlternateSetting) {
+    auto& cd = *(usb_configuration_descriptor*)config.data;
+    auto buf = span((uint8_t*)config.data, cd.wTotalLength);
 
     if (bAlternateSetting)
         return false;

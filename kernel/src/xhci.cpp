@@ -202,14 +202,13 @@ public:
     xhci_queue ep0_queue;
     uint8_t slot;
     usb_device_descriptor device_descriptor;
-    void* config = nullptr;
-    size_t config_size;
     list_entry endpoints = { &endpoints, &endpoints };
     xhci& controller;
     uint8_t speed;
     uint8_t port;
     usb_hub& parent;
     enum usb_speed_class speed_class;
+    list_entry configs = { &configs, &configs };
 
 private:
     bool change_ep0_max_packet_size(uint16_t max_packet_size);
@@ -222,10 +221,15 @@ private:
     spinlock endpoint_spinlock;
 };
 
+export struct usb_device_config {
+    list_entry le;
+    uint8_t* data[1];
+};
+
 export struct usb_recognizer {
     list_entry le;
     enum usb_class_code interface_code;
-    bool (*func)(usb_device&, uint8_t, bool);
+    bool (*func)(usb_device&, const usb_device_config&, uint8_t, bool);
 };
 
 export list_entry usb_interfaces = { &usb_interfaces, &usb_interfaces };
@@ -1212,11 +1216,20 @@ usb_device::~usb_device() {
         remove_entry_list(le);
     }
 
-    if (config) {
-        if (config_size < PAGE_SIZE)
-            free(config);
+    while (!is_list_empty(configs)) {
+        auto& c = containing_record<usb_device_config>(configs.next);
+
+        remove_entry_list(c.le);
+
+        auto& cd = *(usb_configuration_descriptor*)c.data;
+        auto cd_size = cd.wTotalLength;
+
+        c.~usb_device_config();
+
+        if (cd_size < PAGE_SIZE)
+            free(&c);
         else
-            free_folio(phys_memory_pfn(config) << PAGE_SHIFT);
+            free_folio(phys_memory_pfn(&c) << PAGE_SHIFT);
     }
 }
 
@@ -1799,8 +1812,9 @@ export void print_usb_config(span<const uint8_t> buf) {
     }
 }
 
-static void probe_interfaces(usb_device& d) {
-    auto buf = span((uint8_t*)d.config, d.config_size);
+static void probe_interfaces(usb_device& d, usb_device_config& conf) {
+    auto& cd = *(usb_configuration_descriptor*)conf.data;
+    auto buf = span((uint8_t*)conf.data, cd.wTotalLength);
 
     while (!buf.empty()) {
         auto len = buf[0];
@@ -1824,7 +1838,7 @@ static void probe_interfaces(usb_device& d) {
                 for (auto le = usb_interfaces.next; le != &usb_interfaces; le = le->next) {
                     auto& r = containing_record<usb_recognizer>(le);
 
-                    if (r.interface_code == i.bInterfaceClass && r.func(d, i.bInterfaceNumber, i.bAlternateSetting))
+                    if (r.interface_code == i.bInterfaceClass && r.func(d, conf, i.bInterfaceNumber, i.bAlternateSetting))
                         break;
                 }
 
@@ -2129,71 +2143,88 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
 
     print_usb_config(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)));
 
-    auto cd = new usb_configuration_descriptor;
-    if (!cd) {
-        print("new failed\n");
+    if (d->device_descriptor.bNumConfigurations == 0) {
+        print("usb_hub::device_found: device had no configurations\n");
         d->release();
         return;
+    }
+
+    for (uint8_t i = 0; i < d->device_descriptor.bNumConfigurations; i++) {
+        auto cd = new usb_configuration_descriptor;
+
+        if (!d->get_descriptor(span((uint8_t*)cd, sizeof(*cd)),
+                               usb_descriptor::CONFIGURATION, i)) {
+            print("usb_device::get_descriptor failed\n");
+            delete cd;
+            d->release();
+            return;
+        }
+
+        if (cd->wTotalLength < sizeof(*cd)) {
+            print("usb_hub::device_found: config descriptor was {} bytes, expected at least {}\n",
+                  cd->wTotalLength, sizeof(*cd));
+            delete cd;
+            d->release();
+            return;
+        }
+
+        usb_device_config* conf;
+        auto cd_len = cd->wTotalLength;
+        auto conf_size = offsetof(usb_device_config, data) + cd_len;
+
+        delete cd;
+
+        if (conf_size < PAGE_SIZE) {
+            conf = (usb_device_config*)malloc(conf_size);
+            if (!conf) {
+                print("malloc failed\n");
+                d->release();
+                return;
+            }
+        } else {
+            auto f = allocate_folio(bytes_to_folio_order(conf_size));
+            if (!f) {
+                print("allocate_folio failed\n");
+                d->release();
+                return;
+            }
+
+            conf = (usb_device_config*)phys_address(f);
+        }
+
+        new (conf) usb_device_config;
+
+        if (!d->get_descriptor(span((uint8_t*)&conf->data, cd_len),
+                               usb_descriptor::CONFIGURATION, i)) {
+            print("usb_device::get_descriptor failed\n");
+            conf->~usb_device_config();
+
+            if (conf_size < PAGE_SIZE)
+                free(conf);
+            else
+                free_folio(phys_memory_pfn(conf) << PAGE_SHIFT);
+
+            d->release();
+            return;
+        }
+
+        print_usb_config(span((uint8_t*)conf->data, cd_len));
+
+        insert_tail_list(d->configs, conf->le);
     }
 
     // FIXME - support multiple configurations?
 
-    if (!d->get_descriptor(span((uint8_t*)cd, sizeof(*cd)),
-                           usb_descriptor::CONFIGURATION, 0)) {
-        print("usb_device::get_descriptor failed\n");
-        delete cd;
-        d->release();
-        return;
-    }
+    auto& config = containing_record<usb_device_config>(d->configs.next);
+    auto& cd = *(usb_configuration_descriptor*)config.data;
 
-    if (cd->wTotalLength < sizeof(*cd)) {
-        print("usb_hub::device_found: config descriptor was {} bytes, expected at least {}\n",
-              cd->wTotalLength, sizeof(*cd));
-        delete cd;
-        d->release();
-        return;
-    }
-
-    d->config_size = cd->wTotalLength;
-
-    delete cd;
-
-    if (d->config_size < PAGE_SIZE) {
-        d->config = malloc(d->config_size);
-        if (!d->config) {
-            print("malloc failed\n");
-            d->release();
-            return;
-        }
-    } else {
-        auto f = allocate_folio(bytes_to_folio_order(d->config_size));
-        if (!f) {
-            print("allocate_folio failed\n");
-            d->release();
-            return;
-        }
-
-        d->config = phys_address(f);
-    }
-
-    if (!d->get_descriptor(span((uint8_t*)d->config, d->config_size),
-                          usb_descriptor::CONFIGURATION, 0)) {
-        print("usb_device::get_descriptor failed\n");
-        d->release();
-        return;
-    }
-
-    print_usb_config(span((uint8_t*)d->config, d->config_size));
-
-    auto& config = *(usb_configuration_descriptor*)d->config;
-
-    if (!d->set_configuration(config.bConfigurationValue)) {
+    if (!d->set_configuration(cd.bConfigurationValue)) {
         print("usb_device::set_configuration failed\n");
         d->release();
         return;
     }
 
-    probe_interfaces(*d);
+    probe_interfaces(*d, config);
 }
 
 void xhci::port_status_changed(uint8_t port_id) {
