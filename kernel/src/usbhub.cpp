@@ -570,9 +570,6 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
 
 static bool found_usb_hub_device(usb_device& d, const usb_device_config& config,
                                  const usb_interface& interface) {
-    auto& cd = *(usb_configuration_descriptor*)config.data;
-    auto buf = span((uint8_t*)config.data, cd.wTotalLength);
-
     if (interface.desc.bAlternateSetting)
         return false;
 
@@ -581,37 +578,5 @@ static bool found_usb_hub_device(usb_device& d, const usb_device_config& config,
         return false;
     }
 
-    while (!buf.empty()) {
-        auto len = buf[0];
-
-        if (len > buf.size() || len < 2) {
-            print("buffer truncated\n");
-            return false;
-        }
-
-        auto type = (enum usb_descriptor)buf[1];
-
-        switch (type) {
-            case usb_descriptor::INTERFACE: {
-                auto& i = *(usb_interface_descriptor*)buf.data();
-
-                if (len < sizeof(usb_interface_descriptor)) {
-                    print("buffer truncated\n");
-                    return false;
-                }
-
-                if (i.bInterfaceNumber == interface.desc.bInterfaceNumber)
-                    return found_usb_hub_interface(d, config, interface);
-
-                break;
-            }
-
-            default:
-                break;
-        }
-
-        buf = buf.subspan(len);
-    }
-
-    return false;
+    return found_usb_hub_interface(d, config, interface);
 }
