@@ -221,8 +221,14 @@ private:
     spinlock endpoint_spinlock;
 };
 
+struct usb_interface {
+    list_entry le;
+    usb_interface_descriptor desc;
+};
+
 export struct usb_device_config {
     list_entry le;
+    list_entry interfaces = { &interfaces, &interfaces };
     uint8_t* data[1];
 };
 
@@ -2029,6 +2035,52 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
     return { 0, 0 };
 }
 
+static bool parse_usb_config(usb_device_config& conf) {
+    auto& cd = *(usb_configuration_descriptor*)conf.data;
+    auto buf = span((uint8_t*)conf.data, cd.wTotalLength);
+
+    while (!buf.empty()) {
+        auto len = buf[0];
+
+        if (len > buf.size() || len < 2) {
+            print("buffer truncated\n");
+            return false;
+        }
+
+        auto type = (enum usb_descriptor)buf[1];
+
+        switch (type) {
+            case usb_descriptor::INTERFACE: {
+                auto& i = *(usb_interface_descriptor*)buf.data();
+
+                if (len < sizeof(usb_interface_descriptor)) {
+                    print("buffer truncated\n");
+                    return false;
+                }
+
+                auto intobj = new usb_interface;
+                if (!intobj) {
+                    print("new failed\n");
+                    return false;
+                }
+
+                memcpy(&intobj->desc, &i, sizeof(i));
+
+                insert_tail_list(conf.interfaces, intobj->le);
+
+                break;
+            }
+
+            default:
+                break;
+        }
+
+        buf = buf.subspan(len);
+    }
+
+    return true;
+}
+
 uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
     volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
     auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
@@ -2208,9 +2260,15 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
             return;
         }
 
-        print_usb_config(span((uint8_t*)conf->data, cd_len));
-
         insert_tail_list(d->configs, conf->le);
+
+        if (!parse_usb_config(*conf)) {
+            print("parse_usb_config failed\n");
+            d->release();
+            return;
+        }
+
+        print_usb_config(span((uint8_t*)conf->data, cd_len));
     }
 
     // FIXME - support multiple configurations?
