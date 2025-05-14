@@ -81,6 +81,8 @@ public:
     xhci_request** reqs = nullptr;
 
 private:
+    void submit_holding_lock(xhci_request& req, bool ring_bell);
+
     spinlock submit_lock;
     unsigned int index = 0;
     bool cycle_bit = true;
@@ -1523,6 +1525,12 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                                   uint16_t wIndex) {
     xhci_request req_setup, req_data, req_status;
 
+    req_setup.event = create_event(false);
+    req_status.event = create_event(false);
+
+    if (!buf.empty())
+        req_data.event = create_event(false);
+
     {
         auto& s = *reinterpret_cast<xhci_trb_setup_stage*>(&req_setup.trb);
 
@@ -1543,8 +1551,6 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
             s.transfer_type = 3; // IN
         else
             s.transfer_type = 2; // OUT
-
-        submit(req_setup, false);
     }
 
     if (!buf.empty()) {
@@ -1556,8 +1562,6 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         s.trb_transfer_length = (uint16_t)buf.size();
         s.trb_type = (uint16_t)xhci_trb_type::data_stage;
         s.dir = bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST ? 1 : 0;
-
-        submit(req_data, true);
     }
 
     {
@@ -1568,8 +1572,17 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         s.ioc = 1;
         s.trb_type = (uint16_t)xhci_trb_type::status_stage;
         s.dir = (buf.empty() || !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)) ? 1 : 0;
+    }
 
-        submit(req_status, true);
+    {
+        lock_guard lock(submit_lock);
+
+        submit_holding_lock(req_setup, false);
+
+        if (!buf.empty())
+            submit_holding_lock(req_data, false);
+
+        submit_holding_lock(req_status, true);
     }
 
     auto status = wait_for_object(req_status.event.get(), false, USB_TIMEOUT);
@@ -2598,35 +2611,39 @@ void xhci::isr() {
     write_volatile64(&int_reg.ERDP, (event_ring_pa + (event_ring_offset * sizeof(xhci_trb_common))) | XHCI_ERDP_EHB);
 }
 
+void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
+    auto& trb = *(xhci_trb_common*)((uint8_t*)ring + (index * sizeof(xhci_trb_common)));
+
+    req.trb.cycle = cycle_bit ? 1 : 0;
+    memcpy(&trb, &req.trb, sizeof(trb));
+
+    reqs[index] = &req;
+
+    if (index == (unsigned int)(size - 1)) {
+        auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
+        cmd_link.cycle = cycle_bit ? 1 : 0;
+
+        cycle_bit = !cycle_bit;
+    }
+
+    barrier();
+
+    if (ring_bell)
+        *doorbell = doorbell_val;
+
+    index++;
+
+    if (index == size)
+        index = 0;
+}
+
 void xhci_queue::submit(xhci_request& req, bool ring_bell) {
-    req.event = create_event(true);
+    req.event = create_event(false);
 
     {
         lock_guard lock(submit_lock);
 
-        auto& trb = *(xhci_trb_common*)((uint8_t*)ring + (index * sizeof(xhci_trb_common)));
-
-        req.trb.cycle = cycle_bit ? 1 : 0;
-        memcpy(&trb, &req.trb, sizeof(trb));
-
-        reqs[index] = &req;
-
-        if (index == (unsigned int)(size - 1)) {
-            auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
-            cmd_link.cycle = cycle_bit ? 1 : 0;
-
-            cycle_bit = !cycle_bit;
-        }
-
-        barrier();
-
-        if (ring_bell)
-            *doorbell = doorbell_val;
-
-        index++;
-
-        if (index == size)
-            index = 0;
+        submit_holding_lock(req, ring_bell);
     }
 }
 
