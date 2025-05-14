@@ -466,7 +466,9 @@ static usb_hub_descriptor* get_hub_descriptor(usb_device& d) {
         }
     }
 
+#if 0
     print_usb_config(span((uint8_t*)desc, size));
+#endif
 
     return desc;
 }

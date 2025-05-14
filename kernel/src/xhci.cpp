@@ -2279,7 +2279,9 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
     print("found USB device {:04x}:{:04x}\n", d->device_descriptor.idVendor,
           d->device_descriptor.idProduct);
 
+#if 0
     print_usb_config(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)));
+#endif
 
     if (d->device_descriptor.bNumConfigurations == 0) {
         print("usb_hub::device_found: device had no configurations\n");
@@ -2354,7 +2356,9 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
             return;
         }
 
+#if 0
         print_usb_config(span((uint8_t*)conf->data, cd_len));
+#endif
     }
 
     // FIXME - support multiple configurations?
