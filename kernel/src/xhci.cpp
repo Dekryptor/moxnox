@@ -2508,11 +2508,19 @@ void xhci_queue::isr_transfer_event(const xhci_trb_transfer_event& ev) {
         return;
 
     size_t index = (size_t)(ev.trb_pointer - ring_pa) / sizeof(xhci_trb_common);
-    auto& req = *reqs[index];
 
-    memcpy(&req.ev, &ev, sizeof(ev));
+    xhci_request* req;
 
-    set_event(static_cast<event&>(req.event.get()));
+    {
+        lock_guard lock(submit_lock);
+
+        req = reqs[index];
+        reqs[index] = nullptr;
+    }
+
+    memcpy(&req->ev, &ev, sizeof(ev));
+
+    set_event(static_cast<event&>(req->event.get()));
 }
 
 void usb_device::isr_transfer_event(const xhci_trb_transfer_event& ev) {
