@@ -528,9 +528,6 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
         }
 
         multi_tt = interface2->desc.bInterfaceProtocol == 2;
-
-        if (multi_tt)
-            print("hub using multi-TT\n");
     }
 
     // set number of ports to 4 initially
