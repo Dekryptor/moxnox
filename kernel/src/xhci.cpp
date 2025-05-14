@@ -2256,8 +2256,6 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
             return false;
         }
 
-        print("received address {}\n", devctx->slot.usb_device_address);
-
         return true;
     };
 
