@@ -234,8 +234,6 @@ usb_device_hub::~usb_device_hub() {
 }
 
 void usb_device_hub::device_connected(uint8_t port) {
-    print("usb_device_hub::device_connected: new device on port {}\n", port);
-
     auto& controller = d.controller;
     auto& p = ports[port - 1];
 
