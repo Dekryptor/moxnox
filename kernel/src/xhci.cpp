@@ -546,8 +546,6 @@ xhci::xhci(pci_device& dev) : dev(dev) {
         ports[i].usb_revision = get_port_usb_revision(i + 1);
     }
 
-    print("init_xhci: num_slots = {}, num_ports = {}\n", num_slots, num_ports);
-
     dcbaa = (uint64_t*)malloc((num_slots + 1) * sizeof(uint64_t));
     if (!dcbaa) {
         print("malloc failed\n");
