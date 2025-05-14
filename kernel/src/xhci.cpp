@@ -1004,6 +1004,7 @@ static string_view psie_to_string(uint8_t psie) {
 }
 #endif
 
+#if 0
 static string_view speed_class_to_string(enum usb_speed_class sc) {
     switch (sc) {
         case usb_speed_class::unknown:
@@ -1028,6 +1029,7 @@ static string_view speed_class_to_string(enum usb_speed_class sc) {
             unreachable();
     }
 }
+#endif
 
 uint8_t usb_device::find_root_port() {
     auto d = this;
@@ -1074,9 +1076,11 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
     this->port = port;
     this->speed_class = speed_class;
 
+#if 0
     print("root port {}, route_string {:x}, slot {}, speed {}\n",
           find_root_port(), find_route_string(), slot,
           speed_class_to_string(speed_class));
+#endif
 
     parent.children[port - 1] = this;
 
