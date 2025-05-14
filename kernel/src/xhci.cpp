@@ -1259,10 +1259,12 @@ usb_device_config::~usb_device_config() {
 }
 
 usb_device::~usb_device() {
-    parent.children[port - 1] = nullptr;
+    if (slot != 0) {
+        parent.children[port - 1] = nullptr;
 
-    controller.disable_slot(slot);
-    controller.dcbaa[slot] = 0;
+        controller.disable_slot(slot);
+        controller.dcbaa[slot] = 0;
+    }
 
     if (controller.large_contexts)
         delete (xhci_device_context<true>*)devctx;
@@ -2170,8 +2172,18 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
 void usb_device::device_removed() {
     print("FIXME - usb_device::device_removed\n");
 
-    // FIXME - disable slot
+    if (slot != 0) {
+        parent.children[port - 1] = nullptr;
+
+        controller.disable_slot(slot);
+        controller.dcbaa[slot] = 0;
+
+        slot = 0;
+    }
+
     // FIXME - if hub, handle child devices
+
+    release();
 }
 
 void usb_hub::device_removed(uint8_t port) {
