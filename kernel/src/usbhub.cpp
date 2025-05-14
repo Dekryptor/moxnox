@@ -100,7 +100,6 @@ private:
     usb_hub_port* ports = nullptr;
     atomic<unsigned int> refcount = 1;
     uint32_t hub_status;
-    uint8_t num_ports;
 };
 
 static bool found_usb_hub_device(usb_device& d, const usb_device_config& config,
@@ -192,6 +191,14 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descrip
     }
 
     memset(ports, 0, sizeof(usb_hub_port) * num_ports);
+
+    children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
+    if (!children) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memset(children, 0, sizeof(usb_device*) * num_ports);
 
     if (!get_hub_status(hub_status)) {
         print("usb_device_hub::get_hub_status failed\n");

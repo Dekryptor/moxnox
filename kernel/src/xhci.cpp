@@ -95,6 +95,12 @@ export class usb_device;
 export class usb_hub {
 public:
     usb_hub(xhci& controller, usb_device* device, unsigned int depth) : depth(depth), device(device), controller(controller) { }
+
+    ~usb_hub() {
+        if (children)
+            free(children);
+    }
+
     void device_found(uint8_t slot, uint8_t port, enum usb_speed_class speed_class,
                       uint8_t port_speed);
     void device_removed(uint8_t port);
@@ -102,6 +108,8 @@ public:
     unsigned int depth;
     usb_device* device;
     bool multi_tt = false;
+    uint8_t num_ports;
+    usb_device** children = nullptr;
 
 private:
     xhci& controller;
@@ -189,6 +197,7 @@ public:
     uint8_t find_root_port();
     pair<usb_device*, uint8_t> find_tt();
     bool set_interface(uint16_t interface, uint16_t alternate);
+    void device_removed();
 
     void acquire() {
         refcount++;
@@ -451,6 +460,14 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     }
 
     memset(ports, 0, sizeof(xhci_port) * num_ports);
+
+    root_hub.children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
+    if (!root_hub.children) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memset(root_hub.children, 0, sizeof(usb_device*) * num_ports);
 
     if (dev.bar[0].size() < cap_regs.CAPLENGTH + offsetof(xhci_op_regs, ports) + (num_ports * sizeof(xhci_port_regs))) {
         print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
@@ -1062,6 +1079,8 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
           find_root_port(), find_route_string(), slot,
           speed_class_to_string(speed_class));
 
+    parent.children[port - 1] = this;
+
     if (speed_class == usb_speed_class::unknown) {
         print("usb_device::usb_device: ignoring device with unknown speed class\n");
         return;
@@ -1240,6 +1259,8 @@ usb_device_config::~usb_device_config() {
 }
 
 usb_device::~usb_device() {
+    parent.children[port - 1] = nullptr;
+
     controller.disable_slot(slot);
     controller.dcbaa[slot] = 0;
 
@@ -2146,11 +2167,25 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
     return 0;
 }
 
-void usb_hub::device_removed(uint8_t port) {
-    print("FIXME - usb_hub::device_removed {}\n", port);
+void usb_device::device_removed() {
+    print("FIXME - usb_device::device_removed\n");
 
     // FIXME - disable slot
     // FIXME - if hub, handle child devices
+}
+
+void usb_hub::device_removed(uint8_t port) {
+    if (port > num_ports) {
+        print("usb_hub::device_removed: port was {}, expected 1 to {}\n", port, num_ports);
+        return;
+    }
+
+    if (!children[port - 1]) {
+        print("usb_hub::device_removed: no device currently in port {}\n", port);
+        return;
+    }
+
+    children[port - 1]->device_removed();
 }
 
 void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class speed_class,
