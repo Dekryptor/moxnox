@@ -462,6 +462,8 @@ xhci::xhci(pci_device& dev) : dev(dev) {
 
     memset(ports, 0, sizeof(xhci_port) * num_ports);
 
+    root_hub.num_ports = num_ports;
+
     root_hub.children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
     if (!root_hub.children) {
         print("malloc failed\n");
