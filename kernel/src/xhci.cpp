@@ -60,10 +60,13 @@ export struct xhci_psi {
 
 static_assert(sizeof(xhci_psi) == 0x4);
 
-class xhci;
+export class usb_device;
 
 export class xhci_queue {
 public:
+    xhci_queue(usb_device* dev) : dev(dev) { }
+
+    ~xhci_queue();
     void initialize(uint16_t size, volatile uint32_t* doorbell,
                     uint32_t doorbell_val);
     void submit(xhci_request& req, bool ring_bell);
@@ -72,7 +75,7 @@ public:
                           uint16_t wIndex);
     bool normal_transfer(span<uint8_t> buf);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
-    ~xhci_queue();
+    void break_waits();
 
     xhci_trb_common* ring = nullptr;
     uint64_t ring_pa;
@@ -88,11 +91,10 @@ private:
     bool cycle_bit = true;
     volatile uint32_t* doorbell;
     uint32_t doorbell_val;
+    usb_device* dev;
 };
 
 class xhci;
-
-export class usb_device;
 
 export class usb_hub {
 public:
@@ -138,7 +140,7 @@ public:
     pci_device& dev;
     uint32_t dboff;
     uint64_t* dcbaa = nullptr;
-    xhci_queue command_queue;
+    xhci_queue command_queue{nullptr};
     spinlock devices_lock;
     list_entry devices = { &devices, &devices };
     bool large_contexts;
@@ -171,6 +173,8 @@ private:
 };
 
 struct device_endpoint {
+    device_endpoint(usb_device& dev) : queue(&dev) { }
+
     list_entry le;
     uint8_t num;
     bool dir;
@@ -212,7 +216,7 @@ public:
 
     list_entry le;
     bool initialized = false;
-    xhci_queue ep0_queue;
+    xhci_queue ep0_queue{this};
     uint8_t slot;
     usb_device_descriptor device_descriptor;
     list_entry endpoints = { &endpoints, &endpoints };
@@ -340,6 +344,8 @@ void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
         print("malloc failed\n");
         return;
     }
+
+    memset(reqs, 0, sizeof(xhci_request*) * size);
 
     auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
     cmd_link.ring_segment_pointer = ring_pa;
@@ -1414,6 +1420,9 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
         {
             lock_guard lock(endpoint_mutex);
 
+            if (dead)
+                return false;
+
             bool new_dep = false;
 
             {
@@ -1430,7 +1439,7 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
             }
 
             if (!dep) {
-                dep = new device_endpoint;
+                dep = new device_endpoint(*this);
                 if (!dep) {
                     print("new failed\n");
                     return false;
@@ -1587,6 +1596,9 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
 
     auto status = wait_for_object(req_status.event.get(), false, USB_TIMEOUT);
 
+    if (dev && dev->dead)
+        return false;
+
     if (status == nt_status::TIMEOUT) {
         print("xhci_queue::control_transfer: request timed out ({})\n", (enum TRB_CODE)req_setup.ev.completion_code);
         return false;
@@ -1686,6 +1698,9 @@ bool xhci_queue::normal_transfer(span<uint8_t> buf) {
     }
 
     wait_for_object(req.event.get(), false);
+
+    if (dev && dev->dead)
+        return false;
 
     if ((enum TRB_CODE)req.ev.completion_code != TRB_CODE::SUCCESS) {
         print("xhci_queue::normal_transfer: controller returned error {}\n", (enum TRB_CODE)req.ev.completion_code);
@@ -2187,6 +2202,15 @@ uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
     return 0;
 }
 
+void xhci_queue::break_waits() {
+    lock_guard lock(submit_lock);
+
+    for (uint16_t i = 0; i < size; i++) {
+        if (reqs[i])
+            set_event(static_cast<event&>(reqs[i]->event.get()));
+    }
+}
+
 void usb_device::device_removed() {
     print("FIXME - usb_device::device_removed\n");
 
@@ -2201,7 +2225,23 @@ void usb_device::device_removed() {
 
     // FIXME - if hub, handle child devices
 
-    dead = true;
+    {
+        lock_guard lock(endpoint_mutex);
+
+        dead = true;
+    }
+
+    {
+        lock_guard lock(endpoint_spinlock);
+
+        for (auto le = endpoints.next; le != &endpoints; le = le->next) {
+            auto& ep = containing_record<device_endpoint>(le);
+
+            ep.queue.break_waits();
+        }
+    }
+
+    ep0_queue.break_waits();
 
     release();
 }
@@ -2514,6 +2554,9 @@ void xhci_queue::isr_transfer_event(const xhci_trb_transfer_event& ev) {
     {
         lock_guard lock(submit_lock);
 
+        if (!reqs[index])
+            return;
+
         req = reqs[index];
         reqs[index] = nullptr;
     }
@@ -2625,7 +2668,8 @@ void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
     req.trb.cycle = cycle_bit ? 1 : 0;
     memcpy(&trb, &req.trb, sizeof(trb));
 
-    reqs[index] = &req;
+    if (ring_bell)
+        reqs[index] = &req;
 
     if (index == (unsigned int)(size - 1)) {
         auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
