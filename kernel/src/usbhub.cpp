@@ -93,6 +93,7 @@ private:
     void port_status_change(uint8_t port);
     void device_connected(uint8_t port);
     bool get_hub_status(uint32_t& hub_status);
+    void device_removed(uint8_t port);
 
     usb_device& d;
     xhci_queue& queue;
@@ -343,6 +344,15 @@ bool usb_device_hub::clear_port_feature(enum usb2_port_feature_selector feature,
     return true;
 }
 
+void usb_device_hub::device_removed(uint8_t port) {
+    if (!children[port - 1]) {
+        print("usb_device_hub::device_removed: no device currently in port {}\n", port);
+        return;
+    }
+
+    children[port - 1]->device_removed();
+}
+
 void usb_device_hub::port_status_change(uint8_t port) {
     auto new_status = (port_status*)malloc(sizeof(port_status));
     if (!new_status) {
@@ -373,10 +383,8 @@ void usb_device_hub::port_status_change(uint8_t port) {
                         hub->device_connected(port);
                         hub->release();
                     }, this, (void*)(uintptr_t)port);
-                } else {
-                    print("usb_device_hub::port_status_change: device removed from port {}\n", port);
-                    // FIXME - process
-                }
+                } else
+                    device_removed(port);
             }
 
             clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
