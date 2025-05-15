@@ -23,9 +23,9 @@ public:
                  const usb_interface& interface);
     ~usb_keyboard();
     void set_leds(keyboard_leds leds);
+    void recv_thread();
 
 private:
-    void recv_thread();
     void post_evdev(enum evdev_code code, bool down);
 
     usb_device& d;
@@ -374,10 +374,6 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
 
         kbd.set_leds(leds);
     }, this);
-
-    add_kernel_thread([](void* ctx) {
-        ((usb_keyboard*)ctx)->recv_thread();
-    }, this);
 }
 
 usb_keyboard::~usb_keyboard() {
@@ -468,9 +464,9 @@ void usb_keyboard::recv_thread() {
 
     while (true) {
         if (!queue.normal_transfer(span(buf, packet_size))) {
-            print("xhci_queue::normal transfer failed\n");
-            free(buf);
-            return;
+            if (!d.dead)
+                print("xhci_queue::normal transfer failed\n");
+            break;
         }
 
 #if 0
@@ -620,6 +616,13 @@ static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
         print("new failed\n");
         return false;
     }
+
+    add_kernel_thread([](void* ctx) {
+        auto kbd = (usb_keyboard*)ctx;
+
+        kbd->recv_thread();
+        delete kbd;
+    }, kbd);
 
     return true;
 }
