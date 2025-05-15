@@ -23,12 +23,12 @@ jobs:
             -S ${SHORT_SHA} -B release-work && \
           cmake --build release-work --parallel `nproc` && \
           cmake --install release-work
-      - uses: actions/upload-artifact@v3
-        with:
-          name: ${{ github.sha }}
-          overwrite: true
-          path: |
-            install
+      # - uses: actions/upload-artifact@v3
+      #   with:
+      #     name: ${{ github.sha }}
+      #     overwrite: true
+      #     path: |
+      #       install
       - run: |
           s3cmd --host=minio.burntcomma.com:443 \
             --host-bucket=minio.burntcomma.com:443 \
