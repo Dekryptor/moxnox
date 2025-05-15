@@ -628,7 +628,7 @@ export struct keyboard_leds {
 
 using set_leds_func = void (*)(void* ctx, keyboard_leds leds);
 
-class keyboard_context {
+export class keyboard_context {
 public:
     keyboard_context(pipe& p, set_leds_func led_func, void* ctx) : p(p), led_func(led_func), ctx(ctx) {
         p.acquire();
@@ -643,6 +643,9 @@ public:
     }
 
     void listen_thread();
+    void unregister();
+
+    bool dead = false;
 
 private:
     void key_event(input_event& ev);
@@ -853,7 +856,7 @@ void keyboard_context::listen_thread() {
             uint64_t read_bytes;
 
             status = p.read(sp, read_bytes);
-            if (!success(status))
+            if (dead || !success(status))
                 break;
 
             if (read_bytes == sp.size())
@@ -861,6 +864,9 @@ void keyboard_context::listen_thread() {
 
             sp = span(sp.data() + read_bytes, sp.size() - read_bytes);
         }
+
+        if (dead)
+            break;
 
         if (!success(status)) {
             print("pipe::read returned {}\n", status);
@@ -874,11 +880,15 @@ void keyboard_context::listen_thread() {
     }
 }
 
-export void register_keyboard(pipe& p, set_leds_func led_func, void* ctx) {
+void keyboard_context::unregister() {
+    dead = true;
+}
+
+export keyboard_context* register_keyboard(pipe& p, set_leds_func led_func, void* ctx) {
     auto kc = new keyboard_context(p, led_func, ctx);
     if (!kc) {
         print("new failed\n");
-        return;
+        return nullptr;
     }
 
     add_kernel_thread([](void* ctx) {
@@ -888,4 +898,6 @@ export void register_keyboard(pipe& p, set_leds_func led_func, void* ctx) {
 
         delete &kc;
     }, kc);
+
+    return kc;
 }

@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include "spinlock.h"
 #include <span>
 
 export module usbhid;
@@ -33,6 +34,7 @@ private:
     object_ref evdev_pipe;
     uint16_t packet_size;
     const usb_interface& interface;
+    keyboard_context* kc = nullptr;
 };
 
 static const enum evdev_code keycodes[] = {
@@ -369,7 +371,7 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
     //     return false;
     // }
 
-    register_keyboard(static_cast<pipe&>(evdev_pipe.get()), [](void* ctx, keyboard_leds leds) {
+    this->kc = register_keyboard(static_cast<pipe&>(evdev_pipe.get()), [](void* ctx, keyboard_leds leds) {
         auto& kbd = *(usb_keyboard*)ctx;
 
         kbd.set_leds(leds);
@@ -377,6 +379,22 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
 }
 
 usb_keyboard::~usb_keyboard() {
+    if (kc)
+        kc->unregister();
+
+    auto& p = static_cast<pipe&>(evdev_pipe.get());
+
+    {
+        sync_lock sl;
+        lock_guard l(sl);
+
+        if (!p.signalled) {
+            p.signalled = true;
+
+            wake_up_waiters(p.waiters);
+        }
+    }
+
     d.release();
 }
 
