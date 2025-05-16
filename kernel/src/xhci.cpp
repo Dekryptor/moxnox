@@ -95,9 +95,18 @@ export class usb_hub {
 public:
     usb_hub(xhci& controller, usb_device* device, unsigned int depth) : depth(depth), device(device), controller(controller) { }
 
-    ~usb_hub() {
+    virtual ~usb_hub() {
         if (children)
             free(children);
+    }
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
     }
 
     void device_found(uint8_t slot, uint8_t port, enum usb_speed_class speed_class,
@@ -112,6 +121,7 @@ public:
 
 private:
     xhci& controller;
+    atomic<unsigned int> refcount = 1;
 };
 
 class usb_root_hub : public usb_hub {

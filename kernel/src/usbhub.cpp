@@ -74,15 +74,6 @@ public:
     ~usb_device_hub();
     void recv_thread();
 
-    void acquire() {
-        refcount++;
-    }
-
-    void release() {
-        if (--refcount == 0)
-            delete this;
-    }
-
     bool initialized = false;
 
 private:
@@ -99,7 +90,6 @@ private:
     xhci_queue& queue;
     usb_hub_descriptor* hub_desc = nullptr;
     usb_hub_port* ports = nullptr;
-    atomic<unsigned int> refcount = 1;
     uint32_t hub_status;
 };
 
