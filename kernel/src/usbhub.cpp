@@ -62,6 +62,11 @@ union port_status {
 
 static_assert(sizeof(port_status) == 0x4);
 
+enum class usbhub_request : uint8_t {
+    SET_HUB_DEPTH = 12,
+    GET_PORT_ERR_COUNT = 13,
+};
+
 struct usb_hub_port {
     port_status status;
     uint8_t slot;
@@ -588,6 +593,17 @@ void usb_device_hub::kill_children() {
     }
 }
 
+static bool set_hub_depth(usb_device& d, uint8_t depth) {
+    if (!d.ep0_queue.control_transfer(span<uint8_t>(),
+            USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
+            (enum usb_request)usbhub_request::SET_HUB_DEPTH, depth, 0)) {
+        print("xhci_queue::control_transfer failed\n");
+        return false;
+    }
+
+    return true;
+}
+
 static bool found_usb_hub_interface(usb_device& d, const usb_device_config& config,
                                     const usb_interface& interface) {
     bool multi_tt = false;
@@ -654,6 +670,11 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
     usb_device_hub* hub;
 
     if (d.speed_class >= usb_speed_class::super_speed) {
+        if (!set_hub_depth(d, (uint8_t)d.parent.depth)) {
+            print("set_hub_depth failed\n");
+            return false;
+        }
+
         auto hub_desc = get_usb3_hub_descriptor(d);
         if (!hub_desc) {
             print("get_hub_descriptor failed\n");
