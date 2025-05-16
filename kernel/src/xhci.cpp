@@ -131,7 +131,7 @@ public:
 
 class xhci {
 public:
-    xhci(pci_device& dev);
+    xhci(const pci_device& dev);
     ~xhci();
     void init_ports();
     void isr();
@@ -142,7 +142,7 @@ public:
     uint8_t get_speed_num(uint8_t port_id, uint32_t psi_num);
 
     bool initialized = false;
-    pci_device& dev;
+    const pci_device& dev;
     uint32_t dboff;
     uint64_t* dcbaa = nullptr;
     xhci_queue command_queue{nullptr};
@@ -429,7 +429,7 @@ bool xhci::init_scratchpad() {
     return true;
 }
 
-xhci::xhci(pci_device& dev) : dev(dev) {
+xhci::xhci(const pci_device& dev) : dev(dev) {
     dev.header->command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
     if (!dev.msix && dev.msi.empty()) {
@@ -2719,7 +2719,7 @@ bool xhci::disable_slot(uint8_t slot_id) {
 
 export
 extern "C++"
-void init_xhci(pci_device& dev) {
+void init_xhci(const pci_device& dev) {
     auto x = new xhci(dev);
     if (!x) {
         print("new failed\n");
