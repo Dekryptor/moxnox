@@ -43,10 +43,6 @@ struct port_status_change {
     uint8_t port_id;
 };
 
-struct xhci_port {
-    uint16_t usb_revision;
-};
-
 export struct xhci_psi {
     uint8_t psiv : 4;
     uint8_t psie : 2;
@@ -152,7 +148,6 @@ private:
     uint8_t get_port_slot_type(uint8_t port_id);
     bool reset_port(uint8_t port_id);
     bool init_scratchpad();
-    uint16_t get_port_usb_revision(uint8_t port_id);
 
     uint8_t num_slots, num_ports;
     xhci_trb_common* event_ring = nullptr;
@@ -166,7 +161,6 @@ private:
     object_ref port_status_change_thread_obj;
     spinlock port_status_change_lock;
     list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
-    xhci_port* ports = nullptr;
     uint64_t* scratchpad_array = nullptr;
     size_t scratchpad_array_size;
 };
@@ -461,14 +455,6 @@ xhci::xhci(pci_device& dev) : dev(dev) {
         return;
     }
 
-    ports = (xhci_port*)malloc(sizeof(xhci_port) * num_ports);
-    if (!ports) {
-        print("malloc failed\n");
-        return;
-    }
-
-    memset(ports, 0, sizeof(xhci_port) * num_ports);
-
     root_hub.num_ports = num_ports;
 
     root_hub.children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
@@ -549,10 +535,6 @@ xhci::xhci(pci_device& dev) : dev(dev) {
     if (!reset_done) {
         print("init_xhci: timed out resetting controller\n");
         return;
-    }
-
-    for (uint8_t i = 0; i < num_ports; i++) {
-        ports[i].usb_revision = get_port_usb_revision(i + 1);
     }
 
     dcbaa = (uint64_t*)malloc((num_slots + 1) * sizeof(uint64_t));
@@ -704,9 +686,6 @@ xhci::~xhci() {
 
     if (seg_table)
         free(seg_table);
-
-    if (ports)
-        free(ports);
 
     if (scratchpad_array) {
         for (size_t i = 0; i < scratchpad_array_size; i++) {
@@ -2163,42 +2142,6 @@ static bool parse_usb_config(usb_device_config& conf) {
     }
 
     return true;
-}
-
-uint16_t xhci::get_port_usb_revision(uint8_t port_id) {
-    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
-    auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
-
-    // FIXME - make sure we don't overflow BAR
-
-    volatile auto* ptr = (uint32_t*)(dev.bar[0].data() + (xecp << 2));
-
-    while (true) {
-        xhci_extended_capability cap;
-
-        *(uint32_t*)&cap = *ptr;
-
-        if (cap.cap_type == xhci_capability_type::supported_protocol) {
-            xhci_supported_protocol prot;
-
-            // Qemu insists that we read 32 bits at a time
-            copy_by_uint32(ptr, &prot, sizeof(prot));
-
-            // FIXME - check name string
-
-            if (port_id >= prot.port_offset && port_id < prot.port_offset + prot.port_count)
-                return (uint16_t)(prot.revision_major << 8) | prot.revision_minor;
-        }
-
-        if (cap.next_cap == 0)
-            break;
-
-        ptr += cap.next_cap;
-    }
-
-    print("xhci::get_port_usb_revision: could not find port {} in capabilities\n", port_id);
-
-    return 0;
 }
 
 void xhci_queue::break_waits() {
