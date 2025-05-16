@@ -496,7 +496,14 @@ void usb_device_hub::port_status_change(uint8_t port) {
 }
 
 void usb_device_hub::recv_thread() {
-    size_t msg_size = (hub_desc.usb2.bNbrPorts / 8) + 1;
+    uint8_t num_ports;
+
+    if (d.speed_class >= usb_speed_class::super_speed)
+        num_ports = hub_desc.usb3.bNbrPorts;
+    else
+        num_ports = hub_desc.usb2.bNbrPorts;
+
+    size_t msg_size = (num_ports / 8) + 1;
 
     auto buf = (uint8_t*)malloc(msg_size);
     if (!buf) {
@@ -516,7 +523,7 @@ void usb_device_hub::recv_thread() {
             // FIXME - process and clear change bit (C_HUB_LOCAL_POWER or C_HUB_OVER_CURRENT)
         }
 
-        for (uint8_t i = 0; i < hub_desc.usb2.bNbrPorts; i++) {
+        for (uint8_t i = 0; i < num_ports; i++) {
             if (buf[(i + 1) / 8] & (1 << ((i + 1) % 8)))
                 port_status_change(i + 1);
         }
