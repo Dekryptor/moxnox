@@ -73,6 +73,7 @@ public:
                    uint8_t num_ports, bool multi_tt);
     ~usb_device_hub();
     void recv_thread();
+    void kill_children();
 
     bool initialized = false;
 
@@ -471,6 +472,13 @@ static usb_hub_descriptor* get_hub_descriptor(usb_device& d) {
     return desc;
 }
 
+void usb_device_hub::kill_children() {
+    for (uint8_t i = 1; i < num_ports; i++) {
+        if (children[i - 1])
+            children[i - 1]->device_removed();
+    }
+}
+
 static bool found_usb_hub_interface(usb_device& d, const usb_device_config& config,
                                     const usb_interface& interface) {
     bool multi_tt = false;
@@ -581,6 +589,7 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
         auto hub = (usb_device_hub*)ctx;
 
         hub->recv_thread();
+        hub->kill_children();
         hub->release();
     }, hub);
 
