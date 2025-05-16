@@ -1886,6 +1886,21 @@ export void print_usb_config(span<const uint8_t> buf) {
                 break;
             }
 
+            case usb_descriptor::SUPERSPEED_HUB: {
+                auto& h = *(usb3_hub_descriptor*)buf.data();
+
+                if (len < sizeof(usb3_hub_descriptor)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                print("SUPERSPEED_HUB: bNbrPorts = {}, power_switching_mode = {}, compound_device = {}, overcurrent_protection_mode = {}, bPwrOn2PwrGood = {}, bHubContrCurrent = {}, bHubHdrDecLat = {}, wHubDelay = {}, DeviceRemovable = {:x}\n",
+                      h.bNbrPorts, h.power_switching_mode, h.compound_device, h.overcurrent_protection_mode, h.bPwrOn2PwrGood,
+                      h.bHubContrCurrent, h.bHubHdrDecLat, h.wHubDelay, h.DeviceRemovable);
+
+                break;
+            }
+
             // FIXME - SUPERSPEED_USB_ENDPOINT_COMPANION
             // FIXME - SUPERSPEEDPLUS_ISOCHRONOUS_ENDPOINT_COMPANION
 

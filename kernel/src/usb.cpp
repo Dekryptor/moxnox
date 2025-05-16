@@ -95,6 +95,7 @@ export enum class usb_descriptor {
     DEVICE_CAPABILITY = 16,
     HID = 33,
     HUB = 41,
+    SUPERSPEED_HUB = 42,
     SUPERSPEED_USB_ENDPOINT_COMPANION = 48,
     SUPERSPEEDPLUS_ISOCHRONOUS_ENDPOINT_COMPANION = 49,
 };
@@ -196,10 +197,27 @@ export struct usb2_hub_descriptor {
     uint8_t reserved;
     uint8_t bPwrOn2PwrGood;
     uint8_t bHubContrCurrent;
-    uint8_t DeviceRemovable[0];
+    uint8_t DeviceRemovable[2];
 } __attribute((packed));
 
 static_assert(offsetof(usb2_hub_descriptor, DeviceRemovable) == 0x7);
+
+export struct usb3_hub_descriptor {
+    uint8_t bDescLength;
+    uint8_t bDescriptorType;
+    uint8_t bNbrPorts;
+    uint16_t power_switching_mode : 2;
+    uint16_t compound_device : 1;
+    uint16_t overcurrent_protection_mode : 2;
+    uint16_t : 11;
+    uint8_t bPwrOn2PwrGood;
+    uint8_t bHubContrCurrent;
+    uint8_t bHubHdrDecLat;
+    uint16_t wHubDelay;
+    uint16_t DeviceRemovable;
+} __attribute((packed));
+
+static_assert(sizeof(usb3_hub_descriptor) == 0xc);
 
 export struct usb_interface_association_descriptor {
     uint8_t bLength;
@@ -214,7 +232,7 @@ export struct usb_interface_association_descriptor {
 
 static_assert(sizeof(usb_interface_association_descriptor) == 0x8);
 
-export enum usb2_port_feature_selector : uint8_t {
+export enum class usb2_port_feature_selector : uint8_t {
     PORT_CONNECTION = 0,
     PORT_ENABLE = 1,
     PORT_SUSPEND = 2,
@@ -229,4 +247,23 @@ export enum usb2_port_feature_selector : uint8_t {
     C_PORT_RESET = 20,
     PORT_TEST = 21,
     PORT_INDICATOR = 22,
+};
+
+export enum class usb3_port_feature_selector : uint8_t {
+    PORT_CONNECTION = 0,
+    PORT_OVER_CURRENT = 3,
+    PORT_RESET = 4,
+    PORT_LINK_STATE = 5,
+    PORT_POWER = 8,
+    C_PORT_CONNECTION = 16,
+    C_PORT_OVER_CURRENT = 19,
+    C_PORT_RESET = 20,
+    PORT_U1_TIMEOUT = 23,
+    PORT_U2_TIMEOUT = 24,
+    C_PORT_LINK_STATE = 25,
+    C_PORT_CONFIG_ERROR = 26,
+    PORT_REMOTE_WAKE_MASK = 27,
+    BH_PORT_RESET = 28,
+    C_BH_PORT_RESET = 29,
+    FORCE_LINKPM_ACCEPT = 30,
 };
