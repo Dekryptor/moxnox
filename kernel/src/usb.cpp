@@ -184,7 +184,7 @@ export struct usb_hid_descriptor {
 
 static_assert(sizeof(usb_hid_descriptor) == 0x9);
 
-export struct usb_hub_descriptor {
+export struct usb2_hub_descriptor {
     uint8_t bDescLength;
     uint8_t bDescriptorType;
     uint8_t bNbrPorts;
@@ -199,7 +199,7 @@ export struct usb_hub_descriptor {
     uint8_t DeviceRemovable[0];
 } __attribute((packed));
 
-static_assert(offsetof(usb_hub_descriptor, DeviceRemovable) == 0x7);
+static_assert(offsetof(usb2_hub_descriptor, DeviceRemovable) == 0x7);
 
 export struct usb_interface_association_descriptor {
     uint8_t bLength;

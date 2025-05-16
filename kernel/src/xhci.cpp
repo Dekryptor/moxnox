@@ -1859,16 +1859,16 @@ export void print_usb_config(span<const uint8_t> buf) {
             }
 
             case usb_descriptor::HUB: {
-                auto& h = *(usb_hub_descriptor*)buf.data();
+                auto& h = *(usb2_hub_descriptor*)buf.data();
 
-                if (len < offsetof(usb_hub_descriptor, DeviceRemovable)) {
+                if (len < offsetof(usb2_hub_descriptor, DeviceRemovable)) {
                     print("buffer truncated\n");
                     return;
                 }
 
                 unsigned int dev_rem_bytes = (h.bNbrPorts / 8) + 1;
 
-                if (len < offsetof(usb_hub_descriptor, DeviceRemovable) + dev_rem_bytes) {
+                if (len < offsetof(usb2_hub_descriptor, DeviceRemovable) + dev_rem_bytes) {
                     print("buffer truncated\n");
                     return;
                 }

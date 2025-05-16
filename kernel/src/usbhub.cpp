@@ -69,7 +69,7 @@ struct usb_hub_port {
 
 class usb_device_hub : public usb_hub {
 public:
-    usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc,
+    usb_device_hub(usb_device& d, xhci_queue& queue, usb2_hub_descriptor* hub_desc,
                    uint8_t num_ports, bool multi_tt);
     ~usb_device_hub();
     void recv_thread();
@@ -89,7 +89,7 @@ private:
 
     usb_device& d;
     xhci_queue& queue;
-    usb_hub_descriptor* hub_desc = nullptr;
+    usb2_hub_descriptor* hub_desc = nullptr;
     usb_hub_port* ports = nullptr;
     uint32_t hub_status;
 };
@@ -167,7 +167,7 @@ bool usb_device_hub::get_hub_status(uint32_t& hub_status) {
     return true;
 }
 
-usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb_hub_descriptor* hub_desc,
+usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb2_hub_descriptor* hub_desc,
                                uint8_t num_ports, bool multi_tt) :
         usb_hub(d.controller, &d, d.parent.depth + 1), d(d), queue(queue) {
     this->hub_desc = hub_desc;
@@ -430,12 +430,12 @@ void usb_device_hub::recv_thread() {
     free(buf);
 }
 
-static usb_hub_descriptor* get_hub_descriptor(usb_device& d) {
+static usb2_hub_descriptor* get_hub_descriptor(usb_device& d) {
     // FIXME - "enhanced" hubs
 
-    size_t size = offsetof(usb_hub_descriptor, DeviceRemovable);
+    size_t size = offsetof(usb2_hub_descriptor, DeviceRemovable);
 
-    auto desc = (usb_hub_descriptor*)malloc(size);
+    auto desc = (usb2_hub_descriptor*)malloc(size);
     if (!desc) {
         print("malloc failed\n");
         return nullptr;
@@ -452,7 +452,7 @@ static usb_hub_descriptor* get_hub_descriptor(usb_device& d) {
 
         free(desc);
 
-        desc = (usb_hub_descriptor*)malloc(size);
+        desc = (usb2_hub_descriptor*)malloc(size);
         if (!desc) {
             print("malloc failed\n");
             return nullptr;
