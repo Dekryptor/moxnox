@@ -588,7 +588,10 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
     }
 
     add_kernel_thread([](void* ctx) {
-        ((usb_device_hub*)ctx)->recv_thread();
+        auto hub = (usb_device_hub*)ctx;
+
+        hub->recv_thread();
+        hub->release();
     }, hub);
 
     return true;
