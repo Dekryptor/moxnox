@@ -89,6 +89,8 @@ private:
     bool set_port_feature(enum usb3_port_feature_selector feature, uint16_t index);
     bool clear_port_feature(enum usb2_port_feature_selector feature,
                             uint16_t index);
+    bool clear_port_feature(enum usb3_port_feature_selector feature,
+                            uint16_t index);
     bool get_port_status(uint8_t port, port_status& status);
     void port_status_change(uint8_t port);
     void device_connected(uint8_t port);
@@ -430,6 +432,17 @@ bool usb_device_hub::clear_port_feature(enum usb2_port_feature_selector feature,
     return true;
 }
 
+bool usb_device_hub::clear_port_feature(enum usb3_port_feature_selector feature,
+                                        uint16_t index) {
+    if (!d.clear_feature(USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_OTHER,
+                         (uint8_t)feature, index)) {
+        print("usb_device::set_feature failed\n");
+        return false;
+    }
+
+    return true;
+}
+
 void usb_device_hub::device_removed(uint8_t port) {
     if (!children[port - 1]) {
         print("usb_device_hub::device_removed: no device currently in port {}\n", port);
@@ -452,45 +465,87 @@ void usb_device_hub::port_status_change(uint8_t port) {
         return;
     }
 
-    if (port <= num_ports) {
-        auto old_status = ports[port - 1].status;
+    if (d.speed_class >= usb_speed_class::super_speed) {
+        if (port <= num_ports) {
+            auto old_status = ports[port - 1].status;
 
-        ports[port - 1].status = *new_status;
+            ports[port - 1].status = *new_status;
 
-        if (new_status->usb2.connection_changed) {
-            if (old_status.usb2.connection != new_status->usb2.connection) {
-                if (new_status->usb2.connection) {
-                    acquire();
+            if (new_status->usb2.connection_changed) {
+                if (old_status.usb3.connection != new_status->usb3.connection) {
+                    if (new_status->usb3.connection) {
+                        acquire();
 
-                    add_kernel_thread([](void* param1, void* param2) {
-                        auto hub = (usb_device_hub*)param1;
-                        auto port = (uint8_t)(uintptr_t)param2;
+                        add_kernel_thread([](void* param1, void* param2) {
+                            auto hub = (usb_device_hub*)param1;
+                            auto port = (uint8_t)(uintptr_t)param2;
 
-                        hub->device_connected(port);
-                        hub->release();
-                    }, this, (void*)(uintptr_t)port);
-                } else
-                    device_removed(port);
+                            hub->device_connected(port);
+                            hub->release();
+                        }, this, (void*)(uintptr_t)port);
+                    } else
+                        device_removed(port);
+                }
+
+                clear_port_feature(usb3_port_feature_selector::C_PORT_CONNECTION, port);
             }
-
-            clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
+        } else {
+            if (new_status->usb3.connection_changed)
+                clear_port_feature(usb3_port_feature_selector::C_PORT_CONNECTION, port);
         }
+
+        if (new_status->usb3.over_current_changed)
+            clear_port_feature(usb3_port_feature_selector::C_PORT_OVER_CURRENT, port);
+
+        if (new_status->usb3.reset_changed)
+            clear_port_feature(usb3_port_feature_selector::C_PORT_RESET, port);
+
+        if (new_status->usb3.bh_reset_changed)
+            clear_port_feature(usb3_port_feature_selector::C_BH_PORT_RESET, port);
+
+        if (new_status->usb3.link_state_changed)
+            clear_port_feature(usb3_port_feature_selector::C_PORT_LINK_STATE, port);
     } else {
-        if (new_status->usb2.connection_changed)
-            clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
+        if (port <= num_ports) {
+            auto old_status = ports[port - 1].status;
+
+            ports[port - 1].status = *new_status;
+
+            if (new_status->usb2.connection_changed) {
+                if (old_status.usb2.connection != new_status->usb2.connection) {
+                    if (new_status->usb2.connection) {
+                        acquire();
+
+                        add_kernel_thread([](void* param1, void* param2) {
+                            auto hub = (usb_device_hub*)param1;
+                            auto port = (uint8_t)(uintptr_t)param2;
+
+                            hub->device_connected(port);
+                            hub->release();
+                        }, this, (void*)(uintptr_t)port);
+                    } else
+                        device_removed(port);
+                }
+
+                clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
+            }
+        } else {
+            if (new_status->usb2.connection_changed)
+                clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
+        }
+
+        if (new_status->usb2.enable_changed)
+            clear_port_feature(usb2_port_feature_selector::C_PORT_ENABLE, port);
+
+        if (new_status->usb2.suspend_changed)
+            clear_port_feature(usb2_port_feature_selector::C_PORT_SUSPEND, port);
+
+        if (new_status->usb2.over_current_changed)
+            clear_port_feature(usb2_port_feature_selector::C_PORT_OVER_CURRENT, port);
+
+        if (new_status->usb2.reset_changed)
+            clear_port_feature(usb2_port_feature_selector::C_PORT_RESET, port);
     }
-
-    if (new_status->usb2.enable_changed)
-        clear_port_feature(usb2_port_feature_selector::C_PORT_ENABLE, port);
-
-    if (new_status->usb2.suspend_changed)
-        clear_port_feature(usb2_port_feature_selector::C_PORT_SUSPEND, port);
-
-    if (new_status->usb2.over_current_changed)
-        clear_port_feature(usb2_port_feature_selector::C_PORT_OVER_CURRENT, port);
-
-    if (new_status->usb2.reset_changed)
-        clear_port_feature(usb2_port_feature_selector::C_PORT_RESET, port);
 
     free(new_status);
 }
