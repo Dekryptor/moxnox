@@ -1295,6 +1295,8 @@ usb_device::~usb_device() {
         else
             free_folio(phys_memory_pfn(&c) << PAGE_SHIFT);
     }
+
+    parent.release();
 }
 
 bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
@@ -2249,9 +2251,12 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
 
         controller.dcbaa[slot] = va_to_pa_phys(devctx);
 
+        acquire();
+
         d = new usb_device(controller, *this, devctx, slot, port_speed, port,
                            speed_class);
         if (!d) {
+            release();
             print("new failed\n");
             delete devctx;
             controller.dcbaa[slot] = 0;
