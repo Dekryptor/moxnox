@@ -2166,8 +2166,6 @@ void xhci_queue::break_waits() {
 }
 
 void usb_device::device_removed() {
-    print("FIXME - usb_device::device_removed\n");
-
     if (slot != 0) {
         parent.children[port - 1] = nullptr;
 
