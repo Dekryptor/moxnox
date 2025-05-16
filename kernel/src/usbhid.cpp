@@ -483,7 +483,7 @@ void usb_keyboard::recv_thread() {
     while (true) {
         if (!queue.normal_transfer(span(buf, packet_size))) {
             if (!d.dead)
-                print("xhci_queue::normal transfer failed\n");
+                print("xhci_queue::normal_transfer failed\n");
             break;
         }
 
