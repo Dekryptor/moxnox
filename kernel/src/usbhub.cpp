@@ -420,9 +420,9 @@ void usb_device_hub::recv_thread() {
 
     while (true) {
         if (!queue.normal_transfer(span(buf, msg_size))) {
-            print("xhci_queue::normal_transfer failed\n");
-            free(buf);
-            return;
+            if (!d.dead)
+                print("xhci_queue::normal_transfer failed\n");
+            break;
         }
 
         if (buf[0] & 1) {
