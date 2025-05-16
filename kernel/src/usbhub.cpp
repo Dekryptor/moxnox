@@ -277,9 +277,16 @@ void usb_device_hub::device_connected(uint8_t port) {
     auto& controller = d.controller;
     auto& p = ports[port - 1];
 
-    if (!set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
-        print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
-        return;
+    if (d.speed_class >= usb_speed_class::super_speed) {
+        if (!set_port_feature(usb3_port_feature_selector::PORT_RESET, port)) {
+            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
+            return;
+        }
+    } else {
+        if (!set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
+            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
+            return;
+        }
     }
 
     {
@@ -292,7 +299,7 @@ void usb_device_hub::device_connected(uint8_t port) {
         auto& tim = static_cast<timer&>(tim_ref.get());
 
         auto status = tim.set(-ONE_MS_TICKS * 10, nullptr, nullptr, false,
-                              10, nullptr);
+                                10, nullptr);
         if (!success(status)) {
             print("usb_device_hub::device_connected: timer::set returned {}\n", status);
             return;
@@ -304,15 +311,27 @@ void usb_device_hub::device_connected(uint8_t port) {
                 return;
             }
 
-            if (!p.status.usb2.reset)
-                break;
+            if (d.speed_class >= usb_speed_class::super_speed) {
+                if (!p.status.usb3.reset)
+                    break;
+            } else {
+                if (!p.status.usb2.reset)
+                    break;
+            }
 
             wait_for_object(tim, true);
         }
 
-        if (p.status.usb2.reset) {
-            print("usb_device_hub::device_connected: reset timed out\n");
-            return;
+        if (d.speed_class >= usb_speed_class::super_speed) {
+            if (p.status.usb3.reset) {
+                print("usb_device_hub::device_connected: reset timed out\n");
+                return;
+            }
+        } else {
+            if (p.status.usb2.reset) {
+                print("usb_device_hub::device_connected: reset timed out\n");
+                return;
+            }
         }
     }
 
@@ -325,30 +344,42 @@ void usb_device_hub::device_connected(uint8_t port) {
 
     p.slot = slot;
 
-    // FIXME - USB3 hubs
-
     enum usb_speed_class speed_class;
-    uint32_t psi_num;
 
-    if (p.status.usb2.low_speed) {
-        speed_class = usb_speed_class::low_speed;
-        psi_num = 0x05dc0010;
-    } else if (p.status.usb2.high_speed) {
-        speed_class = usb_speed_class::high_speed;
-        psi_num = 0x01e00020;
+    if (d.speed_class >= usb_speed_class::super_speed) {
+        // FIXME - what about SuperSpeed+ devices?
+
+        auto speed = controller.get_speed_num(d.find_root_port(), 0x00050130);
+
+        if (speed == 0) {
+            print("usb_device_hub::device_connected: could not find speed number for port\n");
+            return;
+        }
+
+       device_found(slot, port, usb_speed_class::super_speed, speed);
     } else {
-        speed_class = usb_speed_class::full_speed;
-        psi_num = 0x000c0020;
+        uint32_t psi_num;
+
+        if (p.status.usb2.low_speed) {
+            speed_class = usb_speed_class::low_speed;
+            psi_num = 0x05dc0010;
+        } else if (p.status.usb2.high_speed) {
+            speed_class = usb_speed_class::high_speed;
+            psi_num = 0x01e00020;
+        } else {
+            speed_class = usb_speed_class::full_speed;
+            psi_num = 0x000c0020;
+        }
+
+        auto speed = controller.get_speed_num(d.find_root_port(), psi_num);
+
+        if (speed == 0) {
+            print("usb_device_hub::device_connected: could not find speed number for port\n");
+            return;
+        }
+
+        device_found(slot, port, speed_class, speed);
     }
-
-    auto speed = controller.get_speed_num(d.find_root_port(), psi_num);
-
-    if (speed == 0) {
-        print("usb_device_hub::device_connected: could not find speed number for port\n");
-        return;
-    }
-
-    device_found(slot, port, speed_class, speed);
 }
 
 bool usb_device_hub::set_port_feature(enum usb2_port_feature_selector feature,
