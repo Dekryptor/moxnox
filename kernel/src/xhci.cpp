@@ -45,7 +45,6 @@ struct port_status_change {
 
 struct xhci_port {
     uint16_t usb_revision;
-    uint8_t slot;
 };
 
 export struct xhci_psi {
@@ -2443,16 +2442,14 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     bool device_present = portsc.CCS;
 
-    auto& p = ports[port_id - 1];
-
-    // ignore spurious messages from controller
-    if ((device_present && p.slot != 0) || (!device_present && p.slot == 0))
-        return;
-
     if (!device_present) {
         root_hub.device_removed(port_id);
         return;
     }
+
+    // ignore spurious messages from controller
+    if (root_hub.children[port_id - 1])
+        return;
 
     // USB2 ports have to be reset before their speeds are valid
     if (!portsc.PRC) {
@@ -2475,8 +2472,6 @@ void xhci::port_status_changed(uint8_t port_id) {
         disable_slot(slot);
         return;
     }
-
-    p.slot = slot;
 
     auto psi = *(xhci_psi*)&psi_num;
     auto speed_class = usb_speed_class::unknown;
