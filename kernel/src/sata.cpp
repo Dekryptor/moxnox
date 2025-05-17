@@ -51,6 +51,16 @@ static constexpr uint32_t SATA_IS_DHRS = 1 << 0;
 
 atomic<unsigned int> num_sata_devices = 0;
 
+static bool init_sata(const pci_device& dev);
+
+static pci_class_recognizer mod_pci_class = {
+    {}, pci_class::mass_storage, (uint8_t)pci_mass_storage::sata, init_sata
+};
+
+static module_init module_init_nvme([]() {
+    insert_tail_list(pci_classes, mod_pci_class.le);
+});
+
 nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
                                 pfn_iterator& it, uint64_t& read_pages) {
     // FIXME - proper error handling
@@ -528,38 +538,36 @@ static void sata_isr_func(void* ctx) {
     ((sata_card*)ctx)->isr();
 }
 
-export
-extern "C++"
-void init_sata(const pci_device& dev) {
+static bool init_sata(const pci_device& dev) {
     auto abarmem = dev.bar[5];
 
     // FIXME - also support MSI-X?
 
     if (dev.msi.empty()) {
         print("MSI not available for SATA device\n");
-        return;
+        return false;
     }
 
     if (abarmem.empty()) {
         print("ABAR not set for SATA device\n");
-        return;
+        return false;
     }
 
     if (abarmem.size() < offsetof(HBA_MEM, ports)) {
         print("ABAR was shorter than expected\n");
-        return;
+        return false;
     }
 
     auto sc = new sata_card(dev);
     if (!sc) {
         print("new failed\n");
-        return;
+        return false;
     }
 
     auto int_num = add_isr(sata_isr_func, sc);
     if (int_num == 0) {
         print("add_isr failed\n");
-        return;
+        return false;
     }
 
     sc->isr_registered = true;
@@ -604,7 +612,7 @@ void init_sata(const pci_device& dev) {
 
     if (sc->init_left == 0) {
         delete sc;
-        return;
+        return false;
     }
 
     {
@@ -633,6 +641,8 @@ void init_sata(const pci_device& dev) {
     }
 
     wait_for_object(sc->init_event.get(), false);
+
+    return true;
 }
 
 nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,

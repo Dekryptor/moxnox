@@ -220,12 +220,6 @@ struct check_bus_entry {
     uint8_t num;
 };
 
-// nvme.cpp
-extern "C++" void init_nvme(const pci_device& dev);
-
-// sata.cpp
-extern "C++" void init_sata(const pci_device& dev);
-
 export constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
     return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
 }
@@ -527,30 +521,9 @@ static void pci_device_found(void* ctx) {
             auto& ent = containing_record<pci_class_recognizer>(le);
 
             if (ent.pci_class == dev.header->class_code && ent.pci_subclass == dev.header->sub_class) {
-                if (ent.func(dev)) {
-                    found = true;
+                if (ent.func(dev))
                     break;
-                }
             }
-        }
-
-
-        switch (dev.header->class_code) {
-            case pci_class::mass_storage: {
-                switch ((enum pci_mass_storage)dev.header->sub_class) {
-                    case pci_mass_storage::sata:
-                        init_sata(dev);
-                    break;
-
-                    default:
-                        break;
-                }
-
-                break;
-            }
-
-            default:
-                break;
         }
     }
 
