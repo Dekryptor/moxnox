@@ -274,6 +274,16 @@ export struct usb_recognizer {
 
 export list_entry usb_interfaces = { &usb_interfaces, &usb_interfaces };
 
+static bool init_xhci(const pci_device& dev);
+
+static pci_class_recognizer mod_pci_class = {
+    {}, pci_class::serial_bus, (uint8_t)pci_serial_bus::usb, init_xhci
+};
+
+static module_init module_init_xhci([]() {
+    insert_tail_list(pci_classes, mod_pci_class.le);
+});
+
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *(volatile uint32_t*)addr = val & 0xffffffff;
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
@@ -2717,21 +2727,24 @@ bool xhci::disable_slot(uint8_t slot_id) {
     return true;
 }
 
-export
-extern "C++"
-void init_xhci(const pci_device& dev) {
+static bool init_xhci(const pci_device& dev) {
+    if (dev.header->prog_if != 0x30)
+        return false;
+
     auto x = new xhci(dev);
     if (!x) {
         print("new failed\n");
-        return;
+        return false;
     }
 
     if (!x->initialized) {
         delete x;
-        return;
+        return false;
     }
 
     x->init_ports();
 
     // FIXME - add to list of xhci controllers?
+
+    return true;
 }
