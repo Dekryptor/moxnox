@@ -136,6 +136,16 @@ public:
     rwsem flush_sem;
 };
 
+static bool init_nvme(const pci_device& dev);
+
+static pci_class_recognizer mod_pci_class = {
+    {}, pci_class::mass_storage, (uint8_t)pci_mass_storage::nonvolatile_memory, init_nvme
+};
+
+static module_init module_init_nvme([]() {
+    insert_tail_list(pci_classes, mod_pci_class.le);
+});
+
 static void nvme_isr_func(void* ctx) {
     ((nvme_queue*)ctx)->isr();
 }
@@ -598,41 +608,41 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
     return true;
 }
 
-export
-extern "C++"
-void init_nvme(const pci_device& dev) {
+static bool init_nvme(const pci_device& dev) {
     // FIXME - support MSI too?
     if (!dev.msix) {
         print("MSI-X not supported for NVMe device\n");
-        return;
+        return false;
     }
 
     if (dev.msix->bir >= dev.bar.size()) {
         print("invalid value {} for NVMe MSI-X BIR\n", dev.msix->bir);
-        return;
+        return false;
     }
 
     if ((size_t)(dev.msix->table_offset << 3) >= dev.bar[dev.msix->bir].size()) {
         print("NVMe MSI-X table offset {:x} overflowed BAR {}\n",
               dev.msix->table_offset << 3, dev.msix->bir);
-        return;
+        return false;
     }
 
     auto n = new nvme_controller(dev);
     if (!n) {
         print("malloc failed\n");
-        return;
+        return false;
     }
 
     if (!n->initialized) {
         delete n;
-        return;
+        return false;
     }
 
     {
         lock_guard lock(nvme_lock);
         insert_tail_list(nvme_controllers, n->le);
     }
+
+    return true;
 }
 
 void nvme_queue::isr() {

@@ -542,10 +542,6 @@ static void pci_device_found(void* ctx) {
                         init_sata(dev);
                     break;
 
-                    case pci_mass_storage::nonvolatile_memory:
-                        init_nvme(dev);
-                    break;
-
                     default:
                         break;
                 }
