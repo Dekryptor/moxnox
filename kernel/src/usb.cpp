@@ -206,10 +206,12 @@ export struct usb3_hub_descriptor {
     uint8_t bDescLength;
     uint8_t bDescriptorType;
     uint8_t bNbrPorts;
-    uint16_t power_switching_mode : 2;
-    uint16_t compound_device : 1;
-    uint16_t overcurrent_protection_mode : 2;
-    uint16_t : 11;
+    struct {
+        uint16_t power_switching_mode : 2;
+        uint16_t compound_device : 1;
+        uint16_t overcurrent_protection_mode : 2;
+        uint16_t reserved : 11;
+    };
     uint8_t bPwrOn2PwrGood;
     uint8_t bHubContrCurrent;
     uint8_t bHubHdrDecLat;
