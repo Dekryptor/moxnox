@@ -49,7 +49,7 @@ static constexpr uint32_t SATA_IS_DSS  = 1 << 2;
 static constexpr uint32_t SATA_IS_PSS  = 1 << 1;
 static constexpr uint32_t SATA_IS_DHRS = 1 << 0;
 
-atomic<unsigned int> num_sata_devices = 0;
+static atomic<unsigned int> num_sata_devices = 0;
 
 static bool init_sata(const pci_device& dev);
 
