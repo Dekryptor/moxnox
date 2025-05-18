@@ -12,6 +12,7 @@ module;
 export module mem;
 
 import print;
+import format;
 import bsod;
 import config;
 import list;
@@ -240,6 +241,51 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     }
 
     return 0;
+}
+
+template<>
+consteval bool format_spec_valid<enum page_state>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, enum page_state arg) {
+    switch (arg) {
+        case page_state::free:
+            return do_format_arg(sp, "", "free");
+
+        case page_state::used:
+            return do_format_arg(sp, "", "used");
+
+        case page_state::folio_following:
+            return do_format_arg(sp, "", "folio_following");
+
+        case page_state::allocator_8k:
+            return do_format_arg(sp, "", "allocator_8k");
+
+        case page_state::allocator_4k:
+            return do_format_arg(sp, "", "allocator_4k");
+
+        case page_state::allocator_2k:
+            return do_format_arg(sp, "", "allocator_2k");
+
+        case page_state::allocator_1k:
+            return do_format_arg(sp, "", "allocator_1k");
+
+        case page_state::allocator_512:
+            return do_format_arg(sp, "", "allocator_512");
+
+        case page_state::allocator_256:
+            return do_format_arg(sp, "", "allocator_256");
+
+        case page_state::allocator_128:
+            return do_format_arg(sp, "", "allocator_128");
+
+        case page_state::allocator_64:
+            return do_format_arg(sp, "", "allocator_64");
+
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
 }
 
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
@@ -1014,7 +1060,7 @@ void free(void* ptr) {
                 return;
 
             default:
-                bsod_format("free called for unexpected page state {}", (unsigned int)page.state);
+                bsod_format("free called for unexpected page state {}", page.state);
         }
     } else
         bsod_format("free called for non-physical address {:x}", (uintptr_t)ptr);
