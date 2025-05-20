@@ -426,8 +426,24 @@ static void fix_ata_string(span<const uint16_t> in, span<char> out) {
 }
 
 static void init_sata_device(void* ctx, void* ctx2) {
-    auto pdev = new sata_device(*(volatile HBA_PORT*)ctx);
+    volatile auto& p = *(volatile HBA_PORT*)ctx;
     auto& sc = *(sata_card*)ctx2;
+
+    if (!sc.reset_port(p)) {
+        if (--sc.init_left == 0)
+            set_event(static_cast<event&>(sc.init_event.get()));
+        return;
+    }
+
+    // FIXME - SATA_SIG_ATAPI (CD drives etc.)
+
+    if (p.sig != SATA_SIG_ATA) {
+        if (--sc.init_left == 0)
+            set_event(static_cast<event&>(sc.init_event.get()));
+        return;
+    }
+
+    auto pdev = new sata_device(p);
     auto& dev = *pdev;
 
     if (!dev.valid) {
@@ -541,34 +557,81 @@ static void sata_isr_func(void* ctx) {
     ((sata_card*)ctx)->isr();
 }
 
-static bool reset_sata(sata_card& sc) {
-    sc.abar->ghc.hr = 1;
+static bool wait_until(unsigned int ms, const invocable auto& func) {
+    auto tim_ref = create_timer(true);
+    if (!tim_ref) {
+        print("wait_until: create_timer failed\n");
+        return false;
+    }
 
-    {
-        auto tim_ref = create_timer(true);
-        if (!tim_ref) {
-            print("reset_sata: create_timer failed\n");
-            return false;
-        }
+    auto& tim = static_cast<timer&>(tim_ref.get());
 
-        auto& tim = static_cast<timer&>(tim_ref.get());
+    auto status = tim.set(-ONE_MS_TICKS, nullptr, nullptr, false,
+                          1, nullptr);
+    if (!success(status)) {
+        print("wait_until: timer::set returned {}\n", status);
+        return false;
+    }
 
-        auto status = tim.set(-ONE_MS_TICKS * 10, nullptr, nullptr, false,
-                              10, nullptr);
-        if (!success(status)) {
-            print("reset_sata: timer::set returned {}\n", status);
-            return false;
-        }
+    for (unsigned int i = 0; i < ms; i++) {
+        if (func())
+            return true;
 
-        for (unsigned int i = 0; i < 100; i++) { // specs say we should wait up to 1s
-            if (!sc.abar->ghc.hr)
-                return true;
-
-            wait_for_object(tim, true); // wait 10ms
-        }
+        wait_for_object(tim, true); // wait 1ms
     }
 
     return false;
+}
+
+static bool reset_sata(sata_card& sc) {
+    sc.abar->ghc.hr = 1;
+
+    // specs say we should wait up to 1s
+    if (!wait_until(1000, [&]() -> bool { return !sc.abar->ghc.hr; }))
+        return false;
+
+    return true;
+}
+
+static void do_wait(unsigned int ms) {
+    auto tim_ref = create_timer(false);
+    if (!tim_ref) {
+        print("do_wait: create_timer failed\n");
+        return;
+    }
+
+    auto& tim = static_cast<timer&>(tim_ref.get());
+
+    auto status = tim.set(-ONE_MS_TICKS * (int)ms, nullptr, nullptr, false,
+                          ms, nullptr);
+    if (!success(status)) {
+        print("do_wait: timer::set returned {}\n", status);
+        return;
+    }
+
+    wait_for_object(tim, true);
+}
+
+bool sata_card::reset_port(volatile HBA_PORT& p) {
+    p.cmd.st = 0;
+
+    // wait up to 500ms for PxCMD.CR to clear to 0
+    wait_until(500, [&]() {
+        return !p.cmd.cr;
+    });
+
+    p.sctl.det = 1;
+
+    do_wait(1);
+
+    p.sctl.det = 0;
+
+    if (!wait_until(500, [&]() { return p.ssts.det == 3; }))
+        return false; // timed out, assume no device present
+
+    p.serr = 0xffffffff;
+
+    return true;
 }
 
 static bool init_sata(const pci_device& dev) {
@@ -597,6 +660,15 @@ static bool init_sata(const pci_device& dev) {
         return false;
     }
 
+    sc->abar = (HBA_MEM*)abarmem.data();
+
+    // FIXME - BIOS handoff?
+
+    if (!reset_sata(*sc)) {
+        print("init_sata: reset timed out\n");
+        return false;
+    }
+
     auto int_num = add_isr(sata_isr_func, sc);
     if (int_num == 0) {
         print("add_isr failed\n");
@@ -617,43 +689,13 @@ static bool init_sata(const pci_device& dev) {
 
     msi.message_control = msi.message_control | 1; // enable
 
-    sc->abar = (HBA_MEM*)abarmem.data();
-
-    // FIXME - BIOS handoff?
-
-    if (!reset_sata(*sc)) {
-        print("init_sata: reset timed out\n");
-        return false;
-    }
-
     // FIXME - check abar.ghc.ae for whether AHCI or IDE
     sc->abar->ghc.ie = 1; // enable interrupts
 
     auto ports_ptr = (volatile HBA_PORT*)sc->abar->ports;
-    size_t ports_count = (abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT);
+    auto ports_count = (unsigned int)((abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT));
 
     uint32_t mask = sc->abar->pi;
-
-    for (size_t i = 0; i < ports_count; i++) {
-        if (!(mask & 1)) {
-            mask >>= 1;
-            continue;
-        }
-
-        const auto& p = ports_ptr[i];
-
-        // FIXME - SATA_SIG_ATAPI (CD drives etc.)
-
-        if (p.sig == SATA_SIG_ATA)
-            sc->init_left++;
-
-        mask >>= 1;
-    }
-
-    if (sc->init_left == 0) {
-        delete sc;
-        return false;
-    }
 
     {
         lock_guard lock(sata_list_lock);
@@ -661,8 +703,7 @@ static bool init_sata(const pci_device& dev) {
     }
 
     sc->init_event = create_event(true);
-
-    mask = sc->abar->pi;
+    sc->init_left = 1;
 
     for (size_t i = 0; i < ports_count; i++) {
         if (!(mask & 1)) {
@@ -672,13 +713,14 @@ static bool init_sata(const pci_device& dev) {
 
         const auto& p = ports_ptr[i];
 
-        // FIXME - SATA_SIG_ATAPI (CD drives etc.)
-
-        if (p.sig == SATA_SIG_ATA)
-            add_kernel_thread(init_sata_device, (void*)&p, sc);
+        sc->init_left++;
+        add_kernel_thread(init_sata_device, (void*)&p, sc);
 
         mask >>= 1;
     }
+
+    if (--sc->init_left == 0)
+        set_event(static_cast<event&>(sc->init_event.get()));
 
     wait_for_object(sc->init_event.get(), false);
 

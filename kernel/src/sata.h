@@ -35,6 +35,26 @@ struct HBA_PORT_PxCMD {
 
 static_assert(sizeof(HBA_PORT_PxCMD) == sizeof(uint32_t));
 
+struct HBA_PORT_PxSCTL {
+    uint32_t det : 4;
+    uint32_t spd : 4;
+    uint32_t ipm : 4;
+    uint32_t spm : 4;
+    uint32_t pmp : 4;
+    uint32_t : 12;
+};
+
+static_assert(sizeof(HBA_PORT_PxSCTL) == sizeof(uint32_t));
+
+struct HBA_PORT_PxSSTS {
+    uint32_t det : 4;
+    uint32_t spd : 4;
+    uint32_t ipm : 4;
+    uint32_t : 20;
+};
+
+static_assert(sizeof(HBA_PORT_PxSSTS) == sizeof(uint32_t));
+
 struct HBA_PORT {
     uint32_t clb;
     uint32_t clbu;
@@ -46,8 +66,8 @@ struct HBA_PORT {
     uint32_t rsv0;
     uint32_t tfd;
     uint32_t sig;
-    uint32_t ssts;
-    uint32_t sctl;
+    HBA_PORT_PxSSTS ssts;
+    HBA_PORT_PxSCTL sctl;
     uint32_t serr;
     uint32_t sact;
     uint32_t ci;
@@ -519,6 +539,7 @@ public:
     sata_card(const pci_device& dev) : dev(dev) { }
     ~sata_card();
     void isr();
+    bool reset_port(volatile HBA_PORT& p);
 
     const pci_device& dev;
     list_entry le;
