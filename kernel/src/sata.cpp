@@ -23,6 +23,7 @@ import event;
 import volume;
 import rwsem;
 import pci;
+import timer;
 
 #include "sata.h"
 
@@ -50,6 +51,8 @@ static constexpr uint32_t SATA_IS_PSS  = 1 << 1;
 static constexpr uint32_t SATA_IS_DHRS = 1 << 0;
 
 static atomic<unsigned int> num_sata_devices = 0;
+
+#define ONE_MS_TICKS 10000 // FIXME
 
 static bool init_sata(const pci_device& dev);
 
@@ -538,6 +541,36 @@ static void sata_isr_func(void* ctx) {
     ((sata_card*)ctx)->isr();
 }
 
+static bool reset_sata(sata_card& sc) {
+    sc.abar->ghc.hr = 1;
+
+    {
+        auto tim_ref = create_timer(true);
+        if (!tim_ref) {
+            print("reset_sata: create_timer failed\n");
+            return false;
+        }
+
+        auto& tim = static_cast<timer&>(tim_ref.get());
+
+        auto status = tim.set(-ONE_MS_TICKS * 10, nullptr, nullptr, false,
+                              10, nullptr);
+        if (!success(status)) {
+            print("reset_sata: timer::set returned {}\n", status);
+            return false;
+        }
+
+        for (unsigned int i = 0; i < 100; i++) { // specs say we should wait up to 1s
+            if (!sc.abar->ghc.hr)
+                return true;
+
+            wait_for_object(tim, true); // wait 10ms
+        }
+    }
+
+    return false;
+}
+
 static bool init_sata(const pci_device& dev) {
     auto abarmem = dev.bar[5];
 
@@ -585,6 +618,13 @@ static bool init_sata(const pci_device& dev) {
     msi.message_control = msi.message_control | 1; // enable
 
     sc->abar = (HBA_MEM*)abarmem.data();
+
+    // FIXME - BIOS handoff?
+
+    if (!reset_sata(*sc)) {
+        print("init_sata: reset timed out\n");
+        return false;
+    }
 
     // FIXME - check abar.ghc.ae for whether AHCI or IDE
     sc->abar->ghc.ie = 1; // enable interrupts
