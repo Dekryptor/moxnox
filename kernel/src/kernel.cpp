@@ -185,6 +185,7 @@ void main_thread() {
     free_lower_half_mappings();
 
     setup_folios();
+    scan_pci();
 
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");

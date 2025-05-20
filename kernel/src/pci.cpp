@@ -531,7 +531,7 @@ static void pci_device_found(void* ctx) {
         set_event(static_cast<event&>(init_device_event.get()));
 }
 
-export void init_pci() {
+export void scan_pci() {
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MCFG, 1, &tbl);
 
@@ -559,7 +559,9 @@ export void init_pci() {
     for (const auto& item: items) {
         check_buses(item);
     }
+}
 
+export void init_pci() {
     {
         auto le = pci_device_list.next;
         while (le != &pci_device_list) {
