@@ -39,9 +39,19 @@ static_assert(sizeof(HBA_PORT) == 0x80);
 static const uint32_t SATA_SIG_ATA = 0x00000101;
 static const uint32_t SATA_SIG_ATAPI = 0xeb140101;
 
+struct SATA_GHC {
+    uint32_t hr : 1;
+    uint32_t ie : 1;
+    uint32_t mrsm : 1;
+    uint32_t : 28;
+    uint32_t ae : 1;
+};
+
+static_assert(sizeof(SATA_GHC) == sizeof(uint32_t));
+
 struct HBA_MEM {
     uint32_t cap;
-    uint32_t ghc;
+    SATA_GHC ghc;
     uint32_t is;
     uint32_t pi;
     uint32_t vs;

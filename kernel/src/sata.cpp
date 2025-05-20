@@ -586,8 +586,8 @@ static bool init_sata(const pci_device& dev) {
 
     sc->abar = (HBA_MEM*)abarmem.data();
 
-    // FIXME - check upper bit of abar.ghc for whether AHCI or IDE
-    sc->abar->ghc = sc->abar->ghc | 0x2; // enable interrupts
+    // FIXME - check abar.ghc.ae for whether AHCI or IDE
+    sc->abar->ghc.ie = 1; // enable interrupts
 
     auto ports_ptr = (volatile HBA_PORT*)sc->abar->ports;
     size_t ports_count = (abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT);
