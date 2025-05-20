@@ -248,10 +248,10 @@ bool sata_device::identify() {
 }
 
 sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
-    port.cmd = port.cmd & ~HBA_PxCMD_ST;
-    port.cmd = port.cmd & ~HBA_PxCMD_FRE;
+    port.cmd.st = 0;
+    port.cmd.fre = 0;
 
-    while (port.cmd & (HBA_PxCMD_FR | HBA_PxCMD_CR)) { }
+    while (port.cmd.fr || port.cmd.cr) { }
 
     auto clb_pa = allocate_page();
     if (!clb_pa) {
@@ -399,10 +399,10 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
 
     slot_semaphore = create_semaphore(SATA_NUM_CMD_TABLES);
 
-    while (port.cmd & HBA_PxCMD_CR) { }
+    while (port.cmd.cr) { }
 
-    port.cmd = port.cmd | HBA_PxCMD_FRE;
-    port.cmd = port.cmd | HBA_PxCMD_ST;
+    port.cmd.fre = 1;
+    port.cmd.st = 1;
 
     valid = true;
 }

@@ -7,10 +7,33 @@ static const uint32_t ATA_DEV_DRQ = 0x08;
 
 static const uint32_t HBA_PxIS_TFES = 0x40000000; // task file error status
 
-static const uint32_t HBA_PxCMD_ST = 0x00000001;
-static const uint32_t HBA_PxCMD_FRE = 0x00000010;
-static const uint32_t HBA_PxCMD_FR = 0x00004000;
-static const uint32_t HBA_PxCMD_CR = 0x00008000;
+struct HBA_PORT_PxCMD {
+    uint32_t st : 1;
+    uint32_t sud : 1;
+    uint32_t pod : 1;
+    uint32_t clo : 1;
+    uint32_t fre : 1;
+    uint32_t : 3;
+    uint32_t ccs : 5;
+    uint32_t mpss : 1;
+    uint32_t fr : 1;
+    uint32_t cr : 1;
+    uint32_t cps : 1;
+    uint32_t pma : 1;
+    uint32_t hpcp : 1;
+    uint32_t mpsp : 1;
+    uint32_t cpd : 1;
+    uint32_t esp : 1;
+    uint32_t fbscp : 1;
+    uint32_t apste : 1;
+    uint32_t atapi : 1;
+    uint32_t dlae : 1;
+    uint32_t alpe : 1;
+    uint32_t asp : 1;
+    uint32_t icc : 4;
+};
+
+static_assert(sizeof(HBA_PORT_PxCMD) == sizeof(uint32_t));
 
 struct HBA_PORT {
     uint32_t clb;
@@ -19,7 +42,7 @@ struct HBA_PORT {
     uint32_t fbu;
     uint32_t is;
     uint32_t ie;
-    uint32_t cmd;
+    HBA_PORT_PxCMD cmd;
     uint32_t rsv0;
     uint32_t tfd;
     uint32_t sig;
