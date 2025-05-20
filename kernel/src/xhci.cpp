@@ -2289,7 +2289,7 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
 
         if (!d->initialized) {
             print("usb_device::usb_device failed\n");
-            delete d;
+            d->release();
             return false;
         }
 
