@@ -190,6 +190,7 @@ export struct pci_device {
     span<volatile uint8_t> msi;
     volatile pci_msix* msix = nullptr;
     unsigned int num;
+    bool initialized = false;
     list_entry vendor_specific_caps = { &vendor_specific_caps, &vendor_specific_caps };
 };
 
@@ -201,6 +202,7 @@ export struct pci_recognizer {
     list_entry le;
     uint16_t vendor_id;
     uint16_t device_id;
+    bool early;
     void (*func)(pci_device&);
 };
 
@@ -210,6 +212,7 @@ export struct pci_class_recognizer {
     list_entry le;
     enum pci_class pci_class;
     uint8_t pci_subclass;
+    bool early;
     bool (*func)(const pci_device&);
 };
 
@@ -499,8 +502,9 @@ static void check_buses(const ACPI_MCFG_ALLOCATION& item) {
     }
 }
 
-static void pci_device_found(void* ctx) {
+static void pci_device_found(void* ctx, void* ctx2) {
     auto& dev = *(pci_device*)ctx;
+    auto early = (bool)ctx2;
 
     bool found = false;
     auto vendor_id = dev.header->vendor_id;
@@ -509,8 +513,9 @@ static void pci_device_found(void* ctx) {
     for (auto le = pci_ids.next; le != &pci_ids; le = le->next) {
         auto& ent = containing_record<pci_recognizer>(le);
 
-        if (ent.vendor_id == vendor_id && ent.device_id == device_id) {
+        if (ent.vendor_id == vendor_id && ent.device_id == device_id && !!ent.early == !!early) {
             ent.func(dev);
+            dev.initialized = true;
             found = true;
             break;
         }
@@ -520,9 +525,13 @@ static void pci_device_found(void* ctx) {
         for (auto le = pci_classes.next; le != &pci_classes; le = le->next) {
             auto& ent = containing_record<pci_class_recognizer>(le);
 
-            if (ent.pci_class == dev.header->class_code && ent.pci_subclass == dev.header->sub_class) {
-                if (ent.func(dev))
+            if (ent.pci_class == dev.header->class_code &&
+                  ent.pci_subclass == dev.header->sub_class &&
+                  !!ent.early == !!early) {
+                if (ent.func(dev)) {
+                    dev.initialized = true;
                     break;
+                }
             }
         }
     }
@@ -561,13 +570,16 @@ export void scan_pci() {
     }
 }
 
-export void init_pci() {
-    {
-        auto le = pci_device_list.next;
-        while (le != &pci_device_list) {
-            devices_left++;
-            le = le->next;
-        }
+export void init_pci(bool early) {
+    devices_left = 0;
+
+    for (auto le = pci_device_list.next; le != &pci_device_list; le = le->next) {
+        auto& dev = containing_record<pci_device>(le);
+
+        if (dev.initialized)
+            continue;
+
+        devices_left++;
     }
 
     if (devices_left == 0)
@@ -575,22 +587,27 @@ export void init_pci() {
 
     init_device_event = create_event(true);
 
-    unsigned int nvme_num = 0;
+    if (early) {
+        unsigned int nvme_num = 0;
 
-    for (auto le = pci_device_list.next; le != &pci_device_list; le = le->next) {
-        auto& dev = containing_record<pci_device>(le);
+        for (auto le = pci_device_list.next; le != &pci_device_list; le = le->next) {
+            auto& dev = containing_record<pci_device>(le);
 
-        if (dev.header->class_code == pci_class::mass_storage &&
-          (enum pci_mass_storage)dev.header->sub_class == pci_mass_storage::nonvolatile_memory) {
-            dev.num = nvme_num;
-            nvme_num++;
+            if (dev.header->class_code == pci_class::mass_storage &&
+                (enum pci_mass_storage)dev.header->sub_class == pci_mass_storage::nonvolatile_memory) {
+                dev.num = nvme_num;
+                nvme_num++;
+            }
         }
     }
 
     for (auto le = pci_device_list.next; le != &pci_device_list; le = le->next) {
         auto& dev = containing_record<pci_device>(le);
 
-        add_kernel_thread(pci_device_found, &dev);
+        if (dev.initialized)
+            continue;
+
+        add_kernel_thread(pci_device_found, &dev, (void*)early);
     }
 
     wait_for_object(init_device_event.get(), false);

@@ -277,7 +277,7 @@ export list_entry usb_interfaces = { &usb_interfaces, &usb_interfaces };
 static bool init_xhci(const pci_device& dev);
 
 static pci_class_recognizer mod_pci_class = {
-    {}, pci_class::serial_bus, (uint8_t)pci_serial_bus::usb, init_xhci
+    {}, pci_class::serial_bus, (uint8_t)pci_serial_bus::usb, true, init_xhci
 };
 
 static module_init module_init_xhci([]() {

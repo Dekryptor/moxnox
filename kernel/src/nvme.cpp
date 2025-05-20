@@ -139,7 +139,7 @@ public:
 static bool init_nvme(const pci_device& dev);
 
 static pci_class_recognizer mod_pci_class = {
-    {}, pci_class::mass_storage, (uint8_t)pci_mass_storage::nonvolatile_memory, init_nvme
+    {}, pci_class::mass_storage, (uint8_t)pci_mass_storage::nonvolatile_memory, false, init_nvme
 };
 
 static module_init module_init_nvme([]() {

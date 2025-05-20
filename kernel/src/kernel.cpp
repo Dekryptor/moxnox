@@ -185,7 +185,9 @@ void main_thread() {
     free_lower_half_mappings();
 
     setup_folios();
+
     scan_pci();
+    init_pci(true);
 
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
@@ -194,11 +196,6 @@ void main_thread() {
         init_acpi();
         find_acpi_devices();
         init_acpi_done = true;
-    }
-
-    if (!init_pci_done) {
-        init_pci();
-        init_pci_done = true;
     }
 
     if (!init_keyboard_pipe())
@@ -216,6 +213,8 @@ void main_thread() {
     print(MOXNOX_VERSION_STRING "\n");
 
     keywait();
+
+    init_pci(false);
 
     init_syscalls();
 

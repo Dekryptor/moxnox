@@ -54,7 +54,7 @@ static atomic<unsigned int> num_sata_devices = 0;
 static bool init_sata(const pci_device& dev);
 
 static pci_class_recognizer mod_pci_class = {
-    {}, pci_class::mass_storage, (uint8_t)pci_mass_storage::sata, init_sata
+    {}, pci_class::mass_storage, (uint8_t)pci_mass_storage::sata, false, init_sata
 };
 
 static module_init module_init_nvme([]() {

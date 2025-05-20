@@ -40,8 +40,8 @@ static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 export void found_virtio_pci_console(pci_device& dev);
 
 static pci_recognizer mod_pci_ids[] = {
-    { {}, PCI_VENDOR_ID_REDHAT, 0x1003, found_virtio_pci_console },
-    { {}, PCI_VENDOR_ID_REDHAT, 0x1043, found_virtio_pci_console },
+    { {}, PCI_VENDOR_ID_REDHAT, 0x1003, true, found_virtio_pci_console },
+    { {}, PCI_VENDOR_ID_REDHAT, 0x1043, true, found_virtio_pci_console },
 };
 
 static bool found_virtio_mmio_console(virtio_mmio_device& v);

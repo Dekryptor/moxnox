@@ -1563,11 +1563,6 @@ export bool init_console(const loader_block_framebuffer& fb,
         find_acpi_devices();
         init_acpi_done = true;
 
-        if (sv.size() >= 3 && string_view(sv.data(), 3) == "hvc") {
-            init_pci();
-            init_pci_done = true;
-        }
-
         auto status = open_object(sv, console_chardev);
         if (!success(status))
             bsod_format("open_object returned {} trying to open console {}", status, console_opt);

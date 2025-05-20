@@ -141,8 +141,8 @@ static atomic<uint32_t> virtio_block_num = 0;
 static void found_virtio_pci_block(pci_device& dev);
 
 static pci_recognizer mod_pci_ids[] = {
-    { {}, PCI_VENDOR_ID_REDHAT, 0x1001, found_virtio_pci_block },
-    { {}, PCI_VENDOR_ID_REDHAT, 0x1042, found_virtio_pci_block },
+    { {}, PCI_VENDOR_ID_REDHAT, 0x1001, false, found_virtio_pci_block },
+    { {}, PCI_VENDOR_ID_REDHAT, 0x1042, false, found_virtio_pci_block },
 };
 
 static bool found_virtio_mmio_block(virtio_mmio_device& v);
