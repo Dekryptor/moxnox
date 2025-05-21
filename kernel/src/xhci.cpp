@@ -2423,6 +2423,9 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     copy_by_uint32(&op_regs.ports[port_id - 1].PORTSC, &portsc, sizeof(portsc));
 
+    // clear status bits
+    op_regs.ports[port_id - 1].PORTSC = XHCI_PORTSC_CSC | XHCI_PORTSC_PP | XHCI_PORTSC_PRC;
+
     bool device_present = portsc.CCS;
 
     if (!device_present) {
