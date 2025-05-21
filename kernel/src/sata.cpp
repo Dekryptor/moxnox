@@ -704,7 +704,7 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
         auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
 
         cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
-        cmd.w = 0; // read
+        cmd.w = 1; // write
         cmd.prdbc = 0;
 
         auto& cmdtbl = *cmd_tables[slot];
