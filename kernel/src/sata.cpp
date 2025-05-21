@@ -129,11 +129,7 @@ nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
     cmdfis.counth = (uint8_t)(num_sectors >> 8);
 
     pending_slots |= 1 << slot;
-
-    {
-        lock_guard lock(ci_lock);
-        port.ci |= 1 << slot;
-    }
+    port.ci = 1 << slot;
 
     // FIXME - should this be uninterruptible?
     auto status = wait_for_object(events[slot].get(), true);
@@ -222,8 +218,7 @@ bool sata_device::identify() {
     cmdfis.command = ata_command::IDENTIFY;
 
     pending_slots |= 1 << slot;
-
-    port.ci = port.ci | (1 << slot);
+    port.ci = 1 << slot;
 
     // IDENTIFY doesn't necessarily lead to an interrupt on real hardware
 
@@ -798,11 +793,7 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
         cmdfis.counth = (uint8_t)(num_sectors >> 8);
 
         pending_slots |= 1 << slot;
-
-        {
-            lock_guard lock(ci_lock);
-            port.ci |= 1 << slot;
-        }
+        port.ci = 1 << slot;
 
         wait_for_object(events[slot].get(), false);
 
@@ -858,11 +849,7 @@ nt_status sata_device::flush() {
     cmdfis.device = 0;
 
     pending_slots |= 1 << slot;
-
-    {
-        lock_guard lock(ci_lock);
-        port.ci |= 1 << slot;
-    }
+    port.ci = 1 << slot;
 
     wait_for_object(events[slot].get(), false);
 
