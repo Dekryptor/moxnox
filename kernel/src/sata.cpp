@@ -250,11 +250,6 @@ bool sata_device::identify() {
 }
 
 sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
-    port.cmd.st = 0;
-    port.cmd.fre = 0;
-
-    while (port.cmd.fr || port.cmd.cr) { }
-
     auto clb_pa = allocate_page();
     if (!clb_pa) {
         print("allocate_page failed\n");
@@ -585,35 +580,6 @@ static bool wait_until(unsigned int ms, const invocable auto& func) {
     return false;
 }
 
-static bool reset_sata(sata_card& sc) {
-    sc.abar->ghc.hr = 1;
-
-    // specs say we should wait up to 1s
-    if (!wait_until(1000, [&]() -> bool { return !sc.abar->ghc.hr; }))
-        return false;
-
-    return true;
-}
-
-static void do_wait(unsigned int ms) {
-    auto tim_ref = create_timer(false);
-    if (!tim_ref) {
-        print("do_wait: create_timer failed\n");
-        return;
-    }
-
-    auto& tim = static_cast<timer&>(tim_ref.get());
-
-    auto status = tim.set(-ONE_MS_TICKS * (int)ms, nullptr, nullptr, false,
-                          ms, nullptr);
-    if (!success(status)) {
-        print("do_wait: timer::set returned {}\n", status);
-        return;
-    }
-
-    wait_for_object(tim, true);
-}
-
 bool sata_card::reset_port(volatile HBA_PORT& p) {
     p.cmd.st = 0;
 
@@ -622,14 +588,12 @@ bool sata_card::reset_port(volatile HBA_PORT& p) {
         return !p.cmd.cr;
     });
 
-    p.sctl.det = 1;
+    if (p.cmd.fre) {
+        p.cmd.fre = 0;
 
-    do_wait(1);
-
-    p.sctl.det = 0;
-
-    if (!wait_until(500, [&]() { return p.ssts.det == 3; }))
-        return false; // timed out, assume no device present
+        if (!wait_until(500, [&]() { return !p.cmd.fr; }))
+            return false;
+    }
 
     p.serr = 0xffffffff;
 
@@ -665,11 +629,6 @@ static bool init_sata(const pci_device& dev) {
     sc->abar = (HBA_MEM*)abarmem.data();
 
     // FIXME - BIOS handoff?
-
-    if (!reset_sata(*sc)) {
-        print("init_sata: reset timed out\n");
-        return false;
-    }
 
     auto int_num = add_isr(sata_isr_func, sc);
     if (int_num == 0) {
