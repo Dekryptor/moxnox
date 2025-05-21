@@ -220,9 +220,14 @@ bool sata_device::identify() {
     pending_slots |= 1 << slot;
     port.ci = 1 << slot;
 
-    // IDENTIFY doesn't necessarily lead to an interrupt on real hardware
-
-    while (port.ci & 1 << slot) { }
+    auto status = wait_for_object(events[slot].get(), true);
+    if (!success(status)) {
+        print("sata_device::identify: wait_for_object returned {}\n", status);
+        pending_slots &= ~(1 << slot);
+        release_slot(slot);
+        free(buf);
+        return false;
+    }
 
     pending_slots &= ~(1 << slot);
 
@@ -513,7 +518,7 @@ void sata_device::isr() {
 
     port.is = is;
 
-    if (!(is & SATA_IS_DHRS))
+    if (!(is & SATA_IS_DHRS) && !(is & SATA_IS_PSS))
         return;
 
     // D2H FIS received
