@@ -183,13 +183,11 @@ void sata_device::release_slot(uint8_t slot) {
 }
 
 bool sata_device::identify() {
-    auto pa = allocate_page();
-    if (!pa) {
-        print("allocate_page failed\n");
+    auto buf = malloc(sizeof(ata_identify_device_block));
+    if (!buf) {
+        print("malloc failed\n");
         return false;
     }
-
-    auto va = phys_address(pa);
 
     port.is = 0xffffffff; // clear interrupt bits
 
@@ -206,9 +204,11 @@ bool sata_device::identify() {
 
     memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
 
+    auto pa = va_to_pa_phys(buf);
+
     cmdtbl.prdt_entry[0].dba = (uint32_t)pa;
     cmdtbl.prdt_entry[0].dbau = (uint32_t)(pa >> 32);
-    cmdtbl.prdt_entry[0].dbc = PAGE_SIZE - 1;
+    cmdtbl.prdt_entry[0].dbc = sizeof(ata_identify_device_block) - 1;
     cmdtbl.prdt_entry[0].i = 1; // interrupt
 
     volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
@@ -231,15 +231,15 @@ bool sata_device::identify() {
     if (port.is & HBA_PxIS_TFES) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
         release_slot(slot);
-        free_folio(pa);
+        free(buf);
         return false;
     }
 
-    memcpy(&identify_block, (void*)va, sizeof(ata_identify_device_block));
+    memcpy(&identify_block, buf, sizeof(ata_identify_device_block));
 
     release_slot(slot);
 
-    free_folio(pa);
+    free(buf);
 
     return true;
 }
