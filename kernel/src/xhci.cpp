@@ -68,7 +68,7 @@ public:
     bool control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                           enum usb_request bRequest, uint16_t wValue,
                           uint16_t wIndex);
-    bool normal_transfer(span<uint8_t> buf);
+    size_t normal_transfer(span<uint8_t> buf);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
     void break_waits();
 
@@ -1678,7 +1678,7 @@ bool usb_device::get_status(uint8_t bmRequestType, span<uint8_t> buf,
     return true;
 }
 
-bool xhci_queue::normal_transfer(span<uint8_t> buf) {
+size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
     xhci_request req;
 
     // FIXME - can set IDT flag on short OUT transfers
@@ -1700,14 +1700,16 @@ bool xhci_queue::normal_transfer(span<uint8_t> buf) {
     wait_for_object(req.event.get(), false);
 
     if (dev && dev->dead)
-        return false;
+        return 0;
 
-    if ((enum TRB_CODE)req.ev.completion_code != TRB_CODE::SUCCESS) {
-        print("xhci_queue::normal_transfer: controller returned error {}\n", (enum TRB_CODE)req.ev.completion_code);
-        return false;
+    auto code = (enum TRB_CODE)req.ev.completion_code;
+
+    if (code != TRB_CODE::SUCCESS && code != TRB_CODE::SHORT_PACKET) {
+        print("xhci_queue::normal_transfer: controller returned error {}\n", code);
+        return 0;
     }
 
-    return true;
+    return buf.size() - req.ev.trb_transfer_length;
 }
 
 uint8_t xhci::get_port_slot_type(uint8_t port_id) {

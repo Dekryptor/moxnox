@@ -481,17 +481,25 @@ void usb_keyboard::recv_thread() {
     }
 
     while (true) {
-        if (!queue.normal_transfer(span(buf, packet_size))) {
+        auto recv_bytes = queue.normal_transfer(span(buf, packet_size));
+
+        if (recv_bytes == 0) {
             if (!d.dead)
                 print("xhci_queue::normal_transfer failed\n");
             break;
+        }
+
+        if (recv_bytes < 2) {
+            print("usb_keyboard::recv_thread: received {} bytes, expected at least 2\n",
+                  recv_bytes);
+            continue;
         }
 
 #if 0
         char s[255];
         span<char> sp(s, sizeof(s));
 
-        for (uint16_t i = 0; i < packet_size; i++) {
+        for (uint16_t i = 0; i < recv_bytes; i++) {
             if (i != 0)
                 sp = format_to(sp, " ", make_tuple());
 
@@ -506,7 +514,7 @@ void usb_keyboard::recv_thread() {
             status[i] = 0;
         }
 
-        for (uint16_t i = 2; i < packet_size; i++) {
+        for (uint16_t i = 2; i < recv_bytes; i++) {
             if (buf[i] == 0)
                 continue;
 
