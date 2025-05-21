@@ -77,6 +77,7 @@ nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
 
     cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
     cmd.w = 0; // read
+    cmd.prdbc = 0;
 
     auto& cmdtbl = *cmd_tables[slot];
 
@@ -201,8 +202,9 @@ bool sata_device::identify() {
     volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
 
     cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
-    cmd.w = 0; // read;
+    cmd.w = 0; // read
     cmd.prdtl = 1; // no. of PRDT entries
+    cmd.prdbc = 0;
 
     auto& cmdtbl = *cmd_tables[slot];
 
@@ -744,6 +746,7 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
 
         cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
         cmd.w = 0; // read
+        cmd.prdbc = 0;
 
         auto& cmdtbl = *cmd_tables[slot];
 
@@ -840,6 +843,7 @@ nt_status sata_device::flush() {
 
     cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
     cmd.w = 0; // read
+    cmd.prdbc = 0;
 
     auto& cmdtbl = *cmd_tables[slot];
 
