@@ -689,7 +689,7 @@ static bool init_sata(const pci_device& dev) {
 
     msi.message_control = msi.message_control | 1; // enable
 
-    // FIXME - check abar.ghc.ae for whether AHCI or IDE
+    sc->abar->is = 0xffffffff; // clear pending interrupts
     sc->abar->ghc.ie = 1; // enable interrupts
 
     auto ports_ptr = (volatile HBA_PORT*)sc->abar->ports;
