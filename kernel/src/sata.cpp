@@ -73,7 +73,7 @@ nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
 
     uint8_t slot = get_slot();
 
-    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+    auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
 
     cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
     cmd.w = 0; // read
@@ -107,7 +107,7 @@ nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
 
     cmd.prdtl = (uint16_t)num_pages;
 
-    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+    auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
 
     cmdfis.fis_type = FIS_TYPE::REG_H2D;
     cmdfis.c = 1; // command
@@ -193,7 +193,7 @@ bool sata_device::identify() {
 
     auto slot = get_slot();
 
-    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+    auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
 
     cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
     cmd.w = 0; // read
@@ -211,7 +211,7 @@ bool sata_device::identify() {
     cmdtbl.prdt_entry[0].dbc = sizeof(ata_identify_device_block) - 1;
     cmdtbl.prdt_entry[0].i = 1; // interrupt
 
-    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+    auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
 
     cmdfis.fis_type = FIS_TYPE::REG_H2D;
     cmdfis.c = 1; // command
@@ -350,7 +350,7 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
         auto cmd_tbls = (HBA_CMD_HEADER*)clb;
 
         for (unsigned int j = 0; j < PAGE_SIZE / sizeof(HBA_CMD_TBL); j++) {
-            volatile auto& tbl = cmd_tbls[(i * PAGE_SIZE / sizeof(HBA_CMD_TBL)) + j];
+            auto& tbl = cmd_tbls[(i * PAGE_SIZE / sizeof(HBA_CMD_TBL)) + j];
 
             tbl.ctba = (uint32_t)(pa + (j * sizeof(HBA_CMD_TBL)));
             tbl.ctbau = (uint32_t)(pa >> 32);
@@ -701,7 +701,7 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
 
         uint8_t slot = get_slot();
 
-        volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+        auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
 
         cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
         cmd.w = 0; // read
@@ -735,7 +735,7 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
 
         cmd.prdtl = (uint16_t)num_pages;
 
-        volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+        auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
 
         cmdfis.fis_type = FIS_TYPE::REG_H2D;
         cmdfis.c = 1; // command
@@ -794,7 +794,7 @@ nt_status sata_device::flush() {
 
     uint8_t slot = get_slot();
 
-    volatile auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
+    auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
 
     cmd.cfl = sizeof(FIS_REG_H2D) / sizeof(uint32_t);
     cmd.w = 0; // read
@@ -804,7 +804,7 @@ nt_status sata_device::flush() {
 
     memset(&cmdtbl, 0, sizeof(cmdtbl));
 
-    volatile auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
+    auto& cmdfis = *(FIS_REG_H2D*)&cmdtbl.cfis;
 
     cmdfis.fis_type = FIS_TYPE::REG_H2D;
     cmdfis.c = 1; // command
