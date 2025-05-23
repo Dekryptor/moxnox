@@ -719,6 +719,11 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
     bool multi_tt = false;
     uint8_t tt_think_time = 0;
 
+    if (d.parent.depth > 4) {
+        print("found_usb_hub_interface: hub depth was too deep\n");
+        return false;
+    }
+
     if (interface.desc.bAlternateSetting)
         return false;
 
