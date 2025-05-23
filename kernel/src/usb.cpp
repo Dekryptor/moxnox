@@ -269,3 +269,8 @@ export enum class usb3_port_feature_selector : uint8_t {
     C_BH_PORT_RESET = 29,
     FORCE_LINKPM_ACCEPT = 30,
 };
+
+export enum class hub_feature_selector : uint8_t {
+    C_HUB_LOCAL_POWER = 0,
+    C_HUB_OVER_CURRENT = 1,
+};
