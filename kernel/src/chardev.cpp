@@ -40,6 +40,9 @@ public:
             delete this;
     }
 
+    virtual void clear() {
+    }
+
     bool signalled = true;
     bool exclusive = true;
     list_entry waiters = { &waiters, &waiters };

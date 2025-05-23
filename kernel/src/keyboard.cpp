@@ -696,8 +696,6 @@ void keyboard_pipe::handle_ctrl_c() {
 void keyboard_context::key_event(input_event& ev) {
     auto idx = (unsigned int)ev.code;
 
-    // FIXME - handle caps lock, num lock, etc.
-
     if (ev.code == evdev_code::KEY_LEFTSHIFT || ev.code == evdev_code::KEY_RIGHTSHIFT) {
         if (ev.value == 1) // key down
             shift_count++;

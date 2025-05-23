@@ -30,6 +30,8 @@ public:
         return write(std::span((uint8_t*)sv.data(), sv.length()), written_bytes);
     }
 
+    void clear() override;
+
     uint8_t* buf;
     unsigned int buf_pages;
     size_t buf_unread = 0;
@@ -252,6 +254,35 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     read_bytes = copied;
     return nt_status::SUCCESS;
+}
+
+void pipe::clear() {
+    {
+        lock_guard l(lock);
+
+        buf_write_pos = 0;
+        buf_unread = 0;
+    }
+
+    {
+        // wake up waiting thread
+
+        sync_lock sl;
+        lock_guard l(sl);
+
+        if (!signalled) {
+            signalled = true;
+
+            wake_up_waiters(waiters);
+        }
+
+        {
+            lock_guard l2(lock);
+
+            if (buf_unread == buf_pages << PAGE_SHIFT)
+                not_full_event.signalled = false;
+        }
+    }
 }
 
 export void add_to_flushable_pipes_list(pipe& p) {

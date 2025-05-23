@@ -122,17 +122,17 @@ static void keywait() {
     } else {
         object_ref keybh;
 
-        auto status = open_object("ps2keyboard", keybh);
+        auto status = open_object("keyboard", keybh);
 
         if (!success(status)) {
-            print("Error {} while trying to open /dev/ps2keyboard\n", status);
+            print("Error {} while trying to open /dev/keyboard\n", status);
             return;
         }
 
         auto& keyb = keybh.get();
 
         if (keyb.type != object_type::chardev) {
-            print("/dev/ps2keyboard did not point to a character device\n");
+            print("/dev/keyboard did not point to a character device\n");
             return;
         }
 
@@ -146,33 +146,15 @@ static void keywait() {
 
     print("Press any key to continue...\n\e[?25l");
 
-    while (true) {
-        input_event ev;
-        nt_status status;
+    uint8_t c;
+    uint64_t read_bytes;
+    nt_status status;
 
-        auto sp = span((uint8_t*)&ev, sizeof(ev));
+    status = p->read(span(&c, 1), read_bytes);
+    if (!success(status))
+        print("pipe::read returned {}\n", status);
 
-        while (true) {
-            uint64_t read_bytes;
-
-            status = p->read(sp, read_bytes);
-            if (!success(status))
-                break;
-
-            if (read_bytes == sp.size())
-                break;
-
-            sp = span(sp.data() + read_bytes, sp.size() - read_bytes);
-        }
-
-        if (!success(status)) {
-            print("pipe::read returned {}\n", status);
-            break;
-        }
-
-        if (ev.type == evdev_type::EV_KEY && ev.value != 0) // keydown event
-            break;
-    }
+    p->clear();
 
     print("\e[?25h");
 }
@@ -234,8 +216,6 @@ void main_thread() {
 
     if (!create_dev_null())
         print("create_dev_null failed\n");
-
-    // FIXME - USB
 
     if (!mount_root())
         bsod("mount_root failed");
