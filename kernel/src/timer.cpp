@@ -37,6 +37,7 @@ public:
     NTSTATUS set(int64_t due_time, PTIMER_APC_ROUTINE timer_apc_routine,
                  void* timer_context, bool resume_timer, int32_t period,
                  bool* previous_state);
+    NTSTATUS cancel(bool* current_state);
 
     bool signalled = false;
     bool active = false;
@@ -258,6 +259,25 @@ NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
     return nt_status::SUCCESS;
 }
 
+NTSTATUS timer::cancel(bool* current_state) {
+    sync_lock sl;
+    lock_guard lock(sl);
+
+    if (current_state)
+        *current_state = signalled;
+
+    ticks_left = 0;
+    signalled = false;
+    periodic = false;
+
+    if (active) {
+        remove_entry_list(le);
+        active = false;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 extern "C"
 NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
                     PTIMER_APC_ROUTINE timer_apc_routine, void* timer_context,
@@ -275,4 +295,20 @@ NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
 
     return t.set(due_time->QuadPart, timer_apc_routine, timer_context,
                  resume_timer, period, previous_state);
+}
+
+extern "C"
+NTSTATUS NtCancelTimer(HANDLE timer_handle, bool* current_state) {
+    auto objrw = deref_handle(timer_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    auto& obj = objrw.get();
+
+    if (obj.type != object_type::timer)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    auto& t = static_cast<timer&>(obj);
+
+    return t.cancel(current_state);
 }

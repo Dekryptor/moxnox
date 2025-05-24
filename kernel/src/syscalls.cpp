@@ -1136,6 +1136,21 @@ NTSTATUS user_NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
 }
 
 extern "C"
+NTSTATUS user_NtCancelTimer(HANDLE timer_handle, bool* current_state) {
+    bool ks_current_state;
+
+    auto ret = NtCancelTimer(timer_handle,
+                             current_state ? &ks_current_state : nullptr);
+
+    if (success(ret)) {
+        if (current_state && !copy_to_process(current_state, &ks_current_state, sizeof(ks_current_state)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
+
+extern "C"
 NTSTATUS user_NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     // FIXME - check user has SeShutdownPrivilege
 
