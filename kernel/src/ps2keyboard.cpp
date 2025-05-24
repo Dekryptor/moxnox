@@ -7,6 +7,7 @@ import evdev;
 #include "handle.h"
 import pipe;
 #include "acpica.h"
+#include "tick_rate.h"
 
 export module ps2keyboard;
 
@@ -17,6 +18,7 @@ import interrupts;
 import event;
 import acpi;
 import keyboard;
+import timer;
 
 using namespace std;
 
@@ -35,6 +37,13 @@ static unsigned int modifier = 0;
 
 static uint64_t keydown1 = 0, keydown2 = 0;
 static uint64_t keydown_extended1 = 0, keydown_extended2 = 0;
+static enum evdev_code repeat_key = evdev_code::KEY_RESERVED;
+static object_ref repeat_timer;
+
+#define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
+
+static const uint64_t REPEAT_DELAY_MS = 660;
+static const uint64_t REPEAT_RATE_HZ = 25;
 
 static bool keyboard_initialized = false;
 static uint16_t keyboard_port1, keyboard_port2;
@@ -69,11 +78,60 @@ static void init_acpi_hids() {
 
 static module_init module_init_keyboard(init_acpi_hids);
 
-static void post_evdev(enum evdev_code code, bool down) {
+static bool should_key_repeat(enum evdev_code code) {
+    switch (code) {
+        case evdev_code::KEY_RESERVED:
+        case evdev_code::KEY_LEFTALT:
+        case evdev_code::KEY_RIGHTALT:
+        case evdev_code::KEY_LEFTCTRL:
+        case evdev_code::KEY_RIGHTCTRL:
+        case evdev_code::KEY_LEFTSHIFT:
+        case evdev_code::KEY_RIGHTSHIFT:
+        case evdev_code::KEY_LEFTMETA:
+        case evdev_code::KEY_RIGHTMETA:
+        case evdev_code::KEY_CAPSLOCK:
+        case evdev_code::KEY_NUMLOCK:
+        case evdev_code::KEY_SCROLLLOCK:
+            return false;
+
+        default:
+            return true;
+    }
+}
+
+static void post_evdev(enum evdev_code code, unsigned int value) {
     struct input_event ev;
     auto& p = static_cast<pipe&>(keyboard_evdev_obj.get());
 
-    // FIXME - typematic
+    if (value != 2 && should_key_repeat(code)) {
+        auto& t = static_cast<timer&>(repeat_timer.get());
+
+        if (value == 0) { // up
+            if (repeat_key == code) {
+                if (auto status = t.cancel(nullptr); !success(status))
+                    print("timer::cancel returned {}\n", status);
+
+                repeat_key = evdev_code::KEY_RESERVED;
+            }
+        } else { // down
+            if (repeat_key == evdev_code::KEY_RESERVED) {
+                if (auto status = t.set(-ONE_MS_TICKS * REPEAT_DELAY_MS, nullptr,
+                                        nullptr, false, 0, nullptr); !success(status)) {
+                    print("timer::set returned {}\n", status);
+                }
+            } else if (repeat_key != code) {
+                if (auto status = t.cancel(nullptr); !success(status))
+                    print("timer::cancel returned {}\n", status);
+
+                if (auto status = t.set(-ONE_MS_TICKS * REPEAT_DELAY_MS, nullptr,
+                                        nullptr, false, 0, nullptr); !success(status)) {
+                    print("timer::set returned {}\n", status);
+                }
+            }
+
+            repeat_key = code;
+        }
+    }
 
     // FIXME - Linux also has EV_SYN and EV_MSC events
 
@@ -83,7 +141,7 @@ static void post_evdev(enum evdev_code code, bool down) {
 
     ev.type = evdev_type::EV_KEY;
     ev.code = code;
-    ev.value = down ? 1 : 0;
+    ev.value = value;
 
     auto sp = span((uint8_t*)&ev, sizeof(ev));
 
@@ -152,14 +210,14 @@ static void keyboard_event_recv() {
             else if (modifier & MODIFIER_EXTD) {
                 if ((sc & 0x7f) < sizeof(evdev_codes_modified) / sizeof(*evdev_codes_modified) &&
                     evdev_codes_modified[sc & 0x7f] != evdev_code::KEY_RESERVED) {
-                    post_evdev(evdev_codes_modified[sc & 0x7f], !(sc & 0x80));
+                    post_evdev(evdev_codes_modified[sc & 0x7f], !(sc & 0x80) ? 1 : 0);
                 }
 
                 modifier &= ~MODIFIER_EXTD;
             } else {
                 if ((sc & 0x7f) < sizeof(evdev_codes) / sizeof(*evdev_codes) &&
                     evdev_codes[sc & 0x7f] != evdev_code::KEY_RESERVED) {
-                    post_evdev(evdev_codes[sc & 0x7f], !(sc & 0x80));
+                    post_evdev(evdev_codes[sc & 0x7f], !(sc & 0x80) ? 1 : 0);
                 }
             }
         }
@@ -212,6 +270,31 @@ static bool add_keyboard_evdev_pipe() {
     return true;
 }
 
+static void keyboard_repeat_thread() {
+    while (true) {
+        auto status = wait_for_object(repeat_timer.get(), false);
+        if (!success(status)) {
+            print("wait_for_object returned {}\n", status);
+            break;
+        }
+
+        auto code = repeat_key;
+
+        if (code == evdev_code::KEY_RESERVED)
+            continue;
+
+        post_evdev(code, 2);
+
+        auto& t = static_cast<timer&>(repeat_timer.get());
+
+        if (auto status = t.set(-(SYSTEM_TIME_RESOLUTION / REPEAT_RATE_HZ), nullptr,
+                                nullptr, false, 0, nullptr); !success(status)) {
+            print("timer::set returned {}\n", status);
+            break;
+        }
+    }
+}
+
 static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     if (keyboard_initialized) // can only be one PS/2 keyboard(?)
         return;
@@ -261,6 +344,17 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
     __asm __volatile("sti");
+
+    repeat_timer = create_timer(true);
+    if (!repeat_timer) {
+        print("create_timer failed\n");
+        return;
+    }
+
+    if (!add_kernel_thread(keyboard_repeat_thread)) {
+        print("add_kernel_thread failed\n");
+        return;
+    }
 
     if (!add_irq_handler(irq, local_apic_id, keyboard_isr_func, nullptr)) {
         print("add_irq_handler failed\n");
