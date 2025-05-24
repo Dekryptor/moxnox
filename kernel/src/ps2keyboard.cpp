@@ -112,7 +112,6 @@ static void keyboard_event_recv() {
             keyboard_buffer_read_pos++;
             keyboard_buffer_read_pos &= 0xfff;
 
-            // FIXME - caps lock and num lock (and lights?)
             // FIXME - print screen (e0 2a e0 37)
             // FIXME - pause (e1 1d 45)
 
