@@ -33,6 +33,9 @@ static unsigned int keyboard_buffer_write_pos = 0;
 static unsigned int keyboard_buffer_read_pos = 0;
 static unsigned int modifier = 0;
 
+static uint64_t keydown1 = 0, keydown2 = 0;
+static uint64_t keydown_extended1 = 0, keydown_extended2 = 0;
+
 static bool keyboard_initialized = false;
 static uint16_t keyboard_port1, keyboard_port2;
 
@@ -115,6 +118,34 @@ static void keyboard_event_recv() {
             // FIXME - print screen (e0 2a e0 37)
             // FIXME - pause (e1 1d 45)
             // FIXME - Fn key (e0 63) (what is this in evdev?)
+
+            if (sc != CODE_EXTD) {
+                uint64_t keydown_mask;
+                uint64_t* keydown_ptr;
+
+                keydown_mask = (uint64_t)1 << (sc & 0x3f);
+
+                if (modifier & MODIFIER_EXTD) {
+                    if (sc & 0x40)
+                        keydown_ptr = &keydown_extended2;
+                    else
+                        keydown_ptr = &keydown_extended1;
+                } else {
+                    if (sc & 0x40)
+                        keydown_ptr = &keydown2;
+                    else
+                        keydown_ptr = &keydown1;
+                }
+
+                if (sc & 0x80)
+                    *keydown_ptr &= ~keydown_mask;
+                else {
+                    if (*keydown_ptr & keydown_mask)
+                        continue; // ignore repeats
+
+                    *keydown_ptr |= keydown_mask;
+                }
+            }
 
             if (sc == CODE_EXTD)
                 modifier |= MODIFIER_EXTD;
