@@ -393,7 +393,9 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
         return;
     }
 
+    d.acquire();
     if (!add_kernel_thread([](void* ctx) { ((usb_keyboard*)ctx)->keyboard_repeat_thread(); }, this)) {
+        d.release();
         print("add_kernel_thread failed\n");
         return;
     }
@@ -643,6 +645,13 @@ void usb_keyboard::recv_thread() {
     }
 
     free(buf);
+
+    if (repeat_timer) {
+        auto& t = static_cast<timer&>(repeat_timer.get());
+
+        if (auto status = t.set(0, nullptr, nullptr, false, 0, nullptr); !success(status))
+            print("timer::set returned {}\n", status);
+    }
 }
 
 static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
@@ -658,12 +667,19 @@ static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
 }
 
 void usb_keyboard::keyboard_repeat_thread() {
+    auto& t = static_cast<timer&>(repeat_timer.get());
+
+    t.acquire();
+
     while (true) {
         auto status = wait_for_object(repeat_timer.get(), false);
         if (!success(status)) {
             print("wait_for_object returned {}\n", status);
             break;
         }
+
+        if (d.dead)
+            break;
 
         auto code = repeat_key;
 
@@ -680,6 +696,9 @@ void usb_keyboard::keyboard_repeat_thread() {
             break;
         }
     }
+
+    t.release();
+    d.release();
 }
 
 static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
