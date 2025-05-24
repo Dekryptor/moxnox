@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include "tick_rate.h"
 #include <span>
 
 export module usbhub;
@@ -16,7 +17,7 @@ using namespace std;
 
 static const unsigned int PORT_RESET_DELAY = 800; // ms
 
-#define ONE_MS_TICKS 10000 // FIXME
+#define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
 union port_status {
     struct {

@@ -7,6 +7,7 @@ import objects;
 import rbtree;
 #include "page_cache.h"
 #include "inode.h"
+#include "tick_rate.h"
 #include <shared_mutex>
 
 export module sata;
@@ -52,7 +53,7 @@ static constexpr uint32_t SATA_IS_DHRS = 1 << 0;
 
 static atomic<unsigned int> num_sata_devices = 0;
 
-#define ONE_MS_TICKS 10000 // FIXME
+#define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
 static bool init_sata(const pci_device& dev);
 
