@@ -161,7 +161,6 @@ void timer_expired(timer* tptr) {
     if (!t.periodic) {
         t.active = false;
         remove_entry_list(t.le);
-        t.release();
         return;
     }
 
