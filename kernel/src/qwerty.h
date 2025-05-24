@@ -98,6 +98,13 @@ static const enum evdev_code evdev_codes[] = {
     evdev_code::KEY_102ND,
     evdev_code::KEY_F11,
     evdev_code::KEY_F12,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
 };
 
 static const enum evdev_code evdev_codes_modified[] = {
@@ -161,7 +168,7 @@ static const enum evdev_code evdev_codes_modified[] = {
     evdev_code::KEY_KPSLASH,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RIGHTALT,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -194,6 +201,13 @@ static const enum evdev_code evdev_codes_modified[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_LEFTMETA,
+    evdev_code::KEY_RIGHTMETA,
+    evdev_code::KEY_COMPOSE,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
 };

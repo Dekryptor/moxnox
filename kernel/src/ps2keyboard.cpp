@@ -114,6 +114,7 @@ static void keyboard_event_recv() {
 
             // FIXME - print screen (e0 2a e0 37)
             // FIXME - pause (e1 1d 45)
+            // FIXME - Fn key (e0 63) (what is this in evdev?)
 
             if (sc == CODE_EXTD)
                 modifier |= MODIFIER_EXTD;
@@ -122,8 +123,6 @@ static void keyboard_event_recv() {
                     evdev_codes_modified[sc & 0x7f] != evdev_code::KEY_RESERVED) {
                     post_evdev(evdev_codes_modified[sc & 0x7f], !(sc & 0x80));
                 }
-
-                // FIXME - left win (5b), right win (5c), menu (5d)
 
                 modifier &= ~MODIFIER_EXTD;
             } else {
