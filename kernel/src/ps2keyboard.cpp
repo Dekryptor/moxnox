@@ -42,8 +42,8 @@ static object_ref repeat_timer;
 
 #define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
-static const uint64_t REPEAT_DELAY_MS = 660;
-static const uint64_t REPEAT_RATE_HZ = 25;
+static const int64_t REPEAT_DELAY_MS = 660;
+static const int64_t REPEAT_RATE_HZ = 25;
 
 static bool keyboard_initialized = false;
 static uint16_t keyboard_port1, keyboard_port2;
@@ -99,8 +99,8 @@ static bool should_key_repeat(enum evdev_code code) {
     }
 }
 
-static void post_evdev(enum evdev_code code, unsigned int value) {
-    struct input_event ev;
+static void post_evdev(enum evdev_code code, int32_t value) {
+    input_event ev;
     auto& p = static_cast<pipe&>(keyboard_evdev_obj.get());
 
     if (value != 2 && should_key_repeat(code)) {

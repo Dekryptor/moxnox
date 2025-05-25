@@ -21,8 +21,8 @@ using namespace std;
 
 #define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
-static const uint64_t REPEAT_DELAY_MS = 660;
-static const uint64_t REPEAT_RATE_HZ = 25;
+static const int64_t REPEAT_DELAY_MS = 660;
+static const int64_t REPEAT_RATE_HZ = 25;
 
 static const size_t evdev_buffer_pages = 1;
 
@@ -37,7 +37,7 @@ public:
     void recv_thread();
 
 private:
-    void post_evdev(enum evdev_code code, unsigned int value);
+    void post_evdev(enum evdev_code code, int32_t value);
     void keyboard_repeat_thread();
 
     usb_device& d;
@@ -483,8 +483,8 @@ static bool should_key_repeat(enum evdev_code code) {
     }
 }
 
-void usb_keyboard::post_evdev(enum evdev_code code, unsigned int value) {
-    struct input_event ev;
+void usb_keyboard::post_evdev(enum evdev_code code, int32_t value) {
+    input_event ev;
     auto& p = static_cast<pipe&>(evdev_pipe.get());
 
     if (value != 2 && should_key_repeat(code)) {
