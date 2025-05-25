@@ -2,7 +2,8 @@
 
 #include <atomic>
 
-class spinlock {
+template<unsigned CR8>
+class _spinlock {
 public:
     void lock() {
         uint64_t current_cr8;
@@ -10,10 +11,10 @@ public:
         __asm __volatile(
             "mov rax, cr8\n"
             "mov %0, rax\n"
-            "mov rax, 5\n"
+            "mov rax, %1\n"
             "mov cr8, rax\n"
             : "=m" (current_cr8)
-            :
+            : "i" (CR8)
             : "rax"
         );
 
@@ -42,6 +43,8 @@ private:
     std::atomic<uint64_t> v = 0;
     uint64_t old_cr8;
 };
+
+using spinlock = _spinlock<5>;
 
 class sync_lock {
 public:
