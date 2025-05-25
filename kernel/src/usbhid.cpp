@@ -3,6 +3,7 @@ module;
 #include "kernel.h"
 #include "spinlock.h"
 #include "tick_rate.h"
+#include "handle.h"
 #include <span>
 
 export module usbhid;
@@ -24,6 +25,8 @@ static const uint64_t REPEAT_DELAY_MS = 660;
 static const uint64_t REPEAT_RATE_HZ = 25;
 
 static const size_t evdev_buffer_pages = 1;
+
+static atomic<unsigned int> keyboard_num = 0;
 
 class usb_keyboard {
 public:
@@ -374,12 +377,22 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
 
     evdev_pipe = object_ref{*pptr};
 
-    // FIXME - name object with incremental number
-    // FIXME - put in /dev/input like on Linux
-    // if (!name_object(keyboard_evdev_obj.get(), "ps2keyboard")) {
-    //     print("name_object failed\n");
-    //     return false;
-    // }
+    unsigned int num = keyboard_num.fetch_add(1);
+
+    {
+        char s[50];
+        auto sp = span(s, sizeof(s));
+
+        sp = format(sp, "usbkeyboard{}", num);
+
+        auto sv = string_view(s, (size_t)(sp.data() - s));
+
+        // FIXME - put in /dev/input like on Linux?
+        if (!name_object(evdev_pipe.get(), sv)) {
+            print("name_object failed\n");
+            return;
+        }
+    }
 
     this->kc = register_keyboard(static_cast<pipe&>(evdev_pipe.get()), [](void* ctx, keyboard_leds leds) {
         auto& kbd = *(usb_keyboard*)ctx;
