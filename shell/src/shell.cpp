@@ -544,6 +544,10 @@ static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
 
+    while (!sv.empty() && sv.front() == ' ') {
+        sv = string_view(sv.data() + 1, sv.size() - 1);
+    }
+
     if (sv.empty())
         return;
 
