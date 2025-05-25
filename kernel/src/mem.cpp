@@ -66,7 +66,7 @@ static uint64_t vablock_size;
 
 static uint8_t* const initrd_addr = (uint8_t*)0xfffffa5000000000;
 
-static spinlock va_spinlock, heap_spinlock, tlb_spinlock;
+static spinlock va_spinlock;
 static spinlock mapping_spinlock;
 static spinlock protect_page_spinlock;
 
