@@ -424,8 +424,10 @@ static void fix_ata_string(span<const uint16_t> in, span<char> out) {
 }
 
 static void init_sata_device(void* ctx, void* ctx2) {
-    volatile auto& p = *(volatile HBA_PORT*)ctx;
-    auto& sc = *(sata_card*)ctx2;
+    auto& sc = *(sata_card*)ctx;
+    auto port_num = (uint8_t)(uintptr_t)ctx2;
+
+    volatile auto& p = sc.abar->ports[port_num];
 
     if (!sc.reset_port(p)) {
         if (--sc.init_left == 0)
@@ -471,6 +473,7 @@ static void init_sata_device(void* ctx, void* ctx2) {
     dev.sector_size = 512; // FIXME - get from identify block
     dev.size = (uint64_t)dev.identify_block.user_addressable_logical_sectors * (uint64_t)dev.sector_size;
     dev.dev_num = num_sata_devices.fetch_add(1);
+    dev.port_num = port_num;
 
     // FIXME - make sure SATA devices get numbered consistently
 
@@ -537,17 +540,18 @@ void sata_card::isr() {
     if (abar_is == 0)
         return;
 
-    // FIXME - abar->is indicates which sata device we should look at?
-
     lock_guard lock(port_list_lock);
 
-    auto le = port_list.next;
-    while (le != &port_list) {
+    for (auto le = port_list.next; le != &port_list; le = le->next) {
         auto& dev = containing_record<sata_device>(le);
 
-        dev.isr();
+        if (abar_is & 1 << dev.port_num) {
+            dev.isr();
 
-        le = le->next;
+            abar_is &= ~(1 << dev.port_num);
+            if (abar_is == 0)
+                break;
+        }
     }
 }
 
@@ -654,8 +658,7 @@ static bool init_sata(const pci_device& dev) {
     sc->abar->is = 0xffffffff; // clear pending interrupts
     sc->abar->ghc.ie = 1; // enable interrupts
 
-    auto ports_ptr = (volatile HBA_PORT*)sc->abar->ports;
-    auto ports_count = (unsigned int)((abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT));
+    auto ports_count = (uint8_t)((abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT));
 
     uint32_t mask = sc->abar->pi;
 
@@ -667,16 +670,14 @@ static bool init_sata(const pci_device& dev) {
     sc->init_event = create_event(true);
     sc->init_left = 1;
 
-    for (size_t i = 0; i < ports_count; i++) {
+    for (uint8_t i = 0; i < ports_count; i++) {
         if (!(mask & 1)) {
             mask >>= 1;
             continue;
         }
 
-        const auto& p = ports_ptr[i];
-
         sc->init_left++;
-        add_kernel_thread(init_sata_device, (void*)&p, sc);
+        add_kernel_thread(init_sata_device, sc, (void*)(uintptr_t)i);
 
         mask >>= 1;
     }

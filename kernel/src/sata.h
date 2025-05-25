@@ -530,6 +530,7 @@ public:
     std::atomic<uint32_t> allocated_slots = 0;
     std::atomic<uint32_t> pending_slots = 0;
     unsigned int dev_num;
+    uint8_t port_num;
     rwsem flush_sem;
     bool valid = false;
 };
