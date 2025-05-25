@@ -21,7 +21,7 @@ static const unsigned int KERNEL_STACK_PAGES = 8; // 32KB
 static const unsigned int KERNEL_GUARD_PAGES = 1;
 
 static const uint8_t yield_interrupt = 0xfc;
-static const uint8_t halt_interrupt = 0xfd;
+static const uint8_t halt_interrupt = 0x60;
 static const uint8_t invalidate_tlb_interrupt = 0x21;
 static const uint8_t spurious_interrupt = 0xff;
 

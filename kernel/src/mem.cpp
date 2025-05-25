@@ -59,7 +59,7 @@ static_assert(sizeof(struct page) == 24);
 
 page* pages = (page*)0xfffffa0000000000;
 static uint64_t total_pages;
-static spinlock pa_spinlock;
+static _spinlock<6> pa_spinlock;
 
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
@@ -117,7 +117,7 @@ public:
 
     using cb_type = allocator_cb<N, P, S>;
 
-    spinlock lock;
+    _spinlock<6> lock;
     list_entry control_blocks = { &control_blocks, &control_blocks };
 };
 
