@@ -1777,7 +1777,7 @@ static void parse_video_option(unsigned int& preferred_width,
 
 static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
     EFI_GUID guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
-    EFI_GUID edid_guid = EFI_EDID_DISCOVERED_PROTOCOL_GUID;
+    EFI_GUID edid_guid = EFI_EDID_ACTIVE_PROTOCOL_GUID;
     EFI_HANDLE* handles = NULL;
     UINTN count;
     EFI_STATUS status;
@@ -1791,7 +1791,7 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
 
     for (unsigned int i = 0; i < count; i++) {
         EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = nullptr;
-        EFI_EDID_DISCOVERED_PROTOCOL* edp = nullptr;
+        EFI_EDID_ACTIVE_PROTOCOL* edp = nullptr;
         unsigned int mode = 0;
         unsigned int pixels = 0;
 
