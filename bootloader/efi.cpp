@@ -1775,9 +1775,92 @@ static void parse_video_option(unsigned int& preferred_width,
     }
 }
 
-static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
+static bool init_gop(EFI_HANDLE h, EFI_HANDLE image_handle, unsigned int preferred_width,
+                     unsigned int preferred_height, bool allow_no_edid) {
     EFI_GUID guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     EFI_GUID edid_guid = EFI_EDID_ACTIVE_PROTOCOL_GUID;
+    EFI_STATUS status;
+    EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = nullptr;
+    EFI_EDID_ACTIVE_PROTOCOL* edp = nullptr;
+    unsigned int mode = 0;
+    unsigned int pixels = 0;
+
+    status = bs->OpenProtocol(h, &guid, (void**)&gop, image_handle,
+                              nullptr, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+    if (EFI_ERROR(status)) {
+        print_error("OpenProtocol", status);
+        return false;
+    }
+
+    status = bs->OpenProtocol(h, &edid_guid, (void**)&edp, image_handle,
+                              nullptr, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
+    if (!EFI_ERROR(status)) {
+        if (edp && edp->SizeOfEdid >= 128) {
+            memcpy(edid, edp->Edid, sizeof(edid));
+            have_edid = true;
+        }
+
+        bs->CloseProtocol(h, &edid_guid, image_handle, nullptr);
+
+        if (!have_edid && !allow_no_edid)
+            return false;
+    } else if (!allow_no_edid)
+        return false;
+
+    if (have_edid && preferred_width == 0 && preferred_height == 0) {
+        preferred_width = (uint16_t)((edid[0x3a] & 0xf0) << 4) | edid[0x38];
+        preferred_height = (uint16_t)((edid[0x3d] & 0xf0) << 4) | edid[0x3b];
+    }
+
+    for (unsigned int j = 0; j < gop->Mode->MaxMode; j++) {
+        UINTN size;
+        EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info;
+
+        status = gop->QueryMode(gop, j, &size, &info);
+        if (EFI_ERROR(status)) {
+            print_error("QueryMode", status);
+            continue;
+        }
+
+        // choose the best mode
+
+        if (info->PixelFormat != PixelBlueGreenRedReserved8BitPerColor)
+            continue;
+
+        if (info->HorizontalResolution == 0 || info->VerticalResolution == 0)
+            continue;
+
+        if (info->HorizontalResolution == preferred_width &&
+            info->VerticalResolution == preferred_height) {
+            mode = j;
+            break;
+        }
+
+        if (info->HorizontalResolution * info->VerticalResolution > pixels) {
+            mode = j;
+            pixels = info->HorizontalResolution * info->VerticalResolution;
+        }
+    }
+
+    status = gop->SetMode(gop, mode);
+    if (EFI_ERROR(status)) {
+        print_error("SetMode", status);
+        bs->CloseProtocol(h, &guid, image_handle, nullptr);
+        return false;
+    }
+
+    lb.framebuffer.phys_address = (uintptr_t)gop->Mode->FrameBufferBase;
+    lb.framebuffer.width = gop->Mode->Info->HorizontalResolution;
+    lb.framebuffer.height = gop->Mode->Info->VerticalResolution;
+    lb.framebuffer.pixels_per_scan_line = gop->Mode->Info->PixelsPerScanLine;
+
+    bs->CloseProtocol(h, &guid, image_handle, nullptr);
+
+    return true;
+}
+
+static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
+    EFI_GUID guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
     EFI_HANDLE* handles = NULL;
     UINTN count;
     EFI_STATUS status;
@@ -1789,78 +1872,30 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
     if (EFI_ERROR(status))
         return status;
 
-    for (unsigned int i = 0; i < count; i++) {
-        EFI_GRAPHICS_OUTPUT_PROTOCOL* gop = nullptr;
-        EFI_EDID_ACTIVE_PROTOCOL* edp = nullptr;
-        unsigned int mode = 0;
-        unsigned int pixels = 0;
+    if (count == 0) {
+        status = EFI_NOT_FOUND;
+        goto end;
+    }
 
-        status = bs->OpenProtocol(handles[i], &guid, (void**)&gop, image_handle,
-                                  nullptr, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
-        if (EFI_ERROR(status)) {
-            print_error("OpenProtocol", status);
+    // insist on handles that also have an EDID
+
+    for (unsigned int i = 0; i < count; i++) {
+        if (!init_gop(handles[i], image_handle, preferred_width,
+                      preferred_height, false)) {
             continue;
         }
 
-        status = bs->OpenProtocol(handles[i], &edid_guid, (void**)&edp, image_handle,
-                                  nullptr, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
-        if (!EFI_ERROR(status)) {
-            if (edp && edp->SizeOfEdid >= 128) {
-                memcpy(edid, edp->Edid, sizeof(edid));
-                have_edid = true;
-            }
+        status = EFI_SUCCESS;
+        goto end;
+    }
 
-            bs->CloseProtocol(handles[i], &edid_guid, image_handle, nullptr);
+    // if no luck, allow the other handles too
+
+    for (unsigned int i = 0; i < count; i++) {
+        if (!init_gop(handles[i], image_handle, preferred_width,
+                      preferred_height, true)) {
+            continue;
         }
-
-        if (have_edid && preferred_width == 0 && preferred_height == 0) {
-            preferred_width = (uint16_t)((edid[0x3a] & 0xf0) << 4) | edid[0x38];
-            preferred_height = (uint16_t)((edid[0x3d] & 0xf0) << 4) | edid[0x3b];
-        }
-
-        for (unsigned int j = 0; j < gop->Mode->MaxMode; j++) {
-            UINTN size;
-            EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* info;
-
-            status = gop->QueryMode(gop, j, &size, &info);
-            if (EFI_ERROR(status)) {
-                print_error("QueryMode", status);
-                continue;
-            }
-
-            // choose the best mode
-
-            if (info->PixelFormat != PixelBlueGreenRedReserved8BitPerColor)
-                continue;
-
-            if (info->HorizontalResolution == 0 || info->VerticalResolution == 0)
-                continue;
-
-            if (info->HorizontalResolution == preferred_width &&
-                info->VerticalResolution == preferred_height) {
-                mode = j;
-                break;
-            }
-
-            if (info->HorizontalResolution * info->VerticalResolution > pixels) {
-                mode = j;
-                pixels = info->HorizontalResolution * info->VerticalResolution;
-            }
-        }
-
-        status = gop->SetMode(gop, mode);
-        if (EFI_ERROR(status)) {
-            print_error("SetMode", status);
-            bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
-            goto end;
-        }
-
-        lb.framebuffer.phys_address = (uintptr_t)gop->Mode->FrameBufferBase;
-        lb.framebuffer.width = gop->Mode->Info->HorizontalResolution;
-        lb.framebuffer.height = gop->Mode->Info->VerticalResolution;
-        lb.framebuffer.pixels_per_scan_line = gop->Mode->Info->PixelsPerScanLine;
-
-        bs->CloseProtocol(handles[i], &guid, image_handle, nullptr);
 
         status = EFI_SUCCESS;
         goto end;
