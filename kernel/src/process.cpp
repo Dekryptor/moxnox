@@ -1920,18 +1920,44 @@ NTSTATUS mapping_section::protect(uint32_t offset, uint32_t page_count, enum map
 }
 
 bool mapping_section::map(uint32_t offset, uint64_t va) {
+    uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t pa;
 
     {
         lock_guard l(lock);
 
-        pa = pages[offset >> PAGE_SHIFT].pa;
+        pa = pages[page_num].pa;
     }
 
     if (pa) // have local copy of COW'd page
-        return map_page(pa, va, pages[offset >> PAGE_SHIFT].protect);
+        return map_page(pa, va, pages[page_num].protect);
 
-    return sect.map(offset, va, true);
+    if (sect.cache.read_into_cache_and_pin(page_num, 1) == 0)
+        return false;
+
+    // FIXME - process mapping lock(?)
+    auto prot = sect.pages[page_num].protect;
+
+    switch (prot) {
+        case mapping_type::read_write:
+        case mapping_type::write_combine:
+        case mapping_type::no_cache:
+            prot = mapping_type::read_only;
+            break;
+
+        case mapping_type::read_write_execute:
+            prot = mapping_type::read_execute;
+            break;
+
+        default:
+            break;
+    }
+
+    auto ret = map_page(sect.pages[page_num].pa, va, prot);
+
+    sect.cache.unpin(page_num, 1); // FIXME?
+
+    return ret;
 }
 
 bool mapping_section::cow(uint32_t offset, uint64_t va) {

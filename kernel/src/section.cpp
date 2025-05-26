@@ -981,11 +981,53 @@ uint64_t get_image_size(void* image) {
         return 0;
 }
 
-size_t section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME: section::read_into_cache({}, {})\n", page_num, num_pages);
-    // FIXME
+size_t section::read_into_cache(uint64_t page_num, uint64_t /*num_pages*/) {
+    uint64_t page;
+    bool new_page = false;
 
-    return 0;
+    // FIXME - multiple pages
+
+    {
+        lock_guard lock(alloc_lock);
+
+        page = pages[page_num].pa;
+
+        if (!page) {
+            if (type != section_type::anonymous) {
+                print("page not set\n");
+                return 0;
+            }
+
+            page = allocate_page();
+            if (!page) {
+                print("allocate_page failed\n");
+                return 0;
+            }
+
+            pages[page_num].pa = page;
+
+            new_page = true;
+        }
+    }
+
+    if (new_page)
+        memset(phys_address(page), 0, PAGE_SIZE); // FIXME - allocate zeroed page
+
+    {
+        page_cache_entry* dest_p;
+
+        {
+            lock_guard lg(cache.cache_lock);
+
+            dest_p = cache.find_page_cache_entry(page_num);
+        }
+
+        auto dest_va = get_phys_address(*dest_p);
+
+        memcpy(dest_va, phys_address(page), PAGE_SIZE);
+    }
+
+    return 1;
 }
 
 size_t section::flush_cache(uint64_t page_num, uint64_t num_pages) {
