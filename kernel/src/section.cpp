@@ -534,31 +534,56 @@ bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 }
 
 bool section::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
-    lock_guard lock(alloc_lock);
+    uint64_t page_num = offset >> PAGE_SHIFT;
+    uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
 
-    while (true) {
-        auto page = pages[offset >> PAGE_SHIFT].pa;
+    // FIXME - don't need to read pages that we're overwriting fully
+    auto pinned_pages = cache.read_into_cache_and_pin(page_num, num_pages);
 
-        if (!page) {
-            // FIXME - handle missing page (load from disk if file, zero if anonymous)
-            return false;
+    // FIXME - COWing
+    if (pinned_pages < num_pages) {
+        print("section::copy_to: read_into_cache_and_pin returned {}, expected {}\n",
+              pinned_pages, num_pages);
+        cache.unpin(page_num, pinned_pages);
+        return false;
+    }
+
+    page_cache_entry* p;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                p = cache.find_page_cache_entry(page_num);
+            else
+                p = cache.next_page_cache_entry(*p);
         }
 
-        // FIXME - page protection (copy-on-write etc.)
+        uint32_t to_copy, page_off;
 
-        auto va = phys_address(page);
+        if (i == 0) {
+            page_off = offset & (PAGE_SIZE - 1);
+            to_copy = min(size, (uint32_t)(PAGE_SIZE - page_off));
+        } else if (i == num_pages - 1) {
+            page_off = 0;
+            to_copy = (offset + size) & (PAGE_SIZE - 1);
 
-        auto to_copy = (uint32_t)min((size_t)size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+            if (to_copy == 0)
+                to_copy = PAGE_SIZE;
+        } else {
+            page_off = 0;
+            to_copy = PAGE_SIZE;
+        }
 
-        memcpy((uint8_t*)va + (offset & (PAGE_SIZE - 1)), ks_addr, to_copy);
-
-        if (to_copy == size)
-            return true;
+        memcpy((uint8_t*)get_phys_address(*p) + page_off, ks_addr, to_copy);
 
         ks_addr = (uint8_t*)ks_addr + to_copy;
-        offset += to_copy;
-        size -= to_copy;
     }
+
+    cache.unpin(page_num, num_pages);
+
+    return true;
 }
 
 static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view name) {
