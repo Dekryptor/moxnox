@@ -299,7 +299,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
 
     for (unsigned int i = 0; i < num_pages; i++) {
         pages[i].pa = 0;
-        pages[i].protect = sect.pages[i].protect;
+        pages[i].protect = sect.pages_protection[i];
     }
 
     uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
@@ -1936,7 +1936,7 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
         return false;
 
     // FIXME - process mapping lock(?)
-    auto prot = sect.pages[page_num].protect;
+    auto prot = sect.pages_protection[page_num];
 
     switch (prot) {
         case mapping_type::read_write:

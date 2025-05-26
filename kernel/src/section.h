@@ -52,7 +52,8 @@ public:
     enum section_type type;
     uint32_t size;
     uint32_t num_pages;
-    page_info* pages = nullptr;
+    uint64_t* pages_pa = nullptr;
+    enum mapping_type* pages_protection = nullptr;
     uintptr_t preferred_base, entry_point;
     uint16_t characteristics, machine;
     uint64_t stack_size;

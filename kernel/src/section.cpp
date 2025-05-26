@@ -90,14 +90,23 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
         s.size = s.num_pages << PAGE_SHIFT;
 
-        s.pages = (page_info*)malloc(sizeof(page_info) * s.num_pages);
-        if (!s.pages) {
-            debug_printk("malloc failed\n");
+        s.pages_pa = (uint64_t*)malloc(sizeof(uint64_t) * s.num_pages);
+        if (!s.pages_pa) {
+            print("malloc failed\n");
             s.release();
             return nt_status::INSUFFICIENT_RESOURCES;
         }
 
-        memset(s.pages, 0, sizeof(page_info) * s.num_pages);
+        memset(s.pages_pa, 0, sizeof(uint64_t) * s.num_pages);
+
+        s.pages_protection = (enum mapping_type*)malloc(sizeof(enum mapping_type) * s.num_pages);
+        if (!s.pages_protection) {
+            print("malloc failed\n");
+            s.release();
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        memset(s.pages_protection, 0, sizeof(enum mapping_type) * s.num_pages);
 
         // FIXME - protection
 
@@ -118,16 +127,20 @@ section::~section() {
 }
 
 void section::free_pa() {
-    if (!pages)
-        return;
+    if (pages_pa) {
+        for (unsigned int i = 0; i < num_pages; i++) {
+            if (pages_pa[i])
+                free_folio(pages_pa[i]);
+        }
 
-    for (unsigned int i = 0; i < num_pages; i++) {
-        if (pages[i].pa)
-            free_folio(pages[i].pa);
+        free(pages_pa);
+        pages_pa = nullptr;
     }
 
-    free(pages);
-    pages = nullptr;
+    if (pages_protection) {
+        free(pages_protection);
+        pages_protection = nullptr;
+    }
 }
 
 class scratch {
@@ -315,25 +328,35 @@ nt_status section::load_image() {
     num_pages = bytes_to_pages(size);
     size = num_pages << PAGE_SHIFT;
 
-    pages = (page_info*)malloc(sizeof(page_info) * num_pages);
-    if (!pages) {
-        debug_printk("malloc failed\n");
+    pages_pa = (uint64_t*)malloc(sizeof(uint64_t) * num_pages);
+    if (!pages_pa) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    pages_protection = (enum mapping_type*)malloc(sizeof(enum mapping_type) * num_pages);
+    if (!pages_protection) {
+        print("malloc failed\n");
+        free(pages_pa);
+        pages_pa = nullptr;
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     // FIXME - allocate zeroed pages?
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        pages[i].pa = allocate_page();
-        if (!pages[i].pa) {
+        pages_pa[i] = allocate_page();
+        if (!pages_pa[i]) {
             debug_printk("allocate_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
-                free_folio(pages[j].pa);
+                free_folio(pages_pa[j]);
             }
 
-            free(pages);
-            pages = nullptr;
+            free(pages_pa);
+            pages_pa = nullptr;
+            free(pages_protection);
+            pages_protection = nullptr;
 
             return nt_status::INSUFFICIENT_RESOURCES;
         }
@@ -349,17 +372,17 @@ nt_status section::load_image() {
         else
             to_copy = PAGE_SIZE;
 
-        memcpy(phys_address(pages[i].pa), buf + (i << PAGE_SHIFT),
+        memcpy(phys_address(pages_pa[i]), buf + (i << PAGE_SHIFT),
                 to_copy);
 
         if (to_copy < PAGE_SIZE) {
-            memset((uint8_t*)phys_address(pages[i].pa) + to_copy, 0,
+            memset((uint8_t*)phys_address(pages_pa[i]) + to_copy, 0,
                     PAGE_SIZE - to_copy);
         }
     }
 
     for (unsigned int i = header_pages; i < num_pages; i++) {
-        memset(phys_address(pages[i].pa), 0, PAGE_SIZE);
+        memset(phys_address(pages_pa[i]), 0, PAGE_SIZE);
     }
 
     span<IMAGE_SECTION_HEADER> sections;
@@ -369,9 +392,7 @@ nt_status section::load_image() {
     else
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
 
-    pages[0].protect = mapping_type::read_only;
-
-    // FIXME - we should be creating our own page cache for this
+    pages_protection[0] = mapping_type::read_only;
 
     memset(&dwinfo, 0, sizeof(dwinfo));
 
@@ -441,7 +462,7 @@ nt_status section::load_image() {
                     span<uint8_t> sp;
 
                     if (page_num != 0 && offset != 0) {
-                        sp = span((uint8_t*)phys_address(pages[(sect.VirtualAddress >> PAGE_SHIFT) + page_num - 1].pa) + (PAGE_SIZE - offset),
+                        sp = span((uint8_t*)phys_address(pages_pa[(sect.VirtualAddress >> PAGE_SHIFT) + page_num - 1]) + (PAGE_SIZE - offset),
                                   min(offset, bytes_left));
 
                         f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, 0);
@@ -451,7 +472,7 @@ nt_status section::load_image() {
                             break;
                     }
 
-                    sp = span((uint8_t*)phys_address(pages[(sect.VirtualAddress >> PAGE_SHIFT) + page_num].pa),
+                    sp = span((uint8_t*)phys_address(pages_pa[(sect.VirtualAddress >> PAGE_SHIFT) + page_num]),
                               min(PAGE_SIZE - offset, bytes_left));
 
                     f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, offset);
@@ -475,7 +496,7 @@ nt_status section::load_image() {
         auto prot = characteristics_to_mapping_type(sect.Characteristics);
 
         for (auto i = page_start; i <= page_end; i++) {
-            pages[i].protect = prot;
+            pages_protection[i] = prot;
         }
     }
 
@@ -760,13 +781,13 @@ uint64_t section::find_export(string_view name) {
 
 NTSTATUS section::protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
                           enum mapping_type& old_prot) {
-    auto p = &pages[offset >> PAGE_SHIFT];
+    auto p = &pages_protection[offset >> PAGE_SHIFT];
 
     for (unsigned int i = 0; i < page_count; i++) {
         if (i == 0)
-            old_prot = p->protect;
+            old_prot = *p;
 
-        p->protect = prot;
+        *p = prot;
         p++;
     }
 
@@ -1008,7 +1029,7 @@ size_t section::read_into_cache(uint64_t page_num, uint64_t /*num_pages*/) {
     {
         lock_guard lock(alloc_lock);
 
-        page = pages[page_num].pa;
+        page = pages_pa[page_num];
 
         if (!page) {
             if (type != section_type::anonymous) {
@@ -1022,7 +1043,7 @@ size_t section::read_into_cache(uint64_t page_num, uint64_t /*num_pages*/) {
                 return 0;
             }
 
-            pages[page_num].pa = page;
+            pages_pa[page_num] = page;
 
             new_page = true;
         }
