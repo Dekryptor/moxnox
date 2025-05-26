@@ -1953,7 +1953,15 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
             break;
     }
 
-    auto ret = map_page(sect.pages[page_num].pa, va, prot);
+    page_cache_entry* p;
+
+    {
+        lock_guard lg(sect.cache.cache_lock);
+
+        p = sect.cache.find_page_cache_entry(page_num);
+    }
+
+    auto ret = map_page(p->phys_address, va, prot);
 
     sect.cache.unpin(page_num, 1); // FIXME?
 
