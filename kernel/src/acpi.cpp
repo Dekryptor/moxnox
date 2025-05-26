@@ -56,7 +56,8 @@ export enum class acpi_device_resource_type {
     address32,
     address64,
     fixed_memory32,
-    dma
+    dma,
+    gpio
 };
 
 export struct acpi_device_resource {
@@ -94,6 +95,10 @@ export struct acpi_device_resource_fixed_memory32 : acpi_device_resource {
 
 export struct acpi_device_resource_dma : acpi_device_resource {
     ACPI_RESOURCE_DMA dma;
+};
+
+export struct acpi_device_resource_gpio : acpi_device_resource {
+    ACPI_RESOURCE_GPIO gpio;
 };
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
@@ -321,7 +326,20 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
         }
 
         // FIXME - ACPI_RESOURCE_TYPE_GENERIC_REGISTER
-        // FIXME - ACPI_RESOURCE_TYPE_GPIO
+
+        case ACPI_RESOURCE_TYPE_GPIO: {
+            auto r = new acpi_device_resource_gpio;
+            if (!r) {
+                print("out of memory\n");
+                return AE_OK;
+            }
+
+            r->type = acpi_device_resource_type::gpio;
+            memcpy(&r->gpio, &res->Data.Gpio, sizeof(ACPI_RESOURCE_GPIO));
+            insert_tail_list(d.resources, r->le);
+            break;
+        }
+
         // FIXME - ACPI_RESOURCE_TYPE_FIXED_DMA
         // FIXME - ACPI_RESOURCE_TYPE_SERIAL_BUS
         // FIXME - ACPI_RESOURCE_TYPE_PIN_FUNCTION
