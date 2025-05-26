@@ -228,6 +228,9 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
             break;
         }
 
+        // FIXME - ACPI_RESOURCE_TYPE_START_DEPENDENT
+        // FIXME - ACPI_RESOURCE_TYPE_END_DEPENDENT
+
         case ACPI_RESOURCE_TYPE_IO: {
             auto r = new acpi_device_resource_io;
             if (!r) {
@@ -241,8 +244,14 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
             break;
         }
 
+        // FIXME - ACPI_RESOURCE_TYPE_FIXED_IO
+        // FIXME - ACPI_RESOURCE_TYPE_VENDOR
+
         case ACPI_RESOURCE_TYPE_END_TAG:
             break;
+
+        // FIXME - ACPI_RESOURCE_TYPE_MEMORY24
+        // FIXME - ACPI_RESOURCE_TYPE_MEMORY32
 
         case ACPI_RESOURCE_TYPE_FIXED_MEMORY32: {
             auto r = new acpi_device_resource_fixed_memory32;
@@ -296,6 +305,8 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
             break;
         }
 
+        // FIXME - ACPI_RESOURCE_TYPE_EXTENDED_ADDRESS64
+
         case ACPI_RESOURCE_TYPE_EXTENDED_IRQ: {
             auto r = new acpi_device_resource_extended_irq;
             if (!r) {
@@ -308,6 +319,17 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
             insert_tail_list(d.resources, r->le);
             break;
         }
+
+        // FIXME - ACPI_RESOURCE_TYPE_GENERIC_REGISTER
+        // FIXME - ACPI_RESOURCE_TYPE_GPIO
+        // FIXME - ACPI_RESOURCE_TYPE_FIXED_DMA
+        // FIXME - ACPI_RESOURCE_TYPE_SERIAL_BUS
+        // FIXME - ACPI_RESOURCE_TYPE_PIN_FUNCTION
+        // FIXME - ACPI_RESOURCE_TYPE_PIN_CONFIG
+        // FIXME - ACPI_RESOURCE_TYPE_PIN_GROUP
+        // FIXME - ACPI_RESOURCE_TYPE_PIN_GROUP_FUNCTION
+        // FIXME - ACPI_RESOURCE_TYPE_PIN_GROUP_CONFIG
+        // FIXME - ACPI_RESOURCE_TYPE_CLOCK_INPUT
 
         default:
             print("FIXME - unhandled ACPI resource type {}\n", res->Type);
