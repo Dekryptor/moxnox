@@ -1961,12 +1961,13 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
 }
 
 bool mapping_section::cow(uint32_t offset, uint64_t va) {
+    uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t pa;
 
     {
         lock_guard l(lock);
 
-        switch (pages[offset >> PAGE_SHIFT].protect) {
+        switch (pages[page_num].protect) {
             case mapping_type::no_access:
             case mapping_type::read_only:
             case mapping_type::read_execute:
@@ -1976,48 +1977,45 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
                 break;
         }
 
-        pa = pages[offset >> PAGE_SHIFT].pa;
+        pa = pages[page_num].pa;
     }
 
     if (pa) // have local copy of COW'd page
-        return map_page(pa, va, pages[offset >> PAGE_SHIFT].protect);
+        return map_page(pa, va, pages[page_num].protect);
 
-    auto va2 = allocate_va(1);
-    if (!va2) {
-        print("allocate_va failed\n");
+    if (sect.cache.read_into_cache_and_pin(page_num, 1) == 0)
         return false;
-    }
 
-    if (!sect.map(offset, va2, true)) {
-        print("section::map failed\n");
-        free_va(va2, 1);
-        return false;
+    page_cache_entry* p;
+
+    {
+        lock_guard lg(sect.cache.cache_lock);
+
+        p = sect.cache.find_page_cache_entry(page_num);
     }
 
     auto pa_new = allocate_page();
     if (!pa_new) {
         print("allocate_page failed\n");
-        unmap_page(va2);
-        free_va(va2, 1);
+        sect.cache.unpin(page_num, 1);
         return false;
     }
 
-    memcpy(phys_address(pa_new), (void*)va2, PAGE_SIZE);
+    memcpy(phys_address(pa_new), get_phys_address(*p), PAGE_SIZE);
 
-    unmap_page(va2);
-    free_va(va2, 1);
+    sect.cache.unpin(page_num, 1);
 
     bool beaten_to_it = false;
 
     {
         lock_guard l(lock);
 
-        pa = pages[offset >> PAGE_SHIFT].pa;
+        pa = pages[page_num].pa;
 
         if (pa)
             beaten_to_it = true;
         else {
-            pages[offset >> PAGE_SHIFT].pa = pa_new;
+            pages[page_num].pa = pa_new;
             pa = pa_new;
         }
     }
@@ -2025,7 +2023,7 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
     if (beaten_to_it)
         free_folio(pa_new);
 
-    return map_page(pa, va, pages[offset >> PAGE_SHIFT].protect);
+    return map_page(pa, va, pages[page_num].protect);
 }
 
 NTSTATUS mapping_vm::commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot) {
