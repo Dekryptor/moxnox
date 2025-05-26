@@ -455,6 +455,8 @@ static void init_sata_device(void* ctx, void* ctx2) {
         return;
     }
 
+    dev.port_num = port_num;
+
     {
         lock_guard lock(sc.port_list_lock);
         insert_tail_list(sc.port_list, dev.le);
@@ -473,7 +475,6 @@ static void init_sata_device(void* ctx, void* ctx2) {
     dev.sector_size = 512; // FIXME - get from identify block
     dev.size = (uint64_t)dev.identify_block.user_addressable_logical_sectors * (uint64_t)dev.sector_size;
     dev.dev_num = num_sata_devices.fetch_add(1);
-    dev.port_num = port_num;
 
     // FIXME - make sure SATA devices get numbered consistently
 
