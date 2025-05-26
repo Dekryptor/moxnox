@@ -57,7 +57,11 @@ export enum class acpi_device_resource_type {
     address64,
     fixed_memory32,
     dma,
-    gpio
+    gpio,
+    i2c_serial_bus,
+    spi_serial_bus,
+    uart_serial_bus,
+    csi2_serial_bus,
 };
 
 export struct acpi_device_resource {
@@ -99,6 +103,22 @@ export struct acpi_device_resource_dma : acpi_device_resource {
 
 export struct acpi_device_resource_gpio : acpi_device_resource {
     ACPI_RESOURCE_GPIO gpio;
+};
+
+export struct acpi_device_resource_i2c_serial_bus : acpi_device_resource {
+    ACPI_RESOURCE_I2C_SERIALBUS i2c_serial_bus;
+};
+
+export struct acpi_device_resource_spi_serial_bus : acpi_device_resource {
+    ACPI_RESOURCE_SPI_SERIALBUS spi_serial_bus;
+};
+
+export struct acpi_device_resource_uart_serial_bus : acpi_device_resource {
+    ACPI_RESOURCE_UART_SERIALBUS uart_serial_bus;
+};
+
+export struct acpi_device_resource_csi2_serial_bus : acpi_device_resource {
+    ACPI_RESOURCE_CSI2_SERIALBUS csi2_serial_bus;
 };
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
@@ -341,7 +361,74 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
         }
 
         // FIXME - ACPI_RESOURCE_TYPE_FIXED_DMA
-        // FIXME - ACPI_RESOURCE_TYPE_SERIAL_BUS
+
+        case ACPI_RESOURCE_TYPE_SERIAL_BUS: {
+            switch (res->Data.CommonSerialBus.Type) {
+                case ACPI_RESOURCE_SERIAL_TYPE_I2C: {
+                    auto r = new acpi_device_resource_i2c_serial_bus;
+                    if (!r) {
+                        print("out of memory\n");
+                        return AE_OK;
+                    }
+
+                    r->type = acpi_device_resource_type::i2c_serial_bus;
+                    memcpy(&r->i2c_serial_bus, &res->Data.I2cSerialBus,
+                        sizeof(ACPI_RESOURCE_I2C_SERIALBUS));
+                    insert_tail_list(d.resources, r->le);
+                    break;
+                }
+
+                case ACPI_RESOURCE_SERIAL_TYPE_SPI: {
+                    auto r = new acpi_device_resource_spi_serial_bus;
+                    if (!r) {
+                        print("out of memory\n");
+                        return AE_OK;
+                    }
+
+                    r->type = acpi_device_resource_type::spi_serial_bus;
+                    memcpy(&r->spi_serial_bus, &res->Data.SpiSerialBus,
+                           sizeof(ACPI_RESOURCE_SPI_SERIALBUS));
+                    insert_tail_list(d.resources, r->le);
+                    break;
+                }
+
+                case ACPI_RESOURCE_SERIAL_TYPE_UART: {
+                    auto r = new acpi_device_resource_uart_serial_bus;
+                    if (!r) {
+                        print("out of memory\n");
+                        return AE_OK;
+                    }
+
+                    r->type = acpi_device_resource_type::uart_serial_bus;
+                    memcpy(&r->uart_serial_bus, &res->Data.UartSerialBus,
+                           sizeof(ACPI_RESOURCE_UART_SERIALBUS));
+                    insert_tail_list(d.resources, r->le);
+                    break;
+                }
+
+                case ACPI_RESOURCE_SERIAL_TYPE_CSI2: {
+                    auto r = new acpi_device_resource_csi2_serial_bus;
+                    if (!r) {
+                        print("out of memory\n");
+                        return AE_OK;
+                    }
+
+                    r->type = acpi_device_resource_type::csi2_serial_bus;
+                    memcpy(&r->csi2_serial_bus, &res->Data.Csi2SerialBus,
+                           sizeof(ACPI_RESOURCE_CSI2_SERIALBUS));
+                    insert_tail_list(d.resources, r->le);
+                    break;
+                }
+
+                default:
+                    print("unrecognized ACPI serial bus type {}\n",
+                          res->Data.CommonSerialBus.Type);
+                    break;
+            }
+
+            break;
+        }
+
         // FIXME - ACPI_RESOURCE_TYPE_PIN_FUNCTION
         // FIXME - ACPI_RESOURCE_TYPE_PIN_CONFIG
         // FIXME - ACPI_RESOURCE_TYPE_PIN_GROUP
