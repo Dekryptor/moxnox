@@ -658,7 +658,7 @@ static bool init_sata(const pci_device& dev) {
     sc->abar->is = 0xffffffff; // clear pending interrupts
     sc->abar->ghc.ie = 1; // enable interrupts
 
-    auto ports_count = (uint8_t)((abarmem.size() - offsetof(HBA_MEM, ports)) / sizeof(HBA_PORT));
+    auto ports_count = sc->abar->cap.np + 1;
 
     uint32_t mask = sc->abar->pi;
 

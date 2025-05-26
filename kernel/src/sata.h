@@ -92,8 +92,34 @@ struct SATA_GHC {
 
 static_assert(sizeof(SATA_GHC) == sizeof(uint32_t));
 
+struct SATA_CAP {
+    uint32_t np : 5;
+    uint32_t sxs : 1;
+    uint32_t ems : 1;
+    uint32_t cccs : 1;
+    uint32_t ncs : 5;
+    uint32_t psc : 1;
+    uint32_t ssc : 1;
+    uint32_t pmd : 1;
+    uint32_t fbss : 1;
+    uint32_t spm : 1;
+    uint32_t sam : 1;
+    uint32_t : 1;
+    uint32_t iss : 4;
+    uint32_t sclo : 1;
+    uint32_t sal : 1;
+    uint32_t salp : 1;
+    uint32_t sss : 1;
+    uint32_t smps : 1;
+    uint32_t ssntf : 1;
+    uint32_t sncq : 1;
+    uint32_t s64a : 1;
+};
+
+static_assert(sizeof(SATA_CAP) == sizeof(uint32_t));
+
 struct HBA_MEM {
-    uint32_t cap;
+    SATA_CAP cap;
     SATA_GHC ghc;
     uint32_t is;
     uint32_t pi;
