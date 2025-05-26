@@ -482,64 +482,6 @@ nt_status section::load_image() {
     return nt_status::SUCCESS;
 }
 
-bool section::map(uint32_t offset, uint64_t va, bool readonly) {
-    uint64_t page;
-    bool new_page = false;
-
-    {
-        lock_guard lock(alloc_lock);
-
-        page = pages[offset >> PAGE_SHIFT].pa;
-
-        if (!page) {
-            if (type != section_type::anonymous) {
-                debug_printk("page not set\n");
-                return false;
-            }
-
-            page = allocate_page();
-            if (!page) {
-                debug_printk("allocate_page failed\n");
-                return false;
-            }
-
-            pages[offset >> PAGE_SHIFT].pa = page;
-
-            new_page = true;
-        }
-    }
-
-    {
-        // FIXME - process mapping lock
-        auto prot = pages[offset >> PAGE_SHIFT].protect;
-
-        if (readonly) {
-            switch (prot) {
-                case mapping_type::read_write:
-                case mapping_type::write_combine:
-                case mapping_type::no_cache:
-                    prot = mapping_type::read_only;
-                    break;
-
-                case mapping_type::read_write_execute:
-                    prot = mapping_type::read_execute;
-                    break;
-
-                default:
-                    break;
-            }
-        }
-
-        if (!map_page(pages[offset >> PAGE_SHIFT].pa, va, prot))
-            return false;
-
-        if (new_page) // FIXME - allocate zeroed page?
-            memset((void*)va, 0, PAGE_SIZE);
-    }
-
-    return true;
-}
-
 bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     lock_guard lock(alloc_lock);
 
