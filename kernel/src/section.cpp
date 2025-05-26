@@ -709,7 +709,7 @@ uint64_t section::find_export(string_view name) {
     uint64_t exp_dir_end = bytes_to_pages(exp_dir.VirtualAddress + exp_dir.Size) << PAGE_SHIFT;
     auto exp_dir_pages = bytes_to_pages(exp_dir_end - exp_dir_start);
 
-    // FIXME - avoid doing mapping here?
+    // FIXME - avoid doing mapping here (will need to rewrite search_exports)
 
     auto va = allocate_va(exp_dir_pages);
     if (!va) {
@@ -717,13 +717,36 @@ uint64_t section::find_export(string_view name) {
         return 0;
     }
 
+    auto pinned_pages = cache.read_into_cache_and_pin(exp_dir_start >> PAGE_SHIFT,
+                                                      exp_dir_pages);
+
+    if (pinned_pages != exp_dir_pages) {
+        print("section::find_export: read_into_cache_and_pin returned {}, expected {}\n",
+              pinned_pages, exp_dir_pages);
+        cache.unpin(exp_dir_start >> PAGE_SHIFT, pinned_pages);
+        free_va(va, exp_dir_pages);
+        return 0;
+    }
+
+    page_cache_entry* p;
+
     for (unsigned int i = 0; i < exp_dir_pages; i++) {
-        if (!map((uint32_t)(exp_dir_start + (i << PAGE_SHIFT)), va + (i << PAGE_SHIFT), true)) {
-            debug_printk("section::map failed\n");
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                p = cache.find_page_cache_entry(exp_dir_start >> PAGE_SHIFT);
+            else
+                p = cache.next_page_cache_entry(*p);
+        }
+
+        if (!map_page(p->phys_address, va + (i << PAGE_SHIFT), mapping_type::read_only)) {
+            print("map_page failed\n");
             for (unsigned int j = 0; j < i; j++) {
                 unmap_page(va + (j << PAGE_SHIFT));
             }
             free_va(va, exp_dir_pages);
+            cache.unpin(exp_dir_start >> PAGE_SHIFT, exp_dir_pages);
             return 0;
         }
     }
@@ -736,6 +759,7 @@ uint64_t section::find_export(string_view name) {
     }
 
     free_va(va, exp_dir_pages);
+    cache.unpin(exp_dir_start >> PAGE_SHIFT, exp_dir_pages);
 
     return ret;
 }
