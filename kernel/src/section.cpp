@@ -604,20 +604,21 @@ uint64_t section::find_export(string_view name) {
     }
 
     IMAGE_DATA_DIRECTORY exp_dir;
-    uint64_t page;
+    page_cache_entry* p;
 
-    {
-        lock_guard lock(alloc_lock);
-        page = pages[0].pa;
-    }
-
-    if (!page) {
-        debug_printk("first page of image not set\n");
+    if (cache.read_into_cache_and_pin(0, 1) == 0) {
+        print("read_into_cache_and_pin failed\n");
         return 0;
     }
 
     {
-        auto va = phys_address(page);
+        lock_guard lg(cache.cache_lock);
+
+        p = cache.find_page_cache_entry(0);
+    }
+
+    {
+        auto va = get_phys_address(*p);
 
         bool found = false;
 
@@ -637,13 +638,16 @@ uint64_t section::find_export(string_view name) {
         }
 
         if (!found) {
-            debug_printk("image has no export directory\n");
+            print("image has no export directory\n");
+            cache.unpin(0, 1);
             return 0;
         }
     }
 
+    cache.unpin(0, 1);
+
     if (exp_dir.VirtualAddress == 0 || exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
-        debug_printk("invalid export directory\n");
+        print("invalid export directory\n");
         return 0;
     }
 
@@ -669,8 +673,6 @@ uint64_t section::find_export(string_view name) {
         free_va(va, exp_dir_pages);
         return 0;
     }
-
-    page_cache_entry* p;
 
     for (unsigned int i = 0; i < exp_dir_pages; i++) {
         {
