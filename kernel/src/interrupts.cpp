@@ -793,7 +793,7 @@ void page_fault(uintptr_t address, uint64_t error_code) {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {:x})\n", cb.cpu_no);
+    sp = format(sp, ", CPU {})\n", cb.cpu_no);
 
     if (address & ((uint64_t)1 << 63)) {
         uint64_t pte = SELFMAP | ((address & 0xfffffffff000) >> 9);
@@ -821,7 +821,7 @@ void double_fault() {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
@@ -883,7 +883,7 @@ void general_protection_fault(uint64_t error_code) {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
@@ -943,7 +943,7 @@ void invalid_opcode() {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
@@ -1003,7 +1003,7 @@ void divide_by_zero() {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
@@ -1063,7 +1063,7 @@ void breakpoint() {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
@@ -1123,7 +1123,7 @@ void single_step() {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {:x}\n", cb.cpu_no);
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));

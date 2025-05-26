@@ -144,7 +144,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     auto& cb = *get_cpu_block();
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
-    sp = format(sp, "{}:{}, {}, CPU {:x}\n",
+    sp = format(sp, "{}:{}, {}, CPU {}\n",
                 sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
 
     p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
