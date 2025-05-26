@@ -36,6 +36,15 @@ public:
     void set_leds(keyboard_leds leds);
     void recv_thread();
 
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
 private:
     void post_evdev(enum evdev_code code, int32_t value);
     void keyboard_repeat_thread();
@@ -48,6 +57,7 @@ private:
     keyboard_context* kc = nullptr;
     enum evdev_code repeat_key = evdev_code::KEY_RESERVED;
     object_ref repeat_timer;
+    atomic<unsigned int> refcount = 1;
 };
 
 static const enum evdev_code keycodes[] = {
@@ -406,9 +416,9 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
         return;
     }
 
-    d.acquire();
+    acquire();
     if (!add_kernel_thread([](void* ctx) { ((usb_keyboard*)ctx)->keyboard_repeat_thread(); }, this)) {
-        d.release();
+        release();
         print("add_kernel_thread failed\n");
         return;
     }
@@ -711,7 +721,7 @@ void usb_keyboard::keyboard_repeat_thread() {
     }
 
     t.release();
-    d.release();
+    release();
 }
 
 static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
@@ -774,7 +784,7 @@ static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
         auto kbd = (usb_keyboard*)ctx;
 
         kbd->recv_thread();
-        delete kbd;
+        kbd->release();
     }, kbd);
 
     return true;
