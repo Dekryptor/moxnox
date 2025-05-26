@@ -22,10 +22,10 @@ struct dwarf_info {
     section_info debug_str_offsets;
 };
 
-class section : public object {
+class section : public object, public cacheable {
 public:
     section() : object(object_type::section) { }
-    ~section();
+    virtual ~section();
 
     void acquire() {
         refcount++;
@@ -46,6 +46,8 @@ public:
                      enum mapping_type& old_prot);
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class, std::span<uint8_t> buf,
                         size_t* return_length);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;

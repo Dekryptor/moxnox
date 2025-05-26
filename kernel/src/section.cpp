@@ -980,3 +980,17 @@ uint64_t get_image_size(void* image) {
     } else
         return 0;
 }
+
+size_t section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME: section::read_into_cache({}, {})\n", page_num, num_pages);
+    // FIXME
+
+    return 0;
+}
+
+size_t section::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME: section::flush_cache({}, {})\n", page_num, num_pages);
+    // FIXME
+
+    return 0;
+}
