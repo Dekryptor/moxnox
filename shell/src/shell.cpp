@@ -939,12 +939,12 @@ static void handle_backspace() {
 
 static void handle_input(string_view s) {
     if (escape_buffer_len != 0) {
-        if (escape_buffer_len == 1 && s[0] != '[') {
+        if (escape_buffer_len == 1 && (s[0] != '[' && s[0] != 'O')) {
             handle_char(0x1b);
             escape_buffer_len = 0;
         } else {
             if (escape_buffer_len == 1) {
-                escape_buffer[1] = '[';
+                escape_buffer[1] = s[0];
                 escape_buffer_len++;
 
                 s = string_view(s.data() + 1, s.size() - 1);
@@ -953,41 +953,62 @@ static void handle_input(string_view s) {
                     return;
             }
 
-            while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
-                if (escape_buffer_len == sizeof(escape_buffer)) {
+            if (escape_buffer[1] == '[') {
+                while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
+                    if (escape_buffer_len == sizeof(escape_buffer)) {
+                        for (size_t i = 0; i < escape_buffer_len; i++) {
+                            handle_char(escape_buffer[i]);
+                        }
+
+                        escape_buffer_len = 0;
+                        goto loop;
+                    }
+
+                    escape_buffer[escape_buffer_len] = s.front();
+                    escape_buffer_len++;
+                    s = string_view(s.data() + 1, s.size() - 1);
+                }
+
+                if (s.empty())
+                    return;
+
+                if (s.front() >= 0x40 && s.front() <= 0x7e) {
+                    escape_buffer[escape_buffer_len] = s.front();
+                    escape_buffer_len++;
+
+                    s = string_view(s.data() + 1, s.size() - 1);
+
+                    handle_escape_sequence(string_view(escape_buffer, escape_buffer_len));
+                    escape_buffer_len = 0;
+
+                    if (s.empty())
+                        return;
+                } else {
                     for (size_t i = 0; i < escape_buffer_len; i++) {
                         handle_char(escape_buffer[i]);
                     }
 
                     escape_buffer_len = 0;
-                    goto loop;
+                }
+            } else if (escape_buffer[1] == 'O') {
+                if (s.front() >= 'A' && s.front() <= 'Z') {
+                    escape_buffer[escape_buffer_len] = s.front();
+                    escape_buffer_len++;
+                    s = string_view(s.data() + 1, s.size() - 1);
+
+                    handle_escape_sequence(string_view(escape_buffer, escape_buffer_len));
+                } else {
+                    for (size_t i = 0; i < escape_buffer_len; i++) {
+                        handle_char(escape_buffer[i]);
+                    }
                 }
 
-                escape_buffer[escape_buffer_len] = s.front();
-                escape_buffer_len++;
-                s = string_view(s.data() + 1, s.size() - 1);
-            }
-
-            if (s.empty())
-                return;
-
-            if (s.front() >= 0x40 && s.front() <= 0x7e) {
-                escape_buffer[escape_buffer_len] = s.front();
-                escape_buffer_len++;
-
-                s = string_view(s.data() + 1, s.size() - 1);
-
-                handle_escape_sequence(string_view(escape_buffer, escape_buffer_len));
                 escape_buffer_len = 0;
 
                 if (s.empty())
                     return;
-            } else {
-                for (size_t i = 0; i < escape_buffer_len; i++) {
-                    handle_char(escape_buffer[i]);
-                }
 
-                escape_buffer_len = 0;
+                goto loop;
             }
         }
     }
@@ -1054,6 +1075,24 @@ loop:
                     s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
                     continue;
                 }
+            } else if (s[1] == 'O') {
+                if (s.size() == 2) {
+                    escape_buffer[0] = 0x1b;
+                    escape_buffer[1] = s[1];
+                    escape_buffer_len = 2;
+                    return;
+                }
+
+                if (s[2] >= 'A' && s[2] <= 'Z')
+                    handle_escape_sequence(string_view(s.data(), 3));
+                else {
+                    for (size_t i = 0; i < 3; i++) {
+                        handle_char(s[i]);
+                    }
+                }
+
+                s = string_view(s.data() + 2, s.size() - 2);
+                continue;
             }
         } else
             handle_char(c);
