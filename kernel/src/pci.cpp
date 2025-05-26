@@ -437,7 +437,7 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
 
         const volatile auto& h = *(pci_header*)va;
 
-        if (h.vendor_id == 0xffff) {
+        if (h.vendor_id == 0xffff || h.vendor_id == 0x0000) {
             unmap_page(va);
             free_va(va, 1);
             continue;
@@ -465,7 +465,7 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
 
                 const volatile auto& h2 = *(pci_header*)va;
 
-                if (h2.vendor_id == 0xffff) {
+                if (h2.vendor_id == 0xffff || h2.vendor_id == 0x0000) {
                     unmap_page(va);
                     free_va(va, 1);
                     continue;
