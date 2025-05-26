@@ -397,7 +397,7 @@ static void device_found1(const volatile pci_header& h, list_entry& buses) {
 
 static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
                          uint8_t func, list_entry& buses) {
-    print("{:02x}:{:02x}:{:x} {:04x}:{:04x}\n", bus, dev, func, h.vendor_id, h.device_id);
+    print("found PCI device {:02x}:{:02x}:{:x} {:04x}:{:04x}\n", bus, dev, func, h.vendor_id, h.device_id);
 
     switch (h.header_type & 0x7f) {
         case 0:
