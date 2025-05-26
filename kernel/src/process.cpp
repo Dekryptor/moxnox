@@ -1982,7 +1982,7 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
     if (pa) // have local copy of COW'd page
         return map_page(pa, va, pages[offset >> PAGE_SHIFT].protect);
 
-    auto va2 = allocate_va(2);
+    auto va2 = allocate_va(1);
     if (!va2) {
         print("allocate_va failed\n");
         return false;
@@ -1990,7 +1990,7 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
 
     if (!sect.map(offset, va2, true)) {
         print("section::map failed\n");
-        free_va(va2, 2);
+        free_va(va2, 1);
         return false;
     }
 
@@ -1998,23 +1998,14 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
     if (!pa_new) {
         print("allocate_page failed\n");
         unmap_page(va2);
-        free_va(va2, 2);
+        free_va(va2, 1);
         return false;
     }
 
-    if (!map_page(pa_new, va2 + PAGE_SIZE, mapping_type::read_write)) {
-        print("map_page failed\n");
-        unmap_page(va2);
-        free_va(va2, 2);
-        free_folio(pa_new);
-        return false;
-    }
-
-    memcpy((void*)(va2 + PAGE_SIZE), (void*)va2, PAGE_SIZE);
+    memcpy(phys_address(pa_new), (void*)va2, PAGE_SIZE);
 
     unmap_page(va2);
-    unmap_page(va2 + PAGE_SIZE);
-    free_va(va2, 2);
+    free_va(va2, 1);
 
     bool beaten_to_it = false;
 
