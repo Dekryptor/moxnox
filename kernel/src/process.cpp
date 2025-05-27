@@ -1297,9 +1297,10 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
 
             auto num_pages = mv.size >> PAGE_SHIFT;
 
+            // FIXME - also unmap for threads running on other CPUs
+
             for (unsigned int i = 0; i < num_pages; i++) {
-                if (mv.pages_pa[i])
-                    unmap_proc_page(m2.address + (i << PAGE_SHIFT));
+                unmap_proc_page(m2.address + (i << PAGE_SHIFT));
             }
 
             remove_entry_list(m2.le);
