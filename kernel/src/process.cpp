@@ -47,7 +47,7 @@ public:
     spinlock lock;
 };
 
-struct page_info2 {
+struct page_info {
     enum mapping_type protection;
 };
 
@@ -64,7 +64,7 @@ public:
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     section& sect;
-    page_info2* pages_info = nullptr;
+    page_info* pages_info = nullptr;
     bool initialized = false;
 };
 
@@ -78,7 +78,7 @@ public:
     NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
 
     uint64_t* pages_pa = nullptr;
-    page_info2* pages_info = nullptr;
+    page_info* pages_info = nullptr;
     bool initialized = false;
 };
 
@@ -290,7 +290,7 @@ mapping_section::mapping_section(section& sect, unsigned int num_pages) : sect(s
     type = proc_map_type::section;
     sect.acquire();
 
-    pages_info = (page_info2*)vmalloc(sizeof(page_info2) * num_pages);
+    pages_info = (page_info*)vmalloc(sizeof(page_info) * num_pages);
     if (!pages_info)
         return;
 
@@ -301,7 +301,7 @@ mapping_section::~mapping_section() {
     auto num_pages = size >> PAGE_SHIFT;
 
     if (pages_info)
-        vfree(pages_info, sizeof(page_info2) * num_pages);
+        vfree(pages_info, sizeof(page_info) * num_pages);
 
     sect.release();
 }
@@ -313,7 +313,7 @@ mapping_vm::mapping_vm(unsigned int num_pages) {
     if (!pages_pa)
         return;
 
-    pages_info = (page_info2*)vmalloc(sizeof(page_info2) * num_pages);
+    pages_info = (page_info*)vmalloc(sizeof(page_info) * num_pages);
     if (!pages_info)
         return;
 
@@ -333,7 +333,7 @@ mapping_vm::~mapping_vm() {
     }
 
     if (pages_info)
-        vfree(pages_info, sizeof(page_info2) * num_pages);
+        vfree(pages_info, sizeof(page_info) * num_pages);
 }
 
 process::~process() {
