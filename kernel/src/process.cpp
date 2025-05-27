@@ -68,19 +68,18 @@ public:
     bool initialized = false;
 };
 
-struct page_info {
-    uint64_t pa;
-    enum mapping_type protect;
-};
-
 class mapping_vm : public mapping {
 public:
-    page_info pages[0];
-
+    mapping_vm(unsigned int num_pages);
+    ~mapping_vm();
     bool map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
+
+    uint64_t* pages_pa = nullptr;
+    page_info2* pages_info = nullptr;
+    bool initialized = false;
 };
 
 static const size_t MAX_PATH = 260;
@@ -305,6 +304,36 @@ mapping_section::~mapping_section() {
         vfree(pages_info, sizeof(page_info2) * num_pages);
 
     sect.release();
+}
+
+mapping_vm::mapping_vm(unsigned int num_pages) {
+    type = proc_map_type::vm;
+
+    pages_pa = (uint64_t*)vmalloc(sizeof(uint64_t) * num_pages);
+    if (!pages_pa)
+        return;
+
+    pages_info = (page_info2*)vmalloc(sizeof(page_info2) * num_pages);
+    if (!pages_info)
+        return;
+
+    initialized = true;
+}
+
+mapping_vm::~mapping_vm() {
+    auto num_pages = size >> PAGE_SHIFT;
+
+    if (pages_pa) {
+        for (unsigned int i = 0; i < num_pages; i++) {
+            if (pages_pa[i])
+                free_folio(pages_pa[i]);
+        }
+
+        vfree(pages_pa, sizeof(uint64_t) * num_pages);
+    }
+
+    if (pages_info)
+        vfree(pages_info, sizeof(page_info2) * num_pages);
 }
 
 process::~process() {
@@ -749,18 +778,7 @@ void process::free_mappings() {
             case proc_map_type::vm: {
                 auto& mv = static_cast<mapping_vm&>(m);
 
-                auto num_pages = mv.size >> PAGE_SHIFT;
-
-                for (unsigned int i = 0; i < num_pages; i++) {
-                    if (mv.pages[i].pa)
-                        free_folio(mv.pages[i].pa);
-                }
-
-                size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
-
-                mv.~mapping_vm();
-                vfree(&mv, pm_size);
-
+                delete &mv;
                 break;
             }
 
@@ -768,7 +786,6 @@ void process::free_mappings() {
                 auto& ms = static_cast<mapping_section&>(m);
 
                 delete &ms;
-
                 break;
             }
 
@@ -1075,24 +1092,25 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         return nt_status::NO_MEMORY;
     }
 
-    size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
-    auto pm = vmalloc(pm_size);
-    if (!pm)
+    auto m = new mapping_vm(num_pages);
+    if (!m) {
+        print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
+    }
 
-    auto& m = *new (pm) mapping_vm;
+    if (!m->initialized) {
+        print("mapping_vm::mapping_vm failed\n");
+        return nt_status::INTERNAL_ERROR;
+    }
 
-    m.type = proc_map_type::vm;
-    m.size = (uint32_t)size;
-
-    auto pages = span(m.pages, num_pages);
+    m->size = (uint32_t)size;
 
     if (!(allocation_type & MEM_COMMIT))
         protect = mapping_type::reserved;
 
-    for (auto& p : pages) {
-        p.pa = 0;
-        p.protect = protect;
+    for (unsigned int i = 0; i < num_pages; i++) {
+        m->pages_pa[i] = 0;
+        m->pages_info[i].protection = protect;
     }
 
     uintptr_t last_addr = 0x100000; // don't allocate in first megabyte
@@ -1103,28 +1121,27 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         auto& m2 = containing_record<mapping>(le);
 
         if (addr == 0) {
-            if (m2.address > last_addr + m.size) { // insert before
-                insert_head_list(*le->prev, m.le);
-                m.address = last_addr;
-                *base_address = (void*)m.address;
-                *region_size = m.size;
+            if (m2.address > last_addr + m->size) { // insert before
+                insert_head_list(*le->prev, m->le);
+                m->address = last_addr;
+                *base_address = (void*)m->address;
+                *region_size = m->size;
                 return nt_status::SUCCESS;
             }
 
             last_addr = m2.address + m2.size;
         } else {
-            if (m2.address > addr + m.size) { // insert before
-                insert_head_list(*le->prev, m.le);
-                m.address = addr;
-                *base_address = (void*)m.address;
-                *region_size = m.size;
+            if (m2.address > addr + m->size) { // insert before
+                insert_head_list(*le->prev, m->le);
+                m->address = addr;
+                *base_address = (void*)m->address;
+                *region_size = m->size;
                 return nt_status::SUCCESS;
             }
 
-            if (addr < m2.address + m2.size && addr + m.size > m2.address) { // collision
+            if (addr < m2.address + m2.size && addr + m->size > m2.address) { // collision
                 print("collision\n");
-                m.~mapping_vm();
-                vfree(pm, pm_size);
+                delete m;
                 return nt_status::NO_MEMORY;
             }
         }
@@ -1133,19 +1150,18 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     }
 
     if (addr == 0) {
-        if (last_addr >= MAX_USERSPACE_ADDRESS - m.size) {
-            m.~mapping_vm();
-            vfree(pm, pm_size);
+        if (last_addr >= MAX_USERSPACE_ADDRESS - m->size) {
+            delete m;
             return nt_status::NO_MEMORY;
         }
 
-        m.address = last_addr;
+        m->address = last_addr;
     } else
-        m.address = addr;
+        m->address = addr;
 
-    *base_address = (void*)m.address;
-    *region_size = m.size;
-    insert_tail_list(mappings, m.le);
+    *base_address = (void*)m->address;
+    *region_size = m->size;
+    insert_tail_list(mappings, m->le);
 
     return nt_status::SUCCESS;
 }
@@ -1328,7 +1344,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
                     auto num_pages = mv.size >> PAGE_SHIFT;
 
                     for (unsigned int i = 0; i < num_pages; i++) {
-                        if (mv.pages[i].pa) {
+                        if (mv.pages_pa[i]) {
                             auto status = unmap_proc_page(m2.address + (i << PAGE_SHIFT));
                             if (!success(status))
                                 return status;
@@ -1361,18 +1377,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
         case proc_map_type::vm: {
             auto& mv = static_cast<mapping_vm&>(m);
 
-            auto num_pages = mv.size >> PAGE_SHIFT;
-
-            for (unsigned int i = 0; i < num_pages; i++) {
-                if (mv.pages[i].pa)
-                    free_folio(mv.pages[i].pa);
-            }
-
-            size_t pm_size = offsetof(mapping_vm, pages) + (sizeof(page_info) * num_pages);
-
-            mv.~mapping_vm();
-            vfree(&mv, pm_size);
-
+            delete &mv;
             break;
         }
 
@@ -1426,16 +1431,16 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
 bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot) {
     bool new_page = false;
 
-    auto& p = pages[offset >> PAGE_SHIFT];
+    auto& p = pages_info[offset >> PAGE_SHIFT];
 
     lock_guard l(lock);
 
-    if (p.protect == mapping_type::reserved)
+    if (p.protection == mapping_type::reserved)
         return false;
 
-    if (!p.pa) {
-        p.pa = allocate_page();
-        if (!p.pa) {
+    if (!pages_pa[offset >> PAGE_SHIFT]) {
+        pages_pa[offset >> PAGE_SHIFT] = allocate_page();
+        if (!pages_pa[offset >> PAGE_SHIFT]) {
             print("allocate_page failed\n");
             return false;
         }
@@ -1443,7 +1448,7 @@ bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> p
         new_page = true;
     }
 
-    if (!map_page(p.pa, va, prot ? *prot : p.protect))
+    if (!map_page(pages_pa[offset >> PAGE_SHIFT], va, prot ? *prot : p.protection))
         return false;
 
     if (new_page) // FIXME - allocate zeroed page?
@@ -1458,15 +1463,15 @@ bool mapping_vm::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 
         {
             lock_guard l(lock);
-            auto& p = pages[offset >> PAGE_SHIFT];
+            auto& p = pages_info[offset >> PAGE_SHIFT];
 
-            if (p.protect == mapping_type::reserved)
+            if (p.protection == mapping_type::reserved)
                 return false;
 
-            if (!p.pa)
+            if (!pages_pa[offset >> PAGE_SHIFT])
                 memset(ks_addr, 0, to_copy);
             else {
-                auto va = phys_address(p.pa);
+                auto va = phys_address(pages_pa[offset >> PAGE_SHIFT]);
 
                 memcpy(ks_addr, (uint8_t*)va + (offset & (PAGE_SIZE - 1)), to_copy);
             }
@@ -1592,11 +1597,11 @@ bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
         {
             lock_guard l(lock);
 
-            auto& p = pages[offset >> PAGE_SHIFT];
+            auto& p = pages_info[offset >> PAGE_SHIFT];
 
             bool new_page = false;
 
-            switch (p.protect) {
+            switch (p.protection) {
                 case mapping_type::read_only:
                 case mapping_type::read_execute:
                 case mapping_type::reserved:
@@ -1606,9 +1611,9 @@ bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     break;
             }
 
-            if (!p.pa) {
-                p.pa = allocate_page();
-                if (!p.pa) {
+            if (!pages_pa[offset >> PAGE_SHIFT]) {
+                pages_pa[offset >> PAGE_SHIFT] = allocate_page();
+                if (!pages_pa[offset >> PAGE_SHIFT]) {
                     print("allocate_page failed\n");
                     return false;
                 }
@@ -1616,7 +1621,7 @@ bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 new_page = true;
             }
 
-            auto va = phys_address(p.pa);
+            auto va = phys_address(pages_pa[offset >> PAGE_SHIFT]);
 
             if (new_page)
                 memset((void*)va, 0, PAGE_SIZE);
@@ -2087,10 +2092,10 @@ NTSTATUS mapping_vm::commit(uint32_t offset, uint32_t commit_size, enum mapping_
 
     lock_guard l(lock);
 
-    auto p = &pages[offset >> PAGE_SHIFT];
+    auto p = &pages_info[offset >> PAGE_SHIFT];
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        p->protect = prot;
+        p->protection = prot;
         p++;
     }
 
