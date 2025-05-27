@@ -68,14 +68,16 @@ public:
     bool initialized = false;
 };
 
-class mapping_vm : public mapping {
+class mapping_vm : public mapping, public cacheable {
 public:
     mapping_vm(unsigned int num_pages);
-    ~mapping_vm();
+    virtual ~mapping_vm();
     bool map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     uint64_t* pages_pa = nullptr;
     page_info* pages_info = nullptr;
@@ -2703,6 +2705,18 @@ size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
 size_t mapping_section::flush_cache(uint64_t page_num, uint64_t num_pages) {
     print("FIXME - mapping_section::flush_cache({:x}, {:x})\n", page_num, num_pages); // FIXME
+
+    return 0;
+}
+
+size_t mapping_vm::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME - mapping_vm::read_into_cache({:x}, {:x})\n", page_num, num_pages); // FIXME
+
+    return 0;
+}
+
+size_t mapping_vm::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME - mapping_vm::flush_cache({:x}, {:x})\n", page_num, num_pages); // FIXME
 
     return 0;
 }
