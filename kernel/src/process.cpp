@@ -47,6 +47,11 @@ public:
     spinlock lock;
 };
 
+struct page_info {
+    uint64_t pa;
+    enum mapping_type protect;
+};
+
 class mapping_section : public mapping {
 public:
     mapping_section(section& sect);

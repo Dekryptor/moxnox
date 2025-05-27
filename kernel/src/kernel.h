@@ -59,11 +59,6 @@ struct handle_obj {
     uint32_t access_mask;
 };
 
-struct page_info {
-    uint64_t pa;
-    enum mapping_type protect;
-};
-
 struct kernel_image {
     list_entry le;
     void* base_address;
