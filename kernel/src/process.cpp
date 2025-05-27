@@ -59,7 +59,6 @@ public:
     NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
                      enum mapping_type& old_prot);
     bool map(uint32_t offset, uint64_t va);
-    bool cow(uint32_t offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -541,10 +540,9 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                     case proc_map_type::section: {
                         auto& ms = static_cast<mapping_section&>(m);
 
-                        if (ec.present) // COW
-                            return ms.cow((uint32_t)(address - m.address), address);
-                        else
-                            return ms.map((uint32_t)(address - m.address), address);
+                        // FIXME - return false if actual page violation
+
+                        return ms.map((uint32_t)(address - m.address), address);
                     }
 
                     case proc_map_type::vm:
@@ -1984,6 +1982,7 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
     // FIXME - process mapping lock(?)
     auto prot = sect.pages_protection[page_num];
 
+#if 0
     switch (prot) {
         case mapping_type::read_write:
         case mapping_type::write_combine:
@@ -1998,6 +1997,9 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
         default:
             break;
     }
+#endif
+
+    prot = mapping_type::read_write_execute; // FIXME
 
     page_cache_entry* p;
 
@@ -2011,72 +2013,6 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
     cache.unpin(page_num, 1); // FIXME?
 
     return ret;
-}
-
-bool mapping_section::cow(uint32_t offset, uint64_t va) {
-    uint64_t page_num = offset >> PAGE_SHIFT;
-    uint64_t pa;
-
-    {
-        lock_guard l(lock);
-
-        switch (pages_protection[page_num]) {
-            case mapping_type::no_access:
-            case mapping_type::read_only:
-            case mapping_type::read_execute:
-                return false;
-
-            default:
-                break;
-        }
-
-        pa = pages_pa[page_num];
-    }
-
-    if (pa) // have local copy of COW'd page
-        return map_page(pa, va, pages_protection[page_num]);
-
-    if (sect.cache.read_into_cache_and_pin(page_num, 1) == 0)
-        return false;
-
-    page_cache_entry* p;
-
-    {
-        lock_guard lg(sect.cache.cache_lock);
-
-        p = sect.cache.find_page_cache_entry(page_num);
-    }
-
-    auto pa_new = allocate_page();
-    if (!pa_new) {
-        print("allocate_page failed\n");
-        sect.cache.unpin(page_num, 1);
-        return false;
-    }
-
-    memcpy(phys_address(pa_new), get_phys_address(*p), PAGE_SIZE);
-
-    sect.cache.unpin(page_num, 1);
-
-    bool beaten_to_it = false;
-
-    {
-        lock_guard l(lock);
-
-        pa = pages_pa[page_num];
-
-        if (pa)
-            beaten_to_it = true;
-        else {
-            pages_pa[page_num] = pa_new;
-            pa = pa_new;
-        }
-    }
-
-    if (beaten_to_it)
-        free_folio(pa_new);
-
-    return map_page(pa, va, pages_protection[page_num]);
 }
 
 NTSTATUS mapping_vm::commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot) {
