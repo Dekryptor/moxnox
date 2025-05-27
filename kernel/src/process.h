@@ -76,7 +76,7 @@ public:
 
 private:
     void free_mappings();
-    NTSTATUS unmap_proc_page(uint64_t va);
+    void unmap_proc_page(uint64_t va);
     bool populate_teb(thread& t);
     NTSTATUS change_proc_page_protection(uint64_t va, enum mapping_type prot);
 };

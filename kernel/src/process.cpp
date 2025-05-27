@@ -1239,82 +1239,27 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
     return p->allocate_vm(base_address, zero_bits, region_size, allocation_type, prot);
 }
 
-NTSTATUS process::unmap_proc_page(uint64_t va) {
-    NTSTATUS status;
+void process::unmap_proc_page(uint64_t va) {
     span<HARDWARE_PTE> pml4, pdpt, pdt, pt;
 
-    auto buf = allocate_va(4);
-    if (!buf) {
-        print("allocate_va failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+    pml4 = span((HARDWARE_PTE*)phys_address(cr3), 512);
 
-    if (!map_page(cr3, buf, mapping_type::read_only)) {
-        print("map_page failed\n");
-        status = nt_status::INSUFFICIENT_RESOURCES;
-        goto end;
-    }
+    if (!pml4[(va & 0xff8000000000) >> 39].Valid)
+        return;
 
-    pml4 = span((HARDWARE_PTE*)buf, 512);
+    pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT)), 512);
 
-    if (!pml4[(va & 0xff8000000000) >> 39].Valid) {
-        status = nt_status::SUCCESS;
-        goto end2;
-    }
+    if (!pdpt[(va & 0x7fc0000000) >> 30].Valid)
+        return;
 
-    if (!map_page((uint64_t)((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT), buf + PAGE_SIZE, mapping_type::read_only)) {
-        print("map_page failed\n");
-        status = nt_status::INSUFFICIENT_RESOURCES;
-        goto end2;
-    }
+    pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT)), 512);
 
-    pdpt = span((HARDWARE_PTE*)(buf + PAGE_SIZE), 512);
+    if (!pdt[(va & 0x3fe00000) >> 21].Valid)
+        return;
 
-    if (!pdpt[(va & 0x7fc0000000) >> 30].Valid) {
-        status = nt_status::SUCCESS;
-        goto end3;
-    }
-
-    if (!map_page((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT), buf + (2 * PAGE_SIZE), mapping_type::read_only)) {
-        print("map_page failed\n");
-        status = nt_status::INSUFFICIENT_RESOURCES;
-        goto end3;
-    }
-
-    pdt = span((HARDWARE_PTE*)(buf + (2 * PAGE_SIZE)), 512);
-
-    if (!pdt[(va & 0x3fe00000) >> 21].Valid) {
-        status = nt_status::SUCCESS;
-        goto end4;
-    }
-
-    if (!map_page((uint64_t)((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT), buf + (3 * PAGE_SIZE), mapping_type::read_write)) {
-        print("map_page failed\n");
-        status = nt_status::INSUFFICIENT_RESOURCES;
-        goto end4;
-    }
-
-    pt = span((HARDWARE_PTE*)(buf + (3 * PAGE_SIZE)), 512);
+    pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT)), 512);
 
     pt[(va & 0x1ff000) >> 12].Valid = 0;
-
-    status = nt_status::SUCCESS;
-
-    unmap_page(buf + (3 * PAGE_SIZE));
-
-end4:
-    unmap_page(buf + (2 * PAGE_SIZE));
-
-end3:
-    unmap_page(buf + PAGE_SIZE);
-
-end2:
-    unmap_page(buf);
-
-end:
-    free_va(buf, 4);
-
-    return status;
 }
 
 NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t free_type) {
@@ -1353,11 +1298,8 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
             auto num_pages = mv.size >> PAGE_SHIFT;
 
             for (unsigned int i = 0; i < num_pages; i++) {
-                if (mv.pages_pa[i]) {
-                    auto status = unmap_proc_page(m2.address + (i << PAGE_SHIFT));
-                    if (!success(status))
-                        return status;
-                }
+                if (mv.pages_pa[i])
+                    unmap_proc_page(m2.address + (i << PAGE_SHIFT));
             }
 
             remove_entry_list(m2.le);
@@ -2107,9 +2049,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 
                 for (unsigned int i = 0; i < num_pages; i++) {
                     // FIXME - unmap_proc_page should take range
-                    auto status = unmap_proc_page(m.address + (i << PAGE_SHIFT));
-                    if (!success(status))
-                        return status;
+                    unmap_proc_page(m.address + (i << PAGE_SHIFT));
                 }
 
                 remove_entry_list(m.le);
