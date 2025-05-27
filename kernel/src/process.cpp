@@ -81,7 +81,6 @@ public:
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
-    uint64_t* pages_pa = nullptr;
     page_info* pages_info = nullptr;
     bool initialized = false;
 };
@@ -313,10 +312,6 @@ mapping_section::~mapping_section() {
 mapping_vm::mapping_vm(unsigned int num_pages) {
     type = proc_map_type::vm;
 
-    pages_pa = (uint64_t*)vmalloc(sizeof(uint64_t) * num_pages);
-    if (!pages_pa)
-        return;
-
     pages_info = (page_info*)vmalloc(sizeof(page_info) * num_pages);
     if (!pages_info)
         return;
@@ -326,15 +321,6 @@ mapping_vm::mapping_vm(unsigned int num_pages) {
 
 mapping_vm::~mapping_vm() {
     auto num_pages = size >> PAGE_SHIFT;
-
-    if (pages_pa) {
-        for (unsigned int i = 0; i < num_pages; i++) {
-            if (pages_pa[i])
-                free_folio(pages_pa[i]);
-        }
-
-        vfree(pages_pa, sizeof(uint64_t) * num_pages);
-    }
 
     if (pages_info)
         vfree(pages_info, sizeof(page_info) * num_pages);
@@ -1113,7 +1099,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         protect = mapping_type::reserved;
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        m->pages_pa[i] = 0;
         m->pages_info[i].protection = protect;
     }
 
