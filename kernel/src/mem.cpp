@@ -49,6 +49,9 @@ struct page {
             list_entry le;
         } free;
         struct {
+            uint64_t refcount;
+        } used;
+        struct {
             void* cb;
             unsigned int index;
         } allocator;
@@ -421,6 +424,9 @@ export uint64_t allocate_folio(uint8_t order, enum page_state state = page_state
 
         remove_entry_list(pages[pfn].free.le);
         pages[pfn].state = state;
+
+        if (state == page_state::used)
+            pages[pfn].used.refcount = 1;
 
         free_folios[order]--;
 
@@ -1152,6 +1158,13 @@ export void free_folio(uint64_t pa) {
 
     if (pages[pfn].state == page_state::free)
         bsod_format("free_folio called for PFN {:x} that is already free", pfn);
+
+    if (pages[pfn].state == page_state::used) {
+        pages[pfn].used.refcount--;
+
+        if (pages[pfn].used.refcount != 0)
+            return;
+    }
 
     insert_tail_list(folio_free_lists[pages[pfn].order], pages[pfn].free.le);
     pages[pfn].state = page_state::free;
