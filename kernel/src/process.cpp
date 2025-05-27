@@ -52,15 +52,17 @@ struct page_info {
     enum mapping_type protect;
 };
 
-class mapping_section : public mapping {
+class mapping_section : public mapping, public cacheable {
 public:
     mapping_section(section& sect, unsigned int num_pages);
-    ~mapping_section();
+    virtual ~mapping_section();
     NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
                      enum mapping_type& old_prot);
     bool map(uint32_t offset, uint64_t va);
     bool cow(uint32_t offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     section& sect;
     uint64_t* pages_pa;
@@ -1975,18 +1977,8 @@ NTSTATUS mapping_section::protect(uint32_t offset, uint32_t page_count, enum map
 
 bool mapping_section::map(uint32_t offset, uint64_t va) {
     uint64_t page_num = offset >> PAGE_SHIFT;
-    uint64_t pa;
 
-    {
-        lock_guard l(lock);
-
-        pa = pages_pa[page_num];
-    }
-
-    if (pa) // have local copy of COW'd page
-        return map_page(pa, va, pages_protection[page_num]);
-
-    if (sect.cache.read_into_cache_and_pin(page_num, 1) == 0)
+    if (cache.read_into_cache_and_pin(page_num, 1) == 0)
         return false;
 
     // FIXME - process mapping lock(?)
@@ -2010,14 +2002,13 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
     page_cache_entry* p;
 
     {
-        lock_guard lg(sect.cache.cache_lock);
-
-        p = sect.cache.find_page_cache_entry(page_num);
+        lock_guard lg(cache.cache_lock);
+        p = cache.find_page_cache_entry(page_num);
     }
 
     auto ret = map_page(p->phys_address, va, prot);
 
-    sect.cache.unpin(page_num, 1); // FIXME?
+    cache.unpin(page_num, 1); // FIXME?
 
     return ret;
 }
@@ -2663,4 +2654,47 @@ void process::send_signal(uint64_t code) {
     t.send_signal(code);
 
     t.release();
+}
+
+size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    auto pinned_pages = sect.cache.read_into_cache_and_pin(page_num, num_pages);
+
+    if (pinned_pages == 0)
+        return 0;
+
+    page_cache_entry* src_p;
+    page_cache_entry* dest_p;
+
+    for (unsigned int i = 0; i < pinned_pages; i++) {
+        {
+            lock_guard lg(sect.cache.cache_lock);
+
+            if (i == 0)
+                src_p = sect.cache.find_page_cache_entry(page_num);
+            else
+                src_p = sect.cache.next_page_cache_entry(*src_p);
+        }
+
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                dest_p = cache.find_page_cache_entry(page_num);
+            else
+                dest_p = cache.next_page_cache_entry(*dest_p);
+        }
+
+        memcpy(get_phys_address(*dest_p), get_phys_address(*src_p), PAGE_SIZE);
+        dest_p->status = page_cache_status::clean;
+    }
+
+    sect.cache.unpin(page_num, pinned_pages);
+
+    return pinned_pages;
+}
+
+size_t mapping_section::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME - mapping_section::flush_cache({:x}, {:x})\n", page_num, num_pages); // FIXME
+
+    return 0;
 }
