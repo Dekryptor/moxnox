@@ -87,6 +87,8 @@ static uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
 static uint8_t MAXPHYADDR = 36;
 
+export uint64_t zero_page;
+
 template<unsigned N, enum page_state S>
 class allocator_folio {
 public:
@@ -934,6 +936,14 @@ export bool init_memory(const loader_block& lb) {
 
         // FIXME - mark source memory as free (is page-aligned)
     }
+
+    zero_page = allocate_folio(0);
+    if (!zero_page) {
+        print("could not allocate zero page\n");
+        return false;
+    }
+
+    memcpy(phys_address(zero_page), 0, PAGE_SIZE);
 
     return true;
 }
