@@ -54,17 +54,18 @@ struct page_info {
 
 class mapping_section : public mapping {
 public:
-    mapping_section(section& sect);
+    mapping_section(section& sect, unsigned int num_pages);
     ~mapping_section();
-
-    section& sect;
-    page_info pages[0];
-
     NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
                      enum mapping_type& old_prot);
     bool map(uint32_t offset, uint64_t va);
     bool cow(uint32_t offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
+
+    section& sect;
+    uint64_t* pages_pa;
+    enum mapping_type* pages_protection = nullptr;
+    bool initialized = false;
 };
 
 class mapping_vm : public mapping {
@@ -281,18 +282,37 @@ object_ref create_process(string_view fn, string_view curdir,
     return p;
 }
 
-mapping_section::mapping_section(section& sect) : sect(sect) {
+mapping_section::mapping_section(section& sect, unsigned int num_pages) : sect(sect) {
     type = proc_map_type::section;
     sect.acquire();
+
+    pages_pa = (uint64_t*)vmalloc(sizeof(uint64_t) * num_pages);
+    if (!pages_pa)
+        return;
+
+    memset(pages_pa, 0, sizeof(uint64_t) * num_pages);
+
+    pages_protection = (enum mapping_type*)vmalloc(sizeof(enum mapping_type) * num_pages);
+    if (!pages_protection)
+        return;
+
+    initialized = true;
 }
 
 mapping_section::~mapping_section() {
     auto num_pages = size >> PAGE_SHIFT;
 
-    for (unsigned int i = 0; i < num_pages; i++) {
-        if (pages[i].pa)
-            free_folio(pages[i].pa);
+    if (pages_pa) {
+        for (unsigned int i = 0; i < num_pages; i++) {
+            if (pages_pa[i])
+                free_folio(pages_pa[i]);
+        }
+
+        vfree(pages_pa, sizeof(uint64_t) * num_pages);
     }
+
+    if (pages_protection)
+        vfree(pages_protection, sizeof(enum mapping_type) * num_pages);
 
     sect.release();
 }
@@ -327,23 +347,24 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
 
     auto num_pages = sect.size >> PAGE_SHIFT;
 
-    size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
-    auto pm = vmalloc(pm_size);
-    if (!pm) {
-        print("out of memory\n");
+    auto m = new mapping_section(sect, num_pages);
+    if (!m) {
+        print("new failed\n");
         return 0;
     }
 
-    auto& m = *new (pm) mapping_section(sect);
+    if (!m->initialized) {
+        print("mapping_section::mapping_section failed\n");
+        delete m;
+        return 0;
+    }
 
-    m.address = address;
-    m.size = sect.size;
-
-    auto pages = span(m.pages, num_pages);
+    m->address = address;
+    m->size = sect.size;
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        pages[i].pa = 0;
-        pages[i].protect = sect.pages_protection[i];
+        m->pages_pa[i] = 0;
+        m->pages_protection[i] = sect.pages_protection[i];
     }
 
     uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
@@ -355,24 +376,23 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
         auto& m2 = containing_record<mapping>(le);
 
         if (address == 0) {
-            if (m2.address > last_addr + m.size) { // insert before
-                m.address = last_addr;
-                insert_head_list(*le->prev, m.le);
-                return m.address;
+            if (m2.address > last_addr + m->size) { // insert before
+                m->address = last_addr;
+                insert_head_list(*le->prev, m->le);
+                return m->address;
             }
 
             last_addr = m2.address + m2.size;
         } else {
-            if (m2.address > address + m.size) { // insert before
-                m.address = address;
-                insert_head_list(*le->prev, m.le);
-                return m.address;
+            if (m2.address > address + m->size) { // insert before
+                m->address = address;
+                insert_head_list(*le->prev, m->le);
+                return m->address;
             }
 
-            if (address < m2.address + m2.size && address + m.size > m2.address) { // collision
+            if (address < m2.address + m2.size && address + m->size > m2.address) { // collision
                 print("collision\n");
-                m.~mapping_section();
-                vfree(pm, pm_size);
+                delete m;
                 return 0;
             }
         }
@@ -381,16 +401,16 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
     }
 
     if (address == 0) {
-        if (last_addr >= MAX_USERSPACE_ADDRESS - m.size)
+        if (last_addr >= MAX_USERSPACE_ADDRESS - m->size)
             return 0;
 
-        m.address = last_addr;
+        m->address = last_addr;
     } else
-        m.address = address;
+        m->address = address;
 
-    insert_tail_list(mappings, m.le);
+    insert_tail_list(mappings, m->le);
 
-    return m.address;
+    return m->address;
 }
 
 bool process::map_to_kernel_space(void* us, void* ks, unsigned int num_pages) {
@@ -759,12 +779,7 @@ void process::free_mappings() {
             case proc_map_type::section: {
                 auto& ms = static_cast<mapping_section&>(m);
 
-                auto num_pages = ms.size >> PAGE_SHIFT;
-
-                size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
-
-                ms.~mapping_section();
-                vfree(&ms, pm_size);
+                delete &ms;
 
                 break;
             }
@@ -1376,12 +1391,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
         case proc_map_type::section: {
             auto& ms = static_cast<mapping_section&>(m);
 
-            auto num_pages = ms.size >> PAGE_SHIFT;
-            size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
-
-            ms.~mapping_section();
-            vfree(&ms, pm_size);
-
+            delete &ms;
             break;
         }
 
@@ -1489,13 +1499,13 @@ bool mapping_section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 
         {
             lock_guard l(lock);
-            auto& p = pages[offset >> PAGE_SHIFT];
+            auto& p = pages_pa[offset >> PAGE_SHIFT];
 
-            if (!p.pa) {
+            if (!p) {
                 if (!sect.copy_from(offset, ks_addr, (uint32_t)to_copy))
                     return false;
             } else {
-                auto va = phys_address(p.pa);
+                auto va = phys_address(p);
 
                 memcpy(ks_addr, (uint8_t*)va + (offset & (PAGE_SIZE - 1)), to_copy);
             }
@@ -1783,12 +1793,12 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
                     if (!success(ret))
                         return ret;
 
-                    auto p = &ms.pages[(addr - m.address) >> PAGE_SHIFT];
+                    auto p = &ms.pages_pa[(addr - m.address) >> PAGE_SHIFT];
 
                     for (unsigned int i = 0; i < num_pages; i++) {
                         auto prot2 = prot;
 
-                        if (!p->pa) { // COW
+                        if (!*p) { // COW
                             // FIXME - don't do COW unless we ought to
 
                             switch (prot) {
@@ -1950,13 +1960,13 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
 
 NTSTATUS mapping_section::protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
                                   enum mapping_type& old_prot) {
-    auto p = &pages[offset >> PAGE_SHIFT];
+    auto p = &pages_protection[offset >> PAGE_SHIFT];
 
     for (unsigned int i = 0; i < page_count; i++) {
         if (i == 0)
-            old_prot = p->protect;
+            old_prot = *p;
 
-        p->protect = prot;
+        *p = prot;
         p++;
     }
 
@@ -1970,11 +1980,11 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
     {
         lock_guard l(lock);
 
-        pa = pages[page_num].pa;
+        pa = pages_pa[page_num];
     }
 
     if (pa) // have local copy of COW'd page
-        return map_page(pa, va, pages[page_num].protect);
+        return map_page(pa, va, pages_protection[page_num]);
 
     if (sect.cache.read_into_cache_and_pin(page_num, 1) == 0)
         return false;
@@ -2019,7 +2029,7 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
     {
         lock_guard l(lock);
 
-        switch (pages[page_num].protect) {
+        switch (pages_protection[page_num]) {
             case mapping_type::no_access:
             case mapping_type::read_only:
             case mapping_type::read_execute:
@@ -2029,11 +2039,11 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
                 break;
         }
 
-        pa = pages[page_num].pa;
+        pa = pages_pa[page_num];
     }
 
     if (pa) // have local copy of COW'd page
-        return map_page(pa, va, pages[page_num].protect);
+        return map_page(pa, va, pages_protection[page_num]);
 
     if (sect.cache.read_into_cache_and_pin(page_num, 1) == 0)
         return false;
@@ -2062,12 +2072,12 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
     {
         lock_guard l(lock);
 
-        pa = pages[page_num].pa;
+        pa = pages_pa[page_num];
 
         if (pa)
             beaten_to_it = true;
         else {
-            pages[page_num].pa = pa_new;
+            pages_pa[page_num] = pa_new;
             pa = pa_new;
         }
     }
@@ -2075,7 +2085,7 @@ bool mapping_section::cow(uint32_t offset, uint64_t va) {
     if (beaten_to_it)
         free_folio(pa_new);
 
-    return map_page(pa, va, pages[page_num].protect);
+    return map_page(pa, va, pages_protection[page_num]);
 }
 
 NTSTATUS mapping_vm::commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot) {
@@ -2191,10 +2201,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
     if (!ms2)
         return nt_status::NO_MEMORY;
 
-    ms2->~mapping_section();
-
-    size_t pm_size = offsetof(mapping_section, pages) + (sizeof(page_info) * num_pages);
-    vfree(ms2, pm_size);
+    delete ms2;
 
     return nt_status::SUCCESS;
 }
