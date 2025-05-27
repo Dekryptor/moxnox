@@ -59,6 +59,7 @@ public:
                      enum mapping_type& old_prot);
     bool map(uint32_t offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
+    bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
@@ -633,7 +634,7 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 
                 switch (m.type) {
                     case proc_map_type::section:
-                        if (!static_cast<mapping_section&>(m).sect.copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                        if (!static_cast<mapping_section&>(m).copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
                             return false;
                         break;
 
@@ -1522,6 +1523,59 @@ bool mapping_section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
         }
 
         memcpy(ks_addr, (uint8_t*)get_phys_address(*p) + page_off, to_copy);
+
+        ks_addr = (uint8_t*)ks_addr + to_copy;
+    }
+
+    cache.unpin(page_num, num_pages);
+
+    return true;
+}
+
+bool mapping_section::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
+    uint64_t page_num = offset >> PAGE_SHIFT;
+    uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
+
+    // FIXME - don't need to read pages that we're overwriting fully
+    auto pinned_pages = cache.read_into_cache_and_pin(page_num, num_pages);
+
+    // FIXME - COWing
+    if (pinned_pages < num_pages) {
+        print("section::copy_to: read_into_cache_and_pin returned {}, expected {}\n",
+              pinned_pages, num_pages);
+        cache.unpin(page_num, pinned_pages);
+        return false;
+    }
+
+    page_cache_entry* p;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                p = cache.find_page_cache_entry(page_num);
+            else
+                p = cache.next_page_cache_entry(*p);
+        }
+
+        uint32_t to_copy, page_off;
+
+        if (i == 0) {
+            page_off = offset & (PAGE_SIZE - 1);
+            to_copy = min(size, (uint32_t)(PAGE_SIZE - page_off));
+        } else if (i == num_pages - 1) {
+            page_off = 0;
+            to_copy = (offset + size) & (PAGE_SIZE - 1);
+
+            if (to_copy == 0)
+                to_copy = PAGE_SIZE;
+        } else {
+            page_off = 0;
+            to_copy = PAGE_SIZE;
+        }
+
+        memcpy((uint8_t*)get_phys_address(*p) + page_off, ks_addr, to_copy);
 
         ks_addr = (uint8_t*)ks_addr + to_copy;
     }
@@ -2420,7 +2474,7 @@ NTSTATUS process::write_vm(void* base_address, void* buffer, uint32_t buffer_siz
 
                 switch (m.type) {
                     case proc_map_type::section:
-                        if (!static_cast<mapping_section&>(m).sect.copy_to((uint32_t)((uintptr_t)base_address - m.address), buffer, (uint32_t)to_copy))
+                        if (!static_cast<mapping_section&>(m).copy_to((uint32_t)((uintptr_t)base_address - m.address), buffer, (uint32_t)to_copy))
                             return nt_status::INTERNAL_ERROR;
                         break;
 
