@@ -91,15 +91,6 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
         s.size = s.num_pages << PAGE_SHIFT;
 
-        s.pages_pa = (uint64_t*)malloc(sizeof(uint64_t) * s.num_pages);
-        if (!s.pages_pa) {
-            print("malloc failed\n");
-            s.release();
-            return nt_status::INSUFFICIENT_RESOURCES;
-        }
-
-        memset(s.pages_pa, 0, sizeof(uint64_t) * s.num_pages);
-
         s.pages_protection = (enum mapping_type*)malloc(sizeof(enum mapping_type) * s.num_pages);
         if (!s.pages_protection) {
             print("malloc failed\n");
@@ -128,16 +119,6 @@ section::~section() {
 }
 
 void section::free_pa() {
-    if (pages_pa) {
-        for (unsigned int i = 0; i < num_pages; i++) {
-            if (pages_pa[i])
-                free_folio(pages_pa[i]);
-        }
-
-        free(pages_pa);
-        pages_pa = nullptr;
-    }
-
     if (pages_protection) {
         free(pages_protection);
         pages_protection = nullptr;
@@ -335,20 +316,10 @@ nt_status section::load_image() {
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    pages_pa = (uint64_t*)malloc(sizeof(uint64_t) * num_pages);
-    if (!pages_pa) {
-        print("malloc failed\n");
-        free(pages_protection);
-        pages_protection = nullptr;
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
     // FIXME - allocate zeroed pages?
 
     if (!cache.pin(0, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
-        free(pages_pa);
-        pages_pa = nullptr;
         free(pages_protection);
         pages_protection = nullptr;
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -1048,7 +1019,59 @@ uint64_t get_image_size(void* image) {
         return 0;
 }
 
-size_t section::read_into_cache(uint64_t page_num, uint64_t /*num_pages*/) {
+size_t section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    // FIXME - do lazy loading
+
+    switch (type) {
+        case section_type::image:
+            // should already have been loaded in load_image
+            return 0;
+
+        case section_type::file:
+            print("section::read_into_cache: FIXME - file mappings\n"); // FIXME
+            return 0;
+
+        case section_type::anonymous: {
+            if (page_num >= this->num_pages)
+                return 0;
+
+            if (page_num + num_pages > this->num_pages)
+                num_pages = this->num_pages - page_num;
+
+            if (!cache.pin(page_num, num_pages, nullptr)) {
+                print("page_cache::pin failed\n");
+                return 0;
+            }
+
+            page_cache_entry* p;
+
+            for (uint64_t i = 0; i < num_pages; i++) {
+                {
+                    lock_guard lg(cache.cache_lock);
+
+                    if (i == 0)
+                        p = cache.find_page_cache_entry(page_num);
+                    else
+                        p = cache.next_page_cache_entry(*p);
+                }
+
+                // FIXME - lock?
+                if (p->status == page_cache_status::allocated) {
+                    memset(get_phys_address(*p), 0, PAGE_SIZE);
+                    p->status = page_cache_status::clean;
+                }
+            }
+
+            cache.unpin(page_num, num_pages);
+
+            return num_pages;
+        }
+
+        default:
+            return 0;
+    }
+
+#if 0
     uint64_t page;
     bool new_page = false;
 
@@ -1095,6 +1118,7 @@ size_t section::read_into_cache(uint64_t page_num, uint64_t /*num_pages*/) {
     }
 
     return 1;
+#endif
 }
 
 size_t section::flush_cache(uint64_t page_num, uint64_t num_pages) {
