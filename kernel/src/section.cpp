@@ -502,57 +502,6 @@ nt_status section::load_image() {
     return nt_status::SUCCESS;
 }
 
-bool section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
-    uint64_t page_num = offset >> PAGE_SHIFT;
-    uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
-
-    auto pinned_pages = cache.read_into_cache_and_pin(page_num, num_pages);
-
-    if (pinned_pages < num_pages) {
-        print("section::copy_from: read_into_cache_and_pin returned {}, expected {}\n",
-              pinned_pages, num_pages);
-        cache.unpin(page_num, pinned_pages);
-        return false;
-    }
-
-    page_cache_entry* p;
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                p = cache.find_page_cache_entry(page_num);
-            else
-                p = cache.next_page_cache_entry(*p);
-        }
-
-        uint32_t to_copy, page_off;
-
-        if (i == 0) {
-            page_off = offset & (PAGE_SIZE - 1);
-            to_copy = min(size, (uint32_t)(PAGE_SIZE - page_off));
-        } else if (i == num_pages - 1) {
-            page_off = 0;
-            to_copy = (offset + size) & (PAGE_SIZE - 1);
-
-            if (to_copy == 0)
-                to_copy = PAGE_SIZE;
-        } else {
-            page_off = 0;
-            to_copy = PAGE_SIZE;
-        }
-
-        memcpy(ks_addr, (uint8_t*)get_phys_address(*p) + page_off, to_copy);
-
-        ks_addr = (uint8_t*)ks_addr + to_copy;
-    }
-
-    cache.unpin(page_num, num_pages);
-
-    return true;
-}
-
 bool section::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
