@@ -38,8 +38,13 @@ enum class proc_map_type {
     vm
 };
 
-class mapping {
+class mapping : public cacheable {
 public:
+    virtual ~mapping() {
+    }
+
+    bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
+
     list_entry le;
     enum proc_map_type type;
     uint64_t address;
@@ -51,14 +56,13 @@ struct page_info {
     enum mapping_type protection;
 };
 
-class mapping_section : public mapping, public cacheable {
+class mapping_section : public mapping {
 public:
     mapping_section(section& sect, unsigned int num_pages);
     virtual ~mapping_section();
     NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
                      enum mapping_type& old_prot);
     bool map(uint32_t offset, uint64_t va);
-    bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -68,12 +72,11 @@ public:
     bool initialized = false;
 };
 
-class mapping_vm : public mapping, public cacheable {
+class mapping_vm : public mapping {
 public:
     mapping_vm(unsigned int num_pages);
     virtual ~mapping_vm();
     bool map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot);
-    bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -1458,65 +1461,14 @@ bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> p
     return true;
 }
 
-bool mapping_vm::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
+bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
 
     auto pinned_pages = cache.read_into_cache_and_pin(page_num, num_pages);
 
     if (pinned_pages < num_pages) {
-        print("mapping_vm::copy_from: read_into_cache_and_pin returned {}, expected {}\n",
-              pinned_pages, num_pages);
-        cache.unpin(page_num, pinned_pages);
-        return false;
-    }
-
-    page_cache_entry* p;
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                p = cache.find_page_cache_entry(page_num);
-            else
-                p = cache.next_page_cache_entry(*p);
-        }
-
-        uint32_t to_copy, page_off;
-
-        if (i == 0) {
-            page_off = offset & (PAGE_SIZE - 1);
-            to_copy = min(size, (uint32_t)(PAGE_SIZE - page_off));
-        } else if (i == num_pages - 1) {
-            page_off = 0;
-            to_copy = (offset + size) & (PAGE_SIZE - 1);
-
-            if (to_copy == 0)
-                to_copy = PAGE_SIZE;
-        } else {
-            page_off = 0;
-            to_copy = PAGE_SIZE;
-        }
-
-        memcpy(ks_addr, (uint8_t*)get_phys_address(*p) + page_off, to_copy);
-
-        ks_addr = (uint8_t*)ks_addr + to_copy;
-    }
-
-    cache.unpin(page_num, num_pages);
-
-    return true;
-}
-
-bool mapping_section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
-    uint64_t page_num = offset >> PAGE_SHIFT;
-    uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
-
-    auto pinned_pages = cache.read_into_cache_and_pin(page_num, num_pages);
-
-    if (pinned_pages < num_pages) {
-        print("mapping_section::copy_from: read_into_cache_and_pin returned {}, expected {}\n",
+        print("mapping::copy_from: read_into_cache_and_pin returned {}, expected {}\n",
               pinned_pages, num_pages);
         cache.unpin(page_num, pinned_pages);
         return false;
