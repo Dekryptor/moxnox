@@ -33,6 +33,45 @@ static_assert(sizeof(TEB) == 0x1818);
 static_assert(sizeof(PEB) == 0x388);
 static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
+enum class proc_map_type {
+    section,
+    vm
+};
+
+class mapping {
+public:
+    list_entry le;
+    enum proc_map_type type;
+    uint64_t address;
+    uint32_t size;
+    spinlock lock;
+};
+
+class mapping_section : public mapping {
+public:
+    mapping_section(section& sect);
+    ~mapping_section();
+
+    section& sect;
+    page_info pages[0];
+
+    NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
+                     enum mapping_type& old_prot);
+    bool map(uint32_t offset, uint64_t va);
+    bool cow(uint32_t offset, uint64_t va);
+    bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
+};
+
+class mapping_vm : public mapping {
+public:
+    page_info pages[0];
+
+    bool map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot);
+    bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
+    bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
+    NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
+};
+
 static const size_t MAX_PATH = 260;
 
 // FIXME - 32-bit processes
