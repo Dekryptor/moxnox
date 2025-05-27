@@ -1821,11 +1821,12 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
                     if (!success(ret))
                         return ret;
 
-                    auto p = &ms.pages_pa[(addr - m.address) >> PAGE_SHIFT];
+                    // auto p = &ms.pages_pa[(addr - m.address) >> PAGE_SHIFT];
 
                     for (unsigned int i = 0; i < num_pages; i++) {
                         auto prot2 = prot;
 
+#if 0
                         if (!*p) { // COW
                             // FIXME - don't do COW unless we ought to
 
@@ -1844,13 +1845,14 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
                                     break;
                             }
                         }
+#endif
 
                         // FIXME - would be quicker if we could do multiple pages at once
                         auto ret = change_proc_page_protection(addr + (i << PAGE_SHIFT), prot2);
                         if (!success(ret))
                             return ret;
 
-                        p++;
+                        // p++;
                     }
 
                     break;
