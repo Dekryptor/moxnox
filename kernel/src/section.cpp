@@ -20,6 +20,7 @@ import print;
 import mem;
 import config;
 import pe;
+import bsod;
 
 using namespace std;
 
@@ -328,41 +329,33 @@ nt_status section::load_image() {
     num_pages = bytes_to_pages(size);
     size = num_pages << PAGE_SHIFT;
 
-    pages_pa = (uint64_t*)malloc(sizeof(uint64_t) * num_pages);
-    if (!pages_pa) {
+    pages_protection = (enum mapping_type*)malloc(sizeof(enum mapping_type) * num_pages);
+    if (!pages_protection) {
         print("malloc failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    pages_protection = (enum mapping_type*)malloc(sizeof(enum mapping_type) * num_pages);
-    if (!pages_protection) {
+    pages_pa = (uint64_t*)malloc(sizeof(uint64_t) * num_pages);
+    if (!pages_pa) {
         print("malloc failed\n");
-        free(pages_pa);
-        pages_pa = nullptr;
+        free(pages_protection);
+        pages_protection = nullptr;
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     // FIXME - allocate zeroed pages?
 
-    for (unsigned int i = 0; i < num_pages; i++) {
-        pages_pa[i] = allocate_page();
-        if (!pages_pa[i]) {
-            debug_printk("allocate_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                free_folio(pages_pa[j]);
-            }
-
-            free(pages_pa);
-            pages_pa = nullptr;
-            free(pages_protection);
-            pages_protection = nullptr;
-
-            return nt_status::INSUFFICIENT_RESOURCES;
-        }
+    if (!cache.pin(0, num_pages, nullptr)) {
+        print("page_cache::pin failed\n");
+        free(pages_pa);
+        pages_pa = nullptr;
+        free(pages_protection);
+        pages_protection = nullptr;
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     header_pages = bytes_to_pages(size_of_headers);
+    page_cache_entry* p;
 
     for (unsigned int i = 0; i < header_pages; i++) {
         size_t to_copy;
@@ -372,17 +365,34 @@ nt_status section::load_image() {
         else
             to_copy = PAGE_SIZE;
 
-        memcpy(phys_address(pages_pa[i]), buf + (i << PAGE_SHIFT),
-                to_copy);
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                p = cache.find_page_cache_entry(0);
+            else
+                p = cache.next_page_cache_entry(*p);
+        }
+
+        memcpy(get_phys_address(*p), buf + (i << PAGE_SHIFT), to_copy);
 
         if (to_copy < PAGE_SIZE) {
-            memset((uint8_t*)phys_address(pages_pa[i]) + to_copy, 0,
-                    PAGE_SIZE - to_copy);
+            memset((uint8_t*)get_phys_address(*p) + to_copy, 0,
+                   PAGE_SIZE - to_copy);
         }
+
+        p->status = page_cache_status::clean;
     }
 
     for (unsigned int i = header_pages; i < num_pages; i++) {
-        memset(phys_address(pages_pa[i]), 0, PAGE_SIZE);
+        {
+            lock_guard lg(cache.cache_lock);
+
+            p = cache.next_page_cache_entry(*p);
+        }
+
+        memset(get_phys_address(*p), 0, PAGE_SIZE);
+        p->status = page_cache_status::clean;
     }
 
     span<IMAGE_SECTION_HEADER> sections;
@@ -431,6 +441,7 @@ nt_status section::load_image() {
 
         if (sect.VirtualAddress + section_size > size) {
             debug_printk("section overflow\n");
+            cache.unpin(0, num_pages);
             free_pa();
             return nt_status::INVALID_IMAGE_FORMAT;
         }
@@ -445,15 +456,25 @@ nt_status section::load_image() {
 
             if (sect.VirtualAddress % section_alignment) {
                 debug_printk("section not aligned to SectionAlignment\n");
+                cache.unpin(0, num_pages);
                 free_pa();
                 return nt_status::INVALID_IMAGE_FORMAT;
             }
+
+            {
+                lock_guard lg(cache.cache_lock);
+
+                p = cache.find_page_cache_entry(sect.VirtualAddress >> PAGE_SHIFT);
+            }
+
+            assert(p);
 
             do {
                 auto pinned_pages = (uint32_t)f.cache.read_into_cache_and_pin(file_start_page + page_num, file_pages_left);
 
                 if (pinned_pages == 0) {
                     debug_printk("inode::read_into_cache_and_pin did not pin any pages\n");
+                    cache.unpin(0, num_pages);
                     free_pa();
                     return nt_status::INTERNAL_ERROR;
                 }
@@ -462,7 +483,7 @@ nt_status section::load_image() {
                     span<uint8_t> sp;
 
                     if (page_num != 0 && offset != 0) {
-                        sp = span((uint8_t*)phys_address(pages_pa[(sect.VirtualAddress >> PAGE_SHIFT) + page_num - 1]) + (PAGE_SIZE - offset),
+                        sp = span((uint8_t*)get_phys_address(*p) + (PAGE_SIZE - offset),
                                   min(offset, bytes_left));
 
                         f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, 0);
@@ -472,8 +493,15 @@ nt_status section::load_image() {
                             break;
                     }
 
-                    sp = span((uint8_t*)phys_address(pages_pa[(sect.VirtualAddress >> PAGE_SHIFT) + page_num]),
-                              min(PAGE_SIZE - offset, bytes_left));
+                    if (page_num != 0) {
+                        lock_guard lg(cache.cache_lock);
+
+                        p = cache.next_page_cache_entry(*p);
+                    }
+
+                    assert(p);
+
+                    sp = span((uint8_t*)get_phys_address(*p), min(PAGE_SIZE - offset, bytes_left));
 
                     f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, offset);
                     bytes_left -= sp.size();
