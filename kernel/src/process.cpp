@@ -47,9 +47,8 @@ public:
     spinlock lock;
 };
 
-struct page_info {
-    uint64_t pa;
-    enum mapping_type protect;
+struct page_info2 {
+    enum mapping_type protection;
 };
 
 class mapping_section : public mapping, public cacheable {
@@ -65,8 +64,13 @@ public:
 
     section& sect;
     uint64_t* pages_pa;
-    enum mapping_type* pages_protection = nullptr;
+    page_info2* pages_info = nullptr;
     bool initialized = false;
+};
+
+struct page_info {
+    uint64_t pa;
+    enum mapping_type protect;
 };
 
 class mapping_vm : public mapping {
@@ -293,8 +297,8 @@ mapping_section::mapping_section(section& sect, unsigned int num_pages) : sect(s
 
     memset(pages_pa, 0, sizeof(uint64_t) * num_pages);
 
-    pages_protection = (enum mapping_type*)vmalloc(sizeof(enum mapping_type) * num_pages);
-    if (!pages_protection)
+    pages_info = (page_info2*)vmalloc(sizeof(page_info2) * num_pages);
+    if (!pages_info)
         return;
 
     initialized = true;
@@ -312,8 +316,8 @@ mapping_section::~mapping_section() {
         vfree(pages_pa, sizeof(uint64_t) * num_pages);
     }
 
-    if (pages_protection)
-        vfree(pages_protection, sizeof(enum mapping_type) * num_pages);
+    if (pages_info)
+        vfree(pages_info, sizeof(page_info2) * num_pages);
 
     sect.release();
 }
@@ -365,7 +369,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
 
     for (unsigned int i = 0; i < num_pages; i++) {
         m->pages_pa[i] = 0;
-        m->pages_protection[i] = sect.pages_protection[i];
+        m->pages_info[i].protection = sect.pages_protection[i];
     }
 
     uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
@@ -1984,13 +1988,13 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
 
 NTSTATUS mapping_section::protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
                                   enum mapping_type& old_prot) {
-    auto p = &pages_protection[offset >> PAGE_SHIFT];
+    auto p = &pages_info[offset >> PAGE_SHIFT];
 
     for (unsigned int i = 0; i < page_count; i++) {
         if (i == 0)
-            old_prot = *p;
+            old_prot = p->protection;
 
-        *p = prot;
+        p->protection = prot;
         p++;
     }
 
