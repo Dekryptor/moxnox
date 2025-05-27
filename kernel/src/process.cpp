@@ -63,7 +63,6 @@ public:
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     section& sect;
-    uint64_t* pages_pa;
     page_info2* pages_info = nullptr;
     bool initialized = false;
 };
@@ -291,12 +290,6 @@ mapping_section::mapping_section(section& sect, unsigned int num_pages) : sect(s
     type = proc_map_type::section;
     sect.acquire();
 
-    pages_pa = (uint64_t*)vmalloc(sizeof(uint64_t) * num_pages);
-    if (!pages_pa)
-        return;
-
-    memset(pages_pa, 0, sizeof(uint64_t) * num_pages);
-
     pages_info = (page_info2*)vmalloc(sizeof(page_info2) * num_pages);
     if (!pages_info)
         return;
@@ -306,15 +299,6 @@ mapping_section::mapping_section(section& sect, unsigned int num_pages) : sect(s
 
 mapping_section::~mapping_section() {
     auto num_pages = size >> PAGE_SHIFT;
-
-    if (pages_pa) {
-        for (unsigned int i = 0; i < num_pages; i++) {
-            if (pages_pa[i])
-                free_folio(pages_pa[i]);
-        }
-
-        vfree(pages_pa, sizeof(uint64_t) * num_pages);
-    }
 
     if (pages_info)
         vfree(pages_info, sizeof(page_info2) * num_pages);
@@ -368,7 +352,6 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
     m->size = sect.size;
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        m->pages_pa[i] = 0;
         m->pages_info[i].protection = sect.pages_protection[i];
     }
 
