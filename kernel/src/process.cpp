@@ -1459,32 +1459,54 @@ bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> p
 }
 
 bool mapping_vm::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
-    while (true) {
-        auto to_copy = (uint32_t)min((size_t)size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
+    uint64_t page_num = offset >> PAGE_SHIFT;
+    uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
 
+    auto pinned_pages = cache.read_into_cache_and_pin(page_num, num_pages);
+
+    if (pinned_pages < num_pages) {
+        print("mapping_vm::copy_from: read_into_cache_and_pin returned {}, expected {}\n",
+              pinned_pages, num_pages);
+        cache.unpin(page_num, pinned_pages);
+        return false;
+    }
+
+    page_cache_entry* p;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
         {
-            lock_guard l(lock);
-            auto& p = pages_info[offset >> PAGE_SHIFT];
+            lock_guard lg(cache.cache_lock);
 
-            if (p.protection == mapping_type::reserved)
-                return false;
-
-            if (!pages_pa[offset >> PAGE_SHIFT])
-                memset(ks_addr, 0, to_copy);
-            else {
-                auto va = phys_address(pages_pa[offset >> PAGE_SHIFT]);
-
-                memcpy(ks_addr, (uint8_t*)va + (offset & (PAGE_SIZE - 1)), to_copy);
-            }
+            if (i == 0)
+                p = cache.find_page_cache_entry(page_num);
+            else
+                p = cache.next_page_cache_entry(*p);
         }
 
-        if (to_copy == size)
-            return true;
+        uint32_t to_copy, page_off;
+
+        if (i == 0) {
+            page_off = offset & (PAGE_SIZE - 1);
+            to_copy = min(size, (uint32_t)(PAGE_SIZE - page_off));
+        } else if (i == num_pages - 1) {
+            page_off = 0;
+            to_copy = (offset + size) & (PAGE_SIZE - 1);
+
+            if (to_copy == 0)
+                to_copy = PAGE_SIZE;
+        } else {
+            page_off = 0;
+            to_copy = PAGE_SIZE;
+        }
+
+        memcpy(ks_addr, (uint8_t*)get_phys_address(*p) + page_off, to_copy);
 
         ks_addr = (uint8_t*)ks_addr + to_copy;
-        offset += to_copy;
-        size -= to_copy;
     }
+
+    cache.unpin(page_num, num_pages);
+
+    return true;
 }
 
 bool mapping_section::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
