@@ -1336,34 +1336,33 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
     {
         lock_guard lock(mappings_lock);
 
-        auto le = mappings.next;
-        while (le != &mappings) {
+        for (auto le = mappings.next; le != &mappings; le = le->next) {
             auto& m2 = containing_record<mapping>(le);
 
-            if (m2.address == (uintptr_t)*base_address) {
-                // FIXME - MEM_RELEASE with reserved memory block
-                if (m2.type == proc_map_type::vm) {
-                    auto& mv = static_cast<mapping_vm&>(m2);
-
-                    auto num_pages = mv.size >> PAGE_SHIFT;
-
-                    for (unsigned int i = 0; i < num_pages; i++) {
-                        if (mv.pages_pa[i]) {
-                            auto status = unmap_proc_page(m2.address + (i << PAGE_SHIFT));
-                            if (!success(status))
-                                return status;
-                        }
-                    }
-                } else
-                    return nt_status::INVALID_PARAMETER;
-
-                remove_entry_list(m2.le);
-                pm = &m2;
+            if (m2.address > (uintptr_t)*base_address)
                 break;
-            } else if (m2.address > (uintptr_t)*base_address)
-                break;
+            else if (m2.address < (uintptr_t)*base_address)
+                continue;
 
-            le = le->next;
+            // FIXME - MEM_RELEASE with reserved memory block
+            if (m2.type != proc_map_type::vm)
+                return nt_status::INVALID_PARAMETER;
+
+            auto& mv = static_cast<mapping_vm&>(m2);
+
+            auto num_pages = mv.size >> PAGE_SHIFT;
+
+            for (unsigned int i = 0; i < num_pages; i++) {
+                if (mv.pages_pa[i]) {
+                    auto status = unmap_proc_page(m2.address + (i << PAGE_SHIFT));
+                    if (!success(status))
+                        return status;
+                }
+            }
+
+            remove_entry_list(m2.le);
+            pm = &m2;
+            break;
         }
     }
 
