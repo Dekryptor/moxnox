@@ -1431,30 +1431,29 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
 }
 
 bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot) {
-    bool new_page = false;
-
-    auto& p = pages_info[offset >> PAGE_SHIFT];
+    uint64_t page_num = offset >> PAGE_SHIFT;
 
     lock_guard l(lock);
 
-    if (p.protection == mapping_type::reserved)
+    if (pages_info[page_num].protection == mapping_type::reserved)
         return false;
 
-    if (!pages_pa[offset >> PAGE_SHIFT]) {
-        pages_pa[offset >> PAGE_SHIFT] = allocate_page();
-        if (!pages_pa[offset >> PAGE_SHIFT]) {
-            print("allocate_page failed\n");
-            return false;
-        }
+    if (cache.read_into_cache_and_pin(page_num, 1) == 0)
+        return false;
 
-        new_page = true;
+    page_cache_entry* p;
+
+    {
+        lock_guard lg(cache.cache_lock);
+        p = cache.find_page_cache_entry(page_num);
     }
 
-    if (!map_page(pages_pa[offset >> PAGE_SHIFT], va, prot ? *prot : p.protection))
+    if (!map_page(p->phys_address, va, prot ? *prot : pages_info[page_num].protection)) {
+        cache.unpin(page_num, 1);
         return false;
+    }
 
-    if (new_page) // FIXME - allocate zeroed page?
-        memset((void*)va, 0, PAGE_SIZE);
+    cache.unpin(page_num, 1); // FIXME?
 
     return true;
 }
@@ -2710,9 +2709,25 @@ size_t mapping_section::flush_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 size_t mapping_vm::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME - mapping_vm::read_into_cache({:x}, {:x})\n", page_num, num_pages); // FIXME
+    page_cache_entry* p;
 
-    return 0;
+    // FIXME - reflink the zero page
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                p = cache.find_page_cache_entry(page_num);
+            else
+                p = cache.next_page_cache_entry(*p);
+        }
+
+        memset(get_phys_address(*p), 0, PAGE_SIZE);
+        p->status = page_cache_status::clean;
+    }
+
+    return num_pages;
 }
 
 size_t mapping_vm::flush_cache(uint64_t page_num, uint64_t num_pages) {
