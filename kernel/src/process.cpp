@@ -44,6 +44,7 @@ public:
     }
 
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
+    bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
 
     list_entry le;
     enum proc_map_type type;
@@ -63,7 +64,6 @@ public:
     NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
                      enum mapping_type& old_prot);
     bool map(uint32_t offset, uint64_t va);
-    bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
@@ -77,7 +77,6 @@ public:
     mapping_vm(unsigned int num_pages);
     virtual ~mapping_vm();
     bool map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot);
-    bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -1512,7 +1511,7 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     return true;
 }
 
-bool mapping_section::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
+bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
 
@@ -1563,54 +1562,6 @@ bool mapping_section::copy_to(uint32_t offset, const void* ks_addr, uint32_t siz
     cache.unpin(page_num, num_pages);
 
     return true;
-}
-
-bool mapping_vm::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
-    while (true) {
-        auto to_copy = (uint32_t)min((size_t)size, PAGE_SIZE - (offset & (PAGE_SIZE - 1)));
-
-        {
-            lock_guard l(lock);
-
-            auto& p = pages_info[offset >> PAGE_SHIFT];
-
-            bool new_page = false;
-
-            switch (p.protection) {
-                case mapping_type::read_only:
-                case mapping_type::read_execute:
-                case mapping_type::reserved:
-                    return false;
-
-                default:
-                    break;
-            }
-
-            if (!pages_pa[offset >> PAGE_SHIFT]) {
-                pages_pa[offset >> PAGE_SHIFT] = allocate_page();
-                if (!pages_pa[offset >> PAGE_SHIFT]) {
-                    print("allocate_page failed\n");
-                    return false;
-                }
-
-                new_page = true;
-            }
-
-            auto va = phys_address(pages_pa[offset >> PAGE_SHIFT]);
-
-            if (new_page)
-                memset((void*)va, 0, PAGE_SIZE);
-
-            memcpy((uint8_t*)va + (offset & (PAGE_SIZE - 1)), ks_addr, to_copy);
-        }
-
-        if (to_copy == size)
-            return true;
-
-        ks_addr = (uint8_t*)ks_addr + to_copy;
-        offset += to_copy;
-        size -= to_copy;
-    }
 }
 
 static size_t dos_path_len(string_view s) {
