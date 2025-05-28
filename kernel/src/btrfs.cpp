@@ -506,10 +506,9 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     // FIXME - can we steal pages?
 
     page_cache_entry* dest_p;
+    page_cache_entry* src_p;
 
     for (uint64_t i = 0; i < pages_read; i++) {
-        page_cache_entry* src_p;
-
         {
             lock_guard lg(cache.cache_lock);
 
@@ -519,10 +518,13 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
                 dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
-        // FIXME - find next entry rather than doing complete lookup(?)
         {
             lock_guard lg(vol->cache.cache_lock);
-            src_p = vol->cache.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + i);
+
+            if (i == 0)
+                src_p = vol->cache.find_page_cache_entry(disk_addr >> PAGE_SHIFT);
+            else
+                src_p = vol->cache.next_page_cache_entry(*src_p);
         }
 
         auto src_va = get_phys_address(*src_p);
