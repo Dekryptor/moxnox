@@ -2523,6 +2523,7 @@ size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
     page_cache_entry* src_p;
     page_cache_entry* dest_p;
+    auto read_pages = pinned_pages;
 
     for (unsigned int i = 0; i < pinned_pages; i++) {
         {
@@ -2541,6 +2542,15 @@ size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
                 dest_p = cache.find_page_cache_entry(page_num);
             else
                 dest_p = cache.next_page_cache_entry(*dest_p);
+
+            if (dest_p->phys_address == 0) {
+                dest_p->phys_address = allocate_folio(0);
+                if (!dest_p->phys_address) {
+                    print("allocate folio failed\n");
+                    read_pages = i;
+                    break;
+                }
+            }
         }
 
         memcpy(get_phys_address(*dest_p), get_phys_address(*src_p), PAGE_SIZE);
@@ -2549,7 +2559,7 @@ size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
     sect.cache.unpin(page_num, pinned_pages);
 
-    return pinned_pages;
+    return read_pages;
 }
 
 size_t mapping_section::flush_cache(uint64_t page_num, uint64_t num_pages) {
