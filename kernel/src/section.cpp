@@ -343,6 +343,16 @@ nt_status section::load_image() {
                 p = cache.find_page_cache_entry(0);
             else
                 p = cache.next_page_cache_entry(*p);
+
+            if (p->phys_address == 0) {
+                p->phys_address = allocate_folio(0);
+                if (!p->phys_address) {
+                    print("allocate_folio failed\n");
+                    free(pages_protection);
+                    pages_protection = nullptr;
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                }
+            }
         }
 
         memcpy(get_phys_address(*p), buf + (i << PAGE_SHIFT), to_copy);
@@ -360,6 +370,16 @@ nt_status section::load_image() {
             lock_guard lg(cache.cache_lock);
 
             p = cache.next_page_cache_entry(*p);
+
+            if (p->phys_address == 0) {
+                p->phys_address = allocate_folio(0);
+                if (!p->phys_address) {
+                    print("allocate_folio failed\n");
+                    free(pages_protection);
+                    pages_protection = nullptr;
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                }
+            }
         }
 
         memset(get_phys_address(*p), 0, PAGE_SIZE);
