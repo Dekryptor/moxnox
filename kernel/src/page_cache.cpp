@@ -532,6 +532,8 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
 }
 
 void* get_phys_address(const page_cache_entry& ent) {
+    assert(ent.phys_address != 0);
+
     return phys_address(ent.phys_address);
 }
 
