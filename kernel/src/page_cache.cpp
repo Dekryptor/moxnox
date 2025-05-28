@@ -265,12 +265,20 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
 
             assert(ent->tree.key == first_page + i);
 
+            if (ent->phys_address == 0) {
+                ent->phys_address = allocate_folio(0);
+                if (!ent->phys_address) {
+                    print("allocate_folio failed\n");
+                    return false;
+                }
+            }
+
             auto ent_va = get_phys_address(*ent);
 
             memcpy(ent_va, data.data() + (i << PAGE_SHIFT), PAGE_SIZE);
 
             ent->status = page_cache_status::dirty;
-            ent->refcount--; // unpin (FIXME - not safe if cache entries being dropped)
+            ent->refcount--;
         }
     }
 
