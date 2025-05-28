@@ -2571,6 +2571,14 @@ size_t mapping_vm::read_into_cache(uint64_t page_num, uint64_t num_pages) {
                 p = cache.find_page_cache_entry(page_num);
             else
                 p = cache.next_page_cache_entry(*p);
+
+            if (p->phys_address == 0) {
+                p->phys_address = allocate_folio(0);
+                if (!p->phys_address) {
+                    print("allocate folio failed\n");
+                    return i;
+                }
+            }
         }
 
         memset(get_phys_address(*p), 0, PAGE_SIZE);
