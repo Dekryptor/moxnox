@@ -185,9 +185,9 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     return true;
 }
 
-static bool allocate_peb(process& proc, uintptr_t base_address, HANDLE stdinh,
-                         HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
-                         string_view curdir, string_view fn) {
+static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
+                         HANDLE stderrh, HANDLE curdirh, string_view curdir,
+                         string_view fn) {
     static const auto num_pages = bytes_to_pages(sizeof(PEB));
 
     size_t peb_size = sizeof(PEB);
@@ -216,7 +216,7 @@ static bool allocate_peb(process& proc, uintptr_t base_address, HANDLE stdinh,
 
     auto& ks_peb = *(PEB*)va;
 
-    ks_peb.ImageBaseAddress = (void*)base_address;
+    ks_peb.ImageBaseAddress = (void*)proc.img_addr;
     ks_peb.ProcessParameters = proc.proc_params;
 
     for (unsigned int i = 0; i < num_pages; i++) {
@@ -377,7 +377,7 @@ object_ref create_process(string_view fn, string_view curdir,
 
     curdir_file->release();
 
-    if (!allocate_peb(p, p.img_addr, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
+    if (!allocate_peb(p, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
         print("allocate_peb failed\n");
         p.release();
         return {};
@@ -2107,7 +2107,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     // FIXME - map time page into process
 
-    if (!allocate_peb(p, p.img_addr, 0, 0, 0, 0, "", string_view(img.name, img.namelen))) {
+    if (!allocate_peb(p, 0, 0, 0, 0, "", string_view(img.name, img.namelen))) {
         print("allocate_peb failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
