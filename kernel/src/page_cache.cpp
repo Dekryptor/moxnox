@@ -252,12 +252,12 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
 
     // copy pages and set status to dirty
 
-    {
-        page_cache_entry* ent;
+    page_cache_entry* ent;
 
-        lock_guard lg(cache_lock);
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache_lock);
 
-        for (uint64_t i = 0; i < num_pages; i++) {
             if (i == 0)
                 ent = find_page_cache_entry(first_page);
             else
@@ -270,7 +270,7 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
             memcpy(ent_va, data.data() + (i << PAGE_SHIFT), PAGE_SIZE);
 
             ent->status = page_cache_status::dirty;
-            ent->refcount--; // unpin
+            ent->refcount--; // unpin (FIXME - not safe if cache entries being dropped)
         }
     }
 
