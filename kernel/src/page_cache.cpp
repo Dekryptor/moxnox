@@ -22,7 +22,7 @@ static void free_cache_entry(rbtree_node<uint64_t>* tree) {
     if (tree->right)
         free_cache_entry(tree->right);
 
-    if (r.status != page_cache_status::allocated)
+    if (r.phys_address != 0)
         free_folio(r.phys_address);
 
     free(&r);
