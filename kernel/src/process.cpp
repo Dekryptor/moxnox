@@ -656,21 +656,50 @@ fail:
 }
 
 static bool populate_teb(process& proc, thread& t) {
-    static const auto num_pages = bytes_to_pages(sizeof(TEB));
+    static const auto num_pages = 1; // only care about first page
 
-    auto va = allocate_va(num_pages);
-    if (!va) {
-        print("allocate_va failed\n");
+    static_assert(offsetof(TEB, NtTib.Self) >> PAGE_SHIFT == 0);
+    static_assert(offsetof(TEB, ProcessEnvironmentBlock) >> PAGE_SHIFT == 0);
+
+    // we're assuming that TEB lives at the beginning of a page
+    assert(!((uintptr_t)t.teb & (PAGE_SIZE - 1)));
+
+    auto pm = find_mapping(proc, (uintptr_t)t.teb);
+    if (!pm) {
+        print("populate_teb: find_mapping failed\n");
         return false;
     }
 
-    if (!proc.map_to_kernel_space(t.teb, (void*)va, num_pages)) {
-        print("map_to_kernel_space failed\n");
-        free_va(va, num_pages);
+    auto& m = *pm;
+    uint64_t first_page = ((uintptr_t)t.teb - m.address) >> PAGE_SHIFT;
+
+    if (!m.cache.pin(first_page, num_pages, nullptr)) {
+        print("populate_teb: page_cache::pin failed\n");
         return false;
     }
 
-    auto& teb = *(TEB*)va;
+    // FIXME - setup cache for writing
+
+    page_cache_entry* p;
+
+    {
+        lock_guard lg(m.cache.cache_lock);
+        p = m.cache.find_page_cache_entry(first_page);
+
+        if (p->phys_address == 0) {
+            p->phys_address = allocate_folio(0);
+            if (p->phys_address)
+                p->status = page_cache_status::clean; // FIXME - or dirty?
+        }
+    }
+
+    if (p->phys_address == 0) {
+        print("allocate_folio failed\n");
+        m.cache.unpin(first_page, num_pages);
+        return false;
+    }
+
+    auto& teb = *(TEB*)get_phys_address(*p);
 
     teb.NtTib.Self = &t.teb->NtTib;
     // FIXME - StackBase
@@ -678,11 +707,7 @@ static bool populate_teb(process& proc, thread& t) {
     // FIXME - ClientId
     teb.ProcessEnvironmentBlock = proc.peb;
 
-    for (unsigned int i = 0; i < num_pages; i++) {
-        unmap_page(va + (i << PAGE_SHIFT));
-    }
-
-    free_va(va, num_pages);
+    m.cache.unpin(first_page, num_pages);
 
     return true;
 }
