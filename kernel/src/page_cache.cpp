@@ -51,13 +51,7 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     p->tree.key = page_num;
     p->refcount = 1;
     p->status = page_cache_status::allocated;
-    p->phys_address = allocate_page();
-
-    if (!p->phys_address) {
-        print("allocate_page failed\n");
-        delete p;
-        return nullptr;
-    }
+    p->phys_address = 0;
 
     return p;
 }
