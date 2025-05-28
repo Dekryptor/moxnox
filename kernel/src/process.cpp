@@ -185,6 +185,24 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     return true;
 }
 
+static mapping* find_mapping(process& proc, uint64_t address) {
+    address &= ~(PAGE_SIZE - 1);
+
+    // auto orig_ks = ks;
+    // lock_guard lock(mappings_lock);
+
+    for (auto le = proc.mappings.next; le != &proc.mappings; le = le->next) {
+        auto& m = containing_record<mapping>(le);
+
+        if (m.address <= address && m.address + m.size > address)
+            return &m;
+        else if (m.address > address)
+            break;
+    }
+
+    return nullptr;
+}
+
 static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
                          HANDLE stderrh, HANDLE curdirh, string_view curdir,
                          string_view fn) {
@@ -202,28 +220,47 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
         return false;
     }
 
-    auto va = allocate_va(num_pages);
-    if (!va) {
-        print("allocate_va failed\n");
+    auto pm = find_mapping(proc, (uintptr_t)proc.peb);
+    if (!pm) {
+        print("allocate_peb: find_mapping failed\n");
         return false;
     }
 
-    if (!proc.map_to_kernel_space(proc.peb, (void*)va, num_pages)) {
-        print("map_to_kernel_space failed\n");
-        free_va(va, num_pages);
+    auto& m = *pm;
+    uint64_t first_page = ((uintptr_t)proc.peb - m.address) >> PAGE_SHIFT;
+
+    if (!m.cache.pin(first_page, num_pages, nullptr)) {
+        print("allocate_peb: page_cache::pin failed\n");
         return false;
     }
 
-    auto& ks_peb = *(PEB*)va;
+    // FIXME - setup cache for writing
+
+    page_cache_entry* p;
+
+    {
+        lock_guard lg(m.cache.cache_lock);
+        p = m.cache.find_page_cache_entry(first_page);
+
+        if (p->phys_address == 0) {
+            p->phys_address = allocate_folio(0);
+            if (p->phys_address)
+                p->status = page_cache_status::clean; // FIXME - or dirty?
+        }
+    }
+
+    if (p->phys_address == 0) {
+        print("allocate_folio failed\n");
+        m.cache.unpin(first_page, num_pages);
+        return false;
+    }
+
+    auto& ks_peb = *(PEB*)get_phys_address(*p);
 
     ks_peb.ImageBaseAddress = (void*)proc.img_addr;
     ks_peb.ProcessParameters = proc.proc_params;
 
-    for (unsigned int i = 0; i < num_pages; i++) {
-        unmap_page(va + (i << PAGE_SHIFT));
-    }
-
-    free_va(va, num_pages);
+    m.cache.unpin(first_page, num_pages);
 
     return true;
 }
