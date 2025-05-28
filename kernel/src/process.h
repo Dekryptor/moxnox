@@ -22,8 +22,6 @@ public:
     uintptr_t map_section(section& sect, uintptr_t address);
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
     bool allocate_cr3();
-    bool allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh,
-                      HANDLE curdirh, std::string_view curdir, std::string_view fn);
     bool copy_from(void* ks_addr, const void* us_addr, size_t size);
     bool copy_to(void* us_addr, const void* ks_addr, size_t size);
     void terminate();

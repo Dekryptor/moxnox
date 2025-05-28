@@ -89,6 +89,145 @@ static const size_t MAX_PATH = 260;
 
 // FIXME - 32-bit processes
 
+static size_t dos_path_len(string_view s) {
+    // FIXME - resolve paths to DOS paths properly
+
+    auto len = utf8_to_utf16_len(s);
+
+    len += 2; // for "C:"
+
+    return len;
+}
+
+static void create_dos_path(span<char16_t> buf, string_view s) {
+    // FIXME - resolve paths to DOS paths properly
+
+    if (!buf.empty()) {
+        buf[0] = 'C';
+        buf = buf.subspan(1);
+    }
+
+    if (!buf.empty()) {
+        buf[0] = ':';
+        buf = buf.subspan(1);
+    }
+
+    utf8_to_utf16(buf, s);
+
+    for (auto& c : buf) {
+        if (c == '/')
+            c = '\\';
+    }
+}
+
+static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
+                                 string_view curdir, string_view fn) {
+    // FIXME - also include space for command line, environment, etc.
+
+    auto curdir_len = dos_path_len(curdir);
+    auto fn_len = dos_path_len(fn);
+
+    size_t size;
+
+    size = sizeof(RTL_USER_PROCESS_PARAMETERS);
+    size += MAX_PATH * sizeof(char16_t);
+    size += (fn_len + 1) * sizeof(char16_t);
+
+    if (auto status = proc.allocate_vm((void**)&proc.proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write); !success(status)) {
+        print("process::allocate_vm returned {}\n", status);
+        return false;
+    }
+
+    auto num_pages = bytes_to_pages(size);
+
+    auto va = allocate_va(num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return false;
+    }
+
+    if (!proc.map_to_kernel_space(proc.proc_params, (void*)va, num_pages)) {
+        print("map_to_kernel_space failed\n");
+        free_va(va, num_pages);
+        return false;
+    }
+
+    auto& ks_proc_params = *(RTL_USER_PROCESS_PARAMETERS*)va;
+
+    ks_proc_params.StandardInput = stdinh;
+    ks_proc_params.StandardOutput = stdouth;
+    ks_proc_params.StandardError = stderrh;
+    ks_proc_params.CurrentDirectory.Handle = curdirh;
+
+    ks_proc_params.CurrentDirectory.DosPath.Length = (uint16_t)(min(MAX_PATH, curdir_len) * sizeof(char16_t));
+    ks_proc_params.CurrentDirectory.DosPath.MaximumLength = MAX_PATH * sizeof(char16_t);
+    ks_proc_params.CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc.proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
+
+    auto ks_dos_path = span((char16_t*)((size_t)((uint8_t*)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uint8_t*)proc.proc_params) + va),
+                            ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
+    create_dos_path(ks_dos_path, curdir);
+
+    ks_proc_params.ImagePathName.Length = (uint16_t)(fn_len * sizeof(char16_t));
+    ks_proc_params.ImagePathName.MaximumLength = ks_proc_params.ImagePathName.Length + sizeof(char16_t);
+    ks_proc_params.ImagePathName.Buffer = ks_proc_params.CurrentDirectory.DosPath.Buffer +
+        (ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
+
+    auto ks_fn_path = span((char16_t*)((size_t)((uint8_t*)ks_proc_params.ImagePathName.Buffer - (uint8_t*)proc.proc_params) + va),
+                            ks_proc_params.ImagePathName.MaximumLength / sizeof(char16_t));
+    create_dos_path(ks_fn_path, fn);
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        unmap_page(va + (i << PAGE_SHIFT));
+    }
+
+    free_va(va, num_pages);
+
+    return true;
+}
+
+static bool allocate_peb(process& proc, uintptr_t base_address, HANDLE stdinh,
+                         HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
+                         string_view curdir, string_view fn) {
+    static const auto num_pages = bytes_to_pages(sizeof(PEB));
+
+    size_t peb_size = sizeof(PEB);
+
+    if (!allocate_proc_params(proc, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
+        print("allocate_proc_params failed\n");
+        return false;
+    }
+
+    if (!success(proc.allocate_vm((void**)&proc.peb, 0, &peb_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
+        print("process::allocate_vm failed\n");
+        return false;
+    }
+
+    auto va = allocate_va(num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return false;
+    }
+
+    if (!proc.map_to_kernel_space(proc.peb, (void*)va, num_pages)) {
+        print("map_to_kernel_space failed\n");
+        free_va(va, num_pages);
+        return false;
+    }
+
+    auto& ks_peb = *(PEB*)va;
+
+    ks_peb.ImageBaseAddress = (void*)base_address;
+    ks_peb.ProcessParameters = proc.proc_params;
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        unmap_page(va + (i << PAGE_SHIFT));
+    }
+
+    free_va(va, num_pages);
+
+    return true;
+}
+
 object_ref create_process(string_view fn, string_view curdir,
                           object_ref& stdinobj, object_ref& stdoutobj,
                           object_ref& stderrobj) {
@@ -238,8 +377,8 @@ object_ref create_process(string_view fn, string_view curdir,
 
     curdir_file->release();
 
-    if (!p.allocate_peb(p.img_addr, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
-        print("process::allocate_peb failed\n");
+    if (!allocate_peb(p, p.img_addr, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
+        print("allocate_peb failed\n");
         p.release();
         return {};
     }
@@ -1491,144 +1630,6 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     return true;
 }
 
-static size_t dos_path_len(string_view s) {
-    // FIXME - resolve paths to DOS paths properly
-
-    auto len = utf8_to_utf16_len(s);
-
-    len += 2; // for "C:"
-
-    return len;
-}
-
-static void create_dos_path(span<char16_t> buf, string_view s) {
-    // FIXME - resolve paths to DOS paths properly
-
-    if (!buf.empty()) {
-        buf[0] = 'C';
-        buf = buf.subspan(1);
-    }
-
-    if (!buf.empty()) {
-        buf[0] = ':';
-        buf = buf.subspan(1);
-    }
-
-    utf8_to_utf16(buf, s);
-
-    for (auto& c : buf) {
-        if (c == '/')
-            c = '\\';
-    }
-}
-
-static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
-                                 string_view curdir, string_view fn) {
-    // FIXME - also include space for command line, environment, etc.
-
-    auto curdir_len = dos_path_len(curdir);
-    auto fn_len = dos_path_len(fn);
-
-    size_t size;
-
-    size = sizeof(RTL_USER_PROCESS_PARAMETERS);
-    size += MAX_PATH * sizeof(char16_t);
-    size += (fn_len + 1) * sizeof(char16_t);
-
-    if (auto status = proc.allocate_vm((void**)&proc.proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write); !success(status)) {
-        print("process::allocate_vm returned {}\n", status);
-        return false;
-    }
-
-    auto num_pages = bytes_to_pages(size);
-
-    auto va = allocate_va(num_pages);
-    if (!va) {
-        print("allocate_va failed\n");
-        return false;
-    }
-
-    if (!proc.map_to_kernel_space(proc.proc_params, (void*)va, num_pages)) {
-        print("map_to_kernel_space failed\n");
-        free_va(va, num_pages);
-        return false;
-    }
-
-    auto& ks_proc_params = *(RTL_USER_PROCESS_PARAMETERS*)va;
-
-    ks_proc_params.StandardInput = stdinh;
-    ks_proc_params.StandardOutput = stdouth;
-    ks_proc_params.StandardError = stderrh;
-    ks_proc_params.CurrentDirectory.Handle = curdirh;
-
-    ks_proc_params.CurrentDirectory.DosPath.Length = (uint16_t)(min(MAX_PATH, curdir_len) * sizeof(char16_t));
-    ks_proc_params.CurrentDirectory.DosPath.MaximumLength = MAX_PATH * sizeof(char16_t);
-    ks_proc_params.CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc.proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
-
-    auto ks_dos_path = span((char16_t*)((size_t)((uint8_t*)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uint8_t*)proc.proc_params) + va),
-                            ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
-    create_dos_path(ks_dos_path, curdir);
-
-    ks_proc_params.ImagePathName.Length = (uint16_t)(fn_len * sizeof(char16_t));
-    ks_proc_params.ImagePathName.MaximumLength = ks_proc_params.ImagePathName.Length + sizeof(char16_t);
-    ks_proc_params.ImagePathName.Buffer = ks_proc_params.CurrentDirectory.DosPath.Buffer +
-        (ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
-
-    auto ks_fn_path = span((char16_t*)((size_t)((uint8_t*)ks_proc_params.ImagePathName.Buffer - (uint8_t*)proc.proc_params) + va),
-                            ks_proc_params.ImagePathName.MaximumLength / sizeof(char16_t));
-    create_dos_path(ks_fn_path, fn);
-
-    for (unsigned int i = 0; i < num_pages; i++) {
-        unmap_page(va + (i << PAGE_SHIFT));
-    }
-
-    free_va(va, num_pages);
-
-    return true;
-}
-
-bool process::allocate_peb(uintptr_t base_address, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh,
-                           HANDLE curdirh, string_view curdir, string_view fn) {
-    static const auto num_pages = bytes_to_pages(sizeof(PEB));
-
-    size_t peb_size = sizeof(PEB);
-
-    if (!allocate_proc_params(*this, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
-        print("process::allocate_proc_params failed\n");
-        return false;
-    }
-
-    if (!success(allocate_vm((void**)&peb, 0, &peb_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
-        print("process::allocate_vm failed\n");
-        return false;
-    }
-
-    auto va = allocate_va(num_pages);
-    if (!va) {
-        print("allocate_va failed\n");
-        return false;
-    }
-
-    if (!map_to_kernel_space(peb, (void*)va, num_pages)) {
-        print("map_to_kernel_space failed\n");
-        free_va(va, num_pages);
-        return false;
-    }
-
-    auto& ks_peb = *(PEB*)va;
-
-    ks_peb.ImageBaseAddress = (void*)base_address;
-    ks_peb.ProcessParameters = proc_params;
-
-    for (unsigned int i = 0; i < num_pages; i++) {
-        unmap_page(va + (i << PAGE_SHIFT));
-    }
-
-    free_va(va, num_pages);
-
-    return true;
-}
-
 object_ref process::deref_handle(handle_t h) {
     if (h == NtCurrentProcess()) {
         this->acquire();
@@ -2106,8 +2107,8 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     // FIXME - map time page into process
 
-    if (!p.allocate_peb(p.img_addr, 0, 0, 0, 0, "", string_view(img.name, img.namelen))) {
-        print("process::allocate_peb failed\n");
+    if (!allocate_peb(p, p.img_addr, 0, 0, 0, 0, "", string_view(img.name, img.namelen))) {
+        print("allocate_peb failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
     }
