@@ -516,6 +516,16 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
                 dest_p = cache.find_page_cache_entry(page_num);
             else
                 dest_p = cache.next_page_cache_entry(*dest_p);
+
+            if (dest_p->phys_address == 0) {
+                auto pa = allocate_folio(0);
+                if (!pa) {
+                    pages_read = i;
+                    break;
+                }
+
+                dest_p->phys_address = pa;
+            }
         }
 
         {
