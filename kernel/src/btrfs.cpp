@@ -2717,6 +2717,7 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
     // FIXME - can we steal pages?
 
     page_cache_entry* dest_p;
+    size_t ret = pages_read;
 
     for (uint64_t i = 0; i < pages_read; i++) {
         page_cache_entry* src_p;
@@ -2728,6 +2729,15 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
                 dest_p = cache.find_page_cache_entry(page_num);
             else
                 dest_p = cache.next_page_cache_entry(*dest_p);
+
+            if (dest_p->phys_address == 0) {
+                dest_p->phys_address = allocate_folio(0);
+                if (!dest_p->phys_address) {
+                    print("allocate_folio failed\n");
+                    ret = i;
+                    break;
+                }
+            }
         }
 
         // FIXME - find next entry rather than doing complete lookup(?)
@@ -2747,7 +2757,7 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
     // FIXME - check csums
     // FIXME - read from another copy (and replace) if csum is bad
 
-    return pages_read;
+    return ret;
 }
 
 size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
