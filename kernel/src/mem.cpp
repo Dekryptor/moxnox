@@ -1906,3 +1906,17 @@ export constexpr uint8_t bytes_to_folio_order(size_t s) {
 
     return (uint8_t)(32 - countl_zero(p - 1));
 }
+
+export void increase_page_refcount(uint64_t pfn) {
+    auto& p = pages[pfn];
+
+    // FIXME - can we avoid global spinlock?
+
+    {
+        lock_guard lock(pa_spinlock);
+
+        assert(p.state == page_state::used);
+
+        p.used.refcount++;
+    }
+}
