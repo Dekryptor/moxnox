@@ -344,9 +344,12 @@ nt_status section::load_image() {
             else
                 p = cache.next_page_cache_entry(*p);
 
-            if (p->phys_address == 0) {
-                p->phys_address = allocate_folio(0);
-                if (!p->phys_address) {
+            if (p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                if (!p->pfn) {
                     print("allocate_folio failed\n");
                     free(pages_protection);
                     pages_protection = nullptr;
@@ -371,9 +374,12 @@ nt_status section::load_image() {
 
             p = cache.next_page_cache_entry(*p);
 
-            if (p->phys_address == 0) {
-                p->phys_address = allocate_folio(0);
-                if (!p->phys_address) {
+            if (p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                if (!p->pfn) {
                     print("allocate_folio failed\n");
                     free(pages_protection);
                     pages_protection = nullptr;
@@ -670,7 +676,7 @@ uint64_t section::find_export(string_view name) {
                 p = cache.next_page_cache_entry(*p);
         }
 
-        if (!map_page(p->phys_address, va + (i << PAGE_SHIFT), mapping_type::read_only)) {
+        if (!map_page(p->pfn << PAGE_SHIFT, va + (i << PAGE_SHIFT), mapping_type::read_only)) {
             print("map_page failed\n");
             for (unsigned int j = 0; j < i; j++) {
                 unmap_page(va + (j << PAGE_SHIFT));
@@ -971,9 +977,12 @@ size_t section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
                     else
                         p = cache.next_page_cache_entry(*p);
 
-                    if (p->phys_address == 0) {
-                        p->phys_address = allocate_folio(0);
-                        if (!p->phys_address) {
+                    if (p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                        p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                        if (!p->pfn) {
                             print("allocate_folio failed\n");
                             read_pages = i;
                             break;

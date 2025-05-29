@@ -185,14 +185,17 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
         lock_guard lg(m.cache.cache_lock);
         p = m.cache.find_page_cache_entry(first_page);
 
-        if (p->phys_address == 0) {
-            p->phys_address = allocate_folio(0);
-            if (p->phys_address)
+        if (p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+            if (p->pfn)
                 p->status = page_cache_status::clean; // FIXME - or dirty?
         }
     }
 
-    if (p->phys_address == 0) {
+    if (p->pfn == 0) {
         print("allocate_folio failed\n");
         m.cache.unpin(first_page, num_pages);
         return false;
@@ -296,14 +299,17 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
         lock_guard lg(m.cache.cache_lock);
         p = m.cache.find_page_cache_entry(first_page);
 
-        if (p->phys_address == 0) {
-            p->phys_address = allocate_folio(0);
-            if (p->phys_address)
+        if (p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+            if (p->pfn)
                 p->status = page_cache_status::clean; // FIXME - or dirty?
         }
     }
 
-    if (p->phys_address == 0) {
+    if (p->pfn == 0) {
         print("allocate_folio failed\n");
         m.cache.unpin(first_page, num_pages);
         return false;
@@ -682,14 +688,17 @@ static bool populate_teb(process& proc, thread& t) {
         lock_guard lg(m.cache.cache_lock);
         p = m.cache.find_page_cache_entry(first_page);
 
-        if (p->phys_address == 0) {
-            p->phys_address = allocate_folio(0);
-            if (p->phys_address)
+        if (p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+            if (p->pfn)
                 p->status = page_cache_status::clean; // FIXME - or dirty?
         }
     }
 
-    if (p->phys_address == 0) {
+    if (p->pfn == 0) {
         print("allocate_folio failed\n");
         m.cache.unpin(first_page, num_pages);
         return false;
@@ -1560,7 +1569,7 @@ bool mapping_vm::map(uint32_t offset, uint64_t va) {
         p = cache.find_page_cache_entry(page_num);
     }
 
-    if (!map_page(p->phys_address, va, pages_info[page_num].protection)) {
+    if (!map_page(p->pfn << PAGE_SHIFT, va, pages_info[page_num].protection)) {
         cache.unpin(page_num, 1);
         return false;
     }
@@ -1978,7 +1987,7 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
         p = cache.find_page_cache_entry(page_num);
     }
 
-    auto ret = map_page(p->phys_address, va, prot);
+    auto ret = map_page(p->pfn << PAGE_SHIFT, va, prot);
 
     cache.unpin(page_num, 1); // FIXME?
 
@@ -2588,9 +2597,12 @@ size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
             else
                 dest_p = cache.next_page_cache_entry(*dest_p);
 
-            if (dest_p->phys_address == 0) {
-                dest_p->phys_address = allocate_folio(0);
-                if (!dest_p->phys_address) {
+            if (dest_p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                if (!dest_p->pfn) {
                     print("allocate folio failed\n");
                     read_pages = i;
                     break;
@@ -2627,9 +2639,12 @@ size_t mapping_vm::read_into_cache(uint64_t page_num, uint64_t num_pages) {
             else
                 p = cache.next_page_cache_entry(*p);
 
-            if (p->phys_address == 0) {
-                p->phys_address = allocate_folio(0);
-                if (!p->phys_address) {
+            if (p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                if (!p->pfn) {
                     print("allocate folio failed\n");
                     return i;
                 }

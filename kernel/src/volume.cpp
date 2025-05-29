@@ -397,14 +397,17 @@ uint64_t volume::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         else
             p = cache.next_page_cache_entry(*p);
 
-        if (p->phys_address == 0) {
+        if (p->pfn == 0) {
             auto pa = allocate_folio(0);
             if (!pa) {
                 print("allocate_folio failed\n");
                 return 0;
             }
 
-            p->phys_address = pa;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            p->pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
         }
     }
 

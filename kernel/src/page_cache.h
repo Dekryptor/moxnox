@@ -1,5 +1,7 @@
 #pragma once
 
+import config;
+
 enum class page_cache_status {
     allocated,
     clean,
@@ -10,7 +12,10 @@ struct page_cache_entry {
     rbtree_node<uint64_t> tree;
     std::atomic<uint32_t> refcount;
     enum page_cache_status status;
-    uint64_t phys_address;
+    struct {
+        uint64_t reserved : 12;
+        uint64_t pfn : 52;
+    };
 };
 
 class cacheable;
@@ -70,7 +75,7 @@ struct page_cache_iterator : public pfn_iterator {
     }
 
     uint64_t operator*() const override {
-        return p->phys_address;
+        return p->pfn << PAGE_SHIFT;
     }
 
     page_cache_iterator& operator++() override {

@@ -22,8 +22,8 @@ static void free_cache_entry(rbtree_node<uint64_t>* tree) {
     if (tree->right)
         free_cache_entry(tree->right);
 
-    if (r.phys_address != 0)
-        free_folio(r.phys_address);
+    if (r.pfn != 0)
+        free_folio(r.pfn << PAGE_SHIFT);
 
     free(&r);
 }
@@ -51,7 +51,7 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     p->tree.key = page_num;
     p->refcount = 1;
     p->status = page_cache_status::allocated;
-    p->phys_address = 0;
+    p->pfn = 0;
 
     return p;
 }
@@ -265,9 +265,12 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
 
             assert(ent->tree.key == first_page + i);
 
-            if (ent->phys_address == 0) {
-                ent->phys_address = allocate_folio(0);
-                if (!ent->phys_address) {
+            if (ent->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                ent->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                if (!ent->pfn) {
                     print("allocate_folio failed\n");
                     return false;
                 }
@@ -540,9 +543,9 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
 }
 
 void* get_phys_address(const page_cache_entry& ent) {
-    assert(ent.phys_address != 0);
+    assert(ent.pfn != 0);
 
-    return phys_address(ent.phys_address);
+    return phys_address(ent.pfn << PAGE_SHIFT);
 }
 
 page_cache_entry* page_cache::next_page_cache_entry(const page_cache_entry& ent) {

@@ -517,14 +517,17 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
             else
                 dest_p = cache.next_page_cache_entry(*dest_p);
 
-            if (dest_p->phys_address == 0) {
+            if (dest_p->pfn == 0) {
                 auto pa = allocate_folio(0);
                 if (!pa) {
                     pages_read = i;
                     break;
                 }
 
-                dest_p->phys_address = pa;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                dest_p->pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
             }
         }
 
@@ -2730,9 +2733,12 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
             else
                 dest_p = cache.next_page_cache_entry(*dest_p);
 
-            if (dest_p->phys_address == 0) {
-                dest_p->phys_address = allocate_folio(0);
-                if (!dest_p->phys_address) {
+            if (dest_p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                if (!dest_p->pfn) {
                     print("allocate_folio failed\n");
                     ret = i;
                     break;
