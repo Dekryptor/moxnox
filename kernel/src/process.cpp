@@ -852,17 +852,8 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
             if (m.address <= (uintptr_t)us_addr && m.address + m.size > (uintptr_t)us_addr) {
                 auto to_copy = min(size, m.address + m.size - (uintptr_t)us_addr);
 
-                switch (m.type) {
-                    case proc_map_type::section:
-                        if (!static_cast<mapping_section&>(m).copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
-                            return false;
-                        break;
-
-                    case proc_map_type::vm:
-                        if (!static_cast<mapping_vm&>(m).copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
-                            return false;
-                        break;
-                }
+                if (!m.copy_to((uint32_t)((uintptr_t)us_addr - m.address), ks_addr, (uint32_t)to_copy))
+                    return false;
 
                 if (size == to_copy)
                     return true;
