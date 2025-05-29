@@ -80,7 +80,7 @@ class mapping_vm : public mapping {
 public:
     mapping_vm(unsigned int num_pages);
     virtual ~mapping_vm();
-    bool map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot);
+    bool map(uint32_t offset, uint64_t va);
     NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -757,7 +757,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                         if (ec.present)
                             return false;
 
-                        return static_cast<mapping_vm&>(m).map((uint32_t)(address - m.address), address, nullopt);
+                        return static_cast<mapping_vm&>(m).map((uint32_t)(address - m.address), address);
                 }
             }
 
@@ -1542,7 +1542,7 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
     return p->free_vm(base_address, region_size, free_type);
 }
 
-bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> prot) {
+bool mapping_vm::map(uint32_t offset, uint64_t va) {
     uint64_t page_num = offset >> PAGE_SHIFT;
 
     lock_guard l(lock);
@@ -1560,7 +1560,7 @@ bool mapping_vm::map(uint32_t offset, uint64_t va, optional<enum mapping_type> p
         p = cache.find_page_cache_entry(page_num);
     }
 
-    if (!map_page(p->phys_address, va, prot ? *prot : pages_info[page_num].protection)) {
+    if (!map_page(p->phys_address, va, pages_info[page_num].protection)) {
         cache.unpin(page_num, 1);
         return false;
     }
