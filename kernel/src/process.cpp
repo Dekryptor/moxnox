@@ -1634,16 +1634,36 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
 
-    // FIXME - don't need to read pages that we're overwriting fully
-    auto pinned_pages = cache.read_into_cache_and_pin(page_num, num_pages);
-
-    // FIXME - COWing
-    if (pinned_pages < num_pages) {
-        print("section::copy_to: read_into_cache_and_pin returned {}, expected {}\n",
-              pinned_pages, num_pages);
-        cache.unpin(page_num, pinned_pages);
+    if (!cache.pin(page_num, num_pages, nullptr)) {
+        print("mapping::copy_to: page_cache::pin failed\n");
         return false;
     }
+
+    // read first page if needed
+    if (offset & (PAGE_SIZE - 1)) {
+        // FIXME - easy way to do this without pinning again?
+        if (!cache.read_into_cache_and_pin(page_num, 1)) {
+            print("mapping::copy_to: page_cache::read_into_cache_and_pin failed\n");
+            cache.unpin(page_num, num_pages);
+            return false;
+        }
+
+        cache.unpin(page_num, 1);
+    }
+
+    // read last page if needed
+    if ((offset + size) & (PAGE_SIZE - 1) && (num_pages != 1 || !(offset & (PAGE_SIZE - 1)))) {
+        // FIXME - easy way to do this without pinning again?
+        if (!cache.read_into_cache_and_pin(page_num + num_pages - 1, 1)) {
+            print("mapping::copy_to: page_cache::read_into_cache_and_pin failed\n");
+            cache.unpin(page_num, num_pages);
+            return false;
+        }
+
+        cache.unpin(page_num + num_pages - 1, 1);
+    }
+
+    // FIXME - COWing
 
     page_cache_entry* p;
 
@@ -1655,6 +1675,21 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 p = cache.find_page_cache_entry(page_num);
             else
                 p = cache.next_page_cache_entry(*p);
+
+            if (p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                if (p->pfn)
+                    p->status = page_cache_status::clean; // FIXME - or dirty?
+            }
+        }
+
+        if (!p->pfn) {
+            print("allocate_folio failed\n");
+            cache.unpin(page_num, num_pages);
+            return false;
         }
 
         uint32_t to_copy, page_off;
