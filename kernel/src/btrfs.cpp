@@ -2682,6 +2682,19 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
                 dest_p = cache.find_page_cache_entry(page_num);
             else
                 dest_p = cache.next_page_cache_entry(*dest_p);
+
+            if (dest_p->pfn == 0) {
+                auto pa = allocate_folio(0);
+                if (!pa) {
+                    print("allocate_folio failed\n");
+                    return i;
+                }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                dest_p->pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+            }
         }
 
         auto dest_va = get_phys_address(*dest_p);
