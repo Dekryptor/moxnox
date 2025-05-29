@@ -51,7 +51,6 @@ public:
     NTSTATUS write_vm(void* base_address, void* buffer, uint32_t buffer_size,
                       uint32_t* number_of_bytes_written);
     object_ref get_stderr();
-    bool map_to_kernel_space(void* us, void* ks, unsigned int num_pages);
     void send_signal(uint64_t code);
 
     bool signalled = false;

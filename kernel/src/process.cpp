@@ -124,9 +124,28 @@ static void create_dos_path(span<char16_t> buf, string_view s) {
     }
 }
 
+static mapping* find_mapping(process& proc, uint64_t address) {
+    address &= ~(PAGE_SIZE - 1);
+
+    lock_guard lock(proc.mappings_lock);
+
+    for (auto le = proc.mappings.next; le != &proc.mappings; le = le->next) {
+        auto& m = containing_record<mapping>(le);
+
+        if (m.address <= address && m.address + m.size > address)
+            return &m;
+        else if (m.address > address)
+            break;
+    }
+
+    return nullptr;
+}
+
 static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
                                  string_view curdir, string_view fn) {
     // FIXME - also include space for command line, environment, etc.
+
+    static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) <= PAGE_SIZE);
 
     auto curdir_len = dos_path_len(curdir);
     auto fn_len = dos_path_len(fn);
@@ -144,19 +163,42 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
 
     auto num_pages = bytes_to_pages(size);
 
-    auto va = allocate_va(num_pages);
-    if (!va) {
-        print("allocate_va failed\n");
+    auto pm = find_mapping(proc, (uintptr_t)proc.proc_params);
+    if (!pm) {
+        print("allocate_proc_params: find_mapping failed\n");
         return false;
     }
 
-    if (!proc.map_to_kernel_space(proc.proc_params, (void*)va, num_pages)) {
-        print("map_to_kernel_space failed\n");
-        free_va(va, num_pages);
+    auto& m = *pm;
+    uint64_t first_page = ((uintptr_t)proc.proc_params - m.address) >> PAGE_SHIFT;
+
+    if (!m.cache.pin(first_page, num_pages, nullptr)) {
+        print("allocate_proc_params: page_cache::pin failed\n");
         return false;
     }
 
-    auto& ks_proc_params = *(RTL_USER_PROCESS_PARAMETERS*)va;
+    // FIXME - setup cache for writing
+
+    page_cache_entry* p;
+
+    {
+        lock_guard lg(m.cache.cache_lock);
+        p = m.cache.find_page_cache_entry(first_page);
+
+        if (p->phys_address == 0) {
+            p->phys_address = allocate_folio(0);
+            if (p->phys_address)
+                p->status = page_cache_status::clean; // FIXME - or dirty?
+        }
+    }
+
+    if (p->phys_address == 0) {
+        print("allocate_folio failed\n");
+        m.cache.unpin(first_page, num_pages);
+        return false;
+    }
+
+    auto& ks_proc_params = *(RTL_USER_PROCESS_PARAMETERS*)get_phys_address(*p);
 
     ks_proc_params.StandardInput = stdinh;
     ks_proc_params.StandardOutput = stdouth;
@@ -167,44 +209,52 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     ks_proc_params.CurrentDirectory.DosPath.MaximumLength = MAX_PATH * sizeof(char16_t);
     ks_proc_params.CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc.proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
 
-    auto ks_dos_path = span((char16_t*)((size_t)((uint8_t*)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uint8_t*)proc.proc_params) + va),
-                            ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
-    create_dos_path(ks_dos_path, curdir);
-
     ks_proc_params.ImagePathName.Length = (uint16_t)(fn_len * sizeof(char16_t));
     ks_proc_params.ImagePathName.MaximumLength = ks_proc_params.ImagePathName.Length + sizeof(char16_t);
     ks_proc_params.ImagePathName.Buffer = ks_proc_params.CurrentDirectory.DosPath.Buffer +
         (ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
 
-    auto ks_fn_path = span((char16_t*)((size_t)((uint8_t*)ks_proc_params.ImagePathName.Buffer - (uint8_t*)proc.proc_params) + va),
-                            ks_proc_params.ImagePathName.MaximumLength / sizeof(char16_t));
-    create_dos_path(ks_fn_path, fn);
-
-    for (unsigned int i = 0; i < num_pages; i++) {
-        unmap_page(va + (i << PAGE_SHIFT));
+    auto dos_path = (char16_t*)malloc(ks_proc_params.CurrentDirectory.DosPath.MaximumLength);
+    if (!dos_path) {
+        print("malloc failed\n");
+        m.cache.unpin(first_page, num_pages);
+        return false;
     }
 
-    free_va(va, num_pages);
+    create_dos_path(span(dos_path, ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t)), curdir);
+
+    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uintptr_t)proc.proc_params),
+                   dos_path, ks_proc_params.CurrentDirectory.DosPath.Length)) {
+        print("mapping::copy_to failed\n");
+        m.cache.unpin(first_page, num_pages);
+        free(dos_path);
+        return false;
+    }
+
+    free(dos_path);
+
+    auto fn_path = (char16_t*)malloc(ks_proc_params.ImagePathName.MaximumLength);
+    if (!fn_path) {
+        print("malloc failed\n");
+        m.cache.unpin(first_page, num_pages);
+        return false;
+    }
+
+    create_dos_path(span(fn_path, ks_proc_params.ImagePathName.MaximumLength / sizeof(char16_t)), fn);
+
+    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params.ImagePathName.Buffer - (uintptr_t)proc.proc_params),
+                   fn_path, ks_proc_params.ImagePathName.Length)) {
+        print("mapping::copy_to failed\n");
+        m.cache.unpin(first_page, num_pages);
+        free(fn_path);
+        return false;
+    }
+
+    free(fn_path);
+
+    m.cache.unpin(first_page, num_pages);
 
     return true;
-}
-
-static mapping* find_mapping(process& proc, uint64_t address) {
-    address &= ~(PAGE_SIZE - 1);
-
-    // auto orig_ks = ks;
-    // lock_guard lock(mappings_lock);
-
-    for (auto le = proc.mappings.next; le != &proc.mappings; le = le->next) {
-        auto& m = containing_record<mapping>(le);
-
-        if (m.address <= address && m.address + m.size > address)
-            return &m;
-        else if (m.address > address)
-            break;
-    }
-
-    return nullptr;
 }
 
 static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
@@ -599,60 +649,6 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
     insert_tail_list(mappings, m->le);
 
     return m->address;
-}
-
-bool process::map_to_kernel_space(void* us, void* ks, unsigned int num_pages) {
-    auto orig_ks = ks;
-    lock_guard lock(mappings_lock);
-
-    auto le = mappings.next;
-    while (le != &mappings) {
-        auto& m = containing_record<mapping>(le);
-
-        if (m.address <= (uintptr_t)us && m.address + m.size > (uintptr_t)us) {
-            auto offset_pages = (uint32_t)(((uintptr_t)us - m.address) >> PAGE_SHIFT);
-            auto map_pages = m.size >> PAGE_SHIFT;
-
-            while (offset_pages < map_pages && num_pages > 0) {
-                bool succeeded;
-
-                switch (m.type) {
-                    case proc_map_type::section:
-                        print("FIXME process::map_to_kernel_space: work with section mappings\n"); // FIXME
-                        succeeded = false;
-                        break;
-
-                    case proc_map_type::vm:
-                        succeeded = static_cast<mapping_vm&>(m).map(offset_pages << PAGE_SHIFT, (uint64_t)ks, mapping_type::read_write);
-                        if (!succeeded)
-                            print("mapping_vm::map failed\n");
-                        break;
-                }
-
-                if (!succeeded)
-                    goto fail;
-
-                offset_pages++;
-                us = (uint8_t*)us + PAGE_SIZE;
-                ks = (uint8_t*)ks + PAGE_SIZE;
-                num_pages--;
-            }
-
-            if (num_pages == 0)
-                return true;
-        } else if ((uint8_t*)m.address > (uint8_t*)us + (num_pages << PAGE_SHIFT))
-            break;
-
-        le = le->next;
-    }
-
-fail:
-    while (orig_ks < ks) {
-        unmap_page((uintptr_t)orig_ks);
-        orig_ks = (uint8_t*)orig_ks + PAGE_SIZE;
-    }
-
-    return false;
 }
 
 static bool populate_teb(process& proc, thread& t) {
