@@ -81,7 +81,8 @@ public:
     mapping_vm(unsigned int num_pages);
     virtual ~mapping_vm();
     bool map(process& proc, uint32_t offset, uint64_t va);
-    NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
+    NTSTATUS commit(process& proc, uint32_t offset, uint32_t commit_size,
+                    enum mapping_type prot);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
@@ -1349,7 +1350,8 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
                     auto to_commit = min(size, m->address + m->size - addr);
 
-                    auto ret = mv.commit((uint32_t)(addr - m->address), (uint32_t)to_commit, protect);
+                    auto ret = mv.commit(*this, (uint32_t)(addr - m->address),
+                                         (uint32_t)to_commit, protect);
                     if (!success(ret))
                         return ret;
 
@@ -2145,8 +2147,12 @@ bool mapping_section::map(uint32_t offset, uint64_t va) {
     return ret;
 }
 
-NTSTATUS mapping_vm::commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot) {
+NTSTATUS mapping_vm::commit(process& proc, uint32_t offset, uint32_t commit_size,
+                            enum mapping_type prot) {
     auto num_pages = commit_size >> PAGE_SHIFT;
+
+    if (!set_page_protection(proc, address + offset, num_pages, prot))
+        return nt_status::INSUFFICIENT_RESOURCES;
 
     lock_guard l(lock);
 
