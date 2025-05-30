@@ -54,7 +54,6 @@ public:
     enum proc_map_type type;
     uint64_t address;
     uint32_t size;
-    spinlock lock;
 };
 
 class mapping_section : public mapping {
@@ -68,7 +67,7 @@ public:
         sect.release();
     }
 
-    bool map(uint32_t offset, uint64_t va);
+    bool map(process& proc, uint32_t offset, uint64_t va);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
@@ -536,6 +535,102 @@ process::~process() {
         free_folio(cr3);
 }
 
+static bool set_page_protection(process& proc, uint64_t va,
+                                uint32_t num_pages, enum mapping_type protect) {
+    span<HARDWARE_PTE> pt[4];
+    uint16_t index[4];
+
+    index[0] = (va & 0x1ff000) >> 12;
+    index[1] = (va & 0x3fe00000) >> 21;
+    index[2] = (va & 0x7fc0000000) >> 30;
+    index[3] = (va & 0xff8000000000) >> 39;
+
+    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+
+    auto redo_level = [&](uint8_t level) -> bool {
+        if (!pt[level][index[level]].p) {
+            uint64_t pa = allocate_page();
+            if (pa == 0)
+                return false;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            pt[level][index[level]].pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+            pt[level][index[level]].p = 1;
+            pt[level][index[level]].w = 1;
+            pt[level][index[level]].u = 1;
+
+            memset(phys_address(pa), 0, PAGE_SIZE);
+        }
+
+        pt[level - 1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
+
+        return true;
+    };
+
+    for (uint8_t level = 3; level > 0; level--) {
+        if (!redo_level(level))
+            return false;
+    }
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (i != 0) {
+            index[0]++;
+
+            if (index[0] == 512) {
+                index[0] = 0;
+                index[1]++;
+
+                if (index[1] == 512) {
+                    index[1] = 0;
+                    index[2]++;
+
+                    if (index[2] == 512) {
+                        index[2] = 0;
+                        index[3]++;
+
+                        redo_level(3);
+                    }
+
+                    redo_level(2);
+                }
+
+                redo_level(1);
+            }
+        }
+
+        auto& pte = pt[0][index[0]];
+
+        pte.p = 0;
+        pte.u = 1;
+
+        switch (protect) {
+            case mapping_type::read_write:
+                pte.xd = 1;
+                pte.w = 1;
+                break;
+
+            case mapping_type::read_execute:
+                pte.xd = 0;
+                pte.w = 0;
+                break;
+
+            case mapping_type::read_write_execute:
+                pte.xd = 0;
+                pte.w = 1;
+                break;
+
+            default:
+                pte.xd = 1;
+                pte.w = 0;
+                break;
+        }
+    }
+
+    return true;
+}
+
 uintptr_t process::map_section(section& sect, uintptr_t address) {
     // FIXME - offset and mapping size
 
@@ -564,49 +659,65 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
     m->size = sect.size;
 
     uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
+    bool inserted = false;
 
-    lock_guard lock(mappings_lock);
+    {
+        lock_guard lock(mappings_lock);
 
-    auto le = mappings.next;
-    while (le != &mappings) {
-        auto& m2 = containing_record<mapping>(le);
+        auto le = mappings.next;
+        while (le != &mappings) {
+            auto& m2 = containing_record<mapping>(le);
 
-        if (address == 0) {
-            if (m2.address > last_addr + m->size) { // insert before
-                m->address = last_addr;
-                insert_head_list(*le->prev, m->le);
-                return m->address;
+            if (address == 0) {
+                if (m2.address > last_addr + m->size) { // insert before
+                    address = last_addr;
+                    m->address = address;
+                    insert_head_list(*le->prev, m->le);
+                    inserted = true;
+                    break;
+                }
+
+                last_addr = m2.address + m2.size;
+            } else {
+                if (m2.address > address + m->size) { // insert before
+                    m->address = address;
+                    insert_head_list(*le->prev, m->le);
+                    inserted = true;
+                    break;
+                }
+
+                if (address < m2.address + m2.size && address + m->size > m2.address) { // collision
+                    print("collision\n");
+                    delete m;
+                    return 0;
+                }
             }
 
-            last_addr = m2.address + m2.size;
-        } else {
-            if (m2.address > address + m->size) { // insert before
-                m->address = address;
-                insert_head_list(*le->prev, m->le);
-                return m->address;
-            }
-
-            if (address < m2.address + m2.size && address + m->size > m2.address) { // collision
-                print("collision\n");
-                delete m;
-                return 0;
-            }
+            le = le->next;
         }
 
-        le = le->next;
-    }
+        if (address == 0) {
+            if (last_addr >= MAX_USERSPACE_ADDRESS - m->size)
+                return 0;
 
-    if (address == 0) {
-        if (last_addr >= MAX_USERSPACE_ADDRESS - m->size)
-            return 0;
+            address = last_addr;
+        }
 
-        m->address = last_addr;
-    } else
         m->address = address;
 
-    insert_tail_list(mappings, m->le);
+        if (!inserted)
+            insert_tail_list(mappings, m->le);
 
-    return m->address;
+        if (!set_page_protection(*this, address, sect.size >> PAGE_SHIFT,
+                                 mapping_type::read_write_execute)) { // FIXME
+            print("set_page_protection failed\n");
+            remove_entry_list(m->le);
+            delete m;
+            return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
+        }
+    }
+
+    return address;
 }
 
 static bool populate_teb(process& proc, thread& t) {
@@ -713,7 +824,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
                         // FIXME - return false if actual page violation
 
-                        return ms.map((uint32_t)(address - m.address), address);
+                        return ms.map(*this, (uint32_t)(address - m.address), address);
                     }
 
                     case proc_map_type::vm:
@@ -1154,102 +1265,6 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
     return nt_status::SUCCESS;
 }
 
-static bool set_page_protection(process& proc, uint64_t va,
-                                uint32_t num_pages, enum mapping_type protect) {
-    span<HARDWARE_PTE> pt[4];
-    uint16_t index[4];
-
-    index[0] = (va & 0x1ff000) >> 12;
-    index[1] = (va & 0x3fe00000) >> 21;
-    index[2] = (va & 0x7fc0000000) >> 30;
-    index[3] = (va & 0xff8000000000) >> 39;
-
-    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
-
-    auto redo_level = [&](uint8_t level) -> bool {
-        if (!pt[level][index[level]].p) {
-            uint64_t pa = allocate_page();
-            if (pa == 0)
-                return false;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-            pt[level][index[level]].pfn = pa >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-            pt[level][index[level]].p = 1;
-            pt[level][index[level]].w = 1;
-            pt[level][index[level]].u = 1;
-
-            memset(phys_address(pa), 0, PAGE_SIZE);
-        }
-
-        pt[level - 1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
-
-        return true;
-    };
-
-    for (uint8_t level = 3; level > 0; level--) {
-        if (!redo_level(level))
-            return false;
-    }
-
-    for (unsigned int i = 0; i < num_pages; i++) {
-        if (i != 0) {
-            index[0]++;
-
-            if (index[0] == 512) {
-                index[0] = 0;
-                index[1]++;
-
-                if (index[1] == 512) {
-                    index[1] = 0;
-                    index[2]++;
-
-                    if (index[2] == 512) {
-                        index[2] = 0;
-                        index[3]++;
-
-                        redo_level(3);
-                    }
-
-                    redo_level(2);
-                }
-
-                redo_level(1);
-            }
-        }
-
-        auto& pte = pt[0][index[0]];
-
-        pte.p = 0;
-        pte.u = 1;
-
-        switch (protect) {
-            case mapping_type::read_write:
-                pte.xd = 1;
-                pte.w = 1;
-                break;
-
-            case mapping_type::read_execute:
-                pte.xd = 0;
-                pte.w = 0;
-                break;
-
-            case mapping_type::read_write_execute:
-                pte.xd = 0;
-                pte.w = 1;
-                break;
-
-            default:
-                pte.xd = 1;
-                pte.w = 0;
-                break;
-        }
-    }
-
-    return true;
-}
-
 NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_size,
                               uint32_t allocation_type, enum mapping_type protect) {
     // FIXME - what are we supposed to do with zero_bits?
@@ -1634,6 +1649,26 @@ bool mapping_vm::map(process& proc, uint32_t offset, uint64_t va) {
     return true;
 }
 
+bool mapping_section::map(process& proc, uint32_t offset, uint64_t va) {
+    uint64_t page_num = offset >> PAGE_SHIFT;
+
+    if (cache.read_into_cache_and_pin(page_num, 1) == 0)
+        return false;
+
+    page_cache_entry* p;
+
+    {
+        lock_guard lg(cache.cache_lock);
+        p = cache.find_page_cache_entry(page_num);
+    }
+
+    process_map_page(proc, p->pfn, va);
+
+    cache.unpin(page_num, 1); // FIXME?
+
+    return true;
+}
+
 bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
@@ -1984,48 +2019,6 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
                 break;
         }
     }
-
-    return ret;
-}
-
-bool mapping_section::map(uint32_t offset, uint64_t va) {
-    uint64_t page_num = offset >> PAGE_SHIFT;
-
-    if (cache.read_into_cache_and_pin(page_num, 1) == 0)
-        return false;
-
-    // FIXME - process mapping lock(?)
-    auto prot = sect.pages_protection[page_num];
-
-#if 0
-    switch (prot) {
-        case mapping_type::read_write:
-        case mapping_type::write_combine:
-        case mapping_type::no_cache:
-            prot = mapping_type::read_only;
-            break;
-
-        case mapping_type::read_write_execute:
-            prot = mapping_type::read_execute;
-            break;
-
-        default:
-            break;
-    }
-#endif
-
-    prot = mapping_type::read_write_execute; // FIXME
-
-    page_cache_entry* p;
-
-    {
-        lock_guard lg(cache.cache_lock);
-        p = cache.find_page_cache_entry(page_num);
-    }
-
-    auto ret = map_page(p->pfn << PAGE_SHIFT, va, prot);
-
-    cache.unpin(page_num, 1); // FIXME?
 
     return ret;
 }
