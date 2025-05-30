@@ -394,6 +394,12 @@ object_ref create_process(string_view fn, string_view curdir,
         return {};
     }
 
+    if (!p.allocate_cr3()) {
+        print("process::allocate_cr3 failed\n");
+        p.release();
+        return {};
+    }
+
     p.img->get().acquire();
 
     imgh.reset();
@@ -403,12 +409,6 @@ object_ref create_process(string_view fn, string_view curdir,
     p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
     if (!p.img_addr) {
         print("process::map_section failed\n");
-        p.release();
-        return {};
-    }
-
-    if (!p.allocate_cr3()) {
-        print("process::allocate_cr3 failed\n");
         p.release();
         return {};
     }
@@ -2301,6 +2301,12 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     p.img = img;
     img.acquire();
 
+    if (!p.allocate_cr3()) {
+        print("process::allocate_cr3 failed\n");
+        p.release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
     p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
     if (!p.img_addr) {
         print("process::map_section failed\n");
@@ -2321,12 +2327,6 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     if (!allocate_peb(p, 0, 0, 0, 0, "", string_view(img.name, img.namelen))) {
         print("allocate_peb failed\n");
-        p.release();
-        return nt_status::INTERNAL_ERROR;
-    }
-
-    if (!p.allocate_cr3()) {
-        print("process::allocate_cr3 failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
     }
