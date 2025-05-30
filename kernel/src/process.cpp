@@ -127,8 +127,6 @@ static void create_dos_path(span<char16_t> buf, string_view s) {
 static mapping* find_mapping(process& proc, uint64_t address) {
     address &= ~(PAGE_SIZE - 1);
 
-    lock_guard lock(proc.mappings_lock);
-
     for (auto le = proc.mappings.next; le != &proc.mappings; le = le->next) {
         auto& m = containing_record<mapping>(le);
 
@@ -162,6 +160,8 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     }
 
     auto num_pages = bytes_to_pages(size);
+
+    lock_guard lock(proc.mappings_lock);
 
     auto pm = find_mapping(proc, (uintptr_t)proc.proc_params);
     if (!pm) {
@@ -276,6 +276,8 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
         print("process::allocate_vm failed\n");
         return false;
     }
+
+    lock_guard lock(proc.mappings_lock);
 
     auto pm = find_mapping(proc, (uintptr_t)proc.peb);
     if (!pm) {
@@ -665,6 +667,8 @@ static bool populate_teb(process& proc, thread& t) {
 
     // we're assuming that TEB lives at the beginning of a page
     assert(!((uintptr_t)t.teb & (PAGE_SIZE - 1)));
+
+    lock_guard lock(proc.mappings_lock);
 
     auto pm = find_mapping(proc, (uintptr_t)t.teb);
     if (!pm) {
