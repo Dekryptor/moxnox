@@ -1206,8 +1206,6 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
 
 NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_size,
                               uint32_t allocation_type, enum mapping_type protect) {
-    // FIXME - MEM_COMMIT alone
-
     // FIXME - what are we supposed to do with zero_bits?
 
     if (!(allocation_type & (MEM_RESERVE | MEM_COMMIT | MEM_RESET)))
@@ -1243,36 +1241,34 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
         lock_guard lock(mappings_lock);
 
-        auto le = mappings.next;
-        while (le != &mappings) {
-            auto& m = containing_record<mapping>(le);
+        while (true) {
+            auto m = find_mapping(*this, addr);
 
-            if (addr < m.address + m.size && addr + size > m.address) {
-                switch (m.type) {
-                    case proc_map_type::vm: {
-                        auto& mv = static_cast<mapping_vm&>(m);
+            if (!m)
+                return nt_status::NO_MEMORY;
 
-                        auto to_commit = min(size, m.address + m.size - addr);
+            switch (m->type) {
+                case proc_map_type::vm: {
+                    auto& mv = static_cast<mapping_vm&>(*m);
 
-                        auto ret = mv.commit((uint32_t)(addr - m.address), (uint32_t)to_commit, protect);
-                        if (!success(ret))
-                            return ret;
+                    auto to_commit = min(size, m->address + m->size - addr);
 
-                        if (to_commit == size)
-                            return nt_status::SUCCESS;
+                    auto ret = mv.commit((uint32_t)(addr - m->address), (uint32_t)to_commit, protect);
+                    if (!success(ret))
+                        return ret;
 
-                        addr += to_commit;
-                        size -= to_commit;
+                    if (to_commit == size)
+                        return nt_status::SUCCESS;
 
-                        break;
-                    }
+                    addr += to_commit;
+                    size -= to_commit;
 
-                    case proc_map_type::section:
-                        return nt_status::NO_MEMORY;
+                    break;
                 }
-            }
 
-            le = le->next;
+                case proc_map_type::section:
+                    return nt_status::NO_MEMORY;
+            }
         }
 
         return nt_status::NO_MEMORY;
