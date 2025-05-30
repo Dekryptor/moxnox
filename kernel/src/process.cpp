@@ -80,7 +80,7 @@ class mapping_vm : public mapping {
 public:
     mapping_vm(unsigned int num_pages);
     virtual ~mapping_vm();
-    bool map(uint32_t offset, uint64_t va);
+    bool map(process& proc, uint32_t offset, uint64_t va);
     NTSTATUS commit(uint32_t offset, uint32_t commit_size, enum mapping_type prot);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -406,6 +406,12 @@ object_ref create_process(string_view fn, string_view curdir,
         return {};
     }
 
+    if (!p.allocate_cr3()) {
+        print("process::allocate_cr3 failed\n");
+        p.release();
+        return {};
+    }
+
     // create stack
 
     size_t stack_size = max(img.stack_size, (uint64_t)PAGE_SIZE);
@@ -478,12 +484,6 @@ object_ref create_process(string_view fn, string_view curdir,
 
     if (!allocate_peb(p, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
         print("allocate_peb failed\n");
-        p.release();
-        return {};
-    }
-
-    if (!p.allocate_cr3()) {
-        print("process::allocate_cr3 failed\n");
         p.release();
         return {};
     }
@@ -770,7 +770,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                         if (ec.present)
                             return false;
 
-                        return static_cast<mapping_vm&>(m).map((uint32_t)(address - m.address), address);
+                        return static_cast<mapping_vm&>(m).map(*this, (uint32_t)(address - m.address), address);
                 }
             }
 
@@ -1647,7 +1647,30 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
     return p->free_vm(base_address, region_size, free_type);
 }
 
-bool mapping_vm::map(uint32_t offset, uint64_t va) {
+static void process_map_page(process& proc, uint64_t pfn, uint64_t va) {
+    span<HARDWARE_PTE> pt[4];
+
+    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+
+    assert(pt[3][(va & 0xff8000000000) >> 39].p);
+    pt[2] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[3][(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
+
+    assert(pt[2][(va & 0x7fc0000000) >> 30].p);
+    pt[1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[2][(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
+
+    assert(pt[1][(va & 0x3fe00000) >> 21].p);
+    pt[0] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[1][(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
+
+    auto& pte = pt[0][(va & 0x1ff000) >> 12];
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    pte.pfn = pfn;
+#pragma GCC diagnostic pop
+    pte.p = 1;
+}
+
+bool mapping_vm::map(process& proc, uint32_t offset, uint64_t va) {
     uint64_t page_num = offset >> PAGE_SHIFT;
 
     lock_guard l(lock);
@@ -1665,10 +1688,7 @@ bool mapping_vm::map(uint32_t offset, uint64_t va) {
         p = cache.find_page_cache_entry(page_num);
     }
 
-    if (!map_page(p->pfn << PAGE_SHIFT, va, pages_info[page_num].protection)) {
-        cache.unpin(page_num, 1);
-        return false;
-    }
+    process_map_page(proc, p->pfn, va);
 
     cache.unpin(page_num, 1); // FIXME?
 
