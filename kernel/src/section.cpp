@@ -700,21 +700,6 @@ uint64_t section::find_export(string_view name) {
     return ret;
 }
 
-NTSTATUS section::protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
-                          enum mapping_type& old_prot) {
-    auto p = &pages_protection[offset >> PAGE_SHIFT];
-
-    for (unsigned int i = 0; i < page_count; i++) {
-        if (i == 0)
-            old_prot = *p;
-
-        *p = prot;
-        p++;
-    }
-
-    return nt_status::SUCCESS;
-}
-
 NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          const LARGE_INTEGER* maximum_size, uint32_t,
                          uint32_t allocation_attributes, HANDLE file_handle) {

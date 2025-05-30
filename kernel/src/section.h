@@ -39,8 +39,6 @@ public:
     nt_status load_image();
     void free_pa();
     uint64_t find_export(std::string_view name);
-    NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
-                     enum mapping_type& old_prot);
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class, std::span<uint8_t> buf,
                         size_t* return_length);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
