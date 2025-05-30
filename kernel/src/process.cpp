@@ -1297,8 +1297,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     uintptr_t last_addr = 0x100000; // don't allocate in first megabyte
     lock_guard lock(mappings_lock);
 
-    auto le = mappings.next;
-    while (le != &mappings) {
+    for (auto le = mappings.next; le != &mappings; le = le->next) {
         auto& m2 = containing_record<mapping>(le);
 
         if (addr == 0) {
@@ -1326,8 +1325,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
                 return nt_status::NO_MEMORY;
             }
         }
-
-        le = le->next;
     }
 
     if (addr == 0) {
