@@ -78,16 +78,15 @@ public:
 
 class mapping_vm : public mapping {
 public:
-    mapping_vm(unsigned int num_pages);
-    virtual ~mapping_vm();
+    mapping_vm() {
+        type = proc_map_type::vm;
+    }
+
     bool map(process& proc, uint32_t offset, uint64_t va);
     NTSTATUS commit(process& proc, uint32_t offset, uint32_t commit_size,
                     enum mapping_type prot);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
-
-    page_info* pages_info = nullptr;
-    bool initialized = false;
 };
 
 static const size_t MAX_PATH = 260;
@@ -546,23 +545,6 @@ mapping_section::~mapping_section() {
         vfree(pages_info, sizeof(page_info) * num_pages);
 
     sect.release();
-}
-
-mapping_vm::mapping_vm(unsigned int num_pages) {
-    type = proc_map_type::vm;
-
-    pages_info = (page_info*)vmalloc(sizeof(page_info) * num_pages);
-    if (!pages_info)
-        return;
-
-    initialized = true;
-}
-
-mapping_vm::~mapping_vm() {
-    auto num_pages = size >> PAGE_SHIFT;
-
-    if (pages_info)
-        vfree(pages_info, sizeof(page_info) * num_pages);
 }
 
 process::~process() {
@@ -1372,25 +1354,16 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         return nt_status::NO_MEMORY;
     }
 
-    auto m = new mapping_vm(num_pages);
+    auto m = new mapping_vm;
     if (!m) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    if (!m->initialized) {
-        print("mapping_vm::mapping_vm failed\n");
-        return nt_status::INTERNAL_ERROR;
     }
 
     m->size = (uint32_t)size;
 
     if (!(allocation_type & MEM_COMMIT))
         protect = mapping_type::reserved;
-
-    for (unsigned int i = 0; i < num_pages; i++) {
-        m->pages_info[i].protection = protect;
-    }
 
     uintptr_t last_addr = 0x100000; // don't allocate in first megabyte
     bool inserted = false;
@@ -1678,9 +1651,6 @@ bool mapping_vm::map(process& proc, uint32_t offset, uint64_t va) {
     uint64_t page_num = offset >> PAGE_SHIFT;
 
     lock_guard l(lock);
-
-    if (pages_info[page_num].protection == mapping_type::reserved)
-        return false;
 
     if (cache.read_into_cache_and_pin(page_num, 1) == 0)
         return false;
@@ -2155,15 +2125,6 @@ NTSTATUS mapping_vm::commit(process& proc, uint32_t offset, uint32_t commit_size
 
     if (!set_page_protection(proc, address + offset, num_pages, prot))
         return nt_status::INSUFFICIENT_RESOURCES;
-
-    lock_guard l(lock);
-
-    auto p = &pages_info[offset >> PAGE_SHIFT];
-
-    for (unsigned int i = 0; i < num_pages; i++) {
-        p->protection = prot;
-        p++;
-    }
 
     return nt_status::SUCCESS;
 }
