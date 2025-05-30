@@ -57,21 +57,22 @@ public:
     spinlock lock;
 };
 
-struct page_info {
-    enum mapping_type protection;
-};
-
 class mapping_section : public mapping {
 public:
-    mapping_section(section& sect, unsigned int num_pages);
-    virtual ~mapping_section();
+    mapping_section(section& sect) : sect(sect) {
+        type = proc_map_type::section;
+        sect.acquire();
+    }
+
+    virtual ~mapping_section() {
+        sect.release();
+    }
+
     bool map(uint32_t offset, uint64_t va);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     section& sect;
-    page_info* pages_info = nullptr;
-    bool initialized = false;
 };
 
 class mapping_vm : public mapping {
@@ -525,26 +526,6 @@ object_ref create_process(string_view fn, string_view curdir,
     return p;
 }
 
-mapping_section::mapping_section(section& sect, unsigned int num_pages) : sect(sect) {
-    type = proc_map_type::section;
-    sect.acquire();
-
-    pages_info = (page_info*)vmalloc(sizeof(page_info) * num_pages);
-    if (!pages_info)
-        return;
-
-    initialized = true;
-}
-
-mapping_section::~mapping_section() {
-    auto num_pages = size >> PAGE_SHIFT;
-
-    if (pages_info)
-        vfree(pages_info, sizeof(page_info) * num_pages);
-
-    sect.release();
-}
-
 process::~process() {
     free_mappings();
 
@@ -573,26 +554,14 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
         return 0;
     }
 
-    auto num_pages = sect.size >> PAGE_SHIFT;
-
-    auto m = new mapping_section(sect, num_pages);
+    auto m = new mapping_section(sect);
     if (!m) {
         print("new failed\n");
         return 0;
     }
 
-    if (!m->initialized) {
-        print("mapping_section::mapping_section failed\n");
-        delete m;
-        return 0;
-    }
-
     m->address = address;
     m->size = sect.size;
-
-    for (unsigned int i = 0; i < num_pages; i++) {
-        m->pages_info[i].protection = sect.pages_protection[i];
-    }
 
     uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
 
