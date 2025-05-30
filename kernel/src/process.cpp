@@ -65,8 +65,6 @@ class mapping_section : public mapping {
 public:
     mapping_section(section& sect, unsigned int num_pages);
     virtual ~mapping_section();
-    NTSTATUS protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
-                     enum mapping_type& old_prot);
     bool map(uint32_t offset, uint64_t va);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -1829,6 +1827,39 @@ object_ref process::deref_handle(handle_t h) {
     return *ho.obj;
 }
 
+static enum mapping_type get_page_protection(process& proc, uint64_t va) {
+    span<HARDWARE_PTE> pt[4];
+    uint16_t index[4];
+
+    index[0] = (va & 0x1ff000) >> 12;
+    index[1] = (va & 0x3fe00000) >> 21;
+    index[2] = (va & 0x7fc0000000) >> 30;
+    index[3] = (va & 0xff8000000000) >> 39;
+
+    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+
+    for (uint8_t level = 3; level > 0; level--) {
+        if (!pt[level][index[level]].p)
+            return mapping_type::no_access;
+
+        pt[level - 1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
+    }
+
+    auto& pte = pt[0][index[0]];
+
+    if (pte.xd) {
+        if (pte.w)
+            return mapping_type::read_write;
+        else
+            return mapping_type::read_only;
+    } else {
+        if (pte.w)
+            return mapping_type::read_write_execute;
+        else
+            return mapping_type::read_execute;
+    }
+}
+
 NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
                              enum mapping_type& old_prot) {
     auto addr = (uintptr_t)*base_address;
@@ -1844,6 +1875,7 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
     *base_address = (void*)addr;
     *region_size = pages << PAGE_SHIFT;
 
+    bool first = true;
     lock_guard lock(mappings_lock);
 
     auto le = mappings.next;
@@ -1858,18 +1890,13 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
 
             switch (m.type) {
                 case proc_map_type::section: {
-                    auto& ms = static_cast<mapping_section&>(m);
-
-                    // FIXME - mapping might be offset in section
-                    // FIXME - should be private to process
-                    // FIXME - section might not have been opened read-write, etc.
-
-                    auto ret = ms.protect((uint32_t)(addr - m.address), num_pages, prot, old_prot);
-                    if (!success(ret))
-                        return ret;
+                    if (first)
+                        old_prot = get_page_protection(*this, addr);
 
                     if (!set_page_protection(*this, addr, num_pages, prot))
                         return nt_status::INSUFFICIENT_RESOURCES;
+
+                    first = false;
 
                     break;
                 }
@@ -1925,14 +1952,6 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
 
         case PAGE_EXECUTE_READWRITE:
             prot = mapping_type::read_write_execute;
-            break;
-
-        case PAGE_NOCACHE:
-            prot = mapping_type::no_cache;
-            break;
-
-        case PAGE_WRITECOMBINE:
-            prot = mapping_type::write_combine;
             break;
 
         default:
@@ -1991,32 +2010,13 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
                 *old_prot = PAGE_EXECUTE_READWRITE;
                 break;
 
-            case mapping_type::no_cache:
-                *old_prot = PAGE_NOCACHE;
-                break;
-
-            case mapping_type::write_combine:
-                *old_prot = PAGE_WRITECOMBINE;
+            default:
+                *old_prot = PAGE_NOACCESS;
                 break;
         }
     }
 
     return ret;
-}
-
-NTSTATUS mapping_section::protect(uint32_t offset, uint32_t page_count, enum mapping_type prot,
-                                  enum mapping_type& old_prot) {
-    auto p = &pages_info[offset >> PAGE_SHIFT];
-
-    for (unsigned int i = 0; i < page_count; i++) {
-        if (i == 0)
-            old_prot = p->protection;
-
-        p->protection = prot;
-        p++;
-    }
-
-    return nt_status::SUCCESS;
 }
 
 bool mapping_section::map(uint32_t offset, uint64_t va) {
