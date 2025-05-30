@@ -37,7 +37,6 @@ public:
     }
 
     nt_status load_image();
-    void free_pa();
     uint64_t find_export(std::string_view name);
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class, std::span<uint8_t> buf,
                         size_t* return_length);
@@ -48,7 +47,6 @@ public:
     enum section_type type;
     uint32_t size;
     uint32_t num_pages;
-    enum mapping_type* pages_protection = nullptr;
     uintptr_t preferred_base, entry_point;
     uint16_t characteristics, machine;
     uint64_t stack_size;

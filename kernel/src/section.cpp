@@ -91,17 +91,6 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
         s.size = s.num_pages << PAGE_SHIFT;
 
-        s.pages_protection = (enum mapping_type*)malloc(sizeof(enum mapping_type) * s.num_pages);
-        if (!s.pages_protection) {
-            print("malloc failed\n");
-            s.release();
-            return nt_status::INSUFFICIENT_RESOURCES;
-        }
-
-        memset(s.pages_protection, 0, sizeof(enum mapping_type) * s.num_pages);
-
-        // FIXME - protection
-
         // FIXME - make sure allocate_page doesn't steal what we've reserved
     }
 
@@ -115,14 +104,6 @@ section::~section() {
         ino->get().release();
 
     free(name);
-    free_pa();
-}
-
-void section::free_pa() {
-    if (pages_protection) {
-        free(pages_protection);
-        pages_protection = nullptr;
-    }
 }
 
 class scratch {
@@ -310,18 +291,10 @@ nt_status section::load_image() {
     num_pages = bytes_to_pages(size);
     size = num_pages << PAGE_SHIFT;
 
-    pages_protection = (enum mapping_type*)malloc(sizeof(enum mapping_type) * num_pages);
-    if (!pages_protection) {
-        print("malloc failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
     // FIXME - allocate zeroed pages?
 
     if (!cache.pin(0, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
-        free(pages_protection);
-        pages_protection = nullptr;
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
@@ -351,8 +324,6 @@ nt_status section::load_image() {
 #pragma GCC diagnostic pop
                 if (!p->pfn) {
                     print("allocate_folio failed\n");
-                    free(pages_protection);
-                    pages_protection = nullptr;
                     return nt_status::INSUFFICIENT_RESOURCES;
                 }
             }
@@ -381,8 +352,6 @@ nt_status section::load_image() {
 #pragma GCC diagnostic pop
                 if (!p->pfn) {
                     print("allocate_folio failed\n");
-                    free(pages_protection);
-                    pages_protection = nullptr;
                     return nt_status::INSUFFICIENT_RESOURCES;
                 }
             }
@@ -398,8 +367,6 @@ nt_status section::load_image() {
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
     else
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
-
-    pages_protection[0] = mapping_type::read_only;
 
     memset(&dwinfo, 0, sizeof(dwinfo));
 
@@ -439,7 +406,6 @@ nt_status section::load_image() {
         if (sect.VirtualAddress + section_size > size) {
             debug_printk("section overflow\n");
             cache.unpin(0, num_pages);
-            free_pa();
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
@@ -454,7 +420,6 @@ nt_status section::load_image() {
             if (sect.VirtualAddress % section_alignment) {
                 debug_printk("section not aligned to SectionAlignment\n");
                 cache.unpin(0, num_pages);
-                free_pa();
                 return nt_status::INVALID_IMAGE_FORMAT;
             }
 
@@ -472,7 +437,6 @@ nt_status section::load_image() {
                 if (pinned_pages == 0) {
                     debug_printk("inode::read_into_cache_and_pin did not pin any pages\n");
                     cache.unpin(0, num_pages);
-                    free_pa();
                     return nt_status::INTERNAL_ERROR;
                 }
 
@@ -513,15 +477,6 @@ nt_status section::load_image() {
                 if (file_pages_left == 0)
                     break;
             } while (true);
-        }
-
-        auto page_start = sect.VirtualAddress >> PAGE_SHIFT;
-        auto page_end = (sect.VirtualAddress + section_size - 1) >> PAGE_SHIFT;
-
-        auto prot = characteristics_to_mapping_type(sect.Characteristics);
-
-        for (auto i = page_start; i <= page_end; i++) {
-            pages_protection[i] = prot;
         }
     }
 
