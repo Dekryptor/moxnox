@@ -1204,6 +1204,102 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
     return nt_status::SUCCESS;
 }
 
+static bool set_page_protection(process& proc, uint64_t va,
+                                uint32_t num_pages, enum mapping_type protect) {
+    span<HARDWARE_PTE> pt[4];
+    uint16_t index[4];
+
+    index[0] = (va & 0x1ff000) >> 12;
+    index[1] = (va & 0x3fe00000) >> 21;
+    index[2] = (va & 0x7fc0000000) >> 30;
+    index[3] = (va & 0xff8000000000) >> 39;
+
+    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+
+    auto redo_level = [&](uint8_t level) -> bool {
+        if (!pt[level][index[level]].p) {
+            uint64_t pa = allocate_page();
+            if (pa == 0)
+                return false;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            pt[level][index[level]].pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+            pt[level][index[level]].p = 1;
+            pt[level][index[level]].w = 1;
+            pt[level][index[level]].u = 1;
+
+            memset(phys_address(pa), 0, PAGE_SIZE);
+        }
+
+        pt[level - 1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
+
+        return true;
+    };
+
+    for (uint8_t level = 3; level > 0; level--) {
+        if (!redo_level(level))
+            return false;
+    }
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (i != 0) {
+            index[0]++;
+
+            if (index[0] == 512) {
+                index[0] = 0;
+                index[1]++;
+
+                if (index[1] == 512) {
+                    index[1] = 0;
+                    index[2]++;
+
+                    if (index[2] == 512) {
+                        index[2] = 0;
+                        index[3]++;
+
+                        redo_level(3);
+                    }
+
+                    redo_level(2);
+                }
+
+                redo_level(1);
+            }
+        }
+
+        auto& pte = pt[0][index[0]];
+
+        pte.p = 0;
+        pte.u = 1;
+
+        switch (protect) {
+            case mapping_type::read_write:
+                pte.xd = 1;
+                pte.w = 1;
+                break;
+
+            case mapping_type::read_execute:
+                pte.xd = 0;
+                pte.w = 0;
+                break;
+
+            case mapping_type::read_write_execute:
+                pte.xd = 0;
+                pte.w = 1;
+                break;
+
+            default:
+                pte.xd = 1;
+                pte.w = 0;
+                break;
+        }
+    }
+
+    return true;
+}
+
 NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_size,
                               uint32_t allocation_type, enum mapping_type protect) {
     // FIXME - what are we supposed to do with zero_bits?
@@ -1296,50 +1392,61 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
     uintptr_t last_addr = 0x100000; // don't allocate in first megabyte
     bool inserted = false;
-    lock_guard lock(mappings_lock);
 
-    for (auto le = mappings.next; le != &mappings; le = le->next) {
-        auto& m2 = containing_record<mapping>(le);
+    {
+        lock_guard lock(mappings_lock);
+
+        for (auto le = mappings.next; le != &mappings; le = le->next) {
+            auto& m2 = containing_record<mapping>(le);
+
+            if (addr == 0) {
+                if (m2.address > last_addr + m->size) { // insert before
+                    insert_head_list(*le->prev, m->le);
+                    addr = last_addr;
+                    inserted = true;
+                    break;
+                }
+
+                last_addr = m2.address + m2.size;
+            } else {
+                if (m2.address > addr + m->size) { // insert before
+                    insert_head_list(*le->prev, m->le);
+                    inserted = true;
+                    break;
+                }
+
+                if (addr < m2.address + m2.size && addr + m->size > m2.address) { // collision
+                    print("collision\n");
+                    delete m;
+                    return nt_status::NO_MEMORY;
+                }
+            }
+        }
 
         if (addr == 0) {
-            if (m2.address > last_addr + m->size) { // insert before
-                insert_head_list(*le->prev, m->le);
-                addr = last_addr;
-                inserted = true;
-                break;
-            }
-
-            last_addr = m2.address + m2.size;
-        } else {
-            if (m2.address > addr + m->size) { // insert before
-                insert_head_list(*le->prev, m->le);
-                inserted = true;
-                break;
-            }
-
-            if (addr < m2.address + m2.size && addr + m->size > m2.address) { // collision
-                print("collision\n");
+            if (last_addr >= MAX_USERSPACE_ADDRESS - m->size) {
                 delete m;
                 return nt_status::NO_MEMORY;
             }
-        }
-    }
 
-    if (addr == 0) {
-        if (last_addr >= MAX_USERSPACE_ADDRESS - m->size) {
+            addr = last_addr;
+        }
+
+        if (!inserted)
+            insert_tail_list(mappings, m->le);
+
+        m->address = addr;
+
+        if (!set_page_protection(*this, addr, num_pages, protect)) {
+            print("set_page_protection failed\n");
+            remove_entry_list(m->le);
             delete m;
-            return nt_status::NO_MEMORY;
+            return nt_status::INSUFFICIENT_RESOURCES;
         }
-
-        addr = last_addr;
     }
 
-    if (!inserted)
-        insert_tail_list(mappings, m->le);
-
-    m->address = addr;
-    *base_address = (void*)m->address;
-    *region_size = m->size;
+    *base_address = (void*)addr;
+    *region_size = size;
 
     return nt_status::SUCCESS;
 }
@@ -1371,14 +1478,6 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
 
         case PAGE_EXECUTE_READWRITE:
             prot = mapping_type::read_write_execute;
-            break;
-
-        case PAGE_NOCACHE:
-            prot = mapping_type::no_cache;
-            break;
-
-        case PAGE_WRITECOMBINE:
-            prot = mapping_type::write_combine;
             break;
 
         default:
