@@ -1650,8 +1650,6 @@ static void process_map_page(process& proc, uint64_t pfn, uint64_t va) {
 bool mapping_vm::map(process& proc, uint32_t offset, uint64_t va) {
     uint64_t page_num = offset >> PAGE_SHIFT;
 
-    lock_guard l(lock);
-
     if (cache.read_into_cache_and_pin(page_num, 1) == 0)
         return false;
 
