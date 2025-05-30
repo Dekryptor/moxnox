@@ -1295,6 +1295,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     }
 
     uintptr_t last_addr = 0x100000; // don't allocate in first megabyte
+    bool inserted = false;
     lock_guard lock(mappings_lock);
 
     for (auto le = mappings.next; le != &mappings; le = le->next) {
@@ -1303,20 +1304,17 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         if (addr == 0) {
             if (m2.address > last_addr + m->size) { // insert before
                 insert_head_list(*le->prev, m->le);
-                m->address = last_addr;
-                *base_address = (void*)m->address;
-                *region_size = m->size;
-                return nt_status::SUCCESS;
+                addr = last_addr;
+                inserted = true;
+                break;
             }
 
             last_addr = m2.address + m2.size;
         } else {
             if (m2.address > addr + m->size) { // insert before
                 insert_head_list(*le->prev, m->le);
-                m->address = addr;
-                *base_address = (void*)m->address;
-                *region_size = m->size;
-                return nt_status::SUCCESS;
+                inserted = true;
+                break;
             }
 
             if (addr < m2.address + m2.size && addr + m->size > m2.address) { // collision
@@ -1333,13 +1331,15 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
             return nt_status::NO_MEMORY;
         }
 
-        m->address = last_addr;
-    } else
-        m->address = addr;
+        addr = last_addr;
+    }
 
+    if (!inserted)
+        insert_tail_list(mappings, m->le);
+
+    m->address = addr;
     *base_address = (void*)m->address;
     *region_size = m->size;
-    insert_tail_list(mappings, m->le);
 
     return nt_status::SUCCESS;
 }
