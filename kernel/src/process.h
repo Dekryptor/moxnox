@@ -74,7 +74,6 @@ public:
 private:
     void free_mappings();
     void unmap_proc_page(uint64_t va);
-    NTSTATUS change_proc_page_protection(uint64_t va, enum mapping_type prot);
 };
 
 static_assert(is_sync_object<process>);

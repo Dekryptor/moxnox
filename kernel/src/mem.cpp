@@ -1209,7 +1209,7 @@ export void unmap_page(uint64_t va) {
     );
 }
 
-export void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
+static void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
     lock_guard lock(protect_page_spinlock);
 
     // FIXME - do we really need the spinlock?

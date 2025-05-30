@@ -1829,31 +1829,6 @@ object_ref process::deref_handle(handle_t h) {
     return *ho.obj;
 }
 
-NTSTATUS process::change_proc_page_protection(uint64_t va, enum mapping_type prot) {
-    span<HARDWARE_PTE> pml4, pdpt, pdt, pt;
-
-    pml4 = span((HARDWARE_PTE*)phys_address(cr3), 512);
-
-    if (!pml4[(va & 0xff8000000000) >> 39].p)
-        return nt_status::SUCCESS;
-
-    pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
-
-    if (!pdpt[(va & 0x7fc0000000) >> 30].p)
-        return nt_status::SUCCESS;
-
-    pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
-
-    if (!pdt[(va & 0x3fe00000) >> 21].p)
-        return nt_status::SUCCESS;
-
-    pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
-
-    protect_page2(pt[(va & 0x1ff000) >> 12], prot, false);
-
-    return nt_status::SUCCESS;
-}
-
 NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
                              enum mapping_type& old_prot) {
     auto addr = (uintptr_t)*base_address;
@@ -1893,39 +1868,8 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
                     if (!success(ret))
                         return ret;
 
-                    // auto p = &ms.pages_pa[(addr - m.address) >> PAGE_SHIFT];
-
-                    for (unsigned int i = 0; i < num_pages; i++) {
-                        auto prot2 = prot;
-
-#if 0
-                        if (!*p) { // COW
-                            // FIXME - don't do COW unless we ought to
-
-                            switch (prot) {
-                                case mapping_type::read_write:
-                                case mapping_type::write_combine:
-                                case mapping_type::no_cache:
-                                    prot2 = mapping_type::read_only;
-                                    break;
-
-                                case mapping_type::read_write_execute:
-                                    prot2 = mapping_type::read_execute;
-                                    break;
-
-                                default:
-                                    break;
-                            }
-                        }
-#endif
-
-                        // FIXME - would be quicker if we could do multiple pages at once
-                        auto ret = change_proc_page_protection(addr + (i << PAGE_SHIFT), prot2);
-                        if (!success(ret))
-                            return ret;
-
-                        // p++;
-                    }
+                    if (!set_page_protection(*this, addr, num_pages, prot))
+                        return nt_status::INSUFFICIENT_RESOURCES;
 
                     break;
                 }
