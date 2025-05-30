@@ -1892,23 +1892,13 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
         if (m.address + m.size > addr && m.address < addr + (pages << PAGE_SHIFT)) {
             auto num_pages = min(pages, (uint32_t)((m.address + m.size - addr) >> PAGE_SHIFT));
 
-            switch (m.type) {
-                case proc_map_type::section: {
-                    if (first)
-                        old_prot = get_page_protection(*this, addr);
+            if (first)
+                old_prot = get_page_protection(*this, addr);
 
-                    if (!set_page_protection(*this, addr, num_pages, prot))
-                        return nt_status::INSUFFICIENT_RESOURCES;
+            if (!set_page_protection(*this, addr, num_pages, prot))
+                return nt_status::INSUFFICIENT_RESOURCES;
 
-                    first = false;
-
-                    break;
-                }
-
-                case proc_map_type::vm:
-                    print("FIXME - protecting VM\n"); // FIXME
-                    return nt_status::INTERNAL_ERROR;
-            }
+            first = false;
 
             pages -= num_pages;
 
