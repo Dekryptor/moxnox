@@ -301,16 +301,16 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 
     auto& pml4_entry = pml4[(va & 0xff8000000000) >> 39];
 
-    if (!pml4_entry.Valid) {
+    if (!pml4_entry.p) {
         if (scratch_pages == 0)
             return false;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pml4_entry.PageFrameNumber = scratch_pa >> PAGE_SHIFT;
+        pml4_entry.pfn = scratch_pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-        pml4_entry.Valid = 1;
-        pml4_entry.Write = 1;
+        pml4_entry.p = 1;
+        pml4_entry.w = 1;
 
         memset(pdpt.data(), 0, PAGE_SIZE);
 
@@ -320,16 +320,16 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 
     auto& pdpt_entry = pdpt[(va & 0x7fc0000000) >> 30];
 
-    if (!pdpt_entry.Valid) {
+    if (!pdpt_entry.p) {
         if (scratch_pages == 0)
             return false;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pdpt_entry.PageFrameNumber = scratch_pa >> PAGE_SHIFT;
+        pdpt_entry.pfn = scratch_pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-        pdpt_entry.Valid = 1;
-        pdpt_entry.Write = 1;
+        pdpt_entry.p = 1;
+        pdpt_entry.w = 1;
 
         memset(pdt.data(), 0, PAGE_SIZE);
 
@@ -339,16 +339,16 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 
     auto& pdt_entry = pdt[(va & 0x3fe00000) >> 21];
 
-    if (!pdt_entry.Valid) {
+    if (!pdt_entry.p) {
         if (scratch_pages == 0)
             return false;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pdt_entry.PageFrameNumber = scratch_pa >> PAGE_SHIFT;
+        pdt_entry.pfn = scratch_pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-        pdt_entry.Valid = 1;
-        pdt_entry.Write = 1;
+        pdt_entry.p = 1;
+        pdt_entry.w = 1;
 
         memset(pt.data(), 0, PAGE_SIZE);
 
@@ -360,11 +360,11 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    pt_entry.PageFrameNumber = pa >> PAGE_SHIFT;
+    pt_entry.pfn = pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-    pt_entry.Valid = 1;
-    pt_entry.Write = 1;
-    pt_entry.NoExecute = 1;
+    pt_entry.p = 1;
+    pt_entry.w = 1;
+    pt_entry.xd = 1;
 
     return true;
 }
@@ -466,75 +466,75 @@ export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     *(uint64_t*)&pml4_entry = *pml4_entry_ptr;
 
-    if (!pml4_entry.Valid) {
+    if (!pml4_entry.p) {
         uint64_t page = allocate_page(); // FIXME - should there be an allocate_zeroed_page?
         if (page == 0)
             return false;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pml4_entry.PageFrameNumber = page >> PAGE_SHIFT;
+        pml4_entry.pfn = page >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-        pml4_entry.Valid = 1;
-        pml4_entry.Write = 1;
-        pml4_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
+        pml4_entry.p = 1;
+        pml4_entry.w = 1;
+        pml4_entry.u = va & 0x8000000000000000 ? 0 : 1;
 
         memset(phys_address(page), 0, PAGE_SIZE);
 
         *pml4_entry_ptr = *(uint64_t*)&pml4_entry;
     }
 
-    uint64_t pfn = pml4_entry.PageFrameNumber;
+    uint64_t pfn = pml4_entry.pfn;
     auto pdpt_entry_ptr = (volatile uint64_t*)phys_address((pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
 
     HARDWARE_PTE pdpt_entry;
 
     *(uint64_t*)&pdpt_entry = *pdpt_entry_ptr;
 
-    if (!pdpt_entry.Valid) {
+    if (!pdpt_entry.p) {
         uint64_t page = allocate_page();
         if (page == 0)
             return false;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pdpt_entry.PageFrameNumber = page >> PAGE_SHIFT;
+        pdpt_entry.pfn = page >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-        pdpt_entry.Valid = 1;
-        pdpt_entry.Write = 1;
-        pdpt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
+        pdpt_entry.p = 1;
+        pdpt_entry.w = 1;
+        pdpt_entry.u = va & 0x8000000000000000 ? 0 : 1;
 
         memset(phys_address(page), 0, PAGE_SIZE);
 
         *pdpt_entry_ptr = *(uint64_t*)&pdpt_entry;
     }
 
-    pfn = pdpt_entry.PageFrameNumber;
+    pfn = pdpt_entry.pfn;
     auto pdt_entry_ptr = (volatile uint64_t*)phys_address((pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
 
     HARDWARE_PTE pdt_entry;
 
     *(uint64_t*)&pdt_entry = *pdt_entry_ptr;
 
-    if (!pdt_entry.Valid) {
+    if (!pdt_entry.p) {
         uint64_t page = allocate_page();
         if (page == 0)
             return false;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pdt_entry.PageFrameNumber = page >> PAGE_SHIFT;
+        pdt_entry.pfn = page >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-        pdt_entry.Valid = 1;
-        pdt_entry.Write = 1;
-        pdt_entry.Owner = va & 0x8000000000000000 ? 0 : 1;
+        pdt_entry.p = 1;
+        pdt_entry.w = 1;
+        pdt_entry.u = va & 0x8000000000000000 ? 0 : 1;
 
         memset(phys_address(page), 0, PAGE_SIZE);
 
         *pdt_entry_ptr = *(uint64_t*)&pdt_entry;
     }
 
-    pfn = pdt_entry.PageFrameNumber;
+    pfn = pdt_entry.pfn;
     auto pt_entry_ptr = (volatile uint64_t*)phys_address((pfn << PAGE_SHIFT) | (((va & 0x1ff000) >> 12) << 3));
 
     HARDWARE_PTE pt_entry;
@@ -543,49 +543,49 @@ export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    pt_entry.PageFrameNumber = pa >> PAGE_SHIFT;
+    pt_entry.pfn = pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-    pt_entry.Valid = 1;
+    pt_entry.p = 1;
 
     switch (type) {
         case mapping_type::no_access:
-            pt_entry.NoExecute = 1;
+            pt_entry.xd = 1;
         break;
 
         case mapping_type::read_write:
-            pt_entry.NoExecute = 1;
-            pt_entry.Write = 1;
+            pt_entry.xd = 1;
+            pt_entry.w = 1;
         break;
 
         case mapping_type::read_only:
-            pt_entry.NoExecute = 1;
+            pt_entry.xd = 1;
         break;
 
         case mapping_type::read_execute:
         break;
 
         case mapping_type::read_write_execute:
-            pt_entry.Write = 1;
+            pt_entry.w = 1;
         break;
 
         case mapping_type::no_cache:
-            pt_entry.NoExecute = 1;
-            pt_entry.Write = 1;
-            pt_entry.CacheDisable = 1;
+            pt_entry.xd = 1;
+            pt_entry.w = 1;
+            pt_entry.pcd = 1;
         break;
 
         case mapping_type::write_combine:
-            pt_entry.NoExecute = 1;
-            pt_entry.Write = 1;
-            pt_entry.LargePage = 1;
-            pt_entry.CacheDisable = 1;
+            pt_entry.xd = 1;
+            pt_entry.w = 1;
+            pt_entry.ps = 1;
+            pt_entry.pcd = 1;
         break;
 
         case mapping_type::reserved:
             return false;
     }
 
-    pt_entry.Owner = (type == mapping_type::no_access || va & 0x8000000000000000) ? 0 : 1;
+    pt_entry.u = (type == mapping_type::no_access || va & 0x8000000000000000) ? 0 : 1;
 
     *pt_entry_ptr = *(uint64_t*)&pt_entry;
 
@@ -648,32 +648,32 @@ export void free_lower_half_mappings() {
     for (unsigned int i = 0; i < 256; i++) {
         auto& p1 = pml4[i];
 
-        if (p1.Valid) {
+        if (p1.p) {
             auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (i << PAGE_SHIFT)), 512);
 
             for (unsigned int j = 0; j < pdpt.size(); j++) {
                 auto& p2 = pdpt[j];
 
-                if (p2.Valid) {
+                if (p2.p) {
                     auto pdt = span((HARDWARE_PTE*)(SELFMAP_PDT | (i << (PAGE_SHIFT + 9)) | (j << PAGE_SHIFT)), 512);
 
                     for (unsigned int k = 0; k < pdt.size(); k++) {
                         auto& p3 = pdt[k];
 
-                        if (p3.Valid) {
+                        if (p3.p) {
                             auto pt = span((HARDWARE_PTE*)(SELFMAP | (i << (PAGE_SHIFT + 18)) | (j << (PAGE_SHIFT + 9)) | (k << PAGE_SHIFT)), 512);
 
                             memset(pt.data(), 0, PAGE_SIZE);
 
-                            mark_mem_as_free((uint64_t)p3.PageFrameNumber << PAGE_SHIFT, PAGE_SIZE);
+                            mark_mem_as_free((uint64_t)p3.pfn << PAGE_SHIFT, PAGE_SIZE);
                         }
                     }
 
-                    mark_mem_as_free((uint64_t)p2.PageFrameNumber << PAGE_SHIFT, PAGE_SIZE);
+                    mark_mem_as_free((uint64_t)p2.pfn << PAGE_SHIFT, PAGE_SIZE);
                 }
             }
 
-            mark_mem_as_free((uint64_t)p1.PageFrameNumber << PAGE_SHIFT, PAGE_SIZE);
+            mark_mem_as_free((uint64_t)p1.pfn << PAGE_SHIFT, PAGE_SIZE);
             *(uint64_t*)&p1 = 0;
         }
     }
@@ -768,10 +768,10 @@ static bool map_physical_memory(uint64_t num_pages) {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    pml4_entry.PageFrameNumber = pa >> PAGE_SHIFT;
+    pml4_entry.pfn = pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-    pml4_entry.Valid = 1;
-    pml4_entry.Write = 1;
+    pml4_entry.p = 1;
+    pml4_entry.w = 1;
 
     memset(pdpt.data(), 0, pdpt.size_bytes());
 
@@ -785,11 +785,11 @@ static bool map_physical_memory(uint64_t num_pages) {
     for (unsigned int i = 0; i < gigabytes; i++) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pdpt_entry->PageFrameNumber = i * PAGES_PER_GIGABYTE;
+        pdpt_entry->pfn = i * PAGES_PER_GIGABYTE;
 #pragma GCC diagnostic pop
-        pdpt_entry->Valid = 1;
-        pdpt_entry->Write = 1;
-        pdpt_entry->LargePage = 1;
+        pdpt_entry->p = 1;
+        pdpt_entry->w = 1;
+        pdpt_entry->ps = 1;
 
         pdpt_entry++;
     }
@@ -1187,20 +1187,20 @@ export void free_folio(uint64_t pa) {
 export void unmap_and_free_page(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
-    if (!pt_entry.Valid)
+    if (!pt_entry.p)
         return;
 
-    auto pa = ((uint64_t)pt_entry.PageFrameNumber) << PAGE_SHIFT;
+    auto pa = ((uint64_t)pt_entry.pfn) << PAGE_SHIFT;
 
     free_folio(pa);
 
-    pt_entry.Valid = 0;
+    pt_entry.p = 0;
 }
 
 export void unmap_page(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
-    pt_entry.Valid = 0;
+    pt_entry.p = 0;
 
     __asm __volatile(
         "invlpg %0"
@@ -1216,59 +1216,59 @@ export void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type typ
 
     switch (type) {
         case mapping_type::read_write:
-            pt_entry.NoExecute = 1;
-            pt_entry.Write = 1;
-            pt_entry.LargePage = 0;
-            pt_entry.CacheDisable = 0;
-            pt_entry.WriteThrough = 0;
+            pt_entry.xd = 1;
+            pt_entry.w = 1;
+            pt_entry.ps = 0;
+            pt_entry.pcd = 0;
+            pt_entry.pwt = 0;
         break;
 
         case mapping_type::read_only:
-            pt_entry.NoExecute = 1;
-            pt_entry.Write = 0;
-            pt_entry.LargePage = 0;
-            pt_entry.CacheDisable = 0;
-            pt_entry.WriteThrough = 0;
+            pt_entry.xd = 1;
+            pt_entry.w = 0;
+            pt_entry.ps = 0;
+            pt_entry.pcd = 0;
+            pt_entry.pwt = 0;
         break;
 
         case mapping_type::no_access:
         case mapping_type::read_execute:
-            pt_entry.NoExecute = 0;
-            pt_entry.Write = 0;
-            pt_entry.LargePage = 0;
-            pt_entry.CacheDisable = 0;
-            pt_entry.WriteThrough = 0;
+            pt_entry.xd = 0;
+            pt_entry.w = 0;
+            pt_entry.ps = 0;
+            pt_entry.pcd = 0;
+            pt_entry.pwt = 0;
         break;
 
         case mapping_type::read_write_execute:
-            pt_entry.NoExecute = 0;
-            pt_entry.Write = 1;
-            pt_entry.LargePage = 0;
-            pt_entry.CacheDisable = 0;
-            pt_entry.WriteThrough = 0;
+            pt_entry.xd = 0;
+            pt_entry.w = 1;
+            pt_entry.ps = 0;
+            pt_entry.pcd = 0;
+            pt_entry.pwt = 0;
         break;
 
         case mapping_type::no_cache:
-            pt_entry.NoExecute = 1;
-            pt_entry.Write = 1;
-            pt_entry.LargePage = 0;
-            pt_entry.CacheDisable = 1;
-            pt_entry.WriteThrough = 0;
+            pt_entry.xd = 1;
+            pt_entry.w = 1;
+            pt_entry.ps = 0;
+            pt_entry.pcd = 1;
+            pt_entry.pwt = 0;
         break;
 
         case mapping_type::write_combine:
-            pt_entry.NoExecute = 1;
-            pt_entry.Write = 1;
-            pt_entry.LargePage = 1;
-            pt_entry.CacheDisable = 1;
-            pt_entry.WriteThrough = 0;
+            pt_entry.xd = 1;
+            pt_entry.w = 1;
+            pt_entry.ps = 1;
+            pt_entry.pcd = 1;
+            pt_entry.pwt = 0;
         break;
 
         case mapping_type::reserved:
         break;
     }
 
-    pt_entry.Owner = (type == mapping_type::no_access || ks) ? 0 : 1;
+    pt_entry.u = (type == mapping_type::no_access || ks) ? 0 : 1;
 }
 
 export void protect_page(uint64_t va, enum mapping_type type) {
@@ -1462,7 +1462,7 @@ export void free_va(uint64_t va, uint32_t num_pages) {
 export uint64_t va_to_pa_lookup(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
-    return (uint64_t)pt_entry.PageFrameNumber << PAGE_SHIFT;
+    return (uint64_t)pt_entry.pfn << PAGE_SHIFT;
 }
 
 export

@@ -796,10 +796,10 @@ bool process::allocate_cr3() {
     // add recursive mapping
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    pml4t[(SELFMAP & 0xff8000000000) >> 39].PageFrameNumber = cr3 >> PAGE_SHIFT;
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].pfn = cr3 >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-    pml4t[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
-    pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].p = 1;
+    pml4t[(SELFMAP & 0xff8000000000) >> 39].w = 1;
 
     return true;
 }
@@ -1421,22 +1421,22 @@ void process::unmap_proc_page(uint64_t va) {
 
     pml4 = span((HARDWARE_PTE*)phys_address(cr3), 512);
 
-    if (!pml4[(va & 0xff8000000000) >> 39].Valid)
+    if (!pml4[(va & 0xff8000000000) >> 39].p)
         return;
 
-    pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT)), 512);
+    pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
 
-    if (!pdpt[(va & 0x7fc0000000) >> 30].Valid)
+    if (!pdpt[(va & 0x7fc0000000) >> 30].p)
         return;
 
-    pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT)), 512);
+    pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
 
-    if (!pdt[(va & 0x3fe00000) >> 21].Valid)
+    if (!pdt[(va & 0x3fe00000) >> 21].p)
         return;
 
-    pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT)), 512);
+    pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
 
-    pt[(va & 0x1ff000) >> 12].Valid = 0;
+    pt[(va & 0x1ff000) >> 12].p = 0;
 }
 
 NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t free_type) {
@@ -1746,20 +1746,20 @@ NTSTATUS process::change_proc_page_protection(uint64_t va, enum mapping_type pro
 
     pml4 = span((HARDWARE_PTE*)phys_address(cr3), 512);
 
-    if (!pml4[(va & 0xff8000000000) >> 39].Valid)
+    if (!pml4[(va & 0xff8000000000) >> 39].p)
         return nt_status::SUCCESS;
 
-    pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].PageFrameNumber) << PAGE_SHIFT)), 512);
+    pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
 
-    if (!pdpt[(va & 0x7fc0000000) >> 30].Valid)
+    if (!pdpt[(va & 0x7fc0000000) >> 30].p)
         return nt_status::SUCCESS;
 
-    pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].PageFrameNumber) << PAGE_SHIFT)), 512);
+    pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
 
-    if (!pdt[(va & 0x3fe00000) >> 21].Valid)
+    if (!pdt[(va & 0x3fe00000) >> 21].p)
         return nt_status::SUCCESS;
 
-    pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].PageFrameNumber) << PAGE_SHIFT)), 512);
+    pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
 
     protect_page2(pt[(va & 0x1ff000) >> 12], prot, false);
 

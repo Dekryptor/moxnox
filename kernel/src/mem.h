@@ -5,22 +5,21 @@
 #define SELFMAP_PML4            0xfffff6fb7dbed000
 
 struct HARDWARE_PTE {
-    uint64_t Valid:1;
-    uint64_t Write:1;
-    uint64_t Owner:1;
-    uint64_t WriteThrough:1;
-    uint64_t CacheDisable:1;
-    uint64_t Accessed:1;
-    uint64_t Dirty:1;
-    uint64_t LargePage:1;
-    uint64_t Global:1;
-    uint64_t CopyOnWrite:1;
-    uint64_t Prototype:1;
-    uint64_t reserved0:1;
-    uint64_t PageFrameNumber:40;
-    uint64_t SoftwareWsIndex:11;
-    uint64_t NoExecute:1;
+    uint64_t p : 1;
+    uint64_t w : 1;
+    uint64_t u : 1;
+    uint64_t pwt : 1;
+    uint64_t pcd : 1;
+    uint64_t a : 1;
+    uint64_t d : 1;
+    uint64_t ps : 1;
+    uint64_t g : 1;
+    uint64_t : 3;
+    uint64_t pfn : 51;
+    uint64_t xd : 1;
 };
+
+static_assert(sizeof(HARDWARE_PTE) == sizeof(uint64_t));
 
 struct gdt_entry {
     uint16_t LimitLow;
