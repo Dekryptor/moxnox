@@ -1943,35 +1943,32 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
     *region_size = pages << PAGE_SHIFT;
 
     bool first = true;
-    lock_guard lock(mappings_lock);
 
-    auto le = mappings.next;
-    while (le != &mappings) {
-        auto& m = containing_record<mapping>(le);
+    while (true) {
+        auto m = find_mapping(*this, addr);
+        if (!m)
+            break;
 
-        if (m.address > addr + (pages << PAGE_SHIFT))
-            return nt_status::NO_MEMORY;
+        auto num_pages = min(pages, (uint32_t)((m->address + m->size - addr) >> PAGE_SHIFT));
 
-        if (m.address + m.size > addr && m.address < addr + (pages << PAGE_SHIFT)) {
-            auto num_pages = min(pages, (uint32_t)((m.address + m.size - addr) >> PAGE_SHIFT));
+        if (first)
+            old_prot = get_page_protection(*this, addr);
 
-            if (first)
-                old_prot = get_page_protection(*this, addr);
-
-            if (!set_page_protection(*this, addr, num_pages, prot))
-                return nt_status::INSUFFICIENT_RESOURCES;
-
-            first = false;
-
-            pages -= num_pages;
-
-            if (pages == 0)
-                break;
-
-            addr += num_pages << PAGE_SHIFT;
+        if (!set_page_protection(*this, addr, num_pages, prot)) {
+            m->release();
+            return nt_status::INSUFFICIENT_RESOURCES;
         }
 
-        le = le->next;
+        m->release();
+
+        first = false;
+
+        pages -= num_pages;
+
+        if (pages == 0)
+            break;
+
+        addr += num_pages << PAGE_SHIFT;
     }
 
     if (pages != 0)
