@@ -877,8 +877,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     {
         lock_guard lock(mappings_lock);
 
-        auto le = mappings.next;
-        while (le != &mappings) {
+        for (auto le = mappings.next; le != &mappings; le = le->next) {
             auto& m = containing_record<mapping>(le);
 
             if (m.address <= address && m.address + m.size > address) {
@@ -898,8 +897,6 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                         return static_cast<mapping_vm&>(m).map(*this, (uint32_t)(address - m.address), address);
                 }
             }
-
-            le = le->next;
         }
     }
 
