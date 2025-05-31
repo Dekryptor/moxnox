@@ -605,26 +605,27 @@ static bool set_page_protection(process& proc, uint64_t va,
 
         pte.p = 0;
         pte.u = 1;
+        pte.w = 0;
 
         switch (protect) {
             case mapping_type::read_write:
                 pte.xd = 1;
-                pte.w = 1;
+                pte.allow_write = 1;
                 break;
 
             case mapping_type::read_execute:
                 pte.xd = 0;
-                pte.w = 0;
+                pte.allow_write = 0;
                 break;
 
             case mapping_type::read_write_execute:
                 pte.xd = 0;
-                pte.w = 1;
+                pte.allow_write = 1;
                 break;
 
             default:
                 pte.xd = 1;
-                pte.w = 0;
+                pte.allow_write = 0;
                 break;
         }
     }
@@ -826,13 +827,50 @@ union page_fault_error_code {
 
 static_assert(sizeof(page_fault_error_code) == 8);
 
+static HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
+    span<HARDWARE_PTE> pt[4];
+
+    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+
+    if (!pt[3][(va & 0xff8000000000) >> 39].p)
+        return nullptr;
+
+    pt[2] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[3][(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
+
+    if (!pt[2][(va & 0x7fc0000000) >> 30].p)
+        return nullptr;
+
+    pt[1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[2][(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
+
+    if (!pt[1][(va & 0x3fe00000) >> 21].p)
+        return nullptr;
+
+    pt[0] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[1][(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
+
+    return &pt[0][(va & 0x1ff000) >> 12];
+}
+
 bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     page_fault_error_code ec;
 
     ec.value = error_code;
 
-    if (ec.present && !ec.write) // NX violation etc.
+    if (ec.present) {
+        if (ec.instruction_fetch) // NX violation
+            return false;
+
+        auto pte = find_pte(*this, address);
+        if (!pte)
+            return false;
+
+        if (pte->allow_write && !pte->w) {
+            // FIXME - mark cache as dirty
+            pte->w = 1;
+            return true;
+        }
+
         return false;
+    }
 
     address &= ~(PAGE_SIZE - 1);
 
