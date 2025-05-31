@@ -48,6 +48,15 @@ public:
     virtual ~mapping() {
     }
 
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
 
@@ -55,6 +64,9 @@ public:
     enum proc_map_type type;
     uint64_t address;
     uint32_t size;
+
+private:
+    atomic<unsigned int> refcount = 1;
 };
 
 class mapping_section : public mapping {
@@ -124,14 +136,17 @@ static void create_dos_path(span<char16_t> buf, string_view s) {
 }
 
 static mapping* find_mapping(process& proc, uint64_t address) {
+    lock_guard lock(proc.mappings_lock);
+
     address &= ~(PAGE_SIZE - 1);
 
     for (auto le = proc.mappings.next; le != &proc.mappings; le = le->next) {
         auto& m = containing_record<mapping>(le);
 
-        if (m.address <= address && m.address + m.size > address)
+        if (m.address <= address && m.address + m.size > address) {
+            m.acquire();
             return &m;
-        else if (m.address > address)
+        } else if (m.address > address)
             break;
     }
 
@@ -160,8 +175,6 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
 
     auto num_pages = bytes_to_pages(size);
 
-    lock_guard lock(proc.mappings_lock);
-
     auto pm = find_mapping(proc, (uintptr_t)proc.proc_params);
     if (!pm) {
         print("allocate_proc_params: find_mapping failed\n");
@@ -173,6 +186,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
 
     if (!m.cache.pin(first_page, num_pages, nullptr)) {
         print("allocate_proc_params: page_cache::pin failed\n");
+        m.release();
         return false;
     }
 
@@ -197,6 +211,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     if (p->pfn == 0) {
         print("allocate_folio failed\n");
         m.cache.unpin(first_page, num_pages);
+        m.release();
         return false;
     }
 
@@ -220,6 +235,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     if (!dos_path) {
         print("malloc failed\n");
         m.cache.unpin(first_page, num_pages);
+        m.release();
         return false;
     }
 
@@ -229,6 +245,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
                    dos_path, ks_proc_params.CurrentDirectory.DosPath.Length)) {
         print("mapping::copy_to failed\n");
         m.cache.unpin(first_page, num_pages);
+        m.release();
         free(dos_path);
         return false;
     }
@@ -239,6 +256,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     if (!fn_path) {
         print("malloc failed\n");
         m.cache.unpin(first_page, num_pages);
+        m.release();
         return false;
     }
 
@@ -248,6 +266,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
                    fn_path, ks_proc_params.ImagePathName.Length)) {
         print("mapping::copy_to failed\n");
         m.cache.unpin(first_page, num_pages);
+        m.release();
         free(fn_path);
         return false;
     }
@@ -255,6 +274,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     free(fn_path);
 
     m.cache.unpin(first_page, num_pages);
+    m.release();
 
     return true;
 }
@@ -276,8 +296,6 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
         return false;
     }
 
-    lock_guard lock(proc.mappings_lock);
-
     auto pm = find_mapping(proc, (uintptr_t)proc.peb);
     if (!pm) {
         print("allocate_peb: find_mapping failed\n");
@@ -289,6 +307,7 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
 
     if (!m.cache.pin(first_page, num_pages, nullptr)) {
         print("allocate_peb: page_cache::pin failed\n");
+        m.release();
         return false;
     }
 
@@ -313,6 +332,7 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
     if (p->pfn == 0) {
         print("allocate_folio failed\n");
         m.cache.unpin(first_page, num_pages);
+        m.release();
         return false;
     }
 
@@ -322,6 +342,7 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
     ks_peb.ProcessParameters = proc.proc_params;
 
     m.cache.unpin(first_page, num_pages);
+    m.release();
 
     return true;
 }
@@ -756,8 +777,6 @@ static bool populate_teb(process& proc, thread& t) {
     // we're assuming that TEB lives at the beginning of a page
     assert(!((uintptr_t)t.teb & (PAGE_SIZE - 1)));
 
-    lock_guard lock(proc.mappings_lock);
-
     auto pm = find_mapping(proc, (uintptr_t)t.teb);
     if (!pm) {
         print("populate_teb: find_mapping failed\n");
@@ -769,6 +788,7 @@ static bool populate_teb(process& proc, thread& t) {
 
     if (!m.cache.pin(first_page, num_pages, nullptr)) {
         print("populate_teb: page_cache::pin failed\n");
+        m.release();
         return false;
     }
 
@@ -793,6 +813,7 @@ static bool populate_teb(process& proc, thread& t) {
     if (p->pfn == 0) {
         print("allocate_folio failed\n");
         m.cache.unpin(first_page, num_pages);
+        m.release();
         return false;
     }
 
@@ -805,6 +826,7 @@ static bool populate_teb(process& proc, thread& t) {
     teb.ProcessEnvironmentBlock = proc.peb;
 
     m.cache.unpin(first_page, num_pages);
+    m.release();
 
     return true;
 }
@@ -874,31 +896,33 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
     address &= ~(PAGE_SIZE - 1);
 
-    {
-        lock_guard lock(mappings_lock);
+    auto m = find_mapping(*this, address);
+    if (!m)
+        return false;
 
-        auto m = find_mapping(*this, address);
-        if (!m)
-            return false;
+    bool ret;
 
-        switch (m->type) {
-            case proc_map_type::section: {
-                auto& ms = static_cast<mapping_section&>(*m);
+    switch (m->type) {
+        case proc_map_type::section: {
+            auto& ms = static_cast<mapping_section&>(*m);
 
-                // FIXME - return false if actual page violation
+            // FIXME - return false if actual page violation
 
-                return ms.map(*this, (uint32_t)(address - m->address), address);
-            }
-
-            case proc_map_type::vm:
-                if (ec.present)
-                    return false;
-
-                return static_cast<mapping_vm&>(*m).map(*this, (uint32_t)(address - m->address), address);
+            ret = ms.map(*this, (uint32_t)(address - m->address), address);
+            break;
         }
+
+        case proc_map_type::vm:
+            ret = static_cast<mapping_vm&>(*m).map(*this, (uint32_t)(address - m->address), address);
+            break;
+
+        default:
+            ret = false;
+            break;
     }
 
-    return false;
+    m->release();
+    return ret;
 }
 
 bool process::allocate_cr3() {
@@ -1080,24 +1104,7 @@ void process::free_mappings() {
 
         remove_entry_list(m.le);
 
-        switch (m.type) {
-            case proc_map_type::vm: {
-                auto& mv = static_cast<mapping_vm&>(m);
-
-                delete &mv;
-                break;
-            }
-
-            case proc_map_type::section: {
-                auto& ms = static_cast<mapping_section&>(m);
-
-                delete &ms;
-                break;
-            }
-
-            default:
-                delete &m;
-        }
+        m.release();
     }
 }
 
@@ -1359,8 +1366,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         *base_address = (void*)addr;
         *region_size = size;
 
-        lock_guard lock(mappings_lock);
-
         while (true) {
             auto m = find_mapping(*this, addr);
 
@@ -1375,11 +1380,15 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
                     auto ret = mv.commit(*this, (uint32_t)(addr - m->address),
                                          (uint32_t)to_commit, protect);
-                    if (!success(ret))
+                    if (!success(ret)) {
+                        m->release();
                         return ret;
+                    }
 
-                    if (to_commit == size)
+                    if (to_commit == size) {
+                        m->release();
                         return nt_status::SUCCESS;
+                    }
 
                     addr += to_commit;
                     size -= to_commit;
@@ -1388,8 +1397,11 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
                 }
 
                 case proc_map_type::section:
+                    m->release();
                     return nt_status::NO_MEMORY;
             }
+
+            m->release();
         }
 
         return nt_status::NO_MEMORY;
@@ -1433,7 +1445,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
                 if (addr < m2.address + m2.size && addr + m->size > m2.address) { // collision
                     print("collision\n");
-                    delete m;
+                    m->release();
                     return nt_status::NO_MEMORY;
                 }
             }
@@ -1441,7 +1453,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
         if (addr == 0) {
             if (last_addr >= MAX_USERSPACE_ADDRESS - m->size) {
-                delete m;
+                m->release();
                 return nt_status::NO_MEMORY;
             }
 
@@ -1457,7 +1469,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
             if (!set_page_protection(*this, addr, num_pages, protect)) {
                 print("set_page_protection failed\n");
                 remove_entry_list(m->le);
-                delete m;
+                m->release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
         }
@@ -1610,24 +1622,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
     *base_address = (void*)m.address;
     *region_size = m.size;
 
-    switch (m.type) {
-        case proc_map_type::vm: {
-            auto& mv = static_cast<mapping_vm&>(m);
-
-            delete &mv;
-            break;
-        }
-
-        case proc_map_type::section: {
-            auto& ms = static_cast<mapping_section&>(m);
-
-            delete &ms;
-            break;
-        }
-
-        default:
-            delete &m;
-    }
+    m.release();
 
     return nt_status::SUCCESS;
 }
