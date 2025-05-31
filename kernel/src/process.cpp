@@ -895,7 +895,6 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
             {
                 rangelock_req rlr(c.rl, page_num, 1);
-                lock_guard lg(rlr);
 
                 page_cache_entry* p;
 
