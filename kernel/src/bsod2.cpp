@@ -103,9 +103,14 @@ static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_cal
 
 void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
                                      unsigned int skip_callers) {
-    __asm("cli");
+    disable_preempt();
+
+    // make sure that we don't get a deadlock if two BSODs at once
+    __asm("sti");
 
     lock_guard lock(bsod_lock);
+
+    __asm("cli");
 
     if (num_cpus > 1) {
         processors_left_to_halt = num_cpus - 1;
