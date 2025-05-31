@@ -882,8 +882,37 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
         if (!pte)
             return false;
 
-        if (pte->allow_write && !pte->w) {
-            // FIXME - mark cache as dirty
+        if (pte->allow_write && !pte->w) { // mark cache as dirty
+            auto m = find_mapping(*this, address);
+
+            if (!m)
+                return false;
+
+            auto& c = m->cache;
+
+            // FIXME - get range lock
+
+            page_cache_entry* p;
+
+            {
+                lock_guard lg(c.cache_lock);
+
+                p = c.find_page_cache_entry((address - m->address) >> PAGE_SHIFT);
+            }
+
+            if (!p) { // can this happen?
+                m->release();
+                return false;
+            }
+
+            if (!p->dirty) {
+                // FIXME - COW page
+                // FIXME - mark cache as dirty
+                p->dirty = 1;
+            }
+
+            m->release();
+
             pte->w = 1;
             return true;
         }
