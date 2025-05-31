@@ -22,6 +22,8 @@ struct dwarf_info {
     section_info debug_str_offsets;
 };
 
+struct IMAGE_SECTION_HEADER;
+
 class section : public object, public cacheable {
 public:
     section() : object(object_type::section) { }
@@ -54,4 +56,6 @@ public:
     char* name = nullptr;
     size_t namelen = 0;
     dwarf_info dwinfo;
+    unsigned int num_pe_sections = 0;
+    IMAGE_SECTION_HEADER* pe_sections = nullptr;
 };

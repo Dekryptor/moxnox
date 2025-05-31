@@ -103,6 +103,9 @@ section::~section() {
     if (ino)
         ino->get().release();
 
+    if (pe_sections)
+        free(pe_sections);
+
     free(name);
 }
 
@@ -367,6 +370,16 @@ nt_status section::load_image() {
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
     else
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+
+    // FIXME - return error if this would be too large for malloc
+    num_pe_sections = nt_header.FileHeader.NumberOfSections;
+    pe_sections = (IMAGE_SECTION_HEADER*)malloc(sizeof(IMAGE_SECTION_HEADER) * num_pe_sections);
+    if (!pe_sections) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    memcpy(pe_sections, sections.data(), num_pe_sections * sizeof(IMAGE_SECTION_HEADER));
 
     memset(&dwinfo, 0, sizeof(dwinfo));
 
