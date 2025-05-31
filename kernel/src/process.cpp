@@ -1021,8 +1021,12 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 
         auto to_copy = min(size, m->address + m->size - (uintptr_t)us_addr);
 
-        if (!m->copy_to((uint32_t)((uintptr_t)us_addr - m->address), ks_addr, (uint32_t)to_copy))
+        if (!m->copy_to((uint32_t)((uintptr_t)us_addr - m->address), ks_addr, (uint32_t)to_copy)) {
+            m->release();
             return false;
+        }
+
+        m->release();
 
         if (size == to_copy)
             return true;
