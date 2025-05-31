@@ -203,8 +203,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
 #pragma GCC diagnostic ignored "-Wconversion"
             p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-            if (p->pfn)
-                p->status = page_cache_status::clean; // FIXME - or dirty?
+            // FIXME - dirty?
         }
     }
 
@@ -324,8 +323,7 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
 #pragma GCC diagnostic ignored "-Wconversion"
             p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-            if (p->pfn)
-                p->status = page_cache_status::clean; // FIXME - or dirty?
+            // FIXME - dirty?
         }
     }
 
@@ -805,8 +803,7 @@ static bool populate_teb(process& proc, thread& t) {
 #pragma GCC diagnostic ignored "-Wconversion"
             p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-            if (p->pfn)
-                p->status = page_cache_status::clean; // FIXME - or dirty?
+            // FIXME - dirty?
         }
     }
 
@@ -1825,8 +1822,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 #pragma GCC diagnostic ignored "-Wconversion"
                 p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-                if (p->pfn)
-                    p->status = page_cache_status::clean; // FIXME - or dirty?
+                // FIXME - dirty?
             }
         }
 
@@ -2679,7 +2675,6 @@ size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         }
 
         memcpy(get_phys_address(*dest_p), get_phys_address(*src_p), PAGE_SIZE);
-        dest_p->status = page_cache_status::clean;
     }
 
     sect.cache.unpin(page_num, pinned_pages);
@@ -2716,11 +2711,10 @@ size_t mapping_vm::read_into_cache(uint64_t page_num, uint64_t num_pages) {
                     print("allocate folio failed\n");
                     return i;
                 }
+
+                memset(get_phys_address(*p), 0, PAGE_SIZE);
             }
         }
-
-        memset(get_phys_address(*p), 0, PAGE_SIZE);
-        p->status = page_cache_status::clean;
     }
 
     return num_pages;

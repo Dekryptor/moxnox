@@ -620,7 +620,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
         for (unsigned j = 0; j < pages_per_tree; j++) {
             assert(ent->tree.key == (addr >> PAGE_SHIFT) + j);
 
-            if (ent->status == page_cache_status::dirty) {
+            if (ent->dirty) {
                 if (!vol->cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
                     span((uint8_t*)get_phys_address(*ent), PAGE_SIZE))) {
                     print("volume::write_pages failed\n");
@@ -640,8 +640,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
     auto ent = first_page;
     for (unsigned j = 0; j < pages_per_tree; j++) {
-        if (ent->status == page_cache_status::dirty)
-            ent->status = page_cache_status::clean;
+        ent->dirty = 0;
 
         if (j != pages_per_tree - 1) {
             lock_guard lock(cache.cache_lock);

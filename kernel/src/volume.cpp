@@ -469,7 +469,7 @@ size_t volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
             assert(p->tree.key == page_num + i);
 
-            p->status = page_cache_status::clean;
+            p->dirty = 0;
         }
     }
 

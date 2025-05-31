@@ -2,18 +2,12 @@
 
 import config;
 
-enum class page_cache_status {
-    allocated,
-    clean,
-    dirty
-};
-
 struct page_cache_entry {
     rbtree_node<uint64_t> tree;
     std::atomic<uint32_t> refcount;
-    enum page_cache_status status;
     struct {
-        uint64_t reserved : 12;
+        uint64_t dirty : 1;
+        uint64_t reserved : 11;
         uint64_t pfn : 52;
     };
 };

@@ -338,8 +338,6 @@ nt_status section::load_image() {
             memset((uint8_t*)get_phys_address(*p) + to_copy, 0,
                    PAGE_SIZE - to_copy);
         }
-
-        p->status = page_cache_status::clean;
     }
 
     for (unsigned int i = header_pages; i < num_pages; i++) {
@@ -361,7 +359,6 @@ nt_status section::load_image() {
         }
 
         memset(get_phys_address(*p), 0, PAGE_SIZE);
-        p->status = page_cache_status::clean;
     }
 
     span<IMAGE_SECTION_HEADER> sections;
@@ -957,13 +954,9 @@ size_t section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
                             read_pages = i;
                             break;
                         }
-                    }
-                }
 
-                // FIXME - lock?
-                if (p->status == page_cache_status::allocated) {
-                    memset(get_phys_address(*p), 0, PAGE_SIZE);
-                    p->status = page_cache_status::clean;
+                        memset(get_phys_address(*p), 0, PAGE_SIZE);
+                    }
                 }
             }
 

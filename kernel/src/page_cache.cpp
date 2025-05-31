@@ -50,8 +50,8 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
 
     p->tree.key = page_num;
     p->refcount = 1;
-    p->status = page_cache_status::allocated;
     p->pfn = 0;
+    p->dirty = 0;
 
     return p;
 }
@@ -78,7 +78,7 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
         ent->refcount++;
         p = ent;
 
-        if (first_unread && p->status != page_cache_status::clean)
+        if (first_unread && p->pfn == 0)
             *first_unread = p;
     }
 
@@ -98,10 +98,8 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
             ent->refcount++;
             p = ent;
 
-            if (p->status != page_cache_status::clean) {
-                if (first_unread && !*first_unread)
-                    *first_unread = p;
-            }
+            if (p->pfn == 0 && first_unread && !*first_unread)
+                *first_unread = p;
         }
     }
 
@@ -197,7 +195,7 @@ static void clean_pages(page_cache& cache, page_cache_entry* range_start,
     for (uint64_t i = 0; i < range_length; i++) {
         // FIXME - assert that status is page_cache_status::allocated
 
-        p->status = page_cache_status::clean;
+        p->dirty = 0;
         p = cache.next_page_cache_entry(*p);
     }
 }
@@ -210,7 +208,7 @@ static bool find_unread_range(page_cache& cache, page_cache_entry*& range_start,
 
     // find first contiguous unread range
 
-    while (ent->status != page_cache_status::allocated) {
+    while (ent->pfn) {
         ent = cache.next_page_cache_entry(*ent);
 
         if (!ent)
@@ -229,7 +227,7 @@ static bool find_unread_range(page_cache& cache, page_cache_entry*& range_start,
 
             ent = cache.next_page_cache_entry(*ent);
 
-            if (!ent || ent->status != page_cache_status::allocated) {
+            if (!ent || ent->pfn) {
                 ent = orig_ent;
                 break;
             }
@@ -250,7 +248,7 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
     if (!pin(first_page, num_pages, nullptr))
         return false;
 
-    // copy pages and set status to dirty
+    // copy pages and set as dirty
 
     page_cache_entry* ent;
 
@@ -280,7 +278,7 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
 
             memcpy(ent_va, data.data() + (i << PAGE_SHIFT), PAGE_SIZE);
 
-            ent->status = page_cache_status::dirty;
+            ent->dirty = 1;
             ent->refcount--;
         }
     }
@@ -314,7 +312,7 @@ size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
             memcpy((uint8_t*)ent_va + inpage_offset, data.data(),
                 min(data.size(), PAGE_SIZE - inpage_offset));
 
-            ent->status = page_cache_status::dirty;
+            ent->dirty = 1;
             ent->refcount--; // unpin
         }
 
@@ -359,7 +357,7 @@ size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
 
         memcpy(ent_va, data.data(), data.size());
 
-        ent->status = page_cache_status::dirty;
+        ent->dirty = 1;
         ent->refcount--; // unpin
     }
 
@@ -512,7 +510,7 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
     // get first entry
     auto ent = &rbtree_containing_record<page_cache_entry>(get_tree_minimum(root));
 
-    while (ent->status != page_cache_status::dirty) {
+    while (!ent->dirty) {
         ent = next_page_cache_entry(*ent);
 
         if (!ent)
@@ -532,7 +530,7 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
         if (ent2->tree.key != range_start->tree.key + range_length)
             break;
 
-        if (ent2->status != page_cache_status::dirty)
+        if (!ent2->dirty)
             break;
 
         ent = ent2;
