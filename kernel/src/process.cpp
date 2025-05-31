@@ -58,6 +58,7 @@ public:
             delete this;
     }
 
+    bool map(process& proc, uint32_t offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
 
@@ -81,7 +82,6 @@ public:
         sect.release();
     }
 
-    bool map(process& proc, uint32_t offset, uint64_t va);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
@@ -94,7 +94,6 @@ public:
         type = proc_map_type::vm;
     }
 
-    bool map(process& proc, uint32_t offset, uint64_t va);
     NTSTATUS commit(process& proc, uint32_t offset, uint32_t commit_size,
                     enum mapping_type prot);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -944,28 +943,10 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     if (!m)
         return false;
 
-    bool ret;
-
-    switch (m->type) {
-        case proc_map_type::section: {
-            auto& ms = static_cast<mapping_section&>(*m);
-
-            // FIXME - return false if actual page violation
-
-            ret = ms.map(*this, (uint32_t)(address - m->address), address);
-            break;
-        }
-
-        case proc_map_type::vm:
-            ret = static_cast<mapping_vm&>(*m).map(*this, (uint32_t)(address - m->address), address);
-            break;
-
-        default:
-            ret = false;
-            break;
-    }
+    auto ret = m->map(*this, (uint32_t)(address - m->address), address);
 
     m->release();
+
     return ret;
 }
 
@@ -1727,30 +1708,7 @@ static void process_map_page(process& proc, uint64_t pfn, uint64_t va) {
     pte.p = 1;
 }
 
-bool mapping_vm::map(process& proc, uint32_t offset, uint64_t va) {
-    uint64_t page_num = offset >> PAGE_SHIFT;
-
-    if (cache.read_into_cache_and_pin(page_num, 1) == 0)
-        return false;
-
-    page_cache_entry* p;
-
-    {
-        lock_guard lg(cache.cache_lock);
-        p = cache.find_page_cache_entry(page_num);
-    }
-
-    {
-        rangelock_req rlr(cache.rl, page_num, 1);
-        process_map_page(proc, p->pfn, va);
-    }
-
-    cache.unpin(page_num, 1); // FIXME?
-
-    return true;
-}
-
-bool mapping_section::map(process& proc, uint32_t offset, uint64_t va) {
+bool mapping::map(process& proc, uint32_t offset, uint64_t va) {
     uint64_t page_num = offset >> PAGE_SHIFT;
 
     if (cache.read_into_cache_and_pin(page_num, 1) == 0)
