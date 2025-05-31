@@ -1760,7 +1760,10 @@ bool mapping_section::map(process& proc, uint32_t offset, uint64_t va) {
         p = cache.find_page_cache_entry(page_num);
     }
 
-    process_map_page(proc, p->pfn, va);
+    {
+        rangelock_req rlr(cache.rl, page_num, 1);
+        process_map_page(proc, p->pfn, va);
+    }
 
     cache.unpin(page_num, 1); // FIXME?
 
