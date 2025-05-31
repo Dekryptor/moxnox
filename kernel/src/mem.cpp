@@ -1184,6 +1184,48 @@ export void free_folio(uint64_t pa) {
     try_to_compact(pfn);
 }
 
+export uint64_t cow_folio(uint64_t pa) {
+    uint64_t pfn = pa >> PAGE_SHIFT;
+    auto& p = pages[pfn];
+
+    // FIXME - have a list of zeroed pages ready to go, and use these if COWing the zero page
+
+    {
+        lock_guard lock(pa_spinlock);
+
+        assert(p.state == page_state::used);
+
+        if (p.used.refcount == 1) // no COW necessary
+            return pa;
+    }
+
+    auto new_pa = allocate_folio(p.order);
+    if (!new_pa)
+        return 0;
+
+    memcpy(phys_address(new_pa), phys_address(pa), PAGE_SIZE << p.order);
+
+    bool beaten_to_it;
+
+    {
+        lock_guard lock(pa_spinlock);
+
+        if (p.used.refcount == 1)
+            beaten_to_it = true;
+        else {
+            beaten_to_it = false;
+            p.used.refcount--;
+        }
+    }
+
+    if (beaten_to_it) {
+        free_folio(new_pa);
+        return pa;
+    }
+
+    return new_pa;
+}
+
 export void unmap_and_free_page(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 

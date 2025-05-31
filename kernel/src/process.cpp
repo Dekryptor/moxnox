@@ -911,8 +911,21 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                 }
 
                 if (!p->dirty) {
-                    // FIXME - COW page
-                    // FIXME - mark cache as dirty
+                    assert(p->pfn != 0);
+
+                    auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                    if (pfn == 0) {
+                        m->release();
+                        return false;
+                    }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                    p->pfn = pfn;
+                    pte->pfn = pfn;
+#pragma GCC diagnostic pop
+
+                    // FIXME - mark cache itself as dirty
                     p->dirty = 1;
                 }
             }
