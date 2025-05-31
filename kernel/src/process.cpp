@@ -2710,29 +2710,26 @@ size_t mapping_section::flush_cache(uint64_t page_num, uint64_t num_pages) {
 size_t mapping_vm::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     page_cache_entry* p;
 
-    // FIXME - reflink the zero page
+    {
+        for (uint64_t i = 0; i < num_pages; i++) {
+            {
+                lock_guard lg(cache.cache_lock);
 
-    for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
+                if (i == 0)
+                    p = cache.find_page_cache_entry(page_num);
+                else
+                    p = cache.next_page_cache_entry(*p);
+            }
 
-            if (i == 0)
-                p = cache.find_page_cache_entry(page_num);
-            else
-                p = cache.next_page_cache_entry(*p);
+            if (p->pfn)
+                continue;
 
-            if (p->pfn == 0) {
+            increase_page_refcount(zero_pfn);
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+            p->pfn = zero_pfn;
 #pragma GCC diagnostic pop
-                if (!p->pfn) {
-                    print("allocate folio failed\n");
-                    return i;
-                }
-
-                memset(get_phys_address(*p), 0, PAGE_SIZE);
-            }
         }
     }
 
