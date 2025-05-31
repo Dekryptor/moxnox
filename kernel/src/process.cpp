@@ -1791,77 +1791,81 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
         return false;
     }
 
-    // read first page if needed
-    if (offset & (PAGE_SIZE - 1)) {
-        // FIXME - easy way to do this without pinning again?
-        if (!cache.read_into_cache_and_pin(page_num, 1)) {
-            print("mapping::copy_to: page_cache::read_into_cache_and_pin failed\n");
-            cache.unpin(page_num, num_pages);
-            return false;
+    {
+        rangelock_req rlr(cache.rl, page_num, num_pages);
+
+        // read first page if needed
+        if (offset & (PAGE_SIZE - 1)) {
+            // FIXME - easy way to do this without pinning again?
+            if (!cache.read_into_cache_and_pin(page_num, 1)) {
+                print("mapping::copy_to: page_cache::read_into_cache_and_pin failed\n");
+                cache.unpin(page_num, num_pages);
+                return false;
+            }
+
+            cache.unpin(page_num, 1);
         }
 
-        cache.unpin(page_num, 1);
-    }
+        // read last page if needed
+        if ((offset + size) & (PAGE_SIZE - 1) && (num_pages != 1 || !(offset & (PAGE_SIZE - 1)))) {
+            // FIXME - easy way to do this without pinning again?
+            if (!cache.read_into_cache_and_pin(page_num + num_pages - 1, 1)) {
+                print("mapping::copy_to: page_cache::read_into_cache_and_pin failed\n");
+                cache.unpin(page_num, num_pages);
+                return false;
+            }
 
-    // read last page if needed
-    if ((offset + size) & (PAGE_SIZE - 1) && (num_pages != 1 || !(offset & (PAGE_SIZE - 1)))) {
-        // FIXME - easy way to do this without pinning again?
-        if (!cache.read_into_cache_and_pin(page_num + num_pages - 1, 1)) {
-            print("mapping::copy_to: page_cache::read_into_cache_and_pin failed\n");
-            cache.unpin(page_num, num_pages);
-            return false;
+            cache.unpin(page_num + num_pages - 1, 1);
         }
 
-        cache.unpin(page_num + num_pages - 1, 1);
-    }
+        // FIXME - COWing
 
-    // FIXME - COWing
+        page_cache_entry* p;
 
-    page_cache_entry* p;
+        for (uint64_t i = 0; i < num_pages; i++) {
+            {
+                lock_guard lg(cache.cache_lock);
 
-    for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
+                if (i == 0)
+                    p = cache.find_page_cache_entry(page_num);
+                else
+                    p = cache.next_page_cache_entry(*p);
 
-            if (i == 0)
-                p = cache.find_page_cache_entry(page_num);
-            else
-                p = cache.next_page_cache_entry(*p);
-
-            if (p->pfn == 0) {
+                if (p->pfn == 0) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+                    p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-                // FIXME - dirty?
+                    // FIXME - dirty?
+                }
             }
-        }
 
-        if (!p->pfn) {
-            print("allocate_folio failed\n");
-            cache.unpin(page_num, num_pages);
-            return false;
-        }
+            if (!p->pfn) {
+                print("allocate_folio failed\n");
+                cache.unpin(page_num, num_pages);
+                return false;
+            }
 
-        uint32_t to_copy, page_off;
+            uint32_t to_copy, page_off;
 
-        if (i == 0) {
-            page_off = offset & (PAGE_SIZE - 1);
-            to_copy = min(size, (uint32_t)(PAGE_SIZE - page_off));
-        } else if (i == num_pages - 1) {
-            page_off = 0;
-            to_copy = (offset + size) & (PAGE_SIZE - 1);
+            if (i == 0) {
+                page_off = offset & (PAGE_SIZE - 1);
+                to_copy = min(size, (uint32_t)(PAGE_SIZE - page_off));
+            } else if (i == num_pages - 1) {
+                page_off = 0;
+                to_copy = (offset + size) & (PAGE_SIZE - 1);
 
-            if (to_copy == 0)
+                if (to_copy == 0)
+                    to_copy = PAGE_SIZE;
+            } else {
+                page_off = 0;
                 to_copy = PAGE_SIZE;
-        } else {
-            page_off = 0;
-            to_copy = PAGE_SIZE;
+            }
+
+            memcpy((uint8_t*)get_phys_address(*p) + page_off, ks_addr, to_copy);
+
+            ks_addr = (uint8_t*)ks_addr + to_copy;
         }
-
-        memcpy((uint8_t*)get_phys_address(*p) + page_off, ks_addr, to_copy);
-
-        ks_addr = (uint8_t*)ks_addr + to_copy;
     }
 
     cache.unpin(page_num, num_pages);
