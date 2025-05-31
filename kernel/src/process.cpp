@@ -1830,20 +1830,38 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     p = cache.find_page_cache_entry(page_num);
                 else
                     p = cache.next_page_cache_entry(*p);
+            }
 
-                if (p->pfn == 0) {
+            if (p->pfn == 0) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                    p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-                    // FIXME - dirty?
-                }
+                p->dirty = 1;
             }
 
             if (!p->pfn) {
                 print("allocate_folio failed\n");
                 cache.unpin(page_num, num_pages);
                 return false;
+            }
+
+            if (!p->dirty) {
+                assert(p->pfn != 0);
+
+                auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                if (pfn == 0) {
+                    print("cow_folio failed\n");
+                    cache.unpin(page_num, num_pages);
+                    return false;
+                }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                p->pfn = pfn;
+#pragma GCC diagnostic pop
+
+                p->dirty = 1;
             }
 
             uint32_t to_copy, page_off;
