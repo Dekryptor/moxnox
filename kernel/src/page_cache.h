@@ -2,6 +2,8 @@
 
 import config;
 
+#include "rangelock.h"
+
 struct page_cache_entry {
     rbtree_node<uint64_t> tree;
     std::atomic<uint32_t> refcount;
@@ -38,6 +40,7 @@ public:
 
     spinlock cache_lock;
     cacheable& dev;
+    rangelock rl;
 
 private:
     rbtree_node<uint64_t>* root = nullptr;

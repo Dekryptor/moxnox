@@ -70,6 +70,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/usbhub.cpp
     src/evdev.cpp
     src/keyboard.cpp
+    src/rangelock.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list)

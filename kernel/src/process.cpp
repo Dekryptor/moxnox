@@ -23,6 +23,7 @@ import vfs;
 import string;
 import interrupts;
 import pe;
+import rangelock;
 
 using namespace std;
 
@@ -890,25 +891,30 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
             auto& c = m->cache;
 
-            // FIXME - get range lock
-
-            page_cache_entry* p;
+            uint64_t page_num = (address - m->address) >> PAGE_SHIFT;
 
             {
-                lock_guard lg(c.cache_lock);
+                rangelock_req rlr(c.rl, page_num, 1);
+                lock_guard lg(rlr);
 
-                p = c.find_page_cache_entry((address - m->address) >> PAGE_SHIFT);
-            }
+                page_cache_entry* p;
 
-            if (!p) { // can this happen?
-                m->release();
-                return false;
-            }
+                {
+                    lock_guard lg(c.cache_lock);
 
-            if (!p->dirty) {
-                // FIXME - COW page
-                // FIXME - mark cache as dirty
-                p->dirty = 1;
+                    p = c.find_page_cache_entry((address - m->address) >> PAGE_SHIFT);
+                }
+
+                if (!p) { // can this happen?
+                    m->release();
+                    return false;
+                }
+
+                if (!p->dirty) {
+                    // FIXME - COW page
+                    // FIXME - mark cache as dirty
+                    p->dirty = 1;
+                }
             }
 
             m->release();
