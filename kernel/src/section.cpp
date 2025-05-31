@@ -371,7 +371,24 @@ nt_status section::load_image() {
     else
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
 
-    // FIXME - return error if this would be too large for malloc
+    for (unsigned int i = 0; i < sections.size(); i++) {
+        if (sections[i].VirtualAddress % section_alignment) {
+            print("section aligned incorrectly\n");
+            return nt_status::INVALID_IMAGE_FORMAT;
+        }
+
+        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress + sections[i - 1].VirtualSize) {
+            print("section overlap\n");
+            return nt_status::INVALID_IMAGE_FORMAT;
+        }
+    }
+
+    // don't confuse malloc
+    if (sizeof(IMAGE_SECTION_HEADER) * num_pe_sections > PAGE_SIZE) {
+        print("too many sections\n");
+        return nt_status::INVALID_IMAGE_FORMAT;
+    }
+
     num_pe_sections = nt_header.FileHeader.NumberOfSections;
     pe_sections = (IMAGE_SECTION_HEADER*)malloc(sizeof(IMAGE_SECTION_HEADER) * num_pe_sections);
     if (!pe_sections) {
