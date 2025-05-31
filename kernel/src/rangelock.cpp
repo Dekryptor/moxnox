@@ -54,6 +54,33 @@ static bool rlr_overlap(const rangelock_req& r1, const rangelock_req& r2) {
 }
 
 void rangelock_req::lock() {
+#ifdef DEBUG
+    uint64_t cr8 = 0, rflags = 0;
+
+    __asm __volatile(
+        "mov rax, cr8\n"
+        "mov %0, rax\n"
+        :
+        : "m" (cr8)
+        : "rax"
+    );
+
+    if (cr8)
+        bsod("calling rangelock_req::lock when cr8 != 0");
+
+    __asm __volatile(
+        "pushf\n"
+        "pop rax\n"
+        "mov %0, rax\n"
+        :
+        : "m" (rflags)
+        : "rax"
+    );
+
+    if (!(rflags & 0x200)) // IF flag not set
+        bsod("calling rangelock_req::lock with interrupts disabled");
+#endif
+
     disable_interrupts();
     acquire_sync_lock();
 
