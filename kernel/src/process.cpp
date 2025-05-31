@@ -22,6 +22,7 @@ import list;
 import vfs;
 import string;
 import interrupts;
+import pe;
 
 using namespace std;
 
@@ -707,14 +708,39 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
 
         if (!inserted)
             insert_tail_list(mappings, m->le);
+    }
 
-        if (!set_page_protection(*this, address, sect.size >> PAGE_SHIFT,
-                                 mapping_type::read_write_execute)) { // FIXME
-            print("set_page_protection failed\n");
-            remove_entry_list(m->le);
-            delete m;
-            return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
+    if (sect.pe_sections) {
+        uint64_t addr = 0;
+
+        for (unsigned int i = 0; i < sect.num_pe_sections; i++) {
+            auto& s = sect.pe_sections[i];
+
+            if (s.VirtualAddress > addr) {
+                if (!set_page_protection(*this, address + addr, (uint32_t)((s.VirtualAddress - addr) >> PAGE_SHIFT),
+                                         mapping_type::read_only)) {
+                    return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
+                }
+            }
+
+            uint64_t num_pages = bytes_to_pages(s.VirtualSize);
+
+            if (!set_page_protection(*this, address + s.VirtualAddress, (uint32_t)num_pages,
+                                     characteristics_to_mapping_type(s.Characteristics))) {
+                return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
+            }
+
+            addr = s.VirtualAddress + (num_pages << PAGE_SHIFT);
         }
+
+        if (addr < sect.size) {
+            if (!set_page_protection(*this, address + addr, (uint32_t)((sect.size - addr) >> PAGE_SHIFT),
+                                     mapping_type::read_only)) {
+                return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
+            }
+        }
+    } else {
+        // FIXME - use section's specified protection
     }
 
     return address;
