@@ -540,6 +540,10 @@ static void int1() {
     );
 }
 
+static void illegal_instruction() {
+    __asm("ud2");
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -580,6 +584,8 @@ static void process_line(string_view sv) {
         int3(); // TESTING
     else if (cmd == "int1")
         int1(); // TESTING
+    else if (cmd == "ill")
+        illegal_instruction(); // TESTING
     else if (cmd == "halt")
         halt();
     else if (cmd == "reboot")
