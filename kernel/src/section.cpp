@@ -367,46 +367,13 @@ nt_status section::load_image() {
     else
         sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
 
-    for (unsigned int i = 0; i < sections.size(); i++) {
-        if (sections[i].VirtualAddress % section_alignment) {
-            print("section aligned incorrectly\n");
-            cache.unpin(0, num_pages);
-            return nt_status::INVALID_IMAGE_FORMAT;
-        }
-
-        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress + sections[i - 1].VirtualSize) {
-            print("section overlap\n");
-            cache.unpin(0, num_pages);
-            return nt_status::INVALID_IMAGE_FORMAT;
-        }
-    }
-
-    // don't confuse malloc
-    if (sizeof(IMAGE_SECTION_HEADER) * num_pe_sections > PAGE_SIZE) {
-        print("too many sections\n");
-        cache.unpin(0, num_pages);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    num_pe_sections = nt_header.FileHeader.NumberOfSections;
-    pe_sections = (IMAGE_SECTION_HEADER*)malloc(sizeof(IMAGE_SECTION_HEADER) * num_pe_sections);
-    if (!pe_sections) {
-        print("malloc failed\n");
-        cache.unpin(0, num_pages);
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    memcpy(pe_sections, sections.data(), num_pe_sections * sizeof(IMAGE_SECTION_HEADER));
-
     memset(&dwinfo, 0, sizeof(dwinfo));
 
-    for (const auto& sect : sections) {
+    for (unsigned int i = 0; i < sections.size(); i++) {
+        auto& sect = sections[i];
         auto section_size = max(sect.VirtualSize, sect.SizeOfRawData);
         char buf[50];
         string_view name;
-
-        if (section_size == 0)
-            continue;
 
         auto sp = span(buf, sizeof(buf));
         sp = get_section_name(sect, nt_header.FileHeader, f, sp);
@@ -433,81 +400,112 @@ nt_status section::load_image() {
             dwinfo.debug_str_offsets.size = sect.VirtualSize;
         }
 
+        if (sect.VirtualAddress % section_alignment) {
+            print("section aligned incorrectly\n");
+            cache.unpin(0, num_pages);
+            return nt_status::INVALID_IMAGE_FORMAT;
+        }
+
+        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress + sections[i - 1].VirtualSize) {
+            print("section overlap\n");
+            cache.unpin(0, num_pages);
+            return nt_status::INVALID_IMAGE_FORMAT;
+        }
+
         if (sect.VirtualAddress + section_size > size) {
             print("section overflow\n");
             cache.unpin(0, num_pages);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
+    }
 
-        if (sect.PointerToRawData != 0) {
-            auto file_start_page = sect.PointerToRawData >> PAGE_SHIFT;
-            auto file_end_page = (sect.PointerToRawData + section_size - 1) >> PAGE_SHIFT;
-            auto file_pages_left = file_end_page - file_start_page + 1;
-            uint64_t bytes_left = section_size;
-            unsigned int page_num = 0;
-            uint64_t offset = sect.PointerToRawData & (PAGE_SIZE - 1);
+    // don't confuse malloc
+    if (sizeof(IMAGE_SECTION_HEADER) * num_pe_sections > PAGE_SIZE) {
+        print("too many sections\n");
+        cache.unpin(0, num_pages);
+        return nt_status::INVALID_IMAGE_FORMAT;
+    }
 
-            if (sect.VirtualAddress % section_alignment) {
-                print("section not aligned to SectionAlignment\n");
+    num_pe_sections = nt_header.FileHeader.NumberOfSections;
+    pe_sections = (IMAGE_SECTION_HEADER*)malloc(sizeof(IMAGE_SECTION_HEADER) * num_pe_sections);
+    if (!pe_sections) {
+        print("malloc failed\n");
+        cache.unpin(0, num_pages);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    memcpy(pe_sections, sections.data(), num_pe_sections * sizeof(IMAGE_SECTION_HEADER));
+
+    for (const auto& sect : sections) {
+        auto section_size = max(sect.VirtualSize, sect.SizeOfRawData);
+
+        if (section_size == 0)
+            continue;
+
+        if (sect.PointerToRawData == 0)
+            continue;
+
+        auto file_start_page = sect.PointerToRawData >> PAGE_SHIFT;
+        auto file_end_page = (sect.PointerToRawData + section_size - 1) >> PAGE_SHIFT;
+        auto file_pages_left = file_end_page - file_start_page + 1;
+        uint64_t bytes_left = section_size;
+        unsigned int page_num = 0;
+        uint64_t offset = sect.PointerToRawData & (PAGE_SIZE - 1);
+
+        {
+            lock_guard lg(cache.cache_lock);
+
+            dest_p = cache.find_page_cache_entry(sect.VirtualAddress >> PAGE_SHIFT);
+        }
+
+        assert(dest_p);
+
+        do {
+            auto pinned_pages = (uint32_t)f.cache.read_into_cache_and_pin(file_start_page + page_num, file_pages_left);
+
+            if (pinned_pages == 0) {
+                print("inode::read_into_cache_and_pin did not pin any pages\n");
                 cache.unpin(0, num_pages);
-                return nt_status::INVALID_IMAGE_FORMAT;
+                return nt_status::INTERNAL_ERROR;
             }
 
-            {
-                lock_guard lg(cache.cache_lock);
+            for (unsigned int i = 0; i < pinned_pages; i++) {
+                span<uint8_t> sp;
 
-                dest_p = cache.find_page_cache_entry(sect.VirtualAddress >> PAGE_SHIFT);
-            }
+                if (page_num != 0 && offset != 0) {
+                    sp = span((uint8_t*)get_phys_address(*dest_p) + (PAGE_SIZE - offset),
+                                min(offset, bytes_left));
 
-            assert(dest_p);
-
-            do {
-                auto pinned_pages = (uint32_t)f.cache.read_into_cache_and_pin(file_start_page + page_num, file_pages_left);
-
-                if (pinned_pages == 0) {
-                    print("inode::read_into_cache_and_pin did not pin any pages\n");
-                    cache.unpin(0, num_pages);
-                    return nt_status::INTERNAL_ERROR;
-                }
-
-                for (unsigned int i = 0; i < pinned_pages; i++) {
-                    span<uint8_t> sp;
-
-                    if (page_num != 0 && offset != 0) {
-                        sp = span((uint8_t*)get_phys_address(*dest_p) + (PAGE_SIZE - offset),
-                                  min(offset, bytes_left));
-
-                        f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, 0);
-                        bytes_left -= sp.size();
-
-                        if (bytes_left == 0)
-                            break;
-                    }
-
-                    if (page_num != 0) {
-                        lock_guard lg(cache.cache_lock);
-
-                        dest_p = cache.next_page_cache_entry(*dest_p);
-                    }
-
-                    assert(dest_p);
-
-                    sp = span((uint8_t*)get_phys_address(*dest_p), min(PAGE_SIZE - offset, bytes_left));
-
-                    f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, offset);
+                    f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, 0);
                     bytes_left -= sp.size();
 
-                    page_num++;
+                    if (bytes_left == 0)
+                        break;
                 }
 
-                f.cache.unpin(file_start_page, pinned_pages);
+                if (page_num != 0) {
+                    lock_guard lg(cache.cache_lock);
 
-                file_pages_left -= pinned_pages;
+                    dest_p = cache.next_page_cache_entry(*dest_p);
+                }
 
-                if (file_pages_left == 0)
-                    break;
-            } while (true);
-        }
+                assert(dest_p);
+
+                sp = span((uint8_t*)get_phys_address(*dest_p), min(PAGE_SIZE - offset, bytes_left));
+
+                f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, offset);
+                bytes_left -= sp.size();
+
+                page_num++;
+            }
+
+            f.cache.unpin(file_start_page, pinned_pages);
+
+            file_pages_left -= pinned_pages;
+
+            if (file_pages_left == 0)
+                break;
+        } while (true);
     }
 
     return nt_status::SUCCESS;
