@@ -317,7 +317,80 @@ invalid_opcode_isr:
     load_kernel_cr3
 0:
     save_context2
-    call invalid_opcode
+
+    mov rax, QWORD PTR gs:GS_CURRENT_THREAD
+    cmp rax, 0
+    je 1f
+    cmp QWORD PTR [rax + THREAD_PROC], 0
+    je 1f
+    cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+    jne 1f
+
+invalid_opcode_user_isr:
+    # switch to syscall stack
+    mov rax, [rax + THREAD_SYSCALL_STACK]
+    sub rax, 0x50 # FIXME
+    mov rdx, QWORD PTR [rsp + 0x20] # RIP
+    mov QWORD PTR [rax + 0x20], rdx
+    mov rdx, QWORD PTR [rsp + 0x28] # CS
+    mov QWORD PTR [rax + 0x28], rdx
+    mov rdx, QWORD PTR [rsp + 0x30] # RFLAGS
+    mov QWORD PTR [rax + 0x30], rdx
+    mov rdx, QWORD PTR [rsp + 0x38] # RSP
+    mov QWORD PTR [rax + 0x38], rdx
+    mov rdx, QWORD PTR [rsp + 0x40] # SS
+    mov QWORD PTR [rax + 0x40], rdx
+    mov rsp, rax
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_R11
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R10
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R9
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R8
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
+    push rax
+
+    # mark thread as in kernel mode
+    mov rax, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 1
+
+    sub rsp, 0x20
+    call invalid_opcode_user
+    add rsp, 0x20
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
+    mov [rsp], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
+    mov [rsp+0x8], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
+    mov [rsp+0x50], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
+    mov [rsp+0x68], rax
+
+    # mark thread as not in kernel mode
+    mov rax, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+
+    pop rcx
+    pop rdx
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+
+    load_process_cr3
+    swapgs
+    jmp invalid_opcode_end
+
+1:
+    call invalid_opcode_kernel
 
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
     mov r10, gs:GS_CONTEXT + CONTEXT_R10
@@ -331,11 +404,7 @@ invalid_opcode_isr:
     mov QWORD PTR [rsp+0x38], rax
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
 
-    cmp QWORD PTR [rsp+0x28], 0x8
-    je 1f
-    load_process_cr3
-    swapgs
-1:
+invalid_opcode_end:
     add rsp, 0x20
     iretq
     .seh_endproc
