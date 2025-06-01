@@ -229,6 +229,119 @@ page_fault_end:
     .seh_endproc
 page_fault_isr_end:
 
+.macro exception_isr name
+    .seh_proc \name\()_isr
+    .global \name\()_isr
+\name\()_isr:
+    .seh_pushframe
+    sub rsp, 0x20
+    .seh_stackalloc 32
+    .seh_endprologue
+
+    cmp QWORD PTR [rsp+0x28], 0x8
+    je 0f
+    swapgs
+    load_kernel_cr3
+0:
+    save_context2
+
+    mov rax, QWORD PTR gs:GS_CURRENT_THREAD
+    cmp rax, 0
+    je 1f
+    cmp QWORD PTR [rax + THREAD_PROC], 0
+    je 1f
+    cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+    jne 1f
+
+    # userspace version
+    # switch to syscall stack
+    mov rax, [rax + THREAD_SYSCALL_STACK]
+    sub rax, 0x50 # FIXME
+    mov rdx, QWORD PTR [rsp + 0x20] # RIP
+    mov QWORD PTR [rax + 0x20], rdx
+    mov rdx, QWORD PTR [rsp + 0x28] # CS
+    mov QWORD PTR [rax + 0x28], rdx
+    mov rdx, QWORD PTR [rsp + 0x30] # RFLAGS
+    mov QWORD PTR [rax + 0x30], rdx
+    mov rdx, QWORD PTR [rsp + 0x38] # RSP
+    mov QWORD PTR [rax + 0x38], rdx
+    mov rdx, QWORD PTR [rsp + 0x40] # SS
+    mov QWORD PTR [rax + 0x40], rdx
+    mov rsp, rax
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_R11
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R10
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R9
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R8
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
+    push rax
+
+    # mark thread as in kernel mode
+    mov rax, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 1
+
+    sub rsp, 0x20
+    call \name\()_user
+    add rsp, 0x20
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
+    mov [rsp], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
+    mov [rsp+0x8], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
+    mov [rsp+0x50], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
+    mov [rsp+0x68], rax
+
+    # mark thread as not in kernel mode
+    mov rax, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+
+    pop rcx
+    pop rdx
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+
+    load_process_cr3
+    swapgs
+    jmp 2f
+
+1:
+    # kernelspace version
+    call \name\()_kernel
+
+    mov r11, gs:GS_CONTEXT + CONTEXT_R11
+    mov r10, gs:GS_CONTEXT + CONTEXT_R10
+    mov r9, gs:GS_CONTEXT + CONTEXT_R9
+    mov r8, gs:GS_CONTEXT + CONTEXT_R8
+    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
+    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
+    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
+    mov QWORD PTR [rsp+0x20], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
+    mov QWORD PTR [rsp+0x38], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+
+2:
+    add rsp, 0x20
+    iretq
+    .seh_endproc
+\name\()_isr_end:
+.endm
+
+exception_isr "invalid_opcode"
+exception_isr "breakpoint"
+
 .seh_proc double_fault_isr
 .global double_fault_isr
 double_fault_isr:
@@ -303,113 +416,6 @@ general_protection_fault_isr:
     .seh_endproc
 general_protection_fault_isr_end:
 
-.seh_proc invalid_opcode_isr
-.global invalid_opcode_isr
-invalid_opcode_isr:
-    .seh_pushframe
-    sub rsp, 0x20
-    .seh_stackalloc 32
-    .seh_endprologue
-
-    cmp QWORD PTR [rsp+0x28], 0x8
-    je 0f
-    swapgs
-    load_kernel_cr3
-0:
-    save_context2
-
-    mov rax, QWORD PTR gs:GS_CURRENT_THREAD
-    cmp rax, 0
-    je 1f
-    cmp QWORD PTR [rax + THREAD_PROC], 0
-    je 1f
-    cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
-    jne 1f
-
-invalid_opcode_user_isr:
-    # switch to syscall stack
-    mov rax, [rax + THREAD_SYSCALL_STACK]
-    sub rax, 0x50 # FIXME
-    mov rdx, QWORD PTR [rsp + 0x20] # RIP
-    mov QWORD PTR [rax + 0x20], rdx
-    mov rdx, QWORD PTR [rsp + 0x28] # CS
-    mov QWORD PTR [rax + 0x28], rdx
-    mov rdx, QWORD PTR [rsp + 0x30] # RFLAGS
-    mov QWORD PTR [rax + 0x30], rdx
-    mov rdx, QWORD PTR [rsp + 0x38] # RSP
-    mov QWORD PTR [rax + 0x38], rdx
-    mov rdx, QWORD PTR [rsp + 0x40] # SS
-    mov QWORD PTR [rax + 0x40], rdx
-    mov rsp, rax
-
-    mov rax, gs:GS_CONTEXT + CONTEXT_R11
-    push rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_R10
-    push rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_R9
-    push rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_R8
-    push rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
-    push rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
-    push rax
-
-    # mark thread as in kernel mode
-    mov rax, gs:GS_CURRENT_THREAD
-    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 1
-
-    sub rsp, 0x20
-    call invalid_opcode_user
-    add rsp, 0x20
-
-    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
-    mov [rsp], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
-    mov [rsp+0x8], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
-    mov [rsp+0x50], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
-    mov [rsp+0x68], rax
-
-    # mark thread as not in kernel mode
-    mov rax, gs:GS_CURRENT_THREAD
-    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0
-
-    pop rcx
-    pop rdx
-    pop r8
-    pop r9
-    pop r10
-    pop r11
-
-    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
-
-    load_process_cr3
-    swapgs
-    jmp invalid_opcode_end
-
-1:
-    call invalid_opcode_kernel
-
-    mov r11, gs:GS_CONTEXT + CONTEXT_R11
-    mov r10, gs:GS_CONTEXT + CONTEXT_R10
-    mov r9, gs:GS_CONTEXT + CONTEXT_R9
-    mov r8, gs:GS_CONTEXT + CONTEXT_R8
-    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
-    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
-    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
-    mov QWORD PTR [rsp+0x20], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
-    mov QWORD PTR [rsp+0x38], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
-
-invalid_opcode_end:
-    add rsp, 0x20
-    iretq
-    .seh_endproc
-invalid_opcode_isr_end:
-
 .global spurious_isr
 spurious_isr:
     push rax
@@ -480,44 +486,6 @@ yield_isr:
     call acquire_sync_lock
     jmp scheduler
 yield_isr_end:
-
-.seh_proc breakpoint_isr
-.global breakpoint_isr
-breakpoint_isr:
-    .seh_pushframe
-    sub rsp, 0x20
-    .seh_stackalloc 32
-    .seh_endprologue
-
-    cmp QWORD PTR [rsp+0x28], 0x8
-    je 0f
-    swapgs
-    load_kernel_cr3
-0:
-    save_context2
-    call breakpoint
-
-    mov r11, gs:GS_CONTEXT + CONTEXT_R11
-    mov r10, gs:GS_CONTEXT + CONTEXT_R10
-    mov r9, gs:GS_CONTEXT + CONTEXT_R9
-    mov r8, gs:GS_CONTEXT + CONTEXT_R8
-    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
-    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
-    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
-    mov QWORD PTR [rsp+0x20], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
-    mov QWORD PTR [rsp+0x38], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
-
-    cmp QWORD PTR [rsp+0x28], 0x8
-    je 1f
-    load_process_cr3
-    swapgs
-1:
-    add rsp, 0x20
-    iretq
-    .seh_endproc
-breakpoint_isr_end:
 
 .seh_proc single_step_isr
 .global single_step_isr
