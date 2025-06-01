@@ -551,6 +551,10 @@ static void divide_by_zero() {
     );
 }
 
+static void general_protection_fault() {
+    *(uint8_t*)0x123456789abcdef0 = 1;
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -595,6 +599,8 @@ static void process_line(string_view sv) {
         illegal_instruction(); // TESTING
     else if (cmd == "div")
         divide_by_zero(); // TESTING
+    else if (cmd == "gpf")
+        general_protection_fault(); // TESTING
     else if (cmd == "halt")
         halt();
     else if (cmd == "reboot")
