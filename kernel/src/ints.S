@@ -205,8 +205,8 @@ page_fault_user_exception:
     mov rcx, cr2
     mov rdx, [rsp+0x20]
     call page_fault
-2:
 
+2:
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
     mov r10, gs:GS_CONTEXT + CONTEXT_R10
     mov r9, gs:GS_CONTEXT + CONTEXT_R9
@@ -296,6 +296,8 @@ page_fault_isr_end:
     mov [rsp+0x8], rax
     mov rax, gs:GS_CONTEXT + CONTEXT_RIP
     mov [rsp+0x50], rax
+    mov eax, gs:GS_CONTEXT + CONTEXT_EFLAGS
+    mov [rsp+0x60], eax
     mov rax, gs:GS_CONTEXT + CONTEXT_RSP
     mov [rsp+0x68], rax
 
@@ -341,6 +343,7 @@ page_fault_isr_end:
 
 exception_isr "invalid_opcode"
 exception_isr "breakpoint"
+exception_isr "single_step"
 
 .seh_proc double_fault_isr
 .global double_fault_isr
@@ -486,50 +489,6 @@ yield_isr:
     call acquire_sync_lock
     jmp scheduler
 yield_isr_end:
-
-.seh_proc single_step_isr
-.global single_step_isr
-single_step_isr:
-    .seh_pushframe
-    sub rsp, 0x20
-    .seh_stackalloc 32
-    .seh_endprologue
-
-    cmp QWORD PTR [rsp+0x28], 0x8
-    je 0f
-    swapgs
-    load_kernel_cr3
-0:
-    save_context2
-
-    # clear TF flag when we return
-    mov rax, [rsp+0x30]
-    and rax, ~0x100
-    mov [rsp+0x30], rax
-
-    call single_step
-
-    mov r11, gs:GS_CONTEXT + CONTEXT_R11
-    mov r10, gs:GS_CONTEXT + CONTEXT_R10
-    mov r9, gs:GS_CONTEXT + CONTEXT_R9
-    mov r8, gs:GS_CONTEXT + CONTEXT_R8
-    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
-    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
-    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
-    mov QWORD PTR [rsp+0x20], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
-    mov QWORD PTR [rsp+0x38], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
-
-    cmp QWORD PTR [rsp+0x28], 0x8
-    je 1f
-    load_process_cr3
-    swapgs
-1:
-    add rsp, 0x20
-    iretq
-    .seh_endproc
-single_step_isr_end:
 
 dynamic_isr 30
 dynamic_isr 31
