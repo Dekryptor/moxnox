@@ -1176,6 +1176,11 @@ export void free_folio(uint64_t pa) {
             return;
     }
 
+#ifdef DEBUG
+    if (pfn == zero_pfn)
+        bsod("trying to free zero page");
+#endif
+
     insert_tail_list(folio_free_lists[pages[pfn].order], pages[pfn].free.le);
     pages[pfn].state = page_state::free;
 
