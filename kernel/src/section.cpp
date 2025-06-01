@@ -22,6 +22,7 @@ import mem;
 import config;
 import pe;
 import bsod;
+import rangelock;
 
 using namespace std;
 
@@ -431,18 +432,12 @@ nt_status section::load_image() {
             dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
+        if (((i + 1) << PAGE_SHIFT) - 1 < sections[cur_sect].VirtualAddress) {
+            increase_page_refcount(zero_pfn);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+            dest_p->pfn = zero_pfn;
 #pragma GCC diagnostic pop
-        if (!dest_p->pfn) {
-            print("allocate_folio failed\n");
-            cache.unpin(0, num_pages);
-            return nt_status::INSUFFICIENT_RESOURCES;
-        }
-
-        if (((i + 1) << PAGE_SHIFT) - 1 < sections[cur_sect].VirtualAddress) {
-            memset(get_phys_address(*dest_p), 0, PAGE_SIZE); // FIXME - zero page
             continue;
         }
 
@@ -457,7 +452,11 @@ nt_status section::load_image() {
 
             if (i << PAGE_SHIFT >= sections[cur_sect].VirtualAddress && ((i + 1) << PAGE_SHIFT) <= sections[cur_sect].VirtualAddress + section_size) {
                 if (i << PAGE_SHIFT >= sections[cur_sect].VirtualAddress + sect.SizeOfRawData) {
-                    memset(get_phys_address(*dest_p), 0, PAGE_SIZE); // FIXME - zero page
+                    increase_page_refcount(zero_pfn);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                    dest_p->pfn = zero_pfn;
+#pragma GCC diagnostic pop
                     break;
                 }
 
@@ -477,8 +476,42 @@ nt_status section::load_image() {
                     return nt_status::INTERNAL_ERROR;
                 }
 
-                auto sp = span((uint8_t*)get_phys_address(*dest_p),
-                               min((size_t)(sect.VirtualAddress + sect.VirtualSize - (i << PAGE_SHIFT)), PAGE_SIZE));
+                auto to_copy = min((size_t)(sect.VirtualAddress + sect.VirtualSize - (i << PAGE_SHIFT)), PAGE_SIZE);
+
+                // if aligned nicely, reflink rather than copying
+                if (offset == 0 && to_copy == PAGE_SIZE) {
+                    {
+                        lock_guard lock(f.cache.cache_lock);
+                        src_p = f.cache.find_page_cache_entry(file_start_page);
+                    }
+
+                    uint64_t pfn;
+
+                    {
+                        rangelock_req rlr(f.cache.rl, file_start_page, 1);
+                        increase_page_refcount(src_p->pfn);
+                        pfn = src_p->pfn;
+                    }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                    dest_p->pfn = pfn;
+#pragma GCC diagnostic pop
+                    break;
+                }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                if (!dest_p->pfn) {
+                    print("allocate_folio failed\n");
+                    f.cache.unpin(file_start_page, num_file_pages);
+                    cache.unpin(0, num_pages);
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                }
+
+                auto sp = span((uint8_t*)get_phys_address(*dest_p), to_copy);
 
                 f.cache.copy_into_buffer(file_start_page, num_file_pages,
                                          sp, offset);
@@ -493,7 +526,11 @@ nt_status section::load_image() {
             }
 
             if (cur_sect >= num_pe_sections - 1) {
-                memset(get_phys_address(*dest_p), 0, PAGE_SIZE); // FIXME - zero page
+                increase_page_refcount(zero_pfn);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                dest_p->pfn = zero_pfn;
+#pragma GCC diagnostic pop
                 break;
             }
 
