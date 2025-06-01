@@ -943,7 +943,7 @@ export bool init_memory(const loader_block& lb) {
         return false;
     }
 
-    memcpy(phys_address(zero_pfn << PAGE_SHIFT), 0, PAGE_SIZE);
+    memset(phys_address(zero_pfn << PAGE_SHIFT), 0, PAGE_SIZE);
 
     return true;
 }
