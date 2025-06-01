@@ -344,6 +344,7 @@ page_fault_isr_end:
 exception_isr "invalid_opcode"
 exception_isr "breakpoint"
 exception_isr "single_step"
+exception_isr "divide_by_zero"
 
 .seh_proc double_fault_isr
 .global double_fault_isr
@@ -435,44 +436,6 @@ halt_isr:
     hlt
     jmp 0b
 halt_isr_end:
-
-.seh_proc divide_by_zero_isr
-.global divide_by_zero_isr
-divide_by_zero_isr:
-    .seh_pushframe
-    sub rsp, 0x20
-    .seh_stackalloc 32
-    .seh_endprologue
-
-    cmp QWORD PTR [rsp+0x28], 0x8
-    je 0f
-    swapgs
-    load_kernel_cr3
-0:
-    save_context2
-    call divide_by_zero
-
-    mov r11, gs:GS_CONTEXT + CONTEXT_R11
-    mov r10, gs:GS_CONTEXT + CONTEXT_R10
-    mov r9, gs:GS_CONTEXT + CONTEXT_R9
-    mov r8, gs:GS_CONTEXT + CONTEXT_R8
-    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
-    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
-    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
-    mov QWORD PTR [rsp+0x20], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
-    mov QWORD PTR [rsp+0x38], rax
-    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
-
-    cmp QWORD PTR [rsp+0x28], 0x8
-    je 1f
-    load_process_cr3
-    swapgs
-1:
-    add rsp, 0x20
-    iretq
-    .seh_endproc
-divide_by_zero_isr_end:
 
 .global yield_isr
 yield_isr:
