@@ -256,7 +256,7 @@ page_fault_isr_end:
     # userspace version
     # switch to syscall stack
     mov rax, [rax + THREAD_SYSCALL_STACK]
-    sub rax, 0x50 # FIXME
+    sub rax, 0x50
     mov rdx, QWORD PTR [rsp + 0x20] # RIP
     mov QWORD PTR [rax + 0x20], rdx
     mov rdx, QWORD PTR [rsp + 0x28] # CS
@@ -395,8 +395,83 @@ general_protection_fault_isr:
     load_kernel_cr3
 0:
     save_context_when_error_code
-    mov rcx, QWORD PTR [rsp+0x20]
-    call general_protection_fault
+
+    mov rax, QWORD PTR gs:GS_CURRENT_THREAD
+    cmp rax, 0
+    je 1f
+    cmp QWORD PTR [rax + THREAD_PROC], 0
+    je 1f
+    cmp BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+    jne 1f
+
+    # userspace version
+    # switch to syscall stack
+    mov rax, [rax + THREAD_SYSCALL_STACK]
+    sub rax, 0x50
+    mov rdx, QWORD PTR [rsp + 0x20] # RIP
+    mov QWORD PTR [rax + 0x20], rdx
+    mov rdx, QWORD PTR [rsp + 0x28] # CS
+    mov QWORD PTR [rax + 0x28], rdx
+    mov rdx, QWORD PTR [rsp + 0x30] # RFLAGS
+    mov QWORD PTR [rax + 0x30], rdx
+    mov rdx, QWORD PTR [rsp + 0x38] # RSP
+    mov QWORD PTR [rax + 0x38], rdx
+    mov rdx, QWORD PTR [rsp + 0x40] # SS
+    mov QWORD PTR [rax + 0x40], rdx
+    mov rsp, rax
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_R11
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R10
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R9
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_R8
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
+    push rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
+    push rax
+
+    # mark thread as in kernel mode
+    mov rax, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 1
+
+    sub rsp, 0x20
+    call general_protection_fault_user
+    add rsp, 0x20
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_RCX
+    mov [rsp], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RDX
+    mov [rsp+0x8], rax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RIP
+    mov [rsp+0x58], rax
+    mov eax, gs:GS_CONTEXT + CONTEXT_EFLAGS
+    mov [rsp+0x68], eax
+    mov rax, gs:GS_CONTEXT + CONTEXT_RSP
+    mov [rsp+0x70], rax
+
+    # mark thread as not in kernel mode
+    mov rax, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+
+    pop rcx
+    pop rdx
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+
+    load_process_cr3
+    swapgs
+    jmp 2f
+
+1:
+    # kernelspace version
+    call general_protection_fault_kernel
 
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
     mov r10, gs:GS_CONTEXT + CONTEXT_R10
@@ -410,11 +485,7 @@ general_protection_fault_isr:
     mov QWORD PTR [rsp+0x40], rax
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
 
-    cmp QWORD PTR [rsp+0x30], 0x8
-    je 1f
-    load_process_cr3
-    swapgs
-1:
+2:
     add rsp, 0x28
     iretq
     .seh_endproc
