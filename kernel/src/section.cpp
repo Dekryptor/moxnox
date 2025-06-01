@@ -103,31 +103,6 @@ section::~section() {
     free(name);
 }
 
-class scratch {
-public:
-    scratch() {
-        pa = allocate_page();
-        if (!pa) {
-            print("allocate_page failed\n");
-            return;
-        }
-
-        va = (uintptr_t)phys_address(pa);
-
-        valid = true;
-    }
-
-    ~scratch() {
-        if (!valid)
-            return;
-
-        free_folio(pa);
-    }
-
-    bool valid = false;
-    uintptr_t pa, va;
-};
-
 static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FILE_HEADER& file_header,
                                    inode& f, span<char> buf) {
     auto name = string_view(s.Name, sizeof(s.Name));
@@ -187,39 +162,46 @@ nt_status section::load_image() {
 
     auto& f = ino->get();
     uint32_t size_of_headers, header_pages, section_alignment;
+    page_cache_entry* src_p;
+    page_cache_entry* dest_p;
 
-    scratch s;
-
-    auto buf = (uint8_t*)s.va;
-
-    uint64_t read_bytes;
-    auto status = f.read(span(buf, PAGE_SIZE), 0, read_bytes);
-    if (!success(status)) {
-        print("inode read returned {}\n", status);
-        return status;
+    if (f.cache.read_into_cache_and_pin(0, 1) == 0) {
+        print("section::load_image: read_into_cache_and_pin failed\n");
+        return nt_status::INTERNAL_ERROR;
     }
 
-    if (read_bytes < PAGE_SIZE) {
-        print("read less than 1 page\n");
-        return nt_status::INVALID_IMAGE_FORMAT;
+    {
+        lock_guard lock(f.cache.cache_lock);
+        src_p = f.cache.find_page_cache_entry(0);
     }
 
-    auto& dos_header = *(IMAGE_DOS_HEADER*)buf;
+    if (!src_p) {
+        print("cache::find_page_cache_entry failed\n");
+        f.cache.unpin(0, 1);
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    auto& dos_header = *(IMAGE_DOS_HEADER*)get_phys_address(*src_p);
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
         print("invalid image header\n");
+        f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
+
+    // FIXME - make sure we don't read past end of pagae
 
     if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS)) {
         print("invalid e_lfanew value\n");
+        f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
-    auto& nt_header = *(IMAGE_NT_HEADERS*)(buf + dos_header.e_lfanew);
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)get_phys_address(*src_p) + dos_header.e_lfanew);
 
     if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
         print("incorrect PE signature\n");
+        f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
@@ -229,6 +211,7 @@ nt_status section::load_image() {
     if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
         nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         print("unrecognized optional header signature\n");
+        f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
@@ -239,6 +222,7 @@ nt_status section::load_image() {
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64)) {
             print("SizeOfOptionalHeader was smaller than expected\n");
+            f.cache.unpin(0, 1);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
@@ -251,6 +235,7 @@ nt_status section::load_image() {
     } else {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
             print("SizeOfOptionalHeader was smaller than expected\n");
+            f.cache.unpin(0, 1);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
@@ -264,37 +249,47 @@ nt_status section::load_image() {
 
     if (size == 0) {
         print("size of image was 0\n");
+        f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (size_of_headers > size) {
         print("SizeOfHeaders was more than SizeOfImage\n");
+        f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (size_of_headers > PAGE_SIZE) {
         print("SizeOfHeaders was more than 1 page\n");
+        f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     // FIXME - does this happen in the real world?
     if (section_alignment % PAGE_SIZE) {
         print("SectionAlignment was not a multiple of PAGE_SIZE\n");
+        f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     num_pages = bytes_to_pages(size);
     size = num_pages << PAGE_SHIFT;
 
-    // FIXME - allocate zeroed pages?
-
     if (!cache.pin(0, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
+        f.cache.unpin(0, 1);
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     header_pages = bytes_to_pages(size_of_headers);
-    page_cache_entry* p;
+
+    if (header_pages > 1) {
+        if (f.cache.read_into_cache_and_pin(1, header_pages - 1) != header_pages - 1) {
+            print("section::load_image: read_into_cache_and_pin failed\n");
+            f.cache.unpin(0, 1);
+            return nt_status::INTERNAL_ERROR;
+        }
+    }
 
     for (unsigned int i = 0; i < header_pages; i++) {
         size_t to_copy;
@@ -308,49 +303,61 @@ nt_status section::load_image() {
             lock_guard lg(cache.cache_lock);
 
             if (i == 0)
-                p = cache.find_page_cache_entry(0);
+                dest_p = cache.find_page_cache_entry(0);
             else
-                p = cache.next_page_cache_entry(*p);
+                dest_p = cache.next_page_cache_entry(*dest_p);
+        }
 
-            if (p->pfn == 0) {
+        if (i != 0) {
+            lock_guard lg(f.cache.cache_lock);
+
+            src_p = f.cache.next_page_cache_entry(*src_p);
+        }
+
+        if (dest_p->pfn == 0) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+            dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-                if (!p->pfn) {
-                    print("allocate_folio failed\n");
-                    return nt_status::INSUFFICIENT_RESOURCES;
-                }
+            if (!dest_p->pfn) {
+                print("allocate_folio failed\n");
+
+                f.cache.unpin(0, header_pages);
+                cache.unpin(0, num_pages);
+                return nt_status::INSUFFICIENT_RESOURCES;
             }
         }
 
-        memcpy(get_phys_address(*p), buf + (i << PAGE_SHIFT), to_copy);
+        memcpy(get_phys_address(*dest_p), get_phys_address(*src_p), to_copy);
 
         if (to_copy < PAGE_SIZE) {
-            memset((uint8_t*)get_phys_address(*p) + to_copy, 0,
-                   PAGE_SIZE - to_copy);
+            memset((uint8_t*)get_phys_address(*dest_p) + to_copy, 0,
+                PAGE_SIZE - to_copy);
         }
     }
+
+    f.cache.unpin(0, header_pages);
 
     for (unsigned int i = header_pages; i < num_pages; i++) {
         {
             lock_guard lg(cache.cache_lock);
 
-            p = cache.next_page_cache_entry(*p);
+            dest_p = cache.next_page_cache_entry(*dest_p);
 
-            if (p->pfn == 0) {
+            if (dest_p->pfn == 0) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-                if (!p->pfn) {
+                if (!dest_p->pfn) {
                     print("allocate_folio failed\n");
+                    cache.unpin(0, num_pages);
                     return nt_status::INSUFFICIENT_RESOURCES;
                 }
             }
         }
 
-        memset(get_phys_address(*p), 0, PAGE_SIZE);
+        memset(get_phys_address(*dest_p), 0, PAGE_SIZE);
     }
 
     span<IMAGE_SECTION_HEADER> sections;
@@ -363,11 +370,13 @@ nt_status section::load_image() {
     for (unsigned int i = 0; i < sections.size(); i++) {
         if (sections[i].VirtualAddress % section_alignment) {
             print("section aligned incorrectly\n");
+            cache.unpin(0, num_pages);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
         if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress + sections[i - 1].VirtualSize) {
             print("section overlap\n");
+            cache.unpin(0, num_pages);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
     }
@@ -375,6 +384,7 @@ nt_status section::load_image() {
     // don't confuse malloc
     if (sizeof(IMAGE_SECTION_HEADER) * num_pe_sections > PAGE_SIZE) {
         print("too many sections\n");
+        cache.unpin(0, num_pages);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
@@ -382,6 +392,7 @@ nt_status section::load_image() {
     pe_sections = (IMAGE_SECTION_HEADER*)malloc(sizeof(IMAGE_SECTION_HEADER) * num_pe_sections);
     if (!pe_sections) {
         print("malloc failed\n");
+        cache.unpin(0, num_pages);
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
@@ -445,10 +456,10 @@ nt_status section::load_image() {
             {
                 lock_guard lg(cache.cache_lock);
 
-                p = cache.find_page_cache_entry(sect.VirtualAddress >> PAGE_SHIFT);
+                dest_p = cache.find_page_cache_entry(sect.VirtualAddress >> PAGE_SHIFT);
             }
 
-            assert(p);
+            assert(dest_p);
 
             do {
                 auto pinned_pages = (uint32_t)f.cache.read_into_cache_and_pin(file_start_page + page_num, file_pages_left);
@@ -463,7 +474,7 @@ nt_status section::load_image() {
                     span<uint8_t> sp;
 
                     if (page_num != 0 && offset != 0) {
-                        sp = span((uint8_t*)get_phys_address(*p) + (PAGE_SIZE - offset),
+                        sp = span((uint8_t*)get_phys_address(*dest_p) + (PAGE_SIZE - offset),
                                   min(offset, bytes_left));
 
                         f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, 0);
@@ -476,12 +487,12 @@ nt_status section::load_image() {
                     if (page_num != 0) {
                         lock_guard lg(cache.cache_lock);
 
-                        p = cache.next_page_cache_entry(*p);
+                        dest_p = cache.next_page_cache_entry(*dest_p);
                     }
 
-                    assert(p);
+                    assert(dest_p);
 
-                    sp = span((uint8_t*)get_phys_address(*p), min(PAGE_SIZE - offset, bytes_left));
+                    sp = span((uint8_t*)get_phys_address(*dest_p), min(PAGE_SIZE - offset, bytes_left));
 
                     f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, offset);
                     bytes_left -= sp.size();
