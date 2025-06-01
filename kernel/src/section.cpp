@@ -943,21 +943,17 @@ size_t section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
                         p = cache.find_page_cache_entry(page_num);
                     else
                         p = cache.next_page_cache_entry(*p);
+                }
 
-                    if (p->pfn == 0) {
+                if (p->pfn)
+                    continue;
+
+                increase_page_refcount(zero_pfn);
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                        p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+                p->pfn = zero_pfn;
 #pragma GCC diagnostic pop
-                        if (!p->pfn) {
-                            print("allocate_folio failed\n");
-                            read_pages = i;
-                            break;
-                        }
-
-                        memset(get_phys_address(*p), 0, PAGE_SIZE);
-                    }
-                }
             }
 
             cache.unpin(page_num, num_pages);
