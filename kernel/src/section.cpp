@@ -259,8 +259,8 @@ nt_status section::load_image() {
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
-    if (size_of_headers > PAGE_SIZE) {
-        print("SizeOfHeaders was more than 1 page\n");
+    if (nt_header.FileHeader.NumberOfSections == 0) {
+        print("NumberOfSections was 0\n");
         f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
@@ -338,28 +338,6 @@ nt_status section::load_image() {
 
     f.cache.unpin(0, header_pages);
 
-    for (unsigned int i = header_pages; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
-
-            dest_p = cache.next_page_cache_entry(*dest_p);
-
-            if (dest_p->pfn == 0) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-                if (!dest_p->pfn) {
-                    print("allocate_folio failed\n");
-                    cache.unpin(0, num_pages);
-                    return nt_status::INSUFFICIENT_RESOURCES;
-                }
-            }
-        }
-
-        memset(get_phys_address(*dest_p), 0, PAGE_SIZE);
-    }
-
     span<IMAGE_SECTION_HEADER> sections;
 
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
@@ -412,11 +390,19 @@ nt_status section::load_image() {
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
+        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress) {
+            print("sections out of order\n");
+            cache.unpin(0, num_pages);
+            return nt_status::INVALID_IMAGE_FORMAT;
+        }
+
         if (sect.VirtualAddress + section_size > size) {
             print("section overflow\n");
             cache.unpin(0, num_pages);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
+
+        // FIXME - make sure sect.PointerToRawData isn't out of bounds of file
     }
 
     // don't confuse malloc
@@ -436,76 +422,83 @@ nt_status section::load_image() {
 
     memcpy(pe_sections, sections.data(), num_pe_sections * sizeof(IMAGE_SECTION_HEADER));
 
-    for (const auto& sect : sections) {
-        auto section_size = max(sect.VirtualSize, sect.SizeOfRawData);
+    unsigned int cur_sect = 0;
 
-        if (section_size == 0)
-            continue;
-
-        if (sect.PointerToRawData == 0)
-            continue;
-
-        auto file_start_page = sect.PointerToRawData >> PAGE_SHIFT;
-        auto file_end_page = (sect.PointerToRawData + section_size - 1) >> PAGE_SHIFT;
-        auto file_pages_left = file_end_page - file_start_page + 1;
-        uint64_t bytes_left = section_size;
-        unsigned int page_num = 0;
-        uint64_t offset = sect.PointerToRawData & (PAGE_SIZE - 1);
-
+    for (unsigned int i = header_pages; i < num_pages; i++) {
         {
             lock_guard lg(cache.cache_lock);
 
-            dest_p = cache.find_page_cache_entry(sect.VirtualAddress >> PAGE_SHIFT);
+            dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
-        assert(dest_p);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+        if (!dest_p->pfn) {
+            print("allocate_folio failed\n");
+            cache.unpin(0, num_pages);
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
 
-        do {
-            auto pinned_pages = (uint32_t)f.cache.read_into_cache_and_pin(file_start_page + page_num, file_pages_left);
+        if (((i + 1) << PAGE_SHIFT) - 1 < sections[cur_sect].VirtualAddress) {
+            memset(get_phys_address(*dest_p), 0, PAGE_SIZE); // FIXME - zero page
+            continue;
+        }
 
-            if (pinned_pages == 0) {
-                print("inode::read_into_cache_and_pin did not pin any pages\n");
-                cache.unpin(0, num_pages);
-                return nt_status::INTERNAL_ERROR;
+        while (true) {
+            auto& sect = sections[cur_sect];
+            auto section_size = (uint64_t)max(sect.VirtualSize, sect.SizeOfRawData);
+
+            if (section_size & (PAGE_SIZE - 1)) {
+                section_size &= ~(PAGE_SIZE - 1);
+                section_size += PAGE_SIZE;
             }
 
-            for (unsigned int i = 0; i < pinned_pages; i++) {
-                span<uint8_t> sp;
-
-                if (page_num != 0 && offset != 0) {
-                    sp = span((uint8_t*)get_phys_address(*dest_p) + (PAGE_SIZE - offset),
-                                min(offset, bytes_left));
-
-                    f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, 0);
-                    bytes_left -= sp.size();
-
-                    if (bytes_left == 0)
-                        break;
+            if (i << PAGE_SHIFT >= sections[cur_sect].VirtualAddress && ((i + 1) << PAGE_SHIFT) <= sections[cur_sect].VirtualAddress + section_size) {
+                if (i << PAGE_SHIFT >= sections[cur_sect].VirtualAddress + sect.SizeOfRawData) {
+                    memset(get_phys_address(*dest_p), 0, PAGE_SIZE); // FIXME - zero page
+                    break;
                 }
 
-                if (page_num != 0) {
-                    lock_guard lg(cache.cache_lock);
+                uint64_t file_start = sect.PointerToRawData + (i << PAGE_SHIFT) - sect.VirtualAddress;
+                uint64_t file_end = sect.PointerToRawData + ((i + 1) << PAGE_SHIFT) - 1 - sect.VirtualAddress;
+                auto file_start_page = file_start >> PAGE_SHIFT;
+                auto file_end_page = file_end >> PAGE_SHIFT;
+                auto num_file_pages = file_end_page - file_start_page + 1;
+                uint64_t offset = sect.PointerToRawData & (PAGE_SIZE - 1);
 
-                    dest_p = cache.next_page_cache_entry(*dest_p);
+                auto pinned_pages = f.cache.read_into_cache_and_pin(file_start_page, num_file_pages);
+                if (pinned_pages < num_file_pages) {
+                    if (pinned_pages != 0)
+                        f.cache.unpin(file_start_page, pinned_pages);
+
+                    cache.unpin(0, num_pages);
+                    return nt_status::INTERNAL_ERROR;
                 }
 
-                assert(dest_p);
+                auto sp = span((uint8_t*)get_phys_address(*dest_p),
+                               min((size_t)(sect.VirtualAddress + sect.VirtualSize - (i << PAGE_SHIFT)), PAGE_SIZE));
 
-                sp = span((uint8_t*)get_phys_address(*dest_p), min(PAGE_SIZE - offset, bytes_left));
+                f.cache.copy_into_buffer(file_start_page, num_file_pages,
+                                         sp, offset);
+                f.cache.unpin(file_start_page, num_file_pages);
 
-                f.cache.copy_into_buffer(file_start_page + page_num, 1, sp, offset);
-                bytes_left -= sp.size();
+                if (sp.size() < PAGE_SIZE) {
+                    memset((uint8_t*)get_phys_address(*dest_p) + sp.size(), 0,
+                           PAGE_SIZE - sp.size());
+                }
 
-                page_num++;
-            }
-
-            f.cache.unpin(file_start_page, pinned_pages);
-
-            file_pages_left -= pinned_pages;
-
-            if (file_pages_left == 0)
                 break;
-        } while (true);
+            }
+
+            if (cur_sect >= num_pe_sections - 1) {
+                memset(get_phys_address(*dest_p), 0, PAGE_SIZE); // FIXME - zero page
+                break;
+            }
+
+            cur_sect++;
+        }
     }
 
     return nt_status::SUCCESS;
