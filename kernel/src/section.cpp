@@ -14,6 +14,7 @@ import volume;
 #include "thread.h"
 #include "process.h"
 #include <pe.h>
+#include <utility>
 
 import format;
 import print;
@@ -908,111 +909,75 @@ uint64_t get_image_size(void* image) {
         return 0;
 }
 
-size_t section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+size_t image_read_into_cache(section& /*sect*/, uint64_t /*page_num*/,
+                             uint64_t /*num_pages*/) {
     // FIXME - do lazy loading
 
-    switch (type) {
-        case section_type::image:
-            // should already have been loaded in load_image
-            return 0;
+    // should already have been loaded in load_image
+    return 0;
+}
 
-        case section_type::file:
-            print("section::read_into_cache: FIXME - file mappings\n"); // FIXME
-            return 0;
+size_t file_read_into_cache(section& /*sect*/, uint64_t /*page_num*/,
+                            uint64_t /*num_pages*/) {
+    print("file_read_into_cache: FIXME - file mappings\n"); // FIXME
+    return 0;
+}
 
-        case section_type::anonymous: {
-            if (page_num >= this->num_pages)
-                return 0;
+size_t anon_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages) {
+    if (page_num >= sect.num_pages)
+        return 0;
 
-            if (page_num + num_pages > this->num_pages)
-                num_pages = this->num_pages - page_num;
+    if (page_num + num_pages > sect.num_pages)
+        num_pages = sect.num_pages - page_num;
 
-            if (!cache.pin(page_num, num_pages, nullptr)) {
-                print("page_cache::pin failed\n");
-                return 0;
-            }
+    if (!sect.cache.pin(page_num, num_pages, nullptr)) {
+        print("page_cache::pin failed\n");
+        return 0;
+    }
 
-            page_cache_entry* p;
-            uint64_t read_pages = num_pages;
+    page_cache_entry* p;
+    uint64_t read_pages = num_pages;
 
-            for (uint64_t i = 0; i < num_pages; i++) {
-                {
-                    lock_guard lg(cache.cache_lock);
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(sect.cache.cache_lock);
 
-                    if (i == 0)
-                        p = cache.find_page_cache_entry(page_num);
-                    else
-                        p = cache.next_page_cache_entry(*p);
-                }
+            if (i == 0)
+                p = sect.cache.find_page_cache_entry(page_num);
+            else
+                p = sect.cache.next_page_cache_entry(*p);
+        }
 
-                if (p->pfn)
-                    continue;
+        if (p->pfn)
+            continue;
 
-                increase_page_refcount(zero_pfn);
+        increase_page_refcount(zero_pfn);
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                p->pfn = zero_pfn;
+        p->pfn = zero_pfn;
 #pragma GCC diagnostic pop
-            }
+    }
 
-            cache.unpin(page_num, num_pages);
+    sect.cache.unpin(page_num, num_pages);
 
-            return read_pages;
-        }
+    return read_pages;
+}
+
+size_t section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    switch (type) {
+        case section_type::image:
+            return image_read_into_cache(*this, page_num, num_pages);
+
+        case section_type::file:
+            return file_read_into_cache(*this, page_num, num_pages);
+
+        case section_type::anonymous:
+            return anon_read_into_cache(*this, page_num, num_pages);
 
         default:
-            return 0;
+            unreachable();
     }
-
-#if 0
-    uint64_t page;
-    bool new_page = false;
-
-    // FIXME - multiple pages
-
-    {
-        lock_guard lock(alloc_lock);
-
-        page = pages_pa[page_num];
-
-        if (!page) {
-            if (type != section_type::anonymous) {
-                print("page not set\n");
-                return 0;
-            }
-
-            page = allocate_page();
-            if (!page) {
-                print("allocate_page failed\n");
-                return 0;
-            }
-
-            pages_pa[page_num] = page;
-
-            new_page = true;
-        }
-    }
-
-    if (new_page)
-        memset(phys_address(page), 0, PAGE_SIZE); // FIXME - allocate zeroed page
-
-    {
-        page_cache_entry* dest_p;
-
-        {
-            lock_guard lg(cache.cache_lock);
-
-            dest_p = cache.find_page_cache_entry(page_num);
-        }
-
-        auto dest_va = get_phys_address(*dest_p);
-
-        memcpy(dest_va, phys_address(page), PAGE_SIZE);
-    }
-
-    return 1;
-#endif
 }
 
 size_t section::flush_cache(uint64_t page_num, uint64_t num_pages) {
