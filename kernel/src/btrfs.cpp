@@ -17,6 +17,7 @@ import rbtree;
 export module btrfs;
 
 import print;
+import format;
 import bsod;
 import mem;
 import config;
@@ -90,6 +91,23 @@ struct folio_iter : public pfn_iterator {
 private:
     uint64_t page_num;
 };
+
+template<>
+consteval bool format_spec_valid<btrfs_key>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, const btrfs_key& k) {
+    sp = do_format_arg(sp, "", "(");
+    sp = do_format_arg(sp, ":x", k.objectid);
+    sp = do_format_arg(sp, "", ",");
+    sp = do_format_arg(sp, ":x", (uint8_t)k.type);
+    sp = do_format_arg(sp, "", ",");
+    sp = do_format_arg(sp, ":x", k.offset);
+    sp = do_format_arg(sp, "", ")");
+
+    return sp;
+}
 
 btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     vol.acquire();
@@ -2710,6 +2728,77 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
     return num_pages;
 }
 
+static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
+                             uint64_t num_pages) {
+    page_cache_entry* src_p;
+    bool first = true;
+
+    auto& fs = ino.fs;
+    auto k = btrfs_key{BTRFS_EXTENT_CSUM_OBJECTID, key_type::EXTENT_CSUM, addr};
+
+    do {
+        btrfs_path p(fs.sb->nodesize);
+
+        auto status = fs.find_item(*fs.csum_root, k, p, false);
+        if (!success(status))
+            return status;
+
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+        if (p.slots[0] == 0 && items[p.slots[0]].key != k)
+            return nt_status::OBJECT_NAME_NOT_FOUND;
+
+        if (items[p.slots[0]].key != k)
+            p.slots[0]--;
+
+        const auto& it = items[p.slots[0]];
+        const auto& found_key = it.key;
+
+        if (found_key.objectid != BTRFS_EXTENT_CSUM_OBJECTID || found_key.type != key_type::EXTENT_CSUM)
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+
+        auto data = span((uint32_t*)((const uint8_t*)&th + sizeof(btrfs_header) + it.offset),
+                        it.size / sizeof(uint32_t));
+
+        auto index = (addr - found_key.offset) / fs.sb->sectorsize;
+        if (index >= data.size())
+            return nt_status::OBJECT_NAME_NOT_FOUND;
+
+        while (index < data.size() && num_pages > 0) {
+            {
+                lock_guard lg(ino.cache.cache_lock);
+
+                if (first) {
+                    src_p = ino.cache.find_page_cache_entry(page_num);
+                    first = false;
+                } else
+                    src_p = ino.cache.next_page_cache_entry(*src_p);
+            }
+
+            auto found = ~calc_crc32c(0xffffffff, span((const uint8_t*)get_phys_address(*src_p), fs.sb->sectorsize));
+
+            if (found != data[index]) {
+                print("csum at {:x} was {:08x}, expected {:08x}\n", addr, found,
+                      data[index]);
+                return nt_status::DISK_CORRUPT_ERROR;
+            }
+
+            addr += fs.sb->sectorsize;
+            page_num++;
+            num_pages--;
+            index++;
+        }
+
+        if (num_pages == 0)
+            break;
+
+        // FIXME - need next_leaf function rather than doing lookup again
+    } while (true);
+
+    return nt_status::SUCCESS;
+}
+
 size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
                                            const inode_extent& ie) {
     if (ie.ed.compression != 0) {
@@ -2773,7 +2862,11 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
 
     fs.cache.unpin(addr >> PAGE_SHIFT, pages_read);
 
-    // FIXME - check csums
+    if (auto status = check_csums(*this, page_num, addr, num_pages); !success(status)) {
+        print("check_csums returned {}\n", status);
+        return 0;
+    }
+
     // FIXME - read from another copy (and replace) if csum is bad
 
     return ret;
