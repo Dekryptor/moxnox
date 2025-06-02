@@ -2635,8 +2635,6 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
 size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages) {
     page_cache_entry* dest_p;
 
-    // FIXME - this should be populating page cache with references to the zero page
-
     for (uint64_t i = 0; i < num_pages; i++) {
         {
             lock_guard lg(cache.cache_lock);
@@ -2647,9 +2645,12 @@ size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages
                 dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
-        auto dest_va = get_phys_address(*dest_p);
+        increase_page_refcount(zero_pfn);
 
-        memset(dest_va, 0, PAGE_SIZE);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        dest_p->pfn = zero_pfn;
+#pragma GCC diagnostic pop
     }
 
     return num_pages;
