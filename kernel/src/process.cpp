@@ -1772,8 +1772,6 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     }
 
     {
-        rangelock_req rlr(cache.rl, page_num, num_pages);
-
         // read first page if needed
         if (offset & (PAGE_SIZE - 1)) {
             // FIXME - easy way to do this without pinning again?
@@ -1798,7 +1796,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             cache.unpin(page_num + num_pages - 1, 1);
         }
 
-        // FIXME - COWing
+        rangelock_req rlr(cache.rl, page_num, num_pages);
 
         page_cache_entry* p;
 

@@ -8,6 +8,7 @@ import bsod;
 import mem;
 import config;
 import list;
+import rangelock;
 
 using namespace std;
 
@@ -430,7 +431,7 @@ static bool read_and_pin(page_cache& cache, uint64_t offset, uint64_t length) {
 uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages) {
     page_cache_entry* first_unread = nullptr;
 
-    // FIXME - lock range
+    rangelock_req rlr(rl, first_page, num_pages);
 
     if (!pin(first_page, num_pages, &first_unread))
         return 0;
