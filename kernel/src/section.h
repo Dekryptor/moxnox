@@ -58,4 +58,5 @@ public:
     dwarf_info dwinfo;
     unsigned int num_pe_sections = 0;
     IMAGE_SECTION_HEADER* pe_sections = nullptr;
+    uint32_t size_of_headers;
 };
