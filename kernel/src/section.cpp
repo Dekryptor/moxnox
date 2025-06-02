@@ -162,9 +162,8 @@ nt_status section::load_image() {
     }
 
     auto& f = ino->get();
-    uint32_t header_pages, section_alignment;
+    uint32_t section_alignment;
     page_cache_entry* src_p;
-    page_cache_entry* dest_p;
 
     if (f.cache.read_into_cache_and_pin(0, 1) == 0) {
         print("section::load_image: read_into_cache_and_pin failed\n");
@@ -282,62 +281,7 @@ nt_status section::load_image() {
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    header_pages = bytes_to_pages(size_of_headers);
-
-    if (header_pages > 1) {
-        if (f.cache.read_into_cache_and_pin(1, header_pages - 1) != header_pages - 1) {
-            print("section::load_image: read_into_cache_and_pin failed\n");
-            f.cache.unpin(0, 1);
-            return nt_status::INTERNAL_ERROR;
-        }
-    }
-
-    for (unsigned int i = 0; i < header_pages; i++) {
-        size_t to_copy;
-
-        if (i == header_pages - 1 && size_of_headers % PAGE_SIZE)
-            to_copy = size_of_headers % PAGE_SIZE;
-        else
-            to_copy = PAGE_SIZE;
-
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                dest_p = cache.find_page_cache_entry(0);
-            else
-                dest_p = cache.next_page_cache_entry(*dest_p);
-        }
-
-        if (i != 0) {
-            lock_guard lg(f.cache.cache_lock);
-
-            src_p = f.cache.next_page_cache_entry(*src_p);
-        }
-
-        if (dest_p->pfn == 0) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-            dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-            if (!dest_p->pfn) {
-                print("allocate_folio failed\n");
-
-                f.cache.unpin(0, header_pages);
-                cache.unpin(0, num_pages);
-                return nt_status::INSUFFICIENT_RESOURCES;
-            }
-        }
-
-        memcpy(get_phys_address(*dest_p), get_phys_address(*src_p), to_copy);
-
-        if (to_copy < PAGE_SIZE) {
-            memset((uint8_t*)get_phys_address(*dest_p) + to_copy, 0,
-                PAGE_SIZE - to_copy);
-        }
-    }
-
-    f.cache.unpin(0, header_pages);
+    f.cache.unpin(0, 1);
 
     span<IMAGE_SECTION_HEADER> sections;
 
@@ -825,17 +769,81 @@ uint64_t get_image_size(void* image) {
 
 size_t image_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages) {
     auto& f = sect.ino->get();
+    auto header_pages = bytes_to_pages(sect.size_of_headers);
+    page_cache_entry* src_p;
+    page_cache_entry* dest_p;
+    auto orig_num_pages = num_pages;
 
-    if (page_num < bytes_to_pages(sect.size_of_headers)) {
-        // FIXME
-        return 0;
+    // FIXME - if something fails, should return what we've read so far rather than 0
+
+    if (page_num < header_pages) {
+        auto read_pages = f.cache.read_into_cache_and_pin(page_num, min(header_pages - page_num, num_pages));
+        if (read_pages == 0) {
+            print("image_read_into_cache: read_into_cache_and_pin failed\n");
+            return 0;
+        }
+
+        for (unsigned int i = 0; i < read_pages; i++) {
+            size_t to_copy;
+
+            if (page_num + i == header_pages - 1 && sect.size_of_headers % PAGE_SIZE)
+                to_copy = sect.size_of_headers % PAGE_SIZE;
+            else
+                to_copy = PAGE_SIZE;
+
+            {
+                lock_guard lg(sect.cache.cache_lock);
+
+                if (i == 0)
+                    dest_p = sect.cache.find_page_cache_entry(page_num);
+                else
+                    dest_p = sect.cache.next_page_cache_entry(*dest_p);
+            }
+
+            {
+                lock_guard lg(f.cache.cache_lock);
+
+                if (i == 0)
+                    src_p = f.cache.find_page_cache_entry(page_num);
+                else
+                    src_p = f.cache.next_page_cache_entry(*src_p);
+            }
+
+            if (to_copy == PAGE_SIZE) {
+                rangelock_req rlr(f.cache.rl, page_num + i, 1);
+                increase_page_refcount(src_p->pfn);
+                dest_p->pfn = src_p->pfn;
+            } else {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+                if (!dest_p->pfn) {
+                    print("allocate_folio failed\n");
+
+                    f.cache.unpin(page_num, read_pages);
+                    // FIXME - set error to nt_status::INSUFFICIENT_RESOURCES
+                    return 0;
+                }
+
+                memcpy(get_phys_address(*dest_p), get_phys_address(*src_p),
+                       to_copy);
+                memset((uint8_t*)get_phys_address(*dest_p) + to_copy, 0,
+                       PAGE_SIZE - to_copy);
+            }
+        }
+
+        f.cache.unpin(page_num, read_pages);
+
+        page_num += read_pages;
+        num_pages -= read_pages;
+
+        if (num_pages == 0)
+            return read_pages;
     }
 
     unsigned int cur_sect = 0;
     bool first = true;
-    page_cache_entry* src_p;
-    page_cache_entry* dest_p;
-    auto orig_num_pages = num_pages;
 
     while (num_pages > 0) {
         {
