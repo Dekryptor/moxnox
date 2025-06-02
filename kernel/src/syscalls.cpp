@@ -1258,6 +1258,8 @@ void dispatch_signal() {
     auto& t = *get_current_thread();
     auto& p = *t.proc;
 
+    __asm __volatile("sti");
+
     uintptr_t us_context = t.syscall_context.Rsp - sizeof(CONTEXT);
 
     if (!p.copy_to((void*)us_context, &t.syscall_context, sizeof(CONTEXT))) {
@@ -1290,6 +1292,8 @@ void dispatch_signal() {
     t.syscall_context.Rdx = us_context;
     t.syscall_context.Rsp -= sizeof(CONTEXT);
     t.syscall_context.Rsp -= er_size;
+
+    __asm __volatile("cli");
 }
 
 extern "C"
