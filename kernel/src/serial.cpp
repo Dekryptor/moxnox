@@ -425,30 +425,31 @@ bool serial_duplex_pipe::isr_func() {
     if (iir & 1) // not us
         return false;
 
-    if ((iir & 0x0e) == 0x2) { // transmitter holding register empty
-        sync_lock sl;
-        lock_guard l(sl);
-        lock_guard l2(send_pipe.lock);
-
-        if (send_pipe.buf_unread == 0) {
-            send_pipe.ready = true;
-            return true;
-        }
-
-        size_t buf_read_pos = send_pipe.buf_write_pos + (send_pipe.buf_pages << PAGE_SHIFT) - send_pipe.buf_unread;
-
-        while (buf_read_pos >= send_pipe.buf_pages << PAGE_SHIFT) {
-            buf_read_pos -= send_pipe.buf_pages << PAGE_SHIFT;
-        }
-
-        outb(send_pipe.port, send_pipe.buf[buf_read_pos]);
-        send_pipe.buf_unread--;
-    } else if ((iir & 0xe) == 0x4 || (iir & 0xe) == 0xc) { // data available or character timeout
+    if (iir & 0x8 || ((iir & 0x6) == 0x4)) { // timeout, or data available
         uint64_t written_bytes;
 
         auto c = inb(port);
 
         recv_pipe.write(span(&c, 1), written_bytes);
+    }
+
+    if (iir & 0x8 || (iir & 0x6) == 0x2) { // timeout, or transmitter holding register empty
+        sync_lock sl;
+        lock_guard l(sl);
+        lock_guard l2(send_pipe.lock);
+
+        if (send_pipe.buf_unread == 0)
+            send_pipe.ready = true;
+        else {
+            size_t buf_read_pos = send_pipe.buf_write_pos + (send_pipe.buf_pages << PAGE_SHIFT) - send_pipe.buf_unread;
+
+            while (buf_read_pos >= send_pipe.buf_pages << PAGE_SHIFT) {
+                buf_read_pos -= send_pipe.buf_pages << PAGE_SHIFT;
+            }
+
+            outb(send_pipe.port, send_pipe.buf[buf_read_pos]);
+            send_pipe.buf_unread--;
+        }
     }
 
     return true;
