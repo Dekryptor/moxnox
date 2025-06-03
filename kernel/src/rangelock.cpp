@@ -128,20 +128,23 @@ void rangelock_req::unlock() {
 
         next = le->next;
 
-        bool overlaps = rlr_overlap(rlr, *this);
+        if (!rlr_overlap(rlr, *this)) {
+            le = next;
+            continue;
+        }
 
-        if (!overlaps) {
-            for (auto le2 = waking.next; le2 != &waking; le2 = le2->next) {
-                auto& rlr2 = containing_record<rangelock_req>(le2);
+        bool okay = true;
 
-                if (rlr_overlap(rlr, rlr2)) {
-                    overlaps = true;
-                    break;
-                }
+        for (auto le2 = waking.next; le2 != &waking; le2 = le2->next) {
+            auto& rlr2 = containing_record<rangelock_req>(le2);
+
+            if (rlr_overlap(rlr, rlr2)) {
+                okay = false;
+                break;
             }
         }
 
-        if (!overlaps) {
+        if (okay) {
             remove_entry_list(rlr.le);
             insert_tail_list(waking, rlr.le);
         }
