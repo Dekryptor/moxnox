@@ -107,7 +107,7 @@ processors_left_to_halt:
 
 .seh_proc page_fault_isr
 .global page_fault_isr
-page_fault_isr: # keeps cr3 of process
+page_fault_isr:
 #ifdef __llvm__
     .seh_pushframe @code
 #else
@@ -119,6 +119,7 @@ page_fault_isr: # keeps cr3 of process
     cmp QWORD PTR [rsp+0x30], 0x8
     je 0f
     swapgs
+    load_kernel_cr3
 0:
     save_context_when_error_code
 
@@ -187,6 +188,7 @@ page_fault_user_no_exception:
 
     mov rax, gs:GS_CONTEXT + CONTEXT_RAX
 
+    load_process_cr3
     swapgs
     jmp page_fault_end
 
@@ -205,6 +207,7 @@ page_fault_user_exception:
     mov rcx, cr2
     mov rdx, [rsp+0x20]
     call page_fault
+    jmp page_fault_end
 
 2:
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
@@ -221,6 +224,7 @@ page_fault_user_exception:
 
     cmp QWORD PTR [rsp+0x8], 0x8
     je page_fault_end
+    load_process_cr3
     swapgs
 
 page_fault_end:
