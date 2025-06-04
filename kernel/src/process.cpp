@@ -928,7 +928,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                 {
                     lock_guard lg(c.cache_lock);
 
-                    p = c.find_page_cache_entry((address - m->address) >> PAGE_SHIFT);
+                    p = c.find_page_cache_entry(page_num);
                 }
 
                 if (!p) { // can this happen?
