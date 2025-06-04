@@ -181,3 +181,30 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
     return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
                                                     file_information_class);
 }
+
+NTSTATUS NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer,
+                                uint32_t buffer_size, FILE_INFORMATION_CLASS file_information_class) {
+    auto objrw = deref_handle(file_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    auto& obj = objrw.get();
+
+    if (obj.type != object_type::file)
+        return nt_status::INVALID_HANDLE;
+
+    auto& f = static_cast<file&>(obj);
+
+    iosb->Information = 0;
+
+    return f.query_information(buffer, buffer_size, file_information_class);
+}
+
+NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
+                                 FILE_INFORMATION_CLASS file_information_class) {
+    if (ino.type != object_type::inode)
+        return nt_status::INVALID_PARAMETER;
+
+    return static_cast<inode&>(ino).query_information(span((uint8_t*)buffer, buffer_size),
+                                                      file_information_class);
+}

@@ -1332,3 +1332,40 @@ NTSTATUS user_NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_iosb,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_iosb, void* us_buffer,
+                                     uint32_t buffer_size) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+    IO_STATUS_BLOCK iosb;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto file_information_class = (FILE_INFORMATION_CLASS)args[0];
+
+    if (!us_iosb || !us_buffer || buffer_size == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    buffer_size = min(buffer_size, (uint32_t)PAGE_SIZE);
+
+    auto buffer = malloc(buffer_size);
+    if (!buffer)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto ret = NtQueryInformationFile(file_handle, &iosb, buffer, buffer_size,
+                                      file_information_class);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_buffer, buffer, iosb.Information))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    free(buffer);
+
+    return ret;
+}

@@ -35,6 +35,8 @@ public:
                                      uint64_t& index) = 0;
     virtual NTSTATUS set_information(std::span<const uint8_t> buffer,
                                      FILE_INFORMATION_CLASS file_information_class) = 0;
+    virtual NTSTATUS query_information(std::span<uint8_t> buffer,
+                                       FILE_INFORMATION_CLASS file_information_class) = 0;
 
     uint64_t file_size;
     enum inode_type inode_type;

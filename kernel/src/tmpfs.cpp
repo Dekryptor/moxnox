@@ -40,6 +40,8 @@ public:
                              uint64_t& index) override;
     NTSTATUS set_information(span<const uint8_t> buffer,
                              FILE_INFORMATION_CLASS file_information_class) override;
+    NTSTATUS query_information(span<uint8_t> buffer,
+                               FILE_INFORMATION_CLASS file_information_class) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status set_basic_information(std::span<const uint8_t> buffer);
@@ -430,7 +432,7 @@ NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer,
             return set_basic_information(buffer);
 
         default:
-            print("tmpfs_inode::set_information: unhandle file information class {}\n",
+            print("tmpfs_inode::set_information: unhandled file information class {}\n",
                   (unsigned int)file_information_class);
             return nt_status::NOT_IMPLEMENTED;
     }
@@ -460,4 +462,11 @@ nt_status tmpfs_inode::set_basic_information(std::span<const uint8_t> buffer) {
     // FIXME - FileAttributes
 
     return nt_status::SUCCESS;
+}
+
+NTSTATUS tmpfs_inode::query_information(span<uint8_t> buffer,
+                                        FILE_INFORMATION_CLASS file_information_class) {
+    print("tmpfs_inode::query_information: unhandled file information class {}\n",
+          (unsigned int)file_information_class);
+    return nt_status::NOT_IMPLEMENTED;
 }

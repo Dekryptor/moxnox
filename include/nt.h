@@ -1183,4 +1183,6 @@ NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE
                                uint32_t input_buffer_len, void* output_buffer, uint32_t output_buffer_len);
 NTSTATUS NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer, uint32_t buffer_size,
                               FILE_INFORMATION_CLASS file_information_class);
+NTSTATUS NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer, uint32_t buffer_size,
+                                FILE_INFORMATION_CLASS file_information_class);
 };

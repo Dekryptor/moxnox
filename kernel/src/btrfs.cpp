@@ -3681,7 +3681,7 @@ NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer,
             return set_basic_information(buffer);
 
         default:
-            print("btrfs_inode::set_information: unhandle file information class {}\n",
+            print("btrfs_inode::set_information: unhandled file information class {}\n",
                   (unsigned int)file_information_class);
             return nt_status::NOT_IMPLEMENTED;
     }
@@ -3747,4 +3747,11 @@ nt_status btrfs_inode::set_basic_information(std::span<const uint8_t> buffer) {
     // FIXME - FileAttributes
 
     return nt_status::SUCCESS;
+}
+
+NTSTATUS btrfs_inode::query_information(span<uint8_t> buffer,
+                                        FILE_INFORMATION_CLASS file_information_class) {
+    print("btrfs_inode::query_information: unhandled file information class {}\n",
+          (unsigned int)file_information_class);
+    return nt_status::NOT_IMPLEMENTED;
 }
