@@ -19,8 +19,8 @@ public:
             delete this;
     }
 
-    uintptr_t map_section(section& sect, uintptr_t address, enum mapping_type protect,
-                          bool cow);
+    uintptr_t map_section(section& sect, uintptr_t address, std::optional<int64_t> offset,
+                          enum mapping_type protect, bool cow);
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
     bool allocate_cr3();
     bool copy_from(void* ks_addr, const void* us_addr, size_t size);
@@ -37,8 +37,9 @@ public:
                         enum mapping_type& old_prot);
     NTSTATUS close_handle(handle_t h);
     NTSTATUS map_view_of_section(section& sect, void** base_address,
-                                 uintptr_t zero_bits, size_t commit_size, LARGE_INTEGER* section_offset,
-                                 size_t& view_size, enum SECTION_INHERIT inherit_disposition,
+                                 uintptr_t zero_bits, size_t commit_size,
+                                 std::optional<int64_t> section_offset, size_t& view_size,
+                                 enum SECTION_INHERIT inherit_disposition,
                                  uint32_t allocation_type, enum mapping_type protect,
                                  bool cow);
     NTSTATUS unmap_view_of_section(void* base_address);

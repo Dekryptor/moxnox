@@ -695,11 +695,16 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
             return nt_status::INVALID_PARAMETER;
     }
 
+    optional<int64_t> off;
+
+    if (section_offset)
+        off = section_offset->QuadPart;
+
     // FIXME - if section is readonly, don't allow read_write or read_write_execute
     //         unless cow is true
 
-    return p->map_view_of_section(sect, base_address, zero_bits, commit_size, section_offset,
-                                  *view_size, inherit_disposition, allocation_type,
+    return p->map_view_of_section(sect, base_address, zero_bits, commit_size,
+                                  off, *view_size, inherit_disposition, allocation_type,
                                   protect, cow);
 }
 
