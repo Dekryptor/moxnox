@@ -763,8 +763,10 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
             }
         }
     } else {
-        // FIXME - use section's specified protection
-        print("FIXME - protection\n");
+        // FIXME - cow flag
+
+        if (!set_page_protection(*this, address, sect.num_pages, protect))
+            return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
     }
 
     return address;
