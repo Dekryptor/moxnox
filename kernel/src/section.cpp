@@ -647,9 +647,59 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
 
     auto& sect = static_cast<section&>(obj);
 
+    if (win32_protect & PAGE_NOCACHE) {
+        print("NtMapViewOfSection: FIXME - PAGE_NOCACHE\n");
+        return nt_status::INVALID_PARAMETER;
+    } else if (win32_protect & PAGE_WRITECOMBINE) {
+        print("NtMapViewOfSection: FIXME - PAGE_WRITECOMBINE\n");
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    enum mapping_type protect;
+    bool cow = false;
+
+    switch (win32_protect) {
+        case PAGE_EXECUTE_READ:
+            protect = mapping_type::read_execute;
+            cow = false;
+            break;
+
+        case PAGE_EXECUTE_READWRITE:
+            protect = mapping_type::read_write_execute;
+            cow = false;
+            break;
+
+        case PAGE_EXECUTE_WRITECOPY:
+            protect = mapping_type::read_write_execute;
+            cow = true;
+            break;
+
+        case PAGE_READONLY:
+            protect = mapping_type::read_only;
+            cow = false;
+            break;
+
+        case PAGE_READWRITE:
+            protect = mapping_type::read_write;
+            cow = false;
+            break;
+
+        case PAGE_WRITECOPY:
+            protect = mapping_type::read_write;
+            cow = true;
+            break;
+
+        default:
+            print("NtMapViewOfSection: unrecognized protection flags {:x}\n", win32_protect);
+            return nt_status::INVALID_PARAMETER;
+    }
+
+    // FIXME - if section is readonly, don't allow read_write or read_write_execute
+    //         unless cow is true
+
     return p->map_view_of_section(sect, base_address, zero_bits, commit_size, section_offset,
                                   *view_size, inherit_disposition, allocation_type,
-                                  win32_protect);
+                                  protect, cow);
 }
 
 NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {

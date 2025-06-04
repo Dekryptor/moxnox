@@ -423,7 +423,8 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto& img = p.img->get();
 
-    p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
+    p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base,
+                               mapping_type::read_only, true);
     if (!p.img_addr) {
         print("process::map_section failed\n");
         p.release();
@@ -443,7 +444,8 @@ object_ref create_process(string_view fn, string_view curdir,
 
     // FIXME - if ntdll would have collision, choose another address
 
-    p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base);
+    p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base,
+                                 mapping_type::read_only, true);
     if (!p.ntdll_addr) {
         print("process::map_section failed\n");
         p.release();
@@ -652,7 +654,8 @@ static bool set_page_protection(process& proc, uint64_t va,
     return true;
 }
 
-uintptr_t process::map_section(section& sect, uintptr_t address) {
+uintptr_t process::map_section(section& sect, uintptr_t address,
+                               enum mapping_type protect, bool cow) {
     // FIXME - offset and mapping size
 
     if (address & 0x8000000000000000 || ((address + sect.size) & 0x8000000000000000)) { // don't allow in kernel space
@@ -761,6 +764,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address) {
         }
     } else {
         // FIXME - use section's specified protection
+        print("FIXME - protection\n");
     }
 
     return address;
@@ -2113,21 +2117,21 @@ NTSTATUS process::close_handle(handle_t h) {
 }
 
 NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintptr_t, size_t, LARGE_INTEGER*,
-                                      size_t& view_size, enum SECTION_INHERIT, uint32_t, uint32_t) {
+                                      size_t& view_size, enum SECTION_INHERIT, uint32_t,
+                                      enum mapping_type protect, bool cow) {
     // FIXME - zero_bits
     // FIXME - commit_size
     // FIXME - section_offset
     // FIXME - view_size
     // FIXME - inherit_disposition
     // FIXME - allocation_type
-    // FIXME - win32_protect
 
     auto addr = (uintptr_t)*base_address;
 
     if (addr & (PAGE_SIZE - 1))
         addr &= ~(PAGE_SIZE - 1);
 
-    addr = map_section(sect, addr);
+    addr = map_section(sect, addr, protect, cow);
 
     if (addr == 0)
         return nt_status::INTERNAL_ERROR;
@@ -2207,7 +2211,8 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
         return nt_status::INTERNAL_ERROR;
     }
 
-    p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base);
+    p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base,
+                               mapping_type::read_only, true);
     if (!p.img_addr) {
         print("process::map_section failed\n");
         p.release();
@@ -2216,7 +2221,8 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     // FIXME - if ntdll would have collision, choose another address
 
-    p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base);
+    p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base,
+                                 mapping_type::read_only, true);
     if (!p.ntdll_addr) {
         print("process::map_section failed\n");
         p.release();
