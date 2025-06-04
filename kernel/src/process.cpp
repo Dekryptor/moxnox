@@ -2619,8 +2619,9 @@ void process::send_signal(uint64_t code) {
     t.release();
 }
 
-size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    auto pinned_pages = sect.cache.read_into_cache_and_pin(page_num, num_pages);
+size_t mapping_section::read_into_cache(uint64_t dest_page_num, uint64_t num_pages) {
+    uint64_t src_page_num = dest_page_num + (offset >> PAGE_SHIFT);
+    auto pinned_pages = sect.cache.read_into_cache_and_pin(src_page_num, num_pages);
 
     if (pinned_pages == 0)
         return 0;
@@ -2634,7 +2635,7 @@ size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
             lock_guard lg(sect.cache.cache_lock);
 
             if (i == 0)
-                src_p = sect.cache.find_page_cache_entry(page_num);
+                src_p = sect.cache.find_page_cache_entry(src_page_num);
             else
                 src_p = sect.cache.next_page_cache_entry(*src_p);
         }
@@ -2643,7 +2644,7 @@ size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
             lock_guard lg(cache.cache_lock);
 
             if (i == 0)
-                dest_p = cache.find_page_cache_entry(page_num);
+                dest_p = cache.find_page_cache_entry(dest_page_num);
             else
                 dest_p = cache.next_page_cache_entry(*dest_p);
 
@@ -2663,7 +2664,7 @@ size_t mapping_section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         memcpy(get_phys_address(*dest_p), get_phys_address(*src_p), PAGE_SIZE);
     }
 
-    sect.cache.unpin(page_num, pinned_pages);
+    sect.cache.unpin(src_page_num, pinned_pages);
 
     return read_pages;
 }
