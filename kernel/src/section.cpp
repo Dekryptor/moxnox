@@ -28,13 +28,6 @@ using namespace std;
 
 nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
                          size_t size, object_ref& ref) {
-    if (file && !image) {
-        print("FIXME - non-image sections\n");
-        return nt_status::INTERNAL_ERROR;
-    }
-
-    // FIXME - non-image sections
-
     auto sptr = new section;
     if (!sptr) {
         print("new failed\n");
@@ -65,15 +58,18 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
         s.ino = static_cast<inode&>(file->get().ino);
         s.ino->get().acquire();
 
-        s.type = section_type::image;
-        // FIXME - also work with ELFs
+        if (image) {
+            s.type = section_type::image;
+            // FIXME - also work with ELFs
 
-        auto status = s.load_image();
-        if (!success(status)) {
-            print("load_image returned {}\n", status);
-            s.release();
-            return status;
-        }
+            auto status = s.load_image();
+            if (!success(status)) {
+                print("load_image returned {}\n", status);
+                s.release();
+                return status;
+            }
+        } else
+            s.type = section_type::file;
     } else {
         s.type = section_type::anonymous;
         s.num_pages = bytes_to_pages(size);
