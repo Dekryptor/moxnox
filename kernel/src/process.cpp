@@ -66,6 +66,7 @@ public:
     enum proc_map_type type;
     uint64_t address;
     uint32_t size;
+    uint64_t offset;
 
 private:
     atomic<unsigned int> refcount = 1;
@@ -424,7 +425,7 @@ object_ref create_process(string_view fn, string_view curdir,
     auto& img = p.img->get();
 
     p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base,
-                               nullopt, mapping_type::read_only, true);
+                               nullopt, mapping_type::read_only, true, nullptr);
     if (!p.img_addr) {
         print("process::map_section failed\n");
         p.release();
@@ -445,7 +446,8 @@ object_ref create_process(string_view fn, string_view curdir,
     // FIXME - if ntdll would have collision, choose another address
 
     p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base,
-                                 nullopt,  mapping_type::read_only, true);
+                                 nullopt,  mapping_type::read_only, true,
+                                 nullptr);
     if (!p.ntdll_addr) {
         print("process::map_section failed\n");
         p.release();
@@ -658,7 +660,8 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
 
 uintptr_t process::map_section(section& sect, uintptr_t address,
                                optional<int64_t> section_offset,
-                               enum mapping_type protect, bool cow) {
+                               enum mapping_type protect, bool cow,
+                               size_t* view_size) {
     // FIXME - offset and mapping size
 
     if (address & 0x8000000000000000 || ((address + sect.size) & 0x8000000000000000)) { // don't allow in kernel space
@@ -676,6 +679,19 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
         return 0;
     }
 
+    if (section_offset.has_value()) {
+        if (*section_offset % PAGE_SIZE) {
+            print("process::map_section: invalid offset {:x}\n", *section_offset);
+            return 0;
+        }
+
+        if (*section_offset >= sect.size) {
+            print("process::map_section: offset {:x} >= section size {:x}\n",
+                  *section_offset, sect.size);
+            return 0;
+        }
+    }
+
     auto m = new mapping_section(sect);
     if (!m) {
         print("new failed\n");
@@ -683,7 +699,8 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
     }
 
     m->address = address;
-    m->size = sect.size;
+    m->offset = section_offset.has_value() ? *section_offset : 0;
+    m->size = (uint32_t)(sect.size - m->offset);
 
     uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
     bool inserted = false;
@@ -734,6 +751,9 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
 
         if (!inserted)
             insert_tail_list(mappings, m->le);
+
+        if (view_size)
+            *view_size = m->size;
     }
 
     if (sect.pe_sections) {
@@ -1427,6 +1447,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     }
 
     m->size = (uint32_t)size;
+    m->offset = 0;
 
     if (!(allocation_type & MEM_COMMIT))
         protect = mapping_type::reserved;
@@ -2135,13 +2156,12 @@ NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintpt
     if (addr & (PAGE_SIZE - 1))
         addr &= ~(PAGE_SIZE - 1);
 
-    addr = map_section(sect, addr, section_offset, protect, cow);
+    addr = map_section(sect, addr, section_offset, protect, cow, &view_size);
 
     if (addr == 0)
         return nt_status::INTERNAL_ERROR;
 
     *base_address = (void*)addr;
-    view_size = sect.size; // FIXME
 
     return nt_status::SUCCESS;
 }
@@ -2216,7 +2236,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     }
 
     p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base,
-                               nullopt, mapping_type::read_only, true);
+                               nullopt, mapping_type::read_only, true, nullptr);
     if (!p.img_addr) {
         print("process::map_section failed\n");
         p.release();
@@ -2226,7 +2246,8 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     // FIXME - if ntdll would have collision, choose another address
 
     p.ntdll_addr = p.map_section(*ntdll, ntdll->preferred_base,
-                                 nullopt, mapping_type::read_only, true);
+                                 nullopt, mapping_type::read_only, true,
+                                 nullptr);
     if (!p.ntdll_addr) {
         print("process::map_section failed\n");
         p.release();

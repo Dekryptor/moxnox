@@ -20,7 +20,7 @@ public:
     }
 
     uintptr_t map_section(section& sect, uintptr_t address, std::optional<int64_t> offset,
-                          enum mapping_type protect, bool cow);
+                          enum mapping_type protect, bool cow, size_t* view_size);
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
     bool allocate_cr3();
     bool copy_from(void* ks_addr, const void* us_addr, size_t size);
