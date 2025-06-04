@@ -68,8 +68,16 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
                 s.release();
                 return status;
             }
-        } else
+        } else {
             s.type = section_type::file;
+            s.size = bytes_to_pages(s.ino->get().file_size) << PAGE_SHIFT;
+
+            if (s.size == 0) {
+                print("create_section: file was empty\n");
+                s.release();
+                return nt_status::INVALID_PARAMETER;
+            }
+        }
     } else {
         s.type = section_type::anonymous;
         s.num_pages = bytes_to_pages(size);
