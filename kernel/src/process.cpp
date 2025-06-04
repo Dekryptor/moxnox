@@ -557,8 +557,8 @@ process::~process() {
         free_folio(cr3);
 }
 
-static bool set_page_protection(process& proc, uint64_t va,
-                                uint32_t num_pages, enum mapping_type protect) {
+static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
+                                enum mapping_type protect, bool cow) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
 
@@ -627,6 +627,8 @@ static bool set_page_protection(process& proc, uint64_t va,
         pte.p = 0;
         pte.u = 1;
         pte.w = 0;
+
+        // FIXME - cow flag
 
         switch (protect) {
             case mapping_type::read_write:
@@ -741,7 +743,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
 
             if (s.VirtualAddress > addr) {
                 if (!set_page_protection(*this, address + addr, (uint32_t)((s.VirtualAddress - addr) >> PAGE_SHIFT),
-                                         mapping_type::read_only)) {
+                                         mapping_type::read_only, false)) {
                     return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
                 }
             }
@@ -749,7 +751,8 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
             uint64_t num_pages = bytes_to_pages(s.VirtualSize);
 
             if (!set_page_protection(*this, address + s.VirtualAddress, (uint32_t)num_pages,
-                                     characteristics_to_mapping_type(s.Characteristics))) {
+                                     characteristics_to_mapping_type(s.Characteristics),
+                                     true)) {
                 return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
             }
 
@@ -758,14 +761,12 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
 
         if (addr < sect.size) {
             if (!set_page_protection(*this, address + addr, (uint32_t)((sect.size - addr) >> PAGE_SHIFT),
-                                     mapping_type::read_only)) {
+                                     mapping_type::read_only, false)) {
                 return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
             }
         }
     } else {
-        // FIXME - cow flag
-
-        if (!set_page_protection(*this, address, sect.num_pages, protect))
+        if (!set_page_protection(*this, address, sect.num_pages, protect, cow))
             return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
     }
 
@@ -1477,7 +1478,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         m->address = addr;
 
         if (protect != mapping_type::reserved) {
-            if (!set_page_protection(*this, addr, num_pages, protect)) {
+            if (!set_page_protection(*this, addr, num_pages, protect, false)) {
                 print("set_page_protection failed\n");
                 remove_entry_list(m->le);
                 m->release();
@@ -1958,7 +1959,7 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
         if (first)
             old_prot = get_page_protection(*this, addr);
 
-        if (!set_page_protection(*this, addr, num_pages, prot)) {
+        if (!set_page_protection(*this, addr, num_pages, prot, false)) {
             m->release();
             return nt_status::INSUFFICIENT_RESOURCES;
         }
@@ -2081,7 +2082,7 @@ NTSTATUS mapping_vm::commit(process& proc, uint32_t offset, uint32_t commit_size
                             enum mapping_type prot) {
     auto num_pages = commit_size >> PAGE_SHIFT;
 
-    if (!set_page_protection(proc, address + offset, num_pages, prot))
+    if (!set_page_protection(proc, address + offset, num_pages, prot, false))
         return nt_status::INSUFFICIENT_RESOURCES;
 
     return nt_status::SUCCESS;
