@@ -39,14 +39,14 @@ static_assert(sizeof(TEB) == 0x1818);
 static_assert(sizeof(PEB) == 0x388);
 static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
-enum class proc_map_type {
-    section,
-    vm
-};
-
 class mapping : public cacheable {
 public:
+    mapping(section& sect) : sect(sect) {
+        sect.acquire();
+    }
+
     virtual ~mapping() {
+        sect.release();
     }
 
     void acquire() {
@@ -63,42 +63,17 @@ public:
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     NTSTATUS commit(process& proc, uint32_t offset, uint32_t commit_size,
                     enum mapping_type prot);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     list_entry le;
-    enum proc_map_type type;
     uint64_t address;
     uint32_t size;
     uint64_t offset;
+    section& sect;
 
 private:
     atomic<unsigned int> refcount = 1;
-};
-
-class mapping_section : public mapping {
-public:
-    mapping_section(section& sect) : sect(sect) {
-        type = proc_map_type::section;
-        sect.acquire();
-    }
-
-    virtual ~mapping_section() {
-        sect.release();
-    }
-
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
-
-    section& sect;
-};
-
-class mapping_vm : public mapping {
-public:
-    mapping_vm() {
-        type = proc_map_type::vm;
-    }
-
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 };
 
 static const size_t MAX_PATH = 260;
@@ -718,7 +693,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
         }
     }
 
-    auto m = new mapping_section(sect);
+    auto m = new mapping(sect);
     if (!m) {
         print("new failed\n");
         return 0;
@@ -1456,7 +1431,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
     auto& sect = static_cast<section&>(vm_sect.get());
 
-    auto m = new mapping_section(sect);
+    auto m = new mapping(sect);
     if (!m) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -1643,12 +1618,8 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
                 continue;
 
             // FIXME - MEM_RELEASE with reserved memory block
-            if (m2.type != proc_map_type::vm)
-                return nt_status::INVALID_PARAMETER;
 
-            auto& mv = static_cast<mapping_vm&>(m2);
-
-            auto num_pages = mv.size >> PAGE_SHIFT;
+            auto num_pages = m2.size >> PAGE_SHIFT;
 
             // FIXME - also unmap for threads running on other CPUs
 
@@ -2189,11 +2160,6 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
     if (!m)
         return nt_status::NO_MEMORY;
 
-    if (m->type != proc_map_type::section) {
-        m->release();
-        return nt_status::INVALID_PARAMETER;
-    }
-
     num_pages = m->size >> PAGE_SHIFT;
 
     for (unsigned int i = 0; i < num_pages; i++) {
@@ -2641,7 +2607,7 @@ void process::send_signal(uint64_t code) {
     t.release();
 }
 
-size_t mapping_section::read_into_cache(uint64_t dest_page_num, uint64_t num_pages) {
+size_t mapping::read_into_cache(uint64_t dest_page_num, uint64_t num_pages) {
     uint64_t src_page_num = dest_page_num + (offset >> PAGE_SHIFT);
     auto pinned_pages = sect.cache.read_into_cache_and_pin(src_page_num, num_pages);
 
@@ -2691,41 +2657,8 @@ size_t mapping_section::read_into_cache(uint64_t dest_page_num, uint64_t num_pag
     return read_pages;
 }
 
-size_t mapping_section::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME - mapping_section::flush_cache({:x}, {:x})\n", page_num, num_pages); // FIXME
-
-    return 0;
-}
-
-size_t mapping_vm::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    page_cache_entry* p;
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                p = cache.find_page_cache_entry(page_num);
-            else
-                p = cache.next_page_cache_entry(*p);
-        }
-
-        if (p->pfn)
-            continue;
-
-        increase_page_refcount(zero_pfn);
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        p->pfn = zero_pfn;
-#pragma GCC diagnostic pop
-    }
-
-    return num_pages;
-}
-
-size_t mapping_vm::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME - mapping_vm::flush_cache({:x}, {:x})\n", page_num, num_pages); // FIXME
+size_t mapping::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME - mapping::flush_cache({:x}, {:x})\n", page_num, num_pages); // FIXME
 
     return 0;
 }
