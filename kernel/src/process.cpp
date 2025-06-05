@@ -636,21 +636,25 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
             case mapping_type::read_write:
                 pte.xd = 1;
                 pte.allow_write = 1;
+                pte.cow = cow ? 1 : 0;
                 break;
 
             case mapping_type::read_execute:
                 pte.xd = 0;
                 pte.allow_write = 0;
+                pte.cow = 0;
                 break;
 
             case mapping_type::read_write_execute:
                 pte.xd = 0;
                 pte.allow_write = 1;
+                pte.cow = cow ? 1 : 0;
                 break;
 
             default:
                 pte.xd = 1;
                 pte.allow_write = 0;
+                pte.cow = 0;
                 break;
         }
     }
