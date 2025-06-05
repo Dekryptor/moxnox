@@ -2,12 +2,13 @@
 
 #include "spinlock.h"
 #include "context_offsets.h"
+#include "handle.h"
 
 class section;
 
 class process : public object {
 public:
-    process() : object(object_type::process) { }
+    process();
     ~process();
 
     void acquire() {
@@ -73,6 +74,8 @@ public:
     RTL_USER_PROCESS_PARAMETERS* proc_params = nullptr;
     uintptr_t ntdll_addr, img_addr;
     list_entry waiters = { &waiters, &waiters };
+    object_ref vm_sect;
+    bool initialized = false;
 
 private:
     void free_mappings();

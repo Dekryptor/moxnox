@@ -1102,11 +1102,7 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
 }
 
 size_t anon_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages) {
-    if (page_num >= sect.num_pages)
-        return 0;
-
-    if (page_num + num_pages > sect.num_pages)
-        num_pages = sect.num_pages - page_num;
+    // infinite anonymous sections are used for process VM
 
     if (!sect.cache.pin(page_num, num_pages, nullptr)) {
         print("page_cache::pin failed\n");

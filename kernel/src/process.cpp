@@ -61,6 +61,8 @@ public:
     bool map(process& proc, uint32_t offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
+    NTSTATUS commit(process& proc, uint32_t offset, uint32_t commit_size,
+                    enum mapping_type prot);
 
     list_entry le;
     enum proc_map_type type;
@@ -95,8 +97,6 @@ public:
         type = proc_map_type::vm;
     }
 
-    NTSTATUS commit(process& proc, uint32_t offset, uint32_t commit_size,
-                    enum mapping_type prot);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 };
@@ -390,6 +390,12 @@ object_ref create_process(string_view fn, string_view curdir,
         return {};
     }
 
+    if (!pptr->initialized) {
+        print("process::process failed\n");
+        delete pptr;
+        return {};
+    }
+
     auto& p = *pptr;
 
     // create section for image
@@ -547,6 +553,22 @@ object_ref create_process(string_view fn, string_view curdir,
     p.suspend_count = 1;
 
     return p;
+}
+
+process::process() : object(object_type::process) {
+    auto s = new section;
+    if (!s) {
+        print("new failed\n");
+        return;
+    }
+
+    s->type = section_type::anonymous;
+    s->num_pages = 0;
+    s->size = 0;
+
+    vm_sect = *s;
+
+    initialized = true;
 }
 
 process::~process() {
@@ -1409,34 +1431,22 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
             if (!m)
                 return nt_status::NO_MEMORY;
 
-            switch (m->type) {
-                case proc_map_type::vm: {
-                    auto& mv = static_cast<mapping_vm&>(*m);
+            auto to_commit = min(size, m->address + m->size - addr);
 
-                    auto to_commit = min(size, m->address + m->size - addr);
-
-                    auto ret = mv.commit(*this, (uint32_t)(addr - m->address),
-                                         (uint32_t)to_commit, protect);
-                    if (!success(ret)) {
-                        m->release();
-                        return ret;
-                    }
-
-                    if (to_commit == size) {
-                        m->release();
-                        return nt_status::SUCCESS;
-                    }
-
-                    addr += to_commit;
-                    size -= to_commit;
-
-                    break;
-                }
-
-                case proc_map_type::section:
-                    m->release();
-                    return nt_status::NO_MEMORY;
+            auto ret = m->commit(*this, (uint32_t)(addr - m->address),
+                                 (uint32_t)to_commit, protect);
+            if (!success(ret)) {
+                m->release();
+                return ret;
             }
+
+            if (to_commit == size) {
+                m->release();
+                return nt_status::SUCCESS;
+            }
+
+            addr += to_commit;
+            size -= to_commit;
 
             m->release();
         }
@@ -1444,14 +1454,15 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         return nt_status::NO_MEMORY;
     }
 
-    auto m = new mapping_vm;
+    auto& sect = static_cast<section&>(vm_sect.get());
+
+    auto m = new mapping_section(sect);
     if (!m) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     m->size = (uint32_t)size;
-    m->offset = 0;
 
     if (!(allocation_type & MEM_COMMIT))
         protect = mapping_type::reserved;
@@ -1501,6 +1512,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         if (!inserted)
             insert_tail_list(mappings, m->le);
 
+        m->offset = addr;
         m->address = addr;
 
         if (protect != mapping_type::reserved) {
@@ -2104,8 +2116,8 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
     return ret;
 }
 
-NTSTATUS mapping_vm::commit(process& proc, uint32_t offset, uint32_t commit_size,
-                            enum mapping_type prot) {
+NTSTATUS mapping::commit(process& proc, uint32_t offset, uint32_t commit_size,
+                         enum mapping_type prot) {
     auto num_pages = commit_size >> PAGE_SHIFT;
 
     if (!set_page_protection(proc, address + offset, num_pages, prot, false))
@@ -2227,6 +2239,12 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     auto pptr = new process;
     if (!pptr)
         return nt_status::INSUFFICIENT_RESOURCES;
+
+    if (!pptr->initialized) {
+        print("process::process failed\n");
+        delete pptr;
+        return nt_status::INTERNAL_ERROR;
+    }
 
     auto& p = *pptr;
 
