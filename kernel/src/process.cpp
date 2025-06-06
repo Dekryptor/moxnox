@@ -627,8 +627,6 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
         pte.u = 1;
         pte.w = 0;
 
-        // FIXME - cow flag
-
         switch (protect) {
             case mapping_type::read_write:
                 pte.xd = 1;
@@ -917,19 +915,18 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
             if (!m)
                 return false;
 
-            auto& c = m->cache;
-
             uint64_t page_num = (address - m->address) >> PAGE_SHIFT;
+            uint64_t sect_page_num = page_num + (m->offset >> PAGE_SHIFT);
 
-            {
-                rangelock_req rlr(c.rl, page_num, 1);
+            if (pte->cow) {
+                rangelock_req rlr(m->cache.rl, page_num, 1);
 
                 page_cache_entry* p;
 
                 {
-                    lock_guard lg(c.cache_lock);
+                    lock_guard lg(m->cache.cache_lock);
 
-                    p = c.find_page_cache_entry(page_num);
+                    p = m->cache.find_page_cache_entry(page_num);
                 }
 
                 if (!p) { // can this happen?
@@ -937,26 +934,60 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                     return false;
                 }
 
+                assert(p->pfn != 0);
+
+                auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                if (pfn == 0) {
+                    print("out of memory\n");
+                    m->release();
+                    return false;
+                }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                pte->pfn = pfn;
+#pragma GCC diagnostic pop
+            } else {
+                m->sect.cache.read_into_cache_and_pin(sect_page_num, 1);
+
+                rangelock_req rlr(m->sect.cache.rl, sect_page_num, 1);
+
+                page_cache_entry* p;
+
+                {
+                    lock_guard lg(m->sect.cache.cache_lock);
+
+                    p = m->sect.cache.find_page_cache_entry(sect_page_num);
+                }
+
                 if (!p->dirty) {
                     assert(p->pfn != 0);
 
-                    auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
-                    if (pfn == 0) {
+                    auto new_pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                    if (new_pfn == 0) {
+                        print("out of memory\n");
+                        m->sect.cache.unpin(sect_page_num, 1);
                         m->release();
                         return false;
                     }
 
+                    if (new_pfn != p->pfn) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                    p->pfn = pfn;
-                    pte->pfn = pfn;
+                        p->pfn = new_pfn;
+                        pte->pfn = new_pfn;
 #pragma GCC diagnostic pop
+
+                        // FIXME - flush TLBs on any other running threads
+                        //         that have this section mapped
+                    }
 
                     // FIXME - mark cache itself as dirty
                     p->dirty = 1;
                 }
             }
 
+            m->sect.cache.unpin(sect_page_num, 1);
             m->release();
 
             pte->w = 1;
