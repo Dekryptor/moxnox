@@ -927,7 +927,6 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
                         p->pfn = new_pfn;
-                        pte->pfn = new_pfn;
 #pragma GCC diagnostic pop
 
                         // FIXME - flush TLBs on any other running threads
@@ -937,9 +936,15 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                     // FIXME - mark cache itself as dirty
                     p->dirty = 1;
                 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                pte->pfn = p->pfn;
+#pragma GCC diagnostic pop
+
+                m->sect.cache.unpin(sect_page_num, 1); // FIXME?
             }
 
-            m->sect.cache.unpin(sect_page_num, 1);
             m->release();
 
             pte->w = 1;
