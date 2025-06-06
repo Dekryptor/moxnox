@@ -257,7 +257,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
 static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
                          HANDLE stderrh, HANDLE curdirh, string_view curdir,
                          string_view fn) {
-    static const auto num_pages = bytes_to_pages(sizeof(PEB));
+    static_assert(sizeof(PEB) <= PAGE_SIZE);
 
     size_t peb_size = sizeof(PEB);
 
@@ -278,45 +278,31 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
     }
 
     auto& m = *pm;
-    uint64_t first_page = ((uintptr_t)proc.peb - m.address) >> PAGE_SHIFT;
 
-    if (!m.cache.pin(first_page, num_pages, nullptr)) {
-        print("allocate_peb: page_cache::pin failed\n");
-        m.release();
-        return false;
-    }
-
-    // FIXME - setup cache for writing
-
-    page_cache_entry* p;
-
-    {
-        lock_guard lg(m.cache.cache_lock);
-        p = m.cache.find_page_cache_entry(first_page);
-
-        if (p->pfn == 0) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-            p->pfn = allocate_folio(0) >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-            // FIXME - dirty?
-        }
-    }
-
-    if (p->pfn == 0) {
+    auto pa = allocate_folio(0);
+    if (!pa) {
         print("allocate_folio failed\n");
-        m.cache.unpin(first_page, num_pages);
         m.release();
         return false;
     }
 
-    auto& ks_peb = *(PEB*)get_phys_address(*p);
+    memset(phys_address(pa), 0, PAGE_SIZE); // FIXME - get zeroed page
+
+    auto& ks_peb = *(PEB*)phys_address(pa);
 
     ks_peb.ImageBaseAddress = (void*)proc.img_addr;
     ks_peb.ProcessParameters = proc.proc_params;
 
-    m.cache.unpin(first_page, num_pages);
+    if (!m.copy_to((uint32_t)((uintptr_t)proc.peb - m.address), &ks_peb,
+                   sizeof(PEB))) {
+        print("mapping::copy_to failed\n");
+        free_folio(pa);
+        return false;
+    }
+
     m.release();
+
+    free_folio(pa);
 
     return true;
 }
