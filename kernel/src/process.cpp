@@ -871,30 +871,18 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
             uint64_t sect_page_num = page_num + (m->offset >> PAGE_SHIFT);
 
             if (pte->cow) {
-                rangelock_req rlr(m->cache.rl, page_num, 1);
+                // FIXME - get process rangelock
 
-                page_cache_entry* p;
-
-                {
-                    lock_guard lg(m->cache.cache_lock);
-
-                    p = m->cache.find_page_cache_entry(page_num);
-                }
-
-                if (!p) { // can this happen?
-                    m->release();
-                    return false;
-                }
-
-                assert(p->pfn != 0);
-
-                auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                auto pfn = allocate_folio(0) >> PAGE_SHIFT;
                 if (pfn == 0) {
-                    print("out of memory\n");
+                    print("allocate_folio failed\n");
                     m->release();
                     return false;
                 }
 
+                memcpy(phys_address(pfn << PAGE_SHIFT),
+                       phys_address(pte->pfn << PAGE_SHIFT),
+                       PAGE_SIZE);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
                 pte->pfn = pfn;
