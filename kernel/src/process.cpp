@@ -58,7 +58,7 @@ public:
             delete this;
     }
 
-    bool map(process& proc, uint32_t offset, uint64_t va);
+    bool map(uint32_t mapping_offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     NTSTATUS commit(process& proc, uint32_t offset, uint32_t commit_size,
@@ -948,7 +948,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     if (!m)
         return false;
 
-    auto ret = m->map(*this, (uint32_t)(address - m->address), address);
+    auto ret = m->map((uint32_t)(address - m->address), address);
 
     m->release();
 
@@ -1657,48 +1657,38 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
     return p->free_vm(base_address, region_size, free_type);
 }
 
-static void process_map_page(process& proc, uint64_t pfn, uint64_t va) {
-    span<HARDWARE_PTE> pt[4];
+bool mapping::map(uint32_t mapping_offset, uint64_t va) {
+    uint64_t page_num = mapping_offset >> PAGE_SHIFT;
+    uint64_t sect_page_num = page_num + (offset >> PAGE_SHIFT);
 
-    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+    if (sect.cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
+        print("page_cache::read_into_cache_and_pin failed\n");
+        return false;
+    }
 
-    assert(pt[3][(va & 0xff8000000000) >> 39].p);
-    pt[2] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[3][(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
+    auto pte = find_pte(proc, va);
+    if (!pte) {
+        sect.cache.unpin(sect_page_num, 1);
+        return false;
+    }
 
-    assert(pt[2][(va & 0x7fc0000000) >> 30].p);
-    pt[1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[2][(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
+    {
+        page_cache_entry* p;
+        rangelock_req rlr(sect.cache.rl, sect_page_num, 1);
 
-    assert(pt[1][(va & 0x3fe00000) >> 21].p);
-    pt[0] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[1][(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
-
-    auto& pte = pt[0][(va & 0x1ff000) >> 12];
+        {
+            lock_guard lg(sect.cache.cache_lock);
+            p = sect.cache.find_page_cache_entry(sect_page_num);
+        }
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    pte.pfn = pfn;
+        pte->pfn = p->pfn;
 #pragma GCC diagnostic pop
-    pte.p = 1;
-}
-
-bool mapping::map(process& proc, uint32_t offset, uint64_t va) {
-    uint64_t page_num = offset >> PAGE_SHIFT;
-
-    if (cache.read_into_cache_and_pin(page_num, 1) == 0)
-        return false;
-
-    page_cache_entry* p;
-
-    {
-        lock_guard lg(cache.cache_lock);
-        p = cache.find_page_cache_entry(page_num);
+        pte->p = 1;
     }
 
-    {
-        rangelock_req rlr(cache.rl, page_num, 1);
-        process_map_page(proc, p->pfn, va);
-    }
-
-    cache.unpin(page_num, 1); // FIXME?
+    sect.cache.unpin(sect_page_num, 1);
 
     return true;
 }
