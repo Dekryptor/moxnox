@@ -296,6 +296,7 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
     if (!m.copy_to((uint32_t)((uintptr_t)proc.peb - m.address), &ks_peb,
                    sizeof(PEB))) {
         print("mapping::copy_to failed\n");
+        m.release();
         free_folio(pa);
         return false;
     }
@@ -780,13 +781,9 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
 }
 
 static bool populate_teb(process& proc, thread& t) {
-    static const auto num_pages = 1; // only care about first page
-
+    // only care about first page
     static_assert(offsetof(TEB, NtTib.Self) >> PAGE_SHIFT == 0);
     static_assert(offsetof(TEB, ProcessEnvironmentBlock) >> PAGE_SHIFT == 0);
-
-    // we're assuming that TEB lives at the beginning of a page
-    assert(!((uintptr_t)t.teb & (PAGE_SIZE - 1)));
 
     auto pm = find_mapping(proc, (uintptr_t)t.teb);
     if (!pm) {
@@ -795,39 +792,17 @@ static bool populate_teb(process& proc, thread& t) {
     }
 
     auto& m = *pm;
-    uint64_t first_page = ((uintptr_t)t.teb - m.address) >> PAGE_SHIFT;
 
-    if (!m.cache.pin(first_page, num_pages, nullptr)) {
-        print("populate_teb: page_cache::pin failed\n");
-        m.release();
-        return false;
-    }
-
-    // FIXME - setup cache for writing
-
-    page_cache_entry* p;
-
-    {
-        lock_guard lg(m.cache.cache_lock);
-        p = m.cache.find_page_cache_entry(first_page);
-
-        if (p->pfn == 0) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-            p->pfn = allocate_folio(0) >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-            // FIXME - dirty?
-        }
-    }
-
-    if (p->pfn == 0) {
+    auto pa = allocate_folio(0);
+    if (!pa) {
         print("allocate_folio failed\n");
-        m.cache.unpin(first_page, num_pages);
         m.release();
         return false;
     }
 
-    auto& teb = *(TEB*)get_phys_address(*p);
+    memset(phys_address(pa), 0, PAGE_SIZE); // FIXME - get zeroed page
+
+    auto& teb = *(TEB*)phys_address(pa);
 
     teb.NtTib.Self = &t.teb->NtTib;
     // FIXME - StackBase
@@ -835,8 +810,17 @@ static bool populate_teb(process& proc, thread& t) {
     // FIXME - ClientId
     teb.ProcessEnvironmentBlock = proc.peb;
 
-    m.cache.unpin(first_page, num_pages);
+    if (!m.copy_to((uint32_t)((uintptr_t)t.teb - m.address), &teb,
+                   PAGE_SIZE)) {
+        print("mapping::copy_to failed\n");
+        m.release();
+        free_folio(pa);
+        return false;
+    }
+
     m.release();
+
+    free_folio(pa);
 
     return true;
 }
