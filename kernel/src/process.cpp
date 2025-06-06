@@ -133,8 +133,6 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
                                  string_view curdir, string_view fn) {
     // FIXME - also include space for command line, environment, etc.
 
-    static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) <= PAGE_SIZE);
-
     auto curdir_len = dos_path_len(curdir);
     auto fn_len = dos_path_len(fn);
 
@@ -149,7 +147,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
         return false;
     }
 
-    auto num_pages = bytes_to_pages(size);
+    // auto num_pages = bytes_to_pages(size);s
 
     auto pm = find_mapping(proc, (uintptr_t)proc.proc_params);
     if (!pm) {
@@ -158,97 +156,80 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     }
 
     auto& m = *pm;
-    uint64_t first_page = ((uintptr_t)proc.proc_params - m.address) >> PAGE_SHIFT;
 
-    if (!m.cache.pin(first_page, num_pages, nullptr)) {
-        print("allocate_proc_params: page_cache::pin failed\n");
+    auto ks_proc_params = (RTL_USER_PROCESS_PARAMETERS*)malloc(sizeof(RTL_USER_PROCESS_PARAMETERS));
+    if (!ks_proc_params) {
+        print("malloc failed\n");
         m.release();
         return false;
     }
 
-    // FIXME - setup cache for writing
+    ks_proc_params->StandardInput = stdinh;
+    ks_proc_params->StandardOutput = stdouth;
+    ks_proc_params->StandardError = stderrh;
+    ks_proc_params->CurrentDirectory.Handle = curdirh;
 
-    page_cache_entry* p;
+    ks_proc_params->CurrentDirectory.DosPath.Length = (uint16_t)(min(MAX_PATH, curdir_len) * sizeof(char16_t));
+    ks_proc_params->CurrentDirectory.DosPath.MaximumLength = MAX_PATH * sizeof(char16_t);
+    ks_proc_params->CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc.proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
 
-    {
-        lock_guard lg(m.cache.cache_lock);
-        p = m.cache.find_page_cache_entry(first_page);
+    ks_proc_params->ImagePathName.Length = (uint16_t)(fn_len * sizeof(char16_t));
+    ks_proc_params->ImagePathName.MaximumLength = ks_proc_params->ImagePathName.Length + sizeof(char16_t);
+    ks_proc_params->ImagePathName.Buffer = ks_proc_params->CurrentDirectory.DosPath.Buffer +
+        (ks_proc_params->CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
 
-        if (p->pfn == 0) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-            p->pfn = allocate_folio(0) >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-            // FIXME - dirty?
-        }
-    }
-
-    if (p->pfn == 0) {
-        print("allocate_folio failed\n");
-        m.cache.unpin(first_page, num_pages);
-        m.release();
-        return false;
-    }
-
-    auto& ks_proc_params = *(RTL_USER_PROCESS_PARAMETERS*)get_phys_address(*p);
-
-    ks_proc_params.StandardInput = stdinh;
-    ks_proc_params.StandardOutput = stdouth;
-    ks_proc_params.StandardError = stderrh;
-    ks_proc_params.CurrentDirectory.Handle = curdirh;
-
-    ks_proc_params.CurrentDirectory.DosPath.Length = (uint16_t)(min(MAX_PATH, curdir_len) * sizeof(char16_t));
-    ks_proc_params.CurrentDirectory.DosPath.MaximumLength = MAX_PATH * sizeof(char16_t);
-    ks_proc_params.CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc.proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
-
-    ks_proc_params.ImagePathName.Length = (uint16_t)(fn_len * sizeof(char16_t));
-    ks_proc_params.ImagePathName.MaximumLength = ks_proc_params.ImagePathName.Length + sizeof(char16_t);
-    ks_proc_params.ImagePathName.Buffer = ks_proc_params.CurrentDirectory.DosPath.Buffer +
-        (ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
-
-    auto dos_path = (char16_t*)malloc(ks_proc_params.CurrentDirectory.DosPath.MaximumLength);
+    auto dos_path = (char16_t*)malloc(ks_proc_params->CurrentDirectory.DosPath.MaximumLength);
     if (!dos_path) {
         print("malloc failed\n");
-        m.cache.unpin(first_page, num_pages);
         m.release();
+        free(ks_proc_params);
         return false;
     }
 
-    create_dos_path(span(dos_path, ks_proc_params.CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t)), curdir);
+    create_dos_path(span(dos_path, ks_proc_params->CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t)), curdir);
 
-    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params.CurrentDirectory.DosPath.Buffer - (uintptr_t)proc.proc_params),
-                   dos_path, ks_proc_params.CurrentDirectory.DosPath.Length)) {
+    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->CurrentDirectory.DosPath.Buffer - m.address),
+                   dos_path, ks_proc_params->CurrentDirectory.DosPath.Length)) {
         print("mapping::copy_to failed\n");
-        m.cache.unpin(first_page, num_pages);
         m.release();
         free(dos_path);
+        free(ks_proc_params);
         return false;
     }
 
     free(dos_path);
 
-    auto fn_path = (char16_t*)malloc(ks_proc_params.ImagePathName.MaximumLength);
+    auto fn_path = (char16_t*)malloc(ks_proc_params->ImagePathName.MaximumLength);
     if (!fn_path) {
         print("malloc failed\n");
-        m.cache.unpin(first_page, num_pages);
         m.release();
+        free(ks_proc_params);
         return false;
     }
 
-    create_dos_path(span(fn_path, ks_proc_params.ImagePathName.MaximumLength / sizeof(char16_t)), fn);
+    create_dos_path(span(fn_path, ks_proc_params->ImagePathName.MaximumLength / sizeof(char16_t)), fn);
 
-    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params.ImagePathName.Buffer - (uintptr_t)proc.proc_params),
-                   fn_path, ks_proc_params.ImagePathName.Length)) {
+    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->ImagePathName.Buffer - m.address),
+                   fn_path, ks_proc_params->ImagePathName.Length)) {
         print("mapping::copy_to failed\n");
-        m.cache.unpin(first_page, num_pages);
         m.release();
         free(fn_path);
+        free(ks_proc_params);
         return false;
     }
 
     free(fn_path);
 
-    m.cache.unpin(first_page, num_pages);
+    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->ImagePathName.Buffer - m.address),
+                   ks_proc_params, sizeof(RTL_USER_PROCESS_PARAMETERS))) {
+        print("mapping::copy_to failed\n");
+        m.release();
+        free(ks_proc_params);
+        return false;
+    }
+
+    free(ks_proc_params);
+
     m.release();
 
     return true;
