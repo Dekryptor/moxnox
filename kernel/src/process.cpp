@@ -39,7 +39,7 @@ static_assert(sizeof(TEB) == 0x1818);
 static_assert(sizeof(PEB) == 0x388);
 static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
-class mapping : public cacheable {
+class mapping {
 public:
     mapping(process& proc, section& sect) : proc(proc), sect(sect) {
         sect.acquire();
@@ -63,8 +63,6 @@ public:
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
     NTSTATUS commit(process& proc, uint32_t offset, uint32_t commit_size,
                     enum mapping_type prot);
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     list_entry le;
     uint64_t address;
@@ -2600,62 +2598,6 @@ void process::send_signal(uint64_t code) {
     t.send_signal(code);
 
     t.release();
-}
-
-size_t mapping::read_into_cache(uint64_t dest_page_num, uint64_t num_pages) {
-    uint64_t src_page_num = dest_page_num + (offset >> PAGE_SHIFT);
-    auto pinned_pages = sect.cache.read_into_cache_and_pin(src_page_num, num_pages);
-
-    if (pinned_pages == 0)
-        return 0;
-
-    page_cache_entry* src_p;
-    page_cache_entry* dest_p;
-    auto read_pages = pinned_pages;
-
-    for (unsigned int i = 0; i < pinned_pages; i++) {
-        {
-            lock_guard lg(sect.cache.cache_lock);
-
-            if (i == 0)
-                src_p = sect.cache.find_page_cache_entry(src_page_num);
-            else
-                src_p = sect.cache.next_page_cache_entry(*src_p);
-        }
-
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                dest_p = cache.find_page_cache_entry(dest_page_num);
-            else
-                dest_p = cache.next_page_cache_entry(*dest_p);
-
-            if (dest_p->pfn == 0) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-                if (!dest_p->pfn) {
-                    print("allocate folio failed\n");
-                    read_pages = i;
-                    break;
-                }
-            }
-        }
-
-        memcpy(get_phys_address(*dest_p), get_phys_address(*src_p), PAGE_SIZE);
-    }
-
-    sect.cache.unpin(src_page_num, pinned_pages);
-
-    return read_pages;
-}
-
-size_t mapping::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME - mapping::flush_cache({:x}, {:x})\n", page_num, num_pages); // FIXME
-
-    return 0;
 }
 
 NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_handle, ACCESS_MASK,
