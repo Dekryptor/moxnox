@@ -41,7 +41,7 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
 class mapping : public cacheable {
 public:
-    mapping(section& sect) : sect(sect) {
+    mapping(process& proc, section& sect) : proc(proc), sect(sect) {
         sect.acquire();
     }
 
@@ -70,6 +70,7 @@ public:
     uint64_t address;
     uint32_t size;
     uint64_t offset;
+    process& proc;
     section& sect;
 
 private:
@@ -659,7 +660,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
         }
     }
 
-    auto m = new mapping(sect);
+    auto m = new mapping(*this, sect);
     if (!m) {
         print("new failed\n");
         return 0;
@@ -1413,7 +1414,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
     auto& sect = static_cast<section&>(vm_sect.get());
 
-    auto m = new mapping(sect);
+    auto m = new mapping(*this, sect);
     if (!m) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -1712,50 +1713,47 @@ bool mapping::map(process& proc, uint32_t offset, uint64_t va) {
 bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
+    uint64_t page_offset = offset & (PAGE_SIZE - 1);
 
-    auto pinned_pages = cache.read_into_cache_and_pin(page_num, num_pages);
-
-    if (pinned_pages < num_pages) {
-        print("mapping::copy_from: read_into_cache_and_pin returned {}, expected {}\n",
-              pinned_pages, num_pages);
-        cache.unpin(page_num, pinned_pages);
-        return false;
-    }
-
-    page_cache_entry* p;
+    // FIXME - get process range lock
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
+        auto& pte = *find_pte(proc, address + ((page_num + i) << PAGE_SHIFT));
 
-            if (i == 0)
-                p = cache.find_page_cache_entry(page_num);
-            else
-                p = cache.next_page_cache_entry(*p);
-        }
+        auto to_copy = min((uint32_t)(PAGE_SIZE - page_offset), size);
 
-        uint32_t to_copy, page_off;
-
-        if (i == 0) {
-            page_off = offset & (PAGE_SIZE - 1);
-            to_copy = min(size, (uint32_t)(PAGE_SIZE - page_off));
-        } else if (i == num_pages - 1) {
-            page_off = 0;
-            to_copy = (offset + size) & (PAGE_SIZE - 1);
-
-            if (to_copy == 0)
-                to_copy = PAGE_SIZE;
+        if (pte.p) {
+            memcpy(ks_addr, (uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
+                   to_copy);
         } else {
-            page_off = 0;
-            to_copy = PAGE_SIZE;
-        }
+            page_cache_entry* p;
 
-        memcpy(ks_addr, (uint8_t*)get_phys_address(*p) + page_off, to_copy);
+            uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
+
+            if (sect.cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
+                print("page_cache::read_into_cache_and_pin failed\n");
+                return false;
+            }
+
+            {
+                lock_guard lg(sect.cache.cache_lock);
+                p = sect.cache.find_page_cache_entry(sect_page_num);
+            }
+
+            {
+                rangelock_req rlr(sect.cache.rl, sect_page_num, 1);
+
+                memcpy(ks_addr, (uint8_t*)get_phys_address(*p) + page_offset,
+                       to_copy);
+            }
+
+            sect.cache.unpin(sect_page_num, 1);
+        }
 
         ks_addr = (uint8_t*)ks_addr + to_copy;
+        size -= to_copy;
+        page_offset = 0;
     }
-
-    cache.unpin(page_num, num_pages);
 
     return true;
 }
