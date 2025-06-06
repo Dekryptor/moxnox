@@ -1766,106 +1766,123 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
+    uint64_t page_offset = offset & (PAGE_SIZE - 1);
 
-    if (!cache.pin(page_num, num_pages, nullptr)) {
-        print("mapping::copy_to: page_cache::pin failed\n");
-        return false;
-    }
+    // FIXME - get process range lock
 
-    {
-        // read first page if needed
-        if (offset & (PAGE_SIZE - 1)) {
-            // FIXME - easy way to do this without pinning again?
-            if (!cache.read_into_cache_and_pin(page_num, 1)) {
-                print("mapping::copy_to: page_cache::read_into_cache_and_pin failed\n");
-                cache.unpin(page_num, num_pages);
+    for (uint64_t i = 0; i < num_pages; i++) {
+        auto& pte = *find_pte(proc, address + ((page_num + i) << PAGE_SHIFT));
+
+        auto to_copy = min((uint32_t)(PAGE_SIZE - page_offset), size);
+
+        if (!pte.allow_write)
+            return false;
+
+        if (pte.p && pte.w) {
+            memcpy((uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
+                   ks_addr, to_copy);
+        } else if (pte.cow) {
+            auto pa = allocate_folio(0);
+            if (!pa) {
+                print("allocate_folio failed\n");
                 return false;
             }
 
-            cache.unpin(page_num, 1);
-        }
+            if (!pte.p) {
+                if (to_copy < PAGE_SIZE) {
+                    page_cache_entry* p;
+                    uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
 
-        // read last page if needed
-        if ((offset + size) & (PAGE_SIZE - 1) && (num_pages != 1 || !(offset & (PAGE_SIZE - 1)))) {
-            // FIXME - easy way to do this without pinning again?
-            if (!cache.read_into_cache_and_pin(page_num + num_pages - 1, 1)) {
-                print("mapping::copy_to: page_cache::read_into_cache_and_pin failed\n");
-                cache.unpin(page_num, num_pages);
-                return false;
+                    if (sect.cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
+                        print("page_cache::read_into_cache_and_pin failed\n");
+                        free_folio(pa);
+                        return false;
+                    }
+
+                    {
+                        lock_guard lg(sect.cache.cache_lock);
+                        p = sect.cache.find_page_cache_entry(sect_page_num);
+                    }
+
+                    {
+                        rangelock_req rlr(sect.cache.rl, sect_page_num, 1);
+
+                        memcpy(phys_address(pa), get_phys_address(*p),
+                               PAGE_SIZE);
+                    }
+
+                    sect.cache.unpin(sect_page_num, 1);
+                }
+            } else {
+                memcpy(phys_address(pa), phys_address(pte.pfn << PAGE_SHIFT),
+                       PAGE_SIZE);
             }
 
-            cache.unpin(page_num + num_pages - 1, 1);
-        }
-
-        rangelock_req rlr(cache.rl, page_num, num_pages);
-
-        page_cache_entry* p;
-
-        for (uint64_t i = 0; i < num_pages; i++) {
-            {
-                lock_guard lg(cache.cache_lock);
-
-                if (i == 0)
-                    p = cache.find_page_cache_entry(page_num);
-                else
-                    p = cache.next_page_cache_entry(*p);
-            }
-
-            if (p->pfn == 0) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+            pte.pfn = pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-                p->dirty = 1;
-            }
 
-            if (!p->pfn) {
-                print("allocate_folio failed\n");
-                cache.unpin(page_num, num_pages);
-                return false;
-            }
+            memcpy((uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
+                   ks_addr, to_copy);
 
-            if (!p->dirty) {
-                assert(p->pfn != 0);
+            pte.w = 1;
 
-                auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
-                if (pfn == 0) {
-                    print("cow_folio failed\n");
-                    cache.unpin(page_num, num_pages);
+            if (!pte.p)
+                pte.p = 1;
+        } else {
+            uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
+            page_cache_entry* p;
+
+            if (to_copy < PAGE_SIZE) {
+                if (sect.cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
+                    print("page_cache::read_into_cache_and_pin failed\n");
                     return false;
                 }
+            } else
+                sect.cache.pin(sect_page_num, 1, nullptr);
+
+            {
+                lock_guard lg(sect.cache.cache_lock);
+                p = sect.cache.find_page_cache_entry(sect_page_num);
+            }
+
+            {
+                rangelock_req rlr(sect.cache.rl, sect_page_num, 1);
+
+                if (p->pfn == 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                    p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+                    if (!p->pfn) {
+                        print("allocate_folio failed\n");
+                        sect.cache.unpin(sect_page_num, 1);
+                        return false;
+                    }
+                }
+
+                memcpy((uint8_t*)get_phys_address(*p) + page_offset,
+                       ks_addr, to_copy);
+                p->dirty = 1;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                p->pfn = pfn;
+                pte.pfn = p->pfn >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-
-                p->dirty = 1;
             }
 
-            uint32_t to_copy, page_off;
+            pte.w = 1;
+            pte.p = 1;
 
-            if (i == 0) {
-                page_off = offset & (PAGE_SIZE - 1);
-                to_copy = min(size, (uint32_t)(PAGE_SIZE - page_off));
-            } else if (i == num_pages - 1) {
-                page_off = 0;
-                to_copy = (offset + size) & (PAGE_SIZE - 1);
-
-                if (to_copy == 0)
-                    to_copy = PAGE_SIZE;
-            } else {
-                page_off = 0;
-                to_copy = PAGE_SIZE;
-            }
-
-            memcpy((uint8_t*)get_phys_address(*p) + page_off, ks_addr, to_copy);
-
-            ks_addr = (uint8_t*)ks_addr + to_copy;
+            sect.cache.unpin(sect_page_num, 1);
         }
-    }
 
-    cache.unpin(page_num, num_pages);
+        ks_addr = (uint8_t*)ks_addr + to_copy;
+        size -= to_copy;
+        page_offset = 0;
+    }
 
     return true;
 }
