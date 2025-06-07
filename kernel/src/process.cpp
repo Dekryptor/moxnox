@@ -1463,14 +1463,17 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
         m->offset = addr;
         m->address = addr;
+    }
 
-        if (protect != mapping_type::reserved) {
-            if (!set_page_protection(*this, addr, num_pages, protect, false)) {
-                print("set_page_protection failed\n");
+    if (protect != mapping_type::reserved) {
+        if (!set_page_protection(*this, addr, num_pages, protect, false)) {
+            print("set_page_protection failed\n");
+            {
+                lock_guard lock(mappings_lock);
                 remove_entry_list(m->le);
                 m->release();
-                return nt_status::INSUFFICIENT_RESOURCES;
             }
+            return nt_status::INSUFFICIENT_RESOURCES;
         }
     }
 
