@@ -1860,7 +1860,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                pte.pfn = p->pfn >> PAGE_SHIFT;
+                pte.pfn = p->pfn;
 #pragma GCC diagnostic pop
             }
 
