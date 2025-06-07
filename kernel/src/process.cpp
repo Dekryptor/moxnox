@@ -45,9 +45,7 @@ public:
         sect.acquire();
     }
 
-    virtual ~mapping() {
-        sect.release();
-    }
+    ~mapping();
 
     void acquire() {
         refcount++;
@@ -1628,12 +1626,6 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
 
             // FIXME - MEM_RELEASE with reserved memory block
 
-            auto num_pages = m2.size >> PAGE_SHIFT;
-
-            // FIXME - also unmap for threads running on other CPUs
-
-            unmap_proc_pages(*this, m2.address, num_pages);
-
             remove_entry_list(m2.le);
             pm = &m2;
             break;
@@ -1686,6 +1678,14 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
     }
 
     return p->free_vm(base_address, region_size, free_type);
+}
+
+mapping::~mapping() {
+    sect.release();
+
+    // FIXME - send IPI to unmap on other CPUs by clearing TLB
+
+    unmap_proc_pages(proc, address, size >> PAGE_SHIFT);
 }
 
 bool mapping::map(uint32_t mapping_offset, uint64_t va) {
@@ -2180,17 +2180,9 @@ NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintpt
 }
 
 NTSTATUS process::unmap_view_of_section(void* base_address) {
-    uint64_t num_pages;
-
     auto m = find_mapping(*this, (uintptr_t)base_address);
     if (!m)
         return nt_status::NO_MEMORY;
-
-    num_pages = m->size >> PAGE_SHIFT;
-
-    unmap_proc_pages(*this, m->address, num_pages);
-
-    // FIXME - send IPI to other threads of this process to clear TLB
 
     {
         lock_guard lock(mappings_lock);
