@@ -61,7 +61,7 @@ public:
     bool map(uint32_t mapping_offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
-    NTSTATUS commit(process& proc, uint32_t offset, uint32_t commit_size,
+    NTSTATUS commit(uint32_t offset, uint32_t commit_size,
                     enum mapping_type prot);
 
     list_entry le;
@@ -1385,7 +1385,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
             auto to_commit = min(size, m->address + m->size - addr);
 
-            auto ret = m->commit(*this, (uint32_t)(addr - m->address),
+            auto ret = m->commit((uint32_t)(addr - m->address),
                                  (uint32_t)to_commit, protect);
             if (!success(ret)) {
                 m->release();
@@ -2086,7 +2086,7 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
     return ret;
 }
 
-NTSTATUS mapping::commit(process& proc, uint32_t offset, uint32_t commit_size,
+NTSTATUS mapping::commit(uint32_t offset, uint32_t commit_size,
                          enum mapping_type prot) {
     auto num_pages = commit_size >> PAGE_SHIFT;
 
