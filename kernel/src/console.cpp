@@ -1619,26 +1619,13 @@ export bool init_console(const loader_block_framebuffer& fb,
             }
         }
 
-        va = allocate_va(num_pages);
-        if (!va) {
-            print("allocate_va failed\n");
+        auto ptr = (uint32_t*)vmalloc(fb.pixels_per_scan_line * fb.height * sizeof(uint32_t));
+        if (!ptr) {
+            print("vmalloc failed\n");
             return false;
         }
 
-        shadow_framebuffer = span((uint32_t*)va, fb.pixels_per_scan_line * fb.height);
-
-        for (unsigned int i = 0; i < num_pages; i++) {
-            auto pa = allocate_page();
-            if (!pa) {
-                print("allocate_page failed\n");
-                return false;
-            }
-
-            if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-                print("map_page failed\n");
-                return false;
-            }
-        }
+        shadow_framebuffer = span(ptr, fb.pixels_per_scan_line * fb.height);
 
         fb_width = fb.width;
         fb_height = fb.height;
