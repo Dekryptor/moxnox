@@ -512,6 +512,42 @@ process::process() : object(object_type::process) {
     initialized = true;
 }
 
+static void free_page_tables(process& proc) {
+    if (proc.cr3 == 0)
+        return;
+
+    // FIXME - handle huge and gigantic pages
+
+    auto ps1 = span((HARDWARE_PTE*)phys_address(proc.cr3), 256); // not higher half
+
+    for (auto& p1 : ps1) {
+        if (!p1.p)
+            continue;
+
+        auto ps2 = span((HARDWARE_PTE*)phys_address(p1.pfn << PAGE_SHIFT), 512);
+
+        for (auto& p2 : ps2) {
+            if (!p2.p)
+                continue;
+
+            auto ps3 = span((HARDWARE_PTE*)phys_address(p2.pfn << PAGE_SHIFT), 512);
+
+            for (auto& p3 : ps3) {
+                if (!p3.p)
+                    continue;
+
+                free_folio(p3.pfn << PAGE_SHIFT);
+            }
+
+            free_folio(p2.pfn << PAGE_SHIFT);
+        }
+
+        free_folio(p1.pfn << PAGE_SHIFT);
+    }
+
+    free_folio(proc.cr3);
+}
+
 process::~process() {
     while (true) {
         mapping* m;
@@ -533,8 +569,7 @@ process::~process() {
     if (img)
         img->get().release();
 
-    if (cr3)
-        free_folio(cr3);
+    free_page_tables(*this);
 }
 
 static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
