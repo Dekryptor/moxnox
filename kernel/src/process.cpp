@@ -1,5 +1,6 @@
 #include <limits>
 #include "kernel.h"
+#include "cpu_block.h"
 import objects;
 #include "mem.h"
 #include "handle.h"
@@ -967,7 +968,9 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 }
 
 bool process::allocate_cr3() {
-    cr3 = allocate_page();
+    auto kernel_cr3 = get_cpu_block()->kernel_cr3;
+
+    cr3 = allocate_folio(0);
     if (!cr3) {
         print("allocate_page failed\n");
         return false;
@@ -978,17 +981,9 @@ bool process::allocate_cr3() {
     // copy higher half mappings
 
     memset((void*)va, 0, PAGE_SIZE >> 1);
-    memcpy((uint8_t*)va + (PAGE_SIZE >> 1), (uint8_t*)SELFMAP_PML4 + (PAGE_SIZE >> 1), PAGE_SIZE >> 1);
-
-    auto pml4t = (HARDWARE_PTE*)va;
-
-    // add recursive mapping
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-    pml4t[(SELFMAP & 0xff8000000000) >> 39].pfn = cr3 >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-    pml4t[(SELFMAP & 0xff8000000000) >> 39].p = 1;
-    pml4t[(SELFMAP & 0xff8000000000) >> 39].w = 1;
+    memcpy((uint8_t*)va + (PAGE_SIZE >> 1),
+           (uint8_t*)phys_address(kernel_cr3) + (PAGE_SIZE >> 1),
+           PAGE_SIZE >> 1);
 
     return true;
 }
