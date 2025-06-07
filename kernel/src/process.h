@@ -3,6 +3,7 @@
 #include "spinlock.h"
 #include "context_offsets.h"
 #include "handle.h"
+#include "rangelock.h"
 
 class section;
 
@@ -76,6 +77,7 @@ public:
     list_entry waiters = { &waiters, &waiters };
     object_ref vm_sect;
     bool initialized = false;
+    rangelock rl;
 };
 
 static_assert(is_sync_object<process>);

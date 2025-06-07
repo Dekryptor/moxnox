@@ -908,6 +908,8 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
         if (!pte)
             return false;
 
+        rangelock_req rlr(rl, address >> PAGE_SHIFT, 1);
+
         if (pte->allow_write && !pte->w) { // mark cache as dirty
             auto m = find_mapping(*this, address);
 
@@ -918,8 +920,6 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
             uint64_t sect_page_num = page_num + (m->offset >> PAGE_SHIFT);
 
             if (pte->cow) {
-                // FIXME - get process rangelock
-
                 auto pfn = allocate_folio(0) >> PAGE_SHIFT;
                 if (pfn == 0) {
                     print("allocate_folio failed\n");
