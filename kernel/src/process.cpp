@@ -219,7 +219,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
 
     free(fn_path);
 
-    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->ImagePathName.Buffer - m.address),
+    if (!m.copy_to((uint32_t)((uintptr_t)proc.proc_params - m.address),
                    ks_proc_params, sizeof(RTL_USER_PROCESS_PARAMETERS))) {
         print("mapping::copy_to failed\n");
         m.release();
