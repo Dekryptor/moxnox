@@ -1481,9 +1481,11 @@ nt_status btrfs_filesystem::find_item(root& r, const btrfs_key& k, btrfs_path& p
     // FIXME - error if level >= BTRFS_MAX_LEVEL
 
     for (unsigned int i = 0; i <= level; i++) {
-        p.data[i] = (uint8_t*)phys_address(allocate_folio(node_folio_order));
-        if (!p.data[i])
+        auto pa = allocate_folio(node_folio_order);
+        if (!pa)
             return nt_status::INSUFFICIENT_RESOURCES;
+
+        p.data[i] = (uint8_t*)phys_address(pa);
     }
 
     do {
