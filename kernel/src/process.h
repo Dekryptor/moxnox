@@ -76,9 +76,6 @@ public:
     list_entry waiters = { &waiters, &waiters };
     object_ref vm_sect;
     bool initialized = false;
-
-private:
-    void unmap_proc_pages(uint64_t va, uint64_t num_pages);
 };
 
 static_assert(is_sync_object<process>);

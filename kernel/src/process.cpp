@@ -1548,10 +1548,10 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
     return p->allocate_vm(base_address, zero_bits, region_size, allocation_type, prot);
 }
 
-void process::unmap_proc_pages(uint64_t va, uint64_t num_pages) {
+static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
     span<HARDWARE_PTE> pml4, pdpt, pdt, pt;
 
-    pml4 = span((HARDWARE_PTE*)phys_address(cr3), 512);
+    pml4 = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
 
     if (!pml4[(va & 0xff8000000000) >> 39].p)
         return;
@@ -1608,7 +1608,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
 
             // FIXME - also unmap for threads running on other CPUs
 
-            unmap_proc_pages(m2.address, num_pages);
+            unmap_proc_pages(*this, m2.address, num_pages);
 
             remove_entry_list(m2.le);
             pm = &m2;
@@ -2164,7 +2164,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 
     num_pages = m->size >> PAGE_SHIFT;
 
-    unmap_proc_pages(m->address, num_pages);
+    unmap_proc_pages(*this, m->address, num_pages);
 
     // FIXME - send IPI to other threads of this process to clear TLB
 
