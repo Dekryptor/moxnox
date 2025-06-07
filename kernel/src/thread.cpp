@@ -72,8 +72,10 @@ void thread::terminate() {
 
         remove_entry_list(this->le);
 
-        if (current_cpu != 0xffffffff)
+        if (current_cpu != 0xffffffff) {
             insert_tail_list(thread_list_dead, this->le); // FIXME - release these in scheduler
+            release();
+        }
     }
 
     if (this != get_cpu_block()->current_thread) {
