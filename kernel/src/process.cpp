@@ -1549,29 +1549,53 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
 }
 
 static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
-    span<HARDWARE_PTE> pml4, pdpt, pdt, pt;
+    span<HARDWARE_PTE> pt[4];
+    uint16_t index[4];
 
-    pml4 = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+    index[0] = (va & 0x1ff000) >> 12;
+    index[1] = (va & 0x3fe00000) >> 21;
+    index[2] = (va & 0x7fc0000000) >> 30;
+    index[3] = (va & 0xff8000000000) >> 39;
 
-    if (!pml4[(va & 0xff8000000000) >> 39].p)
-        return;
+    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+
+    auto redo_level = [&](uint8_t level) {
+        pt[level - 1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
+    };
+
+    for (uint8_t level = 3; level > 0; level--) {
+        redo_level(level);
+    }
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
+        if (i != 0) {
+            index[0]++;
 
-        if (!pdpt[(va & 0x7fc0000000) >> 30].p)
-            continue;
+            if (index[0] == 512) {
+                index[0] = 0;
+                index[1]++;
 
-        pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
+                if (index[1] == 512) {
+                    index[1] = 0;
+                    index[2]++;
 
-        if (!pdt[(va & 0x3fe00000) >> 21].p)
-            continue;
+                    if (index[2] == 512) {
+                        index[2] = 0;
+                        index[3]++;
 
-        pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
+                        redo_level(3);
+                    }
 
-        pt[(va & 0x1ff000) >> 12].p = 0;
+                    redo_level(2);
+                }
 
-        va += PAGE_SIZE;
+                redo_level(1);
+            }
+        }
+
+        auto& pte = pt[0][index[0]];
+
+        pte.p = 0;
     }
 }
 
