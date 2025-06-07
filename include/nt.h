@@ -58,6 +58,7 @@ using ULONG_PTR = uintptr_t;
 using LONGLONG = int64_t;
 using ACCESS_MASK = uint32_t;
 using KPRIORITY = int32_t;
+using BOOLEAN = uint8_t;
 
 static consteval HANDLE NtCurrentProcess() {
     return (HANDLE)-1;
@@ -1106,6 +1107,14 @@ struct FILE_BASIC_INFORMATION {
     LARGE_INTEGER LastWriteTime;
     LARGE_INTEGER ChangeTime;
     uint32_t FileAttributes;
+};
+
+struct FILE_STANDARD_INFORMATION {
+    LARGE_INTEGER AllocationSize;
+    LARGE_INTEGER EndOfFile;
+    uint32_t NumberOfLinks;
+    uint8_t DeletePending;
+    uint8_t Directory;
 };
 
 extern "C" {

@@ -99,8 +99,7 @@ static void cat_file_mmap(u16string_view fn) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     void* addr;
     size_t size;
-
-    // FIXME - limit to file size
+    FILE_STANDARD_INFORMATION fsi;
 
     us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)fn.data();
@@ -118,6 +117,14 @@ static void cat_file_mmap(u16string_view fn) {
         return;
     } else if (!success(status)) {
         print("cat: {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
+        return;
+    }
+
+    status = NtQueryInformationFile(file, &iosb, &fsi, sizeof(fsi),
+                                    FILE_INFORMATION_CLASS::StandardInformation);
+    if (!success(status)) {
+        print("cat: {}: NtQueryInformationFile returned {}\n", fn, status);
+        NtClose(file);
         return;
     }
 
@@ -144,7 +151,7 @@ static void cat_file_mmap(u16string_view fn) {
 
     NtClose(section);
 
-    span sp((uint8_t*)addr, size);
+    span sp((uint8_t*)addr, fsi.EndOfFile.QuadPart);
 
     // FIXME - write whole thing at once?
     while (!sp.empty()) {
