@@ -78,7 +78,7 @@ public:
     bool initialized = false;
 
 private:
-    void unmap_proc_page(uint64_t va);
+    void unmap_proc_pages(uint64_t va, uint64_t num_pages);
 };
 
 static_assert(is_sync_object<process>);

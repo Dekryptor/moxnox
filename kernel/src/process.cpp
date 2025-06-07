@@ -1548,7 +1548,7 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
     return p->allocate_vm(base_address, zero_bits, region_size, allocation_type, prot);
 }
 
-void process::unmap_proc_page(uint64_t va) {
+void process::unmap_proc_pages(uint64_t va, uint64_t num_pages) {
     span<HARDWARE_PTE> pml4, pdpt, pdt, pt;
 
     pml4 = span((HARDWARE_PTE*)phys_address(cr3), 512);
@@ -1556,19 +1556,23 @@ void process::unmap_proc_page(uint64_t va) {
     if (!pml4[(va & 0xff8000000000) >> 39].p)
         return;
 
-    pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
+    for (uint64_t i = 0; i < num_pages; i++) {
+        pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)((pml4[(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
 
-    if (!pdpt[(va & 0x7fc0000000) >> 30].p)
-        return;
+        if (!pdpt[(va & 0x7fc0000000) >> 30].p)
+            continue;
 
-    pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
+        pdt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdpt[(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
 
-    if (!pdt[(va & 0x3fe00000) >> 21].p)
-        return;
+        if (!pdt[(va & 0x3fe00000) >> 21].p)
+            continue;
 
-    pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
+        pt = span((HARDWARE_PTE*)phys_address((uint64_t)((pdt[(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
 
-    pt[(va & 0x1ff000) >> 12].p = 0;
+        pt[(va & 0x1ff000) >> 12].p = 0;
+
+        va += PAGE_SIZE;
+    }
 }
 
 NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t free_type) {
@@ -1604,9 +1608,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
 
             // FIXME - also unmap for threads running on other CPUs
 
-            for (unsigned int i = 0; i < num_pages; i++) {
-                unmap_proc_page(m2.address + (i << PAGE_SHIFT));
-            }
+            unmap_proc_pages(m2.address, num_pages);
 
             remove_entry_list(m2.le);
             pm = &m2;
@@ -2162,10 +2164,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 
     num_pages = m->size >> PAGE_SHIFT;
 
-    for (unsigned int i = 0; i < num_pages; i++) {
-        // FIXME - unmap_proc_page should take range
-        unmap_proc_page(m->address + (i << PAGE_SHIFT));
-    }
+    unmap_proc_pages(m->address, num_pages);
 
     // FIXME - send IPI to other threads of this process to clear TLB
 
