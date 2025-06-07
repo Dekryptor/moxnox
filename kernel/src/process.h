@@ -78,7 +78,6 @@ public:
     bool initialized = false;
 
 private:
-    void free_mappings();
     void unmap_proc_page(uint64_t va);
 };
 

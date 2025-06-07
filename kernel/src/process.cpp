@@ -514,7 +514,22 @@ process::process() : object(object_type::process) {
 }
 
 process::~process() {
-    free_mappings();
+    while (true) {
+        mapping* m;
+
+        {
+            lock_guard lock(mappings_lock);
+
+            if (is_list_empty(mappings))
+                break;
+
+            m = &containing_record<mapping>(mappings.next);
+
+            remove_entry_list(m->le);
+        }
+
+        m->release();
+    }
 
     if (img)
         img->get().release();
@@ -1101,18 +1116,6 @@ void process::terminate() {
         }
 
         free_va((uintptr_t)handle_arr, handle_arr_pages);
-    }
-
-    free_mappings();
-}
-
-void process::free_mappings() {
-    while (!is_list_empty(mappings)) {
-        auto& m = containing_record<mapping>(mappings.next);
-
-        remove_entry_list(m.le);
-
-        m.release();
     }
 }
 
