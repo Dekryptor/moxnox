@@ -1593,6 +1593,10 @@ static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
 
         auto& pte = pt[0][index[0]];
 
+        // free COWed folios
+        if (pte.p && pte.w && pte.cow)
+            free_folio(pte.pfn << PAGE_SHIFT);
+
         pte.p = 0;
     }
 }
