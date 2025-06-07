@@ -15,8 +15,8 @@ struct HARDWARE_PTE {
     uint64_t ps : 1;
     uint64_t g : 1;
     uint64_t allow_write : 1; // custom
-    uint64_t cow : 1;
-    uint64_t : 1;
+    uint64_t cow : 1; // custom
+    uint64_t reserved : 1; // custom
     uint64_t pfn : 51;
     uint64_t xd : 1;
 };

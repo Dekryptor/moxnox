@@ -60,8 +60,6 @@ public:
     bool map(uint32_t mapping_offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
-    NTSTATUS commit(uint32_t offset, uint32_t commit_size,
-                    enum mapping_type prot);
 
     list_entry le;
     uint64_t address;
@@ -573,7 +571,8 @@ process::~process() {
 }
 
 static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
-                                enum mapping_type protect, bool cow) {
+                                enum mapping_type protect, bool cow,
+                                bool reserve) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
 
@@ -642,6 +641,7 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
         pte.p = 0;
         pte.u = 1;
         pte.w = 0;
+        pte.reserved = reserve ? 1 : 0;
 
         switch (protect) {
             case mapping_type::read_write:
@@ -779,7 +779,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
 
             if (s.VirtualAddress > addr) {
                 if (!set_page_protection(*this, address + addr, (uint32_t)((s.VirtualAddress - addr) >> PAGE_SHIFT),
-                                         mapping_type::read_only, false)) {
+                                         mapping_type::read_only, false, false)) {
                     return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
                 }
             }
@@ -788,7 +788,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
 
             if (!set_page_protection(*this, address + s.VirtualAddress, (uint32_t)num_pages,
                                      characteristics_to_mapping_type(s.Characteristics),
-                                     true)) {
+                                     true, false)) {
                 return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
             }
 
@@ -797,12 +797,12 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
 
         if (addr < sect.size) {
             if (!set_page_protection(*this, address + addr, (uint32_t)((sect.size - addr) >> PAGE_SHIFT),
-                                     mapping_type::read_only, false)) {
+                                     mapping_type::read_only, false, false)) {
                 return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
             }
         }
     } else {
-        if (!set_page_protection(*this, address, sect.num_pages, protect, cow))
+        if (!set_page_protection(*this, address, sect.num_pages, protect, cow, false))
             return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
     }
 
@@ -900,11 +900,12 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
     ec.value = error_code;
 
+    auto pte = find_pte(*this, address);
+
     if (ec.present) {
         if (ec.instruction_fetch) // NX violation
             return false;
 
-        auto pte = find_pte(*this, address);
         if (!pte)
             return false;
 
@@ -988,6 +989,9 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
         return false;
     }
+
+    if (pte && pte->reserved)
+        return false;
 
     address &= ~(PAGE_SIZE - 1);
 
@@ -1414,11 +1418,10 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
             auto to_commit = min(size, m->address + m->size - addr);
 
-            auto ret = m->commit((uint32_t)(addr - m->address),
-                                 (uint32_t)to_commit, protect);
-            if (!success(ret)) {
+            if (!set_page_protection(*this, addr, (uint32_t)(to_commit >> PAGE_SHIFT), protect,
+                                     false, false)) {
                 m->release();
-                return ret;
+                return nt_status::INSUFFICIENT_RESOURCES;
             }
 
             if (to_commit == size) {
@@ -1444,9 +1447,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     }
 
     m->size = (uint32_t)size;
-
-    if (!(allocation_type & MEM_COMMIT))
-        protect = mapping_type::reserved;
 
     uintptr_t last_addr = 0x100000; // don't allocate in first megabyte
     bool inserted = false;
@@ -1497,16 +1497,15 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         m->address = addr;
     }
 
-    if (protect != mapping_type::reserved) {
-        if (!set_page_protection(*this, addr, num_pages, protect, false)) {
-            print("set_page_protection failed\n");
-            {
-                lock_guard lock(mappings_lock);
-                remove_entry_list(m->le);
-                m->release();
-            }
-            return nt_status::INSUFFICIENT_RESOURCES;
+    if (!set_page_protection(*this, addr, num_pages, protect, false,
+                             !(allocation_type & MEM_COMMIT))) {
+        print("set_page_protection failed\n");
+        {
+            lock_guard lock(mappings_lock);
+            remove_entry_list(m->le);
+            m->release();
         }
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     *base_address = (void*)addr;
@@ -2028,7 +2027,7 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
         if (first)
             old_prot = get_page_protection(*this, addr);
 
-        if (!set_page_protection(*this, addr, num_pages, prot, false)) {
+        if (!set_page_protection(*this, addr, num_pages, prot, false, false)) {
             m->release();
             return nt_status::INSUFFICIENT_RESOURCES;
         }
@@ -2145,16 +2144,6 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
     }
 
     return ret;
-}
-
-NTSTATUS mapping::commit(uint32_t offset, uint32_t commit_size,
-                         enum mapping_type prot) {
-    auto num_pages = commit_size >> PAGE_SHIFT;
-
-    if (!set_page_protection(proc, address + offset, num_pages, prot, false))
-        return nt_status::INSUFFICIENT_RESOURCES;
-
-    return nt_status::SUCCESS;
 }
 
 NTSTATUS process::close_handle(handle_t h) {
