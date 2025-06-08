@@ -2017,8 +2017,8 @@ static enum mapping_type get_page_protection(process& proc, uint64_t va) {
     }
 }
 
-NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapping_type prot,
-                             enum mapping_type& old_prot) {
+static nt_status protect_vm(process& proc, void** base_address, size_t* region_size,
+                            enum mapping_type prot, bool cow, enum mapping_type& old_prot) {
     auto addr = (uintptr_t)*base_address;
     auto addr_end = addr + *region_size;
 
@@ -2035,16 +2035,16 @@ NTSTATUS process::protect_vm(void** base_address, size_t* region_size, enum mapp
     bool first = true;
 
     while (true) {
-        auto m = find_mapping(*this, addr);
+        auto m = find_mapping(proc, addr);
         if (!m)
             break;
 
         auto num_pages = min(pages, (uint32_t)((m->address + m->size - addr) >> PAGE_SHIFT));
 
         if (first)
-            old_prot = get_page_protection(*this, addr);
+            old_prot = get_page_protection(proc, addr);
 
-        if (!set_page_protection(*this, addr, num_pages, prot, false, false)) {
+        if (!set_page_protection(proc, addr, num_pages, prot, cow, false)) {
             m->release();
             return nt_status::INSUFFICIENT_RESOURCES;
         }
@@ -2073,29 +2073,45 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
                                 uint32_t new_prot, uint32_t* old_prot) {
     enum mapping_type prot;
     object_ref objrw;
+    bool cow;
     process* p;
 
     switch (new_prot) {
         case PAGE_NOACCESS:
         case PAGE_GUARD:
             prot = mapping_type::no_access;
+            cow = false;
             break;
 
         case PAGE_READONLY:
             prot = mapping_type::read_only;
+            cow = false;
             break;
 
         case PAGE_READWRITE:
             prot = mapping_type::read_write;
+            cow = false;
             break;
 
         case PAGE_EXECUTE:
         case PAGE_EXECUTE_READ:
             prot = mapping_type::read_execute;
+            cow = false;
             break;
 
         case PAGE_EXECUTE_READWRITE:
             prot = mapping_type::read_write_execute;
+            cow = false;
+            break;
+
+        case PAGE_WRITECOPY:
+            prot = mapping_type::read_write;
+            cow = true;
+            break;
+
+        case PAGE_EXECUTE_WRITECOPY:
+            prot = mapping_type::read_write_execute;
+            cow = true;
             break;
 
         default:
@@ -2129,7 +2145,7 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
 
     enum mapping_type old_type;
 
-    auto ret = p->protect_vm(base_address, region_size, prot, old_type);
+    auto ret = protect_vm(*p, base_address, region_size, prot, cow, old_type);
 
     if (success(ret)) {
         switch (old_type) {
