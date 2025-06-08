@@ -322,9 +322,13 @@ export bool init_smp() {
             auto& ent = *(ACPI_MADT_LOCAL_APIC*)data.data();
 
             if (ent.Id != bsp_id && ent.LapicFlags & (ACPI_MADT_ENABLED | ACPI_MADT_ONLINE_CAPABLE)) {
-                print("CPU found\n");
+                if (ent.Id > 63)
+                    print("Ignoring high-numbered CPUs (FIXME)\n"); // FIXME
+                else {
+                    print("CPU found\n");
 
-                start_ap(ent.Id);
+                    start_ap(ent.Id);
+                }
             }
         }
 
