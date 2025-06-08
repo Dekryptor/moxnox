@@ -920,23 +920,6 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
     return read_pages;
 }
 
-size_t section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    switch (sect.type) {
-        case section_type::file:
-            return file_read_into_cache(sect, page_num, num_pages);
-
-        default:
-            unreachable();
-    }
-}
-
-size_t section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME: section::flush_cache({}, {})\n", page_num, num_pages);
-    // FIXME
-
-    return 0;
-}
-
 page_cache& section::get_cache() {
     switch (type) {
         case section_type::image:
@@ -946,7 +929,7 @@ page_cache& section::get_cache() {
             return anon_cache->cache;
 
         default:
-            return cache.cache;
+            return ino->get().cache;
     }
 }
 
