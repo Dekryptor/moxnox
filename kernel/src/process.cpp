@@ -2001,7 +2001,7 @@ object_ref process::deref_handle(handle_t h) {
     return *ho.obj;
 }
 
-static enum mapping_type get_page_protection(process& proc, uint64_t va) {
+static uint32_t get_page_protection(process& proc, uint64_t va) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
 
@@ -2014,7 +2014,7 @@ static enum mapping_type get_page_protection(process& proc, uint64_t va) {
 
     for (uint8_t level = 3; level > 0; level--) {
         if (!pt[level][index[level]].p)
-            return mapping_type::no_access;
+            return PAGE_NOACCESS;
 
         pt[level - 1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
     }
@@ -2022,20 +2022,24 @@ static enum mapping_type get_page_protection(process& proc, uint64_t va) {
     auto& pte = pt[0][index[0]];
 
     if (pte.xd) {
-        if (pte.w)
-            return mapping_type::read_write;
+        if (pte.cow)
+            return PAGE_WRITECOPY;
+        else if (pte.allow_write)
+            return PAGE_READWRITE;
         else
-            return mapping_type::read_only;
+            return PAGE_READONLY;
     } else {
-        if (pte.w)
-            return mapping_type::read_write_execute;
+        if (pte.cow)
+            return PAGE_EXECUTE_WRITECOPY;
+        else if (pte.allow_write)
+            return PAGE_EXECUTE_READWRITE;
         else
-            return mapping_type::read_execute;
+            return PAGE_EXECUTE_READ;
     }
 }
 
 static nt_status protect_vm(process& proc, void** base_address, size_t* region_size,
-                            enum mapping_type prot, bool cow, enum mapping_type& old_prot) {
+                            enum mapping_type prot, bool cow, uint32_t& old_type) {
     auto addr = (uintptr_t)*base_address;
     auto addr_end = addr + *region_size;
 
@@ -2062,7 +2066,7 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
             auto num_pages = min(pages, (uint32_t)((m->address + m->size - addr) >> PAGE_SHIFT));
 
             if (first)
-                old_prot = get_page_protection(proc, addr);
+                old_type = get_page_protection(proc, addr);
 
             if (!set_page_protection(proc, addr, num_pages, prot, cow, false)) {
                 m->release();
@@ -2164,40 +2168,7 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
         p = static_cast<process*>(&obj);
     }
 
-    enum mapping_type old_type;
-
-    auto ret = protect_vm(*p, base_address, region_size, prot, cow, old_type);
-
-    if (success(ret)) {
-        switch (old_type) {
-            case mapping_type::no_access:
-            case mapping_type::reserved:
-                *old_prot = PAGE_NOACCESS;
-                break;
-
-            case mapping_type::read_write:
-                *old_prot = PAGE_READWRITE;
-                break;
-
-            case mapping_type::read_only:
-                *old_prot = PAGE_READONLY;
-                break;
-
-            case mapping_type::read_execute:
-                *old_prot = PAGE_EXECUTE_READ;
-                break;
-
-            case mapping_type::read_write_execute:
-                *old_prot = PAGE_EXECUTE_READWRITE;
-                break;
-
-            default:
-                *old_prot = PAGE_NOACCESS;
-                break;
-        }
-    }
-
-    return ret;
+    return protect_vm(*p, base_address, region_size, prot, cow, *old_prot);
 }
 
 NTSTATUS process::close_handle(handle_t h) {
