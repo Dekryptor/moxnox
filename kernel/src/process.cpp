@@ -2051,31 +2051,35 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
 
     bool first = true;
 
-    while (true) {
-        auto m = find_mapping(proc, addr);
-        if (!m)
-            break;
+    {
+        rangelock_req rlr(proc.rl, addr >> PAGE_SHIFT, pages);
 
-        auto num_pages = min(pages, (uint32_t)((m->address + m->size - addr) >> PAGE_SHIFT));
+        while (true) {
+            auto m = find_mapping(proc, addr);
+            if (!m)
+                break;
 
-        if (first)
-            old_prot = get_page_protection(proc, addr);
+            auto num_pages = min(pages, (uint32_t)((m->address + m->size - addr) >> PAGE_SHIFT));
 
-        if (!set_page_protection(proc, addr, num_pages, prot, cow, false)) {
+            if (first)
+                old_prot = get_page_protection(proc, addr);
+
+            if (!set_page_protection(proc, addr, num_pages, prot, cow, false)) {
+                m->release();
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
             m->release();
-            return nt_status::INSUFFICIENT_RESOURCES;
+
+            first = false;
+
+            pages -= num_pages;
+
+            if (pages == 0)
+                break;
+
+            addr += num_pages << PAGE_SHIFT;
         }
-
-        m->release();
-
-        first = false;
-
-        pages -= num_pages;
-
-        if (pages == 0)
-            break;
-
-        addr += num_pages << PAGE_SHIFT;
     }
 
     if (pages != 0)
