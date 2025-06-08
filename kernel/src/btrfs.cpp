@@ -3689,7 +3689,7 @@ NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer,
     }
 }
 
-nt_status btrfs_inode::set_basic_information(std::span<const uint8_t> buffer) {
+nt_status btrfs_inode::set_basic_information(span<const uint8_t> buffer) {
     if (buffer.size() < sizeof(FILE_BASIC_INFORMATION))
         return nt_status::INVALID_PARAMETER;
 
@@ -3751,9 +3751,30 @@ nt_status btrfs_inode::set_basic_information(std::span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
+nt_status btrfs_inode::query_standard_information(span<uint8_t> buffer) {
+    if (buffer.size() < sizeof(FILE_STANDARD_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fsi = *(FILE_STANDARD_INFORMATION*)buffer.data();
+
+    fsi.AllocationSize.QuadPart = ii.nbytes;
+    fsi.EndOfFile.QuadPart = ii.size;
+    fsi.NumberOfLinks = ii.nlink;
+    fsi.DeletePending = 0; // FIXME
+    fsi.Directory = inode_type == inode_type::directory ? 1 : 0;
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS btrfs_inode::query_information(span<uint8_t> buffer,
                                         FILE_INFORMATION_CLASS file_information_class) {
-    print("btrfs_inode::query_information: unhandled file information class {}\n",
-          (unsigned int)file_information_class);
-    return nt_status::NOT_IMPLEMENTED;
+    switch (file_information_class) {
+        case FILE_INFORMATION_CLASS::StandardInformation:
+            return query_standard_information(buffer);
+
+        default:
+            print("btrfs_inode::query_information: unhandled file information class {}\n",
+                 (unsigned int)file_information_class);
+            return nt_status::NOT_IMPLEMENTED;
+    }
 }
