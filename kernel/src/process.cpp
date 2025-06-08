@@ -936,7 +936,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                 pte->pfn = pfn;
 #pragma GCC diagnostic pop
             } else {
-                auto& cache = m->sect.cache.cache;
+                auto& cache = m->sect.get_cache();
 
                 cache.read_into_cache_and_pin(sect_page_num, 1);
 
@@ -1727,7 +1727,7 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
     uint64_t page_num = mapping_offset >> PAGE_SHIFT;
     uint64_t sect_page_num = page_num + (offset >> PAGE_SHIFT);
 
-    auto& cache = sect.cache.cache;
+    auto& cache = sect.get_cache();
 
     if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
         print("page_cache::read_into_cache_and_pin failed\n");
@@ -1781,7 +1781,7 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 
             uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
 
-            auto& cache = sect.cache.cache;
+            auto& cache = sect.get_cache();
 
             if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
                 print("page_cache::read_into_cache_and_pin failed\n");
@@ -1841,7 +1841,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     page_cache_entry* p;
                     uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
 
-                    auto& cache = sect.cache.cache;
+                    auto& cache = sect.get_cache();
 
                     if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
                         print("page_cache::read_into_cache_and_pin failed\n");
@@ -1884,7 +1884,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
             page_cache_entry* p;
 
-            auto& cache = sect.cache.cache;
+            auto& cache = sect.get_cache();
 
             if (to_copy < PAGE_SIZE) {
                 if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {

@@ -280,7 +280,7 @@ nt_status section::load_image() {
     num_pages = bytes_to_pages(size);
     size = num_pages << PAGE_SHIFT;
 
-    auto& cache = this->cache.cache;
+    auto& cache = get_cache();
 
     if (!cache.pin(0, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
@@ -447,7 +447,7 @@ uint64_t section::find_export(string_view name) {
     IMAGE_DATA_DIRECTORY exp_dir;
     page_cache_entry* p;
 
-    auto& cache = this->cache.cache;
+    auto& cache = get_cache();
 
     if (cache.read_into_cache_and_pin(0, 1) == 0) {
         print("read_into_cache_and_pin failed\n");
@@ -838,7 +838,7 @@ size_t image_read_into_cache(section& sect, uint64_t page_num, uint64_t num_page
     page_cache_entry* dest_p;
     auto orig_num_pages = num_pages;
 
-    auto& cache = sect.cache.cache;
+    auto& cache = sect.get_cache();
 
     // FIXME - if something fails, should return what we've read so far rather than 0
 
@@ -1046,7 +1046,7 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
     if (page_num + num_pages > sect.num_pages)
         num_pages = sect.num_pages - page_num;
 
-    auto& cache = sect.cache.cache;
+    auto& cache = sect.get_cache();
 
     if (!cache.pin(page_num, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
@@ -1112,7 +1112,7 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
 size_t anon_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages) {
     // infinite anonymous sections are used for process VM
 
-    auto& cache = sect.cache.cache;
+    auto& cache = sect.get_cache();
 
     if (!cache.pin(page_num, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
@@ -1169,4 +1169,8 @@ size_t section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
     // FIXME
 
     return 0;
+}
+
+page_cache& section::get_cache() {
+    return cache.cache;
 }
