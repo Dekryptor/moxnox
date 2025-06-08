@@ -98,7 +98,12 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
         s.size = s.num_pages << PAGE_SHIFT;
 
-        // FIXME - make sure allocate_page doesn't steal what we've reserved
+        s.anon_cache = new anon_section_cache(s);
+        if (!s.anon_cache) {
+            print("new failed\n");
+            s.release();
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
     }
 
     ref = object_ref{s};
@@ -115,6 +120,9 @@ section::~section() {
 
     if (image_cache)
         delete image_cache;
+
+    if (anon_cache)
+        delete anon_cache;
 
     free(name);
 }
@@ -912,52 +920,10 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
     return read_pages;
 }
 
-size_t anon_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages) {
-    // infinite anonymous sections are used for process VM
-
-    auto& cache = sect.get_cache();
-
-    if (!cache.pin(page_num, num_pages, nullptr)) {
-        print("page_cache::pin failed\n");
-        return 0;
-    }
-
-    page_cache_entry* p;
-    uint64_t read_pages = num_pages;
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                p = cache.find_page_cache_entry(page_num);
-            else
-                p = cache.next_page_cache_entry(*p);
-        }
-
-        if (p->pfn)
-            continue;
-
-        increase_page_refcount(zero_pfn);
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        p->pfn = zero_pfn;
-#pragma GCC diagnostic pop
-    }
-
-    cache.unpin(page_num, num_pages);
-
-    return read_pages;
-}
-
 size_t section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     switch (sect.type) {
         case section_type::file:
             return file_read_into_cache(sect, page_num, num_pages);
-
-        case section_type::anonymous:
-            return anon_read_into_cache(sect, page_num, num_pages);
 
         default:
             unreachable();
@@ -972,10 +938,16 @@ size_t section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 page_cache& section::get_cache() {
-    if (type == section_type::image)
-        return image_cache->cache;
-    else
-        return cache.cache;
+    switch (type) {
+        case section_type::image:
+            return image_cache->cache;
+
+        case section_type::anonymous:
+            return anon_cache->cache;
+
+        default:
+            return cache.cache;
+    }
 }
 
 size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
@@ -1185,6 +1157,50 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
 
 size_t image_section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
     print("FIXME: image_section_cache::flush_cache({}, {})\n", page_num, num_pages);
+    // FIXME
+
+    return 0;
+}
+
+size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    // infinite anonymous sections are used for process VM
+
+    if (!cache.pin(page_num, num_pages, nullptr)) {
+        print("page_cache::pin failed\n");
+        return 0;
+    }
+
+    page_cache_entry* p;
+    uint64_t read_pages = num_pages;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                p = cache.find_page_cache_entry(page_num);
+            else
+                p = cache.next_page_cache_entry(*p);
+        }
+
+        if (p->pfn)
+            continue;
+
+        increase_page_refcount(zero_pfn);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p->pfn = zero_pfn;
+#pragma GCC diagnostic pop
+    }
+
+    cache.unpin(page_num, num_pages);
+
+    return read_pages;
+}
+
+size_t anon_section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME: anon_section_cache::flush_cache({}, {})\n", page_num, num_pages);
     // FIXME
 
     return 0;

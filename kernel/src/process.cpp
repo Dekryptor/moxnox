@@ -504,6 +504,12 @@ process::process() : object(object_type::process) {
     s->type = section_type::anonymous;
     s->num_pages = 0;
     s->size = 0;
+    s->anon_cache = new anon_section_cache(*s);
+    if (!s->anon_cache) {
+        print("new failed\n");
+        s->release();
+        return;
+    }
 
     vm_sect = *s;
 
