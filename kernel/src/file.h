@@ -34,7 +34,8 @@ public:
     NTSTATUS set_information(void* buffer, uint32_t buffer_size,
                              FILE_INFORMATION_CLASS file_information_class);
     NTSTATUS query_information(void* buffer, uint32_t buffer_size,
-                               FILE_INFORMATION_CLASS file_information_class);
+                               FILE_INFORMATION_CLASS file_information_class,
+                               uint64_t& retlen);
 };
 
 static_assert(is_readable_object_without_offset<file>);

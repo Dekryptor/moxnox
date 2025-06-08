@@ -3751,7 +3751,7 @@ nt_status btrfs_inode::set_basic_information(span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::query_standard_information(span<uint8_t> buffer) {
+nt_status btrfs_inode::query_standard_information(span<uint8_t> buffer, uint64_t& retlen) {
     if (buffer.size() < sizeof(FILE_STANDARD_INFORMATION))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -3763,14 +3763,17 @@ nt_status btrfs_inode::query_standard_information(span<uint8_t> buffer) {
     fsi.DeletePending = 0; // FIXME
     fsi.Directory = inode_type == inode_type::directory ? 1 : 0;
 
+    retlen = sizeof(fsi);
+
     return nt_status::SUCCESS;
 }
 
 NTSTATUS btrfs_inode::query_information(span<uint8_t> buffer,
-                                        FILE_INFORMATION_CLASS file_information_class) {
+                                        FILE_INFORMATION_CLASS file_information_class,
+                                        uint64_t& retlen) {
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::StandardInformation:
-            return query_standard_information(buffer);
+            return query_standard_information(buffer, retlen);
 
         default:
             print("btrfs_inode::query_information: unhandled file information class {}\n",

@@ -498,11 +498,12 @@ public:
     NTSTATUS set_information(std::span<const uint8_t> buffer,
                              FILE_INFORMATION_CLASS file_information_class) override;
     NTSTATUS query_information(std::span<uint8_t> buffer,
-                               FILE_INFORMATION_CLASS file_information_class) override;
+                               FILE_INFORMATION_CLASS file_information_class,
+                               uint64_t& retlen) override;
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status set_basic_information(std::span<const uint8_t> buffer);
-    nt_status query_standard_information(std::span<uint8_t> buffer);
+    nt_status query_standard_information(std::span<uint8_t> buffer, uint64_t& retlen);
 
     root* r;
     btrfs_filesystem& fs;
