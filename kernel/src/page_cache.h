@@ -37,13 +37,16 @@ public:
     uint64_t read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages);
     size_t read(std::span<uint8_t> data, uint64_t offset);
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
+    void mark_dirty();
 
     spinlock cache_lock;
     cacheable& dev;
     rangelock rl;
+    list_entry le;
 
 private:
     rbtree_node<uint64_t>* root = nullptr;
+    bool dirty = false;
 };
 
 class cacheable {

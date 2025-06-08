@@ -12,6 +12,9 @@ import rangelock;
 
 using namespace std;
 
+static spinlock writeback_lock;
+static list_entry writeback_list = { &writeback_list, &writeback_list };
+
 static void free_cache_entry(rbtree_node<uint64_t>* tree) {
     auto& r = rbtree_containing_record<page_cache_entry>(tree);
 
@@ -284,6 +287,8 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
         }
     }
 
+    mark_dirty();
+
     return true;
 }
 
@@ -292,6 +297,8 @@ size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
 
     if (data.empty())
         return 0;
+
+    mark_dirty();
 
     uint64_t first_page = offset >> PAGE_SHIFT;
 
@@ -553,4 +560,19 @@ page_cache_entry* page_cache::next_page_cache_entry(const page_cache_entry& ent)
         return nullptr;
 
     return &rbtree_containing_record<page_cache_entry>(ret);
+}
+
+void page_cache::mark_dirty() {
+    if (dirty)
+        return;
+
+    {
+        lock_guard lg(writeback_lock);
+
+        if (dirty)
+            return;
+
+        dirty = true;
+        insert_tail_list(writeback_list, le);
+    }
 }

@@ -995,8 +995,8 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                         //         that have this section mapped
                     }
 
-                    // FIXME - mark cache itself as dirty
                     p->dirty = 1;
+                    cache.mark_dirty();
                 }
 
 #pragma GCC diagnostic push
@@ -1937,8 +1937,6 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                         cache.unpin(sect_page_num, 1);
                         return false;
                     }
-
-                    p->dirty = 1;
                 } else if (!p->dirty) {
                     auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
                     if (pfn == 0) {
@@ -1951,9 +1949,10 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 #pragma GCC diagnostic ignored "-Wconversion"
                     p->pfn = pfn;
 #pragma GCC diagnostic pop
-
-                    p->dirty = 1;
                 }
+
+                p->dirty = 1;
+                cache.mark_dirty();
 
                 memcpy((uint8_t*)get_phys_address(*p) + page_offset,
                        ks_addr, to_copy);
