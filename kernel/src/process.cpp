@@ -645,35 +645,52 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
 
         auto& pte = pt[0][index[0]];
 
-        pte.p = 0;
-        pte.u = 1;
-        pte.w = 0;
-        pte.reserved = reserve ? 1 : 0;
+        if (pte.p && pte.w && pte.cow) {
+            // don't clear COW flag if already COWed
 
-        switch (protect) {
-            case mapping_type::read_write:
-                pte.xd = 1;
-                pte.allow_write = 1;
-                pte.cow = cow ? 1 : 0;
-                break;
+            // FIXME - should be able to make COWed page readonly?
 
-            case mapping_type::read_execute:
-                pte.xd = 0;
-                pte.allow_write = 0;
-                pte.cow = 0;
-                break;
+            switch (protect) {
+                case mapping_type::read_execute:
+                case mapping_type::read_write_execute:
+                    pte.xd = 0;
+                    break;
 
-            case mapping_type::read_write_execute:
-                pte.xd = 0;
-                pte.allow_write = 1;
-                pte.cow = cow ? 1 : 0;
-                break;
+                default:
+                    pte.xd = 1;
+                    break;
+            }
+        } else {
+            pte.p = 0;
+            pte.u = 1;
+            pte.w = 0;
+            pte.reserved = reserve ? 1 : 0;
 
-            default:
-                pte.xd = 1;
-                pte.allow_write = 0;
-                pte.cow = 0;
-                break;
+            switch (protect) {
+                case mapping_type::read_write:
+                    pte.xd = 1;
+                    pte.allow_write = 1;
+                    pte.cow = cow ? 1 : 0;
+                    break;
+
+                case mapping_type::read_execute:
+                    pte.xd = 0;
+                    pte.allow_write = 0;
+                    pte.cow = 0;
+                    break;
+
+                case mapping_type::read_write_execute:
+                    pte.xd = 0;
+                    pte.allow_write = 1;
+                    pte.cow = cow ? 1 : 0;
+                    break;
+
+                default:
+                    pte.xd = 1;
+                    pte.allow_write = 0;
+                    pte.cow = 0;
+                    break;
+            }
         }
     }
 
