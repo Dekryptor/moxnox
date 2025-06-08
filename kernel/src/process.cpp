@@ -936,16 +936,18 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                 pte->pfn = pfn;
 #pragma GCC diagnostic pop
             } else {
-                m->sect.cache.read_into_cache_and_pin(sect_page_num, 1);
+                auto& cache = m->sect.cache.cache;
 
-                rangelock_req rlr(m->sect.cache.rl, sect_page_num, 1);
+                cache.read_into_cache_and_pin(sect_page_num, 1);
+
+                rangelock_req rlr(cache.rl, sect_page_num, 1);
 
                 page_cache_entry* p;
 
                 {
-                    lock_guard lg(m->sect.cache.cache_lock);
+                    lock_guard lg(cache.cache_lock);
 
-                    p = m->sect.cache.find_page_cache_entry(sect_page_num);
+                    p = cache.find_page_cache_entry(sect_page_num);
                 }
 
                 if (!p->dirty) {
@@ -954,7 +956,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                     auto new_pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
                     if (new_pfn == 0) {
                         print("out of memory\n");
-                        m->sect.cache.unpin(sect_page_num, 1);
+                        cache.unpin(sect_page_num, 1);
                         m->release();
                         return false;
                     }
@@ -978,7 +980,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                 pte->pfn = p->pfn;
 #pragma GCC diagnostic pop
 
-                m->sect.cache.unpin(sect_page_num, 1); // FIXME?
+                cache.unpin(sect_page_num, 1); // FIXME?
             }
 
             m->release();
@@ -1725,24 +1727,26 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
     uint64_t page_num = mapping_offset >> PAGE_SHIFT;
     uint64_t sect_page_num = page_num + (offset >> PAGE_SHIFT);
 
-    if (sect.cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
+    auto& cache = sect.cache.cache;
+
+    if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
         print("page_cache::read_into_cache_and_pin failed\n");
         return false;
     }
 
     auto pte = find_pte(proc, va);
     if (!pte) {
-        sect.cache.unpin(sect_page_num, 1);
+        cache.unpin(sect_page_num, 1);
         return false;
     }
 
     {
         page_cache_entry* p;
-        rangelock_req rlr(sect.cache.rl, sect_page_num, 1);
+        rangelock_req rlr(cache.rl, sect_page_num, 1);
 
         {
-            lock_guard lg(sect.cache.cache_lock);
-            p = sect.cache.find_page_cache_entry(sect_page_num);
+            lock_guard lg(cache.cache_lock);
+            p = cache.find_page_cache_entry(sect_page_num);
         }
 
 #pragma GCC diagnostic push
@@ -1752,7 +1756,7 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
         pte->p = 1;
     }
 
-    sect.cache.unpin(sect_page_num, 1);
+    cache.unpin(sect_page_num, 1);
 
     return true;
 }
@@ -1777,24 +1781,26 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 
             uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
 
-            if (sect.cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
+            auto& cache = sect.cache.cache;
+
+            if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
                 print("page_cache::read_into_cache_and_pin failed\n");
                 return false;
             }
 
             {
-                lock_guard lg(sect.cache.cache_lock);
-                p = sect.cache.find_page_cache_entry(sect_page_num);
+                lock_guard lg(cache.cache_lock);
+                p = cache.find_page_cache_entry(sect_page_num);
             }
 
             {
-                rangelock_req rlr(sect.cache.rl, sect_page_num, 1);
+                rangelock_req rlr(cache.rl, sect_page_num, 1);
 
                 memcpy(ks_addr, (uint8_t*)get_phys_address(*p) + page_offset,
                        to_copy);
             }
 
-            sect.cache.unpin(sect_page_num, 1);
+            cache.unpin(sect_page_num, 1);
         }
 
         ks_addr = (uint8_t*)ks_addr + to_copy;
@@ -1835,25 +1841,27 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     page_cache_entry* p;
                     uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
 
-                    if (sect.cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
+                    auto& cache = sect.cache.cache;
+
+                    if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
                         print("page_cache::read_into_cache_and_pin failed\n");
                         free_folio(pa);
                         return false;
                     }
 
                     {
-                        lock_guard lg(sect.cache.cache_lock);
-                        p = sect.cache.find_page_cache_entry(sect_page_num);
+                        lock_guard lg(cache.cache_lock);
+                        p = cache.find_page_cache_entry(sect_page_num);
                     }
 
                     {
-                        rangelock_req rlr(sect.cache.rl, sect_page_num, 1);
+                        rangelock_req rlr(cache.rl, sect_page_num, 1);
 
                         memcpy(phys_address(pa), get_phys_address(*p),
                                PAGE_SIZE);
                     }
 
-                    sect.cache.unpin(sect_page_num, 1);
+                    cache.unpin(sect_page_num, 1);
                 }
             } else {
                 memcpy(phys_address(pa), phys_address(pte.pfn << PAGE_SHIFT),
@@ -1876,21 +1884,23 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
             page_cache_entry* p;
 
+            auto& cache = sect.cache.cache;
+
             if (to_copy < PAGE_SIZE) {
-                if (sect.cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
+                if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
                     print("page_cache::read_into_cache_and_pin failed\n");
                     return false;
                 }
             } else
-                sect.cache.pin(sect_page_num, 1, nullptr);
+                cache.pin(sect_page_num, 1, nullptr);
 
             {
-                lock_guard lg(sect.cache.cache_lock);
-                p = sect.cache.find_page_cache_entry(sect_page_num);
+                lock_guard lg(cache.cache_lock);
+                p = cache.find_page_cache_entry(sect_page_num);
             }
 
             {
-                rangelock_req rlr(sect.cache.rl, sect_page_num, 1);
+                rangelock_req rlr(cache.rl, sect_page_num, 1);
 
                 if (p->pfn == 0) {
 #pragma GCC diagnostic push
@@ -1900,7 +1910,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
                     if (!p->pfn) {
                         print("allocate_folio failed\n");
-                        sect.cache.unpin(sect_page_num, 1);
+                        cache.unpin(sect_page_num, 1);
                         return false;
                     }
 
@@ -1909,7 +1919,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
                     if (pfn == 0) {
                         print("cow_folio failed\n");
-                        sect.cache.unpin(sect_page_num, 1);
+                        cache.unpin(sect_page_num, 1);
                         return false;
                     }
 
@@ -1933,7 +1943,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             pte.w = 1;
             pte.p = 1;
 
-            sect.cache.unpin(sect_page_num, 1);
+            cache.unpin(sect_page_num, 1);
         }
 
         ks_addr = (uint8_t*)ks_addr + to_copy;

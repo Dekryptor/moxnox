@@ -280,6 +280,8 @@ nt_status section::load_image() {
     num_pages = bytes_to_pages(size);
     size = num_pages << PAGE_SHIFT;
 
+    auto& cache = this->cache.cache;
+
     if (!cache.pin(0, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
         f.cache.unpin(0, 1);
@@ -444,6 +446,8 @@ uint64_t section::find_export(string_view name) {
 
     IMAGE_DATA_DIRECTORY exp_dir;
     page_cache_entry* p;
+
+    auto& cache = this->cache.cache;
 
     if (cache.read_into_cache_and_pin(0, 1) == 0) {
         print("read_into_cache_and_pin failed\n");
@@ -834,6 +838,8 @@ size_t image_read_into_cache(section& sect, uint64_t page_num, uint64_t num_page
     page_cache_entry* dest_p;
     auto orig_num_pages = num_pages;
 
+    auto& cache = sect.cache.cache;
+
     // FIXME - if something fails, should return what we've read so far rather than 0
 
     if (page_num < header_pages) {
@@ -852,12 +858,12 @@ size_t image_read_into_cache(section& sect, uint64_t page_num, uint64_t num_page
                 to_copy = PAGE_SIZE;
 
             {
-                lock_guard lg(sect.cache.cache_lock);
+                lock_guard lg(cache.cache_lock);
 
                 if (i == 0)
-                    dest_p = sect.cache.find_page_cache_entry(page_num);
+                    dest_p = cache.find_page_cache_entry(page_num);
                 else
-                    dest_p = sect.cache.next_page_cache_entry(*dest_p);
+                    dest_p = cache.next_page_cache_entry(*dest_p);
             }
 
             {
@@ -907,12 +913,12 @@ size_t image_read_into_cache(section& sect, uint64_t page_num, uint64_t num_page
 
     while (num_pages > 0) {
         {
-            lock_guard lg(sect.cache.cache_lock);
+            lock_guard lg(cache.cache_lock);
 
             if (first)
-                dest_p = sect.cache.find_page_cache_entry(page_num);
+                dest_p = cache.find_page_cache_entry(page_num);
             else
-                dest_p = sect.cache.next_page_cache_entry(*dest_p);
+                dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
         first = false;
@@ -1040,7 +1046,9 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
     if (page_num + num_pages > sect.num_pages)
         num_pages = sect.num_pages - page_num;
 
-    if (!sect.cache.pin(page_num, num_pages, nullptr)) {
+    auto& cache = sect.cache.cache;
+
+    if (!cache.pin(page_num, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
         return 0;
     }
@@ -1057,19 +1065,19 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
 
     // FIXME - should be able to reduce rangelock holding if this happens
     if (read_pages < num_pages)
-        sect.cache.unpin(page_num + read_pages, num_pages - read_pages);
+        cache.unpin(page_num + read_pages, num_pages - read_pages);
 
     page_cache_entry* src_p = nullptr;
     page_cache_entry* dest_p;
 
     for (uint64_t i = 0; i < read_pages; i++) {
         {
-            lock_guard lg(sect.cache.cache_lock);
+            lock_guard lg(cache.cache_lock);
 
             if (i == 0)
-                dest_p = sect.cache.find_page_cache_entry(page_num);
+                dest_p = cache.find_page_cache_entry(page_num);
             else
-                dest_p = sect.cache.next_page_cache_entry(*dest_p);
+                dest_p = cache.next_page_cache_entry(*dest_p);
         }
 
         if (dest_p->pfn) {
@@ -1095,7 +1103,7 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
 #pragma GCC diagnostic pop
     }
 
-    sect.cache.unpin(page_num, read_pages);
+    cache.unpin(page_num, read_pages);
     ino.cache.unpin(page_num, read_pages);
 
     return read_pages;
@@ -1104,7 +1112,9 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
 size_t anon_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages) {
     // infinite anonymous sections are used for process VM
 
-    if (!sect.cache.pin(page_num, num_pages, nullptr)) {
+    auto& cache = sect.cache.cache;
+
+    if (!cache.pin(page_num, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
         return 0;
     }
@@ -1114,12 +1124,12 @@ size_t anon_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages
 
     for (uint64_t i = 0; i < num_pages; i++) {
         {
-            lock_guard lg(sect.cache.cache_lock);
+            lock_guard lg(cache.cache_lock);
 
             if (i == 0)
-                p = sect.cache.find_page_cache_entry(page_num);
+                p = cache.find_page_cache_entry(page_num);
             else
-                p = sect.cache.next_page_cache_entry(*p);
+                p = cache.next_page_cache_entry(*p);
         }
 
         if (p->pfn)
@@ -1133,28 +1143,28 @@ size_t anon_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages
 #pragma GCC diagnostic pop
     }
 
-    sect.cache.unpin(page_num, num_pages);
+    cache.unpin(page_num, num_pages);
 
     return read_pages;
 }
 
-size_t section::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    switch (type) {
+size_t section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    switch (sect.type) {
         case section_type::image:
-            return image_read_into_cache(*this, page_num, num_pages);
+            return image_read_into_cache(sect, page_num, num_pages);
 
         case section_type::file:
-            return file_read_into_cache(*this, page_num, num_pages);
+            return file_read_into_cache(sect, page_num, num_pages);
 
         case section_type::anonymous:
-            return anon_read_into_cache(*this, page_num, num_pages);
+            return anon_read_into_cache(sect, page_num, num_pages);
 
         default:
             unreachable();
     }
 }
 
-size_t section::flush_cache(uint64_t page_num, uint64_t num_pages) {
+size_t section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
     print("FIXME: section::flush_cache({}, {})\n", page_num, num_pages);
     // FIXME
 

@@ -24,7 +24,19 @@ struct dwarf_info {
 
 struct IMAGE_SECTION_HEADER;
 
-class section : public object, public cacheable {
+class section;
+
+class section_cache : public cacheable {
+public:
+    section_cache(section& sect) : sect(sect) { }
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
+
+private:
+    section& sect;
+};
+
+class section : public object {
 public:
     section() : object(object_type::section) { }
     virtual ~section();
@@ -42,8 +54,6 @@ public:
     uint64_t find_export(std::string_view name);
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class, std::span<uint8_t> buf,
                         size_t* return_length);
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
 
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;
@@ -59,4 +69,5 @@ public:
     unsigned int num_pe_sections = 0;
     IMAGE_SECTION_HEADER* pe_sections = nullptr;
     uint32_t size_of_headers;
+    section_cache cache{*this};
 };
