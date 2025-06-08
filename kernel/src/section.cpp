@@ -62,6 +62,13 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
             s.type = section_type::image;
             // FIXME - also work with ELFs
 
+            s.image_cache = new image_section_cache(s);
+            if (!s.image_cache) {
+                print("new failed\n");
+                s.release();
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
             auto status = s.load_image();
             if (!success(status)) {
                 print("load_image returned {}\n", status);
@@ -105,6 +112,9 @@ section::~section() {
 
     if (pe_sections)
         free(pe_sections);
+
+    if (image_cache)
+        delete image_cache;
 
     free(name);
 }
@@ -831,14 +841,149 @@ uint64_t get_image_size(void* image) {
         return 0;
 }
 
-size_t image_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages) {
+size_t file_read_into_cache(section& sect, uint64_t page_num,
+                            uint64_t num_pages) {
+    if (page_num >= sect.num_pages)
+        return 0;
+
+    if (page_num + num_pages > sect.num_pages)
+        num_pages = sect.num_pages - page_num;
+
+    auto& cache = sect.get_cache();
+
+    if (!cache.pin(page_num, num_pages, nullptr)) {
+        print("page_cache::pin failed\n");
+        return 0;
+    }
+
+    auto& ino = sect.ino->get();
+
+    auto read_pages = ino.cache.read_into_cache_and_pin(page_num, num_pages);
+    if (read_pages == 0) {
+        print("file_read_into_cache: page_cache::read_into_cache_and_pin for inode failed\n");
+        return 0;
+    }
+
+    rangelock_req rlr(ino.cache.rl, page_num, num_pages);
+
+    // FIXME - should be able to reduce rangelock holding if this happens
+    if (read_pages < num_pages)
+        cache.unpin(page_num + read_pages, num_pages - read_pages);
+
+    page_cache_entry* src_p = nullptr;
+    page_cache_entry* dest_p;
+
+    for (uint64_t i = 0; i < read_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                dest_p = cache.find_page_cache_entry(page_num);
+            else
+                dest_p = cache.next_page_cache_entry(*dest_p);
+        }
+
+        if (dest_p->pfn) {
+            src_p = nullptr;
+            continue;
+        }
+
+        {
+            lock_guard lg(ino.cache.cache_lock);
+
+            if (!src_p)
+                src_p = ino.cache.find_page_cache_entry(page_num);
+            else
+                src_p = ino.cache.next_page_cache_entry(*src_p);
+        }
+
+        // FIXME - need to adjust PTEs if this file is mapped directly anywhere
+        increase_page_refcount(src_p->pfn);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        dest_p->pfn = src_p->pfn;
+#pragma GCC diagnostic pop
+    }
+
+    cache.unpin(page_num, read_pages);
+    ino.cache.unpin(page_num, read_pages);
+
+    return read_pages;
+}
+
+size_t anon_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages) {
+    // infinite anonymous sections are used for process VM
+
+    auto& cache = sect.get_cache();
+
+    if (!cache.pin(page_num, num_pages, nullptr)) {
+        print("page_cache::pin failed\n");
+        return 0;
+    }
+
+    page_cache_entry* p;
+    uint64_t read_pages = num_pages;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                p = cache.find_page_cache_entry(page_num);
+            else
+                p = cache.next_page_cache_entry(*p);
+        }
+
+        if (p->pfn)
+            continue;
+
+        increase_page_refcount(zero_pfn);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p->pfn = zero_pfn;
+#pragma GCC diagnostic pop
+    }
+
+    cache.unpin(page_num, num_pages);
+
+    return read_pages;
+}
+
+size_t section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    switch (sect.type) {
+        case section_type::file:
+            return file_read_into_cache(sect, page_num, num_pages);
+
+        case section_type::anonymous:
+            return anon_read_into_cache(sect, page_num, num_pages);
+
+        default:
+            unreachable();
+    }
+}
+
+size_t section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME: section::flush_cache({}, {})\n", page_num, num_pages);
+    // FIXME
+
+    return 0;
+}
+
+page_cache& section::get_cache() {
+    if (type == section_type::image)
+        return image_cache->cache;
+    else
+        return cache.cache;
+}
+
+size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     auto& f = sect.ino->get();
     auto header_pages = bytes_to_pages(sect.size_of_headers);
     page_cache_entry* src_p;
     page_cache_entry* dest_p;
     auto orig_num_pages = num_pages;
-
-    auto& cache = sect.get_cache();
 
     // FIXME - if something fails, should return what we've read so far rather than 0
 
@@ -1038,139 +1183,9 @@ size_t image_read_into_cache(section& sect, uint64_t page_num, uint64_t num_page
     return orig_num_pages;
 }
 
-size_t file_read_into_cache(section& sect, uint64_t page_num,
-                            uint64_t num_pages) {
-    if (page_num >= sect.num_pages)
-        return 0;
-
-    if (page_num + num_pages > sect.num_pages)
-        num_pages = sect.num_pages - page_num;
-
-    auto& cache = sect.get_cache();
-
-    if (!cache.pin(page_num, num_pages, nullptr)) {
-        print("page_cache::pin failed\n");
-        return 0;
-    }
-
-    auto& ino = sect.ino->get();
-
-    auto read_pages = ino.cache.read_into_cache_and_pin(page_num, num_pages);
-    if (read_pages == 0) {
-        print("file_read_into_cache: page_cache::read_into_cache_and_pin for inode failed\n");
-        return 0;
-    }
-
-    rangelock_req rlr(ino.cache.rl, page_num, num_pages);
-
-    // FIXME - should be able to reduce rangelock holding if this happens
-    if (read_pages < num_pages)
-        cache.unpin(page_num + read_pages, num_pages - read_pages);
-
-    page_cache_entry* src_p = nullptr;
-    page_cache_entry* dest_p;
-
-    for (uint64_t i = 0; i < read_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                dest_p = cache.find_page_cache_entry(page_num);
-            else
-                dest_p = cache.next_page_cache_entry(*dest_p);
-        }
-
-        if (dest_p->pfn) {
-            src_p = nullptr;
-            continue;
-        }
-
-        {
-            lock_guard lg(ino.cache.cache_lock);
-
-            if (!src_p)
-                src_p = ino.cache.find_page_cache_entry(page_num);
-            else
-                src_p = ino.cache.next_page_cache_entry(*src_p);
-        }
-
-        // FIXME - need to adjust PTEs if this file is mapped directly anywhere
-        increase_page_refcount(src_p->pfn);
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        dest_p->pfn = src_p->pfn;
-#pragma GCC diagnostic pop
-    }
-
-    cache.unpin(page_num, read_pages);
-    ino.cache.unpin(page_num, read_pages);
-
-    return read_pages;
-}
-
-size_t anon_read_into_cache(section& sect, uint64_t page_num, uint64_t num_pages) {
-    // infinite anonymous sections are used for process VM
-
-    auto& cache = sect.get_cache();
-
-    if (!cache.pin(page_num, num_pages, nullptr)) {
-        print("page_cache::pin failed\n");
-        return 0;
-    }
-
-    page_cache_entry* p;
-    uint64_t read_pages = num_pages;
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                p = cache.find_page_cache_entry(page_num);
-            else
-                p = cache.next_page_cache_entry(*p);
-        }
-
-        if (p->pfn)
-            continue;
-
-        increase_page_refcount(zero_pfn);
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        p->pfn = zero_pfn;
-#pragma GCC diagnostic pop
-    }
-
-    cache.unpin(page_num, num_pages);
-
-    return read_pages;
-}
-
-size_t section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
-    switch (sect.type) {
-        case section_type::image:
-            return image_read_into_cache(sect, page_num, num_pages);
-
-        case section_type::file:
-            return file_read_into_cache(sect, page_num, num_pages);
-
-        case section_type::anonymous:
-            return anon_read_into_cache(sect, page_num, num_pages);
-
-        default:
-            unreachable();
-    }
-}
-
-size_t section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME: section::flush_cache({}, {})\n", page_num, num_pages);
+size_t image_section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME: image_section_cache::flush_cache({}, {})\n", page_num, num_pages);
     // FIXME
 
     return 0;
-}
-
-page_cache& section::get_cache() {
-    return cache.cache;
 }
