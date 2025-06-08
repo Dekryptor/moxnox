@@ -521,7 +521,20 @@ private:
     nt_status get_last_dir_index(uint64_t& ret);
 };
 
-class btrfs_filesystem : public filesystem, public cacheable {
+class btrfs_filesystem;
+
+class btrfs_cache : public cacheable {
+public:
+    btrfs_cache(btrfs_filesystem& fs) : fs(fs) { }
+
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
+
+private:
+    btrfs_filesystem& fs;
+};
+
+class btrfs_filesystem : public filesystem {
 public:
     btrfs_filesystem(volume& vol);
 
@@ -539,8 +552,6 @@ public:
     nt_status open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
                    object_ref& obj_ref, uint32_t create_disposition,
                    uint32_t create_options, unsigned int& create_result) override;
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status remove_item(root& r, const btrfs_key& k);
     nt_status remove_item2(btrfs_path& p);
     nt_status change_key(btrfs_path& p, const btrfs_key& k);
@@ -550,6 +561,7 @@ public:
     root* find_root(uint64_t root_num);
     nt_status flush(bool make_readonly) override;
     void flush_thread();
+    bool flush_tree(const chunk& c, uint64_t addr);
 
     btrfs_super_block* sb = nullptr;
     bool valid = false;
@@ -573,12 +585,12 @@ public:
     bool readonly = false;
     object_ref flush_thread_obj;
     uint8_t node_folio_order;
+    btrfs_cache cache{*this};
 
 private:
     bool load_chunks();
     bool load_roots();
     void free_chunk_list();
     void free_root_list();
-    bool flush_tree(const chunk& c, uint64_t addr);
     void go_readonly();
 };

@@ -355,7 +355,7 @@ static bool btrfs_probe(volume& vol) {
 nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
     assert(data.size() == sb->nodesize);
 
-    if (!cache.read(data, addr)) {
+    if (!cache.cache.read(data, addr)) {
         print("Short read\n");
         return nt_status::INTERNAL_ERROR;
     }
@@ -476,12 +476,12 @@ static chunk* find_chunk(const btrfs_filesystem& fs, uint64_t address) {
     return nullptr;
 }
 
-uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+uint64_t btrfs_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     uint64_t addr = page_num << PAGE_SHIFT;
 
     // find chunk
 
-    auto pc = find_chunk(*this, addr);
+    auto pc = find_chunk(fs, addr);
 
     if (!pc) {
         print("Could not find chunk for logical address {:x}\n", addr);
@@ -514,8 +514,8 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     if (addr + (num_pages << PAGE_SHIFT) > c.offset + c.ci.length)
         num_pages = (c.offset + c.ci.length - addr) >> PAGE_SHIFT;
 
-    auto pages_read = vol->cache.cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
-                                                                num_pages);
+    auto pages_read = fs.vol->cache.cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
+                                                                  num_pages);
     if (pages_read == 0)
         return 0;
 
@@ -550,12 +550,12 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
         }
 
         {
-            lock_guard lg(vol->cache.cache.cache_lock);
+            lock_guard lg(fs.vol->cache.cache.cache_lock);
 
             if (i == 0)
-                src_p = vol->cache.cache.find_page_cache_entry(disk_addr >> PAGE_SHIFT);
+                src_p = fs.vol->cache.cache.find_page_cache_entry(disk_addr >> PAGE_SHIFT);
             else
-                src_p = vol->cache.cache.next_page_cache_entry(*src_p);
+                src_p = fs.vol->cache.cache.next_page_cache_entry(*src_p);
         }
 
         auto src_va = get_phys_address(*src_p);
@@ -564,7 +564,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
         memcpy(dest_va, src_va, PAGE_SIZE);
     }
 
-    vol->cache.cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
+    fs.vol->cache.cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
 
     return pages_read;
 }
@@ -592,9 +592,9 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
     // copy into page cache of volumes
 
-    cache.pin(addr >> PAGE_SHIFT, pages_per_tree, nullptr);
+    cache.cache.pin(addr >> PAGE_SHIFT, pages_per_tree, nullptr);
 
-    auto* first_page = cache.find_page_cache_entry(addr >> PAGE_SHIFT);
+    auto* first_page = cache.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
     if (!first_page) {
         print("cache.find_page_cache_entry returned NULL\n");
         return false;
@@ -623,8 +623,8 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             crc32 = calc_crc32c(crc32, sp);
 
             if (j != pages_per_tree - 1) {
-                lock_guard lock(cache.cache_lock);
-                ent = cache.next_page_cache_entry(*ent);
+                lock_guard lock(cache.cache.cache_lock);
+                ent = cache.cache.next_page_cache_entry(*ent);
             }
         }
 
@@ -642,7 +642,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
                 if (!vol->cache.cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
                     span((uint8_t*)get_phys_address(*ent), PAGE_SIZE))) {
                     print("volume::write_pages failed\n");
-                    cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
+                    cache.cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
                     return false;
                 }
             }
@@ -650,8 +650,8 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             disk_addr += PAGE_SIZE;
 
             if (j != pages_per_tree - 1) {
-                lock_guard lock(cache.cache_lock);
-                ent = cache.next_page_cache_entry(*ent);
+                lock_guard lock(cache.cache.cache_lock);
+                ent = cache.cache.next_page_cache_entry(*ent);
             }
         }
     }
@@ -661,18 +661,18 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
         ent->dirty = 0;
 
         if (j != pages_per_tree - 1) {
-            lock_guard lock(cache.cache_lock);
-            ent = cache.next_page_cache_entry(*ent);
+            lock_guard lock(cache.cache.cache_lock);
+            ent = cache.cache.next_page_cache_entry(*ent);
         }
     }
 
-    cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
+    cache.cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
 
     return true;
 }
 
-size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    unsigned int pages_per_tree = sb->nodesize >> PAGE_SHIFT;
+size_t btrfs_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    unsigned int pages_per_tree = fs.sb->nodesize >> PAGE_SHIFT;
     uint64_t addr = page_num << PAGE_SHIFT;
 
     if (page_num % pages_per_tree) // not aligned to tree
@@ -680,7 +680,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     // find chunk
 
-    auto pc = find_chunk(*this, addr);
+    auto pc = find_chunk(fs, addr);
 
     if (!pc) {
         print("Could not find chunk for logical address {:x}\n", addr);
@@ -691,10 +691,10 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
     uint64_t pages_written = 0;
 
     while (addr < c.ci.length) {
-        if (!flush_tree(c, addr))
+        if (!fs.flush_tree(c, addr))
             break;
 
-        addr += sb->nodesize;
+        addr += fs.sb->nodesize;
         pages_written += pages_per_tree;
 
         if (pages_written >= num_pages)
@@ -710,7 +710,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
         uint64_t first_page = disk_addr >> PAGE_SHIFT;
 
         while (true) {
-            auto flushed = vol->cache.flush_cache(first_page, pages_to_flush);
+            auto flushed = fs.vol->cache.flush_cache(first_page, pages_to_flush);
 
             if (flushed == 0) {
                 print("volume::flush_cache failed\n");
@@ -1426,7 +1426,7 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
             th.bytenr = addr;
             th.generation = fs.sb->generation;
 
-            if (!fs.cache.write(span(p.data[i], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+            if (!fs.cache.cache.write(span(p.data[i], fs.sb->nodesize), th.bytenr)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
 
             if (i == BTRFS_MAX_LEVEL - 1 || !p.data[i + 1]) { // top
@@ -1457,7 +1457,7 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
             items[p.slots[i]].blockptr = prev_th.bytenr;
             items[p.slots[i]].generation = fs.sb->generation;
 
-            if (!fs.cache.write(span(p.data[i], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+            if (!fs.cache.cache.write(span(p.data[i], fs.sb->nodesize), th.bytenr)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
     }
@@ -1597,12 +1597,12 @@ static nt_status split_internal_tree(btrfs_filesystem& fs, btrfs_path& p,
         return status;
     }
 
-    if (!fs.cache.write(span((uint8_t*)&th, fs.sb->nodesize), th.bytenr)) { // FIXME - return status
+    if (!fs.cache.cache.write(span((uint8_t*)&th, fs.sb->nodesize), th.bytenr)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
 
-    if (!fs.cache.write(span((uint8_t*)&th2, fs.sb->nodesize), th2.bytenr)) { // FIXME - return status
+    if (!fs.cache.cache.write(span((uint8_t*)&th2, fs.sb->nodesize), th2.bytenr)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
@@ -1664,7 +1664,7 @@ static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
 
     th.nritems++;
 
-    if (!fs.cache.write(span(p.data[level], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+    if (!fs.cache.cache.write(span(p.data[level], fs.sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -1717,7 +1717,7 @@ static nt_status add_new_level(btrfs_filesystem& fs, btrfs_path& p, root& r,
 
     memset(&items2[1], 0, fs.sb->nodesize - sizeof(btrfs_header) - sizeof(btrfs_key_ptr));
 
-    if (!fs.cache.write(span(new_tree, fs.sb->nodesize), th2.bytenr)) { // FIXME - return status
+    if (!fs.cache.cache.write(span(new_tree, fs.sb->nodesize), th2.bytenr)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
@@ -1794,12 +1794,12 @@ static nt_status split_tree_at(btrfs_filesystem& fs, btrfs_path& p,
 
     // write both trees into cache
 
-    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) { // FIXME - return status
+    if (!fs.cache.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
 
-    if (!fs.cache.write(span(new_tree, fs.sb->nodesize), th2.bytenr)) { // FIXME - return status
+    if (!fs.cache.cache.write(span(new_tree, fs.sb->nodesize), th2.bytenr)) { // FIXME - return status
         free_folio(phys_memory_pfn(new_tree) << PAGE_SHIFT);
         return nt_status::INTERNAL_ERROR;
     }
@@ -1978,14 +1978,14 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
 
             items2[p.slots[i + 1]].key = items[0].key;
 
-            if (!fs.cache.write(span(p.data[i + 1], fs.sb->nodesize), th2.bytenr)) // FIXME - return status
+            if (!fs.cache.cache.write(span(p.data[i + 1], fs.sb->nodesize), th2.bytenr)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
     }
 
     // copy tree back into page cache and mark dirty
 
-    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+    if (!fs.cache.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -2034,7 +2034,7 @@ nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
 
             items2[p.slots[i + 1]].key = items[0].key;
 
-            if (!cache.write(span(p.data[i + 1], sb->nodesize), th2.bytenr)) // FIXME - return status
+            if (!cache.cache.write(span(p.data[i + 1], sb->nodesize), th2.bytenr)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
     }
@@ -2045,7 +2045,7 @@ nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
 
     // copy tree back into page cache and mark dirty
 
-    if (!cache.write(span(p.data[0], sb->nodesize), th.bytenr)) // FIXME - return status
+    if (!cache.cache.write(span(p.data[0], sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -2086,14 +2086,14 @@ nt_status btrfs_filesystem::change_key(btrfs_path& p, const btrfs_key& k) {
 
             items2[p.slots[i + 1]].key = items[0].key;
 
-            if (!cache.write(span(p.data[i + 1], sb->nodesize), th2.bytenr)) // FIXME - return status
+            if (!cache.cache.write(span(p.data[i + 1], sb->nodesize), th2.bytenr)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
     }
 
     // copy tree back into page cache and mark dirty
 
-    if (!cache.write(span(p.data[0], sb->nodesize), th.bytenr)) // FIXME - return status
+    if (!cache.cache.write(span(p.data[0], sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -2236,7 +2236,7 @@ static nt_status adjust_inode_size(btrfs_filesystem& fs, root& r, uint64_t inode
 
     // copy tree back into page cache and mark dirty
 
-    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+    if (!fs.cache.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -2814,7 +2814,7 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
 
     num_pages = min(num_pages, ed2.num_bytes >> PAGE_SHIFT);
 
-    auto pages_read = fs.cache.read_into_cache_and_pin(addr >> PAGE_SHIFT,
+    auto pages_read = fs.cache.cache.read_into_cache_and_pin(addr >> PAGE_SHIFT,
                                                        num_pages);
     if (pages_read == 0)
         return 0;
@@ -2852,8 +2852,8 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
 
         // FIXME - find next entry rather than doing complete lookup(?)
         {
-            lock_guard lg(fs.cache.cache_lock);
-            src_p = fs.cache.find_page_cache_entry((addr >> PAGE_SHIFT) + i);
+            lock_guard lg(fs.cache.cache.cache_lock);
+            src_p = fs.cache.cache.find_page_cache_entry((addr >> PAGE_SHIFT) + i);
         }
 
         auto src_va = get_phys_address(*src_p);
@@ -2862,7 +2862,7 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
         memcpy(dest_va, src_va, PAGE_SIZE);
     }
 
-    fs.cache.unpin(addr >> PAGE_SHIFT, pages_read);
+    fs.cache.cache.unpin(addr >> PAGE_SHIFT, pages_read);
 
     if (auto status = check_csums(*this, page_num, addr, num_pages); !success(status)) {
         print("check_csums returned {}\n", status);
@@ -3160,7 +3160,7 @@ static nt_status flush_root(btrfs_filesystem& fs, root& r) {
 
     // copy tree back into page cache and mark dirty
 
-    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+    if (!fs.cache.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -3202,7 +3202,7 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
 
     // copy tree back into page cache and mark dirty
 
-    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+    if (!fs.cache.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     return nt_status::SUCCESS;
@@ -3393,7 +3393,7 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
 
     bgi.used = (uint64_t)((int64_t)bgi.used + delta);
 
-    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+    if (!fs.cache.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
     fs.sb->bytes_used = (uint64_t)((int64_t)fs.sb->bytes_used + delta);
@@ -3568,13 +3568,13 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         page_cache_entry* start;
         uint64_t num_pages;
 
-        if (!cache.find_dirty_range(start, num_pages))
+        if (!cache.cache.find_dirty_range(start, num_pages))
             break;
 
         auto first_page = start->tree.key;
 
         while (true) {
-            auto flushed = flush_cache(first_page, num_pages);
+            auto flushed = cache.flush_cache(first_page, num_pages);
 
             if (flushed == 0) {
                 print("flush_cache did not flush any pages, going readonly\n");
@@ -3742,7 +3742,7 @@ nt_status btrfs_inode::set_basic_information(span<const uint8_t> buffer) {
 
         // copy tree back into page cache and mark dirty
 
-        if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+        if (!fs.cache.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
             return nt_status::INTERNAL_ERROR;
     }
 
