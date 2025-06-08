@@ -106,11 +106,7 @@ void rangelock_req::lock() {
 
     insert_tail_list(rl.waiting, le);
 
-    t->status = thread_status::waiting;
-    t->current_cpu = 0xffffffff;
-    t->wait_interruptible = false;
-    t->wait_timeout = 0;
-    yield();
+    set_current_thread_waiting();
 }
 
 void rangelock_req::unlock() {

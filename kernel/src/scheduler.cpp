@@ -148,6 +148,9 @@ void scheduler() {
         memcpy(&cb.current_thread->context, &cb.thread_context, sizeof(CONTEXT));
         cb.current_thread->current_cpu = 0xffffffff;
 
+        if (cb.current_thread->proc)
+            cb.current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
         if (cb.current_thread->status == thread_status::dead) {
             remove_entry_list(cb.current_thread->le);
             dead = true;
@@ -180,6 +183,9 @@ void scheduler() {
             assert(cb.current_thread->current_cpu == 0xffffffff);
             cb.current_thread->status = thread_status::running;
             cb.current_thread->current_cpu = cb.cpu_no;
+
+            if (cb.current_thread->proc)
+                cb.current_thread->proc->running_cpus |= (uint64_t)1 << cb.cpu_no;
         }
 
         release_sync_lock();
@@ -193,6 +199,10 @@ void scheduler() {
                     acquire_sync_lock();
                     cb.current_thread->status = thread_status::runnable;
                     cb.current_thread->current_cpu = 0xffffffff;
+
+                    if (cb.current_thread->proc)
+                        cb.current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
                     release_sync_lock();
 
                     cb.current_thread->release();
@@ -283,9 +293,14 @@ nt_status wait_for_object(object& obj, bool interruptible,
                 unreachable();
         });
 
+        auto& cb = *get_cpu_block();
+
         current_thread->status = thread_status::waiting;
         current_thread->current_cpu = 0xffffffff;
         current_thread->wait_interruptible = interruptible;
+
+        if (current_thread->proc)
+            current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
         if (!timeout.has_value())
             current_thread->wait_timeout = 0;
@@ -439,4 +454,21 @@ void enable_preempt() {
         :
         : "i" (offsetof(cpu_block, disable_preempt))
     );
+}
+
+void set_current_thread_waiting() {
+    // must have synclock held
+
+    auto& cb = *get_cpu_block();
+    auto t = cb.current_thread;
+
+    t->status = thread_status::waiting;
+    t->current_cpu = 0xffffffff;
+    t->wait_interruptible = false;
+    t->wait_timeout = 0;
+
+    if (t->proc)
+        t->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
+    yield();
 }

@@ -76,6 +76,7 @@ public:
     object_ref vm_sect;
     bool initialized = false;
     rangelock rl;
+    std::atomic<uint64_t> running_cpus = 0;
 };
 
 static_assert(is_sync_object<process>);

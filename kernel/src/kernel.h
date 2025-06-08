@@ -117,6 +117,7 @@ bool init_cpu_block(unsigned int cpu_no);
 void disable_preempt();
 void enable_preempt();
 unsigned int wake_up_waiters(list_entry& waiters);
+void set_current_thread_waiting();
 
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;
