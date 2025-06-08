@@ -50,14 +50,10 @@ private:
 
 class anon_section_cache : public cacheable {
 public:
-    anon_section_cache(section& sect) : sect(sect) { }
     virtual ~anon_section_cache() { }
 
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
-
-private:
-    section& sect;
 };
 
 class section : public object {

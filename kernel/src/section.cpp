@@ -98,7 +98,7 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
         s.size = s.num_pages << PAGE_SHIFT;
 
-        s.anon_cache = new anon_section_cache(s);
+        s.anon_cache = new anon_section_cache;
         if (!s.anon_cache) {
             print("new failed\n");
             s.release();
