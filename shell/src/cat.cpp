@@ -151,7 +151,7 @@ static void cat_file_mmap(u16string_view fn) {
 
     NtClose(section);
 
-    span sp((uint8_t*)addr, fsi.EndOfFile.QuadPart);
+    span sp((uint8_t*)addr, (size_t)fsi.EndOfFile.QuadPart);
 
     // FIXME - write whole thing at once?
     while (!sp.empty()) {
