@@ -1,6 +1,6 @@
 #pragma once
 
-#include "page_cache.h"
+import page_cache;
 
 enum class inode_type : uint8_t {
     unknown = 0,

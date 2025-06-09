@@ -6,12 +6,12 @@ import event;
 import pipe;
 import timer;
 import objects;
+#include "thread.h"
 #include "inode.h"
 import volume;
 #include "handle.h"
 #include "section.h"
 #include "file.h"
-#include "thread.h"
 #include "process.h"
 #include <pe.h>
 #include <utility>

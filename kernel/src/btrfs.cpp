@@ -1,5 +1,7 @@
 module;
 
+#include <shared_mutex>
+#include <variant>
 #include "kernel.h"
 import objects;
 #include "handle.h"
@@ -7,12 +9,10 @@ import objects;
 #include "tick_rate.h"
 #include "spinlock.h"
 import rbtree;
-#include "inode.h"
 #include "thread.h"
-#include "page_cache.h"
+#include "inode.h"
+import page_cache;
 #include "handle.h"
-#include <shared_mutex>
-#include <variant>
 
 export module btrfs;
 

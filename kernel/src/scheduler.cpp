@@ -7,6 +7,7 @@ import event;
 import pipe;
 import timer;
 import objects;
+#include "thread.h"
 #include "inode.h"
 import volume;
 #include "visit_object.h"

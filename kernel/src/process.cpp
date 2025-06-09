@@ -1,5 +1,6 @@
 #include <limits>
 #include "kernel.h"
+#include "rangelock.h"
 #include "cpu_block.h"
 import objects;
 #include "mem.h"
@@ -9,8 +10,10 @@ import rbtree;
 import event;
 import pipe;
 import timer;
+#include "thread.h"
 #include "inode.h"
 import volume;
+import rangelock;
 #include "visit_object.h"
 #include <pe.h>
 #include <ntdll.h>
@@ -24,7 +27,6 @@ import vfs;
 import string;
 import interrupts;
 import pe;
-import rangelock;
 
 using namespace std;
 

@@ -7,7 +7,7 @@ module;
 #include "spinlock.h"
 #include "nvme.h"
 import rbtree;
-#include "page_cache.h"
+import page_cache;
 
 export module nvme;
 

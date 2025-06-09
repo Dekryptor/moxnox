@@ -32,14 +32,6 @@ export struct rangelock_req {
     thread* t;
 };
 
-static void inline disable_interrupts() {
-    __asm __volatile("cli");
-}
-
-static void inline enable_interrupts() {
-    __asm __volatile("sti");
-}
-
 static bool rlr_overlap(const rangelock_req& r1, const rangelock_req& r2) {
     if (r1.start >= r2.start && r1.start < r2.start + r2.length)
         return true;
@@ -81,7 +73,7 @@ void rangelock_req::lock() {
         bsod("calling rangelock_req::lock with interrupts disabled");
 #endif
 
-    disable_interrupts();
+    __asm __volatile("cli");
     acquire_sync_lock();
 
     bool overlaps = false;
@@ -98,7 +90,7 @@ void rangelock_req::lock() {
     if (!overlaps) {
         insert_tail_list(rl.active, le);
         release_sync_lock();
-        enable_interrupts();
+        __asm __volatile("sti");
         return;
     }
 
@@ -110,7 +102,7 @@ void rangelock_req::lock() {
 }
 
 void rangelock_req::unlock() {
-    disable_interrupts();
+    __asm __volatile("cli");
     acquire_sync_lock();
 
     remove_entry_list(le);
@@ -159,5 +151,5 @@ void rangelock_req::unlock() {
     }
 
     release_sync_lock();
-    enable_interrupts();
+    __asm __volatile("sti");
 }

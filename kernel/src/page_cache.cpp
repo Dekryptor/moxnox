@@ -1,7 +1,11 @@
+module;
+
 #include "kernel.h"
 #include "spinlock.h"
+#include "rangelock.h"
 import rbtree;
-#include "page_cache.h"
+
+export module page_cache;
 
 import print;
 import bsod;
@@ -14,6 +18,94 @@ using namespace std;
 
 static spinlock writeback_lock;
 static list_entry writeback_list = { &writeback_list, &writeback_list };
+
+export struct page_cache_entry {
+    rbtree_node<uint64_t> tree;
+    atomic<uint32_t> refcount;
+    struct {
+        uint64_t dirty : 1;
+        uint64_t reserved : 11;
+        uint64_t pfn : 52;
+    };
+};
+
+export class cacheable;
+
+export class page_cache {
+public:
+    page_cache(cacheable& dev) : dev(dev) { }
+    ~page_cache();
+
+    bool pin(uint64_t first_page, uint64_t num_pages,
+             page_cache_entry** first_unread);
+    void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
+                          span<uint8_t> data, uint64_t offset);
+    void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                    span<uint8_t> data, uint64_t offset);
+    bool find_dirty_range(page_cache_entry*& range_start,
+                          uint64_t& range_length);
+    void unpin(uint64_t first_page, uint64_t num_pages);
+    bool write_pages(uint64_t first_page, uint64_t num_pages,
+                     span<const uint8_t> data);
+    page_cache_entry* find_page_cache_entry(uint64_t page_num);
+    size_t write(span<const uint8_t> data, uint64_t offset);
+    uint64_t read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages);
+    size_t read(span<uint8_t> data, uint64_t offset);
+    page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
+    void mark_dirty();
+
+    spinlock cache_lock;
+    cacheable& dev;
+    rangelock rl;
+    list_entry le;
+
+private:
+    rbtree_node<uint64_t>* root = nullptr;
+    bool dirty = false;
+};
+
+export class cacheable {
+public:
+    virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
+    virtual size_t flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
+
+    page_cache cache{*this};
+};
+
+export struct pfn_iterator {
+    using difference_type = ptrdiff_t;
+    using value_type = uint64_t;
+
+    virtual uint64_t operator*() const = 0;
+    virtual pfn_iterator& operator++() = 0;
+
+    void operator++(int) { ++*this; }
+};
+
+export struct page_cache_iterator : public pfn_iterator {
+    page_cache_iterator(cacheable& c, uint64_t page_num) : c(&c) {
+        lock_guard lg(c.cache.cache_lock);
+
+        p = c.cache.find_page_cache_entry(page_num);
+    }
+
+    uint64_t operator*() const override {
+        return p->pfn << PAGE_SHIFT;
+    }
+
+    page_cache_iterator& operator++() override {
+        lock_guard lg(c->cache.cache_lock);
+
+        p = c->cache.next_page_cache_entry(*p);
+
+        return *this;
+    }
+
+private:
+    cacheable* c;
+    page_cache_entry* p;
+};
+
 
 static void free_cache_entry(rbtree_node<uint64_t>* tree) {
     auto& r = rbtree_containing_record<page_cache_entry>(tree);
@@ -108,6 +200,12 @@ bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
     }
 
     return true;
+}
+
+export void* get_phys_address(const page_cache_entry& ent) {
+    assert(ent.pfn != 0);
+
+    return phys_address(ent.pfn << PAGE_SHIFT);
 }
 
 void page_cache::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
@@ -292,7 +390,7 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
     return true;
 }
 
-size_t page_cache::write(std::span<const uint8_t> data, uint64_t offset) {
+size_t page_cache::write(span<const uint8_t> data, uint64_t offset) {
     uint64_t written = 0;
 
     if (data.empty())
@@ -489,7 +587,7 @@ uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_p
     return num_pages;
 }
 
-size_t page_cache::read(std::span<uint8_t> data, uint64_t offset) {
+size_t page_cache::read(span<uint8_t> data, uint64_t offset) {
     if (data.empty())
         return 0;
 
@@ -546,12 +644,6 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
     }
 
     return true;
-}
-
-void* get_phys_address(const page_cache_entry& ent) {
-    assert(ent.pfn != 0);
-
-    return phys_address(ent.pfn << PAGE_SHIFT);
 }
 
 page_cache_entry* page_cache::next_page_cache_entry(const page_cache_entry& ent) {
