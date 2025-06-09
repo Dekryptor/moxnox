@@ -384,10 +384,7 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
             assert(ent->tree.key == first_page + i);
 
             if (ent->pfn == 0) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                ent->pfn = allocate_folio(0) >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
+                ent->pfn = (allocate_folio(0) >> PAGE_SHIFT) & 0xfffffffffffff;
                 if (!ent->pfn) {
                     print("allocate_folio failed\n");
                     return false;
