@@ -475,7 +475,7 @@ nt_status tmpfs_inode::query_standard_information(span<uint8_t> buffer,
     auto& fsi = *(FILE_STANDARD_INFORMATION*)buffer.data();
 
     fsi.AllocationSize.QuadPart = 0; // FIXME
-    fsi.EndOfFile.QuadPart = file_size;
+    fsi.EndOfFile.QuadPart = (int64_t)file_size;
     fsi.NumberOfLinks = 1; // FIXME - can tmpfs have hardlinks?
     fsi.DeletePending = 0; // FIXME
     fsi.Directory = inode_type == inode_type::directory ? 1 : 0;
