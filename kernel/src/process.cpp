@@ -922,6 +922,15 @@ static HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
     return &pt[0][(va & 0x1ff000) >> 12];
 }
 
+#ifdef __llvm__ // work around Clang *really* wanting exceptions to be enabled
+exception::~exception() {
+}
+
+const char* exception::what() const noexcept {
+    return nullptr;
+}
+#endif
+
 bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     page_fault_error_code ec;
 
