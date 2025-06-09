@@ -920,7 +920,7 @@ size_t file_read_into_cache(section& sect, uint64_t page_num,
     return read_pages;
 }
 
-page_cache& section::get_cache() {
+page_cache<cacheable>& section::get_cache() {
     switch (type) {
         case section_type::image:
             return image_cache->cache;

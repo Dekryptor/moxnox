@@ -64,7 +64,7 @@ public:
     uint64_t find_export(std::string_view name);
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class, std::span<uint8_t> buf,
                         size_t* return_length);
-    page_cache& get_cache();
+    page_cache<cacheable>& get_cache();
 
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;

@@ -16,8 +16,8 @@ import rangelock;
 
 using namespace std;
 
-static spinlock writeback_lock;
-static list_entry writeback_list = { &writeback_list, &writeback_list };
+spinlock writeback_lock;
+list_entry writeback_list = { &writeback_list, &writeback_list };
 
 export struct page_cache_entry {
     rbtree_node<uint64_t> tree;
@@ -31,9 +31,11 @@ export struct page_cache_entry {
 
 export class cacheable;
 
-export class page_cache {
+export
+template<typename T>
+class page_cache {
 public:
-    page_cache(cacheable& dev) : dev(dev) { }
+    page_cache(T& dev) : dev(dev) { }
     ~page_cache();
 
     bool pin(uint64_t first_page, uint64_t num_pages,
@@ -55,7 +57,7 @@ public:
     void mark_dirty();
 
     spinlock cache_lock;
-    cacheable& dev;
+    T& dev;
     rangelock rl;
     list_entry le;
 
@@ -69,7 +71,7 @@ public:
     virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
     virtual size_t flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
 
-    page_cache cache{*this};
+    page_cache<cacheable> cache{*this};
 };
 
 export struct pfn_iterator {
@@ -106,8 +108,7 @@ private:
     page_cache_entry* p;
 };
 
-
-static void free_cache_entry(rbtree_node<uint64_t>* tree) {
+void free_cache_entry(rbtree_node<uint64_t>* tree) {
     auto& r = rbtree_containing_record<page_cache_entry>(tree);
 
     // FIXME - is recursion going to be a problem here?
@@ -124,14 +125,16 @@ static void free_cache_entry(rbtree_node<uint64_t>* tree) {
     free(&r);
 }
 
-page_cache::~page_cache() {
+template<typename T>
+page_cache<T>::~page_cache() {
     lock_guard lock(cache_lock);
 
     if (root)
         free_cache_entry(root);
 }
 
-page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
+template<typename T>
+page_cache_entry* page_cache<T>::find_page_cache_entry(uint64_t page_num) {
     auto tree = find_rbtree_node(root, page_num);
     if (!tree)
         return nullptr;
@@ -139,7 +142,7 @@ page_cache_entry* page_cache::find_page_cache_entry(uint64_t page_num) {
     return &rbtree_containing_record<page_cache_entry>(tree);
 }
 
-static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
+page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     auto p = new page_cache_entry;
     if (!p)
         return nullptr;
@@ -152,8 +155,9 @@ static page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
     return p;
 }
 
-bool page_cache::pin(uint64_t first_page, uint64_t num_pages,
-                     page_cache_entry** first_unread) {
+template<typename T>
+bool page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
+                        page_cache_entry** first_unread) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -208,8 +212,9 @@ export void* get_phys_address(const page_cache_entry& ent) {
     return phys_address(ent.pfn << PAGE_SHIFT);
 }
 
-void page_cache::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
-                                  span<uint8_t> data, uint64_t offset) {
+template<typename T>
+void page_cache<T>::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
+                                     span<uint8_t> data, uint64_t offset) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -239,8 +244,9 @@ void page_cache::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
     }
 }
 
-void page_cache::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                            span<uint8_t> data, uint64_t offset) {
+template<typename T>
+void page_cache<T>::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                               span<uint8_t> data, uint64_t offset) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -272,7 +278,8 @@ void page_cache::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pa
     }
 }
 
-void page_cache::unpin(uint64_t first_page, uint64_t num_pages) {
+template<typename T>
+void page_cache<T>::unpin(uint64_t first_page, uint64_t num_pages) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -289,8 +296,9 @@ void page_cache::unpin(uint64_t first_page, uint64_t num_pages) {
     }
 }
 
-static void clean_pages(page_cache& cache, page_cache_entry* range_start,
-                        uint64_t range_length) {
+template<typename T>
+void clean_pages(page_cache<T>& cache, page_cache_entry* range_start,
+                 uint64_t range_length) {
     lock_guard lg(cache.cache_lock);
 
     auto p = range_start;
@@ -302,10 +310,11 @@ static void clean_pages(page_cache& cache, page_cache_entry* range_start,
     }
 }
 
-static bool find_unread_range(page_cache& cache, page_cache_entry*& range_start,
-                              page_cache_entry*& range_end,
-                              uint64_t& range_length, page_cache_entry*& ent,
-                              uint64_t first_page, uint64_t num_pages) {
+template<typename T>
+bool find_unread_range(page_cache<T>& cache, page_cache_entry*& range_start,
+                       page_cache_entry*& range_end,
+                       uint64_t& range_length, page_cache_entry*& ent,
+                       uint64_t first_page, uint64_t num_pages) {
     lock_guard lg(cache.cache_lock);
 
     // find first contiguous unread range
@@ -343,8 +352,9 @@ static bool find_unread_range(page_cache& cache, page_cache_entry*& range_start,
     return true;
 }
 
-bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
-                             span<const uint8_t> data) {
+template<typename T>
+bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
+                                span<const uint8_t> data) {
     // FIXME - add page cache to list of things that need to be flushed
 
     if (!pin(first_page, num_pages, nullptr))
@@ -390,7 +400,8 @@ bool page_cache::write_pages(uint64_t first_page, uint64_t num_pages,
     return true;
 }
 
-size_t page_cache::write(span<const uint8_t> data, uint64_t offset) {
+template<typename T>
+size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
     uint64_t written = 0;
 
     if (data.empty())
@@ -472,7 +483,8 @@ size_t page_cache::write(span<const uint8_t> data, uint64_t offset) {
     return written;
 }
 
-static bool read_and_pin(page_cache& cache, uint64_t offset, uint64_t length) {
+template<typename T>
+bool read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
     if (length == 0)
         return true;
 
@@ -533,7 +545,8 @@ static bool read_and_pin(page_cache& cache, uint64_t offset, uint64_t length) {
     return true;
 }
 
-uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages) {
+template<typename T>
+uint64_t page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages) {
     page_cache_entry* first_unread = nullptr;
 
     rangelock_req rlr(rl, first_page, num_pages);
@@ -587,7 +600,8 @@ uint64_t page_cache::read_into_cache_and_pin(uint64_t first_page, uint64_t num_p
     return num_pages;
 }
 
-size_t page_cache::read(span<uint8_t> data, uint64_t offset) {
+template<typename T>
+size_t page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
     if (data.empty())
         return 0;
 
@@ -604,8 +618,9 @@ size_t page_cache::read(span<uint8_t> data, uint64_t offset) {
     return data.size();
 }
 
-bool page_cache::find_dirty_range(page_cache_entry*& range_start,
-                                  uint64_t& range_length) {
+template<typename T>
+bool page_cache<T>::find_dirty_range(page_cache_entry*& range_start,
+                                     uint64_t& range_length) {
     lock_guard lg(cache_lock);
 
     // find first contiguous dirty range
@@ -646,7 +661,8 @@ bool page_cache::find_dirty_range(page_cache_entry*& range_start,
     return true;
 }
 
-page_cache_entry* page_cache::next_page_cache_entry(const page_cache_entry& ent) {
+template<typename T>
+page_cache_entry* page_cache<T>::next_page_cache_entry(const page_cache_entry& ent) {
     auto ret = next_rbtree_node(ent.tree);
     if (!ret)
         return nullptr;
@@ -654,7 +670,8 @@ page_cache_entry* page_cache::next_page_cache_entry(const page_cache_entry& ent)
     return &rbtree_containing_record<page_cache_entry>(ret);
 }
 
-void page_cache::mark_dirty() {
+template<typename T>
+void page_cache<T>::mark_dirty() {
     if (dirty)
         return;
 
