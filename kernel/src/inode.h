@@ -14,7 +14,7 @@ enum class inode_type : uint8_t {
     ea = 8
 };
 
-class inode : public object, public cacheable {
+class inode : public object {
 public:
     inode() : object(object_type::inode) { }
 
@@ -39,9 +39,14 @@ public:
                                        FILE_INFORMATION_CLASS file_information_class,
                                        uint64_t& retlen) = 0;
 
+    virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
+    virtual size_t flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
+
     uint64_t file_size;
     enum inode_type inode_type;
+    page_cache<inode> cache{*this};
 };
 
 static_assert(is_readable_object_with_offset<inode>);
 static_assert(is_writable_object_with_offset<inode>);
+static_assert(cacheable2<inode>);
