@@ -31,7 +31,7 @@ export struct page_cache_entry {
 
 export
 template<typename T>
-concept cacheable2 = requires(T t, uint64_t page_num, uint64_t num_pages) {
+concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
     { t.read_into_cache(page_num, num_pages) } -> same_as<size_t>;
     { t.flush_cache(page_num, num_pages) } -> same_as<size_t>;
 };

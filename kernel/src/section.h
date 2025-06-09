@@ -40,7 +40,7 @@ private:
     section& sect;
 };
 
-static_assert(cacheable2<image_section_cache>);
+static_assert(cacheable<image_section_cache>);
 
 class anon_section_cache {
 public:
@@ -50,7 +50,7 @@ public:
     page_cache<anon_section_cache> cache{*this};
 };
 
-static_assert(cacheable2<anon_section_cache>);
+static_assert(cacheable<anon_section_cache>);
 
 class section : public object {
 public:
