@@ -2874,3 +2874,10 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
+                              size_t* region_size, IO_STATUS_BLOCK* iosb) {
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

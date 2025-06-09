@@ -1371,3 +1371,35 @@ NTSTATUS user_NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_ios
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
+                                   size_t* region_size, IO_STATUS_BLOCK* iosb) {
+    if (!region_size || !base_address || !iosb)
+        return nt_status::INVALID_PARAMETER;
+
+    void* addr;
+    size_t size;
+    IO_STATUS_BLOCK ks_iosb;
+
+    if (!copy_from_process(&addr, base_address, sizeof(void*)))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (!copy_from_process(&size, region_size, sizeof(size_t)))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto ret = NtFlushVirtualMemory(proc_handle, &addr, &size, &ks_iosb);
+
+    if (success(ret)) {
+        if (!copy_to_process(base_address, &addr, sizeof(void*)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(region_size, &size, sizeof(size_t)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(iosb, &ks_iosb, sizeof(IO_STATUS_BLOCK)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
