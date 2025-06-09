@@ -514,8 +514,8 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     if (addr + (num_pages << PAGE_SHIFT) > c.offset + c.ci.length)
         num_pages = (c.offset + c.ci.length - addr) >> PAGE_SHIFT;
 
-    auto pages_read = vol->cache.cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
-                                                                  num_pages);
+    auto pages_read = vol->cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
+                                                         num_pages);
     if (pages_read == 0)
         return 0;
 
@@ -550,12 +550,12 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
         }
 
         {
-            lock_guard lg(vol->cache.cache.cache_lock);
+            lock_guard lg(vol->cache.cache_lock);
 
             if (i == 0)
-                src_p = vol->cache.cache.find_page_cache_entry(disk_addr >> PAGE_SHIFT);
+                src_p = vol->cache.find_page_cache_entry(disk_addr >> PAGE_SHIFT);
             else
-                src_p = vol->cache.cache.next_page_cache_entry(*src_p);
+                src_p = vol->cache.next_page_cache_entry(*src_p);
         }
 
         auto src_va = get_phys_address(*src_p);
@@ -564,7 +564,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
         memcpy(dest_va, src_va, PAGE_SIZE);
     }
 
-    vol->cache.cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
+    vol->cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
 
     return pages_read;
 }
@@ -639,7 +639,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             assert(ent->tree.key == (addr >> PAGE_SHIFT) + j);
 
             if (ent->dirty) {
-                if (!vol->cache.cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
+                if (!vol->cache.write_pages(disk_addr >> PAGE_SHIFT, 1,
                     span((uint8_t*)get_phys_address(*ent), PAGE_SIZE))) {
                     print("volume::write_pages failed\n");
                     cache.unpin(addr >> PAGE_SHIFT, pages_per_tree);
@@ -710,7 +710,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
         uint64_t first_page = disk_addr >> PAGE_SHIFT;
 
         while (true) {
-            auto flushed = vol->cache.flush_cache(first_page, pages_to_flush);
+            auto flushed = vol->flush_cache(first_page, pages_to_flush);
 
             if (flushed == 0) {
                 print("volume::flush_cache failed\n");

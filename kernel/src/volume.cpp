@@ -27,17 +27,6 @@ export const guid null_guid = { 0x00000000, 0x0000, 0x0000, { 0x00, 0x00, 0x00, 
 export class filesystem;
 export class volume;
 
-class volume_cache : public cacheable {
-public:
-    volume_cache(volume& vol) : vol(vol) { }
-
-    uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
-
-private:
-    volume& vol;
-};
-
 export class volume : public object {
 public:
     volume() : object(object_type::volume) { }
@@ -60,6 +49,8 @@ public:
                                 bool fua = false) = 0;
 
     nt_status read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
+    uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages);
 
     void probe();
     bool check_for_partitions();
@@ -71,11 +62,13 @@ public:
     guid type_guid = null_guid;
     char* volume_name = nullptr;
     size_t volume_name_len = 0;
-    volume_cache cache{*this};
+    page_cache<volume> cache{*this};
 
     rwsem mount_lock;
     optional<reference_wrapper<filesystem>> filesystem;
 };
+
+static_assert(cacheable2<volume>);
 
 static_assert(is_readable_object_with_offset<volume>);
 
@@ -367,7 +360,7 @@ nt_status volume::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes
     // FIXME - truncate data buffer if we would read past end of device
 
     // FIXME - return errors properly
-    read_bytes = cache.cache.read(data, offset);
+    read_bytes = cache.read(data, offset);
     return nt_status::SUCCESS;
 }
 
@@ -397,7 +390,7 @@ nt_status diskpart::dio_read(uint64_t page_num, uint64_t num_pages,
                            it, read_pages);
 }
 
-uint64_t volume_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+uint64_t volume::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     page_cache_entry* p;
 
     for (uint64_t i = 0; i < num_pages; i++) {
@@ -426,7 +419,7 @@ uint64_t volume_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
     uint64_t read_pages;
 
-    auto status = vol.dio_read(page_num, num_pages, iter, read_pages);
+    auto status = dio_read(page_num, num_pages, iter, read_pages);
     if (!success(status)) {
         print("dio_read returned {}\n", status);
         return 0;
@@ -447,7 +440,7 @@ nt_status diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
                             it, written_pages, fua);
 }
 
-size_t volume_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
+size_t volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
     if (!cache.pin(page_num, num_pages, nullptr))
         return 0;
 
@@ -455,7 +448,7 @@ size_t volume_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     uint64_t flushed;
 
-    auto status = vol.dio_write(page_num, num_pages, iter, flushed);
+    auto status = dio_write(page_num, num_pages, iter, flushed);
     if (!success(status)) { // FIXME - return error
         cache.unpin(page_num, num_pages);
         return 0;
