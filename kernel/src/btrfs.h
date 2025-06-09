@@ -521,19 +521,6 @@ private:
     nt_status get_last_dir_index(uint64_t& ret);
 };
 
-class btrfs_filesystem;
-
-class btrfs_cache : public cacheable {
-public:
-    btrfs_cache(btrfs_filesystem& fs) : fs(fs) { }
-
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
-
-private:
-    btrfs_filesystem& fs;
-};
-
 class btrfs_filesystem : public filesystem {
 public:
     btrfs_filesystem(volume& vol);
@@ -562,6 +549,8 @@ public:
     nt_status flush(bool make_readonly) override;
     void flush_thread();
     bool flush_tree(const chunk& c, uint64_t addr);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages);
 
     btrfs_super_block* sb = nullptr;
     bool valid = false;
@@ -585,7 +574,7 @@ public:
     bool readonly = false;
     object_ref flush_thread_obj;
     uint8_t node_folio_order;
-    btrfs_cache cache{*this};
+    page_cache<btrfs_filesystem> cache{*this};
 
 private:
     bool load_chunks();
@@ -594,3 +583,5 @@ private:
     void free_root_list();
     void go_readonly();
 };
+
+static_assert(cacheable2<btrfs_filesystem>);
