@@ -1068,13 +1068,6 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
     return orig_num_pages;
 }
 
-size_t image_section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME: image_section_cache::flush_cache({}, {})\n", page_num, num_pages);
-    // FIXME
-
-    return 0;
-}
-
 size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     // infinite anonymous sections are used for process VM
 
@@ -1110,11 +1103,4 @@ size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
     cache.unpin(page_num, num_pages);
 
     return read_pages;
-}
-
-size_t anon_section_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME: anon_section_cache::flush_cache({}, {})\n", page_num, num_pages);
-    // FIXME
-
-    return 0;
 }

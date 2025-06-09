@@ -584,4 +584,4 @@ private:
     void go_readonly();
 };
 
-static_assert(cacheable<btrfs_filesystem>);
+static_assert(cacheable_flushable<btrfs_filesystem>);

@@ -68,7 +68,7 @@ public:
     optional<reference_wrapper<filesystem>> filesystem;
 };
 
-static_assert(cacheable<volume>);
+static_assert(cacheable_flushable<volume>);
 
 static_assert(is_readable_object_with_offset<volume>);
 

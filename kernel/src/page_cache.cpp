@@ -33,6 +33,11 @@ export
 template<typename T>
 concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
     { t.read_into_cache(page_num, num_pages) } -> same_as<size_t>;
+};
+
+export
+template<typename T>
+concept cacheable_flushable = cacheable<T> && requires(T t, uint64_t page_num, uint64_t num_pages) {
     { t.flush_cache(page_num, num_pages) } -> same_as<size_t>;
 };
 

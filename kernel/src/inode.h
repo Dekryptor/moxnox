@@ -49,4 +49,4 @@ public:
 
 static_assert(is_readable_object_with_offset<inode>);
 static_assert(is_writable_object_with_offset<inode>);
-static_assert(cacheable<inode>);
+static_assert(cacheable_flushable<inode>);
