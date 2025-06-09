@@ -30,7 +30,6 @@ class section;
 class image_section_cache {
 public:
     image_section_cache(section& sect) : sect(sect) { }
-    virtual ~image_section_cache() { }
 
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
     size_t flush_cache(uint64_t page_num, uint64_t num_pages);
@@ -43,13 +42,15 @@ private:
 
 static_assert(cacheable2<image_section_cache>);
 
-class anon_section_cache : public cacheable {
+class anon_section_cache {
 public:
-    virtual ~anon_section_cache() { }
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    size_t flush_cache(uint64_t page_num, uint64_t num_pages);
 
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages) override;
+    page_cache<anon_section_cache> cache{*this};
 };
+
+static_assert(cacheable2<anon_section_cache>);
 
 class section : public object {
 public:
@@ -69,7 +70,7 @@ public:
     uint64_t find_export(std::string_view name);
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class, std::span<uint8_t> buf,
                         size_t* return_length);
-    std::variant<page_cache<cacheable>*, page_cache<image_section_cache>*> get_cache();
+    std::variant<page_cache<cacheable>*, page_cache<image_section_cache>*, page_cache<anon_section_cache>*> get_cache();
 
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;

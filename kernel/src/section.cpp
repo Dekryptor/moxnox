@@ -850,7 +850,7 @@ uint64_t get_image_size(void* image) {
         return 0;
 }
 
-variant<page_cache<cacheable>*, page_cache<image_section_cache>*> section::get_cache() {
+variant<page_cache<cacheable>*, page_cache<image_section_cache>*, page_cache<anon_section_cache>*> section::get_cache() {
     switch (type) {
         case section_type::image:
             return &image_cache->cache;
