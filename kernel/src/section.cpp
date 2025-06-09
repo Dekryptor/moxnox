@@ -1,3 +1,4 @@
+#include <variant>
 #include "kernel.h"
 #include "handle.h"
 #include "spinlock.h"
@@ -298,7 +299,7 @@ nt_status section::load_image() {
     num_pages = bytes_to_pages(size);
     size = num_pages << PAGE_SHIFT;
 
-    auto& cache = get_cache();
+    auto& cache = image_cache->cache;
 
     if (!cache.pin(0, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
@@ -465,7 +466,7 @@ uint64_t section::find_export(string_view name) {
     IMAGE_DATA_DIRECTORY exp_dir;
     page_cache_entry* p;
 
-    auto& cache = get_cache();
+    auto& cache = image_cache->cache;
 
     if (cache.read_into_cache_and_pin(0, 1) == 0) {
         print("read_into_cache_and_pin failed\n");
@@ -849,87 +850,16 @@ uint64_t get_image_size(void* image) {
         return 0;
 }
 
-size_t file_read_into_cache(section& sect, uint64_t page_num,
-                            uint64_t num_pages) {
-    if (page_num >= sect.num_pages)
-        return 0;
-
-    if (page_num + num_pages > sect.num_pages)
-        num_pages = sect.num_pages - page_num;
-
-    auto& cache = sect.get_cache();
-
-    if (!cache.pin(page_num, num_pages, nullptr)) {
-        print("page_cache::pin failed\n");
-        return 0;
-    }
-
-    auto& ino = sect.ino->get();
-
-    auto read_pages = ino.cache.read_into_cache_and_pin(page_num, num_pages);
-    if (read_pages == 0) {
-        print("file_read_into_cache: page_cache::read_into_cache_and_pin for inode failed\n");
-        return 0;
-    }
-
-    rangelock_req rlr(ino.cache.rl, page_num, num_pages);
-
-    // FIXME - should be able to reduce rangelock holding if this happens
-    if (read_pages < num_pages)
-        cache.unpin(page_num + read_pages, num_pages - read_pages);
-
-    page_cache_entry* src_p = nullptr;
-    page_cache_entry* dest_p;
-
-    for (uint64_t i = 0; i < read_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                dest_p = cache.find_page_cache_entry(page_num);
-            else
-                dest_p = cache.next_page_cache_entry(*dest_p);
-        }
-
-        if (dest_p->pfn) {
-            src_p = nullptr;
-            continue;
-        }
-
-        {
-            lock_guard lg(ino.cache.cache_lock);
-
-            if (!src_p)
-                src_p = ino.cache.find_page_cache_entry(page_num);
-            else
-                src_p = ino.cache.next_page_cache_entry(*src_p);
-        }
-
-        // FIXME - need to adjust PTEs if this file is mapped directly anywhere
-        increase_page_refcount(src_p->pfn);
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        dest_p->pfn = src_p->pfn;
-#pragma GCC diagnostic pop
-    }
-
-    cache.unpin(page_num, read_pages);
-    ino.cache.unpin(page_num, read_pages);
-
-    return read_pages;
-}
-
-page_cache<cacheable>& section::get_cache() {
+variant<page_cache<cacheable>*, page_cache<image_section_cache>*> section::get_cache() {
     switch (type) {
         case section_type::image:
-            return image_cache->cache;
+            return &image_cache->cache;
 
         case section_type::anonymous:
-            return anon_cache->cache;
+            return &anon_cache->cache;
 
         default:
-            return ino->get().cache;
+            return &ino->get().cache;
     }
 }
 
