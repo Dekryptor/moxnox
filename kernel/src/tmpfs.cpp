@@ -5,6 +5,7 @@ import objects;
 #include "handle.h"
 #include "spinlock.h"
 import rbtree;
+import page_cache;
 #include "inode.h"
 
 export module tmpfs;

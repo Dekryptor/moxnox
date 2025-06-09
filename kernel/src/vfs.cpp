@@ -6,6 +6,7 @@ module;
 import objects;
 import rbtree;
 #include "thread.h"
+import page_cache;
 #include "inode.h"
 #include "handle.h"
 import rbtree;

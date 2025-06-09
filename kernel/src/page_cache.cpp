@@ -43,6 +43,11 @@ concept cacheable_flushable = cacheable<T> && requires(T t, uint64_t page_num, u
 
 export
 template<typename T>
+concept cache_supports_writeback = cacheable_flushable<T> &&
+    is_same_v<decltype(T::writeback_le), list_entry>;
+
+export
+template<typename T>
 class page_cache {
 public:
     page_cache(T& dev) : dev(dev) { }
@@ -69,7 +74,6 @@ public:
     spinlock cache_lock;
     T& dev;
     rangelock rl;
-    list_entry le;
 
 private:
     rbtree_node<uint64_t>* root = nullptr;
@@ -676,7 +680,7 @@ page_cache_entry* page_cache<T>::next_page_cache_entry(const page_cache_entry& e
 
 template<typename T>
 void page_cache<T>::mark_dirty() {
-    if constexpr (!cacheable_flushable<T>)
+    if constexpr (!cache_supports_writeback<T>)
         dirty = true;
     else {
         if (dirty)
@@ -689,7 +693,7 @@ void page_cache<T>::mark_dirty() {
                 return;
 
             dirty = true;
-            insert_tail_list(writeback_list, le);
+            insert_tail_list(writeback_list, dev.writeback_le);
         }
     }
 }

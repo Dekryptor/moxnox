@@ -5,6 +5,7 @@ module;
 import objects;
 #include "spinlock.h"
 import rbtree;
+import page_cache;
 #include "inode.h"
 #include "handle.h"
 import page_cache;

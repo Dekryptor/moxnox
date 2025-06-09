@@ -10,6 +10,7 @@ import objects;
 #include "spinlock.h"
 import rbtree;
 #include "thread.h"
+import page_cache;
 #include "inode.h"
 import page_cache;
 #include "handle.h"

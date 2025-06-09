@@ -1,7 +1,5 @@
 #pragma once
 
-import page_cache;
-
 enum class inode_type : uint8_t {
     unknown = 0,
     file = 1,
@@ -45,8 +43,10 @@ public:
     uint64_t file_size;
     enum inode_type inode_type;
     page_cache<inode> cache{*this};
+    list_entry writeback_le;
 };
 
 static_assert(is_readable_object_with_offset<inode>);
 static_assert(is_writable_object_with_offset<inode>);
 static_assert(cacheable_flushable<inode>);
+static_assert(cache_supports_writeback<inode>);

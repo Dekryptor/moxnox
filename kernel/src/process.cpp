@@ -11,6 +11,7 @@ import event;
 import pipe;
 import timer;
 #include "thread.h"
+import page_cache;
 #include "inode.h"
 import volume;
 import rangelock;
