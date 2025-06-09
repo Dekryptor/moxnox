@@ -676,16 +676,20 @@ page_cache_entry* page_cache<T>::next_page_cache_entry(const page_cache_entry& e
 
 template<typename T>
 void page_cache<T>::mark_dirty() {
-    if (dirty)
-        return;
-
-    {
-        lock_guard lg(writeback_lock);
-
+    if constexpr (!cacheable_flushable<T>)
+        dirty = true;
+    else {
         if (dirty)
             return;
 
-        dirty = true;
-        insert_tail_list(writeback_list, le);
+        {
+            lock_guard lg(writeback_lock);
+
+            if (dirty)
+                return;
+
+            dirty = true;
+            insert_tail_list(writeback_list, le);
+        }
     }
 }
