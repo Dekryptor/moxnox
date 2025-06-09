@@ -2875,9 +2875,42 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
-                              size_t* region_size, IO_STATUS_BLOCK* iosb) {
+nt_status process::flush_vm(void** base_address, size_t* region_size,
+                            IO_STATUS_BLOCK* iosb) {
     // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
+                              size_t* region_size, IO_STATUS_BLOCK* iosb) {
+    object_ref objrw;
+    process* p;
+
+    if (proc_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+
+        objrw = object_ref{*p};
+    } else {
+        objrw = deref_handle(proc_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw.get();
+
+        if (obj.type != object_type::process)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&obj);
+    }
+
+    return p->flush_vm(base_address, region_size, iosb);
 }
