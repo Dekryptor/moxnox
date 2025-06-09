@@ -693,6 +693,8 @@ void page_cache<T>::mark_dirty() {
                 return;
 
             dirty = true;
+
+            dev.acquire();
             insert_tail_list(writeback_list, dev.writeback_le);
         }
     }
