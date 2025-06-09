@@ -1109,7 +1109,19 @@ size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
 nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
     print("FIXME - section::flush({:x}, {:x})\n", page_num, num_pages);
 
-    // FIXME
+    if (type != section_type::file)
+        return nt_status::SUCCESS;
 
-    return nt_status::NOT_IMPLEMENTED;
+    auto& f = ino->get();
+
+    rangelock_req rlr(f.cache.rl, page_num, num_pages);
+
+    // FIXME - loop through dirty ranges of cache
+
+    // FIXME - sort PTEs on processes that have mapped this
+    // FIXME - send IPIs to invalidate TLBs
+
+    f.flush_cache(page_num, num_pages);
+
+    return nt_status::SUCCESS;
 }
