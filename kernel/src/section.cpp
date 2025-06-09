@@ -1105,3 +1105,11 @@ size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
 
     return read_pages;
 }
+
+nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME - section::flush({:x}, {:x})\n", page_num, num_pages);
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

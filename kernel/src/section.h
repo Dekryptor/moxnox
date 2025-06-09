@@ -69,6 +69,7 @@ public:
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class, std::span<uint8_t> buf,
                         size_t* return_length);
     std::variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*, page_cache<inode>*> get_cache();
+    nt_status flush(uint64_t page_num, uint64_t num_pages);
 
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;

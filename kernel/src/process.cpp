@@ -2877,11 +2877,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
 }
 
 nt_status mapping::flush(uint64_t offset, uint64_t size) {
-    print("FIXME - mapping::flush({:x}, {:x})\n", offset, size);
-
-    // FIXME
-
-    return nt_status::NOT_IMPLEMENTED;
+    return sect.flush((this->offset + offset) >> PAGE_SHIFT, size >> PAGE_SHIFT);
 }
 
 nt_status process::flush_vm(void** base_address, size_t* region_size) {
@@ -2898,7 +2894,7 @@ nt_status process::flush_vm(void** base_address, size_t* region_size) {
     if (size & (PAGE_SIZE - 1))
         size = (size & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
 
-    if (size == 0)
+    if (size == 0 || size > m->address + m->size - addr)
         size = m->address + m->size - addr;
 
     auto ret = m->flush(addr - m->address, size);
