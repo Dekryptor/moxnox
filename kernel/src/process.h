@@ -53,8 +53,7 @@ public:
                      uint32_t* number_of_bytes_read);
     NTSTATUS write_vm(void* base_address, void* buffer, uint32_t buffer_size,
                       uint32_t* number_of_bytes_written);
-    nt_status flush_vm(void** base_address, size_t* region_size,
-                       IO_STATUS_BLOCK* iosb);
+    nt_status flush_vm(void** base_address, size_t* region_size);
     object_ref get_stderr();
     void send_signal(uint64_t code);
 

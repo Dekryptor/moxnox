@@ -63,6 +63,7 @@ public:
     bool map(uint32_t mapping_offset, uint64_t va);
     bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
     bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
+    nt_status flush(uint64_t offset, uint64_t size);
 
     list_entry le;
     uint64_t address;
@@ -2875,11 +2876,43 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     return nt_status::SUCCESS;
 }
 
-nt_status process::flush_vm(void** base_address, size_t* region_size,
-                            IO_STATUS_BLOCK* iosb) {
+nt_status mapping::flush(uint64_t offset, uint64_t size) {
+    print("FIXME - mapping::flush({:x}, {:x})\n", offset, size);
+
     // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+nt_status process::flush_vm(void** base_address, size_t* region_size) {
+    auto addr = (uint64_t)*base_address;
+
+    addr &= ~(PAGE_SIZE - 1);
+
+    auto m = find_mapping(*this, addr);
+    if (!m)
+        return nt_status::NO_MEMORY;
+
+    auto size = *region_size;
+
+    if (size & (PAGE_SIZE - 1))
+        size = (size & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
+
+    if (size == 0)
+        size = m->address + m->size - addr;
+
+    auto ret = m->flush(addr - m->address, size);
+    if (!success(ret)) {
+        m->release();
+        return ret;
+    }
+
+    *base_address = (void*)addr;
+    *region_size = size;
+
+    m->release();
+
+    return ret;
 }
 
 NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
@@ -2912,5 +2945,7 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
         p = static_cast<process*>(&obj);
     }
 
-    return p->flush_vm(base_address, region_size, iosb);
+    memset(iosb, 0, sizeof(IO_STATUS_BLOCK)); // FIXME - what's supposed to go here?
+
+    return p->flush_vm(base_address, region_size);
 }
