@@ -422,7 +422,7 @@ uint64_t volume_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
         }
     }
 
-    page_cache_iterator iter(*this, page_num);
+    page_cache_iterator iter(cache, page_num);
 
     uint64_t read_pages;
 
@@ -451,7 +451,7 @@ size_t volume_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
     if (!cache.pin(page_num, num_pages, nullptr))
         return 0;
 
-    page_cache_iterator iter(*this, page_num);
+    page_cache_iterator iter(cache, page_num);
 
     uint64_t flushed;
 

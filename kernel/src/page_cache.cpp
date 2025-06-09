@@ -33,6 +33,13 @@ export class cacheable;
 
 export
 template<typename T>
+concept cacheable2 = requires(T t, uint64_t page_num, uint64_t num_pages) {
+    { t.read_into_cache(page_num, num_pages) } -> same_as<size_t>;
+    { t.flush_cache(page_num, num_pages) } -> same_as<size_t>;
+};
+
+export
+template<typename T>
 class page_cache {
 public:
     page_cache(T& dev) : dev(dev) { }
@@ -74,6 +81,8 @@ public:
     page_cache<cacheable> cache{*this};
 };
 
+static_assert(cacheable2<cacheable>);
+
 export struct pfn_iterator {
     using difference_type = ptrdiff_t;
     using value_type = uint64_t;
@@ -84,11 +93,13 @@ export struct pfn_iterator {
     void operator++(int) { ++*this; }
 };
 
-export struct page_cache_iterator : public pfn_iterator {
-    page_cache_iterator(cacheable& c, uint64_t page_num) : c(&c) {
-        lock_guard lg(c.cache.cache_lock);
+export
+template<typename T>
+struct page_cache_iterator : public pfn_iterator {
+    page_cache_iterator(page_cache<T>& cache, uint64_t page_num) : cache(&cache) {
+        lock_guard lg(cache.cache_lock);
 
-        p = c.cache.find_page_cache_entry(page_num);
+        p = cache.find_page_cache_entry(page_num);
     }
 
     uint64_t operator*() const override {
@@ -96,15 +107,15 @@ export struct page_cache_iterator : public pfn_iterator {
     }
 
     page_cache_iterator& operator++() override {
-        lock_guard lg(c->cache.cache_lock);
+        lock_guard lg(cache->cache_lock);
 
-        p = c->cache.next_page_cache_entry(*p);
+        p = cache->next_page_cache_entry(*p);
 
         return *this;
     }
 
 private:
-    cacheable* c;
+    page_cache<T>* cache;
     page_cache_entry* p;
 };
 
