@@ -722,7 +722,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
     }
 
     if (section_offset.has_value()) {
-        if (*section_offset % PAGE_SIZE) {
+        if ((uint64_t)*section_offset % PAGE_SIZE) {
             print("process::map_section: invalid offset {:x}\n", *section_offset);
             return 0;
         }
@@ -741,7 +741,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
     }
 
     m->address = address;
-    m->offset = section_offset.has_value() ? *section_offset : 0;
+    m->offset = section_offset.has_value() ? (uint64_t)*section_offset : 0;
     m->size = (uint32_t)(sect.size - m->offset);
 
     uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
