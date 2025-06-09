@@ -29,8 +29,6 @@ export struct page_cache_entry {
     };
 };
 
-export class cacheable;
-
 export
 template<typename T>
 concept cacheable2 = requires(T t, uint64_t page_num, uint64_t num_pages) {
@@ -72,16 +70,6 @@ private:
     rbtree_node<uint64_t>* root = nullptr;
     bool dirty = false;
 };
-
-export class cacheable {
-public:
-    virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
-    virtual size_t flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
-
-    page_cache<cacheable> cache{*this};
-};
-
-static_assert(cacheable2<cacheable>);
 
 export struct pfn_iterator {
     using difference_type = ptrdiff_t;
