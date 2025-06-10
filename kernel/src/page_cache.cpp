@@ -77,6 +77,8 @@ public:
     rangelock rl;
 
 private:
+    nt_status flush_range(uint64_t page_num, uint64_t num_pages);
+
     rbtree_node<uint64_t>* root = nullptr;
     bool dirty = false;
 };
@@ -699,15 +701,75 @@ void page_cache<T>::mark_dirty() {
 }
 
 template<typename T>
+nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
+    print("page_cache::flush_range({}, {})\n", page_num, num_pages);
+
+    // FIXME - clear write bit on PTEs of processes that have mapped these pages
+    // FIXME - send IPIs to invalid TLBs on said processes
+
+    // FIXME - call dev.flush_cache
+    // dev.flush_cache(page_num, num_pages);
+
+    // FIXME - clear dirty bits on pages
+
+    return nt_status::SUCCESS;
+}
+
+template<typename T>
 nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages) {
+    static const uint64_t INVALID = 0xffffffffffffffff;
+
     rangelock_req rlr(rl, page_num, num_pages);
 
-    // FIXME - loop through dirty ranges of cache
+    page_cache_entry* p = nullptr;
+    uint64_t range_start = INVALID, range_length = 0;
 
-    // FIXME - sort PTEs on processes that have mapped this
-    // FIXME - send IPIs to invalidate TLBs
+    while (true) {
+        {
+            lock_guard lg(cache_lock);
 
-    dev.flush_cache(page_num, num_pages);
+            if (!p) {
+                p = find_page_cache_entry(page_num);
+                if (!p || p->tree.key >= page_num + num_pages)
+                    return nt_status::SUCCESS;
+
+                while (p->tree.key < page_num) {
+                    p = next_page_cache_entry(*p);
+                    if (!p || p->tree.key >= page_num + num_pages)
+                        return nt_status::SUCCESS;
+                }
+            } else {
+                p = next_page_cache_entry(*p);
+                if (!p || p->tree.key >= page_num + num_pages)
+                    break;
+            }
+
+            p->refcount++;
+        }
+
+        if (range_start != INVALID && p->dirty && p->tree.key == range_start + range_length) {
+            range_length++;
+            goto next;
+        }
+
+        if (range_start != INVALID)
+            flush_range(range_start, range_length);
+
+        if (p->dirty) {
+            range_start = p->tree.key;
+            range_length = 1;
+        } else
+            range_start = INVALID;
+
+next:
+        {
+            lock_guard lg(cache_lock);
+            p->refcount--;
+        }
+    }
+
+    if (range_start != INVALID)
+        flush_range(range_start, range_length);
 
     return nt_status::SUCCESS;
 }
