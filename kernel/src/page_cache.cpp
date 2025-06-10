@@ -4,6 +4,7 @@ module;
 #include "spinlock.h"
 #include "rangelock.h"
 import rbtree;
+#include "mapping.h"
 
 export module page_cache;
 
@@ -704,15 +705,34 @@ void page_cache<T>::mark_dirty() {
 
 template<typename T>
 nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
-    print("page_cache::flush_range({}, {})\n", page_num, num_pages);
+    auto last_page = page_num + num_pages - 1;
 
-    // FIXME - clear write bit on PTEs of processes that have mapped these pages
-    // FIXME - send IPIs to invalid TLBs on said processes
+    // clear write bit on PTEs of processes that have mapped these pages
 
-    // FIXME - call dev.flush_cache
-    // dev.flush_cache(page_num, num_pages);
+    {
+        lock_guard lg(mappings_lock);
 
-    // FIXME - clear dirty bits on pages
+        for (auto le = mappings.next; le != &mappings; le = le->next) {
+            auto& m = *(mapping*)((uint8_t*)le - offsetof(mapping, cache_le));
+
+            auto mapping_first_page = m.offset >> PAGE_SHIFT;
+            auto mapping_last_page = mapping_first_page + (m.size >> PAGE_SHIFT) - 1;
+
+            if (mapping_first_page >= page_num && mapping_last_page <= last_page) // whole mapping
+                m.clear_write_bit(0, mapping_last_page - mapping_first_page + 1);
+            else if (mapping_first_page < page_num && mapping_last_page > last_page) // middle of mapping
+                m.clear_write_bit(page_num - mapping_first_page, last_page - mapping_first_page + 1);
+            else if (mapping_last_page >= page_num && mapping_last_page <= last_page) // end of mapping
+                m.clear_write_bit(page_num - mapping_first_page, mapping_last_page - page_num + 1);
+            else if (mapping_first_page >= page_num && mapping_first_page <= last_page) // beginning of mapping
+                m.clear_write_bit(0, last_page - mapping_first_page + 1);
+        }
+    }
+
+    // FIXME - let flush_cache return errors
+    dev.flush_cache(page_num, num_pages);
+
+    // FIXME - clear dirty bits on page cache entries
     // FIXME - clear dirty bit on cache if now clean, and remove from writeback list
 
     return nt_status::SUCCESS;

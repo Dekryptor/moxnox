@@ -16,6 +16,7 @@ import page_cache;
 import volume;
 import rangelock;
 #include "visit_object.h"
+#include "mapping.h"
 #include <pe.h>
 #include <ntdll.h>
 
@@ -42,37 +43,6 @@ uintptr_t mn_start_thread, mn_signal;
 static_assert(sizeof(TEB) == 0x1818);
 static_assert(sizeof(PEB) == 0x388);
 static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
-
-class mapping {
-public:
-    mapping(process& proc, section& sect);
-    ~mapping();
-
-    void acquire() {
-        refcount++;
-    }
-
-    void release() {
-        if (--refcount == 0)
-            delete this;
-    }
-
-    bool map(uint32_t mapping_offset, uint64_t va);
-    bool copy_from(uint32_t offset, void* ks_addr, uint32_t size);
-    bool copy_to(uint32_t offset, const void* ks_addr, uint32_t size);
-    nt_status flush(uint64_t offset, uint64_t size);
-
-    list_entry le;
-    list_entry cache_le;
-    uint64_t address;
-    uint32_t size;
-    uint64_t offset;
-    process& proc;
-    section& sect;
-
-private:
-    atomic<unsigned int> refcount = 1;
-};
 
 static const size_t MAX_PATH = 260;
 
@@ -2964,4 +2934,12 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
     memset(iosb, 0, sizeof(IO_STATUS_BLOCK)); // FIXME - what's supposed to go here?
 
     return p->flush_vm(base_address, region_size);
+}
+
+void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME - mapping::clear_write_bit({:x}, {:x})\n", page_num, num_pages);
+
+    // FIXME - clear write bit
+
+    // FIXME - send IPIs to invalidate TLBs on other processors
 }
