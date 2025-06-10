@@ -2918,6 +2918,24 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     print("FIXME - btrfs_inode::flush_cache ({:x}, {:x})\n", page_num, num_pages); // FIXME
 
+    // FIXME - if more than 128MB, split up
+
+    // FIXME - allocate new chunk if we need to
+
+    // FIXME - punch hole in file extent data
+    // FIXME - reduce refcount of extent in extent tree
+    // FIXME - if now 0, add back to FST
+    // FIXME - if now 0, update BGI
+    // FIXME - if now 0, update superblock
+
+    // FIXME - find space for new extent
+    // FIXME - carve out of FST
+    // FIXME - update BGI
+    // FIXME - update superblock
+    // FIXME - add to extent tree
+    // FIXME - add to csum tree
+    // FIXME - add new file extent data
+
     return 0;
 }
 
