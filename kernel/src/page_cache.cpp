@@ -75,6 +75,8 @@ public:
     spinlock cache_lock;
     T& dev;
     rangelock rl;
+    spinlock mappings_lock;
+    list_entry mappings = { &mappings, &mappings };
 
 private:
     nt_status flush_range(uint64_t page_num, uint64_t num_pages);
@@ -711,6 +713,7 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
     // dev.flush_cache(page_num, num_pages);
 
     // FIXME - clear dirty bits on pages
+    // FIXME - clear dirty bit on cache if now clean, and remove from writeback list
 
     return nt_status::SUCCESS;
 }

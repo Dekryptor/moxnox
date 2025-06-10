@@ -45,10 +45,7 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
 class mapping {
 public:
-    mapping(process& proc, section& sect) : proc(proc), sect(sect) {
-        sect.acquire();
-    }
-
+    mapping(process& proc, section& sect);
     ~mapping();
 
     void acquire() {
@@ -66,6 +63,7 @@ public:
     nt_status flush(uint64_t offset, uint64_t size);
 
     list_entry le;
+    list_entry cache_le;
     uint64_t address;
     uint32_t size;
     uint64_t offset;
@@ -1756,12 +1754,34 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
     return p->free_vm(base_address, region_size, free_type);
 }
 
+mapping::mapping(process& proc, section& sect) : proc(proc), sect(sect) {
+    sect.acquire();
+
+    visit([&](auto* ptr) {
+        auto& cache = *ptr;
+
+        {
+            lock_guard lg(cache.mappings_lock);
+            insert_tail_list(cache.mappings, cache_le);
+        }
+    }, sect.get_cache());
+}
+
 mapping::~mapping() {
     sect.release();
 
     // FIXME - send IPI to unmap on other CPUs by clearing TLB
 
     unmap_proc_pages(proc, address, size >> PAGE_SHIFT);
+
+    visit([&](auto* ptr) {
+        auto& cache = *ptr;
+
+        {
+            lock_guard lg(cache.mappings_lock);
+            remove_entry_list(cache_le);
+        }
+    }, sect.get_cache());
 }
 
 bool mapping::map(uint32_t mapping_offset, uint64_t va) {
