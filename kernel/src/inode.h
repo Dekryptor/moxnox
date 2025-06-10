@@ -38,7 +38,7 @@ public:
                                        uint64_t& retlen) = 0;
 
     virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
-    virtual size_t flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
+    virtual nt_status flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
 
     uint64_t file_size;
     enum inode_type inode_type;

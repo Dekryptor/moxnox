@@ -39,7 +39,7 @@ concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
 export
 template<typename T>
 concept cacheable_flushable = cacheable<T> && requires(T t, uint64_t page_num, uint64_t num_pages) {
-    { t.flush_cache(page_num, num_pages) } -> same_as<size_t>;
+    { t.flush_cache(page_num, num_pages) } -> same_as<nt_status>;
 };
 
 export
@@ -729,8 +729,9 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
         }
     }
 
-    // FIXME - let flush_cache return errors
-    dev.flush_cache(page_num, num_pages);
+    auto status = dev.flush_cache(page_num, num_pages);
+    if (!success(status))
+        return status;
 
     // FIXME - clear dirty bits on page cache entries
     // FIXME - clear dirty bit on cache if now clean, and remove from writeback list

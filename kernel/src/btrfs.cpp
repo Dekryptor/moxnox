@@ -672,12 +672,12 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
     return true;
 }
 
-size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
     unsigned int pages_per_tree = sb->nodesize >> PAGE_SHIFT;
     uint64_t addr = page_num << PAGE_SHIFT;
 
     if (page_num % pages_per_tree) // not aligned to tree
-        return 0;
+        return nt_status::INVALID_PARAMETER;
 
     // find chunk
 
@@ -685,7 +685,7 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     if (!pc) {
         print("Could not find chunk for logical address {:x}\n", addr);
-        return 0;
+        return nt_status::INTERNAL_ERROR;
     }
 
     auto& c = *pc;
@@ -703,30 +703,22 @@ size_t btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
     }
 
     if (pages_written == 0)
-        return pages_written;
+        return nt_status::SUCCESS;
 
     uint64_t pages_to_flush = pages_written;
     for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
         uint64_t disk_addr = (page_num << PAGE_SHIFT) - c.offset + c.ci.stripe[i].offset;
         uint64_t first_page = disk_addr >> PAGE_SHIFT;
 
-        while (true) {
-            auto flushed = vol->flush_cache(first_page, pages_to_flush);
+        auto status = vol->flush_cache(first_page, pages_to_flush);
 
-            if (flushed == 0) {
-                print("volume::flush_cache failed\n");
-                break;
-            }
-
-            if (pages_to_flush == flushed)
-                break;
-
-            first_page += flushed;
-            pages_to_flush -= flushed;
+        if (!success(status)) {
+            print("volume::flush_cache returned {}\n", status);
+            return status;
         }
     }
 
-    return pages_written;
+    return nt_status::SUCCESS;
 }
 
 void btrfs_filesystem::free_chunk_list() {
@@ -2915,7 +2907,7 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     return read_zeroes_into_cache(page_num, num_pages);
 }
 
-size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     print("FIXME - btrfs_inode::flush_cache ({:x}, {:x})\n", page_num, num_pages); // FIXME
 
     // FIXME - if more than 128MB, split up
@@ -2936,7 +2928,7 @@ size_t btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     // FIXME - add to csum tree
     // FIXME - add new file extent data
 
-    return 0;
+    return nt_status::SUCCESS;
 }
 
 static int64_t unix_to_win_time(const btrfs_timespec& t) {
@@ -3592,20 +3584,12 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
 
         auto first_page = start->tree.key;
 
-        while (true) {
-            auto flushed = flush_cache(first_page, num_pages);
+        status = flush_cache(first_page, num_pages);
 
-            if (flushed == 0) {
-                print("flush_cache did not flush any pages, going readonly\n");
-                go_readonly();
-                return nt_status::INTERNAL_ERROR;
-            }
-
-            if (num_pages >= flushed)
-                break;
-
-            first_page += flushed;
-            num_pages -= flushed;
+        if (!success(status)) {
+            print("flush_cache returned {}, going readonly\n", status);
+            go_readonly();
+            return status;
         }
     }
 

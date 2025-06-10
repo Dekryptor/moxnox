@@ -51,7 +51,7 @@ public:
 
     nt_status read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
     uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages);
-    size_t flush_cache(uint64_t page_num, uint64_t num_pages);
+    nt_status flush_cache(uint64_t page_num, uint64_t num_pages);
 
     void probe();
     bool check_for_partitions();
@@ -441,25 +441,25 @@ nt_status diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
                             it, written_pages, fua);
 }
 
-size_t volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
     if (!cache.pin(page_num, num_pages, nullptr))
-        return 0;
+        return nt_status::INTERNAL_ERROR;
 
     page_cache_iterator iter(cache, page_num);
 
     uint64_t flushed;
 
     auto status = dio_write(page_num, num_pages, iter, flushed);
-    if (!success(status)) { // FIXME - return error
+    if (!success(status)) {
         cache.unpin(page_num, num_pages);
-        return 0;
+        return status;
     }
 
     if (flushed < num_pages)
         cache.unpin(page_num + flushed, num_pages - flushed);
 
     if (flushed == 0)
-        return 0;
+        return nt_status::INTERNAL_ERROR;
 
     // mark page cache entries as clean
 
@@ -480,5 +480,5 @@ size_t volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     cache.unpin(page_num, flushed);
 
-    return flushed;
+    return nt_status::SUCCESS;
 }
