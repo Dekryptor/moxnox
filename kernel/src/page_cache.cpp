@@ -70,6 +70,7 @@ public:
     size_t read(span<uint8_t> data, uint64_t offset);
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
     void mark_dirty();
+    nt_status flush(uint64_t page_num, uint64_t num_pages);
 
     spinlock cache_lock;
     T& dev;
@@ -695,4 +696,18 @@ void page_cache<T>::mark_dirty() {
             insert_tail_list(writeback_list, dev.writeback_le);
         }
     }
+}
+
+template<typename T>
+nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages) {
+    rangelock_req rlr(rl, page_num, num_pages);
+
+    // FIXME - loop through dirty ranges of cache
+
+    // FIXME - sort PTEs on processes that have mapped this
+    // FIXME - send IPIs to invalidate TLBs
+
+    dev.flush_cache(page_num, num_pages);
+
+    return nt_status::SUCCESS;
 }
