@@ -3045,6 +3045,8 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             print("FIXME - remove file extent middle\n"); // FIXME
             // FIXME - remove middle
         } else if (start + length > k.offset && start + length < k.offset + size) {
+            // remove beginning
+
             auto new_key = k;
 
             new_key.offset += start + length - k.offset;
@@ -3061,8 +3063,12 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
                 return status;
             }
         } else if (start > k.offset && start < k.offset + size) {
-            print("FIXME - remove file extent end\n"); // FIXME
-            // FIXME - remove end
+            // remove end
+
+            ed2.num_bytes -= k.offset + size - start;
+
+            inode.ii.nbytes -= k.offset + size - start;
+            changed_inode = true;
         }
 
         if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
