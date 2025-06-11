@@ -433,10 +433,11 @@ struct extent_item_tbr {
 
 static_assert(sizeof(extent_item_tbr) == 33);
 
-struct metadata_change {
+struct ref_change {
     uint64_t address;
     uint8_t level;
     uint64_t root;
+    bool metadata;
     bool remove;
     list_entry le;
 };
@@ -563,7 +564,7 @@ public:
     root* fs_root = nullptr;
     root* block_group_root = nullptr;
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
-    list_entry metadata_changes = { &metadata_changes, &metadata_changes };
+    list_entry ref_changes = { &ref_changes, &ref_changes };
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };
     bool readonly = false;
     object_ref flush_thread_obj;

@@ -1383,15 +1383,16 @@ static void handle_pending_space(chunk& c) {
 
 static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
                                      uint8_t level, uint64_t root, bool remove) {
-    auto mc = (metadata_change*)malloc(sizeof(metadata_change));
-    if (!mc)
+    auto rc = (ref_change*)malloc(sizeof(ref_change));
+    if (!rc)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    mc->address = address;
-    mc->level = level;
-    mc->root = root;
-    mc->remove = remove;
-    insert_tail_list(fs.metadata_changes, mc->le);
+    rc->address = address;
+    rc->level = level;
+    rc->root = root;
+    rc->remove = remove;
+    rc->metadata = true;
+    insert_tail_list(fs.ref_changes, rc->le);
 
     return nt_status::SUCCESS;
 }
@@ -3656,15 +3657,15 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
     return nt_status::SUCCESS;
 }
 
-static nt_status do_metadata_changes(btrfs_filesystem& fs) {
+static nt_status do_ref_changes(btrfs_filesystem& fs) {
     list_entry changed_chunks = { &changed_chunks, &changed_chunks };
 
-    while (!is_list_empty(fs.metadata_changes)) {
-        auto& mc = containing_record<metadata_change>(fs.metadata_changes.next);
+    while (!is_list_empty(fs.ref_changes)) {
+        auto& rc = containing_record<ref_change>(fs.ref_changes.next);
 
-        auto c = find_chunk(fs, mc.address);
+        auto c = find_chunk(fs, rc.address);
         if (!c) {
-            print("no chunk found for address {:x}\n", mc.address);
+            print("no chunk found for address {:x}\n", rc.address);
             return nt_status::INTERNAL_ERROR;
         }
 
@@ -3674,16 +3675,16 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
             c->delta = 0;
         }
 
-        if (mc.remove) {
+        if (rc.remove) {
             // FIXME - snapshotted metadata
 
-            auto status = fs.remove_item(*fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level});
+            auto status = fs.remove_item(*fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.level});
             if (!success(status)) {
                 print("remove_item returned {}\n", status);
                 return status;
             }
 
-            status = add_free_space(fs, mc.address, fs.sb->nodesize);
+            status = add_free_space(fs, rc.address, fs.sb->nodesize);
             if (!success(status)) {
                 print("add_free_space returned {}\n", status);
                 return status;
@@ -3698,7 +3699,7 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
             if (is_list_empty(c->pending_space_list))
                 insert_tail_list(fs.space_pending_chunks, c->space_pending_le);
 
-            sc->offset = mc.address;
+            sc->offset = rc.address;
             sc->length = fs.sb->nodesize;
             insert_tail_list(c->pending_space_list, sc->le);
         } else {
@@ -3708,16 +3709,16 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
             eitbr.ei.generation = fs.sb->generation;
             eitbr.ei.flags = BTRFS_EXTENT_FLAG_TREE_BLOCK;
             eitbr.type = key_type::TREE_BLOCK_REF;
-            eitbr.tbr.offset = mc.root;
+            eitbr.tbr.offset = rc.root;
 
-            auto status = insert_item(fs, *fs.extent_root, {mc.address, key_type::METADATA_ITEM, mc.level},
+            auto status = insert_item(fs, *fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.level},
                                       span((uint8_t*)&eitbr, sizeof(eitbr)));
             if (!success(status)) {
                 print("insert_item returned {}\n", status);
                 return status;
             }
 
-            status = remove_free_space(fs, mc.address, fs.sb->nodesize);
+            status = remove_free_space(fs, rc.address, fs.sb->nodesize);
             if (!success(status)) {
                 print("remove_free_space returned {}\n", status);
                 return status;
@@ -3726,8 +3727,8 @@ static nt_status do_metadata_changes(btrfs_filesystem& fs) {
             c->delta += fs.sb->nodesize;
         }
 
-        remove_entry_list(mc.le);
-        free(&mc);
+        remove_entry_list(rc.le);
+        free(&rc);
     }
 
     while (!is_list_empty(changed_chunks)) {
@@ -3789,9 +3790,9 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
 
     update_superblock_backup(*this);
 
-    status = do_metadata_changes(*this);
+    status = do_ref_changes(*this);
     if (!success(status)) {
-        print("do_metadata_changes returned {}, going readonly\n", status);
+        print("do_ref_changes returned {}, going readonly\n", status);
         go_readonly();
         return status;
     }
@@ -3810,9 +3811,9 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         r.is_dirty = false;
     }
 
-    status = do_metadata_changes(*this);
+    status = do_ref_changes(*this);
     if (!success(status)) {
-        print("do_metadata_changes returned {}, going readonly\n", status);
+        print("do_ref_changes returned {}, going readonly\n", status);
         go_readonly();
         return status;
     }
