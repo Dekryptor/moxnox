@@ -2975,6 +2975,8 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         }
     }
 
+    bool changed_inode = false;
+
     while (true) {
         if (p.slots[0] == leaf_nritems(p)) {
             status = next_leaf(p);
@@ -2988,13 +2990,13 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         print("{}\n", k);
 
         if (k.objectid > inode.inode)
-            return nt_status::SUCCESS;
+            break;
 
         if (k.type > key_type::EXTENT_DATA)
-            return nt_status::SUCCESS;
+            break;
 
         if (k.offset >= start + length)
-            return nt_status::SUCCESS;
+            break;
 
         // FIXME - inline extents
 
@@ -3050,15 +3052,14 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             ed2.offset += start + length - k.offset;
             ed2.num_bytes -= start + length - k.offset;
 
+            inode.ii.nbytes -= start + length - k.offset;
+            changed_inode = true;
+
             status = fs.change_key(p, new_key);
             if (!success(status)) {
                 print("btrfs_filesystem:::change_key returned {}\n", status);
                 return status;
             }
-
-            // FIXME - inode_item transid
-            // FIXME - inode_item nbytes
-            // FIXME - inode_item seq
         } else if (start > k.offset && start < k.offset + size) {
             print("FIXME - remove file extent end\n"); // FIXME
             // FIXME - remove end
@@ -3068,6 +3069,36 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             return nt_status::INTERNAL_ERROR;
 
         p.slots[0]++;
+    }
+
+    if (changed_inode) {
+        inode.ii.transid = fs.sb->generation;
+        inode.ii.sequence++;
+
+        status = fs.find_item(*inode.r, {inode.inode, key_type::INODE_ITEM, 0}, p, true);
+        if (!success(status))
+            return status;
+
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+        auto& it = items[p.slots[0]];
+        const auto& found_key = it.key;
+
+        if (found_key.objectid != inode.inode || found_key.type != key_type::INODE_ITEM)
+            return nt_status::DISK_CORRUPT_ERROR;
+
+        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+        if (it.size < sizeof(btrfs_inode_item))
+            return nt_status::DISK_CORRUPT_ERROR;
+
+        auto& ii = *(btrfs_inode_item*)data.data();
+
+        memcpy(&ii, &inode.ii, sizeof(btrfs_inode_item));
+
+        if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+            return nt_status::INTERNAL_ERROR;
     }
 
     return nt_status::SUCCESS;
