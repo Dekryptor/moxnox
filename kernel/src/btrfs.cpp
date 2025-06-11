@@ -1181,8 +1181,8 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
     return nt_status::SUCCESS;
 }
 
-static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
-                                            uint64_t& addr) {
+static nt_status allocate_in_chunk(btrfs_filesystem& fs, chunk& c,
+                                   uint64_t size, uint64_t& addr) {
     if (!c.space_loaded) {
         auto status = load_space(fs, c);
         if (!success(status))
@@ -1198,18 +1198,18 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
             if (s.offset + s.length < c.last_allocation_end)
                 continue;
 
-            if (s.offset <= c.last_allocation_end && s.offset + s.length >= c.last_allocation_end + fs.sb->nodesize) {
-                if (s.offset == c.last_allocation_end && s.length == fs.sb->nodesize) {
+            if (s.offset <= c.last_allocation_end && s.offset + s.length >= c.last_allocation_end + size) {
+                if (s.offset == c.last_allocation_end && s.length == size) {
                     // remove whole thing
                     remove_entry_list(s.le);
                     free(&s);
                 } else if (s.offset == c.last_allocation_end) {
                     // remove beginning
-                    s.offset += fs.sb->nodesize;
-                    s.length -= fs.sb->nodesize;
-                } else if (s.offset + s.length == c.last_allocation_end + fs.sb->nodesize) {
+                    s.offset += size;
+                    s.length -= size;
+                } else if (s.offset + s.length == c.last_allocation_end + size) {
                     // remove end
-                    s.length -= fs.sb->nodesize;
+                    s.length -= size;
                 } else {
                     // remove middle
 
@@ -1217,7 +1217,7 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
                     if (!s2)
                         return nt_status::INSUFFICIENT_RESOURCES;
 
-                    s2->offset = c.last_allocation_end + fs.sb->nodesize;
+                    s2->offset = c.last_allocation_end + size;
                     s2->length = s.offset + s.length - s2->offset;
                     insert_head_list(s.le, s2->le);
 
@@ -1225,25 +1225,25 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
                 }
 
                 addr = c.last_allocation_end;
-                c.last_allocation_end = addr + fs.sb->nodesize;
+                c.last_allocation_end = addr + size;
 
                 return nt_status::SUCCESS;
             }
 
-            if (s.length < fs.sb->nodesize)
+            if (s.length < size)
                 continue;
 
             addr = s.offset;
 
-            if (s.length == fs.sb->nodesize) {
+            if (s.length == size) {
                 remove_entry_list(s.le);
                 free(&s);
             } else {
-                s.offset += fs.sb->nodesize;
-                s.length -= fs.sb->nodesize;
+                s.offset += size;
+                s.length -= size;
             }
 
-            c.last_allocation_end = addr + fs.sb->nodesize;
+            c.last_allocation_end = addr + size;
 
             return nt_status::SUCCESS;
         }
@@ -1252,18 +1252,18 @@ static nt_status allocate_metadata_in_chunk(btrfs_filesystem& fs, chunk& c,
     for (auto le = c.space_list.next; le != &c.space_list; le = le->next) {
         auto& s = containing_record<chunk_space>(le);
 
-        if (s.length >= fs.sb->nodesize) {
+        if (s.length >= size) {
             addr = s.offset;
 
-            if (s.length == fs.sb->nodesize) {
+            if (s.length == size) {
                 remove_entry_list(s.le);
                 free(&s);
             } else {
-                s.offset += fs.sb->nodesize;
-                s.length -= fs.sb->nodesize;
+                s.offset += size;
+                s.length -= size;
             }
 
-            c.last_allocation_end = addr + fs.sb->nodesize;
+            c.last_allocation_end = addr + size;
 
             return nt_status::SUCCESS;
         }
@@ -1287,7 +1287,7 @@ static nt_status allocate_metadata(btrfs_filesystem& fs, uint64_t& addr) {
         if (c.ci.type & (BTRFS_BLOCK_GROUP_RAID0 | BTRFS_BLOCK_GROUP_RAID10 | BTRFS_BLOCK_GROUP_RAID5 | BTRFS_BLOCK_GROUP_RAID6))
             continue;
 
-        status = allocate_metadata_in_chunk(fs, c, addr);
+        status = allocate_in_chunk(fs, c, fs.sb->nodesize, addr);
         if (status != nt_status::DISK_FULL)
             return status;
     }
@@ -2907,18 +2907,137 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     return read_zeroes_into_cache(page_num, num_pages);
 }
 
+static nt_status allocate_data(btrfs_filesystem& fs, uint64_t size,
+                               uint64_t& addr) {
+    nt_status status;
+
+    for (auto le = fs.chunk_list.next; le != &fs.chunk_list; le = le->next) {
+        auto& c = containing_record<chunk>(le);
+
+        // FIXME - skip if chunk is readonly
+
+        if (!(c.ci.type & BTRFS_BLOCK_GROUP_DATA))
+            continue;
+
+        // skip unsupported RAID types
+        if (c.ci.type & (BTRFS_BLOCK_GROUP_RAID0 | BTRFS_BLOCK_GROUP_RAID10 | BTRFS_BLOCK_GROUP_RAID5 | BTRFS_BLOCK_GROUP_RAID6))
+            continue;
+
+        status = allocate_in_chunk(fs, c, size, addr);
+        if (status != nt_status::DISK_FULL)
+            return status;
+    }
+
+    // FIXME - if nothing found, try to allocate new chunk
+
+    return nt_status::DISK_FULL;
+}
+
+static uint32_t leaf_nritems(const btrfs_path& p) {
+    auto& th = *(btrfs_header*)p.data[0];
+
+    return th.nritems;
+}
+
+static nt_status next_leaf(btrfs_path& p) {
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
+static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length) {
+    auto& fs = inode.fs;
+    btrfs_key search_key = { inode.inode, key_type::EXTENT_DATA, start };
+    btrfs_path p(fs.sb->nodesize);
+    nt_status status;
+
+    status = fs.find_item(*inode.r, search_key, p, false);
+    if (!success(status))
+        return status;
+
+    auto& th = *(btrfs_header*)p.data[0];
+    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+    if (p.slots[0] >= th.nritems)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    {
+        const auto& k = items[p.slots[0]].key;
+
+        if (k.objectid > inode.inode || k.type > key_type::EXTENT_DATA ||
+            k.offset > start) {
+            if (p.slots[0] == 0)
+                return nt_status::SUCCESS;
+
+            p.slots[0]--;
+        }
+    }
+
+    while (true) {
+        if (p.slots[0] == leaf_nritems(p)) {
+            status = next_leaf(p);
+            if (!success(status))
+                return status;
+        }
+
+        const auto& k = items[p.slots[0]].key;
+
+        print("{}\n", k);
+
+        if (k.objectid > inode.inode)
+            return nt_status::SUCCESS;
+
+        if (k.type > key_type::EXTENT_DATA)
+            return nt_status::SUCCESS;
+
+        if (k.offset >= start + length)
+            return nt_status::SUCCESS;
+
+        // FIXME - inline extents
+
+        // FIXME - remove file extent entirely
+        // FIXME - remove beginning
+        // FIXME - remove end
+        // FIXME - remove middle
+
+        // FIXME - reduce refcount of extent in extent tree
+        // FIXME - if now 0, add back to FST
+        // FIXME - if now 0, update BGI
+        // FIXME - if now 0, update superblock
+
+        p.slots[0]++;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    nt_status status;
+    uint64_t addr;
+
     print("FIXME - btrfs_inode::flush_cache ({:x}, {:x})\n", page_num, num_pages); // FIXME
+
+    status = allocate_data(fs, num_pages << PAGE_SHIFT, addr);
+    if (!success(status)) {
+        print("allocate_data returned {}\n", status);
+        return status;
+    }
+
+    print("addr = {:x}\n", addr);
+
+    // FIXME - compression
+    // FIXME - nodatacow
 
     // FIXME - if more than 128MB, split up
 
     // FIXME - allocate new chunk if we need to
 
-    // FIXME - punch hole in file extent data
-    // FIXME - reduce refcount of extent in extent tree
-    // FIXME - if now 0, add back to FST
-    // FIXME - if now 0, update BGI
-    // FIXME - if now 0, update superblock
+    status = punch_hole(*this, page_num << PAGE_SHIFT, num_pages << PAGE_SHIFT);
+    if (!success(status)) {
+        print("punch_hole returned {}\n", status);
+        // FIXME - free addr
+        return status;
+    }
 
     // FIXME - find space for new extent
     // FIXME - carve out of FST
@@ -2927,6 +3046,8 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     // FIXME - add to extent tree
     // FIXME - add to csum tree
     // FIXME - add new file extent data
+
+    // FIXME - reflink cache to filesystem cache
 
     return nt_status::SUCCESS;
 }
