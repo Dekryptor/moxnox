@@ -435,10 +435,22 @@ static_assert(sizeof(extent_item_tbr) == 33);
 
 struct ref_change {
     uint64_t address;
-    uint8_t level;
     uint64_t root;
-    bool metadata;
-    bool remove;
+    bool is_metadata;
+
+    union {
+        struct {
+            uint8_t level;
+            bool remove;
+        } metadata;
+        struct {
+            uint64_t extent_length;
+            uint64_t objectid;
+            uint64_t offset;
+            int32_t count;
+        } data;
+    };
+
     list_entry le;
 };
 

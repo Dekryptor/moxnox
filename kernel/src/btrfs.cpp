@@ -1388,10 +1388,10 @@ static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
         return nt_status::INSUFFICIENT_RESOURCES;
 
     rc->address = address;
-    rc->level = level;
     rc->root = root;
-    rc->remove = remove;
-    rc->metadata = true;
+    rc->is_metadata = true;
+    rc->metadata.remove = remove;
+    rc->metadata.level = level;
     insert_tail_list(fs.ref_changes, rc->le);
 
     return nt_status::SUCCESS;
@@ -2942,6 +2942,28 @@ static nt_status next_leaf(btrfs_path& p) {
     return nt_status::NOT_IMPLEMENTED;
 }
 
+static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
+                                 uint64_t extent_length, uint64_t root,
+                                 uint64_t objectid, uint64_t offset,
+                                 int32_t count) {
+    auto rc = (ref_change*)malloc(sizeof(ref_change));
+    if (!rc)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    rc->address = extent_address;
+    rc->root = root;
+    rc->is_metadata = false;
+    rc->data.extent_length = extent_length;
+    rc->data.objectid = objectid;
+    rc->data.offset = offset;
+    rc->data.count = count;
+
+    // FIXME - spinlock (or protected by rwsem?)
+    insert_tail_list(fs.ref_changes, rc->le);
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length) {
     auto& fs = inode.fs;
     btrfs_key search_key = { inode.inode, key_type::EXTENT_DATA, start };
@@ -3039,7 +3061,17 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         } else if (start > k.offset && start + length < k.offset + size) {
             // remove middle
 
+            // FIXME - handle explicit holes
+
             print("FIXME - remove file extent middle\n"); // FIXME
+
+            status = add_data_change(fs, ed.disk_bytenr, ed.disk_num_bytes,
+                                     inode.r->id, inode.inode,
+                                     k.offset - ed.offset, 1);
+            if (!success(status)) {
+                print("add_data_change returned {}\n", status);
+                return status;
+            }
 
             btrfs_file_extent_item new_ed;
 
@@ -3050,7 +3082,6 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
 
-            // FIXME - increase extent refcount (if not explicit hole)
 
             new_ed.offset += start + length - k.offset;
             new_ed.num_bytes -= start + length - k.offset;
@@ -3657,6 +3688,73 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
     return nt_status::SUCCESS;
 }
 
+static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& rc,
+                                        chunk& c) {
+    if (rc.metadata.remove) {
+        // FIXME - snapshotted metadata
+
+        auto status = fs.remove_item(*fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.metadata.level});
+        if (!success(status)) {
+            print("remove_item returned {}\n", status);
+            return status;
+        }
+
+        status = add_free_space(fs, rc.address, fs.sb->nodesize);
+        if (!success(status)) {
+            print("add_free_space returned {}\n", status);
+            return status;
+        }
+
+        c.delta -= fs.sb->nodesize;
+
+        auto sc = new chunk_space;
+        if (!sc)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        if (is_list_empty(c.pending_space_list))
+            insert_tail_list(fs.space_pending_chunks, c.space_pending_le);
+
+        sc->offset = rc.address;
+        sc->length = fs.sb->nodesize;
+        insert_tail_list(c.pending_space_list, sc->le);
+    } else {
+        extent_item_tbr eitbr;
+
+        eitbr.ei.refs = 1;
+        eitbr.ei.generation = fs.sb->generation;
+        eitbr.ei.flags = BTRFS_EXTENT_FLAG_TREE_BLOCK;
+        eitbr.type = key_type::TREE_BLOCK_REF;
+        eitbr.tbr.offset = rc.root;
+
+        auto status = insert_item(fs, *fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.metadata.level},
+                                    span((uint8_t*)&eitbr, sizeof(eitbr)));
+        if (!success(status)) {
+            print("insert_item returned {}\n", status);
+            return status;
+        }
+
+        status = remove_free_space(fs, rc.address, fs.sb->nodesize);
+        if (!success(status)) {
+            print("remove_free_space returned {}\n", status);
+            return status;
+        }
+
+        c.delta += fs.sb->nodesize;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
+                                    chunk& c) {
+    print("FIXME - do_ref_change_data (address = ({:x},{:x}), {:x}, {:x}, {:x}, {})\n",
+          rc.address, rc.data.extent_length, rc.root, rc.data.objectid, rc.data.offset, rc.data.count);
+
+    // FIXME
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status do_ref_changes(btrfs_filesystem& fs) {
     list_entry changed_chunks = { &changed_chunks, &changed_chunks };
 
@@ -3675,56 +3773,14 @@ static nt_status do_ref_changes(btrfs_filesystem& fs) {
             c->delta = 0;
         }
 
-        if (rc.remove) {
-            // FIXME - snapshotted metadata
-
-            auto status = fs.remove_item(*fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.level});
-            if (!success(status)) {
-                print("remove_item returned {}\n", status);
+        if (rc.is_metadata) {
+            auto status = do_ref_change_metadata(fs, rc, *c);
+            if (!success(status))
                 return status;
-            }
-
-            status = add_free_space(fs, rc.address, fs.sb->nodesize);
-            if (!success(status)) {
-                print("add_free_space returned {}\n", status);
-                return status;
-            }
-
-            c->delta -= fs.sb->nodesize;
-
-            auto sc = new chunk_space;
-            if (!sc)
-                return nt_status::INSUFFICIENT_RESOURCES;
-
-            if (is_list_empty(c->pending_space_list))
-                insert_tail_list(fs.space_pending_chunks, c->space_pending_le);
-
-            sc->offset = rc.address;
-            sc->length = fs.sb->nodesize;
-            insert_tail_list(c->pending_space_list, sc->le);
         } else {
-            extent_item_tbr eitbr;
-
-            eitbr.ei.refs = 1;
-            eitbr.ei.generation = fs.sb->generation;
-            eitbr.ei.flags = BTRFS_EXTENT_FLAG_TREE_BLOCK;
-            eitbr.type = key_type::TREE_BLOCK_REF;
-            eitbr.tbr.offset = rc.root;
-
-            auto status = insert_item(fs, *fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.level},
-                                      span((uint8_t*)&eitbr, sizeof(eitbr)));
-            if (!success(status)) {
-                print("insert_item returned {}\n", status);
+            auto status = do_ref_change_data(fs, rc, *c);
+            if (!success(status))
                 return status;
-            }
-
-            status = remove_free_space(fs, rc.address, fs.sb->nodesize);
-            if (!success(status)) {
-                print("remove_free_space returned {}\n", status);
-                return status;
-            }
-
-            c->delta += fs.sb->nodesize;
         }
 
         remove_entry_list(rc.le);
