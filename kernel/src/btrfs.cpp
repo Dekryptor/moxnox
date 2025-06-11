@@ -3141,6 +3141,8 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         auto size = ed.num_bytes; // FIXME - different if compressed(?)
 
         if (start <= k.offset && start + length >= k.offset + size) {
+            // remove entire file extent
+
             status = add_data_change(fs, ed.disk_bytenr, ed.disk_num_bytes,
                                      inode.r->id, inode.inode,
                                      k.offset - ed.offset, -1);
@@ -3860,7 +3862,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
 
     found = p.slots[0] < th.nritems && items[p.slots[0]].key == key;
 
-    // FIXME - if removing extent, add back to FST, remove from BGI, remove from csum tree, and adjust superblock
+    // FIXME - if removing extent, remove from csum tree
     // FIXME - if new extent, remove from FST, add to BGI, and adjust superblock
 
     if (!found) {
@@ -4004,12 +4006,31 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 }
 
                 if (-rc.data.count == (int32_t)ei.refs) {
+                    status = add_free_space(fs, rc.address, rc.data.extent_length);
+                    if (!success(status)) {
+                        print("add_free_space returned {}\n", status);
+                        return status;
+                    }
+
                     status = fs.remove_item2(p);
                     if (!success(status)) {
                         print("btrfs_filesystem::remove_item2 returned {} for {}\n",
                               status, key);
                         return status;
                     }
+
+                    c.delta -= rc.data.extent_length;
+
+                    auto sc = new chunk_space;
+                    if (!sc)
+                        return nt_status::INSUFFICIENT_RESOURCES;
+
+                    if (is_list_empty(c.pending_space_list))
+                        insert_tail_list(fs.space_pending_chunks, c.space_pending_le);
+
+                    sc->offset = rc.address;
+                    sc->length = rc.data.extent_length;
+                    insert_tail_list(c.pending_space_list, sc->le);
 
                     return nt_status::SUCCESS;
                 }
