@@ -967,7 +967,7 @@ bool btrfs_inode::load_inode() {
             case key_type::EXTENT_DATA: {
                 auto& ed = *(btrfs_file_extent_item*)data.data();
 
-                if (data.size() < offsetof(btrfs_file_extent_item, data)) {
+                if (data.size() < offsetof(btrfs_file_extent_item, disk_bytenr)) {
                     print("EXTENT_DATA was short\n");
                     break;
                 }
@@ -988,12 +988,12 @@ bool btrfs_inode::load_inode() {
                 }
 
                 if (ed.type == btrfs_extent_type::regular || ed.type == btrfs_extent_type::prealloc) {
-                    if (data.size() < offsetof(btrfs_file_extent_item, data) + sizeof(btrfs_file_extent_item2)) {
+                    if (data.size() < sizeof(btrfs_file_extent_item)) {
                         print("EXTENT_DATA was short\n");
                         break;
                     }
                 } else if (ed.type == btrfs_extent_type::inline_extent) {
-                    if (data.size() < offsetof(btrfs_file_extent_item, data) + ed.ram_bytes) {
+                    if (data.size() < offsetof(btrfs_file_extent_item, disk_bytenr) + ed.ram_bytes) {
                         print("EXTENT_DATA was short\n");
                         break;
                     }
@@ -1003,9 +1003,7 @@ bool btrfs_inode::load_inode() {
                 }
 
                 if (ed.type == btrfs_extent_type::regular) {
-                    auto& ed2 = *(btrfs_file_extent_item2*)ed.data;
-
-                    if (ed2.disk_bytenr == 0 || ed2.disk_num_bytes == 0) // skip sparse extents
+                    if (ed.disk_bytenr == 0 || ed.disk_num_bytes == 0) // skip sparse extents
                         break;
                 }
 
@@ -2715,7 +2713,7 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
         uint64_t offset = (page_num + i) << PAGE_SHIFT;
         auto to_copy = min((uint64_t)PAGE_SIZE, ie.ed.ram_bytes - offset);
 
-        memcpy(dest_va, ie.ed.data + offset, to_copy);
+        memcpy(dest_va, (uint8_t*)&ie.ed.disk_bytenr + offset, to_copy);
 
         memset((uint8_t*)dest_va + to_copy, 0, PAGE_SIZE - to_copy);
     }
@@ -2801,11 +2799,9 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
         return 0;
     }
 
-    const auto& ed2 = *(btrfs_file_extent_item2*)ie.ed.data;
+    uint64_t addr = ie.ed.disk_bytenr + ie.ed.offset + (page_num << PAGE_SHIFT) - ie.offset;
 
-    uint64_t addr = ed2.disk_bytenr + ed2.offset + (page_num << PAGE_SHIFT) - ie.offset;
-
-    num_pages = min(num_pages, ed2.num_bytes >> PAGE_SHIFT);
+    num_pages = min(num_pages, ie.ed.num_bytes >> PAGE_SHIFT);
 
     auto pages_read = fs.cache.read_into_cache_and_pin(addr >> PAGE_SHIFT,
                                                        num_pages);
@@ -3002,9 +2998,9 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
 
         auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
-        if (it.size < offsetof(btrfs_file_extent_item, data)) {
+        if (it.size < offsetof(btrfs_file_extent_item, disk_bytenr)) {
             print("short item at {} ({} bytes, expected at least {})\n",
-                  k, it.size, offsetof(btrfs_file_extent_item, data));
+                  k, it.size, offsetof(btrfs_file_extent_item, disk_bytenr));
             return nt_status::DISK_CORRUPT_ERROR;
         }
 
@@ -3023,15 +3019,13 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             return nt_status::NOT_IMPLEMENTED;
         }
 
-        if (it.size < offsetof(btrfs_file_extent_item, data) + sizeof(btrfs_file_extent_item2)) {
+        if (it.size < sizeof(btrfs_file_extent_item)) {
             print("short item at {} ({} bytes, expected {})\n",
-                  k, it.size, offsetof(btrfs_file_extent_item, data) + sizeof(btrfs_file_extent_item2));
+                  k, it.size, sizeof(btrfs_file_extent_item));
             return nt_status::DISK_CORRUPT_ERROR;
         }
 
-        auto& ed2 = *(btrfs_file_extent_item2*)ed.data;
-
-        auto size = ed2.num_bytes; // FIXME - different if compressed(?)
+        auto size = ed.num_bytes; // FIXME - different if compressed(?)
 
         if (start <= k.offset && start + length >= k.offset + size) {
             print("FIXME - remove file extent entirely\n"); // FIXME
@@ -3051,8 +3045,8 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
 
             new_key.offset += start + length - k.offset;
 
-            ed2.offset += start + length - k.offset;
-            ed2.num_bytes -= start + length - k.offset;
+            ed.offset += start + length - k.offset;
+            ed.num_bytes -= start + length - k.offset;
 
             inode.ii.nbytes -= start + length - k.offset;
             changed_inode = true;
@@ -3065,7 +3059,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         } else if (start > k.offset && start < k.offset + size) {
             // remove end
 
-            ed2.num_bytes -= k.offset + size - start;
+            ed.num_bytes -= k.offset + size - start;
 
             inode.ii.nbytes -= k.offset + size - start;
             changed_inode = true;

@@ -354,19 +354,13 @@ struct btrfs_file_extent_item {
     uint8_t encryption;
     uint16_t other_encoding;
     enum btrfs_extent_type type;
-    uint8_t data[1];
-} __attribute__((packed));
-
-static_assert(offsetof(btrfs_file_extent_item, data) == 21);
-
-struct btrfs_file_extent_item2 {
     uint64_t disk_bytenr;
     uint64_t disk_num_bytes;
     uint64_t offset;
     uint64_t num_bytes;
-};
+} __attribute__((packed));
 
-static_assert(sizeof(btrfs_file_extent_item2) == 32);
+static_assert(sizeof(btrfs_file_extent_item) == 53);
 
 struct btrfs_inode_ref {
     uint64_t index;
