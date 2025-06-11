@@ -3036,8 +3036,36 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             // FIXME - if now 0, update BGI
             // FIXME - if now 0, update superblock
         } else if (start > k.offset && start + length < k.offset + size) {
+            // remove middle
+
             print("FIXME - remove file extent middle\n"); // FIXME
-            // FIXME - remove middle
+
+            btrfs_file_extent_item new_ed;
+
+            memcpy(&new_ed, &ed, sizeof(btrfs_file_extent_item));
+
+            ed.num_bytes = start - k.offset;
+
+            if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+                return nt_status::INTERNAL_ERROR;
+
+            // FIXME - increase extent refcount (if not explicit hole)
+
+            new_ed.offset += start + length - k.offset;
+            new_ed.num_bytes -= start + length - k.offset;
+
+            // add new file extent
+            status = insert_item(fs, *inode.r, {inode.inode, key_type::EXTENT_DATA, start + length},
+                                 span((uint8_t*)&new_ed, sizeof(new_ed)));
+            if (!success(status)) {
+                print("insert_item returned {}\n", status);
+                return status;
+            }
+
+            inode.ii.nbytes -= length;
+            changed_inode = true;
+
+            break;
         } else if (start + length > k.offset && start + length < k.offset + size) {
             // remove beginning
 
