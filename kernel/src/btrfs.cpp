@@ -4001,8 +4001,14 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 }
 
                 if (-rc.data.count == (int32_t)ei.refs) {
-                    print("do_ref_change_data: FIXME - delete item {}\n", key); // FIXME
-                    return nt_status::NOT_IMPLEMENTED;
+                    status = fs.remove_item2(p);
+                    if (!success(status)) {
+                        print("btrfs_filesystem::remove_item2 returned {} for {}\n",
+                              status, key);
+                        return status;
+                    }
+
+                    return nt_status::SUCCESS;
                 }
 
                 // FIXME - if edr.count == -rc.data.count && ei.refs != edr.count, remove inline ref but keep extent item
