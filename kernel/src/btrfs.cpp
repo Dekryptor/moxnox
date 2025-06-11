@@ -3098,8 +3098,6 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        print("{}\n", k);
-
         if (k.objectid > inode.inode)
             break;
 
@@ -3143,8 +3141,6 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         auto size = ed.num_bytes; // FIXME - different if compressed(?)
 
         if (start <= k.offset && start + length >= k.offset + size) {
-            print("FIXME - remove file extent entirely\n");
-
             status = add_data_change(fs, ed.disk_bytenr, ed.disk_num_bytes,
                                      inode.r->id, inode.inode,
                                      k.offset - ed.offset, -1);
@@ -3153,7 +3149,14 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
                 return status;
             }
 
-            // FIXME - delete file extent
+            status = fs.remove_item2(p);
+            if (!success(status)) {
+                print("btrfs_filesystem::remove_item2 returned {}\n", status);
+                return status;
+            }
+
+            inode.ii.nbytes -= size;
+            changed_inode = true;
         } else if (start > k.offset && start + length < k.offset + size) {
             // remove middle
 
@@ -3857,7 +3860,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
 
     found = p.slots[0] < th.nritems && items[p.slots[0]].key == key;
 
-    // FIXME - if removing extent, add back to FST, remove from BGI, and adjust superblock
+    // FIXME - if removing extent, add back to FST, remove from BGI, remove from csum tree, and adjust superblock
     // FIXME - if new extent, remove from FST, add to BGI, and adjust superblock
 
     if (!found) {
