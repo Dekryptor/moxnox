@@ -110,6 +110,98 @@ span<char> do_format_arg(span<char> sp, string_view, const btrfs_key& k) {
     return sp;
 }
 
+template<>
+consteval bool format_spec_valid<enum key_type>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, enum key_type t) {
+    switch (t) {
+        case key_type::INODE_ITEM:
+            return do_format_arg(sp, "", "INODE_ITEM");
+        case key_type::INODE_REF:
+            return do_format_arg(sp, "", "INODE_REF");
+        case key_type::INODE_EXTREF:
+            return do_format_arg(sp, "", "INODE_EXTREF");
+        case key_type::XATTR_ITEM:
+            return do_format_arg(sp, "", "XATTR_ITEM");
+        case key_type::VERITY_DESC_ITEM:
+            return do_format_arg(sp, "", "VERITY_DESC_ITEM");
+        case key_type::VERITY_MERKLE_ITEM:
+            return do_format_arg(sp, "", "VERITY_MERKLE_ITEM");
+        case key_type::ORPHAN_INODE:
+            return do_format_arg(sp, "", "ORPHAN_INODE");
+        case key_type::DIR_LOG_INDEX:
+            return do_format_arg(sp, "", "DIR_LOG_INDEX");
+        case key_type::DIR_ITEM:
+            return do_format_arg(sp, "", "DIR_ITEM");
+        case key_type::DIR_INDEX:
+            return do_format_arg(sp, "", "DIR_INDEX");
+        case key_type::EXTENT_DATA:
+            return do_format_arg(sp, "", "EXTENT_DATA");
+        case key_type::EXTENT_CSUM:
+            return do_format_arg(sp, "", "EXTENT_CSUM");
+        case key_type::ROOT_ITEM:
+            return do_format_arg(sp, "", "ROOT_ITEM");
+        case key_type::ROOT_BACKREF:
+            return do_format_arg(sp, "", "ROOT_BACKREF");
+        case key_type::ROOT_REF:
+            return do_format_arg(sp, "", "ROOT_REF");
+        case key_type::EXTENT_ITEM:
+            return do_format_arg(sp, "", "EXTENT_ITEM");
+        case key_type::METADATA_ITEM:
+            return do_format_arg(sp, "", "METADATA_ITEM");
+        case key_type::EXTENT_OWNER_REF:
+            return do_format_arg(sp, "", "EXTENT_OWNER_REF");
+        case key_type::TREE_BLOCK_REF:
+            return do_format_arg(sp, "", "TREE_BLOCK_REF");
+        case key_type::EXTENT_DATA_REF:
+            return do_format_arg(sp, "", "EXTENT_DATA_REF");
+        case key_type::SHARED_BLOCK_REF:
+            return do_format_arg(sp, "", "SHARED_BLOCK_REF");
+        case key_type::SHARED_DATA_REF:
+            return do_format_arg(sp, "", "SHARED_DATA_REF");
+        case key_type::BLOCK_GROUP_ITEM:
+            return do_format_arg(sp, "", "BLOCK_GROUP_ITEM");
+        case key_type::FREE_SPACE_INFO:
+            return do_format_arg(sp, "", "FREE_SPACE_INFO");
+        case key_type::FREE_SPACE_EXTENT:
+            return do_format_arg(sp, "", "FREE_SPACE_EXTENT");
+        case key_type::FREE_SPACE_BITMAP:
+            return do_format_arg(sp, "", "FREE_SPACE_BITMAP");
+        case key_type::DEV_EXTENT:
+            return do_format_arg(sp, "", "DEV_EXTENT");
+        case key_type::DEV_ITEM:
+            return do_format_arg(sp, "", "DEV_ITEM");
+        case key_type::CHUNK_ITEM:
+            return do_format_arg(sp, "", "CHUNK_ITEM");
+        case key_type::RAID_STRIPE:
+            return do_format_arg(sp, "", "RAID_STRIPE");
+        case key_type::QGROUP_STATUS:
+            return do_format_arg(sp, "", "QGROUP_STATUS");
+        case key_type::QGROUP_INFO:
+            return do_format_arg(sp, "", "QGROUP_INFO");
+        case key_type::QGROUP_LIMIT:
+            return do_format_arg(sp, "", "QGROUP_LIMIT");
+        case key_type::QGROUP_RELATION:
+            return do_format_arg(sp, "", "QGROUP_RELATION");
+        case key_type::TEMPORARY_ITEM:
+            return do_format_arg(sp, "", "TEMPORARY_ITEM");
+        case key_type::PERSISTENT_ITEM:
+            return do_format_arg(sp, "", "PERSISTENT_ITEM");
+        case key_type::DEV_REPLACE:
+            return do_format_arg(sp, "", "DEV_REPLACE");
+        case key_type::UUID_SUBVOL:
+            return do_format_arg(sp, "", "UUID_SUBVOL");
+        case key_type::UUID_RECEIVED_SUBVOL:
+            return do_format_arg(sp, "", "UUID_RECEIVED_SUBVOL");
+        case key_type::STRING_ITEM:
+            return do_format_arg(sp, "", "STRING_ITEM");
+        default:
+            return do_format_arg(sp, "", (unsigned int)t);
+    }
+}
+
 btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     vol.acquire();
 
@@ -3747,12 +3839,181 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
 
 static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                                     chunk& c) {
+    btrfs_path p(fs.sb->nodesize);
+    btrfs_key key;
+    nt_status status;
+
     print("FIXME - do_ref_change_data (address = ({:x},{:x}), {:x}, {:x}, {:x}, {})\n",
           rc.address, rc.data.extent_length, rc.root, rc.data.objectid, rc.data.offset, rc.data.count);
 
-    // FIXME
+    key = {rc.address, key_type::EXTENT_ITEM, rc.data.extent_length};
 
-    return nt_status::SUCCESS;
+    status = fs.find_item(*fs.extent_root, key, p, true);
+    if (!success(status))
+        return status;
+
+    bool found;
+
+    auto& th = *(btrfs_header*)p.data[0];
+    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+    found = p.slots[0] < th.nritems && items[p.slots[0]].key == key;
+
+    // FIXME - if removing extent, add back to FST, remove from BGI, and adjust superblock
+    // FIXME - if new extent, remove from FST, add to BGI, and adjust superblock
+
+    if (!found) {
+        if (rc.data.count > 0) {
+            extent_item_edr eiedr;
+
+            eiedr.ei.refs = rc.data.count;
+            eiedr.ei.generation = fs.sb->generation;
+            eiedr.ei.flags = BTRFS_EXTENT_FLAG_DATA;
+            eiedr.type = key_type::EXTENT_DATA_REF;
+            eiedr.edr.root = rc.root;
+            eiedr.edr.objectid = rc.data.objectid;
+            eiedr.edr.offset = rc.data.offset;
+            eiedr.edr.count = rc.data.count;
+
+            status = insert_item(fs, *fs.extent_root, key,
+                                 span((const uint8_t*)&eiedr, sizeof(eiedr)));
+            if (!success(status)) {
+                print("insert_item returned {} for {}\n", status, key);
+                return status;
+            }
+
+            return nt_status::SUCCESS;
+        } else {
+            print("do_ref_change_data: {:x}, {:x}: trying to decrease refcount on non-existent extent\n",
+                  rc.address, rc.data.extent_length);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+    }
+
+    auto& it = items[p.slots[0]];
+
+    print("do_ref_change_data: FIXME\n");
+
+    // FIXME - handle non-inline extent items
+    // FIXME - make sure inline ref items are in correct order
+
+    auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+    if (data.size() < sizeof(btrfs_extent_item)) {
+        print("do_ref_change_data: extent item {} was {} bytes, expected at least {}\n",
+              key, data.size(), sizeof(btrfs_extent_item));
+        return nt_status::DISK_CORRUPT_ERROR;
+    }
+
+    auto& ei = *(btrfs_extent_item*)data.data();
+
+    auto inl = span(data.data() + sizeof(btrfs_extent_item),
+                    data.size() - sizeof(btrfs_extent_item));
+
+    // FIXME - inline refs are in order, we might be able to give up early
+
+    while (!inl.empty()) {
+        auto type = (key_type)inl[0];
+
+        inl = span(inl.data() + sizeof(key_type), inl.size() - sizeof(key_type));
+
+        switch (type) {
+            case key_type::TREE_BLOCK_REF:
+                if (inl.size() < sizeof(tree_block_ref)) {
+                    print("do_ref_change_data: extent item {} was truncated\n",
+                          key);
+                    return nt_status::DISK_CORRUPT_ERROR;
+                }
+
+                inl = span(inl.data() + sizeof(tree_block_ref),
+                           inl.size() - sizeof(tree_block_ref));
+            break;
+
+            case key_type::SHARED_BLOCK_REF:
+                if (inl.size() < sizeof(shared_block_ref)) {
+                    print("do_ref_change_data: extent item {} was truncated\n",
+                          key);
+                    return nt_status::DISK_CORRUPT_ERROR;
+                }
+
+                inl = span(inl.data() + sizeof(shared_block_ref),
+                           inl.size() - sizeof(shared_block_ref));
+            break;
+
+            case key_type::SHARED_DATA_REF:
+                if (inl.size() < sizeof(btrfs_shared_data_ref)) {
+                    print("do_ref_change_data: extent item {} was truncated\n",
+                          key);
+                    return nt_status::DISK_CORRUPT_ERROR;
+                }
+
+                inl = span(inl.data() + sizeof(btrfs_shared_data_ref),
+                           inl.size() - sizeof(btrfs_shared_data_ref));
+            break;
+
+            case key_type::EXTENT_OWNER_REF:
+                if (inl.size() < sizeof(btrfs_extent_owner_ref)) {
+                    print("do_ref_change_data: extent item {} was truncated\n",
+                          key);
+                    return nt_status::DISK_CORRUPT_ERROR;
+                }
+
+                inl = span(inl.data() + sizeof(btrfs_extent_owner_ref),
+                           inl.size() - sizeof(btrfs_extent_owner_ref));
+            break;
+
+            case key_type::EXTENT_DATA_REF: {
+                if (inl.size() < sizeof(btrfs_extent_data_ref)) {
+                    print("do_ref_change_data: extent item {} was truncated\n",
+                          key);
+                    return nt_status::DISK_CORRUPT_ERROR;
+                }
+
+                auto& edr = *(btrfs_extent_data_ref*)inl.data();
+
+                if (edr.root != rc.root ||
+                    edr.objectid != rc.data.objectid ||
+                    edr.offset != rc.data.offset) {
+                    inl = span(inl.data() + sizeof(btrfs_extent_data_ref),
+                               inl.size() - sizeof(btrfs_extent_data_ref));
+                    break;
+                }
+
+                if (rc.data.count > 0) {
+                    edr.count += rc.data.count;
+                    ei.refs += rc.data.count;
+
+                    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+                        return nt_status::INTERNAL_ERROR;
+
+                    return nt_status::SUCCESS;
+                }
+
+                print("do_ref_change_data: FIXME - reduce refcount of ref ({})\n", key);
+
+                // FIXME - reduce count and overall refcount
+                // FIXME - if ref item count now 0, remove ref count
+                // FIXME - if overall refcount now 0, remove entirely
+
+                return nt_status::INTERNAL_ERROR;
+            }
+
+            default:
+                print("do_ref_change_data: unexpected inline extent type {} in {}\n",
+                      type, key);
+                return nt_status::DISK_CORRUPT_ERROR;
+        }
+    }
+
+    if (rc.data.count < 0) {
+        print("do_ref_change_data: trying to decrease refcount for non-existent ref in {}\n",
+              key);
+        return nt_status::DISK_CORRUPT_ERROR;
+    }
+
+    print("do_ref_change_data: FIXME - add new ref ({})\n", key);
+    // FIXME - add new ref and increase overall refcount
+
+    return nt_status::INTERNAL_ERROR;
 }
 
 static nt_status do_ref_changes(btrfs_filesystem& fs) {

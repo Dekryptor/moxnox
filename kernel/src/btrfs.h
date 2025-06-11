@@ -425,6 +425,12 @@ struct tree_block_ref {
 
 static_assert(sizeof(tree_block_ref) == 8);
 
+struct shared_block_ref {
+    uint64_t offset;
+};
+
+static_assert(sizeof(shared_block_ref) == 8);
+
 struct extent_item_tbr {
     btrfs_extent_item ei;
     key_type type;
@@ -432,6 +438,35 @@ struct extent_item_tbr {
 } __attribute__((packed));
 
 static_assert(sizeof(extent_item_tbr) == 33);
+
+struct btrfs_extent_data_ref {
+    uint64_t root;
+    uint64_t objectid;
+    uint64_t offset;
+    uint32_t count;
+} __attribute__((packed));
+
+static_assert(sizeof(btrfs_extent_data_ref) == 28);
+
+struct extent_item_edr {
+    btrfs_extent_item ei;
+    key_type type;
+    btrfs_extent_data_ref edr;
+} __attribute__((packed));
+
+static_assert(sizeof(extent_item_edr) == 53);
+
+struct btrfs_shared_data_ref {
+    uint32_t count;
+} __attribute__((packed));
+
+static_assert(sizeof(btrfs_shared_data_ref) == 4);
+
+struct btrfs_extent_owner_ref {
+    uint64_t root_id;
+} __attribute__((packed));
+
+static_assert(sizeof(btrfs_extent_owner_ref) == 8);
 
 struct ref_change {
     uint64_t address;
