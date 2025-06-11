@@ -2951,7 +2951,9 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
     btrfs_path p(fs.sb->nodesize);
     nt_status status;
 
-    status = fs.find_item(*inode.r, search_key, p, false);
+    // FIXME - rwsem?
+
+    status = fs.find_item(*inode.r, search_key, p, true);
     if (!success(status))
         return status;
 
@@ -2980,7 +2982,8 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
                 return status;
         }
 
-        const auto& k = items[p.slots[0]].key;
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.key;
 
         print("{}\n", k);
 
@@ -2995,15 +2998,74 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
 
         // FIXME - inline extents
 
-        // FIXME - remove file extent entirely
-        // FIXME - remove beginning
-        // FIXME - remove end
-        // FIXME - remove middle
+        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
-        // FIXME - reduce refcount of extent in extent tree
-        // FIXME - if now 0, add back to FST
-        // FIXME - if now 0, update BGI
-        // FIXME - if now 0, update superblock
+        if (it.size < offsetof(btrfs_file_extent_item, data)) {
+            print("short item at {} ({} bytes, expected at least {})\n",
+                  k, it.size, offsetof(btrfs_file_extent_item, data));
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        auto& ed = *(btrfs_file_extent_item*)data.data();
+
+        if (ed.type == btrfs_extent_type::inline_extent) {
+            print("FIXME - inline extents\n"); // FIXME
+            return nt_status::NOT_IMPLEMENTED;
+        } else if (ed.type != btrfs_extent_type::regular && ed.type != btrfs_extent_type::prealloc) {
+            print("unexpected file extent type {}\n", (unsigned int)ed.type);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        if (ed.compression != 0) {
+            print("FIXME - compression\n"); // FIXME
+            return nt_status::NOT_IMPLEMENTED;
+        }
+
+        if (it.size < offsetof(btrfs_file_extent_item, data) + sizeof(btrfs_file_extent_item2)) {
+            print("short item at {} ({} bytes, expected {})\n",
+                  k, it.size, offsetof(btrfs_file_extent_item, data) + sizeof(btrfs_file_extent_item2));
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        auto& ed2 = *(btrfs_file_extent_item2*)ed.data;
+
+        auto size = ed2.num_bytes; // FIXME - different if compressed(?)
+
+        if (start <= k.offset && start + length >= k.offset + size) {
+            print("FIXME - remove file extent entirely\n"); // FIXME
+            // FIXME - remove file extent entirely
+
+            // FIXME - reduce refcount of extent in extent tree
+            // FIXME - if now 0, add back to FST
+            // FIXME - if now 0, update BGI
+            // FIXME - if now 0, update superblock
+        } else if (start > k.offset && start + length < k.offset + size) {
+            print("FIXME - remove file extent middle\n"); // FIXME
+            // FIXME - remove middle
+        } else if (start + length > k.offset && start + length < k.offset + size) {
+            auto new_key = k;
+
+            new_key.offset += start + length - k.offset;
+
+            ed2.offset += start + length - k.offset;
+            ed2.num_bytes -= start + length - k.offset;
+
+            status = fs.change_key(p, new_key);
+            if (!success(status)) {
+                print("btrfs_filesystem:::change_key returned {}\n", status);
+                return status;
+            }
+
+            // FIXME - inode_item transid
+            // FIXME - inode_item nbytes
+            // FIXME - inode_item seq
+        } else if (start > k.offset && start < k.offset + size) {
+            print("FIXME - remove file extent end\n"); // FIXME
+            // FIXME - remove end
+        }
+
+        if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+            return nt_status::INTERNAL_ERROR;
 
         p.slots[0]++;
     }
@@ -3038,6 +3100,8 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
         // FIXME - free addr
         return status;
     }
+
+    // FIXME - update inode item ctime and mtime
 
     // FIXME - find space for new extent
     // FIXME - carve out of FST
