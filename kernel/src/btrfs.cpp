@@ -3143,19 +3143,21 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         auto size = ed.num_bytes; // FIXME - different if compressed(?)
 
         if (start <= k.offset && start + length >= k.offset + size) {
-            print("FIXME - remove file extent entirely\n"); // FIXME
-            // FIXME - remove file extent entirely
+            print("FIXME - remove file extent entirely\n");
 
-            // FIXME - reduce refcount of extent in extent tree
-            // FIXME - if now 0, add back to FST
-            // FIXME - if now 0, update BGI
-            // FIXME - if now 0, update superblock
+            status = add_data_change(fs, ed.disk_bytenr, ed.disk_num_bytes,
+                                     inode.r->id, inode.inode,
+                                     k.offset - ed.offset, -1);
+            if (!success(status)) {
+                print("add_data_change returned {}\n", status);
+                return status;
+            }
+
+            // FIXME - delete file extent
         } else if (start > k.offset && start + length < k.offset + size) {
             // remove middle
 
             // FIXME - handle explicit holes
-
-            print("FIXME - remove file extent middle\n"); // FIXME
 
             status = add_data_change(fs, ed.disk_bytenr, ed.disk_num_bytes,
                                      inode.r->id, inode.inode,
@@ -3173,7 +3175,6 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
 
             if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
-
 
             new_ed.offset += start + length - k.offset;
             new_ed.num_bytes -= start + length - k.offset;
@@ -3843,9 +3844,6 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
     btrfs_key key;
     nt_status status;
 
-    print("FIXME - do_ref_change_data (address = ({:x},{:x}), {:x}, {:x}, {:x}, {})\n",
-          rc.address, rc.data.extent_length, rc.root, rc.data.objectid, rc.data.offset, rc.data.count);
-
     key = {rc.address, key_type::EXTENT_ITEM, rc.data.extent_length};
 
     status = fs.find_item(*fs.extent_root, key, p, true);
@@ -3891,8 +3889,6 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
     }
 
     auto& it = items[p.slots[0]];
-
-    print("do_ref_change_data: FIXME\n");
 
     // FIXME - handle non-inline extent items
     // FIXME - make sure inline ref items are in correct order
@@ -3988,11 +3984,30 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                     return nt_status::SUCCESS;
                 }
 
-                print("do_ref_change_data: FIXME - reduce refcount of ref ({})\n", key);
+                if (-rc.data.count > (int32_t)edr.count) {
+                    print("do_ref_change_data: trying to reduce refcount of ref in {} to negative value\n",
+                          key);
+                    return nt_status::DISK_CORRUPT_ERROR;
+                }
 
-                // FIXME - reduce count and overall refcount
-                // FIXME - if ref item count now 0, remove ref count
-                // FIXME - if overall refcount now 0, remove entirely
+                if (-rc.data.count < (int32_t)edr.count) {
+                    edr.count += rc.data.count;
+                    ei.refs += rc.data.count;
+
+                    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+                        return nt_status::INTERNAL_ERROR;
+
+                    return nt_status::SUCCESS;
+                }
+
+                if (-rc.data.count == (int32_t)ei.refs) {
+                    print("do_ref_change_data: FIXME - delete item {}\n", key); // FIXME
+                    return nt_status::NOT_IMPLEMENTED;
+                }
+
+                // FIXME - if edr.count == -rc.data.count && ei.refs != edr.count, remove inline ref but keep extent item
+
+                print("do_ref_change_data: FIXME - reduce refcount of ref {}\n", key);
 
                 return nt_status::INTERNAL_ERROR;
             }
