@@ -3031,6 +3031,8 @@ static uint32_t leaf_nritems(const btrfs_path& p) {
 static nt_status next_leaf(btrfs_path& p) {
     // FIXME
 
+    // FIXME - handle case when at end of tree
+
     return nt_status::NOT_IMPLEMENTED;
 }
 
@@ -3843,6 +3845,108 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
     return nt_status::SUCCESS;
 }
 
+static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
+                              uint64_t length) {
+    btrfs_path p(fs.sb->nodesize);
+    btrfs_key search_key = { BTRFS_EXTENT_CSUM_OBJECTID, key_type::EXTENT_CSUM, address };
+
+    static const size_t CSUM_SIZE = sizeof(uint32_t); // FIXME
+
+    print("FIXME - remove_csums({:x}, {:x})\n", address, length);
+
+    auto status = fs.find_item(*fs.csum_root, search_key, p, true);
+    if (!success(status))
+        return status;
+
+    auto& th = *(btrfs_header*)p.data[0];
+    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+    if (th.nritems == 0)
+        return nt_status::SUCCESS;
+
+    if (p.slots[0] == th.nritems)
+        p.slots[0]--;
+    else if (items[p.slots[0]].key.offset > address && p.slots[0] != 0)
+        p.slots[0]--;
+
+    while (length > 0) {
+        if (p.slots[0] == leaf_nritems(p)) {
+            status = next_leaf(p);
+            if (!success(status))
+                return status;
+        }
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.key;
+
+        print("found {}\n", k);
+
+        if (k.offset >= address + length)
+            break;
+
+        if (k.type > key_type::EXTENT_CSUM)
+            break;
+
+        if (k.objectid > BTRFS_EXTENT_CSUM_OBJECTID)
+            break;
+
+        auto data = span((uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+        auto size = (it.size / CSUM_SIZE) * fs.sb->sectorsize; // FIXME - different if not crc32
+
+        // FIXME - remove beginning
+        // FIXME - remove end
+        // FIXME - remove whole
+        // FIXME - remove middle
+
+        if (address <= k.offset && address + length >= k.offset + size) {
+            print("FIXME - remove entire csum entry\n");
+
+            // FIXME
+        } else if (address > k.offset && address + length < k.offset + size) {
+            print("FIXME - remove middle of csum entry\n");
+
+            // FIXME
+        } else if (address + length > k.offset && address + length < k.offset + size) {
+            // remove beginning
+
+            print("FIXME - remove beginning of csum entry\n");
+
+            auto new_key = k;
+
+            auto delta_sectors = (address + length - k.offset) / fs.sb->sectorsize;
+
+            new_key.offset += delta_sectors * fs.sb->sectorsize;
+
+            print("{} -> {} ({:x})\n", k, new_key, th.bytenr);
+
+            // move item data backwards
+            memmove(data.data(), data.data() + (delta_sectors * CSUM_SIZE),
+                    data.size() - (delta_sectors * CSUM_SIZE));
+
+            // FIXME - shorten item
+
+            status = fs.change_key(p, new_key);
+            if (!success(status)) {
+                print("btrfs_filesystem:::change_key returned {}\n", status);
+                return status;
+            }
+
+            length = 0;
+        } else if (address > k.offset && address < k.offset + size) {
+            print("FIXME - remove end of csum entry\n");
+
+            // FIXME
+        }
+
+        if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+            return nt_status::INTERNAL_ERROR;
+
+        p.slots[0]++;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                                     chunk& c) {
     btrfs_path p(fs.sb->nodesize);
@@ -4031,6 +4135,14 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                     sc->offset = rc.address;
                     sc->length = rc.data.extent_length;
                     insert_tail_list(c.pending_space_list, sc->le);
+
+                    status = remove_csums(fs, rc.address, rc.data.extent_length);
+                    if (!success(status)) {
+                        print("remove_csums returned {}\n", status);
+                        return status;
+                    }
+
+                    // FIXME - TRIM
 
                     return nt_status::SUCCESS;
                 }
