@@ -447,38 +447,43 @@ nt_status volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     page_cache_iterator iter(cache, page_num);
 
-    uint64_t flushed;
+    while (num_pages > 0) {
+        uint64_t flushed;
 
-    auto status = dio_write(page_num, num_pages, iter, flushed);
-    if (!success(status)) {
-        cache.unpin(page_num, num_pages);
-        return status;
-    }
-
-    if (flushed < num_pages)
-        cache.unpin(page_num + flushed, num_pages - flushed);
-
-    if (flushed == 0)
-        return nt_status::INTERNAL_ERROR;
-
-    // mark page cache entries as clean
-
-    {
-        lock_guard lg(cache.cache_lock);
-
-        auto* p = cache.find_page_cache_entry(page_num);
-
-        for (unsigned int i = 0; i < flushed; i++) {
-            if (i != 0)
-                p = cache.next_page_cache_entry(*p);
-
-            assert(p->tree.key == page_num + i);
-
-            p->dirty = 0;
+        auto status = dio_write(page_num, num_pages, iter, flushed);
+        if (!success(status)) {
+            cache.unpin(page_num, num_pages);
+            return status;
         }
-    }
 
-    cache.unpin(page_num, flushed);
+        if (flushed == 0) {
+            cache.unpin(page_num, num_pages);
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        // mark page cache entries as clean
+
+        {
+            lock_guard lg(cache.cache_lock);
+
+            auto* p = cache.find_page_cache_entry(page_num);
+
+            for (unsigned int i = 0; i < flushed; i++) {
+                if (i != 0)
+                    p = cache.next_page_cache_entry(*p);
+
+                assert(p->tree.key == page_num + i);
+
+                p->dirty = 0;
+            }
+        }
+
+        cache.unpin(page_num, flushed);
+
+        ++iter;
+        page_num += flushed;
+        num_pages -= flushed;
+    }
 
     return nt_status::SUCCESS;
 }
