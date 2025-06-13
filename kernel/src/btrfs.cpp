@@ -3918,9 +3918,15 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
         // FIXME - remove middle
 
         if (address <= k.offset && address + length >= k.offset + size) {
-            print("FIXME - remove entire csum entry\n");
+            // remove whole entry
 
-            // FIXME
+            status = fs.remove_item2(p);
+            if (!success(status)) {
+                print("btrfs_filesystem::remove_item2 returned {}\n", status);
+                return status;
+            }
+
+            continue;
         } else if (address > k.offset && address + length < k.offset + size) {
             print("FIXME - remove middle of csum entry\n");
 
