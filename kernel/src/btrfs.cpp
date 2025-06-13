@@ -246,6 +246,11 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         return;
     }
 
+    sb->incompat_flags |= BTRFS_FEATURE_INCOMPAT_BIG_METADATA |
+                          BTRFS_FEATURE_INCOMPAT_EXTENDED_IREF |
+                          BTRFS_FEATURE_INCOMPAT_SKINNY_METADATA |
+                          BTRFS_FEATURE_INCOMPAT_NO_HOLES;
+
     // FIXME - support free space cache?
     if (!(sb->compat_ro_flags & (BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE | BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID))) {
         print("free space cache not supported\n");
