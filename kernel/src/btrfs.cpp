@@ -3121,13 +3121,8 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.objectid > inode.inode)
-            break;
-
-        if (k.type > key_type::EXTENT_DATA)
-            break;
-
-        if (k.offset >= start + length)
+        if (k.objectid != inode.inode || k.type != key_type::EXTENT_DATA ||
+            k.offset >= start + length)
             break;
 
         // FIXME - inline extents
@@ -3146,7 +3141,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             print("FIXME - inline extents\n"); // FIXME
             return nt_status::NOT_IMPLEMENTED;
         } else if (ed.type != btrfs_extent_type::regular && ed.type != btrfs_extent_type::prealloc) {
-            print("unexpected file extent type {}\n", (unsigned int)ed.type);
+            print("unexpected file extent type {:x}\n", (unsigned int)ed.type);
             return nt_status::DISK_CORRUPT_ERROR;
         }
 
