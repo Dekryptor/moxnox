@@ -3948,9 +3948,11 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
 
             length = 0;
         } else if (address > k.offset && address < k.offset + size) {
-            print("FIXME - remove end of csum entry\n");
+            // remove end
 
-            // FIXME
+            auto delta_sectors = (k.offset + size - address) / fs.sb->sectorsize;
+
+            fs.shorten_item(p, (uint32_t)(delta_sectors * CSUM_SIZE));
         }
 
         if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
