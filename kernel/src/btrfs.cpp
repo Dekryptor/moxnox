@@ -2200,6 +2200,8 @@ void btrfs_filesystem::shorten_item(btrfs_path& p, uint32_t delta) {
     memmove(p.data[0] + sizeof(btrfs_header) + items[th.nritems - 1].offset,
             p.data[0] + sizeof(btrfs_header) + items[th.nritems - 1].offset - delta,
             to_move);
+
+    cache.write(span(p.data[0], sb->nodesize), th.bytenr); // FIXME - return status
 }
 
 bool btrfs_filesystem::move_path_back(btrfs_path& p) {
@@ -3871,8 +3873,6 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
 
     static const size_t CSUM_SIZE = sizeof(uint32_t); // FIXME
 
-    print("FIXME - remove_csums({:x}, {:x})\n", address, length);
-
     auto status = fs.find_item(*fs.csum_root, search_key, p, true);
     if (!success(status))
         return status;
@@ -3898,8 +3898,6 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        print("found {}\n", k);
-
         if (k.offset >= address + length)
             break;
 
@@ -3912,11 +3910,6 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
         auto data = span((uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
         auto size = (it.size / CSUM_SIZE) * fs.sb->sectorsize; // FIXME - different if not crc32
 
-        // FIXME - remove beginning
-        // FIXME - remove end
-        // FIXME - remove whole
-        // FIXME - remove middle
-
         if (address <= k.offset && address + length >= k.offset + size) {
             // remove whole entry
 
@@ -3928,9 +3921,35 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
 
             continue;
         } else if (address > k.offset && address + length < k.offset + size) {
-            print("FIXME - remove middle of csum entry\n");
+            // remove middle of entry
 
-            // FIXME
+            uint64_t first_sectors = (address - k.offset) / fs.sb->sectorsize;
+            uint64_t second_sectors = (k.offset + size - address - length) / fs.sb->sectorsize;
+
+            // FIXME - won't need this if we can modify page cache directly
+            auto buf = (uint8_t*)malloc(second_sectors * CSUM_SIZE);
+            if (!buf) {
+                print("out of memory\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            memcpy(buf, data.data() + data.size() - (second_sectors * CSUM_SIZE),
+                   second_sectors * CSUM_SIZE);
+
+            fs.shorten_item(p, (uint32_t)(data.size() - (first_sectors * CSUM_SIZE)));
+
+            status = insert_item(fs, *fs.csum_root,
+                                 { BTRFS_EXTENT_CSUM_OBJECTID, key_type::EXTENT_CSUM, address + length },
+                                 span(buf, second_sectors * CSUM_SIZE));
+            if (!success(status)) {
+                print("insert_item returned {}\n", status);
+                free(buf);
+                return status;
+            }
+
+            free(buf);
+
+            length = 0;
         } else if (address + length > k.offset && address + length < k.offset + size) {
             // remove beginning
 
@@ -3960,9 +3979,6 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
 
             fs.shorten_item(p, (uint32_t)(delta_sectors * CSUM_SIZE));
         }
-
-        if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
-            return nt_status::INTERNAL_ERROR;
 
         p.slots[0]++;
     }
