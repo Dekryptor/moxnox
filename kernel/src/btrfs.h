@@ -584,6 +584,7 @@ public:
     nt_status remove_item(root& r, const btrfs_key& k);
     nt_status remove_item2(btrfs_path& p);
     nt_status change_key(btrfs_path& p, const btrfs_key& k);
+    void shorten_item(btrfs_path& p, uint32_t delta);
     nt_status find_item(root& r, const btrfs_key& k, btrfs_path& p, bool cow);
     bool move_path_back(btrfs_path& p);
     bool move_path_forward(btrfs_path& p);

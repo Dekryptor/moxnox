@@ -2183,6 +2183,25 @@ nt_status btrfs_filesystem::change_key(btrfs_path& p, const btrfs_key& k) {
     return nt_status::SUCCESS;
 }
 
+void btrfs_filesystem::shorten_item(btrfs_path& p, uint32_t delta) {
+    auto& th = *(btrfs_header*)p.data[0];
+    auto* items = (btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header));
+    auto& it = items[p.slots[0]];
+
+    it.size -= delta;
+
+    size_t to_move = 0;
+
+    for (unsigned int i = p.slots[0]; i < th.nritems; i++) {
+        items[i].offset += delta;
+        to_move += items[i].size;
+    }
+
+    memmove(p.data[0] + sizeof(btrfs_header) + items[th.nritems - 1].offset,
+            p.data[0] + sizeof(btrfs_header) + items[th.nritems - 1].offset - delta,
+            to_move);
+}
+
 bool btrfs_filesystem::move_path_back(btrfs_path& p) {
     if (p.slots[0] != 0) {
         p.slots[0]--;
@@ -3909,21 +3928,17 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
         } else if (address + length > k.offset && address + length < k.offset + size) {
             // remove beginning
 
-            print("FIXME - remove beginning of csum entry\n");
-
             auto new_key = k;
 
             auto delta_sectors = (address + length - k.offset) / fs.sb->sectorsize;
 
             new_key.offset += delta_sectors * fs.sb->sectorsize;
 
-            print("{} -> {} ({:x})\n", k, new_key, th.bytenr);
-
             // move item data backwards
             memmove(data.data(), data.data() + (delta_sectors * CSUM_SIZE),
                     data.size() - (delta_sectors * CSUM_SIZE));
 
-            // FIXME - shorten item
+            fs.shorten_item(p, (uint32_t)(delta_sectors * CSUM_SIZE));
 
             status = fs.change_key(p, new_key);
             if (!success(status)) {
