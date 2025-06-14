@@ -2073,13 +2073,12 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
     return nt_status::SUCCESS;
 }
 
-static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
-                             span<const uint8_t> data) {
-    btrfs_path p(fs.sb->nodesize);
+static nt_status insert_item2(btrfs_filesystem& fs, root& r, const btrfs_key& k,
+                              uint32_t item_size, btrfs_path& p) {
     nt_status status;
 
     // check if data too big for any tree
-    if (data.size() > fs.sb->nodesize - sizeof(btrfs_header) - sizeof(btrfs_item))
+    if (item_size > fs.sb->nodesize - sizeof(btrfs_header) - sizeof(btrfs_item))
         return nt_status::INTERNAL_ERROR;
 
     status = fs.find_item(r, k, p, true);
@@ -2101,8 +2100,8 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
 
         unsigned int size_used = data_size + (unsigned int)(th.nritems * sizeof(btrfs_item));
 
-        if (size_used + sizeof(btrfs_item) + data.size() > fs.sb->nodesize - sizeof(btrfs_header)) {
-            status = split_tree(fs, p, r, size_used, sizeof(btrfs_item) + data.size());
+        if (size_used + sizeof(btrfs_item) + item_size > fs.sb->nodesize - sizeof(btrfs_header)) {
+            status = split_tree(fs, p, r, size_used, sizeof(btrfs_item) + item_size);
             if (!success(status))
                 return status;
         }
@@ -2122,7 +2121,7 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
 
     items[p.slots[0]].key = k;
 
-    if (!data.empty() && p.slots[0] != th.nritems - 1) {
+    if (item_size > 0 && p.slots[0] != th.nritems - 1) {
         unsigned int to_move = 0;
 
         // move data around
@@ -2131,23 +2130,20 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
 
         for (unsigned int i = p.slots[0] + 1; i < th.nritems; i++) {
             to_move += items[i].size;
-            items[i].offset -= (uint32_t)data.size();
+            items[i].offset -= item_size;
         }
 
-        assert(off >= data.size() + sizeof(btrfs_header));
+        assert(off >= item_size + sizeof(btrfs_header));
 
-        memmove(p.data[0] + off - data.size(), p.data[0] + off, to_move);
+        memmove(p.data[0] + off - item_size, p.data[0] + off, to_move);
     }
 
     if (p.slots[0] == 0)
-        items[p.slots[0]].offset = (uint32_t)(fs.sb->nodesize - sizeof(btrfs_header) - data.size());
+        items[p.slots[0]].offset = (uint32_t)(fs.sb->nodesize - sizeof(btrfs_header) - item_size);
     else
-        items[p.slots[0]].offset = (uint32_t)(items[p.slots[0] - 1].offset - data.size());
+        items[p.slots[0]].offset = (uint32_t)(items[p.slots[0] - 1].offset - item_size);
 
-    items[p.slots[0]].size = (uint32_t)data.size();
-
-    memcpy(p.data[0] + sizeof(btrfs_header) + items[p.slots[0]].offset,
-           data.data(), data.size());
+    items[p.slots[0]].size = item_size;
 
     // update parents if new first item
 
@@ -2164,6 +2160,25 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
             if (!fs.cache.write(span(p.data[i + 1], fs.sb->nodesize), th2.bytenr)) // FIXME - return status
                 return nt_status::INTERNAL_ERROR;
         }
+    }
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
+                             span<const uint8_t> data) {
+    btrfs_path p(fs.sb->nodesize);
+
+    auto status = insert_item2(fs, r, k, (uint32_t)data.size(), p);
+    if (!success(status))
+        return status;
+
+    auto& th = *(btrfs_header*)p.data[0];
+    auto* items = (btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header));
+
+    if (!data.empty()) {
+        memcpy(p.data[0] + sizeof(btrfs_header) + items[p.slots[0]].offset,
+               data.data(), data.size());
     }
 
     // copy tree back into page cache and mark dirty
@@ -3417,6 +3432,69 @@ nt_status btrfs_inode::add_file_extent(uint64_t extent_address, uint64_t extent_
     return nt_status::SUCCESS;
 }
 
+static nt_status add_csums2(btrfs_filesystem& fs, uint64_t addr, uint64_t sectors) {
+    static const size_t CSUM_SIZE = sizeof(uint32_t); // FIXME
+
+    btrfs_path p(fs.sb->nodesize);
+
+    // FIXME - merge with prev or next csum items if contiguous and small enough
+
+    auto status = insert_item2(fs, *fs.csum_root, { BTRFS_EXTENT_CSUM_OBJECTID, key_type::EXTENT_CSUM, addr },
+                               (uint32_t)(sectors * CSUM_SIZE), p);
+    if (!success(status))
+        return status;
+
+    auto& th = *(btrfs_header*)p.data[0];
+    auto* items = (btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header));
+
+    auto csums = span((uint32_t*)(p.data[0] + sizeof(btrfs_header) + items[p.slots[0]].offset),
+                      items[p.slots[0]].size / CSUM_SIZE);
+
+    page_cache_entry* src_p;
+    for (uint64_t i = 0; i < sectors; i++) {
+
+        {
+            lock_guard lock(fs.cache.cache_lock);
+
+            if (i == 0)
+                src_p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
+            else
+                src_p = fs.cache.next_page_cache_entry(*src_p);
+        }
+
+        csums[i] = ~calc_crc32c(0xffffffff, span((const uint8_t*)get_phys_address(*src_p),
+                                                 fs.sb->sectorsize));
+    }
+
+    // copy tree back into page cache and mark dirty
+
+    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status add_csums(btrfs_filesystem& fs, uint64_t addr, uint64_t length) {
+    static const size_t CSUM_SIZE = sizeof(uint32_t); // FIXME
+
+    uint64_t num_pages = length >> PAGE_SHIFT;
+    auto max_run = (uint64_t)((fs.sb->nodesize - sizeof(btrfs_header) - (sizeof(btrfs_item) * 2)) / CSUM_SIZE) - 1;
+
+    do {
+        auto status = add_csums2(fs, addr, min(num_pages, max_run));
+        if (!success(status))
+            return status;
+
+        if (num_pages <= max_run)
+            break;
+
+        addr += max_run << PAGE_SHIFT;
+        num_pages -= max_run;
+    } while (true);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     nt_status status;
     btrfs_path p(fs.sb->nodesize);
@@ -3501,6 +3579,16 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     fs.cache.unpin(addr >> PAGE_SHIFT, num_pages);
 
     // FIXME - update inode item ctime and mtime
+
+    if (!(ii.flags & BTRFS_INODE_NODATASUM)) {
+        status = add_csums(fs, addr, num_pages << PAGE_SHIFT);
+        if (!success(status)) {
+            print("add_csums returned {}\n", status);
+            // FIXME - free addr
+            // FIXME - go readonly?
+            return status;
+        }
+    }
 
     status = flush_inode_item(p);
     if (!success(status)) {
