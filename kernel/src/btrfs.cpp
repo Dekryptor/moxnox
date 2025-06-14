@@ -3466,29 +3466,35 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     {
         rangelock_req rlr(fs.cache.rl, addr >> PAGE_SHIFT, num_pages);
-        page_cache_entry* p;
+        page_cache_entry* src_p;
+        page_cache_entry* dest_p;
 
         for (uint64_t i = 0; i < num_pages; i++) {
+            {
+                lock_guard lock(cache.cache_lock);
+
+                if (i == 0)
+                    src_p = cache.find_page_cache_entry(page_num);
+                else
+                    src_p = cache.next_page_cache_entry(*src_p);
+            }
+
             {
                 lock_guard lock(fs.cache.cache_lock);
 
                 if (i == 0)
-                    p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
+                    dest_p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
                 else
-                    p = fs.cache.next_page_cache_entry(*p);
+                    dest_p = fs.cache.next_page_cache_entry(*dest_p);
             }
 
-            // FIXME
-            if (p->pfn)
-                free_folio(p->pfn << PAGE_SHIFT);
+            if (dest_p->pfn)
+                free_folio(dest_p->pfn << PAGE_SHIFT);
 
-            increase_page_refcount(zero_pfn); // FIXME
+            increase_page_refcount(src_p->pfn);
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-            p->pfn = zero_pfn; // FIXME
-#pragma GCC diagnostic pop
-            p->dirty = 1;
+            dest_p->pfn = src_p->pfn;
+            dest_p->dirty = 1;
         }
     }
 
