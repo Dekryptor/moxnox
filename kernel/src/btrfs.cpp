@@ -3143,8 +3143,16 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         auto& ed = *(btrfs_file_extent_item*)data.data();
 
         if (ed.type == btrfs_extent_type::inline_extent) {
-            print("FIXME - inline extents\n"); // FIXME
-            return nt_status::NOT_IMPLEMENTED;
+            status = fs.remove_item2(p);
+            if (!success(status)) {
+                print("btrfs_filesystem::remove_item2 returned {}\n", status);
+                return status;
+            }
+
+            inode.ii.nbytes = 0;
+            changed_inode = true;
+
+            break;
         } else if (ed.type != btrfs_extent_type::regular && ed.type != btrfs_extent_type::prealloc) {
             print("unexpected file extent type {:x}\n", (unsigned int)ed.type);
             return nt_status::DISK_CORRUPT_ERROR;
