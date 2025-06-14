@@ -546,6 +546,7 @@ public:
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status set_basic_information(std::span<const uint8_t> buffer);
     nt_status query_standard_information(std::span<uint8_t> buffer, uint64_t& retlen);
+    nt_status flush_inode_item(btrfs_path& p);
 
     root* r;
     btrfs_filesystem& fs;
