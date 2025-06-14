@@ -3163,7 +3163,17 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
 
         auto size = ed.num_bytes; // FIXME - different if compressed(?)
 
-        if (start <= k.offset && start + length >= k.offset + size) {
+        if (ed.disk_bytenr == 0) {
+            // explicit hole
+
+            status = fs.remove_item2(p);
+            if (!success(status)) {
+                print("btrfs_filesystem::remove_item2 returned {}\n", status);
+                return status;
+            }
+
+            continue;
+        } else if (start <= k.offset && start + length >= k.offset + size) {
             // remove entire file extent
 
             status = add_data_change(fs, ed.disk_bytenr, ed.disk_num_bytes,
@@ -3182,6 +3192,8 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
 
             inode.ii.nbytes -= size;
             changed_inode = true;
+
+            continue;
         } else if (start > k.offset && start + length < k.offset + size) {
             // remove middle
 
