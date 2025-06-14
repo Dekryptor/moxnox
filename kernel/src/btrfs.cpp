@@ -3502,15 +3502,11 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     // FIXME - if more than 128MB (or 128KB if compressed), split up
 
-    print("FIXME - btrfs_inode::flush_cache ({:x}, {:x})\n", page_num, num_pages); // FIXME
-
     status = allocate_data(fs, num_pages << PAGE_SHIFT, addr);
     if (!success(status)) {
         print("allocate_data returned {}\n", status);
         return status;
     }
-
-    print("addr = {:x}\n", addr);
 
     // FIXME - compression
     // FIXME - nodatacow
@@ -3578,7 +3574,11 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     fs.cache.unpin(addr >> PAGE_SHIFT, num_pages);
 
-    // FIXME - update inode item ctime and mtime
+    auto cur_time = get_btrfs_time();
+
+    ii.sequence++;
+    ii.ctime = cur_time;
+    ii.mtime = cur_time;
 
     if (!(ii.flags & BTRFS_INODE_NODATASUM)) {
         status = add_csums(fs, addr, num_pages << PAGE_SHIFT);
