@@ -4087,6 +4087,8 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 return status;
             }
 
+            c.delta += rc.data.extent_length;
+
             return nt_status::SUCCESS;
         } else {
             print("do_ref_change_data: {:x}, {:x}: trying to decrease refcount on non-existent extent\n",
