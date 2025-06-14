@@ -2917,6 +2917,49 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
     return num_pages;
 }
 
+static nt_status next_leaf(btrfs_filesystem& fs, btrfs_path& p) {
+    nt_status status;
+
+    uint8_t level = 1;
+
+    while (level < BTRFS_MAX_LEVEL) {
+        if (!p.data[level])
+            return nt_status::NOT_FOUND;
+
+        auto& th = *(btrfs_header*)p.data[level];
+
+        if (p.slots[level] + 1 >= th.nritems) {
+            level++;
+            if (level == BTRFS_MAX_LEVEL)
+                return nt_status::NOT_FOUND;
+
+            continue;
+        }
+
+        p.slots[level]++;
+
+        break;
+    }
+
+    while (true) {
+        auto& th = *(btrfs_header*)p.data[level];
+        auto items = span((btrfs_key_ptr*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+        status = fs.read_metadata(items[p.slots[level]].blockptr,
+                                  span(p.data[level - 1], fs.sb->nodesize));
+        if (!success(status))
+            return status;
+
+        level--;
+        p.slots[level] = 0;
+
+        if (level == 0)
+            break;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
                              uint64_t num_pages) {
     page_cache_entry* src_p;
@@ -3133,14 +3176,6 @@ static uint32_t leaf_nritems(const btrfs_path& p) {
     return th.nritems;
 }
 
-static nt_status next_leaf(btrfs_path& p) {
-    // FIXME
-
-    // FIXME - handle case when at end of tree
-
-    return nt_status::NOT_IMPLEMENTED;
-}
-
 static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
                                  uint64_t extent_length, uint64_t root,
                                  uint64_t objectid, uint64_t offset,
@@ -3228,7 +3263,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
 
     while (true) {
         if (p.slots[0] == leaf_nritems(p)) {
-            status = next_leaf(p);
+            status = next_leaf(fs, p);
             if (!success(status))
                 return status;
         }
@@ -4163,7 +4198,7 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
 
     while (length > 0) {
         if (p.slots[0] == leaf_nritems(p)) {
-            status = next_leaf(p);
+            status = next_leaf(fs, p);
             if (!success(status))
                 return status;
         }
