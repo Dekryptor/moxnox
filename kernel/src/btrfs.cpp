@@ -4032,14 +4032,14 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
         if (rc.data.count > 0) {
             extent_item_edr eiedr;
 
-            eiedr.ei.refs = rc.data.count;
+            eiedr.ei.refs = (uint32_t)rc.data.count;
             eiedr.ei.generation = fs.sb->generation;
             eiedr.ei.flags = BTRFS_EXTENT_FLAG_DATA;
             eiedr.type = key_type::EXTENT_DATA_REF;
             eiedr.edr.root = rc.root;
             eiedr.edr.objectid = rc.data.objectid;
             eiedr.edr.offset = rc.data.offset;
-            eiedr.edr.count = rc.data.count;
+            eiedr.edr.count = (uint32_t)rc.data.count;
 
             status = insert_item(fs, *fs.extent_root, key,
                                  span((const uint8_t*)&eiedr, sizeof(eiedr)));
@@ -4143,8 +4143,8 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 }
 
                 if (rc.data.count > 0) {
-                    edr.count += rc.data.count;
-                    ei.refs += rc.data.count;
+                    edr.count += (uint32_t)rc.data.count;
+                    ei.refs += (uint32_t)rc.data.count;
 
                     if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
                         return nt_status::INTERNAL_ERROR;
@@ -4159,8 +4159,8 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 }
 
                 if (-rc.data.count < (int32_t)edr.count) {
-                    edr.count += rc.data.count;
-                    ei.refs += rc.data.count;
+                    edr.count = (uint32_t)((int32_t)edr.count + rc.data.count);
+                    ei.refs = (uint64_t)((int64_t)ei.refs + rc.data.count);
 
                     if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
                         return nt_status::INTERNAL_ERROR;
