@@ -2940,9 +2940,11 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
 
     fs.cache.unpin(addr >> PAGE_SHIFT, pages_read);
 
-    if (auto status = check_csums(*this, page_num, addr, num_pages); !success(status)) {
-        print("check_csums returned {}\n", status);
-        return 0;
+    if (!(ii.flags & BTRFS_INODE_NODATASUM)) {
+        if (auto status = check_csums(*this, page_num, addr, num_pages); !success(status)) {
+            print("check_csums returned {}\n", status);
+            return 0;
+        }
     }
 
     // FIXME - read from another copy (and replace) if csum is bad
