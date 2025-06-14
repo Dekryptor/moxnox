@@ -4087,6 +4087,12 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 return status;
             }
 
+            status = remove_free_space(fs, rc.address, rc.data.extent_length);
+            if (!success(status)) {
+                print("remove_free_space returned {}\n", status);
+                return status;
+            }
+
             c.delta += rc.data.extent_length;
 
             return nt_status::SUCCESS;
