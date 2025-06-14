@@ -561,6 +561,9 @@ private:
     size_t read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
                                   const inode_extent& ie);
     nt_status get_last_dir_index(uint64_t& ret);
+    nt_status add_file_extent(uint64_t extent_address, uint64_t extent_length,
+                              uint64_t extent_offset, uint64_t file_offset,
+                              uint64_t length);
 };
 
 class btrfs_filesystem : public filesystem {

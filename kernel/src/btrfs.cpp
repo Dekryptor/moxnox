@@ -3305,9 +3305,47 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
     return nt_status::SUCCESS;
 }
 
+nt_status btrfs_inode::add_file_extent(uint64_t extent_address, uint64_t extent_length,
+                                       uint64_t extent_offset, uint64_t file_offset,
+                                       uint64_t length) {
+    btrfs_file_extent_item fei;
+    nt_status status;
+
+    fei.generation = fs.sb->generation;
+    fei.ram_bytes = extent_length;
+    fei.compression = 0;
+    fei.encryption = 0;
+    fei.other_encoding = 0;
+    fei.type = btrfs_extent_type::regular;
+    fei.disk_bytenr = extent_address;
+    fei.disk_num_bytes = extent_length;
+    fei.offset = extent_offset;
+    fei.num_bytes = length;
+
+    status = insert_item(fs, *r, {inode, key_type::EXTENT_DATA, file_offset},
+                         span((uint8_t*)&fei, sizeof(fei)));
+    if (!success(status)) {
+        print("insert_item returned {}\n", status);
+        return status;
+    }
+
+    status = add_data_change(fs, extent_address, extent_length, r->id, inode,
+                             file_offset, 1);
+    if (!success(status)) {
+        print("add_data_change returned {}\n", status);
+        return status;
+    }
+
+    ii.nbytes += length;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     nt_status status;
     uint64_t addr;
+
+    // FIXME - if more than 128MB (or 128KB if compressed), split up
 
     print("FIXME - btrfs_inode::flush_cache ({:x}, {:x})\n", page_num, num_pages); // FIXME
 
@@ -3322,8 +3360,6 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     // FIXME - compression
     // FIXME - nodatacow
 
-    // FIXME - if more than 128MB, split up
-
     // FIXME - allocate new chunk if we need to
 
     status = punch_hole(*this, page_num << PAGE_SHIFT, num_pages << PAGE_SHIFT);
@@ -3333,17 +3369,20 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
         return status;
     }
 
-    // FIXME - update inode item ctime and mtime
+    status = add_file_extent(addr, num_pages << PAGE_SHIFT, 0,
+                             page_num << PAGE_SHIFT, num_pages << PAGE_SHIFT);
+    if (!success(status)) {
+        print("btrfs_inode::add_file_extent returned {}\n", status);
+        // FIXME - free addr
+        // FIXME - make sure hole-punch doesn't get committed (go readonly?)
+        return status;
+    }
 
-    // FIXME - find space for new extent
-    // FIXME - carve out of FST
-    // FIXME - update BGI
-    // FIXME - update superblock
-    // FIXME - add to extent tree
     // FIXME - add to csum tree
-    // FIXME - add new file extent data
 
     // FIXME - reflink cache to filesystem cache
+
+    // FIXME - update inode item ctime and mtime
 
     return nt_status::SUCCESS;
 }
