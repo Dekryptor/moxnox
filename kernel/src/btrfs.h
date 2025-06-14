@@ -56,6 +56,20 @@ static constexpr uint64_t BTRFS_DATA_RELOC_TREE_OBJECTID = 0xfffffffffffffff7;
 static constexpr uint64_t BTRFS_FIRST_FREE_OBJECTID = 0x100;
 static constexpr uint64_t BTRFS_LAST_FREE_OBJECTID = 0xffffffffffffff00;
 
+static constexpr uint64_t BTRFS_INODE_NODATASUM = 1 << 0;
+static constexpr uint64_t BTRFS_INODE_NODATACOW = 1 << 1;
+static constexpr uint64_t BTRFS_INODE_READONLY = 1 << 2;
+static constexpr uint64_t BTRFS_INODE_NOCOMPRESS = 1 << 3;
+static constexpr uint64_t BTRFS_INODE_PREALLOC = 1 << 4;
+static constexpr uint64_t BTRFS_INODE_SYNC = 1 << 5;
+static constexpr uint64_t BTRFS_INODE_IMMUTABLE = 1 << 6;
+static constexpr uint64_t BTRFS_INODE_APPEND = 1 << 7;
+static constexpr uint64_t BTRFS_INODE_NODUMP = 1 << 8;
+static constexpr uint64_t BTRFS_INODE_NOATIME = 1 << 9;
+static constexpr uint64_t BTRFS_INODE_DIRSYNC = 1 << 10;
+static constexpr uint64_t BTRFS_INODE_COMPRESS = 1 << 11;
+static constexpr uint64_t BTRFS_INODE_ROOT_ITEM_INIT = 1 << 31;
+
 static const uint64_t SUBVOL_ROOT_INODE = 0x100;
 
 struct btrfs_dev_item {
