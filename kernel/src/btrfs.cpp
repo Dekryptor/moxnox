@@ -14,6 +14,7 @@ import page_cache;
 #include "inode.h"
 import page_cache;
 #include "handle.h"
+import rangelock;
 
 export module btrfs;
 
@@ -692,10 +693,11 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
     cache.pin(addr >> PAGE_SHIFT, pages_per_tree, nullptr);
 
-    auto* first_page = cache.find_page_cache_entry(addr >> PAGE_SHIFT);
-    if (!first_page) {
-        print("cache.find_page_cache_entry returned NULL\n");
-        return false;
+    page_cache_entry* first_page;
+
+    {
+        lock_guard lock(cache.cache_lock);
+        first_page = cache.find_page_cache_entry(addr >> PAGE_SHIFT);
     }
 
     // set WRITTEN flag
@@ -769,12 +771,95 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
     return true;
 }
 
+nt_status btrfs_filesystem::flush_data(const chunk& c, uint64_t addr, uint64_t length) {
+    uint64_t num_pages = length >> PAGE_SHIFT;
+
+    if (c.ci.type & BTRFS_BLOCK_GROUP_RAID0) {
+        print("RAID0 not supported\n");
+        return nt_status::NOT_IMPLEMENTED;
+    } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID10) {
+        print("RAID10 not supported\n");
+        return nt_status::NOT_IMPLEMENTED;
+    } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID5) {
+        print("RAID5 not supported\n");
+        return nt_status::NOT_IMPLEMENTED;
+    } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID6) {
+        print("RAID6 not supported\n");
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    // chunk is SINGLE, DUP, RAID1, RAID1C3, or RAID1C4
+
+    // FIXME - handle missing devices
+
+    // copy into page cache of volumes
+
+    cache.pin(addr >> PAGE_SHIFT, num_pages, nullptr);
+
+    page_cache_entry* first_page;
+
+    {
+        lock_guard lock(cache.cache_lock);
+        first_page = cache.find_page_cache_entry(addr >> PAGE_SHIFT);
+    }
+
+    for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
+        auto ent = first_page;
+        page_cache_entry* dest_p = nullptr;
+        uint64_t disk_addr = addr - c.offset + c.ci.stripe[i].offset;
+
+        rangelock_req rlr(vol->cache.rl, disk_addr >> PAGE_SHIFT, num_pages);
+
+        vol->cache.pin(disk_addr >> PAGE_SHIFT, num_pages, nullptr);
+
+        for (uint64_t j = 0; j < num_pages; j++) {
+            assert(ent->tree.key == (addr >> PAGE_SHIFT) + j);
+
+            if (ent->dirty) {
+                {
+                    lock_guard lock(vol->cache.cache_lock);
+
+                    if (!dest_p)
+                        dest_p = vol->cache.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + j);
+                    else
+                        dest_p = vol->cache.next_page_cache_entry(*dest_p);
+                }
+
+                if (dest_p->pfn)
+                    free_folio(dest_p->pfn << PAGE_SHIFT);
+
+                increase_page_refcount(ent->pfn);
+                dest_p->pfn = ent->pfn;
+            } else
+                dest_p = nullptr;
+
+            if (j != num_pages - 1) {
+                lock_guard lock(cache.cache_lock);
+                ent = cache.next_page_cache_entry(*ent);
+            }
+        }
+
+        vol->cache.unpin(disk_addr >> PAGE_SHIFT, num_pages);
+    }
+
+    auto ent = first_page;
+    for (uint64_t j = 0; j < num_pages; j++) {
+        ent->dirty = 0;
+
+        if (j != num_pages - 1) {
+            lock_guard lock(cache.cache_lock);
+            ent = cache.next_page_cache_entry(*ent);
+        }
+    }
+
+    cache.unpin(addr >> PAGE_SHIFT, num_pages);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
     unsigned int pages_per_tree = sb->nodesize >> PAGE_SHIFT;
     uint64_t addr = page_num << PAGE_SHIFT;
-
-    if (page_num % pages_per_tree) // not aligned to tree
-        return nt_status::INVALID_PARAMETER;
 
     // find chunk
 
@@ -786,23 +871,32 @@ nt_status btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
     }
 
     auto& c = *pc;
-    uint64_t pages_written = 0;
 
-    while (addr < c.ci.length) {
-        if (!flush_tree(c, addr))
-            break;
+    if (c.ci.type & BTRFS_BLOCK_GROUP_METADATA) {
+        uint64_t pages_written = 0;
 
-        addr += sb->nodesize;
-        pages_written += pages_per_tree;
+        if (page_num % pages_per_tree || num_pages % pages_per_tree) // not aligned to tree
+            return nt_status::INVALID_PARAMETER;
 
-        if (pages_written >= num_pages)
-            break;
+        while (addr < c.ci.length) {
+            if (!flush_tree(c, addr)) // FIXME - should return nt_status
+                return nt_status::INTERNAL_ERROR;
+
+            addr += sb->nodesize;
+            pages_written += pages_per_tree;
+
+            if (pages_written >= num_pages)
+                break;
+        }
+    } else {
+        auto status = flush_data(c, addr, num_pages << PAGE_SHIFT);
+        if (!success(status)) {
+            print("btrfs_filesystem::flush_data returned {}\n", status);
+            return status;
+        }
     }
 
-    if (pages_written == 0)
-        return nt_status::SUCCESS;
-
-    uint64_t pages_to_flush = pages_written;
+    uint64_t pages_to_flush = num_pages;
     for (unsigned int i = 0; i < c.ci.num_stripes; i++) {
         uint64_t disk_addr = (page_num << PAGE_SHIFT) - c.offset + c.ci.stripe[i].offset;
         uint64_t first_page = disk_addr >> PAGE_SHIFT;
@@ -3363,7 +3457,42 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     // FIXME - add to csum tree
 
-    // FIXME - reflink cache to filesystem cache
+    if (!fs.cache.pin(addr >> PAGE_SHIFT, num_pages, nullptr)) {
+        print("page_cache::pin failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    // reflink cache to filesystem cache and mark dirty
+
+    {
+        rangelock_req rlr(fs.cache.rl, addr >> PAGE_SHIFT, num_pages);
+        page_cache_entry* p;
+
+        for (uint64_t i = 0; i < num_pages; i++) {
+            {
+                lock_guard lock(fs.cache.cache_lock);
+
+                if (i == 0)
+                    p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
+                else
+                    p = fs.cache.next_page_cache_entry(*p);
+            }
+
+            // FIXME
+            if (p->pfn)
+                free_folio(p->pfn << PAGE_SHIFT);
+
+            increase_page_refcount(zero_pfn); // FIXME
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            p->pfn = zero_pfn; // FIXME
+#pragma GCC diagnostic pop
+            p->dirty = 1;
+        }
+    }
+
+    fs.cache.unpin(addr >> PAGE_SHIFT, num_pages);
 
     // FIXME - update inode item ctime and mtime
 
@@ -4403,7 +4532,7 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         status = flush_cache(first_page, num_pages);
 
         if (!success(status)) {
-            print("flush_cache returned {}, going readonly\n", status);
+            print("btrfs_filesystem::flush_cache returned {}, going readonly\n", status);
             go_readonly();
             return status;
         }

@@ -610,6 +610,7 @@ public:
     nt_status flush(bool make_readonly) override;
     void flush_thread();
     bool flush_tree(const chunk& c, uint64_t addr);
+    nt_status flush_data(const chunk& c, uint64_t addr, uint64_t length);
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages);
 
