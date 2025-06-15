@@ -112,6 +112,8 @@ public:
     list_entry le;
     volume* vol;
     atomic<unsigned int> refcount = 0;
+    spinlock writeback_lock;
+    list_entry writeback_list = { &writeback_list, &writeback_list };
 };
 
 void volume::probe() {

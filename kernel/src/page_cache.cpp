@@ -17,9 +17,6 @@ import rangelock;
 
 using namespace std;
 
-spinlock writeback_lock;
-list_entry writeback_list = { &writeback_list, &writeback_list };
-
 export struct page_cache_entry {
     rbtree_node<uint64_t> tree;
     atomic<uint32_t> refcount;
@@ -690,7 +687,7 @@ void page_cache<T>::mark_dirty() {
             return;
 
         {
-            lock_guard lg(writeback_lock);
+            lock_guard lg(dev.fs.writeback_lock);
 
             if (dirty)
                 return;
@@ -698,7 +695,7 @@ void page_cache<T>::mark_dirty() {
             dirty = true;
 
             dev.acquire();
-            insert_tail_list(writeback_list, dev.writeback_le);
+            insert_tail_list(dev.fs.writeback_list, dev.writeback_le);
         }
     }
 }
