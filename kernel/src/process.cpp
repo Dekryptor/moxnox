@@ -2039,6 +2039,31 @@ object_ref process::deref_handle(handle_t h) {
     return *ho.obj;
 }
 
+object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
+    if (h == NtCurrentProcess()) {
+        this->acquire();
+        return *this;
+    }
+
+    lock_guard lock(handle_lock);
+
+    if (h == 0 || h > no_handles)
+        return nullopt;
+
+    auto& ho = handle_arr[h - 1];
+
+    if (!ho.obj)
+        return nullopt;
+
+    visit_obj(*ho.obj, [](auto&& o) {
+        o.acquire(); // needs to be within spinlock
+    });
+
+    access_mask = ho.access_mask;
+
+    return *ho.obj;
+}
+
 static uint32_t get_page_protection(process& proc, uint64_t va) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];

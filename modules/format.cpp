@@ -401,6 +401,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "NO_MEMORY");
         case nt_status::ILLEGAL_INSTRUCTION:
             return sp_strcpy(sp, "ILLEGAL_INSTRUCTION");
+        case nt_status::ACCESS_DENIED:
+            return sp_strcpy(sp, "ACCESS_DENIED");
         case nt_status::BUFFER_TOO_SMALL:
             return sp_strcpy(sp, "BUFFER_TOO_SMALL");
         case nt_status::OBJECT_TYPE_MISMATCH:

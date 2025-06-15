@@ -35,6 +35,7 @@ public:
                          uint32_t allocation_type, enum mapping_type protect);
     NTSTATUS free_vm(void** base_address, size_t* region_size, uint32_t free_type);
     object_ref deref_handle(handle_t h);
+    object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask);
     NTSTATUS close_handle(handle_t h);
     NTSTATUS map_view_of_section(section& sect, void** base_address,
                                  uintptr_t zero_bits, size_t commit_size,

@@ -44,6 +44,7 @@ private:
 };
 
 object_ref deref_handle(handle_t h);
+object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask);
 bool name_object(object& obj, std::string_view name, bool persistent = true);
 nt_status open_object(std::string_view name, object_ref& obj);
 void write(object_ref& h, std::span<const uint8_t> s);

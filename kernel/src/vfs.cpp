@@ -526,20 +526,27 @@ export extern "C"
 NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                      IO_STATUS_BLOCK* io_status_block, const void* buffer,
                      uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
+    ACCESS_MASK access_mask;
+
     auto buf = span((const uint8_t*)buffer, length);
 
     if (byte_offset && byte_offset->QuadPart < 0)
         return nt_status::INVALID_PARAMETER;
 
-    auto objrw = deref_handle(file_handle);
+    auto objrw = deref_handle(file_handle, access_mask);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
+
+    if (!(access_mask & (FILE_WRITE_DATA | FILE_APPEND_DATA)))
+        return nt_status::ACCESS_DENIED;
 
     // FIXME - async (event)
     // FIXME - async (APC)
 
     auto& obj = objrw.get();
     bool can_write = false;
+
+    // FIXME - write to end of file, if FILE_APPEND_DATA or FILE_WRITE_TO_END_OF_FILE
 
     if (byte_offset) {
         visit_obj(obj, [&](auto&& o) {
