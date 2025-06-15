@@ -2274,7 +2274,8 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
         remove_entry_list(m->le);
     }
 
-    m->release();
+    m->release(); // because we're removing from the list
+    m->release(); // and again because of find_mapping
 
     return nt_status::SUCCESS;
 }
