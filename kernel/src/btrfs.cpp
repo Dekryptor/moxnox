@@ -2960,21 +2960,26 @@ static nt_status next_leaf(btrfs_filesystem& fs, btrfs_path& p) {
     return nt_status::SUCCESS;
 }
 
+static uint32_t leaf_nritems(const btrfs_path& p) {
+    auto& th = *(btrfs_header*)p.data[0];
+
+    return th.nritems;
+}
+
 static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
                              uint64_t num_pages) {
+    auto& fs = ino.fs;
+    btrfs_path p(fs.sb->nodesize);
     page_cache_entry* src_p;
     bool first = true;
 
-    auto& fs = ino.fs;
     auto k = btrfs_key{BTRFS_EXTENT_CSUM_OBJECTID, key_type::EXTENT_CSUM, addr};
 
-    do {
-        btrfs_path p(fs.sb->nodesize);
+    auto status = fs.find_item(*fs.csum_root, k, p, false);
+    if (!success(status))
+        return status;
 
-        auto status = fs.find_item(*fs.csum_root, k, p, false);
-        if (!success(status))
-            return status;
-
+    {
         auto& th = *(btrfs_header*)p.data[0];
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
@@ -2983,12 +2988,17 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
 
         if (items[p.slots[0]].key != k)
             p.slots[0]--;
+    }
+
+    do {
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
         const auto& it = items[p.slots[0]];
         const auto& found_key = it.key;
 
         if (found_key.objectid != BTRFS_EXTENT_CSUM_OBJECTID || found_key.type != key_type::EXTENT_CSUM)
-        return nt_status::OBJECT_NAME_NOT_FOUND;
+            return nt_status::OBJECT_NAME_NOT_FOUND;
 
         auto data = span((uint32_t*)((const uint8_t*)&th + sizeof(btrfs_header) + it.offset),
                         it.size / sizeof(uint32_t));
@@ -3025,7 +3035,12 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
         if (num_pages == 0)
             break;
 
-        // FIXME - need next_leaf function rather than doing lookup again
+        p.slots[0]++;
+        if (p.slots[0] >= leaf_nritems(p)) {
+            status = next_leaf(fs, p);
+            if (!success(status))
+                return status;
+        }
     } while (true);
 
     return nt_status::SUCCESS;
@@ -3168,12 +3183,6 @@ static nt_status allocate_data(btrfs_filesystem& fs, uint64_t size,
     // FIXME - if nothing found, try to allocate new chunk
 
     return nt_status::DISK_FULL;
-}
-
-static uint32_t leaf_nritems(const btrfs_path& p) {
-    auto& th = *(btrfs_header*)p.data[0];
-
-    return th.nritems;
 }
 
 static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
