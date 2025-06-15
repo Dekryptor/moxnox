@@ -68,7 +68,7 @@ static constexpr uint64_t BTRFS_INODE_NODUMP = 1 << 8;
 static constexpr uint64_t BTRFS_INODE_NOATIME = 1 << 9;
 static constexpr uint64_t BTRFS_INODE_DIRSYNC = 1 << 10;
 static constexpr uint64_t BTRFS_INODE_COMPRESS = 1 << 11;
-static constexpr uint64_t BTRFS_INODE_ROOT_ITEM_INIT = 1 << 31;
+static constexpr uint64_t BTRFS_INODE_ROOT_ITEM_INIT = (uint64_t)1 << 31;
 
 static const uint64_t SUBVOL_ROOT_INODE = 0x100;
 
