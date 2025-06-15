@@ -1112,5 +1112,5 @@ nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
 
     auto& f = ino->get();
 
-    return f.cache.flush(page_num, num_pages);
+    return f.cache.flush(page_num, num_pages, false);
 }

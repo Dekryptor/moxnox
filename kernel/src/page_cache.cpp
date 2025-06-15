@@ -68,7 +68,7 @@ public:
     size_t read(span<uint8_t> data, uint64_t offset);
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
     void mark_dirty();
-    nt_status flush(uint64_t page_num, uint64_t num_pages);
+    nt_status flush(uint64_t page_num, uint64_t num_pages, bool clear_dirty);
 
     spinlock cache_lock;
     T& dev;
@@ -787,7 +787,8 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
 }
 
 template<typename T>
-nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages) {
+nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
+                               bool clear_dirty) {
     static const uint64_t INVALID = 0xffffffffffffffff;
 
     rangelock_req rlr(rl, page_num, num_pages);
@@ -841,6 +842,9 @@ next:
 
     if (range_start != INVALID)
         flush_range(range_start, range_length);
+
+    if (clear_dirty)
+        dirty = false;
 
     return nt_status::SUCCESS;
 }

@@ -4629,12 +4629,64 @@ static void update_superblock_backup(btrfs_filesystem& fs) {
     fs.sb->super_roots[0].num_devices = fs.sb->num_devices;
 }
 
+static nt_status do_writeback(btrfs_filesystem& fs) {
+    list_entry writeback_local = { &writeback_local, &writeback_local };
+
+    {
+        lock_guard lock(fs.writeback_lock);
+
+        while (!is_list_empty(fs.writeback_list)) {
+            auto& ino = *(inode*)((uint8_t*)fs.writeback_list.next - offsetof(inode, writeback_le));
+
+            remove_entry_list(ino.writeback_le);
+            insert_tail_list(writeback_local, ino.writeback_le);
+        }
+    }
+
+    while (!is_list_empty(writeback_local)) {
+        auto& ino = *(inode*)((uint8_t*)writeback_local.next - offsetof(inode, writeback_le));
+
+        remove_entry_list(ino.writeback_le);
+
+        auto status = ino.cache.flush(0, 0xffffffffffffffff, true);
+        if (!success(status)) {
+            print("page_cache::flush returned {}\n", status);
+
+            // avoid memory corruption by putting remaining issues back on list
+            {
+                lock_guard lock(fs.writeback_lock);
+                insert_tail_list(fs.writeback_list, ino.writeback_le);
+
+                while (!is_list_empty(writeback_local)) {
+                    auto& ino2 = *(inode*)((uint8_t*)writeback_local.next - offsetof(inode, writeback_le));
+
+                    remove_entry_list(ino2.writeback_le);
+                    insert_tail_list(fs.writeback_list, ino2.writeback_le);
+                }
+            }
+
+            return status;
+        }
+
+        ino.release();
+    }
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_filesystem::flush(bool make_readonly) {
     lock_guard lock(trans_lock);
 
     nt_status status;
 
     // FIXME - should have rwsem held exclusively
+
+    status = do_writeback(*this);
+    if (!success(status)) {
+        print("do_writeback returned {}, going readonly\n", status);
+        go_readonly();
+        return status;
+    }
 
     if (is_list_empty(dirty_root_list) || readonly) { // no changes made
         if (make_readonly)
