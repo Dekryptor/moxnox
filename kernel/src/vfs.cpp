@@ -348,7 +348,7 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 }
 
 export extern "C"
-NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
+NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
                       const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block,
                       const LARGE_INTEGER*, uint32_t, uint32_t, uint32_t create_disposition,
                       uint32_t create_options, void*, uint32_t) {
@@ -486,7 +486,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
         f->name = name;
         f->namelen = namelen;
 
-        status = p->add_handle(*f, 0, shared_okay, h); // FIXME - access mask
+        status = p->add_handle(*f, access_mask, shared_okay, h);
         if (!success(status)) {
             delete f;
             return status;
@@ -494,7 +494,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK,
 
         f->release();
     } else {
-        status = p->add_handle(ino_ref.get(), 0, shared_okay, h); // FIXME - access mask
+        status = p->add_handle(ino_ref.get(), access_mask, shared_okay, h);
         if (!success(status)) {
             visit_obj(ino_ref.get(), [&](auto&& o) {
                 o.release();
