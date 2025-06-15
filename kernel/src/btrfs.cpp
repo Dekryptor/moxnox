@@ -3290,7 +3290,9 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
     while (true) {
         if (p.slots[0] == leaf_nritems(p)) {
             status = next_leaf(fs, p);
-            if (!success(status))
+            if (status == nt_status::NOT_FOUND)
+                break;
+            else if (!success(status))
                 return status;
         }
 
