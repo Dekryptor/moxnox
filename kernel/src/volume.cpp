@@ -6,6 +6,7 @@ import objects;
 #include "spinlock.h"
 import rbtree;
 import page_cache;
+import rwsem;
 #include "inode.h"
 #include "handle.h"
 import page_cache;
@@ -19,7 +20,6 @@ import mem;
 import config;
 import list;
 import event;
-import rwsem;
 
 using namespace std;
 

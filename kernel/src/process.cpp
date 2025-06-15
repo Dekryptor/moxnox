@@ -12,6 +12,7 @@ import pipe;
 import timer;
 #include "thread.h"
 import page_cache;
+import rwsem;
 #include "inode.h"
 import volume;
 import rangelock;

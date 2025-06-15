@@ -7,6 +7,7 @@ import objects;
 import rbtree;
 #include "thread.h"
 import page_cache;
+import rwsem;
 #include "inode.h"
 #include "handle.h"
 import rbtree;
@@ -26,7 +27,6 @@ import mem;
 import config;
 import list;
 import string;
-import rwsem;
 
 using namespace std;
 
@@ -600,7 +600,14 @@ export nt_status flush_filesystems(bool make_readonly) {
 
 extern "C++"
 nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
-    if (offset >= file_size)
+    uint64_t size;
+
+    {
+        shared_lock lock(inode_lock);
+        size = file_size;
+    }
+
+    if (offset >= size)
         return nt_status::END_OF_FILE;
 
     if (s.empty()) {
@@ -608,8 +615,8 @@ nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
         return nt_status::SUCCESS;
     }
 
-    if (offset + s.size() > file_size)
-        s = s.subspan(0, file_size - offset);
+    if (offset + s.size() > size)
+        s = s.subspan(0, size - offset);
 
     read_bytes = cache.read(s, offset);
     return nt_status::SUCCESS;
@@ -624,9 +631,12 @@ nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written
         return nt_status::SUCCESS;
     }
 
-    // FIXME - should have lock for this
-    if (file_size < offset + s.size())
-        file_size = offset + s.size();
+    {
+        lock_guard lock(inode_lock);
+
+        if (file_size < offset + s.size())
+            file_size = offset + s.size();
+    }
 
     written_bytes = cache.write(s, offset);
 

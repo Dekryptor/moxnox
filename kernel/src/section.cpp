@@ -1,4 +1,5 @@
 #include <variant>
+#include <shared_mutex>
 #include "kernel.h"
 #include "handle.h"
 #include "spinlock.h"
@@ -9,6 +10,7 @@ import timer;
 import objects;
 #include "thread.h"
 import page_cache;
+import rwsem;
 #include "inode.h"
 import volume;
 #include "handle.h"
@@ -79,7 +81,12 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
             }
         } else {
             s.type = section_type::file;
-            s.num_pages = bytes_to_pages(s.ino->get().file_size);
+
+            {
+                shared_lock lock(s.ino->get().inode_lock);
+                s.num_pages = bytes_to_pages(s.ino->get().file_size);
+            }
+
             s.size = s.num_pages << PAGE_SHIFT;
 
             if (s.num_pages == 0) {

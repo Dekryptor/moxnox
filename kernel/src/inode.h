@@ -43,6 +43,7 @@ public:
     virtual nt_status flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
 
     filesystem& fs;
+    rwsem inode_lock;
     uint64_t file_size;
     enum inode_type inode_type;
     page_cache<inode> cache{*this};

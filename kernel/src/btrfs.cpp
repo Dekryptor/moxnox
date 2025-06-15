@@ -11,6 +11,7 @@ import objects;
 import rbtree;
 #include "thread.h"
 import page_cache;
+import rwsem;
 #include "inode.h"
 import page_cache;
 #include "handle.h"

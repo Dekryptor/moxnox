@@ -9,6 +9,7 @@ import timer;
 import objects;
 #include "thread.h"
 import page_cache;
+import rwsem;
 #include "inode.h"
 import volume;
 #include "visit_object.h"

@@ -1,11 +1,13 @@
 module;
 
+#include <shared_mutex>
 #include "kernel.h"
 import objects;
 #include "handle.h"
 #include "spinlock.h"
 import rbtree;
 import page_cache;
+import rwsem;
 #include "inode.h"
 
 export module tmpfs;
@@ -221,17 +223,20 @@ static nt_status query_directory_dirent(const dentry& d, span<uint8_t> buf,
 
             auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
 
-            // FIXME - should be holding lock for values in inode(?)
+            {
+                shared_lock lock(d.inode->inode_lock);
 
-            fdi.NextEntryOffset = 0;
-            fdi.FileIndex = 0;
-            fdi.CreationTime.QuadPart = (int64_t)d.inode->otime;
-            fdi.LastAccessTime.QuadPart = (int64_t)d.inode->atime;
-            fdi.LastWriteTime.QuadPart = (int64_t)d.inode->mtime;
-            fdi.ChangeTime.QuadPart = (int64_t)d.inode->ctime;
-            fdi.EndOfFile.QuadPart = (int64_t)d.inode->file_size;
-            fdi.AllocationSize.QuadPart = 0; // FIXME
-            fdi.FileAttributes = d.inode->inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0;
+                fdi.NextEntryOffset = 0;
+                fdi.FileIndex = 0;
+                fdi.CreationTime.QuadPart = (int64_t)d.inode->otime;
+                fdi.LastAccessTime.QuadPart = (int64_t)d.inode->atime;
+                fdi.LastWriteTime.QuadPart = (int64_t)d.inode->mtime;
+                fdi.ChangeTime.QuadPart = (int64_t)d.inode->ctime;
+                fdi.EndOfFile.QuadPart = (int64_t)d.inode->file_size;
+                fdi.AllocationSize.QuadPart = 0; // FIXME
+                fdi.FileAttributes = d.inode->inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0;
+            }
+
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
             utf8_to_utf16(span(fdi.FileName, utf16len), sv);
 
@@ -473,11 +478,15 @@ nt_status tmpfs_inode::query_standard_information(span<uint8_t> buffer,
 
     auto& fsi = *(FILE_STANDARD_INFORMATION*)buffer.data();
 
-    fsi.AllocationSize.QuadPart = 0; // FIXME
-    fsi.EndOfFile.QuadPart = (int64_t)file_size;
-    fsi.NumberOfLinks = 1; // FIXME - can tmpfs have hardlinks?
-    fsi.DeletePending = 0; // FIXME
-    fsi.Directory = inode_type == inode_type::directory ? 1 : 0;
+    {
+        shared_lock lock(inode_lock);
+
+        fsi.AllocationSize.QuadPart = 0; // FIXME
+        fsi.EndOfFile.QuadPart = (int64_t)file_size;
+        fsi.NumberOfLinks = 1; // FIXME - can tmpfs have hardlinks?
+        fsi.DeletePending = 0; // FIXME
+        fsi.Directory = inode_type == inode_type::directory ? 1 : 0;
+    }
 
     retlen = sizeof(fsi);
 

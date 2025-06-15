@@ -5,6 +5,7 @@ import objects;
 #include "spinlock.h"
 #include "thread.h"
 import page_cache;
+import rwsem;
 #include "inode.h"
 import rbtree;
 #include "section.h"
