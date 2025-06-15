@@ -709,6 +709,13 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
 
     // clear write bit on PTEs of processes that have mapped these pages
 
+    struct mapping_list {
+        mapping* m;
+        list_entry le;
+    };
+
+    list_entry list = { &list, &list };
+
     {
         lock_guard lg(mappings_lock);
 
@@ -718,15 +725,44 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
             auto mapping_first_page = m.offset >> PAGE_SHIFT;
             auto mapping_last_page = mapping_first_page + (m.size >> PAGE_SHIFT) - 1;
 
-            if (mapping_first_page >= page_num && mapping_last_page <= last_page) // whole mapping
-                m.clear_write_bit(0, mapping_last_page - mapping_first_page + 1);
-            else if (mapping_first_page < page_num && mapping_last_page > last_page) // middle of mapping
-                m.clear_write_bit(page_num - mapping_first_page, last_page - mapping_first_page + 1);
-            else if (mapping_last_page >= page_num && mapping_last_page <= last_page) // end of mapping
-                m.clear_write_bit(page_num - mapping_first_page, mapping_last_page - page_num + 1);
-            else if (mapping_first_page >= page_num && mapping_first_page <= last_page) // beginning of mapping
-                m.clear_write_bit(0, last_page - mapping_first_page + 1);
+            if (mapping_last_page < page_num || mapping_first_page >= page_num + num_pages)
+                continue;
+
+            auto ml = new mapping_list;
+            if (!ml) {
+                print("new failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            ml->m = &m;
+            m.acquire();
+
+            insert_tail_list(list, ml->le);
         }
+    }
+
+    while (!is_list_empty(list)) {
+        auto& ml = containing_record<mapping_list>(list.next);
+
+        remove_entry_list(ml.le);
+
+        auto& m = *ml.m;
+
+        auto mapping_first_page = m.offset >> PAGE_SHIFT;
+        auto mapping_last_page = mapping_first_page + (m.size >> PAGE_SHIFT) - 1;
+
+        if (mapping_first_page >= page_num && mapping_last_page <= last_page) // whole mapping
+            m.clear_write_bit(0, mapping_last_page - mapping_first_page + 1);
+        else if (mapping_first_page < page_num && mapping_last_page > last_page) // middle of mapping
+            m.clear_write_bit(page_num - mapping_first_page, last_page - mapping_first_page + 1);
+        else if (mapping_last_page >= page_num && mapping_last_page <= last_page) // end of mapping
+            m.clear_write_bit(page_num - mapping_first_page, mapping_last_page - page_num + 1);
+        else if (mapping_first_page >= page_num && mapping_first_page <= last_page) // beginning of mapping
+            m.clear_write_bit(0, last_page - mapping_first_page + 1);
+
+        m.release();
+
+        delete &ml;
     }
 
     auto status = dev.flush_cache(page_num, num_pages);
