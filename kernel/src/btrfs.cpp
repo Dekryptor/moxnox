@@ -2261,7 +2261,7 @@ nt_status btrfs_filesystem::remove_item(root& r, const btrfs_key& k) {
     const auto* items = (btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header));
 
     if (items[p.slots[0]].key != k || p.slots[0] >= th.nritems)
-        return nt_status::OBJECT_NAME_NOT_FOUND;
+        return nt_status::NOT_FOUND;
 
     return remove_item2(p);
 }
@@ -2984,7 +2984,7 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
         if (p.slots[0] == 0 && items[p.slots[0]].key != k)
-            return nt_status::OBJECT_NAME_NOT_FOUND;
+            return nt_status::NOT_FOUND;
 
         if (items[p.slots[0]].key != k)
             p.slots[0]--;
@@ -2998,14 +2998,14 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
         const auto& found_key = it.key;
 
         if (found_key.objectid != BTRFS_EXTENT_CSUM_OBJECTID || found_key.type != key_type::EXTENT_CSUM)
-            return nt_status::OBJECT_NAME_NOT_FOUND;
+            return nt_status::NOT_FOUND;
 
         auto data = span((uint32_t*)((const uint8_t*)&th + sizeof(btrfs_header) + it.offset),
                         it.size / sizeof(uint32_t));
 
         auto index = (addr - found_key.offset) / fs.sb->sectorsize;
         if (index >= data.size())
-            return nt_status::OBJECT_NAME_NOT_FOUND;
+            return nt_status::NOT_FOUND;
 
         while (index < data.size() && num_pages > 0) {
             {
@@ -3950,19 +3950,19 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
         if (p.slots[0] >= th.nritems)
-            return nt_status::OBJECT_NAME_NOT_FOUND;
+            return nt_status::NOT_FOUND;
 
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
         if (k.objectid > address) {
             if (!fs.move_path_back(p))
-                return nt_status::OBJECT_NAME_NOT_FOUND;
+                return nt_status::NOT_FOUND;
             continue;
         }
 
         if (k.objectid > address || k.objectid + k.offset < address + length || k.type != key_type::FREE_SPACE_EXTENT)
-            return nt_status::OBJECT_NAME_NOT_FOUND;
+            return nt_status::NOT_FOUND;
 
         break;
     }
