@@ -320,7 +320,7 @@ object_ref create_process(string_view fn, string_view curdir,
 
     // create section for image
 
-    object_ref f(*new file(img_inode));
+    object_ref f(*new file(img_inode, 0));
     object_ref imgh;
 
     status = create_section(static_cast<file&>(f.get()), true, 0, imgh);
@@ -411,7 +411,7 @@ object_ref create_process(string_view fn, string_view curdir,
         }
     }
 
-    auto curdir_file = new file(curdir_inode);
+    auto curdir_file = new file(curdir_inode, 0);
     if (!curdir_file) {
         print("new failed\n");
         p.release();
@@ -1112,7 +1112,7 @@ void load_ntdll() {
     if (inode_ref.get().type != object_type::inode)
         bsod("open_inode returned something other than an inode");
 
-    object_ref f(*new file(inode_ref.get()));
+    object_ref f(*new file(inode_ref.get(), 0));
     object_ref ntdllh;
 
     status = create_section(static_cast<file&>(f.get()), true, 0, ntdllh);

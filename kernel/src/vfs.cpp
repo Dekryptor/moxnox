@@ -400,7 +400,6 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
     }
 
     // FIXME - check permissions (whether valid, and against SD)
-    // FIXME - creating files
     // FIXME - allocation_size
     // FIXME - file_attributes
     // FIXME - share_access
@@ -468,6 +467,8 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
 
     handle_t h;
 
+    // FIXME - should non-inodes also be encapsulated in file?
+
     if (ino_ref.get().type == object_type::inode) {
         const auto& ino = static_cast<inode&>(ino_ref.get());
 
@@ -476,7 +477,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
         else if (create_options & FILE_DIRECTORY_FILE && ino.inode_type != inode_type::directory)
             return nt_status::NOT_A_DIRECTORY;
 
-        auto f = new file(ino_ref.get());
+        auto f = new file(ino_ref.get(), create_options);
 
         if (!f) {
             free(name);

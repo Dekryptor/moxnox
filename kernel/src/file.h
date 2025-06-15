@@ -2,7 +2,7 @@
 
 class file : public object {
 public:
-    file(object& ino);
+    file(object& ino, uint32_t create_options);
     ~file();
 
     void acquire() {
@@ -20,6 +20,7 @@ public:
     uint64_t query_dir_index = 0;
     char* name = nullptr;
     size_t namelen = 0;
+    uint32_t create_options;
 
     NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes);
     NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);

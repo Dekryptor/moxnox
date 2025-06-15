@@ -15,7 +15,7 @@ import volume;
 
 using namespace std;
 
-file::file(object& ino) : object(object_type::file), ino(ino) {
+file::file(object& ino, uint32_t create_options) : object(object_type::file), ino(ino), create_options(create_options) {
     visit_obj(ino, [](auto&& o) {
         o.acquire();
     });
@@ -70,6 +70,10 @@ NTSTATUS file::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
 NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
     NTSTATUS status;
 
+    // FIXME - update file position if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set
+
+    // FIXME - write to end of file, if FILE_APPEND_DATA or FILE_WRITE_TO_END_OF_FILE
+
     visit_obj(ino, [&](auto&& o) {
         if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>) {
             status = o.write(s, written_bytes);
@@ -89,6 +93,11 @@ NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
 NTSTATUS file::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
     NTSTATUS status;
+
+    // FIXME - offset ignored if FILE_APPEND_DATA
+    // FIXME - write to end of file, if FILE_APPEND_DATA or FILE_WRITE_TO_END_OF_FILE
+
+    // FIXME - if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set, set file_offset to offset first
 
     visit_obj(ino, [&](auto&& o) {
         if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
