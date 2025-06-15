@@ -3271,7 +3271,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
     auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
     if (p.slots[0] >= th.nritems)
-        return nt_status::DISK_CORRUPT_ERROR;
+        return nt_status::SUCCESS;
 
     {
         const auto& k = items[p.slots[0]].key;
