@@ -213,8 +213,6 @@ static void ap_startup() {
 }
 
 export bool init_smp() {
-    add_idt_entry(invalidate_tlb_interrupt, (void*)invalidate_tlb_isr, false, 0, false);
-
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
     if (ACPI_FAILURE(status)) {

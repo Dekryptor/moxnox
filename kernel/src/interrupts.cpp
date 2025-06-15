@@ -23,6 +23,9 @@ import list;
 
 using namespace std;
 
+// tlb.S
+extern "C" void invalidate_tlb_isr();
+
 static const uint32_t CPUID_FEAT_EDX_APIC = 0x200;
 static const uint32_t IA32_APIC_BASE_MSR = 0x1b;
 
@@ -483,6 +486,8 @@ static bool setup_idt() {
     add_idt_entry(halt_interrupt, (void*)halt_isr, false, 0, false);
     add_idt_entry(spurious_interrupt, (void*)spurious_isr, false, 0, false);
     add_idt_entry(yield_interrupt, (void*)yield_isr, false, 0, false);
+    add_idt_entry(invalidate_tlb_interrupt, (void*)invalidate_tlb_isr, false,
+                  0, false);
 
     struct {
         uint16_t limit;

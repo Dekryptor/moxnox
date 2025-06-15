@@ -14,6 +14,7 @@ set(SRC_ASM_FILES src/ints.S
     src/smp.S
     src/syscalls.S
     src/mem.S
+    src/tlb.S
     ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 set(SRC_FILES src/kernel.cpp

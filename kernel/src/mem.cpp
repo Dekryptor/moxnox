@@ -21,7 +21,6 @@ import list;
 export {
     extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
     extern "C" void init_pat();
-    extern "C" void invalidate_tlb_isr();
 }
 
 using namespace std;
@@ -74,8 +73,6 @@ static spinlock mapping_spinlock;
 static spinlock protect_page_spinlock;
 
 export span<const uint8_t> initrd;
-extern "C" uint64_t tlb_va;
-extern "C" volatile uint32_t invalidate_tlb_processors_left;
 
 constexpr uint64_t PHYS_MEMORY_MASK = 0xffffff0000000000;
 static const uint64_t PHYS_MEMORY = 0xffff990000000000;
@@ -947,33 +944,6 @@ export bool init_memory(const loader_block& lb) {
 
     return true;
 }
-
-#if 0
-static void invalidate_tlb(void* va) {
-    lock_guard lock(tlb_spinlock);
-
-    tlb_va = (uintptr_t)va;
-
-    __asm __volatile(
-        "invlpg [%0]"
-        :
-        : "b" (va)
-        : "memory"
-    );
-
-    if (init_smp_finished && num_cpus > 1) {
-        invalidate_tlb_processors_left = num_cpus - 1;
-
-        // send IPI to other cores
-
-        auto icr1 = (volatile uint32_t*)&local_apic[0x300];
-
-        *icr1 = 0xc0000 | invalidate_tlb_interrupt;
-
-        while (invalidate_tlb_processors_left > 0) { }
-    }
-}
-#endif
 
 export void* malloc_aligned(size_t size, size_t align) {
     if (size == 0)

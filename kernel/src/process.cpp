@@ -29,10 +29,18 @@ import vfs;
 import string;
 import interrupts;
 import pe;
+import rwsem;
+import smp;
 
 using namespace std;
 
 extern uint16_t last_tid; // FIXME
+
+static rwsem ipi_lock;
+
+// tlb.S
+extern "C" uint64_t tlb_va, tlb_num_pages;
+extern "C" atomic<uint32_t> tlb_cpus_left;
 
 static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
@@ -2936,6 +2944,22 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
     return p->flush_vm(base_address, region_size);
 }
 
+static void send_tlb_ipi(uint8_t cpu_no) {
+    tlb_cpus_left++;
+
+    auto icr2 = (volatile uint32_t*)&local_apic[0x310];
+
+    *icr2 = (*icr2 & 0x00ffffffffffffff) | ((uint64_t)cpu_no << 56);
+
+    auto icr1 = (volatile uint32_t*)&local_apic[0x300];
+
+    *icr1 = invalidate_tlb_interrupt;
+
+    while (*icr1 & (1 << 12)) { } // wait to clear
+
+    // while (processors_left_to_halt > 0) { }
+}
+
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     // clear write bit
 
@@ -2992,5 +3016,34 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
         pte.w = 0;
     }
 
-    // FIXME - send IPIs to invalidate TLBs on other processors
+    // send IPIs to invalidate TLBs on other processors
+
+    auto cpus = proc.running_cpus.load();
+
+    if (cpus == 0)
+        return;
+
+    {
+        lock_guard lock(ipi_lock);
+
+        disable_preempt();
+
+        tlb_va = va;
+        tlb_num_pages = num_pages;
+
+        tlb_cpus_left = 1;
+
+        for (uint8_t i = 0; i < num_cpus; i++) {
+            if (!(cpus & 1 << i))
+                continue;
+
+            send_tlb_ipi(i);
+        }
+
+        tlb_cpus_left--;
+
+        while (tlb_cpus_left > 0) { }
+
+        enable_preempt();
+    }
 }
