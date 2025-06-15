@@ -2950,15 +2950,13 @@ static void send_tlb_ipi(uint8_t cpu_no) {
 
     auto icr2 = (volatile uint32_t*)&local_apic[0x310];
 
-    *icr2 = (*icr2 & 0x00ffffffffffffff) | ((uint64_t)cpu_no << 56);
+    *icr2 = (*icr2 & 0x00ffffff) | ((uint32_t)cpu_no << 24);
 
     auto icr1 = (volatile uint32_t*)&local_apic[0x300];
 
     *icr1 = invalidate_tlb_interrupt;
 
     while (*icr1 & (1 << 12)) { } // wait to clear
-
-    // while (processors_left_to_halt > 0) { }
 }
 
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
