@@ -2937,9 +2937,60 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
 }
 
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME - mapping::clear_write_bit({:x}, {:x})\n", page_num, num_pages);
+    // clear write bit
 
-    // FIXME - clear write bit
+    span<HARDWARE_PTE> pt[4];
+    uint64_t va = address + (page_num << PAGE_SHIFT);
+    uint16_t index[4];
+
+    index[0] = (va & 0x1ff000) >> 12;
+    index[1] = (va & 0x3fe00000) >> 21;
+    index[2] = (va & 0x7fc0000000) >> 30;
+    index[3] = (va & 0xff8000000000) >> 39;
+
+    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+
+    auto redo_level = [&](uint8_t level) {
+        pt[level - 1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
+    };
+
+    for (uint8_t level = 3; level > 0; level--) {
+        redo_level(level);
+    }
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        if (i != 0) {
+            index[0]++;
+
+            if (index[0] == 512) {
+                index[0] = 0;
+                index[1]++;
+
+                if (index[1] == 512) {
+                    index[1] = 0;
+                    index[2]++;
+
+                    if (index[2] == 512) {
+                        index[2] = 0;
+                        index[3]++;
+
+                        redo_level(3);
+                    }
+
+                    redo_level(2);
+                }
+
+                redo_level(1);
+            }
+        }
+
+        auto& pte = pt[0][index[0]];
+
+        if (pte.cow || pte.reserved)
+            continue;
+
+        pte.w = 0;
+    }
 
     // FIXME - send IPIs to invalidate TLBs on other processors
 }
