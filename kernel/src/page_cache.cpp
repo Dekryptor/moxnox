@@ -769,8 +769,22 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
     if (!success(status))
         return status;
 
-    // FIXME - clear dirty bits on page cache entries
-    // FIXME - clear dirty bit on cache if now clean, and remove from writeback list
+    // clear dirty bits on page cache entries
+
+    page_cache_entry* p;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache_lock);
+
+            if (i == 0)
+                p = find_page_cache_entry(page_num);
+            else
+                p = next_page_cache_entry(*p);
+        }
+
+        p->dirty = 0;
+    }
 
     return nt_status::SUCCESS;
 }
