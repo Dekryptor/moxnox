@@ -640,7 +640,5 @@ nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written
 
     written_bytes = cache.write(s, offset);
 
-    // FIXME - mark inode as dirty
-
     return nt_status::SUCCESS;
 }

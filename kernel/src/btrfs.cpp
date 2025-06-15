@@ -4632,6 +4632,31 @@ static void update_superblock_backup(btrfs_filesystem& fs) {
     fs.sb->super_roots[0].num_devices = fs.sb->num_devices;
 }
 
+static nt_status do_writeback_inode(btrfs_filesystem& fs, btrfs_inode& ino) {
+    nt_status status;
+
+    status = ino.cache.flush(0, 0xffffffffffffffff, true);
+    if (!success(status)) {
+        print("page_cache::flush returned {}\n", status);
+        return status;
+    }
+
+    if (ino.file_size != ino.ii.size) {
+        btrfs_path p(fs.sb->nodesize);
+
+        ino.ii.size = ino.file_size;
+        ino.ii.sequence++;
+
+        status = ino.flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status do_writeback(btrfs_filesystem& fs) {
     list_entry writeback_local = { &writeback_local, &writeback_local };
 
@@ -4651,9 +4676,9 @@ static nt_status do_writeback(btrfs_filesystem& fs) {
 
         remove_entry_list(ino.writeback_le);
 
-        auto status = ino.cache.flush(0, 0xffffffffffffffff, true);
+        auto status = do_writeback_inode(fs, static_cast<btrfs_inode&>(ino));
         if (!success(status)) {
-            print("page_cache::flush returned {}\n", status);
+            print("do_writeback_inode returned {}\n", status);
 
             // avoid memory corruption by putting remaining issues back on list
             {
