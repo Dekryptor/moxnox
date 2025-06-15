@@ -12,9 +12,11 @@ enum class inode_type : uint8_t {
     ea = 8
 };
 
+class filesystem;
+
 class inode : public object {
 public:
-    inode() : object(object_type::inode) { }
+    inode(filesystem& fs) : object(object_type::inode), fs(fs) { }
 
     virtual ~inode() {
     }
@@ -40,6 +42,7 @@ public:
     virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
     virtual nt_status flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
 
+    filesystem& fs;
     uint64_t file_size;
     enum inode_type inode_type;
     page_cache<inode> cache{*this};

@@ -1091,7 +1091,9 @@ bool btrfs_filesystem::load_roots() {
     return true;
 }
 
-btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : fs(fs), inode(inode) {
+btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : ::inode(fs), fs(fs) {
+    this->inode = inode;
+
     r = fs.find_root(subvol);
     if (!r)
         return;

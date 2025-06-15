@@ -27,10 +27,7 @@ export class tmpfs_filesystem;
 
 export class tmpfs_inode : public inode {
 public:
-    tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : fs(fs) {
-        this->inode_type = inode_type;
-    }
-
+    tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type);
     ~tmpfs_inode();
     void release() override;
 
@@ -53,9 +50,6 @@ public:
     spinlock dentry_lock;
     list_entry children = { &children, &children };
     uint64_t mtime, ctime, otime, atime;
-
-private:
-    tmpfs_filesystem& fs;
 };
 
 struct dentry {
@@ -183,7 +177,7 @@ nt_status tmpfs_filesystem::flush(bool make_readonly) {
 
 void tmpfs_inode::release() {
     {
-        lock_guard lock(fs.inode_lock);
+        lock_guard lock(static_cast<tmpfs_filesystem&>(fs).inode_lock);
 
         if (--refcount != 0)
             return;
@@ -192,6 +186,10 @@ void tmpfs_inode::release() {
     }
 
     delete this;
+}
+
+tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : inode(fs) {
+    this->inode_type = inode_type;
 }
 
 tmpfs_inode::~tmpfs_inode() {
@@ -385,7 +383,8 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
 
     bool is_dir = create_options & FILE_DIRECTORY_FILE;
 
-    auto ino = new tmpfs_inode(fs, is_dir ? inode_type::directory : inode_type::file);
+    auto ino = new tmpfs_inode(static_cast<tmpfs_filesystem&>(fs),
+                               is_dir ? inode_type::directory : inode_type::file);
     if (!ino)
         return nt_status::INSUFFICIENT_RESOURCES;
 
@@ -427,7 +426,7 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
 
 NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer,
                                       FILE_INFORMATION_CLASS file_information_class) {
-    if (fs.readonly)
+    if (static_cast<tmpfs_filesystem&>(fs).readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
     switch (file_information_class) {

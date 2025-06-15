@@ -25,7 +25,7 @@ using namespace std;
 
 export const guid null_guid = { 0x00000000, 0x0000, 0x0000, { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
 
-export class filesystem;
+export extern "C++" class filesystem;
 export class volume;
 
 export class volume : public object {
@@ -100,7 +100,7 @@ public:
 
 static_assert(is_readable_object_with_offset<diskpart>);
 
-export class filesystem {
+export extern "C++" class filesystem {
 public:
     filesystem(volume* vol) : vol(vol) { }
     virtual ~filesystem() { }
