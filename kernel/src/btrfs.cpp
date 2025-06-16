@@ -410,6 +410,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     root_dentry = new dentry;
     if (!root_dentry) {
         print("new failed\n");
+        btrfs_root_inode->release();
         return;
     }
 

@@ -40,9 +40,21 @@ export struct dentry {
             inode->release();
     }
 
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount != 0)
+            return;
+
+        delete this;
+    }
+
     inode* inode = nullptr;
     list_entry le;
     unsigned int index;
+    atomic<unsigned int> refcount = 1;
     size_t name_len;
     char name[0];
 };

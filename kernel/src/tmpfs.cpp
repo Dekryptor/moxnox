@@ -61,7 +61,7 @@ public:
 
     ~tmpfs_filesystem() override {
         if (root_dentry)
-            delete root_dentry;
+            root_dentry->release();
     }
 
     nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
@@ -316,10 +316,9 @@ tmpfs_inode::~tmpfs_inode() {
     while (!is_list_empty(children)) {
         auto& c = containing_record<dentry>(children.next);
 
-        c.inode->release();
-
         remove_entry_list(c.le);
-        free(&c);
+
+        c.release();
     }
 }
 
