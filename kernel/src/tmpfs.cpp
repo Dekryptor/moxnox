@@ -34,7 +34,7 @@ public:
     ~tmpfs_inode();
     void release() override;
 
-    nt_status open_child(string_view name, uint32_t create_disposition,
+    nt_status open_child(this tmpfs_inode& ino, string_view name, uint32_t create_disposition,
                          uint32_t create_options, unsigned int& create_result,
                          optional<reference_wrapper<tmpfs_inode>>& obj);
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
@@ -103,6 +103,120 @@ extern "C++" ::filesystem* create_tmpfs() {
     return fs;
 }
 
+// FIXME - make this global?
+static bool invalid_name(string_view name) {
+    if (name.empty())
+        return false;
+
+    if (name.size() > NAME_MAX_LEN)
+        return false;
+
+    if (name == "." || name == "..")
+        return false;
+
+    for (auto c : name) {
+        if (c == '/' || c == '\\' || c == 0)
+            return false;
+    }
+
+    // FIXME - check is valid UTF-8?
+
+    return true;
+}
+
+static nt_status open_child(tmpfs_inode& ino, string_view name, uint32_t create_disposition,
+                            uint32_t create_options, unsigned int& create_result,
+                            optional<reference_wrapper<tmpfs_inode>>& obj) {
+    if (ino.inode_type != inode_type::directory)
+        return nt_status::INVALID_PARAMETER;
+
+    lock_guard lock(ino.dentry_lock);
+
+    for (auto le = ino.children.next; le != &ino.children; le = le->next) {
+        auto& c = containing_record<dentry>(le);
+        string_view child_name(c.name, c.name_len);
+
+        if (name == child_name) {
+            switch (create_disposition) {
+                case FILE_CREATE:
+                    return nt_status::OBJECT_NAME_COLLISION;
+
+                case FILE_SUPERSEDE:
+                    print("FIXME - FILE_SUPERSEDE\n");
+                    return nt_status::NOT_SUPPORTED;
+
+                case FILE_OVERWRITE:
+                    print("FIXME - FILE_OVERWRITE\n");
+                    return nt_status::NOT_SUPPORTED;
+
+                case FILE_OVERWRITE_IF:
+                    print("FIXME - FILE_OVERWRITE_IF\n");
+                    return nt_status::NOT_SUPPORTED;
+
+                case FILE_OPEN:
+                case FILE_OPEN_IF:
+                    create_result = FILE_OPENED;
+                    break;
+            }
+
+            c.inode->acquire();
+            obj = *static_cast<tmpfs_inode*>(c.inode);
+
+            return nt_status::SUCCESS;
+        }
+    }
+
+    if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE) {
+        create_result = FILE_DOES_NOT_EXIST;
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+    }
+
+    if (!invalid_name(name))
+        return nt_status::OBJECT_NAME_INVALID;
+
+    bool is_dir = create_options & FILE_DIRECTORY_FILE;
+
+    auto new_ino = new tmpfs_inode(static_cast<tmpfs_filesystem&>(ino.fs),
+                                   is_dir ? inode_type::directory : inode_type::file);
+    if (!new_ino)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto c = (dentry*)malloc(offsetof(dentry, name) + name.size());
+    if (!c) {
+        new_ino->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto cur_time = (uint64_t)system_time + system_time_offset;
+
+    new (c) dentry;
+
+    new_ino->acquire();
+
+    new_ino->file_size = 0;
+    new_ino->atime = cur_time;
+    new_ino->ctime = cur_time;
+    new_ino->mtime = cur_time;
+    new_ino->otime = cur_time;
+
+    c->inode = new_ino;
+    c->name_len = name.size();
+    memcpy(c->name, name.data(), name.size());
+
+    if (is_list_empty(ino.children))
+        c->index = 0;
+    else
+        c->index = containing_record<dentry>(ino.children.prev).index + 1;
+
+    insert_tail_list(ino.children, c->le);
+
+    obj = *new_ino;
+
+    create_result = FILE_CREATED;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status tmpfs_filesystem::open(string_view fn,
                                  const optional<reference_wrapper<inode>>& root_dir,
                                  object_ref& obj_ref, uint32_t create_disposition,
@@ -137,10 +251,10 @@ nt_status tmpfs_filesystem::open(string_view fn,
         optional<reference_wrapper<tmpfs_inode>> objrw;
         unsigned int result;
 
-        auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
-                                     last_bit ? create_disposition : FILE_OPEN,
-                                     create_options, last_bit ? create_result : result,
-                                     objrw);
+        auto status = open_child(dir, last_bit ? fn : string_view(fn.data(), sl),
+                                 last_bit ? create_disposition : FILE_OPEN,
+                                 create_options, last_bit ? create_result : result,
+                                 objrw);
         if (!success(status)) {
             dir.release();
 
@@ -308,120 +422,6 @@ size_t tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 }
 
 nt_status tmpfs_inode::flush_cache(uint64_t, uint64_t) {
-    return nt_status::SUCCESS;
-}
-
-// FIXME - make this global?
-static bool invalid_name(string_view name) {
-    if (name.empty())
-        return false;
-
-    if (name.size() > NAME_MAX_LEN)
-        return false;
-
-    if (name == "." || name == "..")
-        return false;
-
-    for (auto c : name) {
-        if (c == '/' || c == '\\' || c == 0)
-            return false;
-    }
-
-    // FIXME - check is valid UTF-8?
-
-    return true;
-}
-
-nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
-                                 uint32_t create_options, unsigned int& create_result,
-                                 optional<reference_wrapper<tmpfs_inode>>& obj) {
-    if (inode_type != inode_type::directory)
-        return nt_status::INVALID_PARAMETER;
-
-    lock_guard lock(dentry_lock);
-
-    for (auto le = children.next; le != &children; le = le->next) {
-        auto& c = containing_record<dentry>(le);
-        string_view child_name(c.name, c.name_len);
-
-        if (name == child_name) {
-            switch (create_disposition) {
-                case FILE_CREATE:
-                    return nt_status::OBJECT_NAME_COLLISION;
-
-                case FILE_SUPERSEDE:
-                    print("FIXME - FILE_SUPERSEDE\n");
-                    return nt_status::NOT_SUPPORTED;
-
-                case FILE_OVERWRITE:
-                    print("FIXME - FILE_OVERWRITE\n");
-                    return nt_status::NOT_SUPPORTED;
-
-                case FILE_OVERWRITE_IF:
-                    print("FIXME - FILE_OVERWRITE_IF\n");
-                    return nt_status::NOT_SUPPORTED;
-
-                case FILE_OPEN:
-                case FILE_OPEN_IF:
-                    create_result = FILE_OPENED;
-                    break;
-            }
-
-            c.inode->acquire();
-            obj = *static_cast<tmpfs_inode*>(c.inode);
-
-            return nt_status::SUCCESS;
-        }
-    }
-
-    if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE) {
-        create_result = FILE_DOES_NOT_EXIST;
-        return nt_status::OBJECT_NAME_NOT_FOUND;
-    }
-
-    if (!invalid_name(name))
-        return nt_status::OBJECT_NAME_INVALID;
-
-    bool is_dir = create_options & FILE_DIRECTORY_FILE;
-
-    auto ino = new tmpfs_inode(static_cast<tmpfs_filesystem&>(fs),
-                               is_dir ? inode_type::directory : inode_type::file);
-    if (!ino)
-        return nt_status::INSUFFICIENT_RESOURCES;
-
-    auto c = (dentry*)malloc(offsetof(dentry, name) + name.size());
-    if (!c) {
-        ino->release();
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    auto cur_time = (uint64_t)system_time + system_time_offset;
-
-    new (c) dentry;
-
-    ino->acquire();
-
-    ino->file_size = 0;
-    ino->atime = cur_time;
-    ino->ctime = cur_time;
-    ino->mtime = cur_time;
-    ino->otime = cur_time;
-
-    c->inode = ino;
-    c->name_len = name.size();
-    memcpy(c->name, name.data(), name.size());
-
-    if (is_list_empty(children))
-        c->index = 0;
-    else
-        c->index = containing_record<dentry>(children.prev).index + 1;
-
-    insert_tail_list(children, c->le);
-
-    obj = *ino;
-
-    create_result = FILE_CREATED;
-
     return nt_status::SUCCESS;
 }
 
