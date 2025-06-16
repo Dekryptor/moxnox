@@ -194,7 +194,7 @@ static nt_status extract_initrd_file(::filesystem& fs, string_view path,
 
     memset(&fbi, 0, sizeof(fbi));
 
-    fbi.LastWriteTime.QuadPart = unix_to_system_time(mtime);
+    fbi.LastWriteTime.QuadPart = (int64_t)unix_to_system_time(mtime);
 
     status = ino.set_information(span((const uint8_t*)&fbi, sizeof(fbi)),
                                  FILE_INFORMATION_CLASS::BasicInformation);
