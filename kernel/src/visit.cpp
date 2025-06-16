@@ -127,3 +127,16 @@ export nt_status object_read_without_offset(object& obj, span<uint8_t> s,
 
     return status;
 }
+
+export bool object_is_exclusive(object& obj) {
+    bool ret;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (has_exclusive_field<remove_reference_t<decltype(o)>>)
+            ret = o.exclusive;
+        else
+            ret = false;
+    });
+
+    return ret;
+}

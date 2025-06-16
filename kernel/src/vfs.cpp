@@ -491,10 +491,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
         }
     }
 
-    visit_obj(ino_ref.get(), [&](auto&& o) {
-        if constexpr (has_exclusive_field<remove_reference_t<decltype(o)>>)
-            shared_okay = !o.exclusive;
-    });
+    shared_okay = !object_is_exclusive(ino_ref.get());
 
     handle_t h;
 
