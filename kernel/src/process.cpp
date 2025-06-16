@@ -1960,10 +1960,10 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     rangelock_req rlr(cache.rl, sect_page_num, 1);
 
                     if (p->pfn == 0) {
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
                         p->pfn = allocate_folio(0) >> PAGE_SHIFT;
-    #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 
                         if (!p->pfn) {
                             print("allocate_folio failed\n");
@@ -1978,10 +1978,10 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                             return false;
                         }
 
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
                         p->pfn = pfn;
-    #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
                     }
 
                     p->dirty = 1;
@@ -1990,10 +1990,10 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     memcpy((uint8_t*)get_phys_address(*p) + page_offset,
                         ks_addr, to_copy);
 
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
                     pte.pfn = p->pfn;
-    #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
                 }
 
                 pte.w = 1;
