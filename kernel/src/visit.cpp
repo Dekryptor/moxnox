@@ -113,3 +113,17 @@ export nt_status object_read_with_offset(object& obj, span<uint8_t> s,
 
     return status;
 }
+
+export nt_status object_read_without_offset(object& obj, span<uint8_t> s,
+                                            uint64_t& read_bytes) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
+            status = o.read(s, read_bytes);
+        else
+            status = nt_status::NOT_SUPPORTED;
+    });
+
+    return status;
+}

@@ -356,22 +356,6 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     // FIXME - async (APC)
 
     auto& obj = objrw.get();
-    bool can_read = false;
-
-    if (byte_offset) {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
-                can_read = true;
-        });
-    } else {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
-                can_read = true;
-        });
-    }
-
-    if (!can_read)
-        return nt_status::INVALID_PARAMETER;
 
     NTSTATUS status;
     size_t read;
@@ -379,12 +363,8 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     if (byte_offset) {
         status = object_read_with_offset(obj, buf, (uint64_t)byte_offset->QuadPart,
                                          read);
-    } else {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
-                status = o.read(buf, read);
-        });
-    }
+    } else
+        status = object_read_without_offset(obj, buf, read);
 
     if (!success(status)) {
         io_status_block->Status = status;
