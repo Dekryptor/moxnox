@@ -12,13 +12,12 @@ import rwsem;
 #include "inode.h"
 import volume;
 #include "visit_object.h"
+import visit;
 
 using namespace std;
 
 file::file(object& ino, uint32_t create_options) : object(object_type::file), ino(ino), create_options(create_options) {
-    visit_obj(ino, [](auto&& o) {
-        o.acquire();
-    });
+    object_acquire(ino);
 }
 
 file::~file() {

@@ -15,6 +15,7 @@ import volume;
 
 import print;
 import list;
+import visit;
 
 using namespace std;
 
@@ -104,9 +105,7 @@ bool name_object(object& obj, string_view name, bool persistent) {
     memcpy(ne->name, name.data(), name.length());
     insert_tail_list(name_list, ne->le);
 
-    visit_obj(obj, [](auto&& o) {
-        o.acquire();
-    });
+    object_acquire(obj);
 
     return true;
 }
@@ -128,9 +127,7 @@ nt_status open_object(string_view name, object_ref& obj) {
                 auto nesv = string_view(ne.name, ne.name_len);
 
                 if (nesv == name) {
-                    visit_obj(*ne.obj, [](auto&& o) {
-                        o.acquire();
-                    });
+                    object_acquire(*ne.obj);
 
                     obj = *ne.obj;
                     return nt_status::SUCCESS;

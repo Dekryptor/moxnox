@@ -32,6 +32,7 @@ import interrupts;
 import pe;
 import rwsem;
 import smp;
+import visit;
 
 using namespace std;
 
@@ -1388,9 +1389,7 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
         ho.access_mask = access_mask;
     }
 
-    visit_obj(obj, [](auto&& o) {
-        o.acquire();
-    });
+    object_acquire(obj);
 
     return nt_status::SUCCESS;
 }
@@ -2032,9 +2031,7 @@ object_ref process::deref_handle(handle_t h) {
     if (!ho.obj)
         return nullopt;
 
-    visit_obj(*ho.obj, [](auto&& o) {
-        o.acquire(); // needs to be within spinlock
-    });
+    object_acquire(*ho.obj); // needs to be within spinlock
 
     return *ho.obj;
 }
@@ -2055,9 +2052,7 @@ object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
     if (!ho.obj)
         return nullopt;
 
-    visit_obj(*ho.obj, [](auto&& o) {
-        o.acquire(); // needs to be within spinlock
-    });
+    object_acquire(*ho.obj); // needs to be within spinlock
 
     access_mask = ho.access_mask;
 
