@@ -59,19 +59,16 @@ NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
     // FIXME - update file position if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set
 
-    visit_obj(ino, [&](auto&& o) {
-        if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>) {
-            status = o.write(s, written_bytes);
-        } else if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>) {
-            status = o.write(s, file_offset, written_bytes);
+    status = object_write_without_offset(ino, s, written_bytes);
+    if (status != nt_status::NOT_SUPPORTED)
+        return status;
 
-            if (success(status) && written_bytes > 0) {
-                lock_guard l(lock);
-                file_offset += written_bytes;
-            }
-        } else
-            status = nt_status::INTERNAL_ERROR;
-    });
+    status = object_write_with_offset(ino, s, file_offset, written_bytes);
+
+    if (success(status) && written_bytes > 0) {
+        lock_guard l(lock);
+        file_offset += written_bytes;
+    }
 
     return status;
 }
