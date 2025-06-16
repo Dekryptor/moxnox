@@ -593,28 +593,12 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 
     auto& obj = objrw.get();
     optional<uint64_t> offset;
-    bool can_write = false;
 
     if (byte_offset)
         offset = (uint64_t)byte_offset->QuadPart;
 
     if ((access_mask & FILE_APPEND_DATA) && !(access_mask & FILE_WRITE_DATA))
         offset = WRITE_TO_END_OF_FILE;
-
-    if (offset.has_value() && *offset != WRITE_TO_END_OF_FILE) {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
-                can_write = true;
-        });
-    } else {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
-                can_write = true;
-        });
-    }
-
-    if (!can_write)
-        return nt_status::INVALID_PARAMETER;
 
     size_t written;
     nt_status status;
