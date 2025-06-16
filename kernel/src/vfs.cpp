@@ -30,31 +30,6 @@ extern "C++" ::filesystem* create_tmpfs();
 
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
-export struct dentry {
-    ~dentry() {
-        if (inode)
-            inode->release();
-    }
-
-    void acquire() {
-        refcount++;
-    }
-
-    void release() {
-        if (--refcount != 0)
-            return;
-
-        delete this;
-    }
-
-    inode* inode = nullptr;
-    list_entry le;
-    unsigned int index;
-    atomic<unsigned int> refcount = 1;
-    size_t name_len;
-    char name[0];
-};
-
 export extern "C++" class filesystem {
 public:
     filesystem(volume* vol) : vol(vol) { }

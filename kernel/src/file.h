@@ -1,5 +1,30 @@
 #pragma once
 
+struct dentry {
+    ~dentry() {
+        if (inode)
+            inode->release();
+    }
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount != 0)
+            return;
+
+        delete this;
+    }
+
+    inode* inode = nullptr;
+    list_entry le;
+    unsigned int index;
+    std::atomic<unsigned int> refcount = 1;
+    size_t name_len;
+    char name[0];
+};
+
 class file : public object {
 public:
     file(object& ino, uint32_t create_options);

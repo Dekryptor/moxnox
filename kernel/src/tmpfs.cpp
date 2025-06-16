@@ -9,6 +9,7 @@ import rbtree;
 import page_cache;
 import rwsem;
 #include "inode.h"
+#include "file.h"
 
 export module tmpfs;
 

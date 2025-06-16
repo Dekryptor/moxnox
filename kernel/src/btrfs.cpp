@@ -16,6 +16,7 @@ import rwsem;
 import page_cache;
 #include "handle.h"
 import rangelock;
+#include "file.h"
 
 export module btrfs;
 
