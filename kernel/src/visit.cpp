@@ -99,3 +99,17 @@ export nt_status object_ioctl(object& obj, uint32_t control_code, span<const uin
 
     return ret;
 }
+
+export nt_status object_read_with_offset(object& obj, span<uint8_t> s,
+                                         uint64_t offset, uint64_t& read_bytes) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
+            status = o.read(s, offset, read_bytes);
+        else
+            status = nt_status::NOT_SUPPORTED;
+    });
+
+    return status;
+}

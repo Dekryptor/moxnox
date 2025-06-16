@@ -377,10 +377,8 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     size_t read;
 
     if (byte_offset) {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
-                status = o.read(buf, (uint64_t)byte_offset->QuadPart, read);
-        });
+        status = object_read_with_offset(obj, buf, (uint64_t)byte_offset->QuadPart,
+                                         read);
     } else {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)

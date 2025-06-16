@@ -47,14 +47,7 @@ NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
 }
 
 NTSTATUS file::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
-    NTSTATUS status;
-
-    visit_obj(ino, [&](auto&& o) {
-        if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
-            status = o.read(s, offset, read_bytes);
-        else
-            status = nt_status::INTERNAL_ERROR;
-    });
+    auto status = object_read_with_offset(ino, s, offset, read_bytes);
 
     if (success(status)) {
         lock_guard l(lock);
