@@ -68,7 +68,7 @@ struct mount {
 };
 
 export struct dentry {
-    class inode* inode;
+    inode* inode;
     list_entry le;
     unsigned int index;
     size_t name_len;
