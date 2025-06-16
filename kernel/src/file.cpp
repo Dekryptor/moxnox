@@ -1,17 +1,11 @@
 #include "kernel.h"
 #include "handle.h"
 #include "spinlock.h"
-import rbtree;
-import event;
-import pipe;
-import timer;
 import objects;
-#include "thread.h"
 import page_cache;
 import rwsem;
 #include "inode.h"
-import volume;
-#include "visit_object.h"
+#include "file.h"
 import visit;
 
 using namespace std;
