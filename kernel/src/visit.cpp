@@ -41,3 +41,10 @@ export bool object_is_sync_object(object& obj) {
 
     return ret;
 }
+
+export void object_on_wake(object& obj) {
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (object_has_on_wake<remove_reference_t<decltype(o)>>)
+            o.on_wake();
+    });
+}

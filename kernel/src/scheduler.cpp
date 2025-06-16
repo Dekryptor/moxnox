@@ -266,11 +266,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
         auto& so = static_cast<sync_object&>(obj);
 
         if (so.signalled) {
-            visit_obj(obj, [&](auto&& o) {
-                if constexpr (object_has_on_wake<remove_reference_t<decltype(o)>>)
-                    o.on_wake();
-            });
-
+            object_on_wake(obj);
             release_sync_lock();
             __asm("sti");
 
