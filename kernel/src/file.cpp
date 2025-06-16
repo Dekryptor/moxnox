@@ -21,9 +21,7 @@ file::file(object& ino, uint32_t create_options) : object(object_type::file), in
 }
 
 file::~file() {
-    visit_obj(ino, [](auto&& o) {
-        o.release();
-    });
+    object_release(ino);
 
     free(name);
 }

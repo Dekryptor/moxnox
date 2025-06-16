@@ -49,9 +49,7 @@ object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask) {
 
 void object_ref::reset() {
     if (rw) {
-        visit_obj(rw->get(), [](auto&& o) {
-            o.release();
-        });
+        object_release(rw->get());
     }
 }
 
@@ -202,10 +200,7 @@ void handle_closed(object& obj) {
 
         if (ne) {
             free(ne);
-
-            visit_obj(obj, [](auto&& o) {
-                o.release();
-            });
+            object_release(obj);
         }
     }
 }

@@ -16,6 +16,7 @@ import pipe;
 import timer;
 import volume;
 #include "visit_object.h"
+import visit;
 
 export module vfs;
 
@@ -549,9 +550,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
     } else {
         status = p->add_handle(ino_ref.get(), access_mask, shared_okay, h);
         if (!success(status)) {
-            visit_obj(ino_ref.get(), [&](auto&& o) {
-                o.release();
-            });
+            object_release(ino_ref.get());
             return status;
         }
     }

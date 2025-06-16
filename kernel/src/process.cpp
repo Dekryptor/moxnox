@@ -1154,10 +1154,7 @@ void process::terminate() {
             continue;
 
         handle_closed(*obj);
-
-        visit_obj(*obj, [](auto&& o) {
-            o.release();
-        });
+        object_release(*obj);
     }
 
     if (handle_arr_pages != 0) {
@@ -2253,9 +2250,7 @@ NTSTATUS process::close_handle(handle_t h) {
             no_handles--;
     }
 
-    visit_obj(*obj, [](auto&& o) {
-        o.release();
-    });
+    object_release(*obj);
 
     return nt_status::SUCCESS;
 }

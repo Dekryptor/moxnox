@@ -22,3 +22,9 @@ export void object_acquire(object& obj) {
         o.acquire();
     });
 }
+
+export void object_release(object& obj) {
+    visit_obj(obj, [](auto&& o) {
+        o.release();
+    });
+}
