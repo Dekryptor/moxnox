@@ -187,9 +187,17 @@ static nt_status extract_initrd_file(::filesystem& fs, string_view path,
     if (!success(status))
         return status;
 
-    auto& ino = static_cast<tmpfs_inode&>(file.get());
+    auto& ino = static_cast<inode&>(file.get());
+    FILE_BASIC_INFORMATION fbi;
 
-    ino.mtime = unix_to_system_time(mtime);
+    memset(&fbi, 0, sizeof(fbi));
+
+    fbi.LastWriteTime.QuadPart = unix_to_system_time(mtime);
+
+    status = ino.set_information(span((const uint8_t*)&fbi, sizeof(fbi)),
+                                 FILE_INFORMATION_CLASS::BasicInformation);
+    if (!success(status))
+        return status;
 
     if (!S_ISREG(mode))
         return nt_status::SUCCESS;
