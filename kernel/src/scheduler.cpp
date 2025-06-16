@@ -1,23 +1,9 @@
 #include "kernel.h"
 #include "cpu_block.h"
-#include "spinlock.h"
-#include "handle.h"
-import rbtree;
-import event;
-import pipe;
-import timer;
 import objects;
 #include "thread.h"
-import page_cache;
-import rwsem;
-#include "inode.h"
-import volume;
-#include "visit_object.h"
+#include "process.h"
 #include "tick_rate.h"
-#include <cstdlib>
-#include <optional>
-#include <atomic>
-#include <utility>
 
 import print;
 import bsod;
