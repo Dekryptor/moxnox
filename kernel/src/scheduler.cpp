@@ -254,14 +254,14 @@ nt_status wait_for_object(object& obj, bool interruptible,
     acquire_sync_lock();
 
     if (current_thread->status != thread_status::dead) {
-        optional<bool> sigopt;
+        bool is_sync_obj = false;
 
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
-                sigopt = o.signalled;
+                is_sync_obj = true;
         });
 
-        if (!sigopt.has_value()) {
+        if (!is_sync_obj) {
             release_sync_lock();
             __asm("sti");
             // FIXME - exception
@@ -269,9 +269,9 @@ nt_status wait_for_object(object& obj, bool interruptible,
             return nt_status::INVALID_PARAMETER;
         }
 
-        auto signalled = *sigopt;
+        auto& so = static_cast<sync_object&>(obj);
 
-        if (signalled) {
+        if (so.signalled) {
             visit_obj(obj, [&](auto&& o) {
                 if constexpr (object_has_on_wake<remove_reference_t<decltype(o)>>)
                     o.on_wake();
@@ -289,12 +289,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
             return nt_status::TIMEOUT;
         }
 
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
-                insert_tail_list(o.waiters, current_thread->wait_le);
-            else
-                unreachable();
-        });
+        insert_tail_list(so.waiters, current_thread->wait_le);
 
         auto& cb = *get_cpu_block();
 
