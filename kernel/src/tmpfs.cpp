@@ -76,27 +76,28 @@ public:
                    uint32_t create_options, unsigned int& create_result) override;
     nt_status flush(bool make_readonly) override;
 
-    tmpfs_inode* root_inode = nullptr;
     spinlock inode_lock;
     list_entry inode_list = { &inode_list, &inode_list };
     bool readonly = false;
 };
 
 tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
-    root_inode = new tmpfs_inode(*this, inode_type::directory);
-    if (!root_inode) {
+    auto tmpfs_root_inode = new tmpfs_inode(*this, inode_type::directory);
+    if (!tmpfs_root_inode) {
         print("new failed\n");
         return;
     }
 
+    root_inode = tmpfs_root_inode;
+
     auto cur_time = (uint64_t)system_time + system_time_offset;
 
-    root_inode->atime = cur_time;
-    root_inode->ctime = cur_time;
-    root_inode->mtime = cur_time;
-    root_inode->otime = cur_time;
+    tmpfs_root_inode->atime = cur_time;
+    tmpfs_root_inode->ctime = cur_time;
+    tmpfs_root_inode->mtime = cur_time;
+    tmpfs_root_inode->otime = cur_time;
 
-    insert_tail_list(inode_list, root_inode->le);
+    insert_tail_list(inode_list, tmpfs_root_inode->le);
 }
 
 export tmpfs_filesystem* create_tmpfs() {
@@ -131,7 +132,7 @@ nt_status tmpfs_filesystem::open(string_view fn,
         }
     }
 
-    reference_wrapper<tmpfs_inode> dirrw{!root_dir ? *root_inode : static_cast<tmpfs_inode&>(root_dir->get())};
+    reference_wrapper<tmpfs_inode> dirrw{!root_dir ? *static_cast<tmpfs_inode*>(root_inode) : static_cast<tmpfs_inode&>(root_dir->get())};
     dirrw.get().acquire();
 
     // FIXME - die if anything in middle not directory

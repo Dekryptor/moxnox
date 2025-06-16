@@ -618,7 +618,6 @@ public:
     bool valid = false;
     list_entry chunk_list = { &chunk_list, &chunk_list };
     list_entry root_list = { &root_list, &root_list };
-    btrfs_inode* root_inode = nullptr;
     spinlock inode_lock;
     list_entry inode_list = { &inode_list, &inode_list };
     rwsem trans_lock;

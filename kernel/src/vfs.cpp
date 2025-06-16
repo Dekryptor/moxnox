@@ -166,7 +166,7 @@ static uint64_t unix_to_system_time(uint64_t t) {
     return (t * 10000000) + 116444736000000000;
 }
 
-static nt_status extract_initrd_file(tmpfs_filesystem& fs, string_view path,
+static nt_status extract_initrd_file(::filesystem& fs, string_view path,
                                      uint64_t mode, span<const uint8_t> contents,
                                      uint64_t mtime) {
     // FIXME - support symlinks as well at least

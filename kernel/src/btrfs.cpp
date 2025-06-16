@@ -395,17 +395,19 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
     // FIXME - default subvol
 
-    root_inode = new btrfs_inode(*this, BTRFS_FS_TREE_OBJECTID, SUBVOL_ROOT_INODE,
-                                 btrfs_inode_type::directory);
-    if (!root_inode) {
+    auto btrfs_root_inode = new btrfs_inode(*this, BTRFS_FS_TREE_OBJECTID, SUBVOL_ROOT_INODE,
+                                            btrfs_inode_type::directory);
+    if (!btrfs_root_inode) {
         print("new failed\n");
         return;
     }
 
-    if (!root_inode->load_inode())
+    root_inode = btrfs_root_inode;
+
+    if (!btrfs_root_inode->load_inode())
         return;
 
-    insert_tail_list(inode_list, root_inode->le);
+    insert_tail_list(inode_list, btrfs_root_inode->le);
 
     sb->generation++;
 
@@ -2803,7 +2805,7 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
 
     // FIXME - do we need to make sure root_dir is definitely a btrfs inode?
 
-    reference_wrapper<btrfs_inode> dirrw{!root_dir ? *root_inode : static_cast<btrfs_inode&>(root_dir->get())};
+    reference_wrapper<btrfs_inode> dirrw{!root_dir ? *static_cast<btrfs_inode*>(root_inode) : static_cast<btrfs_inode&>(root_dir->get())};
     dirrw.get().acquire();
 
     auto l = [&]() -> nt_status {
