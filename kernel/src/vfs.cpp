@@ -4,18 +4,13 @@ module;
 #include "kernel.h"
 #include "spinlock.h"
 import objects;
-import rbtree;
-#include "thread.h"
+#include "process.h"
 import page_cache;
 import rwsem;
 #include "inode.h"
 #include "handle.h"
-import rbtree;
-import event;
-import pipe;
-import timer;
 import volume;
-#include "visit_object.h"
+#include "file.h"
 import visit;
 
 export module vfs;
