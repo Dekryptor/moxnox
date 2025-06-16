@@ -130,28 +130,6 @@ nt_status open_object(string_view name, object_ref& obj) {
     return nt_status::OBJECT_NAME_NOT_FOUND;
 }
 
-void write(object_ref& h, span<const uint8_t> s) {
-    if (!h) {
-        // FIXME - exception
-        print("Object not set\n");
-        return;
-    }
-
-    auto& obj = h.get();
-    uint64_t written_bytes;
-
-    auto status = object_write_without_offset(obj, s, written_bytes);
-
-    if (status == nt_status::NOT_SUPPORTED)
-        print("Not a writable object\n");
-    else if (!success(status))
-        print("object_write_without_offset returned {}\n", status);
-}
-
-void write(object_ref& h, string_view s) {
-    write(h, span((uint8_t*)s.data(), s.size()));
-}
-
 void handle_closed(object& obj) {
     auto new_handle_count = --obj.handle_count;
 

@@ -26,6 +26,7 @@ import pipe;
 import rbtree;
 import acpi;
 import pci;
+import visit;
 
 using namespace std;
 
@@ -1499,11 +1500,17 @@ void early_print(string_view s) {
 }
 
 export void safe_print(string_view s) {
-    write(console_chardev, s);
+    uint64_t written_bytes;
+
+    auto buf = span((uint8_t*)s.data(), s.size());
+
+    // FIXME - how can we print errors if write fails?
+
+    object_write_without_offset(console_chardev.get(), buf, written_bytes);
 
     // FIXME - this should be hidden behind a cmdline option
     if (console_type != console_type::other && com1_pipe_handle)
-        write(com1_pipe_handle, s);
+        object_write_without_offset(com1_pipe_handle.get(), buf, written_bytes);
 }
 
 static void console_event_recv() {
