@@ -50,6 +50,14 @@ struct mount {
     char path[0];
 };
 
+export struct dentry {
+    class inode* inode;
+    list_entry le;
+    unsigned int index;
+    size_t name_len;
+    char name[0];
+};
+
 static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
 static mount root(0);

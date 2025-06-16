@@ -20,6 +20,7 @@ import list;
 import string;
 import volume;
 import timer;
+import vfs;
 
 using namespace std;
 
@@ -52,14 +53,6 @@ public:
     spinlock dentry_lock;
     list_entry children = { &children, &children };
     uint64_t mtime, ctime, otime, atime;
-};
-
-struct dentry {
-    class tmpfs_inode* inode;
-    list_entry le;
-    unsigned int index;
-    size_t name_len;
-    char name[0];
 };
 
 class tmpfs_filesystem : public ::filesystem {
@@ -224,18 +217,20 @@ static nt_status query_directory_dirent(const dentry& d, span<uint8_t> buf,
 
             auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
 
+            auto& ino = *static_cast<tmpfs_inode*>(d.inode);
+
             {
                 shared_lock lock(d.inode->inode_lock);
 
                 fdi.NextEntryOffset = 0;
                 fdi.FileIndex = 0;
-                fdi.CreationTime.QuadPart = (int64_t)d.inode->otime;
-                fdi.LastAccessTime.QuadPart = (int64_t)d.inode->atime;
-                fdi.LastWriteTime.QuadPart = (int64_t)d.inode->mtime;
-                fdi.ChangeTime.QuadPart = (int64_t)d.inode->ctime;
-                fdi.EndOfFile.QuadPart = (int64_t)d.inode->file_size;
+                fdi.CreationTime.QuadPart = (int64_t)ino.otime;
+                fdi.LastAccessTime.QuadPart = (int64_t)ino.atime;
+                fdi.LastWriteTime.QuadPart = (int64_t)ino.mtime;
+                fdi.ChangeTime.QuadPart = (int64_t)ino.ctime;
+                fdi.EndOfFile.QuadPart = (int64_t)ino.file_size;
                 fdi.AllocationSize.QuadPart = 0; // FIXME
-                fdi.FileAttributes = d.inode->inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0;
+                fdi.FileAttributes = ino.inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0;
             }
 
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
@@ -373,7 +368,7 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
             }
 
             c.inode->acquire();
-            obj = *c.inode;
+            obj = *static_cast<tmpfs_inode*>(c.inode);
 
             return nt_status::SUCCESS;
         }
