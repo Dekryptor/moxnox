@@ -64,3 +64,24 @@ export nt_status object_write_without_offset(object& obj, span<const uint8_t> bu
 
     return status;
 }
+
+export nt_status object_ioctl(object& obj, uint32_t control_code, span<const uint8_t> inbuf,
+                              span<uint8_t> outbuf, IO_STATUS_BLOCK& iosb) {
+    nt_status ret;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (has_ioctls<decltype(o)>)
+            ret = o.ioctl(control_code, inbuf, outbuf, iosb.Information);
+        else if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
+            visit_obj(o.ino, [&](auto&& o) {
+                if constexpr (has_ioctls<decltype(o)>)
+                    ret = o.ioctl(control_code, inbuf, outbuf, iosb.Information);
+                else
+                    ret = nt_status::NOT_SUPPORTED;
+            });
+        } else
+            ret = nt_status::NOT_SUPPORTED;
+    });
+
+    return ret;
+}
