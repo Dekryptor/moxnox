@@ -13,11 +13,61 @@ import page_cache;
 import rwsem;
 #include "inode.h"
 import volume;
-#include "visit_object.h"
+import chardev;
+import semaphore;
+#include "process.h"
+#include "section.h"
+#include "file.h"
 
 export module visit;
 
 using namespace std;
+
+// FIXME - concept to make sure func is invocable(?)
+template<typename T>
+static void visit_obj(object& obj, const T& func) {
+    switch (obj.type) {
+        case object_type::thread:
+            func(static_cast<thread&>(obj));
+        break;
+
+        case object_type::timer:
+            func(static_cast<timer&>(obj));
+        break;
+
+        case object_type::event:
+            func(static_cast<event&>(obj));
+        break;
+
+        case object_type::chardev:
+            func(static_cast<chardev&>(obj));
+        break;
+
+        case object_type::semaphore:
+            func(static_cast<semaphore&>(obj));
+        break;
+
+        case object_type::volume:
+            func(static_cast<volume&>(obj));
+        break;
+
+        case object_type::inode:
+            func(static_cast<inode&>(obj));
+        break;
+
+        case object_type::process:
+            func(static_cast<process&>(obj));
+        break;
+
+        case object_type::section:
+            func(static_cast<section&>(obj));
+        break;
+
+        case object_type::file:
+            func(static_cast<file&>(obj));
+        break;
+    }
+}
 
 export void object_acquire(object& obj) {
     visit_obj(obj, [](auto&& o) {
