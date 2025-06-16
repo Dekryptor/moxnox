@@ -645,12 +645,8 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
             if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
                 status = o.write(buf, *offset, written);
         });
-    } else {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
-                status = o.write(buf, written);
-        });
-    }
+    } else
+        status = object_write_without_offset(obj, buf, written);
 
     if (!success(status)) {
         io_status_block->Status = status;

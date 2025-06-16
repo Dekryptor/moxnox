@@ -148,25 +148,14 @@ void write(object_ref& h, span<const uint8_t> s) {
     }
 
     auto& obj = h.get();
-    bool can_write = false;
-
-    visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
-            can_write = true;
-    });
-
-    if (!can_write) {
-        // FIXME - exception
-        print("Not a writable object\n");
-        return;
-    }
-
     uint64_t written_bytes;
 
-    visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
-            o.write(s, written_bytes);
-    });
+    auto status = object_write_without_offset(obj, s, written_bytes);
+
+    if (status == nt_status::NOT_SUPPORTED)
+        print("Not a writable object\n");
+    else if (!success(status))
+        print("object_write_without_offset returned {}\n", status);
 }
 
 void write(object_ref& h, string_view s) {

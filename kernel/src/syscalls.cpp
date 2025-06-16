@@ -22,6 +22,7 @@ import format;
 import print;
 import string;
 import config;
+import visit;
 
 using namespace std;
 
@@ -382,12 +383,11 @@ void unimplemented_syscall(const char* name) {
 
             // FIXME - make sure process has permissions to write to handle
 
-            visit_obj(objrw_stderr.get(), [&](auto&& o) {
-                if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>) {
-                    o.write(span((uint8_t*)s, (size_t)(sp.data() - s)), written_bytes); // FIXME - handle short writes
-                    written = true;
-                }
-            });
+            // FIXME - handle short writes
+            auto status = object_write_without_offset(objrw_stderr.get(), span((uint8_t*)s, (size_t)(sp.data() - s)),
+                                                      written_bytes);
+            if (success(status))
+                written = true;
         }
     }
 

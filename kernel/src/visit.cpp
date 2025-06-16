@@ -48,3 +48,19 @@ export void object_on_wake(object& obj) {
             o.on_wake();
     });
 }
+
+export nt_status object_write_without_offset(object& obj, span<const uint8_t> buf,
+                                             uint64_t& written) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>)
+            status = o.write(buf, written);
+        else {
+            status = nt_status::NOT_SUPPORTED;
+            written = 0;
+        }
+    });
+
+    return status;
+}
