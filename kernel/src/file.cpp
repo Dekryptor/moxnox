@@ -72,8 +72,6 @@ NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
     // FIXME - update file position if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set
 
-    // FIXME - write to end of file, if FILE_APPEND_DATA or FILE_WRITE_TO_END_OF_FILE
-
     visit_obj(ino, [&](auto&& o) {
         if constexpr (is_writable_object_without_offset<remove_reference_t<decltype(o)>>) {
             status = o.write(s, written_bytes);
@@ -93,9 +91,6 @@ NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
 NTSTATUS file::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
     NTSTATUS status;
-
-    // FIXME - offset ignored if FILE_APPEND_DATA
-    // FIXME - write to end of file, if FILE_APPEND_DATA or FILE_WRITE_TO_END_OF_FILE
 
     // FIXME - if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set, set file_offset to offset first
 

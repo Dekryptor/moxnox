@@ -528,10 +528,9 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                      uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
     ACCESS_MASK access_mask;
 
-    auto buf = span((const uint8_t*)buffer, length);
+    static const uint64_t WRITE_TO_END_OF_FILE = 0xffffffffffffffff;
 
-    if (byte_offset && byte_offset->QuadPart < 0)
-        return nt_status::INVALID_PARAMETER;
+    auto buf = span((const uint8_t*)buffer, length);
 
     auto objrw = deref_handle(file_handle, access_mask);
     if (!objrw)
@@ -544,11 +543,16 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     // FIXME - async (APC)
 
     auto& obj = objrw.get();
+    optional<uint64_t> offset;
     bool can_write = false;
 
-    // FIXME - write to end of file, if FILE_APPEND_DATA or FILE_WRITE_TO_END_OF_FILE
+    if (byte_offset)
+        offset = (uint64_t)byte_offset->QuadPart;
 
-    if (byte_offset) {
+    if ((access_mask & FILE_APPEND_DATA) && !(access_mask & FILE_WRITE_DATA))
+        offset = WRITE_TO_END_OF_FILE;
+
+    if (offset.has_value() && *offset != WRITE_TO_END_OF_FILE) {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
                 can_write = true;
@@ -566,10 +570,29 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     size_t written;
     nt_status status;
 
-    if (byte_offset) {
+    if (offset.has_value() && *offset == WRITE_TO_END_OF_FILE) {
+        if (obj.type != object_type::file)
+            status = nt_status::INVALID_PARAMETER;
+        else {
+            auto& f = static_cast<file&>(obj);
+
+            if (f.ino.type != object_type::inode)
+                status = nt_status::INVALID_PARAMETER;
+            else {
+                auto& ino = static_cast<inode&>(f.ino);
+
+                {
+                    lock_guard lock(ino.inode_lock);
+                    offset = ino.file_size;
+                }
+
+                status = f.write(buf, *offset, written);
+            }
+        }
+    } else if (offset.has_value()) {
         visit_obj(obj, [&](auto&& o) {
             if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
-                status = o.write(buf, (uint64_t)byte_offset->QuadPart, written);
+                status = o.write(buf, *offset, written);
         });
     } else {
         visit_obj(obj, [&](auto&& o) {
