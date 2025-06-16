@@ -29,19 +29,16 @@ file::~file() {
 NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
     NTSTATUS status;
 
-    visit_obj(ino, [&](auto&& o) {
-        if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>) {
-            status = o.read(s, read_bytes);
-        } else if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>) {
-            status = o.read(s, file_offset, read_bytes);
+    status = object_read_without_offset(ino, s, read_bytes);
+    if (status != nt_status::NOT_SUPPORTED)
+        return status;
 
-            if (success(status)) {
-                lock_guard l(lock);
-                file_offset += read_bytes;
-            }
-        } else
-            status = nt_status::INTERNAL_ERROR;
-    });
+    status = object_read_with_offset(ino, s, file_offset, read_bytes);
+
+    if (success(status)) {
+        lock_guard l(lock);
+        file_offset += read_bytes;
+    }
 
     return status;
 }
