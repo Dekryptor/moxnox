@@ -2402,14 +2402,14 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 }
 
 NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
-                           HANDLE* target_handle, ACCESS_MASK, uint32_t, uint32_t) {
+                           HANDLE* target_handle, ACCESS_MASK desired_access, uint32_t, uint32_t options) {
     object_ref srcprocobj, destprocobj;
     process* srcproc;
     process* destproc;
+    ACCESS_MASK current_access;
 
-    // FIXME - desired_access
     // FIXME - handle_attributes
-    // FIXME - options (DUPLICATE_SAME_ATTRIBUTES, DUPLICATE_SAME_ACCESS, DUPLICATE_CLOSE_SOURCE)
+    // FIXME - options (DUPLICATE_SAME_ATTRIBUTES, DUPLICATE_CLOSE_SOURCE)
 
     if (source_process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
@@ -2463,15 +2463,20 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
     // FIXME - source_handle of NtCurrentProcess() or NtCurrentThread() (what if source_process_handle points to different process?)
 
-    auto objrw = srcproc->deref_handle(source_handle);
+    auto objrw = srcproc->deref_handle(source_handle, current_access);
 
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 
+    if (options & DUPLICATE_SAME_ACCESS)
+        desired_access = current_access;
+    else if (desired_access & ~current_access)
+        return nt_status::ACCESS_DENIED;
+
     auto& obj = objrw.get();
 
     handle_t h;
-    auto status = destproc->add_handle(obj, 0, true, h); // FIXME - access mask
+    auto status = destproc->add_handle(obj, desired_access, true, h);
 
     if (!success(status))
         return status;
