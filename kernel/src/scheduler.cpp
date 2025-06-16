@@ -25,6 +25,7 @@ import mem;
 import config;
 import list;
 import interrupts;
+import visit;
 
 using namespace std;
 
@@ -254,14 +255,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
     acquire_sync_lock();
 
     if (current_thread->status != thread_status::dead) {
-        bool is_sync_obj = false;
-
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
-                is_sync_obj = true;
-        });
-
-        if (!is_sync_obj) {
+        if (!object_is_sync_object(obj)) {
             release_sync_lock();
             __asm("sti");
             // FIXME - exception

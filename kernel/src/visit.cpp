@@ -17,6 +17,8 @@ import volume;
 
 export module visit;
 
+using namespace std;
+
 export void object_acquire(object& obj) {
     visit_obj(obj, [](auto&& o) {
         o.acquire();
@@ -27,4 +29,15 @@ export void object_release(object& obj) {
     visit_obj(obj, [](auto&& o) {
         o.release();
     });
+}
+
+export bool object_is_sync_object(object& obj) {
+    bool ret = false;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
+            ret = true;
+    });
+
+    return ret;
 }
