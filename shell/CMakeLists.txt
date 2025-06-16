@@ -123,3 +123,16 @@ target_link_libraries(touch format)
 target_link_libraries(touch -lntdll ntdllcrt)
 
 install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+###
+
+add_executable(rm src/rm.cpp)
+
+target_compile_options(rm PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse)
+target_link_options(rm PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(rm shelllib)
+target_link_libraries(rm format)
+target_link_libraries(rm -lntdll ntdllcrt)
+
+install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX})

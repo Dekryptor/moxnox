@@ -1119,6 +1119,10 @@ struct FILE_STANDARD_INFORMATION {
     uint8_t Directory;
 };
 
+struct FILE_DISPOSITION_INFORMATION {
+    BOOLEAN DeleteFile;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
