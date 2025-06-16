@@ -592,6 +592,9 @@ public:
 
         if (sb)
             free_folio(phys_memory_pfn(sb) << PAGE_SHIFT);
+
+        if (root_dentry)
+            delete root_dentry;
     }
 
     nt_status read_metadata(uint64_t addr, std::span<uint8_t> data);

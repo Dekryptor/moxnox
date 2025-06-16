@@ -34,6 +34,19 @@ extern "C++" ::filesystem* create_tmpfs();
 
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
+export struct dentry {
+    ~dentry() {
+        if (inode)
+            inode->release();
+    }
+
+    inode* inode = nullptr;
+    list_entry le;
+    unsigned int index;
+    size_t name_len;
+    char name[0];
+};
+
 export extern "C++" class filesystem {
 public:
     filesystem(volume* vol) : vol(vol) { }
@@ -46,7 +59,7 @@ public:
     list_entry le;
     volume* vol;
     atomic<unsigned int> refcount = 0;
-    inode* root_inode = nullptr;
+    dentry* root_dentry = nullptr;
     spinlock writeback_lock;
     list_entry writeback_list = { &writeback_list, &writeback_list };
 };
@@ -65,14 +78,6 @@ struct mount {
     list_entry children = { &children, &children };
     size_t path_len;
     char path[0];
-};
-
-export struct dentry {
-    inode* inode;
-    list_entry le;
-    unsigned int index;
-    size_t name_len;
-    char name[0];
 };
 
 static rwsem fs_lock;
@@ -207,7 +212,7 @@ static nt_status extract_initrd_file(::filesystem& fs, string_view path,
     object_ref file;
     unsigned int create_result;
 
-    auto status = fs.open(path, *fs.root_inode, file, FILE_CREATE,
+    auto status = fs.open(path, *fs.root_dentry->inode, file, FILE_CREATE,
                           S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0,
                           create_result);
 
