@@ -419,12 +419,12 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
         if (!root_dir)
             return nt_status::INVALID_HANDLE;
 
-        visit_obj(root_dir.get(), [&](auto&& o) {
-            if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
-                if (o.ino.type == object_type::inode)
-                    valid = true;
-            }
-        });
+        if (root_dir.get().type == object_type::file) {
+            auto& f = static_cast<file&>(root_dir.get());
+
+            if (f.ino.type == object_type::inode)
+                valid = true;
+        }
 
         if (!valid)
             return nt_status::INVALID_HANDLE;
