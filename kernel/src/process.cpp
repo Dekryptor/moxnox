@@ -52,6 +52,10 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
 static const size_t MAX_PATH = 260;
 
+// section.cpp (FIXME)
+nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
+                         size_t size, object_ref& ref);
+
 // FIXME - 32-bit processes
 
 static size_t dos_path_len(string_view s) {

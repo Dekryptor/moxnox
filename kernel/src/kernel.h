@@ -126,11 +126,7 @@ object_ref create_process(std::string_view fn, std::string_view curdir,
                           object_ref& stderrobj);
 void load_ntdll();
 
-class file;
-
 // section.cpp
-nt_status create_section(const std::optional<std::reference_wrapper<file>>& file, bool image,
-                         size_t size, object_ref& ref);
 uint64_t get_image_size(void* image);
 
 // thread.cpp
