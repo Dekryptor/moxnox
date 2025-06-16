@@ -62,7 +62,7 @@ struct dentry {
     char name[0];
 };
 
-class tmpfs_filesystem : public filesystem {
+class tmpfs_filesystem : public ::filesystem {
 public:
     tmpfs_filesystem();
 
