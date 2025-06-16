@@ -65,6 +65,20 @@ export nt_status object_write_without_offset(object& obj, span<const uint8_t> bu
     return status;
 }
 
+export nt_status object_write_with_offset(object& obj, span<const uint8_t> s,
+                                          uint64_t offset, uint64_t& written_bytes) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
+            status = o.write(s, offset, written_bytes);
+        else
+            status = nt_status::NOT_SUPPORTED;
+    });
+
+    return status;
+}
+
 export nt_status object_ioctl(object& obj, uint32_t control_code, span<const uint8_t> inbuf,
                               span<uint8_t> outbuf, IO_STATUS_BLOCK& iosb) {
     nt_status ret;

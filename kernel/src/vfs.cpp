@@ -640,12 +640,9 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                 status = f.write(buf, *offset, written);
             }
         }
-    } else if (offset.has_value()) {
-        visit_obj(obj, [&](auto&& o) {
-            if constexpr (is_writable_object_with_offset<remove_reference_t<decltype(o)>>)
-                status = o.write(buf, *offset, written);
-        });
-    } else
+    } else if (offset.has_value())
+        status = object_write_with_offset(obj, buf, *offset, written);
+    else
         status = object_write_without_offset(obj, buf, written);
 
     if (!success(status)) {
