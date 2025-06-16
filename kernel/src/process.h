@@ -7,7 +7,7 @@
 
 class section;
 
-class process : public object {
+class process : public sync_object {
 public:
     process();
     ~process();
@@ -58,7 +58,6 @@ public:
     object_ref get_stderr();
     void send_signal(uint64_t code);
 
-    bool signalled = false;
     std::optional<std::reference_wrapper<section>> img;
     spinlock mappings_lock;
     list_entry mappings = { &mappings, &mappings };
@@ -74,7 +73,6 @@ public:
     PEB* peb = nullptr;
     RTL_USER_PROCESS_PARAMETERS* proc_params = nullptr;
     uintptr_t ntdll_addr, img_addr;
-    list_entry waiters = { &waiters, &waiters };
     object_ref vm_sect;
     bool initialized = false;
     rangelock rl;

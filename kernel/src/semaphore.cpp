@@ -14,9 +14,9 @@ import bsod;
 
 using namespace std;
 
-export class semaphore : public object {
+export class semaphore : public sync_object {
 public:
-    semaphore() : object(object_type::semaphore) { }
+    semaphore() : sync_object(object_type::semaphore, false) { }
 
     void acquire() {
         refcount++;
@@ -29,11 +29,9 @@ public:
 
     void on_wake();
 
-    bool signalled = false;
     unsigned int maximum_count;
     unsigned int current_count;
     spinlock lock;
-    list_entry waiters = { &waiters, &waiters };
 };
 
 static_assert(is_sync_object<semaphore>);

@@ -40,9 +40,9 @@ enum class thread_status {
 
 class process;
 
-class thread : public object {
+class thread : public sync_object {
 public:
-    thread() : object(object_type::thread) { }
+    thread() : sync_object(object_type::thread, false) { }
     ~thread();
 
     void acquire() {
@@ -62,7 +62,6 @@ public:
     void send_signal(uint64_t code);
 
     list_entry le;
-    bool signalled = false;
     CONTEXT context;
     CONTEXT syscall_context;
     enum thread_status status;
@@ -80,7 +79,6 @@ public:
     uint64_t pending_signal = 0;
     bool wait_interruptible;
     list_entry wait_le;
-    list_entry waiters = { &waiters, &waiters };
     list_entry timeout_le;
     uint64_t wait_timeout;
 } __attribute__ ((aligned (16)));

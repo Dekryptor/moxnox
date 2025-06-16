@@ -14,9 +14,9 @@ import bsod;
 
 using namespace std;
 
-export class event : public object {
+export class event : public sync_object {
 public:
-    event() : object(object_type::event) { }
+    event() : sync_object(object_type::event, false) { }
 
     void acquire() {
         refcount++;
@@ -30,9 +30,7 @@ public:
     void on_wake();
     void set_holding_sync_lock();
 
-    bool signalled = false;
     bool autoreset;
-    list_entry waiters = { &waiters, &waiters };
 };
 
 static_assert(is_sync_object<event>);

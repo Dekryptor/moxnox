@@ -18,9 +18,9 @@ import inout;
 
 using namespace std;
 
-export class timer : public object {
+export class timer : public sync_object {
 public:
-    timer() : object(object_type::timer) { }
+    timer() : sync_object(object_type::timer, false) { }
     ~timer();
 
     void acquire() {
@@ -39,14 +39,12 @@ public:
                  bool* previous_state);
     NTSTATUS cancel(bool* current_state);
 
-    bool signalled = false;
     bool active = false;
     list_entry le;
     uint64_t ticks_left;
     uint64_t orig_ticks;
     bool periodic;
     bool autoreset;
-    list_entry waiters = { &waiters, &waiters };
 };
 
 static_assert(is_sync_object<timer>);

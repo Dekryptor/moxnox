@@ -7,9 +7,9 @@ export module chardev;
 
 using namespace std;
 
-export class chardev : public object {
+export class chardev : public sync_object {
 public:
-    chardev() : object(object_type::chardev) { }
+    chardev() : sync_object(object_type::chardev, true) { }
     virtual ~chardev() { }
 
     virtual NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) = 0;
@@ -43,9 +43,7 @@ public:
     virtual void clear() {
     }
 
-    bool signalled = true;
     bool exclusive = true;
-    list_entry waiters = { &waiters, &waiters };
     bool readonly = false;
 };
 

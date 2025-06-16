@@ -472,7 +472,7 @@ object_ref create_process(string_view fn, string_view curdir,
     return p;
 }
 
-process::process() : object(object_type::process) {
+process::process() : sync_object(object_type::process, false) {
     auto s = new section;
     if (!s) {
         print("new failed\n");

@@ -37,6 +37,16 @@ public:
 };
 
 export
+extern "C++"
+class sync_object : public object {
+public:
+    sync_object(object_type type, bool signalled) : object(type), signalled(signalled) { }
+
+    bool signalled;
+    list_entry waiters = { &waiters, &waiters };
+};
+
+export
 template<typename T>
 concept is_sync_object = is_same_v<decltype(T::signalled), bool> &&
     is_same_v<decltype(T::waiters), list_entry>;
