@@ -100,23 +100,6 @@ public:
 
 static_assert(is_readable_object_with_offset<diskpart>);
 
-export extern "C++" class filesystem {
-public:
-    filesystem(volume* vol) : vol(vol) { }
-    virtual ~filesystem() { }
-    virtual nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
-                           object_ref& obj_ref, uint32_t create_disposition,
-                           uint32_t create_options, unsigned int& create_result) = 0;
-    virtual nt_status flush(bool make_readonly) = 0;
-
-    list_entry le;
-    volume* vol;
-    atomic<unsigned int> refcount = 0;
-    inode* root_inode = nullptr;
-    spinlock writeback_lock;
-    list_entry writeback_list = { &writeback_list, &writeback_list };
-};
-
 void volume::probe() {
     if (part_num == 0)
         check_for_partitions();

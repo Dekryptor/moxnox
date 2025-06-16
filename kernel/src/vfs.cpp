@@ -34,6 +34,23 @@ extern "C++" ::filesystem* create_tmpfs();
 
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
+export extern "C++" class filesystem {
+public:
+    filesystem(volume* vol) : vol(vol) { }
+    virtual ~filesystem() { }
+    virtual nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
+                           object_ref& obj_ref, uint32_t create_disposition,
+                           uint32_t create_options, unsigned int& create_result) = 0;
+    virtual nt_status flush(bool make_readonly) = 0;
+
+    list_entry le;
+    volume* vol;
+    atomic<unsigned int> refcount = 0;
+    inode* root_inode = nullptr;
+    spinlock writeback_lock;
+    list_entry writeback_list = { &writeback_list, &writeback_list };
+};
+
 struct mount {
     mount(size_t path_len) : path_len(path_len) { }
 
