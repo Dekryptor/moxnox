@@ -385,7 +385,7 @@ object_ref create_process(string_view fn, string_view curdir,
     handle_t stdinh = 0, stdouth = 0, stderrh = 0;
 
     if (stdinobj) {
-        status = p.add_handle(stdinobj.get(), 0, true, stdinh); // FIXME - access mask
+        status = p.add_handle(stdinobj.get(), FILE_READ_DATA, true, stdinh);
         if (!success(status)) {
             print("add_handle failed\n");
             p.release();
@@ -394,7 +394,7 @@ object_ref create_process(string_view fn, string_view curdir,
     }
 
     if (stdoutobj) {
-        status = p.add_handle(stdoutobj.get(), 0, true, stdouth); // FIXME - access mask
+        status = p.add_handle(stdoutobj.get(), FILE_WRITE_DATA, true, stdouth);
         if (!success(status)) {
             print("add_handle failed\n");
             p.release();
@@ -403,7 +403,7 @@ object_ref create_process(string_view fn, string_view curdir,
     }
 
     if (stderrobj) {
-        status = p.add_handle(stderrobj.get(), 0, true, stderrh); // FIXME - access mask
+        status = p.add_handle(stderrobj.get(), FILE_WRITE_DATA, true, stderrh);
         if (!success(status)) {
             print("add_handle failed\n");
             p.release();
