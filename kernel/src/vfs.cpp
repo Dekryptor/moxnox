@@ -21,7 +21,6 @@ export module vfs;
 
 import print;
 import bsod;
-import tmpfs;
 import cpio;
 import mem;
 import config;
@@ -29,6 +28,9 @@ import list;
 import string;
 
 using namespace std;
+
+// tmpfs.cpp (FIXME)
+extern "C++" ::filesystem* create_tmpfs();
 
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 

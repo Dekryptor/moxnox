@@ -25,9 +25,9 @@ using namespace std;
 
 static const size_t NAME_MAX_LEN = 255;
 
-export class tmpfs_filesystem;
+class tmpfs_filesystem;
 
-export class tmpfs_inode : public inode {
+class tmpfs_inode : public inode {
 public:
     tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type);
     ~tmpfs_inode();
@@ -100,7 +100,7 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
     insert_tail_list(inode_list, tmpfs_root_inode->le);
 }
 
-export tmpfs_filesystem* create_tmpfs() {
+extern "C++" ::filesystem* create_tmpfs() {
     auto fs = new tmpfs_filesystem();
     if (!fs)
         return nullptr;
