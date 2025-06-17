@@ -484,6 +484,7 @@ static_assert(sizeof(btrfs_extent_owner_ref) == 8);
 
 struct ref_change_data {
     list_entry le;
+    uint64_t root;
     uint64_t objectid;
     uint64_t offset;
     int32_t count;
@@ -491,12 +492,12 @@ struct ref_change_data {
 
 struct ref_change {
     uint64_t address;
-    uint64_t root;
     bool is_metadata;
 
     union {
         struct {
             uint8_t level;
+            uint64_t root;
             int32_t count;
         } metadata;
         struct {

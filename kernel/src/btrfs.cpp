@@ -1611,7 +1611,7 @@ static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
 
             if (rc.address == address) {
                 assert(rc.is_metadata);
-                assert(rc.root == root);
+                assert(rc.metadata.root == root); // FIXME?
                 assert(rc.metadata.level == level);
 
                 rc.metadata.count += count;
@@ -1625,8 +1625,8 @@ static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
             return nt_status::INSUFFICIENT_RESOURCES;
 
         rc->address = address;
-        rc->root = root;
         rc->is_metadata = true;
+        rc->metadata.root = root;
         rc->metadata.level = level;
         rc->metadata.count = count;
 
@@ -3237,30 +3237,62 @@ static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
                                  uint64_t extent_length, uint64_t root,
                                  uint64_t objectid, uint64_t offset,
                                  int32_t count) {
-    auto rc = (ref_change*)malloc(sizeof(ref_change));
-    if (!rc)
-        return nt_status::INSUFFICIENT_RESOURCES;
-
-    rc->address = extent_address;
-    rc->root = root;
-    rc->is_metadata = false;
-    rc->data.extent_length = extent_length;
-    initialize_list(rc->data.rcds);
-
-    auto rcd = (ref_change_data*)malloc(sizeof(ref_change_data));
-    if (!rcd) {
-        free(rc);
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    rcd->objectid = objectid;
-    rcd->offset = offset;
-    rcd->count = count;
-
-    insert_tail_list(rc->data.rcds, rcd->le);
-
     {
         lock_guard lock(fs.ref_changes_lock);
+
+        for (auto le = fs.ref_changes.next; le != &fs.ref_changes; le = le->next) {
+            auto& rc = containing_record<ref_change>(le);
+
+            if (rc.address == extent_address) {
+                assert(!rc.is_metadata);
+                assert(rc.data.extent_length == extent_length);
+
+                for (auto le2 = rc.data.rcds.next; le2 != &rc.data.rcds; le2 = le2->next) {
+                    auto& rcd = containing_record<ref_change_data>(le2);
+
+                    if (rcd.root == root && rcd.objectid == objectid && rcd.offset == offset) {
+                        rcd.count += count;
+                        return nt_status::SUCCESS;
+                    }
+                }
+
+                auto rcd = (ref_change_data*)malloc(sizeof(ref_change_data));
+                if (!rcd)
+                    return nt_status::INSUFFICIENT_RESOURCES;
+
+                rcd->root = root;
+                rcd->objectid = objectid;
+                rcd->offset = offset;
+                rcd->count = count;
+
+                insert_tail_list(rc.data.rcds, rcd->le);
+
+                return nt_status::SUCCESS;
+            }
+        }
+
+        auto rc = (ref_change*)malloc(sizeof(ref_change));
+        if (!rc)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        rc->address = extent_address;
+        rc->is_metadata = false;
+        rc->data.extent_length = extent_length;
+        initialize_list(rc->data.rcds);
+
+        auto rcd = (ref_change_data*)malloc(sizeof(ref_change_data));
+        if (!rcd) {
+            free(rc);
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        rcd->root = root;
+        rcd->objectid = objectid;
+        rcd->offset = offset;
+        rcd->count = count;
+
+        insert_tail_list(rc->data.rcds, rcd->le);
+
         insert_tail_list(fs.ref_changes, rc->le);
     }
 
@@ -4277,7 +4309,7 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
         eitbr.ei.generation = fs.sb->generation;
         eitbr.ei.flags = BTRFS_EXTENT_FLAG_TREE_BLOCK;
         eitbr.type = key_type::TREE_BLOCK_REF;
-        eitbr.tbr.offset = rc.root;
+        eitbr.tbr.offset = rc.metadata.root;
 
         auto status = insert_item(fs, *fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.metadata.level},
                                     span((uint8_t*)&eitbr, sizeof(eitbr)));
@@ -4451,7 +4483,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
             eiedr.ei.generation = fs.sb->generation;
             eiedr.ei.flags = BTRFS_EXTENT_FLAG_DATA;
             eiedr.type = key_type::EXTENT_DATA_REF;
-            eiedr.edr.root = rc.root;
+            eiedr.edr.root = rcd.root;
             eiedr.edr.objectid = rcd.objectid;
             eiedr.edr.offset = rcd.offset;
             eiedr.edr.count = (uint32_t)rcd.count;
@@ -4557,7 +4589,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
 
                 auto& edr = *(btrfs_extent_data_ref*)inl.data();
 
-                if (edr.root != rc.root ||
+                if (edr.root != rcd.root ||
                     edr.objectid != rcd.objectid ||
                     edr.offset != rcd.offset) {
                     inl = span(inl.data() + sizeof(btrfs_extent_data_ref),
