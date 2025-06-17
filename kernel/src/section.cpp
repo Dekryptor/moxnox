@@ -31,7 +31,7 @@ import rangelock;
 using namespace std;
 
 nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
-                         size_t size, object_ref& ref) {
+                         size_t size, uint32_t page_protection, object_ref& ref) {
     auto sptr = new section;
     if (!sptr) {
         print("new failed\n");
@@ -39,6 +39,8 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
     }
 
     auto& s = *sptr;
+
+    s.page_protection = page_protection;
 
     if (file) {
         if (file->get().ino.type != object_type::inode) {
@@ -579,17 +581,42 @@ uint64_t section::find_export(string_view name) {
 }
 
 NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
-                         const LARGE_INTEGER* maximum_size, uint32_t,
+                         const LARGE_INTEGER* maximum_size, uint32_t section_page_protection,
                          uint32_t allocation_attributes, HANDLE file_handle) {
     auto t = get_current_thread();
     auto p = t->proc;
     uint64_t size;
     optional<reference_wrapper<file>> f;
+    uint32_t needed_access;
 
     // FIXME - desired_access
     // FIXME - object_attributes
-    // FIXME - section_page_protection
     // FIXME - allocation_attributes that aren't SEC_IMAGE
+
+    switch (section_page_protection) {
+        case PAGE_READONLY:
+        case PAGE_EXECUTE_READ:
+        case PAGE_WRITECOPY:
+        case PAGE_EXECUTE_WRITECOPY:
+            needed_access = FILE_READ_DATA;
+            break;
+
+        case PAGE_READWRITE:
+        case PAGE_EXECUTE_READWRITE:
+            if (allocation_attributes & SEC_IMAGE)
+                needed_access = FILE_READ_DATA;
+            else
+                needed_access = FILE_READ_DATA | FILE_WRITE_DATA;
+            break;
+
+        case PAGE_EXECUTE:
+        case PAGE_NOACCESS:
+            needed_access = 0;
+            break;
+
+        default:
+            return nt_status::INVALID_PAGE_PROTECTION;
+    }
 
     if (maximum_size && maximum_size->QuadPart < 0)
         return nt_status::INVALID_PARAMETER;
@@ -597,9 +624,14 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
     size = maximum_size ? (uint64_t)maximum_size->QuadPart : 0;
 
     if (file_handle) {
-        auto objrw = deref_handle(file_handle);
+        ACCESS_MASK file_access_mask;
+
+        auto objrw = deref_handle(file_handle, file_access_mask);
         if (!objrw)
             return nt_status::INVALID_HANDLE;
+
+        if ((file_access_mask & needed_access) != needed_access)
+            return nt_status::ACCESS_DENIED;
 
         if (objrw.get().type == object_type::file) {
             auto& f2 = *static_cast<file*>(&objrw.get());
@@ -617,7 +649,7 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
     object_ref secth;
 
     auto status = create_section(f, allocation_attributes & SEC_IMAGE, size,
-                                 secth);
+                                 section_page_protection, secth);
 
     if (f)
         f->get().release();

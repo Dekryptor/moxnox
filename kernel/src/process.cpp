@@ -54,7 +54,7 @@ static const size_t MAX_PATH = 260;
 
 // section.cpp (FIXME)
 nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
-                         size_t size, object_ref& ref);
+                         size_t size, uint32_t page_protection, object_ref& ref);
 
 // FIXME - 32-bit processes
 
@@ -324,7 +324,8 @@ object_ref create_process(string_view fn, string_view curdir,
     object_ref f(*new file(img_inode, 0));
     object_ref imgh;
 
-    status = create_section(static_cast<file&>(f.get()), true, 0, imgh);
+    status = create_section(static_cast<file&>(f.get()), true, 0,
+                            PAGE_READWRITE, imgh);
     if (!success(status)) {
         print("create_section returned {}\n", status);
         p.release();
@@ -1116,7 +1117,8 @@ void load_ntdll() {
     object_ref f(*new file(inode_ref.get(), 0));
     object_ref ntdllh;
 
-    status = create_section(static_cast<file&>(f.get()), true, 0, ntdllh);
+    status = create_section(static_cast<file&>(f.get()), true, 0,
+                            PAGE_READWRITE, ntdllh);
     if (!success(status))
         bsod_format("create_section returned {} for ntdll.dll", status);
 

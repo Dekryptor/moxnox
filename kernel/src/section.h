@@ -87,4 +87,5 @@ public:
     uint32_t size_of_headers;
     image_section_cache* image_cache = nullptr;
     anon_section_cache* anon_cache = nullptr;
+    uint32_t page_protection;
 };
