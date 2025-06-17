@@ -2125,6 +2125,34 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
             if (first)
                 old_type = get_page_protection(proc, addr);
 
+            if (m->sect.type != section_type::image) {
+                if (prot == mapping_type::read_write_execute ||
+                    prot == mapping_type::read_execute) {
+                    switch (m->sect.page_protection) {
+                        case PAGE_EXECUTE_READ:
+                        case PAGE_EXECUTE_WRITECOPY:
+                        case PAGE_EXECUTE_READWRITE:
+                        case PAGE_EXECUTE:
+                            break;
+
+                        default:
+                            return nt_status::ACCESS_DENIED;
+                    }
+                }
+
+                if (!cow && (prot == mapping_type::read_write_execute ||
+                             prot == mapping_type::read_write)) {
+                    switch (m->sect.page_protection) {
+                        case PAGE_READWRITE:
+                        case PAGE_EXECUTE_READWRITE:
+                            break;
+
+                        default:
+                            return nt_status::ACCESS_DENIED;
+                    }
+                }
+            }
+
             if (!set_page_protection(proc, addr, num_pages, prot, cow, false)) {
                 m->release();
                 return nt_status::INSUFFICIENT_RESOURCES;
