@@ -629,49 +629,34 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     if (pages_read == 0)
         return 0;
 
-    // copy from buffer into our own page cache
+    {
+        rangelock_req rlr(vol->cache.rl, disk_addr >> PAGE_SHIFT, num_pages);
 
-    // FIXME - can we steal pages?
+        page_cache_entry* dest_p;
+        page_cache_entry* src_p;
 
-    page_cache_entry* dest_p;
-    page_cache_entry* src_p;
+        for (uint64_t i = 0; i < pages_read; i++) {
+            {
+                lock_guard lg(cache.cache_lock);
 
-    for (uint64_t i = 0; i < pages_read; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
-
-            if (i == 0)
-                dest_p = cache.find_page_cache_entry(page_num);
-            else
-                dest_p = cache.next_page_cache_entry(*dest_p);
-
-            if (dest_p->pfn == 0) {
-                auto pa = allocate_folio(0);
-                if (!pa) {
-                    pages_read = i;
-                    break;
-                }
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                dest_p->pfn = pa >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
+                if (i == 0)
+                    dest_p = cache.find_page_cache_entry(page_num);
+                else
+                    dest_p = cache.next_page_cache_entry(*dest_p);
             }
+
+            {
+                lock_guard lg(vol->cache.cache_lock);
+
+                if (i == 0)
+                    src_p = vol->cache.find_page_cache_entry(disk_addr >> PAGE_SHIFT);
+                else
+                    src_p = vol->cache.next_page_cache_entry(*src_p);
+            }
+
+            increase_page_refcount(src_p->pfn);
+            dest_p->pfn = src_p->pfn;
         }
-
-        {
-            lock_guard lg(vol->cache.cache_lock);
-
-            if (i == 0)
-                src_p = vol->cache.find_page_cache_entry(disk_addr >> PAGE_SHIFT);
-            else
-                src_p = vol->cache.next_page_cache_entry(*src_p);
-        }
-
-        auto src_va = get_phys_address(*src_p);
-        auto dest_va = get_phys_address(*dest_p);
-
-        memcpy(dest_va, src_va, PAGE_SIZE);
     }
 
     vol->cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
