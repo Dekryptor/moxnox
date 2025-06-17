@@ -633,6 +633,7 @@ public:
     root* fs_root = nullptr;
     root* block_group_root = nullptr;
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
+    spinlock ref_changes_lock;
     list_entry ref_changes = { &ref_changes, &ref_changes };
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };
     bool readonly = false;

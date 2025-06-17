@@ -1610,7 +1610,11 @@ static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
     rc->is_metadata = true;
     rc->metadata.remove = remove;
     rc->metadata.level = level;
-    insert_tail_list(fs.ref_changes, rc->le);
+
+    {
+        lock_guard lock(fs.ref_changes_lock);
+        insert_tail_list(fs.ref_changes, rc->le);
+    }
 
     return nt_status::SUCCESS;
 }
@@ -3228,8 +3232,10 @@ static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
     rc->data.offset = offset;
     rc->data.count = count;
 
-    // FIXME - spinlock (or protected by rwsem?)
-    insert_tail_list(fs.ref_changes, rc->le);
+    {
+        lock_guard lock(fs.ref_changes_lock);
+        insert_tail_list(fs.ref_changes, rc->le);
+    }
 
     return nt_status::SUCCESS;
 }
@@ -4621,9 +4627,24 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
 
 static nt_status do_ref_changes(btrfs_filesystem& fs) {
     list_entry changed_chunks = { &changed_chunks, &changed_chunks };
+    list_entry changes = { &changes, &changes };
 
-    while (!is_list_empty(fs.ref_changes)) {
-        auto& rc = containing_record<ref_change>(fs.ref_changes.next);
+    {
+        lock_guard lock(fs.ref_changes_lock);
+
+        if (is_list_empty(fs.ref_changes))
+            return nt_status::SUCCESS;
+
+        while (!is_list_empty(fs.ref_changes)) {
+            auto& rc = containing_record<ref_change>(fs.ref_changes.next);
+
+            remove_entry_list(rc.le);
+            insert_tail_list(changes, rc.le);
+        }
+    }
+
+    while (!is_list_empty(changes)) {
+        auto& rc = containing_record<ref_change>(changes.next);
 
         auto c = find_chunk(fs, rc.address);
         if (!c) {
