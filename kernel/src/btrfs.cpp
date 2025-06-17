@@ -12,6 +12,7 @@ import rwsem;
 #include "inode.h"
 import rangelock;
 #include "file.h"
+import rbtree;
 
 export module btrfs;
 
@@ -1606,10 +1607,12 @@ static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
     {
         lock_guard lock(fs.ref_changes_lock);
 
-        for (auto le = fs.ref_changes.next; le != &fs.ref_changes; le = le->next) {
-            auto& rc = containing_record<ref_change>(le);
+        if (fs.ref_changes) {
+            auto n = find_rbtree_node(fs.ref_changes, address);
 
-            if (rc.address == address) {
+            if (n && n->key == address) {
+                auto& rc = rbtree_containing_record<ref_change>(n);
+
                 assert(rc.is_metadata);
                 assert(rc.metadata.root == root); // FIXME?
                 assert(rc.metadata.level == level);
@@ -1624,13 +1627,13 @@ static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
         if (!rc)
             return nt_status::INSUFFICIENT_RESOURCES;
 
-        rc->address = address;
+        rc->tree.key = address;
         rc->is_metadata = true;
         rc->metadata.root = root;
         rc->metadata.level = level;
         rc->metadata.count = count;
 
-        insert_tail_list(fs.ref_changes, rc->le);
+        insert_into_rbtree(fs.ref_changes, rc->tree);
     }
 
     return nt_status::SUCCESS;
@@ -3240,10 +3243,12 @@ static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
     {
         lock_guard lock(fs.ref_changes_lock);
 
-        for (auto le = fs.ref_changes.next; le != &fs.ref_changes; le = le->next) {
-            auto& rc = containing_record<ref_change>(le);
+        if (fs.ref_changes) {
+            auto n = find_rbtree_node(fs.ref_changes, extent_address);
 
-            if (rc.address == extent_address) {
+            if (n && n->key == extent_address) {
+                auto& rc = rbtree_containing_record<ref_change>(n);
+
                 assert(!rc.is_metadata);
                 assert(rc.data.extent_length == extent_length);
 
@@ -3275,7 +3280,7 @@ static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
         if (!rc)
             return nt_status::INSUFFICIENT_RESOURCES;
 
-        rc->address = extent_address;
+        rc->tree.key = extent_address;
         rc->is_metadata = false;
         rc->data.extent_length = extent_length;
         initialize_list(rc->data.rcds);
@@ -3293,7 +3298,7 @@ static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
 
         insert_tail_list(rc->data.rcds, rcd->le);
 
-        insert_tail_list(fs.ref_changes, rc->le);
+        insert_into_rbtree(fs.ref_changes, rc->tree);
     }
 
     return nt_status::SUCCESS;
@@ -4278,13 +4283,13 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
     if (rc.metadata.count == -1) {
         // FIXME - snapshotted metadata
 
-        auto status = fs.remove_item(*fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.metadata.level});
+        auto status = fs.remove_item(*fs.extent_root, {rc.tree.key, key_type::METADATA_ITEM, rc.metadata.level});
         if (!success(status)) {
             print("remove_item returned {}\n", status);
             return status;
         }
 
-        status = add_free_space(fs, rc.address, fs.sb->nodesize);
+        status = add_free_space(fs, rc.tree.key, fs.sb->nodesize);
         if (!success(status)) {
             print("add_free_space returned {}\n", status);
             return status;
@@ -4299,7 +4304,7 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
         if (is_list_empty(c.pending_space_list))
             insert_tail_list(fs.space_pending_chunks, c.space_pending_le);
 
-        sc->offset = rc.address;
+        sc->offset = rc.tree.key;
         sc->length = fs.sb->nodesize;
         insert_tail_list(c.pending_space_list, sc->le);
     } else if (rc.metadata.count == 1) {
@@ -4311,14 +4316,14 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
         eitbr.type = key_type::TREE_BLOCK_REF;
         eitbr.tbr.offset = rc.metadata.root;
 
-        auto status = insert_item(fs, *fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.metadata.level},
+        auto status = insert_item(fs, *fs.extent_root, {rc.tree.key, key_type::METADATA_ITEM, rc.metadata.level},
                                     span((uint8_t*)&eitbr, sizeof(eitbr)));
         if (!success(status)) {
             print("insert_item returned {}\n", status);
             return status;
         }
 
-        status = remove_free_space(fs, rc.address, fs.sb->nodesize);
+        status = remove_free_space(fs, rc.tree.key, fs.sb->nodesize);
         if (!success(status)) {
             print("remove_free_space returned {}\n", status);
             return status;
@@ -4459,7 +4464,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
     btrfs_key key;
     nt_status status;
 
-    key = {rc.address, key_type::EXTENT_ITEM, rc.data.extent_length};
+    key = {rc.tree.key, key_type::EXTENT_ITEM, rc.data.extent_length};
 
     status = fs.find_item(*fs.extent_root, key, p, true);
     if (!success(status))
@@ -4495,7 +4500,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 return status;
             }
 
-            status = remove_free_space(fs, rc.address, rc.data.extent_length);
+            status = remove_free_space(fs, rc.tree.key, rc.data.extent_length);
             if (!success(status)) {
                 print("remove_free_space returned {}\n", status);
                 return status;
@@ -4506,7 +4511,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
             return nt_status::SUCCESS;
         } else {
             print("do_ref_change_data: {:x}, {:x}: trying to decrease refcount on non-existent extent\n",
-                  rc.address, rc.data.extent_length);
+                  rc.tree.key, rc.data.extent_length);
             return nt_status::DISK_CORRUPT_ERROR;
         }
     }
@@ -4624,7 +4629,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 }
 
                 if (-rcd.count == (int32_t)ei.refs) {
-                    status = add_free_space(fs, rc.address, rc.data.extent_length);
+                    status = add_free_space(fs, rc.tree.key, rc.data.extent_length);
                     if (!success(status)) {
                         print("add_free_space returned {}\n", status);
                         return status;
@@ -4646,11 +4651,11 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                     if (is_list_empty(c.pending_space_list))
                         insert_tail_list(fs.space_pending_chunks, c.space_pending_le);
 
-                    sc->offset = rc.address;
+                    sc->offset = rc.tree.key;
                     sc->length = rc.data.extent_length;
                     insert_tail_list(c.pending_space_list, sc->le);
 
-                    status = remove_csums(fs, rc.address, rc.data.extent_length);
+                    status = remove_csums(fs, rc.tree.key, rc.data.extent_length);
                     if (!success(status)) {
                         print("remove_csums returned {}\n", status);
                         return status;
@@ -4687,30 +4692,43 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
     return nt_status::INTERNAL_ERROR;
 }
 
+void free_ref_change(rbtree_node<uint64_t>* tree) {
+    auto& r = rbtree_containing_record<ref_change>(tree);
+
+    // FIXME - is recursion going to be a problem here?
+
+    if (tree->left)
+        free_ref_change(tree->left);
+
+    if (tree->right)
+        free_ref_change(tree->right);
+
+    free(&r);
+}
+
 static nt_status do_ref_changes(btrfs_filesystem& fs) {
     list_entry changed_chunks = { &changed_chunks, &changed_chunks };
-    list_entry changes = { &changes, &changes };
+    rbtree_node<uint64_t>* changes;
 
     {
         lock_guard lock(fs.ref_changes_lock);
 
-        if (is_list_empty(fs.ref_changes))
-            return nt_status::SUCCESS;
-
-        while (!is_list_empty(fs.ref_changes)) {
-            auto& rc = containing_record<ref_change>(fs.ref_changes.next);
-
-            remove_entry_list(rc.le);
-            insert_tail_list(changes, rc.le);
-        }
+        changes = fs.ref_changes;
+        fs.ref_changes = nullptr;
     }
 
-    while (!is_list_empty(changes)) {
-        auto& rc = containing_record<ref_change>(changes.next);
+    if (!changes)
+        return nt_status::SUCCESS;
 
-        auto c = find_chunk(fs, rc.address);
+    auto n = get_tree_minimum(changes);
+
+    while (n) {
+        // auto& rc = containing_record<ref_change>(changes.next);
+        auto& rc = rbtree_containing_record<ref_change>(n);
+
+        auto c = find_chunk(fs, rc.tree.key);
         if (!c) {
-            print("no chunk found for address {:x}\n", rc.address);
+            print("no chunk found for address {:x}\n", rc.tree.key);
             return nt_status::INTERNAL_ERROR;
         }
 
@@ -4741,9 +4759,10 @@ static nt_status do_ref_changes(btrfs_filesystem& fs) {
             }
         }
 
-        remove_entry_list(rc.le);
-        free(&rc);
+        n = next_rbtree_node(*n);
     }
+
+    free_ref_change(changes);
 
     while (!is_list_empty(changed_chunks)) {
         auto& c = *(chunk*)((uint8_t*)changed_chunks.next - offsetof(chunk, changed_le));

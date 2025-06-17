@@ -491,7 +491,7 @@ struct ref_change_data {
 };
 
 struct ref_change {
-    uint64_t address;
+    rbtree_node<uint64_t> tree;
     bool is_metadata;
 
     union {
@@ -505,8 +505,6 @@ struct ref_change {
             list_entry rcds;
         } data;
     };
-
-    list_entry le;
 };
 
 struct btrfs_free_space_info {
@@ -640,7 +638,7 @@ public:
     root* block_group_root = nullptr;
     list_entry dirty_root_list = { &dirty_root_list, &dirty_root_list };
     spinlock ref_changes_lock;
-    list_entry ref_changes = { &ref_changes, &ref_changes };
+    rbtree_node<uint64_t>* ref_changes = nullptr;
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };
     bool readonly = false;
     object_ref flush_thread_obj;
