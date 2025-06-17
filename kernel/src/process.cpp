@@ -912,10 +912,57 @@ const char* exception::what() const noexcept {
 }
 #endif
 
+static void send_tlb_ipi(uint8_t cpu_no) {
+    tlb_cpus_left++;
+
+    auto icr2 = (volatile uint32_t*)&local_apic[0x310];
+
+    *icr2 = (*icr2 & 0x00ffffff) | ((uint32_t)cpu_no << 24);
+
+    auto icr1 = (volatile uint32_t*)&local_apic[0x300];
+
+    *icr1 = invalidate_tlb_interrupt;
+
+    while (*icr1 & (1 << 12)) { } // wait to clear
+}
+
+static void send_page_tlb_ipi(process& proc, uint64_t va) {
+    auto cpus = proc.running_cpus.load();
+
+    if (cpus == 0)
+        return;
+
+    {
+        lock_guard lock(ipi_lock);
+
+        disable_preempt();
+
+        tlb_va = va;
+        tlb_num_pages = 1;
+
+        tlb_cpus_left = 1;
+
+        for (uint8_t i = 0; i < num_cpus; i++) {
+            if (!(cpus & 1 << i))
+                continue;
+
+            send_tlb_ipi(i);
+        }
+
+        tlb_cpus_left--;
+
+        while (tlb_cpus_left > 0) { }
+
+        enable_preempt();
+    }
+}
+
 bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     page_fault_error_code ec;
 
     ec.value = error_code;
+
+    address &= ~(PAGE_SIZE - 1);
 
     auto pte = find_pte(*this, address);
 
@@ -936,6 +983,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
             uint64_t page_num = (address - m->address) >> PAGE_SHIFT;
             uint64_t sect_page_num = page_num + (m->offset >> PAGE_SHIFT);
+            bool send_ipi = false;
 
             if (pte->cow) {
                 auto pfn = allocate_folio(0) >> PAGE_SHIFT;
@@ -985,8 +1033,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                             p->pfn = new_pfn;
 #pragma GCC diagnostic pop
 
-                            // FIXME - flush TLBs on any other running threads
-                            //         that have this section mapped
+                            send_ipi = true;
                         }
 
                         p->dirty = 1;
@@ -998,6 +1045,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
                     pte->pfn = p->pfn;
 #pragma GCC diagnostic pop
 
+
                     cache.unpin(sect_page_num, 1); // FIXME?
 
                     return true;
@@ -1007,6 +1055,10 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
             m->release();
 
             pte->w = 1;
+
+            if (send_ipi)
+                send_page_tlb_ipi(*this, address);
+
             return true;
         }
 
@@ -1015,8 +1067,6 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
     if (pte && pte->reserved)
         return false;
-
-    address &= ~(PAGE_SIZE - 1);
 
     auto m = find_mapping(*this, address);
     if (!m)
@@ -1955,6 +2005,8 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     p = cache.find_page_cache_entry(sect_page_num);
                 }
 
+                bool send_ipi = false;
+
                 {
                     rangelock_req rlr(cache.rl, sect_page_num, 1);
 
@@ -1977,6 +2029,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                             return false;
                         }
 
+                        send_ipi = p->pfn != pfn;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
                         p->pfn = pfn;
@@ -1997,6 +2050,9 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
                 pte.w = 1;
                 pte.p = 1;
+
+                if (send_ipi)
+                    send_page_tlb_ipi(proc, address);
 
                 cache.unpin(sect_page_num, 1);
 
@@ -2995,20 +3051,6 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
     memset(iosb, 0, sizeof(IO_STATUS_BLOCK)); // FIXME - what's supposed to go here?
 
     return p->flush_vm(base_address, region_size);
-}
-
-static void send_tlb_ipi(uint8_t cpu_no) {
-    tlb_cpus_left++;
-
-    auto icr2 = (volatile uint32_t*)&local_apic[0x310];
-
-    *icr2 = (*icr2 & 0x00ffffff) | ((uint32_t)cpu_no << 24);
-
-    auto icr1 = (volatile uint32_t*)&local_apic[0x300];
-
-    *icr1 = invalidate_tlb_interrupt;
-
-    while (*icr1 & (1 << 12)) { } // wait to clear
 }
 
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
