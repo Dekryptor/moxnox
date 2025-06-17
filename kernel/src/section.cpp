@@ -758,13 +758,38 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
             return nt_status::INVALID_PARAMETER;
     }
 
+    if (sect.type != section_type::image) {
+        if (protect == mapping_type::read_write_execute ||
+            protect == mapping_type::read_execute) {
+            switch (sect.page_protection) {
+                case PAGE_EXECUTE_READ:
+                case PAGE_EXECUTE_WRITECOPY:
+                case PAGE_EXECUTE_READWRITE:
+                case PAGE_EXECUTE:
+                    break;
+
+                default:
+                    return nt_status::ACCESS_DENIED;
+            }
+        }
+
+        if (!cow && (protect == mapping_type::read_write_execute ||
+                     protect == mapping_type::read_write)) {
+            switch (sect.page_protection) {
+                case PAGE_READWRITE:
+                case PAGE_EXECUTE_READWRITE:
+                    break;
+
+                default:
+                    return nt_status::ACCESS_DENIED;
+            }
+        }
+    }
+
     optional<int64_t> off;
 
     if (section_offset)
         off = section_offset->QuadPart;
-
-    // FIXME - if section is readonly, don't allow read_write or read_write_execute
-    //         unless cow is true
 
     return p->map_view_of_section(sect, base_address, zero_bits, commit_size,
                                   off, *view_size, inherit_disposition, allocation_type,
