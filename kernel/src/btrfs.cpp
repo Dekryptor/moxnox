@@ -1601,18 +1601,35 @@ static void handle_pending_space(chunk& c) {
 
 static nt_status add_metadata_change(btrfs_filesystem& fs, uint64_t address,
                                      uint8_t level, uint64_t root, bool remove) {
-    auto rc = (ref_change*)malloc(sizeof(ref_change));
-    if (!rc)
-        return nt_status::INSUFFICIENT_RESOURCES;
-
-    rc->address = address;
-    rc->root = root;
-    rc->is_metadata = true;
-    rc->metadata.remove = remove;
-    rc->metadata.level = level;
+    int32_t count = remove ? -1 : 1;
 
     {
         lock_guard lock(fs.ref_changes_lock);
+
+        for (auto le = fs.ref_changes.next; le != &fs.ref_changes; le = le->next) {
+            auto& rc = containing_record<ref_change>(le);
+
+            if (rc.address == address) {
+                assert(rc.is_metadata);
+                assert(rc.root == root);
+                assert(rc.metadata.level == level);
+
+                rc.metadata.count += count;
+
+                return nt_status::SUCCESS;
+            }
+        }
+
+        auto rc = (ref_change*)malloc(sizeof(ref_change));
+        if (!rc)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        rc->address = address;
+        rc->root = root;
+        rc->is_metadata = true;
+        rc->metadata.level = level;
+        rc->metadata.count = count;
+
         insert_tail_list(fs.ref_changes, rc->le);
     }
 
@@ -4216,7 +4233,7 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
 
 static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& rc,
                                         chunk& c) {
-    if (rc.metadata.remove) {
+    if (rc.metadata.count == -1) {
         // FIXME - snapshotted metadata
 
         auto status = fs.remove_item(*fs.extent_root, {rc.address, key_type::METADATA_ITEM, rc.metadata.level});
@@ -4243,7 +4260,7 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
         sc->offset = rc.address;
         sc->length = fs.sb->nodesize;
         insert_tail_list(c.pending_space_list, sc->le);
-    } else {
+    } else if (rc.metadata.count == 1) {
         extent_item_tbr eitbr;
 
         eitbr.ei.refs = 1;
@@ -4266,6 +4283,9 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
         }
 
         c.delta += fs.sb->nodesize;
+    } else {
+        print("invalid metadata ref change count {}\n", rc.metadata.count);
+        return nt_status::INTERNAL_ERROR;
     }
 
     return nt_status::SUCCESS;

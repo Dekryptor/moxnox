@@ -490,7 +490,7 @@ struct ref_change {
     union {
         struct {
             uint8_t level;
-            bool remove;
+            int32_t count;
         } metadata;
         struct {
             uint64_t extent_length;
