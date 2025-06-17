@@ -36,6 +36,8 @@ import rwsem;
 
 using namespace std;
 
+static const size_t MAX_INLINE = 2048; // FIXME - should be mount option
+
 static const uint32_t S_IFREG = 0100000;
 static const uint32_t S_IFDIR = 0040000;
 
@@ -3571,84 +3573,147 @@ static nt_status add_csums(btrfs_filesystem& fs, uint64_t addr, uint64_t length)
     return nt_status::SUCCESS;
 }
 
+nt_status flush_inline_inode(btrfs_inode& ino) {
+    btrfs_filesystem& fs = ino.fs;
+    auto size = (uint32_t)(offsetof(btrfs_file_extent_item, disk_bytenr) + ino.file_size);
+
+    // FIXME - compression?
+
+    btrfs_path p(fs.sb->nodesize);
+
+    auto status = insert_item2(fs, *ino.r, { ino.inode, key_type::EXTENT_DATA, 0 },
+                               size, p);
+    if (!success(status))
+        return status;
+
+    auto& th = *(btrfs_header*)p.data[0];
+    auto* items = (btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header));
+
+    auto& ed = *(btrfs_file_extent_item*)(p.data[0] + sizeof(btrfs_header) + items[p.slots[0]].offset);
+
+    ed.generation = fs.sb->generation;
+    ed.ram_bytes = ino.file_size;
+    ed.compression = 0;
+    ed.encryption = 0;
+    ed.other_encoding = 0;
+    ed.type = btrfs_extent_type::inline_extent;
+
+    page_cache_entry* src_p;
+
+    ino.cache.pin(0, 1, nullptr);
+
+    {
+        lock_guard lock(ino.cache.cache_lock);
+        src_p = ino.cache.find_page_cache_entry(0);
+    }
+
+    memcpy(&ed.disk_bytenr, get_phys_address(*src_p), ino.file_size);
+
+    ino.cache.unpin(0, 1);
+
+    // copy tree back into page cache and mark dirty
+
+    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     nt_status status;
     btrfs_path p(fs.sb->nodesize);
     uint64_t addr;
 
-    // FIXME - if more than 128MB (or 128KB if compressed), split up
-
-    status = allocate_data(fs, num_pages << PAGE_SHIFT, addr);
-    if (!success(status)) {
-        print("allocate_data returned {}\n", status);
-        return status;
-    }
-
-    // FIXME - compression
-    // FIXME - nodatacow
-
-    // FIXME - allocate new chunk if we need to
-
     status = punch_hole(*this, page_num << PAGE_SHIFT, num_pages << PAGE_SHIFT);
     if (!success(status)) {
         print("punch_hole returned {}\n", status);
-        // FIXME - free addr
         return status;
     }
 
-    status = add_file_extent(addr, num_pages << PAGE_SHIFT, 0,
-                             page_num << PAGE_SHIFT, num_pages << PAGE_SHIFT);
-    if (!success(status)) {
-        print("btrfs_inode::add_file_extent returned {}\n", status);
-        // FIXME - free addr
-        // FIXME - make sure hole-punch doesn't get committed (go readonly?)
-        return status;
-    }
+    if (file_size <= MAX_INLINE) {
+        status = flush_inline_inode(*this);
+        if (!success(status)) {
+            print("flush_inline_inode returned {}\n", status);
+            // FIXME - make sure hole-punching is undone
+            return status;
+        }
+    } else {
+        // FIXME - if more than 128MB (or 128KB if compressed), split up
 
-    // FIXME - add to csum tree
+        status = allocate_data(fs, num_pages << PAGE_SHIFT, addr);
+        if (!success(status)) {
+            print("allocate_data returned {}\n", status);
+            // FIXME - make sure hole-punching is undone
+            return status;
+        }
 
-    if (!fs.cache.pin(addr >> PAGE_SHIFT, num_pages, nullptr)) {
-        print("page_cache::pin failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+        // FIXME - compression
+        // FIXME - nodatacow
 
-    // reflink cache to filesystem cache and mark dirty
+        // FIXME - allocate new chunk if we need to
 
-    {
-        rangelock_req rlr(fs.cache.rl, addr >> PAGE_SHIFT, num_pages);
-        page_cache_entry* src_p;
-        page_cache_entry* dest_p;
+        status = add_file_extent(addr, num_pages << PAGE_SHIFT, 0,
+                                page_num << PAGE_SHIFT, num_pages << PAGE_SHIFT);
+        if (!success(status)) {
+            print("btrfs_inode::add_file_extent returned {}\n", status);
+            // FIXME - free addr
+            // FIXME - make sure hole-punch doesn't get committed (go readonly?)
+            return status;
+        }
 
-        for (uint64_t i = 0; i < num_pages; i++) {
-            {
-                lock_guard lock(cache.cache_lock);
+        if (!fs.cache.pin(addr >> PAGE_SHIFT, num_pages, nullptr)) {
+            print("page_cache::pin failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
 
-                if (i == 0)
-                    src_p = cache.find_page_cache_entry(page_num);
-                else
-                    src_p = cache.next_page_cache_entry(*src_p);
+        // reflink cache to filesystem cache and mark dirty
+
+        {
+            rangelock_req rlr(fs.cache.rl, addr >> PAGE_SHIFT, num_pages);
+            page_cache_entry* src_p;
+            page_cache_entry* dest_p;
+
+            for (uint64_t i = 0; i < num_pages; i++) {
+                {
+                    lock_guard lock(cache.cache_lock);
+
+                    if (i == 0)
+                        src_p = cache.find_page_cache_entry(page_num);
+                    else
+                        src_p = cache.next_page_cache_entry(*src_p);
+                }
+
+                {
+                    lock_guard lock(fs.cache.cache_lock);
+
+                    if (i == 0)
+                        dest_p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
+                    else
+                        dest_p = fs.cache.next_page_cache_entry(*dest_p);
+                }
+
+                if (dest_p->pfn)
+                    free_folio(dest_p->pfn << PAGE_SHIFT);
+
+                increase_page_refcount(src_p->pfn);
+
+                dest_p->pfn = src_p->pfn;
+                dest_p->dirty = 1;
             }
+        }
 
-            {
-                lock_guard lock(fs.cache.cache_lock);
+        fs.cache.unpin(addr >> PAGE_SHIFT, num_pages);
 
-                if (i == 0)
-                    dest_p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
-                else
-                    dest_p = fs.cache.next_page_cache_entry(*dest_p);
+        if (!(ii.flags & BTRFS_INODE_NODATASUM)) {
+            status = add_csums(fs, addr, num_pages << PAGE_SHIFT);
+            if (!success(status)) {
+                print("add_csums returned {}\n", status);
+                // FIXME - free addr
+                // FIXME - go readonly?
+                return status;
             }
-
-            if (dest_p->pfn)
-                free_folio(dest_p->pfn << PAGE_SHIFT);
-
-            increase_page_refcount(src_p->pfn);
-
-            dest_p->pfn = src_p->pfn;
-            dest_p->dirty = 1;
         }
     }
-
-    fs.cache.unpin(addr >> PAGE_SHIFT, num_pages);
 
     auto cur_time = get_btrfs_time();
 
@@ -3656,20 +3721,10 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     ii.ctime = cur_time;
     ii.mtime = cur_time;
 
-    if (!(ii.flags & BTRFS_INODE_NODATASUM)) {
-        status = add_csums(fs, addr, num_pages << PAGE_SHIFT);
-        if (!success(status)) {
-            print("add_csums returned {}\n", status);
-            // FIXME - free addr
-            // FIXME - go readonly?
-            return status;
-        }
-    }
-
     status = flush_inode_item(p);
     if (!success(status)) {
         print("btrfs_inode::flush_inode_item returned {}\n", status);
-        // FIXME - free addr
+        // FIXME - free addr (if not inline)
         // FIXME - go readonly?
         return status;
     }
@@ -4646,6 +4701,8 @@ static void update_superblock_backup(btrfs_filesystem& fs) {
 
 static nt_status do_writeback_inode(btrfs_filesystem& fs, btrfs_inode& ino) {
     nt_status status;
+
+    lock_guard lock(ino.inode_lock);
 
     status = ino.cache.flush(0, 0xffffffffffffffff, true);
     if (!success(status)) {
