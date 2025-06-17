@@ -436,8 +436,8 @@ static void try_run_program(string_view program, string_view cmdline) {
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
-    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN,
-                          FILE_NON_DIRECTORY_FILE, nullptr, 0);
+    status = NtCreateFile(&file, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
 
     free(us.Buffer);
 
@@ -469,8 +469,8 @@ static void try_run_program(string_view program, string_view cmdline) {
 
             oa.ObjectName = &us;
 
-            status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0,
-                                  FILE_OPEN, 0, nullptr, 0);
+            status = NtCreateFile(&file, FILE_READ_DATA, &oa, &iosb, nullptr,
+                                  0, 0, FILE_OPEN, 0, nullptr, 0);
         }
     }
 
