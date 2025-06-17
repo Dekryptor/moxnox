@@ -54,7 +54,8 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
-    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0, nullptr, 0);
+    status = NtCreateFile(&file, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, 0, nullptr, 0);
 
     free(us.Buffer);
 
