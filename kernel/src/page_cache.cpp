@@ -426,11 +426,24 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
             return 0;
 
         {
-            lock_guard lg(cache_lock);
+            rangelock_req rlr(rl, first_page, 1);
 
-            auto ent = find_page_cache_entry(first_page);
+            page_cache_entry* ent;
+
+            {
+                lock_guard lg(cache_lock);
+                ent = find_page_cache_entry(first_page);
+            }
 
             assert(ent->tree.key == first_page);
+
+            auto pfn = cow_folio(ent->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+            if (!pfn) {
+                ent->refcount--; // unpin
+                return 0;
+            }
+
+            ent->pfn = pfn & 0xfffffffffffff;
 
             auto ent_va = get_phys_address(*ent);
 
@@ -472,11 +485,24 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
         return written;
 
     {
-        lock_guard lg(cache_lock);
+        rangelock_req rlr(rl, first_page, 1);
 
-        auto ent = find_page_cache_entry(first_page);
+        page_cache_entry* ent;
+
+        {
+            lock_guard lg(cache_lock);
+            ent = find_page_cache_entry(first_page);
+        }
 
         assert(ent->tree.key == first_page);
+
+        auto pfn = cow_folio(ent->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+        if (!pfn) {
+            ent->refcount--; // unpin
+            return written;
+        }
+
+        ent->pfn = pfn & 0xfffffffffffff;
 
         auto ent_va = get_phys_address(*ent);
 
