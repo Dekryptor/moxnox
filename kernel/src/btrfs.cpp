@@ -3098,47 +3098,36 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
     if (pages_read == 0)
         return 0;
 
-    // copy from buffer into our own page cache
-
-    // FIXME - can we steal pages?
-
-    page_cache_entry* dest_p;
     size_t ret = pages_read;
 
-    for (uint64_t i = 0; i < pages_read; i++) {
+    {
+        rangelock_req rlr(fs.cache.rl, addr >> PAGE_SHIFT, num_pages);
+
         page_cache_entry* src_p;
+        page_cache_entry* dest_p;
 
-        {
-            lock_guard lg(cache.cache_lock);
+        for (uint64_t i = 0; i < pages_read; i++) {
+            {
+                lock_guard lg(cache.cache_lock);
 
-            if (i == 0)
-                dest_p = cache.find_page_cache_entry(page_num);
-            else
-                dest_p = cache.next_page_cache_entry(*dest_p);
-
-            if (dest_p->pfn == 0) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-                if (!dest_p->pfn) {
-                    print("allocate_folio failed\n");
-                    ret = i;
-                    break;
-                }
+                if (i == 0)
+                    dest_p = cache.find_page_cache_entry(page_num);
+                else
+                    dest_p = cache.next_page_cache_entry(*dest_p);
             }
+
+            {
+                lock_guard lg(fs.cache.cache_lock);
+
+                if (i == 0)
+                    src_p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
+                else
+                    src_p = fs.cache.next_page_cache_entry(*src_p);
+            }
+
+            increase_page_refcount(src_p->pfn);
+            dest_p->pfn = src_p->pfn;
         }
-
-        // FIXME - find next entry rather than doing complete lookup(?)
-        {
-            lock_guard lg(fs.cache.cache_lock);
-            src_p = fs.cache.find_page_cache_entry((addr >> PAGE_SHIFT) + i);
-        }
-
-        auto src_va = get_phys_address(*src_p);
-        auto dest_va = get_phys_address(*dest_p);
-
-        memcpy(dest_va, src_va, PAGE_SIZE);
     }
 
     fs.cache.unpin(addr >> PAGE_SHIFT, pages_read);
