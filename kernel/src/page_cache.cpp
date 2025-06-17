@@ -373,25 +373,31 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
 
     // copy pages and set as dirty
 
-    page_cache_entry* ent;
+    {
+        rangelock_req rlr(rl, first_page, num_pages);
 
-    for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache_lock);
+        page_cache_entry* ent;
 
-            if (i == 0)
-                ent = find_page_cache_entry(first_page);
-            else
-                ent = next_page_cache_entry(*ent);
+        for (uint64_t i = 0; i < num_pages; i++) {
+            {
+                lock_guard lg(cache_lock);
+
+                if (i == 0)
+                    ent = find_page_cache_entry(first_page);
+                else
+                    ent = next_page_cache_entry(*ent);
+            }
 
             assert(ent->tree.key == first_page + i);
 
-            if (ent->pfn == 0) {
-                ent->pfn = (allocate_folio(0) >> PAGE_SHIFT) & 0xfffffffffffff;
-                if (!ent->pfn) {
-                    print("allocate_folio failed\n");
-                    return false;
-                }
+            if (ent->pfn)
+                free_folio(ent->pfn << PAGE_SHIFT);
+
+            ent->pfn = (allocate_folio(0) >> PAGE_SHIFT) & 0xfffffffffffff;
+            if (!ent->pfn) {
+                print("allocate_folio failed\n");
+                ent->refcount--;
+                return false;
             }
 
             auto ent_va = get_phys_address(*ent);
