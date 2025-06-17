@@ -482,6 +482,13 @@ struct btrfs_extent_owner_ref {
 
 static_assert(sizeof(btrfs_extent_owner_ref) == 8);
 
+struct ref_change_data {
+    list_entry le;
+    uint64_t objectid;
+    uint64_t offset;
+    int32_t count;
+};
+
 struct ref_change {
     uint64_t address;
     uint64_t root;
@@ -494,9 +501,7 @@ struct ref_change {
         } metadata;
         struct {
             uint64_t extent_length;
-            uint64_t objectid;
-            uint64_t offset;
-            int32_t count;
+            list_entry rcds;
         } data;
     };
 

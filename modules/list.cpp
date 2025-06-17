@@ -91,3 +91,8 @@ export void __inline swap_lists(list_entry& le1, list_entry& le2) {
     le2.next->prev = &le2;
     le2.prev->next = &le2;
 }
+
+export void initialize_list(list_entry& le) {
+    le.next = &le;
+    le.prev = &le;
+}

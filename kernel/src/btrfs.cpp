@@ -3245,9 +3245,19 @@ static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
     rc->root = root;
     rc->is_metadata = false;
     rc->data.extent_length = extent_length;
-    rc->data.objectid = objectid;
-    rc->data.offset = offset;
-    rc->data.count = count;
+    initialize_list(rc->data.rcds);
+
+    auto rcd = (ref_change_data*)malloc(sizeof(ref_change_data));
+    if (!rcd) {
+        free(rc);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    rcd->objectid = objectid;
+    rcd->offset = offset;
+    rcd->count = count;
+
+    insert_tail_list(rc->data.rcds, rcd->le);
 
     {
         lock_guard lock(fs.ref_changes_lock);
@@ -4412,7 +4422,7 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
 }
 
 static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
-                                    chunk& c) {
+                                    chunk& c, const ref_change_data& rcd) {
     btrfs_path p(fs.sb->nodesize);
     btrfs_key key;
     nt_status status;
@@ -4434,17 +4444,17 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
     // FIXME - if new extent, remove from FST, add to BGI, and adjust superblock
 
     if (!found) {
-        if (rc.data.count > 0) {
+        if (rcd.count > 0) {
             extent_item_edr eiedr;
 
-            eiedr.ei.refs = (uint32_t)rc.data.count;
+            eiedr.ei.refs = (uint32_t)rcd.count;
             eiedr.ei.generation = fs.sb->generation;
             eiedr.ei.flags = BTRFS_EXTENT_FLAG_DATA;
             eiedr.type = key_type::EXTENT_DATA_REF;
             eiedr.edr.root = rc.root;
-            eiedr.edr.objectid = rc.data.objectid;
-            eiedr.edr.offset = rc.data.offset;
-            eiedr.edr.count = (uint32_t)rc.data.count;
+            eiedr.edr.objectid = rcd.objectid;
+            eiedr.edr.offset = rcd.offset;
+            eiedr.edr.count = (uint32_t)rcd.count;
 
             status = insert_item(fs, *fs.extent_root, key,
                                  span((const uint8_t*)&eiedr, sizeof(eiedr)));
@@ -4548,16 +4558,16 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 auto& edr = *(btrfs_extent_data_ref*)inl.data();
 
                 if (edr.root != rc.root ||
-                    edr.objectid != rc.data.objectid ||
-                    edr.offset != rc.data.offset) {
+                    edr.objectid != rcd.objectid ||
+                    edr.offset != rcd.offset) {
                     inl = span(inl.data() + sizeof(btrfs_extent_data_ref),
                                inl.size() - sizeof(btrfs_extent_data_ref));
                     break;
                 }
 
-                if (rc.data.count > 0) {
-                    edr.count += (uint32_t)rc.data.count;
-                    ei.refs += (uint32_t)rc.data.count;
+                if (rcd.count > 0) {
+                    edr.count += (uint32_t)rcd.count;
+                    ei.refs += (uint32_t)rcd.count;
 
                     if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
                         return nt_status::INTERNAL_ERROR;
@@ -4565,15 +4575,15 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                     return nt_status::SUCCESS;
                 }
 
-                if (-rc.data.count > (int32_t)edr.count) {
+                if (-rcd.count > (int32_t)edr.count) {
                     print("do_ref_change_data: trying to reduce refcount of ref in {} to negative value\n",
                           key);
                     return nt_status::DISK_CORRUPT_ERROR;
                 }
 
-                if (-rc.data.count < (int32_t)edr.count) {
-                    edr.count = (uint32_t)((int32_t)edr.count + rc.data.count);
-                    ei.refs = (uint64_t)((int64_t)ei.refs + rc.data.count);
+                if (-rcd.count < (int32_t)edr.count) {
+                    edr.count = (uint32_t)((int32_t)edr.count + rcd.count);
+                    ei.refs = (uint64_t)((int64_t)ei.refs + rcd.count);
 
                     if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
                         return nt_status::INTERNAL_ERROR;
@@ -4581,7 +4591,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                     return nt_status::SUCCESS;
                 }
 
-                if (-rc.data.count == (int32_t)ei.refs) {
+                if (-rcd.count == (int32_t)ei.refs) {
                     status = add_free_space(fs, rc.address, rc.data.extent_length);
                     if (!success(status)) {
                         print("add_free_space returned {}\n", status);
@@ -4633,7 +4643,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
         }
     }
 
-    if (rc.data.count < 0) {
+    if (rcd.count < 0) {
         print("do_ref_change_data: trying to decrease refcount for non-existent ref in {}\n",
               key);
         return nt_status::DISK_CORRUPT_ERROR;
@@ -4683,9 +4693,16 @@ static nt_status do_ref_changes(btrfs_filesystem& fs) {
             if (!success(status))
                 return status;
         } else {
-            auto status = do_ref_change_data(fs, rc, *c);
-            if (!success(status))
-                return status;
+            while (!is_list_empty(rc.data.rcds)) {
+                auto& rcd = containing_record<ref_change_data>(rc.data.rcds.next);
+
+                auto status = do_ref_change_data(fs, rc, *c, rcd);
+                if (!success(status))
+                    return status;
+
+                remove_entry_list(rcd.le);
+                free(&rcd);
+            }
         }
 
         remove_entry_list(rc.le);
