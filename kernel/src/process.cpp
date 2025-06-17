@@ -487,6 +487,7 @@ process::process() : sync_object(object_type::process, false) {
     s->type = section_type::anonymous;
     s->num_pages = 0;
     s->size = 0;
+    s->page_protection = PAGE_EXECUTE_READWRITE;
 
     s->anon_cache = new anon_section_cache;
     if (!s->anon_cache) {
