@@ -4689,16 +4689,20 @@ static nt_status do_ref_changes(btrfs_filesystem& fs) {
         }
 
         if (rc.is_metadata) {
-            auto status = do_ref_change_metadata(fs, rc, *c);
-            if (!success(status))
-                return status;
+            if (rc.metadata.count != 0) {
+                auto status = do_ref_change_metadata(fs, rc, *c);
+                if (!success(status))
+                    return status;
+            }
         } else {
             while (!is_list_empty(rc.data.rcds)) {
                 auto& rcd = containing_record<ref_change_data>(rc.data.rcds.next);
 
-                auto status = do_ref_change_data(fs, rc, *c, rcd);
-                if (!success(status))
-                    return status;
+                if (rcd.count != 0) {
+                    auto status = do_ref_change_data(fs, rc, *c, rcd);
+                    if (!success(status))
+                        return status;
+                }
 
                 remove_entry_list(rcd.le);
                 free(&rcd);
