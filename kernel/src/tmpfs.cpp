@@ -399,30 +399,21 @@ size_t tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     page_cache_entry* ent;
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        {
-            lock_guard lg(cache.cache_lock);
+        lock_guard lg(cache.cache_lock);
 
-            if (i == 0)
-                ent = cache.find_page_cache_entry(page_num);
-            else
-                ent = cache.next_page_cache_entry(*ent);
+        if (i == 0)
+            ent = cache.find_page_cache_entry(page_num);
+        else
+            ent = cache.next_page_cache_entry(*ent);
 
-            assert(ent->tree.key == page_num + i);
+        assert(ent->tree.key == page_num + i);
 
-            if (!ent->pfn) {
+        if (!ent->pfn) {
+            increase_page_refcount(zero_pfn);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                ent->pfn = allocate_folio(0) >> PAGE_SHIFT;
+            ent->pfn = zero_pfn;
 #pragma GCC diagnostic pop
-                if (!ent->pfn) {
-                    print("allocate_folio failed\n");
-                    return i;
-                }
-
-                auto ent_va = get_phys_address(*ent);
-
-                memset(ent_va, 0, PAGE_SIZE);
-            }
         }
     }
 
