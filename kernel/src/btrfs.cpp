@@ -3681,6 +3681,8 @@ nt_status flush_inline_inode(btrfs_inode& ino) {
     if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
+    ino.ii.nbytes = ino.file_size;
+
     return nt_status::SUCCESS;
 }
 
