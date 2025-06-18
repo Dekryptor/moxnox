@@ -90,13 +90,15 @@ static void write_png_file(HANDLE file, unsigned int width, unsigned int height,
     png_set_write_fn(png, (png_voidp)file, write_png, flush_png);
     png_set_error_fn(png, nullptr, png_error, nullptr);
 
-    png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGBA,
+    png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGB,
                  PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
                  PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png, info);
 
+    png_set_filler(png, 0, PNG_FILLER_AFTER);
+
     for (unsigned int i = 0; i < height; i++) {
-        png_write_row(png, (uint8_t*)framebuffer.data()); // FIXME
+        png_write_row(png, framebuffer.data() + (i * width * sizeof(uint32_t)));
     }
 
     png_write_end(png, NULL);
@@ -172,7 +174,7 @@ static void take_screenshot() {
     uint32_t image_width = 1280;
     uint32_t image_height = 800;
 
-    write_png_file(file, /*image_width*/1, /*image_height*/1, framebuffer);
+    write_png_file(file, image_width, image_height, framebuffer);
 
 #if 0
     bmp1.bfType = BMP_MAGIC;
