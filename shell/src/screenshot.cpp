@@ -9,6 +9,34 @@ import print;
 
 using namespace std;
 
+static const uint16_t BMP_MAGIC = 0x4d42;
+
+struct BITMAPFILEHEADER {
+    uint16_t bfType;
+    uint32_t bfSize;
+    uint16_t bfReserved1;
+    uint16_t bfReserved2;
+    uint32_t bfOffBits;
+} __attribute((packed));
+
+static_assert(sizeof(BITMAPFILEHEADER) == 14);
+
+struct BITMAPINFOHEADER {
+    uint32_t biSize;
+    uint32_t biWidth;
+    uint32_t biHeight;
+    uint16_t biPlanes;
+    uint16_t biBitCount;
+    uint32_t biCompression;
+    uint32_t biSizeImage;
+    uint32_t biXPelsPerMeter;
+    uint32_t biYPelsPerMeter;
+    uint32_t biClrUsed;
+    uint32_t biClrImportant;
+};
+
+static_assert(sizeof(BITMAPINFOHEADER) == 40);
+
 extern "C"
 void* malloc(size_t size) {
     return RtlAllocateHeap(GetProcessHeap(), 0, size);
@@ -28,9 +56,11 @@ static void take_screenshot() {
     NTSTATUS status;
     void* addr;
     size_t size;
+    BITMAPFILEHEADER bmp1;
+    BITMAPINFOHEADER bmp2;
 
     static const u16string_view fb = u"\\dev\\framebuffer";
-    static const u16string_view fn = u"screenshot-out";
+    static const u16string_view fn = u"screenshot-out.bmp";
 
     us.Length = us.MaximumLength = (uint16_t)(fb.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)fb.data();
@@ -56,8 +86,6 @@ static void take_screenshot() {
     }
 
     NtClose(sect);
-
-    print("mapped framebuffer at {:x} (size {:x})\n", (uintptr_t)addr, size);
 
     // save to file
 
@@ -85,8 +113,47 @@ static void take_screenshot() {
 
     // FIXME - write as png
 
-    // FIXME - do writes in one call once we can
+    // FIXME - get from kernel
+    uint32_t image_width = 1280;
+    uint32_t image_height = 800;
 
+    bmp1.bfType = BMP_MAGIC;
+    bmp1.bfSize = (uint32_t)(sizeof(bmp1) + sizeof(bmp2) + (image_width * image_height * sizeof(uint32_t)));
+    bmp1.bfReserved1 = 0;
+    bmp1.bfReserved2 = 0;
+    bmp1.bfOffBits = sizeof(bmp1) + sizeof(bmp2);
+
+    bmp2.biSize = sizeof(bmp2);
+    bmp2.biWidth = image_width;
+    bmp2.biHeight = -image_height; // negative because top-down
+    bmp2.biPlanes = 1;
+    bmp2.biBitCount = 32;
+    bmp2.biCompression = 0;
+    bmp2.biSizeImage = image_width * image_height * sizeof(uint32_t);
+    bmp2.biXPelsPerMeter = 2835;
+    bmp2.biYPelsPerMeter = 2835;
+    bmp2.biClrUsed = 0;
+    bmp2.biClrImportant = 0;
+
+    status = NtWriteFile(file, 0, nullptr, nullptr, &iosb, &bmp1,
+                         sizeof(bmp1), nullptr, nullptr);
+    if (!success(status)) {
+        print("NtWriteFile returned {}\n", status);
+        NtClose(file);
+        NtUnmapViewOfSection(NtCurrentProcess(), addr);
+        return;
+    }
+
+    status = NtWriteFile(file, 0, nullptr, nullptr, &iosb, &bmp2,
+                         sizeof(bmp2), nullptr, nullptr);
+    if (!success(status)) {
+        print("NtWriteFile returned {}\n", status);
+        NtClose(file);
+        NtUnmapViewOfSection(NtCurrentProcess(), addr);
+        return;
+    }
+
+    // FIXME - do writes in one call once we can
     auto buf = framebuffer;
     while (!buf.empty()) {
         auto to_write = (uint32_t)min((size_t)4096, buf.size());
