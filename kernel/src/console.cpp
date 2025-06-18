@@ -27,6 +27,7 @@ import rbtree;
 import acpi;
 import pci;
 import visit;
+import framebuffer;
 
 using namespace std;
 
@@ -60,7 +61,7 @@ export void early_print(string_view s);
 export object_ref console_chardev;
 static const unsigned int console_buffer_pages = 4;
 
-static span<uint32_t> framebuffer, shadow_framebuffer;
+static span<uint32_t> framebuffer;
 static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static unsigned int font_width, font_height, font_descender;
@@ -1640,6 +1641,8 @@ export bool init_console(const loader_block_framebuffer& fb,
 
         memset(framebuffer.data(), 0, framebuffer.size_bytes());
         memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());
+
+        create_framebuffer_section();
     }
 
     auto pptr = new class console(console_buffer_pages);

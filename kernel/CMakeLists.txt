@@ -73,6 +73,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/rangelock.cpp
     src/page_cache.cpp
     src/visit.cpp
+    src/framebuffer.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list)
