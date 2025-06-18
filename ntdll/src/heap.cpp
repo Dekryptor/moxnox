@@ -2,6 +2,19 @@
 #include <string.h>
 
 import print;
+import list;
+
+class subheap {
+public:
+    subheap(size_t reserve_size, size_t commit_size);
+
+    void* allocate(uint32_t flags, size_t size);
+
+    list_entry le;
+    size_t reserve_size;
+    size_t commit_size;
+    uint8_t data[0];
+};
 
 class heap {
 public:
@@ -10,9 +23,7 @@ public:
     void* allocate(uint32_t flags, size_t size);
     bool free(uint32_t flags, void* base_address);
 
-    size_t reserve_size;
-    size_t commit_size;
-    uint8_t data[0];
+    list_entry subheaps = { &subheaps, &subheaps };
 };
 
 struct alloc_header {
@@ -22,32 +33,44 @@ struct alloc_header {
 
 static_assert(sizeof(alloc_header) == 4);
 
-heap::heap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size), commit_size(commit_size) {
+subheap::subheap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size), commit_size(commit_size) {
     auto& ah = *(alloc_header*)data;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    ah.size = (uint32_t)(commit_size - offsetof(heap, data) - sizeof(alloc_header));
+    ah.size = (uint32_t)(commit_size - offsetof(subheap, data) - sizeof(alloc_header));
 #pragma GCC diagnostic pop
     ah.free = 1;
 }
 
-void* heap::allocate(uint32_t flags, size_t size) {
-    // FIXME - flags
+heap::heap(size_t reserve_size, size_t commit_size) {
+    void* addr = nullptr;
 
-    // round to multiple of 4
-    if (size & 3)
-        size = ((size >> 2) + 1) << 2;
+    auto ret = NtAllocateVirtualMemory(NtCurrentProcess(), &addr, 0, &reserve_size,
+                                       MEM_RESERVE, PAGE_READWRITE);
 
-    if (size == 0 || size >= 0x80000000)
-        return nullptr;
+    if (!success(ret)) {
+        print("NtAllocateVirtualMemory returned {}\n", ret);
+        // FIXME - return error
+        return;
+    }
 
+    ret = NtAllocateVirtualMemory(NtCurrentProcess(), &addr, 0, &commit_size,
+                                  MEM_COMMIT, PAGE_READWRITE);
+
+    if (!success(ret)) {
+        print("NtAllocateVirtualMemory returned {}\n", ret);
+        // FIXME - return error
+        return;
+    }
+
+    auto sh = new (addr) subheap(reserve_size, commit_size);
+
+    insert_tail_list(subheaps, sh->le);
+}
+
+void* subheap::allocate(uint32_t flags, size_t size) {
     alloc_header* ah = nullptr;
-
-    // FIXME - lock (critical section?)
-
-    // FIXME - if subheap full, allocate new one
-    // FIXME - separate subheap for allocations larger than 1 page?
 
     // allocate from existing pages if possible
 
@@ -112,10 +135,8 @@ void* heap::allocate(uint32_t flags, size_t size) {
 
     unsigned int new_pages = bytes_to_pages(sizeof(alloc_header) + size);
 
-    if (new_pages << PAGE_SHIFT > reserve_size - commit_size) {
-        print("FIXME - allocate new subheap (current subheap exhausted)\n");
+    if (new_pages << PAGE_SHIFT > reserve_size - commit_size)
         return nullptr;
-    }
 
     void* addr = (uint8_t*)this + commit_size;
     size_t new_commit_size = new_pages << PAGE_SHIFT;
@@ -162,6 +183,34 @@ void* heap::allocate(uint32_t flags, size_t size) {
     // NtAllocateVirtualMemory guarantees initialized to 0
 
     return ptr;
+}
+
+void* heap::allocate(uint32_t flags, size_t size) {
+    // FIXME - flags
+
+    // round to multiple of 4
+    if (size & 3)
+        size = ((size >> 2) + 1) << 2;
+
+    if (size == 0 || size >= 0x80000000)
+        return nullptr;
+
+    // FIXME - lock (critical section?)
+
+    // FIXME - if subheap full, allocate new one
+    // FIXME - separate subheap for allocations larger than 1 page?
+
+    for (auto le = subheaps.next; le != &subheaps; le = le->next) {
+        auto& sh = containing_record<subheap>(le);
+
+        auto ret = sh.allocate(flags, size);
+        if (ret)
+            return ret;
+    }
+
+    print("FIXME - allocate new subheap (current subheap exhausted)\n");
+
+    return nullptr;
 }
 
 bool heap::free(uint32_t, void* base_address) {
@@ -214,17 +263,10 @@ void* RtlCreateHeap(uint32_t, void*, size_t reserve_size, size_t commit_size,
             commit_size = reserve_size;
     }
 
-    auto ret = NtAllocateVirtualMemory(NtCurrentProcess(), &addr, 0, &reserve_size,
-                                       MEM_RESERVE, PAGE_READWRITE);
+    size_t heap_obj_size = sizeof(heap);
 
-    if (!success(ret)) {
-        print("NtAllocateVirtualMemory returned {}\n", ret);
-        return nullptr;
-    }
-
-    ret = NtAllocateVirtualMemory(NtCurrentProcess(), &addr, 0, &commit_size,
-                                  MEM_COMMIT, PAGE_READWRITE);
-
+    auto ret = NtAllocateVirtualMemory(NtCurrentProcess(), &addr, 0, &heap_obj_size,
+                                       MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     if (!success(ret)) {
         print("NtAllocateVirtualMemory returned {}\n", ret);
         return nullptr;
