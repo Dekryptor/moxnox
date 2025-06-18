@@ -254,6 +254,8 @@ add_library(zlib
     zlib/zutil.c
 )
 
+target_include_directories(zlib PUBLIC zlib)
+
 add_library(libpng
     libpng/png.c
     libpng/pngerror.c
@@ -272,7 +274,7 @@ add_library(libpng
     libpng/pngwutil.c
 )
 
-target_include_directories(libpng PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
 target_link_libraries(libpng zlib)
 
 install(SCRIPT initrd.cmake)
