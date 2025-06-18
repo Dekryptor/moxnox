@@ -27,6 +27,7 @@ import config;
 import pe;
 import bsod;
 import rangelock;
+import string;
 
 using namespace std;
 
@@ -1177,4 +1178,73 @@ nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
     auto& f = ino->get();
 
     return f.cache.flush(page_num, num_pages, false);
+}
+
+NTSTATUS NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
+                       const OBJECT_ATTRIBUTES* object_attributes) {
+    auto t = get_current_thread();
+    auto p = t->proc;
+    nt_status status;
+
+    if (!p)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - check permissions
+
+    if (!object_attributes || !section_handle)
+        return nt_status::INVALID_PARAMETER;
+
+    if (!object_attributes->ObjectName || !object_attributes->ObjectName->Buffer)
+        return nt_status::INVALID_PARAMETER;
+
+    auto u16name = u16string_view(object_attributes->ObjectName->Buffer, object_attributes->ObjectName->Length / sizeof(char16_t));
+
+    if (u16name.empty())
+        return nt_status::INVALID_PARAMETER;
+
+    auto namelen = utf16_to_utf8_len(u16name);
+
+    if (namelen == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    auto name = (char*)malloc(namelen);
+    if (!name)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    utf16_to_utf8(span(name, namelen), u16name);
+
+    for (unsigned int i = 0; i < namelen; i++) {
+        if (name[i] == '\\')
+            name[i] = '/';
+    }
+
+    static const string_view dev_prefix = "/dev/";
+    object_ref obj_ref;
+
+    if (namelen < dev_prefix.size() || string_view(name, dev_prefix.size()) != dev_prefix) {
+        free(name);
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+    }
+
+    status = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()),
+                         obj_ref);
+    if (!success(status)) {
+        free(name);
+        return status;
+    }
+
+    free(name);
+
+    if (obj_ref.get().type != object_type::section)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    handle_t h;
+
+    status = p->add_handle(obj_ref.get(), desired_access, true, h);
+    if (!success(status))
+        return status;
+
+    *section_handle = h;
+
+    return nt_status::SUCCESS;
 }

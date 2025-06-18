@@ -1377,3 +1377,29 @@ NTSTATUS user_NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
+                            const OBJECT_ATTRIBUTES* object_attributes) {
+    HANDLE h;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+
+    if (object_attributes) {
+        auto ret = copy_object_attributes(oa, us, object_attributes);
+        if (!success(ret))
+            return ret;
+    }
+
+    auto ret = NtOpenSection(&h, desired_access, object_attributes ? &oa : nullptr);
+
+    if (object_attributes)
+        free_object_attributes(oa);
+
+    if (success(ret)) {
+        if (!copy_to_process(section_handle, &h, sizeof(HANDLE)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
