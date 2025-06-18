@@ -55,12 +55,14 @@ public:
     virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
     virtual NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                                 std::span<uint8_t> buf, size_t* return_length) = 0;
+    virtual NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
     virtual ~custom_section_cache() { }
 
     page_cache<custom_section_cache> cache{*this};
 };
 
 static_assert(cacheable<custom_section_cache>);
+static_assert(cacheable_flushable<custom_section_cache>);
 
 using cache_variant = std::variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*,
                                    page_cache<custom_section_cache>*, page_cache<inode>*>;

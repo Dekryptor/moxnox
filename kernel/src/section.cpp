@@ -1185,12 +1185,12 @@ size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
 }
 
 nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
-    if (type != section_type::file)
-        return nt_status::SUCCESS;
-
-    auto& f = ino->get();
-
-    return f.cache.flush(page_num, num_pages, false);
+    return visit([&](auto* ptr) {
+        if constexpr (cacheable_flushable<typename remove_pointer_t<decltype(ptr)>::dev_type>)
+            return ptr->flush(page_num, num_pages, false);
+        else
+            return nt_status::SUCCESS;
+    }, get_cache());
 }
 
 NTSTATUS NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,

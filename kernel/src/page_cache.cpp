@@ -51,6 +51,8 @@ public:
     page_cache(T& dev) : dev(dev) { }
     ~page_cache();
 
+    using dev_type = T;
+
     bool pin(uint64_t first_page, uint64_t num_pages,
              page_cache_entry** first_unread);
     void copy_into_buffer(uint64_t first_page, uint64_t num_pages,

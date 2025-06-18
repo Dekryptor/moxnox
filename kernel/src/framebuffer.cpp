@@ -24,6 +24,7 @@ export uint32_t fb_width, fb_height;
 class framebuffer_cache : public custom_section_cache {
 public:
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                         span<uint8_t> buf, size_t* return_length) override;
 };
@@ -61,6 +62,14 @@ size_t framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages)
     cache.unpin(page_num, num_pages);
 
     return read_pages;
+}
+
+NTSTATUS framebuffer_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    print("FIXME - framebuffer_cache::flush_cache({:x}, {:x})\n", page_num, num_pages);
+
+    // FIXME
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS framebuffer_cache::query_info(enum SECTION_INFORMATION_CLASS section_information_class,
