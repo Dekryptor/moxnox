@@ -61,6 +61,7 @@ static void write_png_file(HANDLE file, unsigned int width, unsigned int height,
 
     png_set_write_fn(png, (png_voidp)file, write_png, flush_png);
     png_set_error_fn(png, nullptr, png_error, nullptr);
+    png_set_bgr(png);
 
     png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGB,
                  PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
