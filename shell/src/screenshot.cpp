@@ -20,12 +20,17 @@ void free(void* ptr) {
 }
 
 static void take_screenshot() {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
-    HANDLE sect;
+    HANDLE sect, file;
+    IO_STATUS_BLOCK iosb;
     NTSTATUS status;
+    void* addr;
+    size_t size;
 
     static const u16string_view fb = u"\\dev\\framebuffer";
+    static const u16string_view fn = u"screenshot-out";
 
     us.Length = us.MaximumLength = (uint16_t)(fb.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)fb.data();
@@ -40,10 +45,68 @@ static void take_screenshot() {
         return;
     }
 
-    // FIXME - map
-    // FIXME - save to file
+    addr = nullptr;
+    size = 0;
+
+    status = NtMapViewOfSection(sect, NtCurrentProcess(), &addr, 0, 0, nullptr,
+                                &size, SECTION_INHERIT::ViewUnmap, 0, PAGE_READONLY);
+    if (!success(status)) {
+        print("NtMapViewOfSection returned {}\n", status);
+        return;
+    }
 
     NtClose(sect);
+
+    print("mapped framebuffer at {:x} (size {:x})\n", (uintptr_t)addr, size);
+
+    // save to file
+
+    // FIXME - put timestamp in filename
+
+    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)fn.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&file, FILE_WRITE_DATA, &oa, &iosb, nullptr,
+                          FILE_ATTRIBUTE_NORMAL, 0, FILE_CREATE,
+                          0, nullptr, 0);
+
+    if (!success(status)) {
+        print("NtCreateFile returned {}\n", status); // FIXME - stderr
+        NtUnmapViewOfSection(NtCurrentProcess(), addr);
+        return;
+    }
+
+    span framebuffer((uint8_t*)addr, size / sizeof(uint8_t));
+
+    // FIXME - write as png
+
+    // FIXME - do writes in one call once we can
+
+    auto buf = framebuffer;
+    while (!buf.empty()) {
+        auto to_write = (uint32_t)min((size_t)4096, buf.size());
+
+        status = NtWriteFile(file, 0, nullptr, nullptr, &iosb, buf.data(),
+                             to_write, nullptr, nullptr);
+        if (!success(status)) {
+            print("NtWriteFile returned {}\n", status);
+            NtClose(file);
+            NtUnmapViewOfSection(NtCurrentProcess(), addr);
+            return;
+        }
+
+        buf = span(buf.data() + iosb.Information, buf.size() - iosb.Information);
+    }
+
+    NtClose(file);
+
+    NtUnmapViewOfSection(NtCurrentProcess(), addr);
+
 }
 
 extern "C"
