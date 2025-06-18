@@ -50,6 +50,19 @@ public:
 
 static_assert(cacheable<anon_section_cache>);
 
+class custom_section_cache {
+public:
+    virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
+    virtual ~custom_section_cache() { }
+
+    page_cache<custom_section_cache> cache{*this};
+};
+
+static_assert(cacheable<custom_section_cache>);
+
+using cache_variant = std::variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*,
+                                   page_cache<custom_section_cache>*, page_cache<inode>*>;
+
 class section : public object {
 public:
     section() : object(object_type::section) { }
@@ -68,7 +81,7 @@ public:
     uint64_t find_export(std::string_view name);
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class, std::span<uint8_t> buf,
                         size_t* return_length);
-    std::variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*, page_cache<inode>*> get_cache();
+    cache_variant get_cache();
     nt_status flush(uint64_t page_num, uint64_t num_pages);
 
     std::optional<std::reference_wrapper<inode>> ino;
@@ -87,5 +100,6 @@ public:
     uint32_t size_of_headers;
     image_section_cache* image_cache = nullptr;
     anon_section_cache* anon_cache = nullptr;
+    custom_section_cache* custom_cache = nullptr;
     uint32_t page_protection;
 };

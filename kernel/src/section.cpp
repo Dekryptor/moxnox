@@ -136,6 +136,9 @@ section::~section() {
     if (anon_cache)
         delete anon_cache;
 
+    if (custom_cache)
+        delete custom_cache;
+
     free(name);
 }
 
@@ -916,13 +919,16 @@ uint64_t get_image_size(void* image) {
         return 0;
 }
 
-variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*, page_cache<inode>*> section::get_cache() {
+cache_variant section::get_cache() {
     switch (type) {
         case section_type::image:
             return &image_cache->cache;
 
         case section_type::anonymous:
-            return &anon_cache->cache;
+            if (custom_cache)
+                return &custom_cache->cache;
+            else
+                return &anon_cache->cache;
 
         default:
             return &ino->get().cache;
