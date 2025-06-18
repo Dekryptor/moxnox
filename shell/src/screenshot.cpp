@@ -114,7 +114,8 @@ static void take_screenshot() {
     IO_STATUS_BLOCK iosb;
     NTSTATUS status;
     void* addr;
-    size_t size;
+    size_t size, return_length;
+    MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
     // BITMAPFILEHEADER bmp1;
     // BITMAPINFOHEADER bmp2;
 
@@ -144,6 +145,13 @@ static void take_screenshot() {
         return;
     }
 
+    status = NtQuerySection(sect, SECTION_INFORMATION_CLASS::MoxnoxFramebufferInformation,
+                            &fb_info, sizeof(fb_info), &return_length);
+    if (!success(status)) {
+        print("NtQuerySection returned {}\n", status);
+        return;
+    }
+
     NtClose(sect);
 
     // save to file
@@ -170,9 +178,8 @@ static void take_screenshot() {
 
     span framebuffer((uint8_t*)addr, size / sizeof(uint8_t));
 
-    // FIXME - get from kernel
-    uint32_t image_width = 1280;
-    uint32_t image_height = 800;
+    uint32_t image_width = fb_info.width;
+    uint32_t image_height = fb_info.height;
 
     write_png_file(file, image_width, image_height, framebuffer);
 
