@@ -828,6 +828,13 @@ NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
 
 NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_class, span<uint8_t> buf,
                              size_t* return_length) {
+    if (custom_cache) {
+        auto status = custom_cache->query_info(section_information_class, buf,
+                                               return_length);
+        if (status != nt_status::INVALID_INFO_CLASS)
+            return status;
+    }
+
     switch (section_information_class) {
         case SECTION_INFORMATION_CLASS::ImageInformation: {
             if (buf.size() < sizeof(SECTION_IMAGE_INFORMATION))

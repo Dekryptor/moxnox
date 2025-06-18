@@ -19,10 +19,13 @@ import config;
 using namespace std;
 
 export span<uint32_t> shadow_framebuffer;
+export uint32_t fb_width, fb_height;
 
 class framebuffer_cache : public custom_section_cache {
 public:
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
+                        span<uint8_t> buf, size_t* return_length) override;
 };
 
 size_t framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
@@ -58,6 +61,28 @@ size_t framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages)
     cache.unpin(page_num, num_pages);
 
     return read_pages;
+}
+
+NTSTATUS framebuffer_cache::query_info(enum SECTION_INFORMATION_CLASS section_information_class,
+                                       span<uint8_t> buf, size_t* return_length) {
+    switch (section_information_class) {
+        case SECTION_INFORMATION_CLASS::MoxnoxFramebufferInformation: {
+            if (buf.size() < sizeof(MN_SECTION_FRAMEBUFFER_INFORMATION))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto& info = *(MN_SECTION_FRAMEBUFFER_INFORMATION*)buf.data();
+
+            info.width = fb_width;
+            info.height = fb_height;
+
+            *return_length = sizeof(MN_SECTION_FRAMEBUFFER_INFORMATION);
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            return nt_status::INVALID_INFO_CLASS;
+    }
 }
 
 export void create_framebuffer_section() {

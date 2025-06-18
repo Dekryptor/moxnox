@@ -62,7 +62,7 @@ export object_ref console_chardev;
 static const unsigned int console_buffer_pages = 4;
 
 static span<uint32_t> framebuffer;
-static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
+static uint32_t fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static unsigned int font_width, font_height, font_descender;
 static bool fb_console_started = false, text_console_started = false;
