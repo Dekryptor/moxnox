@@ -1203,4 +1203,6 @@ NTSTATUS NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void*
                                 FILE_INFORMATION_CLASS file_information_class);
 NTSTATUS NtFlushVirtualMemory(HANDLE process_handle, void** base_address, size_t* region_size,
                               IO_STATUS_BLOCK* iosb);
+NTSTATUS NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
+                       const OBJECT_ATTRIBUTES* object_attributes);
 };

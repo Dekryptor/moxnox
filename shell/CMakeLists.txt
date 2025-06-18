@@ -149,3 +149,16 @@ target_link_libraries(rmdir format)
 target_link_libraries(rmdir -lntdll ntdllcrt)
 
 install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+###
+
+add_executable(screenshot src/screenshot.cpp)
+
+target_compile_options(screenshot PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse)
+target_link_options(screenshot PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(screenshot shelllib)
+target_link_libraries(screenshot format)
+target_link_libraries(screenshot -lntdll ntdllcrt)
+
+install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX})
