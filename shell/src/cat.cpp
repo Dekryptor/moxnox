@@ -145,7 +145,6 @@ static void cat_file_mmap(u16string_view fn) {
                                 &size, SECTION_INHERIT::ViewUnmap, 0, PAGE_READONLY);
     if (!success(status)) {
         print("cat: {}: NtMapViewOfSection returned {}\n", fn, status);
-        NtClose(file);
         return;
     }
 
