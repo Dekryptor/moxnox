@@ -197,9 +197,6 @@ void* heap::allocate(uint32_t flags, size_t size) {
 
     // FIXME - lock (critical section?)
 
-    // FIXME - if subheap full, allocate new one
-    // FIXME - separate subheap for allocations larger than 1 page?
-
     for (auto le = subheaps.next; le != &subheaps; le = le->next) {
         auto& sh = containing_record<subheap>(le);
 
@@ -208,9 +205,26 @@ void* heap::allocate(uint32_t flags, size_t size) {
             return ret;
     }
 
-    print("FIXME - allocate new subheap (current subheap exhausted)\n");
+    // FIXME - return nullptr if heap not growable
+    // FIXME - separate logic if "large" allocation?
 
-    return nullptr;
+    void* sh_addr = nullptr;
+    size_t subheap_size = offsetof(subheap, data) + sizeof(alloc_header) + size;
+
+    auto ret = NtAllocateVirtualMemory(NtCurrentProcess(), &sh_addr, 0, &subheap_size,
+                                       MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+    if (!success(ret)) {
+        print("NtAllocateVirtualMemory returned {}\n", ret);
+        // FIXME - return error
+        return nullptr;
+    }
+
+    auto sh = new (sh_addr) subheap(subheap_size, subheap_size);
+
+    insert_tail_list(subheaps, sh->le);
+
+    return sh->allocate(flags, size);
 }
 
 bool heap::free(uint32_t, void* base_address) {
