@@ -494,10 +494,8 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
         f->release();
     } else {
         status = p->add_handle(ino_ref.get(), access_mask, shared_okay, h);
-        if (!success(status)) {
-            object_release(ino_ref.get());
+        if (!success(status))
             return status;
-        }
     }
 
     *file_handle = h;
