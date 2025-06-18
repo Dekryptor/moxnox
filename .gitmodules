@@ -7,3 +7,9 @@
 [submodule "acpica"]
 	path = acpica
 	url = https://git.burntcomma.com/maharmstone/acpica
+[submodule "libpng"]
+	path = libpng
+	url = https://github.com/pnggroup/libpng
+[submodule "zlib"]
+	path = zlib
+	url = https://github.com/madler/zlib

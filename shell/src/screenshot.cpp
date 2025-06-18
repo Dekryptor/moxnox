@@ -3,6 +3,7 @@
 #include <string_view>
 #include <span>
 #include <string.h>
+#include <png.h>
 
 import shelllib;
 import print;
@@ -47,6 +48,62 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
+extern "C"
+void abort() {
+    NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)0xffffffff);
+    __builtin_unreachable();
+}
+
+static void write_png(png_structp png, png_bytep buf, size_t size) {
+    IO_STATUS_BLOCK iosb;
+
+    auto file = (HANDLE)png_get_io_ptr(png);
+
+    auto status = NtWriteFile(file, 0, nullptr, nullptr, &iosb, buf,
+                              (uint32_t)size, nullptr, nullptr);
+    if (!success(status))
+        print("NtWriteFile returned {}\n", status);
+}
+
+static void flush_png(png_structp) {
+}
+
+static void png_error(png_structp, const char* msg) {
+    print("libpng error: {}\n", msg);
+}
+
+static void write_png_file(HANDLE file, unsigned int width, unsigned int height,
+                           span<const uint8_t> framebuffer) {
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr,
+                                              nullptr, nullptr);
+    if (!png) {
+        print("png_create_write_struct failed\n");
+        return;
+    }
+
+    png_infop info = png_create_info_struct(png);
+    if (!info) {
+        print("png_create_info_struct failed\n");
+        return;
+    }
+
+    png_set_write_fn(png, (png_voidp)file, write_png, flush_png);
+    png_set_error_fn(png, nullptr, png_error, nullptr);
+
+    png_set_IHDR(png, info, width, height, 8, PNG_COLOR_TYPE_RGBA,
+                 PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
+                 PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png, info);
+
+    for (unsigned int i = 0; i < height; i++) {
+        png_write_row(png, (uint8_t*)framebuffer.data()); // FIXME
+    }
+
+    png_write_end(png, NULL);
+
+    png_destroy_write_struct(&png, &info);
+}
+
 static void take_screenshot() {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
@@ -56,11 +113,11 @@ static void take_screenshot() {
     NTSTATUS status;
     void* addr;
     size_t size;
-    BITMAPFILEHEADER bmp1;
-    BITMAPINFOHEADER bmp2;
+    // BITMAPFILEHEADER bmp1;
+    // BITMAPINFOHEADER bmp2;
 
     static const u16string_view fb = u"\\dev\\framebuffer";
-    static const u16string_view fn = u"screenshot-out.bmp";
+    static const u16string_view fn = u"screenshot-out.png";
 
     us.Length = us.MaximumLength = (uint16_t)(fb.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)fb.data();
@@ -111,12 +168,13 @@ static void take_screenshot() {
 
     span framebuffer((uint8_t*)addr, size / sizeof(uint8_t));
 
-    // FIXME - write as png
-
     // FIXME - get from kernel
     uint32_t image_width = 1280;
     uint32_t image_height = 800;
 
+    write_png_file(file, /*image_width*/1, /*image_height*/1, framebuffer);
+
+#if 0
     bmp1.bfType = BMP_MAGIC;
     bmp1.bfSize = (uint32_t)(sizeof(bmp1) + sizeof(bmp2) + (image_width * image_height * sizeof(uint32_t)));
     bmp1.bfReserved1 = 0;
@@ -169,6 +227,7 @@ static void take_screenshot() {
 
         buf = span(buf.data() + iosb.Information, buf.size() - iosb.Information);
     }
+#endif
 
     NtClose(file);
 

@@ -160,5 +160,6 @@ target_link_options(screenshot PUBLIC -nostartfiles -nostdlib -Wl,--entry=startu
 target_link_libraries(screenshot shelllib)
 target_link_libraries(screenshot format)
 target_link_libraries(screenshot -lntdll ntdllcrt)
+target_link_libraries(screenshot libpng zlib)
 
 install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX})

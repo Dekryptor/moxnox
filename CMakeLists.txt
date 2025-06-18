@@ -243,4 +243,36 @@ target_compile_definitions(acpica PRIVATE -D_LINUX -DACPI_NO_ERROR_MESSAGES -DAC
 target_compile_options(acpica PRIVATE -include ${CMAKE_SOURCE_DIR}/acpica-shim.h)
 target_compile_options(acpica PRIVATE -Wno-overflow -Wno-shift-count-overflow -Wno-constant-conversion -gdwarf-5)
 
+add_library(zlib
+    zlib/adler32.c
+    zlib/crc32.c
+    zlib/deflate.c
+    zlib/inffast.c
+    zlib/inflate.c
+    zlib/inftrees.c
+    zlib/trees.c
+    zlib/zutil.c
+)
+
+add_library(libpng
+    libpng/png.c
+    libpng/pngerror.c
+    libpng/pngget.c
+    libpng/pngmem.c
+    libpng/pngpread.c
+    libpng/pngread.c
+    libpng/pngrio.c
+    libpng/pngrtran.c
+    libpng/pngrutil.c
+    libpng/pngset.c
+    libpng/pngtrans.c
+    libpng/pngwio.c
+    libpng/pngwrite.c
+    libpng/pngwtran.c
+    libpng/pngwutil.c
+)
+
+target_include_directories(libpng PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(libpng zlib)
+
 install(SCRIPT initrd.cmake)
