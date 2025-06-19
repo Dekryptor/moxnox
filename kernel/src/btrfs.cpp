@@ -27,6 +27,7 @@ import string;
 import timer;
 import volume;
 import rwsem;
+import unicode;
 
 #include "btrfs.h"
 

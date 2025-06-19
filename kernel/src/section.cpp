@@ -28,6 +28,7 @@ import pe;
 import bsod;
 import rangelock;
 import string;
+import unicode;
 
 using namespace std;
 

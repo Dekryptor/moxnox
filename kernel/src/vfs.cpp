@@ -22,6 +22,7 @@ import mem;
 import config;
 import list;
 import string;
+import unicode;
 
 using namespace std;
 

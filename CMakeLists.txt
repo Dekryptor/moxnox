@@ -28,6 +28,10 @@ add_library(list STATIC)
 target_sources(list PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
 target_compile_options(list PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
 
+add_library(unicode STATIC)
+target_sources(unicode PUBLIC FILE_SET CXX_MODULES FILES modules/unicode.cpp)
+target_compile_options(unicode PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+
 add_subdirectory(kernel)
 add_subdirectory(bootloader)
 add_subdirectory(init)

@@ -22,6 +22,7 @@ import string;
 import volume;
 import timer;
 import vfs;
+import unicode;
 
 using namespace std;
 

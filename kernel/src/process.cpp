@@ -29,6 +29,7 @@ import pe;
 import rwsem;
 import smp;
 import visit;
+import unicode;
 
 using namespace std;
 
