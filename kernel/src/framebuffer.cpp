@@ -18,7 +18,7 @@ import config;
 
 using namespace std;
 
-export span<uint32_t> shadow_framebuffer;
+export span<uint32_t> framebuffer, shadow_framebuffer;
 export uint32_t fb_width, fb_height;
 
 class framebuffer_cache : public custom_section_cache {
@@ -65,9 +65,19 @@ size_t framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages)
 }
 
 NTSTATUS framebuffer_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    print("FIXME - framebuffer_cache::flush_cache({:x}, {:x})\n", page_num, num_pages);
+    auto start = page_num << PAGE_SHIFT;
 
-    // FIXME
+    if (start >= shadow_framebuffer.size_bytes())
+        return nt_status::SUCCESS;
+
+    auto len = num_pages << PAGE_SHIFT;
+
+    if (start + len > shadow_framebuffer.size_bytes())
+        len = shadow_framebuffer.size_bytes() - start;
+
+    memcpy((uint8_t*)framebuffer.data() + start,
+           (uint8_t*)shadow_framebuffer.data() + start,
+           len);
 
     return nt_status::SUCCESS;
 }
