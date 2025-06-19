@@ -14,6 +14,7 @@ using namespace std;
 import shelllib;
 import format;
 import print;
+import unicode;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;

@@ -27,7 +27,7 @@ add_executable(shell ${SRC_FILES})
 target_compile_options(shell PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse)
 target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(shell shelllib)
+target_link_libraries(shell shelllib unicode)
 target_link_libraries(shell -lntdll ntdllcrt)
 target_link_libraries(shell format)
 
@@ -42,7 +42,7 @@ add_executable(echo src/echo.cpp)
 target_compile_options(echo PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse)
 target_link_options(echo PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(echo shelllib)
+target_link_libraries(echo shelllib unicode)
 target_link_libraries(echo ntdll ntdllcrt)
 
 install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -81,7 +81,7 @@ add_executable(pwd src/pwd.cpp)
 target_compile_options(pwd PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse)
 target_link_options(pwd PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(pwd shelllib)
+target_link_libraries(pwd shelllib unicode)
 target_link_libraries(pwd ntdll ntdllcrt)
 
 install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -158,7 +158,7 @@ target_compile_options(screenshot PRIVATE -Wall -Wextra -Wno-address-of-packed-m
 target_link_options(screenshot PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(screenshot shelllib)
-target_link_libraries(screenshot format)
+target_link_libraries(screenshot format unicode)
 target_link_libraries(screenshot -lntdll ntdllcrt)
 target_link_libraries(screenshot libpng zlib)
 

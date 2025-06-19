@@ -4,6 +4,7 @@
 #include <span>
 
 import shelllib;
+import unicode;
 
 using namespace std;
 

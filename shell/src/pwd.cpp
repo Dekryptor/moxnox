@@ -5,6 +5,7 @@
 using namespace std;
 
 import shelllib;
+import unicode;
 
 extern "C"
 void* malloc(size_t size) {
