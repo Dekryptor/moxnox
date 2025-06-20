@@ -134,7 +134,7 @@ static bool get_screenshot_filename(span<char16_t> buf, UNICODE_STRING& us) {
                 (int)ymd.year(), (unsigned int)ymd.month(), (unsigned int)ymd.day(),
                 hms.hours().count(), hms.minutes().count(), hms.seconds().count());
 
-    auto sv = string_view(s, sp.data() - s);
+    auto sv = string_view(s, (size_t)(sp.data() - s));
 
     utf8_to_utf16(buf, sv);
 
