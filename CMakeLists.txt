@@ -37,6 +37,7 @@ add_subdirectory(bootloader)
 add_subdirectory(init)
 add_subdirectory(shell)
 add_subdirectory(ntdll)
+add_subdirectory(usercon)
 
 add_library(freetype freetype/src/autofit/autofit.c
     freetype/src/base/ftbase.c
