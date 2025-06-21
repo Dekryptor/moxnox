@@ -229,7 +229,7 @@ static bool init_font(span<const uint8_t> buf) {
         return false;
     }
 
-    error = FT_Set_Char_Size(font.face, font_size * 64, 0, dpi, 0);
+    error = FT_Set_Char_Size(font.face, (FT_F26Dot6)(font_size * 64), 0, dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;
