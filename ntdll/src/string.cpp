@@ -314,7 +314,7 @@ static T strto(const char* nptr, char** endptr, int base) {
     if (endptr)
         *endptr = (char*)fcr.ptr;
 
-    return ret;
+    return (T)ret;
 }
 
 extern "C"
