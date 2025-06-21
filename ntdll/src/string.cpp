@@ -324,3 +324,26 @@ long int strtol(const char* nptr, char** endptr, int base) {
         nptr++;
     }
 }
+
+extern "C"
+char* strncpy(char* dst, const char* src, size_t dsize) {
+    char* orig_dst = dst;
+
+    while (dsize > 0) {
+        if (*src == 0)
+            break;
+
+        *dst = *src;
+        dst++;
+        src++;
+        dsize--;
+    }
+
+    while (dsize > 0) {
+        *dst = 0;
+        dst++;
+        dsize--;
+    }
+
+    return orig_dst;
+}
