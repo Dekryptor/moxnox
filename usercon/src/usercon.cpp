@@ -214,7 +214,6 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
 static bool init_font(span<const uint8_t> buf) {
     FT_Error error;
     unsigned int font_size = 36; // FIXME
-    unsigned int dpi = 72; // FIXME
 
     error = FT_Init_FreeType(&ft); // FIXME - free
     if (error) {
@@ -229,7 +228,8 @@ static bool init_font(span<const uint8_t> buf) {
         return false;
     }
 
-    error = FT_Set_Char_Size(font.face, (FT_F26Dot6)(font_size * 64), 0, dpi, 0);
+    error = FT_Set_Char_Size(font.face, (FT_F26Dot6)(font_size * 64), 0,
+                             fb_info.dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;
@@ -427,9 +427,7 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
     uint32_t bg_colour_b = bg & 0xff;
     uint32_t fg_colour_b = fg & 0xff;
 
-    auto fb_pixels_per_scan_line = fb_info.width; // FIXME
-
-    auto base = framebuffer.data() + ((uint32_t)y * fb_pixels_per_scan_line) + fb_x + gi->bitmap_left;
+    auto base = framebuffer.data() + ((uint32_t)y * fb_info.pixels_per_scan_line) + fb_x + gi->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
@@ -448,7 +446,7 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
 
         buf += bitmap.width - width;
 
-        base += fb_pixels_per_scan_line;
+        base += fb_info.pixels_per_scan_line;
         y++;
     }
 }
