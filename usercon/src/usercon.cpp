@@ -5,6 +5,8 @@
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
+#include <hb.h>
+#include <hb-ft.h>
 
 import format;
 import rbtree;
@@ -21,7 +23,10 @@ struct glyph_info {
 };
 
 struct font_info {
+    // FIXME - destructor
+
     FT_Face face;
+    hb_font_t* hb_font;
     rbtree_node<FT_UInt>* glyphs = nullptr; // FIXME - destructor for this
 };
 
@@ -40,19 +45,108 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-extern "C++"
+extern "C"
+void* calloc(size_t nmemb, size_t size) {
+    // FIXME - should test for overflow of nmemb * size
+
+    auto ptr = malloc(nmemb * size);
+    if (!ptr)
+        return nullptr;
+
+    memset(ptr, 0, nmemb * size);
+
+    return ptr;
+}
+
+extern "C"
+void* realloc(void* ptr, size_t size) {
+    void* ret;
+
+    ret = malloc(size);
+    if (!ret)
+        return nullptr;
+
+    if (ptr) {
+        memcpy(ret, ptr, size);
+        free(ptr);
+    }
+
+    return ret;
+}
+
 void* operator new(size_t count) {
     return malloc(count);
 }
 
-extern "C++"
 void operator delete(void* ptr) noexcept {
     free(ptr);
 }
 
-extern "C++"
 void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
+}
+
+extern "C"
+void __imp__assert(const char* /*_Message*/, const char* /*_File*/, unsigned /*_Line*/) {
+    // FIXME
+}
+
+extern "C"
+int __mingw_vsnprintf(char* /*_DstBuf*/, size_t /*_MaxCount*/, const char* /*_Format*/,
+                      va_list /*_ArgList*/) {
+    // FIXME
+    return 0;
+}
+
+// copied from musl: src/math/floorf.c
+extern "C"
+float floorf(float x) {
+    union {float f; uint32_t i;} u = {x};
+
+    int e = (int)(u.i >> 23 & 0xff) - 0x7f;
+    uint32_t m;
+
+    if (e >= 23)
+        return x;
+    if (e >= 0) {
+        m = 0x007fffff >> e;
+        if ((u.i & m) == 0)
+            return x;
+        if (u.i >> 31)
+            u.i += m;
+        u.i &= ~m;
+    } else {
+        if (u.i >> 31 == 0)
+            u.i = 0;
+        else if (u.i << 1)
+            u.f = -1.0;
+    }
+    return u.f;
+}
+
+// copied from musl: src/math/floorf.c
+extern "C"
+float ceilf(float x) {
+    union {float f; uint32_t i;} u = {x};
+    int e = (int)(u.i >> 23 & 0xff) - 0x7f;
+    uint32_t m;
+
+    if (e >= 23)
+        return x;
+    if (e >= 0) {
+        m = 0x007fffff >> e;
+        if ((u.i & m) == 0)
+            return x;
+        if (u.i >> 31 == 0)
+            u.i += m;
+        u.i &= ~m;
+    } else {
+        if (u.i >> 31)
+            u.f = -0.0;
+        else if (u.i << 1)
+            u.f = 1.0;
+    }
+    return u.f;
 }
 
 static void* ft_alloc(FT_Memory, long size) {
@@ -119,10 +213,10 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
 
 static bool init_font(span<const uint8_t> buf) {
     FT_Error error;
-    unsigned int font_size = 10; // FIXME
+    unsigned int font_size = 36; // FIXME
     unsigned int dpi = 72; // FIXME
 
-    error = FT_Init_FreeType(&ft);
+    error = FT_Init_FreeType(&ft); // FIXME - free
     if (error) {
         print("FT_Init_FreeType failed ({:x})\n", error);
         return false;
@@ -138,6 +232,14 @@ static bool init_font(span<const uint8_t> buf) {
     error = FT_Set_Char_Size(font.face, font_size * 64, 0, dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
+        return false;
+    }
+
+    font.hb_font = hb_ft_font_create(font.face, nullptr);
+    if (!font.hb_font) {
+        print("hb_ft_font_create failed\n");
+        FT_Done_Face(font.face);
+        FT_Done_FreeType(ft);
         return false;
     }
 
@@ -351,15 +453,37 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
     }
 }
 
-static void test_print() {
+static void test_print(string_view msg) {
     NTSTATUS status;
     IO_STATUS_BLOCK iosb;
     void* flush_addr;
     size_t flush_size;
 
-    auto glyph = FT_Get_Char_Index(font.face, 'A');
+    auto buf = hb_buffer_create();
+    hb_buffer_add_utf8(buf, msg.data(), (int)msg.size(), 0, -1);
+    hb_buffer_guess_segment_properties(buf);
 
-    draw_ft_char(glyph, 50, 60);
+    hb_shape(font.hb_font, buf, nullptr, 0);
+
+    auto len = hb_buffer_get_length(buf);
+    auto info = hb_buffer_get_glyph_infos(buf, nullptr);
+    auto pos = hb_buffer_get_glyph_positions(buf, nullptr);
+
+    double x = 50, y = 60;
+
+    for (unsigned int i = 0; i < len; i++) {
+        double x_advance = pos[i].x_advance / 64.;
+        double y_advance = pos[i].y_advance / 64.;
+        double x_offset = pos[i].x_offset / 64.;
+        double y_offset = pos[i].y_offset / 64.;
+
+        draw_ft_char(info[i].codepoint, (unsigned int)(x + x_offset),
+                     (unsigned int)(y + y_offset));
+        x += x_advance;
+        y += y_advance;
+    }
+
+    hb_buffer_destroy(buf);
 
     flush_addr = framebuffer.data();
     flush_size = framebuffer.size_bytes();
@@ -395,7 +519,7 @@ static int _main() {
         return 1;
     }
 
-    test_print();
+    test_print("hello world");
 
     // FIXME
 
