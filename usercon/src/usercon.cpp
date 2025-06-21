@@ -362,7 +362,7 @@ static void test_print() {
     draw_ft_char(glyph, 50, 60);
 
     flush_addr = framebuffer.data();
-    flush_size = framebuffer.size();
+    flush_size = framebuffer.size_bytes();
 
     status = NtFlushVirtualMemory(NtCurrentProcess(), &flush_addr, &flush_size,
                                   &iosb);
