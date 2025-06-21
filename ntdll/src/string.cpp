@@ -349,3 +349,15 @@ char* strncpy(char* dst, const char* src, size_t dsize) {
 
     return orig_dst;
 }
+
+extern "C"
+char* strchr(const char* s, int c) {
+    while (*s) {
+        if (*s == c)
+            return (char*)s;
+
+        s++;
+    }
+
+    return nullptr;
+}

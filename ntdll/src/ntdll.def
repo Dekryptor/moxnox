@@ -18,3 +18,4 @@ strstr
 strtol
 strncpy
 strtoul
+strchr
