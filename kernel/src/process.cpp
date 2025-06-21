@@ -2867,6 +2867,17 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     start_context.SegFs = user_DS;
     start_context.SegGs = user_DS;
 
+    if ((start_context.ContextFlags & CONTEXT_FLOATING_POINT) != CONTEXT_FLOATING_POINT) {
+        memset(&start_context.FltSave, 0, sizeof(start_context.FltSave));
+
+        start_context.FltSave.MxCsr = 0x1f80;
+        start_context.FltSave.MxCsr_Mask = 0x2ffff;
+
+        start_context.ContextFlags |= CONTEXT_FLOATING_POINT;
+    }
+
+    start_context.MxCsr = start_context.FltSave.MxCsr;
+
     auto ctx_addr = (uintptr_t)initial_teb.StackBase - sizeof(CONTEXT);
 
     if (!copy_to((void*)ctx_addr, &start_context, sizeof(start_context))) {
