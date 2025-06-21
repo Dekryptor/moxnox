@@ -373,6 +373,11 @@ static void test_print() {
 }
 
 static int _main() {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
+    char s[10];
+
     framebuffer = init_framebuffer();
     if (framebuffer.empty()) {
         print("init_framebuffer failed\n");
@@ -393,6 +398,10 @@ static int _main() {
     test_print();
 
     // FIXME
+
+    // FIXME
+    NtReadFile(peb->ProcessParameters->StandardInput, 0, nullptr,
+               nullptr, &iosb, s, sizeof(s), nullptr, nullptr);
 
     return 0;
 }
