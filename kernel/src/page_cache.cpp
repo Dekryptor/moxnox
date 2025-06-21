@@ -65,6 +65,7 @@ public:
     bool write_pages(uint64_t first_page, uint64_t num_pages,
                      span<const uint8_t> data);
     page_cache_entry* find_page_cache_entry(uint64_t page_num);
+    page_cache_entry* find_page_cache_entry_or_earlier(uint64_t page_num);
     size_t write(span<const uint8_t> data, uint64_t offset);
     uint64_t read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages);
     size_t read(span<uint8_t> data, uint64_t offset);
@@ -149,6 +150,15 @@ page_cache<T>::~page_cache() {
 template<typename T>
 page_cache_entry* page_cache<T>::find_page_cache_entry(uint64_t page_num) {
     auto tree = find_rbtree_node(root, page_num);
+    if (!tree)
+        return nullptr;
+
+    return &rbtree_containing_record<page_cache_entry>(tree);
+}
+
+template<typename T>
+page_cache_entry* page_cache<T>::find_page_cache_entry_or_earlier(uint64_t page_num) {
+    auto tree = find_rbtree_node_or_less(root, page_num);
     if (!tree)
         return nullptr;
 
@@ -835,7 +845,7 @@ nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
             lock_guard lg(cache_lock);
 
             if (!p) {
-                p = find_page_cache_entry(page_num);
+                p = find_page_cache_entry_or_earlier(page_num);
                 if (!p || p->tree.key >= page_num + num_pages)
                     return nt_status::SUCCESS;
 

@@ -36,6 +36,31 @@ rbtree_node<KeyType>* find_rbtree_node(rbtree_node<KeyType>* root, KeyType key) 
             ret = ret->right;
     }
 
+    if (ret && ret->key != key)
+        return nullptr;
+
+    return ret;
+}
+
+export
+template<typename KeyType>
+rbtree_node<KeyType>* find_rbtree_node_or_less(rbtree_node<KeyType>* root, KeyType key) {
+    rbtree_node<KeyType>* ret = root;
+
+    while (ret && ret->key != key) {
+        if (key < ret->key) {
+            if (!ret->left)
+                return ret;
+
+            ret = ret->left;
+        } else {
+            if (!ret->right)
+                return ret;
+
+            ret = ret->right;
+        }
+    }
+
     return ret;
 }
 
