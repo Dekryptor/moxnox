@@ -48,7 +48,8 @@ static void png_error(png_structp, const char* msg) {
 }
 
 static void write_png_file(HANDLE file, unsigned int width, unsigned int height,
-                           span<const uint8_t> framebuffer) {
+                           span<const uint8_t> framebuffer,
+                           unsigned int pixels_per_scan_line) {
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr,
                                               nullptr, nullptr);
     if (!png) {
@@ -73,8 +74,11 @@ static void write_png_file(HANDLE file, unsigned int width, unsigned int height,
 
     png_set_filler(png, 0, PNG_FILLER_AFTER);
 
+    auto ptr = framebuffer.data();
     for (unsigned int i = 0; i < height; i++) {
-        png_write_row(png, framebuffer.data() + (i * width * sizeof(uint32_t)));
+        png_write_row(png, ptr);
+
+        ptr += pixels_per_scan_line * sizeof(uint32_t);
     }
 
     png_write_end(png, NULL);
@@ -214,8 +218,10 @@ static void take_screenshot() {
 
     uint32_t image_width = fb_info.width;
     uint32_t image_height = fb_info.height;
+    uint32_t pixels_per_scan_line = fb_info.pixels_per_scan_line;
 
-    write_png_file(file, image_width, image_height, framebuffer);
+    write_png_file(file, image_width, image_height, framebuffer,
+                   pixels_per_scan_line);
 
     NtClose(file);
 
