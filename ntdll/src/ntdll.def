@@ -11,3 +11,8 @@ memset
 memmove
 strlen
 memchr
+strcmp
+strcpy
+strncmp
+strstr
+strtol
