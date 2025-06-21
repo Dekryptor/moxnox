@@ -17,3 +17,4 @@ strncmp
 strstr
 strtol
 strncpy
+strtoul

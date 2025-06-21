@@ -1,5 +1,6 @@
 #include "ntdll_private.h"
 #include <utf16_to_utf8.h>
+#include <charconv>
 
 using namespace std;
 
@@ -300,29 +301,30 @@ char* strstr(const char* haystack, const char* needle) {
     return nullptr;
 }
 
-extern "C"
-long int strtol(const char* nptr, char** endptr, int base) {
-    long int val;
-
+template<typename T>
+static T strto(const char* nptr, char** endptr, int base) {
     while (*nptr == ' ' || *nptr == '\t') {
         nptr++;
     }
 
-    val = 0;
+    unsigned long ret;
 
-    while (true) {
-        if (*nptr >= '0' && *nptr <= '9') {
-            val *= base;
-            val += *nptr - '0';
-        } else {
-            if (endptr)
-                *endptr = (char*)nptr;
+    auto fcr = from_chars(nptr, nptr + strlen(nptr), ret, base);
 
-            return val;
-        }
+    if (endptr)
+        *endptr = (char*)fcr.ptr;
 
-        nptr++;
-    }
+    return ret;
+}
+
+extern "C"
+long strtol(const char* nptr, char** endptr, int base) {
+    return strto<long>(nptr, endptr, base);
+}
+
+extern "C"
+unsigned long strtoul(const char* nptr, char** endptr, int base) {
+    return strto<unsigned long>(nptr, endptr, base);
 }
 
 extern "C"
