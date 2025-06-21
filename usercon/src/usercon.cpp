@@ -7,13 +7,14 @@
 #include <freetype/ftbitmap.h>
 
 import format;
+import rbtree;
 
 using namespace std;
 
 struct glyph_info {
     // FIXME - destructor
 
-    // rbtree_node<FT_UInt> tree;
+    rbtree_node<FT_UInt> tree;
     FT_Int bitmap_left;
     FT_Int bitmap_top;
     FT_Bitmap bitmap;
@@ -21,6 +22,7 @@ struct glyph_info {
 
 struct font_info {
     FT_Face face;
+    rbtree_node<FT_UInt>* glyphs = nullptr; // FIXME - destructor for this
 };
 
 static FT_Library ft;
@@ -256,9 +258,9 @@ static span<const uint8_t> load_font(u16string_view fn) {
 }
 
 static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
-    // auto* tree = find_rbtree_node(font.glyphs, glyph);
-    // if (tree)
-    //     return &rbtree_containing_record<glyph_info>(tree);
+    auto* tree = find_rbtree_node(font.glyphs, glyph);
+    if (tree)
+        return &rbtree_containing_record<glyph_info>(tree);
 
     auto error = FT_Load_Glyph(font.face, glyph, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
     if (error) {
@@ -270,7 +272,7 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
     if (!gi)
         return nullptr;
 
-    // gi->tree.key = glyph;
+    gi->tree.key = glyph;
     gi->bitmap_left = font.face->glyph->bitmap_left;
     gi->bitmap_top = font.face->glyph->bitmap_top;
 
@@ -282,7 +284,7 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
         delete gi;
     }
 
-    // insert_into_rbtree(font.glyphs, gi->tree);
+    insert_into_rbtree(font.glyphs, gi->tree);
 
     return gi;
 }
@@ -307,10 +309,8 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
         y = 0;
     }
 
-    if (y >= (int)fb_info.height) {
-        delete gi;
+    if (y >= (int)fb_info.height)
         return;
-    }
 
     if (bottom > (int)fb_info.height)
         bottom = (int)fb_info.height;
@@ -349,8 +349,6 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
         base += fb_pixels_per_scan_line;
         y++;
     }
-
-    delete gi;
 }
 
 static void test_print() {

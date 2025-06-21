@@ -14,6 +14,6 @@ target_link_options(usercon PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(usercon freetype)
 target_link_libraries(usercon -lntdll ntdllcrt)
-target_link_libraries(usercon format)
+target_link_libraries(usercon format rbtree)
 
 install(TARGETS usercon DESTINATION ${CMAKE_INSTALL_PREFIX})
