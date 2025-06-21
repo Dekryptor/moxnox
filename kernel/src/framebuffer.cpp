@@ -19,7 +19,7 @@ import config;
 using namespace std;
 
 export span<uint32_t> framebuffer, shadow_framebuffer;
-export uint32_t fb_width, fb_height;
+export uint32_t fb_width, fb_height, fb_pixels_per_scan_line, fb_dpi;
 
 class framebuffer_cache : public custom_section_cache {
 public:
@@ -93,6 +93,8 @@ NTSTATUS framebuffer_cache::query_info(enum SECTION_INFORMATION_CLASS section_in
 
             info.width = fb_width;
             info.height = fb_height;
+            info.pixels_per_scan_line = fb_pixels_per_scan_line;
+            info.dpi = fb_dpi;
 
             *return_length = sizeof(MN_SECTION_FRAMEBUFFER_INFORMATION);
 

@@ -61,7 +61,6 @@ export void early_print(string_view s);
 export object_ref console_chardev;
 static const unsigned int console_buffer_pages = 4;
 
-static uint32_t fb_pixels_per_scan_line;
 static FT_Library ft = nullptr;
 static unsigned int font_width, font_height, font_descender;
 static bool fb_console_started = false, text_console_started = false;
@@ -1713,7 +1712,6 @@ void FT_Done_Memory(FT_Memory memory) {
 
 export bool init_fb_console() {
     FT_Error error;
-    unsigned int dpi;
 
     // FIXME - allow setting on cmdline
     static const unsigned int font_size = 12;
@@ -1727,9 +1725,9 @@ export bool init_fb_console() {
     if (have_edid && edid[21] != 0) {
         uint8_t screen_x_cm = edid[21];
 
-        dpi = (fb_width * 254) / ((uint16_t)screen_x_cm * 100);
+        fb_dpi = (fb_width * 254) / ((uint16_t)screen_x_cm * 100);
     } else
-        dpi = 72;
+        fb_dpi = 72;
 
     error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_data, (FT_Long)console_font_size,
                                0, &face.face);
@@ -1738,7 +1736,7 @@ export bool init_fb_console() {
         return false;
     }
 
-    error = FT_Set_Char_Size(face.face, font_size * 64, 0, dpi, 0);
+    error = FT_Set_Char_Size(face.face, font_size * 64, 0, fb_dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;
@@ -1751,7 +1749,7 @@ export bool init_fb_console() {
         return false;
     }
 
-    error = FT_Set_Char_Size(face_bold.face, font_size * 64, 0, dpi, 0);
+    error = FT_Set_Char_Size(face_bold.face, font_size * 64, 0, fb_dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;

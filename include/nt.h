@@ -1008,6 +1008,8 @@ struct SECTION_IMAGE_INFORMATION {
 struct MN_SECTION_FRAMEBUFFER_INFORMATION {
     uint32_t width;
     uint32_t height;
+    uint32_t pixels_per_scan_line;
+    uint32_t dpi;
 };
 
 enum class THREAD_INFORMATION_CLASS {
