@@ -294,3 +294,17 @@ export void shutdown_pipes() {
         p->flush(true);
     }
 }
+
+extern "C"
+NTSTATUS NtCreateNamedPipeFile(HANDLE* /*file_handle*/, ACCESS_MASK /*desired_access*/,
+                               const OBJECT_ATTRIBUTES* /*object_attributes*/,
+                               IO_STATUS_BLOCK* /*iosb*/, uint32_t /*share_access*/,
+                               uint32_t /*create_disposition*/, uint32_t /*create_options*/,
+                               uint32_t /*named_pipe_type*/, uint32_t /*read_mode*/,
+                               uint32_t /*completion_mode*/, uint32_t /*maximum_instances*/,
+                               uint32_t /*inbound_quota*/, uint32_t /*outbound_quota*/,
+                               const LARGE_INTEGER* /*default_timeout*/) {
+    print("FIXME - NtCreateNamedPipeFile\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

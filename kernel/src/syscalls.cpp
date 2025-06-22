@@ -1404,3 +1404,62 @@ NTSTATUS user_NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtCreateNamedPipeFile(HANDLE* us_file_handle, ACCESS_MASK desired_access,
+                                    const OBJECT_ATTRIBUTES* object_attributes,
+                                    IO_STATUS_BLOCK* us_iosb) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 10> args;
+    LARGE_INTEGER default_timeout;
+    HANDLE file_handle;
+    IO_STATUS_BLOCK iosb;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS ret;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto share_access = (uint32_t)args[0];
+    auto create_disposition = (uint32_t)args[1];
+    auto create_options = (uint32_t)args[2];
+    auto named_pipe_type = (uint32_t)args[3];
+    auto read_mode = (uint32_t)args[4];
+    auto completion_mode = (uint32_t)args[5];
+    auto maximum_instances = (uint32_t)args[6];
+    auto inbound_quota = (uint32_t)args[7];
+    auto outbound_quota = (uint32_t)args[8];
+    auto us_default_timeout = (LARGE_INTEGER*)args[9];
+
+    if (!us_file_handle || !us_iosb || !object_attributes)
+        return nt_status::INVALID_PARAMETER;
+
+    if (us_default_timeout) {
+        if (!copy_from_process(&default_timeout, us_default_timeout, sizeof(LARGE_INTEGER)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    ret = copy_object_attributes(oa, us, object_attributes);
+    if (!success(ret))
+        return ret;
+
+    ret = NtCreateNamedPipeFile(&file_handle, desired_access, &oa,
+                                &iosb, share_access, create_disposition,
+                                create_options, named_pipe_type, read_mode,
+                                completion_mode, maximum_instances,
+                                inbound_quota, outbound_quota,
+                                us_default_timeout ? &default_timeout : nullptr);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_file_handle, &file_handle, sizeof(HANDLE)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    free_object_attributes(oa);
+
+    return ret;
+}
