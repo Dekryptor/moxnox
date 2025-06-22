@@ -86,7 +86,7 @@ add_library(freetype freetype/src/autofit/autofit.c
 target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
-target_compile_options(freetype PRIVATE -mno-stack-arg-probe)
+target_compile_options(freetype PRIVATE -mno-stack-arg-probe -gdwarf-5)
 target_include_directories(freetype PRIVATE include)
 target_include_directories(freetype PUBLIC freetype/include)
 
@@ -175,7 +175,7 @@ add_library(harfbuzz harfbuzz/src/hb-aat-layout.cc
     harfbuzz/src/hb-wasm-shape.cc)
 
 target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_OT_SHAPE -DHB_NO_OT_LAYOUT -DHB_NO_MT)
-target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions)
+target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -gdwarf-5)
 target_include_directories(harfbuzz PUBLIC harfbuzz/src)
 target_link_libraries(harfbuzz freetype)
 
@@ -361,6 +361,7 @@ add_library(zlib
 )
 
 target_include_directories(zlib PUBLIC zlib)
+target_compile_options(zlib PRIVATE -gdwarf-5)
 
 add_library(libpng
     libpng/png.c
@@ -381,6 +382,7 @@ add_library(libpng
 )
 
 target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
+target_compile_options(libpng PRIVATE -gdwarf-5)
 target_link_libraries(libpng zlib)
 
 install(SCRIPT initrd.cmake)
