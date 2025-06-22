@@ -13,6 +13,8 @@ import rbtree;
 
 using namespace std;
 
+extern uint64_t __CTOR_LIST__;
+
 struct glyph_info {
     // FIXME - destructor
 
@@ -528,7 +530,26 @@ static int _main() {
     return 0;
 }
 
+static void call_global_constructors() {
+    auto v = &__CTOR_LIST__;
+
+    if (*v != 0xffffffffffffffff)
+        return;
+
+    v++;
+
+    while (*v != 0) {
+        auto func = reinterpret_cast<void (*)()>(*v);
+
+        func();
+
+        v++;
+    }
+}
+
 extern "C"
 void startup() {
+    call_global_constructors();
+
     NtTerminateThread(NtCurrentThread(), (NTSTATUS)_main());
 }
