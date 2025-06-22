@@ -1080,7 +1080,7 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
                     return 0;
                 }
 
-                auto to_copy = min((size_t)(s.VirtualAddress + s.VirtualSize - (page_num << PAGE_SHIFT)), PAGE_SIZE);
+                auto to_copy = min((size_t)(s.VirtualAddress + min(s.VirtualSize, s.SizeOfRawData) - (page_num << PAGE_SHIFT)), PAGE_SIZE);
 
                 // if aligned nicely, reflink rather than copying
                 if (offset == 0 && to_copy == PAGE_SIZE) {
