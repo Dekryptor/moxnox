@@ -15,4 +15,4 @@
 	url = https://git.burntcomma.com/maharmstone/zlib
 [submodule "harfbuzz"]
 	path = harfbuzz
-	url = https://github.com/harfbuzz/harfbuzz
+	url = https://git.burntcomma.com/maharmstone/harfbuzz
