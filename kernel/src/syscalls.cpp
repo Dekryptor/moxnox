@@ -1463,3 +1463,44 @@ NTSTATUS user_NtCreateNamedPipeFile(HANDLE* us_file_handle, ACCESS_MASK desired_
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtOpenFile(HANDLE* us_file_handle, ACCESS_MASK desired_access,
+                         const OBJECT_ATTRIBUTES* object_attributes,
+                         IO_STATUS_BLOCK* us_iosb) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 2> args;
+    HANDLE file_handle;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    nt_status ret;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto share_access = (uint32_t)args[0];
+    auto open_options = (uint32_t)args[1];
+
+    if (!us_file_handle || !us_iosb || !object_attributes)
+        return nt_status::INVALID_PARAMETER;
+
+    ret = copy_object_attributes(oa, us, object_attributes);
+    if (!success(ret))
+        return ret;
+
+    ret = NtOpenFile(&file_handle, desired_access, &oa, &iosb, share_access,
+                     open_options);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_file_handle, &file_handle, sizeof(HANDLE)))
+            ret = nt_status::ACCESS_VIOLATION;
+
+        if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    free_object_attributes(oa);
+
+    return ret;
+}

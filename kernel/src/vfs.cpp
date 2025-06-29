@@ -507,6 +507,16 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
 }
 
 export extern "C"
+NTSTATUS NtOpenFile(HANDLE* file_handle, ACCESS_MASK desired_access,
+                    const OBJECT_ATTRIBUTES* object_attributes,
+                    IO_STATUS_BLOCK* iosb, uint32_t share_access,
+                    uint32_t open_options) {
+    print("FIXME - NtOpenFile\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
+export extern "C"
 NTSTATUS NtClose(HANDLE handle) {
     auto t = get_current_thread();
     auto p = t->proc;
