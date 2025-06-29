@@ -487,8 +487,9 @@ static void init_sata_device(void* ctx, void* ctx2) {
         name[2] = (char)(dev.dev_num + 'a');
         name[3] = 0;
 
-        if (!name_object(dev, name)) {
-            print("name_object failed\n");
+        auto status = name_object(dev, name);
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
             goto end;
         }
 

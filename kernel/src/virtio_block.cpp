@@ -450,8 +450,9 @@ void found_virtio_pci_block(pci_device& dev) {
         name[2] = (char)(v.dev_num + 'a');
         name[3] = 0;
 
-        if (!name_object(v, name)) {
-            print("name_object failed\n");
+        auto status = name_object(v, name);
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
             return;
         }
 
@@ -512,8 +513,9 @@ static bool found_virtio_mmio_block(virtio_mmio_device& dev) {
         name[2] = (char)(v.dev_num + 'a');
         name[3] = 0;
 
-        if (!name_object(v, name)) {
-            print("name_object failed\n");
+        auto status = name_object(v, name);
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
             return false;
         }
 

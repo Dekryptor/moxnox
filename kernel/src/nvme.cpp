@@ -586,8 +586,9 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
             memcpy(dev.volume_name, sv.data(), sv.size());
 
-            if (!name_object(dev, sv)) {
-                print("name_object failed\n");
+            auto status = name_object(dev, sv);
+            if (!success(status)) {
+                print("name_object returned {}\n", status);
                 dev.release();
                 free_folio(req2.p);
                 delete &req2;

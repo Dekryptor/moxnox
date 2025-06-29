@@ -398,8 +398,9 @@ usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_siz
         auto sv = string_view(s, (size_t)(sp.data() - s));
 
         // FIXME - put in /dev/input like on Linux?
-        if (!name_object(evdev_pipe.get(), sv)) {
-            print("name_object failed\n");
+        auto status = name_object(evdev_pipe.get(), sv);
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
             return;
         }
     }

@@ -240,8 +240,9 @@ export bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
 
         sp = format(sp, "ttyS{}", num);
 
-        if (!name_object(pipe_handle.get(), string_view(s, (size_t)(sp.data() - s)))) {
-            print("name_object failed\n");
+        auto status = name_object(pipe_handle.get(), string_view(s, (size_t)(sp.data() - s)));
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
             return false;
         }
     }

@@ -43,28 +43,23 @@ void object_ref::reset() {
     }
 }
 
-bool name_object(object& obj, string_view name, bool persistent) {
-    if (name.empty()) {
-        // FIXME - exception
-        print("Invalid name\n");
-        return false;
-    }
+nt_status name_object(object& obj, string_view name, bool persistent) {
+    if (name.empty())
+        return nt_status::OBJECT_NAME_INVALID;
 
     auto ne = (name_entry*)malloc(offsetof(name_entry, name) + name.size());
     if (!ne) {
-        // FIXME - exception
         print("Out of memory\n");
-        return false;
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     optional<lock_guard<spinlock>> lock(name_lock);
 
     if (obj.named) {
         lock.reset();
-        // FIXME - exception
         print("Object already has name\n");
         free(ne);
-        return false;
+        return nt_status::INTERNAL_ERROR; // FIXME?
     }
 
     auto le = name_list.next;
@@ -76,10 +71,8 @@ bool name_object(object& obj, string_view name, bool persistent) {
 
             if (ne2sv == name) {
                 lock.reset();
-                // FIXME - exception
-                print("Name collision\n");
                 free(ne);
-                return false;
+                return nt_status::OBJECT_NAME_COLLISION;
             }
         }
 
@@ -95,7 +88,7 @@ bool name_object(object& obj, string_view name, bool persistent) {
 
     object_acquire(obj);
 
-    return true;
+    return nt_status::SUCCESS;
 }
 
 nt_status open_object(string_view name, object_ref& obj) {

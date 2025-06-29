@@ -1,12 +1,10 @@
 module;
 
 #include "kernel.h"
+#include "handle.h"
 import objects;
 import event;
 import chardev;
-
-// FIXME - from handle.h
-bool name_object(object& obj, std::string_view name, bool persistent = true);
 
 export module null;
 
@@ -30,8 +28,9 @@ export bool create_dev_null() {
 
     auto p = object_ref{*pptr};
 
-    if (!name_object(p.get(), "null")) {
-        print("name_object failed\n");
+    auto status = name_object(p.get(), "null");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
         return false;
     }
 

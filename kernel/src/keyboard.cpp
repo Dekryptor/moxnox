@@ -667,8 +667,9 @@ export bool init_keyboard_pipe() {
 
     keyboard_pipe_obj = object_ref{*pptr};
 
-    if (!name_object(keyboard_pipe_obj.get(), "keyboard")) {
-        print("name_object failed\n");
+    auto status = name_object(keyboard_pipe_obj.get(), "keyboard");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
         return false;
     }
 

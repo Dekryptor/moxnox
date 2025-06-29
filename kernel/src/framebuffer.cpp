@@ -107,6 +107,8 @@ NTSTATUS framebuffer_cache::query_info(enum SECTION_INFORMATION_CLASS section_in
 }
 
 export void create_framebuffer_section() {
+    nt_status status;
+
     auto s = new section;
     if (!s) {
         print("new failed\n");
@@ -125,8 +127,9 @@ export void create_framebuffer_section() {
         return;
     }
 
-    if (name_object(*s, "framebuffer", true)) {
-        print("name_object failed\n");
+    status = name_object(*s, "framebuffer", true);
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
         s->release();
         return;
     }

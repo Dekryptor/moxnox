@@ -259,8 +259,9 @@ static bool add_keyboard_evdev_pipe() {
     keyboard_evdev_obj = object_ref{*pptr};
 
     // FIXME - put in /dev/input like on Linux
-    if (!name_object(keyboard_evdev_obj.get(), "ps2keyboard")) {
-        print("name_object failed\n");
+    auto status = name_object(keyboard_evdev_obj.get(), "ps2keyboard");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
         return false;
     }
 

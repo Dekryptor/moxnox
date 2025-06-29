@@ -222,7 +222,9 @@ void found_virtio_pci_console(pci_device& dev) {
 
         sp = format(sp, "hvc{}", virtio_console_num.fetch_add(1));
 
-        name_object(*v, string_view(s, (size_t)(sp.data() - s)));
+        auto status = name_object(*v, string_view(s, (size_t)(sp.data() - s)));
+        if (!success(status))
+            print("name_object returned {}\n", status);
     }
 }
 
@@ -250,7 +252,11 @@ static bool found_virtio_mmio_console(virtio_mmio_device& dev) {
 
         sp = format(sp, "hvc{}", virtio_console_num.fetch_add(1));
 
-        name_object(v, string_view(s, (size_t)(sp.data() - s)));
+        auto status = name_object(v, string_view(s, (size_t)(sp.data() - s)));
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
+            return false;
+        }
     }
 
     return true;

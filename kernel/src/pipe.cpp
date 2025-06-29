@@ -395,11 +395,12 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     auto obj = object_ref{*pptr};
 
-    if (!name_object(obj.get(), string_view(name + dev_prefix.size(), namelen - dev_prefix.size()),
-                     false)) {
-        print("name_object failed\n");
+    status = name_object(obj.get(), string_view(name + dev_prefix.size(), namelen - dev_prefix.size()),
+                         false);
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
         free(name);
-        return nt_status::INTERNAL_ERROR; // FIXME
+        return status;
     }
 
     free(name);
