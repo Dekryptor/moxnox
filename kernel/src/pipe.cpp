@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 import objects;
+#include "process.h"
 import event;
 #include "thread.h"
 #include "spinlock.h"
@@ -14,6 +15,7 @@ import config;
 import list;
 import bsod;
 import chardev;
+import unicode;
 
 using namespace std;
 
@@ -296,15 +298,120 @@ export void shutdown_pipes() {
 }
 
 extern "C"
-NTSTATUS NtCreateNamedPipeFile(HANDLE* /*file_handle*/, ACCESS_MASK /*desired_access*/,
-                               const OBJECT_ATTRIBUTES* /*object_attributes*/,
-                               IO_STATUS_BLOCK* /*iosb*/, uint32_t /*share_access*/,
-                               uint32_t /*create_disposition*/, uint32_t /*create_options*/,
+NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
+                               const OBJECT_ATTRIBUTES* object_attributes,
+                               IO_STATUS_BLOCK* iosb, uint32_t /*share_access*/,
+                               uint32_t create_disposition, uint32_t /*create_options*/,
                                uint32_t /*named_pipe_type*/, uint32_t /*read_mode*/,
                                uint32_t /*completion_mode*/, uint32_t /*maximum_instances*/,
                                uint32_t /*inbound_quota*/, uint32_t /*outbound_quota*/,
                                const LARGE_INTEGER* /*default_timeout*/) {
-    print("FIXME - NtCreateNamedPipeFile\n"); // FIXME
+    nt_status status;
+    auto t = get_current_thread();
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - share_access
+    // FIXME - create_options
+    // FIXME - named_pipe_type
+    // FIXME - read_mode
+    // FIXME - completion_mode
+    // FIXME - maximum_instances
+    // FIXME - inbound_quota
+    // FIXME - outbound_quote
+    // FIXME - default_timeout
+
+    switch (create_disposition) {
+        case FILE_SUPERSEDE:
+            print("FIXME - FILE_SUPERSEDE\n");
+            return nt_status::NOT_IMPLEMENTED;
+
+        case FILE_OPEN:
+            print("FIXME - FILE_OPEN\n");
+            return nt_status::NOT_IMPLEMENTED;
+
+        case FILE_OPEN_IF:
+            print("FIXME - FILE_OPEN_IF\n");
+            return nt_status::NOT_IMPLEMENTED;
+
+        case FILE_OVERWRITE:
+            print("FIXME - FILE_OVERWRITE\n");
+            return nt_status::NOT_IMPLEMENTED;
+
+        case FILE_OVERWRITE_IF:
+            print("FIXME - FILE_OVERWRITE_IF\n");
+            return nt_status::NOT_IMPLEMENTED;
+
+        case FILE_CREATE:
+            break;
+
+        default:
+            print("unrecognized create disposition {}\n", create_disposition);
+            return nt_status::INVALID_PARAMETER;
+    }
+
+    if (!object_attributes->ObjectName || !object_attributes->ObjectName->Buffer)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - check desired_access
+
+    auto u16name = u16string_view(object_attributes->ObjectName->Buffer, object_attributes->ObjectName->Length / sizeof(char16_t));
+
+    if (u16name.empty())
+        return nt_status::INVALID_PARAMETER;
+
+    auto namelen = utf16_to_utf8_len(u16name);
+
+    if (namelen == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    auto name = (char*)malloc(namelen);
+    if (!name)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    utf16_to_utf8(span(name, namelen), u16name);
+
+    for (unsigned int i = 0; i < namelen; i++) {
+        if (name[i] == '\\')
+            name[i] = '/';
+    }
+
+    // FIXME - shouldn't be in /dev?
+    static const string_view dev_prefix = "/dev/";
+    object_ref obj_ref;
+
+    if (namelen < dev_prefix.size() || string_view(name, dev_prefix.size()) != dev_prefix) {
+        free(name);
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+    }
+
+    // FIXME - pipe size
+    auto pptr = new pipe(1);
+    if (!pptr) {
+        print("new failed\n");
+        free(name);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    pptr->exclusive = false;
+
+    auto obj = object_ref{*pptr};
+
+    if (!name_object(obj.get(), string_view(name + dev_prefix.size(), namelen - dev_prefix.size()),
+                     false)) {
+        print("name_object failed\n");
+        free(name);
+        return nt_status::INTERNAL_ERROR; // FIXME
+    }
+
+    free(name);
+
+    handle_t h;
+
+    status = t->proc->add_handle(obj.get(), desired_access, true, h);
+    if (!success(status))
+        return status;
+
+    *file_handle = h;
+    iosb->Information = FILE_CREATED;
+
+    return nt_status::SUCCESS;
 }
