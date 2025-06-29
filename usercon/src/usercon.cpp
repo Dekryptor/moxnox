@@ -1,7 +1,9 @@
 #include <ntdll.h>
+#include <pe.h>
 #include <string_view>
 #include <tuple>
 #include <span>
+#include <memory>
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
@@ -12,6 +14,9 @@ import format;
 import rbtree;
 
 using namespace std;
+
+static const size_t PAGE_SIZE = 4096;
+static const uint64_t PAGE_SHIFT = 12;
 
 extern uint64_t __CTOR_LIST__;
 
@@ -36,6 +41,10 @@ static FT_Library ft;
 static font_info font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
+
+static constexpr uint32_t bytes_to_pages(size_t bytes) {
+    return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
+}
 
 extern "C"
 void* malloc(size_t size) {
@@ -502,6 +511,384 @@ static void test_print(string_view msg) {
     }
 }
 
+class unique_handle {
+public:
+    unique_handle() : h(0) {
+    }
+
+    explicit unique_handle(HANDLE h) : h(h) {
+    }
+
+    unique_handle(unique_handle&& that) noexcept {
+        h = that.h;
+        that.h = 0;
+    }
+
+    unique_handle(const unique_handle&) = delete;
+    unique_handle& operator=(const unique_handle&) = delete;
+
+    unique_handle& operator=(unique_handle&& that) noexcept {
+        if (h > 0)
+            NtClose(h);
+
+        h = that.h;
+        that.h = 0;
+
+        return *this;
+    }
+
+    ~unique_handle() {
+        if (h <= 0)
+            return;
+
+        NtClose(h);
+    }
+
+    explicit operator bool() const noexcept {
+        return h != 0;
+    }
+
+    void reset(HANDLE new_h = 0) noexcept {
+        if (h > 0)
+            NtClose(h);
+
+        h = new_h;
+    }
+
+    HANDLE get() const noexcept {
+        return h;
+    }
+
+private:
+    HANDLE h;
+};
+
+static void do_print(string_view s) {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    NTSTATUS status;
+    IO_STATUS_BLOCK iosb;
+
+    while (true) {
+        status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr,
+                             nullptr, &iosb, s.data(), (uint32_t)s.size(),
+                             nullptr, nullptr);
+        if (!success(status)) {
+            print("NtWriteFile returned {}\n", status);
+            return;
+        }
+
+        if (iosb.Information >= s.size())
+            break;
+
+        s = string_view(s.data() + iosb.Information,
+                        s.size() - iosb.Information);
+    }
+}
+
+static void test_run(u16string_view exe, u16string_view cmdline) {
+    HANDLE h, stdinh = 0, stdouth, curdirh = 0;
+    unique_handle read_handle, write_handle, file, sect, proc, thread;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    NTSTATUS status;
+    SECTION_IMAGE_INFORMATION sii;
+    PROCESS_BASIC_INFORMATION pbi;
+    RTL_USER_PROCESS_PARAMETERS params;
+    PEB newpeb;
+    INITIAL_TEB initial_teb;
+    CONTEXT context;
+    CLIENT_ID client_id;
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+
+    // create pipe
+
+    static const u16string_view fn = u"\\dev\\ptty0"; // FIXME
+
+    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)fn.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtCreateNamedPipeFile(&h, FILE_READ_DATA, &oa, &iosb, 0,
+                                   FILE_CREATE, 0, 1, 0, 0, 0, 0, 0, nullptr);
+    if (!success(status)) {
+        print("NtCreateNamedPipeFile returned {}\n", status);
+        return;
+    }
+
+    read_handle.reset(h);
+
+    status = NtOpenFile(&h, FILE_WRITE_DATA, &oa, &iosb, 0, 0);
+    if (!success(status)) {
+        print("NtOpenFile returned {}\n", status);
+        return;
+    }
+
+    write_handle.reset(h);
+
+    // open file
+
+    us.Length = us.MaximumLength = (uint16_t)(exe.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)exe.data();
+
+    status = NtOpenFile(&h, FILE_READ_DATA, &oa, &iosb, 0,
+                        FILE_NON_DIRECTORY_FILE);
+    if (!success(status)) {
+        print("NtOpenFile returned {}\n", status);
+        return;
+    }
+
+    // FIXME - if not found, search PATH, etc.
+
+    file.reset(h);
+
+    // create section
+
+    status = NtCreateSection(&h, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE,
+                             file.get());
+    if (!success(status)) {
+        print("NtCreateSection returned {}\n", status);
+        return;
+    }
+
+    sect.reset(h);
+
+    status = NtQuerySection(sect.get(), SECTION_INFORMATION_CLASS::ImageInformation,
+                            &sii, sizeof(SECTION_IMAGE_INFORMATION), nullptr);
+
+    if (!success(status)) {
+        print("NtQuerySection returned {}\n", status);
+        return;
+    }
+
+    if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
+        print("{}: not an executable\n", exe);
+        return;
+    }
+
+    if (sii.Machine != IMAGE_FILE_MACHINE_AMD64) {
+        print("{}: unsupported architecture\n", exe);
+        return;
+    }
+
+    // create process
+
+    status = NtCreateProcess(&h, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(),
+                             false, sect.get(), 0, 0);
+    if (!success(status)) {
+        print("NtCreateProcess returned {}\n", status);
+        return;
+    }
+
+    proc.reset(h);
+
+    // duplicate handles
+
+    if (peb->ProcessParameters->StandardInput) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardInput,
+                                   proc.get(), &stdinh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned {}\n", status);
+            return;
+        }
+    }
+
+    status = NtDuplicateObject(NtCurrentProcess(), write_handle.get(),
+                               proc.get(), &stdouth, 0, 0,
+                               DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+    if (!success(status)) {
+        print("NtDuplicateObject returned {}\n", status);
+        return;
+    }
+
+    if (peb->ProcessParameters->CurrentDirectory.Handle) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle,
+                                   proc.get(), &curdirh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned {}\n", status);
+            return;
+        }
+    }
+
+    // take copy of PEB
+
+    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        print("NtQueryInformationProcess returned {}\n", status);
+        return;
+    }
+
+    status = NtReadVirtualMemory(proc.get(), pbi.PebBaseAddress, &newpeb,
+                                 sizeof(PEB), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return;
+    }
+
+    // take copy of ProcessParameters
+
+    status = NtReadVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
+                                 sizeof(params), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return;
+    }
+
+    // change handles
+
+    params.StandardInput = stdinh;
+    params.StandardOutput = stdouth;
+    params.StandardError = stdouth;
+    params.CurrentDirectory.Handle = curdirh;
+
+    // copy current directory string
+
+    params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
+                                                 peb->ProcessParameters->CurrentDirectory.DosPath.Length);
+
+    status = NtWriteVirtualMemory(proc.get(), params.CurrentDirectory.DosPath.Buffer,
+                                  peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
+                                  params.CurrentDirectory.DosPath.Length, nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned {}\n", status);
+        return;
+    }
+
+    // FIXME - ImagePathName
+    // FIXME - environment variables
+
+    // allocate misc block
+
+    size_t misc_block_size = (cmdline.size() + 1) * sizeof(char16_t);
+
+    auto misc_block = (uint8_t*)malloc(misc_block_size);
+    if (!misc_block) {
+        print("malloc failed\n");
+        return;
+    }
+
+    // allocate misc block in process
+
+    void* proc_misc_block = nullptr;
+    size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
+
+    status = NtAllocateVirtualMemory(proc.get(), &proc_misc_block, 0,
+                                     &proc_misc_block_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned {}\n", status);
+        free(misc_block);
+        return;
+    }
+
+    // copy cmdline
+
+    memcpy(misc_block, cmdline.data(), cmdline.size() * sizeof(char16_t));
+    misc_block[cmdline.size() * sizeof(char16_t)] = 0;
+    params.CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
+    params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
+    params.CommandLine.Buffer = (char16_t*)proc_misc_block;
+
+    // copy misc block
+
+    status = NtWriteVirtualMemory(proc.get(), proc_misc_block, misc_block,
+                                  (uint32_t)misc_block_size, nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned {}\n", status);
+        free(misc_block);
+        return;
+    }
+
+    free(misc_block);
+
+    // write ProcessParameters back
+
+    status = NtWriteVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
+                                  sizeof(params), nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned {}\n", status);
+        return;
+    }
+
+    // create thread
+
+    memset(&initial_teb, 0, sizeof(initial_teb));
+
+    void* stack = nullptr;
+    size_t stack_size = 0x100000; // FIXME - should come from PE header?
+
+    status = NtAllocateVirtualMemory(proc.get(), &stack, 0, &stack_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned {}\n", status);
+        return;
+    }
+
+    initial_teb.OldStackBase = nullptr;
+    initial_teb.OldStackLimit = nullptr;
+    initial_teb.StackBase = (uint8_t*)stack + stack_size;
+    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
+    initial_teb.StackAllocationBase = stack;
+
+    memset(&context, 0, sizeof(context));
+    context.Rip = (uintptr_t)sii.TransferAddress;
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
+    context.EFlags = 0x200;
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
+
+    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc.get(),
+                            &client_id, &context, &initial_teb, true);
+    if (!success(status)) {
+        print("NtCreateThread returned {}\n", status);
+        return;
+    }
+
+    thread.reset(h);
+
+    // FIXME - Ctrl+C handling
+
+    NtResumeThread(thread.get(), nullptr);
+
+    do {
+        char s[255];
+
+        // FIXME - also wait on process
+        status = NtWaitForSingleObject(read_handle.get(), true, nullptr);
+
+        if (status == nt_status::ALERTED)
+            continue;
+
+        if (!success(status)) {
+            print("NtWaitForSingleObject returned {}\n", status);
+            return;
+        }
+
+        // print pipe data
+
+        status = NtReadFile(read_handle.get(), 0, nullptr, nullptr, &iosb, s,
+                            sizeof(s), nullptr, nullptr);
+        if (status == nt_status::ALERTED)
+            continue;
+        else if (!success(status)) {
+            print("NtReadFile returned {}\n", status);
+            return;
+        }
+
+        do_print(string_view(s, iosb.Information));
+    } while (true);
+}
+
 static int _main() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
@@ -526,6 +913,8 @@ static int _main() {
     }
 
     test_print("hello world");
+
+    test_run(u"\\echo.exe", u"echo.exe hello world");
 
     // FIXME
 
