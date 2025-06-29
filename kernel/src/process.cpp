@@ -2338,6 +2338,7 @@ NTSTATUS process::close_handle(handle_t h) {
             no_handles--;
     }
 
+    handle_closed(*obj);
     object_release(*obj);
 
     return nt_status::SUCCESS;
