@@ -511,9 +511,9 @@ NTSTATUS NtOpenFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                     const OBJECT_ATTRIBUTES* object_attributes,
                     IO_STATUS_BLOCK* iosb, uint32_t share_access,
                     uint32_t open_options) {
-    print("FIXME - NtOpenFile\n");
-
-    return nt_status::NOT_IMPLEMENTED;
+    return NtCreateFile(file_handle, desired_access, object_attributes, iosb,
+                        nullptr, 0, share_access, FILE_OPEN, open_options,
+                        nullptr, 0);
 }
 
 export extern "C"
