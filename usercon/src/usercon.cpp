@@ -100,6 +100,12 @@ int __mingw_vsnprintf(char* /*_DstBuf*/, size_t /*_MaxCount*/, const char* /*_Fo
     return 0;
 }
 
+extern "C"
+int __mingw_snprintf(char* /*s*/, size_t /*n*/, const char* /*format*/, ...) {
+    // FIXME
+    return 0;
+}
+
 // copied from musl: src/math/floorf.c
 extern "C"
 float floorf(float x) {
