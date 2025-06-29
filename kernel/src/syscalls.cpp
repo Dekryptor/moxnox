@@ -767,6 +767,43 @@ NTSTATUS user_NtWaitForSingleObject(HANDLE object_handle, bool alertable, const 
 }
 
 extern "C"
+NTSTATUS user_NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
+                                       bool wait_any, bool alertable) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+    LARGE_INTEGER time_out;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto us_time_out = (const LARGE_INTEGER*)args[0];
+
+    if (us_time_out) {
+        if (!copy_from_process(&time_out, us_time_out, sizeof(LARGE_INTEGER)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    if (object_count == 0 || object_count > MAXIMUM_WAIT_OBJECTS)
+        return nt_status::INVALID_PARAMETER;
+
+    auto array = malloc(sizeof(HANDLE) * object_count);
+    if (!array)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    if (!copy_from_process(array, objects_array, sizeof(HANDLE) * object_count)) {
+        free(array);
+        return nt_status::ACCESS_VIOLATION;
+    }
+
+    auto ret = NtWaitForMultipleObjects(object_count, (HANDLE*)array, wait_any,
+                                        alertable, us_time_out ? &time_out : nullptr);
+
+    free(array);
+
+    return ret;
+}
+
+extern "C"
 NTSTATUS user_NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
                               const OBJECT_ATTRIBUTES* object_attributes, HANDLE parent_process) {
     auto& t = *get_current_thread();

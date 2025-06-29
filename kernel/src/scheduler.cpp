@@ -392,8 +392,6 @@ bool init_cpu_block(unsigned int cpu_no) {
 
 NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
                                const LARGE_INTEGER* timeout) {
-    // FIXME - time_out
-
     auto objrw = deref_handle(object_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
@@ -412,6 +410,14 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
     }
 
     return wait_for_object(objrw.get(), alertable, t);
+}
+
+NTSTATUS NtWaitForMultipleObjects(uint32_t /*object_count*/, HANDLE* /*objects_array*/,
+                                  bool /*wait_any*/, bool /*alertable*/,
+                                  const LARGE_INTEGER* /*time_out*/) {
+    print("FIXME - NtWaitForMultipleObjects\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
 }
 
 void disable_preempt() {

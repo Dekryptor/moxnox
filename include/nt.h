@@ -1133,6 +1133,8 @@ struct FILE_DISPOSITION_INFORMATION {
     BOOLEAN DeleteFile;
 };
 
+static const uint32_t MAXIMUM_WAIT_OBJECTS = 64;
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1177,6 +1179,9 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
                         const INITIAL_TEB* initial_teb, bool create_suspended);
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count);
 NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE_INTEGER* time_out);
+NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
+                                  bool wait_any, bool alertable,
+                                  const LARGE_INTEGER* time_out);
 NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access, const OBJECT_ATTRIBUTES* object_attributes,
                          HANDLE parent_process, bool inherit_object_table, HANDLE section_handle,
                          HANDLE debug_port, HANDLE exception_port);
