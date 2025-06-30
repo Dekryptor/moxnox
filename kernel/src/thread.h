@@ -35,10 +35,42 @@ enum class thread_status {
     runnable,
     running,
     waiting,
+    waiting_multiple,
     dead
 };
 
 class process;
+
+enum class waiter_object_type {
+    thread,
+    multiple
+};
+
+class waiter_object {
+public:
+    waiter_object(enum waiter_object_type type) : type(type) { }
+
+    list_entry wait_le;
+    enum waiter_object_type type;
+};
+
+struct multiple_wait_block;
+
+class waiter_object_multiple : public waiter_object {
+public:
+    waiter_object_multiple() : waiter_object(waiter_object_type::multiple) { }
+
+    multiple_wait_block* block;
+    bool done = false;
+};
+
+struct multiple_wait_block {
+    thread* t;
+    std::atomic<unsigned int> left;
+    unsigned int index;
+    unsigned int num_entries;
+    waiter_object_multiple entries[0];
+};
 
 class thread : public sync_object {
 public:
@@ -78,9 +110,10 @@ public:
     uint32_t current_cpu = 0xffffffff;
     uint64_t pending_signal = 0;
     bool wait_interruptible;
-    list_entry wait_le;
+    waiter_object wait_obj{waiter_object_type::thread};
     list_entry timeout_le;
     uint64_t wait_timeout;
+    multiple_wait_block* multwait;
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);

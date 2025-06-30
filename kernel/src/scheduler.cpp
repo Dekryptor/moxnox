@@ -265,7 +265,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
             return nt_status::TIMEOUT;
         }
 
-        insert_tail_list(so.waiters, current_thread->wait_le);
+        insert_tail_list(so.waiters, current_thread->wait_obj.wait_le);
 
         auto& cb = *get_cpu_block();
 
@@ -303,15 +303,52 @@ unsigned int wake_up_waiters(list_entry& waiters) {
     unsigned int ret = 0;
 
     while (!is_list_empty(waiters)) {
-        auto& t = *(thread*)((uint8_t*)waiters.next - offsetof(thread, wait_le));
+        auto& wo = *(waiter_object*)((uint8_t*)waiters.next - offsetof(waiter_object, wait_le));
 
-        assert(t.status == thread_status::waiting);
+        remove_entry_list(wo.wait_le);
 
-        if (t.wait_timeout != 0)
-            remove_entry_list(t.timeout_le);
+        switch (wo.type) {
+            case waiter_object_type::thread: {
+                auto& t = *(thread*)((uint8_t*)&wo - offsetof(thread, wait_obj));
 
-        remove_entry_list(t.wait_le);
-        t.status = thread_status::runnable;
+                assert(t.status == thread_status::waiting);
+
+                if (t.wait_timeout != 0)
+                    remove_entry_list(t.timeout_le);
+
+                t.status = thread_status::runnable;
+
+                break;
+            }
+
+            case waiter_object_type::multiple: {
+                auto& wom = static_cast<waiter_object_multiple&>(wo);
+                auto& block = *wom.block;
+                auto& t = *block.t;
+
+                assert(t.status == thread_status::waiting_multiple);
+
+                if (t.wait_timeout != 0)
+                    remove_entry_list(t.timeout_le);
+
+                wom.done = true;
+
+                if (--block.left == 0) {
+                    for (unsigned int i = 0; i < block.num_entries; i++) {
+                        if (!block.entries[i].done)
+                            remove_entry_list(block.entries[i].wait_le);
+                        else if (&block.entries[i] == &wom)
+                            t.multwait->index = i;
+                    }
+
+                    t.multwait = nullptr;
+                    t.status = thread_status::runnable;
+                }
+
+                break;
+            }
+        }
+
         ret++;
     }
 
@@ -327,7 +364,7 @@ void wait_timeout_expired(thread* tptr) {
     assert(t.status == thread_status::waiting);
 
     remove_entry_list(t.timeout_le);
-    remove_entry_list(t.wait_le);
+    remove_entry_list(t.wait_obj.wait_le);
 
     t.status = thread_status::runnable;
 }
@@ -413,7 +450,7 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
 }
 
 static nt_status wait_for_objects(span<object*> objects, bool wait_any,
-                                  bool interruptible, optional<uint64_t> timeout) {
+                                  optional<uint64_t> timeout) {
 #ifdef DEBUG
     uint64_t cr8 = 0, rflags = 0;
 
@@ -489,15 +526,37 @@ static nt_status wait_for_objects(span<object*> objects, bool wait_any,
         return nt_status::TIMEOUT;
     }
 
-    // FIXME - do actual waiting
-#if 0
-    insert_tail_list(so.waiters, current_thread->wait_le);
+    // do actual waiting
+
+    size_t mwb_size = offsetof(multiple_wait_block, entries) + (objects.size() * sizeof(waiter_object_multiple));
+    auto mwb = (multiple_wait_block*)malloc(mwb_size);
+    if (!mwb) {
+        release_sync_lock();
+        __asm("sti");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    mwb->t = current_thread;
+    mwb->left = wait_any ? 1 : (unsigned int)objects.size();
+    mwb->num_entries = (unsigned int)objects.size();
+
+    for (size_t i = 0; i < objects.size(); i++) {
+        auto ent = new (&mwb->entries[i]) waiter_object_multiple;
+
+        auto& so = static_cast<sync_object&>(*objects[i]);
+
+        insert_tail_list(so.waiters, ent->wait_le);
+
+        ent->block = mwb;
+    }
+
+    current_thread->multwait = mwb;
 
     auto& cb = *get_cpu_block();
 
-    current_thread->status = thread_status::waiting;
+    current_thread->status = thread_status::waiting_multiple;
     current_thread->current_cpu = 0xffffffff;
-    current_thread->wait_interruptible = interruptible;
+    current_thread->wait_interruptible = true;
 
     if (current_thread->proc)
         current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
@@ -512,17 +571,23 @@ static nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
         insert_tail_list(thread_list_timeout, current_thread->timeout_le);
     }
-#endif
 
     yield(); // releases sync_lock
 
-    if (interruptible && current_thread->pending_signal)
+    auto index = mwb->index;
+    free(mwb);
+
+    // FIXME - non-alertable waits
+    if (current_thread->pending_signal)
         return nt_status::ALERTED;
 
     if (timeout.has_value() && current_thread->wait_timeout == 0)
         return nt_status::TIMEOUT;
 
-    return nt_status::NOT_IMPLEMENTED; // FIXME
+    if (!wait_any)
+        return nt_status::SUCCESS;
+
+    return (enum nt_status)((unsigned int)nt_status::SUCCESS + index);
 }
 
 NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
@@ -574,8 +639,7 @@ NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
         objs[i] = &objrw.get();
     }
 
-    auto ret = wait_for_objects(span(objs.data(), object_count), wait_any,
-                                alertable, t);
+    auto ret = wait_for_objects(span(objs.data(), object_count), wait_any, t);
 
     for (unsigned int i = 0; i < object_count; i++) {
         object_release(*objs[i]);

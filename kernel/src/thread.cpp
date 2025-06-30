@@ -304,7 +304,7 @@ void thread::send_signal(uint64_t code) {
 
         if (status == thread_status::waiting && wait_interruptible) {
             status = thread_status::runnable;
-            remove_entry_list(wait_le);
+            remove_entry_list(wait_obj.wait_le);
 
             if (wait_timeout != 0)
                 remove_entry_list(timeout_le);
