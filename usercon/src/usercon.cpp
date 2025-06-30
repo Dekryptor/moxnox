@@ -4,6 +4,7 @@
 #include <tuple>
 #include <span>
 #include <memory>
+#include <array>
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
@@ -861,39 +862,52 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
     NtResumeThread(thread.get(), nullptr);
 
     do {
+        array<HANDLE, 2> objs;
         char s[255];
 
-        // FIXME - also wait on process
-        status = NtWaitForSingleObject(read_handle.get(), true, nullptr);
+        objs[0] = read_handle.get();
+        objs[1] = proc.get();
 
+        status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
+                                          true, nullptr);
         if (status == nt_status::ALERTED)
             continue;
 
         if (!success(status)) {
-            print("NtWaitForSingleObject returned {}\n", status);
+            print("NtWaitForMultipleObjects returned {}\n", status);
             return;
         }
 
-        // print pipe data
+        if (status == nt_status::SUCCESS) {
+            // print pipe data
 
-        status = NtReadFile(read_handle.get(), 0, nullptr, nullptr, &iosb, s,
-                            sizeof(s), nullptr, nullptr);
-        if (status == nt_status::ALERTED)
-            continue;
-        else if (!success(status)) {
-            print("NtReadFile returned {}\n", status);
-            return;
+            status = NtReadFile(read_handle.get(), 0, nullptr, nullptr, &iosb, s,
+                                sizeof(s), nullptr, nullptr);
+            if (status == nt_status::ALERTED)
+                continue;
+            else if (!success(status)) {
+                print("NtReadFile returned {}\n", status);
+                return;
+            }
+
+            do_print(string_view(s, iosb.Information));
+        } else if (status == (enum nt_status)((unsigned int)nt_status::SUCCESS + 1)) {
+            // process terminated
+
+            // FIXME - make sure pipe is empty? (Wait on pipe with 0 timeout?)
+
+            break;
         }
-
-        do_print(string_view(s, iosb.Information));
     } while (true);
 }
 
 static int _main() {
+#if 0
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
     char s[10];
+#endif
 
     framebuffer = init_framebuffer();
     if (framebuffer.empty()) {
@@ -918,9 +932,10 @@ static int _main() {
 
     // FIXME
 
-    // FIXME
+#if 0
     NtReadFile(peb->ProcessParameters->StandardInput, 0, nullptr,
                nullptr, &iosb, s, sizeof(s), nullptr, nullptr);
+#endif
 
     return 0;
 }
