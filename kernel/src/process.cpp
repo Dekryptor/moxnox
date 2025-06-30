@@ -1193,6 +1193,8 @@ void process::terminate() {
         sync_lock sl;
         lock_guard lock(sl);
 
+        signalled = true;
+
         wake_up_waiters(waiters);
     }
 
