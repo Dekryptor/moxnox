@@ -412,12 +412,55 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
     return wait_for_object(objrw.get(), alertable, t);
 }
 
-NTSTATUS NtWaitForMultipleObjects(uint32_t /*object_count*/, HANDLE* /*objects_array*/,
-                                  bool /*wait_any*/, bool /*alertable*/,
-                                  const LARGE_INTEGER* /*time_out*/) {
-    print("FIXME - NtWaitForMultipleObjects\n"); // FIXME
+static nt_status wait_for_objects(span<object*> objects, bool wait_any,
+                                  bool alertable, optional<uint64_t> timeout) {
+    print("FIXME - wait_for_objects\n"); // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
+                                  bool wait_any, bool alertable,
+                                  const LARGE_INTEGER* timeout) {
+    if (object_count == 1)
+        return NtWaitForSingleObject(objects_array[0], alertable, timeout);
+
+    optional<uint64_t> t;
+
+    if (timeout) {
+        if (timeout->QuadPart > 0) {
+            print("FIXME - NtWaitForMultipleObjects positive timeout\n");
+            return nt_status::NOT_SUPPORTED;
+        }
+
+        t = -timeout->QuadPart;
+    }
+
+    array<object*, MAXIMUM_WAIT_OBJECTS> objs;
+
+    for (unsigned int i = 0; i < object_count; i++) {
+        // FIXME - check handles have SYNCHRONIZE access
+
+        auto objrw = deref_handle(objects_array[i]);
+        if (!objrw) {
+            for (unsigned int j = 0; j < i; j++) {
+                object_release(*objs[j]);
+            }
+            return nt_status::INVALID_HANDLE;
+        }
+
+        object_acquire(objrw.get());
+        objs[i] = &objrw.get();
+    }
+
+    auto ret = wait_for_objects(span(objs.data(), object_count), wait_any,
+                                alertable, t);
+
+    for (unsigned int i = 0; i < object_count; i++) {
+        object_release(*objs[i]);
+    }
+
+    return ret;
 }
 
 void disable_preempt() {
