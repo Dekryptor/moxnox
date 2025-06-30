@@ -308,6 +308,19 @@ void thread::send_signal(uint64_t code) {
 
             if (wait_timeout != 0)
                 remove_entry_list(timeout_le);
+        } else if (status == thread_status::waiting_multiple && wait_interruptible) {
+            auto& block = *multwait;
+
+            for (unsigned int i = 0; i < block.num_entries; i++) {
+                if (!block.entries[i].done)
+                    remove_entry_list(block.entries[i].wait_le);
+            }
+
+            if (wait_timeout != 0)
+                remove_entry_list(timeout_le);
+
+            multwait = nullptr;
+            status = thread_status::runnable;
         }
     }
 
