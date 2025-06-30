@@ -361,10 +361,22 @@ void wait_timeout_expired(thread* tptr) {
 
     auto& t = *tptr;
 
-    assert(t.status == thread_status::waiting);
+    assert(t.status == thread_status::waiting || t.status == thread_status::waiting_multiple);
 
     remove_entry_list(t.timeout_le);
-    remove_entry_list(t.wait_obj.wait_le);
+
+    if (t.status == thread_status::waiting)
+        remove_entry_list(t.wait_obj.wait_le);
+    else if (t.status == thread_status::waiting_multiple) {
+        auto& block = *t.multwait;
+
+        for (unsigned int i = 0; i < block.num_entries; i++) {
+            if (!block.entries[i].done)
+                remove_entry_list(block.entries[i].wait_le);
+        }
+
+        t.multwait = nullptr;
+    }
 
     t.status = thread_status::runnable;
 }
