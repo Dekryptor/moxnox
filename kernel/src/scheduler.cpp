@@ -413,10 +413,116 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
 }
 
 static nt_status wait_for_objects(span<object*> objects, bool wait_any,
-                                  bool alertable, optional<uint64_t> timeout) {
-    print("FIXME - wait_for_objects\n"); // FIXME
+                                  bool interruptible, optional<uint64_t> timeout) {
+#ifdef DEBUG
+    uint64_t cr8 = 0, rflags = 0;
 
-    return nt_status::NOT_IMPLEMENTED;
+    __asm __volatile(
+        "mov rax, cr8\n"
+        "mov %0, rax\n"
+        :
+        : "m" (cr8)
+        : "rax"
+    );
+
+    if (cr8)
+        bsod("calling wait_for_objects when cr8 != 0");
+
+    __asm __volatile(
+        "pushf\n"
+        "pop rax\n"
+        "mov %0, rax\n"
+        :
+        : "m" (rflags)
+        : "rax"
+    );
+
+    if (!(rflags & 0x200)) // IF flag not set
+        bsod("calling wait_for_objects with interrupts disabled");
+#endif
+    auto current_thread = get_current_thread();
+
+    __asm("cli");
+    acquire_sync_lock();
+
+    if (current_thread->status == thread_status::dead)
+        yield(); // release sync_lock, doesn't return
+
+    if (wait_any) {
+        for (unsigned int i = 0; i < objects.size(); i++) {
+            auto& obj = *objects[i];
+            auto& so = static_cast<sync_object&>(obj);
+
+            if (so.signalled) {
+                object_on_wake(obj);
+                release_sync_lock();
+                __asm("sti");
+
+                return (enum nt_status)((unsigned int)nt_status::SUCCESS + i);
+            }
+        }
+    } else {
+        unsigned int signalled_count = 0;
+
+        for (auto* obj : objects) {
+            auto& so = static_cast<sync_object&>(*obj);
+
+            if (so.signalled)
+                signalled_count++;
+        }
+
+        if (signalled_count == objects.size()) {
+            for (auto* obj : objects) {
+                object_on_wake(*obj);
+            }
+
+            release_sync_lock();
+            __asm("sti");
+
+            return nt_status::SUCCESS;
+        }
+    }
+
+    if (timeout.has_value() && *timeout == 0) {
+        release_sync_lock();
+        __asm("sti");
+        return nt_status::TIMEOUT;
+    }
+
+    // FIXME - do actual waiting
+#if 0
+    insert_tail_list(so.waiters, current_thread->wait_le);
+
+    auto& cb = *get_cpu_block();
+
+    current_thread->status = thread_status::waiting;
+    current_thread->current_cpu = 0xffffffff;
+    current_thread->wait_interruptible = interruptible;
+
+    if (current_thread->proc)
+        current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
+    if (!timeout.has_value())
+        current_thread->wait_timeout = 0;
+    else {
+        current_thread->wait_timeout = *timeout / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+
+        if (*timeout % (SYSTEM_TIME_RESOLUTION / TICK_RATE))
+            current_thread->wait_timeout++;
+
+        insert_tail_list(thread_list_timeout, current_thread->timeout_le);
+    }
+#endif
+
+    yield(); // releases sync_lock
+
+    if (interruptible && current_thread->pending_signal)
+        return nt_status::ALERTED;
+
+    if (timeout.has_value() && current_thread->wait_timeout == 0)
+        return nt_status::TIMEOUT;
+
+    return nt_status::NOT_IMPLEMENTED; // FIXME
 }
 
 NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
@@ -447,6 +553,21 @@ NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
                 object_release(*objs[j]);
             }
             return nt_status::INVALID_HANDLE;
+        }
+
+        if (!object_is_sync_object(objrw.get())) {
+            for (unsigned int j = 0; j < i; j++) {
+                object_release(*objs[j]);
+            }
+            return nt_status::INVALID_PARAMETER;
+        }
+
+        // if !wait_any, make sure that no duplicates (because of object_on_wake)
+        if (!wait_any) {
+            for (unsigned int j = 0; j < i; j++) {
+                if (objs[j] == &objrw.get())
+                    return nt_status::INVALID_PARAMETER;
+            }
         }
 
         object_acquire(objrw.get());
