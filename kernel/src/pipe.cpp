@@ -64,6 +64,51 @@ public:
     list_entry flushable_le;
 };
 
+class named_duplex_pipe_client : public chardev {
+public:
+    named_duplex_pipe_client(pipe& recv_pipe, pipe& send_pipe) : recv_pipe(recv_pipe), send_pipe(send_pipe) {
+        recv_pipe.acquire();
+        send_pipe.acquire();
+    }
+
+    ~named_duplex_pipe_client() {
+        recv_pipe.release();
+        send_pipe.release();
+    }
+
+    NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) override {
+        return recv_pipe.read(s, read_bytes);
+    }
+
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
+        return send_pipe.write(s, written_bytes);
+    }
+
+    pipe& recv_pipe;
+    pipe& send_pipe;
+};
+
+class named_duplex_pipe_server : public chardev {
+public:
+    named_duplex_pipe_server(named_duplex_pipe_client& client) : client(client) {
+        client.acquire();
+    }
+
+    ~named_duplex_pipe_server() {
+        client.release();
+    }
+
+    NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) override {
+        return client.send_pipe.read(s, read_bytes);
+    }
+
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
+        return client.recv_pipe.write(s, written_bytes);
+    }
+
+    named_duplex_pipe_client& client;
+};
+
 static spinlock flushable_pipes_lock;
 static list_entry flushable_pipes = { &flushable_pipes, &flushable_pipes };
 
@@ -421,18 +466,45 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
     }
 
     // FIXME - pipe size
-    auto pptr = new pipe(1);
-    if (!pptr) {
+    auto pptr_recv = new pipe(1);
+    if (!pptr_recv) {
         print("new failed\n");
         free(name);
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    pptr->exclusive = false;
+    auto obj = object_ref{*pptr_recv};
 
-    auto obj = object_ref{*pptr};
+    // FIXME - pipe size
+    auto pptr_send = new pipe(1);
+    if (!pptr_send) {
+        print("new failed\n");
+        free(name);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
 
-    status = name_object(obj.get(), string_view(name + dev_prefix.size(), namelen - dev_prefix.size()),
+    auto obj2 = object_ref{*pptr_send};
+
+    auto pptr_client = new named_duplex_pipe_client(*pptr_recv, *pptr_send);
+    if (!pptr_client) {
+        print("new failed\n");
+        free(name);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj3 = object_ref{*pptr_client};
+
+    auto pptr_server = new named_duplex_pipe_server(*pptr_client);
+
+    if (!pptr_server) {
+        print("new failed\n");
+        free(name);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj4 = object_ref{*pptr_server};
+
+    status = name_object(*pptr_client, string_view(name + dev_prefix.size(), namelen - dev_prefix.size()),
                          false);
     if (!success(status)) {
         print("name_object returned {}\n", status);
@@ -444,7 +516,7 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     handle_t h;
 
-    status = t->proc->add_handle(obj.get(), desired_access, true, h, true);
+    status = t->proc->add_handle(*pptr_server, desired_access, true, h, true);
     if (!success(status))
         return status;
 
