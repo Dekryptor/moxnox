@@ -34,26 +34,6 @@ public:
 
     void clear() override;
 
-    void last_server_handle_closed() override {
-        sync_lock sl;
-        lock_guard l(sl);
-        lock_guard l2(lock);
-
-        if (server_closed)
-            return;
-
-        server_closed = true;
-
-        if (!not_full_event.signalled)
-            not_full_event.set_holding_sync_lock();
-
-        if (!signalled) {
-            signalled = true;
-
-            wake_up_waiters(waiters);
-        }
-    }
-
     uint8_t* buf;
     unsigned int buf_pages;
     size_t buf_unread = 0;
@@ -567,7 +547,7 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     handle_t h;
 
-    status = t->proc->add_handle(*pptr_server, desired_access, true, h, true);
+    status = t->proc->add_handle(*pptr_server, desired_access, true, h);
     if (!success(status))
         return status;
 

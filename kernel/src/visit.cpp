@@ -193,21 +193,6 @@ export bool object_is_exclusive(object& obj) {
     return ret;
 }
 
-export void object_new_server_handle(object& obj) {
-    visit_obj(obj, [&](auto&& o) {
-        if constexpr (has_server_handles<remove_reference_t<decltype(o)>>)
-            o.server_handle_count++;
-    });
-}
-
-export void object_server_handle_closed(object& obj) {
-    visit_obj(obj, [&](auto&& o) {
-        if constexpr (has_server_handles<remove_reference_t<decltype(o)>>)
-            if (--o.server_handle_count == 0)
-                o.last_server_handle_closed();
-    });
-}
-
 export sync_object& object_get_sync_object(object& obj) {
     sync_object* so = nullptr;
 

@@ -30,13 +30,12 @@ public:
     void terminate();
     void resume();
     nt_status add_handle(object& obj, uint32_t access_mask, bool allow_shared,
-                        handle_t& h, bool server_handle = false);
+                        handle_t& h);
     NTSTATUS allocate_vm(void** base_address, uintptr_t zero_bits, size_t* region_size,
                          uint32_t allocation_type, enum mapping_type protect);
     NTSTATUS free_vm(void** base_address, size_t* region_size, uint32_t free_type);
     object_ref deref_handle(handle_t h);
     object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask);
-    bool is_server_handle(handle_t h);
     NTSTATUS close_handle(handle_t h);
     NTSTATUS map_view_of_section(section& sect, void** base_address,
                                  uintptr_t zero_bits, size_t commit_size,

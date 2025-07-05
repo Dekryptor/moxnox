@@ -1209,7 +1209,7 @@ void process::terminate() {
         if (!obj)
             continue;
 
-        handle_closed(*obj, ho.server_handle);
+        handle_closed(*obj);
         object_release(*obj);
     }
 
@@ -1352,8 +1352,7 @@ NTSTATUS NtResumeProcess(HANDLE proc_handle) {
 }
 
 nt_status process::add_handle(object& obj, uint32_t access_mask,
-                              bool allow_shared, handle_t& h,
-                              bool server_handle) {
+                              bool allow_shared, handle_t& h) {
     // FIXME - reusing handles?
 
     if (obj.handle_count.fetch_add(1) > 0 && !allow_shared) {
@@ -1441,10 +1440,6 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
         auto& ho = handle_arr[h - 1];
         ho.obj = &obj;
         ho.access_mask = access_mask;
-        ho.server_handle = server_handle;
-
-        if (server_handle)
-            object_new_server_handle(obj);
     }
 
     object_acquire(obj);
@@ -2123,23 +2118,6 @@ object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
     return *ho.obj;
 }
 
-bool process::is_server_handle(handle_t h) {
-    if (h == NtCurrentProcess())
-        return false;
-
-    lock_guard lock(handle_lock);
-
-    if (h == 0 || h > no_handles)
-        return false;
-
-    auto& ho = handle_arr[h - 1];
-
-    if (!ho.obj)
-        return false;
-
-    return ho.server_handle;
-}
-
 static uint32_t get_page_protection(process& proc, uint64_t va) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
@@ -2343,7 +2321,6 @@ NTSTATUS process::close_handle(handle_t h) {
         return nt_status::INVALID_HANDLE;
 
     object* obj;
-    bool server_handle;
 
     {
         lock_guard lock(handle_lock);
@@ -2357,7 +2334,6 @@ NTSTATUS process::close_handle(handle_t h) {
             return nt_status::INVALID_HANDLE;
 
         obj = ho.obj;
-        server_handle = ho.server_handle;
 
         ho.obj = nullptr;
 
@@ -2365,7 +2341,7 @@ NTSTATUS process::close_handle(handle_t h) {
             no_handles--;
     }
 
-    handle_closed(*obj, server_handle);
+    handle_closed(*obj);
     object_release(*obj);
 
     return nt_status::SUCCESS;
@@ -2582,8 +2558,7 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
     auto& obj = objrw.get();
 
     handle_t h;
-    auto status = destproc->add_handle(obj, desired_access, true, h,
-                                       srcproc->is_server_handle(source_handle));
+    auto status = destproc->add_handle(obj, desired_access, true, h);
 
     if (!success(status))
         return status;

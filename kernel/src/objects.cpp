@@ -94,13 +94,6 @@ concept has_exclusive_field = is_same_v<decltype(T::exclusive), bool>;
 
 export
 template<typename T>
-concept has_server_handles = is_same_v<decltype(T::server_handle_count), atomic<unsigned int>> &&
-    requires(T t) {
-        { t.last_server_handle_closed() };
-    };
-
-export
-template<typename T>
 concept has_get_sync_object = requires(T t) {
     { t.get_sync_object() } -> same_as<sync_object&>;
 };
