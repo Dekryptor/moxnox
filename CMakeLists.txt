@@ -44,6 +44,10 @@ add_library(rbtree_sse STATIC)
 target_sources(rbtree_sse PUBLIC FILE_SET CXX_MODULES FILES modules/rbtree.cpp)
 target_compile_options(rbtree_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
 
+add_library(unique_handle STATIC)
+target_sources(unique_handle PUBLIC FILE_SET CXX_MODULES FILES modules/unique_handle.cpp)
+target_compile_options(unique_handle PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+
 add_subdirectory(kernel)
 add_subdirectory(bootloader)
 add_subdirectory(init)
