@@ -249,7 +249,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
             return nt_status::INVALID_PARAMETER;
         }
 
-        auto& so = static_cast<sync_object&>(obj);
+        auto& so = object_get_sync_object(obj);
 
         if (so.signalled) {
             object_on_wake(obj);
@@ -502,7 +502,7 @@ static nt_status wait_for_objects(span<object*> objects, bool wait_any,
     if (wait_any) {
         for (unsigned int i = 0; i < objects.size(); i++) {
             auto& obj = *objects[i];
-            auto& so = static_cast<sync_object&>(obj);
+            auto& so = object_get_sync_object(obj);
 
             if (so.signalled) {
                 object_on_wake(obj);
@@ -516,7 +516,7 @@ static nt_status wait_for_objects(span<object*> objects, bool wait_any,
         unsigned int signalled_count = 0;
 
         for (auto* obj : objects) {
-            auto& so = static_cast<sync_object&>(*obj);
+            auto& so = object_get_sync_object(*obj);
 
             if (so.signalled)
                 signalled_count++;
@@ -557,7 +557,7 @@ static nt_status wait_for_objects(span<object*> objects, bool wait_any,
     for (size_t i = 0; i < objects.size(); i++) {
         auto ent = new (&mwb->entries[i]) waiter_object_multiple;
 
-        auto& so = static_cast<sync_object&>(*objects[i]);
+        auto& so = object_get_sync_object(*objects[i]);
 
         insert_tail_list(so.waiters, ent->wait_le);
 

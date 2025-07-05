@@ -84,6 +84,10 @@ public:
         return send_pipe.write(s, written_bytes);
     }
 
+    sync_object& get_sync_object() override {
+        return recv_pipe;
+    }
+
     pipe& recv_pipe;
     pipe& send_pipe;
 };
@@ -99,21 +103,15 @@ public:
     }
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
-        auto ret = client.send_pipe.read(s, read_bytes);
-
-        {
-            sync_lock sl;
-            lock_guard l(sl);
-
-            if (client.send_pipe.buf_unread == 0)
-                signalled = false;
-        }
-
-        return ret;
+        return client.send_pipe.read(s, read_bytes);
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
         return client.recv_pipe.write(s, written_bytes);
+    }
+
+    sync_object& get_sync_object() override {
+        return client.send_pipe;
     }
 
     named_duplex_pipe_client& client;

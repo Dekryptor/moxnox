@@ -87,6 +87,8 @@ export bool object_is_sync_object(object& obj) {
     visit_obj(obj, [&](auto&& o) {
         if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
             ret = true;
+        else if constexpr (has_get_sync_object<remove_reference_t<decltype(o)>>)
+            ret = true;
     });
 
     return ret;
@@ -204,4 +206,17 @@ export void object_server_handle_closed(object& obj) {
             if (--o.server_handle_count == 0)
                 o.last_server_handle_closed();
     });
+}
+
+export sync_object& object_get_sync_object(object& obj) {
+    sync_object* so = nullptr;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (has_get_sync_object<remove_reference_t<decltype(o)>>)
+            so = &o.get_sync_object();
+        else if constexpr (is_sync_object<remove_reference_t<decltype(o)>>)
+            so = &static_cast<sync_object&>(o);
+    });
+
+    return *so;
 }
