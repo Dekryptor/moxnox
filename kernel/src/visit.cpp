@@ -220,3 +220,10 @@ export sync_object& object_get_sync_object(object& obj) {
 
     return *so;
 }
+
+export void object_last_handle_closed(object& obj) {
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (has_last_handle_closed<remove_reference_t<decltype(o)>>)
+            o.last_handle_closed();
+    });
+}

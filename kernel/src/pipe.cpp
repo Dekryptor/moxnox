@@ -24,12 +24,12 @@ public:
     pipe(unsigned int buffer_pages);
     virtual ~pipe();
 
-    NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) override;
+    NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) override;
 
-    NTSTATUS write(std::span<const uint8_t> s, uint64_t& written_bytes) override;
+    NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
-    NTSTATUS write(std::string_view sv, uint64_t& written_bytes) {
-        return write(std::span((uint8_t*)sv.data(), sv.length()), written_bytes);
+    NTSTATUS write(string_view sv, uint64_t& written_bytes) {
+        return write(span((uint8_t*)sv.data(), sv.length()), written_bytes);
     }
 
     void clear() override;
@@ -77,19 +77,55 @@ public:
     }
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
-        return recv_pipe.read(s, read_bytes);
+        auto ret = recv_pipe.read(s, read_bytes);
+
+        if (disconnected && read_bytes == 0) {
+            lock_guard l(recv_pipe.lock);
+
+            if (recv_pipe.buf_unread == 0)
+                return nt_status::PIPE_DISCONNECTED;
+        }
+
+        return ret;
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
-        return send_pipe.write(s, written_bytes);
+        if (disconnected)
+            return nt_status::PIPE_DISCONNECTED;
+
+        auto ret = send_pipe.write(s, written_bytes);
+
+        if (disconnected)
+            return nt_status::PIPE_DISCONNECTED;
+
+        return ret;
     }
 
     sync_object& get_sync_object() override {
         return recv_pipe;
     }
 
+    void server_disconnected() {
+        sync_lock sl;
+        lock_guard l(sl);
+
+        disconnected = true;
+
+        send_pipe.readonly = true;
+
+        if (!send_pipe.not_full_event.signalled)
+            send_pipe.not_full_event.set_holding_sync_lock();
+
+        if (!recv_pipe.signalled) {
+            recv_pipe.signalled = true;
+
+            wake_up_waiters(recv_pipe.waiters);
+        }
+    }
+
     pipe& recv_pipe;
     pipe& send_pipe;
+    bool disconnected = false;
 };
 
 class named_duplex_pipe_server : public chardev {
@@ -112,6 +148,10 @@ public:
 
     sync_object& get_sync_object() override {
         return client.send_pipe;
+    }
+
+    void last_handle_closed() override {
+        client.server_disconnected();
     }
 
     named_duplex_pipe_client& client;
@@ -268,6 +308,9 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
             break;
 
         if (server_closed)
+            break;
+
+        if (readonly)
             break;
     } while (true);
 

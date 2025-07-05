@@ -131,6 +131,9 @@ void handle_closed(object& obj, bool server_handle) {
     if (server_handle)
         object_server_handle_closed(obj);
 
+    if (new_handle_count == 0)
+        object_last_handle_closed(obj);
+
     if (obj.named && !obj.persistent && new_handle_count == 0) {
         name_entry* ne = nullptr;
 

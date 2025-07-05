@@ -104,3 +104,9 @@ template<typename T>
 concept has_get_sync_object = requires(T t) {
     { t.get_sync_object() } -> same_as<sync_object&>;
 };
+
+export
+template<typename T>
+concept has_last_handle_closed = requires(T t) {
+    { t.last_handle_closed() };
+};

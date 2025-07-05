@@ -50,6 +50,9 @@ public:
         return *this;
     }
 
+    virtual void last_handle_closed() {
+    }
+
     bool exclusive = true;
     bool readonly = false;
     atomic<unsigned int> server_handle_count = 0;
@@ -62,3 +65,4 @@ static_assert(has_ioctls<chardev>);
 static_assert(has_exclusive_field<chardev>);
 static_assert(has_server_handles<chardev>);
 static_assert(has_get_sync_object<chardev>);
+static_assert(has_last_handle_closed<chardev>);
