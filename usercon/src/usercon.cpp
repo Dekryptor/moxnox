@@ -38,10 +38,24 @@ struct font_info {
     rbtree_node<FT_UInt>* glyphs = nullptr; // FIXME - destructor for this
 };
 
+struct console_cell {
+    hb_glyph_position_t pos;
+    FT_UInt glyph;
+};
+
+struct console_line {
+    char* text = nullptr;
+    size_t len = 0;
+    unsigned int num_cells = 0;
+    console_cell cells[0];
+};
+
 static FT_Library ft;
 static font_info font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
+static unsigned int console_width, console_height;
+static console_line* curline = nullptr;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -261,6 +275,21 @@ static bool init_font(span<const uint8_t> buf) {
         return false;
     }
 
+    console_width = 20; // FIXME
+    console_height = 5; // FIXME
+
+    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_width);
+
+    curline = (console_line*)malloc(line_size);
+    if (!curline) {
+        print("malloc failed\n");
+        FT_Done_Face(font.face);
+        FT_Done_FreeType(ft);
+        return false;
+    }
+
+    new (curline) console_line;
+
     return true;
 }
 
@@ -469,6 +498,7 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
     }
 }
 
+#if 0
 static void test_print(string_view msg) {
     NTSTATUS status;
     IO_STATUS_BLOCK iosb;
@@ -511,6 +541,7 @@ static void test_print(string_view msg) {
         return;
     }
 }
+#endif
 
 class unique_handle {
 public:
@@ -564,27 +595,86 @@ private:
     HANDLE h;
 };
 
-static void do_print(string_view s) {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    NTSTATUS status;
+static void print_line(console_line& line, unsigned int sx, unsigned int sy) {
+    double x = sx, y = sy;
+
+    for (unsigned int i = 0; i < line.num_cells; i++) {
+        double x_advance = line.cells[i].pos.x_advance / 64.0;
+        double y_advance = line.cells[i].pos.y_advance / 64.0;
+        double x_offset = line.cells[i].pos.x_offset / 64.0;
+        double y_offset = line.cells[i].pos.y_offset / 64.0;
+
+        draw_ft_char(line.cells[i].glyph, (unsigned int)(x + x_offset),
+                     (unsigned int)(y + y_offset));
+
+        x += x_advance;
+        y += y_advance;
+    }
+
+    // flush FB
+    void* flush_addr = framebuffer.data();
+    size_t flush_size = framebuffer.size_bytes();
     IO_STATUS_BLOCK iosb;
 
-    while (true) {
-        status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0, nullptr,
-                             nullptr, &iosb, s.data(), (uint32_t)s.size(),
-                             nullptr, nullptr);
-        if (!success(status)) {
-            print("NtWriteFile returned {}\n", status);
+    auto status = NtFlushVirtualMemory(NtCurrentProcess(), &flush_addr,
+                                       &flush_size, &iosb);
+    if (!success(status)) {
+        print("NtFlushVirtualMemory returned {}\n", status);
+        return;
+    }
+}
+
+static void do_print(string_view s) {
+    // FIXME - handle partial UTF-8 characters
+
+    // append to existing buffer
+
+    {
+        auto t = (char*)malloc(curline->len + s.size());
+        if (!t) {
+            print("malloc failed\n");
             return;
         }
 
-        if (iosb.Information >= s.size())
-            break;
+        if (curline->len != 0)
+            memcpy(t, curline->text, curline->len);
 
-        s = string_view(s.data() + iosb.Information,
-                        s.size() - iosb.Information);
+        memcpy(t + curline->len, s.data(), s.size());
+
+        if (curline->text)
+            free(curline->text);
+
+        curline->text = t;
+        curline->len += s.size();
     }
+
+    // lay out using harfbuzz
+
+    {
+        // FIXME - keep HB buffer around?
+        auto buf = hb_buffer_create();
+        hb_buffer_add_utf8(buf, curline->text, (int)curline->len, 0, -1);
+        hb_buffer_guess_segment_properties(buf);
+
+        hb_shape(font.hb_font, buf, nullptr, 0);
+
+        auto len = hb_buffer_get_length(buf);
+        auto info = hb_buffer_get_glyph_infos(buf, nullptr);
+        auto pos = hb_buffer_get_glyph_positions(buf, nullptr);
+
+        // FIXME - new line once we get to console_width, or on newline
+
+        curline->num_cells = len;
+        for (unsigned int i = 0; i < len; i++) {
+            curline->cells[i].pos = pos[i];
+            curline->cells[i].glyph = info[i].codepoint;
+        }
+
+        hb_buffer_destroy(buf);
+    }
+
+    // print to FB
+    print_line(*curline, 0, 60); // FIXME - and other changed lines
 }
 
 static void test_run(u16string_view exe, u16string_view cmdline) {
@@ -926,7 +1016,7 @@ static int _main() {
         return 1;
     }
 
-    test_print("hello world");
+    // test_print("hello world");
 
     test_run(u"\\echo.exe", u"echo.exe hello world");
 
