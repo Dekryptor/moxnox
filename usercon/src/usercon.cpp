@@ -45,6 +45,11 @@ struct console_cell {
 };
 
 struct console_line {
+    ~console_line() {
+        if (text)
+            free(text);
+    }
+
     char* text = nullptr;
     size_t len = 0;
     unsigned int num_cells = 0;
@@ -628,7 +633,7 @@ static void do_print(string_view s) {
 
 static void test_run(u16string_view exe, u16string_view cmdline) {
     HANDLE h, stdinh = 0, stdouth, curdirh = 0;
-    unique_handle read_handle, write_handle, file, sect, proc, thread;
+    unique_handle server_handle, client_handle, file, sect, proc, thread;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
@@ -654,22 +659,23 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
-    status = NtCreateNamedPipeFile(&h, FILE_READ_DATA, &oa, &iosb, 0,
-                                   FILE_CREATE, 0, 1, 0, 0, 0, 0, 0, nullptr);
+    status = NtCreateNamedPipeFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa,
+                                   &iosb, 0, FILE_CREATE, 0, 1, 0, 0, 0, 0, 0,
+                                   nullptr);
     if (!success(status)) {
         print("NtCreateNamedPipeFile returned {}\n", status);
         return;
     }
 
-    read_handle.reset(h);
+    server_handle.reset(h);
 
-    status = NtOpenFile(&h, FILE_WRITE_DATA, &oa, &iosb, 0, 0);
+    status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
     if (!success(status)) {
         print("NtOpenFile returned {}\n", status);
         return;
     }
 
-    write_handle.reset(h);
+    client_handle.reset(h);
 
     // open file
 
@@ -729,20 +735,18 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
     // duplicate handles
 
-    if (peb->ProcessParameters->StandardInput) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardInput,
-                                   proc.get(), &stdinh, 0, 0,
-                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    status = NtDuplicateObject(NtCurrentProcess(), client_handle.get(),
+                               proc.get(), &stdinh, FILE_READ_DATA, 0,
+                               DUPLICATE_SAME_ATTRIBUTES);
 
-        if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
-            return;
-        }
+    if (!success(status)) {
+        print("NtDuplicateObject returned {}\n", status);
+        return;
     }
 
-    status = NtDuplicateObject(NtCurrentProcess(), write_handle.get(),
-                               proc.get(), &stdouth, 0, 0,
-                               DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    status = NtDuplicateObject(NtCurrentProcess(), client_handle.get(),
+                               proc.get(), &stdouth, FILE_WRITE_DATA, 0,
+                               DUPLICATE_SAME_ATTRIBUTES);
 
     if (!success(status)) {
         print("NtDuplicateObject returned {}\n", status);
@@ -900,12 +904,14 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
     NtResumeThread(thread.get(), nullptr);
 
-    do {
-        array<HANDLE, 2> objs;
-        char s[255];
+    bool proc_finished = false;
 
-        objs[0] = read_handle.get();
+    do {
+        array<HANDLE, 3> objs;
+
+        objs[0] = server_handle.get();
         objs[1] = proc.get();
+        objs[2] = peb->ProcessParameters->StandardInput;
 
         status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                           true, nullptr);
@@ -917,26 +923,76 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
             return;
         }
 
-        if (status == nt_status::SUCCESS) {
-            // print pipe data
+        switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
+            case 0: {
+                char s[255];
 
-            status = NtReadFile(read_handle.get(), 0, nullptr, nullptr, &iosb, s,
-                                sizeof(s), nullptr, nullptr);
-            if (status == nt_status::ALERTED)
-                continue;
-            else if (!success(status)) {
-                print("NtReadFile returned {}\n", status);
-                return;
+                // print pipe data
+
+                status = NtReadFile(server_handle.get(), 0, nullptr, nullptr,
+                                    &iosb, s, sizeof(s), nullptr, nullptr);
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    return;
+                }
+
+                do_print(string_view(s, iosb.Information));
+                break;
             }
 
-            do_print(string_view(s, iosb.Information));
-        } else if (status == (enum nt_status)((unsigned int)nt_status::SUCCESS + 1)) {
-            // process terminated
+            case 1: {
+                // process terminated
 
-            // FIXME - make sure pipe is empty? (Wait on pipe with 0 timeout?)
+                // FIXME - make sure pipe is empty? (Wait on pipe with 0 timeout?)
+                proc_finished = true;
 
-            break;
+                break;
+            }
+
+            case 2: {
+                char buf[1024];
+
+                // forward data on stdin
+
+                status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
+                                    nullptr, nullptr, &iosb, buf, sizeof(buf),
+                                    nullptr, nullptr);
+
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    return;
+                }
+
+                string_view read(buf, iosb.Information);
+
+                while (!read.empty()) {
+                    status = NtWriteFile(server_handle.get(), 0, nullptr, nullptr,
+                                         &iosb, read.data(), (uint32_t)read.size(),
+                                         nullptr, nullptr);
+                    if (status == nt_status::ALERTED)
+                        continue;
+                    else if (!success(status)) {
+                        print("NtWriteFile returned {}\n", status);
+                        return;
+                    }
+
+                    if (iosb.Information >= read.size())
+                        break;
+
+                    read = string_view(read.data() + iosb.Information,
+                                       read.size() - iosb.Information);
+                }
+
+                break;
+            }
         }
+
+        if (proc_finished)
+            break;
     } while (true);
 }
 
@@ -967,7 +1023,7 @@ static int _main() {
 
     // test_print("hello world");
 
-    test_run(u"\\echo.exe", u"echo.exe hello world");
+    test_run(u"\\shell.exe", u"shell.exe");
 
     // FIXME
 
