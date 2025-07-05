@@ -76,7 +76,7 @@ public:
         send_pipe.release();
     }
 
-    NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) override {
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
         return recv_pipe.read(s, read_bytes);
     }
 
@@ -98,8 +98,18 @@ public:
         client.release();
     }
 
-    NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) override {
-        return client.send_pipe.read(s, read_bytes);
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
+        auto ret = client.send_pipe.read(s, read_bytes);
+
+        {
+            sync_lock sl;
+            lock_guard l(sl);
+
+            if (client.send_pipe.buf_unread == 0)
+                signalled = false;
+        }
+
+        return ret;
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
