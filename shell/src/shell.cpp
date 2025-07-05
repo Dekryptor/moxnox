@@ -15,6 +15,7 @@ import shelllib;
 import format;
 import print;
 import unicode;
+import unique_handle;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;
@@ -45,7 +46,8 @@ void free(void* ptr) {
 static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                         string_view cmdline) {
     NTSTATUS status;
-    HANDLE proc, thread;
+    unique_handle proc, thread;
+    HANDLE h;
     CLIENT_ID client_id;
     CONTEXT context;
     INITIAL_TEB initial_teb;
@@ -59,85 +61,84 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     // create process
 
-    status = NtCreateProcess(&proc, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(), false, sect,
-                             0, 0);
-
-    NtClose(sect);
+    status = NtCreateProcess(&h, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(),
+                             false, sect, 0, 0);
 
     if (!success(status)) {
         print("NtCreateProcess returned {}\n", status);
         return;
     }
 
+    proc.reset(h);
+
     // duplicate handles
 
     if (peb->ProcessParameters->StandardInput) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardInput, proc,
-                                   &stdinh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardInput,
+                                   proc.get(), &stdinh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
             print("NtDuplicateObject returned {}\n", status);
-            NtClose(proc);
             return;
         }
     }
 
     if (peb->ProcessParameters->StandardOutput) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardOutput, proc,
-                                   &stdouth, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardOutput,
+                                   proc.get(), &stdouth, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
             print("NtDuplicateObject returned {}\n", status);
-            NtClose(proc);
             return;
         }
     }
 
     if (peb->ProcessParameters->StandardError) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardError, proc,
-                                   &stderrh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardError,
+                                   proc.get(), &stderrh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
             print("NtDuplicateObject returned {}\n", status);
-            NtClose(proc);
             return;
         }
     }
 
     if (peb->ProcessParameters->CurrentDirectory.Handle) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle, proc,
-                                   &curdirh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle,
+                                   proc.get(), &curdirh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
             print("NtDuplicateObject returned {}\n", status);
-            NtClose(proc);
             return;
         }
     }
 
     // take copy of PEB
 
-    status = NtQueryInformationProcess(proc, PROCESSINFOCLASS::BasicInformation, &pbi, sizeof(pbi),
-                                       nullptr);
+    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
         print("NtQueryInformationProcess returned {}\n", status);
-        NtClose(proc);
         return;
     }
 
-    status = NtReadVirtualMemory(proc, pbi.PebBaseAddress, &newpeb, sizeof(PEB), nullptr);
+    status = NtReadVirtualMemory(proc.get(), pbi.PebBaseAddress, &newpeb,
+                                 sizeof(PEB), nullptr);
     if (!success(status)) {
         print("NtReadVirtualMemory returned {}\n", status);
-        NtClose(proc);
         return;
     }
 
     // take copy of ProcessParameters
 
-    status = NtReadVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
+    status = NtReadVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
+                                 sizeof(params), nullptr);
     if (!success(status)) {
         print("NtReadVirtualMemory returned {}\n", status);
-        NtClose(proc);
         return;
     }
 
@@ -153,12 +154,11 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
                                                  peb->ProcessParameters->CurrentDirectory.DosPath.Length);
 
-    status = NtWriteVirtualMemory(proc, params.CurrentDirectory.DosPath.Buffer,
+    status = NtWriteVirtualMemory(proc.get(), params.CurrentDirectory.DosPath.Buffer,
                                   peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
                                   params.CurrentDirectory.DosPath.Length, nullptr);
     if (!success(status)) {
         print("NtWriteVirtualMemory returned {}\n", status);
-        NtClose(proc);
         return;
     }
 
@@ -174,7 +174,6 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     auto misc_block = (uint8_t*)malloc(misc_block_size);
     if (!misc_block) {
         print("malloc failed\n");
-        NtClose(proc);
         return;
     }
 
@@ -183,12 +182,12 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     void* proc_misc_block = nullptr;
     size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
 
-    status = NtAllocateVirtualMemory(proc, &proc_misc_block, 0, &proc_misc_block_size,
-                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    status = NtAllocateVirtualMemory(proc.get(), &proc_misc_block, 0,
+                                     &proc_misc_block_size, MEM_COMMIT | MEM_RESERVE,
+                                     PAGE_READWRITE);
     if (!success(status)) {
         print("NtAllocateVirtualMemory returned {}\n", status);
         free(misc_block);
-        NtClose(proc);
         return;
     }
 
@@ -202,12 +201,11 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     // copy misc block
 
-    status = NtWriteVirtualMemory(proc, proc_misc_block, misc_block,
+    status = NtWriteVirtualMemory(proc.get(), proc_misc_block, misc_block,
                                   (uint32_t)misc_block_size, nullptr);
     if (!success(status)) {
         print("NtWriteVirtualMemory returned {}\n", status);
         free(misc_block);
-        NtClose(proc);
         return;
     }
 
@@ -215,10 +213,9 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     // write ProcessParameters back
 
-    status = NtWriteVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
+    status = NtWriteVirtualMemory(proc.get(), newpeb.ProcessParameters, &params, sizeof(params), nullptr);
     if (!success(status)) {
         print("NtWriteVirtualMemory returned {}\n", status);
-        NtClose(proc);
         return;
     }
 
@@ -229,11 +226,10 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     void* stack = nullptr;
     size_t stack_size = 0x100000;
 
-    status = NtAllocateVirtualMemory(proc, &stack, 0, &stack_size,
+    status = NtAllocateVirtualMemory(proc.get(), &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
         print("NtAllocateVirtualMemory returned {}\n", status);
-        NtClose(proc);
         return;
     }
 
@@ -249,14 +245,15 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     context.EFlags = 0x200;
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
 
-    status = NtCreateThread(&thread, THREAD_ALL_ACCESS, nullptr, proc, &client_id, &context,
-                            &initial_teb, true);
+    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc.get(),
+                            &client_id, &context, &initial_teb, true);
 
     if (!success(status)) {
         print("NtCreateThread returned {}\n", status);
-        NtClose(proc);
         return;
     }
+
+    thread.reset(h);
 
     // mark as foreground process
     status = NtDeviceIoControlFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr,
@@ -264,19 +261,16 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                    &proc, sizeof(proc), nullptr, 0);
     auto set_fg = success(status);
 
-    NtResumeThread(thread, nullptr);
-
-    NtClose(thread);
+    NtResumeThread(thread.get(), nullptr);
 
     do {
-        status = NtWaitForSingleObject(proc, true, nullptr);
+        status = NtWaitForSingleObject(proc.get(), true, nullptr);
 
         if (status == nt_status::ALERTED)
             continue;
 
         if (!success(status)) {
             print("NtWaitForSingleObject returned {}\n", status);
-            NtClose(proc);
             return;
         }
 
@@ -293,12 +287,9 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
         if (!success(status)) {
             print("NtDeviceIoControlFile returned {}\n", status);
-            NtClose(proc);
             return;
         }
     }
-
-    NtClose(proc);
 }
 
 static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
@@ -410,7 +401,8 @@ static void try_run_program(string_view program, string_view cmdline) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
-    HANDLE file, sect;
+    HANDLE h;
+    unique_handle file, sect;
     IO_STATUS_BLOCK iosb;
     SECTION_IMAGE_INFORMATION sii;
 
@@ -437,9 +429,8 @@ static void try_run_program(string_view program, string_view cmdline) {
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
-    status = NtCreateFile(&file, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
+    status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
                           FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
-
     free(us.Buffer);
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
@@ -470,7 +461,7 @@ static void try_run_program(string_view program, string_view cmdline) {
 
             oa.ObjectName = &us;
 
-            status = NtCreateFile(&file, FILE_READ_DATA, &oa, &iosb, nullptr,
+            status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr,
                                   0, 0, FILE_OPEN, 0, nullptr, 0);
         }
     }
@@ -486,11 +477,12 @@ static void try_run_program(string_view program, string_view cmdline) {
         return;
     }
 
+    file.reset(h);
+
     // create section
 
-    status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, file);
-
-    NtClose(file);
+    status = NtCreateSection(&h, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE,
+                             file.get());
 
     if (status == nt_status::INVALID_IMAGE_FORMAT) {
         print("{}: not an executable\n", program); // FIXME - stderr
@@ -500,33 +492,27 @@ static void try_run_program(string_view program, string_view cmdline) {
         return;
     }
 
-    status = NtQuerySection(sect, SECTION_INFORMATION_CLASS::ImageInformation, &sii,
+    sect.reset(h);
+
+    status = NtQuerySection(sect.get(), SECTION_INFORMATION_CLASS::ImageInformation, &sii,
                             sizeof(SECTION_IMAGE_INFORMATION), nullptr);
 
     if (!success(status)) {
-        NtClose(sect);
-
         print("NtQuerySection returned {}\n", status); // FIXME - stderr
         return;
     }
 
     if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
-        NtClose(sect);
-
         print("{}: not an executable\n", program); // FIXME - stderr
         return;
     }
 
     if (sii.Machine != IMAGE_FILE_MACHINE_AMD64) {
-        NtClose(sect);
-
         print("{}: unsupported architecture\n", program); // FIXME - stderr
         return;
     }
 
-    run_program(sect, sii, cmdline);
-
-    NtClose(sect);
+    run_program(sect.get(), sii, cmdline);
 }
 
 static void int3() {
