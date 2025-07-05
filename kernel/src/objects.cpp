@@ -91,3 +91,10 @@ concept has_ioctls = requires(T t, uint32_t code, span<const uint8_t> inbuf, spa
 export
 template<typename T>
 concept has_exclusive_field = is_same_v<decltype(T::exclusive), bool>;
+
+export
+template<typename T>
+concept has_server_handles = is_same_v<decltype(T::server_handle_count), atomic<unsigned int>> &&
+    requires(T t) {
+        { t.last_server_handle_closed() };
+    };

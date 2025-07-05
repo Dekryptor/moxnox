@@ -57,6 +57,7 @@ static_assert(sizeof(guid) == 16);
 struct handle_obj {
     object* obj;
     uint32_t access_mask;
+    bool server_handle;
 };
 
 struct kernel_image {

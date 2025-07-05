@@ -43,8 +43,12 @@ public:
     virtual void clear() {
     }
 
+    virtual void last_server_handle_closed() {
+    }
+
     bool exclusive = true;
     bool readonly = false;
+    atomic<unsigned int> server_handle_count = 0;
 };
 
 static_assert(is_sync_object<chardev>);
@@ -52,3 +56,4 @@ static_assert(is_readable_object_without_offset<chardev>);
 static_assert(is_writable_object_without_offset<chardev>);
 static_assert(has_ioctls<chardev>);
 static_assert(has_exclusive_field<chardev>);
+static_assert(has_server_handles<chardev>);

@@ -34,10 +34,31 @@ public:
 
     void clear() override;
 
+    void last_server_handle_closed() override {
+        sync_lock sl;
+        lock_guard l(sl);
+        lock_guard l2(lock);
+
+        if (server_closed)
+            return;
+
+        server_closed = true;
+
+        if (!not_full_event.signalled)
+            not_full_event.set_holding_sync_lock();
+
+        if (!signalled) {
+            signalled = true;
+
+            wake_up_waiters(waiters);
+        }
+    }
+
     uint8_t* buf;
     unsigned int buf_pages;
     size_t buf_unread = 0;
     size_t buf_write_pos = 0;
+    bool server_closed = false;
     spinlock lock;
     event not_full_event;
     list_entry flushable_le;
@@ -126,6 +147,11 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
         return nt_status::MEDIA_WRITE_PROTECTED;
     }
 
+    if (server_closed) {
+        written_bytes = 0;
+        return nt_status::PIPE_DISCONNECTED;
+    }
+
     if (s.empty()) {
         written_bytes = 0;
         return nt_status::SUCCESS;
@@ -175,7 +201,7 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
             {
                 lock_guard l2(lock);
 
-                if (buf_unread == buf_pages << PAGE_SHIFT)
+                if (buf_unread == buf_pages << PAGE_SHIFT && !server_closed)
                     not_full_event.signalled = false;
             }
         }
@@ -186,6 +212,9 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
         // block while we wait for space to become available
 
         if (wait_for_object(not_full_event, true) == nt_status::ALERTED)
+            break;
+
+        if (server_closed)
             break;
     } while (true);
 
@@ -202,14 +231,22 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
         return nt_status::SUCCESS;
     }
 
+    optional<uint64_t> timeout;
+
     acquire();
     object_ref obj{*this}; // so refcount gets decreased on exit
 
-    auto status = wait_for_object(*this, true);
+    if (server_closed)
+        timeout = 0;
+
+    auto status = wait_for_object(*this, true, timeout);
 
     if (status == nt_status::ALERTED) {
         read_bytes = 0;
         return nt_status::SUCCESS;
+    } else if (status == nt_status::TIMEOUT) {
+        read_bytes = 0;
+        return nt_status::PIPE_DISCONNECTED;
     } else if (!success(status))
         return status;
 
@@ -407,7 +444,7 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     handle_t h;
 
-    status = t->proc->add_handle(obj.get(), desired_access, true, h);
+    status = t->proc->add_handle(obj.get(), desired_access, true, h, true);
     if (!success(status))
         return status;
 

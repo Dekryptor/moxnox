@@ -123,10 +123,13 @@ nt_status open_object(string_view name, object_ref& obj) {
     return nt_status::OBJECT_NAME_NOT_FOUND;
 }
 
-void handle_closed(object& obj) {
+void handle_closed(object& obj, bool server_handle) {
     auto new_handle_count = --obj.handle_count;
 
     // remove name if last handle closed
+
+    if (server_handle)
+        object_server_handle_closed(obj);
 
     if (obj.named && !obj.persistent && new_handle_count == 0) {
         name_entry* ne = nullptr;
