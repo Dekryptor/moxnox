@@ -433,6 +433,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "INSUFFICIENT_RESOURCES");
         case nt_status::MEDIA_WRITE_PROTECTED:
             return sp_strcpy(sp, "MEDIA_WRITE_PROTECTED");
+        case nt_status::PIPE_DISCONNECTED:
+            return sp_strcpy(sp, "PIPE_DISCONNECTED");
         case nt_status::FILE_IS_A_DIRECTORY:
             return sp_strcpy(sp, "FILE_IS_A_DIRECTORY");
         case nt_status::NOT_SUPPORTED:
