@@ -256,7 +256,7 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
 
 static bool init_font(span<const uint8_t> buf) {
     FT_Error error;
-    unsigned int font_size = 36; // FIXME
+    unsigned int font_size = 12; // FIXME - allow setting somehow
 
     error = FT_Init_FreeType(&ft); // FIXME - free
     if (error) {
@@ -566,8 +566,6 @@ static void flush_framebuffer() {
 }
 
 static void do_print(string_view s) {
-    // FIXME - handle partial UTF-8 characters
-
     // append to existing buffer
 
     {
@@ -672,6 +670,66 @@ static void do_print(string_view s) {
     }
 
     flush_framebuffer();
+}
+
+static void do_newline() {
+    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
+
+    auto nextline = (console_line*)malloc(line_size);
+    if (!nextline) {
+        print("malloc failed\n");
+        return;
+    }
+
+    new (nextline) console_line;
+
+    insert_tail_list(lines, nextline->le);
+    num_lines++;
+
+    if (num_lines > console_rows) {
+        auto& first = containing_record<console_line>(lines.next);
+
+        remove_entry_list(first.le);
+        delete &first;
+
+        num_lines--;
+    }
+
+    curline = nextline;
+}
+
+static void recv_data(string_view s) {
+    // FIXME - handle partial UTF-8 characters
+
+    // FIXME - \\b, VT-100 escape sequences
+    // FIXME - ignore other characters below 0x20
+
+    while (!s.empty() && s.front() == '\n') {
+        do_newline();
+        s = string_view(s.data() + 1, s.size() - 1);
+    }
+
+    while (true) {
+        bool again = false;
+
+        for (size_t i = 0; i < s.size(); i++) {
+            if (s[i] == '\n') {
+                if (i != 0)
+                    do_print(string_view(s.data(), i));
+
+                do_newline();
+                s = string_view(s.data() + i + 1, s.size() - i - 1);
+                again = true;
+                break;
+            }
+        }
+
+        if (!again)
+            break;
+    }
+
+    if (!s.empty())
+        do_print(s);
 }
 
 static void test_run(u16string_view exe, u16string_view cmdline) {
@@ -981,7 +1039,7 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
                     return;
                 }
 
-                do_print(string_view(s, iosb.Information));
+                recv_data(string_view(s, iosb.Information));
                 break;
             }
 
