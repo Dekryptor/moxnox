@@ -6,6 +6,7 @@ RtlCreateHeap
 RtlAllocateHeap
 RtlFreeHeap
 RtlDestroyHeap
+RtlReAllocateHeap
 memcmp
 memset
 memmove

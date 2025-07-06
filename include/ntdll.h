@@ -106,6 +106,8 @@ extern "C" {
 void* RtlCreateHeap(uint32_t flags, void* heap_base, size_t reserve_size, size_t commit_size,
                     void* lock, RTL_HEAP_PARAMETERS* parameters);
 void* RtlAllocateHeap(void* heap_handle, uint32_t flags, size_t size);
+void* RtlReAllocateHeap(void* heap_handle, uint32_t flags, void* ptr,
+                        size_t size);
 bool RtlFreeHeap(void* heap_handle, uint32_t flags, void* base_address);
 void* RtlDestroyHeap(void* heap_handle);
 

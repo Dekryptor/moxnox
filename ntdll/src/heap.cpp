@@ -4,6 +4,8 @@
 import print;
 import list;
 
+using namespace std;
+
 class subheap {
 public:
     subheap(size_t reserve_size, size_t commit_size);
@@ -21,6 +23,7 @@ public:
     heap(size_t reserve_size, size_t commit_size);
 
     void* allocate(uint32_t flags, size_t size);
+    void* reallocate(uint32_t flags, void* ptr, size_t size);
     bool free(uint32_t flags, void* base_address);
 
     list_entry subheaps = { &subheaps, &subheaps };
@@ -227,6 +230,33 @@ void* heap::allocate(uint32_t flags, size_t size) {
     return sh->allocate(flags, size);
 }
 
+void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
+    // FIXME - flags?
+
+    // FIXME - handle actual extending or shrinking
+
+    if (!ptr)
+        return allocate(flags, size);
+
+    if (size == 0) {
+        free(flags, ptr);
+        return nullptr;
+    }
+
+    auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
+    auto old_size = (size_t)ah->size;
+
+    auto ret = allocate(flags, size);
+    if (!ret)
+        return nullptr;
+
+    memcpy(ret, ptr, min(size, old_size));
+
+    free(flags, ptr);
+
+    return ret;
+}
+
 bool heap::free(uint32_t, void* base_address) {
     // FIXME - flags
 
@@ -296,6 +326,14 @@ void* RtlAllocateHeap(void* heap_handle, uint32_t flags, size_t size) {
     auto& h = *reinterpret_cast<heap*>(heap_handle);
 
     return h.allocate(flags, size);
+}
+
+extern "C"
+void* RtlReAllocateHeap(void* heap_handle, uint32_t flags, void* ptr,
+                        size_t size) {
+    auto& h = *reinterpret_cast<heap*>(heap_handle);
+
+    return h.reallocate(flags, ptr, size);
 }
 
 extern "C"
