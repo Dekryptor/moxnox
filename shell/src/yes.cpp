@@ -2,12 +2,30 @@
 #include <string_view>
 
 import shelllib;
+import print;
 
 using namespace std;
 
 extern "C"
 void startup() {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
+    char buf[2];
+
+    buf[0] = 'y';
+    buf[1] = '\n';
+
     while (true) {
-        print("y\n");
+        // FIXME - handle short writes
+
+        auto status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
+                                  nullptr, nullptr, &iosb, buf,
+                                  (uint32_t)sizeof(buf), nullptr, nullptr);
+        if (!success(status)) {
+            // FIXME - GCC ICEs here
+            // print("NtWriteFile returned {}\n", status); // FIXME - to stderr
+            break;
+        }
     }
 }
