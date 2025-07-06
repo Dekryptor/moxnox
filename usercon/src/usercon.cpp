@@ -586,7 +586,9 @@ static void print_line(console_line& line, unsigned int sx, unsigned int sy) {
         x += x_advance;
         y += y_advance;
     }
+}
 
+static void flush_framebuffer() {
     // flush FB
     void* flush_addr = framebuffer.data();
     size_t flush_size = framebuffer.size_bytes();
@@ -705,6 +707,8 @@ static void do_print(string_view s) {
         print_line(l, 0, y);
         y += font_height;
     }
+
+    flush_framebuffer();
 }
 
 static void test_run(u16string_view exe, u16string_view cmdline) {
