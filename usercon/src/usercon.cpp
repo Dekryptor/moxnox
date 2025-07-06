@@ -108,18 +108,7 @@ void* calloc(size_t nmemb, size_t size) {
 
 extern "C"
 void* realloc(void* ptr, size_t size) {
-    void* ret;
-
-    ret = malloc(size);
-    if (!ret)
-        return nullptr;
-
-    if (ptr) {
-        memcpy(ret, ptr, size);
-        free(ptr);
-    }
-
-    return ret;
+    return RtlReAllocateHeap(GetProcessHeap(), 0, ptr, size);
 }
 
 void* operator new(size_t count) {
@@ -297,12 +286,12 @@ static bool init_font(span<const uint8_t> buf) {
         return false;
     }
 
-    font_width = (unsigned int)(font.face->size->metrics.max_advance / 64);
+    font_width = (unsigned int)(font.face->size->metrics.max_advance / 64) + 1;
     font_height = (unsigned int)(font.face->size->metrics.height / 64);
     font_descender = (unsigned int)(-font.face->size->metrics.descender / 64);
 
-    console_cols = 20; // FIXME
-    console_rows = 5; // FIXME
+    console_cols = fb_info.width / font_width;
+    console_rows = fb_info.height / font_height;
 
     auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
 
@@ -527,7 +516,8 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
     }
 }
 
-static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h, uint32_t col) {
+static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
+                 uint32_t col) {
     auto dest = framebuffer.data() + (fb_info.pixels_per_scan_line * y) + x;
 
     for (unsigned int i = 0; i < h; i++) {
@@ -540,11 +530,12 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
     }
 }
 
-static void print_line(console_line& line, unsigned int sx, unsigned int sy) {
-    double x = sx, y = sy;
+static void print_line(console_line& line, unsigned int sy) {
+    double x = 0.0, y = sy;
 
     // FIXME - BG colours of cells
-    rect(sx, sy - font_height, console_cols * font_width, font_height, 0x000000);
+    rect(0, sy - font_height, min(fb_info.width, console_cols * font_width),
+         font_height, 0x000000);
 
     for (unsigned int i = 0; i < line.num_cells; i++) {
         double x_advance = line.cells[i].pos.x_advance / 64.0;
@@ -676,7 +667,7 @@ static void do_print(string_view s) {
     for (auto le = lines.next; le != &lines; le = le->next) {
         auto& l = containing_record<console_line>(le);
 
-        print_line(l, 0, y);
+        print_line(l, y);
         y += font_height;
     }
 
@@ -1065,6 +1056,9 @@ static int _main() {
         print("init_font failed\n");
         return 1;
     }
+
+    rect(0, 0, fb_info.width, fb_info.height, 0x000000);
+    flush_framebuffer();
 
     test_run(u"\\shell.exe", u"shell.exe");
 
