@@ -62,7 +62,7 @@ static FT_Library ft;
 static font_info font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
-static unsigned int font_width, font_height;
+static unsigned int font_width, font_height, font_descender;
 static unsigned int console_cols, console_rows;
 static console_line* curline = nullptr;
 static list_entry lines = { &lines, &lines };
@@ -299,6 +299,7 @@ static bool init_font(span<const uint8_t> buf) {
 
     font_width = (unsigned int)(font.face->size->metrics.max_advance / 64);
     font_height = (unsigned int)(font.face->size->metrics.height / 64);
+    font_descender = (unsigned int)(-font.face->size->metrics.descender / 64);
 
     console_cols = 20; // FIXME
     console_rows = 5; // FIXME
@@ -526,53 +527,24 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
     }
 }
 
-#if 0
-static void test_print(string_view msg) {
-    NTSTATUS status;
-    IO_STATUS_BLOCK iosb;
-    void* flush_addr;
-    size_t flush_size;
+static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h, uint32_t col) {
+    auto dest = framebuffer.data() + (fb_info.pixels_per_scan_line * y) + x;
 
-    auto buf = hb_buffer_create();
-    hb_buffer_add_utf8(buf, msg.data(), (int)msg.size(), 0, -1);
-    hb_buffer_guess_segment_properties(buf);
+    for (unsigned int i = 0; i < h; i++) {
+        for (unsigned int j = 0; j < w; j++) {
+            *dest = col;
+            dest++;
+        }
 
-    hb_shape(font.hb_font, buf, nullptr, 0);
-
-    auto len = hb_buffer_get_length(buf);
-    auto info = hb_buffer_get_glyph_infos(buf, nullptr);
-    auto pos = hb_buffer_get_glyph_positions(buf, nullptr);
-
-    double x = 50, y = 60;
-
-    for (unsigned int i = 0; i < len; i++) {
-        double x_advance = pos[i].x_advance / 64.;
-        double y_advance = pos[i].y_advance / 64.;
-        double x_offset = pos[i].x_offset / 64.;
-        double y_offset = pos[i].y_offset / 64.;
-
-        draw_ft_char(info[i].codepoint, (unsigned int)(x + x_offset),
-                     (unsigned int)(y + y_offset));
-        x += x_advance;
-        y += y_advance;
-    }
-
-    hb_buffer_destroy(buf);
-
-    flush_addr = framebuffer.data();
-    flush_size = framebuffer.size_bytes();
-
-    status = NtFlushVirtualMemory(NtCurrentProcess(), &flush_addr, &flush_size,
-                                  &iosb);
-    if (!success(status)) {
-        print("NtFlushVirtualMemory returned {}\n", status);
-        return;
+        dest += fb_info.pixels_per_scan_line - w;
     }
 }
-#endif
 
 static void print_line(console_line& line, unsigned int sx, unsigned int sy) {
     double x = sx, y = sy;
+
+    // FIXME - BG colours of cells
+    rect(sx, sy - font_height, console_cols * font_width, font_height, 0x000000);
 
     for (unsigned int i = 0; i < line.num_cells; i++) {
         double x_advance = line.cells[i].pos.x_advance / 64.0;
@@ -581,7 +553,7 @@ static void print_line(console_line& line, unsigned int sx, unsigned int sy) {
         double y_offset = line.cells[i].pos.y_offset / 64.0;
 
         draw_ft_char(line.cells[i].glyph, (unsigned int)(x + x_offset),
-                     (unsigned int)(y + y_offset));
+                     (unsigned int)(y + y_offset - font_descender));
 
         x += x_advance;
         y += y_advance;
@@ -1077,13 +1049,6 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 }
 
 static int _main() {
-#if 0
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    IO_STATUS_BLOCK iosb;
-    char s[10];
-#endif
-
     framebuffer = init_framebuffer();
     if (framebuffer.empty()) {
         print("init_framebuffer failed\n");
@@ -1101,16 +1066,9 @@ static int _main() {
         return 1;
     }
 
-    // test_print("hello world");
-
     test_run(u"\\shell.exe", u"shell.exe");
 
     // FIXME
-
-#if 0
-    NtReadFile(peb->ProcessParameters->StandardInput, 0, nullptr,
-               nullptr, &iosb, s, sizeof(s), nullptr, nullptr);
-#endif
 
     return 0;
 }
