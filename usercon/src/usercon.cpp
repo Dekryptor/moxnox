@@ -1025,7 +1025,7 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
         switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
             case 0: {
-                char s[255];
+                char s[PAGE_SIZE];
 
                 // print pipe data
 
