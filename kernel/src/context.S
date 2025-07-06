@@ -201,10 +201,3 @@
     .seh_endproc
 "dynamic_isr_\num" "_end":
 .endm
-
-.macro dwarf_func_asm name
-    .uleb128 2
-    .asciz "\name"
-    .quad \name
-    .quad \name\()_end - \name
-.endm

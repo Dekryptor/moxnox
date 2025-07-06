@@ -288,3 +288,10 @@
 .equ DW_UT_split_type, 0x06
 .equ DW_UT_lo_user, 0x80
 .equ DW_UT_hi_user, 0xff
+
+.macro dwarf_func_asm name
+    .uleb128 2
+    .asciz "\name"
+    .quad \name
+    .quad \name\()_end - \name
+.endm
