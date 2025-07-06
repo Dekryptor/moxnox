@@ -15,7 +15,7 @@ target_link_options(usercon PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 target_link_libraries(usercon freetype)
 target_link_libraries(usercon harfbuzz)
 target_link_libraries(usercon -lntdll ntdllcrt -lgcc)
-target_link_libraries(usercon format_sse rbtree_sse unique_handle)
+target_link_libraries(usercon format_sse rbtree_sse unique_handle list_sse)
 
 install(TARGETS usercon DESTINATION ${CMAKE_INSTALL_PREFIX})
 

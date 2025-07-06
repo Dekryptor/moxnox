@@ -14,6 +14,7 @@
 import format;
 import rbtree;
 import unique_handle;
+import list;
 
 using namespace std;
 
@@ -50,6 +51,7 @@ struct console_line {
             free(text);
     }
 
+    list_entry le;
     char* text = nullptr;
     size_t len = 0;
     unsigned int num_cells = 0;
@@ -60,8 +62,22 @@ static FT_Library ft;
 static font_info font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
-static unsigned int console_width, console_height;
+static unsigned int font_width, font_height;
+static unsigned int console_cols, console_rows;
 static console_line* curline = nullptr;
+static list_entry lines = { &lines, &lines };
+static unsigned int num_lines = 0;
+
+class hb_buffer_closer {
+public:
+    using pointer = hb_buffer_t*;
+
+    void operator()(hb_buffer_t* buf) {
+        hb_buffer_destroy(buf);
+    }
+};
+
+using unique_hb_buffer = unique_ptr<hb_buffer_t*, hb_buffer_closer>;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -281,10 +297,13 @@ static bool init_font(span<const uint8_t> buf) {
         return false;
     }
 
-    console_width = 20; // FIXME
-    console_height = 5; // FIXME
+    font_width = (unsigned int)(font.face->size->metrics.max_advance / 64);
+    font_height = (unsigned int)(font.face->size->metrics.height / 64);
 
-    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_width);
+    console_cols = 20; // FIXME
+    console_rows = 5; // FIXME
+
+    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
 
     curline = (console_line*)malloc(line_size);
     if (!curline) {
@@ -295,6 +314,9 @@ static bool init_font(span<const uint8_t> buf) {
     }
 
     new (curline) console_line;
+
+    insert_tail_list(lines, curline->le);
+    num_lines++;
 
     return true;
 }
@@ -604,31 +626,85 @@ static void do_print(string_view s) {
 
     // lay out using harfbuzz
 
-    {
+    do {
         // FIXME - keep HB buffer around?
-        auto buf = hb_buffer_create();
-        hb_buffer_add_utf8(buf, curline->text, (int)curline->len, 0, -1);
-        hb_buffer_guess_segment_properties(buf);
+        // FIXME - cap how much data we send to hb_buffer_add_utf8?
 
-        hb_shape(font.hb_font, buf, nullptr, 0);
+        unique_hb_buffer buf{hb_buffer_create()};
 
-        auto len = hb_buffer_get_length(buf);
-        auto info = hb_buffer_get_glyph_infos(buf, nullptr);
-        auto pos = hb_buffer_get_glyph_positions(buf, nullptr);
+        hb_buffer_add_utf8(buf.get(), curline->text, (int)curline->len, 0, -1);
+        hb_buffer_guess_segment_properties(buf.get());
 
-        // FIXME - new line once we get to console_width, or on newline
+        hb_shape(font.hb_font, buf.get(), nullptr, 0);
 
-        curline->num_cells = len;
-        for (unsigned int i = 0; i < len; i++) {
+        auto len = hb_buffer_get_length(buf.get());
+        auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+        auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
+
+        // FIXME - handle newlines
+
+        curline->num_cells = min(len, console_cols);
+        for (unsigned int i = 0; i < curline->num_cells; i++) {
             curline->cells[i].pos = pos[i];
             curline->cells[i].glyph = info[i].codepoint;
         }
 
-        hb_buffer_destroy(buf);
-    }
+        if (len <= console_cols)
+            break;
+
+        auto trunc = info[console_cols].cluster;
+
+        // FIXME - truncate existing buffer
+
+        auto t = (char*)malloc(curline->len - trunc);
+        if (!t) {
+            print("malloc failed\n");
+            return;
+        }
+
+        memcpy(t, curline->text + trunc, curline->len - trunc);
+
+        auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
+
+        auto nextline = (console_line*)malloc(line_size);
+        if (!nextline) {
+            print("malloc failed\n");
+            return;
+        }
+
+        new (nextline) console_line;
+
+        nextline->text = t;
+        nextline->len = curline->len - trunc;
+
+        insert_tail_list(lines, nextline->le);
+        num_lines++;
+
+        if (num_lines > console_rows) {
+            auto& first = containing_record<console_line>(lines.next);
+
+            remove_entry_list(first.le);
+            delete &first;
+
+            num_lines--;
+        }
+
+        curline->text = (char*)realloc(curline->text, trunc);
+        curline->len = trunc;
+
+        curline = nextline;
+    } while (true);
 
     // print to FB
-    print_line(*curline, 0, 60); // FIXME - and other changed lines
+
+    unsigned int y = font_height;
+
+    for (auto le = lines.next; le != &lines; le = le->next) {
+        auto& l = containing_record<console_line>(le);
+
+        print_line(l, 0, y);
+        y += font_height;
+    }
 }
 
 static void test_run(u16string_view exe, u16string_view cmdline) {
