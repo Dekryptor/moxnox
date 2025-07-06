@@ -552,7 +552,6 @@ static void print_line(console_line& line, unsigned int sy) {
 }
 
 static void flush_framebuffer() {
-    // flush FB
     void* flush_addr = framebuffer.data();
     size_t flush_size = framebuffer.size_bytes();
     IO_STATUS_BLOCK iosb;
@@ -668,8 +667,6 @@ static void do_print(string_view s) {
         print_line(l, y);
         y += font_height;
     }
-
-    flush_framebuffer();
 }
 
 static void do_newline() {
@@ -730,6 +727,8 @@ static void recv_data(string_view s) {
 
     if (!s.empty())
         do_print(s);
+
+    flush_framebuffer();
 }
 
 static void test_run(u16string_view exe, u16string_view cmdline) {
