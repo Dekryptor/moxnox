@@ -57,10 +57,13 @@ dwarf_func_asm memcpy
 .text
 
 # void* memcpy(void* dest, const void* src, size_t n)
+.seh_proc memcpy
 .global memcpy
 memcpy:
     # rcx = dest, rdx = src, r8 = n
     push rcx
+    .seh_pushreg rcx
+    .seh_endprologue
 
     # FIXME - SSE
 
@@ -108,6 +111,7 @@ memcpy:
     pop rax
     ret
 memcpy_end:
+.seh_endproc
 
 .text_end:
 
