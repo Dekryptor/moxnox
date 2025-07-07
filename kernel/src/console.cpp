@@ -200,11 +200,13 @@ struct console_fb {
 
     static void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    static void print_char(char32_t c);
-    static void cursor_changed();
+    void print_char(char32_t c);
+    void cursor_changed();
     static void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
-    static void move_cursor() { }
+    void move_cursor() { }
+
+    unsigned int cursor_x, cursor_y;
 };
 
 struct console_text {
@@ -212,12 +214,17 @@ struct console_text {
 
     static void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    static void print_char(char32_t c);
-    static void cursor_changed() { }
+    void print_char(char32_t c);
+    void cursor_changed() { }
     static void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
-    static void move_cursor();
+    void move_cursor();
+
+    unsigned int cursor_x, cursor_y;
 };
+
+static console_fb console_fb_inst;
+static console_text console_text_inst;
 
 void console_text::move_cursor() {
     auto pos = (uint16_t)(((uint8_t)cursor_y * console_cols) + (uint8_t)cursor_x);
@@ -733,7 +740,7 @@ static void refresh_shadow_framebuffer() {
                 continue;
             }
 
-            bool is_cursor = show_cursor && x == cursor_x && y == cursor_y;
+            bool is_cursor = show_cursor && x == console_fb_inst.cursor_x && y == console_fb_inst.cursor_y;
 
             rect(x * font_width, y * font_height, font_width, font_height, is_cursor ? c->fg : c->bg);
             draw_ft_char(*c, x * font_width, ((y + 1) * font_height) - font_descender, is_cursor);
@@ -822,7 +829,7 @@ void early_print(string_view s) {
             return;
         }
 
-        do_print<console_text>(s);
+        do_print(console_text_inst, s);
         return;
     }
 
@@ -833,7 +840,7 @@ void early_print(string_view s) {
 
     disable_preempt();
 
-    do_print<console_fb>(s);
+    do_print(console_fb_inst, s);
     refresh_shadow_framebuffer();
     refresh_framebuffer();
 
@@ -941,6 +948,9 @@ export bool init_console(const loader_block_framebuffer& fb,
                 text_console_putc(x, y, ' ', console_colour::black, console_colour::light_grey);
             }
         }
+
+        console_text_inst.cursor_x = 0;
+        console_text_inst.cursor_y = 0;
 
         text_console_started = true;
     } else {
@@ -1105,7 +1115,8 @@ export bool init_fb_console() {
     console_cols = fb_width / font_width;
     console_rows = fb_height / font_height;
 
-    cursor_x = cursor_y = 0;
+    console_fb_inst.cursor_x = 0;
+    console_fb_inst.cursor_y = 0;
 
     console = (console_info*)vmalloc(console_cols * console_rows * sizeof(console_info));
     if (!console) {

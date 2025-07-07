@@ -7,7 +7,6 @@ export module vt100;
 
 using namespace std;
 
-export unsigned int cursor_x = 0, cursor_y = 0; // FIXME?
 extern "C++" unsigned int console_rows, console_cols; // FIXME
 
 uint8_t utf8_buf[5];
@@ -16,50 +15,50 @@ char escape_buffer[50];
 size_t escape_buffer_len = 0;
 
 template<typename T>
-void print_char(char32_t c) {
+void print_char(T& t, char32_t c) {
     if (c == '\n') {
-        T::print_char('\n');
+        t.print_char('\n');
 
-        cursor_x = 0;
-        cursor_y++;
+        t.cursor_x = 0;
+        t.cursor_y++;
 
-        if (cursor_y == console_rows) {
+        if (t.cursor_y == console_rows) {
             T::console_overflow();
-            cursor_y = console_rows - 1;
+            t.cursor_y = console_rows - 1;
         }
     } else if (c == '\b') {
-        if (cursor_x == 0 && cursor_y == 0)
+        if (t.cursor_x == 0 && t.cursor_y == 0)
             return;
 
-        T::print_char('\b');
+        t.print_char('\b');
     } else {
         if (c < 0x20)
             return;
 
-        T::print_char(c);
+        t.print_char(c);
 
-        cursor_x++;
+        t.cursor_x++;
 
-        if (cursor_x == console_cols) {
-            cursor_x = 0;
-            cursor_y++;
+        if (t.cursor_x == console_cols) {
+            t.cursor_x = 0;
+            t.cursor_y++;
 
-            if (cursor_y == console_rows) {
+            if (t.cursor_y == console_rows) {
                 T::console_overflow();
-                cursor_y = console_rows - 1;
+                t.cursor_y = console_rows - 1;
             }
         }
     }
 
-    T::cursor_changed();
+    t.cursor_changed();
 }
 
 template<typename T>
-void do_print2(char c) {
+void do_print2(T& t, char c) {
     if (utf8_chars != 0) {
         if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-            print_char<T>(0xfffd);
-            print_char<T>((char32_t)c);
+            print_char(t, 0xfffd);
+            print_char(t, (char32_t)c);
             utf8_chars = 0;
             return;
         }
@@ -69,32 +68,32 @@ void do_print2(char c) {
 
         if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
             if ((utf8_buf[1] & 0xc0) != 0x80) {
-                print_char<T>(0xfffd);
+                print_char(t, 0xfffd);
                 utf8_chars = 0;
                 return;
             }
 
             auto c = (char32_t)(((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f));
 
-            print_char<T>(c);
+            print_char(t, c);
             utf8_chars = 0;
             return;
         } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
             if (utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char<T>(0xfffd);
+                    print_char(t, 0xfffd);
                     utf8_chars = 0;
                 }
             } else {
                 if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char<T>(0xfffd);
+                    print_char(t, 0xfffd);
                     utf8_chars = 0;
                     return;
                 }
 
                 auto c = (char32_t)(((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f));
 
-                print_char<T>(c);
+                print_char(t, c);
                 utf8_chars = 0;
             }
 
@@ -102,24 +101,24 @@ void do_print2(char c) {
         } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
             if (utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char<T>(0xfffd);
+                    print_char(t, 0xfffd);
                     utf8_chars = 0;
                 }
             } else if (utf8_chars == 3) {
                 if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char<T>(0xfffd);
+                    print_char(t, 0xfffd);
                     utf8_chars = 0;
                 }
             } else {
                 if ((utf8_buf[3] & 0xc0) != 0x80) {
-                    print_char<T>(0xfffd);
+                    print_char(t, 0xfffd);
                     utf8_chars = 0;
                     return;
                 }
 
                 auto c = (char32_t)(((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f));
 
-                print_char<T>(c);
+                print_char(t, c);
                 utf8_chars = 0;
             }
 
@@ -132,11 +131,11 @@ void do_print2(char c) {
         utf8_chars = 1;
         return;
     } else if (c & 0x80) {
-        print_char<T>(0xfffd);
+        print_char(t, 0xfffd);
         return;
     }
 
-    print_char<T>((char32_t)c);
+    print_char(t, (char32_t)c);
 }
 
 template<typename T>
@@ -180,7 +179,7 @@ void handle_sgr(string_view s) {
 }
 
 template<typename T>
-void move_cursor(string_view s) {
+void move_cursor(T& t, string_view s) {
     unsigned int param = 1;
 
     if (s.size() > 1) {
@@ -198,60 +197,60 @@ void move_cursor(string_view s) {
     }
 
     // old position
-    T::cursor_changed();
+    t.cursor_changed();
 
     if (s.back() == 'A') { // up
-        if (cursor_y > param - 1)
-            cursor_y -= param;
+        if (t.cursor_y > param - 1)
+            t.cursor_y -= param;
         else
-            cursor_y = 0;
+            t.cursor_y = 0;
     } else if (s.back() == 'B') { // down
-        if (cursor_y < console_rows - param)
-            cursor_y += param;
+        if (t.cursor_y < console_rows - param)
+            t.cursor_y += param;
         else
-            cursor_y = console_rows - 1;
+            t.cursor_y = console_rows - 1;
     } else if (s.back() == 'C') { // right
-        if (cursor_x < console_cols - param)
-            cursor_x += param;
+        if (t.cursor_x < console_cols - param)
+            t.cursor_x += param;
         else
-            cursor_x = console_cols - 1;
+            t.cursor_x = console_cols - 1;
     } else if (s.back() == 'D') { // left
-        if (cursor_x > param - 1)
-            cursor_x -= param;
+        if (t.cursor_x > param - 1)
+            t.cursor_x -= param;
     } else if (s.back() == 'E') { // cursor next line
-        cursor_x = 0;
+        t.cursor_x = 0;
 
-        if (cursor_y < console_rows - param)
-            cursor_y += param;
+        if (t.cursor_y < console_rows - param)
+            t.cursor_y += param;
         else
-            cursor_y = console_rows - 1;
+            t.cursor_y = console_rows - 1;
     } else if (s.back() == 'F') { // cursor previous line
-        cursor_x = 0;
+        t.cursor_x = 0;
 
-        if (cursor_y > param - 1)
-            cursor_y -= param;
+        if (t.cursor_y > param - 1)
+            t.cursor_y -= param;
         else
-            cursor_y = 0;
+            t.cursor_y = 0;
     } else if (s.back() == 'G') { // cursor horizontal absolute
         if (param < 1)
             param = 1;
 
         if (param > console_cols)
-            cursor_x = console_cols - 1;
+            t.cursor_x = console_cols - 1;
         else
-            cursor_x = param - 1;
+            t.cursor_x = param - 1;
     } else if (s.back() == 'd') { // vertical position absolute
         if (param < 1)
             param = 1;
 
         if (param > console_rows)
-            cursor_y = console_rows - 1;
+            t.cursor_y = console_rows - 1;
         else
-            cursor_y = param - 1;
+            t.cursor_y = param - 1;
     }
 
     // new position
-    T::cursor_changed();
+    t.cursor_changed();
 }
 
 template<typename T>
@@ -280,7 +279,7 @@ void scroll_up(string_view s) {
 }
 
 template<typename T>
-void set_cursor_position(string_view s) {
+void set_cursor_position(T& t, string_view s) {
     unsigned int x = 1, y = 1;
 
     if (!s.empty()) {
@@ -320,7 +319,7 @@ void set_cursor_position(string_view s) {
     }
 
     // old position
-    T::cursor_changed();
+    t.cursor_changed();
 
     if (x == 0)
         x = 1;
@@ -334,11 +333,11 @@ void set_cursor_position(string_view s) {
     if (y >= console_rows)
         y = console_rows;
 
-    cursor_x = x - 1;
-    cursor_y = y - 1;
+    t.cursor_x = x - 1;
+    t.cursor_y = y - 1;
 
     // new position
-    T::cursor_changed();
+    t.cursor_changed();
 }
 
 template<typename T>
@@ -367,7 +366,7 @@ void scroll_down(string_view s) {
 }
 
 template<typename T>
-void erase_in_line(string_view s) {
+void erase_in_line(T& t, string_view s) {
     unsigned int param = 0;
 
     if (!s.empty()) {
@@ -384,48 +383,48 @@ void erase_in_line(string_view s) {
 
     switch (param) {
         case 0: { // clear from cursor to end of line
-            auto orig_cursor_x = cursor_x;
+            auto orig_cursor_x = t.cursor_x;
 
-            while (cursor_x < console_cols) {
-                T::print_char(' ');
-                cursor_x++;
+            while (t.cursor_x < console_cols) {
+                t.print_char(' ');
+                t.cursor_x++;
             }
 
-            cursor_x = orig_cursor_x;
+            t.cursor_x = orig_cursor_x;
             break;
         }
 
         case 1: { // clear from beginning of line to cursor
-            auto orig_cursor_x = cursor_x;
+            auto orig_cursor_x = t.cursor_x;
 
-            cursor_x = 0;
-            while (cursor_x < orig_cursor_x) {
-                T::print_char(' ');
-                cursor_x++;
+            t.cursor_x = 0;
+            while (t.cursor_x < orig_cursor_x) {
+                t.print_char(' ');
+                t.cursor_x++;
             }
 
-            cursor_x = orig_cursor_x;
+            t.cursor_x = orig_cursor_x;
             break;
         }
 
         case 2: { // clear entire line
-            auto orig_cursor_x = cursor_x;
+            auto orig_cursor_x = t.cursor_x;
 
-            cursor_x = 0;
+            t.cursor_x = 0;
 
-            while (cursor_x < console_cols) {
-                T::print_char(' ');
-                cursor_x++;
+            while (t.cursor_x < console_cols) {
+                t.print_char(' ');
+                t.cursor_x++;
             }
 
-            cursor_x = orig_cursor_x;
+            t.cursor_x = orig_cursor_x;
             break;
         }
     }
 }
 
 template<typename T>
-void erase_in_display(string_view s) {
+void erase_in_display(T& t, string_view s) {
     unsigned int param = 0;
 
     if (!s.empty()) {
@@ -440,98 +439,98 @@ void erase_in_display(string_view s) {
         }
     }
 
-    auto orig_cursor_x = cursor_x;
-    auto orig_cursor_y = cursor_y;
+    auto orig_cursor_x = t.cursor_x;
+    auto orig_cursor_y = t.cursor_y;
 
     switch (param) {
         case 0: // clear from cursor to end of screen
-            while (cursor_y < console_rows) {
-                while (cursor_x < console_cols) {
-                    T::print_char(' ');
-                    cursor_x++;
+            while (t.cursor_y < console_rows) {
+                while (t.cursor_x < console_cols) {
+                    t.print_char(' ');
+                    t.cursor_x++;
                 }
 
-                cursor_x = 0;
-                cursor_y++;
+                t.cursor_x = 0;
+                t.cursor_y++;
             }
             break;
 
         case 1: // clear from beginning of screen to cursor
-            cursor_x = 0;
-            cursor_y = 0;
+            t.cursor_x = 0;
+            t.cursor_y = 0;
 
-            while (cursor_y < orig_cursor_y) {
-                while (cursor_x < console_cols) {
-                    T::print_char(' ');
-                    cursor_x++;
+            while (t.cursor_y < orig_cursor_y) {
+                while (t.cursor_x < console_cols) {
+                    t.print_char(' ');
+                    t.cursor_x++;
                 }
 
-                cursor_x = 0;
-                cursor_y++;
+                t.cursor_x = 0;
+                t.cursor_y++;
             }
 
-            while (cursor_x < orig_cursor_x) {
-                T::print_char(' ');
-                cursor_x++;
+            while (t.cursor_x < orig_cursor_x) {
+                t.print_char(' ');
+                t.cursor_x++;
             }
 
             break;
 
         case 2: // clear entire screen
         case 3:
-            cursor_x = 0;
-            cursor_y = 0;
+            t.cursor_x = 0;
+            t.cursor_y = 0;
 
-            while (cursor_y < console_rows) {
-                while (cursor_x < console_cols) {
-                    T::print_char(' ');
-                    cursor_x++;
+            while (t.cursor_y < console_rows) {
+                while (t.cursor_x < console_cols) {
+                    t.print_char(' ');
+                    t.cursor_x++;
                 }
 
-                cursor_x = 0;
-                cursor_y++;
+                t.cursor_x = 0;
+                t.cursor_y++;
             }
             break;
     }
 
-    cursor_x = orig_cursor_x;
-    cursor_y = orig_cursor_y;
+    t.cursor_x = orig_cursor_x;
+    t.cursor_y = orig_cursor_y;
 }
 
 template<typename T>
-void handle_escape_sequence(string_view s) {
+void handle_escape_sequence(T& t, string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
 
         if ((s.back() >= 'A' && s.back() <= 'G') || s.back() == 'd')
-            move_cursor<T>(s);
+            move_cursor(t, s);
         else if (s.back() == 'm')
             handle_sgr<T>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'J')
-            erase_in_display<T>(string_view(s.data(), s.size() - 1));
+            erase_in_display(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'K')
-            erase_in_line<T>(string_view(s.data(), s.size() - 1));
+            erase_in_line(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'S')
             scroll_up<T>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'T')
             scroll_down<T>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'H' || s.back() == 'f')
-            set_cursor_position<T>(string_view(s.data(), s.size() - 1));
+            set_cursor_position(t, string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
-            T::cursor_changed();
+            t.cursor_changed();
             T::enable_cursor(true);
         } else if (s == "?25l") {
-            T::cursor_changed();
+            t.cursor_changed();
             T::enable_cursor(false);
         }
     }
 }
 
 export template<typename T>
-void do_print(string_view s) {
+void do_print(T& t, string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
-            do_print2<T>(0x1b);
+            do_print2(t, 0x1b);
             escape_buffer_len = 0;
         } else {
             if (escape_buffer_len == 1) {
@@ -547,7 +546,7 @@ void do_print(string_view s) {
             while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
                 if (escape_buffer_len == sizeof(escape_buffer)) {
                     for (size_t i = 0; i < escape_buffer_len; i++) {
-                        do_print2<T>(escape_buffer[i]);
+                        do_print2(t, escape_buffer[i]);
                     }
 
                     escape_buffer_len = 0;
@@ -569,7 +568,7 @@ void do_print(string_view s) {
                 s = string_view(s.data() + 1, s.size() - 1);
 
                 // FIXME - print literally if not ENABLE_PROCESSED_OUTPUT
-                handle_escape_sequence<T>(string_view(escape_buffer, escape_buffer_len));
+                handle_escape_sequence(t, string_view(escape_buffer, escape_buffer_len));
 
                 escape_buffer_len = 0;
 
@@ -577,7 +576,7 @@ void do_print(string_view s) {
                     return;
             } else {
                 for (size_t i = 0; i < escape_buffer_len; i++) {
-                    do_print2<T>(escape_buffer[i]);
+                    do_print2(t, escape_buffer[i]);
                 }
 
                 escape_buffer_len = 0;
@@ -609,12 +608,12 @@ loop:
                 if (s.size() == param_bytes + 2) {
                     if (param_bytes + 2 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < escape_buffer_len; i++) {
-                            do_print2<T>(escape_buffer[i]);
+                            do_print2(t, escape_buffer[i]);
                         }
                         escape_buffer_len = 0;
 
                         for (size_t i = 0; i < s.size(); i++) {
-                            do_print2<T>(s[i]);
+                            do_print2(t, s[i]);
                         }
 
                         return;
@@ -629,11 +628,11 @@ loop:
                     // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
                     if (param_bytes + 3 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < param_bytes + 3; i++) {
-                            do_print2<T>(s[i]);
+                            do_print2(t, s[i]);
                         }
                     } else {
                         // FIXME - print literally if not ENABLE_PROCESSED_OUTPUT
-                        handle_escape_sequence<T>(string_view(s.data(), param_bytes + 3));
+                        handle_escape_sequence(t, string_view(s.data(), param_bytes + 3));
                     }
 
                     s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
@@ -642,8 +641,8 @@ loop:
             }
         }
 
-        do_print2<T>(c);
+        do_print2(t, c);
     }
 
-    T::move_cursor();
+    t.move_cursor();
 }
