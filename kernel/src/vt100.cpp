@@ -422,3 +422,77 @@ void erase_in_line(string_view s) {
         }
     }
 }
+
+export template<typename T>
+void erase_in_display(string_view s) {
+    unsigned int param = 0;
+
+    if (!s.empty()) {
+        param = 0;
+
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                return;
+
+            param *= 10;
+            param += (unsigned int)(c - '0');
+        }
+    }
+
+    auto orig_cursor_x = cursor_x;
+    auto orig_cursor_y = cursor_y;
+
+    switch (param) {
+        case 0: // clear from cursor to end of screen
+            while (cursor_y < console_rows) {
+                while (cursor_x < console_cols) {
+                    T::print_char(' ');
+                    cursor_x++;
+                }
+
+                cursor_x = 0;
+                cursor_y++;
+            }
+            break;
+
+        case 1: // clear from beginning of screen to cursor
+            cursor_x = 0;
+            cursor_y = 0;
+
+            while (cursor_y < orig_cursor_y) {
+                while (cursor_x < console_cols) {
+                    T::print_char(' ');
+                    cursor_x++;
+                }
+
+                cursor_x = 0;
+                cursor_y++;
+            }
+
+            while (cursor_x < orig_cursor_x) {
+                T::print_char(' ');
+                cursor_x++;
+            }
+
+            break;
+
+        case 2: // clear entire screen
+        case 3:
+            cursor_x = 0;
+            cursor_y = 0;
+
+            while (cursor_y < console_rows) {
+                while (cursor_x < console_cols) {
+                    T::print_char(' ');
+                    cursor_x++;
+                }
+
+                cursor_x = 0;
+                cursor_y++;
+            }
+            break;
+    }
+
+    cursor_x = orig_cursor_x;
+    cursor_y = orig_cursor_y;
+}
