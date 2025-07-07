@@ -66,8 +66,6 @@ static FT_Library ft = nullptr;
 static unsigned int font_width, font_height, font_descender;
 static bool fb_console_started = false, text_console_started = false;
 static spinlock cursor_lock;
-static char escape_buffer[50];
-static size_t escape_buffer_len = 0;
 static bool show_cursor = true;
 
 static spinlock early_print_lock;
@@ -197,19 +195,6 @@ static void text_console_putc(uint8_t x, uint8_t y, char32_t cp,
     text_console[(y * console_cols) + x] = text_console_val((uint8_t)c, bg, fg);
 }
 
-static void text_console_move_cursor(uint8_t x, uint8_t y) {
-    auto pos = (uint16_t)((y * console_cols) + x);
-
-    {
-        lock_guard lock(cursor_lock);
-
-        outb(0x3d4, 0xf);
-        outb(0x3d5, (uint8_t)(pos & 0xff));
-        outb(0x3d4, 0xe);
-        outb(0x3d5, (uint8_t)((pos >> 8) & 0xff));
-    }
-}
-
 struct console_fb {
     static constexpr bool FB = true;
 
@@ -219,6 +204,7 @@ struct console_fb {
     static void cursor_changed();
     static void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
+    static void move_cursor() { }
 };
 
 struct console_text {
@@ -230,7 +216,21 @@ struct console_text {
     static void cursor_changed() { }
     static void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
+    static void move_cursor();
 };
+
+void console_text::move_cursor() {
+    auto pos = (uint16_t)(((uint8_t)cursor_y * console_cols) + (uint8_t)cursor_x);
+
+    {
+        lock_guard lock(cursor_lock);
+
+        outb(0x3d4, 0xf);
+        outb(0x3d5, (uint8_t)(pos & 0xff));
+        outb(0x3d4, 0xe);
+        outb(0x3d5, (uint8_t)((pos >> 8) & 0xff));
+    }
+}
 
 void console_fb::console_overflow(unsigned int rows) {
     memcpy(console, &console[console_cols * rows], (console_rows - rows) * console_cols * sizeof(console_info));
@@ -612,138 +612,6 @@ void console_text::scroll_down(unsigned int rows) {
             text_console_putc(x, y, ' ', bg_colour_text, fg_colour_text);
         }
     }
-}
-
-template<typename T>
-static void do_print(string_view s) {
-    if (escape_buffer_len != 0) {
-        if (escape_buffer_len == 1 && s[0] != '[') {
-            do_print2<T>(0x1b);
-            escape_buffer_len = 0;
-        } else {
-            if (escape_buffer_len == 1) {
-                escape_buffer[1] = '[';
-                escape_buffer_len++;
-
-                s = string_view(s.data() + 1, s.size() - 1);
-
-                if (s.empty())
-                    return;
-            }
-
-            while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
-                if (escape_buffer_len == sizeof(escape_buffer)) {
-                    for (size_t i = 0; i < escape_buffer_len; i++) {
-                        do_print2<T>(escape_buffer[i]);
-                    }
-
-                    escape_buffer_len = 0;
-                    goto loop;
-                }
-
-                escape_buffer[escape_buffer_len] = s.front();
-                escape_buffer_len++;
-                s = string_view(s.data() + 1, s.size() - 1);
-            }
-
-            if (s.empty())
-                return;
-
-            if (s.front() >= 0x40 && s.front() <= 0x7e) {
-                escape_buffer[escape_buffer_len] = s.front();
-                escape_buffer_len++;
-
-                s = string_view(s.data() + 1, s.size() - 1);
-
-                if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
-                    for (auto c : string_view(escape_buffer, escape_buffer_len)) {
-                        do_print2<T>(c);
-                    }
-                    return;
-                } else
-                    handle_escape_sequence<T>(string_view(escape_buffer, escape_buffer_len));
-
-                escape_buffer_len = 0;
-
-                if (s.empty())
-                    return;
-            } else {
-                for (size_t i = 0; i < escape_buffer_len; i++) {
-                    do_print2<T>(escape_buffer[i]);
-                }
-
-                escape_buffer_len = 0;
-            }
-        }
-    }
-
-loop:
-    for (; !s.empty(); s = string_view(s.data() + 1, s.size() - 1)) {
-        auto c = s.front();
-
-        if (c == 0x1b) {
-            if (s.size() == 1) {
-                escape_buffer[0] = 0x1b;
-                escape_buffer_len = 1;
-                return;
-            }
-
-            if (s[1] == '[') {
-                unsigned int param_bytes = 0;
-
-                while (s.size() >= param_bytes + 2) {
-                    if (s[2 + param_bytes] >= 0x30 && s[2 + param_bytes] <= 0x3f)
-                        param_bytes++;
-                    else
-                        break;
-                }
-
-                if (s.size() == param_bytes + 2) {
-                    if (param_bytes + 2 > sizeof(escape_buffer)) {
-                        for (size_t i = 0; i < escape_buffer_len; i++) {
-                            do_print2<T>(escape_buffer[i]);
-                        }
-                        escape_buffer_len = 0;
-
-                        for (size_t i = 0; i < s.size(); i++) {
-                            do_print2<T>(s[i]);
-                        }
-
-                        return;
-                    }
-
-                    memcpy(escape_buffer, s.data(), param_bytes + 2);
-                    escape_buffer_len = param_bytes + 2;
-                    return;
-                }
-
-                if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
-                    // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
-                    if (param_bytes + 3 > sizeof(escape_buffer)) {
-                        for (size_t i = 0; i < param_bytes + 3; i++) {
-                            do_print2<T>(s[i]);
-                        }
-                    } else {
-                        if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
-                            for (auto c : string_view(s.data(), param_bytes + 3)) {
-                                do_print2<T>(c);
-                            }
-                            return;
-                        } else
-                            handle_escape_sequence<T>(string_view(s.data(), param_bytes + 3));
-                    }
-
-                    s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
-                    continue;
-                }
-            }
-        }
-
-        do_print2<T>(c);
-    }
-
-    if constexpr (!T::FB)
-        text_console_move_cursor((uint8_t)cursor_x, (uint8_t)cursor_y);
 }
 
 static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {

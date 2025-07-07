@@ -12,6 +12,8 @@ extern "C++" unsigned int console_rows, console_cols; // FIXME
 
 uint8_t utf8_buf[5];
 unsigned int utf8_chars = 0;
+char escape_buffer[50];
+size_t escape_buffer_len = 0;
 
 template<typename T>
 void print_char(char32_t c) {
@@ -52,7 +54,7 @@ void print_char(char32_t c) {
     T::cursor_changed();
 }
 
-export template<typename T>
+template<typename T>
 void do_print2(char c) {
     if (utf8_chars != 0) {
         if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
@@ -496,7 +498,7 @@ void erase_in_display(string_view s) {
     cursor_y = orig_cursor_y;
 }
 
-export template<typename T>
+template<typename T>
 void handle_escape_sequence(string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
@@ -523,4 +525,125 @@ void handle_escape_sequence(string_view s) {
             T::enable_cursor(false);
         }
     }
+}
+
+export template<typename T>
+void do_print(string_view s) {
+    if (escape_buffer_len != 0) {
+        if (escape_buffer_len == 1 && s[0] != '[') {
+            do_print2<T>(0x1b);
+            escape_buffer_len = 0;
+        } else {
+            if (escape_buffer_len == 1) {
+                escape_buffer[1] = '[';
+                escape_buffer_len++;
+
+                s = string_view(s.data() + 1, s.size() - 1);
+
+                if (s.empty())
+                    return;
+            }
+
+            while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
+                if (escape_buffer_len == sizeof(escape_buffer)) {
+                    for (size_t i = 0; i < escape_buffer_len; i++) {
+                        do_print2<T>(escape_buffer[i]);
+                    }
+
+                    escape_buffer_len = 0;
+                    goto loop;
+                }
+
+                escape_buffer[escape_buffer_len] = s.front();
+                escape_buffer_len++;
+                s = string_view(s.data() + 1, s.size() - 1);
+            }
+
+            if (s.empty())
+                return;
+
+            if (s.front() >= 0x40 && s.front() <= 0x7e) {
+                escape_buffer[escape_buffer_len] = s.front();
+                escape_buffer_len++;
+
+                s = string_view(s.data() + 1, s.size() - 1);
+
+                // FIXME - print literally if not ENABLE_PROCESSED_OUTPUT
+                handle_escape_sequence<T>(string_view(escape_buffer, escape_buffer_len));
+
+                escape_buffer_len = 0;
+
+                if (s.empty())
+                    return;
+            } else {
+                for (size_t i = 0; i < escape_buffer_len; i++) {
+                    do_print2<T>(escape_buffer[i]);
+                }
+
+                escape_buffer_len = 0;
+            }
+        }
+    }
+
+loop:
+    for (; !s.empty(); s = string_view(s.data() + 1, s.size() - 1)) {
+        auto c = s.front();
+
+        if (c == 0x1b) {
+            if (s.size() == 1) {
+                escape_buffer[0] = 0x1b;
+                escape_buffer_len = 1;
+                return;
+            }
+
+            if (s[1] == '[') {
+                unsigned int param_bytes = 0;
+
+                while (s.size() >= param_bytes + 2) {
+                    if (s[2 + param_bytes] >= 0x30 && s[2 + param_bytes] <= 0x3f)
+                        param_bytes++;
+                    else
+                        break;
+                }
+
+                if (s.size() == param_bytes + 2) {
+                    if (param_bytes + 2 > sizeof(escape_buffer)) {
+                        for (size_t i = 0; i < escape_buffer_len; i++) {
+                            do_print2<T>(escape_buffer[i]);
+                        }
+                        escape_buffer_len = 0;
+
+                        for (size_t i = 0; i < s.size(); i++) {
+                            do_print2<T>(s[i]);
+                        }
+
+                        return;
+                    }
+
+                    memcpy(escape_buffer, s.data(), param_bytes + 2);
+                    escape_buffer_len = param_bytes + 2;
+                    return;
+                }
+
+                if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
+                    // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
+                    if (param_bytes + 3 > sizeof(escape_buffer)) {
+                        for (size_t i = 0; i < param_bytes + 3; i++) {
+                            do_print2<T>(s[i]);
+                        }
+                    } else {
+                        // FIXME - print literally if not ENABLE_PROCESSED_OUTPUT
+                        handle_escape_sequence<T>(string_view(s.data(), param_bytes + 3));
+                    }
+
+                    s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
+                    continue;
+                }
+            }
+        }
+
+        do_print2<T>(c);
+    }
+
+    T::move_cursor();
 }
