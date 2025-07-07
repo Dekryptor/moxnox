@@ -628,10 +628,37 @@ static void do_newline() {
 #endif
 
 void console_fb::print_char(char32_t c) {
-    // append to existing buffer
+    unsigned int text_pos;
 
     // FIXME - allow multiple characters at once?
-    {
+
+    // get current position in string
+
+    if (curline->len == 0)
+        text_pos = 0;
+    else {
+        unique_hb_buffer buf{hb_buffer_create()};
+
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
+                                 (int)curline->len, 0, -1);
+        hb_buffer_guess_segment_properties(buf.get());
+
+        hb_shape(font.hb_font, buf.get(), nullptr, 0);
+
+        auto len = hb_buffer_get_length(buf.get());
+        auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+
+        if (len > cursor_x)
+            text_pos = info[cursor_x].cluster;
+        else
+            text_pos = info[len - 1].cluster + 1; // FIXME?
+    }
+
+    // append to existing buffer
+
+    if (text_pos < curline->len)
+        curline->text[text_pos] = c;
+    else {
         auto t = (char32_t*)malloc((curline->len + 1) * sizeof(char32_t));
         if (!t) {
             print("malloc failed\n");
