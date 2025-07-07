@@ -338,3 +338,28 @@ void set_cursor_position(string_view s) {
     // new position
     T::cursor_changed();
 }
+
+export template<typename T>
+void scroll_down(string_view s) {
+    unsigned int rows = 1;
+
+    if (!s.empty()) {
+        rows = 0;
+
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                return;
+
+            rows *= 10;
+            rows += (unsigned int)(c - '0');
+        }
+
+        if (rows == 0)
+            return;
+    }
+
+    if (rows > console_rows)
+        rows = console_rows;
+
+    T::scroll_down(rows);
+}

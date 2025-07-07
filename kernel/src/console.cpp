@@ -217,6 +217,7 @@ struct console_fb {
     static void handle_sgr_part_num(unsigned int num);
     static void print_char(char32_t c);
     static void cursor_changed();
+    static void scroll_down(unsigned int rows);
 };
 
 struct console_text {
@@ -225,9 +226,8 @@ struct console_text {
     static void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
     static void print_char(char32_t c);
-
-    static void cursor_changed() {
-    }
+    static void cursor_changed() { }
+    static void scroll_down(unsigned int rows);
 };
 
 void console_fb::console_overflow(unsigned int rows) {
@@ -758,56 +758,35 @@ static void erase_in_display(string_view s) {
     }
 }
 
-template<typename T>
-static void scroll_down(string_view s) {
-    unsigned int rows = 1;
+void console_fb::scroll_down(unsigned int rows) {
+    memmove(&console[console_cols * rows], console,
+            (console_rows - rows) * console_cols * sizeof(console_info));
 
-    if (!s.empty()) {
-        rows = 0;
+    auto c = &console[0];
 
-        for (auto c : s) {
-            if (c < '0' || c > '9')
-                return;
+    auto font = bold ? face_bold.face : face.face;
+    auto glyph = FT_Get_Char_Index(font, ' ');
 
-            rows *= 10;
-            rows += (unsigned int)(c - '0');
-        }
-
-        if (rows == 0)
-            return;
+    for (unsigned int i = 0; i < console_cols * console_rows; i++) {
+        console[i].changed = true;
     }
 
-    if (rows > console_rows)
-        rows = console_rows;
+    for (unsigned int i = 0; i < console_cols * rows; i++) {
+        c->bg = bg_colour;
+        c->fg = fg_colour;
+        c->glyph = glyph;
+        c->bold = bold;
+        c++;
+    }
+}
 
-    if constexpr (T::FB) {
-        memmove(&console[console_cols * rows], console,
-                (console_rows - rows) * console_cols * sizeof(console_info));
+void console_text::scroll_down(unsigned int rows) {
+    memmove(&text_console[console_cols * rows], text_console.data(),
+            (console_rows - rows) * console_cols * sizeof(uint16_t));
 
-        auto c = &console[0];
-
-        auto font = bold ? face_bold.face : face.face;
-        auto glyph = FT_Get_Char_Index(font, ' ');
-
-        for (unsigned int i = 0; i < console_cols * console_rows; i++) {
-            console[i].changed = true;
-        }
-
-        for (unsigned int i = 0; i < console_cols * rows; i++) {
-            c->bg = bg_colour;
-            c->fg = fg_colour;
-            c->glyph = glyph;
-            c->bold = bold;
-            c++;
-        }
-    } else {
-        memmove(&text_console[console_cols * rows], text_console.data(),
-                (console_rows - rows) * console_cols * sizeof(uint16_t));
-
-        for (uint8_t y = 0; y < rows; y++) {
-            for (uint8_t x = 0; x < console_cols; x++) {
-                text_console_putc(x, y, ' ', bg_colour_text, fg_colour_text);
-            }
+    for (uint8_t y = 0; y < rows; y++) {
+        for (uint8_t x = 0; x < console_cols; x++) {
+            text_console_putc(x, y, ' ', bg_colour_text, fg_colour_text);
         }
     }
 }
