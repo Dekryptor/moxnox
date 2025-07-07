@@ -7,8 +7,6 @@ export module vt100;
 
 using namespace std;
 
-extern "C++" unsigned int console_rows, console_cols; // FIXME
-
 uint8_t utf8_buf[5];
 unsigned int utf8_chars = 0;
 char escape_buffer[50];
@@ -22,9 +20,9 @@ void print_char(T& t, char32_t c) {
         t.cursor_x = 0;
         t.cursor_y++;
 
-        if (t.cursor_y == console_rows) {
-            T::console_overflow();
-            t.cursor_y = console_rows - 1;
+        if (t.cursor_y == t.console_rows) {
+            t.console_overflow();
+            t.cursor_y = t.console_rows - 1;
         }
     } else if (c == '\b') {
         if (t.cursor_x == 0 && t.cursor_y == 0)
@@ -39,13 +37,13 @@ void print_char(T& t, char32_t c) {
 
         t.cursor_x++;
 
-        if (t.cursor_x == console_cols) {
+        if (t.cursor_x == t.console_cols) {
             t.cursor_x = 0;
             t.cursor_y++;
 
-            if (t.cursor_y == console_rows) {
-                T::console_overflow();
-                t.cursor_y = console_rows - 1;
+            if (t.cursor_y == t.console_rows) {
+                t.console_overflow();
+                t.cursor_y = t.console_rows - 1;
             }
         }
     }
@@ -205,25 +203,25 @@ void move_cursor(T& t, string_view s) {
         else
             t.cursor_y = 0;
     } else if (s.back() == 'B') { // down
-        if (t.cursor_y < console_rows - param)
+        if (t.cursor_y < t.console_rows - param)
             t.cursor_y += param;
         else
-            t.cursor_y = console_rows - 1;
+            t.cursor_y = t.console_rows - 1;
     } else if (s.back() == 'C') { // right
-        if (t.cursor_x < console_cols - param)
+        if (t.cursor_x < t.console_cols - param)
             t.cursor_x += param;
         else
-            t.cursor_x = console_cols - 1;
+            t.cursor_x = t.console_cols - 1;
     } else if (s.back() == 'D') { // left
         if (t.cursor_x > param - 1)
             t.cursor_x -= param;
     } else if (s.back() == 'E') { // cursor next line
         t.cursor_x = 0;
 
-        if (t.cursor_y < console_rows - param)
+        if (t.cursor_y < t.console_rows - param)
             t.cursor_y += param;
         else
-            t.cursor_y = console_rows - 1;
+            t.cursor_y = t.console_rows - 1;
     } else if (s.back() == 'F') { // cursor previous line
         t.cursor_x = 0;
 
@@ -235,16 +233,16 @@ void move_cursor(T& t, string_view s) {
         if (param < 1)
             param = 1;
 
-        if (param > console_cols)
-            t.cursor_x = console_cols - 1;
+        if (param > t.console_cols)
+            t.cursor_x = t.console_cols - 1;
         else
             t.cursor_x = param - 1;
     } else if (s.back() == 'd') { // vertical position absolute
         if (param < 1)
             param = 1;
 
-        if (param > console_rows)
-            t.cursor_y = console_rows - 1;
+        if (param > t.console_rows)
+            t.cursor_y = t.console_rows - 1;
         else
             t.cursor_y = param - 1;
     }
@@ -254,7 +252,7 @@ void move_cursor(T& t, string_view s) {
 }
 
 template<typename T>
-void scroll_up(string_view s) {
+void scroll_up(T& t, string_view s) {
     unsigned int rows = 1;
 
     if (!s.empty()) {
@@ -272,10 +270,10 @@ void scroll_up(string_view s) {
             return;
     }
 
-    if (rows > console_rows)
-        rows = console_rows;
+    if (rows > t.console_rows)
+        rows = t.console_rows;
 
-    T::console_overflow(rows);
+    t.console_overflow(rows);
 }
 
 template<typename T>
@@ -327,11 +325,11 @@ void set_cursor_position(T& t, string_view s) {
     if (y == 0)
         y = 1;
 
-    if (x >= console_cols)
-        x = console_cols;
+    if (x >= t.console_cols)
+        x = t.console_cols;
 
-    if (y >= console_rows)
-        y = console_rows;
+    if (y >= t.console_rows)
+        y = t.console_rows;
 
     t.cursor_x = x - 1;
     t.cursor_y = y - 1;
@@ -341,7 +339,7 @@ void set_cursor_position(T& t, string_view s) {
 }
 
 template<typename T>
-void scroll_down(string_view s) {
+void scroll_down(T& t, string_view s) {
     unsigned int rows = 1;
 
     if (!s.empty()) {
@@ -359,10 +357,10 @@ void scroll_down(string_view s) {
             return;
     }
 
-    if (rows > console_rows)
-        rows = console_rows;
+    if (rows > t.console_rows)
+        rows = t.console_rows;
 
-    T::scroll_down(rows);
+    t.scroll_down(rows);
 }
 
 template<typename T>
@@ -385,7 +383,7 @@ void erase_in_line(T& t, string_view s) {
         case 0: { // clear from cursor to end of line
             auto orig_cursor_x = t.cursor_x;
 
-            while (t.cursor_x < console_cols) {
+            while (t.cursor_x < t.console_cols) {
                 t.print_char(' ');
                 t.cursor_x++;
             }
@@ -412,7 +410,7 @@ void erase_in_line(T& t, string_view s) {
 
             t.cursor_x = 0;
 
-            while (t.cursor_x < console_cols) {
+            while (t.cursor_x < t.console_cols) {
                 t.print_char(' ');
                 t.cursor_x++;
             }
@@ -444,8 +442,8 @@ void erase_in_display(T& t, string_view s) {
 
     switch (param) {
         case 0: // clear from cursor to end of screen
-            while (t.cursor_y < console_rows) {
-                while (t.cursor_x < console_cols) {
+            while (t.cursor_y < t.console_rows) {
+                while (t.cursor_x < t.console_cols) {
                     t.print_char(' ');
                     t.cursor_x++;
                 }
@@ -460,7 +458,7 @@ void erase_in_display(T& t, string_view s) {
             t.cursor_y = 0;
 
             while (t.cursor_y < orig_cursor_y) {
-                while (t.cursor_x < console_cols) {
+                while (t.cursor_x < t.console_cols) {
                     t.print_char(' ');
                     t.cursor_x++;
                 }
@@ -481,8 +479,8 @@ void erase_in_display(T& t, string_view s) {
             t.cursor_x = 0;
             t.cursor_y = 0;
 
-            while (t.cursor_y < console_rows) {
-                while (t.cursor_x < console_cols) {
+            while (t.cursor_y < t.console_rows) {
+                while (t.cursor_x < t.console_cols) {
                     t.print_char(' ');
                     t.cursor_x++;
                 }
@@ -511,9 +509,9 @@ void handle_escape_sequence(T& t, string_view s) {
         else if (s.back() == 'K')
             erase_in_line(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'S')
-            scroll_up<T>(string_view(s.data(), s.size() - 1));
+            scroll_up(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'T')
-            scroll_down<T>(string_view(s.data(), s.size() - 1));
+            scroll_down(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'H' || s.back() == 'f')
             set_cursor_position(t, string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {

@@ -32,9 +32,7 @@ import vt100;
 
 using namespace std;
 
-export extern "C++" {
-    unsigned int console_cols, console_rows; // FIXME
-}
+export unsigned int console_cols; // FIXME
 
 enum class console_colour : uint8_t {
     black = 0,
@@ -183,6 +181,39 @@ export enum class console_type {
 
 export enum console_type console_type;
 
+struct console_fb {
+    static constexpr bool FB = true;
+
+    void console_overflow(unsigned int rows = 1);
+    static void handle_sgr_part_num(unsigned int num);
+    void print_char(char32_t c);
+    void cursor_changed();
+    void scroll_down(unsigned int rows);
+    static void enable_cursor(bool enable);
+    void move_cursor() { }
+
+    unsigned int cursor_x, cursor_y;
+    unsigned int console_rows, console_cols;
+};
+
+struct console_text {
+    static constexpr bool FB = false;
+
+    void console_overflow(unsigned int rows = 1);
+    static void handle_sgr_part_num(unsigned int num);
+    void print_char(char32_t c);
+    void cursor_changed() { }
+    void scroll_down(unsigned int rows);
+    static void enable_cursor(bool enable);
+    void move_cursor();
+
+    unsigned int cursor_x, cursor_y;
+    unsigned int console_rows, console_cols;
+};
+
+static console_fb console_fb_inst;
+static console_text console_text_inst;
+
 static constexpr uint16_t text_console_val(uint8_t c, enum console_colour bg,
                                            enum console_colour fg) {
     return (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
@@ -192,39 +223,8 @@ static void text_console_putc(uint8_t x, uint8_t y, char32_t cp,
                               enum console_colour bg, enum console_colour fg) {
     auto c = cp437(cp);
 
-    text_console[(y * console_cols) + x] = text_console_val((uint8_t)c, bg, fg);
+    text_console[(y * console_text_inst.console_cols) + x] = text_console_val((uint8_t)c, bg, fg);
 }
-
-struct console_fb {
-    static constexpr bool FB = true;
-
-    static void console_overflow(unsigned int rows = 1);
-    static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c);
-    void cursor_changed();
-    static void scroll_down(unsigned int rows);
-    static void enable_cursor(bool enable);
-    void move_cursor() { }
-
-    unsigned int cursor_x, cursor_y;
-};
-
-struct console_text {
-    static constexpr bool FB = false;
-
-    static void console_overflow(unsigned int rows = 1);
-    static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c);
-    void cursor_changed() { }
-    static void scroll_down(unsigned int rows);
-    static void enable_cursor(bool enable);
-    void move_cursor();
-
-    unsigned int cursor_x, cursor_y;
-};
-
-static console_fb console_fb_inst;
-static console_text console_text_inst;
 
 void console_text::move_cursor() {
     auto pos = (uint16_t)(((uint8_t)cursor_y * console_cols) + (uint8_t)cursor_x);
@@ -733,8 +733,8 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
 static void refresh_shadow_framebuffer() {
     auto* c = &console[0];
 
-    for (unsigned int y = 0; y < console_rows; y++) {
-        for (unsigned int x = 0; x < console_cols; x++) {
+    for (unsigned int y = 0; y < console_fb_inst.console_rows; y++) {
+        for (unsigned int x = 0; x < console_fb_inst.console_cols; x++) {
             if (!c->changed) {
                 c++;
                 continue;
@@ -747,19 +747,19 @@ static void refresh_shadow_framebuffer() {
 
             // don't leave black lines at edge of screen
 
-            if (x == console_cols - 1 && font_width * console_cols < fb_width) {
-                rect((x + 1) * font_width, y * font_height, fb_width - (font_width * console_cols),
+            if (x == console_fb_inst.console_cols - 1 && font_width * console_fb_inst.console_cols < fb_width) {
+                rect((x + 1) * font_width, y * font_height, fb_width - (font_width * console_fb_inst.console_cols),
                      font_height, c->bg);
             }
 
-            if (y == console_rows - 1 && font_height * console_rows < fb_height) {
+            if (y == console_fb_inst.console_rows - 1 && font_height * console_fb_inst.console_rows < fb_height) {
                 rect(x * font_width, (y + 1) * font_height, font_width,
-                     fb_height - (font_height * console_rows), c->bg);
+                     fb_height - (font_height * console_fb_inst.console_rows), c->bg);
 
-                if (x == console_cols - 1 && font_width * console_cols < fb_width) {
+                if (x == console_fb_inst.console_cols - 1 && font_width * console_fb_inst.console_cols < fb_width) {
                     rect((x + 1) * font_width, (y + 1) * font_height,
-                         fb_width - (font_width * console_cols),
-                         fb_height - (font_height * console_rows), c->bg);
+                         fb_width - (font_width * console_fb_inst.console_cols),
+                         fb_height - (font_height * console_fb_inst.console_rows), c->bg);
                 }
             }
 
@@ -781,8 +781,8 @@ static void shadow_blit(unsigned int x, unsigned int y, unsigned int width,
 static void refresh_framebuffer() {
     auto* c = &console[0];
 
-    for (unsigned int y = 0; y < console_rows; y++) {
-        for (unsigned int x = 0; x < console_cols; x++) {
+    for (unsigned int y = 0; y < console_fb_inst.console_rows; y++) {
+        for (unsigned int x = 0; x < console_fb_inst.console_cols; x++) {
             if (!c->changed) {
                 c++;
                 continue;
@@ -793,7 +793,7 @@ static void refresh_framebuffer() {
             c->changed = false;
             c++;
 
-            for (unsigned int i = x + 1; i < console_cols; i++) {
+            for (unsigned int i = x + 1; i < console_fb_inst.console_rows; i++) {
                 if (!c->changed)
                     break;
 
@@ -925,8 +925,9 @@ export bool init_console(const loader_block_framebuffer& fb,
         if (console_chardev.get().type != object_type::chardev)
             bsod_format("console option {} did not point to a character device", console_opt);
 
-        console_cols = 80; // FIXME
-        console_rows = 25; // FIXME
+        console_text_inst.console_cols = 80; // FIXME
+        console_text_inst.console_rows = 25; // FIXME
+        console_cols = console_text_inst.console_cols;
 
         console_type = console_type::other;
 
@@ -936,15 +937,16 @@ export bool init_console(const loader_block_framebuffer& fb,
     }
 
     if (console_type == console_type::text) {
-        console_cols = tc.cols;
-        console_rows = tc.rows;
+        console_text_inst.console_cols = tc.cols;
+        console_text_inst.console_rows = tc.rows;
+        console_cols = console_text_inst.console_cols;
 
         text_console = span((uint16_t*)phys_address(tc.phys_address),
-                            console_cols * console_rows);
+                            console_text_inst.console_cols * console_text_inst.console_rows);
 
         // clear console (foreground colour needs to be initialized for cursor to show up)
-        for (uint8_t y = 0; y < console_rows; y++) {
-            for (uint8_t x = 0; x < console_cols; x++) {
+        for (uint8_t y = 0; y < console_text_inst.console_rows; y++) {
+            for (uint8_t x = 0; x < console_text_inst.console_cols; x++) {
                 text_console_putc(x, y, ' ', console_colour::black, console_colour::light_grey);
             }
         }
@@ -1112,13 +1114,14 @@ export bool init_fb_console() {
     font_height = (unsigned int)(face.face->size->metrics.height / 64);
     font_descender = (unsigned int)(-face.face->size->metrics.descender / 64);
 
-    console_cols = fb_width / font_width;
-    console_rows = fb_height / font_height;
+    console_fb_inst.console_cols = fb_width / font_width;
+    console_fb_inst.console_rows = fb_height / font_height;
+    console_cols = console_fb_inst.console_cols;
 
     console_fb_inst.cursor_x = 0;
     console_fb_inst.cursor_y = 0;
 
-    console = (console_info*)vmalloc(console_cols * console_rows * sizeof(console_info));
+    console = (console_info*)vmalloc(console_fb_inst.console_cols * console_fb_inst.console_rows * sizeof(console_info));
     if (!console) {
         print("out of memory\n");
         return false;
@@ -1126,7 +1129,7 @@ export bool init_fb_console() {
 
     auto glyph = FT_Get_Char_Index(face.face, ' ');
 
-    for (unsigned int i = 0; i < console_cols * console_rows; i++) {
+    for (unsigned int i = 0; i < console_fb_inst.console_cols * console_fb_inst.console_rows; i++) {
         console[i].bg = DEFAULT_BG_COLOUR;
         console[i].fg = DEFAULT_FG_COLOUR;
         console[i].bold = false;
