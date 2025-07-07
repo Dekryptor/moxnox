@@ -211,9 +211,17 @@ static void text_console_move_cursor(uint8_t x, uint8_t y) {
     }
 }
 
-template<bool FB>
+struct console_fb {
+    static constexpr bool FB = true;
+};
+
+struct console_text {
+    static constexpr bool FB = false;
+};
+
+template<typename T>
 static void console_overflow(unsigned int rows = 1) {
-    if constexpr (FB) {
+    if constexpr (T::FB) {
         memcpy(console, &console[console_cols * rows], (console_rows - rows) * console_cols * sizeof(console_info));
 
         auto c = &console[(console_rows - rows) * console_cols];
@@ -245,10 +253,10 @@ static void console_overflow(unsigned int rows = 1) {
     }
 }
 
-template<bool FB>
+template<typename T>
 static void print_char(char32_t c) {
     if (c == '\n') {
-        if constexpr (FB) {
+        if constexpr (T::FB) {
             if (console) {
                 auto font = bold ? face_bold.face : face.face;
                 auto glyph = FT_Get_Char_Index(font, ' ');
@@ -267,14 +275,14 @@ static void print_char(char32_t c) {
         cursor_y++;
 
         if (cursor_y == console_rows) {
-            console_overflow<FB>();
+            console_overflow<T>();
             cursor_y = console_rows - 1;
         }
     } else if (c == '\b') {
         if (cursor_x == 0 && cursor_y == 0)
             return;
 
-        if constexpr (FB) {
+        if constexpr (T::FB) {
             if (cursor_x > 0)
                 cursor_x--;
             else {
@@ -308,7 +316,7 @@ static void print_char(char32_t c) {
         if (c < 0x20)
             return;
 
-        if constexpr (FB) {
+        if constexpr (T::FB) {
             if (console) {
                 auto& p = console[(cursor_y * console_cols) + cursor_x];
 
@@ -333,13 +341,13 @@ static void print_char(char32_t c) {
             cursor_y++;
 
             if (cursor_y == console_rows) {
-                console_overflow<FB>();
+                console_overflow<T>();
                 cursor_y = console_rows - 1;
             }
         }
     }
 
-    if constexpr (FB) {
+    if constexpr (T::FB) {
         if (show_cursor) {
             auto& p = console[(cursor_y * console_cols) + cursor_x];
 
@@ -349,12 +357,12 @@ static void print_char(char32_t c) {
     }
 }
 
-template<bool FB>
+template<typename T>
 static void do_print2(char c) {
     if (utf8_chars != 0) {
         if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-            print_char<FB>(0xfffd);
-            print_char<FB>((char32_t)c);
+            print_char<T>(0xfffd);
+            print_char<T>((char32_t)c);
             utf8_chars = 0;
             return;
         }
@@ -364,32 +372,32 @@ static void do_print2(char c) {
 
         if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
             if ((utf8_buf[1] & 0xc0) != 0x80) {
-                print_char<FB>(0xfffd);
+                print_char<T>(0xfffd);
                 utf8_chars = 0;
                 return;
             }
 
             auto c = (char32_t)(((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f));
 
-            print_char<FB>(c);
+            print_char<T>(c);
             utf8_chars = 0;
             return;
         } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
             if (utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char<FB>(0xfffd);
+                    print_char<T>(0xfffd);
                     utf8_chars = 0;
                 }
             } else {
                 if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char<FB>(0xfffd);
+                    print_char<T>(0xfffd);
                     utf8_chars = 0;
                     return;
                 }
 
                 auto c = (char32_t)(((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f));
 
-                print_char<FB>(c);
+                print_char<T>(c);
                 utf8_chars = 0;
             }
 
@@ -397,24 +405,24 @@ static void do_print2(char c) {
         } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
             if (utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char<FB>(0xfffd);
+                    print_char<T>(0xfffd);
                     utf8_chars = 0;
                 }
             } else if (utf8_chars == 3) {
                 if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char<FB>(0xfffd);
+                    print_char<T>(0xfffd);
                     utf8_chars = 0;
                 }
             } else {
                 if ((utf8_buf[3] & 0xc0) != 0x80) {
-                    print_char<FB>(0xfffd);
+                    print_char<T>(0xfffd);
                     utf8_chars = 0;
                     return;
                 }
 
                 auto c = (char32_t)(((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f));
 
-                print_char<FB>(c);
+                print_char<T>(c);
                 utf8_chars = 0;
             }
 
@@ -427,11 +435,11 @@ static void do_print2(char c) {
         utf8_chars = 1;
         return;
     } else if (c & 0x80) {
-        print_char<FB>(0xfffd);
+        print_char<T>(0xfffd);
         return;
     }
 
-    print_char<FB>((char32_t)c);
+    print_char<T>((char32_t)c);
 }
 
 static void recalc_colours(bool fg) {
@@ -456,7 +464,7 @@ static void recalc_colours_text(bool fg) {
         *colour = vt100_colours_text[index];
 }
 
-template<bool FB>
+template<typename T>
 static void handle_sgr_part(string_view s) {
     while (!s.empty() && s.front() == '0') {
         s = string_view(s.data() + 1, s.size() - 1);
@@ -472,7 +480,7 @@ static void handle_sgr_part(string_view s) {
         num += (unsigned int)(c - '0');
     }
 
-    if constexpr (FB) {
+    if constexpr (T::FB) {
         switch (num) {
             case 0: // reset
                 fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
@@ -671,7 +679,7 @@ static void handle_sgr_part(string_view s) {
     }
 }
 
-template<bool FB>
+template<typename T>
 static void handle_sgr(string_view s) {
     do {
         string_view p;
@@ -683,7 +691,7 @@ static void handle_sgr(string_view s) {
         else
             p = string_view(s.data(), sc);
 
-        handle_sgr_part<FB>(p);
+        handle_sgr_part<T>(p);
 
         if (sc == string_view::npos)
             break;
@@ -707,7 +715,7 @@ static void disable_cursor() {
     outb(0x3d5, 0x20);
 }
 
-template<bool FB>
+template<typename T>
 static void move_cursor(string_view s) {
     unsigned int param = 1;
 
@@ -726,7 +734,7 @@ static void move_cursor(string_view s) {
     }
 
     // old position
-    if constexpr (FB)
+    if constexpr (T::FB)
         console[(cursor_y * console_cols) + cursor_x].changed = true;
 
     if (s.back() == 'A') { // up
@@ -780,11 +788,11 @@ static void move_cursor(string_view s) {
     }
 
     // new position
-    if constexpr (FB)
+    if constexpr (T::FB)
         console[(cursor_y * console_cols) + cursor_x].changed = true;
 }
 
-template<bool FB>
+template<typename T>
 static void erase_in_line(string_view s) {
     unsigned int param = 0;
 
@@ -802,7 +810,7 @@ static void erase_in_line(string_view s) {
 
     switch (param) {
         case 0: // clear from cursor to end of line
-            if constexpr (FB) {
+            if constexpr (T::FB) {
                 auto* c = &console[(cursor_y * console_cols) + cursor_x];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
@@ -826,7 +834,7 @@ static void erase_in_line(string_view s) {
             break;
 
         case 1: // clear from beginning of line to cursor
-            if constexpr (FB) {
+            if constexpr (T::FB) {
                 auto* c = &console[cursor_y * console_cols];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
@@ -850,7 +858,7 @@ static void erase_in_line(string_view s) {
             break;
 
         case 2: // clear entire line
-            if constexpr (FB) {
+            if constexpr (T::FB) {
                 auto* c = &console[cursor_y * console_cols];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
@@ -875,7 +883,7 @@ static void erase_in_line(string_view s) {
     }
 }
 
-template<bool FB>
+template<typename T>
 static void erase_in_display(string_view s) {
     unsigned int param = 0;
 
@@ -893,7 +901,7 @@ static void erase_in_display(string_view s) {
 
     switch (param) {
         case 0: // clear from cursor to end of screen
-            if constexpr (FB) {
+            if constexpr (T::FB) {
                 auto* c = &console[(cursor_y * console_cols) + cursor_x];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
@@ -917,7 +925,7 @@ static void erase_in_display(string_view s) {
             break;
 
         case 1: // clear from beginning of screen to cursor
-            if constexpr (FB) {
+            if constexpr (T::FB) {
                 auto* c = &console[0];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
@@ -942,7 +950,7 @@ static void erase_in_display(string_view s) {
 
         case 2: // clear entire screen
         case 3:
-            if constexpr (FB) {
+            if constexpr (T::FB) {
                 auto* c = &console[0];
 
                 auto glyph = FT_Get_Char_Index(bold ? face_bold.face : face.face, ' ');
@@ -967,7 +975,7 @@ static void erase_in_display(string_view s) {
     }
 }
 
-template<bool FB>
+template<typename T>
 static void scroll_up(string_view s) {
     unsigned int rows = 1;
 
@@ -989,10 +997,10 @@ static void scroll_up(string_view s) {
     if (rows > console_rows)
         rows = console_rows;
 
-    console_overflow<FB>(rows);
+    console_overflow<T>(rows);
 }
 
-template<bool FB>
+template<typename T>
 static void scroll_down(string_view s) {
     unsigned int rows = 1;
 
@@ -1014,7 +1022,7 @@ static void scroll_down(string_view s) {
     if (rows > console_rows)
         rows = console_rows;
 
-    if constexpr (FB) {
+    if constexpr (T::FB) {
         memmove(&console[console_cols * rows], console,
                 (console_rows - rows) * console_cols * sizeof(console_info));
 
@@ -1046,7 +1054,7 @@ static void scroll_down(string_view s) {
     }
 }
 
-template<bool FB>
+template<typename T>
 static void set_cursor_position(string_view s) {
     unsigned int x = 1, y = 1;
 
@@ -1087,7 +1095,7 @@ static void set_cursor_position(string_view s) {
     }
 
     // old position
-    if constexpr (FB)
+    if constexpr (T::FB)
         console[(cursor_y * console_cols) + cursor_x].changed = true;
 
     if (x == 0)
@@ -1106,15 +1114,15 @@ static void set_cursor_position(string_view s) {
     cursor_y = y - 1;
 
     // new position
-    if constexpr (FB)
+    if constexpr (T::FB)
         console[(cursor_y * console_cols) + cursor_x].changed = true;
 }
 
-template<bool FB>
+template<typename T>
 static void handle_escape_sequence(string_view s) {
     if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
         for (auto c : s) {
-            do_print2<FB>(c);
+            do_print2<T>(c);
         }
         return;
     }
@@ -1123,30 +1131,30 @@ static void handle_escape_sequence(string_view s) {
         s = string_view(s.data() + 2, s.size() - 2);
 
         if ((s.back() >= 'A' && s.back() <= 'G') || s.back() == 'd')
-            move_cursor<FB>(s);
+            move_cursor<T>(s);
         else if (s.back() == 'm')
-            handle_sgr<FB>(string_view(s.data(), s.size() - 1));
+            handle_sgr<T>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'J')
-            erase_in_display<FB>(string_view(s.data(), s.size() - 1));
+            erase_in_display<T>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'K')
-            erase_in_line<FB>(string_view(s.data(), s.size() - 1));
+            erase_in_line<T>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'S')
-            scroll_up<FB>(string_view(s.data(), s.size() - 1));
+            scroll_up<T>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'T')
-            scroll_down<FB>(string_view(s.data(), s.size() - 1));
+            scroll_down<T>(string_view(s.data(), s.size() - 1));
         else if (s.back() == 'H' || s.back() == 'f')
-            set_cursor_position<FB>(string_view(s.data(), s.size() - 1));
+            set_cursor_position<T>(string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
             show_cursor = true;
 
-            if constexpr (FB)
+            if constexpr (T::FB)
                 console[(cursor_y * console_cols) + cursor_x].changed = true;
             else
                 enable_cursor();
         } else if (s == "?25l") {
             show_cursor = false;
 
-            if constexpr (FB)
+            if constexpr (T::FB)
                 console[(cursor_y * console_cols) + cursor_x].changed = true;
             else
                 disable_cursor();
@@ -1154,11 +1162,11 @@ static void handle_escape_sequence(string_view s) {
     }
 }
 
-template<bool FB>
+template<typename T>
 static void do_print(string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
-            do_print2<FB>(0x1b);
+            do_print2<T>(0x1b);
             escape_buffer_len = 0;
         } else {
             if (escape_buffer_len == 1) {
@@ -1174,7 +1182,7 @@ static void do_print(string_view s) {
             while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
                 if (escape_buffer_len == sizeof(escape_buffer)) {
                     for (size_t i = 0; i < escape_buffer_len; i++) {
-                        do_print2<FB>(escape_buffer[i]);
+                        do_print2<T>(escape_buffer[i]);
                     }
 
                     escape_buffer_len = 0;
@@ -1195,14 +1203,14 @@ static void do_print(string_view s) {
 
                 s = string_view(s.data() + 1, s.size() - 1);
 
-                handle_escape_sequence<FB>(string_view(escape_buffer, escape_buffer_len));
+                handle_escape_sequence<T>(string_view(escape_buffer, escape_buffer_len));
                 escape_buffer_len = 0;
 
                 if (s.empty())
                     return;
             } else {
                 for (size_t i = 0; i < escape_buffer_len; i++) {
-                    do_print2<FB>(escape_buffer[i]);
+                    do_print2<T>(escape_buffer[i]);
                 }
 
                 escape_buffer_len = 0;
@@ -1234,12 +1242,12 @@ loop:
                 if (s.size() == param_bytes + 2) {
                     if (param_bytes + 2 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < escape_buffer_len; i++) {
-                            do_print2<FB>(escape_buffer[i]);
+                            do_print2<T>(escape_buffer[i]);
                         }
                         escape_buffer_len = 0;
 
                         for (size_t i = 0; i < s.size(); i++) {
-                            do_print2<FB>(s[i]);
+                            do_print2<T>(s[i]);
                         }
 
                         return;
@@ -1254,10 +1262,10 @@ loop:
                     // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
                     if (param_bytes + 3 > sizeof(escape_buffer)) {
                         for (size_t i = 0; i < param_bytes + 3; i++) {
-                            do_print2<FB>(s[i]);
+                            do_print2<T>(s[i]);
                         }
                     } else
-                        handle_escape_sequence<FB>(string_view(s.data(), param_bytes + 3));
+                        handle_escape_sequence<T>(string_view(s.data(), param_bytes + 3));
 
                     s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
                     continue;
@@ -1265,10 +1273,10 @@ loop:
             }
         }
 
-        do_print2<FB>(c);
+        do_print2<T>(c);
     }
 
-    if constexpr (!FB)
+    if constexpr (!T::FB)
         text_console_move_cursor((uint8_t)cursor_x, (uint8_t)cursor_y);
 }
 
@@ -1480,7 +1488,7 @@ void early_print(string_view s) {
             return;
         }
 
-        do_print<false>(s);
+        do_print<console_text>(s);
         return;
     }
 
@@ -1491,7 +1499,7 @@ void early_print(string_view s) {
 
     disable_preempt();
 
-    do_print<true>(s);
+    do_print<console_fb>(s);
     refresh_shadow_framebuffer();
     refresh_framebuffer();
 
