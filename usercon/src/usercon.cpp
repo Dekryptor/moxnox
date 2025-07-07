@@ -15,6 +15,7 @@ import format;
 import rbtree;
 import unique_handle;
 import list;
+import vt100;
 
 using namespace std;
 
@@ -45,29 +46,6 @@ struct console_cell {
     FT_UInt glyph;
 };
 
-struct console_line {
-    ~console_line() {
-        if (text)
-            free(text);
-    }
-
-    list_entry le;
-    char* text = nullptr;
-    size_t len = 0;
-    unsigned int num_cells = 0;
-    console_cell cells[0];
-};
-
-static FT_Library ft;
-static font_info font;
-static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
-static span<uint32_t> framebuffer;
-static unsigned int font_width, font_height, font_descender;
-static unsigned int console_cols, console_rows;
-static console_line* curline = nullptr;
-static list_entry lines = { &lines, &lines };
-static unsigned int num_lines = 0;
-
 class hb_buffer_closer {
 public:
     using pointer = hb_buffer_t*;
@@ -78,6 +56,43 @@ public:
 };
 
 using unique_hb_buffer = unique_ptr<hb_buffer_t*, hb_buffer_closer>;
+
+struct console_line {
+    ~console_line() {
+        if (text)
+            free(text);
+    }
+
+    list_entry le;
+    char32_t* text = nullptr;
+    size_t len = 0;
+    unsigned int num_cells = 0;
+    console_cell cells[0];
+};
+
+static FT_Library ft;
+static font_info font;
+static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
+static span<uint32_t> framebuffer;
+static unsigned int font_width, font_height, font_descender;
+static console_line* curline = nullptr;
+static list_entry lines = { &lines, &lines };
+static unsigned int num_lines = 0;
+
+struct console_fb {
+    void console_overflow(unsigned int rows = 1);
+    static void handle_sgr_part_num(unsigned int num);
+    void print_char(char32_t c);
+    void cursor_changed();
+    void scroll_down(unsigned int rows);
+    static void enable_cursor(bool enable);
+    void move_cursor() { }
+
+    unsigned int cursor_x, cursor_y;
+    unsigned int console_rows, console_cols;
+};
+
+static console_fb console_fb_inst;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -254,6 +269,26 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
                 &iosb, sv.data(), (uint32_t)sv.size(), nullptr, nullptr);
 }
 
+void console_fb::console_overflow(unsigned int rows) {
+    // FIXME
+}
+
+void console_fb::handle_sgr_part_num(unsigned int num) {
+    // FIXME
+}
+
+void console_fb::cursor_changed() {
+    // FIXME
+}
+
+void console_fb::scroll_down(unsigned int rows) {
+    // FIXME
+}
+
+void console_fb::enable_cursor(bool enable) {
+    // FIXME
+}
+
 static bool init_font(span<const uint8_t> buf) {
     FT_Error error;
     unsigned int font_size = 12; // FIXME - allow setting somehow
@@ -290,10 +325,10 @@ static bool init_font(span<const uint8_t> buf) {
     font_height = (unsigned int)(font.face->size->metrics.height / 64);
     font_descender = (unsigned int)(-font.face->size->metrics.descender / 64);
 
-    console_cols = fb_info.width / font_width;
-    console_rows = fb_info.height / font_height;
+    console_fb_inst.console_cols = fb_info.width / font_width;
+    console_fb_inst.console_rows = fb_info.height / font_height;
 
-    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
+    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
 
     curline = (console_line*)malloc(line_size);
     if (!curline) {
@@ -534,7 +569,7 @@ static void print_line(console_line& line, unsigned int sy) {
     double x = 0.0, y = sy;
 
     // FIXME - BG colours of cells
-    rect(0, sy - font_height, min(fb_info.width, console_cols * font_width),
+    rect(0, sy - font_height, min(fb_info.width, console_fb_inst.console_cols * font_width),
          font_height, 0x000000);
 
     for (unsigned int i = 0; i < line.num_cells; i++) {
@@ -564,26 +599,55 @@ static void flush_framebuffer() {
     }
 }
 
-static void do_print(string_view s) {
+#if 0
+static void do_newline() {
+    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
+
+    auto nextline = (console_line*)malloc(line_size);
+    if (!nextline) {
+        print("malloc failed\n");
+        return;
+    }
+
+    new (nextline) console_line;
+
+    insert_tail_list(lines, nextline->le);
+    num_lines++;
+
+    if (num_lines > console_fb_inst.console_rows) {
+        auto& first = containing_record<console_line>(lines.next);
+
+        remove_entry_list(first.le);
+        delete &first;
+
+        num_lines--;
+    }
+
+    curline = nextline;
+}
+#endif
+
+void console_fb::print_char(char32_t c) {
     // append to existing buffer
 
+    // FIXME - allow multiple characters at once?
     {
-        auto t = (char*)malloc(curline->len + s.size());
+        auto t = (char32_t*)malloc((curline->len + 1) * sizeof(char32_t));
         if (!t) {
             print("malloc failed\n");
             return;
         }
 
         if (curline->len != 0)
-            memcpy(t, curline->text, curline->len);
+            memcpy(t, curline->text, curline->len * sizeof(char32_t));
 
-        memcpy(t + curline->len, s.data(), s.size());
+        memcpy(t + curline->len, &c, sizeof(char32_t));
 
         if (curline->text)
             free(curline->text);
 
         curline->text = t;
-        curline->len += s.size();
+        curline->len++;
     }
 
     // lay out using harfbuzz
@@ -594,7 +658,8 @@ static void do_print(string_view s) {
 
         unique_hb_buffer buf{hb_buffer_create()};
 
-        hb_buffer_add_utf8(buf.get(), curline->text, (int)curline->len, 0, -1);
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
+                                 (int)curline->len, 0, -1);
         hb_buffer_guess_segment_properties(buf.get());
 
         hb_shape(font.hb_font, buf.get(), nullptr, 0);
@@ -603,30 +668,26 @@ static void do_print(string_view s) {
         auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
         auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
 
-        // FIXME - handle newlines
-
-        curline->num_cells = min(len, console_cols);
+        curline->num_cells = min(len, console_fb_inst.console_cols);
         for (unsigned int i = 0; i < curline->num_cells; i++) {
             curline->cells[i].pos = pos[i];
             curline->cells[i].glyph = info[i].codepoint;
         }
 
-        if (len <= console_cols)
+        if (len <= console_fb_inst.console_cols)
             break;
 
-        auto trunc = info[console_cols].cluster;
+        auto trunc = info[console_fb_inst.console_cols].cluster;
 
-        // FIXME - truncate existing buffer
-
-        auto t = (char*)malloc(curline->len - trunc);
+        auto t = (char32_t*)malloc((curline->len - trunc) * sizeof(char32_t));
         if (!t) {
             print("malloc failed\n");
             return;
         }
 
-        memcpy(t, curline->text + trunc, curline->len - trunc);
+        memcpy(t, curline->text + trunc, (curline->len - trunc) * sizeof(char32_t));
 
-        auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
+        auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
 
         auto nextline = (console_line*)malloc(line_size);
         if (!nextline) {
@@ -642,7 +703,7 @@ static void do_print(string_view s) {
         insert_tail_list(lines, nextline->le);
         num_lines++;
 
-        if (num_lines > console_rows) {
+        if (num_lines > console_fb_inst.console_rows) {
             auto& first = containing_record<console_line>(lines.next);
 
             remove_entry_list(first.le);
@@ -651,7 +712,7 @@ static void do_print(string_view s) {
             num_lines--;
         }
 
-        curline->text = (char*)realloc(curline->text, trunc);
+        curline->text = (char32_t*)realloc(curline->text, trunc * sizeof(char32_t));
         curline->len = trunc;
 
         curline = nextline;
@@ -669,33 +730,8 @@ static void do_print(string_view s) {
     }
 }
 
-static void do_newline() {
-    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
-
-    auto nextline = (console_line*)malloc(line_size);
-    if (!nextline) {
-        print("malloc failed\n");
-        return;
-    }
-
-    new (nextline) console_line;
-
-    insert_tail_list(lines, nextline->le);
-    num_lines++;
-
-    if (num_lines > console_rows) {
-        auto& first = containing_record<console_line>(lines.next);
-
-        remove_entry_list(first.le);
-        delete &first;
-
-        num_lines--;
-    }
-
-    curline = nextline;
-}
-
 static void recv_data(string_view s) {
+#if 0
     // FIXME - handle partial UTF-8 characters
 
     // FIXME - \\b, VT-100 escape sequences
@@ -727,6 +763,8 @@ static void recv_data(string_view s) {
 
     if (!s.empty())
         do_print(s);
+#endif
+    do_print(console_fb_inst, s);
 
     flush_framebuffer();
 }
