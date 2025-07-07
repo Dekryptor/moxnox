@@ -215,12 +215,14 @@ struct console_fb {
     static constexpr bool FB = true;
 
     static void console_overflow(unsigned int rows = 1);
+    static void handle_sgr_part_num(unsigned int num);
 };
 
 struct console_text {
     static constexpr bool FB = false;
 
     static void console_overflow(unsigned int rows = 1);
+    static void handle_sgr_part_num(unsigned int num);
 };
 
 void console_fb::console_overflow(unsigned int rows) {
@@ -467,6 +469,206 @@ static void recalc_colours_text(bool fg) {
         *colour = vt100_colours_text[index];
 }
 
+void console_fb::handle_sgr_part_num(unsigned int num) {
+    switch (num) {
+        case 0: // reset
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour = DEFAULT_FG_COLOUR;
+
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_bright = false;
+            bg_colour = DEFAULT_BG_COLOUR;
+
+            bold = false;
+            break;
+
+        case 1:
+            bold = true;
+            recalc_colours(true);
+            break;
+
+        // FIXME - 3 - italic
+        // FIXME - 4 - underline
+        // FIXME - 5 - blink
+        // FIXME - 7 - reverse video
+        // FIXME - 9 - strikethrough
+        // FIXME - 21 - double underline
+
+        case 22:
+            bold = false;
+            recalc_colours(false);
+            break;
+
+        // FIXME - 23 - not italic
+        // FIXME - 24 - not underlined
+        // FIXME - 25 - not blinking
+
+        case 30:
+        case 31:
+        case 32:
+        case 33:
+        case 34:
+        case 35:
+        case 36:
+        case 37:
+            fg_colour_index = num - 30;
+            fg_bright = false;
+            recalc_colours(true);
+            break;
+
+        // FIXME - 38 - custom foreground colour
+
+        case 39:
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour = DEFAULT_FG_COLOUR;
+            break;
+
+        case 40:
+        case 41:
+        case 42:
+        case 43:
+        case 44:
+        case 45:
+        case 46:
+        case 47:
+            bg_colour_index = num - 40;
+            bg_bright = false;
+            recalc_colours(false);
+            break;
+
+        // FIXME - 48 - custom background colour
+
+        case 49:
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_colour = DEFAULT_BG_COLOUR;
+            bg_bright = false;
+            break;
+
+        case 90:
+        case 91:
+        case 92:
+        case 93:
+        case 94:
+        case 95:
+        case 96:
+        case 97:
+            fg_colour_index = num - 90;
+            fg_bright = true;
+            recalc_colours(true);
+            break;
+
+        case 100:
+        case 101:
+        case 102:
+        case 103:
+        case 104:
+        case 105:
+        case 106:
+        case 107:
+            bg_colour_index = num - 100;
+            bg_bright = true;
+            recalc_colours(false);
+            break;
+    }
+}
+
+void console_text::handle_sgr_part_num(unsigned int num) {
+    switch (num) {
+        case 0: // reset
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_bright = false;
+            bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+
+            bold = false;
+            break;
+
+        case 1:
+            bold = true;
+            recalc_colours_text(true);
+            break;
+
+        // FIXME - 5 - blink
+        // FIXME - 7 - reverse video
+
+        case 22:
+            bold = false;
+            recalc_colours_text(false);
+            break;
+
+        // FIXME - 25 - not blinking
+
+        case 30:
+        case 31:
+        case 32:
+        case 33:
+        case 34:
+        case 35:
+        case 36:
+        case 37:
+            fg_colour_index = num - 30;
+            fg_bright = false;
+            recalc_colours_text(true);
+            break;
+
+        case 39:
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+            break;
+
+        case 40:
+        case 41:
+        case 42:
+        case 43:
+        case 44:
+        case 45:
+        case 46:
+        case 47:
+            bg_colour_index = num - 40;
+            bg_bright = false;
+            recalc_colours_text(false);
+            break;
+
+        case 49:
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+            bg_bright = false;
+            break;
+
+        case 90:
+        case 91:
+        case 92:
+        case 93:
+        case 94:
+        case 95:
+        case 96:
+        case 97:
+            fg_colour_index = num - 90;
+            fg_bright = true;
+            recalc_colours_text(true);
+            break;
+
+        case 100:
+        case 101:
+        case 102:
+        case 103:
+        case 104:
+        case 105:
+        case 106:
+        case 107:
+            bg_colour_index = num - 100;
+            bg_bright = true;
+            recalc_colours_text(false);
+            break;
+    }
+}
+
 template<typename T>
 static void handle_sgr_part(string_view s) {
     while (!s.empty() && s.front() == '0') {
@@ -483,203 +685,7 @@ static void handle_sgr_part(string_view s) {
         num += (unsigned int)(c - '0');
     }
 
-    if constexpr (T::FB) {
-        switch (num) {
-            case 0: // reset
-                fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
-                fg_bright = false;
-                fg_colour = DEFAULT_FG_COLOUR;
-
-                bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
-                bg_bright = false;
-                bg_colour = DEFAULT_BG_COLOUR;
-
-                bold = false;
-                break;
-
-            case 1:
-                bold = true;
-                recalc_colours(true);
-                break;
-
-            // FIXME - 3 - italic
-            // FIXME - 4 - underline
-            // FIXME - 5 - blink
-            // FIXME - 7 - reverse video
-            // FIXME - 9 - strikethrough
-            // FIXME - 21 - double underline
-
-            case 22:
-                bold = false;
-                recalc_colours(false);
-                break;
-
-            // FIXME - 23 - not italic
-            // FIXME - 24 - not underlined
-            // FIXME - 25 - not blinking
-
-            case 30:
-            case 31:
-            case 32:
-            case 33:
-            case 34:
-            case 35:
-            case 36:
-            case 37:
-                fg_colour_index = num - 30;
-                fg_bright = false;
-                recalc_colours(true);
-                break;
-
-            // FIXME - 38 - custom foreground colour
-
-            case 39:
-                fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
-                fg_bright = false;
-                fg_colour = DEFAULT_FG_COLOUR;
-                break;
-
-            case 40:
-            case 41:
-            case 42:
-            case 43:
-            case 44:
-            case 45:
-            case 46:
-            case 47:
-                bg_colour_index = num - 40;
-                bg_bright = false;
-                recalc_colours(false);
-                break;
-
-            // FIXME - 48 - custom background colour
-
-            case 49:
-                bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
-                bg_colour = DEFAULT_BG_COLOUR;
-                bg_bright = false;
-                break;
-
-            case 90:
-            case 91:
-            case 92:
-            case 93:
-            case 94:
-            case 95:
-            case 96:
-            case 97:
-                fg_colour_index = num - 90;
-                fg_bright = true;
-                recalc_colours(true);
-                break;
-
-            case 100:
-            case 101:
-            case 102:
-            case 103:
-            case 104:
-            case 105:
-            case 106:
-            case 107:
-                bg_colour_index = num - 100;
-                bg_bright = true;
-                recalc_colours(false);
-                break;
-        }
-    } else {
-        switch (num) {
-            case 0: // reset
-                fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
-                fg_bright = false;
-                fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
-
-                bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
-                bg_bright = false;
-                bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
-
-                bold = false;
-                break;
-
-            case 1:
-                bold = true;
-                recalc_colours_text(true);
-                break;
-
-            // FIXME - 5 - blink
-            // FIXME - 7 - reverse video
-
-            case 22:
-                bold = false;
-                recalc_colours_text(false);
-                break;
-
-            // FIXME - 25 - not blinking
-
-            case 30:
-            case 31:
-            case 32:
-            case 33:
-            case 34:
-            case 35:
-            case 36:
-            case 37:
-                fg_colour_index = num - 30;
-                fg_bright = false;
-                recalc_colours_text(true);
-                break;
-
-            case 39:
-                fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
-                fg_bright = false;
-                fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
-                break;
-
-            case 40:
-            case 41:
-            case 42:
-            case 43:
-            case 44:
-            case 45:
-            case 46:
-            case 47:
-                bg_colour_index = num - 40;
-                bg_bright = false;
-                recalc_colours_text(false);
-                break;
-
-            case 49:
-                bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
-                bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
-                bg_bright = false;
-                break;
-
-            case 90:
-            case 91:
-            case 92:
-            case 93:
-            case 94:
-            case 95:
-            case 96:
-            case 97:
-                fg_colour_index = num - 90;
-                fg_bright = true;
-                recalc_colours_text(true);
-                break;
-
-            case 100:
-            case 101:
-            case 102:
-            case 103:
-            case 104:
-            case 105:
-            case 106:
-            case 107:
-                bg_colour_index = num - 100;
-                bg_bright = true;
-                recalc_colours_text(false);
-                break;
-        }
-    }
+    T::handle_sgr_part_num(num);
 }
 
 template<typename T>
