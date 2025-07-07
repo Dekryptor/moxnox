@@ -218,6 +218,7 @@ struct console_fb {
     static void print_char(char32_t c);
     static void cursor_changed();
     static void scroll_down(unsigned int rows);
+    static void enable_cursor(bool enable);
 };
 
 struct console_text {
@@ -228,6 +229,7 @@ struct console_text {
     static void print_char(char32_t c);
     static void cursor_changed() { }
     static void scroll_down(unsigned int rows);
+    static void enable_cursor(bool enable);
 };
 
 void console_fb::console_overflow(unsigned int rows) {
@@ -560,19 +562,23 @@ void console_text::handle_sgr_part_num(unsigned int num) {
     }
 }
 
-static void enable_cursor() {
-    uint8_t cursor_start = 14, cursor_end = 15;
-
-    outb(0x3d4, 0x0a);
-    outb(0x3d5, (inb(0x3d5) & 0xc0) | cursor_start);
-
-    outb(0x3d4, 0x0b);
-    outb(0x3d5, (inb(0x3d5) & 0xe0) | cursor_end);
+void console_fb::enable_cursor(bool enabled) {
+    show_cursor = enabled;
 }
 
-static void disable_cursor() {
-    outb(0x3d4, 0xa);
-    outb(0x3d5, 0x20);
+void console_text::enable_cursor(bool enabled) {
+    if (enabled) {
+        uint8_t cursor_start = 14, cursor_end = 15;
+
+        outb(0x3d4, 0x0a);
+        outb(0x3d5, (inb(0x3d5) & 0xc0) | cursor_start);
+
+        outb(0x3d4, 0x0b);
+        outb(0x3d5, (inb(0x3d5) & 0xe0) | cursor_end);
+    } else {
+        outb(0x3d4, 0xa);
+        outb(0x3d5, 0x20);
+    }
 }
 
 void console_fb::scroll_down(unsigned int rows) {
@@ -604,50 +610,6 @@ void console_text::scroll_down(unsigned int rows) {
     for (uint8_t y = 0; y < rows; y++) {
         for (uint8_t x = 0; x < console_cols; x++) {
             text_console_putc(x, y, ' ', bg_colour_text, fg_colour_text);
-        }
-    }
-}
-
-template<typename T>
-static void handle_escape_sequence(string_view s) {
-    if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
-        for (auto c : s) {
-            do_print2<T>(c);
-        }
-        return;
-    }
-
-    if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
-        s = string_view(s.data() + 2, s.size() - 2);
-
-        if ((s.back() >= 'A' && s.back() <= 'G') || s.back() == 'd')
-            move_cursor<T>(s);
-        else if (s.back() == 'm')
-            handle_sgr<T>(string_view(s.data(), s.size() - 1));
-        else if (s.back() == 'J')
-            erase_in_display<T>(string_view(s.data(), s.size() - 1));
-        else if (s.back() == 'K')
-            erase_in_line<T>(string_view(s.data(), s.size() - 1));
-        else if (s.back() == 'S')
-            scroll_up<T>(string_view(s.data(), s.size() - 1));
-        else if (s.back() == 'T')
-            scroll_down<T>(string_view(s.data(), s.size() - 1));
-        else if (s.back() == 'H' || s.back() == 'f')
-            set_cursor_position<T>(string_view(s.data(), s.size() - 1));
-        else if (s == "?25h") {
-            show_cursor = true;
-
-            T::cursor_changed();
-
-            if constexpr (!T::FB)
-                enable_cursor();
-        } else if (s == "?25l") {
-            show_cursor = false;
-
-            T::cursor_changed();
-
-            if constexpr (!T::FB)
-                disable_cursor();
         }
     }
 }
@@ -693,7 +655,14 @@ static void do_print(string_view s) {
 
                 s = string_view(s.data() + 1, s.size() - 1);
 
-                handle_escape_sequence<T>(string_view(escape_buffer, escape_buffer_len));
+                if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
+                    for (auto c : string_view(escape_buffer, escape_buffer_len)) {
+                        do_print2<T>(c);
+                    }
+                    return;
+                } else
+                    handle_escape_sequence<T>(string_view(escape_buffer, escape_buffer_len));
+
                 escape_buffer_len = 0;
 
                 if (s.empty())
@@ -754,8 +723,15 @@ loop:
                         for (size_t i = 0; i < param_bytes + 3; i++) {
                             do_print2<T>(s[i]);
                         }
-                    } else
-                        handle_escape_sequence<T>(string_view(s.data(), param_bytes + 3));
+                    } else {
+                        if (!(console_output_mode & ENABLE_PROCESSED_OUTPUT)) {
+                            for (auto c : string_view(s.data(), param_bytes + 3)) {
+                                do_print2<T>(c);
+                            }
+                            return;
+                        } else
+                            handle_escape_sequence<T>(string_view(s.data(), param_bytes + 3));
+                    }
 
                     s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
                     continue;

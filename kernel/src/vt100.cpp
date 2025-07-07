@@ -156,7 +156,7 @@ void handle_sgr_part(string_view s) {
     T::handle_sgr_part_num(num);
 }
 
-export template<typename T>
+template<typename T>
 void handle_sgr(string_view s) {
     do {
         string_view p;
@@ -177,7 +177,7 @@ void handle_sgr(string_view s) {
     } while (true);
 }
 
-export template<typename T>
+template<typename T>
 void move_cursor(string_view s) {
     unsigned int param = 1;
 
@@ -252,7 +252,7 @@ void move_cursor(string_view s) {
     T::cursor_changed();
 }
 
-export template<typename T>
+template<typename T>
 void scroll_up(string_view s) {
     unsigned int rows = 1;
 
@@ -277,7 +277,7 @@ void scroll_up(string_view s) {
     T::console_overflow(rows);
 }
 
-export template<typename T>
+template<typename T>
 void set_cursor_position(string_view s) {
     unsigned int x = 1, y = 1;
 
@@ -339,7 +339,7 @@ void set_cursor_position(string_view s) {
     T::cursor_changed();
 }
 
-export template<typename T>
+template<typename T>
 void scroll_down(string_view s) {
     unsigned int rows = 1;
 
@@ -364,8 +364,7 @@ void scroll_down(string_view s) {
     T::scroll_down(rows);
 }
 
-
-export template<typename T>
+template<typename T>
 void erase_in_line(string_view s) {
     unsigned int param = 0;
 
@@ -423,7 +422,7 @@ void erase_in_line(string_view s) {
     }
 }
 
-export template<typename T>
+template<typename T>
 void erase_in_display(string_view s) {
     unsigned int param = 0;
 
@@ -495,4 +494,33 @@ void erase_in_display(string_view s) {
 
     cursor_x = orig_cursor_x;
     cursor_y = orig_cursor_y;
+}
+
+export template<typename T>
+void handle_escape_sequence(string_view s) {
+    if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
+        s = string_view(s.data() + 2, s.size() - 2);
+
+        if ((s.back() >= 'A' && s.back() <= 'G') || s.back() == 'd')
+            move_cursor<T>(s);
+        else if (s.back() == 'm')
+            handle_sgr<T>(string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'J')
+            erase_in_display<T>(string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'K')
+            erase_in_line<T>(string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'S')
+            scroll_up<T>(string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'T')
+            scroll_down<T>(string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'H' || s.back() == 'f')
+            set_cursor_position<T>(string_view(s.data(), s.size() - 1));
+        else if (s == "?25h") {
+            T::cursor_changed();
+            T::enable_cursor(true);
+        } else if (s == "?25l") {
+            T::cursor_changed();
+            T::enable_cursor(false);
+        }
+    }
 }
