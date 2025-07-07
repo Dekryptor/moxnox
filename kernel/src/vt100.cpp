@@ -363,3 +363,62 @@ void scroll_down(string_view s) {
 
     T::scroll_down(rows);
 }
+
+
+export template<typename T>
+void erase_in_line(string_view s) {
+    unsigned int param = 0;
+
+    if (!s.empty()) {
+        param = 0;
+
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                return;
+
+            param *= 10;
+            param += (unsigned int)(c - '0');
+        }
+    }
+
+    switch (param) {
+        case 0: { // clear from cursor to end of line
+            auto orig_cursor_x = cursor_x;
+
+            while (cursor_x < console_cols) {
+                T::print_char(' ');
+                cursor_x++;
+            }
+
+            cursor_x = orig_cursor_x;
+            break;
+        }
+
+        case 1: { // clear from beginning of line to cursor
+            auto orig_cursor_x = cursor_x;
+
+            cursor_x = 0;
+            while (cursor_x < orig_cursor_x) {
+                T::print_char(' ');
+                cursor_x++;
+            }
+
+            cursor_x = orig_cursor_x;
+            break;
+        }
+
+        case 2: { // clear entire line
+            auto orig_cursor_x = cursor_x;
+
+            cursor_x = 0;
+
+            while (cursor_x < console_cols) {
+                T::print_char(' ');
+                cursor_x++;
+            }
+
+            cursor_x = orig_cursor_x;
+            break;
+        }
+    }
+}
