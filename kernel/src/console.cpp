@@ -213,42 +213,45 @@ static void text_console_move_cursor(uint8_t x, uint8_t y) {
 
 struct console_fb {
     static constexpr bool FB = true;
+
+    static void console_overflow(unsigned int rows = 1);
 };
 
 struct console_text {
     static constexpr bool FB = false;
+
+    static void console_overflow(unsigned int rows = 1);
 };
 
-template<typename T>
-static void console_overflow(unsigned int rows = 1) {
-    if constexpr (T::FB) {
-        memcpy(console, &console[console_cols * rows], (console_rows - rows) * console_cols * sizeof(console_info));
+void console_fb::console_overflow(unsigned int rows) {
+    memcpy(console, &console[console_cols * rows], (console_rows - rows) * console_cols * sizeof(console_info));
 
-        auto c = &console[(console_rows - rows) * console_cols];
+    auto c = &console[(console_rows - rows) * console_cols];
 
-        auto font = bold ? face_bold.face : face.face;
-        auto glyph = FT_Get_Char_Index(font, ' ');
+    auto font = bold ? face_bold.face : face.face;
+    auto glyph = FT_Get_Char_Index(font, ' ');
 
-        for (unsigned int i = 0; i < console_cols * console_rows; i++) {
-            console[i].changed = true;
-        }
+    for (unsigned int i = 0; i < console_cols * console_rows; i++) {
+        console[i].changed = true;
+    }
 
-        for (unsigned int i = 0; i < console_cols * rows; i++) {
-            c->bg = bg_colour;
-            c->fg = fg_colour;
-            c->glyph = glyph;
-            c->bold = bold;
-            c++;
-        }
-    } else {
-        memcpy(text_console.data(), &text_console[console_cols * rows],
-               (console_rows - rows) * console_cols * sizeof(uint16_t));
+    for (unsigned int i = 0; i < console_cols * rows; i++) {
+        c->bg = bg_colour;
+        c->fg = fg_colour;
+        c->glyph = glyph;
+        c->bold = bold;
+        c++;
+    }
+}
 
-        for (uint8_t y = 0; y < rows; y++) {
-            for (uint8_t x = 0; x < console_cols; x++) {
-                text_console_putc(x, (uint8_t)(console_rows - rows + y), ' ',
-                                  bg_colour_text, fg_colour_text);
-            }
+void console_text::console_overflow(unsigned int rows) {
+    memcpy(text_console.data(), &text_console[console_cols * rows],
+            (console_rows - rows) * console_cols * sizeof(uint16_t));
+
+    for (uint8_t y = 0; y < rows; y++) {
+        for (uint8_t x = 0; x < console_cols; x++) {
+            text_console_putc(x, (uint8_t)(console_rows - rows + y), ' ',
+                                bg_colour_text, fg_colour_text);
         }
     }
 }
@@ -275,7 +278,7 @@ static void print_char(char32_t c) {
         cursor_y++;
 
         if (cursor_y == console_rows) {
-            console_overflow<T>();
+            T::console_overflow();
             cursor_y = console_rows - 1;
         }
     } else if (c == '\b') {
@@ -341,7 +344,7 @@ static void print_char(char32_t c) {
             cursor_y++;
 
             if (cursor_y == console_rows) {
-                console_overflow<T>();
+                T::console_overflow();
                 cursor_y = console_rows - 1;
             }
         }
@@ -997,7 +1000,7 @@ static void scroll_up(string_view s) {
     if (rows > console_rows)
         rows = console_rows;
 
-    console_overflow<T>(rows);
+    T::console_overflow(rows);
 }
 
 template<typename T>
