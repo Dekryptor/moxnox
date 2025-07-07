@@ -182,8 +182,6 @@ export enum class console_type {
 export enum console_type console_type;
 
 struct console_fb {
-    static constexpr bool FB = true;
-
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
     void print_char(char32_t c);
@@ -197,8 +195,6 @@ struct console_fb {
 };
 
 struct console_text {
-    static constexpr bool FB = false;
-
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
     void print_char(char32_t c);
