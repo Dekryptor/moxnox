@@ -216,6 +216,8 @@ struct console_fb {
 
     static void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
+    static void print_char(char32_t c);
+    static void cursor_changed();
 };
 
 struct console_text {
@@ -223,6 +225,10 @@ struct console_text {
 
     static void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
+    static void print_char(char32_t c);
+
+    static void cursor_changed() {
+    }
 };
 
 void console_fb::console_overflow(unsigned int rows) {
@@ -258,23 +264,85 @@ void console_text::console_overflow(unsigned int rows) {
     }
 }
 
+void console_fb::print_char(char32_t c) {
+    if (c == '\n') {
+        if (console) {
+            auto font = bold ? face_bold.face : face.face;
+            auto glyph = FT_Get_Char_Index(font, ' ');
+
+            for (unsigned int i = cursor_x; i < console_cols; i++) {
+                if (console[(cursor_y * console_cols) + i].glyph != glyph)
+                    continue;
+
+                console[(cursor_y * console_cols) + i].glyph = glyph;
+                console[(cursor_y * console_cols) + i].changed = true;
+            }
+        }
+    } else if (c == '\b') {
+        if (cursor_x > 0)
+            cursor_x--;
+        else {
+            cursor_x = console_cols - 1;
+            cursor_y--;
+
+            if (cursor_x != console_cols - 1)
+                cursor_x++;
+        }
+
+        if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT) {
+            auto font = bold ? face_bold.face : face.face;
+            auto glyph = FT_Get_Char_Index(font, ' ');
+
+            if (console[(cursor_y * console_cols) + cursor_x].glyph != glyph) {
+                console[(cursor_y * console_cols) + cursor_x].glyph = glyph;
+                console[(cursor_y * console_cols) + cursor_x].changed = true;
+            }
+        }
+    } else {
+        if (console) {
+            auto& p = console[(cursor_y * console_cols) + cursor_x];
+
+            auto font = bold ? face_bold.face : face.face;
+            auto glyph = FT_Get_Char_Index(font, c);
+
+            p.glyph = glyph;
+            p.bg = bg_colour;
+            p.fg = fg_colour;
+            p.bold = bold;
+            p.changed = true;
+        }
+    }
+}
+
+void console_text::print_char(char32_t c) {
+    if (c == '\n') {
+    } else if (c == '\b') {
+        if (cursor_x > 0) { // FIXME
+            cursor_x--;
+
+            if (console_output_mode & ENABLE_PROCESSED_OUTPUT) {
+                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
+                                  bg_colour_text, fg_colour_text);
+            }
+        }
+    } else {
+        text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
+                          bg_colour_text, fg_colour_text);
+    }
+}
+
+void console_fb::cursor_changed() {
+    if (show_cursor) {
+        auto& p = console[(cursor_y * console_cols) + cursor_x];
+
+        p.changed = true;
+    }
+}
+
 template<typename T>
 static void print_char(char32_t c) {
     if (c == '\n') {
-        if constexpr (T::FB) {
-            if (console) {
-                auto font = bold ? face_bold.face : face.face;
-                auto glyph = FT_Get_Char_Index(font, ' ');
-
-                for (unsigned int i = cursor_x; i < console_cols; i++) {
-                    if (console[(cursor_y * console_cols) + i].glyph != glyph)
-                        continue;
-
-                    console[(cursor_y * console_cols) + i].glyph = glyph;
-                    console[(cursor_y * console_cols) + i].changed = true;
-                }
-            }
-        }
+        T::print_char('\n');
 
         cursor_x = 0;
         cursor_y++;
@@ -287,57 +355,12 @@ static void print_char(char32_t c) {
         if (cursor_x == 0 && cursor_y == 0)
             return;
 
-        if constexpr (T::FB) {
-            if (cursor_x > 0)
-                cursor_x--;
-            else {
-                cursor_x = console_cols - 1;
-                cursor_y--;
-
-                if (cursor_x != console_cols - 1)
-                    cursor_x++;
-            }
-
-            if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT) {
-                auto font = bold ? face_bold.face : face.face;
-                auto glyph = FT_Get_Char_Index(font, ' ');
-
-                if (console[(cursor_y * console_cols) + cursor_x].glyph != glyph) {
-                    console[(cursor_y * console_cols) + cursor_x].glyph = glyph;
-                    console[(cursor_y * console_cols) + cursor_x].changed = true;
-                }
-            }
-        } else {
-            if (cursor_x > 0) { // FIXME
-                cursor_x--;
-
-                if (console_output_mode & ENABLE_PROCESSED_OUTPUT) {
-                    text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
-                                      bg_colour_text, fg_colour_text);
-                }
-            }
-        }
+        T::print_char('\b');
     } else {
         if (c < 0x20)
             return;
 
-        if constexpr (T::FB) {
-            if (console) {
-                auto& p = console[(cursor_y * console_cols) + cursor_x];
-
-                auto font = bold ? face_bold.face : face.face;
-                auto glyph = FT_Get_Char_Index(font, c);
-
-                p.glyph = glyph;
-                p.bg = bg_colour;
-                p.fg = fg_colour;
-                p.bold = bold;
-                p.changed = true;
-            }
-        } else {
-            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
-                              bg_colour_text, fg_colour_text);
-        }
+        T::print_char(c);
 
         cursor_x++;
 
@@ -352,14 +375,7 @@ static void print_char(char32_t c) {
         }
     }
 
-    if constexpr (T::FB) {
-        if (show_cursor) {
-            auto& p = console[(cursor_y * console_cols) + cursor_x];
-
-            p.changed = true;
-        }
-
-    }
+    T::cursor_changed();
 }
 
 template<typename T>
@@ -743,8 +759,7 @@ static void move_cursor(string_view s) {
     }
 
     // old position
-    if constexpr (T::FB)
-        console[(cursor_y * console_cols) + cursor_x].changed = true;
+    T::cursor_changed();
 
     if (s.back() == 'A') { // up
         if (cursor_y > param - 1)
@@ -797,8 +812,7 @@ static void move_cursor(string_view s) {
     }
 
     // new position
-    if constexpr (T::FB)
-        console[(cursor_y * console_cols) + cursor_x].changed = true;
+    T::cursor_changed();
 }
 
 template<typename T>
@@ -1104,8 +1118,7 @@ static void set_cursor_position(string_view s) {
     }
 
     // old position
-    if constexpr (T::FB)
-        console[(cursor_y * console_cols) + cursor_x].changed = true;
+    T::cursor_changed();
 
     if (x == 0)
         x = 1;
@@ -1123,8 +1136,7 @@ static void set_cursor_position(string_view s) {
     cursor_y = y - 1;
 
     // new position
-    if constexpr (T::FB)
-        console[(cursor_y * console_cols) + cursor_x].changed = true;
+    T::cursor_changed();
 }
 
 template<typename T>
@@ -1156,16 +1168,16 @@ static void handle_escape_sequence(string_view s) {
         else if (s == "?25h") {
             show_cursor = true;
 
-            if constexpr (T::FB)
-                console[(cursor_y * console_cols) + cursor_x].changed = true;
-            else
+            T::cursor_changed();
+
+            if constexpr (!T::FB)
                 enable_cursor();
         } else if (s == "?25l") {
             show_cursor = false;
 
-            if constexpr (T::FB)
-                console[(cursor_y * console_cols) + cursor_x].changed = true;
-            else
+            T::cursor_changed();
+
+            if constexpr (!T::FB)
                 disable_cursor();
         }
     }
