@@ -44,6 +44,8 @@ struct font_info {
 struct console_cell {
     hb_glyph_position_t pos;
     FT_UInt glyph;
+    uint32_t fg_colour;
+    uint32_t bg_colour;
 };
 
 class hb_buffer_closer {
@@ -94,6 +96,36 @@ struct console_fb {
 };
 
 static console_fb console_fb_inst;
+
+static const uint32_t vt100_colours[] = {
+    0x000000,
+    0xb21818,
+    0x18b218,
+    0xb26818,
+    0x1818b2,
+    0xb218b2,
+    0x18b2b2,
+    0xb2b2b2,
+};
+
+static const uint32_t vt100_bright_colours[] = {
+    0x686868,
+    0xff5454,
+    0x54ff54,
+    0xffff54,
+    0x5454ff,
+    0xff54ff,
+    0x54ffff,
+    0xffffff,
+};
+
+static const unsigned int DEFAULT_BG_COLOUR_INDEX = 0;
+static const unsigned int DEFAULT_FG_COLOUR_INDEX = 7;
+static const uint32_t DEFAULT_BG_COLOUR = vt100_colours[DEFAULT_BG_COLOUR_INDEX];
+static const uint32_t DEFAULT_FG_COLOUR = vt100_colours[DEFAULT_FG_COLOUR_INDEX];
+static uint32_t bg_colour_index = 0, fg_colour_index = 7;
+static bool bg_bright = false, fg_bright = false, bold = false;
+static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -274,8 +306,120 @@ void console_fb::console_overflow(unsigned int rows) {
     // FIXME
 }
 
+static void recalc_colours(bool fg) {
+    bool bright = fg ? fg_bright : bg_bright;
+    unsigned int index = fg ? fg_colour_index : bg_colour_index;
+    uint32_t* colour = fg ? &fg_colour : &bg_colour;
+
+    if (bright || (fg && bold))
+        *colour = vt100_bright_colours[index];
+    else
+        *colour = vt100_colours[index];
+}
+
 void console_fb::handle_sgr_part_num(unsigned int num) {
-    // FIXME
+    switch (num) {
+        case 0: // reset
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour = DEFAULT_FG_COLOUR;
+
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_bright = false;
+            bg_colour = DEFAULT_BG_COLOUR;
+
+            bold = false;
+            break;
+
+        case 1:
+            bold = true;
+            recalc_colours(true);
+            break;
+
+        // FIXME - 3 - italic
+        // FIXME - 4 - underline
+        // FIXME - 5 - blink
+        // FIXME - 7 - reverse video
+        // FIXME - 9 - strikethrough
+        // FIXME - 21 - double underline
+
+        case 22:
+            bold = false;
+            recalc_colours(false);
+            break;
+
+        // FIXME - 23 - not italic
+        // FIXME - 24 - not underlined
+        // FIXME - 25 - not blinking
+
+        case 30:
+        case 31:
+        case 32:
+        case 33:
+        case 34:
+        case 35:
+        case 36:
+        case 37:
+            fg_colour_index = num - 30;
+            fg_bright = false;
+            recalc_colours(true);
+            break;
+
+        // FIXME - 38 - custom foreground colour
+
+        case 39:
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour = DEFAULT_FG_COLOUR;
+            break;
+
+        case 40:
+        case 41:
+        case 42:
+        case 43:
+        case 44:
+        case 45:
+        case 46:
+        case 47:
+            bg_colour_index = num - 40;
+            bg_bright = false;
+            recalc_colours(false);
+            break;
+
+        // FIXME - 48 - custom background colour
+
+        case 49:
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_colour = DEFAULT_BG_COLOUR;
+            bg_bright = false;
+            break;
+
+        case 90:
+        case 91:
+        case 92:
+        case 93:
+        case 94:
+        case 95:
+        case 96:
+        case 97:
+            fg_colour_index = num - 90;
+            fg_bright = true;
+            recalc_colours(true);
+            break;
+
+        case 100:
+        case 101:
+        case 102:
+        case 103:
+        case 104:
+        case 105:
+        case 106:
+        case 107:
+            bg_colour_index = num - 100;
+            bg_bright = true;
+            recalc_colours(false);
+            break;
+    }
 }
 
 void console_fb::cursor_changed() {
@@ -492,7 +636,8 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
     return gi;
 }
 
-static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
+static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y,
+                         uint32_t fg_colour, uint32_t bg_colour) {
     auto gi = load_glyph(font, glyph);
     if (!gi)
         return;
@@ -518,8 +663,8 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y) {
     if (bottom > (int)fb_info.height)
         bottom = (int)fb_info.height;
 
-    auto bg = (uint32_t)0x000000; // FIXME
-    auto fg = (uint32_t)0xffffff; // FIXME
+    auto bg = bg_colour;
+    auto fg = fg_colour;
 
     uint32_t bg_colour_r = bg >> 16;
     uint32_t fg_colour_r = fg >> 16;
@@ -580,7 +725,8 @@ static void print_line(console_line& line, unsigned int sy) {
         double y_offset = line.cells[i].pos.y_offset / 64.0;
 
         draw_ft_char(line.cells[i].glyph, (unsigned int)(x + x_offset),
-                     (unsigned int)(y + y_offset - font_descender));
+                     (unsigned int)(y + y_offset - font_descender),
+                     line.cells[i].fg_colour, line.cells[i].bg_colour);
 
         x += x_advance;
         y += y_advance;
@@ -725,6 +871,8 @@ void console_fb::print_char(char32_t c) {
         for (unsigned int i = 0; i < curline->num_cells; i++) {
             curline->cells[i].pos = pos[i];
             curline->cells[i].glyph = info[i].codepoint;
+            curline->cells[i].fg_colour = fg_colour;
+            curline->cells[i].bg_colour = bg_colour;
         }
 
         curline->changed = true;
