@@ -55,3 +55,8 @@ extern "C"
 void FT_Done_Memory(FT_Memory memory) {
     free(memory);
 }
+
+extern "C"
+int DllMainCRTStartup(HANDLE hinstDLL, uint32_t dwReason, void* lpvReserved) {
+    return 1;
+}
