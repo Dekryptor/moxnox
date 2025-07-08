@@ -108,7 +108,7 @@ target_compile_options(freetype-static PRIVATE -mno-stack-arg-probe -gdwarf-5)
 target_include_directories(freetype-static PRIVATE include)
 target_include_directories(freetype-static PUBLIC freetype/include)
 
-add_library(freetype SHARED ${FREETYPE_FILES} ftshim.cpp)
+add_library(freetype SHARED ${FREETYPE_FILES} ${CMAKE_SOURCE_DIR}/ftshim.cpp)
 
 target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
@@ -195,7 +195,7 @@ add_library(harfbuzz SHARED harfbuzz/src/hb-aat-layout.cc
     harfbuzz/src/hb-uniscribe.cc
     harfbuzz/src/hb-wasm-api.cc
     harfbuzz/src/hb-wasm-shape.cc
-    hbshim.cpp)
+    ${CMAKE_SOURCE_DIR}/hbshim.cpp)
 
 target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_OT_SHAPE -DHB_NO_OT_LAYOUT -DHB_NO_MT)
 target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -gdwarf-5 -masm=intel)
@@ -388,7 +388,7 @@ add_library(zlib SHARED
     zlib/inftrees.c
     zlib/trees.c
     zlib/zutil.c
-    zlibshim.cpp
+    ${CMAKE_SOURCE_DIR}/zlibshim.cpp
 )
 
 target_include_directories(zlib PUBLIC zlib)
@@ -416,7 +416,7 @@ add_library(libpng SHARED
     libpng/pngwrite.c
     libpng/pngwtran.c
     libpng/pngwutil.c
-    libpngshim.cpp
+    ${CMAKE_SOURCE_DIR}/libpngshim.cpp
 )
 
 target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
