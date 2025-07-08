@@ -67,6 +67,7 @@ struct console_line {
     char32_t* text = nullptr;
     size_t len = 0;
     unsigned int num_cells = 0;
+    bool changed = false;
     console_cell cells[0];
 };
 
@@ -611,6 +612,7 @@ static void do_newline() {
     new (nextline) console_line;
 
     insert_tail_list(lines, nextline->le);
+    nextline->changed = true;
     num_lines++;
 
     if (num_lines > console_fb_inst.console_rows) {
@@ -620,6 +622,12 @@ static void do_newline() {
         delete &first;
 
         num_lines--;
+
+        for (auto le = lines.next; le != &lines; le = le->next) {
+            auto& l = containing_record<console_line>(le);
+
+            l.changed = true;
+        }
     }
 
     curline = nextline;
@@ -702,6 +710,8 @@ void console_fb::print_char(char32_t c) {
                 curline->cells[i].glyph = info[i].codepoint;
             }
 
+            curline->changed = true;
+
             if (len <= console_fb_inst.console_cols)
                 break;
 
@@ -727,6 +737,7 @@ void console_fb::print_char(char32_t c) {
 
             nextline->text = t;
             nextline->len = curline->len - trunc;
+            nextline->changed = true;
 
             insert_tail_list(lines, nextline->le);
             num_lines++;
@@ -738,6 +749,12 @@ void console_fb::print_char(char32_t c) {
                 delete &first;
 
                 num_lines--;
+
+                for (auto le = lines.next; le != &lines; le = le->next) {
+                    auto& l = containing_record<console_line>(le);
+
+                    l.changed = true;
+                }
             }
 
             curline->text = (char32_t*)realloc(curline->text, trunc * sizeof(char32_t));
@@ -745,17 +762,6 @@ void console_fb::print_char(char32_t c) {
 
             curline = nextline;
         } while (true);
-
-        // print to FB
-
-        unsigned int y = font_height;
-
-        for (auto le = lines.next; le != &lines; le = le->next) {
-            auto& l = containing_record<console_line>(le);
-
-            print_line(l, y);
-            y += font_height;
-        }
     }
 }
 
@@ -794,6 +800,21 @@ static void recv_data(string_view s) {
         do_print(s);
 #endif
     do_print(console_fb_inst, s);
+
+    // print to FB
+
+    unsigned int y = font_height;
+
+    for (auto le = lines.next; le != &lines; le = le->next) {
+        auto& l = containing_record<console_line>(le);
+
+        if (l.changed) {
+            print_line(l, y);
+            l.changed = true;
+        }
+
+        y += font_height;
+    }
 
     flush_framebuffer();
 }
