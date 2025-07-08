@@ -634,171 +634,154 @@ static void do_newline() {
 }
 
 void console_fb::print_char(char32_t c) {
-    if (c == '\n')
+    if (c == '\n') {
         do_newline();
-    else {
-        unsigned int text_pos;
-
-        // FIXME - allow multiple characters at once?
-
-        // get current position in string
-
-        if (curline->len == 0)
-            text_pos = 0;
-        else {
-            unique_hb_buffer buf{hb_buffer_create()};
-
-            hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
-                                    (int)curline->len, 0, -1);
-            hb_buffer_guess_segment_properties(buf.get());
-
-            hb_shape(font.hb_font, buf.get(), nullptr, 0);
-
-            auto len = hb_buffer_get_length(buf.get());
-            auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
-
-            if (len > cursor_x)
-                text_pos = info[cursor_x].cluster;
-            else
-                text_pos = info[len - 1].cluster + 1; // FIXME?
-        }
-
-        // append to existing buffer
-
-        if (text_pos < curline->len)
-            curline->text[text_pos] = c;
-        else {
-            auto t = (char32_t*)malloc((curline->len + 1) * sizeof(char32_t));
-            if (!t) {
-                print("malloc failed\n");
-                return;
-            }
-
-            if (curline->len != 0)
-                memcpy(t, curline->text, curline->len * sizeof(char32_t));
-
-            memcpy(t + curline->len, &c, sizeof(char32_t));
-
-            if (curline->text)
-                free(curline->text);
-
-            curline->text = t;
-            curline->len++;
-        }
-
-        // lay out using harfbuzz
-
-        do {
-            // FIXME - keep HB buffer around?
-            // FIXME - cap how much data we send to hb_buffer_add_utf8?
-
-            unique_hb_buffer buf{hb_buffer_create()};
-
-            hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
-                                    (int)curline->len, 0, -1);
-            hb_buffer_guess_segment_properties(buf.get());
-
-            hb_shape(font.hb_font, buf.get(), nullptr, 0);
-
-            auto len = hb_buffer_get_length(buf.get());
-            auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
-            auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
-
-            curline->num_cells = min(len, console_fb_inst.console_cols);
-            for (unsigned int i = 0; i < curline->num_cells; i++) {
-                curline->cells[i].pos = pos[i];
-                curline->cells[i].glyph = info[i].codepoint;
-            }
-
-            curline->changed = true;
-
-            if (len <= console_fb_inst.console_cols)
-                break;
-
-            auto trunc = info[console_fb_inst.console_cols].cluster;
-
-            auto t = (char32_t*)malloc((curline->len - trunc) * sizeof(char32_t));
-            if (!t) {
-                print("malloc failed\n");
-                return;
-            }
-
-            memcpy(t, curline->text + trunc, (curline->len - trunc) * sizeof(char32_t));
-
-            auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
-
-            auto nextline = (console_line*)malloc(line_size);
-            if (!nextline) {
-                print("malloc failed\n");
-                return;
-            }
-
-            new (nextline) console_line;
-
-            nextline->text = t;
-            nextline->len = curline->len - trunc;
-            nextline->changed = true;
-
-            insert_tail_list(lines, nextline->le);
-            num_lines++;
-
-            if (num_lines > console_fb_inst.console_rows) {
-                auto& first = containing_record<console_line>(lines.next);
-
-                remove_entry_list(first.le);
-                delete &first;
-
-                num_lines--;
-
-                for (auto le = lines.next; le != &lines; le = le->next) {
-                    auto& l = containing_record<console_line>(le);
-
-                    l.changed = true;
-                }
-            }
-
-            curline->text = (char32_t*)realloc(curline->text, trunc * sizeof(char32_t));
-            curline->len = trunc;
-
-            curline = nextline;
-        } while (true);
+        return;
     }
+
+    if (c == '\b') {
+        if (cursor_x > 0)
+            cursor_x--;
+        else {
+            cursor_x = console_cols - 1;
+            cursor_y--;
+
+            if (cursor_x != console_cols - 1)
+                cursor_x++;
+        }
+
+        // FIXME - not if ENABLE_PROCESSED_OUTPUT disabled
+        c = ' ';
+    }
+
+    unsigned int text_pos;
+
+    // FIXME - allow multiple characters at once?
+
+    // get current position in string
+
+    if (curline->len == 0)
+        text_pos = 0;
+    else {
+        unique_hb_buffer buf{hb_buffer_create()};
+
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
+                                (int)curline->len, 0, -1);
+        hb_buffer_guess_segment_properties(buf.get());
+
+        hb_shape(font.hb_font, buf.get(), nullptr, 0);
+
+        auto len = hb_buffer_get_length(buf.get());
+        auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+
+        if (len > cursor_x)
+            text_pos = info[cursor_x].cluster;
+        else
+            text_pos = info[len - 1].cluster + 1; // FIXME?
+    }
+
+    // append to existing buffer
+
+    if (text_pos < curline->len)
+        curline->text[text_pos] = c;
+    else {
+        auto t = (char32_t*)malloc((curline->len + 1) * sizeof(char32_t));
+        if (!t) {
+            print("malloc failed\n");
+            return;
+        }
+
+        if (curline->len != 0)
+            memcpy(t, curline->text, curline->len * sizeof(char32_t));
+
+        memcpy(t + curline->len, &c, sizeof(char32_t));
+
+        if (curline->text)
+            free(curline->text);
+
+        curline->text = t;
+        curline->len++;
+    }
+
+    // lay out using harfbuzz
+
+    do {
+        // FIXME - keep HB buffer around?
+        // FIXME - cap how much data we send to hb_buffer_add_utf8?
+
+        unique_hb_buffer buf{hb_buffer_create()};
+
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
+                                (int)curline->len, 0, -1);
+        hb_buffer_guess_segment_properties(buf.get());
+
+        hb_shape(font.hb_font, buf.get(), nullptr, 0);
+
+        auto len = hb_buffer_get_length(buf.get());
+        auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+        auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
+
+        curline->num_cells = min(len, console_fb_inst.console_cols);
+        for (unsigned int i = 0; i < curline->num_cells; i++) {
+            curline->cells[i].pos = pos[i];
+            curline->cells[i].glyph = info[i].codepoint;
+        }
+
+        curline->changed = true;
+
+        if (len <= console_fb_inst.console_cols)
+            break;
+
+        auto trunc = info[console_fb_inst.console_cols].cluster;
+
+        auto t = (char32_t*)malloc((curline->len - trunc) * sizeof(char32_t));
+        if (!t) {
+            print("malloc failed\n");
+            return;
+        }
+
+        memcpy(t, curline->text + trunc, (curline->len - trunc) * sizeof(char32_t));
+
+        auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
+
+        auto nextline = (console_line*)malloc(line_size);
+        if (!nextline) {
+            print("malloc failed\n");
+            return;
+        }
+
+        new (nextline) console_line;
+
+        nextline->text = t;
+        nextline->len = curline->len - trunc;
+        nextline->changed = true;
+
+        insert_tail_list(lines, nextline->le);
+        num_lines++;
+
+        if (num_lines > console_fb_inst.console_rows) {
+            auto& first = containing_record<console_line>(lines.next);
+
+            remove_entry_list(first.le);
+            delete &first;
+
+            num_lines--;
+
+            for (auto le = lines.next; le != &lines; le = le->next) {
+                auto& l = containing_record<console_line>(le);
+
+                l.changed = true;
+            }
+        }
+
+        curline->text = (char32_t*)realloc(curline->text, trunc * sizeof(char32_t));
+        curline->len = trunc;
+
+        curline = nextline;
+    } while (true);
 }
 
 static void recv_data(string_view s) {
-#if 0
-    // FIXME - handle partial UTF-8 characters
-
-    // FIXME - \\b, VT-100 escape sequences
-    // FIXME - ignore other characters below 0x20
-
-    while (!s.empty() && s.front() == '\n') {
-        do_newline();
-        s = string_view(s.data() + 1, s.size() - 1);
-    }
-
-    while (true) {
-        bool again = false;
-
-        for (size_t i = 0; i < s.size(); i++) {
-            if (s[i] == '\n') {
-                if (i != 0)
-                    do_print(string_view(s.data(), i));
-
-                do_newline();
-                s = string_view(s.data() + i + 1, s.size() - i - 1);
-                again = true;
-                break;
-            }
-        }
-
-        if (!again)
-            break;
-    }
-
-    if (!s.empty())
-        do_print(s);
-#endif
     do_print(console_fb_inst, s);
 
     // print to FB
