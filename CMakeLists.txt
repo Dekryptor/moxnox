@@ -399,7 +399,7 @@ install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
-add_library(libpng
+add_library(libpng SHARED
     libpng/png.c
     libpng/pngerror.c
     libpng/pngget.c
@@ -415,10 +415,16 @@ add_library(libpng
     libpng/pngwrite.c
     libpng/pngwtran.c
     libpng/pngwutil.c
+    libpngshim.cpp
 )
 
 target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
-target_compile_options(libpng PRIVATE -gdwarf-5)
-target_link_libraries(libpng zlib)
+target_compile_options(libpng PRIVATE -gdwarf-5 -masm=intel)
+target_link_libraries(libpng PUBLIC zlib)
+target_link_libraries(libpng PRIVATE ntdll)
+
+install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}
+    ARCHIVE EXCLUDE_FROM_ALL
+)
 
 install(SCRIPT initrd.cmake)

@@ -13,22 +13,6 @@ import unicode;
 
 using namespace std;
 
-extern "C"
-void* malloc(size_t size) {
-    return RtlAllocateHeap(GetProcessHeap(), 0, size);
-}
-
-extern "C"
-void free(void* ptr) {
-    RtlFreeHeap(GetProcessHeap(), 0, ptr);
-}
-
-extern "C"
-void abort() {
-    NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)0xffffffff);
-    __builtin_unreachable();
-}
-
 static void write_png(png_structp png, png_bytep buf, size_t size) {
     IO_STATUS_BLOCK iosb;
 
