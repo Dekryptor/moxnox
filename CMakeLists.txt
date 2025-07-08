@@ -123,7 +123,7 @@ install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
-add_library(harfbuzz harfbuzz/src/hb-aat-layout.cc
+add_library(harfbuzz SHARED harfbuzz/src/hb-aat-layout.cc
     harfbuzz/src/hb-aat-map.cc
     harfbuzz/src/hb-blob.cc
     harfbuzz/src/hb-buffer.cc
@@ -190,27 +190,23 @@ add_library(harfbuzz harfbuzz/src/hb-aat-layout.cc
     harfbuzz/src/hb-shaper.cc
     harfbuzz/src/hb-static.cc
     harfbuzz/src/hb-style.cc
-    harfbuzz/src/hb-subset.cc
-    harfbuzz/src/hb-subset-cff1.cc
-    harfbuzz/src/hb-subset-cff2.cc
-    harfbuzz/src/hb-subset-cff-common.cc
-    harfbuzz/src/hb-subset-input.cc
-    harfbuzz/src/hb-subset-instancer-iup.cc
-    harfbuzz/src/hb-subset-instancer-solver.cc
-    harfbuzz/src/hb-subset-plan.cc
-    harfbuzz/src/hb-subset-plan-layout.cc
-    harfbuzz/src/hb-subset-plan-var.cc
-    harfbuzz/src/hb-subset-serialize.cc
     harfbuzz/src/hb-ucd.cc
     harfbuzz/src/hb-unicode.cc
     harfbuzz/src/hb-uniscribe.cc
     harfbuzz/src/hb-wasm-api.cc
-    harfbuzz/src/hb-wasm-shape.cc)
+    harfbuzz/src/hb-wasm-shape.cc
+    hbshim.cpp)
 
 target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_OT_SHAPE -DHB_NO_OT_LAYOUT -DHB_NO_MT)
-target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -gdwarf-5)
+target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -gdwarf-5 -masm=intel)
 target_include_directories(harfbuzz PUBLIC harfbuzz/src)
 target_link_libraries(harfbuzz freetype)
+target_link_options(harfbuzz PUBLIC -nostartfiles -nostdlib)
+target_link_libraries(harfbuzz ntdll -lgcc)
+
+install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}
+    ARCHIVE EXCLUDE_FROM_ALL
+)
 
 add_library(acpica
     acpica/source/components/dispatcher/dsargs.c
