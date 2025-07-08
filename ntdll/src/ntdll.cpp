@@ -557,14 +557,16 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
-    status = NtCreateFile(&h, 0, &oa, &iosb, nullptr, 0, 0, FILE_OPEN, 0, nullptr, 0);
+    status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, 0, nullptr, 0);
 
     if (!success(status)) {
         free(us.Buffer);
         return false;
     }
 
-    status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, h);
+    status = NtCreateSection(&sect, SECTION_MAP_READ, nullptr, nullptr,
+                             PAGE_READONLY, SEC_IMAGE, h);
 
     if (!success(status)) {
         NtClose(h);
