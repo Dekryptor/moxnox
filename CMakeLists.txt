@@ -117,7 +117,7 @@ target_compile_options(freetype PRIVATE -mno-stack-arg-probe -gdwarf-5 -masm=int
 target_include_directories(freetype PRIVATE include)
 target_include_directories(freetype PUBLIC freetype/include)
 target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
-target_link_libraries(freetype ntdll)
+target_link_libraries(freetype PRIVATE ntdll)
 
 install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
     ARCHIVE EXCLUDE_FROM_ALL
@@ -200,9 +200,9 @@ add_library(harfbuzz SHARED harfbuzz/src/hb-aat-layout.cc
 target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_OT_SHAPE -DHB_NO_OT_LAYOUT -DHB_NO_MT)
 target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -gdwarf-5 -masm=intel)
 target_include_directories(harfbuzz PUBLIC harfbuzz/src)
-target_link_libraries(harfbuzz freetype)
+target_link_libraries(harfbuzz PUBLIC freetype)
 target_link_options(harfbuzz PUBLIC -nostartfiles -nostdlib)
-target_link_libraries(harfbuzz ntdll -lgcc)
+target_link_libraries(harfbuzz PRIVATE ntdll -lgcc)
 
 install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}
     ARCHIVE EXCLUDE_FROM_ALL
