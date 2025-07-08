@@ -67,7 +67,7 @@ add_subdirectory(shell)
 add_subdirectory(ntdll)
 add_subdirectory(usercon)
 
-add_library(freetype freetype/src/autofit/autofit.c
+set(FREETYPE_FILES freetype/src/autofit/autofit.c
     freetype/src/base/ftbase.c
     freetype/src/base/ftbbox.c
     freetype/src/base/ftbdf.c
@@ -99,12 +99,29 @@ add_library(freetype freetype/src/autofit/autofit.c
     freetype/src/truetype/truetype.c
     freetype/src/winfonts/winfnt.c)
 
+add_library(freetype-static STATIC ${FREETYPE_FILES})
+
+target_compile_definitions(freetype-static PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
+target_compile_definitions(freetype-static PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
+target_compile_definitions(freetype-static PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
+target_compile_options(freetype-static PRIVATE -mno-stack-arg-probe -gdwarf-5)
+target_include_directories(freetype-static PRIVATE include)
+target_include_directories(freetype-static PUBLIC freetype/include)
+
+add_library(freetype SHARED ${FREETYPE_FILES} ftshim.cpp)
+
 target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
-target_compile_options(freetype PRIVATE -mno-stack-arg-probe -gdwarf-5)
+target_compile_options(freetype PRIVATE -mno-stack-arg-probe -gdwarf-5 -masm=intel)
 target_include_directories(freetype PRIVATE include)
 target_include_directories(freetype PUBLIC freetype/include)
+target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
+target_link_libraries(freetype ntdll)
+
+install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
+    ARCHIVE EXCLUDE_FROM_ALL
+)
 
 add_library(harfbuzz harfbuzz/src/hb-aat-layout.cc
     harfbuzz/src/hb-aat-map.cc
@@ -193,7 +210,7 @@ add_library(harfbuzz harfbuzz/src/hb-aat-layout.cc
 target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_OT_SHAPE -DHB_NO_OT_LAYOUT -DHB_NO_MT)
 target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -gdwarf-5)
 target_include_directories(harfbuzz PUBLIC harfbuzz/src)
-target_link_libraries(harfbuzz freetype)
+target_link_libraries(harfbuzz freetype-static)
 
 add_library(acpica
     acpica/source/components/dispatcher/dsargs.c

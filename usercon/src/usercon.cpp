@@ -240,49 +240,6 @@ float ceilf(float x) {
     return u.f;
 }
 
-static void* ft_alloc(FT_Memory, long size) {
-    return malloc((size_t)size);
-}
-
-static void* ft_realloc(FT_Memory, long cur_size, long new_size, void* block) {
-    void* ret;
-
-    ret = malloc((size_t)new_size);
-    if (!ret)
-        return nullptr;
-
-    memcpy(ret, block, cur_size < new_size ? (size_t)new_size : (size_t)cur_size);
-
-    free(block);
-
-    return ret;
-}
-
-static void ft_free(FT_Memory, void* block) {
-    free(block);
-}
-
-extern "C"
-FT_Memory FT_New_Memory() {
-    auto ptr = (FT_MemoryRec_*)malloc(sizeof(FT_MemoryRec_));
-    if (!ptr)
-        return nullptr;
-
-    auto& memory = *ptr;
-
-    memory.user = nullptr;
-    memory.alloc = ft_alloc;
-    memory.realloc = ft_realloc;
-    memory.free = ft_free;
-
-    return &memory;
-}
-
-extern "C"
-void FT_Done_Memory(FT_Memory memory) {
-    free(memory);
-}
-
 template<typename... Args>
 void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
     char buf[4096];
