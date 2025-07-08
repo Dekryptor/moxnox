@@ -378,7 +378,7 @@ target_compile_definitions(acpica PRIVATE -D_LINUX -DACPI_NO_ERROR_MESSAGES -DAC
 target_compile_options(acpica PRIVATE -include ${CMAKE_SOURCE_DIR}/acpica-shim.h)
 target_compile_options(acpica PRIVATE -Wno-overflow -Wno-shift-count-overflow -Wno-constant-conversion -gdwarf-5)
 
-add_library(zlib
+add_library(zlib SHARED
     zlib/adler32.c
     zlib/crc32.c
     zlib/deflate.c
@@ -387,10 +387,17 @@ add_library(zlib
     zlib/inftrees.c
     zlib/trees.c
     zlib/zutil.c
+    zlibshim.cpp
 )
 
 target_include_directories(zlib PUBLIC zlib)
-target_compile_options(zlib PRIVATE -gdwarf-5)
+target_compile_options(zlib PRIVATE -gdwarf-5 -masm=intel)
+target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
+target_link_libraries(zlib PRIVATE ntdll)
+
+install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
+    ARCHIVE EXCLUDE_FROM_ALL
+)
 
 add_library(libpng
     libpng/png.c
