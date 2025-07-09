@@ -375,6 +375,11 @@ static bool init_font(span<const uint8_t> buf) {
 
     new (curline) console_line;
 
+    for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
+        curline->cells[i].fg_colour = fg_colour;
+        curline->cells[i].bg_colour = bg_colour;
+    }
+
     insert_tail_list(lines, curline->le);
     num_lines++;
 
