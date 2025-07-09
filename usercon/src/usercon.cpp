@@ -602,15 +602,14 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
 static void print_line(console_line& line, unsigned int sy) {
     double x = 0.0, y = sy;
 
-    // FIXME - BG colours of cells
-    rect(0, sy - font_height, min(fb_info.width, console_fb_inst.console_cols * font_width),
-         font_height, 0x000000);
-
     for (unsigned int i = 0; i < line.num_cells; i++) {
         double x_advance = line.cells[i].pos.x_advance / 64.0;
         double y_advance = line.cells[i].pos.y_advance / 64.0;
         double x_offset = line.cells[i].pos.x_offset / 64.0;
         double y_offset = line.cells[i].pos.y_offset / 64.0;
+
+        rect(x, sy - font_height, font_width, font_height,
+             line.cells[i].bg_colour);
 
         draw_ft_char(line.cells[i].glyph, (unsigned int)(x + x_offset),
                      (unsigned int)(y + y_offset - font_descender),
@@ -619,6 +618,9 @@ static void print_line(console_line& line, unsigned int sy) {
         x += x_advance;
         y += y_advance;
     }
+
+    if (x < fb_info.width)
+        rect(x, sy - font_height, fb_info.width - x, font_height, 0x000000);
 }
 
 static void flush_framebuffer() {
