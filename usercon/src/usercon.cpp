@@ -88,11 +88,12 @@ struct console_fb {
     void print_char(char32_t c);
     void cursor_changed();
     void scroll_down(unsigned int rows);
-    static void enable_cursor(bool enable);
+    void enable_cursor(bool enable);
     void move_cursor() { }
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
+    bool show_cursor = true;
 };
 
 static console_fb console_fb_inst;
@@ -311,7 +312,8 @@ void console_fb::handle_sgr_part_num(unsigned int num) {
 }
 
 void console_fb::cursor_changed() {
-    // FIXME
+    if (show_cursor)
+        curline->changed = true;
 }
 
 void console_fb::scroll_down(unsigned int rows) {
@@ -319,7 +321,7 @@ void console_fb::scroll_down(unsigned int rows) {
 }
 
 void console_fb::enable_cursor(bool enable) {
-    // FIXME
+    show_cursor = enable;
 }
 
 static bool init_font(span<const uint8_t> buf) {
@@ -354,7 +356,7 @@ static bool init_font(span<const uint8_t> buf) {
         return false;
     }
 
-    font_width = (unsigned int)(font.face->size->metrics.max_advance / 64) + 1;
+    font_width = (unsigned int)(font.face->size->metrics.max_advance / 64);
     font_height = (unsigned int)(font.face->size->metrics.height / 64);
     font_descender = (unsigned int)(-font.face->size->metrics.descender / 64);
 
@@ -600,27 +602,34 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
 }
 
 static void print_line(console_line& line, unsigned int sy) {
-    double x = 0.0, y = sy;
-
     for (unsigned int i = 0; i < line.num_cells; i++) {
-        double x_advance = line.cells[i].pos.x_advance / 64.0;
-        double y_advance = line.cells[i].pos.y_advance / 64.0;
         double x_offset = line.cells[i].pos.x_offset / 64.0;
         double y_offset = line.cells[i].pos.y_offset / 64.0;
 
-        rect(x, sy - font_height, font_width, font_height,
-             line.cells[i].bg_colour);
+        bool is_cursor = console_fb_inst.show_cursor &&
+            i == console_fb_inst.cursor_x &&
+            sy == console_fb_inst.cursor_y;
 
-        draw_ft_char(line.cells[i].glyph, (unsigned int)(x + x_offset),
-                     (unsigned int)(y + y_offset - font_descender),
-                     line.cells[i].fg_colour, line.cells[i].bg_colour);
+        auto bg = is_cursor ? line.cells[i].fg_colour : line.cells[i].bg_colour;
+        auto fg = is_cursor ? line.cells[i].bg_colour : line.cells[i].fg_colour;
 
-        x += x_advance;
-        y += y_advance;
+        rect(i * font_width, sy * font_height, font_width, font_height, bg);
+
+        draw_ft_char(line.cells[i].glyph,
+                     (i * font_width) + (unsigned int)x_offset,
+                     ((sy + 1) * font_height) + (unsigned int)y_offset - font_descender,
+                     fg, bg);
     }
 
-    if (x < fb_info.width)
-        rect(x, sy - font_height, fb_info.width - x, font_height, 0x000000);
+    for (unsigned int i = line.num_cells; i < console_fb_inst.console_cols; i++) {
+        bool is_cursor = console_fb_inst.show_cursor &&
+            i == console_fb_inst.cursor_x &&
+            sy == console_fb_inst.cursor_y;
+
+        auto bg = is_cursor ? line.cells[i].fg_colour : line.cells[i].bg_colour;
+
+        rect(i * font_width, sy * font_height, font_width, font_height, bg);
+    }
 }
 
 static void flush_framebuffer() {
@@ -646,6 +655,11 @@ static void do_newline() {
     }
 
     new (nextline) console_line;
+
+    for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
+        nextline->cells[i].fg_colour = fg_colour;
+        nextline->cells[i].bg_colour = bg_colour;
+    }
 
     insert_tail_list(lines, nextline->le);
     nextline->changed = true;
@@ -824,7 +838,7 @@ static void recv_data(string_view s) {
 
     // print to FB
 
-    unsigned int y = font_height;
+    unsigned int y = 0;
 
     for (auto le = lines.next; le != &lines; le = le->next) {
         auto& l = containing_record<console_line>(le);
@@ -834,7 +848,7 @@ static void recv_data(string_view s) {
             l.changed = true;
         }
 
-        y += font_height;
+        y++;
     }
 
     flush_framebuffer();
