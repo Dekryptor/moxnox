@@ -85,7 +85,7 @@ static unsigned int num_lines = 0;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c);
+    void print_char(char32_t c, bool no_move);
     void cursor_changed();
     void scroll_down(unsigned int rows);
     void enable_cursor(bool enable);
@@ -192,7 +192,43 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
 }
 
 void console_fb::console_overflow(unsigned int rows) {
-    // FIXME
+    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
+
+    for (unsigned int i = 0; i < rows; i++) {
+        auto nextline = (console_line*)malloc(line_size);
+        if (!nextline) {
+            print("malloc failed\n");
+            return;
+        }
+
+        new (nextline) console_line;
+
+        for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
+            nextline->cells[i].fg_colour = fg_colour;
+            nextline->cells[i].bg_colour = bg_colour;
+        }
+
+        insert_tail_list(lines, nextline->le);
+        nextline->changed = true;
+        num_lines++;
+    }
+
+    while (num_lines > console_fb_inst.console_rows) {
+        auto& first = containing_record<console_line>(lines.next);
+
+        remove_entry_list(first.le);
+        delete &first;
+
+        num_lines--;
+    }
+
+    for (auto le = lines.next; le != &lines; le = le->next) {
+        auto& l = containing_record<console_line>(le);
+
+        l.changed = true;
+    }
+
+    curline = &containing_record<console_line>(lines.prev);
 }
 
 static void recalc_colours(bool fg) {
@@ -650,47 +686,19 @@ static void flush_framebuffer() {
     }
 }
 
-static void do_newline() {
-    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
-
-    auto nextline = (console_line*)malloc(line_size);
-    if (!nextline) {
-        print("malloc failed\n");
-        return;
-    }
-
-    new (nextline) console_line;
-
-    for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
-        nextline->cells[i].fg_colour = fg_colour;
-        nextline->cells[i].bg_colour = bg_colour;
-    }
-
-    insert_tail_list(lines, nextline->le);
-    nextline->changed = true;
-    num_lines++;
-
-    if (num_lines > console_fb_inst.console_rows) {
-        auto& first = containing_record<console_line>(lines.next);
-
-        remove_entry_list(first.le);
-        delete &first;
-
-        num_lines--;
-
-        for (auto le = lines.next; le != &lines; le = le->next) {
-            auto& l = containing_record<console_line>(le);
-
-            l.changed = true;
-        }
-    }
-
-    curline = nextline;
-}
-
-void console_fb::print_char(char32_t c) {
+void console_fb::print_char(char32_t c, bool no_move) {
     if (c == '\n') {
-        do_newline();
+        // do_newline();
+        console_overflow();
+
+        if (!no_move) {
+            cursor_x = 0;
+            cursor_y++;
+
+            if (cursor_y == console_rows)
+                cursor_y = console_rows - 1;
+        }
+
         return;
     }
 
@@ -737,9 +745,12 @@ void console_fb::print_char(char32_t c) {
 
     // append to existing buffer
 
-    if (text_pos < curline->len)
+    if (text_pos < curline->len) {
         curline->text[text_pos] = c;
-    else {
+
+        if (!no_move)
+            cursor_x = text_pos + 1;
+    } else {
         auto t = (char32_t*)malloc((curline->len + 1) * sizeof(char32_t));
         if (!t) {
             print("malloc failed\n");
@@ -756,6 +767,9 @@ void console_fb::print_char(char32_t c) {
 
         curline->text = t;
         curline->len++;
+
+        if (!no_move)
+            cursor_x = (unsigned int)curline->len;
     }
 
     // lay out using harfbuzz
@@ -799,42 +813,16 @@ void console_fb::print_char(char32_t c) {
 
         memcpy(t, curline->text + trunc, (curline->len - trunc) * sizeof(char32_t));
 
-        auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
+        auto oldline = curline;
 
-        auto nextline = (console_line*)malloc(line_size);
-        if (!nextline) {
-            print("malloc failed\n");
-            return;
-        }
+        console_overflow();
 
-        new (nextline) console_line;
+        curline->text = t;
+        curline->len = oldline->len - trunc;
+        curline->changed = true;
 
-        nextline->text = t;
-        nextline->len = curline->len - trunc;
-        nextline->changed = true;
-
-        insert_tail_list(lines, nextline->le);
-        num_lines++;
-
-        if (num_lines > console_fb_inst.console_rows) {
-            auto& first = containing_record<console_line>(lines.next);
-
-            remove_entry_list(first.le);
-            delete &first;
-
-            num_lines--;
-
-            for (auto le = lines.next; le != &lines; le = le->next) {
-                auto& l = containing_record<console_line>(le);
-
-                l.changed = true;
-            }
-        }
-
-        curline->text = (char32_t*)realloc(curline->text, trunc * sizeof(char32_t));
-        curline->len = trunc;
-
-        curline = nextline;
+        oldline->text = (char32_t*)realloc(oldline->text, trunc * sizeof(char32_t));
+        oldline->len = trunc;
     } while (true);
 }
 

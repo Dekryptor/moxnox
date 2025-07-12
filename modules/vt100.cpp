@@ -14,38 +14,18 @@ size_t escape_buffer_len = 0;
 
 template<typename T>
 void print_char(T& t, char32_t c) {
-    if (c == '\n') {
-        t.print_char('\n');
-
-        t.cursor_x = 0;
-        t.cursor_y++;
-
-        if (t.cursor_y == t.console_rows) {
-            t.console_overflow();
-            t.cursor_y = t.console_rows - 1;
-        }
-    } else if (c == '\b') {
+    if (c == '\n')
+        t.print_char('\n', false);
+    else if (c == '\b') {
         if (t.cursor_x == 0 && t.cursor_y == 0)
             return;
 
-        t.print_char('\b');
+        t.print_char('\b', false);
     } else {
         if (c < 0x20)
             return;
 
-        t.print_char(c);
-
-        t.cursor_x++;
-
-        if (t.cursor_x == t.console_cols) {
-            t.cursor_x = 0;
-            t.cursor_y++;
-
-            if (t.cursor_y == t.console_rows) {
-                t.console_overflow();
-                t.cursor_y = t.console_rows - 1;
-            }
-        }
+        t.print_char(c, false);
     }
 
     t.cursor_changed();
@@ -274,6 +254,10 @@ void scroll_up(T& t, string_view s) {
         rows = t.console_rows;
 
     t.console_overflow(rows);
+
+    t.cursor_y += rows;
+    if (t.cursor_y >= t.console_rows)
+        t.cursor_y = t.console_rows - 1;
 }
 
 template<typename T>
@@ -384,7 +368,7 @@ void erase_in_line(T& t, string_view s) {
             auto orig_cursor_x = t.cursor_x;
 
             while (t.cursor_x < t.console_cols) {
-                t.print_char(' ');
+                t.print_char(' ', true);
                 t.cursor_x++;
             }
 
@@ -397,7 +381,7 @@ void erase_in_line(T& t, string_view s) {
 
             t.cursor_x = 0;
             while (t.cursor_x < orig_cursor_x) {
-                t.print_char(' ');
+                t.print_char(' ', true);
                 t.cursor_x++;
             }
 
@@ -411,7 +395,7 @@ void erase_in_line(T& t, string_view s) {
             t.cursor_x = 0;
 
             while (t.cursor_x < t.console_cols) {
-                t.print_char(' ');
+                t.print_char(' ', true);
                 t.cursor_x++;
             }
 
@@ -444,7 +428,7 @@ void erase_in_display(T& t, string_view s) {
         case 0: // clear from cursor to end of screen
             while (t.cursor_y < t.console_rows) {
                 while (t.cursor_x < t.console_cols) {
-                    t.print_char(' ');
+                    t.print_char(' ', true);
                     t.cursor_x++;
                 }
 
@@ -459,7 +443,7 @@ void erase_in_display(T& t, string_view s) {
 
             while (t.cursor_y < orig_cursor_y) {
                 while (t.cursor_x < t.console_cols) {
-                    t.print_char(' ');
+                    t.print_char(' ', true);
                     t.cursor_x++;
                 }
 
@@ -468,7 +452,7 @@ void erase_in_display(T& t, string_view s) {
             }
 
             while (t.cursor_x < orig_cursor_x) {
-                t.print_char(' ');
+                t.print_char(' ', true);
                 t.cursor_x++;
             }
 
@@ -481,7 +465,7 @@ void erase_in_display(T& t, string_view s) {
 
             while (t.cursor_y < t.console_rows) {
                 while (t.cursor_x < t.console_cols) {
-                    t.print_char(' ');
+                    t.print_char(' ', true);
                     t.cursor_x++;
                 }
 

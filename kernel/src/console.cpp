@@ -184,7 +184,7 @@ export enum console_type console_type;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c);
+    void print_char(char32_t c, bool no_move);
     void cursor_changed();
     void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
@@ -197,7 +197,7 @@ struct console_fb {
 struct console_text {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c);
+    void print_char(char32_t c, bool no_move);
     void cursor_changed() { }
     void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
@@ -268,7 +268,7 @@ void console_text::console_overflow(unsigned int rows) {
     }
 }
 
-void console_fb::print_char(char32_t c) {
+void console_fb::print_char(char32_t c, bool no_move) {
     if (c == '\n') {
         if (console) {
             auto font = bold ? face_bold.face : face.face;
@@ -280,6 +280,16 @@ void console_fb::print_char(char32_t c) {
 
                 console[(cursor_y * console_cols) + i].glyph = glyph;
                 console[(cursor_y * console_cols) + i].changed = true;
+            }
+        }
+
+        if (!no_move) {
+            cursor_x = 0;
+            cursor_y++;
+
+            if (cursor_y == console_rows) {
+                console_overflow();
+                cursor_y = console_rows - 1;
             }
         }
     } else if (c == '\b') {
@@ -315,11 +325,34 @@ void console_fb::print_char(char32_t c) {
             p.bold = bold;
             p.changed = true;
         }
+
+        if (!no_move) {
+            cursor_x++;
+
+            if (cursor_x == console_cols) {
+                cursor_x = 0;
+                cursor_y++;
+
+                if (cursor_y == console_rows) {
+                    console_overflow();
+                    cursor_y = console_rows - 1;
+                }
+            }
+        }
     }
 }
 
-void console_text::print_char(char32_t c) {
+void console_text::print_char(char32_t c, bool no_move) {
     if (c == '\n') {
+        if (!no_move) {
+            cursor_x = 0;
+            cursor_y++;
+
+            if (cursor_y == console_rows) {
+                console_overflow();
+                cursor_y = console_rows - 1;
+            }
+        }
     } else if (c == '\b') {
         if (cursor_x > 0) { // FIXME
             cursor_x--;
@@ -332,6 +365,20 @@ void console_text::print_char(char32_t c) {
     } else {
         text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
                           bg_colour_text, fg_colour_text);
+
+        if (!no_move) {
+            cursor_x++;
+
+            if (cursor_x == console_cols) {
+                cursor_x = 0;
+                cursor_y++;
+
+                if (cursor_y == console_rows) {
+                    console_overflow();
+                    cursor_y = console_rows - 1;
+                }
+            }
+        }
     }
 }
 
