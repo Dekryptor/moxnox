@@ -563,6 +563,46 @@ static void scroll(string_view param) {
         print("\x1b[{}T", val);
 }
 
+static void cursor() {
+    HANDLE h;
+    NTSTATUS status;
+    LARGE_INTEGER due_time;
+
+    status = NtCreateTimer(&h, TIMER_ALL_ACCESS, nullptr, TIMER_TYPE::SynchronizationTimer);
+    if (!success(status)) {
+        print("NtCreateTimer returned {}\n", status); // FIXME - should be to stderr
+        return;
+    }
+
+    print("\e[?25h");
+
+    due_time.QuadPart = -10000000; // 1 second
+
+    status = NtSetTimer(h, &due_time, nullptr, nullptr, false,
+                        1000, nullptr);
+    if (!success(status)) {
+        print("NtSetTimer returned {}\n", status); // FIXME - should be to stderr
+        NtClose(h);
+        return;
+    }
+
+    for (unsigned int i = 0; i < 4; i++) {
+        status = NtWaitForSingleObject(h, false, nullptr);
+        if (!success(status)) {
+            print("NtWaitForSingleObject returned {}\n", status); // FIXME - should be to stderr
+            NtClose(h);
+            return;
+        }
+
+        if (i % 2)
+            print("\e[?25h");
+        else
+            print("\e[?25l");
+    }
+
+    NtClose(h);
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -611,6 +651,8 @@ static void process_line(string_view sv) {
         general_protection_fault(); // TESTING
     else if (cmd == "scroll") // TESTING
         scroll(param);
+    else if (cmd == "cursor") // TESTING
+        cursor();
     else if (cmd == "halt")
         halt();
     else if (cmd == "reboot")
