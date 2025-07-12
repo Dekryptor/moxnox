@@ -353,7 +353,48 @@ void console_fb::cursor_changed() {
 }
 
 void console_fb::scroll_down(unsigned int rows) {
-    // FIXME
+    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
+
+    while (rows > 0) {
+        auto firstline = (console_line*)malloc(line_size);
+        if (!firstline) {
+            print("malloc failed\n");
+            return;
+        }
+
+        new (firstline) console_line;
+
+        for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
+            firstline->cells[i].fg_colour = fg_colour;
+            firstline->cells[i].bg_colour = bg_colour;
+        }
+
+        insert_head_list(lines, firstline->le);
+        firstline->changed = true;
+        num_lines++;
+        cursor_y++;
+        rows--;
+    }
+
+    while (num_lines > console_fb_inst.console_rows) {
+        auto& first = containing_record<console_line>(lines.prev);
+
+        remove_entry_list(first.le);
+        delete &first;
+
+        num_lines--;
+    }
+
+    if (cursor_y >= num_lines)
+        cursor_y = num_lines - 1;
+
+    for (auto le = lines.next; le != &lines; le = le->next) {
+        auto& l = containing_record<console_line>(le);
+
+        l.changed = true;
+    }
+
+    curline = &containing_record<console_line>(lines.prev);
 }
 
 void console_fb::enable_cursor(bool enable) {
@@ -688,7 +729,6 @@ static void flush_framebuffer() {
 
 void console_fb::print_char(char32_t c, bool no_move) {
     if (c == '\n') {
-        // do_newline();
         console_overflow();
 
         if (!no_move) {
