@@ -715,6 +715,7 @@ void console_fb::print_char(char32_t c, bool no_move) {
 
         // FIXME - not if ENABLE_PROCESSED_OUTPUT disabled
         c = ' ';
+        no_move = true;
     }
 
     unsigned int text_pos;
