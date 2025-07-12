@@ -542,6 +542,27 @@ static void general_protection_fault() {
     *(uint8_t*)0x123456789abcdef0 = 1;
 }
 
+static void scroll(string_view param) {
+    int val;
+
+    if (param.empty()) {
+        print("usage: scroll <lines>\n");
+        return;
+    }
+
+    auto [ptr, ec] = from_chars(param.data(), param.data() + param.size(), val);
+
+    if (ptr != param.data() + param.size()) {
+        print("unable to parse \"{}\" as integer\n", param);
+        return;
+    }
+
+    if (val < 0)
+        print("\x1b[{}S", -val);
+    else
+        print("\x1b[{}T", val);
+}
+
 static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
@@ -588,6 +609,8 @@ static void process_line(string_view sv) {
         divide_by_zero(); // TESTING
     else if (cmd == "gpf")
         general_protection_fault(); // TESTING
+    else if (cmd == "scroll") // TESTING
+        scroll(param);
     else if (cmd == "halt")
         halt();
     else if (cmd == "reboot")
