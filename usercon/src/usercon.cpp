@@ -76,7 +76,7 @@ struct console_line {
 };
 
 static FT_Library ft;
-static font_info font, bold_font, italic_font;
+static font_info font, bold_font, italic_font, bold_italic_font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
@@ -617,7 +617,9 @@ static void draw_ft_char(const console_cell& cell, unsigned int fb_x, unsigned i
                          bool is_cursor) {
     font_info* curfont;
 
-    if (cell.bold)
+    if (cell.bold && cell.italic)
+        curfont = &bold_italic_font;
+    else if (cell.bold)
         curfont = &bold_font;
     else if (cell.italic)
         curfont = &italic_font;
@@ -1306,6 +1308,12 @@ static int _main() {
         return 1;
     }
 
+    auto bolditalicfontbuf = load_font(u"console-bold-italic.ttf");
+    if (italicfontbuf.empty()) {
+        print("load_font failed\n");
+        return 1;
+    }
+
     if (!init_font(fontbuf, font, true)) {
         print("init_font failed\n");
         return 1;
@@ -1317,6 +1325,11 @@ static int _main() {
     }
 
     if (!init_font(italicfontbuf, italic_font, false)) {
+        print("init_font failed\n");
+        return 1;
+    }
+
+    if (!init_font(bolditalicfontbuf, bold_italic_font, false)) {
         print("init_font failed\n");
         return 1;
     }
