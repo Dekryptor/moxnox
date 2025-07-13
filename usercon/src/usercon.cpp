@@ -763,6 +763,8 @@ void console_fb::print_char(char32_t c, bool no_move) {
 
     // get current position in string
 
+    auto orig_cursor_x = cursor_x;
+
     if (curline->len == 0)
         text_pos = 0;
     else {
@@ -834,9 +836,12 @@ void console_fb::print_char(char32_t c, bool no_move) {
         for (unsigned int i = 0; i < curline->num_cells; i++) {
             curline->cells[i].pos = pos[i];
             curline->cells[i].glyph = info[i].codepoint;
-            curline->cells[i].fg_colour = fg_colour;
-            curline->cells[i].bg_colour = bg_colour;
-            curline->cells[i].bold = bold;
+
+            if (i >= orig_cursor_x) {
+                curline->cells[i].fg_colour = fg_colour;
+                curline->cells[i].bg_colour = bg_colour;
+                curline->cells[i].bold = bold;
+            }
         }
 
         curline->changed = true;
@@ -864,6 +869,8 @@ void console_fb::print_char(char32_t c, bool no_move) {
 
         oldline->text = (char32_t*)realloc(oldline->text, trunc * sizeof(char32_t));
         oldline->len = trunc;
+
+        orig_cursor_x = 0;
     } while (true);
 }
 
