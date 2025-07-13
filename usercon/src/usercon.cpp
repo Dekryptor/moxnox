@@ -46,7 +46,8 @@ struct console_cell {
     FT_UInt glyph;
     uint32_t fg_colour;
     uint32_t bg_colour;
-    bool bold;
+    unsigned int bold : 1;
+    unsigned int italic : 1;
 };
 
 class hb_buffer_closer {
@@ -75,7 +76,7 @@ struct console_line {
 };
 
 static FT_Library ft;
-static font_info font, bold_font;
+static font_info font, bold_font, italic_font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
@@ -126,7 +127,7 @@ static const unsigned int DEFAULT_FG_COLOUR_INDEX = 7;
 static const uint32_t DEFAULT_BG_COLOUR = vt100_colours[DEFAULT_BG_COLOUR_INDEX];
 static const uint32_t DEFAULT_FG_COLOUR = vt100_colours[DEFAULT_FG_COLOUR_INDEX];
 static uint32_t bg_colour_index = 0, fg_colour_index = 7;
-static bool bg_bright = false, fg_bright = false, bold = false;
+static bool bg_bright = false, fg_bright = false, bold = false, italic = false;
 static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
@@ -255,6 +256,7 @@ void console_fb::handle_sgr_part_num(unsigned int num) {
             bg_colour = DEFAULT_BG_COLOUR;
 
             bold = false;
+            italic = false;
             break;
 
         case 1:
@@ -262,7 +264,10 @@ void console_fb::handle_sgr_part_num(unsigned int num) {
             recalc_colours(true);
             break;
 
-        // FIXME - 3 - italic
+        case 3:
+            italic = true;
+            break;
+
         // FIXME - 4 - underline
         // FIXME - 5 - blink
         // FIXME - 7 - reverse video
@@ -274,7 +279,10 @@ void console_fb::handle_sgr_part_num(unsigned int num) {
             recalc_colours(false);
             break;
 
-        // FIXME - 23 - not italic
+        case 23:
+            italic = false;
+            break;
+
         // FIXME - 24 - not underlined
         // FIXME - 25 - not blinking
 
@@ -605,11 +613,18 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
     return gi;
 }
 
-static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y,
-                         uint32_t fg_colour, uint32_t bg_colour,
-                         bool bold) {
-    auto& curfont = bold ? bold_font : font;
-    auto gi = load_glyph(curfont, glyph);
+static void draw_ft_char(const console_cell& cell, unsigned int fb_x, unsigned int fb_y,
+                         bool is_cursor) {
+    font_info* curfont;
+
+    if (cell.bold)
+        curfont = &bold_font;
+    else if (cell.italic)
+        curfont = &italic_font;
+    else
+        curfont = &font;
+
+    auto gi = load_glyph(*curfont, cell.glyph);
     if (!gi)
         return;
 
@@ -634,8 +649,8 @@ static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y,
     if (bottom > (int)fb_info.height)
         bottom = (int)fb_info.height;
 
-    auto bg = bg_colour;
-    auto fg = fg_colour;
+    auto bg = is_cursor ? cell.fg_colour : cell.bg_colour;
+    auto fg = is_cursor ? cell.bg_colour : cell.fg_colour;
 
     uint32_t bg_colour_r = bg >> 16;
     uint32_t fg_colour_r = fg >> 16;
@@ -692,14 +707,13 @@ static void print_line(console_line& line, unsigned int sy) {
             sy == console_fb_inst.cursor_y;
 
         auto bg = is_cursor ? line.cells[i].fg_colour : line.cells[i].bg_colour;
-        auto fg = is_cursor ? line.cells[i].bg_colour : line.cells[i].fg_colour;
 
         rect(i * font_width, sy * font_height, font_width, font_height, bg);
 
-        draw_ft_char(line.cells[i].glyph,
+        draw_ft_char(line.cells[i],
                      (i * font_width) + (unsigned int)x_offset,
                      ((sy + 1) * font_height) + (unsigned int)y_offset - font_descender,
-                     fg, bg, line.cells[i].bold);
+                     is_cursor);
     }
 
     for (unsigned int i = line.num_cells; i < console_fb_inst.console_cols; i++) {
@@ -840,7 +854,8 @@ void console_fb::print_char(char32_t c, bool no_move) {
             if (i >= orig_cursor_x) {
                 curline->cells[i].fg_colour = fg_colour;
                 curline->cells[i].bg_colour = bg_colour;
-                curline->cells[i].bold = bold;
+                curline->cells[i].bold = bold ? 1 : 0;
+                curline->cells[i].italic = italic ? 1 : 0;
             }
         }
 
@@ -1285,12 +1300,23 @@ static int _main() {
         return 1;
     }
 
+    auto italicfontbuf = load_font(u"console-italic.ttf");
+    if (italicfontbuf.empty()) {
+        print("load_font failed\n");
+        return 1;
+    }
+
     if (!init_font(fontbuf, font, true)) {
         print("init_font failed\n");
         return 1;
     }
 
     if (!init_font(boldfontbuf, bold_font, false)) {
+        print("init_font failed\n");
+        return 1;
+    }
+
+    if (!init_font(italicfontbuf, italic_font, false)) {
         print("init_font failed\n");
         return 1;
     }
