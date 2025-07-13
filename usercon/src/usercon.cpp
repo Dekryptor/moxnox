@@ -46,6 +46,7 @@ struct console_cell {
     FT_UInt glyph;
     uint32_t fg_colour;
     uint32_t bg_colour;
+    bool bold;
 };
 
 class hb_buffer_closer {
@@ -74,7 +75,7 @@ struct console_line {
 };
 
 static FT_Library ft;
-static font_info font;
+static font_info font, bold_font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
@@ -401,15 +402,10 @@ void console_fb::enable_cursor(bool enable) {
     show_cursor = enable;
 }
 
-static bool init_font(span<const uint8_t> buf) {
+static bool init_font(span<const uint8_t> buf, font_info& font,
+                      bool main_font) {
     FT_Error error;
     unsigned int font_size = 12; // FIXME - allow setting somehow
-
-    error = FT_Init_FreeType(&ft); // FIXME - free
-    if (error) {
-        print("FT_Init_FreeType failed ({:x})\n", error);
-        return false;
-    }
 
     error = FT_New_Memory_Face(ft, buf.data(), (FT_Long)buf.size(),
                                0, &font.face);
@@ -429,36 +425,37 @@ static bool init_font(span<const uint8_t> buf) {
     if (!font.hb_font) {
         print("hb_ft_font_create failed\n");
         FT_Done_Face(font.face);
-        FT_Done_FreeType(ft);
         return false;
     }
 
-    font_width = (unsigned int)(font.face->size->metrics.max_advance / 64);
-    font_height = (unsigned int)(font.face->size->metrics.height / 64);
-    font_descender = (unsigned int)(-font.face->size->metrics.descender / 64);
+    if (main_font) {
+        font_width = (unsigned int)(font.face->size->metrics.max_advance / 64);
+        font_height = (unsigned int)(font.face->size->metrics.height / 64);
+        font_descender = (unsigned int)(-font.face->size->metrics.descender / 64);
 
-    console_fb_inst.console_cols = fb_info.width / font_width;
-    console_fb_inst.console_rows = fb_info.height / font_height;
+        console_fb_inst.console_cols = fb_info.width / font_width;
+        console_fb_inst.console_rows = fb_info.height / font_height;
 
-    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
+        auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
 
-    curline = (console_line*)malloc(line_size);
-    if (!curline) {
-        print("malloc failed\n");
-        FT_Done_Face(font.face);
-        FT_Done_FreeType(ft);
-        return false;
+        curline = (console_line*)malloc(line_size);
+        if (!curline) {
+            print("malloc failed\n");
+            FT_Done_Face(font.face);
+            FT_Done_FreeType(ft);
+            return false;
+        }
+
+        new (curline) console_line;
+
+        for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
+            curline->cells[i].fg_colour = fg_colour;
+            curline->cells[i].bg_colour = bg_colour;
+        }
+
+        insert_tail_list(lines, curline->le);
+        num_lines++;
     }
-
-    new (curline) console_line;
-
-    for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
-        curline->cells[i].fg_colour = fg_colour;
-        curline->cells[i].bg_colour = bg_colour;
-    }
-
-    insert_tail_list(lines, curline->le);
-    num_lines++;
 
     return true;
 }
@@ -609,8 +606,10 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
 }
 
 static void draw_ft_char(FT_UInt glyph, unsigned int fb_x, unsigned int fb_y,
-                         uint32_t fg_colour, uint32_t bg_colour) {
-    auto gi = load_glyph(font, glyph);
+                         uint32_t fg_colour, uint32_t bg_colour,
+                         bool bold) {
+    auto& curfont = bold ? bold_font : font;
+    auto gi = load_glyph(curfont, glyph);
     if (!gi)
         return;
 
@@ -700,7 +699,7 @@ static void print_line(console_line& line, unsigned int sy) {
         draw_ft_char(line.cells[i].glyph,
                      (i * font_width) + (unsigned int)x_offset,
                      ((sy + 1) * font_height) + (unsigned int)y_offset - font_descender,
-                     fg, bg);
+                     fg, bg, line.cells[i].bold);
     }
 
     for (unsigned int i = line.num_cells; i < console_fb_inst.console_cols; i++) {
@@ -837,6 +836,7 @@ void console_fb::print_char(char32_t c, bool no_move) {
             curline->cells[i].glyph = info[i].codepoint;
             curline->cells[i].fg_colour = fg_colour;
             curline->cells[i].bg_colour = bg_colour;
+            curline->cells[i].bold = bold;
         }
 
         curline->changed = true;
@@ -1260,13 +1260,30 @@ static int _main() {
         return 1;
     }
 
-    auto font = load_font(u"console.ttf");
-    if (font.empty()) {
+    auto error = FT_Init_FreeType(&ft); // FIXME - free at end
+    if (error) {
+        print("FT_Init_FreeType failed ({:x})\n", error);
+        return 1;
+    }
+
+    auto fontbuf = load_font(u"console.ttf");
+    if (fontbuf.empty()) {
         print("load_font failed\n");
         return 1;
     }
 
-    if (!init_font(font)) {
+    auto boldfontbuf = load_font(u"console-bold.ttf");
+    if (boldfontbuf.empty()) {
+        print("load_font failed\n");
+        return 1;
+    }
+
+    if (!init_font(fontbuf, font, true)) {
+        print("init_font failed\n");
+        return 1;
+    }
+
+    if (!init_font(boldfontbuf, bold_font, false)) {
         print("init_font failed\n");
         return 1;
     }

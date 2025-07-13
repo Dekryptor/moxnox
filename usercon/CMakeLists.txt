@@ -19,5 +19,6 @@ target_link_libraries(usercon freetype)
 
 install(TARGETS usercon DESTINATION ${CMAKE_INSTALL_PREFIX})
 
-# FIXME - put this in better place
+# FIXME - put these in a better place
 install(FILES ../kernel/console.ttf DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(FILES ../kernel/console-bold.ttf DESTINATION ${CMAKE_INSTALL_PREFIX})
