@@ -29,6 +29,7 @@ import pci;
 import visit;
 import framebuffer;
 import vt100;
+import chardev;
 
 using namespace std;
 
@@ -58,6 +59,7 @@ static span<uint16_t> text_console;
 export void early_print(string_view s);
 
 export object_ref console_chardev;
+static object_ref kmsg;
 static const unsigned int console_buffer_pages = 4;
 
 static FT_Library ft = nullptr;
@@ -101,6 +103,21 @@ public:
     console(unsigned int buffer_pages) : pipe(buffer_pages) { }
 
     nt_status flush(bool go_readonly) override;
+};
+
+struct kmsg_buf_page {
+    list_entry le;
+    uint64_t pa;
+    uint16_t write_pos = 0;
+};
+
+class kmsg_buf : public chardev {
+public:
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+
+    spinlock lock;
+    list_entry pages = { &pages, &pages };
 };
 
 struct console_info {
@@ -899,6 +916,8 @@ export void safe_print(string_view s) {
 
     object_write_without_offset(console_chardev.get(), buf, written_bytes);
 
+    object_write_without_offset(kmsg.get(), buf, written_bytes);
+
     // FIXME - this should be hidden behind a cmdline option
     if (console_type != console_type::other && com1_pipe_handle)
         object_write_without_offset(com1_pipe_handle.get(), buf, written_bytes);
@@ -1040,18 +1059,36 @@ export bool init_console(const loader_block_framebuffer& fb,
         create_framebuffer_section();
     }
 
-    auto pptr = new class console(console_buffer_pages);
-    if (!pptr) {
-        print("new failed\n");
-        return false;
+    {
+        auto pptr = new class console(console_buffer_pages);
+        if (!pptr) {
+            print("new failed\n");
+            return false;
+        }
+
+        console_chardev = object_ref{*pptr};
+
+        auto status = name_object(console_chardev.get(), "tty");
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
+            return false;
+        }
     }
 
-    console_chardev = object_ref{*pptr};
+    {
+        auto pptr = new kmsg_buf;
+        if (!pptr) {
+            print("new failed\n");
+            return false;
+        }
 
-    auto status = name_object(console_chardev.get(), "tty");
-    if (!success(status)) {
-        print("name_object returned {}\n", status);
-        return false;
+        kmsg = object_ref{*pptr};
+
+        auto status = name_object(kmsg.get(), "kmsg");
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
+            return false;
+        }
     }
 
     if (framebuffer.empty()) { // gets started later if we have framebuffer
@@ -1232,4 +1269,60 @@ nt_status console::flush(bool go_readonly) {
         not_full_event.set_holding_sync_lock();
 
     return nt_status::SUCCESS;
+}
+
+nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
+    return nt_status::NOT_IMPLEMENTED;
+}
+
+nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    lock_guard lg(lock);
+
+    written_bytes = 0;
+
+    if (!is_list_empty(pages) && containing_record<kmsg_buf_page>(pages.prev).write_pos < PAGE_SIZE) {
+        auto& p = containing_record<kmsg_buf_page>(pages.prev);
+        auto page = (uint8_t*)phys_address(p.pa);
+        size_t to_copy = min(s.size(), PAGE_SIZE - p.write_pos);
+
+        memcpy(page + p.write_pos, s.data(), to_copy);
+        p.write_pos += (uint16_t)to_copy;
+
+        written_bytes = s.size();
+
+        if (to_copy == s.size())
+            return nt_status::SUCCESS;
+
+        s = span(s.data() + to_copy, s.size() - to_copy);
+    }
+
+    while (true) {
+        auto p = new kmsg_buf_page;
+        if (!p) {
+            print("new failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        p->pa = allocate_folio(0);
+        if (!p->pa) {
+            print("allocate_folio failed\n");
+            delete p;
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        insert_tail_list(pages, p->le);
+
+        auto page = (uint8_t*)phys_address(p->pa);
+        size_t to_copy = min(s.size(), PAGE_SIZE);
+
+        memcpy(page, s.data(), to_copy);
+        p->write_pos += (uint16_t)to_copy;
+
+        written_bytes += s.size();
+
+        if (to_copy == s.size())
+            return nt_status::SUCCESS;
+
+        s = span(s.data() + to_copy, s.size() - to_copy);
+    }
 }
