@@ -914,7 +914,7 @@ static void recv_data(string_view s) {
 
 static void test_run(u16string_view exe, u16string_view cmdline) {
     HANDLE h, stdinh = 0, stdouth, curdirh = 0;
-    unique_handle server_handle, client_handle, file, sect, proc, thread;
+    unique_handle server_handle, client_handle, file, sect, proc, thread, kmsg;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
@@ -929,16 +929,31 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
+    // open kmsg
+
+    static const u16string_view kmsg_fn = u"\\dev\\kmsg";
+
+    us.Length = us.MaximumLength = (uint16_t)(kmsg_fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)kmsg_fn.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
+    if (!success(status)) {
+        print("NtOpenFile returned {}\n", status);
+        return;
+    }
+
+    kmsg.reset(h);
+
     // create pipe
 
     static const u16string_view fn = u"\\dev\\ptty0"; // FIXME
 
     us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)fn.data();
-
-    memset(&oa, 0, sizeof(oa));
-    oa.Length = sizeof(OBJECT_ATTRIBUTES);
-    oa.ObjectName = &us;
 
     status = NtCreateNamedPipeFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa,
                                    &iosb, 0, FILE_CREATE, 0, 1, 0, 0, 0, 0, 0,
@@ -1188,11 +1203,12 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
     bool proc_finished = false;
 
     do {
-        array<HANDLE, 3> objs;
+        array<HANDLE, 4> objs;
 
-        objs[0] = server_handle.get();
-        objs[1] = proc.get();
-        objs[2] = peb->ProcessParameters->StandardInput;
+        objs[0] = kmsg.get();
+        objs[1] = server_handle.get();
+        objs[2] = proc.get();
+        objs[3] = peb->ProcessParameters->StandardInput;
 
         status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                           true, nullptr);
@@ -1206,6 +1222,26 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
         switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
             case 0: {
+                char s[PAGE_SIZE];
+
+                // print kmsg data
+
+                status = NtReadFile(kmsg.get(), 0, nullptr, nullptr,
+                                    &iosb, s, sizeof(s), nullptr, nullptr);
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    return;
+                }
+
+                if (iosb.Information != 0)
+                    recv_data(string_view(s, iosb.Information));
+
+                break;
+            }
+
+            case 1: {
                 char s[PAGE_SIZE];
 
                 // print pipe data
@@ -1223,7 +1259,7 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
                 break;
             }
 
-            case 1: {
+            case 2: {
                 // process terminated
 
                 // FIXME - make sure pipe is empty? (Wait on pipe with 0 timeout?)
@@ -1232,7 +1268,7 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
                 break;
             }
 
-            case 2: {
+            case 3: {
                 char buf[1024];
 
                 // forward data on stdin
