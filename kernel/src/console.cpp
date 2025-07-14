@@ -114,6 +114,10 @@ struct kmsg_buf_page {
 
 class kmsg_buf : public chardev {
 public:
+    kmsg_buf() {
+        signalled = false;
+    }
+
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
@@ -1273,31 +1277,51 @@ nt_status console::flush(bool go_readonly) {
 }
 
 nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
-    lock_guard lg(lock);
+    list_entry del_list = { &del_list, &del_list };
 
-    read_bytes = 0;
+    {
+        sync_lock sl;
+        lock_guard lg1(sl);
+        lock_guard lg2(lock);
 
-    while (!s.empty() && !is_list_empty(pages)) {
-        auto& p = containing_record<kmsg_buf_page>(pages.next);
-        auto page = (uint8_t*)phys_address(p.pa);
-        auto to_copy = min(s.size(), (size_t)(p.write_pos - p.read_pos));
+        read_bytes = 0;
 
-        if (to_copy == 0)
-            break;
+        while (!s.empty() && !is_list_empty(pages)) {
+            auto& p = containing_record<kmsg_buf_page>(pages.next);
+            auto page = (uint8_t*)phys_address(p.pa);
+            auto to_copy = min(s.size(), (size_t)(p.write_pos - p.read_pos));
 
-        memcpy(s.data(), page + p.read_pos, to_copy);
+            if (to_copy == 0)
+                break;
 
-        p.read_pos += (uint16_t)to_copy;
-        read_bytes += to_copy;
+            memcpy(s.data(), page + p.read_pos, to_copy);
 
-        s = span(s.data() + to_copy, s.size() - to_copy);
+            p.read_pos += (uint16_t)to_copy;
+            read_bytes += to_copy;
 
-        if (p.read_pos < PAGE_SIZE)
-            break;
+            s = span(s.data() + to_copy, s.size() - to_copy);
 
-        free_folio(p.pa);
+            if (p.read_pos < PAGE_SIZE)
+                break;
+
+            remove_entry_list(p.le);
+            insert_tail_list(del_list, p.le);
+        }
+
+        if (!is_list_empty(pages)) {
+            auto& p = containing_record<kmsg_buf_page>(pages.prev);
+
+            if (p.write_pos == p.read_pos)
+                signalled = false;
+        }
+    }
+
+    while (!is_list_empty(del_list)) {
+        auto& p = containing_record<kmsg_buf_page>(del_list.next);
 
         remove_entry_list(p.le);
+
+        free_folio(p.pa);
         delete &p;
     }
 
@@ -1305,53 +1329,62 @@ nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
 }
 
 nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    lock_guard lg(lock);
+    {
+        lock_guard lg(lock);
 
-    written_bytes = 0;
+        written_bytes = 0;
 
-    if (!is_list_empty(pages) && containing_record<kmsg_buf_page>(pages.prev).write_pos < PAGE_SIZE) {
-        auto& p = containing_record<kmsg_buf_page>(pages.prev);
-        auto page = (uint8_t*)phys_address(p.pa);
-        size_t to_copy = min(s.size(), PAGE_SIZE - p.write_pos);
+        if (!is_list_empty(pages) && containing_record<kmsg_buf_page>(pages.prev).write_pos < PAGE_SIZE) {
+            auto& p = containing_record<kmsg_buf_page>(pages.prev);
+            auto page = (uint8_t*)phys_address(p.pa);
+            size_t to_copy = min(s.size(), PAGE_SIZE - p.write_pos);
 
-        memcpy(page + p.write_pos, s.data(), to_copy);
-        p.write_pos += (uint16_t)to_copy;
+            memcpy(page + p.write_pos, s.data(), to_copy);
+            p.write_pos += (uint16_t)to_copy;
 
-        written_bytes = s.size();
+            written_bytes = s.size();
 
-        if (to_copy == s.size())
-            return nt_status::SUCCESS;
-
-        s = span(s.data() + to_copy, s.size() - to_copy);
-    }
-
-    while (true) {
-        auto p = new kmsg_buf_page;
-        if (!p) {
-            print("new failed\n");
-            return nt_status::INSUFFICIENT_RESOURCES;
+            s = span(s.data() + to_copy, s.size() - to_copy);
         }
 
-        p->pa = allocate_folio(0);
-        if (!p->pa) {
-            print("allocate_folio failed\n");
-            delete p;
-            return nt_status::INSUFFICIENT_RESOURCES;
+        while (!s.empty()) {
+            auto p = new kmsg_buf_page;
+            if (!p) {
+                print("new failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            p->pa = allocate_folio(0);
+            if (!p->pa) {
+                print("allocate_folio failed\n");
+                delete p;
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            insert_tail_list(pages, p->le);
+
+            auto page = (uint8_t*)phys_address(p->pa);
+            size_t to_copy = min(s.size(), PAGE_SIZE);
+
+            memcpy(page, s.data(), to_copy);
+            p->write_pos += (uint16_t)to_copy;
+
+            written_bytes += s.size();
+
+            s = span(s.data() + to_copy, s.size() - to_copy);
         }
-
-        insert_tail_list(pages, p->le);
-
-        auto page = (uint8_t*)phys_address(p->pa);
-        size_t to_copy = min(s.size(), PAGE_SIZE);
-
-        memcpy(page, s.data(), to_copy);
-        p->write_pos += (uint16_t)to_copy;
-
-        written_bytes += s.size();
-
-        if (to_copy == s.size())
-            return nt_status::SUCCESS;
-
-        s = span(s.data() + to_copy, s.size() - to_copy);
     }
+
+    if (written_bytes > 0) {
+        sync_lock sl;
+        lock_guard l(sl);
+
+        if (!signalled) {
+            signalled = true;
+
+            wake_up_waiters(waiters);
+        }
+    }
+
+    return nt_status::SUCCESS;
 }
