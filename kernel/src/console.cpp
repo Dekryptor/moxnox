@@ -108,6 +108,7 @@ public:
 struct kmsg_buf_page {
     list_entry le;
     uint64_t pa;
+    uint16_t read_pos = 0;
     uint16_t write_pos = 0;
 };
 
@@ -1272,7 +1273,35 @@ nt_status console::flush(bool go_readonly) {
 }
 
 nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return nt_status::NOT_IMPLEMENTED;
+    lock_guard lg(lock);
+
+    read_bytes = 0;
+
+    while (!s.empty() && !is_list_empty(pages)) {
+        auto& p = containing_record<kmsg_buf_page>(pages.next);
+        auto page = (uint8_t*)phys_address(p.pa);
+        auto to_copy = min(s.size(), (size_t)(p.write_pos - p.read_pos));
+
+        if (to_copy == 0)
+            break;
+
+        memcpy(s.data(), page + p.read_pos, to_copy);
+
+        p.read_pos += (uint16_t)to_copy;
+        read_bytes += to_copy;
+
+        s = span(s.data() + to_copy, s.size() - to_copy);
+
+        if (p.read_pos < PAGE_SIZE)
+            break;
+
+        free_folio(p.pa);
+
+        remove_entry_list(p.le);
+        delete &p;
+    }
+
+    return nt_status::SUCCESS;
 }
 
 nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
