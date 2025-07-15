@@ -3156,3 +3156,11 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
         enable_preempt();
     }
 }
+
+NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
+                         ACCESS_MASK desired_access, uint32_t handle_attributes,
+                         uint32_t flags, HANDLE* new_thread_handle) {
+    print("FIXME - NtGetNextThread\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

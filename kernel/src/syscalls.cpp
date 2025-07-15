@@ -1541,3 +1541,32 @@ NTSTATUS user_NtOpenFile(HANDLE* us_file_handle, ACCESS_MASK desired_access,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
+                              ACCESS_MASK desired_access,
+                              uint32_t handle_attributes) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 2> args;
+    HANDLE new_thread_handle;
+    nt_status ret;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto flags = (uint32_t)args[0];
+    auto us_new_thread_handle = (HANDLE*)args[1];
+
+    if (!us_new_thread_handle)
+        return nt_status::INVALID_PARAMETER;
+
+    ret = NtGetNextThread(process_handle, thread_handle, desired_access,
+                          handle_attributes, flags, &new_thread_handle);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_new_thread_handle, &new_thread_handle, sizeof(HANDLE)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}

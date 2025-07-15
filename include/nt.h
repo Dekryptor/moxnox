@@ -1232,4 +1232,7 @@ NTSTATUS NtOpenFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                     const OBJECT_ATTRIBUTES* object_attributes,
                     IO_STATUS_BLOCK* iosb, uint32_t share_access,
                     uint32_t open_options);
+NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
+                         ACCESS_MASK desired_access, uint32_t handle_attributes,
+                         uint32_t flags, HANDLE* new_thread_handle);
 };
