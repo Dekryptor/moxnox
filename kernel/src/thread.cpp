@@ -450,8 +450,39 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* us_context) {
-    print("FIXME - NtGetContextThread\n");
+NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
+    object_ref objrw;
+    thread* t;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (thread_handle == NtCurrentThread()) {
+        t = get_current_thread();
+        t->acquire();
+
+        objrw = object_ref{*t};
+    } else {
+        objrw = deref_handle(thread_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw.get();
+
+        if (obj.type != object_type::thread)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+
+        t = static_cast<thread*>(&obj);
+    }
+
+    {
+        sync_lock sl;
+        lock_guard lg(sl);
+
+        if (t->kernel_mode)
+            memcpy(context, &t->syscall_context, sizeof(CONTEXT));
+        else
+            memcpy(context, &t->context, sizeof(CONTEXT));
+    }
+
+    return nt_status::SUCCESS;
 }
