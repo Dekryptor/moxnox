@@ -229,6 +229,205 @@ syscall_stub "NtWaitLowEventPair"
 syscall_stub "NtWriteFileGather"
 syscall_stub "NtWriteRequestData"
 syscall_stub "NtYieldExecution"
+syscall_stub "NtAccessCheckByType"
+syscall_stub "NtAccessCheckByTypeAndAuditAlarm"
+syscall_stub "NtAccessCheckByTypeResultList"
+syscall_stub "NtAccessCheckByTypeResultListAndAuditAlarm"
+syscall_stub "NtAccessCheckByTypeResultListAndAuditAlarmByHandle"
+syscall_stub "NtAcquireCMFViewOwnership"
+syscall_stub "NtAddBootEntry"
+syscall_stub "NtAddDriverEntry"
+syscall_stub "NtAllocateUserPhysicalPages"
+syscall_stub "NtAlpcAcceptConnectPort"
+syscall_stub "NtAlpcCancelMessage"
+syscall_stub "NtAlpcConnectPort"
+syscall_stub "NtAlpcCreatePort"
+syscall_stub "NtAlpcCreatePortSection"
+syscall_stub "NtAlpcCreateResourceReserve"
+syscall_stub "NtAlpcCreateSectionView"
+syscall_stub "NtAlpcCreateSecurityContext"
+syscall_stub "NtAlpcDeletePortSection"
+syscall_stub "NtAlpcDeleteResourceReserve"
+syscall_stub "NtAlpcDeleteSectionView"
+syscall_stub "NtAlpcDeleteSecurityContext"
+syscall_stub "NtAlpcDisconnectPort"
+syscall_stub "NtAlpcImpersonateClientOfPort"
+syscall_stub "NtAlpcOpenSenderProcess"
+syscall_stub "NtAlpcOpenSenderThread"
+syscall_stub "NtAlpcQueryInformation"
+syscall_stub "NtAlpcQueryInformationMessage"
+syscall_stub "NtAlpcRevokeSecurityContext"
+syscall_stub "NtAlpcSendWaitReceivePort"
+syscall_stub "NtAlpcSetInformation"
+syscall_stub "NtApphelpCacheControl"
+syscall_stub "NtAreMappedFilesTheSame"
+syscall_stub "NtAssignProcessToJobObject"
+syscall_stub "NtCancelDeviceWakeupRequest"
+syscall_stub "NtCancelIoFileEx"
+syscall_stub "NtCancelSynchronousIoFile"
+syscall_stub "NtClearAllSavepointsTransaction"
+syscall_stub "NtClearSavepointTransaction"
+syscall_stub "NtCommitComplete"
+syscall_stub "NtCommitEnlistment"
+syscall_stub "NtCommitTransaction"
+syscall_stub "NtCompactKeys"
+syscall_stub "NtCompareTokens"
+syscall_stub "NtCompressKey"
+syscall_stub "NtCreateDebugObject"
+syscall_stub "NtCreateEnlistment"
+syscall_stub "NtCreateJobObject"
+syscall_stub "NtCreateJobSet"
+syscall_stub "NtCreateKeyedEvent"
+syscall_stub "NtCreateKeyTransacted"
+syscall_stub "NtCreatePrivateNamespace"
+syscall_stub "NtCreateProcessEx"
+syscall_stub "NtCreateResourceManager"
+syscall_stub "NtCreateThreadEx"
+syscall_stub "NtCreateTransaction"
+syscall_stub "NtCreateTransactionManager"
+syscall_stub "NtCreateUserProcess"
+syscall_stub "NtCreateWaitablePort"
+syscall_stub "NtCreateWorkerFactory"
+syscall_stub "NtDebugActiveProcess"
+syscall_stub "NtDebugContinue"
+syscall_stub "NtDeleteBootEntry"
+syscall_stub "NtDeleteDriverEntry"
+syscall_stub "NtDeletePrivateNamespace"
+syscall_stub "NtEnumerateBootEntries"
+syscall_stub "NtEnumerateDriverEntries"
+syscall_stub "NtEnumerateSystemEnvironmentValuesEx"
+syscall_stub "NtEnumerateTransactionObject"
+syscall_stub "NtFilterToken"
+syscall_stub "NtFlushInstallUILanguage"
+syscall_stub "NtFlushProcessWriteBuffers"
+syscall_stub "NtFreeUserPhysicalPages"
+syscall_stub "NtFreezeRegistry"
+syscall_stub "NtFreezeTransactions"
+syscall_stub "NtGetCurrentProcessorNumber"
+syscall_stub "NtGetDevicePowerState"
+syscall_stub "NtGetMUIRegistryInfo"
+syscall_stub "NtGetNextProcess"
+syscall_stub "NtGetNextThread"
+syscall_stub "NtGetNlsSectionPtr"
+syscall_stub "NtGetNotificationResourceManager"
+syscall_stub "NtGetPlugPlayEvent"
+syscall_stub "NtGetWriteWatch"
+syscall_stub "NtImpersonateAnonymousToken"
+syscall_stub "NtInitializeNlsFiles"
+syscall_stub "NtInitiatePowerAction"
+syscall_stub "NtIsProcessInJob"
+syscall_stub "NtIsSystemResumeAutomatic"
+syscall_stub "NtIsUILanguageComitted"
+syscall_stub "NtListTransactions"
+syscall_stub "NtLoadKeyEx"
+syscall_stub "NtLockProductActivationKeys"
+syscall_stub "NtLockRegistryKey"
+syscall_stub "NtMakePermanentObject"
+syscall_stub "NtMapCMFModule"
+syscall_stub "NtMapUserPhysicalPages"
+syscall_stub "NtMapUserPhysicalPagesScatter"
+syscall_stub "NtMarshallTransaction"
+syscall_stub "NtModifyBootEntry"
+syscall_stub "NtModifyDriverEntry"
+syscall_stub "NtNotifyChangeMultipleKeys"
+syscall_stub "NtOpenEnlistment"
+syscall_stub "NtOpenJobObject"
+syscall_stub "NtOpenKeyedEvent"
+syscall_stub "NtOpenKeyTransacted"
+syscall_stub "NtOpenPrivateNamespace"
+syscall_stub "NtOpenProcessTokenEx"
+syscall_stub "NtOpenResourceManager"
+syscall_stub "NtOpenSession"
+syscall_stub "NtOpenThreadTokenEx"
+syscall_stub "NtOpenTransaction"
+syscall_stub "NtOpenTransactionManager"
+syscall_stub "NtPowerInformation"
+syscall_stub "NtPrepareComplete"
+syscall_stub "NtPrepareEnlistment"
+syscall_stub "NtPrePrepareComplete"
+syscall_stub "NtPrePrepareEnlistment"
+syscall_stub "NtPropagationComplete"
+syscall_stub "NtPropagationFailed"
+syscall_stub "NtPullTransaction"
+syscall_stub "NtQueryBootEntryOrder"
+syscall_stub "NtQueryBootOptions"
+syscall_stub "NtQueryDebugFilterState"
+syscall_stub "NtQueryDefaultUILanguage"
+syscall_stub "NtQueryDriverEntryOrder"
+syscall_stub "NtQueryInformationEnlistment"
+syscall_stub "NtQueryInformationJobObject"
+syscall_stub "NtQueryInformationResourceManager"
+syscall_stub "NtQueryInformationTransaction"
+syscall_stub "NtQueryInformationTransactionManager"
+syscall_stub "NtQueryInformationWorkerFactory"
+syscall_stub "NtQueryInstallUILanguage"
+syscall_stub "NtQueryLicenseValue"
+syscall_stub "NtQueryOpenSubKeys"
+syscall_stub "NtQueryOpenSubKeysEx"
+syscall_stub "NtQueryPortInformationProcess"
+syscall_stub "NtQueryQuotaInformationFile"
+syscall_stub "NtQuerySystemEnvironmentValueEx"
+syscall_stub "NtReadOnlyEnlistment"
+syscall_stub "NtRecoverEnlistment"
+syscall_stub "NtRecoverResourceManager"
+syscall_stub "NtRecoverTransactionManager"
+syscall_stub "NtRegisterProtocolAddressInformation"
+syscall_stub "NtReleaseCMFViewOwnership"
+syscall_stub "NtReleaseKeyedEvent"
+syscall_stub "NtReleaseWorkerFactoryWorker"
+syscall_stub "NtRemoveIoCompletionEx"
+syscall_stub "NtRemoveProcessDebug"
+syscall_stub "NtRenameKey"
+syscall_stub "NtRenameTransactionManager"
+syscall_stub "NtReplacePartitionUnit"
+syscall_stub "NtReplyWaitReceivePortEx"
+syscall_stub "NtRequestDeviceWakeup"
+syscall_stub "NtRequestWakeupLatency"
+syscall_stub "NtResetWriteWatch"
+syscall_stub "NtRollbackComplete"
+syscall_stub "NtRollbackEnlistment"
+syscall_stub "NtRollbackSavepointTransaction"
+syscall_stub "NtRollbackTransaction"
+syscall_stub "NtRollforwardTransactionManager"
+syscall_stub "NtSaveKeyEx"
+syscall_stub "NtSaveMergedKeys"
+syscall_stub "NtSavepointComplete"
+syscall_stub "NtSavepointTransaction"
+syscall_stub "NtSecureConnectPort"
+syscall_stub "NtSetBootEntryOrder"
+syscall_stub "NtSetBootOptions"
+syscall_stub "NtSetDebugFilterState"
+syscall_stub "NtSetDefaultUILanguage"
+syscall_stub "NtSetDriverEntryOrder"
+syscall_stub "NtSetEventBoostPriority"
+syscall_stub "NtSetInformationDebugObject"
+syscall_stub "NtSetInformationEnlistment"
+syscall_stub "NtSetInformationJobObject"
+syscall_stub "NtSetInformationResourceManager"
+syscall_stub "NtSetInformationTransaction"
+syscall_stub "NtSetInformationTransactionManager"
+syscall_stub "NtSetInformationWorkerFactory"
+syscall_stub "NtSetQuotaInformationFile"
+syscall_stub "NtSetSystemEnvironmentValueEx"
+syscall_stub "NtSetThreadExecutionState"
+syscall_stub "NtSetUuidSeed"
+syscall_stub "NtShutdownWorkerFactory"
+syscall_stub "NtSinglePhaseReject"
+syscall_stub "NtStartTm"
+syscall_stub "NtSuspendProcess"
+syscall_stub "NtTerminateJobObject"
+syscall_stub "NtThawRegistry"
+syscall_stub "NtThawTransactions"
+syscall_stub "NtTraceControl"
+syscall_stub "NtTraceEvent"
+syscall_stub "NtTranslateFilePath"
+syscall_stub "NtUnloadKey2"
+syscall_stub "NtUnloadKeyEx"
+syscall_stub "NtWaitForDebugEvent"
+syscall_stub "NtWaitForKeyedEvent"
+syscall_stub "NtWaitForMultipleObjects32"
+syscall_stub "NtWaitForWorkViaWorkerFactory"
+syscall_stub "NtWorkerFactoryWorkerReady"
 
 .section .rdata
 syscalls:
@@ -432,11 +631,210 @@ syscalls:
     .quad user_NtWriteRequestData
     .quad user_NtWriteVirtualMemory
     .quad user_NtYieldExecution
+    .quad user_NtAccessCheckByType
+    .quad user_NtAccessCheckByTypeAndAuditAlarm
+    .quad user_NtAccessCheckByTypeResultList
+    .quad user_NtAccessCheckByTypeResultListAndAuditAlarm
+    .quad user_NtAccessCheckByTypeResultListAndAuditAlarmByHandle
+    .quad user_NtAcquireCMFViewOwnership
+    .quad user_NtAddBootEntry
+    .quad user_NtAddDriverEntry
+    .quad user_NtAllocateUserPhysicalPages
+    .quad user_NtAlpcAcceptConnectPort
+    .quad user_NtAlpcCancelMessage
+    .quad user_NtAlpcConnectPort
+    .quad user_NtAlpcCreatePort
+    .quad user_NtAlpcCreatePortSection
+    .quad user_NtAlpcCreateResourceReserve
+    .quad user_NtAlpcCreateSectionView
+    .quad user_NtAlpcCreateSecurityContext
+    .quad user_NtAlpcDeletePortSection
+    .quad user_NtAlpcDeleteResourceReserve
+    .quad user_NtAlpcDeleteSectionView
+    .quad user_NtAlpcDeleteSecurityContext
+    .quad user_NtAlpcDisconnectPort
+    .quad user_NtAlpcImpersonateClientOfPort
+    .quad user_NtAlpcOpenSenderProcess
+    .quad user_NtAlpcOpenSenderThread
+    .quad user_NtAlpcQueryInformation
+    .quad user_NtAlpcQueryInformationMessage
+    .quad user_NtAlpcRevokeSecurityContext
+    .quad user_NtAlpcSendWaitReceivePort
+    .quad user_NtAlpcSetInformation
+    .quad user_NtApphelpCacheControl
+    .quad user_NtAreMappedFilesTheSame
+    .quad user_NtAssignProcessToJobObject
+    .quad user_NtCancelDeviceWakeupRequest
+    .quad user_NtCancelIoFileEx
+    .quad user_NtCancelSynchronousIoFile
+    .quad user_NtClearAllSavepointsTransaction
+    .quad user_NtClearSavepointTransaction
+    .quad user_NtCommitComplete
+    .quad user_NtCommitEnlistment
+    .quad user_NtCommitTransaction
+    .quad user_NtCompactKeys
+    .quad user_NtCompareTokens
+    .quad user_NtCompressKey
+    .quad user_NtCreateDebugObject
+    .quad user_NtCreateEnlistment
+    .quad user_NtCreateJobObject
+    .quad user_NtCreateJobSet
+    .quad user_NtCreateKeyedEvent
+    .quad user_NtCreateKeyTransacted
+    .quad user_NtCreatePrivateNamespace
+    .quad user_NtCreateProcessEx
+    .quad user_NtCreateResourceManager
+    .quad user_NtCreateThreadEx
+    .quad user_NtCreateTransaction
+    .quad user_NtCreateTransactionManager
+    .quad user_NtCreateUserProcess
+    .quad user_NtCreateWaitablePort
+    .quad user_NtCreateWorkerFactory
+    .quad user_NtDebugActiveProcess
+    .quad user_NtDebugContinue
+    .quad user_NtDeleteBootEntry
+    .quad user_NtDeleteDriverEntry
+    .quad user_NtDeletePrivateNamespace
+    .quad user_NtEnumerateBootEntries
+    .quad user_NtEnumerateDriverEntries
+    .quad user_NtEnumerateSystemEnvironmentValuesEx
+    .quad user_NtEnumerateTransactionObject
+    .quad user_NtFilterToken
+    .quad user_NtFlushInstallUILanguage
+    .quad user_NtFlushProcessWriteBuffers
+    .quad user_NtFreeUserPhysicalPages
+    .quad user_NtFreezeRegistry
+    .quad user_NtFreezeTransactions
+    .quad user_NtGetCurrentProcessorNumber
+    .quad user_NtGetDevicePowerState
+    .quad user_NtGetMUIRegistryInfo
+    .quad user_NtGetNextProcess
+    .quad user_NtGetNextThread
+    .quad user_NtGetNlsSectionPtr
+    .quad user_NtGetNotificationResourceManager
+    .quad user_NtGetPlugPlayEvent
+    .quad user_NtGetWriteWatch
+    .quad user_NtImpersonateAnonymousToken
+    .quad user_NtInitializeNlsFiles
+    .quad user_NtInitiatePowerAction
+    .quad user_NtIsProcessInJob
+    .quad user_NtIsSystemResumeAutomatic
+    .quad user_NtIsUILanguageComitted
+    .quad user_NtListTransactions
+    .quad user_NtLoadKeyEx
+    .quad user_NtLockProductActivationKeys
+    .quad user_NtLockRegistryKey
+    .quad user_NtMakePermanentObject
+    .quad user_NtMapCMFModule
+    .quad user_NtMapUserPhysicalPages
+    .quad user_NtMapUserPhysicalPagesScatter
+    .quad user_NtMarshallTransaction
+    .quad user_NtModifyBootEntry
+    .quad user_NtModifyDriverEntry
+    .quad user_NtNotifyChangeMultipleKeys
+    .quad user_NtOpenEnlistment
+    .quad user_NtOpenJobObject
+    .quad user_NtOpenKeyedEvent
+    .quad user_NtOpenKeyTransacted
+    .quad user_NtOpenPrivateNamespace
+    .quad user_NtOpenProcessTokenEx
+    .quad user_NtOpenResourceManager
+    .quad user_NtOpenSession
+    .quad user_NtOpenThreadTokenEx
+    .quad user_NtOpenTransaction
+    .quad user_NtOpenTransactionManager
+    .quad user_NtPowerInformation
+    .quad user_NtPrepareComplete
+    .quad user_NtPrepareEnlistment
+    .quad user_NtPrePrepareComplete
+    .quad user_NtPrePrepareEnlistment
+    .quad user_NtPropagationComplete
+    .quad user_NtPropagationFailed
+    .quad user_NtPullTransaction
+    .quad user_NtQueryBootEntryOrder
+    .quad user_NtQueryBootOptions
+    .quad user_NtQueryDebugFilterState
+    .quad user_NtQueryDefaultUILanguage
+    .quad user_NtQueryDriverEntryOrder
+    .quad user_NtQueryInformationEnlistment
+    .quad user_NtQueryInformationJobObject
+    .quad user_NtQueryInformationResourceManager
+    .quad user_NtQueryInformationTransaction
+    .quad user_NtQueryInformationTransactionManager
+    .quad user_NtQueryInformationWorkerFactory
+    .quad user_NtQueryInstallUILanguage
+    .quad user_NtQueryLicenseValue
+    .quad user_NtQueryOpenSubKeys
+    .quad user_NtQueryOpenSubKeysEx
+    .quad user_NtQueryPortInformationProcess
+    .quad user_NtQueryQuotaInformationFile
+    .quad user_NtQuerySystemEnvironmentValueEx
+    .quad user_NtReadOnlyEnlistment
+    .quad user_NtRecoverEnlistment
+    .quad user_NtRecoverResourceManager
+    .quad user_NtRecoverTransactionManager
+    .quad user_NtRegisterProtocolAddressInformation
+    .quad user_NtReleaseCMFViewOwnership
+    .quad user_NtReleaseKeyedEvent
+    .quad user_NtReleaseWorkerFactoryWorker
+    .quad user_NtRemoveIoCompletionEx
+    .quad user_NtRemoveProcessDebug
+    .quad user_NtRenameKey
+    .quad user_NtRenameTransactionManager
+    .quad user_NtReplacePartitionUnit
+    .quad user_NtReplyWaitReceivePortEx
+    .quad user_NtRequestDeviceWakeup
+    .quad user_NtRequestWakeupLatency
+    .quad user_NtResetWriteWatch
+    .quad user_NtRollbackComplete
+    .quad user_NtRollbackEnlistment
+    .quad user_NtRollbackSavepointTransaction
+    .quad user_NtRollbackTransaction
+    .quad user_NtRollforwardTransactionManager
+    .quad user_NtSaveKeyEx
+    .quad user_NtSaveMergedKeys
+    .quad user_NtSavepointComplete
+    .quad user_NtSavepointTransaction
+    .quad user_NtSecureConnectPort
+    .quad user_NtSetBootEntryOrder
+    .quad user_NtSetBootOptions
+    .quad user_NtSetDebugFilterState
+    .quad user_NtSetDefaultUILanguage
+    .quad user_NtSetDriverEntryOrder
+    .quad user_NtSetEventBoostPriority
+    .quad user_NtSetInformationDebugObject
+    .quad user_NtSetInformationEnlistment
+    .quad user_NtSetInformationJobObject
+    .quad user_NtSetInformationResourceManager
+    .quad user_NtSetInformationTransaction
+    .quad user_NtSetInformationTransactionManager
+    .quad user_NtSetInformationWorkerFactory
+    .quad user_NtSetQuotaInformationFile
+    .quad user_NtSetSystemEnvironmentValueEx
+    .quad user_NtSetThreadExecutionState
+    .quad user_NtSetUuidSeed
+    .quad user_NtShutdownWorkerFactory
+    .quad user_NtSinglePhaseReject
+    .quad user_NtStartTm
+    .quad user_NtSuspendProcess
+    .quad user_NtTerminateJobObject
+    .quad user_NtThawRegistry
+    .quad user_NtThawTransactions
+    .quad user_NtTraceControl
+    .quad user_NtTraceEvent
+    .quad user_NtTranslateFilePath
+    .quad user_NtUnloadKey2
+    .quad user_NtUnloadKeyEx
+    .quad user_NtWaitForDebugEvent
+    .quad user_NtWaitForKeyedEvent
+    .quad user_NtWaitForMultipleObjects32
+    .quad user_NtWaitForWorkViaWorkerFactory
+    .quad user_NtWorkerFactoryWorkerReady
 end_syscalls:
 
 # FIXME - Clang forces the nice version to be a memory address (GAS is okay)
 # .equ NUM_SYSCALLS, (end_syscalls - syscalls) / 8
-.equ NUM_SYSCALLS, 0xc8
+.equ NUM_SYSCALLS, 0x18f
 
 .section .text
 
