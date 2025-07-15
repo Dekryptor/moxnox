@@ -3157,12 +3157,45 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     }
 }
 
-nt_status process::get_next_thread(thread* threadptr, ACCESS_MASK desired_access,
-                                   uint32_t handle_attributes, uint32_t flags,
+nt_status process::get_next_thread(thread* threadptr, ACCESS_MASK /*desired_access*/,
+                                   uint32_t /*handle_attributes*/, uint32_t /*flags*/,
                                    HANDLE* new_thread_handle) {
-    print("FIXME - process::get_next_thread\n");
+    object_ref obj;
+    handle_t h;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - desired_access, handle_attributes, flags
+    // FIXME - skips threads that we don't have access to?
+
+    {
+        lock_guard lg(threads_lock);
+
+        thread* next_thread;
+
+        if (!threadptr) {
+            if (is_list_empty(threads))
+                return nt_status::NO_MORE_ENTRIES;
+
+            next_thread = (thread*)((uint8_t*)threads.next - offsetof(thread, process_le));
+        } else {
+            if (threadptr->process_le.next == &threads)
+                return nt_status::NO_MORE_ENTRIES;
+
+            next_thread = (thread*)((uint8_t*)threadptr->process_le.next - offsetof(thread, process_le));
+        }
+
+        next_thread->acquire();
+        obj = object_ref{*next_thread};
+    }
+
+    auto p = get_current_thread()->proc;
+
+    auto status = p->add_handle(obj.get(), 0, true, h); // FIXME - access mask
+    if (!success(status))
+        return status;
+
+    *new_thread_handle = h;
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
