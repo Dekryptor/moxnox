@@ -406,3 +406,10 @@ object_ref add_kernel_thread(void (*func)(void*), void* param) {
 object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
+
+NTSTATUS NtSuspendThread(HANDLE thread_handle,
+                         uint32_t* us_previous_suspend_count) {
+    print("FIXME - NtSuspendThread\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

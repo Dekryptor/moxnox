@@ -1570,3 +1570,20 @@ NTSTATUS user_NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtSuspendThread(HANDLE thread_handle,
+                              uint32_t* us_previous_suspend_count) {
+    nt_status ret;
+    uint32_t count;
+
+    ret = NtSuspendThread(thread_handle,
+                          us_previous_suspend_count ? &count : nullptr);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_previous_suspend_count, &count, sizeof(uint32_t)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
