@@ -912,8 +912,62 @@ static void recv_data(string_view s) {
     flush_framebuffer();
 }
 
+template<typename... Args>
+void recv_data_print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+    char buf[4096];
+
+    auto sp = span(buf, sizeof(buf));
+
+    auto t = make_tuple(args...);
+
+    sp = format_to(sp, fmt.sv, t);
+
+    recv_data(string_view(buf, (size_t)(sp.data() - buf)));
+}
+
 static void send_ctrl_c(HANDLE proc) {
-    recv_data("FIXME - send signal\n"); // FIXME
+    HANDLE h;
+    unique_handle thread;
+    CONTEXT ctx;
+
+    auto status = NtGetNextThread(proc, 0, 0/*FIXME - access*/, 0, 0, &h);
+
+    if (status == nt_status::NO_MORE_ENTRIES)
+        return;
+    else if (!success(status)) {
+        recv_data_print("NtGetNextThread returned {}\n", status);
+        return;
+    }
+
+    thread.reset(h);
+
+    // FIXME - call NtGetNextThread until we get a good thread?
+
+    status = NtSuspendThread(thread.get(), nullptr);
+    if (!success(status)) {
+        recv_data_print("NtSuspendThread returned {}\n", status);
+        return;
+    }
+
+    status = NtGetContextThread(thread.get(), &ctx);
+    if (!success(status)) {
+        recv_data_print("NtGetContextThread returned {}\n", status);
+        return;
+    }
+
+    recv_data_print("thread rip = {:x}\n", ctx.Rip);
+
+    // FIXME - call NtWriteVirtualMemory to put things on stack
+    // FIXME - set thread context to mn_signal etc.
+
+    // FIXME - should be NtAlertResumeThread?
+    status = NtResumeThread(thread.get(), nullptr);
+    if (!success(status)) {
+        recv_data_print("NtResumeThread returned {}\n", status);
+        return;
+    }
+
+    recv_data("FIXME - send signal to thread\n"); // FIXME
 }
 
 static void test_run(u16string_view exe, u16string_view cmdline) {
