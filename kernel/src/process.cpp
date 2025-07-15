@@ -3157,10 +3157,75 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     }
 }
 
+nt_status process::get_next_thread(thread* threadptr, ACCESS_MASK desired_access,
+                                   uint32_t handle_attributes, uint32_t flags,
+                                   HANDLE* new_thread_handle) {
+    print("FIXME - process::get_next_thread\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
 NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                          ACCESS_MASK desired_access, uint32_t handle_attributes,
                          uint32_t flags, HANDLE* new_thread_handle) {
-    print("FIXME - NtGetNextThread\n");
+    object_ref proc, threadobj;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - check access mask in process handle
+
+    if (process_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        auto p = t->proc;
+        p->acquire();
+
+        proc = object_ref{*p};
+    } else {
+        proc = deref_handle(process_handle);
+        if (!proc)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = proc.get();
+
+        if (obj.type != object_type::process)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+    }
+
+    thread* threadptr;
+
+    if (thread_handle == NtCurrentThread()) {
+        threadptr = get_current_thread();
+
+        threadptr->acquire();
+
+        threadobj = object_ref{*threadptr};
+    } else if (thread_handle != 0) {
+        threadobj = deref_handle(thread_handle);
+        if (!threadobj)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = threadobj.get();
+
+        if (obj.type != object_type::thread)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        threadptr = static_cast<thread*>(&obj);
+    } else
+        threadptr = nullptr;
+
+    auto& p = static_cast<process&>(proc.get());
+
+    if (threadobj) {
+        auto& t = static_cast<thread&>(threadobj.get());
+
+        if (t.proc != &p)
+            return nt_status::INVALID_PARAMETER;
+
+        threadptr = &t;
+    }
+
+    return p.get_next_thread(threadptr, desired_access, handle_attributes,
+                             flags, new_thread_handle);
 }

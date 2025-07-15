@@ -57,6 +57,9 @@ public:
     nt_status flush_vm(void** base_address, size_t* region_size);
     object_ref get_stderr();
     void send_signal(uint64_t code);
+    nt_status get_next_thread(thread* threadptr, ACCESS_MASK desired_access,
+                              uint32_t handle_attributes, uint32_t flags,
+                              HANDLE* new_thread_handle);
 
     std::optional<std::reference_wrapper<section>> img;
     spinlock mappings_lock;
