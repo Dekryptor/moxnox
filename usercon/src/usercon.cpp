@@ -912,6 +912,10 @@ static void recv_data(string_view s) {
     flush_framebuffer();
 }
 
+static void send_ctrl_c(HANDLE proc) {
+    recv_data("FIXME - send signal\n"); // FIXME
+}
+
 static void test_run(u16string_view exe, u16string_view cmdline) {
     HANDLE h, stdinh = 0, stdouth, curdirh = 0;
     unique_handle server_handle, client_handle, file, sect, proc, thread, kmsg;
@@ -1286,23 +1290,47 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
                 string_view read(buf, iosb.Information);
 
-                while (!read.empty()) {
-                    status = NtWriteFile(server_handle.get(), 0, nullptr, nullptr,
-                                         &iosb, read.data(), (uint32_t)read.size(),
-                                         nullptr, nullptr);
-                    if (status == nt_status::ALERTED)
-                        continue;
-                    else if (!success(status)) {
-                        print("NtWriteFile returned {}\n", status);
-                        return;
-                    }
+                auto do_write = [](string_view buf, HANDLE h) {
+                    IO_STATUS_BLOCK iosb;
 
-                    if (iosb.Information >= read.size())
+                    while (!buf.empty()) {
+                        auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb,
+                                                  buf.data(), (uint32_t)buf.size(),
+                                                  nullptr, nullptr);
+                        if (status == nt_status::ALERTED)
+                            continue;
+                        else if (!success(status)) {
+                            print("NtWriteFile returned {}\n", status);
+                            return;
+                        }
+
+                        if (iosb.Information >= buf.size())
+                            break;
+
+                        buf = string_view(buf.data() + iosb.Information,
+                                          buf.size() - iosb.Information);
+                    }
+                };
+
+                // FIXME - only look for Ctrl+C if ENABLE_PROCESSED_INPUT set
+
+                while (!read.empty()) {
+                    auto ctrlc = read.find_first_of('\x03');
+
+                    if (ctrlc == string_view::npos)
                         break;
 
-                    read = string_view(read.data() + iosb.Information,
-                                       read.size() - iosb.Information);
+                    if (ctrlc != 0)
+                        do_write(string_view(read.data(), ctrlc), server_handle.get());
+
+                    send_ctrl_c(proc.get());
+
+                    read = string_view(read.data() + ctrlc + 1,
+                                       read.size() - ctrlc - 1);
                 }
+
+                if (!read.empty())
+                    do_write(read, server_handle.get());
 
                 break;
             }
