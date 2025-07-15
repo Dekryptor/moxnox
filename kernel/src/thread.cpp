@@ -449,3 +449,9 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* us_context) {
+    print("FIXME - NtGetContextThread\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

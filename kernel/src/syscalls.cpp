@@ -1587,3 +1587,21 @@ NTSTATUS user_NtSuspendThread(HANDLE thread_handle,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtGetContextThread(HANDLE thread_handle, CONTEXT* us_context) {
+    nt_status ret;
+    CONTEXT context; // FIXME - is this too big for stack?
+
+    if (!us_context)
+        return nt_status::INVALID_PARAMETER;
+
+    ret = NtGetContextThread(thread_handle, &context);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_context, &context, sizeof(CONTEXT)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
