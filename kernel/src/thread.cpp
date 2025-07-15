@@ -407,9 +407,45 @@ object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 
-NTSTATUS NtSuspendThread(HANDLE thread_handle,
-                         uint32_t* us_previous_suspend_count) {
-    print("FIXME - NtSuspendThread\n");
+NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count) {
+    object_ref objrw;
+    thread* t;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (thread_handle == NtCurrentThread()) {
+        t = get_current_thread();
+        t->acquire();
+
+        objrw = object_ref{*t};
+    } else {
+        objrw = deref_handle(thread_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw.get();
+
+        if (obj.type != object_type::thread)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+
+        t = static_cast<thread*>(&obj);
+    }
+
+    uint32_t count;
+
+    // FIXME - send yield IPI if thread is currently running
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        count = t->suspend_count;
+
+        t->suspend_count++;
+    }
+
+    if (previous_suspend_count)
+        *previous_suspend_count = count;
+
+    return nt_status::SUCCESS;
 }

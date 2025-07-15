@@ -1580,7 +1580,7 @@ NTSTATUS user_NtSuspendThread(HANDLE thread_handle,
     ret = NtSuspendThread(thread_handle,
                           us_previous_suspend_count ? &count : nullptr);
 
-    if (success(ret)) {
+    if (success(ret) && us_previous_suspend_count) {
         if (!copy_to_process(us_previous_suspend_count, &count, sizeof(uint32_t)))
             ret = nt_status::ACCESS_VIOLATION;
     }
