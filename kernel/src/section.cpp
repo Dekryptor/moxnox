@@ -443,7 +443,7 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
     for (unsigned int i = 0; i < names.size(); i++) {
         auto n = names[i];
 
-        if (dir.data() + n - offset > dir.data() + dir.size()) {
+        if (n - offset > dir.size()) {
             print("invalid export directory\n");
             return 0;
         }
