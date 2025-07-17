@@ -1,3 +1,4 @@
+#include "nt.h"
 #include <ntdll.h>
 #include <pe.h>
 #include <string_view>
@@ -925,6 +926,60 @@ void recv_data_print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Arg
     recv_data(string_view(buf, (size_t)(sp.data() - buf)));
 }
 
+static nt_status find_mn_signal(HANDLE proc, uint64_t& rip) {
+    nt_status status;
+    PROCESS_BASIC_INFORMATION pbi;
+    uintptr_t ptr;
+    PEB_LDR_DATA pebldr;
+    void* ntdll;
+
+    // read Ldr from PEB
+
+    status = NtQueryInformationProcess(proc, PROCESSINFOCLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        print("NtQueryInformationProcess returned {}\n", status);
+        return status;
+    }
+
+    status = NtReadVirtualMemory(proc, (uint8_t*)pbi.PebBaseAddress + offsetof(PEB, Ldr),
+                                 &ptr, sizeof(uintptr_t), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return status;
+    }
+
+    status = NtReadVirtualMemory(proc, (void*)ptr, &pebldr, sizeof(pebldr),
+                                 nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return status;
+    }
+
+    // search for ntdll (first entry in InLoadOrderModuleList, in our implementation)
+
+    uintptr_t list_head = ptr + offsetof(PEB_LDR_DATA, InLoadOrderModuleList);
+
+    auto le = (uintptr_t)pebldr.InLoadOrderModuleList.Flink;
+    if (le == list_head) {
+        print("process InLoadOrderModuleList was empty\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    status = NtReadVirtualMemory(proc, (void*)(le - offsetof(LDR_DATA_TABLE_ENTRY, InLoadOrderLinks) + offsetof(LDR_DATA_TABLE_ENTRY, DllBase)),
+                                 &ntdll, sizeof(void*), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return status;
+    }
+
+    // FIXME - find mn_signal export in ntdll
+
+    rip = (uintptr_t)ntdll; // FIXME
+
+    return nt_status::SUCCESS;
+}
+
 static void send_ctrl_c(HANDLE proc) {
     HANDLE h;
     unique_handle thread;
@@ -957,8 +1012,22 @@ static void send_ctrl_c(HANDLE proc) {
 
     recv_data_print("thread rip = {:x}\n", ctx.Rip);
 
-    // FIXME - call NtWriteVirtualMemory to put things on stack
-    // FIXME - set thread context to mn_signal etc.
+    // FIXME - call NtWriteVirtualMemory to put exception record on stack
+    // FIXME - call NtWriteVirtualMemory to put context on stack
+
+    status = find_mn_signal(proc, ctx.Rip);
+    if (!success(status))
+        return;
+
+    // FIXME - set ctx.Rcx to exception
+    // FIXME - set ctx.Rdx to context
+    // FIXME - adjust ctx.Rsp
+
+    status = NtSetContextThread(thread.get(), &ctx);
+    if (!success(status)) {
+        recv_data_print("NtSetContextThread returned {}\n", status);
+        return;
+    }
 
     // FIXME - should be NtAlertResumeThread?
     status = NtResumeThread(thread.get(), nullptr);
