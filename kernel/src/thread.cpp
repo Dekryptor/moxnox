@@ -486,3 +486,9 @@ NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
+    print("FIXME - NtSetContextThread\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

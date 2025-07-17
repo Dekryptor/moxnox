@@ -1238,4 +1238,5 @@ NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                          uint32_t flags, HANDLE* new_thread_handle);
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count);
 NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context);
+NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context);
 };

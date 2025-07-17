@@ -1605,3 +1605,16 @@ NTSTATUS user_NtGetContextThread(HANDLE thread_handle, CONTEXT* us_context) {
 
     return ret;
 }
+
+extern "C"
+NTSTATUS user_NtSetContextThread(HANDLE thread_handle, const CONTEXT* us_context) {
+    CONTEXT context; // FIXME - is this too big for stack?
+
+    if (!us_context)
+        return nt_status::INVALID_PARAMETER;
+
+    if (!copy_from_process(&context, us_context, sizeof(CONTEXT)))
+        return nt_status::ACCESS_VIOLATION;
+
+    return NtSetContextThread(thread_handle, &context);
+}
