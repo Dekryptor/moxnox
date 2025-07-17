@@ -243,16 +243,41 @@ export void send_ctrl_c(HANDLE proc) {
 
     print("thread rip = {:x}\n", ctx.Rip);
 
-    // FIXME - call NtWriteVirtualMemory to put exception record on stack
-    // FIXME - call NtWriteVirtualMemory to put context on stack
+    uintptr_t proc_context = ctx.Rsp - sizeof(CONTEXT);
+
+    status = NtWriteVirtualMemory(proc, (void*)proc_context, &ctx,
+                                  sizeof(CONTEXT), nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned {}\n", status);
+        return;
+    }
+
+    EXCEPTION_RECORD er;
+
+    er.ExceptionFlags = 0;
+    er.ExceptionRecord = nullptr;
+    er.ExceptionAddress = (void*)ctx.Rip;
+    er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
+    er.NumberParameters = 0;
+
+    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
+    uintptr_t proc_er = proc_context - er_size;
+
+    status = NtWriteVirtualMemory(proc, (void*)proc_er, &er, (uint32_t)er_size,
+                                  nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned {}\n", status);
+        return;
+    }
 
     status = find_mn_signal(proc, ctx.Rip);
     if (!success(status))
         return;
 
-    // FIXME - set ctx.Rcx to exception
-    // FIXME - set ctx.Rdx to context
-    // FIXME - adjust ctx.Rsp
+    ctx.Rcx = proc_er;
+    ctx.Rdx = proc_context;
+    ctx.Rsp -= sizeof(CONTEXT);
+    ctx.Rsp -= er_size;
 
     status = NtSetContextThread(thread.get(), &ctx);
     if (!success(status)) {
