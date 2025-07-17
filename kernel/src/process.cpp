@@ -1940,7 +1940,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             if (!pte.p) {
                 if (to_copy < PAGE_SIZE) {
                     page_cache_entry* p;
-                    uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
+                    uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
 
                     auto b = visit([&](auto* ptr) {
                         auto& cache = *ptr;
@@ -1989,7 +1989,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             if (!pte.p)
                 pte.p = 1;
         } else {
-            uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
+            uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
             page_cache_entry* p;
 
             auto b = visit([&](auto* ptr) {
