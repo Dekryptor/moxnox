@@ -14,6 +14,7 @@ import string;
 import config;
 import visit;
 import unicode;
+import mem;
 
 using namespace std;
 
@@ -873,7 +874,8 @@ NTSTATUS user_NtDuplicateObject(HANDLE source_process_handle, HANDLE source_hand
 }
 
 extern "C"
-NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size) {
+NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address,
+                                  void* buffer, uint32_t buffer_size) {
     auto& t = *get_current_thread();
     array<uintptr_t, 1> args;
     NTSTATUS status;
@@ -889,7 +891,7 @@ NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address, voi
         return nt_status::INVALID_PARAMETER;
 
     if (buffer_size > 0) {
-        buf = malloc(buffer_size);
+        buf = vmalloc(buffer_size);
         if (!buf)
             return nt_status::INSUFFICIENT_RESOURCES;
     }
@@ -910,7 +912,7 @@ NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address, voi
     }
 
     if (buffer_size > 0)
-        free(buf);
+        vfree(buf, buffer_size);
 
     return status;
 }
