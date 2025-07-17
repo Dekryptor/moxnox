@@ -488,7 +488,40 @@ NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
 }
 
 NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
-    print("FIXME - NtSetContextThread\n");
+    object_ref objrw;
+    thread* t;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (thread_handle == NtCurrentThread()) {
+        t = get_current_thread();
+        t->acquire();
+
+        objrw = object_ref{*t};
+    } else {
+        objrw = deref_handle(thread_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw.get();
+
+        if (obj.type != object_type::thread)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+
+        t = static_cast<thread*>(&obj);
+    }
+
+    // FIXME - look at ContextFlags to determine what to copy
+
+    {
+        sync_lock sl;
+        lock_guard lg(sl);
+
+        if (t->kernel_mode)
+            memcpy(&t->syscall_context, context, sizeof(CONTEXT));
+        else
+            memcpy(&t->context, context, sizeof(CONTEXT));
+    }
+
+    return nt_status::SUCCESS;
 }
