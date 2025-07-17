@@ -1873,7 +1873,7 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
         } else {
             page_cache_entry* p;
 
-            uint64_t sect_page_num = page_num + (this->offset >> PAGE_SHIFT);
+            uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
 
             auto b = visit([&](auto* ptr) {
                 auto& cache = *ptr;
