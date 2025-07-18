@@ -4,7 +4,7 @@ module;
 
 export module unique_handle;
 
-export class unique_handle {
+export class __attribute__ ((warn_unused)) unique_handle {
 public:
     unique_handle() : h(0) {
     }
