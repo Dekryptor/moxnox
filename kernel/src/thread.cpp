@@ -398,6 +398,14 @@ object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 
+static void inline disable_interrupts() {
+    __asm __volatile("cli");
+}
+
+static void inline enable_interrupts() {
+    __asm __volatile("sti");
+}
+
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count) {
     object_ref objrw;
     thread* t;
@@ -430,6 +438,35 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 
     if (previous_suspend_count)
         *previous_suspend_count = count;
+
+    disable_interrupts();
+    acquire_sync_lock();
+
+    // break interruptible waits
+
+    if (t->status == thread_status::waiting && t->wait_interruptible) {
+        t->status = thread_status::runnable;
+        remove_entry_list(t->wait_obj.wait_le);
+
+        if (t->wait_timeout != 0)
+            remove_entry_list(t->timeout_le);
+    } else if (t->status == thread_status::waiting_multiple && t->wait_interruptible) {
+        auto& block = *t->multwait;
+
+        for (unsigned int i = 0; i < block.num_entries; i++) {
+            if (!block.entries[i].done)
+                remove_entry_list(block.entries[i].wait_le);
+        }
+
+        if (t->wait_timeout != 0)
+            remove_entry_list(t->timeout_le);
+
+        t->multwait = nullptr;
+        t->status = thread_status::runnable;
+    }
+
+    release_sync_lock();
+    enable_interrupts();
 
     return nt_status::SUCCESS;
 }
