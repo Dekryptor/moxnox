@@ -241,8 +241,6 @@ export void send_ctrl_c(HANDLE proc) {
         return;
     }
 
-    print("thread rip = {:x}\n", ctx.Rip);
-
     uintptr_t proc_context = ctx.Rsp - sizeof(CONTEXT);
 
     status = NtWriteVirtualMemory(proc, (void*)proc_context, &ctx,
@@ -291,6 +289,4 @@ export void send_ctrl_c(HANDLE proc) {
         print("NtResumeThread returned {}\n", status);
         return;
     }
-
-    print("FIXME - send signal to thread\n"); // FIXME
 }
