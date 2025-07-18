@@ -39,8 +39,11 @@ static thread* pick_runnable_thread(thread* current) {
     // FIXME - proper scheduling algorithm (currently just loops through runnable threads)
 
     auto consider = [&](thread& t) -> thread* {
-        if (t.status == thread_status::runnable && t.affinity & mask && t.suspend_count == 0)
+        if (t.status == thread_status::runnable &&
+            t.affinity & mask &&
+            (t.suspend_count == 0 || t.kernel_mode)) {
             return &t;
+        }
 
         return nullptr;
     };

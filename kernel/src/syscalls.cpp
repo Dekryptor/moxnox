@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include "handle.h"
+#include "cpu_block.h"
 import event;
 import objects;
 #include "process.h"
@@ -1619,4 +1620,26 @@ NTSTATUS user_NtSetContextThread(HANDLE thread_handle, const CONTEXT* us_context
         return nt_status::ACCESS_VIOLATION;
 
     return NtSetContextThread(thread_handle, &context);
+}
+
+extern "C"
+void yield_after_syscall(uint64_t syscall_ret) {
+    // interrupts are disabled
+
+    acquire_sync_lock();
+
+    auto& cb = *get_cpu_block();
+
+    auto& t = *get_current_thread();
+
+    memcpy(&cb.thread_context, &t.syscall_context, sizeof(CONTEXT));
+    cb.thread_context.Rax = syscall_ret;
+    t.kernel_mode = false;
+
+    __asm __volatile ( // doesn't return, releases sync_lock
+        "mov rsp, gs:%0\n"
+        "jmp scheduler\n"
+        :
+        : "i" (GS_SCHEDULER_STACK)
+    );
 }

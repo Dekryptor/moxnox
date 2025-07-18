@@ -221,6 +221,7 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
     object_ref objrw;
     thread* t;
+    uint32_t count;
 
     if (thread_handle == NtCurrentThread()) {
         t = get_current_thread();
@@ -242,17 +243,7 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
         t = static_cast<thread*>(&obj);
     }
 
-    uint32_t count;
-
-    {
-        sync_lock sl;
-        lock_guard lock(sl);
-
-        count = t->suspend_count;
-
-        if (count > 0)
-            t->suspend_count--;
-    }
+    count = t->suspend_count.fetch_sub(1);
 
     if (suspend_count)
         *suspend_count = count;
@@ -435,14 +426,7 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 
     // FIXME - send yield IPI if thread is currently running
 
-    {
-        sync_lock sl;
-        lock_guard lock(sl);
-
-        count = t->suspend_count;
-
-        t->suspend_count++;
-    }
+    count = t->suspend_count.fetch_add(1);
 
     if (previous_suspend_count)
         *previous_suspend_count = count;

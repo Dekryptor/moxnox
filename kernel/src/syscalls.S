@@ -890,6 +890,16 @@ syscall_handler:
     cli
 
 Lafter_syscall:
+    # check for pending suspend
+    mov rdx, gs:GS_CURRENT_THREAD
+    mov edx, DWORD PTR [rdx + THREAD_SUSPEND_COUNT]
+    cmp edx, 0
+    je 0f
+
+    mov rcx, rax
+    call yield_after_syscall
+
+0:
     # check for pending signal
     mov rdx, gs:GS_CURRENT_THREAD
     cmp QWORD PTR [rdx + THREAD_PENDING_SIGNAL], 0

@@ -105,7 +105,7 @@ public:
     bool kernel_mode;
     enum nt_status exit_status = nt_status::PENDING;
     list_entry process_le;
-    std::atomic<unsigned int> suspend_count = 0;
+    std::atomic<uint32_t> suspend_count = 0;
     TEB* teb;
     uint32_t current_cpu = 0xffffffff;
     uint64_t pending_signal = 0;
@@ -123,6 +123,7 @@ static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
+static_assert(offsetof(thread, suspend_count) == THREAD_SUSPEND_COUNT);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
 static_assert(offsetof(thread, pending_signal) == THREAD_PENDING_SIGNAL);
 static_assert(offsetof(thread, timeout_le) == THREAD_TIMEOUT_LE);
