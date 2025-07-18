@@ -144,9 +144,14 @@ void scheduler() {
         if (cb.current_thread->proc)
             cb.current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
+        if (!cb.current_thread->kernel_mode)
+            wake_up_waiters(cb.current_thread->suspend_waiters);
+
         if (cb.current_thread->status == thread_status::dead) {
             remove_entry_list(cb.current_thread->le);
             dead = true;
+
+            wake_up_waiters(cb.current_thread->suspend_waiters);
         } else if (cb.current_thread->status == thread_status::running)
             cb.current_thread->status = thread_status::runnable;
         else
