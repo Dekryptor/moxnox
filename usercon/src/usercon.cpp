@@ -909,13 +909,13 @@ void recv_data_print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Arg
     recv_data(string_view(buf, (size_t)(sp.data() - buf)));
 }
 
-static void test_run(u16string_view exe, u16string_view cmdline) {
+static bool run_program(u16string_view exe, u16string_view cmdline,
+                        unique_handle& proc, HANDLE client_handle) {
     HANDLE h, stdinh = 0, stdouth, curdirh = 0;
-    unique_handle server_handle, client_handle, file, sect, proc, thread, kmsg;
+    unique_handle file, sect, thread;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
-    NTSTATUS status;
     SECTION_IMAGE_INFORMATION sii;
     PROCESS_BASIC_INFORMATION pbi;
     RTL_USER_PROCESS_PARAMETERS params;
@@ -923,6 +923,251 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
     INITIAL_TEB initial_teb;
     CONTEXT context;
     CLIENT_ID client_id;
+    nt_status status;
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+
+    // open file
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    us.Length = us.MaximumLength = (uint16_t)(exe.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)exe.data();
+
+    status = NtOpenFile(&h, FILE_READ_DATA, &oa, &iosb, 0,
+                        FILE_NON_DIRECTORY_FILE);
+    if (!success(status)) {
+        print("NtOpenFile returned {}\n", status);
+        return false;
+    }
+
+    // FIXME - if not found, search PATH, etc.
+
+    file.reset(h);
+
+    // create section
+
+    status = NtCreateSection(&h, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE,
+                             file.get());
+    if (!success(status)) {
+        print("NtCreateSection returned {}\n", status);
+        return false;
+    }
+
+    sect.reset(h);
+
+    status = NtQuerySection(sect.get(), SECTION_INFORMATION_CLASS::ImageInformation,
+                            &sii, sizeof(SECTION_IMAGE_INFORMATION), nullptr);
+
+    if (!success(status)) {
+        print("NtQuerySection returned {}\n", status);
+        return false;
+    }
+
+    if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
+        print("{}: not an executable\n", exe);
+        return false;
+    }
+
+    if (sii.Machine != IMAGE_FILE_MACHINE_AMD64) {
+        print("{}: unsupported architecture\n", exe);
+        return false;
+    }
+
+    // create process
+
+    status = NtCreateProcess(&h, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(),
+                             false, sect.get(), 0, 0);
+    if (!success(status)) {
+        print("NtCreateProcess returned {}\n", status);
+        return false;
+    }
+
+    proc.reset(h);
+
+    // duplicate handles
+
+    status = NtDuplicateObject(NtCurrentProcess(), client_handle,
+                               proc.get(), &stdinh, FILE_READ_DATA, 0,
+                               DUPLICATE_SAME_ATTRIBUTES);
+
+    if (!success(status)) {
+        print("NtDuplicateObject returned {}\n", status);
+        return false;
+    }
+
+    status = NtDuplicateObject(NtCurrentProcess(), client_handle,
+                               proc.get(), &stdouth, FILE_WRITE_DATA, 0,
+                               DUPLICATE_SAME_ATTRIBUTES);
+
+    if (!success(status)) {
+        print("NtDuplicateObject returned {}\n", status);
+        return false;
+    }
+
+    if (peb->ProcessParameters->CurrentDirectory.Handle) {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle,
+                                   proc.get(), &curdirh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned {}\n", status);
+            return false;
+        }
+    }
+
+    // take copy of PEB
+
+    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        print("NtQueryInformationProcess returned {}\n", status);
+        return false;
+    }
+
+    status = NtReadVirtualMemory(proc.get(), pbi.PebBaseAddress, &newpeb,
+                                 sizeof(PEB), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return false;
+    }
+
+    // take copy of ProcessParameters
+
+    status = NtReadVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
+                                 sizeof(params), nullptr);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return false;
+    }
+
+    // change handles
+
+    params.StandardInput = stdinh;
+    params.StandardOutput = stdouth;
+    params.StandardError = stdouth;
+    params.CurrentDirectory.Handle = curdirh;
+
+    // copy current directory string
+
+    params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
+                                                 peb->ProcessParameters->CurrentDirectory.DosPath.Length);
+
+    status = NtWriteVirtualMemory(proc.get(), params.CurrentDirectory.DosPath.Buffer,
+                                  peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
+                                  params.CurrentDirectory.DosPath.Length, nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned {}\n", status);
+        return false;
+    }
+
+    // FIXME - ImagePathName
+    // FIXME - environment variables
+
+    // allocate misc block
+
+    size_t misc_block_size = (cmdline.size() + 1) * sizeof(char16_t);
+
+    auto misc_block = (uint8_t*)malloc(misc_block_size);
+    if (!misc_block) {
+        print("malloc failed\n");
+        return false;
+    }
+
+    // allocate misc block in process
+
+    void* proc_misc_block = nullptr;
+    size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
+
+    status = NtAllocateVirtualMemory(proc.get(), &proc_misc_block, 0,
+                                     &proc_misc_block_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned {}\n", status);
+        free(misc_block);
+        return false;
+    }
+
+    // copy cmdline
+
+    memcpy(misc_block, cmdline.data(), cmdline.size() * sizeof(char16_t));
+    misc_block[cmdline.size() * sizeof(char16_t)] = 0;
+    params.CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
+    params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
+    params.CommandLine.Buffer = (char16_t*)proc_misc_block;
+
+    // copy misc block
+
+    status = NtWriteVirtualMemory(proc.get(), proc_misc_block, misc_block,
+                                  (uint32_t)misc_block_size, nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned {}\n", status);
+        free(misc_block);
+        return false;
+    }
+
+    free(misc_block);
+
+    // write ProcessParameters back
+
+    status = NtWriteVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
+                                  sizeof(params), nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned {}\n", status);
+        return false;
+    }
+
+    // create thread
+
+    memset(&initial_teb, 0, sizeof(initial_teb));
+
+    void* stack = nullptr;
+    size_t stack_size = 0x100000; // FIXME - should come from PE header?
+
+    status = NtAllocateVirtualMemory(proc.get(), &stack, 0, &stack_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned {}\n", status);
+        return false;
+    }
+
+    initial_teb.OldStackBase = nullptr;
+    initial_teb.OldStackLimit = nullptr;
+    initial_teb.StackBase = (uint8_t*)stack + stack_size;
+    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
+    initial_teb.StackAllocationBase = stack;
+
+    memset(&context, 0, sizeof(context));
+    context.Rip = (uintptr_t)sii.TransferAddress;
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
+    context.EFlags = 0x200;
+    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
+
+    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc.get(),
+                            &client_id, &context, &initial_teb, true);
+    if (!success(status)) {
+        print("NtCreateThread returned {}\n", status);
+        return false;
+    }
+
+    thread.reset(h);
+
+    // FIXME - Ctrl+C handling
+
+    NtResumeThread(thread.get(), nullptr);
+
+    return true;
+}
+
+static void test_run(u16string_view exe, u16string_view cmdline) {
+    HANDLE h;
+    unique_handle server_handle, client_handle, proc, kmsg;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    NTSTATUS status;
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
@@ -970,232 +1215,7 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
     client_handle.reset(h);
 
-    // open file
-
-    us.Length = us.MaximumLength = (uint16_t)(exe.size() * sizeof(char16_t));
-    us.Buffer = (char16_t*)exe.data();
-
-    status = NtOpenFile(&h, FILE_READ_DATA, &oa, &iosb, 0,
-                        FILE_NON_DIRECTORY_FILE);
-    if (!success(status)) {
-        print("NtOpenFile returned {}\n", status);
-        return;
-    }
-
-    // FIXME - if not found, search PATH, etc.
-
-    file.reset(h);
-
-    // create section
-
-    status = NtCreateSection(&h, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE,
-                             file.get());
-    if (!success(status)) {
-        print("NtCreateSection returned {}\n", status);
-        return;
-    }
-
-    sect.reset(h);
-
-    status = NtQuerySection(sect.get(), SECTION_INFORMATION_CLASS::ImageInformation,
-                            &sii, sizeof(SECTION_IMAGE_INFORMATION), nullptr);
-
-    if (!success(status)) {
-        print("NtQuerySection returned {}\n", status);
-        return;
-    }
-
-    if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
-        print("{}: not an executable\n", exe);
-        return;
-    }
-
-    if (sii.Machine != IMAGE_FILE_MACHINE_AMD64) {
-        print("{}: unsupported architecture\n", exe);
-        return;
-    }
-
-    // create process
-
-    status = NtCreateProcess(&h, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(),
-                             false, sect.get(), 0, 0);
-    if (!success(status)) {
-        print("NtCreateProcess returned {}\n", status);
-        return;
-    }
-
-    proc.reset(h);
-
-    // duplicate handles
-
-    status = NtDuplicateObject(NtCurrentProcess(), client_handle.get(),
-                               proc.get(), &stdinh, FILE_READ_DATA, 0,
-                               DUPLICATE_SAME_ATTRIBUTES);
-
-    if (!success(status)) {
-        print("NtDuplicateObject returned {}\n", status);
-        return;
-    }
-
-    status = NtDuplicateObject(NtCurrentProcess(), client_handle.get(),
-                               proc.get(), &stdouth, FILE_WRITE_DATA, 0,
-                               DUPLICATE_SAME_ATTRIBUTES);
-
-    if (!success(status)) {
-        print("NtDuplicateObject returned {}\n", status);
-        return;
-    }
-
-    if (peb->ProcessParameters->CurrentDirectory.Handle) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle,
-                                   proc.get(), &curdirh, 0, 0,
-                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
-
-        if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
-            return;
-        }
-    }
-
-    // take copy of PEB
-
-    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
-                                       &pbi, sizeof(pbi), nullptr);
-    if (!success(status)) {
-        print("NtQueryInformationProcess returned {}\n", status);
-        return;
-    }
-
-    status = NtReadVirtualMemory(proc.get(), pbi.PebBaseAddress, &newpeb,
-                                 sizeof(PEB), nullptr);
-    if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
-        return;
-    }
-
-    // take copy of ProcessParameters
-
-    status = NtReadVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
-                                 sizeof(params), nullptr);
-    if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
-        return;
-    }
-
-    // change handles
-
-    params.StandardInput = stdinh;
-    params.StandardOutput = stdouth;
-    params.StandardError = stdouth;
-    params.CurrentDirectory.Handle = curdirh;
-
-    // copy current directory string
-
-    params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
-                                                 peb->ProcessParameters->CurrentDirectory.DosPath.Length);
-
-    status = NtWriteVirtualMemory(proc.get(), params.CurrentDirectory.DosPath.Buffer,
-                                  peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
-                                  params.CurrentDirectory.DosPath.Length, nullptr);
-    if (!success(status)) {
-        print("NtWriteVirtualMemory returned {}\n", status);
-        return;
-    }
-
-    // FIXME - ImagePathName
-    // FIXME - environment variables
-
-    // allocate misc block
-
-    size_t misc_block_size = (cmdline.size() + 1) * sizeof(char16_t);
-
-    auto misc_block = (uint8_t*)malloc(misc_block_size);
-    if (!misc_block) {
-        print("malloc failed\n");
-        return;
-    }
-
-    // allocate misc block in process
-
-    void* proc_misc_block = nullptr;
-    size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
-
-    status = NtAllocateVirtualMemory(proc.get(), &proc_misc_block, 0,
-                                     &proc_misc_block_size,
-                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!success(status)) {
-        print("NtAllocateVirtualMemory returned {}\n", status);
-        free(misc_block);
-        return;
-    }
-
-    // copy cmdline
-
-    memcpy(misc_block, cmdline.data(), cmdline.size() * sizeof(char16_t));
-    misc_block[cmdline.size() * sizeof(char16_t)] = 0;
-    params.CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
-    params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
-    params.CommandLine.Buffer = (char16_t*)proc_misc_block;
-
-    // copy misc block
-
-    status = NtWriteVirtualMemory(proc.get(), proc_misc_block, misc_block,
-                                  (uint32_t)misc_block_size, nullptr);
-    if (!success(status)) {
-        print("NtWriteVirtualMemory returned {}\n", status);
-        free(misc_block);
-        return;
-    }
-
-    free(misc_block);
-
-    // write ProcessParameters back
-
-    status = NtWriteVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
-                                  sizeof(params), nullptr);
-    if (!success(status)) {
-        print("NtWriteVirtualMemory returned {}\n", status);
-        return;
-    }
-
-    // create thread
-
-    memset(&initial_teb, 0, sizeof(initial_teb));
-
-    void* stack = nullptr;
-    size_t stack_size = 0x100000; // FIXME - should come from PE header?
-
-    status = NtAllocateVirtualMemory(proc.get(), &stack, 0, &stack_size,
-                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!success(status)) {
-        print("NtAllocateVirtualMemory returned {}\n", status);
-        return;
-    }
-
-    initial_teb.OldStackBase = nullptr;
-    initial_teb.OldStackLimit = nullptr;
-    initial_teb.StackBase = (uint8_t*)stack + stack_size;
-    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
-    initial_teb.StackAllocationBase = stack;
-
-    memset(&context, 0, sizeof(context));
-    context.Rip = (uintptr_t)sii.TransferAddress;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
-    context.EFlags = 0x200;
-    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
-
-    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc.get(),
-                            &client_id, &context, &initial_teb, true);
-    if (!success(status)) {
-        print("NtCreateThread returned {}\n", status);
-        return;
-    }
-
-    thread.reset(h);
-
-    // FIXME - Ctrl+C handling
-
-    NtResumeThread(thread.get(), nullptr);
+    run_program(exe, cmdline, proc, client_handle.get());
 
     bool proc_finished = false;
 
