@@ -114,6 +114,7 @@ public:
     list_entry timeout_le;
     uint64_t wait_timeout;
     multiple_wait_block* multwait;
+    list_entry suspend_waiters = { &suspend_waiters, &suspend_waiters };
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<thread>);

@@ -1636,6 +1636,8 @@ void yield_after_syscall(uint64_t syscall_ret) {
     cb.thread_context.Rax = syscall_ret;
     t.kernel_mode = false;
 
+    wake_up_waiters(t.suspend_waiters);
+
     __asm __volatile ( // doesn't return, releases sync_lock
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"

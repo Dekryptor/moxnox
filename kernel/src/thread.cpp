@@ -465,8 +465,19 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
         t->status = thread_status::runnable;
     }
 
-    release_sync_lock();
-    enable_interrupts();
+    // wait for thread to stop running
+
+    if (t->status != thread_status::running && !t->kernel_mode) {
+        release_sync_lock();
+        enable_interrupts();
+        return nt_status::SUCCESS;
+    }
+
+    auto& this_thread = *get_cpu_block()->current_thread;
+
+    insert_tail_list(t->suspend_waiters, this_thread.wait_obj.wait_le);
+
+    set_current_thread_waiting();
 
     return nt_status::SUCCESS;
 }
