@@ -1215,9 +1215,8 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
     client_handle.reset(h);
 
-    run_program(exe, cmdline, proc, client_handle.get());
-
-    bool proc_finished = false;
+    if (!run_program(exe, cmdline, proc, client_handle.get()))
+        return;
 
     do {
         array<HANDLE, 4> objs;
@@ -1277,10 +1276,10 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
             }
 
             case 2: {
-                // process terminated
+                // process terminated, start again
 
-                // FIXME - make sure pipe is empty? (Wait on pipe with 0 timeout?)
-                proc_finished = true;
+                if (!run_program(exe, cmdline, proc, client_handle.get()))
+                    return;
 
                 break;
             }
@@ -1348,9 +1347,6 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
                 break;
             }
         }
-
-        if (proc_finished)
-            break;
     } while (true);
 }
 
