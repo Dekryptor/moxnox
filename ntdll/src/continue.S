@@ -1,6 +1,7 @@
 .intel_syntax noprefix
 
 #include "../../kernel/src/context_offsets.h"
+#include "exception_record_offsets.h"
 #include "dwarf.S"
 
 .equ CONTEXT_AMD64, 0x00100000
@@ -56,6 +57,7 @@
 .short DW_LANG_Mips_Assembler # language
 
 dwarf_func_asm RtlCaptureContext
+dwarf_func_asm RtlRaiseException
 
 .uleb128 0
 
@@ -146,6 +148,44 @@ RtlCaptureContext:
     pop rax
     ret
 RtlCaptureContext_end:
+.seh_endproc
+
+# void RtlRaiseException(EXCEPTION_RECORD* exception_record);
+.seh_proc RtlRaiseException
+.global RtlRaiseException
+RtlRaiseException:
+    sub rsp, 0x4e0
+    .seh_stackalloc 0x4e0
+    .seh_endprologue
+
+    # stack:
+    #   orig_exception_record (rsp + 0x8)
+    #   context (rsp + 0x10)
+    #   return address (rsp + 0x4e0)
+    #   (orig stack address) (rsp + 0x4e8)
+
+    mov [rsp + 0x8], rcx
+    lea rcx, [rsp + 0x10]
+    call RtlCaptureContext
+
+    # unwind to caller
+
+    lea rdx, [rsp + 0x10]
+
+    lea rax, [rsp + 0x4e8]
+    mov [rdx + CONTEXT_RSP], rax
+
+    mov rcx, [rsp + 0x8]
+    mov [rdx + CONTEXT_RCX], rcx
+
+    mov rax, QWORD PTR [rsp + 0x4e0]
+    mov [rdx + CONTEXT_RIP], rax
+    mov [rcx + EXCEPTION_RECORD_EXCEPTION_ADDRESS], rax
+
+    # FIXME - different if Peb->BeingDebugged set?
+
+    call mn_signal
+RtlRaiseException_end:
 .seh_endproc
 
 .text_end:

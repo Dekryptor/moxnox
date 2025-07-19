@@ -4,6 +4,7 @@
 #include <pe.h>
 #include <stdlib.h>
 #include <optional>
+#include "exception_record_offsets.h"
 
 import format;
 import print;
@@ -11,6 +12,8 @@ import dwarf;
 import unwind;
 
 using namespace std;
+
+static_assert(offsetof(EXCEPTION_RECORD, ExceptionAddress) == EXCEPTION_RECORD_EXCEPTION_ADDRESS);
 
 static ldr_entry* get_ldr_from_address(uint64_t addr) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -162,14 +165,4 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     }
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
-}
-
-extern "C"
-void RtlRaiseException(EXCEPTION_RECORD* exception_record) {
-    // GCC bug? context should be 16-byte aligned, but isn't
-    alignas(32) CONTEXT context;
-
-    RtlCaptureContext(&context);
-
-    mn_signal(exception_record, &context);
 }
