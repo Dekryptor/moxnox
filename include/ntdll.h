@@ -101,6 +101,30 @@ struct mn_image_info {
     uint64_t size_debug_str_offsets;
 };
 
+enum class EXCEPTION_DISPOSITION : int {
+    ExceptionContinueExecution = 0,
+    ExceptionContinueSearch = 1,
+    ExceptionNestedException = 2,
+    ExceptionCollidedUnwind = 3,
+    ExceptionExecuteHandler = 4
+};
+
+using EXCEPTION_ROUTINE = EXCEPTION_DISPOSITION(*)(EXCEPTION_RECORD*, void*,
+                                                   CONTEXT*, void*);
+
+struct DISPATCHER_CONTEXT_AMD64 {
+    uint64_t ControlPc;
+    uint64_t ImageBase;
+    RUNTIME_FUNCTION* FunctionEntry;
+    uint64_t EstablisherFrame;
+    uint64_t TargetIp;
+    AMD64_CONTEXT* ContextRecord;
+    EXCEPTION_ROUTINE* LanguageHandler;
+    void* HandlerData;
+};
+
+using DISPATCHER_CONTEXT = DISPATCHER_CONTEXT_AMD64;
+
 extern "C" {
 
 void* RtlCreateHeap(uint32_t flags, void* heap_base, size_t reserve_size, size_t commit_size,
@@ -110,6 +134,7 @@ void* RtlReAllocateHeap(void* heap_handle, uint32_t flags, void* ptr,
                         size_t size);
 bool RtlFreeHeap(void* heap_handle, uint32_t flags, void* base_address);
 void* RtlDestroyHeap(void* heap_handle);
+void RtlRaiseException(EXCEPTION_RECORD* exception_record);
 
 }
 

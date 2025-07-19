@@ -163,3 +163,16 @@ target_link_libraries(screenshot -lntdll ntdllcrt)
 target_link_libraries(screenshot libpng zlib)
 
 install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+###
+
+add_executable(seh-test src/seh-test.cpp)
+
+target_compile_options(seh-test PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -gdwarf-5)
+target_link_options(seh-test PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(seh-test shelllib)
+target_link_libraries(seh-test format)
+target_link_libraries(seh-test -lntdll ntdllcrt)
+
+install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX})
