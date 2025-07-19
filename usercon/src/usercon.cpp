@@ -177,6 +177,15 @@ void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
 }
 
+void do_print(string_view s) {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
+
+    NtWriteFile(peb->ProcessParameters->StandardError, 0, nullptr, nullptr, &iosb, s.data(),
+                (uint32_t)s.size(), nullptr, nullptr);
+}
+
 void console_fb::console_overflow(unsigned int rows) {
     auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
 

@@ -60,6 +60,12 @@ add_library(vt100_sse STATIC)
 target_sources(vt100_sse PUBLIC FILE_SET CXX_MODULES FILES modules/vt100.cpp)
 target_compile_options(vt100_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
 
+add_library(signal STATIC)
+target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
+target_compile_options(signal PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_link_libraries(signal format_sse)
+target_link_libraries(signal -lntdll)
+
 add_subdirectory(kernel)
 add_subdirectory(bootloader)
 add_subdirectory(init)

@@ -5,13 +5,25 @@ module;
 #include <string_view>
 #include <span>
 #include <optional>
-
-import print;
-import unique_handle;
+#include <tuple>
 
 export module signal;
 
+import format;
+
 using namespace std;
+
+extern "C++" void do_print(string_view sv);
+
+template<typename... Args>
+static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+    char s[100];
+    auto sp = span(s, sizeof(s));
+
+    sp = format_to(sp, fmt.sv, make_tuple(args...));
+
+    do_print(string_view(s, (size_t)(sp.data() - s)));
+}
 
 static nt_status find_export(HANDLE proc, uintptr_t dll_base,
                              string_view name, uint64_t& rip) {
@@ -212,11 +224,10 @@ static nt_status find_mn_signal(HANDLE proc, uint64_t& rip) {
 }
 
 export void send_signal_to_process(HANDLE proc, EXCEPTION_RECORD& er) {
-    HANDLE h;
-    unique_handle thread;
+    HANDLE thread;
     CONTEXT ctx;
 
-    auto status = NtGetNextThread(proc, 0, 0/*FIXME - access*/, 0, 0, &h);
+    auto status = NtGetNextThread(proc, 0, 0/*FIXME - access*/, 0, 0, &thread);
 
     if (status == nt_status::NO_MORE_ENTRIES)
         return;
@@ -225,19 +236,19 @@ export void send_signal_to_process(HANDLE proc, EXCEPTION_RECORD& er) {
         return;
     }
 
-    thread.reset(h);
-
     // FIXME - call NtGetNextThread until we get a good thread?
 
-    status = NtSuspendThread(thread.get(), nullptr);
+    status = NtSuspendThread(thread, nullptr);
     if (!success(status)) {
         print("NtSuspendThread returned {}\n", status);
+        NtClose(thread);
         return;
     }
 
-    status = NtGetContextThread(thread.get(), &ctx);
+    status = NtGetContextThread(thread, &ctx);
     if (!success(status)) {
         print("NtGetContextThread returned {}\n", status);
+        NtClose(thread);
         return;
     }
 
@@ -247,6 +258,7 @@ export void send_signal_to_process(HANDLE proc, EXCEPTION_RECORD& er) {
                                   sizeof(CONTEXT), nullptr);
     if (!success(status)) {
         print("NtWriteVirtualMemory returned {}\n", status);
+        NtClose(thread);
         return;
     }
 
@@ -259,28 +271,35 @@ export void send_signal_to_process(HANDLE proc, EXCEPTION_RECORD& er) {
                                   nullptr);
     if (!success(status)) {
         print("NtWriteVirtualMemory returned {}\n", status);
+        NtClose(thread);
         return;
     }
 
     status = find_mn_signal(proc, ctx.Rip);
-    if (!success(status))
+    if (!success(status)) {
+        NtClose(thread);
         return;
+    }
 
     ctx.Rcx = proc_er;
     ctx.Rdx = proc_context;
     ctx.Rsp -= sizeof(CONTEXT);
     ctx.Rsp -= er_size;
 
-    status = NtSetContextThread(thread.get(), &ctx);
+    status = NtSetContextThread(thread, &ctx);
     if (!success(status)) {
         print("NtSetContextThread returned {}\n", status);
+        NtClose(thread);
         return;
     }
 
     // FIXME - should be NtAlertResumeThread?
-    status = NtResumeThread(thread.get(), nullptr);
+    status = NtResumeThread(thread, nullptr);
     if (!success(status)) {
         print("NtResumeThread returned {}\n", status);
+        NtClose(thread);
         return;
     }
+
+    NtClose(thread);
 }
