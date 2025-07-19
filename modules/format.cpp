@@ -455,6 +455,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "CONTROL_C_EXIT");
         case nt_status::DLL_INIT_FAILED:
             return sp_strcpy(sp, "DLL_INIT_FAILED");
+        case nt_status::UNHANDLED_EXCEPTION:
+            return sp_strcpy(sp, "UNHANDLED_EXCEPTION");
         case nt_status::NOT_FOUND:
             return sp_strcpy(sp, "NOT_FOUND");
         case nt_status::ILLEGAL_DLL_RELOCATION:
