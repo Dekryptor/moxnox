@@ -1231,9 +1231,9 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
         array<HANDLE, 4> objs;
 
         objs[0] = kmsg.get();
-        objs[1] = server_handle.get();
-        objs[2] = proc.get();
-        objs[3] = peb->ProcessParameters->StandardInput;
+        objs[1] = peb->ProcessParameters->StandardInput;
+        objs[2] = server_handle.get();
+        objs[3] = proc.get();
 
         status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                           true, nullptr);
@@ -1267,33 +1267,6 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
             }
 
             case 1: {
-                char s[PAGE_SIZE];
-
-                // print pipe data
-
-                status = NtReadFile(server_handle.get(), 0, nullptr, nullptr,
-                                    &iosb, s, sizeof(s), nullptr, nullptr);
-                if (status == nt_status::ALERTED)
-                    continue;
-                else if (!success(status)) {
-                    print("NtReadFile returned {}\n", status);
-                    return;
-                }
-
-                recv_data(string_view(s, iosb.Information));
-                break;
-            }
-
-            case 2: {
-                // process terminated, start again
-
-                if (!run_program(exe, cmdline, proc, client_handle.get()))
-                    return;
-
-                break;
-            }
-
-            case 3: {
                 char buf[1024];
 
                 // forward data on stdin
@@ -1362,6 +1335,35 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
                 break;
             }
+
+            case 2: {
+                char s[PAGE_SIZE];
+
+                // print pipe data
+
+                status = NtReadFile(server_handle.get(), 0, nullptr, nullptr,
+                                    &iosb, s, sizeof(s), nullptr, nullptr);
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    return;
+                }
+
+                recv_data(string_view(s, iosb.Information));
+                break;
+            }
+
+            case 3: {
+                // process terminated, start again
+
+                if (!run_program(exe, cmdline, proc, client_handle.get()))
+                    return;
+
+                break;
+            }
+
+
         }
     } while (true);
 }
