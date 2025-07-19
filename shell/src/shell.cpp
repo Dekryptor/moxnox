@@ -16,6 +16,7 @@ import format;
 import print;
 import unicode;
 import unique_handle;
+import signal;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;
@@ -28,6 +29,8 @@ static char escape_buffer[50];
 static size_t escape_buffer_len = 0;
 static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
+
+static HANDLE running_proc = 0;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -261,6 +264,8 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                    &proc, sizeof(proc), nullptr, 0);
     auto set_fg = success(status);
 
+    running_proc = proc.get();
+
     NtResumeThread(thread.get(), nullptr);
 
     do {
@@ -276,6 +281,8 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
         break;
     } while (true);
+
+    running_proc = 0;
 
     if (set_fg) {
         HANDLE this_proc = NtCurrentProcess();
@@ -1183,10 +1190,27 @@ loop:
     }
 }
 
-static void handle_ctrl_c() {
-    // FIXME - if program running, raise signal
+void do_print(string_view s) {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
 
-    handle_input("\x03");
+    NtWriteFile(peb->ProcessParameters->StandardError, 0, nullptr, nullptr, &iosb, s.data(),
+                (uint32_t)s.size(), nullptr, nullptr);
+}
+
+static void handle_ctrl_c() {
+    if (running_proc != 0) {
+        EXCEPTION_RECORD er;
+
+        er.ExceptionFlags = 0;
+        er.ExceptionRecord = nullptr;
+        er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
+        er.NumberParameters = 0;
+
+        send_signal_to_process(running_proc, er);
+    } else
+        handle_input("\x03");
 }
 
 extern "C"
