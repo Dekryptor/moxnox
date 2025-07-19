@@ -211,7 +211,7 @@ static nt_status find_mn_signal(HANDLE proc, uint64_t& rip) {
     return find_export(proc, ntdll, "mn_signal", rip);
 }
 
-export void send_ctrl_c(HANDLE proc) {
+export void send_signal_to_process(HANDLE proc, EXCEPTION_RECORD& er) {
     HANDLE h;
     unique_handle thread;
     CONTEXT ctx;
@@ -250,13 +250,7 @@ export void send_ctrl_c(HANDLE proc) {
         return;
     }
 
-    EXCEPTION_RECORD er;
-
-    er.ExceptionFlags = 0;
-    er.ExceptionRecord = nullptr;
     er.ExceptionAddress = (void*)ctx.Rip;
-    er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
-    er.NumberParameters = 0;
 
     size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
     uintptr_t proc_er = proc_context - er_size;

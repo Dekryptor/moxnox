@@ -1335,7 +1335,14 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
                     if (ctrlc != 0)
                         do_write(string_view(read.data(), ctrlc), server_handle.get());
 
-                    send_ctrl_c(proc.get());
+                    EXCEPTION_RECORD er;
+
+                    er.ExceptionFlags = 0;
+                    er.ExceptionRecord = nullptr;
+                    er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
+                    er.NumberParameters = 0;
+
+                    send_signal_to_process(proc.get(), er);
 
                     read = string_view(read.data() + ctrlc + 1,
                                        read.size() - ctrlc - 1);
