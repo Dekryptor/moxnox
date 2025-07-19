@@ -135,6 +135,7 @@ void* RtlReAllocateHeap(void* heap_handle, uint32_t flags, void* ptr,
 bool RtlFreeHeap(void* heap_handle, uint32_t flags, void* base_address);
 void* RtlDestroyHeap(void* heap_handle);
 void RtlRaiseException(EXCEPTION_RECORD* exception_record);
+void RtlCaptureContext(CONTEXT* context);
 
 }
 

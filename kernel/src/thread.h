@@ -5,6 +5,8 @@
 
 static_assert(sizeof(AMD64_CONTEXT) == 0x4d0);
 
+static_assert(offsetof(AMD64_CONTEXT, ContextFlags) == CONTEXT_CONTEXT_FLAGS);
+static_assert(offsetof(AMD64_CONTEXT, MxCsr) == CONTEXT_MXCSR);
 static_assert(offsetof(AMD64_CONTEXT, Rax) == CONTEXT_RAX);
 static_assert(offsetof(AMD64_CONTEXT, Rcx) == CONTEXT_RCX);
 static_assert(offsetof(AMD64_CONTEXT, Rdx) == CONTEXT_RDX);

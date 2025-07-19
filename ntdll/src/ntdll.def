@@ -7,6 +7,8 @@ RtlAllocateHeap
 RtlFreeHeap
 RtlDestroyHeap
 RtlReAllocateHeap
+RtlRaiseException
+RtlCaptureContext
 memcmp
 memset
 memmove

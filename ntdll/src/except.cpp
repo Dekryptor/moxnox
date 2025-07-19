@@ -163,3 +163,13 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
 }
+
+extern "C"
+void RtlRaiseException(EXCEPTION_RECORD* exception_record) {
+    // GCC bug? context should be 16-byte aligned, but isn't
+    alignas(32) CONTEXT context;
+
+    RtlCaptureContext(&context);
+
+    mn_signal(exception_record, &context);
+}
