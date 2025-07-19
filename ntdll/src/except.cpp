@@ -99,12 +99,76 @@ optional<uint64_t> read_uint64_t(uint64_t addr) {
     return ret;
 }
 
-static bool do_unwind_context(CONTEXT& context) {
+static bool do_unwind_context(CONTEXT& context, UNWIND_INFO** unwind_info) {
     auto ent = get_ldr_from_address(context.Rip);
     if (!ent)
         return false;
 
-    return unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage);
+    return unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage,
+                          unwind_info);
+}
+
+static nt_status handle_exception(EXCEPTION_RECORD* exception,
+                                  const CONTEXT& orig_context) {
+    CONTEXT context;
+
+    context = orig_context;
+
+    while (true) {
+        UNWIND_INFO* unwind_info = nullptr;
+
+        auto ent = get_ldr_from_address(context.Rip);
+        if (!ent)
+            break;
+
+        auto prev_context = context;
+
+        if (!unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage,
+                            &unwind_info)) {
+            break;
+        }
+
+        // FIXME - should be using RtlVirtualUnwind?
+
+        if (!unwind_info || !(unwind_info->flags & UNW_FLAG_EHANDLER))
+            continue;
+
+        auto ptr = (uint8_t*)unwind_info + sizeof(UNWIND_INFO) + (unwind_info->unwind_codes_count * sizeof(UNWIND_CODE));
+
+        if (unwind_info->unwind_codes_count % 2)
+            ptr += sizeof(UNWIND_CODE);
+
+        auto handler = (EXCEPTION_ROUTINE)((uint8_t*)ent->ldr.DllBase + *(uint32_t*)ptr);
+
+        if (!handler)
+            continue;
+
+        // FIXME - frame
+        // FIXME - dispatcher context
+        auto disp = handler(exception, nullptr, &prev_context, nullptr);
+
+        switch (disp) {
+            case EXCEPTION_DISPOSITION::ExceptionContinueExecution:
+                // FIXME - check for EH_NONCONTINUABLE
+                return nt_status::SUCCESS;
+
+            case EXCEPTION_DISPOSITION::ExceptionContinueSearch:
+                break;
+
+            case EXCEPTION_DISPOSITION::ExceptionNestedException:
+                print("FIXME - ExceptionNestedException\n");
+                break;
+
+            case EXCEPTION_DISPOSITION::ExceptionCollidedUnwind:
+                print("FIXME - ExceptionCollidedUnwind\n");
+                break;
+
+            default:
+                return nt_status::INVALID_DISPOSITION;
+        }
+    }
+
+    return nt_status::UNHANDLED_EXCEPTION;
 }
 
 extern "C"
@@ -112,7 +176,14 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    // FIXME - call SEH handler if present
+    auto status = handle_exception(exception, *context);
+    if (success(status))
+        NtContinue(context, false); // doesn't return
+
+    if (status != nt_status::UNHANDLED_EXCEPTION) {
+        sp = format(sp, "Error {} received while trying to handle exception\n", status);
+        print("{}", string_view(s, (size_t)(sp.data() - s)));
+    }
 
     // FIXME - print EXE name
 
@@ -159,7 +230,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         do {
             print_rip(context->Rip);
 
-            if (!do_unwind_context(*context))
+            if (!do_unwind_context(*context, nullptr))
                 break;
         } while (true);
     }

@@ -188,7 +188,7 @@ static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t va
 
 static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                             const RUNTIME_FUNCTION* prt_func,
-                            bool& machine_frame) {
+                            bool& machine_frame, UNWIND_INFO** unwind_info) {
     uint32_t func_offset;
     uint64_t frame = context.Rsp;
 
@@ -325,6 +325,9 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
             }
         }
 
+        if (unwind_info)
+            *unwind_info = &ui;
+
         if (!(ui.flags & UNW_FLAG_CHAININFO))
             break;
 
@@ -341,7 +344,8 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
     return true;
 }
 
-export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size) {
+export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
+                           UNWIND_INFO** unwind_info) {
     bool machine_frame = false;
 
     auto rt_func = find_runtime_function(img_addr, context.Rip);
@@ -349,7 +353,7 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size) {
     // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
     if (rt_func) {
         if (!unwind_context2(context, img_addr, img_size, rt_func,
-                             machine_frame)) {
+                             machine_frame, unwind_info)) {
             return false;
         }
     }

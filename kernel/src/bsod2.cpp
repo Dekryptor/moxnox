@@ -80,7 +80,7 @@ static bool do_unwind_context(CONTEXT& context) {
     if (!img)
         return false;
 
-    return unwind_context(context, img->base_address, img->size);
+    return unwind_context(context, img->base_address, img->size, nullptr);
 }
 
 static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_callers) {
