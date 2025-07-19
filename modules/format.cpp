@@ -409,6 +409,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "BUFFER_TOO_SMALL");
         case nt_status::OBJECT_TYPE_MISMATCH:
             return sp_strcpy(sp, "OBJECT_TYPE_MISMATCH");
+        case nt_status::INVALID_DISPOSITION:
+            return sp_strcpy(sp, "INVALID_DISPOSITION");
         case nt_status::DISK_CORRUPT_ERROR:
             return sp_strcpy(sp, "DISK_CORRUPT_ERROR");
         case nt_status::OBJECT_NAME_INVALID:
