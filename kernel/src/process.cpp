@@ -2639,8 +2639,8 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
     return p->read_vm(base_address, buffer, buffer_size, number_of_bytes_read);
 }
 
-NTSTATUS process::write_vm(void* base_address, void* buffer, uint32_t buffer_size,
-                           uint32_t* number_of_bytes_written) {
+NTSTATUS process::write_vm(void* base_address, const void* buffer,
+                           uint32_t buffer_size, uint32_t* number_of_bytes_written) {
     uint32_t copied = 0;
 
     while (true) {
@@ -2676,8 +2676,8 @@ NTSTATUS process::write_vm(void* base_address, void* buffer, uint32_t buffer_siz
     return nt_status::SUCCESS;
 }
 
-NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
-                              uint32_t* number_of_bytes_written) {
+NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const void* buffer,
+                              uint32_t buffer_size, uint32_t* number_of_bytes_written) {
     object_ref objrw;
     process* p;
 

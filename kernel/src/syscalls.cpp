@@ -919,7 +919,8 @@ NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address,
 }
 
 extern "C"
-NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size) {
+NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
+                                   const void* buffer, uint32_t buffer_size) {
     auto& t = *get_current_thread();
     array<uintptr_t, 1> args;
     NTSTATUS status;

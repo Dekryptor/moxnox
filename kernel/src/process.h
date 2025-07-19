@@ -52,7 +52,7 @@ public:
                         uint32_t* return_length);
     NTSTATUS read_vm(void* base_address, void* buffer, uint32_t buffer_size,
                      uint32_t* number_of_bytes_read);
-    NTSTATUS write_vm(void* base_address, void* buffer, uint32_t buffer_size,
+    NTSTATUS write_vm(void* base_address, const void* buffer, uint32_t buffer_size,
                       uint32_t* number_of_bytes_written);
     nt_status flush_vm(void** base_address, size_t* region_size);
     object_ref get_stderr();
