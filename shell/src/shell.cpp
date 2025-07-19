@@ -1092,7 +1092,18 @@ loop:
 
         if (c == '\b')
             handle_backspace();
-        else if (c == '\x04') { // Ctrl+D
+        else if (c == '\x03') { // Ctrl+C
+            print("^C\n");
+            print("> ");
+
+            if (buf) {
+                free(buf);
+                buf = nullptr;
+            }
+
+            buflen = 0;
+            cursor_pos = 0;
+        } else if (c == '\x04') { // Ctrl+D
             if (buflen == 0) {
                 print("\n");
                 NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
@@ -1172,8 +1183,26 @@ loop:
     }
 }
 
+static void handle_ctrl_c() {
+    // FIXME - if program running, raise signal
+
+    handle_input("\x03");
+}
+
+extern "C"
+enum EXCEPTION_DISPOSITION exception_handler(EXCEPTION_RECORD* rec, void* /*frame*/,
+                                             CONTEXT* /*context*/, DISPATCHER_CONTEXT* /*dispatch*/) {
+    if ((enum nt_status)rec->ExceptionCode != nt_status::CONTROL_C_EXIT)
+        return EXCEPTION_DISPOSITION::ExceptionContinueSearch;
+
+    handle_ctrl_c();
+
+    return EXCEPTION_DISPOSITION::ExceptionContinueExecution;
+}
+
 extern "C"
 void startup() {
+    __asm __volatile(".seh_handler exception_handler, @except");
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
