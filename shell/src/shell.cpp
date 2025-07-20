@@ -49,16 +49,19 @@ void free(void* ptr) {
 static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                         string_view cmdline) {
     NTSTATUS status;
-    unique_handle proc, thread;
+    unique_handle proc, thread, server_handle, client_handle;
     HANDLE h;
     CLIENT_ID client_id;
     CONTEXT context;
     INITIAL_TEB initial_teb;
-    HANDLE stdinh = 0, stdouth = 0, stderrh = 0, curdirh = 0;
+    HANDLE stdinh = 0, stdouth = 0, curdirh = 0;
     PROCESS_BASIC_INFORMATION pbi;
     PEB newpeb;
     RTL_USER_PROCESS_PARAMETERS params;
     IO_STATUS_BLOCK iosb;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    char16_t pipename[50];
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
@@ -74,6 +77,52 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     proc.reset(h);
 
+    // create pipe
+
+    status = NtQueryInformationProcess(NtCurrentProcess(),
+                                       PROCESSINFOCLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        print("NtQueryInformationProcess returned {}\n", status);
+        return;
+    }
+
+    {
+        char s[50];
+        span sp(s, sizeof(s));
+
+        sp = format(sp, "\\dev\\shellpipe-{}", pbi.UniqueProcessId);
+
+        auto name = string_view(s, (size_t)(sp.data() - s));
+
+        utf8_to_utf16(pipename, name);
+
+        us.Length = us.MaximumLength = (uint16_t)(utf8_to_utf16_len(name) * sizeof(char16_t));
+        us.Buffer = pipename;
+    }
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtCreateNamedPipeFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa,
+                                   &iosb, 0, FILE_CREATE, 0, 1, 0, 0, 0, 0, 0,
+                                   nullptr);
+    if (!success(status)) {
+        print("NtCreateNamedPipeFile returned {}\n", status);
+        return;
+    }
+
+    server_handle.reset(h);
+
+    status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
+    if (!success(status)) {
+        print("NtOpenFile returned {}\n", status);
+        return;
+    }
+
+    client_handle.reset(h);
+
     // duplicate handles
 
     if (peb->ProcessParameters->StandardInput) {
@@ -87,26 +136,13 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
         }
     }
 
-    if (peb->ProcessParameters->StandardOutput) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardOutput,
-                                   proc.get(), &stdouth, 0, 0,
-                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    status = NtDuplicateObject(NtCurrentProcess(), client_handle.get(),
+                               proc.get(), &stdouth, FILE_WRITE_DATA, 0,
+                               DUPLICATE_SAME_ATTRIBUTES);
 
-        if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
-            return;
-        }
-    }
-
-    if (peb->ProcessParameters->StandardError) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardError,
-                                   proc.get(), &stderrh, 0, 0,
-                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
-
-        if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
-            return;
-        }
+    if (!success(status)) {
+        print("NtDuplicateObject returned {}\n", status);
+        return;
     }
 
     if (peb->ProcessParameters->CurrentDirectory.Handle) {
@@ -149,7 +185,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     params.StandardInput = stdinh;
     params.StandardOutput = stdouth;
-    params.StandardError = stderrh;
+    params.StandardError = stdouth;
     params.CurrentDirectory.Handle = curdirh;
 
     // copy current directory string
@@ -269,20 +305,56 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     NtResumeThread(thread.get(), nullptr);
 
     do {
-        status = NtWaitForSingleObject(proc.get(), true, nullptr);
+        array<HANDLE, 2> objs;
+
+        objs[0] = server_handle.get();
+        objs[1] = proc.get();
+
+        status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
+                                          true, nullptr);
 
         if (status == nt_status::ALERTED)
             continue;
 
         if (!success(status)) {
-            print("NtWaitForSingleObject returned {}\n", status);
+            print("NtWaitForMultipleObjects returned {}\n", status);
             return;
         }
 
-        break;
-    } while (true);
+        switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
+            case 0: {
+                char s[PAGE_SIZE];
 
-    running_proc = 0;
+                // print pipe data
+
+                status = NtReadFile(server_handle.get(), 0, nullptr, nullptr,
+                                    &iosb, s, sizeof(s), nullptr, nullptr);
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    continue;
+                }
+
+                status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
+                                     nullptr, nullptr, &iosb, s,
+                                     (uint32_t)iosb.Information, nullptr, nullptr);
+                if (!success(status))
+                    print("NtWriteFile returned {}\n", status);
+
+                break;
+            }
+
+            case 1: {
+                // process finished
+
+                proc.reset();
+                running_proc = 0;
+
+                break;
+            }
+        }
+    } while (running_proc != 0);
 
     if (set_fg) {
         HANDLE this_proc = NtCurrentProcess();
