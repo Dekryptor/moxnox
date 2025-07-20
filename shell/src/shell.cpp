@@ -305,9 +305,9 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     do {
         array<HANDLE, 3> objs;
 
-        objs[0] = proc.get();
-        objs[1] = peb->ProcessParameters->StandardInput;
-        objs[2] = server_handle.get();
+        objs[0] = server_handle.get();
+        objs[1] = proc.get();
+        objs[2] = peb->ProcessParameters->StandardInput;
 
         status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                           true, nullptr);
@@ -322,6 +322,29 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
         switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
             case 0: {
+                char s[PAGE_SIZE];
+
+                // print pipe data
+
+                status = NtReadFile(server_handle.get(), 0, nullptr, nullptr,
+                                    &iosb, s, sizeof(s), nullptr, nullptr);
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    continue;
+                }
+
+                status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
+                                     nullptr, nullptr, &iosb, s,
+                                     (uint32_t)iosb.Information, nullptr, nullptr);
+                if (!success(status))
+                    print("NtWriteFile returned {}\n", status);
+
+                break;
+            }
+
+            case 1: {
                 // process finished
 
                 proc.reset();
@@ -330,7 +353,7 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                 break;
             }
 
-            case 1: {
+            case 2: {
                 char s[PAGE_SIZE];
 
                 // forward stdin to process
@@ -348,29 +371,6 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                 status = NtWriteFile(server_handle.get(), 0, nullptr, nullptr,
                                      &iosb, s, (uint32_t)iosb.Information,
                                      nullptr, nullptr);
-                if (!success(status))
-                    print("NtWriteFile returned {}\n", status);
-
-                break;
-            }
-
-            case 2: {
-                char s[PAGE_SIZE];
-
-                // print pipe data
-
-                status = NtReadFile(server_handle.get(), 0, nullptr, nullptr,
-                                    &iosb, s, sizeof(s), nullptr, nullptr);
-                if (status == nt_status::ALERTED)
-                    continue;
-                else if (!success(status)) {
-                    print("NtReadFile returned {}\n", status);
-                    continue;
-                }
-
-                status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
-                                     nullptr, nullptr, &iosb, s,
-                                     (uint32_t)iosb.Information, nullptr, nullptr);
                 if (!success(status))
                     print("NtWriteFile returned {}\n", status);
 
