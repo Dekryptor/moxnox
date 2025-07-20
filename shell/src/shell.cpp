@@ -125,15 +125,13 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     // duplicate handles
 
-    if (peb->ProcessParameters->StandardInput) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardInput,
-                                   proc.get(), &stdinh, 0, 0,
-                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    status = NtDuplicateObject(NtCurrentProcess(), client_handle.get(),
+                               proc.get(), &stdinh, FILE_READ_DATA, 0,
+                               DUPLICATE_SAME_ATTRIBUTES);
 
-        if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
-            return;
-        }
+    if (!success(status)) {
+        print("NtDuplicateObject returned {}\n", status);
+        return;
     }
 
     status = NtDuplicateObject(NtCurrentProcess(), client_handle.get(),
@@ -305,10 +303,11 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     NtResumeThread(thread.get(), nullptr);
 
     do {
-        array<HANDLE, 2> objs;
+        array<HANDLE, 3> objs;
 
-        objs[0] = server_handle.get();
-        objs[1] = proc.get();
+        objs[0] = proc.get();
+        objs[1] = peb->ProcessParameters->StandardInput;
+        objs[2] = server_handle.get();
 
         status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                           true, nullptr);
@@ -323,6 +322,39 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
         switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
             case 0: {
+                // process finished
+
+                proc.reset();
+                running_proc = 0;
+
+                break;
+            }
+
+            case 1: {
+                char s[PAGE_SIZE];
+
+                // forward stdin to process
+
+                status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
+                                    nullptr, nullptr, &iosb, s, sizeof(s),
+                                    nullptr, nullptr);
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    continue;
+                }
+
+                status = NtWriteFile(server_handle.get(), 0, nullptr, nullptr,
+                                     &iosb, s, (uint32_t)iosb.Information,
+                                     nullptr, nullptr);
+                if (!success(status))
+                    print("NtWriteFile returned {}\n", status);
+
+                break;
+            }
+
+            case 2: {
                 char s[PAGE_SIZE];
 
                 // print pipe data
@@ -341,15 +373,6 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                      (uint32_t)iosb.Information, nullptr, nullptr);
                 if (!success(status))
                     print("NtWriteFile returned {}\n", status);
-
-                break;
-            }
-
-            case 1: {
-                // process finished
-
-                proc.reset();
-                running_proc = 0;
 
                 break;
             }
