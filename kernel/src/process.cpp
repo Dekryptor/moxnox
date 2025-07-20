@@ -53,6 +53,8 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 
 static const size_t MAX_PATH = 260;
 
+static atomic<uintptr_t> next_pid = 1;
+
 // section.cpp (FIXME)
 nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
                          size_t size, uint32_t page_protection, object_ref& ref);
@@ -319,6 +321,8 @@ object_ref create_process(string_view fn, string_view curdir,
     }
 
     auto& p = *pptr;
+
+    p.pid = next_pid.fetch_add(1);
 
     // create section for image
 
@@ -2423,6 +2427,8 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     auto& p = *pptr;
 
+    p.pid = next_pid.fetch_add(1);
+
     p.img = img;
     img.acquire();
 
@@ -2722,7 +2728,7 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
             pbi.PebBaseAddress = peb;
             pbi.AffinityMask = 0xffffffff; // FIXME
             pbi.BasePriority = 0; // FIXME
-            pbi.UniqueProcessId = 0; // FIXME - PID
+            pbi.UniqueProcessId = pid;
             pbi.InheritedFromUniqueProcessId = 0; // FIXME
 
             if (return_length)

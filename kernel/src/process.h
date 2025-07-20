@@ -80,6 +80,7 @@ public:
     bool initialized = false;
     rangelock rl;
     std::atomic<uint64_t> running_cpus = 0;
+    uintptr_t pid;
 };
 
 static_assert(is_sync_object<process>);
