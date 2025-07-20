@@ -56,6 +56,7 @@
 .asciz __FILE__ # name
 .short DW_LANG_Mips_Assembler # language
 
+dwarf_func_asm NtContinue
 dwarf_func_asm RtlCaptureContext
 dwarf_func_asm RtlRaiseException
 
@@ -66,8 +67,11 @@ dwarf_func_asm RtlRaiseException
 .text
 
 # NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert);
+.seh_proc NtContinue
 .global NtContinue
 NtContinue:
+.seh_endprologue
+
     # FIXME - raise_alert
     # FIXME - debug registers
 
@@ -106,6 +110,8 @@ NtContinue:
     mov rcx, QWORD PTR [rcx + CONTEXT_RCX]
 
     iretq
+NtContinue_end:
+.seh_endproc
 
 # NTSTATUS RtlCaptureContext(CONTEXT* context);
 .seh_proc RtlCaptureContext
