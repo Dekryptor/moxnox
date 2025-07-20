@@ -298,7 +298,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
     yield(); // releases sync_lock
 
-    if (interruptible && current_thread->pending_signal)
+    if (interruptible && (current_thread->pending_signal || current_thread->suspend_count.load() != 0))
         return nt_status::ALERTED;
 
     if (timeout.has_value() && current_thread->wait_timeout == 0)
@@ -600,7 +600,7 @@ static nt_status wait_for_objects(span<object*> objects, bool wait_any,
     free(mwb);
 
     // FIXME - non-alertable waits
-    if (current_thread->pending_signal)
+    if (current_thread->pending_signal || current_thread->suspend_count.load() != 0)
         return nt_status::ALERTED;
 
     if (timeout.has_value() && current_thread->wait_timeout == 0)
