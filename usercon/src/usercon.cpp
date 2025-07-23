@@ -19,6 +19,7 @@ import list;
 import vt100;
 import print;
 import signal;
+import unicode;
 
 using namespace std;
 
@@ -1177,6 +1178,8 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
     NTSTATUS status;
+    PROCESS_BASIC_INFORMATION pbi;
+    char16_t pipename[50];
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
@@ -1201,10 +1204,27 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
     // create pipe
 
-    static const u16string_view fn = u"\\dev\\ptty0"; // FIXME
+    status = NtQueryInformationProcess(NtCurrentProcess(),
+                                       PROCESSINFOCLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        print("NtQueryInformationProcess returned {}\n", status);
+        return;
+    }
 
-    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
-    us.Buffer = (char16_t*)fn.data();
+    {
+        char s[50];
+        span sp(s, sizeof(s));
+
+        sp = format(sp, "\\dev\\userconpipe-{}", pbi.UniqueProcessId);
+
+        auto name = string_view(s, (size_t)(sp.data() - s));
+
+        utf8_to_utf16(pipename, name);
+
+        us.Length = us.MaximumLength = (uint16_t)(utf8_to_utf16_len(name) * sizeof(char16_t));
+        us.Buffer = pipename;
+    }
 
     status = NtCreateNamedPipeFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa,
                                    &iosb, 0, FILE_CREATE, 0, 1, 0, 0, 0, 0, 0,
