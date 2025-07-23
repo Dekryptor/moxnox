@@ -1224,6 +1224,39 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
 
     client_handle.reset(h);
 
+    // print pending kmsg buffer first
+
+    while (true) {
+        LARGE_INTEGER timeout;
+        char s[PAGE_SIZE];
+
+        timeout.QuadPart = 0;
+
+        status = NtWaitForSingleObject(kmsg.get(), true, &timeout);
+        if (status == nt_status::ALERTED)
+            continue;
+        else if (status == nt_status::TIMEOUT)
+            break;
+        else if (!success(status)) {
+            print("NtWaitForSingleObject returned {}\n", status);
+            return;
+        }
+
+        status = NtReadFile(kmsg.get(), 0, nullptr, nullptr,
+                            &iosb, s, sizeof(s), nullptr, nullptr);
+        if (status == nt_status::ALERTED)
+            continue;
+        else if (!success(status)) {
+            print("NtReadFile returned {}\n", status);
+            return;
+        }
+
+        if (iosb.Information != 0)
+            recv_data(string_view(s, iosb.Information));
+    }
+
+    recv_data("\nWelcome to \e[1mMoxnox\e[m\n\n");
+
     if (!run_program(exe, cmdline, proc, client_handle.get()))
         return;
 

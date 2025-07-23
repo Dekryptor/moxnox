@@ -364,8 +364,6 @@ void startup() {
 
         // FIXME - solicit username and password
 
-        print("\nWelcome to \e[1mMoxnox\e[m\n\n");
-
         run_program(u"\\shell.exe", peb->ProcessParameters->StandardInput,
                     peb->ProcessParameters->StandardOutput, peb->ProcessParameters->StandardError);
     }
