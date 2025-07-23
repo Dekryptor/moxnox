@@ -76,12 +76,9 @@ static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
 // font.S
 extern "C" void* console_font_data;
-extern "C" void* console_font_bold_data;
 extern "C" uint64_t console_font_size;
-extern "C" uint64_t console_font_bold_size;
 
 static const auto console_font = span(&console_font_data, console_font_size);
-static const auto console_font_bold = span(&console_font_bold_data, console_font_bold_size);
 
 struct glyph_info {
     rbtree_node<FT_UInt> tree;
@@ -96,7 +93,7 @@ struct font_info {
     rbtree_node<FT_UInt>* glyphs = nullptr; // FIXME - destructor for this
 };
 
-static font_info face, face_bold;
+static font_info face;
 
 class console : public pipe {
 public:
@@ -262,8 +259,7 @@ void console_fb::console_overflow(unsigned int rows) {
 
     auto c = &console[(console_rows - rows) * console_cols];
 
-    auto font = bold ? face_bold.face : face.face;
-    auto glyph = FT_Get_Char_Index(font, ' ');
+    auto glyph = FT_Get_Char_Index(face.face, ' ');
 
     for (unsigned int i = 0; i < console_cols * console_rows; i++) {
         console[i].changed = true;
@@ -293,8 +289,7 @@ void console_text::console_overflow(unsigned int rows) {
 void console_fb::print_char(char32_t c, bool no_move) {
     if (c == '\n') {
         if (console) {
-            auto font = bold ? face_bold.face : face.face;
-            auto glyph = FT_Get_Char_Index(font, ' ');
+            auto glyph = FT_Get_Char_Index(face.face, ' ');
 
             for (unsigned int i = cursor_x; i < console_cols; i++) {
                 if (console[(cursor_y * console_cols) + i].glyph != glyph)
@@ -326,8 +321,7 @@ void console_fb::print_char(char32_t c, bool no_move) {
         }
 
         if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT) {
-            auto font = bold ? face_bold.face : face.face;
-            auto glyph = FT_Get_Char_Index(font, ' ');
+            auto glyph = FT_Get_Char_Index(face.face, ' ');
 
             if (console[(cursor_y * console_cols) + cursor_x].glyph != glyph) {
                 console[(cursor_y * console_cols) + cursor_x].glyph = glyph;
@@ -338,8 +332,7 @@ void console_fb::print_char(char32_t c, bool no_move) {
         if (console) {
             auto& p = console[(cursor_y * console_cols) + cursor_x];
 
-            auto font = bold ? face_bold.face : face.face;
-            auto glyph = FT_Get_Char_Index(font, c);
+            auto glyph = FT_Get_Char_Index(face.face, c);
 
             p.glyph = glyph;
             p.bg = bg_colour;
@@ -659,8 +652,7 @@ void console_fb::scroll_down(unsigned int rows) {
 
     auto c = &console[0];
 
-    auto font = bold ? face_bold.face : face.face;
-    auto glyph = FT_Get_Char_Index(font, ' ');
+    auto glyph = FT_Get_Char_Index(face.face, ' ');
 
     for (unsigned int i = 0; i < console_cols * console_rows; i++) {
         console[i].changed = true;
@@ -718,9 +710,7 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
 
 static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y,
                          bool is_cursor) {
-    auto& font = c.bold ? face_bold : face;
-
-    auto gi = load_glyph(font, c.glyph);
+    auto gi = load_glyph(face, c.glyph);
     if (!gi)
         return;
 
@@ -1177,19 +1167,6 @@ export bool init_fb_console() {
     }
 
     error = FT_Set_Char_Size(face.face, font_size * 64, 0, fb_dpi, 0);
-    if (error) {
-        print("FT_Set_Char_Size failed ({:x})\n", error);
-        return false;
-    }
-
-    error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_bold_data, (FT_Long)console_font_bold_size,
-                               0, &face_bold.face);
-    if (error) {
-        print("FT_New_Memory_Face failed ({:x})\n", error);
-        return false;
-    }
-
-    error = FT_Set_Char_Size(face_bold.face, font_size * 64, 0, fb_dpi, 0);
     if (error) {
         print("FT_Set_Char_Size failed ({:x})\n", error);
         return false;

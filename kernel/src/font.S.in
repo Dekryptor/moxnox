@@ -5,17 +5,6 @@ console_font_data:
 .console_font_data_end:
 
 .p2align 3
-.global console_font_bold_data
-console_font_bold_data:
-.incbin "${CMAKE_CURRENT_SOURCE_DIR}/console-bold.ttf"
-.console_font_bold_data_end:
-
-.p2align 3
 .global console_font_size
 console_font_size:
 .quad .console_font_data_end - console_font_data
-
-.p2align 3
-.global console_font_bold_size
-console_font_bold_size:
-.quad .console_font_bold_data_end - console_font_bold_data
