@@ -23,8 +23,9 @@ target_link_libraries(usercon freetype)
 install(TARGETS usercon DESTINATION ${CMAKE_INSTALL_PREFIX}
     CXX_MODULES_BMI EXCLUDE_FROM_ALL)
 
-# FIXME - put these in a better place
+# FIXME - put this in a better place
 install(FILES ../kernel/console.ttf DESTINATION ${CMAKE_INSTALL_PREFIX})
-install(FILES ../kernel/console-bold.ttf DESTINATION ${CMAKE_INSTALL_PREFIX})
-install(FILES ../kernel/console-italic.ttf DESTINATION ${CMAKE_INSTALL_PREFIX})
-install(FILES ../kernel/console-bold-italic.ttf DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+install(FILES console-bold.ttf DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(FILES console-italic.ttf DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(FILES console-bold-italic.ttf DESTINATION ${CMAKE_INSTALL_PREFIX})
