@@ -1,0 +1,54 @@
+#include <nt.h>
+#include <ntdll.h>
+
+import format;
+import print;
+
+enum EXCEPTION_DISPOSITION handler2(EXCEPTION_RECORD* rec, void* /*frame*/,
+                                    CONTEXT* context,
+                                    DISPATCHER_CONTEXT* /*dispatch*/) {
+    print("rec->ExceptionCode = {:x}, context->Rip = {:x}\n",
+          rec->ExceptionCode, context->Rip);
+
+    if (rec->ExceptionCode == 0x12345678)
+        return EXCEPTION_DISPOSITION::ExceptionContinueExecution;
+    else
+        return EXCEPTION_DISPOSITION::ExceptionContinueSearch;
+}
+
+extern "C"
+enum EXCEPTION_DISPOSITION handler(EXCEPTION_RECORD* rec, void* frame,
+                                   CONTEXT* context, DISPATCHER_CONTEXT* dispatch) {
+    return handler2(rec, frame, context, dispatch);
+}
+
+static void __attribute__((noinline)) seh_test() {
+    __asm __volatile(".seh_handler handler, @except");
+
+    EXCEPTION_RECORD er;
+
+    er.ExceptionFlags = 0;
+    er.ExceptionRecord = nullptr;
+    // er.ExceptionAddress = (void*)ctx.Rip;
+    er.ExceptionCode = 0x12345678;
+    er.NumberParameters = 0;
+
+    print("before exception\n");
+
+    RtlRaiseException(&er);
+
+    print("after exception\n");
+
+    // *(char*)1 = 1;
+}
+
+extern "C"
+void startup() {
+    print("beginning of startup\n");
+
+    seh_test();
+
+    print("end of startup\n");
+
+    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+}
