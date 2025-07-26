@@ -1,6 +1,8 @@
-#pragma once
+module;
 
-static constexpr char cp437(char32_t cp) {
+export module cp437;
+
+export constexpr char cp437(char32_t cp) {
     switch (cp) {
         case 0x20 ... 0x7e:
             return (char)cp;

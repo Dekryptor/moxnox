@@ -4,7 +4,6 @@ module;
 #include "spinlock.h"
 import objects;
 #include "handle.h"
-#include "cp437.h"
 #include "cpu_block.h"
 #include <span>
 #include <cstring>
@@ -30,6 +29,7 @@ import visit;
 import framebuffer;
 import vt100;
 import chardev;
+import cp437;
 
 using namespace std;
 
