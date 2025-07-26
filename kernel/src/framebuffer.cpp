@@ -1,6 +1,7 @@
 module;
 
 #include <variant>
+#include <ioctl.h>
 #include "kernel.h"
 #include "spinlock.h"
 import page_cache;
@@ -15,6 +16,7 @@ export module framebuffer;
 import print;
 import mem;
 import config;
+import inout;
 
 using namespace std;
 
@@ -24,6 +26,8 @@ export uint32_t fb_width, fb_height, fb_pixels_per_scan_line, fb_dpi;
 export span<uint16_t> text_console;
 export uint32_t text_console_cols, text_console_rows;
 static span<uint16_t> shadow_text_console;
+
+export spinlock cursor_lock;
 
 class framebuffer_cache : public custom_section_cache {
 public:
@@ -44,11 +48,11 @@ public:
     NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                         span<uint8_t> buf, size_t* return_length) override;
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
 
-    nt_status ioctl(uint32_t, span<const uint8_t>, span<uint8_t>,
-                    uintptr_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
+private:
+    nt_status set_cursor(span<const uint8_t> inbuf, uintptr_t& written);
 };
 
 size_t framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
@@ -229,6 +233,45 @@ NTSTATUS text_console_cache::query_info(enum SECTION_INFORMATION_CLASS section_i
 
         default:
             return nt_status::INVALID_INFO_CLASS;
+    }
+}
+
+nt_status text_console_cache::set_cursor(span<const uint8_t> inbuf,
+                                         uintptr_t& written) {
+    if (inbuf.size() < sizeof(MOXNOX_SET_CURSOR))
+        return nt_status::INVALID_PARAMETER;
+
+    const auto& mnsc = *(MOXNOX_SET_CURSOR*)inbuf.data();
+
+    // FIXME - disabling
+
+    if (mnsc.x >= text_console_cols || mnsc.y >= text_console_rows)
+        return nt_status::INVALID_PARAMETER;
+
+    auto pos = (uint16_t)(((uint8_t)mnsc.y * text_console_cols) + (uint8_t)mnsc.x);
+
+    {
+        lock_guard lock(cursor_lock);
+
+        outb(0x3d4, 0xf);
+        outb(0x3d5, (uint8_t)(pos & 0xff));
+        outb(0x3d4, 0xe);
+        outb(0x3d5, (uint8_t)((pos >> 8) & 0xff));
+    }
+
+    written = 0;
+
+    return nt_status::SUCCESS;
+}
+
+nt_status text_console_cache::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                                    span<uint8_t>, uintptr_t& written) {
+    switch (code) {
+        case IOCTL_MOXNOX_CONSOLE_SET_CURSOR:
+            return set_cursor(inbuf, written);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
     }
 }
 

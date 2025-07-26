@@ -63,7 +63,6 @@ static const unsigned int console_buffer_pages = 4;
 static FT_Library ft = nullptr;
 static unsigned int font_width, font_height, font_descender;
 static bool fb_console_started = false, text_console_started = false;
-static spinlock cursor_lock;
 static bool show_cursor = true;
 
 static spinlock early_print_lock;
