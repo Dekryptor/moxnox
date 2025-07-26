@@ -74,6 +74,7 @@ struct console_text {
 
     unsigned int cursor_x = 0, cursor_y = 0;
     unsigned int console_rows, console_cols;
+    bool cursor_enabled = true;
     HANDLE section = 0;
 };
 
@@ -282,7 +283,9 @@ void console_text::scroll_down(unsigned int rows) {
 }
 
 void console_text::enable_cursor(bool enable) {
-    // FIXME
+    cursor_enabled = enable;
+
+    move_cursor();
 }
 
 void console_text::move_cursor() {
@@ -291,6 +294,7 @@ void console_text::move_cursor() {
 
     mnsc.x = cursor_x;
     mnsc.y = cursor_y;
+    mnsc.enabled = cursor_enabled;
 
     auto status = NtDeviceIoControlFile(section, 0, nullptr, nullptr, &iosb,
                                         IOCTL_MOXNOX_CONSOLE_SET_CURSOR, &mnsc,
