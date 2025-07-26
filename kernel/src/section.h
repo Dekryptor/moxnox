@@ -88,6 +88,10 @@ public:
     cache_variant get_cache();
     nt_status flush(uint64_t page_num, uint64_t num_pages);
 
+    nt_status ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;
     uint32_t size;
@@ -107,3 +111,5 @@ public:
     custom_section_cache* custom_cache = nullptr;
     uint32_t page_protection;
 };
+
+static_assert(has_ioctls<section>);
