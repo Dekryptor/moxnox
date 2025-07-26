@@ -53,6 +53,7 @@ public:
 
 private:
     nt_status set_cursor(span<const uint8_t> inbuf, uintptr_t& written);
+    bool cursor_enabled = true;
 };
 
 size_t framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
@@ -247,6 +248,25 @@ nt_status text_console_cache::set_cursor(span<const uint8_t> inbuf,
 
     if (mnsc.x >= text_console_cols || mnsc.y >= text_console_rows)
         return nt_status::INVALID_PARAMETER;
+
+    if (!!mnsc.enabled != cursor_enabled) {
+        lock_guard lock(cursor_lock);
+
+        if (mnsc.enabled) {
+            uint8_t cursor_start = 14, cursor_end = 15;
+
+            outb(0x3d4, 0x0a);
+            outb(0x3d5, (inb(0x3d5) & 0xc0) | cursor_start);
+
+            outb(0x3d4, 0x0b);
+            outb(0x3d5, (inb(0x3d5) & 0xe0) | cursor_end);
+        } else {
+            outb(0x3d4, 0xa);
+            outb(0x3d5, 0x20);
+        }
+
+        cursor_enabled = mnsc.enabled;
+    }
 
     auto pos = (uint16_t)(((uint8_t)mnsc.y * text_console_cols) + (uint8_t)mnsc.x);
 
