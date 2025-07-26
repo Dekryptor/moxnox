@@ -14,7 +14,6 @@ import print;
 using namespace std;
 
 export span<uint16_t> text_console;
-export MN_SECTION_TEXT_CONSOLE_INFORMATION tc_info;
 
 enum class console_colour : uint8_t {
     black = 0,
@@ -81,7 +80,15 @@ static void text_console_putc(uint8_t x, uint8_t y, char32_t cp,
 }
 
 void console_text::console_overflow(unsigned int rows) {
-    // FIXME
+    memcpy(text_console.data(), &text_console[console_cols * rows],
+           (console_rows - rows) * console_cols * sizeof(uint16_t));
+
+    for (uint8_t y = 0; y < rows; y++) {
+        for (uint8_t x = 0; x < console_cols; x++) {
+            text_console_putc(x, (uint8_t)(console_rows - rows + y), ' ',
+                              bg_colour_text, fg_colour_text);
+        }
+    }
 }
 
 void console_text::handle_sgr_part_num(unsigned int num) {
@@ -146,21 +153,6 @@ void console_text::move_cursor() {
 export void recv_data_text(string_view s) {
     do_print(console_text_inst, s);
 
-    // print to FB
-//
-//     unsigned int y = 0;
-//
-//     for (auto le = lines.next; le != &lines; le = le->next) {
-//         auto& l = containing_record<console_line>(le);
-//
-//         if (l.changed) {
-//             print_line(l, y);
-//             l.changed = true;
-//         }
-//
-//         y++;
-//     }
-//
     flush_text_console();
 }
 
@@ -171,6 +163,7 @@ export span<uint16_t> init_text_console() {
     HANDLE sect;
     void* addr;
     size_t size, return_length;
+    MN_SECTION_TEXT_CONSOLE_INFORMATION tc_info;
 
     static const u16string_view fn = u"\\dev\\text_console";
 
