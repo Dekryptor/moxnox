@@ -1,6 +1,7 @@
 module;
 
 #include <nt.h>
+#include <ioctl.h>
 #include <span>
 #include <string_view>
 #include <string.h>
@@ -60,13 +61,20 @@ struct console_text {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
     void print_char(char32_t c, bool no_move);
-    void cursor_changed();
+    void cursor_changed() { }
     void scroll_down(unsigned int rows);
     void enable_cursor(bool enable);
     void move_cursor();
 
-    unsigned int cursor_x, cursor_y;
+    // FIXME - would need atexit
+    // ~console_text() {
+    //     if (section != 0)
+    //         NtClose(section);
+    // }
+
+    unsigned int cursor_x = 0, cursor_y = 0;
     unsigned int console_rows, console_cols;
+    HANDLE section = 0;
 };
 
 export console_text console_text_inst;
@@ -262,10 +270,6 @@ void console_text::print_char(char32_t c, bool no_move) {
     }
 }
 
-void console_text::cursor_changed() {
-    // FIXME
-}
-
 void console_text::scroll_down(unsigned int rows) {
     memmove(&text_console[console_cols * rows], text_console.data(),
             (console_rows - rows) * console_cols * sizeof(uint16_t));
@@ -282,7 +286,19 @@ void console_text::enable_cursor(bool enable) {
 }
 
 void console_text::move_cursor() {
-    // FIXME
+    IO_STATUS_BLOCK iosb;
+    MOXNOX_SET_CURSOR mnsc;
+
+    mnsc.x = cursor_x;
+    mnsc.y = cursor_y;
+
+    auto status = NtDeviceIoControlFile(section, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_CONSOLE_SET_CURSOR, &mnsc,
+                                        sizeof(mnsc), nullptr, 0);
+    if (!success(status)) {
+        print("IOCTL_MOXNOX_CONSOLE_SET_CURSOR returned {}\n", status);
+        return;
+    }
 }
 
 export void recv_data_text(string_view s) {
@@ -340,7 +356,7 @@ export span<uint16_t> init_text_console() {
 
     // FIXME - unmap this at end of program
 
-    NtClose(sect);
+    console_text_inst.section = sect;
 
     return span((uint16_t*)addr, size / sizeof(uint16_t));
 }
