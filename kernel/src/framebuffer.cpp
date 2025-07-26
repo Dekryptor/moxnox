@@ -201,8 +201,22 @@ NTSTATUS text_console_cache::flush_cache(uint64_t page_num, uint64_t num_pages) 
 }
 
 NTSTATUS text_console_cache::query_info(enum SECTION_INFORMATION_CLASS section_information_class,
-                                       span<uint8_t> /*buf*/, size_t* /*return_length*/) {
+                                       span<uint8_t> buf, size_t* return_length) {
     switch (section_information_class) {
+        case SECTION_INFORMATION_CLASS::MoxnoxTextConsoleInformation: {
+            if (buf.size() < sizeof(MN_SECTION_TEXT_CONSOLE_INFORMATION))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto& info = *(MN_SECTION_TEXT_CONSOLE_INFORMATION*)buf.data();
+
+            info.cols = text_console_cols;
+            info.rows = text_console_rows;
+
+            *return_length = sizeof(MN_SECTION_TEXT_CONSOLE_INFORMATION);
+
+            return nt_status::SUCCESS;
+        }
+
         default:
             return nt_status::INVALID_INFO_CLASS;
     }

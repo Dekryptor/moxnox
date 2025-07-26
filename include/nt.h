@@ -972,7 +972,8 @@ enum class SECTION_INFORMATION_CLASS {
     OriginalBaseInformation,
     InternalImageInformation,
 
-    MoxnoxFramebufferInformation = 0x1000
+    MoxnoxFramebufferInformation = 0x1000,
+    MoxnoxTextConsoleInformation
 };
 
 struct SECTION_IMAGE_INFORMATION {
@@ -1014,6 +1015,11 @@ struct MN_SECTION_FRAMEBUFFER_INFORMATION {
     uint32_t height;
     uint32_t pixels_per_scan_line;
     uint32_t dpi;
+};
+
+struct MN_SECTION_TEXT_CONSOLE_INFORMATION {
+    uint32_t cols;
+    uint32_t rows;
 };
 
 enum class THREAD_INFORMATION_CLASS {
