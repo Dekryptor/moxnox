@@ -34,6 +34,28 @@ enum class console_colour : uint8_t {
     white = 15
 };
 
+static const enum console_colour vt100_colours_text[] = {
+    console_colour::black,
+    console_colour::red,
+    console_colour::green,
+    console_colour::brown,
+    console_colour::blue,
+    console_colour::magenta,
+    console_colour::cyan,
+    console_colour::light_grey,
+};
+
+static const enum console_colour vt100_bright_colours_text[] = {
+    console_colour::dark_grey,
+    console_colour::light_red,
+    console_colour::light_green,
+    console_colour::yellow,
+    console_colour::light_blue,
+    console_colour::light_magenta,
+    console_colour::light_cyan,
+    console_colour::white,
+};
+
 struct console_text {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
@@ -49,10 +71,14 @@ struct console_text {
 
 export console_text console_text_inst;
 
+static const unsigned int DEFAULT_BG_COLOUR_INDEX = 0;
+static const unsigned int DEFAULT_FG_COLOUR_INDEX = 7;
+static uint32_t bg_colour_index = 0, fg_colour_index = 7;
 static const auto DEFAULT_BG_COLOUR_TEXT = console_colour::black;
 static const auto DEFAULT_FG_COLOUR_TEXT = console_colour::light_grey;
 static enum console_colour bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
 static enum console_colour fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+static bool bg_bright = false, fg_bright = false, bold = false;
 
 static void flush_text_console() {
     void* flush_addr = text_console.data();
@@ -91,8 +117,110 @@ void console_text::console_overflow(unsigned int rows) {
     }
 }
 
+static void recalc_colours_text(bool fg) {
+    bool bright = fg ? fg_bright : bg_bright;
+    unsigned int index = fg ? fg_colour_index : bg_colour_index;
+    enum console_colour* colour = fg ? &fg_colour_text : &bg_colour_text;
+
+    if (bright || (fg && bold))
+        *colour = vt100_bright_colours_text[index];
+    else
+        *colour = vt100_colours_text[index];
+}
+
 void console_text::handle_sgr_part_num(unsigned int num) {
-    // FIXME
+    switch (num) {
+        case 0: // reset
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_bright = false;
+            bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+
+            bold = false;
+            break;
+
+        case 1:
+            bold = true;
+            recalc_colours_text(true);
+            break;
+
+        // FIXME - 5 - blink
+        // FIXME - 7 - reverse video
+
+        case 22:
+            bold = false;
+            recalc_colours_text(false);
+            break;
+
+        // FIXME - 25 - not blinking
+
+        case 30:
+        case 31:
+        case 32:
+        case 33:
+        case 34:
+        case 35:
+        case 36:
+        case 37:
+            fg_colour_index = num - 30;
+            fg_bright = false;
+            recalc_colours_text(true);
+            break;
+
+        case 39:
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+            break;
+
+        case 40:
+        case 41:
+        case 42:
+        case 43:
+        case 44:
+        case 45:
+        case 46:
+        case 47:
+            bg_colour_index = num - 40;
+            bg_bright = false;
+            recalc_colours_text(false);
+            break;
+
+        case 49:
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+            bg_bright = false;
+            break;
+
+        case 90:
+        case 91:
+        case 92:
+        case 93:
+        case 94:
+        case 95:
+        case 96:
+        case 97:
+            fg_colour_index = num - 90;
+            fg_bright = true;
+            recalc_colours_text(true);
+            break;
+
+        case 100:
+        case 101:
+        case 102:
+        case 103:
+        case 104:
+        case 105:
+        case 106:
+        case 107:
+            bg_colour_index = num - 100;
+            bg_bright = true;
+            recalc_colours_text(false);
+            break;
+    }
 }
 
 void console_text::print_char(char32_t c, bool no_move) {
