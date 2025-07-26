@@ -84,6 +84,10 @@ static font_info font, bold_font, italic_font, bold_italic_font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
+
+static span<uint16_t> text_console;
+static MN_SECTION_FRAMEBUFFER_INFORMATION tc_info;
+
 static console_line* curline = nullptr;
 static list_entry lines = { &lines, &lines };
 static unsigned int num_lines = 0;
@@ -462,7 +466,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
     return true;
 }
 
-static span<uint32_t> init_framebuffer() {
+static span<uint32_t> init_framebuffer(bool& not_found) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
@@ -480,7 +484,10 @@ static span<uint32_t> init_framebuffer() {
     oa.ObjectName = &us;
 
     status = NtOpenSection(&sect, SECTION_MAP_READ | SECTION_MAP_WRITE, &oa);
-    if (!success(status)) {
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        not_found = true;
+        return {};
+    } else if (!success(status)) {
         print("NtOpenSection returned {}\n", status);
         return {};
     }
@@ -1421,9 +1428,94 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
     } while (true);
 }
 
+static span<uint16_t> init_text_console() {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+    HANDLE sect;
+    void* addr;
+    size_t size, return_length;
+
+    static const u16string_view fn = u"\\dev\\text_console";
+
+    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)fn.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtOpenSection(&sect, SECTION_MAP_READ | SECTION_MAP_WRITE, &oa);
+    if (!success(status)) {
+        print("NtOpenSection returned {}\n", status);
+        return {};
+    }
+
+    status = NtQuerySection(sect, SECTION_INFORMATION_CLASS::MoxnoxTextConsoleInformation,
+                            &tc_info, sizeof(tc_info), &return_length);
+    if (!success(status)) {
+        print("NtQuerySection returned {}\n", status);
+        NtClose(sect);
+        return {};
+    }
+
+    addr = nullptr;
+    size = 0;
+
+    status = NtMapViewOfSection(sect, NtCurrentProcess(), &addr, 0, 0, nullptr,
+                                &size, SECTION_INHERIT::ViewUnmap, 0,
+                                PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtMapViewOfSection returned {}\n", status);
+        NtClose(sect);
+        return {};
+    }
+
+    // FIXME - unmap this at end of program
+
+    NtClose(sect);
+
+    return span((uint16_t*)addr, size / sizeof(uint16_t));
+}
+
+static void flush_text_console() {
+    void* flush_addr = text_console.data();
+    size_t flush_size = text_console.size_bytes();
+    IO_STATUS_BLOCK iosb;
+
+    auto status = NtFlushVirtualMemory(NtCurrentProcess(), &flush_addr,
+                                       &flush_size, &iosb);
+    if (!success(status)) {
+        print("NtFlushVirtualMemory returned {}\n", status);
+        return;
+    }
+}
+
+static int try_text_console() {
+    text_console = init_text_console();
+    if (text_console.empty()) {
+        print("init_text_console failed\n");
+        return 1;
+    }
+
+    text_console[0] = 0xf000 | 'A';
+    text_console[1] = 0xf000 | 'B';
+    text_console[2] = 0xf000 | 'C';
+    text_console[3] = 0xf000 | 'D';
+    text_console[4] = 0xf000 | 'E';
+
+    flush_text_console();
+
+    return 0;
+}
+
 static int _main() {
-    framebuffer = init_framebuffer();
-    if (framebuffer.empty()) {
+    bool no_framebuffer = false;
+
+    framebuffer = init_framebuffer(no_framebuffer);
+    if (no_framebuffer)
+        return try_text_console();
+    else if (framebuffer.empty()) {
         print("init_framebuffer failed\n");
         return 1;
     }
