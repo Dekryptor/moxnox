@@ -54,8 +54,6 @@ enum class console_colour : uint8_t {
     white = 15
 };
 
-static span<uint16_t> text_console;
-
 export void early_print(string_view s);
 
 export object_ref console_chardev;
@@ -1011,7 +1009,12 @@ export bool init_console(const loader_block_framebuffer& fb,
         console_text_inst.cursor_x = 0;
         console_text_inst.cursor_y = 0;
 
+        text_console_cols = console_text_inst.console_cols;
+        text_console_rows = console_text_inst.console_rows;
+
         text_console_started = true;
+
+        create_text_console_section();
     } else {
         uint32_t size = fb.pixels_per_scan_line * fb.height * sizeof(uint32_t);
 

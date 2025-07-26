@@ -21,7 +21,19 @@ using namespace std;
 export span<uint32_t> framebuffer, shadow_framebuffer;
 export uint32_t fb_width, fb_height, fb_pixels_per_scan_line, fb_dpi;
 
+export span<uint16_t> text_console;
+export uint32_t text_console_cols, text_console_rows;
+static span<uint16_t> shadow_text_console;
+
 class framebuffer_cache : public custom_section_cache {
+public:
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
+    NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
+                        span<uint8_t> buf, size_t* return_length) override;
+};
+
+class text_console_cache : public custom_section_cache {
 public:
     size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
     NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -128,6 +140,111 @@ export void create_framebuffer_section() {
     }
 
     status = name_object(*s, "framebuffer", true);
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
+        s->release();
+        return;
+    }
+}
+
+size_t text_console_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+    if (!cache.pin(page_num, num_pages, nullptr)) {
+        print("page_cache::pin failed\n");
+        return 0;
+    }
+
+    page_cache_entry* p;
+    uint64_t read_pages = num_pages;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.cache_lock);
+
+            if (i == 0)
+                p = cache.find_page_cache_entry(page_num);
+            else
+                p = cache.next_page_cache_entry(*p);
+        }
+
+        if (p->pfn)
+            continue;
+
+        auto va = (uintptr_t)((uint8_t*)shadow_text_console.data() + ((page_num + i) << PAGE_SHIFT));
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p->pfn = va_to_pa_lookup(va) >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    }
+
+    cache.unpin(page_num, num_pages);
+
+    return read_pages;
+}
+
+NTSTATUS text_console_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    auto start = page_num << PAGE_SHIFT;
+
+    if (start >= shadow_text_console.size_bytes())
+        return nt_status::SUCCESS;
+
+    auto len = num_pages << PAGE_SHIFT;
+
+    if (start + len > shadow_text_console.size_bytes())
+        len = shadow_text_console.size_bytes() - start;
+
+    memcpy((uint8_t*)text_console.data() + start,
+           (uint8_t*)shadow_text_console.data() + start,
+           len);
+
+    return nt_status::SUCCESS;
+}
+
+NTSTATUS text_console_cache::query_info(enum SECTION_INFORMATION_CLASS section_information_class,
+                                       span<uint8_t> /*buf*/, size_t* /*return_length*/) {
+    switch (section_information_class) {
+        default:
+            return nt_status::INVALID_INFO_CLASS;
+    }
+}
+
+export void create_text_console_section() {
+    nt_status status;
+
+    auto ptr = (uint16_t*)vmalloc(text_console_cols * text_console_rows * sizeof(uint16_t));
+    if (!ptr) {
+        print("vmalloc failed\n");
+        return;
+    }
+
+    shadow_text_console = span(ptr, text_console_cols * text_console_rows);
+
+    memcpy(shadow_text_console.data(), text_console.data(),
+           text_console.size_bytes());
+
+    auto s = new section;
+    if (!s) {
+        print("new failed\n");
+        return;
+    }
+
+    s->type = section_type::anonymous;
+
+    s->num_pages = bytes_to_pages(shadow_text_console.size_bytes());
+    if (shadow_text_console.size_bytes() & (PAGE_SIZE - 1))
+        s->num_pages++;
+
+    s->size = s->num_pages << PAGE_SHIFT;
+    s->page_protection = PAGE_READWRITE;
+
+    s->custom_cache = new text_console_cache;
+    if (!s->custom_cache) {
+        print("new failed\n");
+        s->release();
+        return;
+    }
+
+    status = name_object(*s, "text_console", true);
     if (!success(status)) {
         print("name_object returned {}\n", status);
         s->release();
