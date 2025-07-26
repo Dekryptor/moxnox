@@ -74,6 +74,10 @@ add_library(cp437 STATIC)
 target_sources(cp437 PUBLIC FILE_SET CXX_MODULES FILES modules/cp437.cpp)
 target_compile_options(cp437 PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
 
+add_library(cp437_sse STATIC)
+target_sources(cp437_sse PUBLIC FILE_SET CXX_MODULES FILES modules/cp437.cpp)
+target_compile_options(cp437_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+
 add_subdirectory(kernel)
 add_subdirectory(bootloader)
 add_subdirectory(init)

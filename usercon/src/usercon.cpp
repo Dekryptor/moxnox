@@ -20,6 +20,7 @@ import vt100;
 import print;
 import signal;
 import unicode;
+import cp437;
 
 using namespace std;
 
@@ -86,7 +87,7 @@ static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
 
 static span<uint16_t> text_console;
-static MN_SECTION_FRAMEBUFFER_INFORMATION tc_info;
+static MN_SECTION_TEXT_CONSOLE_INFORMATION tc_info;
 
 static console_line* curline = nullptr;
 static list_entry lines = { &lines, &lines };
@@ -106,7 +107,40 @@ struct console_fb {
     bool show_cursor = true;
 };
 
+enum class console_colour : uint8_t {
+    black = 0,
+    blue = 1,
+    green = 2,
+    cyan = 3,
+    red = 4,
+    magenta = 5,
+    brown = 6,
+    light_grey = 7,
+    dark_grey = 8,
+    light_blue = 9,
+    light_green = 10,
+    light_cyan = 11,
+    light_red = 12,
+    light_magenta = 13,
+    yellow = 14,
+    white = 15
+};
+
+struct console_text {
+    void console_overflow(unsigned int rows = 1);
+    static void handle_sgr_part_num(unsigned int num);
+    void print_char(char32_t c, bool no_move);
+    void cursor_changed();
+    void scroll_down(unsigned int rows);
+    void enable_cursor(bool enable);
+    void move_cursor();
+
+    unsigned int cursor_x, cursor_y;
+    unsigned int console_rows, console_cols;
+};
+
 static console_fb console_fb_inst;
+static console_text console_text_inst;
 
 static const uint32_t vt100_colours[] = {
     0x000000,
@@ -137,6 +171,10 @@ static const uint32_t DEFAULT_FG_COLOUR = vt100_colours[DEFAULT_FG_COLOUR_INDEX]
 static uint32_t bg_colour_index = 0, fg_colour_index = 7;
 static bool bg_bright = false, fg_bright = false, bold = false, italic = false;
 static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
+static const auto DEFAULT_BG_COLOUR_TEXT = console_colour::black;
+static const auto DEFAULT_FG_COLOUR_TEXT = console_colour::light_grey;
+static enum console_colour bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+static enum console_colour fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -892,7 +930,7 @@ void console_fb::print_char(char32_t c, bool no_move) {
     } while (true);
 }
 
-static void recv_data(string_view s) {
+static void recv_data_fb(string_view s) {
     do_print(console_fb_inst, s);
 
     // print to FB
@@ -913,17 +951,113 @@ static void recv_data(string_view s) {
     flush_framebuffer();
 }
 
-template<typename... Args>
-void recv_data_print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
-    char buf[4096];
+static void flush_text_console() {
+    void* flush_addr = text_console.data();
+    size_t flush_size = text_console.size_bytes();
+    IO_STATUS_BLOCK iosb;
 
-    auto sp = span(buf, sizeof(buf));
+    auto status = NtFlushVirtualMemory(NtCurrentProcess(), &flush_addr,
+                                       &flush_size, &iosb);
+    if (!success(status)) {
+        print("NtFlushVirtualMemory returned {}\n", status);
+        return;
+    }
+}
 
-    auto t = make_tuple(args...);
+static constexpr uint16_t text_console_val(uint8_t c, enum console_colour bg,
+                                           enum console_colour fg) {
+    return (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
+}
 
-    sp = format_to(sp, fmt.sv, t);
+static void text_console_putc(uint8_t x, uint8_t y, char32_t cp,
+                              enum console_colour bg, enum console_colour fg) {
+    auto c = cp437(cp);
 
-    recv_data(string_view(buf, (size_t)(sp.data() - buf)));
+    text_console[(y * console_text_inst.console_cols) + x] = text_console_val((uint8_t)c, bg, fg);
+}
+
+void console_text::console_overflow(unsigned int rows) {
+    // FIXME
+}
+
+void console_text::handle_sgr_part_num(unsigned int num) {
+    // FIXME
+}
+
+void console_text::print_char(char32_t c, bool no_move) {
+    if (c == '\n') {
+        if (!no_move) {
+            cursor_x = 0;
+            cursor_y++;
+
+            if (cursor_y == console_rows) {
+                console_overflow();
+                cursor_y = console_rows - 1;
+            }
+        }
+    } else if (c == '\b') {
+        if (cursor_x > 0) { // FIXME
+            cursor_x--;
+
+            // FIXME - only if console_output_mode & ENABLE_PROCESSED_OUTPUT
+            text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
+                              bg_colour_text, fg_colour_text);
+        }
+    } else {
+        text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
+                          bg_colour_text, fg_colour_text);
+
+        if (!no_move) {
+            cursor_x++;
+
+            if (cursor_x == console_cols) {
+                cursor_x = 0;
+                cursor_y++;
+
+                if (cursor_y == console_rows) {
+                    console_overflow();
+                    cursor_y = console_rows - 1;
+                }
+            }
+        }
+    }
+}
+
+void console_text::cursor_changed() {
+    // FIXME
+}
+
+void console_text::scroll_down(unsigned int rows) {
+    // FIXME
+}
+
+void console_text::enable_cursor(bool enable) {
+    // FIXME
+}
+
+void console_text::move_cursor() {
+    // FIXME
+}
+
+static void recv_data_text(string_view s) {
+    do_print(console_text_inst, s);
+
+    // print to FB
+//
+//     unsigned int y = 0;
+//
+//     for (auto le = lines.next; le != &lines; le = le->next) {
+//         auto& l = containing_record<console_line>(le);
+//
+//         if (l.changed) {
+//             print_line(l, y);
+//             l.changed = true;
+//         }
+//
+//         y++;
+//     }
+//
+    flush_text_console();
 }
 
 static bool run_program(u16string_view exe, u16string_view cmdline,
@@ -1178,7 +1312,8 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
     return true;
 }
 
-static void test_run(u16string_view exe, u16string_view cmdline) {
+static void run_shell(u16string_view exe, u16string_view cmdline,
+                      void (*recv_func)(string_view)) {
     HANDLE h;
     unique_handle server_handle, client_handle, proc, kmsg;
     OBJECT_ATTRIBUTES oa;
@@ -1279,10 +1414,10 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
         }
 
         if (iosb.Information != 0)
-            recv_data(string_view(s, iosb.Information));
+            recv_func(string_view(s, iosb.Information));
     }
 
-    recv_data("\nWelcome to \e[1mMoxnox\e[m\n\n");
+    recv_func("\nWelcome to \e[1mMoxnox\e[m\n\n");
 
     if (!run_program(exe, cmdline, proc, client_handle.get()))
         return;
@@ -1321,7 +1456,7 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
                 }
 
                 if (iosb.Information != 0)
-                    recv_data(string_view(s, iosb.Information));
+                    recv_func(string_view(s, iosb.Information));
 
                 break;
             }
@@ -1410,7 +1545,7 @@ static void test_run(u16string_view exe, u16string_view cmdline) {
                     return;
                 }
 
-                recv_data(string_view(s, iosb.Information));
+                recv_func(string_view(s, iosb.Information));
                 break;
             }
 
@@ -1459,6 +1594,9 @@ static span<uint16_t> init_text_console() {
         return {};
     }
 
+    console_text_inst.console_cols = tc_info.cols;
+    console_text_inst.console_rows = tc_info.rows;
+
     addr = nullptr;
     size = 0;
 
@@ -1478,19 +1616,6 @@ static span<uint16_t> init_text_console() {
     return span((uint16_t*)addr, size / sizeof(uint16_t));
 }
 
-static void flush_text_console() {
-    void* flush_addr = text_console.data();
-    size_t flush_size = text_console.size_bytes();
-    IO_STATUS_BLOCK iosb;
-
-    auto status = NtFlushVirtualMemory(NtCurrentProcess(), &flush_addr,
-                                       &flush_size, &iosb);
-    if (!success(status)) {
-        print("NtFlushVirtualMemory returned {}\n", status);
-        return;
-    }
-}
-
 static int try_text_console() {
     text_console = init_text_console();
     if (text_console.empty()) {
@@ -1498,13 +1623,7 @@ static int try_text_console() {
         return 1;
     }
 
-    text_console[0] = 0xf000 | 'A';
-    text_console[1] = 0xf000 | 'B';
-    text_console[2] = 0xf000 | 'C';
-    text_console[3] = 0xf000 | 'D';
-    text_console[4] = 0xf000 | 'E';
-
-    flush_text_console();
+    run_shell(u"\\shell.exe", u"shell.exe", recv_data_text);
 
     return 0;
 }
@@ -1573,9 +1692,7 @@ static int _main() {
     rect(0, 0, fb_info.width, fb_info.height, 0x000000);
     flush_framebuffer();
 
-    test_run(u"\\shell.exe", u"shell.exe");
-
-    // FIXME
+    run_shell(u"\\shell.exe", u"shell.exe", recv_data_fb);
 
     return 0;
 }
