@@ -139,7 +139,14 @@ void console_text::cursor_changed() {
 }
 
 void console_text::scroll_down(unsigned int rows) {
-    // FIXME
+    memmove(&text_console[console_cols * rows], text_console.data(),
+            (console_rows - rows) * console_cols * sizeof(uint16_t));
+
+    for (uint8_t y = 0; y < rows; y++) {
+        for (uint8_t x = 0; x < console_cols; x++) {
+            text_console_putc(x, y, ' ', bg_colour_text, fg_colour_text);
+        }
+    }
 }
 
 void console_text::enable_cursor(bool enable) {
