@@ -31,6 +31,11 @@ public:
     NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                         span<uint8_t> buf, size_t* return_length) override;
+
+    nt_status ioctl(uint32_t, span<const uint8_t>, span<uint8_t>,
+                    uintptr_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
 };
 
 class text_console_cache : public custom_section_cache {
@@ -39,6 +44,11 @@ public:
     NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                         span<uint8_t> buf, size_t* return_length) override;
+
+    nt_status ioctl(uint32_t, span<const uint8_t>, span<uint8_t>,
+                    uintptr_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
 };
 
 size_t framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {

@@ -56,6 +56,8 @@ public:
     virtual NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                                 std::span<uint8_t> buf, size_t* return_length) = 0;
     virtual NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
+    virtual nt_status ioctl(uint32_t code, std::span<const uint8_t> inbuf,
+                            std::span<uint8_t> outbuf, uintptr_t& written) = 0;
     virtual ~custom_section_cache() { }
 
     page_cache<custom_section_cache> cache{*this};
@@ -63,6 +65,7 @@ public:
 
 static_assert(cacheable<custom_section_cache>);
 static_assert(cacheable_flushable<custom_section_cache>);
+static_assert(has_ioctls<custom_section_cache>);
 
 using cache_variant = std::variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*,
                                    page_cache<custom_section_cache>*, page_cache<inode>*>;
@@ -87,10 +90,8 @@ public:
                         size_t* return_length);
     cache_variant get_cache();
     nt_status flush(uint64_t page_num, uint64_t num_pages);
-
-    nt_status ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {
-        return nt_status::NOT_SUPPORTED;
-    }
+    nt_status ioctl(uint32_t code, std::span<const uint8_t> inbuf,
+                    std::span<uint8_t> outbuf, uintptr_t& written);
 
     std::optional<std::reference_wrapper<inode>> ino;
     enum section_type type;
