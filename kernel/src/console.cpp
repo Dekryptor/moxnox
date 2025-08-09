@@ -942,6 +942,24 @@ static void flush_early_print() {
     safe_print(string_view(early_print_buf, early_print_buf_size));
 }
 
+static bool create_kmsg() {
+    auto pptr = new kmsg_buf;
+    if (!pptr) {
+        print("new failed\n");
+        return false;
+    }
+
+    kmsg = object_ref{*pptr};
+
+    auto status = name_object(kmsg.get(), "kmsg");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
+        return false;
+    }
+
+    return true;
+}
+
 export bool init_console(const loader_block_framebuffer& fb,
                          const loader_block_text_console& tc) {
     string_view console_opt;
@@ -984,6 +1002,9 @@ export bool init_console(const loader_block_framebuffer& fb,
         console_cols = console_text_inst.console_cols;
 
         console_type = console_type::other;
+
+        if (!create_kmsg())
+            return false;
 
         flush_early_print();
 
@@ -1072,21 +1093,8 @@ export bool init_console(const loader_block_framebuffer& fb,
         }
     }
 
-    {
-        auto pptr = new kmsg_buf;
-        if (!pptr) {
-            print("new failed\n");
-            return false;
-        }
-
-        kmsg = object_ref{*pptr};
-
-        auto status = name_object(kmsg.get(), "kmsg");
-        if (!success(status)) {
-            print("name_object returned {}\n", status);
-            return false;
-        }
-    }
+    if (!create_kmsg())
+        return false;
 
     if (framebuffer.empty()) { // gets started later if we have framebuffer
         if (!add_kernel_thread(console_event_recv)) {
