@@ -106,6 +106,10 @@ public:
         return send_pipe.write(s, written_bytes);
     }
 
+    sync_object& get_sync_object() override {
+        return recv_pipe;
+    }
+
     NTSTATUS ioctl(uint32_t code, span<const uint8_t> inbuf, span<uint8_t> outbuf, uintptr_t& written) override;
     bool isr_func();
 
