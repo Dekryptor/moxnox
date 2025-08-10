@@ -61,7 +61,7 @@ static void init_virtio_pci() {
 static module_init module_init_virtio_console(init_virtio_pci);
 
 template<typename T>
-class virtio_console : public chardev, public serial_console {
+class virtio_console : public chardev {
 public:
     virtio_console(pci_device& d);
     virtio_console(T& t);
@@ -73,9 +73,6 @@ public:
     nt_status write(string_view sv, uint64_t& written_bytes) {
         return write(span((uint8_t*)sv.data(), sv.length()), written_bytes);
     }
-
-    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
-                    span<uint8_t>, uintptr_t&) override;
 
     T& dev;
 
@@ -138,17 +135,11 @@ nt_status virtio_console<T>::read(span<uint8_t> s, uint64_t& read_bytes) {
         return status;
     }
 
-    read_bytes = 0;
+    memcpy(s.data(), buf, buf_read_bytes);
 
-    status = vt100_recv(span(buf, buf_read_bytes), [&s, &read_bytes](span<const uint8_t> s2) {
-        memcpy(s.data(), s2.data(), s2.size());
-        s = span(s.data() + s2.size(), s.size() - s2.size());
-        read_bytes += s2.size();
+    read_bytes = buf_read_bytes;
 
-        return nt_status::SUCCESS;
-    });
-
-    return status;
+    return nt_status::SUCCESS;
 }
 
 template<typename T>
@@ -186,18 +177,6 @@ nt_status virtio_console<T>::write(span<const uint8_t> s, uint64_t& written_byte
         written_bytes = s.size();
 
     return status;
-}
-
-template<typename T>
-nt_status virtio_console<T>::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                                span<uint8_t>, uintptr_t&) {
-    switch (code) {
-        case _IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND:
-            return console_set_foreground(inbuf);
-
-        default:
-            return nt_status::NOT_SUPPORTED;
-    }
 }
 
 void found_virtio_pci_console(pci_device& dev) {

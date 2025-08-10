@@ -47,29 +47,9 @@ static void init_acpi_hids() {
 
 static module_init module_init_serial(init_acpi_hids);
 
-export class serial_console {
-public:
-    nt_status console_set_foreground(span<const uint8_t> inbuf);
-    void handle_ctrl_c();
-    nt_status vt100_recv(span<const uint8_t> s, auto func);
-
-    spinlock fg_proc_lock;
-    optional<reference_wrapper<process>> fg_proc;
-    uint32_t input_mode = ENABLE_PROCESSED_INPUT;
-};
-
-class serial_in_pipe : public pipe, public serial_console {
+class serial_in_pipe : public pipe {
 public:
     serial_in_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
-
-    ~serial_in_pipe() {
-        lock_guard lg(fg_proc_lock);
-
-        if (fg_proc)
-            fg_proc->get().release();
-    }
-
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 };
 
 class serial_out_pipe : public pipe {
@@ -110,7 +90,6 @@ public:
         return recv_pipe;
     }
 
-    NTSTATUS ioctl(uint32_t code, span<const uint8_t> inbuf, span<uint8_t> outbuf, uintptr_t& written) override;
     bool isr_func();
 
     serial_in_pipe& recv_pipe;
@@ -366,64 +345,6 @@ nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes)
     return nt_status::SUCCESS;
 }
 
-nt_status serial_console::vt100_recv(span<const uint8_t> s, auto func) {
-    if (!(input_mode & ENABLE_PROCESSED_INPUT))
-        return func(s);
-
-    // handle VT100 weirdness
-
-    int last_run_start = -1;
-    nt_status status;
-
-    for (size_t i = 0; i < s.size(); i++) {
-        auto c = s[i];
-
-        if (c == '\r' || c == 0x7f || c == '\x03') {
-            if (last_run_start == -1)
-                status = func(s.subspan(0, (size_t)i));
-            else
-                status = func(s.subspan((size_t)(last_run_start + 1), i - (size_t)(last_run_start + 1)));
-
-            if (!success(status))
-                return status;
-
-            if (c == '\r') {
-                c = '\n';
-                status = func(span(&c, 1));
-
-                if (!success(status))
-                    return status;
-            } else if (c == 0x7f) {
-                c = '\b';
-                status = func(span(&c, 1));
-
-                if (!success(status))
-                    return status;
-            } else if (c == '\x03')
-                handle_ctrl_c();
-
-            last_run_start = (int)i;
-        }
-    }
-
-    return func(s.subspan((size_t)(last_run_start + 1), s.size() - (size_t)(last_run_start + 1)));
-}
-
-nt_status serial_in_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    written_bytes = 0;
-
-    return vt100_recv(s, [&](span<const uint8_t> s) {
-        size_t tmp;
-
-        auto status = pipe::write(s, tmp);
-
-        if (success(status))
-            written_bytes += tmp;
-
-        return status;
-    });
-}
-
 bool serial_duplex_pipe::isr_func() {
     auto iir = inb(port + 2); // interrupt identification register
 
@@ -464,64 +385,6 @@ static bool serial_isr_func(void* ctx) {
     auto& pipe = *(serial_duplex_pipe*)ctx;
 
     return pipe.isr_func();
-}
-
-nt_status serial_console::console_set_foreground(span<const uint8_t> inbuf) {
-    if (inbuf.size() != sizeof(HANDLE))
-        return nt_status::INVALID_PARAMETER;
-
-    auto h = *(HANDLE*)inbuf.data();
-
-    auto obj = deref_handle(h);
-    if (!obj)
-        return nt_status::INVALID_HANDLE;
-
-    if (obj.get().type != object_type::process)
-        return nt_status::INVALID_HANDLE;
-
-    auto& proc = static_cast<process&>(obj.get());
-
-    proc.acquire();
-
-    {
-        lock_guard lg(fg_proc_lock);
-
-        if (fg_proc)
-            fg_proc->get().release();
-
-        fg_proc = proc;
-    }
-
-    return nt_status::SUCCESS;
-}
-
-NTSTATUS serial_duplex_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                                   span<uint8_t>, uintptr_t&) {
-    switch (code) {
-        case IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND:
-            return recv_pipe.console_set_foreground(inbuf);
-
-        default:
-            return nt_status::NOT_SUPPORTED;
-    }
-}
-
-void serial_console::handle_ctrl_c() {
-    optional<reference_wrapper<process>> proc;
-
-    {
-        lock_guard lg(fg_proc_lock);
-
-        if (!fg_proc)
-            return;
-
-        proc = fg_proc;
-        proc->get().acquire();
-    }
-
-    proc->get().send_signal((uint64_t)nt_status::CONTROL_C_EXIT);
-
-    proc->get().release();
 }
 
 nt_status serial_out_pipe::flush(bool go_readonly) {
