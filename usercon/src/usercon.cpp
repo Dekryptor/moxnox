@@ -1596,6 +1596,47 @@ static void serial_print(string_view s) {
     }
 }
 
+static void handle_serial_stdin(span<const char> s, HANDLE proc,
+                                invocable<span<char>> auto& func) {
+    // FIXME - only look for Ctrl+C etc. if ENABLE_PROCESSED_INPUT set
+
+    // handle VT100 weirdness
+
+    int last_run_start = -1;
+
+    for (size_t i = 0; i < s.size(); i++) {
+        auto c = s[i];
+
+        if (c == '\r' || c == 0x7f || c == '\x03') {
+            if (last_run_start == -1)
+                func(s.subspan(0, (size_t)i));
+            else
+                func(s.subspan((size_t)(last_run_start + 1), i - (size_t)(last_run_start + 1)));
+
+            if (c == '\r') {
+                c = '\n';
+                func(span(&c, 1));
+            } else if (c == 0x7f) {
+                c = '\b';
+                func(span(&c, 1));
+            } else if (c == '\x03') {
+                EXCEPTION_RECORD er;
+
+                er.ExceptionFlags = 0;
+                er.ExceptionRecord = nullptr;
+                er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
+                er.NumberParameters = 0;
+
+                send_signal_to_process(proc, er);
+            }
+
+            last_run_start = (int)i;
+        }
+    }
+
+    func(s.subspan((size_t)(last_run_start + 1), s.size() - (size_t)(last_run_start + 1)));
+}
+
 static int do_serial_console() {
     HANDLE h;
     unique_handle server_handle, client_handle, proc;
@@ -1696,14 +1737,15 @@ static int do_serial_console() {
                     return 1;
                 }
 
-                string_view read(buf, iosb.Information);
+                span read(buf, iosb.Information);
 
-                auto do_write = [](string_view buf, HANDLE h) {
+                auto do_write = [&server_handle](span<const char> buf) {
                     IO_STATUS_BLOCK iosb;
 
                     while (!buf.empty()) {
-                        auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb,
-                                                  buf.data(), (uint32_t)buf.size(),
+                        auto status = NtWriteFile(server_handle.get(), 0, nullptr,
+                                                  nullptr, &iosb, buf.data(),
+                                                  (uint32_t)buf.size(),
                                                   nullptr, nullptr);
                         if (status == nt_status::ALERTED)
                             continue;
@@ -1720,32 +1762,7 @@ static int do_serial_console() {
                     }
                 };
 
-                // FIXME - only look for Ctrl+C if ENABLE_PROCESSED_INPUT set
-
-                while (!read.empty()) {
-                    auto ctrlc = read.find_first_of('\x03');
-
-                    if (ctrlc == string_view::npos)
-                        break;
-
-                    if (ctrlc != 0)
-                        do_write(string_view(read.data(), ctrlc), server_handle.get());
-
-                    EXCEPTION_RECORD er;
-
-                    er.ExceptionFlags = 0;
-                    er.ExceptionRecord = nullptr;
-                    er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
-                    er.NumberParameters = 0;
-
-                    send_signal_to_process(proc.get(), er);
-
-                    read = string_view(read.data() + ctrlc + 1,
-                                       read.size() - ctrlc - 1);
-                }
-
-                if (!read.empty())
-                    do_write(read, server_handle.get());
+                handle_serial_stdin(read, proc.get(), do_write);
 
                 break;
             }
