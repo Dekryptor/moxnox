@@ -412,8 +412,6 @@ void startup() {
         auto teb = NtCurrentTeb();
         auto peb = teb->ProcessEnvironmentBlock;
 
-        // FIXME - serial version
-
         auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
                                     peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
 
@@ -438,7 +436,9 @@ void startup() {
             if (arg.empty())
                 continue;
 
-            if (arg.starts_with(u"console="))
+            static const u16string_view opt = u"console=";
+
+            if (arg.size() >= opt.size() && !memcmp(arg.data(), opt.data(), opt.size()))
                 serial_mode = true;
         }
 
