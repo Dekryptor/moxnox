@@ -110,9 +110,11 @@ static mapping* find_mapping(process& proc, uint64_t address) {
     return nullptr;
 }
 
-static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh, HANDLE curdirh,
-                                 string_view curdir, string_view fn) {
-    // FIXME - also include space for command line, environment, etc.
+static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
+                                 HANDLE stderrh, HANDLE curdirh,
+                                 string_view curdir, string_view fn,
+                                 u16string_view cmdline) {
+    // FIXME - also include space for environment, etc.
 
     auto curdir_len = dos_path_len(curdir);
     auto fn_len = dos_path_len(fn);
@@ -122,6 +124,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     size = sizeof(RTL_USER_PROCESS_PARAMETERS);
     size += MAX_PATH * sizeof(char16_t);
     size += (fn_len + 1) * sizeof(char16_t);
+    size += (cmdline.size() + 1) * sizeof(char16_t);
 
     if (auto status = proc.allocate_vm((void**)&proc.proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write); !success(status)) {
         print("process::allocate_vm returned {}\n", status);
@@ -158,6 +161,11 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
     ks_proc_params->ImagePathName.MaximumLength = ks_proc_params->ImagePathName.Length + sizeof(char16_t);
     ks_proc_params->ImagePathName.Buffer = ks_proc_params->CurrentDirectory.DosPath.Buffer +
         (ks_proc_params->CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
+
+    ks_proc_params->CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
+    ks_proc_params->CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
+    ks_proc_params->CommandLine.Buffer = ks_proc_params->ImagePathName.Buffer +
+        (ks_proc_params->ImagePathName.MaximumLength / sizeof(char16_t));
 
     auto dos_path = (char16_t*)malloc(ks_proc_params->CurrentDirectory.DosPath.MaximumLength);
     if (!dos_path) {
@@ -201,6 +209,14 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
 
     free(fn_path);
 
+    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->CommandLine.Buffer - m.address),
+                   cmdline.data(), ks_proc_params->CommandLine.Length)) {
+        print("mapping::copy_to failed\n");
+        m.release();
+        free(ks_proc_params);
+        return false;
+    }
+
     if (!m.copy_to((uint32_t)((uintptr_t)proc.proc_params - m.address),
                    ks_proc_params, sizeof(RTL_USER_PROCESS_PARAMETERS))) {
         print("mapping::copy_to failed\n");
@@ -218,12 +234,13 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth, H
 
 static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
                          HANDLE stderrh, HANDLE curdirh, string_view curdir,
-                         string_view fn) {
+                         string_view fn, u16string_view cmdline) {
     static_assert(sizeof(PEB) <= PAGE_SIZE);
 
     size_t peb_size = sizeof(PEB);
 
-    if (!allocate_proc_params(proc, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
+    if (!allocate_proc_params(proc, stdinh, stdouth, stderrh, curdirh, curdir,
+                              fn, cmdline)) {
         print("allocate_proc_params failed\n");
         return false;
     }
@@ -271,7 +288,8 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
 }
 
 object_ref create_process(string_view fn, string_view curdir,
-                          object_ref& stdinobj, object_ref& stdoutobj,
+                          u16string_view cmdline, object_ref& stdinobj,
+                          object_ref& stdoutobj,
                           object_ref& stderrobj) {
     nt_status status;
     object_ref img_inode_ref, curdir_ref;
@@ -437,7 +455,7 @@ object_ref create_process(string_view fn, string_view curdir,
 
     curdir_file->release();
 
-    if (!allocate_peb(p, stdinh, stdouth, stderrh, curdirh, curdir, fn)) {
+    if (!allocate_peb(p, stdinh, stdouth, stderrh, curdirh, curdir, fn, cmdline)) {
         print("allocate_peb failed\n");
         p.release();
         return {};
@@ -2459,7 +2477,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     // FIXME - map time page into process
 
-    if (!allocate_peb(p, 0, 0, 0, 0, "", string_view(img.name, img.namelen))) {
+    if (!allocate_peb(p, 0, 0, 0, 0, "", string_view(img.name, img.namelen), u"")) {
         print("allocate_peb failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;

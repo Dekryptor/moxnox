@@ -93,7 +93,8 @@ static object_ref create_init_process() {
         }
     }
 
-    return create_process("/init.exe", "/", initin, initout, initout);
+    return create_process("/init.exe", "/", u"init.exe", initin,
+                          initout, initout);
 }
 
 static void keywait() {

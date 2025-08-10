@@ -122,8 +122,8 @@ void set_current_thread_waiting();
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;
 object_ref create_process(std::string_view fn, std::string_view curdir,
-                          object_ref& stdinobj, object_ref& stdoutobj,
-                          object_ref& stderrobj);
+                          std::u16string_view cmdline, object_ref& stdinobj,
+                          object_ref& stdoutobj, object_ref& stderrobj);
 void load_ntdll();
 
 // section.cpp
