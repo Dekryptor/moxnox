@@ -136,7 +136,7 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
 
     // FIXME - can we map buffer directly rather than copying?
 
-    if (us_buf) {
+    if (us_buf && length > 0) {
         buf = malloc(length);
         if (!buf)
             return nt_status::INSUFFICIENT_RESOURCES;
