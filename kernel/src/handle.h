@@ -7,6 +7,11 @@ public:
     object_ref(std::nullopt_t) : rw(std::nullopt) { }
     object_ref(object& obj) : rw(obj) { }
 
+    object_ref(object_ref&& other) {
+        rw = other.rw;
+        other.rw = std::nullopt;
+    }
+
     // FIXME - implement (and test) these (refcount issues?)
     object_ref(const object_ref& temp_obj) = delete;
     object_ref& operator=(const object_ref& temp_obj) = delete;
