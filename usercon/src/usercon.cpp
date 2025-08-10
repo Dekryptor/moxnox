@@ -28,6 +28,8 @@ using namespace std;
 static const size_t PAGE_SIZE = 4096;
 static const uint64_t PAGE_SHIFT = 12;
 
+static const string_view welcome_message = "\nWelcome to \e[1mMoxnox\e[m\n\n";
+
 extern uint64_t __CTOR_LIST__;
 
 struct glyph_info {
@@ -1269,7 +1271,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
             recv_func(string_view(s, iosb.Information));
     }
 
-    recv_func("\nWelcome to \e[1mMoxnox\e[m\n\n");
+    recv_func(welcome_message);
 
     if (!run_program(exe, cmdline, proc, client_handle.get()))
         return;
@@ -1570,8 +1572,212 @@ static int do_console() {
     return 0;
 }
 
+static void serial_print(string_view s) {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
+
+    if (s.size() == 0)
+        return;
+
+    while (true) {
+        auto status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
+                                  nullptr, nullptr, &iosb, s.data(),
+                                  (uint32_t)s.size(), nullptr, nullptr);
+        if (!success(status)) {
+            print("NtWriteFile returned {}\n", status);
+            return;
+        }
+
+        if (iosb.Information == s.size())
+            break;
+
+        s = string_view(s.data() + iosb.Information, s.size() - iosb.Information);
+    }
+}
+
 static int do_serial_console() {
-    // FIXME
+    HANDLE h;
+    unique_handle server_handle, client_handle, proc;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    NTSTATUS status;
+    PROCESS_BASIC_INFORMATION pbi;
+    char16_t pipename[50];
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+
+    static const u16string_view exe = u"\\shell.exe";
+    static const u16string_view cmdline = u"shell.exe";
+
+    // create pipe
+
+    status = NtQueryInformationProcess(NtCurrentProcess(),
+                                       PROCESSINFOCLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        print("NtQueryInformationProcess returned {}\n", status);
+        return 1;
+    }
+
+    {
+        char s[50];
+        span sp(s, sizeof(s));
+
+        sp = format(sp, "\\dev\\userconpipe-{}", pbi.UniqueProcessId);
+
+        auto name = string_view(s, (size_t)(sp.data() - s));
+
+        utf8_to_utf16(pipename, name);
+
+        us.Length = us.MaximumLength = (uint16_t)(utf8_to_utf16_len(name) * sizeof(char16_t));
+        us.Buffer = pipename;
+    }
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtCreateNamedPipeFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa,
+                                   &iosb, 0, FILE_CREATE, 0, 1, 0, 0, 0, 0, 0,
+                                   nullptr);
+    if (!success(status)) {
+        print("NtCreateNamedPipeFile returned {}\n", status);
+        return 1;
+    }
+
+    server_handle.reset(h);
+
+    status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
+    if (!success(status)) {
+        print("NtOpenFile returned {}\n", status);
+        return 1;
+    }
+
+    client_handle.reset(h);
+
+    serial_print(welcome_message);
+
+    if (!run_program(exe, cmdline, proc, client_handle.get()))
+        return 1;
+
+    do {
+        array<HANDLE, 3> objs;
+
+        objs[0] = peb->ProcessParameters->StandardInput;
+        objs[1] = server_handle.get();
+        objs[2] = proc.get();
+
+        status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
+                                          true, nullptr);
+        if (status == nt_status::ALERTED)
+            continue;
+
+        if (!success(status)) {
+            print("NtWaitForMultipleObjects returned {}\n", status);
+            return 1;
+        }
+
+        switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
+            case 0: {
+                char buf[1024];
+
+                // forward data on stdin
+
+                status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
+                                    nullptr, nullptr, &iosb, buf, sizeof(buf),
+                                    nullptr, nullptr);
+
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    return 1;
+                }
+
+                string_view read(buf, iosb.Information);
+
+                auto do_write = [](string_view buf, HANDLE h) {
+                    IO_STATUS_BLOCK iosb;
+
+                    while (!buf.empty()) {
+                        auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb,
+                                                  buf.data(), (uint32_t)buf.size(),
+                                                  nullptr, nullptr);
+                        if (status == nt_status::ALERTED)
+                            continue;
+                        else if (!success(status)) {
+                            print("NtWriteFile returned {}\n", status);
+                            return;
+                        }
+
+                        if (iosb.Information >= buf.size())
+                            break;
+
+                        buf = string_view(buf.data() + iosb.Information,
+                                          buf.size() - iosb.Information);
+                    }
+                };
+
+                // FIXME - only look for Ctrl+C if ENABLE_PROCESSED_INPUT set
+
+                while (!read.empty()) {
+                    auto ctrlc = read.find_first_of('\x03');
+
+                    if (ctrlc == string_view::npos)
+                        break;
+
+                    if (ctrlc != 0)
+                        do_write(string_view(read.data(), ctrlc), server_handle.get());
+
+                    EXCEPTION_RECORD er;
+
+                    er.ExceptionFlags = 0;
+                    er.ExceptionRecord = nullptr;
+                    er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
+                    er.NumberParameters = 0;
+
+                    send_signal_to_process(proc.get(), er);
+
+                    read = string_view(read.data() + ctrlc + 1,
+                                       read.size() - ctrlc - 1);
+                }
+
+                if (!read.empty())
+                    do_write(read, server_handle.get());
+
+                break;
+            }
+
+            case 1: {
+                char s[PAGE_SIZE];
+
+                // print pipe data
+
+                status = NtReadFile(server_handle.get(), 0, nullptr, nullptr,
+                                    &iosb, s, sizeof(s), nullptr, nullptr);
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    return 1;
+                }
+
+                serial_print(string_view(s, iosb.Information));
+                break;
+            }
+
+            case 2: {
+                // process terminated, start again
+
+                if (!run_program(exe, cmdline, proc, client_handle.get()))
+                    return 1;
+
+                break;
+            }
+        }
+    } while (true);
 
     return 0;
 }
