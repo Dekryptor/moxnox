@@ -47,11 +47,6 @@ static void init_acpi_hids() {
 
 static module_init module_init_serial(init_acpi_hids);
 
-class serial_in_pipe : public pipe {
-public:
-    serial_in_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
-};
-
 class serial_out_pipe : public pipe {
 public:
     serial_out_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
@@ -68,7 +63,7 @@ private:
 
 class serial_duplex_pipe : public chardev {
 public:
-    serial_duplex_pipe(serial_in_pipe& recv_pipe, serial_out_pipe& send_pipe, uint16_t port) : recv_pipe(recv_pipe), send_pipe(send_pipe), port(port) {
+    serial_duplex_pipe(pipe& recv_pipe, serial_out_pipe& send_pipe, uint16_t port) : recv_pipe(recv_pipe), send_pipe(send_pipe), port(port) {
         recv_pipe.acquire();
         send_pipe.acquire();
     }
@@ -92,7 +87,7 @@ public:
 
     bool isr_func();
 
-    serial_in_pipe& recv_pipe;
+    pipe& recv_pipe;
     serial_out_pipe& send_pipe;
     uint16_t port;
 };
@@ -100,7 +95,7 @@ public:
 export object_ref com1_pipe_handle;
 
 static object_ref create_serial_in_pipe(unsigned int buffer_pages) {
-    auto pptr = new serial_in_pipe(buffer_pages);
+    auto pptr = new pipe(buffer_pages);
     if (!pptr) {
         print("new failed\n");
         return {};
@@ -195,7 +190,7 @@ export bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
 
     auto& send_pipe = static_cast<serial_out_pipe&>(send_handle.get());
 
-    auto& recv_pipe = static_cast<serial_in_pipe&>(recv_handle.get());
+    auto& recv_pipe = static_cast<pipe&>(recv_handle.get());
 
     auto pptr = new serial_duplex_pipe(recv_pipe, send_pipe, port);
     if (!pptr) {
