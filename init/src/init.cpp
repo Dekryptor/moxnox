@@ -11,6 +11,13 @@ using namespace std;
 
 import print;
 
+static const size_t PAGE_SIZE = 4096;
+static const uint64_t PAGE_SHIFT = 12;
+
+static constexpr uint32_t bytes_to_pages(size_t bytes) {
+    return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
+}
+
 extern "C"
 void* malloc(size_t size) {
     return RtlAllocateHeap(GetProcessHeap(), 0, size);
@@ -21,7 +28,8 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE stderrh) {
+static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh,
+                        HANDLE stdouth, HANDLE stderrh) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
@@ -184,6 +192,53 @@ static void run_program(u16string_view fn, HANDLE stdinh, HANDLE stdouth, HANDLE
 
     // FIXME - environment variables
 
+    // allocate misc block
+
+    size_t misc_block_size = (cmdline.size() + 1) * sizeof(char16_t);
+
+    auto misc_block = (uint8_t*)malloc(misc_block_size);
+    if (!misc_block) {
+        print("malloc failed\n");
+        NtClose(proc);
+        return;
+    }
+
+    // allocate misc block in process
+
+    void* proc_misc_block = nullptr;
+    size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
+
+    status = NtAllocateVirtualMemory(proc, &proc_misc_block, 0,
+                                     &proc_misc_block_size,
+                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned {}\n", status);
+        free(misc_block);
+        NtClose(proc);
+        return;
+    }
+
+    // copy cmdline
+
+    memcpy(misc_block, cmdline.data(), cmdline.size() * sizeof(char16_t));
+    misc_block[cmdline.size() * sizeof(char16_t)] = 0;
+    params.CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
+    params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
+    params.CommandLine.Buffer = (char16_t*)proc_misc_block;
+
+    // copy misc block
+
+    status = NtWriteVirtualMemory(proc, proc_misc_block, misc_block,
+                                  (uint32_t)misc_block_size, nullptr);
+    if (!success(status)) {
+        print("NtWriteVirtualMemory returned {}\n", status);
+        free(misc_block);
+        NtClose(proc);
+        return;
+    }
+
+    free(misc_block);
+
     // write ProcessParameters back
 
     status = NtWriteVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
@@ -300,7 +355,7 @@ static void do_serial() {
     }
 
     while (true) {
-        run_program(u"\\shell.exe", h, h, h);
+        run_program(u"\\usercon.exe", u"usercon.exe serial", h, h, h);
     }
 
     NtClose(h);
@@ -364,7 +419,7 @@ void startup() {
 
         // FIXME - solicit username and password
 
-        run_program(u"\\shell.exe", peb->ProcessParameters->StandardInput,
+        run_program(u"\\shell.exe", u"shell.exe", peb->ProcessParameters->StandardInput,
                     peb->ProcessParameters->StandardOutput, peb->ProcessParameters->StandardError);
     }
 }
