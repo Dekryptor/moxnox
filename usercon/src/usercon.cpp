@@ -1729,7 +1729,7 @@ static int do_serial_console() {
 static int _main() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
-    unsigned int ret;
+    int ret;
     bool serial_mode = false;
 
     // FIXME - serial version
