@@ -10,6 +10,7 @@
 using namespace std;
 
 import print;
+import cmdline;
 
 static const size_t PAGE_SIZE = 4096;
 static const uint64_t PAGE_SHIFT = 12;
@@ -403,17 +404,69 @@ static void create_thread(void(*func)()) {
 
 extern "C"
 void startup() {
+    bool serial_mode = false;
+
     // FIXME - start services etc.
 
-    create_thread(do_serial);
-
-    while (true) {
+    {
         auto teb = NtCurrentTeb();
         auto peb = teb->ProcessEnvironmentBlock;
 
-        // FIXME - solicit username and password
+        // FIXME - serial version
 
-        run_program(u"\\shell.exe", u"shell.exe", peb->ProcessParameters->StandardInput,
-                    peb->ProcessParameters->StandardOutput, peb->ProcessParameters->StandardError);
+        auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
+                                    peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
+
+        auto argc = count_cmdline_args(cmdline);
+        span<u16string_view> argv;
+        u16string_view* buf = nullptr;
+
+        if (argc != 0) {
+            buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
+            if (!buf)
+                NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+
+            argv = span(buf, argc);
+        }
+
+        parse_cmdline(cmdline, argv);
+
+        if (!argv.empty())
+            argv = argv.subspan(1);
+
+        for (auto arg : argv) {
+            if (arg.empty())
+                continue;
+
+            if (arg.starts_with(u"console="))
+                serial_mode = true;
+        }
+
+        if (buf)
+            RtlFreeHeap(GetProcessHeap(), 0, buf);
+    }
+
+    if (serial_mode) {
+        while (true) {
+            auto teb = NtCurrentTeb();
+            auto peb = teb->ProcessEnvironmentBlock;
+
+            run_program(u"\\usercon.exe", u"usercon.exe serial",
+                        peb->ProcessParameters->StandardInput,
+                        peb->ProcessParameters->StandardOutput,
+                        peb->ProcessParameters->StandardError);
+        }
+    } else {
+        create_thread(do_serial);
+
+        while (true) {
+            auto teb = NtCurrentTeb();
+            auto peb = teb->ProcessEnvironmentBlock;
+
+            // FIXME - solicit username and password
+
+            run_program(u"\\shell.exe", u"shell.exe", peb->ProcessParameters->StandardInput,
+                        peb->ProcessParameters->StandardOutput, peb->ProcessParameters->StandardError);
+        }
     }
 }
