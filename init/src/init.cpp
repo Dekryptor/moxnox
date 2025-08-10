@@ -463,10 +463,10 @@ void startup() {
             auto teb = NtCurrentTeb();
             auto peb = teb->ProcessEnvironmentBlock;
 
-            // FIXME - solicit username and password
-
-            run_program(u"\\shell.exe", u"shell.exe", peb->ProcessParameters->StandardInput,
-                        peb->ProcessParameters->StandardOutput, peb->ProcessParameters->StandardError);
+            run_program(u"\\usercon.exe", u"usercon.exe",
+                        peb->ProcessParameters->StandardInput,
+                        peb->ProcessParameters->StandardOutput,
+                        peb->ProcessParameters->StandardError);
         }
     }
 }
