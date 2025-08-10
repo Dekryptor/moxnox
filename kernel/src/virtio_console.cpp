@@ -23,9 +23,6 @@ const uint64_t VIRTIO_CONSOLE_F_EMERG_WRITE = 1 << 2;
 
 const uint64_t SUPPORTED_FEATURES = VIRTIO_CONSOLE_F_EMERG_WRITE;
 
-// FIXME - avoiding -Wtemplate-names-tu-local warning
-const auto _IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND = IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND;
-
 struct virtio_console_config {
     uint16_t cols;
     uint16_t rows;

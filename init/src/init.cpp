@@ -293,12 +293,6 @@ static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh
         return;
     }
 
-    if (stdinh) {
-        NtDeviceIoControlFile(stdinh, 0, nullptr, nullptr,
-                              &iosb, IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND,
-                              &proc, sizeof(proc), nullptr, 0);
-    }
-
     NtResumeThread(thread, nullptr);
 
     NtClose(thread);

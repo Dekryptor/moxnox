@@ -292,12 +292,6 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     thread.reset(h);
 
-    // mark as foreground process
-    status = NtDeviceIoControlFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr,
-                                   &iosb, IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND,
-                                   &proc, sizeof(proc), nullptr, 0);
-    auto set_fg = success(status);
-
     running_proc = proc.get();
 
     NtResumeThread(thread.get(), nullptr);
@@ -378,20 +372,6 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
             }
         }
     } while (running_proc != 0);
-
-    if (set_fg) {
-        HANDLE this_proc = NtCurrentProcess();
-
-        // mark self as foreground process
-        status = NtDeviceIoControlFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr,
-                                       &iosb, IOCTL_MOXNOX_CONSOLE_SET_FOREGROUND,
-                                       &this_proc, sizeof(this_proc), nullptr, 0);
-
-        if (!success(status)) {
-            print("NtDeviceIoControlFile returned {}\n", status);
-            return;
-        }
-    }
 }
 
 static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
