@@ -5,6 +5,7 @@
 
 import shelllib;
 import unicode;
+import cmdline;
 
 using namespace std;
 

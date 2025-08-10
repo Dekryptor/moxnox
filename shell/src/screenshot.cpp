@@ -10,6 +10,7 @@ import shelllib;
 import print;
 import format;
 import unicode;
+import cmdline;
 
 using namespace std;
 
