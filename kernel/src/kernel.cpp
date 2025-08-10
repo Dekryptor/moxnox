@@ -25,6 +25,7 @@ import smp;
 import console;
 import evdev;
 import keyboard;
+import unicode;
 
 using namespace std;
 
@@ -93,8 +94,26 @@ static object_ref create_init_process() {
         }
     }
 
-    return create_process("/init.exe", "/", u"init.exe", initin,
-                          initout, initout);
+    static const u16string_view init_cmdline_pref = u"init.exe ";
+
+    auto init_cmdline_len = init_cmdline_pref.size() + utf8_to_utf16_len(cmdline);
+
+    auto init_cmdline = (char16_t*)malloc(init_cmdline_len * sizeof(char16_t));
+    if (!init_cmdline)
+        bsod("malloc failed while creating init process");
+
+    memcpy(init_cmdline, init_cmdline_pref.data(),
+           init_cmdline_pref.size() * sizeof(char16_t));
+
+    utf8_to_utf16(span(init_cmdline + init_cmdline_pref.size(),
+                       init_cmdline_len - init_cmdline_pref.size()), cmdline);
+
+    auto ref = create_process("/init.exe", "/", u16string_view(init_cmdline, init_cmdline_len),
+                              initin, initout, initout);
+
+    free(init_cmdline);
+
+    return ref;
 }
 
 static void keywait() {
