@@ -2810,41 +2810,6 @@ object_ref process::get_stderr() {
     return this->deref_handle(params.StandardError);
 }
 
-void process::send_signal(uint64_t code) {
-    optional<reference_wrapper<thread>> rw;
-
-    // try to choose an active thread
-
-    {
-        lock_guard lg(threads_lock);
-
-        for (auto le = threads.next; le != &threads; le = le->next) {
-            auto& t = *(thread*)((uint8_t*)le - offsetof(thread, process_le));
-
-            if (t.affinity == 0)
-                continue;
-
-            if (t.suspend_count != 0)
-                continue;
-
-            rw = t;
-            break;
-        }
-
-        if (rw.has_value())
-            rw->get().acquire();
-    }
-
-    if (!rw.has_value())
-        return;
-
-    auto& t = rw->get();
-
-    t.send_signal(code);
-
-    t.release();
-}
-
 NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_handle, ACCESS_MASK,
                                 const OBJECT_ATTRIBUTES*, CLIENT_ID& client_id,
                                 const CONTEXT& thread_context,
