@@ -18,7 +18,7 @@ void free(void* ptr) {
 }
 
 extern "C"
-void startup() {
+__attribute__((force_align_arg_pointer)) void startup() {
     const auto& teb = *NtCurrentTeb();
     const auto& peb = *teb.ProcessEnvironmentBlock;
     const auto& params = *peb.ProcessParameters;

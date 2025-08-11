@@ -403,7 +403,7 @@ static void create_thread(void(*func)()) {
 }
 
 extern "C"
-void startup() {
+__attribute__((force_align_arg_pointer)) void startup() {
     bool serial_mode = false;
 
     // FIXME - start services etc.

@@ -43,7 +43,7 @@ static void __attribute__((noinline)) seh_test() {
 }
 
 extern "C"
-void startup() {
+__attribute__((force_align_arg_pointer)) void startup() {
     print("beginning of startup\n");
 
     seh_test();

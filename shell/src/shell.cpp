@@ -1300,7 +1300,7 @@ enum EXCEPTION_DISPOSITION exception_handler(EXCEPTION_RECORD* rec, void* /*fram
 }
 
 extern "C"
-void startup() {
+__attribute__((force_align_arg_pointer)) void startup() {
     __asm __volatile(".seh_handler exception_handler, @except");
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;

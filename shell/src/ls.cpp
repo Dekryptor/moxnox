@@ -199,7 +199,7 @@ static void ls(bool long_mode) {
 }
 
 extern "C"
-void startup() {
+__attribute__((force_align_arg_pointer)) void startup() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     bool long_mode = false;

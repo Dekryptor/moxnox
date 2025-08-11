@@ -1796,7 +1796,7 @@ static void call_global_constructors() {
 }
 
 extern "C"
-void startup() {
+__attribute__((force_align_arg_pointer)) void startup() {
     call_global_constructors();
 
     NtTerminateThread(NtCurrentThread(), (NTSTATUS)_main());

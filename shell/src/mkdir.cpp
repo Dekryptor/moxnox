@@ -57,7 +57,7 @@ static void mkdir(u16string_view fn) {
 }
 
 extern "C"
-void startup() {
+__attribute__((force_align_arg_pointer)) void startup() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
