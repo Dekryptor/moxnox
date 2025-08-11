@@ -282,43 +282,6 @@ NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS /*thread_inform
     return nt_status::NOT_IMPLEMENTED;
 }
 
-void thread::send_signal(uint64_t code) {
-    // FIXME - should be able to have multiple pending signals
-    // FIXME - EXCEPTION_RECORD
-
-    pending_signal = code;
-
-    // if currently doing an interruptible wait, wake up
-
-    {
-        sync_lock sl;
-        lock_guard l(sl);
-
-        if (status == thread_status::waiting && wait_interruptible) {
-            status = thread_status::runnable;
-            remove_entry_list(wait_obj.wait_le);
-
-            if (wait_timeout != 0)
-                remove_entry_list(timeout_le);
-        } else if (status == thread_status::waiting_multiple && wait_interruptible) {
-            auto& block = *multwait;
-
-            for (unsigned int i = 0; i < block.num_entries; i++) {
-                if (!block.entries[i].done)
-                    remove_entry_list(block.entries[i].wait_le);
-            }
-
-            if (wait_timeout != 0)
-                remove_entry_list(timeout_le);
-
-            multwait = nullptr;
-            status = thread_status::runnable;
-        }
-    }
-
-    // FIXME - send IPI to service signal, if currently running on a CPU in userspace?
-}
-
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
 
