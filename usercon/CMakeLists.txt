@@ -13,7 +13,7 @@ target_sources(usercon PUBLIC FILE_SET CXX_MODULES FILES
     src/print.cpp
     src/text.cpp)
 
-target_compile_options(usercon PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -gdwarf-5)
+target_compile_options(usercon PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -gdwarf-5)
 target_link_options(usercon PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(usercon harfbuzz)
