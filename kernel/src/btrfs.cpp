@@ -29,6 +29,7 @@ import timer;
 import volume;
 import rwsem;
 import unicode;
+import event;
 
 #include "btrfs.h"
 
@@ -424,6 +425,12 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     // clear log tree (FIXME - replay this)
     sb->log_root = 0;
     sb->log_root_level = 0;
+
+    readonly_event = create_event(false);
+    if (!readonly_event) {
+        print("create_event failed\n");
+        return;
+    }
 
     valid = true;
 
@@ -4975,7 +4982,15 @@ void btrfs_filesystem::flush_thread() {
     }
 
     while (true) {
-        status = wait_for_object(tim, true);
+        array<object*, 2> objs;
+
+        objs[0] = &tim;
+        objs[1] = &readonly_event.get();
+
+        status = wait_for_objects(objs, true);
+
+        if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 1) // readonly event
+            break;
 
         auto status2 = flush(false);
         if (!success(status2))
@@ -4992,11 +5007,7 @@ void btrfs_filesystem::go_readonly() {
 
     readonly = true;
 
-    if (flush_thread_obj) {
-        auto& t = static_cast<::thread&>(flush_thread_obj.get());
-
-        t.send_signal((uint64_t)nt_status::MEDIA_WRITE_PROTECTED);
-    }
+    set_event(static_cast<event&>(readonly_event.get()));
 }
 
 chunk::~chunk() {

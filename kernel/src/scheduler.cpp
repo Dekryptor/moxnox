@@ -472,8 +472,8 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable*/,
     return wait_for_object(objrw.get(), true, t);
 }
 
-static nt_status wait_for_objects(span<object*> objects, bool wait_any,
-                                  optional<uint64_t> timeout) {
+nt_status wait_for_objects(span<object*> objects, bool wait_any,
+                           optional<uint64_t> timeout) {
 #ifdef DEBUG
     uint64_t cr8 = 0, rflags = 0;
 

@@ -644,6 +644,7 @@ public:
     object_ref flush_thread_obj;
     uint8_t node_folio_order;
     page_cache<btrfs_filesystem> cache{*this};
+    object_ref readonly_event;
 
 private:
     bool load_chunks();
