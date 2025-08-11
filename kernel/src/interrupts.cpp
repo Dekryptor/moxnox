@@ -726,7 +726,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
 
     auto okay = p.handle_page_fault(address, error_code);
 
-    if (okay && current_thread.pending_signal == 0) {
+    if (okay) {
         __asm __volatile("cli");
         memcpy(&get_cpu_block()->thread_context, &ctx, sizeof(CONTEXT));
         return false;
@@ -746,18 +746,11 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     er.ExceptionFlags = 0;
     er.ExceptionRecord = nullptr;
     er.ExceptionAddress = (void*)ctx.Rip;
+    er.ExceptionCode = (uint32_t)nt_status::ACCESS_VIOLATION;
 
-    if (!okay) {
-        er.ExceptionCode = (uint32_t)nt_status::ACCESS_VIOLATION;
-        er.NumberParameters = 2;
-        er.ExceptionInformation[0] = (error_code & 0x12) >> 1;
-        er.ExceptionInformation[1] = address;
-    } else {
-        er.ExceptionCode = (uint32_t)current_thread.pending_signal;
-        er.NumberParameters = 0;
-
-        current_thread.pending_signal = 0;
-    }
+    er.NumberParameters = 2;
+    er.ExceptionInformation[0] = (error_code & 0x12) >> 1;
+    er.ExceptionInformation[1] = address;
 
     size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
     uintptr_t us_er = us_context - er_size;

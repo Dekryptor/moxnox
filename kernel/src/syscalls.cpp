@@ -1273,49 +1273,6 @@ NTSTATUS user_NtDeviceIoControlFile(HANDLE file_handle, HANDLE event,
 }
 
 extern "C"
-void dispatch_signal() {
-    auto& t = *get_current_thread();
-    auto& p = *t.proc;
-
-    __asm __volatile("sti");
-
-    uintptr_t us_context = t.syscall_context.Rsp - sizeof(CONTEXT);
-
-    if (!p.copy_to((void*)us_context, &t.syscall_context, sizeof(CONTEXT))) {
-        print("Unable to copy thread context to stack.\n");
-        t.exit_status = nt_status::ACCESS_VIOLATION;
-        t.terminate();
-        return;
-    }
-
-    EXCEPTION_RECORD er;
-
-    er.ExceptionCode = (uint32_t)t.pending_signal;
-    er.ExceptionFlags = 0;
-    er.ExceptionRecord = nullptr;
-    er.ExceptionAddress = (void*)t.syscall_context.Rip;
-    er.NumberParameters = 0;
-
-    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
-    uintptr_t us_er = us_context - er_size;
-
-    if (!p.copy_to((void*)us_er, &er, er_size)) {
-        print("Unable to copy exception record to stack.\n");
-        t.exit_status = nt_status::ACCESS_VIOLATION;
-        t.terminate();
-        return;
-    }
-
-    t.syscall_context.Rip = p.ntdll_addr + mn_signal;
-    t.syscall_context.Rcx = us_er;
-    t.syscall_context.Rdx = us_context;
-    t.syscall_context.Rsp -= sizeof(CONTEXT);
-    t.syscall_context.Rsp -= er_size;
-
-    __asm __volatile("cli");
-}
-
-extern "C"
 NTSTATUS user_NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_iosb, void* us_buffer,
                                    uint32_t buffer_size) {
     auto& t = *get_current_thread();

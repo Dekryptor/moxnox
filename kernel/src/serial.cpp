@@ -314,8 +314,6 @@ nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes)
 
     static const uint8_t SEND_BS[] = { '\b', ' ', '\b' };
 
-    auto current_thread = get_current_thread();
-
     for (size_t i = 0; i < s.size(); i++) {
         if (s[i] == '\b') {
             if (last_bs == -1)
@@ -323,14 +321,8 @@ nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes)
             else
                 written_bytes += do_write(s.subspan((size_t)(last_bs + 1), i - (size_t)(last_bs + 1)));
 
-            if (current_thread->pending_signal)
-                break;
-
             if (do_write(SEND_BS) > 0)
                 written_bytes++;
-
-            if (current_thread->pending_signal)
-                break;
 
             last_bs = (int)i;
         }

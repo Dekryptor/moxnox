@@ -109,7 +109,6 @@ public:
     std::atomic<uint32_t> suspend_count = 0;
     TEB* teb;
     uint32_t current_cpu = 0xffffffff;
-    uint64_t pending_signal = 0;
     bool wait_interruptible;
     waiter_object wait_obj{waiter_object_type::thread};
     list_entry timeout_le;
@@ -127,6 +126,5 @@ static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(thread, suspend_count) == THREAD_SUSPEND_COUNT);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
-static_assert(offsetof(thread, pending_signal) == THREAD_PENDING_SIGNAL);
 static_assert(offsetof(thread, timeout_le) == THREAD_TIMEOUT_LE);
 static_assert(offsetof(thread, wait_timeout) == THREAD_WAIT_TIMEOUT);

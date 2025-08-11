@@ -900,11 +900,6 @@ Lafter_syscall:
     call yield_after_syscall
 
 0:
-    # check for pending signal
-    mov rdx, gs:GS_CURRENT_THREAD
-    cmp QWORD PTR [rdx + THREAD_PENDING_SIGNAL], 0
-    jne Ldispatch_signal
-
     # mark thread as running user code
     mov rdx, gs:GS_CURRENT_THREAD
     mov BYTE PTR [rdx + THREAD_KERNEL_MODE], 0
@@ -927,41 +922,6 @@ Lafter_syscall:
     # don't leak information to userspace
     xor rcx, rcx
     xor rdx, rdx
-    xor r8, r8
-    xor r9, r9
-    xor r10, r10
-    xor r11, r11
-
-    iretq
-
-Ldispatch_signal:
-    call dispatch_signal
-
-    mov rdx, gs:GS_CURRENT_THREAD
-    mov QWORD PTR [rdx + THREAD_PENDING_SIGNAL], 0
-
-    # mark thread as running user code
-    mov BYTE PTR [rdx + THREAD_KERNEL_MODE], 0
-
-    mov rcx, 0x33 # ss
-    push rcx
-    push [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RSP]
-    push [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_EFLAGS]
-    mov rcx, 0x3b # cs
-    push rcx
-    push [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RIP]
-
-    mov rcx, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RCX]
-    mov r8, [rdx + THREAD_PROC]
-    mov rdx, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RDX]
-
-    # load process cr3
-    mov r8, [r8 + PROCESS_CR3]
-    mov cr3, r8
-
-    swapgs
-
-    # don't leak information to userspace
     xor r8, r8
     xor r9, r9
     xor r10, r10
