@@ -16,6 +16,7 @@ import rangelock;
 #include <pe.h>
 #include <ntdll.h>
 #include "section.h"
+#include "scheduler.h"
 
 import print;
 import bsod;

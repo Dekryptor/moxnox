@@ -5,6 +5,7 @@ module;
 import objects;
 #include "handle.h"
 #include "cpu_block.h"
+#include "scheduler.h"
 #include <span>
 #include <cstring>
 #include <bit>

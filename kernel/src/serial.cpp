@@ -10,6 +10,7 @@ import objects;
 #include "thread.h"
 #include "process.h"
 #include "acpica.h"
+#include "scheduler.h"
 #include <ioctl.h>
 
 export module serial;

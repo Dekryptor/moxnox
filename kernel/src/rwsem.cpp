@@ -4,6 +4,7 @@ module;
 #include "cpu_block.h"
 import objects;
 #include "thread.h"
+#include "scheduler.h"
 
 export module rwsem;
 

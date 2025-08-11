@@ -11,6 +11,7 @@ import rwsem;
 #include "handle.h"
 import page_cache;
 #include "volume.h"
+#include "scheduler.h"
 
 export module volume;
 

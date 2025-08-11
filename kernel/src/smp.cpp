@@ -4,6 +4,7 @@ module;
 #include "acpica.h"
 #include "cpu_block.h"
 #include "mem.h"
+#include "scheduler.h"
 #include <atomic>
 
 export module smp;

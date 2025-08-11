@@ -5,6 +5,7 @@ module;
 #include "xhci.h"
 #include "spinlock.h"
 #include "tick_rate.h"
+#include "scheduler.h"
 
 export module xhci;
 

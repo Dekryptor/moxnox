@@ -6,6 +6,7 @@ import objects;
 import event;
 #include "thread.h"
 #include "spinlock.h"
+#include "scheduler.h"
 
 export module pipe;
 

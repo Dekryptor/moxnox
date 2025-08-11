@@ -5,6 +5,7 @@
 import objects;
 #include "handle.h"
 #include "process.h"
+#include "scheduler.h"
 #include <string_view>
 
 import print;

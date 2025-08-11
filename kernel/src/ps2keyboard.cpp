@@ -8,6 +8,7 @@ import evdev;
 import pipe;
 #include "acpica.h"
 #include "tick_rate.h"
+#include "scheduler.h"
 
 export module ps2keyboard;
 

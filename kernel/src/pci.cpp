@@ -5,6 +5,7 @@ module;
 #include "pci.h"
 import objects;
 #include "handle.h"
+#include "scheduler.h"
 
 export module pci;
 

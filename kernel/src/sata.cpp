@@ -10,6 +10,7 @@ import page_cache;
 import rwsem;
 #include "inode.h"
 #include "tick_rate.h"
+#include "scheduler.h"
 
 export module sata;
 

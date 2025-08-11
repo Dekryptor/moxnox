@@ -1,0 +1,12 @@
+#pragma once
+
+// scheduler.cpp
+extern list_entry thread_list, thread_list_dead;
+extern "C" void scheduler();
+nt_status wait_for_object(object& obj, bool interruptible,
+                          std::optional<uint64_t> timeout = std::nullopt);
+bool init_cpu_block(unsigned int cpu_no);
+void disable_preempt();
+void enable_preempt();
+unsigned int wake_up_waiters(list_entry& waiters);
+void set_current_thread_waiting();

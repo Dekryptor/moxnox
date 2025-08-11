@@ -108,17 +108,6 @@ extern "C" void release_sync_lock();
 
 class object_ref;
 
-// scheduler.cpp
-extern list_entry thread_list, thread_list_dead;
-extern "C" void scheduler();
-nt_status wait_for_object(object& obj, bool interruptible,
-                          std::optional<uint64_t> timeout = std::nullopt);
-bool init_cpu_block(unsigned int cpu_no);
-void disable_preempt();
-void enable_preempt();
-unsigned int wake_up_waiters(list_entry& waiters);
-void set_current_thread_waiting();
-
 // process.cpp
 extern uintptr_t mn_start_thread, mn_signal;
 object_ref create_process(std::string_view fn, std::string_view curdir,

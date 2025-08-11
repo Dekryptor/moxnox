@@ -10,6 +10,7 @@ import rwsem;
 import rbtree;
 #include "section.h"
 #include "process.h"
+#include "scheduler.h"
 
 import print;
 import mem;

@@ -6,6 +6,7 @@ module;
 import event;
 import objects;
 #include "process.h"
+#include "scheduler.h"
 
 export module syscalls;
 

@@ -4,6 +4,7 @@ module;
 #include "acpica.h"
 #include "virtio.h"
 #include "spinlock.h"
+#include "scheduler.h"
 #include <variant>
 
 export module virtio;

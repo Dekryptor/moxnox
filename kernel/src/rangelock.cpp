@@ -5,6 +5,7 @@ module;
 import objects;
 #include "thread.h"
 #include "rangelock.h"
+#include "scheduler.h"
 
 export module rangelock;
 

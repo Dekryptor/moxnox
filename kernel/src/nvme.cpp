@@ -6,6 +6,7 @@ module;
 #include "handle.h"
 #include "spinlock.h"
 #include "nvme.h"
+#include "scheduler.h"
 import rbtree;
 import page_cache;
 

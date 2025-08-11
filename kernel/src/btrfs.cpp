@@ -13,6 +13,7 @@ import rwsem;
 import rangelock;
 #include "file.h"
 import rbtree;
+#include "scheduler.h"
 
 export module btrfs;
 

@@ -4,6 +4,7 @@ import objects;
 #include "thread.h"
 #include "process.h"
 #include "tick_rate.h"
+#include "scheduler.h"
 
 import print;
 import bsod;

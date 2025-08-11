@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include "tick_rate.h"
+#include "scheduler.h"
 #include <span>
 
 export module usbhub;

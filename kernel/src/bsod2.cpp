@@ -2,6 +2,7 @@
 #include <source_location>
 #include "spinlock.h"
 #include "cpu_block.h"
+#include "scheduler.h"
 import chardev;
 
 import format;
