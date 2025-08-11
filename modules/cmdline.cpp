@@ -3,9 +3,9 @@ module;
 #include <string_view>
 #include <span>
 
-using namespace std;
-
 export module cmdline;
+
+using namespace std;
 
 export unsigned int count_cmdline_args(u16string_view cmdline) {
     unsigned int argc = 0;
