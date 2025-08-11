@@ -56,10 +56,6 @@ public:
 
     bool ready = true;
     uint16_t port;
-
-private:
-    size_t do_write(span<const uint8_t> s);
-    uint32_t output_mode = ENABLE_PROCESSED_OUTPUT;
 };
 
 class serial_duplex_pipe : public chardev {
@@ -239,11 +235,13 @@ export bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
     return true;
 }
 
-size_t serial_out_pipe::do_write(span<const uint8_t> s) {
+nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
     auto orig_s = s;
 
-    if (s.empty())
-        return 0;
+    if (s.empty()) {
+        written_bytes = 0;
+        return nt_status::SUCCESS;
+    }
 
     do {
         size_t to_copy;
@@ -294,41 +292,7 @@ size_t serial_out_pipe::do_write(span<const uint8_t> s) {
             break;
     } while (true);
 
-    return (uint64_t)(s.data() - orig_s.data());
-}
-
-nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    if (readonly) {
-        written_bytes = 0;
-        return nt_status::MEDIA_WRITE_PROTECTED;
-    }
-
-    if (!(output_mode & ENABLE_PROCESSED_OUTPUT)) {
-        written_bytes = do_write(s);
-        return nt_status::SUCCESS;
-    }
-
-    int last_bs = -1;
-
-    written_bytes = 0;
-
-    static const uint8_t SEND_BS[] = { '\b', ' ', '\b' };
-
-    for (size_t i = 0; i < s.size(); i++) {
-        if (s[i] == '\b') {
-            if (last_bs == -1)
-                written_bytes += do_write(s.subspan(0, i));
-            else
-                written_bytes += do_write(s.subspan((size_t)(last_bs + 1), i - (size_t)(last_bs + 1)));
-
-            if (do_write(SEND_BS) > 0)
-                written_bytes++;
-
-            last_bs = (int)i;
-        }
-    }
-
-    written_bytes += do_write(s.subspan((size_t)(last_bs + 1), s.size() - (size_t)(last_bs + 1)));
+    written_bytes = (uint64_t)(s.data() - orig_s.data());
 
     return nt_status::SUCCESS;
 }
