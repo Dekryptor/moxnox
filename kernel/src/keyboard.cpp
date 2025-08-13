@@ -612,6 +612,8 @@ export struct keyboard_leds {
 
 using set_leds_func = void (*)(void* ctx, keyboard_leds leds);
 
+static atomic<uint32_t> next_keyboard_id = 0;
+
 export class keyboard_context {
 public:
     keyboard_context(pipe& p, set_leds_func led_func, void* ctx) : p(p), led_func(led_func), ctx(ctx) {
@@ -620,6 +622,8 @@ public:
         leds.caps_lock = 0;
         leds.num_lock = 0;
         leds.scroll_lock = 0;
+
+        id = ++next_keyboard_id;
     }
 
     ~keyboard_context() {
@@ -630,6 +634,7 @@ public:
     void unregister();
 
     bool dead = false;
+    uint32_t id;
 
 private:
     void key_event(input_event& ev);
@@ -675,6 +680,33 @@ export bool init_keyboard_pipe() {
 }
 
 void keyboard_context::key_event(input_event& ev) {
+    {
+        input_event_with_id ev2;
+
+        ev2.ev = ev;
+        ev2.id = this->id;
+
+        auto sp = span((uint8_t*)&ev2, sizeof(ev2));
+        auto& k = static_cast<pipe&>(keyboard_pipe2_obj.get());
+
+        // FIXME - make sure we don't do partial writes
+
+        while (!sp.empty()) {
+            uint64_t written_bytes;
+            auto status = k.write(sp, written_bytes);
+
+            if (!success(status)) {
+                print("pipe::write returned {}\n", status);
+                return;
+            }
+
+            if (written_bytes == sp.size())
+                break;
+
+            sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
+        }
+    }
+
     auto idx = (unsigned int)ev.code;
 
     if (ev.code == evdev_code::KEY_LEFTSHIFT || ev.code == evdev_code::KEY_RIGHTSHIFT) {
@@ -773,24 +805,6 @@ void keyboard_context::key_event(input_event& ev) {
 
             sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
         }
-    }
-
-    auto sp = span((uint8_t*)&ev, sizeof(ev));
-    auto& k = static_cast<pipe&>(keyboard_pipe2_obj.get());
-
-    while (!sp.empty()) {
-        uint64_t written_bytes;
-        auto status = k.write(sp, written_bytes);
-
-        if (!success(status)) {
-            print("pipe::write returned {}\n", status);
-            return;
-        }
-
-        if (written_bytes == sp.size())
-            break;
-
-        sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
     }
 }
 

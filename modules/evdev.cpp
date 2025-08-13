@@ -660,3 +660,10 @@ export struct input_event {
 };
 
 static_assert(sizeof(input_event) == 0x18);
+
+export struct input_event_with_id {
+    input_event ev;
+    uint32_t id;
+} __attribute((packed));
+
+static_assert(sizeof(input_event_with_id) == 0x1c);
