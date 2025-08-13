@@ -23,6 +23,8 @@ import unicode;
 import cp437;
 import text;
 import cmdline;
+import evdev;
+import keyboard;
 
 using namespace std;
 
@@ -1170,19 +1172,18 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
 static void run_shell(u16string_view exe, u16string_view cmdline,
                       void (*recv_func)(string_view)) {
     HANDLE h;
-    unique_handle server_handle, client_handle, proc, kmsg;
+    unique_handle server_handle, client_handle, proc, kmsg, keyboard_pipe;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
     NTSTATUS status;
     PROCESS_BASIC_INFORMATION pbi;
     char16_t pipename[50];
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
 
     // open kmsg
 
     static const u16string_view kmsg_fn = u"\\dev\\kmsg";
+    static const u16string_view keyboard_pipe_fn = u"\\dev\\keyboard2";
 
     us.Length = us.MaximumLength = (uint16_t)(kmsg_fn.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)kmsg_fn.data();
@@ -1241,6 +1242,17 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
 
     client_handle.reset(h);
 
+    us.Length = us.MaximumLength = (uint16_t)(keyboard_pipe_fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)keyboard_pipe_fn.data();
+
+    status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
+    if (!success(status)) {
+        print("NtOpenFile returned {}\n", status);
+        return;
+    }
+
+    keyboard_pipe.reset(h);
+
     // print pending kmsg buffer first
 
     while (true) {
@@ -1281,7 +1293,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
         array<HANDLE, 4> objs;
 
         objs[0] = kmsg.get();
-        objs[1] = peb->ProcessParameters->StandardInput;
+        objs[1] = keyboard_pipe.get();
         objs[2] = server_handle.get();
         objs[3] = proc.get();
 
@@ -1317,13 +1329,10 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
             }
 
             case 1: {
-                char buf[1024];
+                input_event_with_id ev;
 
-                // forward data on stdin
-
-                status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
-                                    nullptr, nullptr, &iosb, buf, sizeof(buf),
-                                    nullptr, nullptr);
+                status = NtReadFile(keyboard_pipe.get(), 0, nullptr, nullptr,
+                                    &iosb, &ev, sizeof(ev), nullptr, nullptr);
 
                 if (status == nt_status::ALERTED)
                     continue;
@@ -1332,41 +1341,11 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
                     return;
                 }
 
-                string_view read(buf, iosb.Information);
-
-                auto do_write = [](string_view buf, HANDLE h) {
-                    IO_STATUS_BLOCK iosb;
-
-                    while (!buf.empty()) {
-                        auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb,
-                                                  buf.data(), (uint32_t)buf.size(),
-                                                  nullptr, nullptr);
-                        if (status == nt_status::ALERTED)
-                            continue;
-                        else if (!success(status)) {
-                            print("NtWriteFile returned {}\n", status);
-                            return;
-                        }
-
-                        if (iosb.Information >= buf.size())
-                            break;
-
-                        buf = string_view(buf.data() + iosb.Information,
-                                          buf.size() - iosb.Information);
-                    }
-                };
+                auto sp = handle_keyboard_event(ev);
 
                 // FIXME - only look for Ctrl+C if ENABLE_PROCESSED_INPUT set
 
-                while (!read.empty()) {
-                    auto ctrlc = read.find_first_of('\x03');
-
-                    if (ctrlc == string_view::npos)
-                        break;
-
-                    if (ctrlc != 0)
-                        do_write(string_view(read.data(), ctrlc), server_handle.get());
-
+                if (sp.size() == 1 && sp[0] == 0x03) { // Ctrl+C
                     EXCEPTION_RECORD er;
 
                     er.ExceptionFlags = 0;
@@ -1375,13 +1354,28 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
                     er.NumberParameters = 0;
 
                     send_signal_to_process(proc.get(), er);
+                } else if (!sp.empty()) {
+                    IO_STATUS_BLOCK iosb;
 
-                    read = string_view(read.data() + ctrlc + 1,
-                                       read.size() - ctrlc - 1);
+                    while (!sp.empty()) {
+                        auto status = NtWriteFile(server_handle.get(), 0, nullptr,
+                                                  nullptr, &iosb, sp.data(),
+                                                  (uint32_t)sp.size(), nullptr,
+                                                  nullptr);
+                        if (status == nt_status::ALERTED)
+                            continue;
+                        else if (!success(status)) {
+                            print("NtWriteFile returned {}\n", status);
+                            return;
+                        }
+
+                        if (iosb.Information >= sp.size())
+                            break;
+
+                        sp = span(sp.data() + iosb.Information,
+                                  sp.size() - iosb.Information);
+                    }
                 }
-
-                if (!read.empty())
-                    do_write(read, server_handle.get());
 
                 break;
             }
