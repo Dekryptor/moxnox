@@ -18,7 +18,7 @@ using namespace std;
 #define ENABLE_PROCESSED_INPUT 0x1 // FIXME
 
 static const unsigned int keyboard_pipe_buffer_pages = 1;
-static object_ref keyboard_pipe_obj;
+static object_ref keyboard_pipe_obj, keyboard_pipe2_obj;
 
 // UK layout
 static const u8string_view codes[] = {
@@ -657,6 +657,20 @@ export bool init_keyboard_pipe() {
         return false;
     }
 
+    auto pptr2 = new pipe(keyboard_pipe_buffer_pages);
+    if (!pptr2) {
+        print("new failed\n");
+        return false;
+    }
+
+    keyboard_pipe2_obj = object_ref{*pptr2};
+
+    status = name_object(keyboard_pipe2_obj.get(), "keyboard2");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
+        return false;
+    }
+
     return true;
 }
 
@@ -741,8 +755,28 @@ void keyboard_context::key_event(input_event& ev) {
         val = codes[idx];
     }
 
-    auto sp = span((uint8_t*)val.data(), val.size());
-    auto& k = static_cast<keyboard_pipe&>(keyboard_pipe_obj.get());
+    {
+        auto sp = span((uint8_t*)val.data(), val.size());
+        auto& k = static_cast<keyboard_pipe&>(keyboard_pipe_obj.get());
+
+        while (!sp.empty()) {
+            uint64_t written_bytes;
+            auto status = k.write(sp, written_bytes);
+
+            if (!success(status)) {
+                print("pipe::write returned {}\n", status);
+                return;
+            }
+
+            if (written_bytes == sp.size())
+                break;
+
+            sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
+        }
+    }
+
+    auto sp = span((uint8_t*)&ev, sizeof(ev));
+    auto& k = static_cast<pipe&>(keyboard_pipe2_obj.get());
 
     while (!sp.empty()) {
         uint64_t written_bytes;
