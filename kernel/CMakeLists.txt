@@ -67,7 +67,6 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/usbhid.cpp
     src/usb.cpp
     src/usbhub.cpp
-    src/evdev.cpp
     src/keyboard.cpp
     src/rangelock.cpp
     src/page_cache.cpp
@@ -75,7 +74,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/framebuffer.cpp
 )
 
-target_link_libraries(kernel format dwarf unwind list unicode rbtree vt100 cp437)
+target_link_libraries(kernel format dwarf unwind list unicode rbtree vt100 cp437 evdev)
 
 target_compile_options(kernel PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Wno-unused-const-variable -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
 # target_compile_options(kernel PRIVATE -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}/= -ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=)
