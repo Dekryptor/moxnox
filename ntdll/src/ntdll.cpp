@@ -778,7 +778,7 @@ static void call_dll_main() {
 }
 
 extern "C"
-void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info,
+__attribute__((force_align_arg_pointer)) void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info,
                      CONTEXT* context) {
     if (!initialized) {
         auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;

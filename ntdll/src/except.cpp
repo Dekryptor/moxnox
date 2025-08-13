@@ -172,7 +172,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 }
 
 extern "C"
-void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
+__attribute__((force_align_arg_pointer)) void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
