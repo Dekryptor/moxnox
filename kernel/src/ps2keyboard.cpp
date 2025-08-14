@@ -9,6 +9,7 @@ import pipe;
 #include "acpica.h"
 #include "tick_rate.h"
 #include "scheduler.h"
+#include <ioctl.h>
 
 export module ps2keyboard;
 

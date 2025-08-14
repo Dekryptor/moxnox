@@ -6,6 +6,7 @@ module;
 #include "handle.h"
 #include "scheduler.h"
 #include <span>
+#include <ioctl.h>
 
 export module usbhid;
 

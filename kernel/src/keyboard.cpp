@@ -603,20 +603,23 @@ public:
     uint32_t input_mode = ENABLE_PROCESSED_INPUT;
 };
 
-export struct keyboard_leds {
-    uint8_t caps_lock : 1;
-    uint8_t num_lock : 1;
-    uint8_t scroll_lock : 1;
-    uint8_t : 5;
+class keyboard_pipe2 : public pipe {
+public:
+    keyboard_pipe2(unsigned int buffer_pages) : pipe(buffer_pages) { }
+
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
 };
 
 using set_leds_func = void (*)(void* ctx, keyboard_leds leds);
 
 static atomic<uint32_t> next_keyboard_id = 0;
+static spinlock keyboard_contexts_spinlock;
+static list_entry keyboard_contexts = { &keyboard_contexts, &keyboard_contexts };
 
 export class keyboard_context {
 public:
-    keyboard_context(pipe& p, set_leds_func led_func, void* ctx) : p(p), led_func(led_func), ctx(ctx) {
+    keyboard_context(pipe& p, set_leds_func led_func, void* ctx) : led_func(led_func), ctx(ctx), p(p) {
         p.acquire();
 
         leds.caps_lock = 0;
@@ -624,10 +627,29 @@ public:
         leds.scroll_lock = 0;
 
         id = ++next_keyboard_id;
+
+        {
+            lock_guard lock(keyboard_contexts_spinlock);
+            insert_tail_list(keyboard_contexts, this->le);
+        }
     }
 
     ~keyboard_context() {
+        {
+            lock_guard lock(keyboard_contexts_spinlock);
+            remove_entry_list(this->le);
+        }
+
         p.release();
+    }
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
     }
 
     void listen_thread();
@@ -635,16 +657,18 @@ public:
 
     bool dead = false;
     uint32_t id;
+    list_entry le;
+    set_leds_func led_func;
+    void* ctx;
 
 private:
     void key_event(input_event& ev);
 
     pipe& p;
+    atomic<unsigned int> refcount = 1;
     unsigned int shift_count = 0;
     unsigned int ctrl_count = 0;
     keyboard_leds leds;
-    set_leds_func led_func;
-    void* ctx;
 };
 
 export bool init_keyboard_pipe() {
@@ -662,7 +686,7 @@ export bool init_keyboard_pipe() {
         return false;
     }
 
-    auto pptr2 = new pipe(keyboard_pipe_buffer_pages);
+    auto pptr2 = new keyboard_pipe2(keyboard_pipe_buffer_pages);
     if (!pptr2) {
         print("new failed\n");
         return false;
@@ -679,6 +703,44 @@ export bool init_keyboard_pipe() {
     return true;
 }
 
+nt_status keyboard_pipe2::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                                span<uint8_t>, uintptr_t& written) {
+    if (code == IOCTL_MOXNOX_KEYBOARD_SET_LEDS) {
+        if (inbuf.size() < sizeof(MOXNOX_SET_LEDS))
+            return nt_status::INVALID_PARAMETER;
+
+        const auto& leds = *(MOXNOX_SET_LEDS*)inbuf.data();
+
+        keyboard_context* ctx = nullptr;
+
+        {
+            lock_guard lock(keyboard_contexts_spinlock);
+
+            for (auto le = keyboard_contexts.next; le != &keyboard_contexts; le = le->next) {
+                auto& c = containing_record<keyboard_context>(le);
+
+                if (c.id == leds.id) {
+                    c.acquire();
+                    ctx = &c;
+                    break;
+                }
+            }
+        }
+
+        if (ctx) {
+            if (ctx->led_func)
+                ctx->led_func(ctx->ctx, leds.leds);
+
+            ctx->release();
+        }
+
+        written = 0;
+
+        return nt_status::SUCCESS;
+    } else
+        return nt_status::NOT_SUPPORTED;
+}
+
 void keyboard_context::key_event(input_event& ev) {
     {
         input_event_with_id ev2;
@@ -687,7 +749,7 @@ void keyboard_context::key_event(input_event& ev) {
         ev2.id = this->id;
 
         auto sp = span((uint8_t*)&ev2, sizeof(ev2));
-        auto& k = static_cast<pipe&>(keyboard_pipe2_obj.get());
+        auto& k = static_cast<keyboard_pipe2&>(keyboard_pipe2_obj.get());
 
         // FIXME - make sure we don't do partial writes
 
@@ -731,22 +793,13 @@ void keyboard_context::key_event(input_event& ev) {
     if (ev.code == evdev_code::KEY_CAPSLOCK) {
         leds.caps_lock = leds.caps_lock ? 0 : 1;
 
-        if (led_func)
-            led_func(ctx, leds);
-
         return;
     } else if (ev.code == evdev_code::KEY_NUMLOCK) {
         leds.num_lock = leds.num_lock ? 0 : 1;
 
-        if (led_func)
-            led_func(ctx, leds);
-
         return;
     } else if (ev.code == evdev_code::KEY_SCROLLLOCK) {
         leds.scroll_lock = leds.scroll_lock ? 0 : 1;
-
-        if (led_func)
-            led_func(ctx, leds);
 
         return;
     }
