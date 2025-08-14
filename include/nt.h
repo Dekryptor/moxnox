@@ -1247,4 +1247,7 @@ NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count);
 NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context);
 NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context);
+NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK desired_access,
+                          ULONG handle_attributes, ULONG flags,
+                          HANDLE* new_process_handle);
 };

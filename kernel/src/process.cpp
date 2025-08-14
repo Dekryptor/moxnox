@@ -3252,3 +3252,11 @@ NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
     return p.get_next_thread(threadptr, desired_access, handle_attributes,
                              flags, new_thread_handle);
 }
+
+NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK desired_access,
+                          ULONG handle_attributes, ULONG flags,
+                          HANDLE* new_process_handle) {
+    print("FIXME - NtGetNextProcess\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

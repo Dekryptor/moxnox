@@ -1582,6 +1582,35 @@ NTSTATUS user_NtSetContextThread(HANDLE thread_handle, const CONTEXT* us_context
 }
 
 extern "C"
+NTSTATUS user_NtGetNextProcess(HANDLE process_handle, ACCESS_MASK desired_access,
+                               ULONG handle_attributes, ULONG flags) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+    HANDLE new_process_handle;
+    nt_status ret;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto us_new_process_handle = (HANDLE*)args[0];
+
+    if (!us_new_process_handle)
+        return nt_status::INVALID_PARAMETER;
+
+    ret = NtGetNextProcess(process_handle, desired_access, handle_attributes,
+                           flags, &new_process_handle);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_new_process_handle, &new_process_handle,
+                             sizeof(HANDLE))) {
+            ret = nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    return ret;
+}
+
+extern "C"
 void yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled
 
