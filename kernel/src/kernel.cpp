@@ -85,14 +85,9 @@ static object_ref create_init_process() {
         p.acquire();
         initin = object_ref{p};
     } else {
-        auto status = open_object("keyboard", initin);
-        if (!success(status)) {
-            print("Error {} when trying to open keyboard object, using /dev/null for stdin\n", status);
-
-            status = open_object("null", initin);
-            if (!success(status))
-                bsod_format("Error {} opening /dev/null", status);
-        }
+        auto status = open_object("null", initin);
+        if (!success(status))
+            bsod_format("Error {} opening /dev/null", status);
     }
 
     static const u16string_view init_cmdline_pref = u"init.exe ";
