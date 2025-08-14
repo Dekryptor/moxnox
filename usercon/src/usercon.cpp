@@ -1183,7 +1183,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
     // open kmsg
 
     static const u16string_view kmsg_fn = u"\\dev\\kmsg";
-    static const u16string_view keyboard_pipe_fn = u"\\dev\\keyboard2";
+    static const u16string_view keyboard_pipe_fn = u"\\dev\\keyboard";
 
     us.Length = us.MaximumLength = (uint16_t)(kmsg_fn.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)kmsg_fn.data();
