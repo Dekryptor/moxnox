@@ -1382,21 +1382,40 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
             }
 
             case 2: {
-                char s[PAGE_SIZE];
+                do {
+                    char s[PAGE_SIZE];
+                    LARGE_INTEGER timeout;
 
-                // print pipe data
+                    // print pipe data
 
-                status = NtReadFile(server_handle.get(), 0, nullptr, nullptr,
-                                    &iosb, s, sizeof(s), nullptr, nullptr);
+                    status = NtReadFile(server_handle.get(), 0, nullptr, nullptr,
+                                        &iosb, s, sizeof(s), nullptr, nullptr);
+                    if (status == nt_status::ALERTED)
+                        break;
+                    else if (!success(status)) {
+                        print("NtReadFile returned {}\n", status);
+                        return;
+                    }
+
+                    recv_func(string_view(s, iosb.Information));
+
+                    timeout.QuadPart = 0;
+
+                    // go again if still data pending
+                    status = NtWaitForSingleObject(server_handle.get(), true,
+                                                   &timeout);
+                    if (status == nt_status::ALERTED || status == nt_status::TIMEOUT)
+                        break;
+                    else if (!success(status)) {
+                        print("NtWaitForSingleObject returned {}\n", status);
+                        return;
+                    }
+                } while (false);
+
+                flush_func();
+
                 if (status == nt_status::ALERTED)
                     continue;
-                else if (!success(status)) {
-                    print("NtReadFile returned {}\n", status);
-                    return;
-                }
-
-                recv_func(string_view(s, iosb.Information));
-                flush_func();
 
                 break;
             }
