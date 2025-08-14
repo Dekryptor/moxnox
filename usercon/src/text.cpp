@@ -89,7 +89,7 @@ static enum console_colour bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
 static enum console_colour fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
 static bool bg_bright = false, fg_bright = false, bold = false;
 
-static void flush_text_console() {
+export void flush_text_console() {
     void* flush_addr = text_console.data();
     size_t flush_size = text_console.size_bytes();
     IO_STATUS_BLOCK iosb;
@@ -307,8 +307,6 @@ void console_text::move_cursor() {
 
 export void recv_data_text(string_view s) {
     do_print(console_text_inst, s);
-
-    flush_text_console();
 }
 
 export span<uint16_t> init_text_console() {

@@ -913,8 +913,6 @@ static void recv_data_fb(string_view s) {
 
         y++;
     }
-
-    flush_framebuffer();
 }
 
 static bool run_program(u16string_view exe, u16string_view cmdline,
@@ -1170,7 +1168,7 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
 }
 
 static void run_shell(u16string_view exe, u16string_view cmdline,
-                      void (*recv_func)(string_view)) {
+                      void (*recv_func)(string_view), void (*flush_func)()) {
     HANDLE h;
     unique_handle server_handle, client_handle, proc, kmsg, keyboard_pipe;
     OBJECT_ATTRIBUTES oa;
@@ -1285,6 +1283,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
     }
 
     recv_func(welcome_message);
+    flush_func();
 
     if (!run_program(exe, cmdline, proc, client_handle.get()))
         return;
@@ -1322,8 +1321,10 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
                     return;
                 }
 
-                if (iosb.Information != 0)
+                if (iosb.Information != 0) {
                     recv_func(string_view(s, iosb.Information));
+                    flush_func();
+                }
 
                 break;
             }
@@ -1395,6 +1396,8 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
                 }
 
                 recv_func(string_view(s, iosb.Information));
+                flush_func();
+
                 break;
             }
 
@@ -1419,7 +1422,7 @@ static int try_text_console() {
         return 1;
     }
 
-    run_shell(u"\\shell.exe", u"shell.exe", recv_data_text);
+    run_shell(u"\\shell.exe", u"shell.exe", recv_data_text, flush_text_console);
 
     return 0;
 }
@@ -1488,7 +1491,7 @@ static int do_console() {
     rect(0, 0, fb_info.width, fb_info.height, 0x000000);
     flush_framebuffer();
 
-    run_shell(u"\\shell.exe", u"shell.exe", recv_data_fb);
+    run_shell(u"\\shell.exe", u"shell.exe", recv_data_fb, flush_framebuffer);
 
     return 0;
 }
