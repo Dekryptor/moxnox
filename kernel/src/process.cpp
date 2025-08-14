@@ -60,6 +60,9 @@ static atomic<uintptr_t> next_pid = 1;
 nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
                          size_t size, uint32_t page_protection, object_ref& ref);
 
+static spinlock process_list_lock;
+static list_entry process_list = { &process_list, &process_list };
+
 // FIXME - 32-bit processes
 
 static size_t dos_path_len(string_view s) {
@@ -498,6 +501,11 @@ object_ref create_process(string_view fn, string_view curdir,
 
     p.suspend_count = 1;
 
+    {
+        lock_guard lock(process_list_lock);
+        insert_tail_list(process_list, p.le);
+    }
+
     return p;
 }
 
@@ -562,6 +570,11 @@ static void free_page_tables(process& proc) {
 }
 
 process::~process() {
+    if (!is_list_empty(le)) {
+        lock_guard lock(process_list_lock);
+        remove_entry_list(le);
+    }
+
     while (true) {
         mapping* m;
 
@@ -2491,6 +2504,11 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     p.suspend_count = 0;
 
+    {
+        lock_guard lock(process_list_lock);
+        insert_tail_list(process_list, p.le);
+    }
+
     auto& curproc = *get_current_thread()->proc;
 
     handle_t h;
@@ -3253,10 +3271,65 @@ NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                              flags, new_thread_handle);
 }
 
-NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK desired_access,
-                          ULONG handle_attributes, ULONG flags,
+NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK /*desired_access*/,
+                          ULONG /*handle_attributes*/, ULONG /*flags*/,
                           HANDLE* new_process_handle) {
-    print("FIXME - NtGetNextProcess\n"); // FIXME
+    auto& t = *get_current_thread();
+    object_ref old_proc;
+    process* new_proc;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - desired_access, handle_attributes, flags
+
+    if (process_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        auto p = t->proc;
+        p->acquire();
+
+        old_proc = object_ref{*p};
+    } else if (process_handle != 0) {
+        old_proc = deref_handle(process_handle);
+        if (!old_proc)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = old_proc.get();
+
+        if (obj.type != object_type::process)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+    }
+
+    {
+        lock_guard lock(process_list_lock);
+
+        if (!old_proc)
+            new_proc = &containing_record<process>(process_list.next);
+        else {
+            auto& p = static_cast<process&>(old_proc.get());
+
+            if (p.le.next == &process_list)
+                return nt_status::NO_MORE_ENTRIES;
+
+            new_proc = &containing_record<process>(p.le.next);
+        }
+
+        new_proc->acquire();
+    }
+
+    handle_t h;
+
+    auto status = t.proc->add_handle(*new_proc, 0, true, h);
+    if (!success(status)) {
+        print("add_handle failed\n");
+        new_proc->release();
+        return status;
+    }
+
+    new_proc->release();
+
+    *new_process_handle = h;
+
+    return nt_status::SUCCESS;
 }
