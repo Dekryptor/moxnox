@@ -3,6 +3,9 @@ module;
 #include <stdint.h>
 #include <string_view>
 #include <span>
+#include <nt.h>
+#include <ioctl.h>
+#include <string.h>
 
 import evdev;
 import list;
@@ -590,19 +593,25 @@ static const bool numlock_codes[] = {
 
 class keyboard_context {
 public:
-    keyboard_context(uint32_t id) : id(id) { }
-    span<char> handle_keyboard_event(const input_event& ev);
+    keyboard_context(uint32_t id) : id(id) {
+        memset(&leds, 0, sizeof(leds));
+    }
+
+    span<char> handle_keyboard_event(const input_event& ev, HANDLE pipe);
+    void set_leds(HANDLE pipe);
 
     list_entry le;
     uint32_t id;
 
 private:
     unsigned int shift_count = 0, ctrl_count = 0;
+    keyboard_leds leds;
 };
 
 static list_entry contexts = { &contexts, &contexts };
 
-span<char> keyboard_context::handle_keyboard_event(const input_event& ev) {
+span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
+                                                   HANDLE pipe) {
     auto idx = (unsigned int)ev.code;
 
     if (ev.code == evdev_code::KEY_LEFTSHIFT || ev.code == evdev_code::KEY_RIGHTSHIFT) {
@@ -624,36 +633,30 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev) {
     if (ev.value == 0) // ignore key-ups
         return {};
 
-    // if (ev.code == evdev_code::KEY_CAPSLOCK) {
-    //     leds.caps_lock = leds.caps_lock ? 0 : 1;
-    //
-    //     if (led_func)
-    //         led_func(ctx, leds);
-    //
-    //     return {};
-    // } else if (ev.code == evdev_code::KEY_NUMLOCK) {
-    //     leds.num_lock = leds.num_lock ? 0 : 1;
-    //
-    //     if (led_func)
-    //         led_func(ctx, leds);
-    //
-    //     return {};
-    // } else if (ev.code == evdev_code::KEY_SCROLLLOCK) {
-    //     leds.scroll_lock = leds.scroll_lock ? 0 : 1;
-    //
-    //     if (led_func)
-    //         led_func(ctx, leds);
-    //
-    //     return {};
-    // }
+    if (ev.code == evdev_code::KEY_CAPSLOCK) {
+        leds.caps_lock = leds.caps_lock ? 0 : 1;
+
+        set_leds(pipe);
+        return {};
+    } else if (ev.code == evdev_code::KEY_NUMLOCK) {
+        leds.num_lock = leds.num_lock ? 0 : 1;
+
+        set_leds(pipe);
+        return {};
+    } else if (ev.code == evdev_code::KEY_SCROLLLOCK) {
+        leds.scroll_lock = leds.scroll_lock ? 0 : 1;
+
+        set_leds(pipe);
+        return {};
+    }
 
     bool holding_shift = shift_count != 0;
 
-    // if (leds.caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
-        // holding_shift = !holding_shift;
+    if (leds.caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
+        holding_shift = !holding_shift;
 
-    // if (!leds.num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
-        // holding_shift = true;
+    if (!leds.num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
+        holding_shift = true;
 
     u8string_view val;
 
@@ -686,12 +689,29 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev) {
     return span((char*)val.data(), val.size());
 }
 
-export span<char> handle_keyboard_event(const input_event_with_id& ev) {
+void keyboard_context::set_leds(HANDLE pipe) {
+    MOXNOX_SET_LEDS msl;
+    IO_STATUS_BLOCK iosb;
+
+    msl.id = id;
+    msl.leds = leds;
+
+    auto status = NtDeviceIoControlFile(pipe, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_KEYBOARD_SET_LEDS, &msl,
+                                        sizeof(msl), nullptr, 0);
+    if (!success(status)) {
+        print("IOCTL_MOXNOX_KEYBOARD_SET_LEDS returned {}\n", status);
+        return;
+    }
+}
+
+export span<char> handle_keyboard_event(const input_event_with_id& ev,
+                                        HANDLE pipe) {
     for (auto le = contexts.next; le != &contexts; le = le->next) {
         auto& ctx = containing_record<keyboard_context>(le);
 
         if (ctx.id == ev.id)
-            return ctx.handle_keyboard_event(ev.ev);
+            return ctx.handle_keyboard_event(ev.ev, pipe);
     }
 
     auto ctx = new keyboard_context(ev.id);
@@ -702,5 +722,7 @@ export span<char> handle_keyboard_event(const input_event_with_id& ev) {
 
     insert_tail_list(contexts, ctx->le);
 
-    return ctx->handle_keyboard_event(ev.ev);
+    ctx->set_leds(pipe);
+
+    return ctx->handle_keyboard_event(ev.ev, pipe);
 }

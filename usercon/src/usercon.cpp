@@ -1341,7 +1341,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
                     return;
                 }
 
-                auto sp = handle_keyboard_event(ev);
+                auto sp = handle_keyboard_event(ev, keyboard_pipe.get());
 
                 // FIXME - only look for Ctrl+C if ENABLE_PROCESSED_INPUT set
 
