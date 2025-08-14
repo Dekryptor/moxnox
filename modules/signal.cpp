@@ -252,7 +252,9 @@ export void send_signal_to_process(HANDLE proc, EXCEPTION_RECORD& er) {
         return;
     }
 
-    uintptr_t proc_context = ctx.Rsp - sizeof(CONTEXT);
+    // make sure CONTEXT gets aligned on 16-byte boundary
+
+    uintptr_t proc_context = (ctx.Rsp & ~(uint64_t)0xf) - sizeof(CONTEXT);
 
     status = NtWriteVirtualMemory(proc, (void*)proc_context, &ctx,
                                   sizeof(CONTEXT), nullptr);
@@ -283,6 +285,8 @@ export void send_signal_to_process(HANDLE proc, EXCEPTION_RECORD& er) {
 
     ctx.Rcx = proc_er;
     ctx.Rdx = proc_context;
+
+    ctx.Rsp &= ~(uint64_t)0xf;
     ctx.Rsp -= sizeof(CONTEXT);
     ctx.Rsp -= er_size;
 
