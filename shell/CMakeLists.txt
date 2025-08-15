@@ -175,3 +175,15 @@ target_link_libraries(seh-test format_sse)
 target_link_libraries(seh-test -lntdll ntdllcrt)
 
 install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+###
+
+add_executable(ps src/ps.cpp)
+
+target_compile_options(ps PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -gdwarf-5)
+target_link_options(ps PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(ps shelllib format_sse)
+target_link_libraries(ps -lntdll ntdllcrt)
+
+install(TARGETS ps DESTINATION ${CMAKE_INSTALL_PREFIX})
