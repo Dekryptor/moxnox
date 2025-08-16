@@ -188,8 +188,20 @@ static nt_status ps() {
     for (unsigned int i = 0; i < num_entries; i++) {
         auto& e = *arr[i];
 
-        print("{:{}}", e.pid, pid_length);
-        print(" {}", e.image_path_sv);
+        print("{:{}} ", e.pid, pid_length);
+
+        if (!e.image_path_sv.empty()) {
+            auto sv = e.image_path_sv;
+
+            if (auto bs = sv.find_last_of(u'\\'); bs != u16string_view::npos)
+                sv = u16string_view(sv.data() + bs + 1, sv.size() - bs - 1);
+
+            if (auto dot = sv.find_last_of(u'.'); dot != u16string_view::npos)
+                sv = u16string_view(sv.data(), dot);
+
+            print("{}", sv);
+        }
+
         print("\n");
 
         remove_entry_list(e.le);
