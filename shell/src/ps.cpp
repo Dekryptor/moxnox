@@ -50,6 +50,8 @@ static void get_process_name(ps_entry& e, HANDLE proc, void* peb_address) {
     nt_status status;
     uint32_t read;
 
+    // FIXME - ProcessWow64Information if 32-bit?
+
     status = NtReadVirtualMemory(proc, peb_address, &peb, sizeof(peb), &read);
     if (!success(status)) {
         print("NtReadVirtualMemory returned {}\n", status);
@@ -103,7 +105,8 @@ static nt_status ps() {
     unsigned int num_entries = 0;
 
     while (true) {
-        auto status = NtGetNextProcess(proc.get(), 0, 0, 0, &h);
+        auto status = NtGetNextProcess(proc.get(), PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                                       0, 0, &h);
         if (status == nt_status::NO_MORE_ENTRIES)
             break;
         else if (!success(status)) {
