@@ -1,6 +1,7 @@
 #include <ntdll.h>
 #include <algorithm>
 #include <span>
+#include <string_view>
 
 import unique_handle;
 import shelllib;
@@ -10,8 +11,15 @@ import list;
 using namespace std;
 
 struct ps_entry {
+    ~ps_entry() {
+        if (image_path)
+            free(image_path);
+    }
+
     list_entry le;
     uintptr_t pid;
+    char16_t* image_path = nullptr;
+    u16string_view image_path_sv;
 };
 
 extern "C"
@@ -22,6 +30,69 @@ void* malloc(size_t size) {
 extern "C"
 void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
+}
+
+void* operator new(size_t count) {
+    return malloc(count);
+}
+
+void operator delete(void* ptr) noexcept {
+    free(ptr);
+}
+
+void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
+}
+
+static void get_process_name(ps_entry& e, HANDLE proc, void* peb_address) {
+    PEB peb;
+    RTL_USER_PROCESS_PARAMETERS params;
+    nt_status status;
+    uint32_t read;
+
+    status = NtReadVirtualMemory(proc, peb_address, &peb, sizeof(peb), &read);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return;
+    } else if (read < sizeof(peb)) {
+        print("short read while reading PEB ({} bytes, expected {})\n",
+              read, sizeof(peb));
+        return;
+    }
+
+    status = NtReadVirtualMemory(proc, peb.ProcessParameters, &params,
+                                 sizeof(params), &read);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return;
+    } else if (read < sizeof(params)) {
+        print("short read while reading process params ({} bytes, expected {})\n",
+              read, sizeof(params));
+        return;
+    }
+
+    if (params.ImagePathName.Length == 0)
+        return;
+
+    e.image_path = (char16_t*)malloc(params.ImagePathName.Length);
+    if (!e.image_path) {
+        print("malloc failed\n");
+        return;
+    }
+
+    status = NtReadVirtualMemory(proc, params.ImagePathName.Buffer, e.image_path,
+                                 params.ImagePathName.Length, &read);
+    if (!success(status)) {
+        print("NtReadVirtualMemory returned {}\n", status);
+        return;
+    } else if (read < params.ImagePathName.Length) {
+        print("short read while reading image path name ({} bytes, expected {})\n",
+              read, params.ImagePathName.Length);
+        return;
+    }
+
+    e.image_path_sv = u16string_view(e.image_path,
+                                     params.ImagePathName.Length / sizeof(char16_t));
 }
 
 static nt_status ps() {
@@ -50,13 +121,16 @@ static nt_status ps() {
             return status;
         }
 
-        auto e = (ps_entry*)malloc(sizeof(ps_entry));
+        // auto e = (ps_entry*)malloc(sizeof(ps_entry));
+        auto e = new ps_entry;
         if (!e) {
-            print("malloc failed\n");
+            print("new failed\n");
             return nt_status::INSUFFICIENT_RESOURCES;
         }
 
         e->pid = pbi.UniqueProcessId;
+
+        get_process_name(*e, proc.get(), pbi.PebBaseAddress);
 
         // FIXME - get process name
 
@@ -104,15 +178,22 @@ static nt_status ps() {
         print(" ");
     }
 
-    print("PID\n");
+    print("PID");
+    // FIXME - TTY
+    // FIXME - TIME
+    print(" CMD\n");
+
+    // FIXME - all the other format specifiers
 
     for (unsigned int i = 0; i < num_entries; i++) {
         auto& e = *arr[i];
 
-        print("{:{}}\n", e.pid, pid_length);
+        print("{:{}}", e.pid, pid_length);
+        print(" {}", e.image_path_sv);
+        print("\n");
 
         remove_entry_list(e.le);
-        free(&e);
+        delete &e;
     }
 
     return nt_status::SUCCESS;
