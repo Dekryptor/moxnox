@@ -1274,4 +1274,7 @@ NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context);
 NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK desired_access,
                           ULONG handle_attributes, ULONG flags,
                           HANDLE* new_process_handle);
+NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
+                       const OBJECT_ATTRIBUTES* object_attributes,
+                       const CLIENT_ID* client_id);
 };

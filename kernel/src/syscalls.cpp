@@ -1611,6 +1611,41 @@ NTSTATUS user_NtGetNextProcess(HANDLE process_handle, ACCESS_MASK desired_access
 }
 
 extern "C"
+NTSTATUS user_NtOpenProcess(HANDLE* us_process_handle, ACCESS_MASK desired_access,
+                            const OBJECT_ATTRIBUTES* object_attributes,
+                            const CLIENT_ID* us_client_id) {
+    HANDLE process_handle;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    CLIENT_ID client_id;
+    nt_status ret;
+
+    if (!us_process_handle || !object_attributes)
+        return nt_status::INVALID_PARAMETER;
+
+    ret = copy_object_attributes(oa, us, object_attributes);
+    if (!success(ret))
+        return ret;
+
+    if (us_client_id) {
+        if (!copy_from_process(&client_id, us_client_id, sizeof(CLIENT_ID)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    ret = NtOpenProcess(&process_handle, desired_access, &oa,
+                        us_client_id ? &client_id : nullptr);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_process_handle, &process_handle, sizeof(HANDLE)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    free_object_attributes(oa);
+
+    return ret;
+}
+
+extern "C"
 void yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled
 

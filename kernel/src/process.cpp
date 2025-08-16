@@ -3333,3 +3333,11 @@ NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK /*desired_access*/,
 
     return nt_status::SUCCESS;
 }
+
+NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
+                       const OBJECT_ATTRIBUTES* object_attributes,
+                       const CLIENT_ID* client_id) {
+    print("FIXME - NtOpenProcess\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
