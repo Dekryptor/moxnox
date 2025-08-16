@@ -395,6 +395,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "ACCESS_VIOLATION");
         case nt_status::INVALID_HANDLE:
             return sp_strcpy(sp, "INVALID_HANDLE");
+        case nt_status::INVALID_CID:
+            return sp_strcpy(sp, "INVALID_CID");
         case nt_status::INVALID_PARAMETER:
             return sp_strcpy(sp, "INVALID_PARAMETER");
         case nt_status::END_OF_FILE:
