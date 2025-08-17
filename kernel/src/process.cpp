@@ -3335,9 +3335,46 @@ NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK /*desired_access*/,
 }
 
 NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
-                       const OBJECT_ATTRIBUTES* object_attributes,
+                       const OBJECT_ATTRIBUTES* /*object_attributes*/,
                        const CLIENT_ID* client_id) {
-    print("FIXME - NtOpenProcess\n"); // FIXME
+    auto& t = *get_current_thread();
+    object_ref proc;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (!client_id)
+        return nt_status::INVALID_PARAMETER;
+
+    if (client_id->UniqueThread != 0 || client_id->UniqueProcess == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    {
+        lock_guard lock(process_list_lock);
+
+        for (auto le = process_list.next; le != &process_list; le = le->next) {
+            auto& p = containing_record<process>(le);
+
+            if (p.pid == client_id->UniqueProcess) {
+                p.acquire();
+                proc = p;
+                break;
+            }
+        }
+    }
+
+    if (!proc)
+        return nt_status::INVALID_CID;
+
+    handle_t h;
+
+    auto status = t.proc->add_handle(proc.get(), desired_access, true, h);
+    if (!success(status)) {
+        print("add_handle failed\n");
+        static_cast<process&>(proc.get()).release();
+        return status;
+    }
+
+    static_cast<process&>(proc.get()).release();
+
+    *process_handle = h;
+
+    return nt_status::SUCCESS;
 }
