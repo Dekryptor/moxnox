@@ -298,12 +298,14 @@ void rb_delete_fixup(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
                 w = x->parent->right;
             }
 
-            if (w->left->colour == tree_colour::black && w->right->colour == tree_colour::black) {
+            if ((!w->left || w->left->colour == tree_colour::black) && (!w->right || w->right->colour == tree_colour::black)) {
                 w->colour = tree_colour::red;
                 x = x->parent;
             } else {
-                if (w->right->colour == tree_colour::black) {
-                    w->left->colour = tree_colour::black;
+                if (!w->right || w->right->colour == tree_colour::black) {
+                    if (w->left)
+                        w->left->colour = tree_colour::black;
+
                     w->colour = tree_colour::red;
                     right_rotate(root, w);
                     w = x->parent->right;
@@ -311,7 +313,10 @@ void rb_delete_fixup(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
 
                 w->colour = x->parent->colour;
                 x->parent->colour = tree_colour::black;
-                w->right->colour = tree_colour::black;
+
+                if (w->right)
+                    w->right->colour = tree_colour::black;
+
                 left_rotate(root, x->parent);
                 x = root;
             }
@@ -325,12 +330,14 @@ void rb_delete_fixup(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
                 w = x->parent->left;
             }
 
-            if (w->left->colour == tree_colour::black && w->right->colour == tree_colour::black) {
+            if ((!w->left || w->left->colour == tree_colour::black) && (!w->right || w->right->colour == tree_colour::black)) {
                 w->colour = tree_colour::red;
                 x = x->parent;
             } else {
-                if (w->left->colour == tree_colour::black) {
-                    w->right->colour = tree_colour::black;
+                if (!w->left || w->left->colour == tree_colour::black) {
+                    if (w->right)
+                        w->right->colour = tree_colour::black;
+
                     w->colour = tree_colour::red;
                     left_rotate(root, w);
                     w = x->parent->left;
@@ -338,7 +345,10 @@ void rb_delete_fixup(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
 
                 w->colour = x->parent->colour;
                 x->parent->colour = tree_colour::black;
-                w->left->colour = tree_colour::black;
+
+                if (w->left)
+                    w->left->colour = tree_colour::black;
+
                 right_rotate(root, x->parent);
                 x = root;
             }
@@ -373,17 +383,29 @@ void remove_from_rbtree(rbtree_node<KeyType>*& root, rbtree_node<KeyType>& ent) 
             if (x)
                 x->parent = y;
         } else {
+            if (x)
+                x->parent = y->parent;
+
             rb_transplant(root, *y, y->right);
+
+            if (y->right)
+                y->right->parent = y;
+
             y->right = ent.right;
-            y->right->parent = y;
+
+            if (y->right)
+                y->right->parent = y;
         }
 
         rb_transplant(root, ent, y);
         y->left = ent.left;
-        y->left->parent = y;
+
+        if (y->left)
+            y->left->parent = y;
+
         y->colour = ent.colour;
     }
 
-    if (y_orig_colour == tree_colour::black)
+    if (y_orig_colour == tree_colour::black && x)
         rb_delete_fixup(root, x);
 }
