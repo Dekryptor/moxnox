@@ -44,6 +44,24 @@ rbtree_node<KeyType>* find_rbtree_node(rbtree_node<KeyType>* root, KeyType key) 
 
 export
 template<typename KeyType>
+const rbtree_node<KeyType>* find_rbtree_node(const rbtree_node<KeyType>* root, KeyType key) {
+    const rbtree_node<KeyType>* ret = root;
+
+    while (ret && ret->key != key) {
+        if (key < ret->key)
+            ret = ret->left;
+        else
+            ret = ret->right;
+    }
+
+    if (ret && ret->key != key)
+        return nullptr;
+
+    return ret;
+}
+
+export
+template<typename KeyType>
 rbtree_node<KeyType>* find_rbtree_node_or_less(rbtree_node<KeyType>* root, KeyType key) {
     rbtree_node<KeyType>* ret = root;
 
@@ -66,8 +84,42 @@ rbtree_node<KeyType>* find_rbtree_node_or_less(rbtree_node<KeyType>* root, KeyTy
 
 export
 template<typename KeyType>
+const rbtree_node<KeyType>* find_rbtree_node_or_less(const rbtree_node<KeyType>* root, KeyType key) {
+    const rbtree_node<KeyType>* ret = root;
+
+    while (ret && ret->key != key) {
+        if (key < ret->key) {
+            if (!ret->left)
+                return ret;
+
+            ret = ret->left;
+        } else {
+            if (!ret->right)
+                return ret;
+
+            ret = ret->right;
+        }
+    }
+
+    return ret;
+}
+
+export
+template<typename KeyType>
 rbtree_node<KeyType>* get_tree_minimum(rbtree_node<KeyType>* root) {
     rbtree_node<KeyType>* ret = root;
+
+    while (ret->left) {
+        ret = ret->left;
+    }
+
+    return ret;
+}
+
+export
+template<typename KeyType>
+const rbtree_node<KeyType>* get_tree_minimum(const rbtree_node<KeyType>* root) {
+    const rbtree_node<KeyType>* ret = root;
 
     while (ret->left) {
         ret = ret->left;
