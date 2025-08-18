@@ -130,6 +130,9 @@ const rbtree_node<KeyType>* get_tree_minimum(const rbtree_node<KeyType>* root) {
 
 template<typename KeyType>
 void left_rotate(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
+    if (!x || !x->right)
+        return;
+
     auto y = x->right;
 
     x->right = y->left;
@@ -152,6 +155,9 @@ void left_rotate(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
 
 template<typename KeyType>
 void right_rotate(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
+    if (!x || !x->left)
+        return;
+
     auto y = x->left;
 
     x->left = y->right;
@@ -179,8 +185,8 @@ void insert_fixup(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* z) {
             auto y = z->parent->parent->right;
 
             if (y && y->colour == tree_colour::red) {
-                y->colour = tree_colour::black;
                 z->parent->colour = tree_colour::black;
+                y->colour = tree_colour::black;
                 z->parent->parent->colour = tree_colour::red;
                 z = z->parent->parent;
             } else {
@@ -197,8 +203,8 @@ void insert_fixup(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* z) {
             auto y = z->parent->parent->left;
 
             if (y && y->colour == tree_colour::red) {
-                y->colour = tree_colour::black;
                 z->parent->colour = tree_colour::black;
+                y->colour = tree_colour::black;
                 z->parent->parent->colour = tree_colour::red;
                 z = z->parent->parent;
             } else {
