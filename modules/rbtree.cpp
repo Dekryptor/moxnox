@@ -218,3 +218,120 @@ rbtree_node<KeyType>* next_rbtree_node(const rbtree_node<KeyType>& ent) {
 
     return ret;
 }
+
+template<typename KeyType>
+void rb_transplant(rbtree_node<KeyType>*& root, rbtree_node<KeyType>& u,
+                   rbtree_node<KeyType>* v) {
+    if (!u.parent)
+        root = v;
+    else if (&u == u.parent->left)
+        u.parent->left = v;
+    else
+        u.parent->right = v;
+
+    if (v)
+        v->parent = u.parent;
+}
+
+template<typename KeyType>
+void rb_delete_fixup(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
+    while (x && x != root && x->colour == tree_colour::black) {
+        if (x == x->parent->left) {
+            auto* w = x->parent->right;
+
+            if (w->colour == tree_colour::red) {
+                w->colour = tree_colour::black;
+                x->parent->colour = tree_colour::red;
+                left_rotate(root, x->parent);
+                w = x->parent->right;
+            }
+
+            if (w->left->colour == tree_colour::black && w->right->colour == tree_colour::black) {
+                w->colour = tree_colour::red;
+                x = x->parent;
+            } else {
+                if (w->right->colour == tree_colour::black) {
+                    w->left->colour = tree_colour::black;
+                    w->colour = tree_colour::red;
+                    right_rotate(root, w);
+                    w = x->parent->right;
+                }
+
+                w->colour = x->parent->colour;
+                x->parent->colour = tree_colour::black;
+                w->right->colour = tree_colour::black;
+                left_rotate(root, x->parent);
+                x = root;
+            }
+        } else {
+            auto* w = x->parent->left;
+
+            if (w->colour == tree_colour::red) {
+                w->colour = tree_colour::black;
+                x->parent->colour = tree_colour::red;
+                right_rotate(root, x->parent);
+                w = x->parent->left;
+            }
+
+            if (w->left->colour == tree_colour::black && w->right->colour == tree_colour::black) {
+                w->colour = tree_colour::red;
+                x = x->parent;
+            } else {
+                if (w->left->colour == tree_colour::black) {
+                    w->right->colour = tree_colour::black;
+                    w->colour = tree_colour::red;
+                    left_rotate(root, w);
+                    w = x->parent->left;
+                }
+
+                w->colour = x->parent->colour;
+                x->parent->colour = tree_colour::black;
+                w->left->colour = tree_colour::black;
+                right_rotate(root, x->parent);
+                x = root;
+            }
+        }
+    }
+
+    if (x)
+        x->colour = tree_colour::black;
+}
+
+export
+template<typename KeyType>
+void remove_from_rbtree(rbtree_node<KeyType>*& root, rbtree_node<KeyType>& ent) {
+    rbtree_node<KeyType>* x;
+    rbtree_node<KeyType>* y = &ent;
+
+    auto y_orig_colour = ent.colour;
+
+    if (!ent.left) {
+        x = ent.right;
+        rb_transplant(root, ent, ent.right);
+    } else if (!ent.right) {
+        x = ent.left;
+        rb_transplant(root, ent, ent.left);
+    } else {
+        y = get_tree_minimum(ent.right);
+        y_orig_colour = y->colour;
+
+        x = y->right;
+
+        if (y->parent == &ent) {
+            if (x)
+                x->parent = y;
+        } else {
+            rb_transplant(root, *y, y->right);
+            y->right = ent.right;
+            y->right->parent = y;
+        }
+
+        rb_transplant(root, ent, y);
+        y->left = ent.left;
+        y->left->parent = y;
+        y->colour = ent.colour;
+    }
+
+    if (y_orig_colour == tree_colour::black)
+        rb_delete_fixup(root, x);
+}
