@@ -34,6 +34,12 @@ import unicode;
 
 using namespace std;
 
+struct handle_obj {
+    rbtree_node<handle_t> tree;
+    object* obj;
+    uint32_t access_mask;
+};
+
 extern uint16_t last_tid; // FIXME
 
 static rwsem ipi_lock;
@@ -1222,6 +1228,20 @@ void load_ntdll() {
         bsod("Could not find export mn_signal in ntdll.dll");
 }
 
+static void free_handle(rbtree_node<handle_t>* tree) {
+    auto& ho = rbtree_containing_record<handle_obj>(tree);
+
+    // FIXME - is recursion going to be a problem here?
+
+    if (tree->left)
+        free_handle(tree->left);
+
+    if (tree->right)
+        free_handle(tree->right);
+
+    free(&ho);
+}
+
 void process::terminate() {
     // wake up threads waiting for process to terminate
 
@@ -1236,28 +1256,23 @@ void process::terminate() {
 
     // close open handles
 
-    lock_guard lock(handle_lock);
-    auto handles = span(handle_arr, no_handles);
+    {
+        lock_guard lock(handle_lock);
 
-    for (auto& ho : handles) {
-        auto obj = ho.obj;
+        if (handles) {
+            auto n = get_tree_minimum(handles);
 
-        if (!obj)
-            continue;
+            while (n) {
+                auto& ho = rbtree_containing_record<handle_obj>(n);
 
-        handle_closed(*obj);
-        object_release(*obj);
-    }
+                handle_closed(*ho.obj);
+                object_release(*ho.obj);
 
-    if (handle_arr_pages != 0) {
-        for (unsigned int i = 0; i < handle_arr_pages; i++) {
-            auto pa = va_to_pa_lookup((uintptr_t)handle_arr + (i << PAGE_SHIFT));
+                n = next_rbtree_node(*n);
+            }
 
-            unmap_page((uintptr_t)handle_arr + (i << PAGE_SHIFT));
-            free_folio(pa);
+            free_handle(handles);
         }
-
-        free_va((uintptr_t)handle_arr, handle_arr_pages);
     }
 }
 
@@ -1396,89 +1411,23 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
         return nt_status::SHARING_VIOLATION;
     }
 
+    auto ho = (handle_obj*)malloc(sizeof(handle_obj));
+    if (!ho)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    object_acquire(obj);
+
     {
         lock_guard lock(handle_lock);
 
-        auto needed_pages = bytes_to_pages((no_handles + 1) * sizeof(handle_obj));
+        h = ++last_handle;
 
-        if (needed_pages > handle_arr_pages) {
-            auto pa = allocate_page();
-            if (!pa) {
-                // FIXME - should be exception
-                print("allocate_page failed\n");
-                obj.handle_count--;
-                return nt_status::INSUFFICIENT_RESOURCES;
-            }
+        ho->tree.key = h;
+        ho->obj = &obj;
+        ho->access_mask = access_mask;
 
-            auto va = allocate_va(needed_pages);
-            if (!va) {
-                print("allocate_page failed\n");
-                free_folio(pa);
-                obj.handle_count--;
-                return nt_status::INSUFFICIENT_RESOURCES;
-            }
-
-            if (handle_arr) {
-                // remap pages
-
-                for (unsigned int i = 0; i < handle_arr_pages; i++) {
-                    auto pa = va_to_pa_lookup((uintptr_t)handle_arr + (i << PAGE_SHIFT));
-
-                    if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-                        print("map_page failed\n");
-
-                        for (unsigned int j = 0; j < i; j++) {
-                            unmap_page(va + (j << PAGE_SHIFT));
-                        }
-
-                        free_va(va, needed_pages);
-
-                        obj.handle_count--;
-
-                        return nt_status::INSUFFICIENT_RESOURCES;
-                    }
-                }
-            }
-
-            if (!map_page(pa, va + (handle_arr_pages << PAGE_SHIFT), mapping_type::read_write)) {
-                // FIXME - exception
-                print("map_page failed\n");
-                free_folio(pa);
-
-                for (unsigned int i = 0; i < handle_arr_pages; i++) {
-                    unmap_page(va + (i << PAGE_SHIFT));
-                }
-
-                free_va(va, needed_pages);
-
-                obj.handle_count--;
-
-                return nt_status::INSUFFICIENT_RESOURCES;
-            }
-
-            for (unsigned int i = 0; i < handle_arr_pages; i++) {
-                unmap_page((uintptr_t)handle_arr + (i << PAGE_SHIFT));
-            }
-
-            if (handle_arr)
-                free_va((uintptr_t)handle_arr, handle_arr_pages);
-
-            handle_arr = (handle_obj*)va;
-            handle_arr_pages++;
-        }
-
-        no_handles++;
-
-        // FIXME - handles should be multiples of 4
-
-        h = no_handles;
-
-        auto& ho = handle_arr[h - 1];
-        ho.obj = &obj;
-        ho.access_mask = access_mask;
+        insert_into_rbtree(handles, ho->tree);
     }
-
-    object_acquire(obj);
 
     return nt_status::SUCCESS;
 }
@@ -2116,19 +2065,23 @@ object_ref process::deref_handle(handle_t h) {
         return *this;
     }
 
-    lock_guard lock(handle_lock);
-
-    if (h == 0 || h > no_handles)
+    if (h == 0)
         return nullopt;
 
-    auto& ho = handle_arr[h - 1];
+    {
+        lock_guard lock(handle_lock);
 
-    if (!ho.obj)
-        return nullopt;
+        auto n = find_rbtree_node(handles, h);
 
-    object_acquire(*ho.obj); // needs to be within spinlock
+        if (!n || n->key != h)
+            return nullopt;
 
-    return *ho.obj;
+        auto& ho = rbtree_containing_record<handle_obj>(n);
+
+        object_acquire(*ho.obj); // needs to be within spinlock
+
+        return *ho.obj;
+    }
 }
 
 object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
@@ -2137,21 +2090,25 @@ object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
         return *this;
     }
 
-    lock_guard lock(handle_lock);
-
-    if (h == 0 || h > no_handles)
+    if (h == 0)
         return nullopt;
 
-    auto& ho = handle_arr[h - 1];
+    {
+        lock_guard lock(handle_lock);
 
-    if (!ho.obj)
-        return nullopt;
+        auto n = find_rbtree_node(handles, h);
 
-    object_acquire(*ho.obj); // needs to be within spinlock
+        if (!n || n->key != h)
+            return nullopt;
 
-    access_mask = ho.access_mask;
+        auto& ho = rbtree_containing_record<handle_obj>(n);
 
-    return *ho.obj;
+        object_acquire(*ho.obj); // needs to be within spinlock
+
+        access_mask = ho.access_mask;
+
+        return *ho.obj;
+    }
 }
 
 static uint32_t get_page_protection(process& proc, uint64_t va) {
@@ -2356,29 +2313,25 @@ NTSTATUS process::close_handle(handle_t h) {
     if (!h)
         return nt_status::INVALID_HANDLE;
 
-    object* obj;
+    handle_obj* ho;
 
     {
         lock_guard lock(handle_lock);
 
-        if (h > no_handles)
+        auto n = find_rbtree_node(handles, h);
+
+        if (!n || n->key != h)
             return nt_status::INVALID_HANDLE;
 
-        auto& ho = handle_arr[h - 1];
+        ho = &rbtree_containing_record<handle_obj>(n);
 
-        if (!ho.obj)
-            return nt_status::INVALID_HANDLE;
-
-        obj = ho.obj;
-
-        ho.obj = nullptr;
-
-        if (h == no_handles)
-            no_handles--;
+        remove_from_rbtree(handles, ho->tree);
     }
 
-    handle_closed(*obj);
-    object_release(*obj);
+    handle_closed(*ho->obj);
+    object_release(*ho->obj);
+
+    free(ho);
 
     return nt_status::SUCCESS;
 }

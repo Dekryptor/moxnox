@@ -5,6 +5,8 @@
 #include "handle.h"
 #include "rangelock.h"
 
+import rbtree;
+
 class section;
 
 class process : public sync_object {
@@ -69,9 +71,8 @@ public:
     enum nt_status exit_status = nt_status::PENDING;
     std::atomic<unsigned int> suspend_count;
     spinlock handle_lock;
-    unsigned int no_handles = 0;
-    unsigned int handle_arr_pages = 0;
-    handle_obj* handle_arr = nullptr;
+    handle_t last_handle = 0;
+    rbtree_node<handle_t>* handles = nullptr;
     PEB* peb = nullptr;
     RTL_USER_PROCESS_PARAMETERS* proc_params = nullptr;
     uintptr_t ntdll_addr, img_addr;
