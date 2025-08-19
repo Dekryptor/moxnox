@@ -8,7 +8,6 @@ import pipe;
 import chardev;
 import objects;
 #include "thread.h"
-#include "process.h"
 #include "acpica.h"
 #include "scheduler.h"
 #include <ioctl.h>
