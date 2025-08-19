@@ -21,7 +21,6 @@ set(SRC_FILES src/kernel.cpp
     src/scheduler.cpp
     src/handle.cpp
     src/process.cpp
-    src/section.cpp
     src/file.cpp
     src/thread.cpp
     src/power.cpp
@@ -72,6 +71,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/page_cache.cpp
     src/visit.cpp
     src/framebuffer.cpp
+    src/section.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list unicode rbtree vt100 cp437 evdev)

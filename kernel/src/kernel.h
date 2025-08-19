@@ -110,9 +110,6 @@ object_ref create_process(std::string_view fn, std::string_view curdir,
                           object_ref& stdoutobj, object_ref& stderrobj);
 void load_ntdll();
 
-// section.cpp
-uint64_t get_image_size(void* image);
-
 // thread.cpp
 thread* get_current_thread();
 object_ref add_kernel_thread(void (*func)());

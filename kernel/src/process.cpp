@@ -31,6 +31,7 @@ import rwsem;
 import smp;
 import visit;
 import unicode;
+import section;
 
 using namespace std;
 
@@ -61,10 +62,6 @@ static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS) == 0x440);
 static const size_t MAX_PATH = 260;
 
 static atomic<uintptr_t> next_pid = 1;
-
-// section.cpp (FIXME)
-nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
-                         size_t size, uint32_t page_protection, object_ref& ref);
 
 static spinlock process_list_lock;
 static rbtree_node<uintptr_t>* process_tree = nullptr;

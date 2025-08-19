@@ -1,3 +1,5 @@
+module;
+
 #include <variant>
 #include <shared_mutex>
 #include "kernel.h"
@@ -20,6 +22,8 @@ import volume;
 #include <pe.h>
 #include <utility>
 
+export module section;
+
 import format;
 import print;
 import mem;
@@ -32,8 +36,8 @@ import unicode;
 
 using namespace std;
 
-nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
-                         size_t size, uint32_t page_protection, object_ref& ref) {
+export nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
+                                size_t size, uint32_t page_protection, object_ref& ref) {
     auto sptr = new section;
     if (!sptr) {
         print("new failed\n");
@@ -124,6 +128,7 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 section::~section() {
     if (ino)
         ino->get().release();
@@ -194,6 +199,7 @@ static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FI
     return buf.subspan(end);
 }
 
+extern "C++"
 nt_status section::load_image() {
     if (!ino) {
         print("inode was NULL\n");
@@ -472,6 +478,7 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
     return funcs[*ord];
 }
 
+extern "C++"
 uint64_t section::find_export(string_view name) {
     if (type != section_type::image) {
         print("Not an image.\n");
@@ -585,6 +592,7 @@ uint64_t section::find_export(string_view name) {
     return ret;
 }
 
+extern "C"
 NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          const LARGE_INTEGER* maximum_size, uint32_t section_page_protection,
                          uint32_t allocation_attributes, HANDLE file_handle) {
@@ -673,6 +681,7 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void** base_address,
                             uintptr_t zero_bits, size_t commit_size, LARGE_INTEGER* section_offset,
                             size_t* view_size, enum SECTION_INHERIT inherit_disposition,
@@ -801,6 +810,7 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
                                   protect, cow);
 }
 
+extern "C"
 NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
     if (process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
@@ -827,6 +837,7 @@ NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
     }
 }
 
+extern "C++"
 NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_class, span<uint8_t> buf,
                              size_t* return_length) {
     if (custom_cache) {
@@ -876,6 +887,7 @@ NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_
     }
 }
 
+extern "C"
 NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
                         void* section_information, size_t section_information_length, size_t* return_length) {
     auto objrw = deref_handle(section_handle);
@@ -895,7 +907,7 @@ NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS se
                         return_length);
 }
 
-uint64_t get_image_size(void* image) {
+export uint64_t get_image_size(void* image) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)image;
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
@@ -927,6 +939,7 @@ uint64_t get_image_size(void* image) {
         return 0;
 }
 
+extern "C++"
 cache_variant section::get_cache() {
     switch (type) {
         case section_type::image:
@@ -943,6 +956,7 @@ cache_variant section::get_cache() {
     }
 }
 
+extern "C++"
 size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     auto& f = sect.ino->get();
     auto header_pages = bytes_to_pages(sect.size_of_headers);
@@ -1148,6 +1162,7 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
     return orig_num_pages;
 }
 
+extern "C++"
 size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
     // infinite anonymous sections are used for process VM
 
@@ -1185,6 +1200,7 @@ size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
     return read_pages;
 }
 
+extern "C++"
 nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
     return visit([&](auto* ptr) {
         if constexpr (cacheable_flushable<typename remove_pointer_t<decltype(ptr)>::dev_type>)
@@ -1194,6 +1210,7 @@ nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
     }, get_cache());
 }
 
+extern "C"
 NTSTATUS NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* object_attributes) {
     auto t = get_current_thread();
@@ -1263,6 +1280,7 @@ NTSTATUS NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 nt_status section::ioctl(uint32_t code, span<const uint8_t> inbuf,
                          span<uint8_t> outbuf, uintptr_t& written) {
     return visit([&](auto* ptr) {
