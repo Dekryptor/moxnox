@@ -1646,6 +1646,20 @@ NTSTATUS user_NtOpenProcess(HANDLE* us_process_handle, ACCESS_MASK desired_acces
 }
 
 extern "C"
+NTSTATUS user_NtDelayExecution(bool alertable,
+                               const LARGE_INTEGER* us_delay_interval) {
+    LARGE_INTEGER delay_interval;
+
+    if (us_delay_interval) {
+        if (!copy_from_process(&delay_interval, us_delay_interval, sizeof(LARGE_INTEGER)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    return NtDelayExecution(alertable,
+                            us_delay_interval ? &delay_interval : nullptr);
+}
+
+extern "C"
 void yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled
 

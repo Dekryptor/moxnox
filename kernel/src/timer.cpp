@@ -310,3 +310,10 @@ NTSTATUS NtCancelTimer(HANDLE timer_handle, bool* current_state) {
 
     return t.cancel(current_state);
 }
+
+extern "C"
+NTSTATUS NtDelayExecution(bool alertable, const LARGE_INTEGER* us_delay_interval) {
+    print("FIXME - NtDelayExecution\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

@@ -1278,4 +1278,5 @@ NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK desired_access,
 NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* object_attributes,
                        const CLIENT_ID* client_id);
+NTSTATUS NtDelayExecution(bool alertable, const LARGE_INTEGER* delay_interval);
 };
