@@ -36,6 +36,21 @@ import unicode;
 
 using namespace std;
 
+extern "C++"
+class image_section_cache {
+public:
+    image_section_cache(section& sect) : sect(sect) { }
+
+    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+
+    page_cache<image_section_cache> cache{*this};
+
+private:
+    section& sect;
+};
+
+static_assert(cacheable<image_section_cache>);
+
 export nt_status create_section(const optional<reference_wrapper<file>>& file, bool image,
                                 size_t size, uint32_t page_protection, object_ref& ref) {
     auto sptr = new section;
