@@ -1,6 +1,8 @@
 module;
 
-#include "kernel.h"
+#include <nt.h>
+#include <span>
+#include <string_view>
 import objects;
 
 export module chardev;
