@@ -604,7 +604,8 @@ public:
     uint32_t id;
 
 private:
-    unsigned int shift_count = 0, ctrl_count = 0;
+    bool left_shift = false, right_shift = false;
+    bool left_ctrl = false, right_ctrl = false;
     keyboard_leds leds;
 };
 
@@ -614,18 +615,32 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
                                                    HANDLE pipe) {
     auto idx = (unsigned int)ev.code;
 
-    if (ev.code == evdev_code::KEY_LEFTSHIFT || ev.code == evdev_code::KEY_RIGHTSHIFT) {
+    if (ev.code == evdev_code::KEY_LEFTSHIFT) {
         if (ev.value == 1) // key down
-            shift_count++;
+            left_shift = true;
         else if (ev.value == 0) // key up
-            shift_count--;
+            left_shift = false;
 
         return {};
-    } else if (ev.code == evdev_code::KEY_LEFTCTRL || ev.code == evdev_code::KEY_RIGHTCTRL) {
+    } else if (ev.code == evdev_code::KEY_RIGHTSHIFT) {
         if (ev.value == 1) // key down
-            ctrl_count++;
+            right_shift = true;
         else if (ev.value == 0) // key up
-            ctrl_count--;
+            right_shift = false;
+
+        return {};
+    } else if (ev.code == evdev_code::KEY_LEFTCTRL) {
+        if (ev.value == 1) // key down
+            left_ctrl = true;
+        else if (ev.value == 0) // key up
+            left_ctrl = false;
+
+        return {};
+    } else if (ev.code == evdev_code::KEY_RIGHTCTRL) {
+        if (ev.value == 1) // key down
+            right_ctrl = true;
+        else if (ev.value == 0) // key up
+            right_ctrl = false;
 
         return {};
     }
@@ -650,7 +665,7 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
         return {};
     }
 
-    bool holding_shift = shift_count != 0;
+    bool holding_shift = left_shift || right_shift;
 
     if (leds.caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
         holding_shift = !holding_shift;
@@ -660,7 +675,7 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
 
     u8string_view val;
 
-    if (ctrl_count != 0) {
+    if (left_ctrl || right_ctrl) {
         if (idx >= sizeof(codes_ctrl) / sizeof(*codes_ctrl))
             return {};
 
