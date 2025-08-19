@@ -312,8 +312,23 @@ NTSTATUS NtCancelTimer(HANDLE timer_handle, bool* current_state) {
 }
 
 extern "C"
-NTSTATUS NtDelayExecution(bool alertable, const LARGE_INTEGER* us_delay_interval) {
-    print("FIXME - NtDelayExecution\n"); // FIXME
+NTSTATUS NtDelayExecution(bool /*alertable*/, const LARGE_INTEGER* delay_interval) {
+    if (!delay_interval) {
+        print("FIXME - NtDelayExecution with NULL interval\n");
+        // FIXME - should wait forever?
+        return nt_status::INTERNAL_ERROR;
+    }
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - alertable
+
+    auto obj = create_timer(false);
+
+    auto& t = static_cast<timer&>(obj.get());
+
+    auto status = t.set(delay_interval->QuadPart, nullptr, nullptr, false,
+                        0, nullptr);
+    if (!success(status))
+        return status;
+
+    return wait_for_object(t, true);
 }
