@@ -67,7 +67,7 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
                          size_t size, uint32_t page_protection, object_ref& ref);
 
 static spinlock process_list_lock;
-static list_entry process_list = { &process_list, &process_list };
+static rbtree_node<uintptr_t>* process_tree = nullptr;
 
 // FIXME - 32-bit processes
 
@@ -350,7 +350,7 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto& p = *pptr;
 
-    p.pid = next_pid.fetch_add(1);
+    p.tree.key = next_pid.fetch_add(1);
 
     // create section for image
 
@@ -509,8 +509,10 @@ object_ref create_process(string_view fn, string_view curdir,
 
     {
         lock_guard lock(process_list_lock);
-        insert_tail_list(process_list, p.le);
+        insert_into_rbtree(process_tree, p.tree);
     }
+
+    p.added_to_tree = true;
 
     return p;
 }
@@ -576,9 +578,10 @@ static void free_page_tables(process& proc) {
 }
 
 process::~process() {
-    if (!is_list_empty(le)) {
+    // FIXME - race condition here with NtOpenProcess etc.
+    if (added_to_tree) {
         lock_guard lock(process_list_lock);
-        remove_entry_list(le);
+        remove_from_rbtree(process_tree, tree);
     }
 
     while (true) {
@@ -2413,7 +2416,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     auto& p = *pptr;
 
-    p.pid = next_pid.fetch_add(1);
+    p.tree.key = next_pid.fetch_add(1);
 
     p.img = img;
     img.acquire();
@@ -2460,8 +2463,10 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     {
         lock_guard lock(process_list_lock);
-        insert_tail_list(process_list, p.le);
+        insert_into_rbtree(process_tree, p.tree);
     }
+
+    p.added_to_tree = true;
 
     auto& curproc = *get_current_thread()->proc;
 
@@ -2719,7 +2724,7 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
             pbi.PebBaseAddress = peb;
             pbi.AffinityMask = 0xffffffff; // FIXME
             pbi.BasePriority = 0; // FIXME
-            pbi.UniqueProcessId = pid;
+            pbi.UniqueProcessId = tree.key;
             pbi.InheritedFromUniqueProcessId = 0; // FIXME
 
             if (return_length)
@@ -3299,15 +3304,20 @@ NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK /*desired_access*/,
     {
         lock_guard lock(process_list_lock);
 
-        if (!old_proc)
-            new_proc = &containing_record<process>(process_list.next);
-        else {
-            auto& p = static_cast<process&>(old_proc.get());
-
-            if (p.le.next == &process_list)
+        if (!old_proc) {
+            auto n = get_tree_minimum(process_tree);
+            if (!n)
                 return nt_status::NO_MORE_ENTRIES;
 
-            new_proc = &containing_record<process>(p.le.next);
+            new_proc = &rbtree_containing_record<process>(n);
+        } else {
+            auto& p = static_cast<process&>(old_proc.get());
+
+            auto n = next_rbtree_node(p.tree);
+            if (!n)
+                return nt_status::NO_MORE_ENTRIES;
+
+            new_proc = &rbtree_containing_record<process>(n);
         }
 
         new_proc->acquire();
@@ -3344,19 +3354,16 @@ NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
     {
         lock_guard lock(process_list_lock);
 
-        for (auto le = process_list.next; le != &process_list; le = le->next) {
-            auto& p = containing_record<process>(le);
+        auto n = find_rbtree_node(process_tree, client_id->UniqueProcess);
 
-            if (p.pid == client_id->UniqueProcess) {
-                p.acquire();
-                proc = p;
-                break;
-            }
-        }
+        if (!n || n->key != client_id->UniqueProcess)
+            return nt_status::INVALID_CID;
+
+        auto& p = rbtree_containing_record<process>(n);
+
+        p.acquire();
+        proc = p;
     }
-
-    if (!proc)
-        return nt_status::INVALID_CID;
 
     handle_t h;
 

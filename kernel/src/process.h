@@ -80,8 +80,8 @@ public:
     bool initialized = false;
     rangelock rl;
     std::atomic<uint64_t> running_cpus = 0;
-    uintptr_t pid;
-    list_entry le = { &le, &le };
+    rbtree_node<uintptr_t> tree;
+    bool added_to_tree = false;
 };
 
 static_assert(is_sync_object<process>);
