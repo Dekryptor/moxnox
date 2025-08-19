@@ -3326,8 +3326,6 @@ NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
         return status;
     }
 
-    static_cast<process&>(proc.get()).release();
-
     *process_handle = h;
 
     return nt_status::SUCCESS;
