@@ -1,8 +1,12 @@
 module;
 
 #include "kernel.h"
+#include <nt.h>
+#include <optional>
+#include <span>
 #include "cpu_block.h"
 import objects;
+import list;
 #include "thread.h"
 #include "rangelock.h"
 #include "scheduler.h"
