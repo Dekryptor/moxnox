@@ -2728,6 +2728,47 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
             return nt_status::SUCCESS;
         }
 
+        case PROCESSINFOCLASS::ImageFileName: {
+            RTL_USER_PROCESS_PARAMETERS* params;
+            UNICODE_STRING path_name;
+
+            auto status = read_vm(&peb->ProcessParameters, &params, sizeof(params), nullptr);
+            if (!success(status))
+                return status;
+
+            status = read_vm(&params->ImagePathName, &path_name, sizeof(path_name),
+                             nullptr);
+            if (!success(status))
+                return status;
+
+            auto len = (uint32_t)(sizeof(UNICODE_STRING) + path_name.Length + sizeof(char16_t));
+
+            if (buf.size() < len) {
+                if (return_length)
+                    *return_length = len;
+
+                return nt_status::INFO_LENGTH_MISMATCH;
+            }
+
+            auto& us = *(UNICODE_STRING*)buf.data();
+
+            memset(&us, 0, sizeof(us));
+            us.Length = path_name.Length;
+            us.MaximumLength = us.Length + sizeof(char16_t);
+            us.Buffer = (char16_t*)(buf.data() + sizeof(UNICODE_STRING));
+
+            status = read_vm(path_name.Buffer, us.Buffer, us.Length, nullptr);
+            if (!success(status))
+                return status;
+
+            us.Buffer[us.Length / sizeof(char16_t)] = 0;
+
+            if (return_length)
+                *return_length = len;
+
+            return nt_status::SUCCESS;
+        }
+
         default:
             print("process::query_info: unhandled info class {:x}\n",
                   (unsigned int)process_information_class);

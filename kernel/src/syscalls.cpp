@@ -992,14 +992,21 @@ NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOC
 
     if (success(status)) {
         if (retlen > 0) {
+            if (process_information_class == PROCESSINFOCLASS::ImageFileName) {
+                auto& us = *(UNICODE_STRING*)buf;
+
+                us.Buffer = (char16_t*)((uint8_t*)us.Buffer - (uint8_t*)buf +
+                                        (uint8_t*)process_information);
+            }
+
             if (!copy_to_process(process_information, buf, retlen))
                 status = nt_status::ACCESS_VIOLATION;
         }
+    }
 
-        if (return_length) {
-            if (!copy_to_process(return_length, &retlen, sizeof(uint32_t)))
-                status = nt_status::ACCESS_VIOLATION;
-        }
+    if (return_length) {
+        if (!copy_to_process(return_length, &retlen, sizeof(uint32_t)))
+            status = nt_status::ACCESS_VIOLATION;
     }
 
     if (process_information_length > 0)
