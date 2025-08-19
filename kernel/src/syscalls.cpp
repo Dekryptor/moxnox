@@ -1623,14 +1623,14 @@ NTSTATUS user_NtOpenProcess(HANDLE* us_process_handle, ACCESS_MASK desired_acces
     if (!us_process_handle || !object_attributes)
         return nt_status::INVALID_PARAMETER;
 
-    ret = copy_object_attributes(oa, us, object_attributes);
-    if (!success(ret))
-        return ret;
-
     if (us_client_id) {
         if (!copy_from_process(&client_id, us_client_id, sizeof(CLIENT_ID)))
             return nt_status::ACCESS_VIOLATION;
     }
+
+    ret = copy_object_attributes(oa, us, object_attributes);
+    if (!success(ret))
+        return ret;
 
     ret = NtOpenProcess(&process_handle, desired_access, &oa,
                         us_client_id ? &client_id : nullptr);
