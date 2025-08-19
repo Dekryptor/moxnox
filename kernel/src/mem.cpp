@@ -1132,7 +1132,7 @@ static void try_to_compact(uint64_t pfn) {
 }
 
 export void free_folio(uint64_t pa) {
-    auto pfn = pa >>= PAGE_SHIFT;
+    auto pfn = pa >> PAGE_SHIFT;
 
     lock_guard lock(pa_spinlock);
 
