@@ -1272,6 +1272,7 @@ void process::terminate() {
             }
 
             free_handle(handles);
+            handles = nullptr;
         }
     }
 }
