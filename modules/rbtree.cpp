@@ -109,7 +109,7 @@ template<typename KeyType>
 rbtree_node<KeyType>* get_tree_minimum(rbtree_node<KeyType>* root) {
     rbtree_node<KeyType>* ret = root;
 
-    while (ret->left) {
+    while (ret && ret->left) {
         ret = ret->left;
     }
 
