@@ -22,6 +22,36 @@ import bsod;
 
 using namespace std;
 
+static_assert(sizeof(AMD64_CONTEXT) == 0x4d0);
+
+static_assert(offsetof(AMD64_CONTEXT, ContextFlags) == CONTEXT_CONTEXT_FLAGS);
+static_assert(offsetof(AMD64_CONTEXT, MxCsr) == CONTEXT_MXCSR);
+static_assert(offsetof(AMD64_CONTEXT, Rax) == CONTEXT_RAX);
+static_assert(offsetof(AMD64_CONTEXT, Rcx) == CONTEXT_RCX);
+static_assert(offsetof(AMD64_CONTEXT, Rdx) == CONTEXT_RDX);
+static_assert(offsetof(AMD64_CONTEXT, Rbx) == CONTEXT_RBX);
+static_assert(offsetof(AMD64_CONTEXT, Rsp) == CONTEXT_RSP);
+static_assert(offsetof(AMD64_CONTEXT, Rbp) == CONTEXT_RBP);
+static_assert(offsetof(AMD64_CONTEXT, Rsi) == CONTEXT_RSI);
+static_assert(offsetof(AMD64_CONTEXT, Rdi) == CONTEXT_RDI);
+static_assert(offsetof(AMD64_CONTEXT, R8) == CONTEXT_R8);
+static_assert(offsetof(AMD64_CONTEXT, R9) == CONTEXT_R9);
+static_assert(offsetof(AMD64_CONTEXT, R10) == CONTEXT_R10);
+static_assert(offsetof(AMD64_CONTEXT, R11) == CONTEXT_R11);
+static_assert(offsetof(AMD64_CONTEXT, R12) == CONTEXT_R12);
+static_assert(offsetof(AMD64_CONTEXT, R13) == CONTEXT_R13);
+static_assert(offsetof(AMD64_CONTEXT, R14) == CONTEXT_R14);
+static_assert(offsetof(AMD64_CONTEXT, R15) == CONTEXT_R15);
+static_assert(offsetof(AMD64_CONTEXT, Rip) == CONTEXT_RIP);
+static_assert(offsetof(AMD64_CONTEXT, EFlags) == CONTEXT_EFLAGS);
+static_assert(offsetof(AMD64_CONTEXT, SegCs) == CONTEXT_CS);
+static_assert(offsetof(AMD64_CONTEXT, SegDs) == CONTEXT_DS);
+static_assert(offsetof(AMD64_CONTEXT, SegEs) == CONTEXT_ES);
+static_assert(offsetof(AMD64_CONTEXT, SegFs) == CONTEXT_FS);
+static_assert(offsetof(AMD64_CONTEXT, SegGs) == CONTEXT_GS);
+static_assert(offsetof(AMD64_CONTEXT, SegSs) == CONTEXT_SS);
+static_assert(offsetof(AMD64_CONTEXT, FltSave) == CONTEXT_FXSAVE); // must be aligned on 16-byte boundary
+
 static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_DS = 0x10;
 
