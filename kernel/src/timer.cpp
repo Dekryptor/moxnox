@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <atomic>
 import objects;
 #include "process.h"
 #include "thread.h"

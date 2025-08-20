@@ -3,6 +3,7 @@ module;
 #include "kernel.h"
 #include <span>
 #include <optional>
+#include <atomic>
 import objects;
 #include "process.h"
 import event;

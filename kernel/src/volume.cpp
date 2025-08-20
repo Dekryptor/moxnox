@@ -5,6 +5,7 @@ module;
 #include <span>
 #include <optional>
 #include <functional>
+#include <atomic>
 import objects;
 #include "spinlock.h"
 import rbtree;

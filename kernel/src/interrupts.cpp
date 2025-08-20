@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <atomic>
 #include <loaderblock.h>
 #include "acpica.h"
 import objects;

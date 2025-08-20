@@ -3,6 +3,7 @@ module;
 #include "kernel.h"
 #include <span>
 #include <functional>
+#include <atomic>
 import objects;
 #include "thread.h"
 #include "spinlock.h"

@@ -2,7 +2,6 @@
 
 #include <string_view>
 #include <cstring>
-#include <atomic>
 #include "nt.h"
 import list;
 

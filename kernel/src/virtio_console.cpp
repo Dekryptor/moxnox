@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <atomic>
 #include <ioctl.h>
 #include "handle.h"
 

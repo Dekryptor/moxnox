@@ -5,6 +5,7 @@
 #include "handle.h"
 #include "rangelock.h"
 #include <span>
+#include <atomic>
 
 import rbtree;
 

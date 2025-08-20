@@ -2,6 +2,7 @@ module;
 
 #include <span>
 #include <string_view>
+#include <atomic>
 #include "acpica.h"
 #include "kernel.h"
 #include "handle.h"

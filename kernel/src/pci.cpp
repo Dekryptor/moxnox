@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <atomic>
 #include "acpica.h"
 #include "pci.h"
 import objects;

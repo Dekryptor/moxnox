@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <atomic>
 #include "context_offsets.h"
 
 static_assert(sizeof(AMD64_CONTEXT) == 0x4d0);

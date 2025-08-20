@@ -2,6 +2,7 @@
 #include <version.h>
 #include "kernel.h"
 #include <span>
+#include <atomic>
 #include "context_offsets.h"
 import objects;
 #include "handle.h"
