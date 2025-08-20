@@ -1,3 +1,5 @@
+module;
+
 #include "kernel.h"
 #include "rangelock.h"
 #include "cpu_block.h"
@@ -17,6 +19,8 @@ import rangelock;
 #include <ntdll.h>
 #include "section.h"
 #include "scheduler.h"
+
+export module process;
 
 import print;
 import bsod;
@@ -41,7 +45,7 @@ struct handle_obj {
     uint32_t access_mask;
 };
 
-extern uint16_t last_tid; // FIXME
+extern "C++" uint16_t last_tid; // FIXME
 
 static rwsem ipi_lock;
 
@@ -53,7 +57,7 @@ static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
 section* ntdll = nullptr;
 
-uintptr_t mn_start_thread, mn_signal;
+static uintptr_t mn_start_thread;
 
 static_assert(sizeof(TEB) == 0x1818);
 static_assert(sizeof(PEB) == 0x388);
@@ -294,10 +298,9 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
     return true;
 }
 
-object_ref create_process(string_view fn, string_view curdir,
-                          u16string_view cmdline, object_ref& stdinobj,
-                          object_ref& stdoutobj,
-                          object_ref& stderrobj) {
+export  object_ref create_process(string_view fn, string_view curdir,
+                                  u16string_view cmdline, object_ref& stdinobj,
+                                  object_ref& stdoutobj, object_ref& stderrobj) {
     nt_status status;
     object_ref img_inode_ref, curdir_ref;
     unsigned int create_result;
@@ -514,6 +517,7 @@ object_ref create_process(string_view fn, string_view curdir,
     return p;
 }
 
+extern "C++"
 process::process() : sync_object(object_type::process, false) {
     auto s = new section;
     if (!s) {
@@ -574,6 +578,7 @@ static void free_page_tables(process& proc) {
     free_folio(proc.cr3);
 }
 
+extern "C++"
 process::~process() {
     // FIXME - race condition here with NtOpenProcess etc.
     if (added_to_tree) {
@@ -724,6 +729,7 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
     return true;
 }
 
+extern "C++"
 uintptr_t process::map_section(section& sect, uintptr_t address,
                                optional<int64_t> section_offset,
                                enum mapping_type protect, bool cow,
@@ -947,9 +953,11 @@ static HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
 }
 
 #ifdef __llvm__ // work around Clang *really* wanting exceptions to be enabled
+extern "C++"
 exception::~exception() {
 }
 
+extern "C++"
 const char* exception::what() const noexcept {
     return nullptr;
 }
@@ -1000,6 +1008,7 @@ static void send_page_tlb_ipi(process& proc, uint64_t va) {
     }
 }
 
+extern "C++"
 bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     page_fault_error_code ec;
 
@@ -1122,6 +1131,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     return ret;
 }
 
+extern "C++"
 bool process::allocate_cr3() {
     auto kernel_cr3 = get_cpu_block()->kernel_cr3;
 
@@ -1143,6 +1153,7 @@ bool process::allocate_cr3() {
     return true;
 }
 
+extern "C++"
 bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
     while (true) {
         auto m = find_mapping(*this, (uintptr_t)us_addr);
@@ -1169,6 +1180,7 @@ bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
     return false;
 }
 
+extern "C++"
 bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
     while (true) {
         auto m = find_mapping(*this, (uintptr_t)us_addr);
@@ -1195,7 +1207,7 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
     return false;
 }
 
-void load_ntdll() {
+export void load_ntdll() {
     nt_status status;
     object_ref inode_ref;
     unsigned int create_result;
@@ -1242,6 +1254,7 @@ static void free_handle(rbtree_node<handle_t>* tree) {
     free(&ho);
 }
 
+extern "C++"
 void process::terminate() {
     // wake up threads waiting for process to terminate
 
@@ -1277,6 +1290,7 @@ void process::terminate() {
     }
 }
 
+extern "C"
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     object_ref objrw;
     process* p;
@@ -1349,6 +1363,7 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 void process::resume() {
     if (--suspend_count != 0)
         return;
@@ -1369,6 +1384,7 @@ void process::resume() {
     }
 }
 
+extern "C"
 NTSTATUS NtResumeProcess(HANDLE proc_handle) {
     object_ref objrw;
     process* p;
@@ -1403,6 +1419,7 @@ NTSTATUS NtResumeProcess(HANDLE proc_handle) {
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 nt_status process::add_handle(object& obj, uint32_t access_mask,
                               bool allow_shared, handle_t& h) {
     // FIXME - reusing handles?
@@ -1433,6 +1450,7 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_size,
                               uint32_t allocation_type, enum mapping_type protect) {
     // FIXME - what are we supposed to do with zero_bits?
@@ -1572,6 +1590,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
                                  size_t* region_size, uint32_t allocation_type, uint32_t protect) {
     object_ref objrw;
@@ -1688,6 +1707,7 @@ static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
     }
 }
 
+extern "C++"
 NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t free_type) {
     if (!(free_type & (MEM_DECOMMIT | MEM_RELEASE)))
         return nt_status::INVALID_PARAMETER;
@@ -1738,6 +1758,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
                              uint32_t free_type) {
     object_ref objrw;
@@ -1771,6 +1792,7 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
     return p->free_vm(base_address, region_size, free_type);
 }
 
+extern "C++"
 mapping::mapping(process& proc, section& sect) : proc(proc), sect(sect) {
     sect.acquire();
 
@@ -1784,6 +1806,7 @@ mapping::mapping(process& proc, section& sect) : proc(proc), sect(sect) {
     }, sect.get_cache());
 }
 
+extern "C++"
 mapping::~mapping() {
     sect.release();
 
@@ -1801,6 +1824,7 @@ mapping::~mapping() {
     }, sect.get_cache());
 }
 
+extern "C++"
 bool mapping::map(uint32_t mapping_offset, uint64_t va) {
     uint64_t page_num = mapping_offset >> PAGE_SHIFT;
     uint64_t sect_page_num = page_num + (offset >> PAGE_SHIFT);
@@ -1841,6 +1865,7 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
     }, sect.get_cache());
 }
 
+extern "C++"
 bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
@@ -1898,6 +1923,7 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     return true;
 }
 
+extern "C++"
 bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
@@ -2060,6 +2086,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     return true;
 }
 
+extern "C++"
 object_ref process::deref_handle(handle_t h) {
     if (h == NtCurrentProcess()) {
         this->acquire();
@@ -2085,6 +2112,7 @@ object_ref process::deref_handle(handle_t h) {
     }
 }
 
+extern "C++"
 object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
     if (h == NtCurrentProcess()) {
         this->acquire();
@@ -2233,6 +2261,7 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
                                 uint32_t new_prot, uint32_t* old_prot) {
     enum mapping_type prot;
@@ -2310,6 +2339,7 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
     return protect_vm(*p, base_address, region_size, prot, cow, *old_prot);
 }
 
+extern "C++"
 NTSTATUS process::close_handle(handle_t h) {
     if (!h)
         return nt_status::INVALID_HANDLE;
@@ -2337,6 +2367,7 @@ NTSTATUS process::close_handle(handle_t h) {
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintptr_t, size_t,
                                       optional<int64_t> section_offset, size_t& view_size,
                                       enum SECTION_INHERIT, uint32_t,
@@ -2362,6 +2393,7 @@ NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintpt
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 NTSTATUS process::unmap_view_of_section(void* base_address) {
     auto m = find_mapping(*this, (uintptr_t)base_address);
     if (!m)
@@ -2378,6 +2410,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          HANDLE, bool, HANDLE section_handle, HANDLE, HANDLE) {
     object_ref sect;
@@ -2482,6 +2515,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
                            HANDLE* target_handle, ACCESS_MASK desired_access, uint32_t, uint32_t options) {
     object_ref srcprocobj, destprocobj;
@@ -2568,6 +2602,7 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 NTSTATUS process::read_vm(void* base_address, void* buffer, uint32_t buffer_size,
                           uint32_t* number_of_bytes_read) {
     uint32_t copied = 0;
@@ -2605,6 +2640,7 @@ NTSTATUS process::read_vm(void* base_address, void* buffer, uint32_t buffer_size
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
                              uint32_t* number_of_bytes_read) {
     object_ref objrw;
@@ -2638,6 +2674,7 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
     return p->read_vm(base_address, buffer, buffer_size, number_of_bytes_read);
 }
 
+extern "C++"
 NTSTATUS process::write_vm(void* base_address, const void* buffer,
                            uint32_t buffer_size, uint32_t* number_of_bytes_written) {
     uint32_t copied = 0;
@@ -2675,6 +2712,7 @@ NTSTATUS process::write_vm(void* base_address, const void* buffer,
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const void* buffer,
                               uint32_t buffer_size, uint32_t* number_of_bytes_written) {
     object_ref objrw;
@@ -2708,6 +2746,7 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const v
     return p->write_vm(base_address, buffer, buffer_size, number_of_bytes_written);
 }
 
+extern "C++"
 NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
     switch (process_information_class) {
@@ -2778,6 +2817,7 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
     }
 }
 
+extern "C"
 NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
                                    void* process_information, uint32_t process_information_length,
                                    uint32_t* return_length) {
@@ -2813,6 +2853,7 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
                          return_length);
 }
 
+extern "C++"
 object_ref process::get_stderr() {
     PEB peb;
     RTL_USER_PROCESS_PARAMETERS params;
@@ -2826,6 +2867,7 @@ object_ref process::get_stderr() {
     return this->deref_handle(params.StandardError);
 }
 
+extern "C++"
 NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_handle, ACCESS_MASK,
                                 const OBJECT_ATTRIBUTES*, CLIENT_ID& client_id,
                                 const CONTEXT& thread_context,
@@ -3004,10 +3046,12 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     return nt_status::SUCCESS;
 }
 
+extern "C++"
 nt_status mapping::flush(uint64_t offset, uint64_t size) {
     return sect.flush((this->offset + offset) >> PAGE_SHIFT, size >> PAGE_SHIFT);
 }
 
+extern "C++"
 nt_status process::flush_vm(void** base_address, size_t* region_size) {
     auto addr = (uint64_t)*base_address;
 
@@ -3039,6 +3083,7 @@ nt_status process::flush_vm(void** base_address, size_t* region_size) {
     return ret;
 }
 
+extern "C"
 NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
                               size_t* region_size, IO_STATUS_BLOCK* iosb) {
     object_ref objrw;
@@ -3074,6 +3119,7 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
     return p->flush_vm(base_address, region_size);
 }
 
+extern "C++"
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     // clear write bit
 
@@ -3162,6 +3208,7 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     }
 }
 
+extern "C++"
 nt_status process::get_next_thread(thread* threadptr, ACCESS_MASK /*desired_access*/,
                                    uint32_t /*handle_attributes*/, uint32_t /*flags*/,
                                    HANDLE* new_thread_handle) {
@@ -3203,6 +3250,7 @@ nt_status process::get_next_thread(thread* threadptr, ACCESS_MASK /*desired_acce
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                          ACCESS_MASK desired_access, uint32_t handle_attributes,
                          uint32_t flags, HANDLE* new_thread_handle) {
@@ -3268,6 +3316,7 @@ NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                              flags, new_thread_handle);
 }
 
+extern "C"
 NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK /*desired_access*/,
                           ULONG /*handle_attributes*/, ULONG /*flags*/,
                           HANDLE* new_process_handle) {
@@ -3336,6 +3385,7 @@ NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK /*desired_access*/,
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* /*object_attributes*/,
                        const CLIENT_ID* client_id) {

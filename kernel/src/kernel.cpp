@@ -28,6 +28,7 @@ import evdev;
 import keyboard;
 import unicode;
 import section;
+import process;
 
 using namespace std;
 
@@ -42,6 +43,7 @@ bool init_smp_finished = false;
 static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
 bool shutting_down = false;
+uintptr_t mn_signal;
 
 void (*_printk)(string_view s) = early_print;
 
