@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include "timer-asm.h"
 #include <span>
 #include <optional>
 #include "cpu_block.h"

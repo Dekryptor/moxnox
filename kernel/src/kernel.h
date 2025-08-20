@@ -39,13 +39,6 @@ extern uint64_t rsdp_pa;
 extern bool shutting_down;
 extern uintptr_t mn_signal;
 
-// timer.S
-extern "C" void timer_isr();
-extern "C" void timer_isr_ap();
-extern "C" void yield();
-extern "C" void acquire_sync_lock();
-extern "C" void release_sync_lock();
-
 class object_ref;
 
 // thread.cpp

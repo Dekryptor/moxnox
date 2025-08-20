@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include "timer-asm.h"
 #include <nt.h>
 #include <optional>
 #include <span>

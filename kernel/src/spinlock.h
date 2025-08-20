@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include "timer-asm.h"
 
 template<unsigned CR8>
 class _spinlock {
