@@ -5,6 +5,7 @@ module;
 #include "kernel.h"
 #include <span>
 #include <optional>
+#include <functional>
 #include "spinlock.h"
 import page_cache;
 import objects;

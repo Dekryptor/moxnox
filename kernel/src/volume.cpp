@@ -4,6 +4,7 @@ module;
 #include "kernel.h"
 #include <span>
 #include <optional>
+#include <functional>
 import objects;
 #include "spinlock.h"
 import rbtree;
