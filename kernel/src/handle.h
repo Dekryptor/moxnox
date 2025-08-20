@@ -1,5 +1,7 @@
 #pragma once
 
+class object;
+
 class object_ref {
 public:
     object_ref() = default;

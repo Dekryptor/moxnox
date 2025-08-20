@@ -11,7 +11,6 @@
 import list;
 
 class thread;
-class object;
 
 #define offsetofend(TYPE, MEMBER) (offsetof(TYPE, MEMBER) + sizeof(((TYPE *)0)->MEMBER))
 

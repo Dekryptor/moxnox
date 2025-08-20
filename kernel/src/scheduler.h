@@ -1,5 +1,7 @@
 #pragma once
 
+class object;
+
 // scheduler.cpp
 extern list_entry thread_list, thread_list_dead;
 extern "C" void scheduler();
