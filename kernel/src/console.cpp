@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <loaderblock.h>
 #include "spinlock.h"
 import objects;
 #include "handle.h"
