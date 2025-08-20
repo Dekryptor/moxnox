@@ -3,6 +3,7 @@
 #include "spinlock.h"
 #include "cpu_block.h"
 #include "scheduler.h"
+#include "ints.h"
 import chardev;
 
 import format;

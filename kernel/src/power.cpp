@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "acpica.h"
 #include "scheduler.h"
+#include "ints.h"
 import objects;
 import event;
 import pipe;

@@ -11,6 +11,7 @@ import objects;
 #include <span>
 #include <optional>
 #include <functional>
+#include "ints.h"
 
 export module interrupts;
 
