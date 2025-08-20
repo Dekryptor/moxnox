@@ -65,6 +65,8 @@ volatile uint64_t timer_count;
 
 uint32_t apic_timer_freq;
 
+export const uint32_t PIT_HZ = 1193182;
+
 export extern "C" {
     list_entry active_timer_list = { &active_timer_list, &active_timer_list };
 
@@ -72,7 +74,6 @@ export extern "C" {
     volatile int64_t system_time = 0;
     uint64_t system_time_offset = 0;
 }
-
 
 export void init_lapic_timer(bool ap) {
     if (ap) {
