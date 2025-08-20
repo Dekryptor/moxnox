@@ -2,7 +2,6 @@ module;
 
 #include <variant>
 #include <ioctl.h>
-#include "kernel.h"
 #include <nt.h>
 #include <span>
 #include <optional>

@@ -40,6 +40,8 @@ public:
     bool done = false;
 };
 
+class thread;
+
 struct multiple_wait_block {
     thread* t;
     std::atomic<unsigned int> left;

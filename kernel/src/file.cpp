@@ -1,4 +1,3 @@
-#include "kernel.h"
 #include <span>
 #include "handle.h"
 #include "spinlock.h"
