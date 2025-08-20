@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <string_view>
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "handle.h"

@@ -3,6 +3,7 @@ module;
 #include <utility>
 #include "kernel.h"
 #include <optional>
+#include <string_view>
 #include "xhci.h"
 #include "spinlock.h"
 #include "tick_rate.h"

@@ -3,6 +3,7 @@ module;
 #include "kernel.h"
 #include <span>
 #include <atomic>
+#include <string_view>
 #include <ioctl.h>
 #include "handle.h"
 

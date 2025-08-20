@@ -1,6 +1,7 @@
 #pragma once
 
 #include <variant>
+#include <string_view>
 #include "spinlock.h"
 
 enum class section_type {

@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include <string_view>
 #include "acpica.h"
 #include "scheduler.h"
 #include "ints.h"

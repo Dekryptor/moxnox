@@ -4,6 +4,7 @@ module;
 #include <span>
 #include <optional>
 #include <atomic>
+#include <string_view>
 import objects;
 #include "process.h"
 import event;

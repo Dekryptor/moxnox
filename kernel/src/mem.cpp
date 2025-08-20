@@ -2,6 +2,7 @@ module;
 
 #include <loaderblock.h>
 #include "kernel.h"
+#include <string_view>
 #include "acpica.h"
 #include "mem.h"
 #include "spinlock.h"

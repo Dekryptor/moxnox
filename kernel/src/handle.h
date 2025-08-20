@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <functional>
+#include <string_view>
 
 class object;
 

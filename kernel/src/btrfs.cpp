@@ -5,6 +5,7 @@ module;
 #include "kernel.h"
 #include <span>
 #include <optional>
+#include <string_view>
 import objects;
 #include "crc32c.h"
 #include "tick_rate.h"

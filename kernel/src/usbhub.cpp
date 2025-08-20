@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <string_view>
 #include "tick_rate.h"
 #include "scheduler.h"
 #include <span>

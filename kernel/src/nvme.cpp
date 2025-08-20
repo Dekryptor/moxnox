@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <string_view>
 #include <shared_mutex>
 #include "handle.h"
 #include "spinlock.h"

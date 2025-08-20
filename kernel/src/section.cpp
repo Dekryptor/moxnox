@@ -5,6 +5,7 @@ module;
 #include "kernel.h"
 #include <span>
 #include <optional>
+#include <string_view>
 #include "handle.h"
 #include "spinlock.h"
 import rbtree;

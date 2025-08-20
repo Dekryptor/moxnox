@@ -6,6 +6,7 @@ module;
 #include <span>
 #include <optional>
 #include <functional>
+#include <string_view>
 #include "spinlock.h"
 import page_cache;
 import objects;

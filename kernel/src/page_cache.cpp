@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <string.h>
 #include "spinlock.h"
 #include "rangelock.h"
 import rbtree;

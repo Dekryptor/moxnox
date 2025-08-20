@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <string_view>
 #include "handle.h"
 #include "cpu_block.h"
 import event;

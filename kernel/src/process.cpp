@@ -3,6 +3,7 @@ module;
 #include "kernel.h"
 #include <span>
 #include <optional>
+#include <string_view>
 #include "rangelock.h"
 #include "cpu_block.h"
 import objects;

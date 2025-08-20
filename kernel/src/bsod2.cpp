@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include <optional>
 #include <source_location>
+#include <string_view>
 #include "spinlock.h"
 #include "cpu_block.h"
 #include "scheduler.h"

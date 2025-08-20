@@ -4,6 +4,7 @@ module;
 #include "kernel.h"
 #include <span>
 #include <optional>
+#include <string_view>
 import objects;
 #include "handle.h"
 #include "spinlock.h"
