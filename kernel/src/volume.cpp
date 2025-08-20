@@ -14,6 +14,7 @@ import rwsem;
 #include "inode.h"
 #include "handle.h"
 import page_cache;
+import guid;
 #include "volume.h"
 #include "scheduler.h"
 

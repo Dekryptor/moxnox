@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string_view>
-#include <cstring>
 #include "nt.h"
 
 class thread;
@@ -33,19 +32,6 @@ enum class mapping_type {
     write_combine,
     reserved
 };
-
-struct guid {
-    uint32_t data1;
-    uint16_t data2;
-    uint16_t data3;
-    uint8_t data4[8];
-
-    bool operator==(const guid& rhs) const noexcept {
-        return !memcmp(this, &rhs, sizeof(guid));
-    }
-};
-
-static_assert(sizeof(guid) == 16);
 
 class module_init {
 public:

@@ -73,6 +73,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/section.cpp
     src/process.cpp
     src/image.cpp
+    src/guid.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list unicode rbtree vt100 cp437 evdev)
