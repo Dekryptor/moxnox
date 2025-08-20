@@ -3,6 +3,7 @@ module;
 #include <charconv>
 #include "kernel.h"
 #include <span>
+#include <optional>
 import objects;
 #include "spinlock.h"
 import rbtree;

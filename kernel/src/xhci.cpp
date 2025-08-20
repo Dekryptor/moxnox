@@ -2,6 +2,7 @@ module;
 
 #include <utility>
 #include "kernel.h"
+#include <optional>
 #include "xhci.h"
 #include "spinlock.h"
 #include "tick_rate.h"

@@ -4,6 +4,7 @@ module;
 #include <ioctl.h>
 #include "kernel.h"
 #include <span>
+#include <optional>
 #include "spinlock.h"
 import page_cache;
 import objects;

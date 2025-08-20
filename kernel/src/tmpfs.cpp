@@ -3,6 +3,7 @@ module;
 #include <shared_mutex>
 #include "kernel.h"
 #include <span>
+#include <optional>
 import objects;
 #include "handle.h"
 #include "spinlock.h"

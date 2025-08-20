@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <optional>
 #include <charconv>
 #include "handle.h"
 #include "spinlock.h"

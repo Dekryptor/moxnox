@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <optional>
 #include "acpica.h"
 #include "virtio.h"
 #include "spinlock.h"

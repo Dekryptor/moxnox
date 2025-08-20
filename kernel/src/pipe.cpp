@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <optional>
 import objects;
 #include "process.h"
 import event;

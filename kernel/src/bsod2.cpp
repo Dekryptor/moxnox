@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include <optional>
 #include <source_location>
 #include "spinlock.h"
 #include "cpu_block.h"

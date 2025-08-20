@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include <span>
+#include <optional>
 #include "spinlock.h"
 import objects;
 #include "process.h"

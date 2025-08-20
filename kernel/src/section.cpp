@@ -4,6 +4,7 @@ module;
 #include <shared_mutex>
 #include "kernel.h"
 #include <span>
+#include <optional>
 #include "handle.h"
 #include "spinlock.h"
 import rbtree;

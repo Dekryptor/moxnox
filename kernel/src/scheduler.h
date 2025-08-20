@@ -1,6 +1,7 @@
 #pragma once
 
 #include <span>
+#include <optional>
 
 class object;
 

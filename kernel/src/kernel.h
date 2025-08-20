@@ -4,7 +4,6 @@
 #include <cstring>
 #include <atomic>
 #include <functional>
-#include <optional>
 #include <loaderblock.h>
 #include "nt.h"
 import list;

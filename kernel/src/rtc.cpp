@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <optional>
 #include <chrono>
 
 export module rtc;

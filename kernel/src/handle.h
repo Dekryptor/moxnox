@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 class object;
 
 class object_ref {

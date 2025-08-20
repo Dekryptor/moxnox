@@ -2,6 +2,7 @@ module;
 
 #include "kernel.h"
 #include <span>
+#include <optional>
 #include "rangelock.h"
 #include "cpu_block.h"
 import objects;
