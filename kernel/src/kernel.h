@@ -53,19 +53,6 @@ struct guid {
 
 static_assert(sizeof(guid) == 16);
 
-struct kernel_image {
-    list_entry le;
-    void* base_address;
-    uint64_t size;
-    std::span<const uint8_t> debug_info;
-    std::span<const uint8_t> debug_abbrev;
-    std::span<const uint8_t> debug_rnglists;
-    std::span<const uint8_t> debug_str;
-    std::span<const uint8_t> debug_addr;
-    std::span<const uint8_t> debug_str_offsets;
-    char name[0];
-};
-
 class module_init {
 public:
     module_init(void (*func)()) {
@@ -75,7 +62,6 @@ public:
 
 // kernel.cpp
 extern std::string_view cmdline;
-extern list_entry kernel_images;
 extern uint64_t rsdp_pa;
 extern bool init_smp_finished;
 extern bool shutting_down;

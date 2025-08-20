@@ -14,25 +14,11 @@ import interrupts;
 import smp;
 import pipe;
 import console;
+import image;
 
 using namespace std;
 
 static spinlock bsod_lock;
-
-static kernel_image* get_kernel_image_from_address(uint64_t addr) {
-    auto le = kernel_images.next;
-
-    while (le != &kernel_images) {
-        auto& ent = containing_record<kernel_image>(le);
-
-        if (addr >= (uintptr_t)ent.base_address && addr < (uintptr_t)ent.base_address + ent.size)
-            return &ent;
-
-        le = le->next;
-    }
-
-    return nullptr;
-}
 
 static void print_rip(chardev& p, uint64_t rip) {
     auto& cb = *get_cpu_block();

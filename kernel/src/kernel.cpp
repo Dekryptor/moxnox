@@ -29,15 +29,14 @@ import keyboard;
 import unicode;
 import section;
 import process;
+import image;
 
 using namespace std;
 
 extern uint64_t __CTOR_LIST__;
-extern uint8_t __image_base__;
 
 static char cmdline_arr[255];
 string_view cmdline;
-list_entry kernel_images = { &kernel_images, &kernel_images };
 uint64_t rsdp_pa;
 bool init_smp_finished = false;
 static loader_block_framebuffer lb_fb;
@@ -253,35 +252,6 @@ void main_thread() {
     auto& init_process = static_cast<process&>(init.get());
 
     bsod_format("init process died (exit code {})", init_process.exit_status);
-}
-
-static void init_images_list(span<const uint8_t> debug_info,
-                             span<const uint8_t> debug_abbrev,
-                             span<const uint8_t> debug_rnglists,
-                             span<const uint8_t> debug_str,
-                             span<const uint8_t> debug_addr,
-                             span<const uint8_t> debug_str_offsets) {
-    const char kernel_name[] = "kernel.exe";
-
-    uint64_t kernel_size = get_image_size(&__image_base__);
-    if (kernel_size == 0)
-        bsod("get_image_size failed for kernel");
-
-    auto img = (struct kernel_image*)malloc(offsetof(struct kernel_image, name) + sizeof(kernel_name));
-    if (!img)
-        bsod("malloc failed");
-
-    img->base_address = &__image_base__;
-    img->size = kernel_size;
-    img->debug_info = debug_info;
-    img->debug_abbrev = debug_abbrev;
-    img->debug_rnglists = debug_rnglists;
-    img->debug_str = debug_str;
-    img->debug_addr = debug_addr;
-    img->debug_str_offsets = debug_str_offsets;
-    memcpy(img->name, kernel_name, sizeof(kernel_name));
-
-    insert_tail_list(kernel_images, img->le);
 }
 
 // FIXME - should be in string module, but currently ICEs GCC 15 if placed there
