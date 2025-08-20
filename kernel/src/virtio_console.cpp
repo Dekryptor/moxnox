@@ -16,6 +16,7 @@ import format;
 import serial;
 import pci;
 import virtio;
+import list;
 
 using namespace std;
 

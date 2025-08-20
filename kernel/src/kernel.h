@@ -3,7 +3,6 @@
 #include <string_view>
 #include <cstring>
 #include "nt.h"
-import list;
 
 class thread;
 

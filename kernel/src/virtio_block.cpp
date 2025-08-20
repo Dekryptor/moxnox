@@ -18,6 +18,7 @@ import virtio;
 import config;
 import mem;
 import rwsem;
+import list;
 
 using namespace std;
 

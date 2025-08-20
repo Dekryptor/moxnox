@@ -4,6 +4,8 @@
 #include <atomic>
 #include "context_offsets.h"
 
+import list;
+
 static_assert(sizeof(AMD64_CONTEXT) == 0x4d0);
 
 static_assert(offsetof(AMD64_CONTEXT, ContextFlags) == CONTEXT_CONTEXT_FLAGS);
