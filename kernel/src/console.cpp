@@ -33,6 +33,7 @@ import framebuffer;
 import vt100;
 import chardev;
 import cp437;
+import cmdline;
 
 using namespace std;
 

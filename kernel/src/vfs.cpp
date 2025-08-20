@@ -26,6 +26,7 @@ import list;
 import string;
 import unicode;
 import guid;
+import cmdline;
 
 using namespace std;
 

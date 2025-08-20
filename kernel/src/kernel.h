@@ -41,7 +41,6 @@ public:
 };
 
 // kernel.cpp
-extern std::string_view cmdline;
 extern uint64_t rsdp_pa;
 extern bool shutting_down;
 extern uintptr_t mn_signal;
@@ -60,33 +59,6 @@ thread* get_current_thread();
 object_ref add_kernel_thread(void (*func)());
 object_ref add_kernel_thread(void (*func)(void*), void* param);
 object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);
-
-template<typename T>
-concept cmdline_func = std::invocable<T, std::string_view> &&
-requires(T t, std::string_view s) { { t(s) } -> std::convertible_to<bool>; };
-
-static void loop_through_cmdline(cmdline_func auto func) {
-    std::string_view s = cmdline;
-
-    while (true) {
-        if (auto c = s.find_first_not_of(' '); c != std::string_view::npos) {
-            s.remove_prefix(c);
-        }
-
-        if (s.empty())
-            break;
-
-        if (auto c = s.find_first_of(' '); c != std::string_view::npos) {
-            if (!func(std::string_view(s.data(), c)))
-                break;
-
-            s.remove_prefix(c);
-        } else {
-            func(s);
-            break;
-        }
-    }
-}
 
 #ifdef NDEBUG
 #define assert(_Expression) ((void)0)

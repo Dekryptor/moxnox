@@ -33,13 +33,13 @@ import unicode;
 import section;
 import process;
 import image;
+import cmdline;
 
 using namespace std;
 
 extern uint64_t __CTOR_LIST__;
 
 static char cmdline_arr[255];
-string_view cmdline;
 uint64_t rsdp_pa;
 static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
