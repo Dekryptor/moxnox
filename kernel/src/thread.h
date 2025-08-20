@@ -1,5 +1,6 @@
 #pragma once
 
+#include <nt.h>
 #include <cstdint>
 #include <atomic>
 #include "context_offsets.h"

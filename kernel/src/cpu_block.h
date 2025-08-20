@@ -2,6 +2,7 @@
 
 #include "context_offsets.h"
 #include <atomic>
+#include <nt.h>
 
 class thread;
 

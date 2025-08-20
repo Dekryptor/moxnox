@@ -1,5 +1,6 @@
 #pragma once
 
+#include <nt.h>
 #include <span>
 #include <optional>
 

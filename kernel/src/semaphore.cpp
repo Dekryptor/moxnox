@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <nt.h>
 #include <span>
 #include <functional>
 #include <atomic>

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <nt.h>
+
 import list;
 
 enum class inode_type : uint8_t {

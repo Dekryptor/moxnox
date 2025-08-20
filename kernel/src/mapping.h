@@ -1,5 +1,7 @@
 #pragma once
 
+#include <nt.h>
+
 class process;
 class section;
 

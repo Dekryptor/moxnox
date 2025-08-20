@@ -1,5 +1,6 @@
 #pragma once
 
+#include <nt.h>
 #include <optional>
 #include <functional>
 #include <string_view>

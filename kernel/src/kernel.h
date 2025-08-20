@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nt.h"
+#include <stdint.h>
 
 class thread;
 

@@ -2,6 +2,7 @@ module;
 
 #include <charconv>
 #include "kernel.h"
+#include <nt.h>
 #include <span>
 #include <optional>
 #include <functional>
