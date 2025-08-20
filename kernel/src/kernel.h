@@ -12,8 +12,6 @@ static const uint8_t halt_interrupt = 0x60;
 static const uint8_t invalidate_tlb_interrupt = 0x21;
 static const uint8_t spurious_interrupt = 0xff;
 
-using handle_t = uint64_t;
-
 enum class mapping_type {
     no_access,
     read_write,

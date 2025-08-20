@@ -5,6 +5,8 @@
 #include <functional>
 #include <string_view>
 
+using handle_t = uint64_t;
+
 class object;
 
 class object_ref {
