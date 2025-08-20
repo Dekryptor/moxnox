@@ -40,7 +40,6 @@ extern uint64_t __CTOR_LIST__;
 static char cmdline_arr[255];
 string_view cmdline;
 uint64_t rsdp_pa;
-bool init_smp_finished = false;
 static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
 bool shutting_down = false;
@@ -229,8 +228,6 @@ void main_thread() {
 
         apic_ids[0] = current_cpu_id();
     }
-
-    init_smp_finished = true;
 
     protect_kernel_pages();
 

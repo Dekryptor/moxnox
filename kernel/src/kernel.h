@@ -58,7 +58,6 @@ public:
 // kernel.cpp
 extern std::string_view cmdline;
 extern uint64_t rsdp_pa;
-extern bool init_smp_finished;
 extern bool shutting_down;
 extern uintptr_t mn_signal;
 
