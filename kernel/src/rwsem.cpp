@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <span>
 #include "cpu_block.h"
 import objects;
 #include "thread.h"

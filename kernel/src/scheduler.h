@@ -1,5 +1,7 @@
 #pragma once
 
+#include <span>
+
 class object;
 
 // scheduler.cpp

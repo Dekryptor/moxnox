@@ -3,6 +3,7 @@ module;
 #include <variant>
 #include <ioctl.h>
 #include "kernel.h"
+#include <span>
 #include "spinlock.h"
 import page_cache;
 import objects;

@@ -5,7 +5,6 @@
 #include <atomic>
 #include <functional>
 #include <optional>
-#include <span>
 #include <loaderblock.h>
 #include "nt.h"
 import list;

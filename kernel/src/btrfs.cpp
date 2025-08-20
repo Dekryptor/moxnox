@@ -3,6 +3,7 @@ module;
 #include <shared_mutex>
 #include <variant>
 #include "kernel.h"
+#include <span>
 import objects;
 #include "crc32c.h"
 #include "tick_rate.h"

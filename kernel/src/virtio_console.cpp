@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <span>
 #include <ioctl.h>
 #include "handle.h"
 

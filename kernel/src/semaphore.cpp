@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <span>
 import objects;
 #include "thread.h"
 #include "spinlock.h"

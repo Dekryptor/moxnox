@@ -1,6 +1,7 @@
 #include <loaderblock.h>
 #include <version.h>
 #include "kernel.h"
+#include <span>
 #include "context_offsets.h"
 import objects;
 #include "handle.h"

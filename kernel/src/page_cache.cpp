@@ -1,6 +1,7 @@
 module;
 
 #include "kernel.h"
+#include <span>
 #include "spinlock.h"
 #include "rangelock.h"
 import rbtree;

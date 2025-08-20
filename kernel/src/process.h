@@ -4,6 +4,7 @@
 #include "context_offsets.h"
 #include "handle.h"
 #include "rangelock.h"
+#include <span>
 
 import rbtree;
 
