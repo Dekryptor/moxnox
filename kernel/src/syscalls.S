@@ -887,26 +887,15 @@ syscall_handler:
     cli
 
 Lafter_syscall:
-    # check if thread is now dead
-    mov rdx, gs:GS_CURRENT_THREAD
-    mov edx, DWORD PTR [rdx + THREAD_STATUS]
-    cmp edx, ENUM_THREAD_STATUS_DEAD
-    jne 0f
+    push rax
+    call acquire_sync_lock
 
-    xor rcx, rcx # FIXME - do we really need this?
-    call yield_after_syscall
+    mov rcx, [rsp]
+    call maybe_yield
 
-0:
-    # check for pending suspend
-    mov rdx, gs:GS_CURRENT_THREAD
-    mov edx, DWORD PTR [rdx + THREAD_SUSPEND_COUNT]
-    cmp edx, 0
-    je 1f
+    call release_sync_lock
+    pop rax
 
-    mov rcx, rax
-    call yield_after_syscall
-
-1:
     # mark thread as running user code
     mov rdx, gs:GS_CURRENT_THREAD
     mov BYTE PTR [rdx + THREAD_KERNEL_MODE], 0

@@ -8,6 +8,7 @@ module;
 import event;
 import objects;
 #include "process.h"
+#include "thread.h"
 #include "scheduler.h"
 
 export module syscalls;
@@ -1669,20 +1670,20 @@ NTSTATUS user_NtDelayExecution(bool alertable,
 }
 
 extern "C"
-void yield_after_syscall(uint64_t syscall_ret) {
-    // interrupts are disabled
-
-    acquire_sync_lock();
+void maybe_yield(uint64_t syscall_ret) {
+    // interrupts are disabled and sync_lock held
 
     auto& cb = *get_cpu_block();
+    auto& t = *cb.current_thread;
 
-    auto& t = *get_current_thread();
+    if (t.status != thread_status::dead && t.suspend_count == 0)
+        return;
 
     memcpy(&cb.thread_context, &t.syscall_context, sizeof(CONTEXT));
     cb.thread_context.Rax = syscall_ret;
     t.kernel_mode = false;
 
-    wake_up_waiters(t.suspend_waiters);
+    wake_up_waiters(t.suspend_waiters); // FIXME?
 
     __asm __volatile ( // doesn't return, releases sync_lock
         "mov rsp, gs:%0\n"
