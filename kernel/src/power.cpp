@@ -1,3 +1,5 @@
+module;
+
 #include "kernel.h"
 #include <string_view>
 #include "acpica.h"
@@ -6,6 +8,8 @@
 import objects;
 import event;
 import pipe;
+
+export module power;
 
 import print;
 import inout;
@@ -27,7 +31,8 @@ static void halt() {
     AcpiEnterSleepState(5);
 }
 
-NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
+// work round ICE on GCC 15
+static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     if (action == SHUTDOWN_ACTION::ShutdownNoReboot) {
         // FIXME
         return nt_status::NOT_IMPLEMENTED;
@@ -72,4 +77,9 @@ NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     enable_preempt();
 
     return nt_status::INTERNAL_ERROR;
+}
+
+extern "C"
+NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
+    return _NtShutdownSystem(action);
 }

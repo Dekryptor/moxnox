@@ -22,7 +22,6 @@ set(SRC_FILES src/kernel.cpp
     src/handle.cpp
     src/file.cpp
     src/thread.cpp
-    src/power.cpp
     src/bsod2.cpp)
 
 add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
@@ -76,6 +75,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/guid.cpp
     src/cmdline.cpp
     src/module_init.cpp
+    src/power.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list unicode rbtree vt100 cp437 evdev)
