@@ -1,7 +1,6 @@
 module;
 
 #include <shared_mutex>
-#include "kernel.h"
 #include <span>
 #include <string_view>
 #include <string.h>
