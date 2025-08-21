@@ -2,8 +2,6 @@
 
 #include <stdint.h>
 
-class thread;
-
 static const unsigned int KERNEL_STACK_PAGES = 8; // 32KB
 static const unsigned int KERNEL_GUARD_PAGES = 1;
 
@@ -33,7 +31,6 @@ extern uintptr_t mn_signal;
 class object_ref;
 
 // thread.cpp
-thread* get_current_thread();
 object_ref add_kernel_thread(void (*func)());
 object_ref add_kernel_thread(void (*func)(void*), void* param);
 object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);

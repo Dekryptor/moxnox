@@ -109,3 +109,4 @@ static_assert((unsigned int)thread_status::dead == ENUM_THREAD_STATUS_DEAD);
 
 void kill_thread(thread& t, NTSTATUS exit_status);
 void terminate_thread(thread& t);
+thread* get_current_thread();

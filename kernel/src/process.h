@@ -10,6 +10,7 @@
 import rbtree;
 
 class section;
+class thread;
 
 class process : public sync_object {
 public:

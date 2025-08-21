@@ -7,6 +7,7 @@ module;
 #include <string_view>
 #include "spinlock.h"
 import objects;
+#include "thread.h"
 #include "process.h"
 import page_cache;
 import rwsem;
