@@ -70,24 +70,24 @@ thread* get_current_thread() {
     return t;
 }
 
-void thread::terminate() {
-    if (proc) {
+void terminate_thread(thread& t) {
+    if (t.proc) {
         bool last_thread;
         size_t region_size = 0;
 
         {
-            lock_guard lock(proc->threads_lock);
+            lock_guard lock(t.proc->threads_lock);
 
-            remove_entry_list(process_le);
+            remove_entry_list(t.process_le);
 
-            last_thread = is_list_empty(proc->threads);
+            last_thread = is_list_empty(t.proc->threads);
         }
 
         if (last_thread) {
-            proc->exit_status = exit_status;
-            proc->terminate();
+            t.proc->exit_status = t.exit_status;
+            t.proc->terminate();
         } else {
-            proc->free_vm((void**)&teb, &region_size, MEM_RELEASE);
+            t.proc->free_vm((void**)&t.teb, &region_size, MEM_RELEASE);
             // FIXME - free userspace stack
         }
     }
@@ -95,24 +95,24 @@ void thread::terminate() {
     __asm("cli");
     acquire_sync_lock();
 
-    if (status != thread_status::dead) {
-        status = thread_status::dead;
-        signalled = true;
+    if (t.status != thread_status::dead) {
+        t.status = thread_status::dead;
+        t.signalled = true;
 
-        if (current_cpu != 0xffffffff)
-            acquire();
+        if (t.current_cpu != 0xffffffff)
+            t.acquire();
 
-        wake_up_waiters(waiters);
+        wake_up_waiters(t.waiters);
 
-        remove_entry_list(this->le);
+        remove_entry_list(t.le);
 
-        if (current_cpu != 0xffffffff) {
-            insert_tail_list(thread_list_dead, this->le); // FIXME - release these in scheduler
-            release();
+        if (t.current_cpu != 0xffffffff) {
+            insert_tail_list(thread_list_dead, t.le); // FIXME - release these in scheduler
+            t.release();
         }
     }
 
-    if (this != get_cpu_block()->current_thread) {
+    if (&t != get_cpu_block()->current_thread) {
         release_sync_lock();
         __asm("sti");
         return;
@@ -180,7 +180,7 @@ void thread::kill(NTSTATUS exit_status) {
         }
     }
 
-    terminate();
+    terminate_thread(*this);
 }
 
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
@@ -316,7 +316,7 @@ NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS /*thread_inform
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
 
-    get_current_thread()->terminate();
+    terminate_thread(*get_current_thread());
 }
 
 object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
