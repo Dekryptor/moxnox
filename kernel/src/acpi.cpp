@@ -4,7 +4,6 @@ module;
 #include <string_view>
 #include <atomic>
 #include "acpica.h"
-#include "kernel.h"
 #include "handle.h"
 import objects;
 #include "tick_rate.h"
@@ -25,6 +24,8 @@ import timer;
 import rwsem;
 
 using namespace std;
+
+export uint64_t rsdp_pa;
 
 struct acpi_irq_handler {
     list_entry le;

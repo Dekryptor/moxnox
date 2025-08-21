@@ -17,5 +17,4 @@ enum class mapping_type {
 };
 
 // kernel.cpp
-extern uint64_t rsdp_pa;
 extern uintptr_t mn_signal;
