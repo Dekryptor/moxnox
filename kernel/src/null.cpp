@@ -1,10 +1,15 @@
 module;
 
 #include <span>
-#include "handle.h"
+#include <optional>
+#include <functional>
+#include <string_view>
+#include <nt.h>
 import objects;
 import event;
 import chardev;
+import object_ref;
+#include "handle.h"
 
 export module null;
 

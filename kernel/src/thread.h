@@ -6,6 +6,7 @@
 #include "context_offsets.h"
 
 import list;
+import object_ref;
 
 enum class thread_status {
     runnable,
@@ -111,7 +112,7 @@ void kill_thread(thread& t, NTSTATUS exit_status);
 void terminate_thread(thread& t);
 thread* get_current_thread();
 
-class object_ref;
+// class object_ref;
 
 object_ref add_kernel_thread(void (*func)());
 object_ref add_kernel_thread(void (*func)(void*), void* param);

@@ -1,11 +1,11 @@
 module;
 
 #include <string_view>
+#include <span>
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "handle.h"
 #include "scheduler.h"
-#include <span>
 #include <ioctl.h>
 import objects;
 #include "thread.h"

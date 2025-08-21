@@ -1,5 +1,6 @@
 #include <span>
 #include <optional>
+#include <functional>
 #include "cpu_block.h"
 import objects;
 #include "thread.h"

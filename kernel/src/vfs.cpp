@@ -3,6 +3,7 @@ module;
 #include <shared_mutex>
 #include <span>
 #include <optional>
+#include <functional>
 #include <string_view>
 #include "spinlock.h"
 import objects;

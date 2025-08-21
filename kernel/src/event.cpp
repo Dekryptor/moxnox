@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <functional>
 #include <atomic>
+#include <optional>
 import objects;
 #include "thread.h"
 #include "spinlock.h"
@@ -14,6 +15,7 @@ export module event;
 import print;
 import list;
 import bsod;
+import object_ref;
 
 using namespace std;
 

@@ -3,6 +3,8 @@ module;
 #include <span>
 #include <atomic>
 #include <string_view>
+#include <optional>
+#include <functional>
 #include <loaderblock.h>
 #include "acpica.h"
 import objects;
@@ -12,8 +14,6 @@ import objects;
 #include "thread.h"
 #include "process.h"
 #include <span>
-#include <optional>
-#include <functional>
 #include "ints.h"
 
 export module interrupts;

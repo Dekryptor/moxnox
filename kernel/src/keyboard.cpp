@@ -1,6 +1,7 @@
 module;
 
 #include <span>
+#include <atomic>
 #include "handle.h"
 #include "spinlock.h"
 import objects;

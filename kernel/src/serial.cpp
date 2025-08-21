@@ -4,6 +4,7 @@ module;
 #include <optional>
 #include <string_view>
 #include <charconv>
+#include <atomic>
 #include "handle.h"
 #include "spinlock.h"
 import pipe;
