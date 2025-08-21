@@ -1,11 +1,12 @@
 module;
 
+#include <nt.h>
 #include <variant>
 #include <shared_mutex>
 #include <span>
 #include <optional>
 #include <string_view>
-#include "handle.h"
+#include <functional>
 #include "spinlock.h"
 import rbtree;
 import event;
@@ -17,7 +18,6 @@ import page_cache;
 import rwsem;
 #include "inode.h"
 import volume;
-#include "handle.h"
 #include "section.h"
 #include "file.h"
 #include "process.h"

@@ -3,11 +3,11 @@ module;
 #include <span>
 #include <optional>
 #include <string_view>
+#include <functional>
 #include "rangelock.h"
 #include "cpu_block.h"
 import objects;
 #include "mem.h"
-#include "handle.h"
 #include "spinlock.h"
 #include "thread.h"
 import page_cache;

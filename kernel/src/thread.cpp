@@ -1,7 +1,10 @@
 #include <span>
+#include <variant>
+#include <string_view>
+#include <optional>
+#include <functional>
 #include "cpu_block.h"
 import objects;
-#include "handle.h"
 #include "spinlock.h"
 #include "thread.h"
 import page_cache;

@@ -1,5 +1,6 @@
 module;
 
+#include <nt.h>
 #include <shared_mutex>
 #include <span>
 #include <string_view>

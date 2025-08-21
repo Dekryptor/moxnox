@@ -1,8 +1,11 @@
 module;
 
+#include <nt.h>
 #include <span>
+#include <optional>
+#include <functional>
+#include <string_view>
 #include "spinlock.h"
-#include "handle.h"
 import rbtree;
 import event;
 import pipe;

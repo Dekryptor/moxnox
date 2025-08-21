@@ -5,7 +5,6 @@ module;
 #include "acpica.h"
 #include "pci.h"
 import objects;
-#include "handle.h"
 #include "scheduler.h"
 #include "thread.h"
 

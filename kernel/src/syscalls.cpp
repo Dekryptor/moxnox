@@ -3,7 +3,8 @@ module;
 #include <span>
 #include <string_view>
 #include <atomic>
-#include "handle.h"
+#include <optional>
+#include <functional>
 #include "cpu_block.h"
 import event;
 import objects;

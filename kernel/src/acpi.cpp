@@ -4,7 +4,6 @@ module;
 #include <string_view>
 #include <atomic>
 #include "acpica.h"
-#include "handle.h"
 import objects;
 #include "tick_rate.h"
 #include "spinlock.h"

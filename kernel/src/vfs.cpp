@@ -12,7 +12,6 @@ import objects;
 import page_cache;
 import rwsem;
 #include "inode.h"
-#include "handle.h"
 import volume;
 #include "file.h"
 import visit;

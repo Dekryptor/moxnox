@@ -1,11 +1,11 @@
 module;
 
+#include <nt.h>
 #include <shared_mutex>
 #include <span>
 #include <optional>
 #include <string_view>
 import objects;
-#include "handle.h"
 #include "spinlock.h"
 import rbtree;
 import page_cache;
@@ -26,6 +26,7 @@ import volume;
 import timer;
 import vfs;
 import unicode;
+import object_ref;
 
 using namespace std;
 

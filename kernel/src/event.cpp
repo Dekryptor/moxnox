@@ -7,7 +7,6 @@ module;
 import objects;
 #include "thread.h"
 #include "spinlock.h"
-#include "handle.h"
 #include "scheduler.h"
 
 export module event;

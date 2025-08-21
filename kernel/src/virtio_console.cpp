@@ -1,5 +1,6 @@
 module;
 
+#include <nt.h>
 #include <span>
 #include <atomic>
 #include <string_view>

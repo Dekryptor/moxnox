@@ -7,7 +7,6 @@ import objects;
 #include "thread.h"
 #include "spinlock.h"
 #include "tick_rate.h"
-#include "handle.h"
 #include "scheduler.h"
 
 export module timer;
