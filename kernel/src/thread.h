@@ -110,3 +110,9 @@ static_assert((unsigned int)thread_status::dead == ENUM_THREAD_STATUS_DEAD);
 void kill_thread(thread& t, NTSTATUS exit_status);
 void terminate_thread(thread& t);
 thread* get_current_thread();
+
+class object_ref;
+
+object_ref add_kernel_thread(void (*func)());
+object_ref add_kernel_thread(void (*func)(void*), void* param);
+object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);

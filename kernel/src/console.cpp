@@ -16,6 +16,7 @@ import objects;
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
 #include <console.h>
+#include "thread.h"
 
 export module console;
 

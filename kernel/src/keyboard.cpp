@@ -1,11 +1,11 @@
 module;
 
-#include "kernel.h"
 #include <span>
 #include "handle.h"
 #include "spinlock.h"
 import objects;
 #include <ioctl.h>
+#include "thread.h"
 
 export module keyboard;
 

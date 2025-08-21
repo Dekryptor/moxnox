@@ -1,6 +1,5 @@
 module;
 
-#include "kernel.h"
 #include <string_view>
 #include "spinlock.h"
 #include "tick_rate.h"
@@ -8,6 +7,8 @@ module;
 #include "scheduler.h"
 #include <span>
 #include <ioctl.h>
+import objects;
+#include "thread.h"
 
 export module usbhid;
 

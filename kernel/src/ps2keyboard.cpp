@@ -1,6 +1,5 @@
 module;
 
-#include "kernel.h"
 #include <span>
 #include <optional>
 #include "spinlock.h"
@@ -12,6 +11,8 @@ import pipe;
 #include "tick_rate.h"
 #include "scheduler.h"
 #include <ioctl.h>
+import objects;
+#include "thread.h"
 
 export module ps2keyboard;
 

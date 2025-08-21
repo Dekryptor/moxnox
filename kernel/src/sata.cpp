@@ -14,6 +14,7 @@ import rwsem;
 #include "inode.h"
 #include "tick_rate.h"
 #include "scheduler.h"
+#include "thread.h"
 
 export module sata;
 

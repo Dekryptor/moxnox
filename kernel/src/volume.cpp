@@ -1,7 +1,6 @@
 module;
 
 #include <charconv>
-#include "kernel.h"
 #include <nt.h>
 #include <span>
 #include <optional>
@@ -20,6 +19,7 @@ import guid;
 #include "volume.h"
 #include "scheduler.h"
 #include "assert.h"
+#include "thread.h"
 
 export module volume;
 

@@ -20,10 +20,3 @@ enum class mapping_type {
 extern uint64_t rsdp_pa;
 extern bool shutting_down;
 extern uintptr_t mn_signal;
-
-class object_ref;
-
-// thread.cpp
-object_ref add_kernel_thread(void (*func)());
-object_ref add_kernel_thread(void (*func)(void*), void* param);
-object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);

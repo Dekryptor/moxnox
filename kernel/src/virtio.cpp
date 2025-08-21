@@ -6,6 +6,8 @@ module;
 #include "virtio.h"
 #include "spinlock.h"
 #include "scheduler.h"
+import objects;
+#include "thread.h"
 #include <variant>
 
 export module virtio;

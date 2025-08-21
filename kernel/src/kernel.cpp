@@ -10,6 +10,7 @@ import objects;
 #include "process.h"
 #include "scheduler.h"
 #include <string_view>
+#include "thread.h"
 
 import print;
 import bsod;

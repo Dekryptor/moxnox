@@ -2,7 +2,6 @@ module;
 
 #include <shared_mutex>
 #include <variant>
-#include "kernel.h"
 #include <nt.h>
 #include <span>
 #include <optional>
@@ -19,6 +18,7 @@ import rangelock;
 import rbtree;
 #include "scheduler.h"
 #include "assert.h"
+#include "thread.h"
 
 export module btrfs;
 

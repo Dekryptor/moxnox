@@ -8,6 +8,8 @@ module;
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "scheduler.h"
+import objects;
+#include "thread.h"
 
 export module xhci;
 
