@@ -1,6 +1,5 @@
 module;
 
-#include "kernel.h"
 #include <span>
 #include <atomic>
 #include <string_view>
@@ -19,6 +18,7 @@ import pci;
 import virtio;
 import list;
 import module_init;
+import power;
 
 using namespace std;
 

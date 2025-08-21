@@ -44,7 +44,6 @@ static char cmdline_arr[255];
 uint64_t rsdp_pa;
 static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
-bool shutting_down = false;
 uintptr_t mn_signal;
 
 void (*_printk)(string_view s) = early_print;

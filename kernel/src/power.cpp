@@ -1,6 +1,5 @@
 module;
 
-#include "kernel.h"
 #include <string_view>
 #include "acpica.h"
 #include "scheduler.h"
@@ -18,6 +17,8 @@ import vfs;
 import smp;
 
 using namespace std;
+
+export bool shutting_down = false;
 
 static void reboot() {
     AcpiReset();

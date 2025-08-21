@@ -18,5 +18,4 @@ enum class mapping_type {
 
 // kernel.cpp
 extern uint64_t rsdp_pa;
-extern bool shutting_down;
 extern uintptr_t mn_signal;
