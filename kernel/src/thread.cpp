@@ -112,13 +112,8 @@ void terminate_thread(thread& t) {
         }
     }
 
-    if (&t != get_cpu_block()->current_thread) {
-        release_sync_lock();
-        __asm("sti");
-        return;
-    }
-
-    yield(); // releases sync_lock
+    release_sync_lock();
+    __asm("sti");
 }
 
 thread::~thread() {
@@ -313,10 +308,28 @@ NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS /*thread_inform
     return nt_status::NOT_IMPLEMENTED;
 }
 
+static void inline disable_interrupts() {
+    __asm __volatile("cli");
+}
+
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
 
-    terminate_thread(*get_current_thread());
+    disable_interrupts();
+
+    auto& cb = *get_cpu_block();
+    auto& t = *cb.current_thread;
+
+    acquire_sync_lock();
+
+    t.status = thread_status::dead;
+
+    __asm __volatile ( // doesn't return, releases sync_lock
+        "mov rsp, gs:%0\n"
+        "jmp scheduler\n"
+        :
+        : "i" (GS_SCHEDULER_STACK)
+    );
 }
 
 object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
@@ -391,10 +404,6 @@ object_ref add_kernel_thread(void (*func)(void*), void* param) {
 
 object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
-}
-
-static void inline disable_interrupts() {
-    __asm __volatile("cli");
 }
 
 static void inline enable_interrupts() {

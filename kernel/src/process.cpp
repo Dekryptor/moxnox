@@ -1358,13 +1358,10 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
         t2->release();
     }
 
-    if (!this_process)
-        return nt_status::SUCCESS;
-
-    t->exit_status = exit_status;
-
-    p->release(); // because object_ref destructor won't get called
-    terminate_thread(*t); // doesn't return
+    if (this_process) {
+        t->exit_status = exit_status;
+        terminate_thread(*t);
+    }
 
     return nt_status::SUCCESS;
 }
