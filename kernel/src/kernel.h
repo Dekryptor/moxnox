@@ -16,13 +16,6 @@ enum class mapping_type {
     reserved
 };
 
-class module_init {
-public:
-    module_init(void (*func)()) {
-        func();
-    }
-};
-
 // kernel.cpp
 extern uint64_t rsdp_pa;
 extern bool shutting_down;

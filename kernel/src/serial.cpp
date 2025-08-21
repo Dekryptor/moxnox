@@ -23,6 +23,7 @@ import inout;
 import config;
 import interrupts;
 import acpi;
+import module_init;
 
 using namespace std;
 

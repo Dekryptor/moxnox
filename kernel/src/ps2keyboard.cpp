@@ -23,6 +23,7 @@ import event;
 import acpi;
 import keyboard;
 import timer;
+import module_init;
 
 using namespace std;
 

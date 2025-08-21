@@ -18,6 +18,7 @@ import semaphore;
 import event;
 import pci;
 import acpi;
+import module_init;
 
 using namespace std;
 

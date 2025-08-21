@@ -21,6 +21,7 @@ import config;
 import mem;
 import rwsem;
 import list;
+import module_init;
 
 using namespace std;
 

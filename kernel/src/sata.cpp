@@ -30,6 +30,7 @@ import volume;
 import rwsem;
 import pci;
 import timer;
+import module_init;
 
 #include "sata.h"
 

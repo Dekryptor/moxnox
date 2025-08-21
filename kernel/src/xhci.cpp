@@ -21,6 +21,7 @@ import event;
 import timer;
 import usb;
 import rwsem;
+import module_init;
 
 using namespace std;
 

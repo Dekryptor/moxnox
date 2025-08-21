@@ -24,6 +24,7 @@ import volume;
 import bsod;
 import rwsem;
 import pci;
+import module_init;
 
 using namespace std;
 

@@ -18,6 +18,7 @@ import serial;
 import pci;
 import virtio;
 import list;
+import module_init;
 
 using namespace std;
 

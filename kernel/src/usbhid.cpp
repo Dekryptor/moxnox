@@ -19,6 +19,7 @@ import keyboard;
 import pipe;
 import evdev;
 import timer;
+import module_init;
 
 using namespace std;
 

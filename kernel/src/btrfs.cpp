@@ -35,6 +35,7 @@ import volume;
 import rwsem;
 import unicode;
 import event;
+import module_init;
 
 #include "btrfs.h"
 

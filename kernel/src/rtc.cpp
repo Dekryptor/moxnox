@@ -11,6 +11,7 @@ import timer;
 import acpi;
 import list;
 import print;
+import module_init;
 
 using namespace std;
 

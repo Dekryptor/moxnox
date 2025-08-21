@@ -15,6 +15,7 @@ import xhci;
 import usb;
 import mem;
 import timer;
+import module_init;
 
 using namespace std;
 
