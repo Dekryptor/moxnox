@@ -1,6 +1,7 @@
 module;
 
 #include <utility>
+#include <stdint.h>
 #include "kernel.h"
 #include <optional>
 #include <string_view>
