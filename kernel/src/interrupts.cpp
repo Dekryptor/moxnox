@@ -55,7 +55,6 @@ using isr_func_type = void (*)(void*);
 
 static const uint8_t MIN_DYNAMIC_INTERRUPT = 0x30;
 
-export const uint8_t yield_interrupt = 0xfc;
 export const uint8_t halt_interrupt = 0x60;
 export const uint8_t invalidate_tlb_interrupt = 0x21;
 export const uint8_t spurious_interrupt = 0xff;

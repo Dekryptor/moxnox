@@ -16,7 +16,6 @@ import print;
 import mem;
 import config;
 import list;
-import interrupts;
 import bsod;
 import apic;
 
