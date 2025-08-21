@@ -18,6 +18,7 @@ import rangelock;
 #include "file.h"
 import rbtree;
 #include "scheduler.h"
+#include "assert.h"
 
 export module btrfs;
 

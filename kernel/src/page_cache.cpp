@@ -1,12 +1,12 @@
 module;
 
-#include "kernel.h"
 #include <span>
 #include <string.h>
 #include "spinlock.h"
 #include "rangelock.h"
 import rbtree;
 #include "mapping.h"
+#include "assert.h"
 
 export module page_cache;
 

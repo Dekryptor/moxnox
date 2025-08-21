@@ -7,6 +7,7 @@ import objects;
 #include "process.h"
 #include "tick_rate.h"
 #include "scheduler.h"
+#include "assert.h"
 
 import print;
 import bsod;

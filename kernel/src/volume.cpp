@@ -19,6 +19,7 @@ import page_cache;
 import guid;
 #include "volume.h"
 #include "scheduler.h"
+#include "assert.h"
 
 export module volume;
 

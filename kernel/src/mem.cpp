@@ -9,6 +9,7 @@ module;
 #include <span>
 #include <cstring>
 #include <bit>
+#include "assert.h"
 
 export module mem;
 

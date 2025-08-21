@@ -1,6 +1,5 @@
 module;
 
-#include "kernel.h"
 #include "timer-asm.h"
 #include <nt.h>
 #include <optional>
@@ -11,6 +10,7 @@ import list;
 #include "thread.h"
 #include "rangelock.h"
 #include "scheduler.h"
+#include "assert.h"
 
 export module rangelock;
 

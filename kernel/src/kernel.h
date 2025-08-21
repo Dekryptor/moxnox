@@ -37,12 +37,3 @@ thread* get_current_thread();
 object_ref add_kernel_thread(void (*func)());
 object_ref add_kernel_thread(void (*func)(void*), void* param);
 object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2);
-
-#ifdef NDEBUG
-#define assert(_Expression) ((void)0)
-#else
-#define assert(_Expression) \
-    (void) \
-    ((!!(_Expression)) || \
-    (_assert(#_Expression,__FILE__,__LINE__),0))
-#endif

@@ -1,7 +1,6 @@
 module;
 
 #include <shared_mutex>
-#include "kernel.h"
 #include <span>
 #include <optional>
 #include <string_view>
@@ -13,6 +12,7 @@ import page_cache;
 import rwsem;
 #include "inode.h"
 #include "file.h"
+#include "assert.h"
 
 export module tmpfs;
 

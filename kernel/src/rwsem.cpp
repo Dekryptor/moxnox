@@ -1,6 +1,5 @@
 module;
 
-#include "kernel.h"
 #include "timer-asm.h"
 #include <span>
 #include <optional>
@@ -8,6 +7,7 @@ module;
 import objects;
 #include "thread.h"
 #include "scheduler.h"
+#include "assert.h"
 
 export module rwsem;
 

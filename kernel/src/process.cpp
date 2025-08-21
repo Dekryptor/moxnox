@@ -22,6 +22,7 @@ import rangelock;
 #include <ntdll.h>
 #include "section.h"
 #include "scheduler.h"
+#include "assert.h"
 
 export module process;
 
