@@ -1,4 +1,3 @@
-#include "kernel.h"
 #include <span>
 #include <optional>
 #include "cpu_block.h"

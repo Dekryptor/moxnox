@@ -1,6 +1,5 @@
 module;
 
-#include "kernel.h"
 #include "timer-asm.h"
 #include <string_view>
 #include "acpica.h"
