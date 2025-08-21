@@ -8,6 +8,7 @@
 #include <atomic>
 
 import rbtree;
+import mem;
 
 class section;
 class thread;
