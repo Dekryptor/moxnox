@@ -1,6 +1,5 @@
 module;
 
-#include "kernel.h"
 #include <pe.h>
 #include <span>
 

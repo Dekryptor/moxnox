@@ -1,6 +1,5 @@
 #include <loaderblock.h>
 #include <version.h>
-#include "kernel.h"
 #include <span>
 #include <atomic>
 #include <string.h>

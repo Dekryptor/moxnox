@@ -1,6 +1,5 @@
 module;
 
-#include "kernel.h"
 #include <span>
 #include "spinlock.h"
 #include "handle.h"
