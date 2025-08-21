@@ -135,26 +135,26 @@ thread::~thread() {
         proc->release();
 }
 
-void thread::kill(NTSTATUS exit_status) {
-    this->exit_status = exit_status;
+void kill_thread(thread& t, NTSTATUS exit_status) {
+    t.exit_status = exit_status;
 
-    if (this != get_current_thread()) {
+    if (&t != get_current_thread()) {
         bool sent_ipi = false;
 
         {
             sync_lock sl;
             lock_guard lock(sl);
 
-            if (status != thread_status::dead) {
-                status = thread_status::dead;
+            if (t.status != thread_status::dead) {
+                t.status = thread_status::dead;
 
-                if (current_cpu != 0xffffffff) {
+                if (t.current_cpu != 0xffffffff) {
                     // send IPI if currently running, to force it to yield
 
                     auto icr1 = (volatile uint32_t*)&local_apic[0x300];
                     auto icr2 = (volatile uint32_t*)&local_apic[0x310];
 
-                    *icr2 = current_cpu << 24;
+                    *icr2 = t.current_cpu << 24;
                     *icr1 = 0x5000 | yield_interrupt;
 
                     while (*icr1 & 0x1000) { }
@@ -169,13 +169,13 @@ void thread::kill(NTSTATUS exit_status) {
                 sync_lock sl;
                 lock_guard lock(sl);
 
-                if (current_cpu == 0xffffffff)
+                if (t.current_cpu == 0xffffffff)
                     break;
             }
         }
     }
 
-    terminate_thread(*this);
+    terminate_thread(t);
 }
 
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
@@ -184,7 +184,7 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     if (thread_handle == NtCurrentThread()) {
         t = get_current_thread();
 
-        t->kill(exit_status); // if this thread, doesn't return
+        kill_thread(*t, exit_status); // if this thread, doesn't return
     } else {
         auto objrw = deref_handle(thread_handle);
         if (!objrw)
@@ -202,7 +202,7 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
         if (t == get_current_thread())
             t->release();
 
-        t->kill(exit_status); // if this thread, doesn't return
+        kill_thread(*t, exit_status); // if this thread, doesn't return
         t->release();
     }
 

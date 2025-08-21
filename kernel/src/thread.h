@@ -64,7 +64,6 @@ public:
             delete this;
     }
 
-    void kill(NTSTATUS exit_status);
     NTSTATUS query_information(enum THREAD_INFORMATION_CLASS thread_information_class,
                                void* thread_information, uint32_t thread_information_length,
                                uint32_t* return_length);
@@ -108,4 +107,5 @@ static_assert(offsetof(thread, wait_timeout) == THREAD_WAIT_TIMEOUT);
 static_assert(sizeof(thread::status) == 4);
 static_assert((unsigned int)thread_status::dead == ENUM_THREAD_STATUS_DEAD);
 
+void kill_thread(thread& t, NTSTATUS exit_status);
 void terminate_thread(thread& t);

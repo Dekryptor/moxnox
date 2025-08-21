@@ -1354,7 +1354,7 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
             t2->acquire();
         }
 
-        t2->kill(exit_status);
+        kill_thread(*t2, exit_status);
         t2->release();
     }
 
