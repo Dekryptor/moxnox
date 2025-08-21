@@ -22,6 +22,7 @@ import interrupts;
 import semaphore;
 import timer;
 import rwsem;
+import apic;
 
 using namespace std;
 

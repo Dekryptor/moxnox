@@ -76,6 +76,7 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/cmdline.cpp
     src/module_init.cpp
     src/power.cpp
+    src/apic.cpp
 )
 
 target_link_libraries(kernel format dwarf unwind list unicode rbtree vt100 cp437 evdev)

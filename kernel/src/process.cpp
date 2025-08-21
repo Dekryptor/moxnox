@@ -39,6 +39,7 @@ import smp;
 import visit;
 import unicode;
 import section;
+import apic;
 
 using namespace std;
 

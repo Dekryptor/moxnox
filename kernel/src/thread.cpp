@@ -18,6 +18,7 @@ import config;
 import list;
 import interrupts;
 import bsod;
+import apic;
 
 using namespace std;
 

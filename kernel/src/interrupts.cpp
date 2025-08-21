@@ -24,6 +24,7 @@ import bsod;
 import mem;
 import config;
 import list;
+import apic;
 
 using namespace std;
 
@@ -48,7 +49,6 @@ typedef struct {
     uint32_t zero2;
 } idt_entry;
 
-export volatile uint8_t* const local_apic = (uint8_t*)APIC_BASE;
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
 
 using isr_func_type = void (*)(void*);

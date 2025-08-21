@@ -15,6 +15,7 @@ import inout;
 import interrupts;
 import vfs;
 import smp;
+import apic;
 
 using namespace std;
 

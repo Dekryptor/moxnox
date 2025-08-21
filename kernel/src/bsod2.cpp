@@ -16,6 +16,7 @@ import smp;
 import pipe;
 import console;
 import image;
+import apic;
 
 using namespace std;
 

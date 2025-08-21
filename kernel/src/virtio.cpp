@@ -20,6 +20,7 @@ import event;
 import pci;
 import acpi;
 import module_init;
+import apic;
 
 using namespace std;
 

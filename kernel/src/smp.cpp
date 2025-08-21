@@ -16,6 +16,7 @@ import config;
 import interrupts;
 import timer;
 import syscalls;
+import apic;
 
 using namespace std;
 

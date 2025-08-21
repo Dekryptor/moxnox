@@ -17,6 +17,7 @@ import list;
 import interrupts;
 import bsod;
 import inout;
+import apic;
 
 using namespace std;
 

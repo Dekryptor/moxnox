@@ -25,6 +25,7 @@ import acpi;
 import keyboard;
 import timer;
 import module_init;
+import apic;
 
 using namespace std;
 
