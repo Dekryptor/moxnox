@@ -13,7 +13,6 @@ import bsod;
 import mem;
 import config;
 import list;
-import interrupts;
 import visit;
 
 using namespace std;
