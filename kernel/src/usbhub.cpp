@@ -18,6 +18,7 @@ import usb;
 import mem;
 import timer;
 import module_init;
+import thread;
 
 using namespace std;
 

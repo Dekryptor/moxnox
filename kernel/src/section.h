@@ -53,6 +53,7 @@ static_assert(cacheable_flushable<custom_section_cache>);
 static_assert(has_ioctls<custom_section_cache>);
 
 class image_section_cache;
+class inode;
 
 using cache_variant = std::variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*,
                                    page_cache<custom_section_cache>*, page_cache<inode>*>;

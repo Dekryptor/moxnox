@@ -13,16 +13,15 @@ import event;
 import pipe;
 import timer;
 import objects;
-#include "thread.h"
 import page_cache;
 import rwsem;
 #include "inode.h"
 import volume;
-#include "section.h"
 #include "file.h"
-#include "process.h"
 #include <pe.h>
 #include <utility>
+#include "section.h"
+#include "process.h"
 
 export module section;
 
@@ -35,6 +34,7 @@ import bsod;
 import rangelock;
 import string;
 import unicode;
+import thread;
 
 using namespace std;
 
@@ -712,7 +712,7 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
         if (!t->proc)
             return nt_status::INVALID_PARAMETER;
 
-        p = t->proc;
+        p = (process*)t->proc; // wtf GCC 15?
 
         proc = object_ref{*p};
         p->acquire();

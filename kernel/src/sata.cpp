@@ -31,6 +31,7 @@ import rwsem;
 import pci;
 import timer;
 import module_init;
+import thread;
 
 #include "sata.h"
 

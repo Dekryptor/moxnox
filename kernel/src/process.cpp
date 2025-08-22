@@ -4,6 +4,7 @@ module;
 #include <optional>
 #include <string_view>
 #include <functional>
+#include <variant>
 #include "rangelock.h"
 #include "cpu_block.h"
 import objects;
@@ -12,8 +13,8 @@ import objects;
 #include "thread.h"
 import page_cache;
 import rwsem;
-#include "inode.h"
 #include "process.h"
+#include "inode.h"
 #include "file.h"
 import rangelock;
 #include "mapping.h"
@@ -40,6 +41,7 @@ import visit;
 import unicode;
 import section;
 import apic;
+import thread;
 
 using namespace std;
 
@@ -49,8 +51,6 @@ struct handle_obj {
     uint32_t access_mask;
 };
 
-extern "C++" uint16_t last_tid; // FIXME
-
 static rwsem ipi_lock;
 
 // tlb.S
@@ -59,7 +59,9 @@ extern "C" atomic<uint32_t> tlb_cpus_left;
 
 static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
-section* ntdll = nullptr;
+extern "C++" {
+    section* ntdll = nullptr;
+}
 
 static uintptr_t mn_start_thread;
 

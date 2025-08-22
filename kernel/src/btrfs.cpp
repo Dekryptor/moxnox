@@ -36,6 +36,7 @@ import rwsem;
 import unicode;
 import event;
 import module_init;
+import thread;
 
 #include "btrfs.h"
 

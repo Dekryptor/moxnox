@@ -20,6 +20,7 @@ import list;
 import bsod;
 import chardev;
 import unicode;
+import thread;
 
 using namespace std;
 

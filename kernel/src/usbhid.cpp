@@ -21,6 +21,7 @@ import pipe;
 import evdev;
 import timer;
 import module_init;
+import thread;
 
 using namespace std;
 

@@ -22,6 +22,7 @@ import semaphore;
 import timer;
 import rwsem;
 import apic;
+import thread;
 
 using namespace std;
 
@@ -883,9 +884,14 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber,
     return AE_NOT_FOUND;
 }
 
+// work round ICE in GCC 15
+static ACPI_THREAD_ID _AcpiOsGetThreadId() {
+    return (ACPI_THREAD_ID)get_current_thread();
+}
+
 extern "C"
 ACPI_THREAD_ID AcpiOsGetThreadId() {
-    return (ACPI_THREAD_ID)get_current_thread();
+    return _AcpiOsGetThreadId();
 }
 
 extern "C"

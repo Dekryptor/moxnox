@@ -5,13 +5,13 @@ module;
 #include <optional>
 #include <functional>
 #include <string_view>
+#include <variant>
 #include "spinlock.h"
 import rbtree;
 import event;
 import pipe;
 import timer;
 import objects;
-#include "thread.h"
 import page_cache;
 import rwsem;
 #include "inode.h"
@@ -21,6 +21,7 @@ import semaphore;
 #include "process.h"
 #include "section.h"
 #include "file.h"
+#include "thread.h"
 
 export module visit;
 

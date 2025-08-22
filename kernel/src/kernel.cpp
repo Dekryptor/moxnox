@@ -33,6 +33,7 @@ import section;
 import process;
 import image;
 import cmdline;
+import thread;
 
 using namespace std;
 

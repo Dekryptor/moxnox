@@ -35,6 +35,7 @@ import vt100;
 import chardev;
 import cp437;
 import cmdline;
+import thread;
 
 using namespace std;
 

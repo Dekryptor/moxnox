@@ -25,6 +25,8 @@ import mem;
 import config;
 import list;
 import apic;
+import thread;
+import thread;
 
 using namespace std;
 

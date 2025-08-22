@@ -26,6 +26,7 @@ import keyboard;
 import timer;
 import module_init;
 import apic;
+import thread;
 
 using namespace std;
 

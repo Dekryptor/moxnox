@@ -1,3 +1,5 @@
+module;
+
 #include <span>
 #include <variant>
 #include <string_view>
@@ -9,11 +11,12 @@ import objects;
 #include "thread.h"
 import page_cache;
 import rwsem;
-#include "inode.h"
 import rbtree;
 #include "section.h"
 #include "process.h"
 #include "scheduler.h"
+
+export module thread;
 
 import print;
 import mem;
@@ -57,12 +60,12 @@ static_assert(offsetof(AMD64_CONTEXT, FltSave) == CONTEXT_FXSAVE); // must be al
 static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_DS = 0x10;
 
-extern uint16_t last_tid; // FIXME
+export uint16_t last_tid; // FIXME
 
 // process.cpp
 extern section* ntdll;
 
-thread* get_current_thread() {
+export thread* get_current_thread() {
     disable_preempt();
 
     auto t = get_cpu_block()->current_thread;
@@ -72,7 +75,7 @@ thread* get_current_thread() {
     return t;
 }
 
-void terminate_thread(thread& t) {
+export void terminate_thread(thread& t) {
     if (t.proc) {
         bool last_thread;
         size_t region_size = 0;
@@ -118,6 +121,7 @@ void terminate_thread(thread& t) {
     __asm("sti");
 }
 
+extern "C++"
 thread::~thread() {
     if (kernel_stack) {
         auto va = (uintptr_t)kernel_stack + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
@@ -137,7 +141,7 @@ thread::~thread() {
         proc->release();
 }
 
-void kill_thread(thread& t, NTSTATUS exit_status) {
+export void kill_thread(thread& t, NTSTATUS exit_status) {
     t.exit_status = exit_status;
 
     if (&t != get_current_thread()) {
@@ -180,6 +184,7 @@ void kill_thread(thread& t, NTSTATUS exit_status) {
     terminate_thread(t);
 }
 
+extern "C"
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     thread* t;
 
@@ -211,6 +216,7 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
                         const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle,
                         CLIENT_ID* client_id, const CONTEXT* thread_context,
@@ -247,6 +253,7 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
                             *thread_context, *initial_teb, create_suspended);
 }
 
+extern "C"
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
     object_ref objrw;
     thread* t;
@@ -280,6 +287,7 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
                                   void* thread_information, uint32_t thread_information_length,
                                   uint32_t* return_length) {
@@ -302,6 +310,7 @@ NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_
                                thread_information_length, return_length);
 }
 
+extern "C++"
 NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS /*thread_information_class*/,
                                    void* /*thread_information*/, uint32_t /*thread_information_length*/,
                                    uint32_t* /*return_length*/) {
@@ -310,14 +319,14 @@ NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS /*thread_inform
     return nt_status::NOT_IMPLEMENTED;
 }
 
-static void inline disable_interrupts() {
+static void inline disable_interrupts2() {
     __asm __volatile("cli");
 }
 
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
 
-    disable_interrupts();
+    disable_interrupts2();
 
     auto& cb = *get_cpu_block();
     auto& t = *cb.current_thread;
@@ -334,7 +343,7 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
     );
 }
 
-object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
+export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
     uint16_t tid;
 
     auto tptr = new (align_val_t(16)) thread;
@@ -397,21 +406,22 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
     return t;
 }
 
-object_ref add_kernel_thread(void (*func)(void*), void* param) {
+export object_ref add_kernel_thread(void (*func)(void*), void* param) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-function-type"
     return add_kernel_thread((void(*)(void*, void*))func, param, nullptr);
 #pragma GCC diagnostic pop
 }
 
-object_ref add_kernel_thread(void (*func)()) {
+export object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 
-static void inline enable_interrupts() {
+static void inline enable_interrupts2() {
     __asm __volatile("sti");
 }
 
+extern "C"
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count) {
     object_ref objrw;
     thread* t;
@@ -445,7 +455,7 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
     if (previous_suspend_count)
         *previous_suspend_count = count;
 
-    disable_interrupts();
+    disable_interrupts2();
     acquire_sync_lock();
 
     // break interruptible waits
@@ -475,7 +485,7 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 
     if (t->status != thread_status::running && !t->kernel_mode) {
         release_sync_lock();
-        enable_interrupts();
+        enable_interrupts2();
         return nt_status::SUCCESS;
     }
 
@@ -488,6 +498,7 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
     object_ref objrw;
     thread* t;
@@ -525,6 +536,7 @@ NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
     return nt_status::SUCCESS;
 }
 
+extern "C"
 NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
     object_ref objrw;
     thread* t;

@@ -21,6 +21,7 @@ import config;
 import visit;
 import unicode;
 import mem;
+import thread;
 
 using namespace std;
 

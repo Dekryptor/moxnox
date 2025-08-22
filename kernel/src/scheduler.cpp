@@ -15,10 +15,9 @@ import mem;
 import config;
 import list;
 import visit;
+import thread;
 
 using namespace std;
-
-uint16_t last_tid = 0; // FIXME - too small?
 
 static const uint64_t time_slice = 50; // ticks
 

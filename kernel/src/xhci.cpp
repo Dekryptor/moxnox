@@ -24,6 +24,7 @@ import timer;
 import usb;
 import rwsem;
 import module_init;
+import thread;
 
 using namespace std;
 

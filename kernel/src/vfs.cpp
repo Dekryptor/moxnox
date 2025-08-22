@@ -28,6 +28,7 @@ import string;
 import unicode;
 import guid;
 import cmdline;
+import thread;
 
 using namespace std;
 
