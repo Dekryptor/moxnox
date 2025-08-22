@@ -41,16 +41,6 @@ public:
     bool done = false;
 };
 
-class thread;
-
-struct multiple_wait_block {
-    thread* t;
-    std::atomic<unsigned int> left;
-    unsigned int index;
-    unsigned int num_entries;
-    waiter_object_multiple entries[0];
-};
-
 class thread : public sync_object {
 public:
     thread() : sync_object(object_type::thread, false) { }
@@ -107,3 +97,11 @@ static_assert(offsetof(thread, wait_timeout) == THREAD_WAIT_TIMEOUT);
 
 static_assert(sizeof(thread::status) == 4);
 static_assert((unsigned int)thread_status::dead == ENUM_THREAD_STATUS_DEAD);
+
+struct multiple_wait_block {
+    thread* t;
+    std::atomic<unsigned int> left;
+    unsigned int index;
+    unsigned int num_entries;
+    waiter_object_multiple entries[0];
+};
