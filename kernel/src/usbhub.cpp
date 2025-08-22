@@ -4,8 +4,6 @@ module;
 #include <atomic>
 #include "tick_rate.h"
 #include "scheduler.h"
-import objects;
-#include "thread.h"
 #include <span>
 #include <stdlib.h>
 

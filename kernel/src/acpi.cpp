@@ -4,11 +4,9 @@ module;
 #include <string_view>
 #include <atomic>
 #include "acpica.h"
-import objects;
 #include "tick_rate.h"
 #include "spinlock.h"
 #include "scheduler.h"
-#include "thread.h"
 
 export module acpi;
 

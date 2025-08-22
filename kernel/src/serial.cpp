@@ -9,7 +9,6 @@ module;
 #include "spinlock.h"
 import pipe;
 import chardev;
-import objects;
 #include "acpica.h"
 #include "scheduler.h"
 #include <ioctl.h>

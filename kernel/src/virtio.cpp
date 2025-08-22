@@ -5,8 +5,6 @@ module;
 #include "virtio.h"
 #include "spinlock.h"
 #include "scheduler.h"
-import objects;
-#include "thread.h"
 #include <variant>
 
 export module virtio;
@@ -21,6 +19,7 @@ import pci;
 import acpi;
 import module_init;
 import apic;
+import object_ref;
 
 using namespace std;
 

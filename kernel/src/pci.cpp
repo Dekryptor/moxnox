@@ -4,9 +4,7 @@ module;
 #include <atomic>
 #include "acpica.h"
 #include "pci.h"
-import objects;
 #include "scheduler.h"
-#include "thread.h"
 
 export module pci;
 
@@ -16,6 +14,7 @@ import config;
 import list;
 import event;
 import thread;
+import object_ref;
 
 using namespace std;
 

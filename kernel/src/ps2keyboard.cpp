@@ -11,8 +11,6 @@ import pipe;
 #include "tick_rate.h"
 #include "scheduler.h"
 #include <ioctl.h>
-import objects;
-#include "thread.h"
 
 export module ps2keyboard;
 

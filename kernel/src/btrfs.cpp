@@ -18,7 +18,6 @@ import rangelock;
 import rbtree;
 #include "scheduler.h"
 #include "assert.h"
-#include "thread.h"
 
 export module btrfs;
 
@@ -37,6 +36,7 @@ import unicode;
 import event;
 import module_init;
 import thread;
+import object_ref;
 
 #include "btrfs.h"
 

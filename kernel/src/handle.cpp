@@ -2,9 +2,7 @@
 #include <optional>
 #include <string_view>
 #include "spinlock.h"
-import objects;
 #include "process.h"
-#include "thread.h"
 
 import print;
 import list;

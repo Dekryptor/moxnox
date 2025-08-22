@@ -4,7 +4,6 @@ module;
 #include <atomic>
 import objects;
 #include "process.h"
-#include "thread.h"
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "scheduler.h"

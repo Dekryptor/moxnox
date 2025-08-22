@@ -7,7 +7,6 @@ module;
 import objects;
 #include "process.h"
 import event;
-#include "thread.h"
 #include "spinlock.h"
 #include "scheduler.h"
 

@@ -8,8 +8,6 @@ module;
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "scheduler.h"
-import objects;
-#include "thread.h"
 
 export module xhci;
 
@@ -25,6 +23,7 @@ import usb;
 import rwsem;
 import module_init;
 import thread;
+import object_ref;
 
 using namespace std;
 

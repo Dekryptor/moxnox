@@ -7,8 +7,6 @@ module;
 #include "handle.h"
 #include "scheduler.h"
 #include <ioctl.h>
-import objects;
-#include "thread.h"
 
 export module usbhid;
 

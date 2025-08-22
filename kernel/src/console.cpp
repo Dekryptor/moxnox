@@ -4,7 +4,6 @@ module;
 #include <string_view>
 #include <loaderblock.h>
 #include "spinlock.h"
-import objects;
 #include "handle.h"
 #include "cpu_block.h"
 #include "scheduler.h"
@@ -15,7 +14,6 @@ import objects;
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
 #include <console.h>
-#include "thread.h"
 
 export module console;
 

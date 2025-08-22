@@ -7,7 +7,6 @@ module;
 #include <functional>
 #include "cpu_block.h"
 import event;
-import objects;
 #include "process.h"
 #include "thread.h"
 #include "scheduler.h"

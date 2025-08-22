@@ -6,7 +6,6 @@ module;
 #include <atomic>
 #include <optional>
 import objects;
-#include "thread.h"
 #include "spinlock.h"
 #include "scheduler.h"
 
