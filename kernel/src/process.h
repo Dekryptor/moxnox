@@ -86,6 +86,7 @@ public:
     std::atomic<uint64_t> running_cpus = 0;
     rbtree_node<uintptr_t> tree;
     bool added_to_tree = false;
+    bool dying = false;
 };
 
 static_assert(is_sync_object<process>);

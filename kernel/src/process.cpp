@@ -1301,9 +1301,7 @@ void process::terminate() {
 
 extern "C"
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
-    object_ref objrw;
-    process* p;
-    bool this_process;
+    object_ref obj;
 
     if (process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
@@ -1311,59 +1309,37 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
         if (!t->proc)
             return nt_status::INVALID_PARAMETER;
 
-        p = t->proc;
+        auto p = t->proc;
         p->acquire();
 
-        objrw = object_ref{*p};
-
-        this_process = true;
+        obj = object_ref{*p};
     } else {
-        objrw = deref_handle(process_handle);
-        if (!objrw)
+        obj = deref_handle(process_handle);
+        if (!obj)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw.get();
-
-        if (obj.type != object_type::process)
+        if (obj.get().type != object_type::process)
             return nt_status::OBJECT_TYPE_MISMATCH;
 
         // FIXME - check access rights
-
-        p = static_cast<process*>(&obj);
-
-        this_process = p == get_current_thread()->proc;
     }
 
-    auto t = get_current_thread();
+    auto& p = static_cast<process&>(obj.get());
 
-    while (true) {
-        thread* t2;
+    {
+        lock_guard lock(p.threads_lock);
 
-        {
-            lock_guard lock(p->threads_lock);
+        if (p.dying)
+            return nt_status::SUCCESS;
 
-            if (is_list_empty(p->threads))
-                break;
+        p.dying = true;
 
-            t2 = (thread*)((uint8_t*)p->threads.next - offsetof(thread, process_le));
+        for (auto le = p.threads.next; le != &p.threads; le = le->next) {
+            auto& t = *(thread*)((uint8_t*)p.threads.next - offsetof(thread, process_le));
 
-            if (t2 == t) { // skip current thread
-                if (t2->process_le.next == &p->threads)
-                    break;
-
-                t2 = (thread*)((uint8_t*)t2->process_le.next - offsetof(thread, process_le));
-            }
-
-            t2->acquire();
+            t.exit_status = exit_status;
+            terminate_thread(t);
         }
-
-        kill_thread(*t2, exit_status);
-        t2->release();
-    }
-
-    if (this_process) {
-        t->exit_status = exit_status;
-        terminate_thread(*t);
     }
 
     return nt_status::SUCCESS;
