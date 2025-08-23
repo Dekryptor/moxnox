@@ -795,6 +795,12 @@ __attribute__((force_align_arg_pointer)) void mn_start_thread(mn_image_info* ntd
 
         init_ldr_data(*ntdll_info, *img_info);
 
+        // map kernelbase into every process
+        if (!load_dll("kernelbase.dll")) {
+            print("Could not load kernelbase.dll\n");
+            NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+        }
+
         load_dlls();
 
         toggle_protections(false);
