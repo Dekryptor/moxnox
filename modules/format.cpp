@@ -453,6 +453,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "DIRECTORY_NOT_EMPTY");
         case nt_status::NOT_A_DIRECTORY:
             return sp_strcpy(sp, "NOT_A_DIRECTORY");
+        case nt_status::PROCESS_IS_TERMINATING:
+            return sp_strcpy(sp, "PROCESS_IS_TERMINATING");
         case nt_status::DLL_NOT_FOUND:
             return sp_strcpy(sp, "DLL_NOT_FOUND");
         case nt_status::ORDINAL_NOT_FOUND:
