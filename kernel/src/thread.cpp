@@ -237,32 +237,29 @@ export void kill_thread(thread& t, NTSTATUS exit_status) {
 
 extern "C"
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
-    thread* t;
+    object_ref obj;
 
     if (thread_handle == NtCurrentThread()) {
-        t = get_current_thread();
+        auto* t = get_current_thread();
 
-        kill_thread(*t, exit_status); // if this thread, doesn't return
+        t->acquire();
+
+        obj = object_ref{*t};
     } else {
-        auto objrw = deref_handle(thread_handle);
-        if (!objrw)
+        auto obj = deref_handle(thread_handle);
+        if (!obj)
             return nt_status::INVALID_HANDLE;
 
-        auto& obj = objrw.get();
-
-        if (obj.type != object_type::thread)
+        if (obj.get().type != object_type::thread)
             return nt_status::OBJECT_TYPE_MISMATCH;
 
         // FIXME - check access rights
-
-        t = static_cast<thread*>(&obj);
-
-        if (t == get_current_thread())
-            t->release();
-
-        kill_thread(*t, exit_status); // if this thread, doesn't return
-        t->release();
     }
+
+    auto& t = static_cast<thread&>(obj.get());
+
+    t.exit_status = exit_status;
+    terminate_thread(t);
 
     return nt_status::SUCCESS;
 }
