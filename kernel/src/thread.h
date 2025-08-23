@@ -13,7 +13,8 @@ enum class thread_status {
     running,
     waiting,
     waiting_multiple,
-    dead
+    dead,
+    dying
 };
 
 extern "C++" class process;

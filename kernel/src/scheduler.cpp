@@ -199,7 +199,13 @@ nt_status wait_for_object(object& obj, bool interruptible,
     __asm("cli");
     acquire_sync_lock();
 
-    if (current_thread->status != thread_status::dead) {
+    if (interruptible && current_thread->status == thread_status::dying) {
+        release_sync_lock();
+        __asm("sti");
+        return nt_status::THREAD_IS_TERMINATING;
+    }
+
+    {
         if (!object_is_sync_object(obj)) {
             release_sync_lock();
             __asm("sti");
@@ -248,6 +254,9 @@ nt_status wait_for_object(object& obj, bool interruptible,
     }
 
     yield(); // releases sync_lock
+
+    if (interruptible && current_thread->status == thread_status::dying)
+        return nt_status::THREAD_IS_TERMINATING;
 
     if (interruptible && current_thread->suspend_count.load() != 0)
         return nt_status::ALERTED;
@@ -457,8 +466,11 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     __asm("cli");
     acquire_sync_lock();
 
-    if (current_thread->status == thread_status::dead)
-        yield(); // release sync_lock, doesn't return
+    if (current_thread->status == thread_status::dying) {
+        release_sync_lock();
+        __asm("sti");
+        return nt_status::THREAD_IS_TERMINATING;
+    }
 
     if (wait_any) {
         for (unsigned int i = 0; i < objects.size(); i++) {
@@ -553,6 +565,10 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     free(mwb);
 
     // FIXME - non-alertable waits
+
+    if (current_thread->status == thread_status::dying)
+        return nt_status::THREAD_IS_TERMINATING;
+
     if (current_thread->suspend_count.load() != 0)
         return nt_status::ALERTED;
 

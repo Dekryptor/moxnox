@@ -1677,7 +1677,7 @@ void maybe_yield(uint64_t syscall_ret) {
     auto& cb = *get_cpu_block();
     auto& t = *cb.current_thread;
 
-    if (t.status != thread_status::dead && t.suspend_count == 0)
+    if (t.status != thread_status::dying && t.suspend_count == 0)
         return;
 
     memcpy(&cb.thread_context, &t.syscall_context, sizeof(CONTEXT));

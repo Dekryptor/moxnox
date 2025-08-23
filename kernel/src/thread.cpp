@@ -75,11 +75,16 @@ export thread* get_current_thread() {
     return t;
 }
 
-export void terminate_thread(thread& t) {
-    if (t.proc) {
-        bool last_thread;
-        size_t region_size = 0;
+static void thread_died(thread& t, bool& last_thread) {
+    t.status = thread_status::dead;
+    t.signalled = true;
 
+    wake_up_waiters(t.waiters);
+
+    remove_entry_list(t.le);
+    insert_tail_list(thread_list_dead, t.le);
+
+    if (t.proc) {
         {
             lock_guard lock(t.proc->threads_lock);
 
@@ -87,38 +92,84 @@ export void terminate_thread(thread& t) {
 
             last_thread = is_list_empty(t.proc->threads);
         }
+    }
+}
 
-        if (last_thread) {
-            t.proc->exit_status = t.exit_status;
-            t.proc->terminate();
-        } else {
-            t.proc->free_vm((void**)&t.teb, &region_size, MEM_RELEASE);
-            // FIXME - free userspace stack
+static void terminate_thread2(thread& t, bool& last_thread) {
+    if (t.status == thread_status::dying || t.status == thread_status::dead)
+        return;
+
+    if (t.kernel_mode) {
+        if (t.wait_interruptible) {
+            switch (t.status) {
+                case thread_status::waiting: {
+                    remove_entry_list(t.wait_obj.wait_le);
+
+                    if (t.wait_timeout != 0)
+                        remove_entry_list(t.timeout_le);
+                    break;
+                }
+
+                case thread_status::waiting_multiple: {
+                    auto& block = *t.multwait;
+
+                    for (unsigned int i = 0; i < block.num_entries; i++) {
+                        if (!block.entries[i].done)
+                            remove_entry_list(block.entries[i].wait_le);
+                    }
+
+                    if (t.wait_timeout != 0)
+                        remove_entry_list(t.timeout_le);
+
+                    t.multwait = nullptr;
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
+
+        t.status = thread_status::dying;
+    } else { // user mode
+        if (t.current_cpu == 0xffffffff)
+            thread_died(t, last_thread);
+        else {
+            t.status = thread_status::dying;
+            // FIXME - send yield ISR
         }
     }
+}
+
+export void terminate_thread(thread& t) {
+    bool last_thread = false;
+
+    t.acquire();
 
     __asm("cli");
     acquire_sync_lock();
 
-    if (t.status != thread_status::dead) {
-        t.status = thread_status::dead;
-        t.signalled = true;
-
-        if (t.current_cpu != 0xffffffff)
-            t.acquire();
-
-        wake_up_waiters(t.waiters);
-
-        remove_entry_list(t.le);
-
-        if (t.current_cpu != 0xffffffff) {
-            insert_tail_list(thread_list_dead, t.le); // FIXME - release these in scheduler
-            t.release();
-        }
-    }
+    terminate_thread2(t, last_thread);
 
     release_sync_lock();
     __asm("sti");
+
+    if (!t.proc) {
+        t.release();
+        return;
+    }
+
+    if (last_thread) {
+        t.proc->exit_status = t.exit_status;
+        t.proc->terminate();
+    } else {
+        size_t region_size = 0;
+
+        t.proc->free_vm((void**)&t.teb, &region_size, MEM_RELEASE);
+        // FIXME - free userspace stack
+    }
+
+    t.release();
 }
 
 extern "C++"
