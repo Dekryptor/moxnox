@@ -427,6 +427,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "SHARING_VIOLATION");
         case nt_status::INVALID_PAGE_PROTECTION:
             return sp_strcpy(sp, "INVALID_PAGE_PROTECTION");
+        case nt_status::THREAD_IS_TERMINATING:
+            return sp_strcpy(sp, "THREAD_IS_TERMINATING");
         case nt_status::PROCEDURE_NOT_FOUND:
             return sp_strcpy(sp, "PROCEDURE_NOT_FOUND");
         case nt_status::INVALID_IMAGE_FORMAT:
