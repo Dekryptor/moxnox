@@ -9,7 +9,7 @@ import list;
 class object;
 
 // scheduler.cpp
-extern list_entry thread_list, thread_list_dead;
+extern list_entry thread_list;
 extern "C" void scheduler();
 nt_status wait_for_object(object& obj, bool interruptible,
                           std::optional<uint64_t> timeout = std::nullopt);

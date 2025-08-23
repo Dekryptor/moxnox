@@ -22,7 +22,6 @@ using namespace std;
 static const uint64_t time_slice = 50; // ticks
 
 list_entry thread_list = { &thread_list, &thread_list };
-list_entry thread_list_dead = { &thread_list_dead, &thread_list_dead };
 list_entry thread_list_timeout = { &thread_list_timeout, &thread_list_timeout };
 
 static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;

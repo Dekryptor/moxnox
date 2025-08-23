@@ -82,7 +82,6 @@ export void thread_died(thread& t, bool& last_thread, bool remove_from_proc) {
     wake_up_waiters(t.waiters);
 
     remove_entry_list(t.le);
-    insert_tail_list(thread_list_dead, t.le);
 
     if (t.proc && remove_from_proc) {
         lock_guard lock(t.proc->threads_lock);
@@ -91,6 +90,8 @@ export void thread_died(thread& t, bool& last_thread, bool remove_from_proc) {
 
         last_thread = is_list_empty(t.proc->threads);
     }
+
+    // t.release(); // FIXME - why does this crash?
 }
 
 static void terminate_thread2(thread& t, bool& last_thread) {
