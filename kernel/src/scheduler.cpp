@@ -41,25 +41,27 @@ static thread* pick_runnable_thread(thread* current) {
     // FIXME - proper scheduling algorithm (currently just loops through runnable threads)
 
     auto consider = [&](thread& t) -> thread* {
-        if (t.status == thread_status::runnable &&
-            t.affinity & mask &&
-            (t.suspend_count == 0 || t.kernel_mode)) {
-            return &t;
-        }
+        if (t.status != thread_status::runnable && t.status != thread_status::dying)
+            return nullptr;
 
-        return nullptr;
+        if (!(t.affinity & mask))
+            return nullptr;
+
+        if (!t.kernel_mode && t.suspend_count != 0)
+            return nullptr;
+
+        return &t;
     };
 
     if (current) { // loop through list from current thread
-        le = current->le.next;
-        while (le != &thread_list) {
+        assert(current->status != thread_status::dead);
+
+        for (auto le = current->le.next; le != &thread_list; le = le->next) {
             auto& t = containing_record<thread>(le);
 
             auto ret = consider(t);
             if (ret)
                 return ret;
-
-            le = le->next;
         }
     }
 
@@ -103,48 +105,41 @@ void scheduler() {
     // scheduler is called with sync_lock acquired
 
     if (cb.current_thread) {
-        bool dead = false;
+        auto& t = *cb.current_thread;
 
-        memcpy(&cb.current_thread->context, &cb.thread_context, sizeof(CONTEXT));
-        cb.current_thread->current_cpu = 0xffffffff;
+        memcpy(&t.context, &cb.thread_context, sizeof(CONTEXT));
+        t.current_cpu = 0xffffffff;
 
-        if (cb.current_thread->proc)
-            cb.current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+        if (t.proc)
+            t.proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
-        if (!cb.current_thread->kernel_mode)
-            wake_up_waiters(cb.current_thread->suspend_waiters);
+        if (!t.kernel_mode)
+            wake_up_waiters(t.suspend_waiters);
+        else {
+            if (t.status == thread_status::dying) { // kernel thread died
+                bool last_thread;
 
-        if (cb.current_thread->status == thread_status::dead) {
-            remove_entry_list(cb.current_thread->le);
-            dead = true;
+                thread_died(t, last_thread, false);
+            }
+        }
 
-            wake_up_waiters(cb.current_thread->suspend_waiters);
-        } else if (cb.current_thread->status == thread_status::running)
-            cb.current_thread->status = thread_status::runnable;
-        else
-            cb.current_thread = nullptr;
-
-        release_sync_lock();
-
-        if (dead) {
-            cb.current_thread->release();
+        if (t.status == thread_status::running)
+            t.status = thread_status::runnable;
+        else if (t.status == thread_status::dead) {
+            t.release();
             cb.current_thread = nullptr;
         }
-    } else
-        release_sync_lock();
+    }
+
+    release_sync_lock();
 
     do {
         acquire_sync_lock();
 
-        if (cb.current_thread && cb.current_thread->status == thread_status::dead) {
-            cb.current_thread->release();
-            cb.current_thread = nullptr;
-        }
-
         cb.current_thread = pick_runnable_thread(cb.current_thread);
 
         if (cb.current_thread) {
-            assert(cb.current_thread->status == thread_status::runnable);
+            assert(cb.current_thread->status == thread_status::runnable || cb.current_thread->status == thread_status::dying);
             assert(cb.current_thread->current_cpu == 0xffffffff);
             cb.current_thread->status = thread_status::running;
             cb.current_thread->current_cpu = cb.cpu_no;
@@ -279,8 +274,7 @@ unsigned int wake_up_waiters(list_entry& waiters) {
             case waiter_object_type::thread: {
                 auto& t = *(thread*)((uint8_t*)&wo - offsetof(thread, wait_obj));
 
-                assert(t.status == thread_status::waiting ||
-                       t.status == thread_status::dead);
+                assert(t.status == thread_status::waiting);
 
                 if (t.wait_timeout != 0)
                     remove_entry_list(t.timeout_le);
@@ -295,8 +289,7 @@ unsigned int wake_up_waiters(list_entry& waiters) {
                 auto& block = *wom.block;
                 auto& t = *block.t;
 
-                assert(t.status == thread_status::waiting_multiple ||
-                       t.status == thread_status::dead);
+                assert(t.status == thread_status::waiting_multiple);
 
                 if (t.wait_timeout != 0)
                     remove_entry_list(t.timeout_le);

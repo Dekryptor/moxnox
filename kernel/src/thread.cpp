@@ -384,7 +384,7 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
 
     acquire_sync_lock();
 
-    t.status = thread_status::dead;
+    t.status = thread_status::dying;
 
     __asm __volatile ( // doesn't return, releases sync_lock
         "mov rsp, gs:%0\n"
