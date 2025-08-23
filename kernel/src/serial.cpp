@@ -290,8 +290,10 @@ nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes)
 
         // block while we wait for space to become available
 
-        if (wait_for_object(not_full_event, true) == nt_status::ALERTED)
-            break;
+        auto status = wait_for_object(not_full_event, true);
+
+        if (!success(status))
+            return status;
     } while (true);
 
     written_bytes = (uint64_t)(s.data() - orig_s.data());
