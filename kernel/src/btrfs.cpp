@@ -494,7 +494,7 @@ nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
                                   sb->nodesize - sizeof(th.csum)));
 
         if (*(uint32_t*)&th != crc32) {
-            print("metadata csum error\n");
+            print("metadata csum error ({:08x}, expected {:08x})\n", crc32, *(uint32_t*)&th);
             // FIXME - evict from cache
             // FIXME - try to read other copies if present
             // FIXME - if success, copy good copies over bad
