@@ -1686,6 +1686,34 @@ void maybe_yield(uint64_t syscall_ret) {
 
     wake_up_waiters(t.suspend_waiters); // FIXME?
 
+    if (t.status == thread_status::dying) {
+        bool last_thread = false;
+
+        if (t.proc) {
+            lock_guard lock(t.proc->threads_lock);
+            remove_entry_list(t.process_le);
+            last_thread = is_list_empty(t.proc->threads);
+        }
+
+        release_sync_lock();
+        __asm("sti");
+
+        if (last_thread) {
+            t.proc->exit_status = t.exit_status;
+            t.proc->terminate();
+        } else {
+            size_t region_size = 0;
+
+            t.proc->free_vm((void**)&t.teb, &region_size, MEM_RELEASE);
+            // FIXME - free userspace stack
+        }
+
+        __asm("cli");
+        acquire_sync_lock();
+
+        thread_died(t, last_thread, false);
+    }
+
     __asm __volatile ( // doesn't return, releases sync_lock
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"

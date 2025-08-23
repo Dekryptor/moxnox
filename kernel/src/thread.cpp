@@ -75,7 +75,7 @@ export thread* get_current_thread() {
     return t;
 }
 
-static void thread_died(thread& t, bool& last_thread) {
+export void thread_died(thread& t, bool& last_thread, bool remove_from_proc) {
     t.status = thread_status::dead;
     t.signalled = true;
 
@@ -84,14 +84,12 @@ static void thread_died(thread& t, bool& last_thread) {
     remove_entry_list(t.le);
     insert_tail_list(thread_list_dead, t.le);
 
-    if (t.proc) {
-        {
-            lock_guard lock(t.proc->threads_lock);
+    if (t.proc && remove_from_proc) {
+        lock_guard lock(t.proc->threads_lock);
 
-            remove_entry_list(t.process_le);
+        remove_entry_list(t.process_le);
 
-            last_thread = is_list_empty(t.proc->threads);
-        }
+        last_thread = is_list_empty(t.proc->threads);
     }
 }
 
@@ -133,7 +131,7 @@ static void terminate_thread2(thread& t, bool& last_thread) {
         t.status = thread_status::dying;
     } else { // user mode
         if (t.current_cpu == 0xffffffff)
-            thread_died(t, last_thread);
+            thread_died(t, last_thread, true);
         else {
             t.status = thread_status::dying;
             // FIXME - send yield ISR
@@ -142,7 +140,7 @@ static void terminate_thread2(thread& t, bool& last_thread) {
 }
 
 export void terminate_thread(thread& t) {
-    bool last_thread = false;
+    bool thread_is_dead, last_thread = false;
 
     t.acquire();
 
@@ -151,10 +149,12 @@ export void terminate_thread(thread& t) {
 
     terminate_thread2(t, last_thread);
 
+    thread_is_dead = t.status == thread_status::dead;
+
     release_sync_lock();
     __asm("sti");
 
-    if (!t.proc) {
+    if (!t.proc || !thread_is_dead) {
         t.release();
         return;
     }
