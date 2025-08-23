@@ -113,14 +113,10 @@ void scheduler() {
         if (t.proc)
             t.proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
-        if (!t.kernel_mode)
-            wake_up_waiters(t.suspend_waiters);
-        else {
-            if (t.status == thread_status::dying) { // kernel thread died
-                bool last_thread;
+        if (t.kernel_mode && t.status == thread_status::dying) { // kernel thread died
+            bool last_thread;
 
-                thread_died(t, last_thread, false);
-            }
+            thread_died(t, last_thread, false);
         }
 
         if (t.status == thread_status::running)

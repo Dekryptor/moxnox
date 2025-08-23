@@ -462,44 +462,36 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
         *previous_suspend_count = count;
 
     disable_interrupts2();
-    acquire_sync_lock();
 
-    // break interruptible waits
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
 
-    if (t->status == thread_status::waiting && t->wait_interruptible) {
-        t->status = thread_status::runnable;
-        remove_entry_list(t->wait_obj.wait_le);
+        // break interruptible waits
 
-        if (t->wait_timeout != 0)
-            remove_entry_list(t->timeout_le);
-    } else if (t->status == thread_status::waiting_multiple && t->wait_interruptible) {
-        auto& block = *t->multwait;
+        if (t->status == thread_status::waiting && t->wait_interruptible) {
+            t->status = thread_status::runnable;
+            remove_entry_list(t->wait_obj.wait_le);
 
-        for (unsigned int i = 0; i < block.num_entries; i++) {
-            if (!block.entries[i].done)
-                remove_entry_list(block.entries[i].wait_le);
+            if (t->wait_timeout != 0)
+                remove_entry_list(t->timeout_le);
+        } else if (t->status == thread_status::waiting_multiple && t->wait_interruptible) {
+            auto& block = *t->multwait;
+
+            for (unsigned int i = 0; i < block.num_entries; i++) {
+                if (!block.entries[i].done)
+                    remove_entry_list(block.entries[i].wait_le);
+            }
+
+            if (t->wait_timeout != 0)
+                remove_entry_list(t->timeout_le);
+
+            t->multwait = nullptr;
+            t->status = thread_status::runnable;
         }
-
-        if (t->wait_timeout != 0)
-            remove_entry_list(t->timeout_le);
-
-        t->multwait = nullptr;
-        t->status = thread_status::runnable;
     }
 
-    // wait for thread to stop running
-
-    if (t->status != thread_status::running && !t->kernel_mode) {
-        release_sync_lock();
-        enable_interrupts2();
-        return nt_status::SUCCESS;
-    }
-
-    auto& this_thread = *get_cpu_block()->current_thread;
-
-    insert_tail_list(t->suspend_waiters, this_thread.wait_obj.wait_le);
-
-    set_current_thread_waiting();
+    enable_interrupts2();
 
     return nt_status::SUCCESS;
 }
@@ -528,6 +520,8 @@ NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
 
         t = static_cast<thread*>(&obj);
     }
+
+    // FIXME - wait until not in kernel mode
 
     {
         sync_lock sl;

@@ -1684,8 +1684,6 @@ void maybe_yield(uint64_t syscall_ret) {
     cb.thread_context.Rax = syscall_ret;
     t.kernel_mode = false;
 
-    wake_up_waiters(t.suspend_waiters); // FIXME?
-
     if (t.status == thread_status::dying) {
         bool last_thread = false;
 
