@@ -288,8 +288,9 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
         // block while we wait for space to become available
 
-        if (wait_for_object(not_full_event, true) == nt_status::ALERTED)
-            break;
+        auto status = wait_for_object(not_full_event, true);
+        if (!success(status))
+            return status;
 
         if (server_closed)
             break;
