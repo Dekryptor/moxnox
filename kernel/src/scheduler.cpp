@@ -31,6 +31,7 @@ volatile uint64_t sync_lock_val = 0;
 
 #ifdef DEBUG
 uint32_t sync_lock_cpu = 0xffffffff;
+thread* sync_lock_thread = nullptr;
 #endif
 
 static thread* pick_runnable_thread(thread* current) {

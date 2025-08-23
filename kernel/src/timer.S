@@ -310,17 +310,20 @@ acquire_sync_lock: # clobbers rax
 #ifdef DEBUG
     mov eax, gs:GS_CPU_NO
     mov DWORD PTR [rip+sync_lock_cpu], eax
+    mov rax, gs:GS_CURRENT_THREAD
+    mov QWORD PTR [rip+sync_lock_thread], rax
 #endif
     ret
 acquire_sync_lock_end:
 
 .global release_sync_lock
 release_sync_lock: # clobbers rax
-    xor rax, rax
-    xchg [rip+sync_lock_val], rax
 #ifdef DEBUG
     mov DWORD PTR [rip+sync_lock_cpu], 0xffffffff
+    mov QWORD PTR [rip+sync_lock_thread], 0
 #endif
+    xor rax, rax
+    xchg [rip+sync_lock_val], rax
     ret
 release_sync_lock_end:
 
