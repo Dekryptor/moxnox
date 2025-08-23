@@ -96,6 +96,7 @@ add_subdirectory(init)
 add_subdirectory(shell)
 add_subdirectory(ntdll)
 add_subdirectory(usercon)
+add_subdirectory(kernelbase)
 
 set(FREETYPE_FILES freetype/src/autofit/autofit.c
     freetype/src/base/ftbase.c
