@@ -141,7 +141,10 @@ void scheduler() {
         if (cb.current_thread) {
             assert(cb.current_thread->status == thread_status::runnable || cb.current_thread->status == thread_status::dying);
             assert(cb.current_thread->current_cpu == 0xffffffff);
-            cb.current_thread->status = thread_status::running;
+
+            if (cb.current_thread->status == thread_status::runnable)
+                cb.current_thread->status = thread_status::running;
+
             cb.current_thread->current_cpu = cb.cpu_no;
 
             if (cb.current_thread->proc)
