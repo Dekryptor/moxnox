@@ -2858,6 +2858,13 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     CONTEXT start_context;
     mn_image_info ntdll_info, img_info;
 
+    {
+        lock_guard lock(threads_lock);
+
+        if (dying)
+            return nt_status::PROCESS_IS_TERMINATING;
+    }
+
     // FIXME - desired_access
     // FIXME - object_attributes
 
@@ -2996,9 +3003,20 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.proc = this;
     this->acquire();
 
+    bool proc_dying = false;
+
     {
         lock_guard lock(threads_lock);
-        insert_tail_list(this->threads, t.process_le);
+
+        if (dying)
+            proc_dying = true;
+        else
+            insert_tail_list(this->threads, t.process_le);
+    }
+
+    if (proc_dying) {
+        delete &t;
+        return nt_status::PROCESS_IS_TERMINATING;
     }
 
     {
