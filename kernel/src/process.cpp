@@ -1368,7 +1368,23 @@ void process::resume() {
 
 extern "C++"
 void process::suspend() {
-    print("FIXME - process::suspend\n"); // FIXME
+    if (++suspend_count != 0)
+        return;
+
+    sync_lock sl;
+
+    lock_guard lock1(sl);
+    lock_guard lock2(threads_lock);
+
+    auto le = threads.next;
+
+    while (le != &threads) {
+        auto& t = *(thread*)((uint8_t*)le - offsetof(thread, process_le));
+
+        t.suspend_count++;
+
+        le = le->next;
+    }
 }
 
 extern "C"
