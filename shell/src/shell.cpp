@@ -46,6 +46,37 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
+static void forward_stdin(HANDLE h, string_view s) {
+    auto write = [](HANDLE h, string_view s) {
+        nt_status status;
+        IO_STATUS_BLOCK iosb;
+
+        // FIXME - should loop until all sent
+        status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, s.data(),
+                             (uint32_t)s.size(), nullptr, nullptr);
+        if (!success(status))
+            print("NtWriteFile returned {}\n", status);
+    };
+
+    size_t ctrlz;
+
+    do {
+        ctrlz = s.find_first_of('\x1a');
+        if (ctrlz == string_view::npos)
+            break;
+
+        if (ctrlz != 0)
+            write(h, string_view(s.data(), ctrlz));
+
+        print("FIXME - Ctrl+Z\n");
+
+        s = string_view(s.data() + ctrlz + 1, s.size() - ctrlz - 1);
+    } while (true);
+
+    if (!s.empty())
+        write(h, s);
+}
+
 static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                         string_view cmdline) {
     NTSTATUS status;
@@ -362,11 +393,11 @@ static void run_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                     continue;
                 }
 
-                status = NtWriteFile(server_handle.get(), 0, nullptr, nullptr,
-                                     &iosb, s, (uint32_t)iosb.Information,
-                                     nullptr, nullptr);
-                if (!success(status))
-                    print("NtWriteFile returned {}\n", status);
+                if (iosb.Information == 0)
+                    break;
+
+                forward_stdin(server_handle.get(),
+                              string_view(s, iosb.Information));
 
                 break;
             }
