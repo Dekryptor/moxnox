@@ -1366,6 +1366,11 @@ void process::resume() {
     }
 }
 
+extern "C++"
+void process::suspend() {
+    print("FIXME - process::suspend\n"); // FIXME
+}
+
 extern "C"
 NTSTATUS NtResumeProcess(HANDLE proc_handle) {
     object_ref objrw;
@@ -1397,6 +1402,41 @@ NTSTATUS NtResumeProcess(HANDLE proc_handle) {
     }
 
     p->resume();
+
+    return nt_status::SUCCESS;
+}
+
+extern "C"
+NTSTATUS NtSuspendProcess(HANDLE proc_handle) {
+    object_ref objrw;
+    process* p;
+
+    if (proc_handle == NtCurrentProcess()) {
+        auto t = get_current_thread();
+
+        if (!t->proc)
+            return nt_status::INVALID_PARAMETER;
+
+        p = t->proc;
+        p->acquire();
+
+        objrw = object_ref{*p};
+    } else {
+        objrw = deref_handle(proc_handle);
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+
+        auto& obj = objrw.get();
+
+        if (obj.type != object_type::process)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+
+        p = static_cast<process*>(&obj);
+    }
+
+    p->suspend();
 
     return nt_status::SUCCESS;
 }

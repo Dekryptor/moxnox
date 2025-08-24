@@ -34,6 +34,7 @@ public:
     bool copy_from(void* ks_addr, const void* us_addr, size_t size);
     bool copy_to(void* us_addr, const void* ks_addr, size_t size);
     void terminate();
+    void suspend();
     void resume();
     nt_status add_handle(object& obj, uint32_t access_mask, bool allow_shared,
                         handle_t& h);

@@ -190,6 +190,11 @@ NTSTATUS user_NtResumeProcess(HANDLE proc_handle) {
 }
 
 extern "C"
+NTSTATUS user_NtSuspendProcess(HANDLE proc_handle) {
+    return NtSuspendProcess(proc_handle);
+}
+
+extern "C"
 NTSTATUS user_NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
                                       size_t* region_size) {
     auto& t = *get_current_thread();
