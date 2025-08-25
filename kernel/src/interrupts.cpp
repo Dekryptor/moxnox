@@ -679,6 +679,49 @@ export bool init_interrupts() {
     return true;
 }
 
+static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
+                        nt_status exit_status) {
+    auto& current_thread = *get_current_thread();
+    auto& p = *current_thread.proc;
+
+    uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
+
+    if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
+        print("Unable to copy thread context to stack.\n");
+        current_thread.exit_status = exit_status;
+        terminate_thread(current_thread, true);
+        return false;
+    }
+
+    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
+    uintptr_t us_er = us_context - er_size;
+
+    if (!p.copy_to((void*)us_er, &er, er_size)) {
+        print("Unable to copy exception record to stack.\n");
+        current_thread.exit_status = exit_status;
+        terminate_thread(current_thread, true);
+        return false;
+    }
+
+    __asm __volatile("cli");
+
+    auto& cb = *get_cpu_block();
+
+    memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
+    cb.thread_context.Rip = p.ntdll_addr + mn_signal;
+    cb.thread_context.Rcx = us_er;
+    cb.thread_context.Rdx = us_context;
+    cb.thread_context.Rsp -= sizeof(CONTEXT);
+    cb.thread_context.Rsp -= er_size;
+
+    if (exit_status == nt_status::SINGLE_STEP) {
+        // clear TF flag when we return
+        cb.thread_context.EFlags &= ~(uint32_t)0x100;
+    }
+
+    return true;
+}
+
 extern "C"
 bool page_fault_user(uintptr_t address, uint64_t error_code) {
     auto& current_thread = *get_current_thread();
@@ -698,15 +741,6 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
         return false;
     }
 
-    uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
-
-    if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
-        print("Unable to copy thread context to stack.\n");
-        current_thread.exit_status = nt_status::ACCESS_VIOLATION;
-        terminate_thread(current_thread, true);
-        return false;
-    }
-
     EXCEPTION_RECORD er;
 
     er.ExceptionFlags = 0;
@@ -718,28 +752,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     er.ExceptionInformation[0] = (error_code & 0x12) >> 1;
     er.ExceptionInformation[1] = address;
 
-    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
-    uintptr_t us_er = us_context - er_size;
-
-    if (!p.copy_to((void*)us_er, &er, er_size)) {
-        print("Unable to copy exception record to stack.\n");
-        current_thread.exit_status = nt_status::ACCESS_VIOLATION;
-        terminate_thread(current_thread, true);
-        return false;
-    }
-
-    __asm __volatile("cli");
-
-    auto& cb = *get_cpu_block();
-
-    memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
-    cb.thread_context.Rip = p.ntdll_addr + mn_signal;
-    cb.thread_context.Rcx = us_er;
-    cb.thread_context.Rdx = us_context;
-    cb.thread_context.Rsp -= sizeof(CONTEXT);
-    cb.thread_context.Rsp -= er_size;
-
-    return true;
+    return send_signal(er, ctx, nt_status::ACCESS_VIOLATION);
 }
 
 extern "C"
@@ -814,22 +827,11 @@ void general_protection_fault_kernel(uint64_t error_code) {
 
 extern "C"
 void general_protection_fault_user() {
-    auto current_thread = get_cpu_block()->current_thread;
-    auto& p = *current_thread->proc;
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
     __asm __volatile("sti");
-
-    uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
-
-    if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
-        print("Unable to copy thread context to stack.\n");
-        current_thread->exit_status = nt_status::ACCESS_VIOLATION;
-        terminate_thread(*current_thread, true);
-        return;
-    }
 
     EXCEPTION_RECORD er;
 
@@ -841,26 +843,7 @@ void general_protection_fault_user() {
     er.ExceptionInformation[0] = 0;
     er.ExceptionInformation[1] = 0xffffffffffffffff;
 
-    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
-    uintptr_t us_er = us_context - er_size;
-
-    if (!p.copy_to((void*)us_er, &er, er_size)) {
-        print("Unable to copy exception record to stack.\n");
-        current_thread->exit_status = nt_status::ACCESS_VIOLATION;
-        terminate_thread(*current_thread, true);
-        return;
-    }
-
-    __asm __volatile("cli");
-
-    auto& cb = *get_cpu_block();
-
-    memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
-    cb.thread_context.Rip = p.ntdll_addr + mn_signal;
-    cb.thread_context.Rcx = us_er;
-    cb.thread_context.Rdx = us_context;
-    cb.thread_context.Rsp -= sizeof(CONTEXT);
-    cb.thread_context.Rsp -= er_size;
+    send_signal(er, ctx, nt_status::ACCESS_VIOLATION);
 }
 
 extern "C"
@@ -886,22 +869,11 @@ void invalid_opcode_kernel() {
 
 extern "C"
 void invalid_opcode_user() {
-    auto current_thread = get_cpu_block()->current_thread;
-    auto& p = *current_thread->proc;
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
     __asm __volatile("sti");
-
-    uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
-
-    if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
-        print("Unable to copy thread context to stack.\n");
-        current_thread->exit_status = nt_status::ILLEGAL_INSTRUCTION;
-        terminate_thread(*current_thread, true);
-        return;
-    }
 
     EXCEPTION_RECORD er;
 
@@ -911,26 +883,7 @@ void invalid_opcode_user() {
     er.ExceptionAddress = (void*)ctx.Rip;
     er.NumberParameters = 0;
 
-    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
-    uintptr_t us_er = us_context - er_size;
-
-    if (!p.copy_to((void*)us_er, &er, er_size)) {
-        print("Unable to copy exception record to stack.\n");
-        current_thread->exit_status = nt_status::ILLEGAL_INSTRUCTION;
-        terminate_thread(*current_thread, true);
-        return;
-    }
-
-    __asm __volatile("cli");
-
-    auto& cb = *get_cpu_block();
-
-    memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
-    cb.thread_context.Rip = p.ntdll_addr + mn_signal;
-    cb.thread_context.Rcx = us_er;
-    cb.thread_context.Rdx = us_context;
-    cb.thread_context.Rsp -= sizeof(CONTEXT);
-    cb.thread_context.Rsp -= er_size;
+    send_signal(er, ctx, nt_status::ILLEGAL_INSTRUCTION);
 }
 
 extern "C"
@@ -956,22 +909,11 @@ void divide_by_zero_kernel() {
 
 extern "C"
 void divide_by_zero_user() {
-    auto current_thread = get_cpu_block()->current_thread;
-    auto& p = *current_thread->proc;
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
     __asm __volatile("sti");
-
-    uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
-
-    if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
-        print("Unable to copy thread context to stack.\n");
-        current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
-        terminate_thread(*current_thread, true);
-        return;
-    }
 
     EXCEPTION_RECORD er;
 
@@ -981,27 +923,7 @@ void divide_by_zero_user() {
     er.ExceptionAddress = (void*)ctx.Rip;
     er.NumberParameters = 0;
 
-    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
-    uintptr_t us_er = us_context - er_size;
-
-    if (!p.copy_to((void*)us_er, &er, er_size)) {
-        print("Unable to copy exception record to stack.\n");
-        current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
-        terminate_thread(*current_thread, true);
-        return;
-    }
-
-    __asm __volatile("cli");
-
-    auto& cb = *get_cpu_block();
-
-    memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
-
-    cb.thread_context.Rip = p.ntdll_addr + mn_signal;
-    cb.thread_context.Rcx = us_er;
-    cb.thread_context.Rdx = us_context;
-    cb.thread_context.Rsp -= sizeof(CONTEXT);
-    cb.thread_context.Rsp -= er_size;
+    send_signal(er, ctx, nt_status::INTEGER_DIVIDE_BY_ZERO);
 }
 
 extern "C"
@@ -1027,22 +949,11 @@ void breakpoint_kernel() {
 
 extern "C"
 void breakpoint_user() {
-    auto current_thread = get_cpu_block()->current_thread;
-    auto& p = *current_thread->proc;
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
     __asm __volatile("sti");
-
-    uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
-
-    if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
-        print("Unable to copy thread context to stack.\n");
-        current_thread->exit_status = nt_status::BREAKPOINT;
-        terminate_thread(*current_thread, true);
-        return;
-    }
 
     EXCEPTION_RECORD er;
 
@@ -1052,26 +963,7 @@ void breakpoint_user() {
     er.ExceptionAddress = (void*)ctx.Rip;
     er.NumberParameters = 0;
 
-    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
-    uintptr_t us_er = us_context - er_size;
-
-    if (!p.copy_to((void*)us_er, &er, er_size)) {
-        print("Unable to copy exception record to stack.\n");
-        current_thread->exit_status = nt_status::BREAKPOINT;
-        terminate_thread(*current_thread, true);
-        return;
-    }
-
-    __asm __volatile("cli");
-
-    auto& cb = *get_cpu_block();
-
-    memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
-    cb.thread_context.Rip = p.ntdll_addr + mn_signal;
-    cb.thread_context.Rcx = us_er;
-    cb.thread_context.Rdx = us_context;
-    cb.thread_context.Rsp -= sizeof(CONTEXT);
-    cb.thread_context.Rsp -= er_size;
+    send_signal(er, ctx, nt_status::BREAKPOINT);
 }
 
 extern "C"
@@ -1097,22 +989,11 @@ void single_step_kernel() {
 
 extern "C"
 void single_step_user() {
-    auto current_thread = get_cpu_block()->current_thread;
-    auto& p = *current_thread->proc;
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
     __asm __volatile("sti");
-
-    uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
-
-    if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
-        print("Unable to copy thread context to stack.\n");
-        current_thread->exit_status = nt_status::SINGLE_STEP;
-        terminate_thread(*current_thread, true);
-        return;
-    }
 
     EXCEPTION_RECORD er;
 
@@ -1122,27 +1003,5 @@ void single_step_user() {
     er.ExceptionAddress = (void*)ctx.Rip;
     er.NumberParameters = 0;
 
-    size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
-    uintptr_t us_er = us_context - er_size;
-
-    if (!p.copy_to((void*)us_er, &er, er_size)) {
-        print("Unable to copy exception record to stack.\n");
-        current_thread->exit_status = nt_status::SINGLE_STEP;
-        terminate_thread(*current_thread, true);
-        return;
-    }
-
-    __asm __volatile("cli");
-
-    auto& cb = *get_cpu_block();
-
-    memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
-    cb.thread_context.Rip = p.ntdll_addr + mn_signal;
-    cb.thread_context.Rcx = us_er;
-    cb.thread_context.Rdx = us_context;
-    cb.thread_context.Rsp -= sizeof(CONTEXT);
-    cb.thread_context.Rsp -= er_size;
-
-    // clear TF flag when we return
-    cb.thread_context.EFlags &= ~(uint32_t)0x100;
+    send_signal(er, ctx, nt_status::SINGLE_STEP);
 }
