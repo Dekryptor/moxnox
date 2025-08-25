@@ -3418,26 +3418,35 @@ NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK /*desired_access*/,
             return nt_status::OBJECT_TYPE_MISMATCH;
     }
 
-    {
-        lock_guard lock(process_list_lock);
+    while (true) {
+        {
+            lock_guard lock(process_list_lock);
 
-        if (!old_proc) {
-            auto n = get_tree_minimum(process_tree);
-            if (!n)
-                return nt_status::NO_MORE_ENTRIES;
+            if (!old_proc) {
+                auto n = get_tree_minimum(process_tree);
+                if (!n)
+                    return nt_status::NO_MORE_ENTRIES;
 
-            new_proc = &rbtree_containing_record<process>(n);
-        } else {
-            auto& p = static_cast<process&>(old_proc.get());
+                new_proc = &rbtree_containing_record<process>(n);
+            } else {
+                auto& p = static_cast<process&>(old_proc.get());
 
-            auto n = next_rbtree_node(p.tree);
-            if (!n)
-                return nt_status::NO_MORE_ENTRIES;
+                auto n = next_rbtree_node(p.tree);
+                if (!n)
+                    return nt_status::NO_MORE_ENTRIES;
 
-            new_proc = &rbtree_containing_record<process>(n);
+                new_proc = &rbtree_containing_record<process>(n);
+            }
+
+            new_proc->acquire();
         }
 
-        new_proc->acquire();
+        if (new_proc->signalled) { // process is dead, go to next one
+            old_proc = object_ref{*new_proc};
+            continue;
+        }
+
+        break;
     }
 
     handle_t h;
