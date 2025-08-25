@@ -17,6 +17,7 @@ import print;
 import unicode;
 import unique_handle;
 import signal;
+import list;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;
@@ -36,6 +37,13 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
+struct suspended_process {
+    list_entry le;
+    unique_handle proc;
+};
+
+static list_entry suspended_processes = { &suspended_processes, &suspended_processes };
+
 extern "C"
 void* malloc(size_t size) {
     return RtlAllocateHeap(GetProcessHeap(), 0, size);
@@ -44,6 +52,18 @@ void* malloc(size_t size) {
 extern "C"
 void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
+}
+
+void* operator new(size_t count) {
+    return malloc(count);
+}
+
+void operator delete(void* ptr) noexcept {
+    free(ptr);
+}
+
+void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
 }
 
 static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
@@ -83,7 +103,7 @@ static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
     return true;
 }
 
-static void run_program(HANDLE server_handle, HANDLE proc) {
+static bool run_program(HANDLE server_handle, unique_handle& proc) {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
@@ -93,7 +113,7 @@ static void run_program(HANDLE server_handle, HANDLE proc) {
 
         objs[0] = peb->ProcessParameters->StandardInput;
         objs[1] = server_handle;
-        objs[2] = proc;
+        objs[2] = proc.get();
 
         auto status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                                true, nullptr);
@@ -103,7 +123,7 @@ static void run_program(HANDLE server_handle, HANDLE proc) {
 
         if (!success(status)) {
             print("NtWaitForMultipleObjects returned {}\n", status);
-            return;
+            return true;
         }
 
         switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
@@ -126,8 +146,16 @@ static void run_program(HANDLE server_handle, HANDLE proc) {
                     break;
 
                 if (!forward_stdin(server_handle, string_view(s, iosb.Information),
-                                   proc))
+                                   proc.get())) {
+                    auto sp = new suspended_process;
+                    swap(sp->proc, proc);
+
+                    insert_tail_list(suspended_processes, sp->le);
+
                     running_proc = 0;
+
+                    return false;
+                }
 
                 break;
             }
@@ -164,6 +192,8 @@ static void run_program(HANDLE server_handle, HANDLE proc) {
             }
         }
     } while (running_proc != 0);
+
+    return true;
 }
 
 static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
@@ -367,7 +397,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     NtResumeThread(thread.get(), nullptr);
 
-    run_program(server_handle, proc.get());
+    run_program(server_handle, proc);
 }
 
 static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
@@ -682,6 +712,22 @@ static void cursor() {
     NtClose(h);
 }
 
+static void exit() {
+    while (!is_list_empty(suspended_processes)) {
+        auto& sp = containing_record<suspended_process>(suspended_processes.next);
+
+        remove_entry_list(sp.le);
+
+        auto status = NtTerminateProcess(sp.proc.get(), nt_status::CONTROL_C_EXIT);
+        if (!success(status))
+            print("NtTerminateProcess returned {}\n", status);
+
+        delete &sp;
+    }
+
+    NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+}
+
 static void process_line(string_view sv, HANDLE server_handle,
                          HANDLE client_handle) {
     if (!sv.empty() && sv.back() == '\r')
@@ -712,7 +758,7 @@ static void process_line(string_view sv, HANDLE server_handle,
         cmd = string_view(cmd.data() + 1, cmd.size() - 2);
 
     if (cmd == "exit")
-        NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+        exit();
     else if (cmd == "time")
         time();
     else if (cmd == "timer")
