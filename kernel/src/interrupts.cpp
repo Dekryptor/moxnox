@@ -12,6 +12,7 @@ import objects;
 #include "mem.h"
 #include "spinlock.h"
 #include "process.h"
+#include "assert.h"
 #include <span>
 #include "ints.h"
 
@@ -686,6 +687,10 @@ static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
 
     uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
 
+    us_context &= ~(uint64_t)(alignof(CONTEXT) - 1);
+
+    assert(!(us_context & (alignof(CONTEXT) - 1)));
+
     if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
         print("Unable to copy thread context to stack.\n");
         current_thread.exit_status = exit_status;
@@ -695,6 +700,10 @@ static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
 
     size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
     uintptr_t us_er = us_context - er_size;
+
+    us_er &= ~(uint64_t)(alignof(EXCEPTION_RECORD) - 1);
+
+    assert(!(us_er & (alignof(EXCEPTION_RECORD) - 1)));
 
     if (!p.copy_to((void*)us_er, &er, er_size)) {
         print("Unable to copy exception record to stack.\n");
@@ -711,8 +720,7 @@ static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
     cb.thread_context.Rip = p.ntdll_addr + mn_signal;
     cb.thread_context.Rcx = us_er;
     cb.thread_context.Rdx = us_context;
-    cb.thread_context.Rsp -= sizeof(CONTEXT);
-    cb.thread_context.Rsp -= er_size;
+    cb.thread_context.Rsp = us_er;
 
     if (exit_status == nt_status::SINGLE_STEP) {
         // clear TF flag when we return
