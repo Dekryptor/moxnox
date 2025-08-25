@@ -1368,7 +1368,7 @@ void process::resume() {
 
 extern "C++"
 void process::suspend() {
-    if (++suspend_count != 0)
+    if (suspend_count++ != 0)
         return;
 
     sync_lock sl;
