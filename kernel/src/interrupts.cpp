@@ -703,7 +703,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
         print("Unable to copy thread context to stack.\n");
         current_thread.exit_status = nt_status::ACCESS_VIOLATION;
-        terminate_thread(current_thread);
+        terminate_thread(current_thread, true);
         return false;
     }
 
@@ -724,7 +724,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     if (!p.copy_to((void*)us_er, &er, er_size)) {
         print("Unable to copy exception record to stack.\n");
         current_thread.exit_status = nt_status::ACCESS_VIOLATION;
-        terminate_thread(current_thread);
+        terminate_thread(current_thread, true);
         return false;
     }
 
@@ -827,7 +827,7 @@ void general_protection_fault_user() {
     if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
         print("Unable to copy thread context to stack.\n");
         current_thread->exit_status = nt_status::ACCESS_VIOLATION;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 
@@ -847,7 +847,7 @@ void general_protection_fault_user() {
     if (!p.copy_to((void*)us_er, &er, er_size)) {
         print("Unable to copy exception record to stack.\n");
         current_thread->exit_status = nt_status::ACCESS_VIOLATION;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 
@@ -899,7 +899,7 @@ void invalid_opcode_user() {
     if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
         print("Unable to copy thread context to stack.\n");
         current_thread->exit_status = nt_status::ILLEGAL_INSTRUCTION;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 
@@ -917,7 +917,7 @@ void invalid_opcode_user() {
     if (!p.copy_to((void*)us_er, &er, er_size)) {
         print("Unable to copy exception record to stack.\n");
         current_thread->exit_status = nt_status::ILLEGAL_INSTRUCTION;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 
@@ -969,7 +969,7 @@ void divide_by_zero_user() {
     if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
         print("Unable to copy thread context to stack.\n");
         current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 
@@ -987,7 +987,7 @@ void divide_by_zero_user() {
     if (!p.copy_to((void*)us_er, &er, er_size)) {
         print("Unable to copy exception record to stack.\n");
         current_thread->exit_status = nt_status::INTEGER_DIVIDE_BY_ZERO;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 
@@ -1040,7 +1040,7 @@ void breakpoint_user() {
     if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
         print("Unable to copy thread context to stack.\n");
         current_thread->exit_status = nt_status::BREAKPOINT;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 
@@ -1058,7 +1058,7 @@ void breakpoint_user() {
     if (!p.copy_to((void*)us_er, &er, er_size)) {
         print("Unable to copy exception record to stack.\n");
         current_thread->exit_status = nt_status::BREAKPOINT;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 
@@ -1110,7 +1110,7 @@ void single_step_user() {
     if (!p.copy_to((void*)us_context, &ctx, sizeof(CONTEXT))) {
         print("Unable to copy thread context to stack.\n");
         current_thread->exit_status = nt_status::SINGLE_STEP;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 
@@ -1128,7 +1128,7 @@ void single_step_user() {
     if (!p.copy_to((void*)us_er, &er, er_size)) {
         print("Unable to copy exception record to stack.\n");
         current_thread->exit_status = nt_status::SINGLE_STEP;
-        terminate_thread(*current_thread);
+        terminate_thread(*current_thread, true);
         return;
     }
 

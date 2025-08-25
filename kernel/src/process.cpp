@@ -1338,7 +1338,10 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
             auto& t = *(thread*)((uint8_t*)p.threads.next - offsetof(thread, process_le));
 
             t.exit_status = exit_status;
-            terminate_thread(t);
+            terminate_thread(t, false);
+
+            remove_entry_list(t.process_le);
+            // FIXME - reduce t refcount?
         }
     }
 

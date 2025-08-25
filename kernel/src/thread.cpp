@@ -94,7 +94,8 @@ export void thread_died(thread& t, bool& last_thread, bool remove_from_proc) {
     // t.release(); // FIXME - why does this crash?
 }
 
-static void terminate_thread2(thread& t, bool& last_thread) {
+static void terminate_thread2(thread& t, bool& last_thread,
+                              bool remove_from_proc) {
     if (t.status == thread_status::dying || t.status == thread_status::dead)
         return;
 
@@ -132,7 +133,7 @@ static void terminate_thread2(thread& t, bool& last_thread) {
         t.status = thread_status::dying;
     } else { // user mode
         if (t.current_cpu == 0xffffffff)
-            thread_died(t, last_thread, true);
+            thread_died(t, last_thread, remove_from_proc);
         else {
             t.status = thread_status::dying;
             // FIXME - send yield ISR
@@ -140,7 +141,7 @@ static void terminate_thread2(thread& t, bool& last_thread) {
     }
 }
 
-export void terminate_thread(thread& t) {
+export void terminate_thread(thread& t, bool remove_from_proc) {
     bool thread_is_dead, last_thread = false;
 
     t.acquire();
@@ -148,7 +149,7 @@ export void terminate_thread(thread& t) {
     __asm("cli");
     acquire_sync_lock();
 
-    terminate_thread2(t, last_thread);
+    terminate_thread2(t, last_thread, remove_from_proc);
 
     thread_is_dead = t.status == thread_status::dead;
 
@@ -217,7 +218,7 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     auto& t = static_cast<thread&>(obj.get());
 
     t.exit_status = exit_status;
-    terminate_thread(t);
+    terminate_thread(t, true);
 
     return nt_status::SUCCESS;
 }
