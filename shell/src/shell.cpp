@@ -91,9 +91,9 @@ static void run_program(HANDLE server_handle, HANDLE proc) {
         IO_STATUS_BLOCK iosb;
         array<HANDLE, 3> objs;
 
-        objs[0] = server_handle;
-        objs[1] = proc;
-        objs[2] = peb->ProcessParameters->StandardInput;
+        objs[0] = peb->ProcessParameters->StandardInput;
+        objs[1] = server_handle;
+        objs[2] = proc;
 
         auto status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                                true, nullptr);
@@ -108,6 +108,31 @@ static void run_program(HANDLE server_handle, HANDLE proc) {
 
         switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
             case 0: {
+                char s[PAGE_SIZE];
+
+                // forward stdin to process
+
+                status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
+                                    nullptr, nullptr, &iosb, s, sizeof(s),
+                                    nullptr, nullptr);
+                if (status == nt_status::ALERTED)
+                    continue;
+                else if (!success(status)) {
+                    print("NtReadFile returned {}\n", status);
+                    continue;
+                }
+
+                if (iosb.Information == 0)
+                    break;
+
+                if (!forward_stdin(server_handle, string_view(s, iosb.Information),
+                                   proc))
+                    running_proc = 0;
+
+                break;
+            }
+
+            case 1: {
                 char s[PAGE_SIZE];
 
                 // print pipe data
@@ -130,35 +155,10 @@ static void run_program(HANDLE server_handle, HANDLE proc) {
                 break;
             }
 
-            case 1: {
+            case 2: {
                 // process finished
 
                 running_proc = 0;
-
-                break;
-            }
-
-            case 2: {
-                char s[PAGE_SIZE];
-
-                // forward stdin to process
-
-                status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
-                                    nullptr, nullptr, &iosb, s, sizeof(s),
-                                    nullptr, nullptr);
-                if (status == nt_status::ALERTED)
-                    continue;
-                else if (!success(status)) {
-                    print("NtReadFile returned {}\n", status);
-                    continue;
-                }
-
-                if (iosb.Information == 0)
-                    break;
-
-                if (!forward_stdin(server_handle, string_view(s, iosb.Information),
-                                   proc))
-                    running_proc = 0;
 
                 break;
             }
