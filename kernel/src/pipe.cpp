@@ -136,6 +136,8 @@ public:
 
     void last_handle_closed() override {
         client.server_disconnected();
+
+        // FIXME - remove name
     }
 
     named_duplex_pipe_client& client;
@@ -541,7 +543,7 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
     auto obj4 = object_ref{*pptr_server};
 
     status = name_object(*pptr_client, string_view(name + dev_prefix.size(), namelen - dev_prefix.size()),
-                         false);
+                         true);
     if (!success(status)) {
         print("name_object returned {}\n", status);
         free(name);
