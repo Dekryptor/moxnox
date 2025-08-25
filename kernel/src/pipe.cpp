@@ -137,7 +137,7 @@ public:
     void last_handle_closed() override {
         client.server_disconnected();
 
-        // FIXME - remove name
+        remove_object_name(client);
     }
 
     named_duplex_pipe_client& client;

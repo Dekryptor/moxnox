@@ -125,6 +125,33 @@ nt_status open_object(string_view name, object_ref& obj) {
     return nt_status::OBJECT_NAME_NOT_FOUND;
 }
 
+void remove_object_name(object& obj) {
+    name_entry* ne = nullptr;
+
+    if (!obj.named)
+        return;
+
+    {
+        lock_guard lock(name_lock);
+
+        for (auto le = name_list.next; le != &name_list; le = le->next) {
+            auto& ne2 = containing_record<name_entry>(le);
+
+            if (ne2.obj == &obj) {
+                ne = &ne2;
+                remove_entry_list(ne2.le);
+                break;
+            }
+        }
+    }
+
+    if (ne) {
+        free(ne);
+        obj.named = false;
+        object_release(obj);
+    }
+}
+
 void handle_closed(object& obj) {
     auto new_handle_count = --obj.handle_count;
 
@@ -133,29 +160,6 @@ void handle_closed(object& obj) {
     if (new_handle_count == 0)
         object_last_handle_closed(obj);
 
-    if (obj.named && !obj.persistent && new_handle_count == 0) {
-        name_entry* ne = nullptr;
-
-        {
-            lock_guard lock(name_lock);
-
-            auto le = name_list.next;
-            while (le != &name_list) {
-                auto& ne2 = containing_record<name_entry>(le);
-
-                if (ne2.obj == &obj) {
-                    ne = &ne2;
-                    remove_entry_list(ne2.le);
-                    break;
-                }
-
-                le = le->next;
-            }
-        }
-
-        if (ne) {
-            free(ne);
-            object_release(obj);
-        }
-    }
+    if (obj.named && !obj.persistent && new_handle_count == 0)
+        remove_object_name(obj);
 }
