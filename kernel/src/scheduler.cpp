@@ -44,6 +44,9 @@ static thread* pick_runnable_thread(thread* current) {
         if (t.status != thread_status::runnable && t.status != thread_status::dying)
             return nullptr;
 
+        if (t.status == thread_status::dying && t.current_cpu != 0xffffffff)
+            return nullptr;
+
         if (!(t.affinity & mask))
             return nullptr;
 
