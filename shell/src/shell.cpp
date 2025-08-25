@@ -43,6 +43,7 @@ struct suspended_process {
 };
 
 static list_entry suspended_processes = { &suspended_processes, &suspended_processes };
+static unsigned int num_suspended_processes = 0;
 
 extern "C"
 void* malloc(size_t size) {
@@ -92,7 +93,8 @@ static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
         if (!success(status))
             print("NtSuspendProcess returned {}\n", status);
 
-        // FIXME - print "Stopped" message
+        // FIXME - bash also prints command line
+        print("[{}]+  Stopped\n", num_suspended_processes + 1);
 
         return false;
     } while (true);
@@ -151,6 +153,7 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
                     swap(sp->proc, proc);
 
                     insert_tail_list(suspended_processes, sp->le);
+                    num_suspended_processes++;
 
                     running_proc = 0;
 
@@ -729,6 +732,8 @@ static void exit() {
 }
 
 static void fg(HANDLE server_handle) {
+    // FIXME - job_spec
+
     if (is_list_empty(suspended_processes)) {
         print("fg: current: no such job\n");
         return;
@@ -741,6 +746,8 @@ static void fg(HANDLE server_handle) {
 
     remove_entry_list(sp.le);
     delete &sp;
+
+    num_suspended_processes--;
 
     NtResumeProcess(proc.get());
 
