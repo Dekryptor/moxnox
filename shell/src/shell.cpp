@@ -46,7 +46,7 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-static void forward_stdin(HANDLE h, string_view s) {
+static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
     auto write = [](HANDLE h, string_view s) {
         nt_status status;
         IO_STATUS_BLOCK iosb;
@@ -68,13 +68,19 @@ static void forward_stdin(HANDLE h, string_view s) {
         if (ctrlz != 0)
             write(h, string_view(s.data(), ctrlz));
 
-        print("FIXME - Ctrl+Z\n");
+        auto status = NtSuspendProcess(proc);
+        if (!success(status))
+            print("NtSuspendProcess returned {}\n", status);
 
-        s = string_view(s.data() + ctrlz + 1, s.size() - ctrlz - 1);
+        // FIXME - print "Stopped" message
+
+        return false;
     } while (true);
 
     if (!s.empty())
         write(h, s);
+
+    return true;
 }
 
 static void run_program(HANDLE server_handle, HANDLE proc) {
@@ -150,8 +156,9 @@ static void run_program(HANDLE server_handle, HANDLE proc) {
                 if (iosb.Information == 0)
                     break;
 
-                forward_stdin(server_handle,
-                              string_view(s, iosb.Information));
+                if (!forward_stdin(server_handle, string_view(s, iosb.Information),
+                                   proc))
+                    running_proc = 0;
 
                 break;
             }
