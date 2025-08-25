@@ -31,7 +31,6 @@ static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
 
 static HANDLE running_proc = 0;
-static uintptr_t pid;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -161,9 +160,10 @@ static void run_program(HANDLE server_handle, HANDLE proc) {
 }
 
 static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
-                          string_view cmdline, HANDLE server_handle) {
+                          string_view cmdline, HANDLE server_handle,
+                          HANDLE client_handle) {
     NTSTATUS status;
-    unique_handle proc, thread, client_handle;
+    unique_handle proc, thread;
     HANDLE h;
     CLIENT_ID client_id;
     CONTEXT context;
@@ -172,10 +172,6 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     PROCESS_BASIC_INFORMATION pbi;
     PEB newpeb;
     RTL_USER_PROCESS_PARAMETERS params;
-    IO_STATUS_BLOCK iosb;
-    OBJECT_ATTRIBUTES oa;
-    UNICODE_STRING us;
-    char16_t pipename[50];
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
@@ -191,35 +187,9 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     proc.reset(h);
 
-    memset(&oa, 0, sizeof(oa));
-    oa.Length = sizeof(OBJECT_ATTRIBUTES);
-    oa.ObjectName = &us;
-
-    {
-        char s[50];
-        span sp(s, sizeof(s));
-
-        sp = format(sp, "\\dev\\shellpipe-{}", pid);
-
-        auto name = string_view(s, (size_t)(sp.data() - s));
-
-        utf8_to_utf16(pipename, name);
-
-        us.Length = us.MaximumLength = (uint16_t)(utf8_to_utf16_len(name) * sizeof(char16_t));
-        us.Buffer = pipename;
-    }
-
-    status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
-    if (!success(status)) {
-        print("NtOpenFile({}) returned {}\n", us, status);
-        return;
-    }
-
-    client_handle.reset(h);
-
     // duplicate handles
 
-    status = NtDuplicateObject(NtCurrentProcess(), client_handle.get(),
+    status = NtDuplicateObject(NtCurrentProcess(), client_handle,
                                proc.get(), &stdinh, FILE_READ_DATA, 0,
                                DUPLICATE_SAME_ATTRIBUTES);
 
@@ -228,7 +198,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
         return;
     }
 
-    status = NtDuplicateObject(NtCurrentProcess(), client_handle.get(),
+    status = NtDuplicateObject(NtCurrentProcess(), client_handle,
                                proc.get(), &stdouth, FILE_WRITE_DATA, 0,
                                DUPLICATE_SAME_ATTRIBUTES);
 
@@ -499,7 +469,7 @@ static void reboot() {
 }
 
 static void try_run_program(string_view program, string_view cmdline,
-                            HANDLE server_handle) {
+                            HANDLE server_handle, HANDLE client_handle) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
@@ -614,7 +584,7 @@ static void try_run_program(string_view program, string_view cmdline,
         return;
     }
 
-    start_program(sect.get(), sii, cmdline, server_handle);
+    start_program(sect.get(), sii, cmdline, server_handle, client_handle);
 }
 
 static void int3() {
@@ -705,7 +675,8 @@ static void cursor() {
     NtClose(h);
 }
 
-static void process_line(string_view sv, HANDLE server_handle) {
+static void process_line(string_view sv, HANDLE server_handle,
+                         HANDLE client_handle) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
 
@@ -760,16 +731,16 @@ static void process_line(string_view sv, HANDLE server_handle) {
     else if (cmd == "reboot")
         reboot();
     else
-        try_run_program(cmd, sv, server_handle);
+        try_run_program(cmd, sv, server_handle, client_handle);
 }
 
-static void process_lines(HANDLE server_handle) {
+static void process_lines(HANDLE server_handle, HANDLE client_handle) {
     for (unsigned int i = cursor_pos; i < buflen; i++) {
         print("\x1b[C"); // right
     }
     print("\n");
 
-    process_line(string_view(buf, buflen), server_handle);
+    process_line(string_view(buf, buflen), server_handle, client_handle);
 
     free(buf);
     buf = nullptr;
@@ -1112,7 +1083,8 @@ static void handle_backspace() {
     }
 }
 
-static void handle_input(string_view s, HANDLE server_handle) {
+static void handle_input(string_view s, HANDLE server_handle,
+                         HANDLE client_handle) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && (s[0] != '[' && s[0] != 'O')) {
             handle_char(0x1b);
@@ -1211,7 +1183,7 @@ loop:
                 NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
             }
         } else if (c == '\n') {
-            process_lines(server_handle);
+            process_lines(server_handle, client_handle);
             print("> ");
         } else if (c == 0x1b) {
             if (s.size() == 1) {
@@ -1305,10 +1277,11 @@ static void handle_ctrl_c() {
 
         send_signal_to_process(running_proc, er);
     } else
-        handle_input("\x03", 0);
+        handle_input("\x03", 0, 0);
 }
 
-static unique_handle create_pipe() {
+static nt_status create_pipe(unique_handle& server_handle,
+                             unique_handle& client_handle) {
     nt_status status;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
@@ -1322,16 +1295,14 @@ static unique_handle create_pipe() {
                                        &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
         print("NtQueryInformationProcess returned {}\n", status);
-        return {};
+        return status;
     }
-
-    pid = pbi.UniqueProcessId;
 
     {
         char s[50];
         span sp(s, sizeof(s));
 
-        sp = format(sp, "\\dev\\shellpipe-{}", pid);
+        sp = format(sp, "\\dev\\shellpipe-{}", pbi.UniqueProcessId);
 
         auto name = string_view(s, (size_t)(sp.data() - s));
 
@@ -1350,10 +1321,20 @@ static unique_handle create_pipe() {
                                    nullptr);
     if (!success(status)) {
         print("NtCreateNamedPipeFile returned {}\n", status);
-        return {};
+        return status;
     }
 
-    return unique_handle{h};
+    server_handle.reset(h);
+
+    status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
+    if (!success(status)) {
+        print("NtOpenFile returned {}\n", status);
+        return status;
+    }
+
+    client_handle.reset(h);
+
+    return nt_status::SUCCESS;
 }
 
 extern "C"
@@ -1372,10 +1353,16 @@ __attribute__((force_align_arg_pointer)) void startup() {
     __asm __volatile(".seh_handler exception_handler, @except");
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
+    unique_handle server_handle, client_handle;
+    nt_status status;
 
 //     thread_test();
 
-    auto server_handle = create_pipe();
+    status = create_pipe(server_handle, client_handle);
+    if (!success(status)) {
+        NtTerminateThread(NtCurrentThread(), status);
+        return;
+    }
 
     print("> ");
 
@@ -1383,8 +1370,8 @@ __attribute__((force_align_arg_pointer)) void startup() {
         IO_STATUS_BLOCK iosb;
         char s[10];
 
-        auto status = NtReadFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr, &iosb,
-                                 s, sizeof(s), nullptr, nullptr);
+        status = NtReadFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr, &iosb,
+                            s, sizeof(s), nullptr, nullptr);
 
         if (!success(status)) {
             print("NtReadFile returned {}\n", status); // FIXME - should be to stderr
@@ -1407,7 +1394,8 @@ __attribute__((force_align_arg_pointer)) void startup() {
 
         buf = buf2;
 
-        handle_input(string_view(s, iosb.Information), server_handle.get());
+        handle_input(string_view(s, iosb.Information), server_handle.get(),
+                     client_handle.get());
     }
 
     NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
