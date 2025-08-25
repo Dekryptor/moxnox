@@ -728,6 +728,26 @@ static void exit() {
     NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
 }
 
+static void fg(HANDLE server_handle) {
+    if (is_list_empty(suspended_processes)) {
+        print("fg: current: no such job\n");
+        return;
+    }
+
+    auto& sp = containing_record<suspended_process>(suspended_processes.prev);
+    unique_handle proc;
+
+    swap(sp.proc, proc);
+
+    remove_entry_list(sp.le);
+    delete &sp;
+
+    NtResumeProcess(proc.get());
+
+    running_proc = proc.get();
+    run_program(server_handle, proc);
+}
+
 static void process_line(string_view sv, HANDLE server_handle,
                          HANDLE client_handle) {
     if (!sv.empty() && sv.back() == '\r')
@@ -783,6 +803,8 @@ static void process_line(string_view sv, HANDLE server_handle,
         halt();
     else if (cmd == "reboot")
         reboot();
+    else if (cmd == "fg")
+        fg(server_handle);
     else
         try_run_program(cmd, sv, server_handle, client_handle);
 }
