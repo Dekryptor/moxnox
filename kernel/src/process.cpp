@@ -1333,17 +1333,29 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
             return nt_status::SUCCESS;
 
         p.dying = true;
-
-        for (auto le = p.threads.next; le != &p.threads; le = le->next) {
-            auto& t = *(thread*)((uint8_t*)p.threads.next - offsetof(thread, process_le));
-
-            t.exit_status = exit_status;
-            terminate_thread(t, false);
-
-            remove_entry_list(t.process_le);
-            // FIXME - reduce t refcount?
-        }
     }
+
+    while (true) {
+        thread* t;
+
+        {
+            lock_guard lock(p.threads_lock);
+
+            if (is_list_empty(p.threads))
+                break;
+
+            t = (thread*)((uint8_t*)p.threads.next - offsetof(thread, process_le));
+
+            t->exit_status = exit_status;
+            terminate_thread(*t, false);
+            remove_entry_list(t->process_le);
+        }
+
+        // t->release(); // FIXME
+    }
+
+    p.exit_status = exit_status;
+    p.terminate();
 
     return nt_status::SUCCESS;
 }
