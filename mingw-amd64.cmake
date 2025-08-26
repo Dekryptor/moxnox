@@ -10,6 +10,7 @@ SET(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc)
 SET(CMAKE_CXX_COMPILER x86_64-w64-mingw32-g++)
 SET(CMAKE_RC_COMPILER x86_64-w64-mingw32-windres)
 SET(DLLTOOL x86_64-w64-mingw32-dlltool)
+SET(AR x86_64-w64-mingw32-ar)
 
 #set(CMAKE_CXX_STANDARD_LIBRARIES "-static -static-libgcc -static-libstdc++ ${CMAKE_CXX_STANDARD_LIBRARIES}")
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bstatic,--whole-archive -Wl,--no-whole-archive")
