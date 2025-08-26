@@ -9,6 +9,7 @@ enable_language(ASM)
 
 set(SRC_FILES src/kernelbase.cpp
     src/sync.cpp
+    src/console.cpp
 )
 
 add_library(kernelbase SHARED ${SRC_FILES})

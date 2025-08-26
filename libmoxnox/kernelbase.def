@@ -1,3 +1,4 @@
 LIBRARY "kernelbase.dll"
 EXPORTS
 Sleep
+CtrlRoutine
