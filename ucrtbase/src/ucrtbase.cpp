@@ -12,7 +12,7 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-extern "C"
+extern "C" __declspec(dllexport)
 void* calloc(size_t nmemb, size_t size) {
     // FIXME - should test for overflow of nmemb * size
 
@@ -23,6 +23,11 @@ void* calloc(size_t nmemb, size_t size) {
     memset(ptr, 0, nmemb * size);
 
     return ptr;
+}
+
+extern "C" __declspec(dllexport)
+void* realloc(void* ptr, size_t size) {
+    return RtlReAllocateHeap(GetProcessHeap(), 0, ptr, size);
 }
 
 extern "C"

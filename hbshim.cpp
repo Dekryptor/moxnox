@@ -4,11 +4,6 @@
 #include <stdlib.h>
 
 extern "C"
-void* realloc(void* ptr, size_t size) {
-    return RtlReAllocateHeap(GetProcessHeap(), 0, ptr, size);
-}
-
-extern "C"
 void __imp__assert(const char* /*_Message*/, const char* /*_File*/, unsigned /*_Line*/) {
     // FIXME
 }

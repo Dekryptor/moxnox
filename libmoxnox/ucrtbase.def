@@ -3,3 +3,4 @@ EXPORTS
 malloc
 free
 calloc
+realloc

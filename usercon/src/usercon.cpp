@@ -146,11 +146,6 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
-extern "C"
-void* realloc(void* ptr, size_t size) {
-    return RtlReAllocateHeap(GetProcessHeap(), 0, ptr, size);
-}
-
 void* operator new(size_t count) {
     return malloc(count);
 }
