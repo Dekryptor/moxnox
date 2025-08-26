@@ -45,16 +45,6 @@ struct suspended_process {
 static list_entry suspended_processes = { &suspended_processes, &suspended_processes };
 static unsigned int num_suspended_processes = 0;
 
-extern "C"
-void* malloc(size_t size) {
-    return RtlAllocateHeap(GetProcessHeap(), 0, size);
-}
-
-extern "C"
-void free(void* ptr) {
-    RtlFreeHeap(GetProcessHeap(), 0, ptr);
-}
-
 void* operator new(size_t count) {
     return malloc(count);
 }

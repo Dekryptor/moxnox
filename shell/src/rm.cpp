@@ -10,16 +10,6 @@ import cmdline;
 
 using namespace std;
 
-extern "C"
-void* malloc(size_t size) {
-    return RtlAllocateHeap(GetProcessHeap(), 0, size);
-}
-
-extern "C"
-void free(void* ptr) {
-    RtlFreeHeap(GetProcessHeap(), 0, ptr);
-}
-
 static void rm_file(u16string_view fn) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;

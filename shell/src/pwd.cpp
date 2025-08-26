@@ -1,21 +1,12 @@
 #include <ntdll.h>
 #include <string_view>
 #include <span>
+#include <stdlib.h>
 
 using namespace std;
 
 import shelllib;
 import unicode;
-
-extern "C"
-void* malloc(size_t size) {
-    return RtlAllocateHeap(GetProcessHeap(), 0, size);
-}
-
-extern "C"
-void free(void* ptr) {
-    RtlFreeHeap(GetProcessHeap(), 0, ptr);
-}
 
 extern "C"
 __attribute__((force_align_arg_pointer)) void startup() {

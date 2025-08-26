@@ -1,16 +1,7 @@
 #include <ntdll.h>
 #include <string.h>
 #include <stdint.h>
-
-extern "C"
-void* malloc(size_t size) {
-    return RtlAllocateHeap(GetProcessHeap(), 0, size);
-}
-
-extern "C"
-void free(void* ptr) {
-    RtlFreeHeap(GetProcessHeap(), 0, ptr);
-}
+#include <stdlib.h>
 
 extern "C"
 void* calloc(size_t nmemb, size_t size) {

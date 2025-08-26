@@ -1,5 +1,6 @@
 CREATE libmoxnox.a
 ADDLIB libntdll.a
 ADDLIB libkernelbase.a
+ADDLIB libucrtbase.a
 SAVE
 END

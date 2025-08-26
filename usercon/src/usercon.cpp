@@ -147,16 +147,6 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
 }
 
 extern "C"
-void* malloc(size_t size) {
-    return RtlAllocateHeap(GetProcessHeap(), 0, size);
-}
-
-extern "C"
-void free(void* ptr) {
-    RtlFreeHeap(GetProcessHeap(), 0, ptr);
-}
-
-extern "C"
 void* calloc(size_t nmemb, size_t size) {
     // FIXME - should test for overflow of nmemb * size
 

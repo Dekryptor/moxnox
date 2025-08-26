@@ -97,6 +97,7 @@ add_subdirectory(shell)
 add_subdirectory(ntdll)
 add_subdirectory(usercon)
 add_subdirectory(kernelbase)
+add_subdirectory(ucrtbase)
 add_subdirectory(libmoxnox)
 
 set(FREETYPE_FILES freetype/src/autofit/autofit.c

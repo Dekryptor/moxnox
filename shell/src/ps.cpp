@@ -22,16 +22,6 @@ struct ps_entry {
     u16string_view image_path_sv;
 };
 
-extern "C"
-void* malloc(size_t size) {
-    return RtlAllocateHeap(GetProcessHeap(), 0, size);
-}
-
-extern "C"
-void free(void* ptr) {
-    RtlFreeHeap(GetProcessHeap(), 0, ptr);
-}
-
 void* operator new(size_t count) {
     return malloc(count);
 }

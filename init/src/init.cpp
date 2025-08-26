@@ -19,16 +19,6 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
-extern "C"
-void* malloc(size_t size) {
-    return RtlAllocateHeap(GetProcessHeap(), 0, size);
-}
-
-extern "C"
-void free(void* ptr) {
-    RtlFreeHeap(GetProcessHeap(), 0, ptr);
-}
-
 static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh,
                         HANDLE stdouth, HANDLE stderrh) {
     OBJECT_ATTRIBUTES oa;
