@@ -4,3 +4,5 @@ malloc
 free
 calloc
 realloc
+floorf
+ceilf
