@@ -422,3 +422,4 @@ NtWaitForKeyedEvent
 NtWaitForMultipleObjects32
 NtWaitForWorkViaWorkerFactory
 NtWorkerFactoryWorkerReady
+LdrGetProcedureAddress

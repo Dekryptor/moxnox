@@ -125,6 +125,12 @@ struct DISPATCHER_CONTEXT_AMD64 {
 
 using DISPATCHER_CONTEXT = DISPATCHER_CONTEXT_AMD64;
 
+struct ANSI_STRING {
+    uint16_t Length;
+    uint16_t MaximumLength;
+    char* Buffer;
+};
+
 extern "C" {
 
 void* RtlCreateHeap(uint32_t flags, void* heap_base, size_t reserve_size, size_t commit_size,
@@ -136,7 +142,8 @@ bool RtlFreeHeap(void* heap_handle, uint32_t flags, void* base_address);
 void* RtlDestroyHeap(void* heap_handle);
 void RtlRaiseException(EXCEPTION_RECORD* exception_record);
 void RtlCaptureContext(CONTEXT* context);
-
+NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
+                                uint32_t procedure_number, void* procedure_address);
 }
 
 static __inline void* GetProcessHeap() {

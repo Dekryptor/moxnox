@@ -26,6 +26,15 @@ bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
 }
 
+extern "C"
+NTSTATUS LdrGetProcedureAddress(void* /*dll_handle*/, const ANSI_STRING* /*procedure_name*/,
+                                uint32_t /*procedure_number*/, void* /*procedure_address*/) {
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
+
 template<typename T>
 static void resolve_imports_dll(void* base, void* dll_base, string_view name, T* lookup_table, T* thunks) {
     IMAGE_DATA_DIRECTORY exp_dir;
