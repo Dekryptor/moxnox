@@ -6,3 +6,4 @@ calloc
 realloc
 floorf
 ceilf
+abort

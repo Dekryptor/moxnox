@@ -81,6 +81,12 @@ float ceilf(float x) {
     return u.f;
 }
 
+extern "C" __declspec(dllexport)
+void abort() {
+    NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)0xffffffff);
+    __builtin_unreachable();
+}
+
 extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
