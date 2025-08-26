@@ -18,7 +18,7 @@ target_compile_options(usercon PRIVATE -Wall -Wextra -Wno-address-of-packed-memb
 target_link_options(usercon PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(usercon harfbuzz)
-target_link_libraries(usercon -lntdll ntdllcrt -lgcc)
+target_link_libraries(usercon moxnox -lgcc)
 target_link_libraries(usercon format_sse rbtree_sse unique_handle list_sse vt100_sse signal unicode_sse cp437_sse cmdline evdev_sse)
 target_link_libraries(usercon freetype)
 

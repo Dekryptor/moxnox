@@ -68,7 +68,7 @@ add_library(signal STATIC)
 target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
 target_compile_options(signal PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
 target_link_libraries(signal format_sse)
-target_link_libraries(signal -lntdll)
+target_link_libraries(signal moxnox)
 
 add_library(cp437 STATIC)
 target_sources(cp437 PUBLIC FILE_SET CXX_MODULES FILES modules/cp437.cpp)
@@ -97,6 +97,7 @@ add_subdirectory(shell)
 add_subdirectory(ntdll)
 add_subdirectory(usercon)
 add_subdirectory(kernelbase)
+add_subdirectory(libmoxnox)
 
 set(FREETYPE_FILES freetype/src/autofit/autofit.c
     freetype/src/base/ftbase.c
@@ -148,7 +149,7 @@ target_compile_options(freetype PRIVATE -mno-stack-arg-probe -gdwarf-5 -masm=int
 target_include_directories(freetype PRIVATE include)
 target_include_directories(freetype PUBLIC freetype/include)
 target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
-target_link_libraries(freetype PRIVATE ntdll)
+target_link_libraries(freetype PRIVATE moxnox)
 
 install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
     ARCHIVE EXCLUDE_FROM_ALL
@@ -234,7 +235,7 @@ target_compile_options(harfbuzz PRIVATE -include ${CMAKE_SOURCE_DIR}/hbshim.h)
 target_include_directories(harfbuzz PUBLIC harfbuzz/src)
 target_link_libraries(harfbuzz PUBLIC freetype)
 target_link_options(harfbuzz PUBLIC -nostartfiles -nostdlib)
-target_link_libraries(harfbuzz PRIVATE ntdll -lgcc)
+target_link_libraries(harfbuzz PRIVATE moxnox -lgcc)
 
 install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}
     ARCHIVE EXCLUDE_FROM_ALL
@@ -425,7 +426,7 @@ add_library(zlib SHARED
 target_include_directories(zlib PUBLIC zlib)
 target_compile_options(zlib PRIVATE -gdwarf-5 -masm=intel)
 target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
-target_link_libraries(zlib PRIVATE ntdll)
+target_link_libraries(zlib PRIVATE moxnox)
 
 install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
     ARCHIVE EXCLUDE_FROM_ALL
@@ -453,7 +454,7 @@ add_library(libpng SHARED
 target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
 target_compile_options(libpng PRIVATE -gdwarf-5 -masm=intel)
 target_link_libraries(libpng PUBLIC zlib)
-target_link_libraries(libpng PRIVATE ntdll)
+target_link_libraries(libpng PRIVATE moxnox)
 
 install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}
     ARCHIVE EXCLUDE_FROM_ALL
