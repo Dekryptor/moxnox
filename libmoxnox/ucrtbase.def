@@ -2,3 +2,4 @@ LIBRARY "ucrtbase.dll"
 EXPORTS
 malloc
 free
+calloc

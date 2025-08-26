@@ -4,19 +4,6 @@
 #include <stdlib.h>
 
 extern "C"
-void* calloc(size_t nmemb, size_t size) {
-    // FIXME - should test for overflow of nmemb * size
-
-    auto ptr = malloc(nmemb * size);
-    if (!ptr)
-        return nullptr;
-
-    memset(ptr, 0, nmemb * size);
-
-    return ptr;
-}
-
-extern "C"
 void* realloc(void* ptr, size_t size) {
     return RtlReAllocateHeap(GetProcessHeap(), 0, ptr, size);
 }
