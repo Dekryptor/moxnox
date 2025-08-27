@@ -507,14 +507,6 @@ static void halt() {
     print("NtShutdownSystem returned {}\n", status);
 }
 
-static void reboot() {
-    auto status = NtShutdownSystem(SHUTDOWN_ACTION::ShutdownReboot);
-
-    // shouldn't return
-
-    print("NtShutdownSystem returned {}\n", status);
-}
-
 static void try_run_program(string_view program, string_view cmdline,
                             HANDLE server_handle, HANDLE client_handle) {
     OBJECT_ATTRIBUTES oa;
@@ -815,8 +807,6 @@ static void process_line(string_view sv, HANDLE server_handle,
         cursor();
     else if (cmd == "halt")
         halt();
-    else if (cmd == "reboot")
-        reboot();
     else if (cmd == "fg")
         fg(server_handle);
     else

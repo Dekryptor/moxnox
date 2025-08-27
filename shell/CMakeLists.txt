@@ -211,3 +211,16 @@ target_link_libraries(killall shelllib cmdline format_sse unique_handle)
 target_link_libraries(killall moxnox)
 
 install(TARGETS killall DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+###
+
+add_executable(reboot src/reboot.cpp)
+
+target_compile_options(reboot PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -gdwarf-5)
+target_link_options(reboot PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(reboot shelllib)
+target_link_libraries(reboot format_sse)
+target_link_libraries(reboot moxnox)
+
+install(TARGETS reboot DESTINATION ${CMAKE_INSTALL_PREFIX})
