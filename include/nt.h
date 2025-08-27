@@ -1172,6 +1172,11 @@ struct FILE_DISPOSITION_INFORMATION {
 
 static const uint32_t MAXIMUM_WAIT_OBJECTS = 64;
 
+enum class EVENT_TYPE {
+    NotificationEvent,
+    SynchronizationEvent
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1282,4 +1287,7 @@ NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
                        const CLIENT_ID* client_id);
 NTSTATUS NtDelayExecution(bool alertable, const LARGE_INTEGER* delay_interval);
 NTSTATUS NtSuspendProcess(HANDLE proc_handle);
+NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
+                       const OBJECT_ATTRIBUTES* object_attributes,
+                       EVENT_TYPE event_type, bool initial_state);
 };

@@ -1676,6 +1676,45 @@ NTSTATUS user_NtDelayExecution(bool alertable,
 }
 
 extern "C"
+NTSTATUS user_NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
+                            const OBJECT_ATTRIBUTES* object_attributes,
+                            EVENT_TYPE event_type) {
+    auto& t = *get_current_thread();
+    array<uintptr_t, 1> args;
+    HANDLE h;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    nt_status ret;
+
+    if (!event_handle)
+        return nt_status::INVALID_PARAMETER;
+
+    if (!copy_stack_args(t, args))
+        return nt_status::ACCESS_VIOLATION;
+
+    auto initial_state = (bool)args[0];
+
+    if (object_attributes) {
+        ret = copy_object_attributes(oa, us, object_attributes);
+        if (!success(ret))
+            return ret;
+    }
+
+    ret = NtCreateEvent(&h, desired_access, object_attributes ? &oa : nullptr,
+                        event_type, initial_state);
+
+    if (success(ret)) {
+        if (!copy_to_process(event_handle, &h, sizeof(HANDLE)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    if (object_attributes)
+        free_object_attributes(oa);
+
+    return ret;
+}
+
+extern "C"
 void maybe_yield(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 

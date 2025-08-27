@@ -80,3 +80,12 @@ void event::on_wake() {
     if (autoreset)
         signalled = false;
 }
+
+extern "C"
+NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
+                       const OBJECT_ATTRIBUTES* object_attributes,
+                       EVENT_TYPE event_type, bool initial_state) {
+    print("FIXME - NtCreateEvent\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
