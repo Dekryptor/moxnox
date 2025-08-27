@@ -1527,16 +1527,8 @@ static void handle_serial_stdin(span<const char> s, HANDLE proc,
             } else if (c == 0x7f) {
                 c = '\b';
                 func(span(&c, 1));
-            } else if (c == '\x03') {
-                EXCEPTION_RECORD er;
-
-                er.ExceptionFlags = 0;
-                er.ExceptionRecord = nullptr;
-                er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
-                er.NumberParameters = 0;
-
-                send_signal_to_process(proc, er);
-            }
+            } else if (c == '\x03')
+                send_ctrl_c(proc);
 
             last_run_start = (int)i;
         }
