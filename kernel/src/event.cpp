@@ -123,8 +123,23 @@ NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
 }
 
 extern "C"
-NTSTATUS NtSetEvent(HANDLE event_handle, int32_t* previous_state) {
-    print("FIXME - NtSetEvent\n"); // FIXME
+NTSTATUS NtSetEvent(HANDLE event_handle, int32_t* /*previous_state*/) {
+    // FIXME - previous_state
 
-    return nt_status::NOT_IMPLEMENTED;
+    auto objrw = deref_handle(event_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    // FIXME - check access mask
+
+    auto& obj = objrw.get();
+
+    if (obj.type != object_type::event)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    auto& e = static_cast<event&>(obj);
+
+    set_event(e);
+
+    return nt_status::SUCCESS;
 }
