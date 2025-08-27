@@ -1480,35 +1480,58 @@ __attribute__((force_align_arg_pointer)) void startup() {
     print("> ");
 
     while (true) {
+        array<HANDLE, 2> objs;
         IO_STATUS_BLOCK iosb;
         char s[10];
 
-        status = NtReadFile(peb->ProcessParameters->StandardInput, 0, nullptr, nullptr, &iosb,
-                            s, sizeof(s), nullptr, nullptr);
+        objs[0] = peb->ProcessParameters->StandardInput;
+        objs[1] = ctrl_c_event;
 
+        status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
+                                          false, nullptr);
         if (!success(status)) {
-            print("NtReadFile returned {}\n", status); // FIXME - should be to stderr
+            print("NtWaitForMultipleObjects returned {}\n", status);
             break;
         }
 
-        if (iosb.Information == 0)
-            continue;
+        switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
+            case 0: { // stdin
+                status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
+                                    nullptr, nullptr, &iosb, s, sizeof(s),
+                                    nullptr, nullptr);
 
-        auto buf2 = (char*)malloc(buflen + iosb.Information);
-        if (!buf2) {
-            print("out of memory\n");
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+                if (!success(status)) {
+                    print("NtReadFile returned {}\n", status); // FIXME - should be to stderr
+                    break;
+                }
+
+                if (iosb.Information == 0)
+                    continue;
+
+                auto buf2 = (char*)malloc(buflen + iosb.Information);
+                if (!buf2) {
+                    print("out of memory\n");
+                    NtTerminateThread(NtCurrentThread(),
+                                      nt_status::INSUFFICIENT_RESOURCES);
+                }
+
+                if (buf) {
+                    memcpy(buf2, buf, buflen);
+                    free(buf);
+                }
+
+                buf = buf2;
+
+                handle_input(string_view(s, iosb.Information),
+                             server_handle.get(), client_handle.get());
+
+                break;
+            }
+
+            case 1: // Ctrl+C
+                handle_input("\x03", server_handle.get(), client_handle.get());
+                break;
         }
-
-        if (buf) {
-            memcpy(buf2, buf, buflen);
-            free(buf);
-        }
-
-        buf = buf2;
-
-        handle_input(string_view(s, iosb.Information), server_handle.get(),
-                     client_handle.get());
     }
 
     NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
