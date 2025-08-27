@@ -25,6 +25,7 @@ static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args..
     do_print(string_view(s, (size_t)(sp.data() - s)));
 }
 
+#if 0
 static nt_status find_export(HANDLE proc, uintptr_t dll_base,
                              string_view name, uint64_t& rip) {
     nt_status status;
@@ -172,6 +173,7 @@ static nt_status find_export(HANDLE proc, uintptr_t dll_base,
 
     return nt_status::SUCCESS;
 }
+#endif
 
 static nt_status find_mn_signal(HANDLE proc, uint64_t& rip) {
     nt_status status;
@@ -179,6 +181,10 @@ static nt_status find_mn_signal(HANDLE proc, uint64_t& rip) {
     uintptr_t ptr;
     PEB_LDR_DATA pebldr;
     uintptr_t ntdll;
+    ANSI_STRING ansiname;
+    void* addr;
+
+    static const string_view name = "mn_signal";
 
     // read Ldr from PEB
 
@@ -220,7 +226,16 @@ static nt_status find_mn_signal(HANDLE proc, uint64_t& rip) {
         return status;
     }
 
-    return find_export(proc, ntdll, "mn_signal", rip);
+    ansiname.Buffer = (char*)name.data();
+    ansiname.Length = ansiname.MaximumLength = (uint16_t)name.size();
+
+    // FIXME - address of ntdll
+
+    status = LdrGetProcedureAddress((void*)ntdll, &ansiname, 0, &addr);
+
+    rip = (uint64_t)addr;
+
+    return status;
 }
 
 export void send_signal_to_process(HANDLE proc, EXCEPTION_RECORD& er) {

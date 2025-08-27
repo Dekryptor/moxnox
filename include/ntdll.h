@@ -143,7 +143,7 @@ void* RtlDestroyHeap(void* heap_handle);
 void RtlRaiseException(EXCEPTION_RECORD* exception_record);
 void RtlCaptureContext(CONTEXT* context);
 NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
-                                uint32_t procedure_number, void* procedure_address);
+                                uint32_t procedure_number, void** procedure_address);
 }
 
 static __inline void* GetProcessHeap() {

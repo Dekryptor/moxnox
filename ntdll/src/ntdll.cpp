@@ -26,14 +26,126 @@ bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
 }
 
-extern "C"
-NTSTATUS LdrGetProcedureAddress(void* /*dll_handle*/, const ANSI_STRING* /*procedure_name*/,
-                                uint32_t /*procedure_number*/, void* /*procedure_address*/) {
-    // FIXME
+// work round GCC 15 ICE (FIXME)
+static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
+                                        uint32_t /*procedure_number*/, void** procedure_address) {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)dll_handle;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)dll_handle + dos_header.e_lfanew);
+    uintptr_t dir_addr;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - searching by procedure number
+
+    if (!procedure_name)
+        return nt_status::INVALID_PARAMETER;
+
+    string_view name(procedure_name->Buffer, procedure_name->Length);
+
+    if (name.empty())
+        return nt_status::INVALID_PARAMETER;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT) {
+            print("image has no export directory\n");
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader64.DataDirectory);
+    } else {
+        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT) {
+            print("image has no export directory\n");
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader32.DataDirectory);
+    }
+
+    dir_addr += IMAGE_DIRECTORY_ENTRY_EXPORT * sizeof(IMAGE_DATA_DIRECTORY);
+
+    auto& data_dir = *(IMAGE_DATA_DIRECTORY*)((uint8_t*)dll_handle + dir_addr);
+
+    if (data_dir.VirtualAddress == 0 || data_dir.Size == 0) {
+        print("image has no export directory\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    // search export directory
+
+    const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)dll_handle + data_dir.VirtualAddress);
+
+    if (ied.NumberOfNames == 0) {
+        print("image has no exports\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    auto names = span((uint32_t*)((uint8_t*)&ied + ied.AddressOfNames - data_dir.VirtualAddress),
+                      ied.NumberOfNames);
+
+    if ((uint8_t*)names.data() + names.size_bytes() > (uint8_t*)&ied + data_dir.Size) {
+        print("invalid export directory\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    auto name_ordinals = span((uint16_t*)((uint8_t*)&ied + ied.AddressOfNameOrdinals - data_dir.VirtualAddress),
+                              ied.NumberOfNames);
+
+    if ((uint8_t*)name_ordinals.data() + name_ordinals.size_bytes() > (uint8_t*)&ied + data_dir.Size) {
+        print("invalid export directory\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    auto funcs = span((uint32_t*)((uint8_t*)&ied + ied.AddressOfFunctions - data_dir.VirtualAddress),
+                      ied.NumberOfFunctions);
+
+    if ((uint8_t*)funcs.data() + funcs.size_bytes() > (uint8_t*)&ied + data_dir.Size) {
+        print("invalid export directory\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    optional<uint16_t> ord;
+
+    for (unsigned int i = 0; i < names.size(); i++) {
+        auto n = names[i];
+
+        if (n - data_dir.VirtualAddress > data_dir.Size) {
+            print("invalid export directory\n");
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        auto sv = string_view((char*)(uint8_t*)&ied + n - data_dir.VirtualAddress,
+                              data_dir.Size + data_dir.VirtualAddress - n);
+
+        auto nulpos = sv.find_first_of((char)0);
+
+        if (nulpos != string_view::npos)
+            sv = string_view(sv.data(), nulpos);
+
+        if (sv == name) {
+            ord = name_ordinals[i];
+            break;
+        }
+    }
+
+    if (!ord) {
+        print("could not find export {}\n", name);
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    if (*ord >= ied.NumberOfFunctions) {
+        print("function ordinal out of range\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    *procedure_address = (uint8_t*)dll_handle + funcs[*ord];
+
+    return nt_status::SUCCESS;
 }
 
+extern "C"
+NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
+                                uint32_t procedure_number, void** procedure_address) {
+    return _LdrGetProcedureAddress(dll_handle, procedure_name,
+                                   procedure_number, procedure_address);
+}
 
 template<typename T>
 static void resolve_imports_dll(void* base, void* dll_base, string_view name, T* lookup_table, T* thunks) {
