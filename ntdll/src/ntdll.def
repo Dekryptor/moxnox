@@ -2,6 +2,7 @@ LIBRARY "ntdll.dll"
 EXPORTS
 mn_signal
 mn_start_thread
+mn_ctrl_c
 RtlCreateHeap
 RtlAllocateHeap
 RtlFreeHeap

@@ -237,3 +237,10 @@ __attribute__((force_align_arg_pointer)) void mn_signal(EXCEPTION_RECORD* except
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
 }
+
+extern "C"
+__attribute__((force_align_arg_pointer)) void mn_ctrl_c() {
+    print("FIXME - mn_ctrl_c\n"); // FIXME
+
+    NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
+}
