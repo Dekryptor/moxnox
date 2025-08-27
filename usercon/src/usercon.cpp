@@ -1318,16 +1318,9 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
 
                 // FIXME - only look for Ctrl+C if ENABLE_PROCESSED_INPUT set
 
-                if (sp.size() == 1 && sp[0] == 0x03) { // Ctrl+C
-                    EXCEPTION_RECORD er;
-
-                    er.ExceptionFlags = 0;
-                    er.ExceptionRecord = nullptr;
-                    er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
-                    er.NumberParameters = 0;
-
-                    send_signal_to_process(proc.get(), er);
-                } else if (!sp.empty()) {
+                if (sp.size() == 1 && sp[0] == 0x03) // Ctrl+C
+                    send_ctrl_c(proc.get());
+                else if (!sp.empty()) {
                     IO_STATUS_BLOCK iosb;
 
                     while (!sp.empty()) {
