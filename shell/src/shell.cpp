@@ -4,6 +4,7 @@
 #include <nt.h>
 #include <pe.h>
 #include <ntdll.h>
+#include <kernelbase.h>
 #include <ioctl.h>
 #include <span>
 #include <charconv>
@@ -32,6 +33,7 @@ static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
 
 static HANDLE running_proc = 0;
+static HANDLE ctrl_c_event = 0;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
@@ -101,11 +103,12 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
 
     do {
         IO_STATUS_BLOCK iosb;
-        array<HANDLE, 3> objs;
+        array<HANDLE, 4> objs;
 
         objs[0] = peb->ProcessParameters->StandardInput;
-        objs[1] = server_handle;
-        objs[2] = proc.get();
+        objs[1] = ctrl_c_event;
+        objs[2] = server_handle;
+        objs[3] = proc.get();
 
         auto status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                                true, nullptr);
@@ -154,6 +157,16 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
             }
 
             case 1: {
+                // Ctrl+C
+
+                print("FIXME - Ctrl+C\n"); // FIXME
+
+                NtTerminateProcess(proc.get(), nt_status::CONTROL_C_EXIT);
+
+                break;
+            }
+
+            case 2: {
                 char s[PAGE_SIZE];
 
                 // print pipe data
@@ -176,7 +189,7 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
                 break;
             }
 
-            case 2: {
+            case 3: {
                 // process finished
 
                 running_proc = 0;
@@ -1420,6 +1433,16 @@ enum EXCEPTION_DISPOSITION exception_handler(EXCEPTION_RECORD* rec, void* /*fram
     return EXCEPTION_DISPOSITION::ExceptionContinueExecution;
 }
 
+static bool ctrl_handler(uint32_t type) {
+    auto status = NtSetEvent(ctrl_c_event, nullptr);
+    if (!success(status)) {
+        print("NtSetEvent returned {}\n", status);
+        return false;
+    }
+
+    return true;
+}
+
 extern "C"
 __attribute__((force_align_arg_pointer)) void startup() {
     __asm __volatile(".seh_handler exception_handler, @except");
@@ -1429,6 +1452,17 @@ __attribute__((force_align_arg_pointer)) void startup() {
     nt_status status;
 
 //     thread_test();
+
+    status = NtCreateEvent(&ctrl_c_event, 0, nullptr,
+                           EVENT_TYPE::SynchronizationEvent, false);
+    if (!success(status)) {
+        print("NtCreateEvent returned {}\n", status);
+        NtTerminateThread(NtCurrentThread(), status);
+        return;
+    }
+
+    if (!SetConsoleCtrlHandler(ctrl_handler, true))
+        print("SetConsoleCtrlHandler failed\n");
 
     status = create_pipe(server_handle, client_handle);
     if (!success(status)) {
