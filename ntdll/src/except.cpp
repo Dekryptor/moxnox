@@ -1,7 +1,9 @@
+#include "ntdll.h"
 #include "ntdll_private.h"
 #include "list.h"
 #include <utf16_to_utf8.h>
 #include <pe.h>
+#include <kernelbase.h>
 #include <stdlib.h>
 #include <optional>
 #include "exception_record_offsets.h"
@@ -240,7 +242,43 @@ __attribute__((force_align_arg_pointer)) void mn_signal(EXCEPTION_RECORD* except
 
 extern "C"
 __attribute__((force_align_arg_pointer)) void mn_ctrl_c() {
-    print("FIXME - mn_ctrl_c\n"); // FIXME
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    optional<uintptr_t> kernelbase;
+    ANSI_STRING ansiname;
+    uint32_t (*func)(void*);
+
+    static const string_view name = "CtrlRoutine";
+
+    for (auto le = peb->Ldr->InLoadOrderModuleList.Flink; le != &peb->Ldr->InLoadOrderModuleList; le = le->Flink) {
+        auto& ldr = *(LDR_DATA_TABLE_ENTRY*)((uint8_t*)le - offsetof(LDR_DATA_TABLE_ENTRY, InLoadOrderLinks));
+
+        auto sv = u16string_view(ldr.BaseDllName.Buffer, ldr.BaseDllName.Length / sizeof(char16_t));
+
+        if (sv == u"kernelbase.dll") {
+            kernelbase = (uintptr_t)ldr.DllBase;
+            break;
+        }
+    }
+
+    if (!kernelbase.has_value()) {
+        print("could not find kernelbase.dll in process\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
+        return;
+    }
+
+    ansiname.Buffer = (char*)name.data();
+    ansiname.Length = ansiname.MaximumLength = (uint16_t)name.size();
+
+    auto status = LdrGetProcedureAddress((void*)*kernelbase, &ansiname, 0, (void**)&func);
+    if (!success(status)) {
+        print("LdrGetProcedureAddress returned {} looking for {} in kernelbase\n",
+              status, name);
+        NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
+        return;
+    }
+
+    func((void*)CTRL_C_EVENT);
 
     NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
 }
