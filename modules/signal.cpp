@@ -325,7 +325,7 @@ export void send_signal_to_process(HANDLE proc, EXCEPTION_RECORD& er) {
     NtClose(thread);
 }
 
-export void send_ctrl_c(HANDLE proc) {
+export bool send_ctrl_c(HANDLE proc) {
     nt_status status;
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
@@ -349,41 +349,31 @@ export void send_ctrl_c(HANDLE proc) {
 
     status = NtQueryInformationProcess(proc, PROCESSINFOCLASS::BasicInformation,
                                        &pbi, sizeof(pbi), nullptr);
-    if (!success(status)) {
-        print("NtQueryInformationProcess returned {}\n", status);
-        return;
-    }
+    if (!success(status))
+        return false;
 
     status = NtReadVirtualMemory(proc, (uint8_t*)pbi.PebBaseAddress + offsetof(PEB, Ldr),
                                  &ptr, sizeof(uintptr_t), nullptr);
-    if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
-        return;
-    }
+    if (!success(status))
+        return false;
 
     status = NtReadVirtualMemory(proc, (void*)ptr, &pebldr, sizeof(pebldr),
                                  nullptr);
-    if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
-        return;
-    }
+    if (!success(status))
+        return false;
 
     // search for ntdll (first entry in InLoadOrderModuleList, in our implementation)
 
     uintptr_t list_head = ptr + offsetof(PEB_LDR_DATA, InLoadOrderModuleList);
 
     auto le = (uintptr_t)pebldr.InLoadOrderModuleList.Flink;
-    if (le == list_head) {
-        print("process InLoadOrderModuleList was empty\n");
-        return;
-    }
+    if (le == list_head)
+        return false;
 
     status = NtReadVirtualMemory(proc, (void*)(le - offsetof(LDR_DATA_TABLE_ENTRY, InLoadOrderLinks) + offsetof(LDR_DATA_TABLE_ENTRY, DllBase)),
                                  &their_ntdll, sizeof(uintptr_t), nullptr);
-    if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
-        return;
-    }
+    if (!success(status))
+        return false;
 
     auto& ldr = *(LDR_DATA_TABLE_ENTRY*)((uint8_t*)peb->Ldr->InLoadOrderModuleList.Flink - offsetof(LDR_DATA_TABLE_ENTRY, InLoadOrderLinks));
 
@@ -393,10 +383,8 @@ export void send_ctrl_c(HANDLE proc) {
     ansiname.Length = ansiname.MaximumLength = (uint16_t)name.size();
 
     status = LdrGetProcedureAddress((void*)our_ntdll, &ansiname, 0, &addr);
-    if (!success(status)) {
-        print("LdrGetProcedureAddress returned {} for {}\n", status, name);
-        return;
-    }
+    if (!success(status))
+        return false;
 
     // create thread
 
@@ -407,10 +395,8 @@ export void send_ctrl_c(HANDLE proc) {
 
     status = NtAllocateVirtualMemory(proc, &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!success(status)) {
-        print("NtAllocateVirtualMemory returned {}\n", status);
-        return;
-    }
+    if (!success(status))
+        return false;
 
     initial_teb.OldStackBase = nullptr;
     initial_teb.OldStackLimit = nullptr;
@@ -426,12 +412,12 @@ export void send_ctrl_c(HANDLE proc) {
 
     status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc,
                             &client_id, &context, &initial_teb, true);
-    if (!success(status)) {
-        print("NtCreateThread returned {}\n", status);
-        return;
-    }
+    if (!success(status))
+        return false;
 
     thread.reset(h);
 
     NtResumeThread(thread.get(), nullptr);
+
+    return true;
 }

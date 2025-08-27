@@ -100,6 +100,7 @@ static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
 static bool run_program(HANDLE server_handle, unique_handle& proc) {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
+    bool did_ctrl_c = false;
 
     do {
         IO_STATUS_BLOCK iosb;
@@ -159,9 +160,9 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
             case 1: {
                 // Ctrl+C
 
-                print("FIXME - Ctrl+C\n"); // FIXME
-
-                NtTerminateProcess(proc.get(), nt_status::CONTROL_C_EXIT);
+                // FIXME - show error if this fails (but only if process not dead already)
+                send_ctrl_c(proc.get());
+                did_ctrl_c = true;
 
                 break;
             }
@@ -198,6 +199,9 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
             }
         }
     } while (running_proc != 0);
+
+    if (did_ctrl_c)
+        print("^C\n");
 
     return true;
 }
@@ -1434,6 +1438,9 @@ enum EXCEPTION_DISPOSITION exception_handler(EXCEPTION_RECORD* rec, void* /*fram
 }
 
 static bool ctrl_handler(uint32_t type) {
+    if (type != CTRL_C_EVENT)
+        return false;
+
     auto status = NtSetEvent(ctrl_c_event, nullptr);
     if (!success(status)) {
         print("NtSetEvent returned {}\n", status);
