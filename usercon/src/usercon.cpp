@@ -1139,8 +1139,11 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
     return true;
 }
 
-static void handle_ctrl_alt_delete() {
-    print("FIXME - CAD\n");
+static void handle_ctrl_alt_delete(HANDLE client_handle) {
+    unique_handle proc;
+
+    if (!run_program(u"\\reboot.exe", u"reboot.exe", proc, client_handle))
+        print("failed to run reboot.exe\n");
 }
 
 static void run_shell(u16string_view exe, u16string_view cmdline,
@@ -1322,7 +1325,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
                 auto sp = handle_keyboard_event(ev, keyboard_pipe.get(), cad);
 
                 if (cad)
-                    handle_ctrl_alt_delete();
+                    handle_ctrl_alt_delete(client_handle.get());
 
                 // FIXME - only look for Ctrl+C if ENABLE_PROCESSED_INPUT set
 
