@@ -455,44 +455,12 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 
     uint32_t count;
 
-    // FIXME - send yield IPI if thread is currently running
+    // FIXME - send yield IPI if thread is currently running?
 
     count = t->suspend_count.fetch_add(1);
 
     if (previous_suspend_count)
         *previous_suspend_count = count;
-
-    disable_interrupts2();
-
-    {
-        sync_lock sl;
-        lock_guard lock(sl);
-
-        // break interruptible waits
-
-        if (t->status == thread_status::waiting && t->wait_interruptible) {
-            t->status = thread_status::runnable;
-            remove_entry_list(t->wait_obj.wait_le);
-
-            if (t->wait_timeout != 0)
-                remove_entry_list(t->timeout_le);
-        } else if (t->status == thread_status::waiting_multiple && t->wait_interruptible) {
-            auto& block = *t->multwait;
-
-            for (unsigned int i = 0; i < block.num_entries; i++) {
-                if (!block.entries[i].done)
-                    remove_entry_list(block.entries[i].wait_le);
-            }
-
-            if (t->wait_timeout != 0)
-                remove_entry_list(t->timeout_le);
-
-            t->multwait = nullptr;
-            t->status = thread_status::runnable;
-        }
-    }
-
-    enable_interrupts2();
 
     return nt_status::SUCCESS;
 }
