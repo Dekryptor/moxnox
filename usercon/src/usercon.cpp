@@ -1139,6 +1139,10 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
     return true;
 }
 
+static void handle_ctrl_alt_delete() {
+    print("FIXME - CAD\n");
+}
+
 static void run_shell(u16string_view exe, u16string_view cmdline,
                       void (*recv_func)(string_view), void (*flush_func)()) {
     HANDLE h;
@@ -1303,6 +1307,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
 
             case 1: {
                 input_event_with_id ev;
+                bool cad = false;
 
                 status = NtReadFile(keyboard_pipe.get(), 0, nullptr, nullptr,
                                     &iosb, &ev, sizeof(ev), nullptr, nullptr);
@@ -1314,7 +1319,10 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
                     return;
                 }
 
-                auto sp = handle_keyboard_event(ev, keyboard_pipe.get());
+                auto sp = handle_keyboard_event(ev, keyboard_pipe.get(), cad);
+
+                if (cad)
+                    handle_ctrl_alt_delete();
 
                 // FIXME - only look for Ctrl+C if ENABLE_PROCESSED_INPUT set
 

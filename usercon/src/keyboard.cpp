@@ -597,7 +597,8 @@ public:
         memset(&leds, 0, sizeof(leds));
     }
 
-    span<char> handle_keyboard_event(const input_event& ev, HANDLE pipe);
+    span<char> handle_keyboard_event(const input_event& ev, HANDLE pipe,
+                                     bool& cad);
     void set_leds(HANDLE pipe);
 
     list_entry le;
@@ -606,13 +607,14 @@ public:
 private:
     bool left_shift = false, right_shift = false;
     bool left_ctrl = false, right_ctrl = false;
+    bool left_alt = false, right_alt = false;
     keyboard_leds leds;
 };
 
 static list_entry contexts = { &contexts, &contexts };
 
 span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
-                                                   HANDLE pipe) {
+                                                   HANDLE pipe, bool& cad) {
     auto idx = (unsigned int)ev.code;
 
     if (ev.code == evdev_code::KEY_LEFTSHIFT) {
@@ -643,10 +645,29 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
             right_ctrl = false;
 
         return {};
+    } else if (ev.code == evdev_code::KEY_LEFTALT) {
+        if (ev.value == 1) // key down
+            left_alt = true;
+        else if (ev.value == 0) // key up
+            left_alt = false;
+
+        return {};
+    } else if (ev.code == evdev_code::KEY_RIGHTALT) {
+        if (ev.value == 1) // key down
+            right_alt = true;
+        else if (ev.value == 0) // key up
+            right_alt = false;
+
+        return {};
     }
 
     if (ev.value == 0) // ignore key-ups
         return {};
+
+    if (ev.code == evdev_code::KEY_DELETE && (left_ctrl || right_ctrl) && (left_alt || right_alt)) {
+        cad = true;
+        return {};
+    }
 
     if (ev.code == evdev_code::KEY_CAPSLOCK) {
         leds.caps_lock = leds.caps_lock ? 0 : 1;
@@ -721,12 +742,12 @@ void keyboard_context::set_leds(HANDLE pipe) {
 }
 
 export span<char> handle_keyboard_event(const input_event_with_id& ev,
-                                        HANDLE pipe) {
+                                        HANDLE pipe, bool& cad) {
     for (auto le = contexts.next; le != &contexts; le = le->next) {
         auto& ctx = containing_record<keyboard_context>(le);
 
         if (ctx.id == ev.id)
-            return ctx.handle_keyboard_event(ev.ev, pipe);
+            return ctx.handle_keyboard_event(ev.ev, pipe, cad);
     }
 
     auto ctx = new keyboard_context(ev.id);
@@ -739,5 +760,5 @@ export span<char> handle_keyboard_event(const input_event_with_id& ev,
 
     ctx->set_leds(pipe);
 
-    return ctx->handle_keyboard_event(ev.ev, pipe);
+    return ctx->handle_keyboard_event(ev.ev, pipe, cad);
 }
