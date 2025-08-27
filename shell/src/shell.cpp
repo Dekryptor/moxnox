@@ -1355,20 +1355,6 @@ void do_print(string_view s) {
                 (uint32_t)s.size(), nullptr, nullptr);
 }
 
-static void handle_ctrl_c() {
-    if (running_proc != 0) {
-        EXCEPTION_RECORD er;
-
-        er.ExceptionFlags = 0;
-        er.ExceptionRecord = nullptr;
-        er.ExceptionCode = (uint32_t)nt_status::CONTROL_C_EXIT;
-        er.NumberParameters = 0;
-
-        send_signal_to_process(running_proc, er);
-    } else
-        handle_input("\x03", 0, 0);
-}
-
 static nt_status create_pipe(unique_handle& server_handle,
                              unique_handle& client_handle) {
     nt_status status;
@@ -1426,17 +1412,6 @@ static nt_status create_pipe(unique_handle& server_handle,
     return nt_status::SUCCESS;
 }
 
-extern "C"
-enum EXCEPTION_DISPOSITION exception_handler(EXCEPTION_RECORD* rec, void* /*frame*/,
-                                             CONTEXT* /*context*/, DISPATCHER_CONTEXT* /*dispatch*/) {
-    if ((enum nt_status)rec->ExceptionCode != nt_status::CONTROL_C_EXIT)
-        return EXCEPTION_DISPOSITION::ExceptionContinueSearch;
-
-    handle_ctrl_c();
-
-    return EXCEPTION_DISPOSITION::ExceptionContinueExecution;
-}
-
 static bool ctrl_handler(uint32_t type) {
     if (type != CTRL_C_EVENT)
         return false;
@@ -1452,7 +1427,6 @@ static bool ctrl_handler(uint32_t type) {
 
 extern "C"
 __attribute__((force_align_arg_pointer)) void startup() {
-    __asm __volatile(".seh_handler exception_handler, @except");
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     unique_handle server_handle, client_handle;
