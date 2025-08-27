@@ -1290,4 +1290,5 @@ NTSTATUS NtSuspendProcess(HANDLE proc_handle);
 NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* object_attributes,
                        EVENT_TYPE event_type, bool initial_state);
+NTSTATUS NtSetEvent(HANDLE event_handle, int32_t* previous_state);
 };

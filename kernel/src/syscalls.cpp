@@ -1714,6 +1714,22 @@ NTSTATUS user_NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
 }
 
 extern "C"
+NTSTATUS user_NtSetEvent(HANDLE event_handle, int32_t* us_previous_state) {
+    nt_status ret;
+    int32_t previous_state;
+
+    ret = NtSetEvent(event_handle,
+                     us_previous_state ? &previous_state : nullptr);
+
+    if (success(ret) && us_previous_state) {
+        if (!copy_to_process(us_previous_state, &previous_state, sizeof(int32_t)))
+            ret = nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
+
+extern "C"
 void maybe_yield(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 

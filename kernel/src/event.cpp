@@ -121,3 +121,10 @@ NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
 
     return nt_status::SUCCESS;
 }
+
+extern "C"
+NTSTATUS NtSetEvent(HANDLE event_handle, int32_t* previous_state) {
+    print("FIXME - NtSetEvent\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
