@@ -424,10 +424,6 @@ export object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 
-static void inline enable_interrupts2() {
-    __asm __volatile("sti");
-}
-
 extern "C"
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count) {
     object_ref objrw;
