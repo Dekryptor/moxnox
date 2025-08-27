@@ -7,6 +7,7 @@ module;
 import objects;
 #include "spinlock.h"
 #include "scheduler.h"
+#include "handle.h"
 
 export module event;
 
@@ -14,6 +15,7 @@ import print;
 import list;
 import bsod;
 import object_ref;
+import thread;
 
 using namespace std;
 
@@ -83,9 +85,39 @@ void event::on_wake() {
 
 extern "C"
 NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
-                       const OBJECT_ATTRIBUTES* object_attributes,
+                       const OBJECT_ATTRIBUTES* /*object_attributes*/,
                        EVENT_TYPE event_type, bool initial_state) {
-    print("FIXME - NtCreateEvent\n"); // FIXME
+    bool autoreset;
+    auto& t = *get_current_thread();
+    handle_t h;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - object_attributes
+
+    switch (event_type) {
+        case EVENT_TYPE::SynchronizationEvent:
+            autoreset = true;
+            break;
+
+        case EVENT_TYPE::NotificationEvent:
+            autoreset = false;
+            break;
+
+        default:
+            return nt_status::INVALID_PARAMETER;
+    }
+
+    auto obj = create_event(autoreset);
+    if (!obj)
+        return nt_status::INTERNAL_ERROR;
+
+    auto& e = static_cast<event&>(obj.get());
+    e.signalled = initial_state;
+
+    auto status = t.proc->add_handle(obj.get(), desired_access, true, h);
+    if (!success(status))
+        return status;
+
+    *event_handle = h;
+
+    return nt_status::SUCCESS;
 }
