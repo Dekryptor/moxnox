@@ -1,4 +1,6 @@
-KERNEL_CXXFLAGS=-Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Wno-unused-const-variable -Werror=pointer-arith -fno-exceptions -fno-rtti -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5
+CXXFLAGS=-Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Wno-unused-const-variable -Werror=pointer-arith -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -fno-threadsafe-statics -fvisibility=hidden
+BOOT_CXXFLAGS=${CXXFLAGS} -fno-asynchronous-unwind-tables
+KERNEL_CXXFLAGS=${CXXFLAGS} -mno-red-zone -mno-stack-arg-probe -gdwarf-5
 
 all: boot
 
@@ -9,7 +11,7 @@ boot.o: boot.S
 	aarch64-unknown-linux-gnu-as boot.S -o $@
 
 boot.cpp.o: boot.cpp
-	aarch64-unknown-linux-gnu-g++ -c boot.cpp -o $@
+	clang++ -target aarch64-w64-mingw32 -c boot.cpp ${BOOT_CXXFLAGS} -o $@
 
 payload.o: payload.S kernel.exe
 	aarch64-unknown-linux-gnu-as payload.S -o $@
