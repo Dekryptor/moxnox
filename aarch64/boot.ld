@@ -12,6 +12,11 @@ SECTIONS
         *(.text)
         . = ALIGN(4096);
     }
+    .stack : AT(stack) {
+        stack = .;
+        *(.stack)
+        . = ALIGN(4096);
+    }
     .rdata : AT(rdata) {
         rdata = .;
         *payload.o(.rdata)

@@ -8,13 +8,13 @@ boot: boot.ld boot.o boot.cpp.o payload.o
 	ld -T boot.ld boot.o boot.cpp.o payload.o -o $@
 
 boot.o: boot.S
-	aarch64-unknown-linux-gnu-as boot.S -o $@
+	aarch64-w64-mingw32-as boot.S -o $@
 
 boot.cpp.o: boot.cpp
 	clang++ -target aarch64-w64-mingw32 -c boot.cpp ${BOOT_CXXFLAGS} -o $@
 
 payload.o: payload.S kernel.exe
-	aarch64-unknown-linux-gnu-as payload.S -o $@
+	aarch64-w64-mingw32-as payload.S -o $@
 
 kernel.o: kernel.cpp
 	clang++ -target aarch64-w64-mingw32 -c kernel.cpp ${KERNEL_CXXFLAGS} -o kernel.o
