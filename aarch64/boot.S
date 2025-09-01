@@ -22,4 +22,4 @@ add		x1, x1, :lo12:top_of_stack
 mov		sp, x1
 adrp	x1, image_base
 add		x1, x1, :lo12:image_base
-b		start
+bl		start

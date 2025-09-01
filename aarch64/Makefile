@@ -11,13 +11,13 @@ boot.o: boot.S
 	aarch64-w64-mingw32-as boot.S -o $@
 
 boot.cpp.o: boot.cpp
-	clang++ -target aarch64-w64-mingw32 -c boot.cpp ${BOOT_CXXFLAGS} -o $@
+	clang++ -target aarch64-w64-mingw32 -stdlib=libc++ -c boot.cpp ${BOOT_CXXFLAGS} -o $@
 
 payload.o: payload.S kernel.exe
 	aarch64-w64-mingw32-as payload.S -o $@
 
 kernel.o: kernel.cpp
-	clang++ -target aarch64-w64-mingw32 -c kernel.cpp ${KERNEL_CXXFLAGS} -o kernel.o
+	clang++ -target aarch64-w64-mingw32 -stdlib=libc++ -c kernel.cpp ${KERNEL_CXXFLAGS} -o kernel.o
 
 kernel.exe: kernel.o
 	clang++ -target aarch64-w64-mingw32 -nostartfiles -nostdlib -Wl,--entry=startup -Wl,--image-base=0xfffff80000000000 kernel.o -o $@

@@ -1,4 +1,7 @@
 #include <stdint.h>
+#include <string_view>
+
+using namespace std;
 
 extern uint8_t payload_data;
 extern const uint64_t payload_size;
@@ -27,6 +30,17 @@ static const uint64_t AUX_MU_BAUD_REG = AUX_BASE + 104;
 static const uint64_t AUX_UART_CLOCK = 500000000;
 
 #define AUX_MU_BAUD(baud) ((AUX_UART_CLOCK/(baud*8))-1)
+
+extern "C"
+size_t strlen(const char* s) {
+    size_t i = 0;
+
+    while (s[i] != 0) {
+        i++;
+    }
+
+    return i;
+}
 
 static void mmio_write(uint64_t reg, unsigned int val) {
     *(volatile unsigned int *)reg = val;
@@ -83,31 +97,30 @@ static void uart_init() {
     mmio_write(AUX_MU_CNTL_REG, 3); // enable RX/TX
 }
 
-static unsigned int uart_isWriteByteReady() {
+static unsigned int uart_is_write_byte_ready() {
     return mmio_read(AUX_MU_LSR_REG) & 0x20;
 }
 
-static void uart_writeByteBlockingActual(char ch) {
-    while (!uart_isWriteByteReady()) {
+static void uart_write_blocking(char ch) {
+    while (!uart_is_write_byte_ready()) {
     }
 
     mmio_write(AUX_MU_IO_REG, (unsigned int)ch);
 }
 
-static void uart_writeText(const char *buffer) {
-    while (*buffer) {
-       if (*buffer == '\n')
-           uart_writeByteBlockingActual('\r');
+static void uart_write(string_view sv) {
+    for (auto c : sv) {
+       if (c == '\n')
+           uart_write_blocking('\r');
 
-       uart_writeByteBlockingActual(*buffer);
-       buffer++;
+       uart_write_blocking(c);
     }
 }
 
 extern "C"
 void start(uint64_t dtb, uint64_t image_base) {
     uart_init();
-    uart_writeText("Hello world!\n");
+    uart_write("Hello world!\n");
 
     while (true) {
     }
