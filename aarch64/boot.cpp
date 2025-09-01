@@ -1,5 +1,10 @@
 #include <stdint.h>
 #include <string_view>
+#include <concepts>
+#include <system_error>
+#include <charconv>
+#include <loaderblock.h>
+#include "devicetree.h"
 
 using namespace std;
 
@@ -31,6 +36,11 @@ static const uint64_t AUX_UART_CLOCK = 500000000;
 
 #define AUX_MU_BAUD(baud) ((AUX_UART_CLOCK/(baud*8))-1)
 
+#define MAX_MAP_ENTRIES 256
+
+static map_entry map_entries[MAX_MAP_ENTRIES] __attribute__((section (".data")));
+static unsigned int num_map_entries __attribute__((section (".data"))) = 0;
+
 extern "C"
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -40,6 +50,36 @@ size_t strlen(const char* s) {
     }
 
     return i;
+}
+
+extern "C"
+void* memmove(void* dest, const void* src, size_t n) {
+    auto orig_dest = dest;
+
+    if (dest <= src) {
+        while (n > 0) {
+            *(uint8_t*)dest = *(uint8_t*)src;
+
+            dest = (uint8_t*)dest + 1;
+            src = (uint8_t*)src + 1;
+
+            n--;
+        }
+    } else {
+        dest = (uint8_t*)dest + n - 1;
+        src = (uint8_t*)src + n - 1;
+
+        while (n > 0) {
+            *(uint8_t*)dest = *(uint8_t*)src;
+
+            dest = (uint8_t*)dest - 1;
+            src = (uint8_t*)src - 1;
+
+            n--;
+        }
+    }
+
+    return orig_dest;
 }
 
 static void mmio_write(uint64_t reg, unsigned int val) {
@@ -108,7 +148,7 @@ static void uart_write_blocking(char ch) {
     mmio_write(AUX_MU_IO_REG, (unsigned int)ch);
 }
 
-static void uart_write(string_view sv) {
+static void print(string_view sv) {
     for (auto c : sv) {
        if (c == '\n')
            uart_write_blocking('\r');
@@ -117,11 +157,128 @@ static void uart_write(string_view sv) {
     }
 }
 
+static void print_hex(integral auto i) {
+    char buf[20];
+
+    if (auto [ptr, ec] = to_chars(buf, buf + sizeof(buf), i, 16); ec == errc())
+        print(string_view(buf, (size_t)(ptr - buf))); // FIXME
+}
+
+static bool parse_dtb(uint8_t* dt, char* strings) {
+    unsigned int depth = 0;
+
+    while (true) {
+        auto type = (enum fdt_type)__builtin_bswap32(*(uint32_t*)dt);
+
+        dt += sizeof(uint32_t);
+
+        if (type == fdt_type::END)
+            break;
+
+        if (type == fdt_type::END_NODE && depth == 1)
+            break;
+
+        switch (type) {
+            case fdt_type::BEGIN_NODE: {
+                string_view name = (const char*)dt;
+
+                print("BEGIN_NODE \"");
+                print(name);
+                print("\"\n");
+
+                dt += name.length() + 1;
+
+                if ((uintptr_t)dt % sizeof(uint32_t))
+                    dt += sizeof(uint32_t) - ((uintptr_t)dt % sizeof(uint32_t));
+
+                depth++;
+
+                break;
+            }
+
+            case fdt_type::END_NODE:
+                print("END_NODE\n");
+                depth--;
+                break;
+
+            case fdt_type::PROP: {
+                auto& p = *(dtb_prop*)dt;
+
+                string_view name = strings + __builtin_bswap32(p.nameoff);
+
+                print("PROP \"");
+                print(name);
+                print("\"\n");
+
+                dt += sizeof(dtb_prop);
+                dt += __builtin_bswap32(p.len);
+
+                if ((uintptr_t)dt % sizeof(uint32_t))
+                    dt += sizeof(uint32_t) - ((uintptr_t)dt % sizeof(uint32_t));
+
+                break;
+            }
+
+            case fdt_type::NOP:
+                break;
+
+            case fdt_type::END:
+                unreachable();
+
+            default:
+                print("unhandled FDT type ");
+                print_hex((unsigned int)type);
+                print("\n");
+                return false;
+        }
+
+        // FIXME
+    }
+
+    return true;
+}
+
+static bool find_memory(uint64_t dtb) {
+    if (dtb == 0) {
+        print("No DTB provided.\n");
+        return false;
+    }
+
+    const auto& h = *(fdt_header*)dtb;
+
+    if (h.magic != DEVICE_TREE_MAGIC) {
+        print("Device tree had invalid magic.\n");
+        return false;
+    }
+
+    if (!parse_dtb((uint8_t*)dtb + __builtin_bswap32(h.off_dt_struct),
+                   (char*)dtb + __builtin_bswap32(h.off_dt_strings)))
+        return false;
+
+    // FIXME - parse DTB
+    // FIXME - parse /memory
+    // FIXME - parse rsvmap
+    // FIXME - parse /reserved-memory
+
+    return true;
+}
+
 extern "C"
 void start(uint64_t dtb, uint64_t image_base) {
     uart_init();
-    uart_write("Hello world!\n");
 
+    print("dtb = ");
+    print_hex(dtb);
+    print("\n");
+
+    print("image_base = ");
+    print_hex(image_base);
+    print("\n");
+
+    if (!find_memory(dtb))
+        goto end;
+
+end:
     while (true) {
     }
 }

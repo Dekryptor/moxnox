@@ -24,9 +24,10 @@ SECTIONS
 
     . = ALIGN(4096);
 
-    .rdata : AT(rdata) {
-        rdata = .;
-        *payload.o(.rdata)
+    .data : AT(data) {
+        data = .;
+        *(.rdata)
+        *(.data)
     }
 
     . = ALIGN(4096);

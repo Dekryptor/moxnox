@@ -11,7 +11,7 @@ boot.o: boot.S
 	aarch64-w64-mingw32-as boot.S -o $@
 
 boot.cpp.o: boot.cpp
-	clang++ -target aarch64-w64-mingw32 -stdlib=libc++ -c boot.cpp ${BOOT_CXXFLAGS} -o $@
+	clang++ -target aarch64-w64-mingw32 -stdlib=libc++ -std=c++23 -mstrict-align -I../include -c boot.cpp ${BOOT_CXXFLAGS} -o $@
 
 payload.o: payload.S kernel.exe
 	aarch64-w64-mingw32-as payload.S -o $@
