@@ -1,12 +1,12 @@
 .section .rdata
 
-.globl _payload_size
-_payload_size:
-.quad payload_end - _payload_data
+.globl payload_size
+payload_size:
+.quad payload_end - payload_data
 
 .section .payload
 
-.globl _payload_data
-_payload_data:
+.globl payload_data
+payload_data:
 .incbin "kernel.exe"
 payload_end:

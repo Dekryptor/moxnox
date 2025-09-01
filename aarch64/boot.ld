@@ -4,6 +4,7 @@ TARGET("pe-aarch64-little")
 SECTIONS
 {
     .boot 0 : AT(0) {
+        image_base = .;
         *(.boot)
         . = ALIGN(4096);
     }

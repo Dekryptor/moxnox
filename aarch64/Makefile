@@ -1,4 +1,4 @@
-CXXFLAGS=-Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Wno-unused-const-variable -Werror=pointer-arith -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -fno-threadsafe-statics -fvisibility=hidden
+CXXFLAGS=-Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Wno-unused-const-variable -Werror=pointer-arith -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -fno-threadsafe-statics -fvisibility=hidden -fno-auto-import
 BOOT_CXXFLAGS=${CXXFLAGS} -fno-asynchronous-unwind-tables
 KERNEL_CXXFLAGS=${CXXFLAGS} -mno-red-zone -mno-stack-arg-probe -gdwarf-5
 
