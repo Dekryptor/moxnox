@@ -9,6 +9,8 @@
 
 using namespace std;
 
+static const uint64_t PAGE_SIZE = 4096;
+
 extern uint8_t payload_data;
 extern const uint64_t payload_size;
 
@@ -39,8 +41,8 @@ static const uint64_t AUX_UART_CLOCK = 500000000;
 
 #define MAX_MAP_ENTRIES 256
 
-static map_entry map_entries[MAX_MAP_ENTRIES] __attribute__((section (".data")));
-static unsigned int num_map_entries __attribute__((section (".data"))) = 0;
+static map_entry mem_entries[MAX_MAP_ENTRIES] __attribute__((section (".data")));
+static unsigned int mem_entries_count __attribute__((section (".data"))) = 0;
 
 extern "C"
 size_t strlen(const char* s) {
@@ -102,6 +104,22 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     }
 
     return 0;
+}
+
+extern "C"
+void* memcpy(void* dest, const void* src, size_t n) {
+    void* orig_dest = dest;
+
+    while (n >= sizeof(uint8_t)) {
+        *(uint8_t*)dest = *(uint8_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint8_t);
+        src = (uint8_t*)src + sizeof(uint8_t);
+
+        n -= sizeof(uint8_t);
+    }
+
+    return orig_dest;
 }
 
 static void mmio_write(uint64_t reg, unsigned int val) {
@@ -187,18 +205,18 @@ static void print_hex(integral auto i) {
 }
 
 static bool add_map_entry(uint64_t address, uint64_t size, enum mem_type type) {
-    if (num_map_entries >= MAX_MAP_ENTRIES) {
-        print("maximum number of map entries exceeded\n");
+    if (mem_entries_count >= MAX_MAP_ENTRIES) {
+        print("maximum number of mem entries exceeded\n");
         return false;
     }
 
-    auto& m = map_entries[num_map_entries];
+    auto& m = mem_entries[mem_entries_count];
 
     m.addr = address;
     m.len = size;
     m.type = type;
 
-    num_map_entries++;
+    mem_entries_count++;
 
     return true;
 }
@@ -369,6 +387,166 @@ static bool parse_dtb(uint8_t* dt, char* strings) {
     return true;
 }
 
+static weak_ordering cmp_mem_type(enum mem_type m1, enum mem_type m2) {
+    if ((unsigned int)m1 == (unsigned int)m2)
+        return weak_ordering::equivalent;
+
+    if (m1 == mem_type::free)
+        return weak_ordering::less;
+
+    if (m2 == mem_type::free)
+        return weak_ordering::greater;
+
+    if (m1 == mem_type::reserved)
+        return weak_ordering::greater;
+
+    if (m2 == mem_type::reserved)
+        return weak_ordering::less;
+
+    return weak_ordering::equivalent;
+}
+
+static void add_new_mem_entry(unsigned int pos) {
+    for (int i = (int)mem_entries_count; i >= (int)pos; i--) {
+        mem_entries[i + 1] = mem_entries[i];
+    }
+    mem_entries_count++;
+}
+
+static void remove_mem_entry(unsigned int pos) {
+    for (unsigned int i = pos; i < mem_entries_count; i++) {
+        mem_entries[i] = mem_entries[i + 1];
+    }
+    mem_entries_count--;
+}
+
+static void sanitize_mem_entries() {
+    span mem(mem_entries, mem_entries_count);
+
+    // align to pages
+    for (auto& m : mem) {
+        if (m.addr & (PAGE_SIZE - 1)) {
+            uint64_t new_addr = m.addr & ~(PAGE_SIZE - 1);
+
+            m.len += m.addr - new_addr;
+            m.addr = new_addr;
+        }
+
+        if (m.len & (PAGE_SIZE - 1))
+            m.len = (m.len & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
+    }
+
+    // remove any with size 0
+    for (unsigned int i = 0; i < mem_entries_count; i++) {
+        if (mem_entries[i].len == 0) {
+            swap(mem_entries[i], mem_entries[mem_entries_count - 1]);
+            mem_entries_count--;
+        }
+    }
+
+    // sort
+    while (true) {
+        bool changed = false;
+
+        for (unsigned i = 0; i < mem_entries_count - 1; i++) {
+            auto& a = mem_entries[i];
+            auto& b = mem_entries[i + 1];
+
+            if (a.addr > b.addr) {
+                swap(a, b);
+                changed = true;
+                i--;
+            }
+        }
+
+        if (!changed)
+            break;
+    }
+
+    // handle overlaps
+    for (unsigned int i = 0; i < mem_entries_count - 1; i++) {
+        auto& a = mem_entries[i];
+        auto& b = mem_entries[i + 1];
+
+        if (b.addr >= a.addr && b.addr < a.addr + a.len) {
+            auto cmp = cmp_mem_type(a.type, b.type);
+
+            if (b.addr + b.len < a.addr + a.len) {
+                // second entirely within first
+
+                if (cmp == weak_ordering::less) {
+                    uint64_t a_end = a.addr + a.len;
+
+                    a.len = b.addr - a.addr;
+
+                    // FIXME - check for overflow
+                    add_new_mem_entry(i + 2);
+
+                    auto& c = mem_entries[i + 2];
+                    c.addr = b.addr + b.len;
+                    c.len = a_end - c.addr;
+                    c.type = a.type;
+                } else
+                    b.len = 0;
+            } else {
+                if (cmp == weak_ordering::less)
+                    a.len = b.addr - a.addr;
+                else {
+                    b.len -= a.addr + a.len - b.addr;
+                    b.addr = a.addr + a.len;
+                }
+            }
+
+            auto new_i = i;
+
+            if (b.len == 0) {
+                remove_mem_entry(i + 1);
+                new_i--;
+            }
+
+            if (a.len == 0)
+                remove_mem_entry(i);
+
+            i = new_i;
+        }
+    }
+
+    // add any missing
+    for (unsigned int i = 0; i < mem_entries_count - 1; i++) {
+        auto& a = mem_entries[i];
+        auto& b = mem_entries[i + 1];
+
+        if (b.addr > a.addr + a.len) {
+            uint64_t new_address = a.addr + a.len;
+            uint64_t new_length = b.addr - a.addr - a.len;
+
+            add_new_mem_entry(i + 1);
+            mem_entries[i + 1].addr = new_address;
+            mem_entries[i + 1].len = new_length;
+            mem_entries[i + 1].type = mem_type::reserved;
+
+            i--;
+        }
+    }
+
+    // combine adjacent
+    for (unsigned int i = 0; i < mem_entries_count - 1; i++) {
+        auto& a = mem_entries[i];
+        auto& b = mem_entries[i + 1];
+
+        if (a.type == b.type) {
+            a.len = b.addr + b.len - a.addr;
+            remove_mem_entry(i + 1);
+            i--;
+        }
+    }
+
+    // remove bad or reserved bits at end
+    while (mem_entries_count > 0 && mem_entries[mem_entries_count - 1].type == mem_type::reserved) {
+        mem_entries_count--;
+    }
+}
+
 static bool find_memory(uint64_t dtb) {
     if (dtb == 0) {
         print("No DTB provided.\n");
@@ -399,15 +577,15 @@ static bool find_memory(uint64_t dtb) {
     // FIXME - parse rsvmap
     // FIXME - do we need to parse /reserved-memory?
 
-    // FIXME - rationalize mappings
+    sanitize_mem_entries();
 
-    for (unsigned int i = 0; i < num_map_entries; i++) {
+    for (unsigned int i = 0; i < mem_entries_count; i++) {
         print("mapping: addr = ");
-        print_hex(map_entries[i].addr);
+        print_hex(mem_entries[i].addr);
         print(", len = ");
-        print_hex(map_entries[i].len);
+        print_hex(mem_entries[i].len);
         print(", type = ");
-        print_hex((unsigned int)map_entries[i].type);
+        print_hex((unsigned int)mem_entries[i].type);
         print("\n");
     }
 
