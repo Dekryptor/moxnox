@@ -82,6 +82,27 @@ void* memmove(void* dest, const void* src, size_t n) {
     return orig_dest;
 }
 
+extern "C"
+int memcmp(const void* s1, const void* s2, size_t n) {
+    // FIXME - not completely accurate, as 1 or -1 is messed up by endianness
+
+    // FIXME - can only do one byte at a time because we're in aligned mode?
+
+    while (n > 0) {
+        uint8_t c1 = *(uint8_t*)s1;
+        uint8_t c2 = *(uint8_t*)s2;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        s1 = (uint8_t*)s1 + 1;
+        s2 = (uint8_t*)s2 + 1;
+        n--;
+    }
+
+    return 0;
+}
+
 static void mmio_write(uint64_t reg, unsigned int val) {
     *(volatile unsigned int *)reg = val;
 }
@@ -164,6 +185,11 @@ static void print_hex(integral auto i) {
         print(string_view(buf, (size_t)(ptr - buf))); // FIXME
 }
 
+static void parse_dtb_memory(uint8_t* dt) {
+    // FIXME
+    print("memory!\n");
+}
+
 static bool parse_dtb(uint8_t* dt, char* strings) {
     unsigned int depth = 0;
 
@@ -190,6 +216,11 @@ static bool parse_dtb(uint8_t* dt, char* strings) {
 
                 if ((uintptr_t)dt % sizeof(uint32_t))
                     dt += sizeof(uint32_t) - ((uintptr_t)dt % sizeof(uint32_t));
+
+                static const char pref[] = "memory@";
+
+                if (name.size() >= sizeof(pref) - 1 && !memcmp(name.data(), pref, sizeof(pref) - 1))
+                    parse_dtb_memory(dt);
 
                 depth++;
 

@@ -26,8 +26,8 @@ SECTIONS
 
     .data : AT(data) {
         data = .;
-        *(.rdata)
-        *(.data)
+        *(.rdata.*)
+        *(.data.*)
     }
 
     . = ALIGN(4096);
