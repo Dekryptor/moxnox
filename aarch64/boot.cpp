@@ -574,7 +574,17 @@ static bool find_memory(uint64_t dtb) {
         return false;
     }
 
-    // FIXME - parse rsvmap
+    auto* rsvmap = (fdt_reserve_entry*)(dtb + __builtin_bswap32(h.off_mem_rsvmap));
+
+    while (true) {
+        if (rsvmap->address == 0 && rsvmap->size == 0)
+            break;
+
+        add_map_entry(__builtin_bswap64(rsvmap->address),
+                      __builtin_bswap64(rsvmap->size), mem_type::reserved);
+        rsvmap++;
+    }
+
     // FIXME - do we need to parse /reserved-memory?
 
     sanitize_mem_entries();

@@ -28,3 +28,8 @@ struct dtb_prop {
     uint32_t len;
     uint32_t nameoff;
 };
+
+struct fdt_reserve_entry {
+    uint64_t address;
+    uint64_t size;
+};
