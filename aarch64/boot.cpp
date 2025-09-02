@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <string_view>
+#include <span>
 #include <concepts>
 #include <system_error>
 #include <charconv>
@@ -185,13 +186,99 @@ static void print_hex(integral auto i) {
         print(string_view(buf, (size_t)(ptr - buf))); // FIXME
 }
 
-static void parse_dtb_memory(uint8_t* dt) {
-    // FIXME
-    print("memory!\n");
+static bool add_map_entry(uint64_t address, uint64_t size, enum mem_type type) {
+    if (num_map_entries >= MAX_MAP_ENTRIES) {
+        print("maximum number of map entries exceeded\n");
+        return false;
+    }
+
+    auto& m = map_entries[num_map_entries];
+
+    m.addr = address;
+    m.len = size;
+    m.type = type;
+
+    num_map_entries++;
+
+    return true;
+}
+
+static bool parse_dtb_memory(uint8_t* dt, char* strings, uint32_t address_cells,
+                             uint32_t size_cells) {
+    if (address_cells == 0 || address_cells > 2) {
+        print("invalid address_cells value ");
+        print_hex(address_cells);
+        print("\n");
+        return false;
+    }
+
+    if (size_cells == 0 || size_cells > 2) {
+        print("invalid size_cells value ");
+        print_hex(size_cells);
+        print("\n");
+        return false;
+    }
+
+    while (true) {
+        auto type = (enum fdt_type)__builtin_bswap32(*(uint32_t*)dt);
+
+        dt += sizeof(uint32_t);
+
+        if (type == fdt_type::PROP) {
+            auto& p = *(dtb_prop*)dt;
+
+            string_view name = strings + __builtin_bswap32(p.nameoff);
+
+            dt += sizeof(dtb_prop);
+
+            static const char reg[] = "reg";
+
+            if (name.size() == sizeof(reg) - 1 && !memcmp(name.data(), reg, sizeof(reg) - 1)) {
+                auto len = __builtin_bswap32(p.len);
+                span sp((uint32_t*)dt, len / sizeof(uint32_t));
+
+                for (size_t i = 0; i < sp.size(); ) {
+                    uint64_t address, size;
+
+                    if (address_cells == 2) {
+                        address = __builtin_bswap32(sp[i]);
+                        address <<= 32;
+                        address |= __builtin_bswap32(sp[i+1]);
+                        i += 2;
+                    } else {
+                        address = __builtin_bswap32(sp[i]);
+                        i++;
+                    }
+
+                    if (size_cells == 2) {
+                        size = __builtin_bswap32(sp[i]);
+                        size <<= 32;
+                        size |= __builtin_bswap32(sp[i+1]);
+                        i += 2;
+                    } else {
+                        size = __builtin_bswap32(sp[i]);
+                        i++;
+                    }
+
+                    if (!add_map_entry(address, size, mem_type::free))
+                        return false;
+                }
+            }
+
+            dt += __builtin_bswap32(p.len);
+
+            if ((uintptr_t)dt % sizeof(uint32_t))
+                dt += sizeof(uint32_t) - ((uintptr_t)dt % sizeof(uint32_t));
+        } else
+            break;
+    }
+
+    return true;
 }
 
 static bool parse_dtb(uint8_t* dt, char* strings) {
     unsigned int depth = 0;
+    uint32_t address_cells = 0, size_cells = 0;
 
     while (true) {
         auto type = (enum fdt_type)__builtin_bswap32(*(uint32_t*)dt);
@@ -219,8 +306,10 @@ static bool parse_dtb(uint8_t* dt, char* strings) {
 
                 static const char pref[] = "memory@";
 
-                if (name.size() >= sizeof(pref) - 1 && !memcmp(name.data(), pref, sizeof(pref) - 1))
-                    parse_dtb_memory(dt);
+                if (name.size() >= sizeof(pref) - 1 && !memcmp(name.data(), pref, sizeof(pref) - 1)) {
+                    if (!parse_dtb_memory(dt, strings, address_cells, size_cells))
+                        return false;
+                }
 
                 depth++;
 
@@ -237,11 +326,22 @@ static bool parse_dtb(uint8_t* dt, char* strings) {
 
                 string_view name = strings + __builtin_bswap32(p.nameoff);
 
+                dt += sizeof(dtb_prop);
+
+                static const char address_cells_str[] = "#address-cells";
+                static const char size_cells_str[] = "#size-cells";
+
+                if (depth == 1 && __builtin_bswap32(p.len) == sizeof(uint32_t)) {
+                    if (name.size() >= sizeof(address_cells_str) - 1 && !memcmp(name.data(), address_cells_str, sizeof(address_cells_str) - 1))
+                        address_cells = __builtin_bswap32(*(uint32_t*)dt);
+                    else if (name.size() >= sizeof(size_cells_str) - 1 && !memcmp(name.data(), size_cells_str, sizeof(size_cells_str) - 1))
+                        size_cells = __builtin_bswap32(*(uint32_t*)dt);
+                }
+
                 print("PROP \"");
                 print(name);
                 print("\"\n");
 
-                dt += sizeof(dtb_prop);
                 dt += __builtin_bswap32(p.len);
 
                 if ((uintptr_t)dt % sizeof(uint32_t))
@@ -283,13 +383,24 @@ static bool find_memory(uint64_t dtb) {
     }
 
     if (!parse_dtb((uint8_t*)dtb + __builtin_bswap32(h.off_dt_struct),
-                   (char*)dtb + __builtin_bswap32(h.off_dt_strings)))
+                   (char*)dtb + __builtin_bswap32(h.off_dt_strings))) {
         return false;
+    }
 
-    // FIXME - parse DTB
-    // FIXME - parse /memory
     // FIXME - parse rsvmap
     // FIXME - parse /reserved-memory
+
+    // FIXME - rationalize mappings
+
+    for (unsigned int i = 0; i < num_map_entries; i++) {
+        print("mapping: addr = ");
+        print_hex(map_entries[i].addr);
+        print(", len = ");
+        print_hex(map_entries[i].len);
+        print(", type = ");
+        print_hex((unsigned int)map_entries[i].type);
+        print("\n");
+    }
 
     return true;
 }
