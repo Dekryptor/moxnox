@@ -377,8 +377,17 @@ static bool find_memory(uint64_t dtb) {
 
     const auto& h = *(fdt_header*)dtb;
 
-    if (h.magic != DEVICE_TREE_MAGIC) {
+    if (__builtin_bswap32(h.magic) != DEVICE_TREE_MAGIC) {
         print("Device tree had invalid magic.\n");
+        return false;
+    }
+
+    if (__builtin_bswap32(h.version) != DEVICE_TREE_VERSION) {
+        print("Device tree is version ");
+        print_hex(__builtin_bswap32(h.version));
+        print(", expected ");
+        print_hex(__builtin_bswap32(DEVICE_TREE_VERSION));
+        print("had invalid magic.\n");
         return false;
     }
 
@@ -388,7 +397,7 @@ static bool find_memory(uint64_t dtb) {
     }
 
     // FIXME - parse rsvmap
-    // FIXME - parse /reserved-memory
+    // FIXME - do we need to parse /reserved-memory?
 
     // FIXME - rationalize mappings
 

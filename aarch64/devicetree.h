@@ -1,6 +1,7 @@
 #include <stdint.h>
 
-static const uint32_t DEVICE_TREE_MAGIC = 0xedfe0dd0;
+static const uint32_t DEVICE_TREE_MAGIC = 0xd00dfeed;
+static const uint32_t DEVICE_TREE_VERSION = 17;
 
 struct fdt_header {
     uint32_t magic;
