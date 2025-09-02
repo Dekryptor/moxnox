@@ -13,6 +13,7 @@ static const uint64_t PAGE_SIZE = 4096;
 
 extern uint8_t payload_data;
 extern const uint64_t payload_size;
+extern uint32_t image_size;
 
 static const uint64_t PERIPHERAL_BASE = 0xfe000000;
 static const uint64_t GPFSEL0 = PERIPHERAL_BASE + 0x200000;
@@ -547,7 +548,7 @@ static void sanitize_mem_entries() {
     }
 }
 
-static bool find_memory(uint64_t dtb) {
+static bool find_memory(uint64_t dtb, uint64_t image_base) {
     if (dtb == 0) {
         print("No DTB provided.\n");
         return false;
@@ -587,6 +588,10 @@ static bool find_memory(uint64_t dtb) {
 
     // FIXME - do we need to parse /reserved-memory?
 
+    add_map_entry(image_base, image_size, mem_type::bootloader);
+
+    // FIXME - add devicetree memory
+
     sanitize_mem_entries();
 
     for (unsigned int i = 0; i < mem_entries_count; i++) {
@@ -612,10 +617,20 @@ void start(uint64_t dtb, uint64_t image_base) {
 
     print("image_base = ");
     print_hex(image_base);
+    print(", image_size = ");
+    print_hex(image_size);
     print("\n");
 
-    if (!find_memory(dtb))
+    if (!find_memory(dtb, image_base))
         goto end;
+
+    // FIXME - read cmdline
+    // FIXME - find initrd
+
+    // FIXME - load image
+
+    // FIXME - enable paging
+    // FIXME - jump to entry point
 
 end:
     while (true) {
