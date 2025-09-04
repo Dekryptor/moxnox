@@ -45,6 +45,11 @@ static const uint64_t AUX_UART_CLOCK = 500000000;
 static map_entry mem_entries[MAX_MAP_ENTRIES] __attribute__((section (".data")));
 static unsigned int mem_entries_count __attribute__((section (".data"))) = 0;
 
+// mem.S
+extern "C" uint8_t get_current_el();
+extern "C" void el2_to_el1();
+extern "C" void el3_to_el1();
+
 extern "C"
 size_t strlen(const char* s) {
     size_t i = 0;
@@ -611,6 +616,12 @@ extern "C"
 void start(uint64_t dtb, uint64_t image_base) {
     uart_init();
 
+    auto el = get_current_el();
+    if (el == 0) {
+        print("currently running in EL0, bailing\n");
+        goto end;
+    }
+
     print("dtb = ");
     print_hex(dtb);
     print("\n");
@@ -628,6 +639,11 @@ void start(uint64_t dtb, uint64_t image_base) {
     // FIXME - find initrd
 
     // FIXME - load image
+
+    if (el == 2)
+        el2_to_el1();
+    else if (el == 3)
+        el3_to_el1();
 
     // FIXME - enable paging
     // FIXME - jump to entry point

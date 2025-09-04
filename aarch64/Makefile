@@ -4,23 +4,26 @@ KERNEL_CXXFLAGS=${CXXFLAGS} -mno-red-zone -mno-stack-arg-probe -gdwarf-5
 
 all: boot
 
-boot: boot.ld boot.o boot.cpp.o payload.o
-	ld -T boot.ld boot.o boot.cpp.o payload.o -o $@
+boot: boot.ld boot.o boot.cpp.o payload.o mem.o
+	ld -T boot.ld boot.o boot.cpp.o payload.o mem.o -o $@
 
 boot.o: boot.S
-	aarch64-w64-mingw32-as boot.S -o $@
+	aarch64-w64-mingw32-as $< -o $@
+
+mem.o: mem.S
+	aarch64-w64-mingw32-as $< -o $@
 
 boot.cpp.o: boot.cpp
-	clang++ -target aarch64-w64-mingw32 -stdlib=libc++ -std=c++23 -mstrict-align -gdwarf-5 -I../include -c boot.cpp ${BOOT_CXXFLAGS} -o $@
+	clang++ -target aarch64-w64-mingw32 -stdlib=libc++ -std=c++23 -mstrict-align -gdwarf-5 -I../include -c $< ${BOOT_CXXFLAGS} -o $@
 
 payload.o: payload.S kernel.exe
-	aarch64-w64-mingw32-as payload.S -o $@
+	aarch64-w64-mingw32-as $< -o $@
 
 kernel.o: kernel.cpp
-	clang++ -target aarch64-w64-mingw32 -stdlib=libc++ -c kernel.cpp ${KERNEL_CXXFLAGS} -o kernel.o
+	clang++ -target aarch64-w64-mingw32 -stdlib=libc++ -c $< ${KERNEL_CXXFLAGS} -o kernel.o
 
 kernel.exe: kernel.o
-	clang++ -target aarch64-w64-mingw32 -nostartfiles -nostdlib -Wl,--entry=startup -Wl,--image-base=0xfffff80000000000 kernel.o -o $@
+	clang++ -target aarch64-w64-mingw32 -nostartfiles -nostdlib -Wl,--entry=startup -Wl,--image-base=0xfffff80000000000 $^ -o $@
 
 clean:
 	rm *.o boot kernel.exe
