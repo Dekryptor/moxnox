@@ -2,6 +2,8 @@
 
 .equ HCR_RW, 1 << 31
 
+.equ SCTLR_M, 1
+
 .text
 
 // uint8_t get_current_el();
@@ -53,3 +55,29 @@ orr	x0, x0, HCR_RW
 msr	hcr_el2, x0
 
 eret
+
+// uint64_t tcr_el1_load();
+.global tcr_el1_load
+tcr_el1_load:
+mrs	x0, tcr_el1
+ret
+
+// void tcr_el1_store(uint64_t tcr_el1);
+.global tcr_el1_store
+tcr_el1_store:
+msr	tcr_el1, x0
+ret
+
+// void enable_paging(uint64_t ttbr0, uint64_t ttbr1);
+.global enable_paging
+enable_paging:
+msr	ttbr0_el1, x0
+msr	ttbr1_el1, x1
+isb
+
+mrs	x0, sctlr_el1
+orr	x0, x0, SCTLR_M
+msr	sctlr_el1, x0
+isb
+
+ret

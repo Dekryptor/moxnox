@@ -4,12 +4,14 @@
 #include <concepts>
 #include <system_error>
 #include <charconv>
+#include <optional>
 #include <loaderblock.h>
 #include "devicetree.h"
 
 using namespace std;
 
 static const uint64_t PAGE_SIZE = 4096;
+static const unsigned int PAGE_SHIFT = 12;
 
 extern uint8_t payload_data;
 extern const uint64_t payload_size;
@@ -38,6 +40,78 @@ static const uint64_t AUX_MU_CNTL_REG = AUX_BASE + 96;
 static const uint64_t AUX_MU_BAUD_REG = AUX_BASE + 104;
 static const uint64_t AUX_UART_CLOCK = 500000000;
 
+struct ARM64_HARDWARE_PTE {
+    uint64_t valid : 1;
+    uint64_t table_entry : 1;
+    uint64_t AttrIndex : 3;
+    uint64_t NS : 1;
+    uint64_t AP : 2;
+    uint64_t SH : 2;
+    uint64_t AF : 1;
+    uint64_t nG : 1;
+    uint64_t pfn : 39;
+    uint64_t DBM : 1;
+    uint64_t Contig : 1;
+    uint64_t PXN : 1;
+    uint64_t UXN : 1;
+    uint64_t software : 4;
+    uint64_t imp_def : 4;
+    uint64_t : 1;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_HARDWARE_PTE) == 8);
+
+union ARM64_TCR_EL1 {
+    struct {
+        uint64_t T0SZ : 6;
+        uint64_t : 1;
+        uint64_t EPD0 : 1;
+        uint64_t IRGN0 : 2;
+        uint64_t ORGN0 : 2;
+        uint64_t SH0 : 2;
+        uint64_t TG0 : 2;
+        uint64_t T1SZ : 6;
+        uint64_t A1 : 1;
+        uint64_t EPD1 : 1;
+        uint64_t IRGN1 : 2;
+        uint64_t ORGN1 : 2;
+        uint64_t SH1 : 2;
+        uint64_t TG1 : 2;
+        uint64_t IPS : 3;
+        uint64_t : 1;
+        uint64_t AS : 1;
+        uint64_t TBI0 : 1;
+        uint64_t TBI1 : 1;
+        uint64_t HA : 1;
+        uint64_t HD : 1;
+        uint64_t HPD0 : 1;
+        uint64_t HPD1 : 1;
+        uint64_t HWU059 : 1;
+        uint64_t HWU060 : 1;
+        uint64_t HWU061 : 1;
+        uint64_t HWU062 : 1;
+        uint64_t HWU159 : 1;
+        uint64_t HWU160 : 1;
+        uint64_t HWU161 : 1;
+        uint64_t HWU162 : 1;
+        uint64_t TBID0 : 1;
+        uint64_t TBID1 : 1;
+        uint64_t NFD0 : 1;
+        uint64_t NFD1 : 1;
+        uint64_t E0PD0 : 1;
+        uint64_t E0PD1 : 1;
+        uint64_t TCMA0 : 1;
+        uint64_t TCMA1 : 1;
+        uint64_t DS : 1;
+        uint64_t MTX0 : 1;
+        uint64_t MTX1 : 1;
+        uint64_t : 2;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_TCR_EL1) == 8);
+
 #define AUX_MU_BAUD(baud) ((AUX_UART_CLOCK/(baud*8))-1)
 
 #define MAX_MAP_ENTRIES 256
@@ -49,6 +123,9 @@ static unsigned int mem_entries_count __attribute__((section (".data"))) = 0;
 extern "C" uint8_t get_current_el();
 extern "C" void el2_to_el1();
 extern "C" void el3_to_el1();
+extern "C" uint64_t tcr_el1_load();
+extern "C" void tcr_el1_store(uint64_t tcr_el1);
+extern "C" void enable_paging(uint64_t ttbr0, uint64_t ttbr1);
 
 extern "C"
 size_t strlen(const char* s) {
@@ -126,6 +203,20 @@ void* memcpy(void* dest, const void* src, size_t n) {
     }
 
     return orig_dest;
+}
+
+extern "C"
+void* memset(void* s, int c, size_t n) {
+    void* orig_s = s;
+
+    while (n > 0) {
+        *(uint8_t*)s = (uint8_t)c;
+
+        s = (uint8_t*)s + 1;
+        n--;
+    }
+
+    return orig_s;
 }
 
 static void mmio_write(uint64_t reg, unsigned int val) {
@@ -612,6 +703,111 @@ static bool find_memory(uint64_t dtb, uint64_t image_base) {
     return true;
 }
 
+static optional<uint64_t> alloc_page(enum mem_type type) {
+    for (unsigned int i = 0; i < mem_entries_count; i++) {
+        uint64_t ret;
+
+        auto& m = mem_entries[i];
+
+        if (m.type != mem_type::free)
+            continue;
+
+        ret = m.addr;
+
+        // FIXME - handle merging with next
+
+        // extending previous entry
+        if (i > 0 && mem_entries[i - 1].type == type) {
+            mem_entries[i - 1].len += PAGE_SIZE;
+            m.addr += PAGE_SIZE;
+            m.len -= PAGE_SIZE;
+
+            if (m.len == 0)
+                remove_mem_entry(i);
+
+            return ret;
+        }
+
+        // free block of same size
+        if (m.len == PAGE_SIZE) {
+            m.type = type;
+            return ret;
+        }
+
+        // add new entry
+        add_new_mem_entry(i + 1);
+
+        mem_entries[i + 1].addr = ret + PAGE_SIZE;
+        mem_entries[i + 1].len = m.len - PAGE_SIZE;
+        mem_entries[i + 1].type = mem_type::free;
+
+        m.len = PAGE_SIZE;
+        m.type = type;
+
+        return ret;
+    }
+
+    return nullopt;
+}
+
+static bool do_paging() {
+    uint64_t level0, level1;
+
+    if (auto ret = alloc_page(mem_type::paging_table); !ret.has_value()) {
+        print("alloc_page failed\n");
+        return false;
+    } else
+        level0 = *ret;
+
+    if (auto ret = alloc_page(mem_type::paging_table); !ret.has_value()) {
+        print("alloc_page failed\n");
+        return false;
+    } else
+        level1 = *ret;
+
+    auto pte0 = span((ARM64_HARDWARE_PTE*)level0, PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto pte1 = span((ARM64_HARDWARE_PTE*)level1, PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+    memset(pte0.data(), 0, pte0.size_bytes());
+    memset(pte1.data(), 0, pte1.size_bytes());
+
+    // FIXME - check ID_AA64MMFR0_EL1 that 4KB page size supported
+
+    pte0[0].valid = 1;
+    pte0[0].table_entry = 1;
+    pte0[0].AttrIndex = 0; // FIXME?
+    pte0[0].AP = 0; // no access from userspace
+    pte0[0].SH = 3; // inner shareable
+    pte0[0].AF = 1;
+    pte0[0].pfn = level1 >> PAGE_SHIFT;
+
+    // FIXME - loop for every gigabyte found
+    pte1[0].valid = 1;
+    pte1[0].table_entry = 0;
+    pte1[0].AttrIndex = 0; // FIXME?
+    pte1[0].AP = 0; // no access from userspace
+    pte1[0].SH = 3; // inner shareable
+    pte1[0].AF = 1;
+    pte1[0].pfn = 0;
+
+    // FIXME - set MAIR_EL1
+
+    ARM64_TCR_EL1 tcr;
+
+    tcr.value = tcr_el1_load();
+
+    tcr.TG0 = 3; // 64KB granule size
+    tcr.T0SZ = 16; // 48-bit memory size
+    tcr.T1SZ = 16; // 48-bit memory size
+    tcr.HA = 0; // hardware access flag disabled
+
+    tcr_el1_store(tcr.value);
+
+    enable_paging(level0, 0);
+
+    return true;
+}
+
 extern "C"
 void start(uint64_t dtb, uint64_t image_base) {
     uart_init();
@@ -645,7 +841,9 @@ void start(uint64_t dtb, uint64_t image_base) {
     else if (el == 3)
         el3_to_el1();
 
-    // FIXME - enable paging
+    if (!do_paging())
+        goto end;
+
     // FIXME - jump to entry point
 
 end:
