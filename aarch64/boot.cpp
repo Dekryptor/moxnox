@@ -781,14 +781,34 @@ static bool do_paging() {
     pte0[0].AF = 1;
     pte0[0].pfn = level1 >> PAGE_SHIFT;
 
-    // FIXME - loop for every gigabyte found
-    pte1[0].valid = 1;
-    pte1[0].table_entry = 0;
-    pte1[0].AttrIndex = 0; // FIXME?
-    pte1[0].AP = 0; // no access from userspace
-    pte1[0].SH = 3; // inner shareable
-    pte1[0].AF = 1;
-    pte1[0].pfn = 0;
+    unsigned int num_mappable_mem_entries = mem_entries_count;
+
+    while (num_mappable_mem_entries > 0 && (mem_entries[num_mappable_mem_entries - 1].type == mem_type::free || mem_entries[num_mappable_mem_entries - 1].type == mem_type::reserved)) {
+        num_mappable_mem_entries--;
+    }
+
+    const auto& last_mappable = mem_entries[num_mappable_mem_entries - 1];
+    static const uint64_t SZ_1G = 0x40000000;
+
+    uint64_t last_address = last_mappable.addr + last_mappable.len;
+    auto num_gigs = last_address / SZ_1G;
+
+    if (last_address % SZ_1G)
+        num_gigs++;
+
+    // FIXME - fails if would map more than 512GB
+    if (num_gigs > PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE))
+        num_gigs = PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE);
+
+    for (unsigned int i = 0; i < num_gigs; i++) {
+        pte1[i].valid = 1;
+        pte1[i].table_entry = 0;
+        pte1[i].AttrIndex = 0; // FIXME?
+        pte1[i].AP = 0; // no access from userspace
+        pte1[i].SH = 3; // inner shareable
+        pte1[i].AF = 1;
+        pte1[i].pfn = ((uint64_t)i * SZ_1G) >> PAGE_SHIFT;
+    }
 
     // FIXME - set MAIR_EL1
 
