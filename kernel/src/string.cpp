@@ -152,3 +152,12 @@ size_t strlen(const char* s) {
 
     return i;
 }
+
+// FIXME - should be in string module, but currently ICEs GCC 15 if placed there
+extern "C"
+int toupper(int c) {
+    if (c >= 'a' && c <= 'z')
+        return c - 'a' + 'A';
+    else
+        return c;
+}
