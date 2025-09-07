@@ -22,9 +22,9 @@ target_sources(ntdll PUBLIC FILE_SET CXX_MODULES FILES
     src/print.cpp
 )
 
-target_compile_options(ntdll PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -gdwarf-5)
+target_compile_options(ntdll PRIVATE ${USERSPACE_CFLAGS})
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)
-target_link_libraries(ntdll format dwarf unwind list)
+target_link_libraries(ntdll format_sse dwarf_sse unwind_sse list_sse)
 
 install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX}
     CXX_MODULES_BMI EXCLUDE_FROM_ALL

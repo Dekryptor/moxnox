@@ -11,84 +11,96 @@ include_directories(include)
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
+set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+
 add_library(format STATIC)
 target_sources(format PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
-target_compile_options(format PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(format PRIVATE ${KERNEL_CFLAGS})
 
 add_library(format_sse STATIC)
 target_sources(format_sse PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
-target_compile_options(format_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(format_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_library(dwarf STATIC)
 target_sources(dwarf PUBLIC FILE_SET CXX_MODULES FILES modules/dwarf.cpp)
-target_compile_options(dwarf PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(dwarf PRIVATE ${KERNEL_CFLAGS})
 target_link_libraries(dwarf format)
+
+add_library(dwarf_sse STATIC)
+target_sources(dwarf_sse PUBLIC FILE_SET CXX_MODULES FILES modules/dwarf.cpp)
+target_compile_options(dwarf_sse PRIVATE ${USERSPACE_CFLAGS})
+target_link_libraries(dwarf_sse format_sse)
 
 add_library(unwind STATIC)
 target_sources(unwind PUBLIC FILE_SET CXX_MODULES FILES modules/unwind.cpp)
-target_compile_options(unwind PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(unwind PRIVATE ${KERNEL_CFLAGS})
+
+add_library(unwind_sse STATIC)
+target_sources(unwind_sse PUBLIC FILE_SET CXX_MODULES FILES modules/unwind.cpp)
+target_compile_options(unwind_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_library(list STATIC)
 target_sources(list PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
-target_compile_options(list PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(list PRIVATE ${KERNEL_CFLAGS})
 
 add_library(list_sse STATIC)
 target_sources(list_sse PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
-target_compile_options(list_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(list_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_library(unicode STATIC)
 target_sources(unicode PUBLIC FILE_SET CXX_MODULES FILES modules/unicode.cpp)
-target_compile_options(unicode PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(unicode PRIVATE ${KERNEL_CFLAGS})
 
 add_library(unicode_sse STATIC)
 target_sources(unicode_sse PUBLIC FILE_SET CXX_MODULES FILES modules/unicode.cpp)
-target_compile_options(unicode_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(unicode_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_library(rbtree STATIC)
 target_sources(rbtree PUBLIC FILE_SET CXX_MODULES FILES modules/rbtree.cpp)
-target_compile_options(rbtree PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(rbtree PRIVATE ${KERNEL_CFLAGS})
 
 add_library(rbtree_sse STATIC)
 target_sources(rbtree_sse PUBLIC FILE_SET CXX_MODULES FILES modules/rbtree.cpp)
-target_compile_options(rbtree_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(rbtree_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_library(unique_handle STATIC)
 target_sources(unique_handle PUBLIC FILE_SET CXX_MODULES FILES modules/unique_handle.cpp)
-target_compile_options(unique_handle PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(unique_handle PRIVATE ${USERSPACE_CFLAGS})
 
 add_library(vt100 STATIC)
 target_sources(vt100 PUBLIC FILE_SET CXX_MODULES FILES modules/vt100.cpp)
-target_compile_options(vt100 PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(vt100 PRIVATE ${KERNEL_CFLAGS})
 
 add_library(vt100_sse STATIC)
 target_sources(vt100_sse PUBLIC FILE_SET CXX_MODULES FILES modules/vt100.cpp)
-target_compile_options(vt100_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(vt100_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_library(signal STATIC)
 target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
-target_compile_options(signal PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(signal PRIVATE ${USERSPACE_CFLAGS})
 target_link_libraries(signal unique_handle)
 target_link_libraries(signal moxnox)
 
 add_library(cp437 STATIC)
 target_sources(cp437 PUBLIC FILE_SET CXX_MODULES FILES modules/cp437.cpp)
-target_compile_options(cp437 PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(cp437 PRIVATE ${KERNEL_CFLAGS})
 
 add_library(cp437_sse STATIC)
 target_sources(cp437_sse PUBLIC FILE_SET CXX_MODULES FILES modules/cp437.cpp)
-target_compile_options(cp437_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(cp437_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_library(cmdline STATIC)
 target_sources(cmdline PUBLIC FILE_SET CXX_MODULES FILES modules/cmdline.cpp)
-target_compile_options(cmdline PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(cmdline PRIVATE ${USERSPACE_CFLAGS})
 
 add_library(evdev STATIC)
 target_sources(evdev PUBLIC FILE_SET CXX_MODULES FILES modules/evdev.cpp)
-target_compile_options(evdev PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(evdev PRIVATE ${KERNEL_CFLAGS})
 
 add_library(evdev_sse STATIC)
 target_sources(evdev_sse PUBLIC FILE_SET CXX_MODULES FILES modules/evdev.cpp)
-target_compile_options(evdev_sse PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+target_compile_options(evdev_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_subdirectory(kernel)
 add_subdirectory(bootloader)

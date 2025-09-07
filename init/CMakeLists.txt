@@ -16,10 +16,10 @@ target_sources(init PUBLIC FILE_SET CXX_MODULES FILES
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
-target_compile_options(init PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -gdwarf-5)
+target_compile_options(init PRIVATE ${USERSPACE_CFLAGS})
 target_link_options(init PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(init format cmdline)
+target_link_libraries(init format_sse cmdline)
 target_link_libraries(init moxnox)
 
 install(TARGETS init DESTINATION ${CMAKE_INSTALL_PREFIX}
