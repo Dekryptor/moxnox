@@ -98,6 +98,7 @@ static map_entry mem_entries[MAX_MAP_ENTRIES] __attribute__((section (".data")))
 static unsigned int mem_entries_count __attribute__((section (".data"))) = 0;
 static uint64_t pl011_address __attribute__((section (".data")));
 static uint64_t ttbr1 __attribute__((section (".data")));
+static void (*entry_point)() __attribute__((section (".data")));
 
 // mem.S
 extern "C" uint8_t get_current_el();
@@ -1011,7 +1012,7 @@ static bool load_image() {
         }
     }
 
-    // entry_point = img_addr + pe_header.OptionalHeader64.AddressOfEntryPoint;
+    entry_point = (decltype(entry_point))(img_addr + pe_header.OptionalHeader64.AddressOfEntryPoint);
 
     return true;
 }
@@ -1058,7 +1059,7 @@ void start(uint64_t dtb, uint64_t image_base) {
     // FIXME - do relocations
 
     // FIXME - set up kernel stack?
-    // FIXME - jump to entry point
+    entry_point();
 
 end:
     while (true) {
