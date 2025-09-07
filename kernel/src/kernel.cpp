@@ -1,12 +1,15 @@
-#include <loaderblock.h>
-#include <version.h>
 #include <span>
 #include <atomic>
+#include <string_view>
+#include <loaderblock.h>
+#include <version.h>
 #include <string.h>
+
+#ifndef __aarch64__
+
 #include "context_offsets.h"
 #include "process.h"
 #include "scheduler.h"
-#include <string_view>
 
 import print;
 import bsod;
@@ -30,8 +33,10 @@ import unicode;
 import section;
 import process;
 import image;
-import cmdline;
 import thread;
+#endif
+
+import cmdline;
 
 using namespace std;
 
@@ -41,7 +46,9 @@ static char cmdline_arr[255];
 static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
 
+#ifndef __aarch64__
 void (*_printk)(string_view s) = early_print;
+#endif
 
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
@@ -66,6 +73,7 @@ int atexit(void (*)(void)) {
     return 0;
 }
 
+#ifndef __aarch64__
 extern "C"
 void __cxa_pure_virtual() {
     // Clang wants this
@@ -257,7 +265,7 @@ int toupper(int c) {
     else
         return c;
 }
-
+#endif
 extern "C"
 void startup(loader_block* lb) {
     span<const uint8_t> debug_info, debug_abbrev, debug_rnglists, debug_str,
@@ -281,6 +289,7 @@ void startup(loader_block* lb) {
         cmdline = string_view(cmdline_arr, len);
     }
 
+#ifndef __aarch64__
     if (lb->edid)
         copy_edid(lb);
 
@@ -288,6 +297,7 @@ void startup(loader_block* lb) {
         console_type = console_type::text;
     else
         console_type = console_type::framebuffer;
+#endif
 
     debug_info = span((uint8_t*)(uintptr_t)lb->debug_info_ptr, lb->debug_info_size);
     debug_abbrev = span((uint8_t*)(uintptr_t)lb->debug_abbrev_ptr, lb->debug_abbrev_size);
@@ -296,15 +306,18 @@ void startup(loader_block* lb) {
     debug_addr = span((uint8_t*)(uintptr_t)lb->debug_addr_ptr, lb->debug_addr_size);
     debug_str_offsets = span((uint8_t*)(uintptr_t)lb->debug_str_offsets_ptr, lb->debug_str_offsets_size);
 
+#ifndef __aarch64__
     rsdp_pa = lb->rsdp_pa;
 
     if (!init_memory(*lb))
         goto hang;
+#endif
 
     lb = nullptr; // no longer valid
 
     call_global_constructors();
 
+#ifndef __aarch64__
     init_images_list(debug_info, debug_abbrev, debug_rnglists, debug_str,
                      debug_addr, debug_str_offsets);
 
@@ -341,5 +354,6 @@ void startup(loader_block* lb) {
     );
 
 hang:
+#endif
     while (1) { }
 }

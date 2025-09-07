@@ -920,7 +920,8 @@ static uint32_t find_die_parent(span<const uint8_t> cu, span<const uint8_t*> abb
     loop_through_dies(cu, abbrev_list, [&](enum DW_TAG, bool, span<const uint8_t>,
                                            span<const uint8_t>, unsigned int depth,
                                            uint32_t this_offset) -> bool {
-        max_depth = max(max_depth, depth);
+        if (depth > max_depth)
+            max_depth = depth;
 
         if (this_offset > offset)
             return false;

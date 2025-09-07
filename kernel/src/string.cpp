@@ -7,9 +7,58 @@ module;
 
 export module string;
 
+#ifndef __aarch64__
 import mem;
+#endif
 
 using namespace std;
+
+#ifdef __aarch64__
+extern "C"
+void* memcpy(void* dest, const void* src, size_t n) {
+    void* orig_dest = dest;
+
+#if __INTPTR_WIDTH__ == 64
+    while (n >= sizeof(uint64_t)) {
+        *(uint64_t*)dest = *(uint64_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint64_t);
+        src = (uint8_t*)src + sizeof(uint64_t);
+
+        n -= sizeof(uint64_t);
+    }
+#endif
+
+    while (n >= sizeof(uint32_t)) {
+        *(uint32_t*)dest = *(uint32_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint32_t);
+        src = (uint8_t*)src + sizeof(uint32_t);
+
+        n -= sizeof(uint32_t);
+    }
+
+    while (n >= sizeof(uint16_t)) {
+        *(uint16_t*)dest = *(uint16_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint16_t);
+        src = (uint8_t*)src + sizeof(uint16_t);
+
+        n -= sizeof(uint16_t);
+    }
+
+    while (n >= sizeof(uint8_t)) {
+        *(uint8_t*)dest = *(uint8_t*)src;
+
+        dest = (uint8_t*)dest + sizeof(uint8_t);
+        src = (uint8_t*)src + sizeof(uint8_t);
+
+        n -= sizeof(uint8_t);
+    }
+
+    return orig_dest;
+}
+#endif
 
 extern "C"
 int tolower(int c) {

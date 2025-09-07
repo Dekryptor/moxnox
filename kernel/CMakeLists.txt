@@ -9,22 +9,11 @@ enable_language(ASM)
 
 configure_file(src/font.S.in ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
-set(SRC_ASM_FILES src/ints.S
-    src/timer.S
-    src/smp.S
-    src/syscalls.S
-    src/mem.S
-    src/tlb.S
-    ${CMAKE_CURRENT_BINARY_DIR}/font.S)
+set(GLOBAL_MODULES src/cmdline.cpp
+    src/string.cpp
+)
 
-set(SRC_FILES src/kernel.cpp
-    src/scheduler.cpp
-    src/handle.cpp
-    src/file.cpp
-    src/bsod2.cpp)
-
-add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
-target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
+set(AMD64_MODULES ${GLOBAL_MODULES}
     src/inout.cpp
     src/print.cpp
     src/bsod.cpp
@@ -42,7 +31,6 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/sata.cpp
     src/pci.cpp
     src/vfs.cpp
-    src/string.cpp
     src/pe.cpp
     src/objects.cpp
     src/semaphore.cpp
@@ -72,13 +60,35 @@ target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES
     src/process.cpp
     src/image.cpp
     src/guid.cpp
-    src/cmdline.cpp
     src/module_init.cpp
     src/power.cpp
     src/apic.cpp
     src/object_ref.cpp
-    src/thread.cpp
-)
+    src/thread.cpp)
+
+set(AARCH64_MODULES ${GLOBAL_MODULES})
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    add_executable(kernel src/kernel.cpp)
+    target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
+else()
+    set(SRC_FILES src/kernel.cpp
+        src/scheduler.cpp
+        src/handle.cpp
+        src/file.cpp
+        src/bsod2.cpp)
+
+    set(SRC_ASM_FILES src/ints.S
+        src/timer.S
+        src/smp.S
+        src/syscalls.S
+        src/mem.S
+        src/tlb.S
+        ${CMAKE_CURRENT_BINARY_DIR}/font.S)
+
+    add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
+    target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AMD64_MODULES})
+endif()
 
 target_link_libraries(kernel format dwarf unwind list unicode rbtree vt100 cp437 evdev)
 
@@ -92,8 +102,10 @@ target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-fno-inline -fno-omit-fr
 
 target_include_directories(kernel PRIVATE ../acpica/source/include)
 
-target_link_libraries(kernel freetype-static)
-target_link_libraries(kernel acpica)
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    target_link_libraries(kernel freetype-static)
+    target_link_libraries(kernel acpica)
+endif()
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
 target_compile_definitions(kernel PUBLIC -D_CRTIMP=)
