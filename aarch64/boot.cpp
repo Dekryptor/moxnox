@@ -6,6 +6,7 @@
 #include <charconv>
 #include <optional>
 #include <loaderblock.h>
+#include <pe.h>
 #include "devicetree.h"
 
 using namespace std;
@@ -91,9 +92,12 @@ static_assert(sizeof(ARM64_TCR_EL1) == 8);
 
 #define MAX_MAP_ENTRIES 256
 
+static const uint64_t img_addr = 0xfffff80000000000;
+
 static map_entry mem_entries[MAX_MAP_ENTRIES] __attribute__((section (".data")));
 static unsigned int mem_entries_count __attribute__((section (".data"))) = 0;
 static uint64_t pl011_address __attribute__((section (".data")));
+static uint64_t ttbr1 __attribute__((section (".data")));
 
 // mem.S
 extern "C" uint8_t get_current_el();
@@ -790,7 +794,171 @@ static bool do_paging() {
 
     tcr_el1_store(tcr.value);
 
-    enable_paging(level0, 0);
+    enable_paging(level0, ttbr1);
+
+    return true;
+}
+
+static bool add_pte(span<ARM64_HARDWARE_PTE> pte0, uint64_t addr, uint64_t pfn) {
+    auto level1 = (addr & 0xff8000000000) >> 39;
+
+    if (!pte0[level1].valid) {
+        if (auto ret = alloc_page(mem_type::paging_table); !ret.has_value()) {
+            print("alloc_page failed\n");
+            return false;
+        } else {
+            memset((void*)*ret, 0, PAGE_SIZE);
+
+            pte0[level1].valid = 1;
+            pte0[level1].table_entry = 1;
+            pte0[level1].AttrIndex = 0; // FIXME?
+            pte0[level1].AP = 0; // no access from userspace
+            pte0[level1].SH = 3; // inner shareable
+            pte0[level1].AF = 1;
+            pte0[level1].pfn = *ret >> PAGE_SHIFT;
+        }
+    }
+
+    auto pte1 = span((ARM64_HARDWARE_PTE*)(pte0[level1].pfn << PAGE_SHIFT),
+                     PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto level2 = (addr & 0x7fc0000000) >> 30;
+
+    if (!pte1[level2].valid) {
+        if (auto ret = alloc_page(mem_type::paging_table); !ret.has_value()) {
+            print("alloc_page failed\n");
+            return false;
+        } else {
+            memset((void*)*ret, 0, PAGE_SIZE);
+
+            pte1[level2].valid = 1;
+            pte1[level2].table_entry = 1;
+            pte1[level2].AttrIndex = 0; // FIXME?
+            pte1[level2].AP = 0; // no access from userspace
+            pte1[level2].SH = 3; // inner shareable
+            pte1[level2].AF = 1;
+            pte1[level2].pfn = *ret >> PAGE_SHIFT;
+        }
+    }
+
+    auto pte2 = span((ARM64_HARDWARE_PTE*)(pte1[level2].pfn << PAGE_SHIFT),
+                     PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto level3 = (addr & 0x3fe00000) >> 21;
+
+    if (!pte2[level3].valid) {
+        if (auto ret = alloc_page(mem_type::paging_table); !ret.has_value()) {
+            print("alloc_page failed\n");
+            return false;
+        } else {
+            memset((void*)*ret, 0, PAGE_SIZE);
+
+            pte2[level3].valid = 1;
+            pte2[level3].table_entry = 1;
+            pte2[level3].AttrIndex = 0; // FIXME?
+            pte2[level3].AP = 0; // no access from userspace
+            pte2[level3].SH = 3; // inner shareable
+            pte2[level3].AF = 1;
+            pte2[level3].pfn = *ret >> PAGE_SHIFT;
+        }
+    }
+
+    auto pte3 = span((ARM64_HARDWARE_PTE*)(pte2[level3].pfn << PAGE_SHIFT),
+                     PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto level4 = (addr & 0x1ff000) >> 12;
+
+    pte3[level4].valid = 1;
+    pte3[level4].table_entry = 1; // sic
+    pte3[level4].AttrIndex = 0; // FIXME?
+    pte3[level4].AP = 0; // no access from userspace
+    pte3[level4].SH = 3; // inner shareable
+    pte3[level4].AF = 1;
+    pte3[level4].pfn = pfn;
+
+    return true;
+}
+
+static bool load_image() {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)&payload_data;
+
+    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+
+    auto& pe_header = *(IMAGE_NT_HEADERS*)((uint8_t*)&dos_header + dos_header.e_lfanew);
+
+    if (pe_header.Signature != IMAGE_NT_SIGNATURE)
+        return false;
+
+    if (pe_header.FileHeader.Machine != IMAGE_FILE_MACHINE_ARM64)
+        return false;
+
+    if (pe_header.OptionalHeader64.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        return false;
+
+    auto img_size = pe_header.OptionalHeader64.SizeOfImage;
+
+    if (img_size & (PAGE_SIZE - 1))
+        img_size = (img_size & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
+
+    if (auto ret = alloc_page(mem_type::paging_table); !ret.has_value()) {
+        print("alloc_page failed\n");
+        return false;
+    } else
+        ttbr1 = *ret;
+
+    auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1, PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+    memset(pte0.data(), 0, pte0.size_bytes());
+
+    auto num_header_pages = (pe_header.OptionalHeader64.SizeOfHeaders + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+    for (unsigned int i = 0; i < num_header_pages; i++) {
+        uint64_t pa;
+        uint32_t to_copy;
+
+        if (auto ret = alloc_page(mem_type::image); !ret.has_value()) {
+            print("alloc_page failed\n");
+            return false;
+        } else
+            pa = *ret;
+
+        if (i == num_header_pages - 1)
+            to_copy = pe_header.OptionalHeader64.SizeOfHeaders & (PAGE_SIZE - 1);
+        else
+            to_copy = PAGE_SIZE;
+
+        memcpy((void*)pa, &payload_data + (i << PAGE_SHIFT), to_copy);
+
+        if (to_copy < PAGE_SIZE)
+            memset((uint8_t*)pa + to_copy, 0, PAGE_SIZE - to_copy);
+
+        if (!add_pte(pte0, img_addr + (i << PAGE_SHIFT), pa >> PAGE_SHIFT)) {
+            print("add_pte failed\n");
+            return false;
+        }
+    }
+
+    // copy sections
+
+    span sects((IMAGE_SECTION_HEADER*)((uint8_t*)&pe_header.OptionalHeader64 + pe_header.FileHeader.SizeOfOptionalHeader),
+               pe_header.FileHeader.NumberOfSections);
+
+    for (const auto& s : sects) {
+        uint32_t section_size;
+
+        // FIXME - DWARF sections (only load if cmdline option set?)
+
+        section_size = s.VirtualSize;
+
+        if (s.SizeOfRawData < section_size)
+            section_size = s.SizeOfRawData;
+
+    //     if (section_size > 0 && s.PointerToRawData != 0)
+    //         memcpy(addr + s.VirtualAddress, (uint8_t*)&dos_header + s.PointerToRawData, section_size);
+    //
+    //     if (section_size < s.VirtualSize) // if short, pad with zeroes
+    //         memset(addr + s.VirtualAddress + section_size, 0, s.VirtualSize - section_size);
+    }
+
+    // entry_point = img_addr + pe_header.OptionalHeader64.AddressOfEntryPoint;
 
     return true;
 }
@@ -821,7 +989,10 @@ void start(uint64_t dtb, uint64_t image_base) {
     // FIXME - read cmdline
     // FIXME - find initrd
 
-    // FIXME - load image
+    if (!load_image()) {
+        print("load_image failed\n");
+        goto end;
+    }
 
     if (el == 2)
         el2_to_el1();
@@ -831,6 +1002,9 @@ void start(uint64_t dtb, uint64_t image_base) {
     if (!do_paging())
         goto end;
 
+    // FIXME - do relocations
+
+    // FIXME - set up kernel stack?
     // FIXME - jump to entry point
 
 end:
