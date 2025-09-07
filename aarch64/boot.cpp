@@ -920,7 +920,7 @@ static bool load_image() {
         } else
             pa = *ret;
 
-        if (i == num_header_pages - 1)
+        if (i == num_header_pages - 1 && pe_header.OptionalHeader64.SizeOfHeaders & (PAGE_SIZE - 1))
             to_copy = pe_header.OptionalHeader64.SizeOfHeaders & (PAGE_SIZE - 1);
         else
             to_copy = PAGE_SIZE;
@@ -942,20 +942,73 @@ static bool load_image() {
                pe_header.FileHeader.NumberOfSections);
 
     for (const auto& s : sects) {
-        uint32_t section_size;
-
         // FIXME - DWARF sections (only load if cmdline option set?)
 
-        section_size = s.VirtualSize;
+        if (s.VirtualAddress & (PAGE_SIZE - 1)) {
+            print("PE section not page-aligned\n");
+            return false;
+        }
 
-        if (s.SizeOfRawData < section_size)
-            section_size = s.SizeOfRawData;
+        unsigned int raw_copy_pages, raw_pages, virtual_pages;
 
-    //     if (section_size > 0 && s.PointerToRawData != 0)
-    //         memcpy(addr + s.VirtualAddress, (uint8_t*)&dos_header + s.PointerToRawData, section_size);
-    //
-    //     if (section_size < s.VirtualSize) // if short, pad with zeroes
-    //         memset(addr + s.VirtualAddress + section_size, 0, s.VirtualSize - section_size);
+        if (s.PointerToRawData & (PAGE_SIZE - 1))
+            raw_copy_pages = s.SizeOfRawData >> PAGE_SHIFT;
+        else
+            raw_copy_pages = 0;
+
+        for (unsigned int i = 0; i < raw_copy_pages; i++) {
+            // FIXME - mark page as mem_type::image
+            if (!add_pte(pte0, img_addr + s.VirtualAddress + (i << PAGE_SHIFT), ((payload_data + s.PointerToRawData) >> PAGE_SHIFT) + i)) {
+                print("add_pte failed\n");
+                return false;
+            }
+        }
+
+        raw_pages = (s.SizeOfRawData + PAGE_SIZE - 1) >> PAGE_SHIFT;
+        virtual_pages = (s.VirtualSize + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+        for (unsigned int i = raw_copy_pages; i < raw_pages; i++) {
+            uint64_t pa;
+            uint32_t to_copy;
+
+            if (auto ret = alloc_page(mem_type::image); !ret.has_value()) {
+                print("alloc_page failed\n");
+                return false;
+            } else
+                pa = *ret;
+
+            if (i == raw_pages - 1 && s.SizeOfRawData & (PAGE_SIZE - 1))
+                to_copy = s.SizeOfRawData & (PAGE_SIZE - 1);
+            else
+                to_copy = PAGE_SIZE;
+
+            memcpy((void*)pa, &payload_data + s.PointerToRawData + (i << PAGE_SHIFT), to_copy);
+
+            if (to_copy < PAGE_SIZE)
+                memset((uint8_t*)pa + to_copy, 0, PAGE_SIZE - to_copy);
+
+            if (!add_pte(pte0, img_addr + s.VirtualAddress + (i << PAGE_SHIFT), pa >> PAGE_SHIFT)) {
+                print("add_pte failed\n");
+                return false;
+            }
+        }
+
+        for (unsigned int i = raw_pages; i < virtual_pages; i++) {
+            uint64_t pa;
+
+            if (auto ret = alloc_page(mem_type::image); !ret.has_value()) {
+                print("alloc_page failed\n");
+                return false;
+            } else
+                pa = *ret;
+
+            memset((void*)pa, 0, PAGE_SIZE);
+
+            if (!add_pte(pte0, img_addr + s.VirtualAddress + (i << PAGE_SHIFT), pa >> PAGE_SHIFT)) {
+                print("add_pte failed\n");
+                return false;
+            }
+        }
     }
 
     // entry_point = img_addr + pe_header.OptionalHeader64.AddressOfEntryPoint;

@@ -23,7 +23,7 @@ kernel.o: kernel.cpp
 	clang++ -target aarch64-w64-mingw32 -stdlib=libc++ -c $< ${KERNEL_CXXFLAGS} -o kernel.o
 
 kernel.exe: kernel.o
-	clang++ -target aarch64-w64-mingw32 -nostartfiles -nostdlib -Wl,--entry=startup -Wl,--image-base=0xfffff80000000000 $^ -o $@
+	clang++ -target aarch64-w64-mingw32 -nostartfiles -nostdlib -Wl,--entry=startup -Wl,--image-base=0xfffff80000000000 -Wl,--file-alignment=0x1000 $^ -o $@
 
 clean:
 	rm *.o boot kernel.exe
