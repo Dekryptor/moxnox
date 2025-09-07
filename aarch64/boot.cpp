@@ -17,29 +17,6 @@ extern uint8_t payload_data;
 extern const uint64_t payload_size;
 extern uint32_t image_size;
 
-static const uint64_t PERIPHERAL_BASE = 0xfe000000;
-static const uint64_t GPFSEL0 = PERIPHERAL_BASE + 0x200000;
-static const uint64_t GPSET0 = PERIPHERAL_BASE + 0x20001c;
-static const uint64_t GPCLR0 = PERIPHERAL_BASE + 0x200028;
-static const uint64_t GPPUPPDN0 = PERIPHERAL_BASE + 0x2000e4;
-
-static const unsigned int GPIO_MAX_PIN = 53;
-static const unsigned int GPIO_FUNCTION_ALT5 = 2;
-
-static const unsigned int Pull_None = 0;
-
-static const uint64_t AUX_BASE = PERIPHERAL_BASE + 0x215000;
-static const uint64_t AUX_ENABLES = AUX_BASE + 4;
-static const uint64_t AUX_MU_IO_REG = AUX_BASE + 64;
-static const uint64_t AUX_MU_IER_REG = AUX_BASE + 68;
-static const uint64_t AUX_MU_IIR_REG = AUX_BASE + 72;
-static const uint64_t AUX_MU_LCR_REG = AUX_BASE + 76;
-static const uint64_t AUX_MU_MCR_REG = AUX_BASE + 80;
-static const uint64_t AUX_MU_LSR_REG = AUX_BASE + 84;
-static const uint64_t AUX_MU_CNTL_REG = AUX_BASE + 96;
-static const uint64_t AUX_MU_BAUD_REG = AUX_BASE + 104;
-static const uint64_t AUX_UART_CLOCK = 500000000;
-
 struct ARM64_HARDWARE_PTE {
     uint64_t valid : 1;
     uint64_t table_entry : 1;
@@ -112,12 +89,11 @@ union ARM64_TCR_EL1 {
 
 static_assert(sizeof(ARM64_TCR_EL1) == 8);
 
-#define AUX_MU_BAUD(baud) ((AUX_UART_CLOCK/(baud*8))-1)
-
 #define MAX_MAP_ENTRIES 256
 
 static map_entry mem_entries[MAX_MAP_ENTRIES] __attribute__((section (".data")));
 static unsigned int mem_entries_count __attribute__((section (".data"))) = 0;
+static uint64_t pl011_address __attribute__((section (".data")));
 
 // mem.S
 extern "C" uint8_t get_current_el();
@@ -219,70 +195,61 @@ void* memset(void* s, int c, size_t n) {
     return orig_s;
 }
 
-static void mmio_write(uint64_t reg, unsigned int val) {
-    *(volatile unsigned int *)reg = val;
-}
+static const uint32_t PL011_UARTCR_UARTEN = 1 << 0;
+static const uint32_t PL011_UARTCR_TXE = 1 << 8;
 
-static unsigned int mmio_read(uint64_t reg) {
-    return *(volatile unsigned int *)reg;
-}
+static const uint32_t PL011_UARTFR_BUSY = 1 << 3;
 
-static void gpio_call(unsigned int pin_number, unsigned int value, unsigned int base,
-                      unsigned int field_size, unsigned int field_max) {
-    unsigned int field_mask = (1 << field_size) - 1;
+static const uint32_t PL011_UARTLCR_H_FEN = 1 << 4;
+static const unsigned int PL011_UARTLCR_H_WLEN_OFFSET = 5;
+static const uint32_t PL011_UARTLCR_H_WLEN_MASK = 3 << PL011_UARTLCR_H_WLEN_OFFSET;
 
-    if (pin_number > field_max)
-        return;
+static void pl011_init(uint64_t base_address, uint64_t base_clock,
+                       uint32_t baud_rate) {
+    pl011_address = base_address;
 
-    if (value > field_mask)
-        return;
+    auto& UARTFR = *(volatile uint32_t*)(base_address + 0x18);
+    auto& UARTIBRD = *(volatile uint32_t*)(base_address + 0x24);
+    auto& UARTFBRD = *(volatile uint32_t*)(base_address + 0x28);
+    auto& UARTLCR_H = *(volatile uint32_t*)(base_address + 0x2c);
+    auto& UARTCR = *(volatile uint32_t*)(base_address + 0x30);
+    auto& UARTIMSC = *(volatile uint32_t*)(base_address + 0x38);
+    auto& UARTDMACR = *(volatile uint32_t*)(base_address + 0x48);
 
-    unsigned int num_fields = 32 / field_size;
-    unsigned int reg = base + ((pin_number / num_fields) * 4);
-    unsigned int shift = (pin_number % num_fields) * field_size;
+    // disable UART
+    UARTCR &= ~PL011_UARTCR_UARTEN;
 
-    unsigned int curval = mmio_read(reg);
-    curval &= ~(field_mask << shift);
-    curval |= value << shift;
-    mmio_write(reg, curval);
-}
+    while (UARTFR & PL011_UARTFR_BUSY) { }
 
-static void gpio_pull(unsigned int pin_number, unsigned int value) {
-    return gpio_call(pin_number, value, GPPUPPDN0, 2, GPIO_MAX_PIN);
-}
+    // disable FIFOs
+    UARTLCR_H &= ~PL011_UARTLCR_H_FEN;
 
-static void gpio_function(unsigned int pin_number, unsigned int value) {
-    return gpio_call(pin_number, value, GPFSEL0, 3, GPIO_MAX_PIN);
-}
+    auto div = 4 * base_clock / baud_rate;
 
-static void gpio_use_as_alt_5(unsigned int pin_number) {
-    gpio_pull(pin_number, Pull_None);
-    gpio_function(pin_number, GPIO_FUNCTION_ALT5);
-}
+    UARTIBRD = (div >> 6) & 0xffff;
+    UARTFBRD = div & 0x3f;
 
-static void uart_init() {
-    mmio_write(AUX_ENABLES, 1); // enable UART1
-    mmio_write(AUX_MU_IER_REG, 0);
-    mmio_write(AUX_MU_CNTL_REG, 0);
-    mmio_write(AUX_MU_LCR_REG, 3); // 8 bits
-    mmio_write(AUX_MU_MCR_REG, 0);
-    mmio_write(AUX_MU_IER_REG, 0);
-    mmio_write(AUX_MU_IIR_REG, 0xc6); // disable interrupts
-    mmio_write(AUX_MU_BAUD_REG, AUX_MU_BAUD(115200));
-    gpio_use_as_alt_5(14);
-    gpio_use_as_alt_5(15);
-    mmio_write(AUX_MU_CNTL_REG, 3); // enable RX/TX
-}
+    // set word length to 8 bits
+    UARTLCR_H &= ~(PL011_UARTLCR_H_WLEN_MASK);
+    UARTLCR_H |= 3 << PL011_UARTLCR_H_WLEN_OFFSET;
 
-static unsigned int uart_is_write_byte_ready() {
-    return mmio_read(AUX_MU_LSR_REG) & 0x20;
+    // mask interrupts
+    UARTIMSC = 0x7ff;
+
+    // disable DMA
+    UARTDMACR = 0;
+
+    // enable transmission and UART
+    UARTCR |= PL011_UARTCR_TXE | PL011_UARTCR_UARTEN;
 }
 
 static void uart_write_blocking(char ch) {
-    while (!uart_is_write_byte_ready()) {
-    }
+    auto& UARTDR = *(volatile uint32_t*)pl011_address;
+    auto& UARTFR = *(volatile uint32_t*)(pl011_address + 0x18);
 
-    mmio_write(AUX_MU_IO_REG, (unsigned int)ch);
+    while (UARTFR & PL011_UARTFR_BUSY) { }
+
+    UARTDR = (uint32_t)ch;
 }
 
 static void print(string_view sv) {
@@ -830,7 +797,7 @@ static bool do_paging() {
 
 extern "C"
 void start(uint64_t dtb, uint64_t image_base) {
-    uart_init();
+    pl011_init(0xfe201000, 24000000, 115200); // FIXME - get from device tree
 
     auto el = get_current_el();
     if (el == 0) {
