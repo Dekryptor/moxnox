@@ -11,8 +11,9 @@ include_directories(include)
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
-set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
-set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -gdwarf-5)
+set(GENERAL_CFLAGS -gdwarf-5 -masm=intel)
+set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
+set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
 
 add_library(format STATIC)
 target_sources(format PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
@@ -158,7 +159,7 @@ add_library(freetype SHARED ${FREETYPE_FILES} ${CMAKE_SOURCE_DIR}/ftshim.cpp)
 target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
-target_compile_options(freetype PRIVATE -mno-stack-arg-probe -gdwarf-5 -masm=intel)
+target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS})
 target_include_directories(freetype PRIVATE include)
 target_include_directories(freetype PUBLIC freetype/include)
 target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
@@ -243,7 +244,7 @@ add_library(harfbuzz SHARED harfbuzz/src/hb-aat-layout.cc
     ${CMAKE_SOURCE_DIR}/hbshim.cpp)
 
 target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_OT_SHAPE -DHB_NO_OT_LAYOUT -DHB_NO_MT)
-target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -gdwarf-5 -masm=intel)
+target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions ${GENERAL_CFLAGS})
 target_compile_options(harfbuzz PRIVATE -include ${CMAKE_SOURCE_DIR}/hbshim.h)
 target_include_directories(harfbuzz PUBLIC harfbuzz/src)
 target_link_libraries(harfbuzz PUBLIC freetype)
@@ -437,7 +438,7 @@ add_library(zlib SHARED
 )
 
 target_include_directories(zlib PUBLIC zlib)
-target_compile_options(zlib PRIVATE -gdwarf-5 -masm=intel)
+target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS})
 target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(zlib PRIVATE moxnox)
 
@@ -465,7 +466,7 @@ add_library(libpng SHARED
 )
 
 target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
-target_compile_options(libpng PRIVATE -gdwarf-5 -masm=intel)
+target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS})
 target_link_libraries(libpng PUBLIC zlib)
 target_link_libraries(libpng PRIVATE moxnox)
 
