@@ -2,27 +2,34 @@ module;
 
 #include <loaderblock.h>
 #include <string_view>
-#include "acpica.h"
-#include "mem.h"
-#include "spinlock.h"
 #include <span>
 #include <cstring>
 #include <bit>
+#include <algorithm>
+
+#ifndef __aarch64__
+#include "acpica.h"
+#include "mem.h"
+#include "spinlock.h"
 #include "assert.h"
+#endif
 
 export module mem;
 
+import config;
+import list;
+
+#ifndef __aarch64__
 import print;
 import format;
 import bsod;
-import config;
-import list;
 
 // mem.S
 export {
     extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
     extern "C" void init_pat();
 }
+#endif
 
 using namespace std;
 
@@ -73,16 +80,21 @@ static_assert(sizeof(struct page) == 24);
 
 page* pages = (page*)0xfffffa0000000000;
 static uint64_t total_pages;
+
+#ifndef __aarch64__
 static _spinlock<6> pa_spinlock;
+#endif
 
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
 
 static uint8_t* const initrd_addr = (uint8_t*)0xfffffa5000000000;
 
+#ifndef __aarch64__
 static spinlock va_spinlock;
 static spinlock mapping_spinlock;
 static spinlock protect_page_spinlock;
+#endif
 
 export span<const uint8_t> initrd;
 
@@ -94,7 +106,9 @@ export constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
 static list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 static uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
+#ifndef __aarch64__
 static uint8_t MAXPHYADDR = 36;
+#endif
 
 export uint64_t zero_pfn;
 
@@ -123,6 +137,7 @@ struct allocator_cb {
     uint64_t pfns[NUM_PAGES];
 };
 
+#ifndef __aarch64__
 template<unsigned N, unsigned P, enum page_state S>
 class allocator {
 public:
@@ -151,6 +166,7 @@ static_assert(sizeof(decltype(alloc512)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc256)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc128)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc64)::cb_type) <= PAGE_SIZE);
+#endif
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -185,7 +201,7 @@ void* memset(void* s, int c, size_t n) {
     }
 
     while (n >= sizeof(uint32_t)) {
-        *(uint32_t*)s = v;
+        *(__unaligned uint32_t*)s = v;
 
         s = (uint8_t*)s + sizeof(uint32_t);
         n -= sizeof(uint32_t);
@@ -201,6 +217,7 @@ void* memset(void* s, int c, size_t n) {
     return orig_s;
 }
 
+#ifndef __aarch64__
 export
 extern "C"
 int memcmp(const void* s1, const void* s2, size_t n) {
@@ -301,7 +318,15 @@ span<char> do_format_arg(span<char> sp, string_view, enum page_state arg) {
             return do_format_arg(sp, "", (unsigned int)arg);
     }
 }
+#endif
 
+#ifdef __aarch64__
+static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
+    // FIXME
+
+    return false;
+}
+#else
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
     auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((va & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
@@ -377,6 +402,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 
     return true;
 }
+#endif
 
 static void fragment_folio(uint64_t pfn, uint8_t desired_order) {
     uint8_t order = pages[pfn].order;
@@ -415,7 +441,9 @@ static void fragment_folio(uint64_t pfn, uint8_t desired_order) {
 }
 
 export uint64_t allocate_folio(uint8_t order, enum page_state state = page_state::used) {
+#ifndef __aarch64__
     lock_guard lock(pa_spinlock);
+#endif
 
     for (unsigned int i = order; i <= MAX_FOLIO_ORDER; i++) {
         if (is_list_empty(folio_free_lists[i]))
@@ -451,6 +479,7 @@ export uint64_t allocate_page(enum page_state state = page_state::used) {
     return allocate_folio(0, state);
 }
 
+#ifndef __aarch64__
 __attribute__((always_inline))
 static uint64_t inline __readcr3() {
     uint64_t ret;
@@ -600,6 +629,7 @@ export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     return true;
 }
+#endif
 
 static bool map_memblock(uint64_t pa, uint64_t num_pages, uint64_t& scratch_pages) {
     uint64_t scratch_pa = pa + (num_pages << PAGE_SHIFT);
@@ -621,7 +651,9 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
     uint64_t pfn = pa >> PAGE_SHIFT;
     uint64_t num_pages = len >> PAGE_SHIFT;
 
+#ifndef __aarch64__
     lock_guard lock(pa_spinlock);
+#endif
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (pages[pfn].state != page_state::free) {
@@ -638,7 +670,9 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     uint64_t pfn = pa >> PAGE_SHIFT;
     uint64_t num_pages = len >> PAGE_SHIFT;
 
+#ifndef __aarch64__
     lock_guard lock(pa_spinlock);
+#endif
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (pages[pfn].state == page_state::free) {
@@ -651,6 +685,7 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     }
 }
 
+#ifndef __aarch64__
 export void free_lower_half_mappings() {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
 
@@ -805,11 +840,13 @@ static bool map_physical_memory(uint64_t num_pages) {
 
     return true;
 }
+#endif
 
 export constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
+#ifndef __aarch64__
 static bool load_initrd(void* data, uintptr_t size) {
     auto num_pages = bytes_to_pages(size);
 
@@ -852,6 +889,8 @@ static uint8_t get_maxphyaddr() {
     return (uint8_t)(eax & 0xff);
 }
 
+#endif
+
 export bool init_memory(const loader_block& lb) {
     uint64_t num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
@@ -863,9 +902,13 @@ export bool init_memory(const loader_block& lb) {
         folio_free_lists[i].prev = &folio_free_lists[i];
     }
 
+#ifndef __aarch64__
     init_pat();
+#endif
 
+#ifndef __aarch64__
     MAXPHYADDR = get_maxphyaddr();
+#endif
 
     // ignore any non-free entries at end of table
     while (num_map_entries > 0 && !treat_as_free(lb_map[num_map_entries - 1].type)) {
@@ -938,6 +981,7 @@ export bool init_memory(const loader_block& lb) {
     // because the ACPI tables live there (is this guaranteed?)
     // FIXME - non-EFI bootloader should walk the ACPI tables and mark the memory
     //         as mem_type::acpi (Seabios E820 reports it as reserved)
+#ifndef __aarch64__
     map_physical_memory(max(total_pages, (uint64_t)(1 << (32 - PAGE_SHIFT))));
 
     if (lb.initrd_size != 0) {
@@ -945,10 +989,13 @@ export bool init_memory(const loader_block& lb) {
 
         // FIXME - mark source memory as free (is page-aligned)
     }
+#endif
 
     zero_pfn = allocate_folio(0) >> PAGE_SHIFT;
     if (!zero_pfn) {
+#ifndef __aarch64__
         print("could not allocate zero page\n");
+#endif
         return false;
     }
 
@@ -956,6 +1003,8 @@ export bool init_memory(const loader_block& lb) {
 
     return true;
 }
+
+#ifndef __aarch64__
 
 export void* malloc_aligned(size_t size, size_t align) {
     if (size == 0)
@@ -1994,3 +2043,5 @@ export void* allocate_stack() {
 
     return stack;
 }
+
+#endif

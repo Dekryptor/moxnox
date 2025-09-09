@@ -11,6 +11,8 @@ configure_file(src/font.S.in ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 set(GLOBAL_MODULES src/cmdline.cpp
     src/string.cpp
+    src/mem.cpp
+    src/config.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -23,8 +25,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/rtc.cpp
     src/ps2keyboard.cpp
     src/null.cpp
-    src/mem.cpp
-    src/config.cpp
     src/interrupts.cpp
     src/serial.cpp
     src/btrfs.cpp

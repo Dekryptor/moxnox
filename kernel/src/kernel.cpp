@@ -15,7 +15,6 @@ import print;
 import bsod;
 import acpi;
 import null;
-import mem;
 import list;
 import interrupts;
 import serial;
@@ -37,6 +36,7 @@ import thread;
 #endif
 
 import cmdline;
+import mem;
 
 using namespace std;
 
@@ -300,10 +300,10 @@ void startup(loader_block* lb) {
 
 #ifndef __aarch64__
     rsdp_pa = lb->rsdp_pa;
+#endif
 
     if (!init_memory(*lb))
         goto hang;
-#endif
 
     lb = nullptr; // no longer valid
 
@@ -344,8 +344,8 @@ void startup(loader_block* lb) {
         :
         : "i" (GS_SCHEDULER_STACK)
     );
+#endif
 
 hang:
-#endif
     while (1) { }
 }
