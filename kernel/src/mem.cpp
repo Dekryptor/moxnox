@@ -892,7 +892,61 @@ export void setup_folios() {
         i += run_length - 2;
     }
 }
+#endif
 
+#ifdef __aarch64__
+static bool map_physical_memory(uint64_t num_pages) {
+    auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto& p0 = pte0[(PHYS_MEMORY & 0xff8000000000) >> 39];
+
+    auto pa = allocate_page();
+    if (!pa) {
+#ifndef __aarch64__ // FIXME
+        print("allocate_page failed\n");
+#endif
+        return false;
+    }
+
+    p0.valid = 1;
+    p0.table_entry = 1;
+    p0.AttrIndex = 0;
+    p0.AP = 0; // no access from userspace
+    p0.SH = 3; // inner shareable
+    p0.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    p0.pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+    memset((void*)(p0.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
+
+    auto pte1 = span((ARM64_HARDWARE_PTE*)(p0.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+    static const uint64_t PAGES_PER_GIGABYTE = 1024 * 1024 * 1024 / PAGE_SIZE;
+
+    // FIXME - if more than 512GB, will need to allocate second p0 entry
+
+    uint64_t gigabytes = (num_pages + PAGES_PER_GIGABYTE - 1) / PAGES_PER_GIGABYTE;
+    auto* p1 = &pte1[(PHYS_MEMORY & 0x7fc0000000) >> 30];
+
+    for (unsigned int i = 0; i < gigabytes; i++) {
+        p1->valid = 1;
+        p1->table_entry = 0;
+        p1->AttrIndex = 0;
+        p1->AP = 0; // no access from userspace
+        p1->SH = 3; // inner shareable
+        p1->AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p1->pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+        p1++;
+    }
+
+    return true;
+}
+#else
 static bool map_physical_memory(uint64_t num_pages) {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
     auto& pml4_entry = pml4[(PHYS_MEMORY & 0xff8000000000) >> 39];
@@ -1075,9 +1129,9 @@ export bool init_memory(const loader_block& lb) {
     // because the ACPI tables live there (is this guaranteed?)
     // FIXME - non-EFI bootloader should walk the ACPI tables and mark the memory
     //         as mem_type::acpi (Seabios E820 reports it as reserved)
-#ifndef __aarch64__
     map_physical_memory(max(total_pages, (uint64_t)(1 << (32 - PAGE_SHIFT))));
 
+#ifndef __aarch64__
     if (lb.initrd_size != 0) {
         load_initrd((void*)lb.initrd_data, lb.initrd_size);
 
