@@ -1115,7 +1115,6 @@ void start(uint64_t dtb, uint64_t image_base) {
 
     memset(&lb, 0, sizeof(lb));
 
-    // FIXME - loader block mappings
     // FIXME - loader block cmdline
     // FIXME - loader block initrd
     // FIXME - loader block DWARF pointers
@@ -1156,6 +1155,9 @@ void start(uint64_t dtb, uint64_t image_base) {
 
     if (!do_paging())
         goto end;
+
+    lb.map_ptr = (uintptr_t)mem_entries;
+    lb.num_map_entries = mem_entries_count;
 
     // FIXME - do relocations
 
