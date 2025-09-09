@@ -111,7 +111,9 @@ target_compile_options(evdev_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_subdirectory(kernel)
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    add_subdirectory(aarch64)
+else()
     add_subdirectory(bootloader)
     add_subdirectory(init)
     add_subdirectory(shell)

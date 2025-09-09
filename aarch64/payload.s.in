@@ -8,5 +8,5 @@ payload_size:
 
 .globl payload_data
 payload_data:
-.incbin "kernel.exe"
+.incbin "${CMAKE_BINARY_DIR}/kernel/kernel.exe"
 payload_end:

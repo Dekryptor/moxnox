@@ -1059,6 +1059,8 @@ void start(uint64_t dtb, uint64_t image_base) {
     // FIXME - do relocations
 
     // FIXME - set up kernel stack?
+
+    // FIXME - re-enable FPU
     entry_point();
 
 end:
