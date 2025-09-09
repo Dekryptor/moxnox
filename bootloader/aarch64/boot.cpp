@@ -116,7 +116,7 @@ static map_entry mem_entries[MAX_MAP_ENTRIES] __attribute__((section (".data")))
 static unsigned int mem_entries_count __attribute__((section (".data"))) = 0;
 static uint64_t pl011_address __attribute__((section (".data")));
 static uint64_t ttbr1 __attribute__((section (".data")));
-static void (*entry_point)() __attribute__((section (".data")));
+static void (*startup)(loader_block* lb) __attribute__((section (".data")));
 
 // mem.S
 extern "C" uint8_t get_current_el();
@@ -1032,7 +1032,7 @@ static bool load_image() {
         }
     }
 
-    entry_point = (decltype(entry_point))(img_addr + pe_header.OptionalHeader64.AddressOfEntryPoint);
+    startup = (decltype(startup))(img_addr + pe_header.OptionalHeader64.AddressOfEntryPoint);
 
     return true;
 }
@@ -1049,6 +1049,15 @@ static void enable_fpu() {
 
 extern "C"
 void start(uint64_t dtb, uint64_t image_base) {
+    loader_block lb;
+
+    memset(&lb, 0, sizeof(lb));
+
+    // FIXME - loader block mappings
+    // FIXME - loader block cmdline
+    // FIXME - loader block initrd
+    // FIXME - loader block DWARF pointers
+
     pl011_init(0xfe201000, 24000000, 115200); // FIXME - get from device tree
 
     auto el = get_current_el();
@@ -1092,7 +1101,7 @@ void start(uint64_t dtb, uint64_t image_base) {
 
     // FIXME - set up kernel stack?
 
-    entry_point();
+    startup(&lb);
 
 end:
     while (true) {
