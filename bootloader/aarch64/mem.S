@@ -2,8 +2,6 @@
 
 .equ HCR_RW, 1 << 31
 
-.equ SCTLR_M, 1
-
 .text
 
 // uint8_t get_current_el();
@@ -75,11 +73,6 @@ msr	ttbr0_el1, x0
 msr	ttbr1_el1, x1
 isb
 
-mrs	x0, sctlr_el1
-orr	x0, x0, SCTLR_M
-msr	sctlr_el1, x0
-isb
-
 ret
 
 // uint64_t cpacr_el1_load();
@@ -92,4 +85,16 @@ ret
 .global cpacr_el1_store
 cpacr_el1_store:
 msr	cpacr_el1, x0
+ret
+
+// uint64_t sctlr_el1_load();
+.global sctlr_el1_load
+sctlr_el1_load:
+mrs	x0, sctlr_el1
+ret
+
+// void sctlr_el1_store(uint64_t sctlr_el1);
+.global sctlr_el1_store
+sctlr_el1_store:
+msr	sctlr_el1, x0
 ret

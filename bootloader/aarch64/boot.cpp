@@ -108,6 +108,49 @@ union ARM64_CPACR_EL1 {
     uint64_t value;
 } __attribute((packed));
 
+static_assert(sizeof(ARM64_CPACR_EL1) == 8);
+
+union ARM64_SCTLR_EL1 {
+    struct {
+        uint64_t M : 1;
+        uint64_t A : 1;
+        uint64_t C : 1;
+        uint64_t SA : 1;
+        uint64_t SA0 : 1;
+        uint64_t : 1;
+        uint64_t nAA : 1;
+        uint64_t : 2;
+        uint64_t UMA : 1;
+        uint64_t EnRCTX : 1;
+        uint64_t : 1;
+        uint64_t I : 1;
+        uint64_t EnDB : 1;
+        uint64_t DZE : 1;
+        uint64_t UCT : 1;
+        uint64_t nTWI : 1;
+        uint64_t BR : 1;
+        uint64_t nTWE : 1;
+        uint64_t WXN : 1;
+        uint64_t : 1;
+        uint64_t IESB : 1;
+        uint64_t : 1;
+        uint64_t SPAN : 1;
+        uint64_t E0E : 1;
+        uint64_t EE : 1;
+        uint64_t UCI : 1;
+        uint64_t EnDA : 1;
+        uint64_t : 2;
+        uint64_t EnIB : 1;
+        uint64_t EnIA : 1;
+        uint64_t : 12;
+        uint64_t DSSBS : 1;
+        uint64_t : 19;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_SCTLR_EL1) == 8);
+
 #define MAX_MAP_ENTRIES 256
 
 static const uint64_t img_addr = 0xfffff80000000000;
@@ -127,6 +170,8 @@ extern "C" void tcr_el1_store(uint64_t tcr_el1);
 extern "C" void enable_paging(uint64_t ttbr0, uint64_t ttbr1);
 extern "C" uint64_t cpacr_el1_load();
 extern "C" void cpacr_el1_store(uint64_t cpacr_el1);
+extern "C" uint64_t sctlr_el1_load();
+extern "C" void sctlr_el1_store(uint64_t sctlr_el1);
 
 extern "C"
 size_t strlen(const char* s) {
@@ -804,18 +849,32 @@ static bool do_paging() {
 
     // FIXME - set MAIR_EL1
 
-    ARM64_TCR_EL1 tcr;
+    {
+        ARM64_TCR_EL1 tcr;
 
-    tcr.value = tcr_el1_load();
+        tcr.value = tcr_el1_load();
 
-    tcr.TG0 = 3; // 64KB granule size
-    tcr.T0SZ = 16; // 48-bit memory size
-    tcr.T1SZ = 16; // 48-bit memory size
-    tcr.HA = 0; // hardware access flag disabled
+        tcr.TG0 = 3; // 64KB granule size
+        tcr.T0SZ = 16; // 48-bit memory size
+        tcr.T1SZ = 16; // 48-bit memory size
+        tcr.HA = 0; // hardware access flag disabled
 
-    tcr_el1_store(tcr.value);
+        tcr_el1_store(tcr.value);
+    }
 
     enable_paging(level0, ttbr1);
+
+    {
+        ARM64_SCTLR_EL1 sctlr;
+
+        sctlr.value = sctlr_el1_load();
+
+        sctlr.M = 1;
+
+        sctlr_el1_store(sctlr.value);
+    }
+
+    __asm __volatile("isb");
 
     return true;
 }
