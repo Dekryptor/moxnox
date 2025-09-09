@@ -8,7 +8,7 @@ module;
 #include "rangelock.h"
 #include "cpu_block.h"
 import objects;
-#include "mem.h"
+#include "mem-x86.h"
 #include "spinlock.h"
 #include "thread.h"
 import page_cache;

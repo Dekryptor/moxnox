@@ -4,7 +4,7 @@ module;
 #include <string_view>
 #include "acpica.h"
 #include "cpu_block.h"
-#include "mem.h"
+#include "mem-x86.h"
 #include "scheduler.h"
 #include <atomic>
 

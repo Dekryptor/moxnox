@@ -9,7 +9,7 @@ module;
 #include "acpica.h"
 import objects;
 #include "cpu_block.h"
-#include "mem.h"
+#include "mem-x86.h"
 #include "spinlock.h"
 #include "process.h"
 #include "assert.h"

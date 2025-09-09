@@ -69,7 +69,11 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
 set(AARCH64_MODULES ${GLOBAL_MODULES})
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    add_executable(kernel src/kernel.cpp)
+    set(SRC_FILES src/kernel.cpp)
+
+    set(SRC_ASM_FILES src/mem-aarch64.S)
+
+    add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
 else()
     set(SRC_FILES src/kernel.cpp
@@ -82,7 +86,7 @@ else()
         src/timer.S
         src/smp.S
         src/syscalls.S
-        src/mem.S
+        src/mem-x86.S
         src/tlb.S
         ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 

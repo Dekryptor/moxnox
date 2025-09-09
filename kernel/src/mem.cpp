@@ -7,9 +7,14 @@ module;
 #include <bit>
 #include <algorithm>
 
+#ifdef __aarch64__
+#include "mem-aarch64.h"
+#else
+#include "mem-x86.h"
+#endif
+
 #ifndef __aarch64__
 #include "acpica.h"
-#include "mem.h"
 #include "spinlock.h"
 #include "assert.h"
 #endif
@@ -23,8 +28,13 @@ import list;
 import print;
 import format;
 import bsod;
+#endif
 
-// mem.S
+#ifdef __aarch64__
+// mem-aarch64.S
+extern "C" uint64_t ttbr1_el1_load();
+#else
+// mem-x86.S
 export {
     extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
     extern "C" void init_pat();
@@ -322,9 +332,93 @@ span<char> do_format_arg(span<char> sp, string_view, enum page_state arg) {
 
 #ifdef __aarch64__
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
-    // FIXME
+    auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto& p0 = pte0[(va & 0xff8000000000) >> 39];
 
-    return false;
+    if (!p0.valid) {
+        if (scratch_pages == 0)
+            return false;
+
+        p0.valid = 1;
+        p0.table_entry = 1;
+        p0.AttrIndex = 0;
+        p0.AP = 0; // no access from userspace
+        p0.SH = 3; // inner shareable
+        p0.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p0.pfn = scratch_pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+        memset((void*)(p0.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
+
+        scratch_pa += PAGE_SIZE;
+        scratch_pages--;
+    }
+
+    auto pte1 = span((ARM64_HARDWARE_PTE*)(p0.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto& p1 = pte1[(va & 0x7fc0000000) >> 30];
+
+    if (!p1.valid) {
+        if (scratch_pages == 0)
+            return false;
+
+        p1.valid = 1;
+        p1.table_entry = 1;
+        p1.AttrIndex = 0;
+        p1.AP = 0; // no access from userspace
+        p1.SH = 3; // inner shareable
+        p1.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p1.pfn = scratch_pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+        memset((void*)(p1.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
+
+        scratch_pa += PAGE_SIZE;
+        scratch_pages--;
+    }
+
+    auto pte2 = span((ARM64_HARDWARE_PTE*)(p1.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto& p2 = pte2[(va & 0x3fe00000) >> 21];
+
+    if (!p2.valid) {
+        if (scratch_pages == 0)
+            return false;
+
+        p2.valid = 1;
+        p2.table_entry = 1;
+        p2.AttrIndex = 0;
+        p2.AP = 0; // no access from userspace
+        p2.SH = 3; // inner shareable
+        p2.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p2.pfn = scratch_pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+        memset((void*)(p2.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
+
+        scratch_pa += PAGE_SIZE;
+        scratch_pages--;
+    }
+
+    auto pte3 = span((ARM64_HARDWARE_PTE*)(p2.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto& p3 = pte3[(va & 0x1ff000) >> PAGE_SHIFT];
+
+    p3.valid = 1;
+    p3.table_entry = 1;
+    p3.AttrIndex = 0;
+    p3.AP = 0; // no access from userspace
+    p3.SH = 3; // inner shareable
+    p3.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    p3.pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+    return true;
 }
 #else
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
