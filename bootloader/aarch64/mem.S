@@ -98,3 +98,9 @@ ret
 sctlr_el1_store:
 msr	sctlr_el1, x0
 ret
+
+// void mair_el1_store(uint64_t mair_el1);
+.global mair_el1_store
+mair_el1_store:
+msr	mair_el1, x0
+ret

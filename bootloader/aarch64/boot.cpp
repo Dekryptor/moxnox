@@ -172,6 +172,7 @@ extern "C" uint64_t cpacr_el1_load();
 extern "C" void cpacr_el1_store(uint64_t cpacr_el1);
 extern "C" uint64_t sctlr_el1_load();
 extern "C" void sctlr_el1_store(uint64_t sctlr_el1);
+extern "C" void mair_el1_store(uint64_t mair_el1);
 
 extern "C"
 size_t strlen(const char* s) {
@@ -847,7 +848,8 @@ static bool do_paging() {
         pte1[i].pfn = ((uint64_t)i * SZ_1G) >> PAGE_SHIFT;
     }
 
-    // FIXME - set MAIR_EL1
+    // set MAIR slot 0 to be normal memory
+    mair_el1_store(0xff);
 
     {
         ARM64_TCR_EL1 tcr;
@@ -869,7 +871,8 @@ static bool do_paging() {
 
         sctlr.value = sctlr_el1_load();
 
-        sctlr.M = 1;
+        sctlr.M = 1; // enable paging
+        sctlr.A = 0; // disable alignment checking
 
         sctlr_el1_store(sctlr.value);
     }
