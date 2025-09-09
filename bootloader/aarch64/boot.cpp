@@ -90,6 +90,24 @@ union ARM64_TCR_EL1 {
 
 static_assert(sizeof(ARM64_TCR_EL1) == 8);
 
+union ARM64_CPACR_EL1 {
+    struct {
+        uint64_t : 16;
+        uint64_t ZEN : 2;
+        uint64_t : 2;
+        uint64_t FPEN : 2;
+        uint64_t : 2;
+        uint64_t SMEN : 2;
+        uint64_t : 2;
+        uint64_t TTA : 1;
+        uint64_t E0POE : 1;
+        uint64_t TAM : 1;
+        uint64_t TCPAC : 1;
+        uint64_t : 32;
+    };
+    uint64_t value;
+} __attribute((packed));
+
 #define MAX_MAP_ENTRIES 256
 
 static const uint64_t img_addr = 0xfffff80000000000;
@@ -107,6 +125,8 @@ extern "C" void el3_to_el1();
 extern "C" uint64_t tcr_el1_load();
 extern "C" void tcr_el1_store(uint64_t tcr_el1);
 extern "C" void enable_paging(uint64_t ttbr0, uint64_t ttbr1);
+extern "C" uint64_t cpacr_el1_load();
+extern "C" void cpacr_el1_store(uint64_t cpacr_el1);
 
 extern "C"
 size_t strlen(const char* s) {
@@ -1017,6 +1037,16 @@ static bool load_image() {
     return true;
 }
 
+static void enable_fpu() {
+    ARM64_CPACR_EL1 cpacr;
+
+    cpacr.value = cpacr_el1_load();
+
+    cpacr.FPEN = 3; // don't trap FPU instructions
+
+    cpacr_el1_store(cpacr.value);
+}
+
 extern "C"
 void start(uint64_t dtb, uint64_t image_base) {
     pl011_init(0xfe201000, 24000000, 115200); // FIXME - get from device tree
@@ -1058,9 +1088,10 @@ void start(uint64_t dtb, uint64_t image_base) {
 
     // FIXME - do relocations
 
+    enable_fpu();
+
     // FIXME - set up kernel stack?
 
-    // FIXME - re-enable FPU
     entry_point();
 
 end:

@@ -81,3 +81,15 @@ msr	sctlr_el1, x0
 isb
 
 ret
+
+// uint64_t cpacr_el1_load();
+.global cpacr_el1_load
+cpacr_el1_load:
+mrs	x0, cpacr_el1
+ret
+
+// void cpacr_el1_store(uint64_t cpacr_el1);
+.global cpacr_el1_store
+cpacr_el1_store:
+msr	cpacr_el1, x0
+ret
