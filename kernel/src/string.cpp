@@ -20,7 +20,7 @@ void* memcpy(void* dest, const void* src, size_t n) {
 
 #if __INTPTR_WIDTH__ == 64
     while (n >= sizeof(uint64_t)) {
-        *(uint64_t*)dest = *(uint64_t*)src;
+        *(__unaligned uint64_t*)dest = *(__unaligned uint64_t*)src;
 
         dest = (uint8_t*)dest + sizeof(uint64_t);
         src = (uint8_t*)src + sizeof(uint64_t);
@@ -30,7 +30,7 @@ void* memcpy(void* dest, const void* src, size_t n) {
 #endif
 
     while (n >= sizeof(uint32_t)) {
-        *(uint32_t*)dest = *(uint32_t*)src;
+        *(__unaligned uint32_t*)dest = *(__unaligned uint32_t*)src;
 
         dest = (uint8_t*)dest + sizeof(uint32_t);
         src = (uint8_t*)src + sizeof(uint32_t);
@@ -39,7 +39,7 @@ void* memcpy(void* dest, const void* src, size_t n) {
     }
 
     while (n >= sizeof(uint16_t)) {
-        *(uint16_t*)dest = *(uint16_t*)src;
+        *(__unaligned uint16_t*)dest = *(__unaligned uint16_t*)src;
 
         dest = (uint8_t*)dest + sizeof(uint16_t);
         src = (uint8_t*)src + sizeof(uint16_t);
