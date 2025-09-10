@@ -585,7 +585,99 @@ static uint64_t inline __readcr3() {
 
     return ret;
 }
+#endif
 
+#ifdef __aarch64__
+export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
+#ifndef __aarch64__ // FIXME
+    lock_guard lock(mapping_spinlock);
+#endif
+
+    // FIXME - userspace addresses (ttbr0, AP)
+
+    auto& p0 = *(ARM64_HARDWARE_PTE*)phys_address(ttbr1_el1_load() | (((va & 0xff8000000000) >> 39) << 3));
+
+    if (!p0.valid) {
+        uint64_t page = allocate_page(); // FIXME - should there be an allocate_zeroed_page?
+        if (page == 0)
+            return false;
+
+        p0.valid = 1;
+        p0.table_entry = 1;
+        p0.AttrIndex = 0;
+        p0.AP = 0; // no access from userspace
+        p0.SH = 3; // inner shareable
+        p0.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p0.pfn = page >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+        memset(phys_address(page), 0, PAGE_SIZE);
+    }
+
+    auto& p1 = *(ARM64_HARDWARE_PTE*)phys_address((p0.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
+
+    if (!p1.valid) {
+        uint64_t page = allocate_page(); // FIXME - should there be an allocate_zeroed_page?
+        if (page == 0)
+            return false;
+
+        p1.valid = 1;
+        p1.table_entry = 1;
+        p1.AttrIndex = 0;
+        p1.AP = 0; // no access from userspace
+        p1.SH = 3; // inner shareable
+        p1.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p1.pfn = page >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+        memset(phys_address(page), 0, PAGE_SIZE);
+    }
+
+    auto& p2 = *(ARM64_HARDWARE_PTE*)phys_address((p1.pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
+
+    if (!p2.valid) {
+        uint64_t page = allocate_page(); // FIXME - should there be an allocate_zeroed_page?
+        if (page == 0)
+            return false;
+
+        p2.valid = 1;
+        p2.table_entry = 1;
+        p2.AttrIndex = 0;
+        p2.AP = 0; // no access from userspace
+        p2.SH = 3; // inner shareable
+        p2.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p2.pfn = page >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+        memset(phys_address(page), 0, PAGE_SIZE);
+    }
+
+    auto& p3 = *(ARM64_HARDWARE_PTE*)phys_address((p2.pfn << PAGE_SHIFT) | (((va & 0x1ff000) >> 12) << 3));
+
+    memset(&p3, 0, sizeof(p3));
+
+    p3.valid = 1;
+    p3.table_entry = 1;
+    p3.AttrIndex = 0;
+    p3.AP = 0; // no access from userspace
+    p3.SH = 3; // inner shareable
+    p3.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    p3.pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+    // FIXME - type
+
+    return true;
+}
+#else
 export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
     if (pa >= (uint64_t)1 << MAXPHYADDR) // out of range
         return false;
@@ -1052,9 +1144,7 @@ export bool init_memory(const loader_block& lb) {
 
 #ifndef __aarch64__
     init_pat();
-#endif
 
-#ifndef __aarch64__
     MAXPHYADDR = get_maxphyaddr();
 #endif
 
@@ -1502,6 +1592,7 @@ export void protect_page(uint64_t va, enum mapping_type type) {
 
     protect_page2(pt_entry, type, va & 0x8000000000000000);
 }
+#endif
 
 static void mark_vamem_as_used(uint64_t off, size_t num_pages) {
     if (off & 63) {
@@ -1546,12 +1637,16 @@ export bool init_vablock() {
     for (unsigned int i = 0; i < num_pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
+#ifndef __aarch64__
             print("allocate_page failed\n");
+#endif
             return false;
         }
 
         if (!map_page(pa, va, mapping_type::read_write)) {
+#ifndef __aarch64__
             print("map_page failed\n");
+#endif
             return false;
         }
 
@@ -1566,6 +1661,7 @@ export bool init_vablock() {
     return true;
 }
 
+#ifndef __aarch64__
 static uint64_t leading_ones(uint64_t n) {
     uint64_t ret = 0;
 

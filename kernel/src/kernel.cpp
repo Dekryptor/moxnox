@@ -312,10 +312,12 @@ void startup(loader_block* lb) {
 #ifndef __aarch64__
     init_images_list(debug_info, debug_abbrev, debug_rnglists, debug_str,
                      debug_addr, debug_str_offsets);
+#endif
 
     if (!init_vablock())
         goto hang;
 
+#ifndef __aarch64__
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
 
