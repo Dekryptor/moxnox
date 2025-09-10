@@ -5,6 +5,7 @@ module;
 #include <string_view>
 #include <optional>
 #include <functional>
+#include <atomic>
 import objects;
 #include "spinlock.h"
 #include "thread.h"

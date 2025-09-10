@@ -7,14 +7,17 @@ module;
 #include <string_view>
 #include <variant>
 #include "spinlock.h"
-import objects;
-#include "thread.h"
 
 #ifndef __aarch64__
 import rbtree;
 import event;
 import pipe;
 import timer;
+#endif
+
+import objects;
+
+#ifndef __aarch64__
 import page_cache;
 import rwsem;
 #include "inode.h"
@@ -25,6 +28,8 @@ import semaphore;
 #include "section.h"
 #include "file.h"
 #endif
+
+#include "thread.h"
 
 export module visit;
 
