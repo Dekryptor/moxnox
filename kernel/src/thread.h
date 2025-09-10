@@ -84,6 +84,7 @@ public:
 
 static_assert(is_sync_object<thread>);
 
+#ifndef __aarch64__
 static_assert(offsetof(thread, context) == THREAD_CONTEXT);
 static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 static_assert(offsetof(thread, status) == THREAD_STATUS);
@@ -97,6 +98,7 @@ static_assert(offsetof(thread, wait_timeout) == THREAD_WAIT_TIMEOUT);
 
 static_assert(sizeof(thread::status) == 4);
 static_assert((unsigned int)thread_status::dead == ENUM_THREAD_STATUS_DEAD);
+#endif
 
 struct multiple_wait_block {
     thread* t;

@@ -7,11 +7,14 @@ module;
 #include <string_view>
 #include <variant>
 #include "spinlock.h"
+import objects;
+#include "thread.h"
+
+#ifndef __aarch64__
 import rbtree;
 import event;
 import pipe;
 import timer;
-import objects;
 import page_cache;
 import rwsem;
 #include "inode.h"
@@ -21,7 +24,7 @@ import semaphore;
 #include "process.h"
 #include "section.h"
 #include "file.h"
-#include "thread.h"
+#endif
 
 export module visit;
 
@@ -35,6 +38,7 @@ static void visit_obj(object& obj, const T& func) {
             func(static_cast<thread&>(obj));
         break;
 
+#ifndef __aarch64__
         case object_type::timer:
             func(static_cast<timer&>(obj));
         break;
@@ -70,14 +74,17 @@ static void visit_obj(object& obj, const T& func) {
         case object_type::file:
             func(static_cast<file&>(obj));
         break;
+#endif
     }
 }
 
+#ifndef __aarch64__
 export void object_acquire(object& obj) {
     visit_obj(obj, [](auto&& o) {
         o.acquire();
     });
 }
+#endif
 
 export void object_release(object& obj) {
     visit_obj(obj, [](auto&& o) {
@@ -85,6 +92,7 @@ export void object_release(object& obj) {
     });
 }
 
+#ifndef __aarch64__
 export bool object_is_sync_object(object& obj) {
     bool ret = false;
 
@@ -216,3 +224,4 @@ export void object_last_handle_closed(object& obj) {
             o.last_handle_closed();
     });
 }
+#endif

@@ -13,6 +13,10 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/string.cpp
     src/mem.cpp
     src/config.cpp
+    src/thread.cpp
+    src/object_ref.cpp
+    src/objects.cpp
+    src/visit.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -32,7 +36,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/pci.cpp
     src/vfs.cpp
     src/pe.cpp
-    src/objects.cpp
     src/semaphore.cpp
     src/event.cpp
     src/pipe.cpp
@@ -54,7 +57,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/keyboard.cpp
     src/rangelock.cpp
     src/page_cache.cpp
-    src/visit.cpp
     src/framebuffer.cpp
     src/section.cpp
     src/process.cpp
@@ -63,13 +65,14 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/module_init.cpp
     src/power.cpp
     src/apic.cpp
-    src/object_ref.cpp
-    src/thread.cpp)
+)
 
 set(AARCH64_MODULES ${GLOBAL_MODULES})
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    set(SRC_FILES src/kernel.cpp)
+    set(SRC_FILES src/kernel.cpp
+        src/scheduler.cpp
+        src/handle.cpp)
 
     set(SRC_ASM_FILES src/mem-aarch64.S)
 

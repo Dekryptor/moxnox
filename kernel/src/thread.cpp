@@ -5,28 +5,36 @@ module;
 #include <string_view>
 #include <optional>
 #include <functional>
-#include "cpu_block.h"
 import objects;
 #include "spinlock.h"
 #include "thread.h"
+#include "scheduler.h"
+
+#ifndef __aarch64__
+#include "cpu_block.h"
 import page_cache;
 import rwsem;
 import rbtree;
 #include "section.h"
 #include "process.h"
-#include "scheduler.h"
+#endif
 
 export module thread;
 
+#ifndef __aarch64__
 import print;
-import mem;
-import config;
 import list;
 import bsod;
 import apic;
+#endif
+
+import mem;
+import object_ref;
+import config;
 
 using namespace std;
 
+#ifndef __aarch64__
 static_assert(sizeof(AMD64_CONTEXT) == 0x4d0);
 
 static_assert(offsetof(AMD64_CONTEXT, ContextFlags) == CONTEXT_CONTEXT_FLAGS);
@@ -59,8 +67,11 @@ static_assert(offsetof(AMD64_CONTEXT, FltSave) == CONTEXT_FXSAVE); // must be al
 
 static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_DS = 0x10;
+#endif
 
 export uint16_t last_tid; // FIXME
+
+#ifndef __aarch64__
 
 // process.cpp
 extern section* ntdll;
@@ -173,6 +184,7 @@ export void terminate_thread(thread& t, bool remove_from_proc) {
 
     t.release();
 }
+#endif
 
 extern "C++"
 thread::~thread() {
@@ -190,10 +202,13 @@ thread::~thread() {
         free_va((uintptr_t)kernel_stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     }
 
+#ifndef __aarch64__
     if (proc)
         proc->release();
+#endif
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     object_ref obj;
@@ -349,13 +364,16 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
         : "i" (GS_SCHEDULER_STACK)
     );
 }
+#endif
 
 export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
     uint16_t tid;
 
     auto tptr = new (align_val_t(16)) thread;
     if (!tptr) {
+#ifndef __aarch64__
         print("new failed\n");
+#endif
         return {};
     }
 
@@ -363,7 +381,9 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
 
     // FIXME - spinlock for last_tid (or use atomics)
     if (last_tid == 0xffff) { // FIXME - check for lowest unused number
+#ifndef __aarch64__
         print("Thread limit reached.\n");
+#endif
         delete &t;
         return {};
     }
@@ -375,12 +395,18 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
 
     t.kernel_stack = allocate_stack();
     if (!t.kernel_stack) {
+#ifndef __aarch64__
         print("allocate_stack failed\n");
+#endif
         delete &t;
         return {};
     }
 
     memset(&t.context, 0, sizeof(t.context));
+
+#ifdef __aarch64__
+    // FIXME
+#else
     t.context.Rip = (uintptr_t)kernel_thread_start;
     t.context.Rcx = (uintptr_t)func;
     t.context.Rdx = (uintptr_t)param1;
@@ -397,14 +423,18 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
     t.context.SegFs = kernel_DS;
     t.context.SegGs = kernel_DS;
     t.context.SegSs = kernel_DS;
+#endif
+
     t.kernel_mode = true;
     t.teb = nullptr;
 
     t.status = thread_status::runnable;
 
     {
+#ifndef __aarch64__
         sync_lock sl;
         lock_guard lock(sl);
+#endif
         insert_tail_list(thread_list, t.le);
     }
 
@@ -424,6 +454,7 @@ export object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count) {
     object_ref objrw;
@@ -544,3 +575,5 @@ NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
 
     return nt_status::SUCCESS;
 }
+
+#endif

@@ -1229,8 +1229,6 @@ export bool init_memory(const loader_block& lb) {
     return true;
 }
 
-#ifndef __aarch64__
-
 export void* malloc_aligned(size_t size, size_t align) {
     if (size == 0)
         return nullptr;
@@ -1255,7 +1253,9 @@ export void* malloc_aligned(size_t size, size_t align) {
     else if (size <= 8192)
         return alloc8k.malloc();
     else {
+#ifndef __aarch64__
         bsod_format("malloc asked to do over-large allocation ({:x} bytes)\n", size);
+#endif
         return nullptr;
     }
 }
@@ -1331,11 +1331,16 @@ void free(void* ptr) {
                 alloc64.free(ptr);
                 return;
 
+#ifndef __aarch64__
             default:
                 bsod_format("free called for unexpected page state {}", page.state);
+#endif
         }
-    } else
+    } else {
+#ifndef __aarch64__
         bsod_format("free called for non-physical address {:x}", (uintptr_t)ptr);
+#endif
+    }
 }
 
 export
@@ -1422,8 +1427,10 @@ export void free_folio(uint64_t pa) {
 
     lock_guard lock(pa_spinlock);
 
+#ifndef __aarch64__
     if (pages[pfn].state == page_state::free)
         bsod_format("free_folio called for PFN {:x} that is already free", pfn);
+#endif
 
     if (pages[pfn].state == page_state::used) {
         pages[pfn].used.refcount--;
@@ -1433,8 +1440,10 @@ export void free_folio(uint64_t pa) {
     }
 
 #ifdef DEBUG
+#ifndef __aarch64__
     if (pfn == zero_pfn)
         bsod("trying to free zero page");
+#endif
 #endif
 
     insert_tail_list(folio_free_lists[pages[pfn].order], pages[pfn].free.le);
@@ -1445,6 +1454,7 @@ export void free_folio(uint64_t pa) {
     try_to_compact(pfn);
 }
 
+#ifndef __aarch64__
 export uint64_t cow_folio(uint64_t pa) {
     uint64_t pfn = pa >> PAGE_SHIFT;
     auto& p = pages[pfn];
@@ -1454,7 +1464,9 @@ export uint64_t cow_folio(uint64_t pa) {
     {
         lock_guard lock(pa_spinlock);
 
+#ifndef __aarch64__
         assert(p.state == page_state::used);
+#endif
 
         if (p.used.refcount == 1) // no COW necessary
             return pa;
@@ -1499,7 +1511,13 @@ export void unmap_and_free_page(uint64_t va) {
 
     pt_entry.p = 0;
 }
+#endif
 
+#ifdef __aarch64__
+export void unmap_page(uint64_t va) {
+    // FIXME
+}
+#else
 export void unmap_page(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
@@ -1511,7 +1529,9 @@ export void unmap_page(uint64_t va) {
         : "m" (va)
     );
 }
+#endif
 
+#ifndef __aarch64__
 static void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
     lock_guard lock(protect_page_spinlock);
 
@@ -1648,7 +1668,6 @@ export bool init_vablock() {
     return true;
 }
 
-#ifndef __aarch64__
 static uint64_t leading_ones(uint64_t n) {
     uint64_t ret = 0;
 
@@ -1768,12 +1787,21 @@ export void free_va(uint64_t va, uint32_t num_pages) {
     }
 }
 
+#ifdef __aarch64__
+export uint64_t va_to_pa_lookup(uint64_t va) {
+    // FIXME
+
+    return 0;
+}
+#else
 export uint64_t va_to_pa_lookup(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
     return (uint64_t)pt_entry.pfn << PAGE_SHIFT;
 }
+#endif
 
+#ifndef __aarch64__
 export
 extern "C"
 void* memchr(const void* ptr, int ch, size_t count) {
@@ -1932,6 +1960,7 @@ int strncmp(const char* s1, const char* s2, size_t n) {
 
     return 0;
 }
+#endif
 
 template<unsigned N, enum page_state S>
 void* allocator_folio<N, S>::malloc() {
@@ -1992,7 +2021,9 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         if (!found)
             continue;
 
+#ifndef __aarch64__
         assert(!(bitmap[i] & (1 << bit)));
+#endif
         bitmap[i] |= 1 << bit;
 
         unsigned int index = (i * PAGES_PER_BITMAP_BLOCK) + PAGES_PER_BITMAP_BLOCK - 1;
@@ -2049,7 +2080,9 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         if (!found)
             continue;
 
+#ifndef __aarch64__
         assert(!(bitmap[i] & 1 << bit));
+#endif
 
         bitmap[i] |= 1 << bit;
         pfns[p.allocator.index] = pfn;
@@ -2067,7 +2100,9 @@ void allocator_cb<N, P, S>::free(uint64_t index) {
     auto& b = bitmap[index / 64];
     unsigned int bit = 63 - (index & 63);
 
+#ifndef __aarch64__
     assert(b & (1 << bit));
+#endif
 
     b &= ~(1 << bit);
 
@@ -2130,8 +2165,10 @@ void ::allocator<N, P, S>::free(void* ptr) {
 
     static constexpr size_t GRANULARITY = PAGE_SIZE * cb_type::PAGES_PER_BITMAP_BLOCK / (8 * sizeof(uint64_t));
 
+#ifndef __aarch64__
     assert(!(off & (GRANULARITY - 1)));
     assert(cb.pfns[p.allocator.index] == pfn);
+#endif
 
     uint64_t index = p.allocator.index * 8 * sizeof(uint64_t) / cb_type::PAGES_PER_BITMAP_BLOCK;
 
@@ -2145,6 +2182,7 @@ void ::allocator<N, P, S>::free(void* ptr) {
     cb.free(index);
 }
 
+#ifndef __aarch64__
 export void* vmalloc(size_t size) {
     uint64_t num_pages = bytes_to_pages(size);
 
@@ -2229,18 +2267,23 @@ export void increase_page_refcount(uint64_t pfn) {
         p.used.refcount++;
     }
 }
+#endif
 
 export void* allocate_stack() {
     auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     if (!stack) {
+#ifndef __aarch64__
         print("allocate_va failed\n");
+#endif
         return nullptr;
     }
 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
         auto pa = allocate_page();
         if (!pa) {
+#ifndef __aarch64__
             print("allocate_page failed\n");
+#endif
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
@@ -2256,7 +2299,9 @@ export void* allocate_stack() {
         }
 
         if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
+#ifndef __aarch64__
             print("map_page failed\n");
+#endif
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
@@ -2274,5 +2319,3 @@ export void* allocate_stack() {
 
     return stack;
 }
-
-#endif

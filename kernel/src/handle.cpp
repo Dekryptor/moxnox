@@ -4,9 +4,12 @@
 #include "spinlock.h"
 #include "process.h"
 
+#ifndef __aarch64__
 import print;
-import list;
+#endif
+
 import visit;
+import list;
 import thread;
 
 using namespace std;
@@ -21,6 +24,7 @@ struct name_entry {
 static spinlock name_lock;
 static list_entry name_list = { &name_list, &name_list };
 
+#ifndef __aarch64__
 object_ref deref_handle(handle_t h) {
     auto t = get_current_thread();
 
@@ -38,13 +42,14 @@ object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask) {
 
     return t->proc->deref_handle(h, access_mask);
 }
+#endif
 
 void object_ref::reset() {
-    if (rw) {
+    if (rw)
         object_release(rw->get());
-    }
 }
 
+#ifndef __aarch64__
 nt_status name_object(object& obj, string_view name, bool persistent) {
     if (name.empty())
         return nt_status::OBJECT_NAME_INVALID;
@@ -163,3 +168,4 @@ void handle_closed(object& obj) {
     if (obj.named && !obj.persistent && new_handle_count == 0)
         remove_object_name(obj);
 }
+#endif

@@ -92,4 +92,6 @@ public:
 
 static_assert(is_sync_object<process>);
 
+#ifndef __aarch64__
 static_assert(offsetof(process, cr3) == PROCESS_CR3);
+#endif

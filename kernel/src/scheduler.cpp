@@ -1,9 +1,12 @@
 #include <span>
 #include <optional>
 #include <functional>
-#include "cpu_block.h"
+#include <atomic>
 import objects;
 #include "thread.h"
+
+#ifndef __aarch64__
+#include "cpu_block.h"
 #include "process.h"
 #include "tick_rate.h"
 #include "scheduler.h"
@@ -13,9 +16,11 @@ import print;
 import bsod;
 import mem;
 import config;
-import list;
 import visit;
 import thread;
+#endif
+
+import list;
 
 using namespace std;
 
@@ -33,6 +38,7 @@ uint32_t sync_lock_cpu = 0xffffffff;
 thread* sync_lock_thread = nullptr;
 #endif
 
+#ifndef __aarch64__
 static thread* pick_runnable_thread(thread* current) {
     list_entry* le;
     auto cb = get_cpu_block();
@@ -666,3 +672,4 @@ void set_current_thread_waiting() {
 
     yield();
 }
+#endif

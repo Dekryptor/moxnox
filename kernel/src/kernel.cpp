@@ -32,11 +32,11 @@ import unicode;
 import section;
 import process;
 import image;
-import thread;
 #endif
 
 import cmdline;
 import mem;
+import thread;
 
 using namespace std;
 
@@ -181,8 +181,10 @@ static void keywait() {
 
     print("\e[?25h");
 }
+#endif
 
 void main_thread() {
+#ifndef __aarch64__
     print("\e[2J\e[1;1H");  // erase screen, move to top left
 
     acpi_early_init_done = true;
@@ -255,8 +257,10 @@ void main_thread() {
     auto& init_process = static_cast<process&>(init.get());
 
     bsod_format("init process died (exit code {})", init_process.exit_status);
-}
+#else
+    while (true) { }
 #endif
+}
 
 extern "C"
 void startup(loader_block* lb) {
@@ -330,12 +334,14 @@ void startup(loader_block* lb) {
         goto hang;
 
     __asm("sti");
+#endif
 
     if (!add_kernel_thread(main_thread))
         goto hang;
 
     // FIXME - C++ exceptions
 
+#ifndef __aarch64__
     init_timer(); // leaves interrupts disabled
 
     acquire_sync_lock();
