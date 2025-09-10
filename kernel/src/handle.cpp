@@ -4,10 +4,7 @@
 #include "spinlock.h"
 #include "process.h"
 
-#ifndef __aarch64__
 import print;
-#endif
-
 import visit;
 import list;
 import thread;

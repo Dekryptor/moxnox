@@ -17,11 +17,11 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/object_ref.cpp
     src/objects.cpp
     src/visit.cpp
+    src/print.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
     src/inout.cpp
-    src/print.cpp
     src/bsod.cpp
     src/tmpfs.cpp
     src/cpio.cpp
@@ -106,6 +106,7 @@ target_link_options(kernel PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup -W
 target_compile_options(kernel PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmodules-ts>)
 target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-g0>)
 target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-fno-inline -fno-omit-frame-pointer>)
+target_compile_options(kernel PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-fno-auto-import>)
 
 target_include_directories(kernel PRIVATE ../acpica/source/include)
 

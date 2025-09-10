@@ -22,12 +22,12 @@ import rbtree;
 export module thread;
 
 #ifndef __aarch64__
-import print;
 import list;
 import bsod;
 import apic;
 #endif
 
+import print;
 import mem;
 import object_ref;
 import config;
@@ -371,9 +371,7 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
 
     auto tptr = new (align_val_t(16)) thread;
     if (!tptr) {
-#ifndef __aarch64__
         print("new failed\n");
-#endif
         return {};
     }
 
@@ -381,9 +379,7 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
 
     // FIXME - spinlock for last_tid (or use atomics)
     if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-#ifndef __aarch64__
         print("Thread limit reached.\n");
-#endif
         delete &t;
         return {};
     }
@@ -395,9 +391,7 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
 
     t.kernel_stack = allocate_stack();
     if (!t.kernel_stack) {
-#ifndef __aarch64__
         print("allocate_stack failed\n");
-#endif
         delete &t;
         return {};
     }

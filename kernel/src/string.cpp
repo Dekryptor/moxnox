@@ -7,9 +7,7 @@ module;
 
 export module string;
 
-#ifndef __aarch64__
 import mem;
-#endif
 
 using namespace std;
 

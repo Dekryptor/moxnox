@@ -20,6 +20,7 @@ extern "C++" void enable_preempt();
 export
 template<typename... Args>
 void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+#ifndef __aarch64__ // FIXME
     disable_preempt();
 
     auto& cb = *get_cpu_block();
@@ -31,10 +32,13 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
     _printk(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
 
     enable_preempt();
+#endif
 }
 
 export
 extern "C++"
 void do_print(string_view sv) {
+#ifndef __aarch64__ // FIXME
     _printk(sv);
+#endif
 }

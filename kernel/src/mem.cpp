@@ -24,9 +24,9 @@ export module mem;
 
 import config;
 import list;
+import print;
 
 #ifndef __aarch64__
-import print;
 import format;
 import bsod;
 #endif
@@ -980,9 +980,7 @@ static bool map_physical_memory(uint64_t num_pages) {
 
     auto pa = allocate_page();
     if (!pa) {
-#ifndef __aarch64__ // FIXME
         print("allocate_page failed\n");
-#endif
         return false;
     }
 
@@ -1218,9 +1216,7 @@ export bool init_memory(const loader_block& lb) {
 
     zero_pfn = allocate_folio(0) >> PAGE_SHIFT;
     if (!zero_pfn) {
-#ifndef __aarch64__
         print("could not allocate zero page\n");
-#endif
         return false;
     }
 
@@ -1644,16 +1640,12 @@ export bool init_vablock() {
     for (unsigned int i = 0; i < num_pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
-#ifndef __aarch64__
             print("allocate_page failed\n");
-#endif
             return false;
         }
 
         if (!map_page(pa, va, mapping_type::read_write)) {
-#ifndef __aarch64__
             print("map_page failed\n");
-#endif
             return false;
         }
 
@@ -2272,18 +2264,14 @@ export void increase_page_refcount(uint64_t pfn) {
 export void* allocate_stack() {
     auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     if (!stack) {
-#ifndef __aarch64__
         print("allocate_va failed\n");
-#endif
         return nullptr;
     }
 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
         auto pa = allocate_page();
         if (!pa) {
-#ifndef __aarch64__
             print("allocate_page failed\n");
-#endif
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
@@ -2299,9 +2287,7 @@ export void* allocate_stack() {
         }
 
         if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
-#ifndef __aarch64__
             print("map_page failed\n");
-#endif
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);

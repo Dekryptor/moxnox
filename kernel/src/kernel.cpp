@@ -11,7 +11,6 @@
 #include "process.h"
 #include "scheduler.h"
 
-import print;
 import bsod;
 import acpi;
 import null;
@@ -34,6 +33,7 @@ import process;
 import image;
 #endif
 
+import print;
 import cmdline;
 import mem;
 import thread;
@@ -184,9 +184,9 @@ static void keywait() {
 #endif
 
 void main_thread() {
-#ifndef __aarch64__
     print("\e[2J\e[1;1H");  // erase screen, move to top left
 
+#ifndef __aarch64__
     acpi_early_init_done = true;
 
     free_lower_half_mappings();
