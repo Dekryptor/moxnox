@@ -6,6 +6,8 @@ module;
 #include <cstring>
 #include <bit>
 #include <algorithm>
+#include <mutex>
+#include "spinlock.h"
 
 #ifdef __aarch64__
 #include "mem-aarch64.h"
@@ -15,7 +17,6 @@ module;
 
 #ifndef __aarch64__
 #include "acpica.h"
-#include "spinlock.h"
 #include "assert.h"
 #endif
 
@@ -91,20 +92,16 @@ static_assert(sizeof(struct page) == 24);
 page* pages = (page*)0xfffffa0000000000;
 static uint64_t total_pages;
 
-#ifndef __aarch64__
 static _spinlock<6> pa_spinlock;
-#endif
 
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;
 
 static uint8_t* const initrd_addr = (uint8_t*)0xfffffa5000000000;
 
-#ifndef __aarch64__
 static spinlock va_spinlock;
 static spinlock mapping_spinlock;
 static spinlock protect_page_spinlock;
-#endif
 
 export span<const uint8_t> initrd;
 
@@ -147,7 +144,6 @@ struct allocator_cb {
     uint64_t pfns[NUM_PAGES];
 };
 
-#ifndef __aarch64__
 template<unsigned N, unsigned P, enum page_state S>
 class allocator {
 public:
@@ -176,7 +172,6 @@ static_assert(sizeof(decltype(alloc512)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc256)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc128)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc64)::cb_type) <= PAGE_SIZE);
-#endif
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -535,9 +530,7 @@ static void fragment_folio(uint64_t pfn, uint8_t desired_order) {
 }
 
 export uint64_t allocate_folio(uint8_t order, enum page_state state = page_state::used) {
-#ifndef __aarch64__
     lock_guard lock(pa_spinlock);
-#endif
 
     for (unsigned int i = order; i <= MAX_FOLIO_ORDER; i++) {
         if (is_list_empty(folio_free_lists[i]))
@@ -589,9 +582,7 @@ static uint64_t inline __readcr3() {
 
 #ifdef __aarch64__
 export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
-#ifndef __aarch64__ // FIXME
     lock_guard lock(mapping_spinlock);
-#endif
 
     // FIXME - userspace addresses (ttbr0, AP)
 
@@ -837,9 +828,7 @@ static void mark_mem_as_free(uint64_t pa, size_t len) {
     uint64_t pfn = pa >> PAGE_SHIFT;
     uint64_t num_pages = len >> PAGE_SHIFT;
 
-#ifndef __aarch64__
     lock_guard lock(pa_spinlock);
-#endif
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (pages[pfn].state != page_state::free) {
@@ -856,9 +845,7 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     uint64_t pfn = pa >> PAGE_SHIFT;
     uint64_t num_pages = len >> PAGE_SHIFT;
 
-#ifndef __aarch64__
     lock_guard lock(pa_spinlock);
-#endif
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (pages[pfn].state == page_state::free) {

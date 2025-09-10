@@ -3,6 +3,31 @@
 #include <atomic>
 #include "timer-asm.h"
 
+#ifdef __aarch64__
+
+template<unsigned>
+class _spinlock {
+public:
+    void lock() {
+        // FIXME - is there an equivalent to x86 cr8?
+
+        while (v.exchange(1, std::memory_order_acquire)) {
+            // FIXME - is there an equivalent to x86 pause?
+        }
+    }
+
+    void unlock() {
+        v.exchange(0, std::memory_order_release);
+    }
+
+private:
+    std::atomic<uint64_t> v = 0;
+};
+
+using spinlock = _spinlock<5>;
+
+#else
+
 template<unsigned CR8>
 class _spinlock {
 public:
@@ -84,3 +109,5 @@ public:
 private:
     uint64_t old_cr8;
 };
+
+#endif
