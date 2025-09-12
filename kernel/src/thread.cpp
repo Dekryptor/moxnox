@@ -6,13 +6,14 @@ module;
 #include <optional>
 #include <functional>
 #include <atomic>
+#include <mutex>
 import objects;
 #include "spinlock.h"
 #include "thread.h"
 #include "scheduler.h"
+#include "cpu_block.h"
 
 #ifndef __aarch64__
-#include "cpu_block.h"
 import page_cache;
 import rwsem;
 import rbtree;
@@ -23,11 +24,11 @@ import rbtree;
 export module thread;
 
 #ifndef __aarch64__
-import list;
 import bsod;
 import apic;
 #endif
 
+import list;
 import print;
 import mem;
 import object_ref;
@@ -77,7 +78,7 @@ export uint16_t last_tid; // FIXME
 // process.cpp
 extern section* ntdll;
 
-export thread* get_current_thread() {
+export ::thread* get_current_thread() {
     disable_preempt();
 
     auto t = get_cpu_block()->current_thread;
@@ -87,7 +88,7 @@ export thread* get_current_thread() {
     return t;
 }
 
-export void thread_died(thread& t, bool& last_thread, bool remove_from_proc) {
+export void thread_died(::thread& t, bool& last_thread, bool remove_from_proc) {
     t.status = thread_status::dead;
     t.signalled = true;
 
@@ -106,7 +107,7 @@ export void thread_died(thread& t, bool& last_thread, bool remove_from_proc) {
     // t.release(); // FIXME - why does this crash?
 }
 
-static void terminate_thread2(thread& t, bool& last_thread,
+static void terminate_thread2(::thread& t, bool& last_thread,
                               bool remove_from_proc) {
     if (t.status == thread_status::dying || t.status == thread_status::dead)
         return;
@@ -153,7 +154,7 @@ static void terminate_thread2(thread& t, bool& last_thread,
     }
 }
 
-export void terminate_thread(thread& t, bool remove_from_proc) {
+export void terminate_thread(::thread& t, bool remove_from_proc) {
     bool thread_is_dead, last_thread = false;
 
     t.acquire();
@@ -188,7 +189,7 @@ export void terminate_thread(thread& t, bool remove_from_proc) {
 #endif
 
 extern "C++"
-thread::~thread() {
+::thread::~thread() {
     if (kernel_stack) {
         auto va = (uintptr_t)kernel_stack + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
         for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
@@ -231,7 +232,7 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
         // FIXME - check access rights
     }
 
-    auto& t = static_cast<thread&>(obj.get());
+    auto& t = static_cast<::thread&>(obj.get());
 
     t.exit_status = exit_status;
     terminate_thread(t, true);
@@ -279,7 +280,7 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
 extern "C"
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
     object_ref objrw;
-    thread* t;
+    ::thread* t;
     uint32_t count;
 
     if (thread_handle == NtCurrentThread()) {
@@ -299,7 +300,7 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
 
         // FIXME - check access rights
 
-        t = static_cast<thread*>(&obj);
+        t = static_cast<::thread*>(&obj);
     }
 
     count = t->suspend_count.fetch_sub(1);
@@ -311,33 +312,10 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
 }
 
 extern "C"
-NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
-                                  void* thread_information, uint32_t thread_information_length,
-                                  uint32_t* return_length) {
+NTSTATUS NtQueryInformationThread(HANDLE /*thread_handle*/, enum THREAD_INFORMATION_CLASS /*thread_information_class*/,
+                                  void* /*thread_information*/, uint32_t /*thread_information_length*/,
+                                  uint32_t* /*return_length*/) {
     print("FIXME - NtQueryInformationThread\n");
-
-    auto objrw = deref_handle(thread_handle);
-    if (!objrw)
-        return nt_status::INVALID_HANDLE;
-
-    auto& obj = objrw.get();
-
-    if (obj.type != object_type::thread)
-        return nt_status::OBJECT_TYPE_MISMATCH;
-
-    // FIXME - check access rights
-
-    auto& t = static_cast<thread&>(obj);
-
-    return t.query_information(thread_information_class, thread_information,
-                               thread_information_length, return_length);
-}
-
-extern "C++"
-NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS /*thread_information_class*/,
-                                   void* /*thread_information*/, uint32_t /*thread_information_length*/,
-                                   uint32_t* /*return_length*/) {
-    // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
 }
@@ -352,6 +330,7 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
 
 #ifndef __aarch64__
     disable_interrupts2();
+#endif
 
     auto& cb = *get_cpu_block();
     auto& t = *cb.current_thread;
@@ -360,6 +339,7 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
 
     t.status = thread_status::dying;
 
+#ifndef __aarch64__
     __asm __volatile ( // doesn't return, releases sync_lock
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"
@@ -372,7 +352,7 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
 export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
     uint16_t tid;
 
-    auto tptr = new (align_val_t(16)) thread;
+    auto tptr = new (align_val_t(16)) ::thread;
     if (!tptr) {
         print("new failed\n");
         return {};
@@ -438,10 +418,8 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
     t.status = thread_status::runnable;
 
     {
-#ifndef __aarch64__
         sync_lock sl;
         lock_guard lock(sl);
-#endif
         insert_tail_list(thread_list, t.le);
     }
 
@@ -465,7 +443,7 @@ export object_ref add_kernel_thread(void (*func)()) {
 extern "C"
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count) {
     object_ref objrw;
-    thread* t;
+    ::thread* t;
 
     if (thread_handle == NtCurrentThread()) {
         t = get_current_thread();
@@ -484,7 +462,7 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 
         // FIXME - check access rights
 
-        t = static_cast<thread*>(&obj);
+        t = static_cast<::thread*>(&obj);
     }
 
     uint32_t count;
@@ -502,7 +480,7 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 extern "C"
 NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
     object_ref objrw;
-    thread* t;
+    ::thread* t;
 
     if (thread_handle == NtCurrentThread()) {
         t = get_current_thread();
@@ -521,7 +499,7 @@ NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
 
         // FIXME - check access rights
 
-        t = static_cast<thread*>(&obj);
+        t = static_cast<::thread*>(&obj);
     }
 
     // FIXME - wait until not in kernel mode
@@ -542,7 +520,7 @@ NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
 extern "C"
 NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
     object_ref objrw;
-    thread* t;
+    ::thread* t;
 
     if (thread_handle == NtCurrentThread()) {
         t = get_current_thread();
@@ -561,7 +539,7 @@ NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
 
         // FIXME - check access rights
 
-        t = static_cast<thread*>(&obj);
+        t = static_cast<::thread*>(&obj);
     }
 
     // FIXME - look at ContextFlags to determine what to copy

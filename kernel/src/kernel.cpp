@@ -6,10 +6,9 @@
 #include <string.h>
 #include "scheduler.h"
 #include "context_offsets.h"
-
-#ifndef __aarch64__
 #include "process.h"
 
+#ifndef __aarch64__
 import bsod;
 import acpi;
 import null;

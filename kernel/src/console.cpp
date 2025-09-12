@@ -10,10 +10,10 @@ module;
 #include <console.h>
 #include "spinlock.h"
 #include "scheduler.h"
+#include "cpu_block.h"
 
 #ifndef __aarch64__
 #include "handle.h"
-#include "cpu_block.h"
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>

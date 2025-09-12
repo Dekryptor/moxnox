@@ -5,11 +5,11 @@
 import objects;
 #include "thread.h"
 #include "cpu_block.h"
+#include "process.h"
+#include "scheduler.h"
 
 #ifndef __aarch64__
-#include "process.h"
 #include "tick_rate.h"
-#include "scheduler.h"
 #include "assert.h"
 
 import bsod;
@@ -143,14 +143,10 @@ void scheduler() {
         }
     }
 
-#ifndef __aarch64__
     release_sync_lock();
-#endif
 
     do {
-#ifndef __aarch64__
         acquire_sync_lock();
-#endif
 
         cb.current_thread = pick_runnable_thread(cb.current_thread);
 
@@ -171,9 +167,7 @@ void scheduler() {
 #endif
         }
 
-#ifndef __aarch64__
         release_sync_lock();
-#endif
 
         if (cb.current_thread) {
             memcpy(&cb.thread_context, &cb.current_thread->context, sizeof(CONTEXT));

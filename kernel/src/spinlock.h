@@ -26,6 +26,17 @@ private:
 
 using spinlock = _spinlock<5>;
 
+class sync_lock {
+public:
+    void lock() {
+        acquire_sync_lock();
+    }
+
+    void unlock() {
+        release_sync_lock();
+    }
+};
+
 #else
 
 template<unsigned CR8>
