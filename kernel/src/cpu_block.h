@@ -20,6 +20,7 @@ struct cpu_block {
     char* printk_scratch;
 };
 
+#ifndef __aarch64__
 static_assert(offsetof(cpu_block, current_thread) == GS_CURRENT_THREAD);
 static_assert(offsetof(cpu_block, time_slice_left) == GS_TIME_SLICE_LEFT);
 static_assert(offsetof(cpu_block, thread_context) == GS_CONTEXT);
@@ -31,3 +32,4 @@ static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);
 
 // timer.S
 extern "C" cpu_block* get_cpu_block();
+#endif

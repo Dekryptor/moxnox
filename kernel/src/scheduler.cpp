@@ -4,22 +4,22 @@
 #include <atomic>
 import objects;
 #include "thread.h"
+#include "cpu_block.h"
 
 #ifndef __aarch64__
-#include "cpu_block.h"
 #include "process.h"
 #include "tick_rate.h"
 #include "scheduler.h"
 #include "assert.h"
 
-import print;
 import bsod;
+#endif
+
+import print;
 import mem;
 import config;
 import visit;
 import thread;
-#endif
-
 import list;
 
 using namespace std;
@@ -351,6 +351,7 @@ void wait_timeout_expired(thread* tptr) {
 
     t.status = thread_status::runnable;
 }
+#endif
 
 bool init_cpu_block(unsigned int cpu_no) {
     auto pages = bytes_to_pages(sizeof(cpu_block));
@@ -391,11 +392,25 @@ bool init_cpu_block(unsigned int cpu_no) {
 
     cb.scheduler_stack = ((uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT)) - 0x20; // 0x20 for MS ABI
 
+#ifdef __aarch64__
     __asm __volatile (
-        "mov rax, cr3\n"
+        "mrs %x[res], ttbr1_el1"
+        : [res] "=r" (cb.kernel_cr3)
+    );
+#else
+    __asm __volatile (
+        "mov rax, cr3"
         : "=a" (cb.kernel_cr3)
     );
+#endif
 
+#ifdef __aarch64__
+    __asm __volatile (
+        "mov x18, %0"
+        :
+        : "r" (&cb)
+    );
+#else
     __asm __volatile(
         "mov ecx, 0xc0000101\n\t"
         "mov rax, %0\n\t"
@@ -406,10 +421,12 @@ bool init_cpu_block(unsigned int cpu_no) {
         : "m" (cb)
         : "ecx", "rax", "rdx"
     );
+#endif
 
     return true;
 }
 
+#ifndef __aarch64__
 NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable*/,
                                const LARGE_INTEGER* timeout) {
     auto objrw = deref_handle(object_handle);

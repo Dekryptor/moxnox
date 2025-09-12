@@ -4,12 +4,12 @@
 #include <loaderblock.h>
 #include <version.h>
 #include <string.h>
+#include "scheduler.h"
 
 #ifndef __aarch64__
 
 #include "context_offsets.h"
 #include "process.h"
-#include "scheduler.h"
 
 import bsod;
 import acpi;
@@ -319,10 +319,15 @@ void startup(loader_block* lb) {
     if (!init_vablock())
         goto hang;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+    if (!init_cpu_block(0)) // FIXME
+        goto hang;
+#else
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
+#endif
 
+#ifndef __aarch64__
     if (!init_interrupts())
         goto hang;
 
