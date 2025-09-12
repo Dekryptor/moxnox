@@ -4,7 +4,10 @@ module;
 #include <string_view>
 #include <tuple>
 #include <nt.h>
+
+#ifndef __aarch64__
 #include "cpu_block.h"
+#endif
 
 export module print;
 

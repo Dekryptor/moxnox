@@ -95,9 +95,10 @@ else()
 
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AMD64_MODULES})
+    target_link_libraries(kernel unwind)
 endif()
 
-target_link_libraries(kernel format dwarf unwind list unicode rbtree vt100 cp437 evdev)
+target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev)
 
 target_compile_options(kernel PRIVATE ${KERNEL_CFLAGS} -Wno-unused-const-variable)
 # target_compile_options(kernel PRIVATE -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}/= -ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=)

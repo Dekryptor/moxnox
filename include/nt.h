@@ -599,7 +599,75 @@ struct AMD64_CONTEXT {
     uint64_t LastExceptionFromRip;
 } __attribute__ ((aligned (16)));
 
+union ARM64_NT_NEON128 {
+    struct {
+        uint64_t Low;
+        int64_t High;
+    };
+    double D[2];
+    float S[4];
+    uint16_t H[8];
+    uint8_t B[16];
+};
+
+static const size_t ARM64_MAX_BREAKPOINTS = 8;
+static const size_t ARM64_MAX_WATCHPOINTS = 2;
+
+struct ARM64_NT_CONTEXT {
+    uint32_t ContextFlags;
+    uint32_t Cpsr;
+    union {
+        struct {
+            uint64_t X0;
+            uint64_t X1;
+            uint64_t X2;
+            uint64_t X3;
+            uint64_t X4;
+            uint64_t X5;
+            uint64_t X6;
+            uint64_t X7;
+            uint64_t X8;
+            uint64_t X9;
+            uint64_t X10;
+            uint64_t X11;
+            uint64_t X12;
+            uint64_t X13;
+            uint64_t X14;
+            uint64_t X15;
+            uint64_t X16;
+            uint64_t X17;
+            uint64_t X18;
+            uint64_t X19;
+            uint64_t X20;
+            uint64_t X21;
+            uint64_t X22;
+            uint64_t X23;
+            uint64_t X24;
+            uint64_t X25;
+            uint64_t X26;
+            uint64_t X27;
+            uint64_t X28;
+            uint64_t Fp;
+            uint64_t Lr;
+        };
+        uint64_t X[31];
+    };
+    uint64_t Sp;
+    uint64_t Pc;
+    ARM64_NT_NEON128 V[32];
+    uint32_t Fpcr;
+    uint32_t Fpsr;
+    uint32_t Bcr[ARM64_MAX_BREAKPOINTS];
+    uint64_t Bvr[ARM64_MAX_BREAKPOINTS];
+    uint32_t Wcr[ARM64_MAX_WATCHPOINTS];
+    uint64_t Wvr[ARM64_MAX_WATCHPOINTS];
+} __attribute__ ((aligned (16)));
+
+#ifdef __aarch64__
+using CONTEXT = ARM64_NT_CONTEXT;
+#else
 using CONTEXT = AMD64_CONTEXT;
+#endif
 
 static const uint32_t CONTEXT_AMD64 = 0x00100000;
 static const uint32_t CONTEXT_CONTROL = CONTEXT_AMD64 | 0x00000001;
