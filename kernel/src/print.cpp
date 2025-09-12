@@ -38,7 +38,5 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args)
 export
 extern "C++"
 void do_print(string_view sv) {
-#ifndef __aarch64__ // FIXME
     _printk(sv);
-#endif
 }

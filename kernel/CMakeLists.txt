@@ -18,6 +18,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/objects.cpp
     src/visit.cpp
     src/print.cpp
+    src/console.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -49,7 +50,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/chardev.cpp
     src/virtio_block.cpp
     src/virtio_console.cpp
-    src/console.cpp
     src/xhci.cpp
     src/usbhid.cpp
     src/usb.cpp

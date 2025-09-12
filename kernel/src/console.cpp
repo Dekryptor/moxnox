@@ -2,41 +2,49 @@ module;
 
 #include <span>
 #include <string_view>
-#include <loaderblock.h>
-#include "spinlock.h"
-#include "handle.h"
-#include "cpu_block.h"
-#include "scheduler.h"
 #include <span>
 #include <cstring>
 #include <bit>
+#include <mutex>
+#include <loaderblock.h>
+#include <console.h>
+#include "spinlock.h"
+#include "scheduler.h"
+
+#ifndef __aarch64__
+#include "handle.h"
+#include "cpu_block.h"
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
-#include <console.h>
+#endif
 
 export module console;
 
-import print;
+#ifndef __aarch64__
 import inout;
-import mem;
-import config;
 import serial;
 import bsod;
 import pipe;
-import rbtree;
 import acpi;
 import pci;
-import visit;
 import framebuffer;
-import vt100;
 import chardev;
+#endif
+
+import print;
+import mem;
+import config;
+import rbtree;
+import visit;
+import vt100;
 import cp437;
 import cmdline;
 import thread;
 
 using namespace std;
 
+#ifndef __aarch64__
 export unsigned int console_cols; // FIXME
 
 enum class console_colour : uint8_t {
@@ -57,9 +65,11 @@ enum class console_colour : uint8_t {
     yellow = 14,
     white = 15
 };
+#endif
 
 export void early_print(string_view s);
 
+#ifndef __aarch64__
 export object_ref console_chardev;
 static object_ref kmsg;
 static const unsigned int console_buffer_pages = 4;
@@ -68,11 +78,13 @@ static FT_Library ft = nullptr;
 static unsigned int font_width, font_height, font_descender;
 static bool fb_console_started = false, text_console_started = false;
 static bool show_cursor = true;
+#endif
 
 static spinlock early_print_lock;
 static char early_print_buf[65536];
 static size_t early_print_buf_size = 0;
 
+#ifndef __aarch64__
 static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
 // font.S
@@ -864,6 +876,7 @@ static void refresh_framebuffer() {
         }
     }
 }
+#endif
 
 static void add_to_early_print_buf(string_view s) {
     lock_guard lock(early_print_lock);
@@ -879,6 +892,9 @@ static void add_to_early_print_buf(string_view s) {
 }
 
 void early_print(string_view s) {
+#ifdef __aarch64__
+    add_to_early_print_buf(s);
+#else
     if (console_type == console_type::text) {
         if (!text_console_started) {
             add_to_early_print_buf(s);
@@ -901,8 +917,10 @@ void early_print(string_view s) {
     refresh_framebuffer();
 
     enable_preempt();
+#endif
 }
 
+#ifndef __aarch64__
 export void safe_print(string_view s) {
     uint64_t written_bytes;
 
@@ -1379,3 +1397,4 @@ nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
     return nt_status::SUCCESS;
 }
+#endif

@@ -24,7 +24,6 @@ import chardev;
 import timer;
 import syscalls;
 import smp;
-import console;
 import evdev;
 import keyboard;
 import unicode;
@@ -37,6 +36,7 @@ import print;
 import cmdline;
 import mem;
 import thread;
+import console;
 
 using namespace std;
 
@@ -46,9 +46,7 @@ static char cmdline_arr[255];
 static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
 
-#ifndef __aarch64__
 void (*_printk)(string_view s) = early_print;
-#endif
 
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
