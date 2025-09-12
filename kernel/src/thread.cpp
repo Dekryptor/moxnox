@@ -345,10 +345,12 @@ NTSTATUS thread::query_information(enum THREAD_INFORMATION_CLASS /*thread_inform
 static void inline disable_interrupts2() {
     __asm __volatile("cli");
 }
+#endif
 
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
 
+#ifndef __aarch64__
     disable_interrupts2();
 
     auto& cb = *get_cpu_block();
@@ -364,8 +366,8 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
         :
         : "i" (GS_SCHEDULER_STACK)
     );
-}
 #endif
+}
 
 export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
     uint16_t tid;
@@ -401,6 +403,16 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
 
 #ifdef __aarch64__
     // FIXME
+    t.context.Pc = (uintptr_t)kernel_thread_start;
+    t.context.X0 = (uintptr_t)func;
+    t.context.X1 = (uintptr_t)param1;
+    t.context.X2 = (uintptr_t)param2;
+
+    // 0x20 because of MS ABI, minus 8 for return address
+    t.context.Sp = (uintptr_t)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x28);
+    *(uint64_t*)t.context.Sp = 0;
+
+    // FIXME - Cpsr
 #else
     t.context.Rip = (uintptr_t)kernel_thread_start;
     t.context.Rcx = (uintptr_t)func;
