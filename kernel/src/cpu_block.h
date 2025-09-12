@@ -20,16 +20,17 @@ struct cpu_block {
     char* printk_scratch;
 };
 
+static_assert(offsetof(cpu_block, scheduler_stack) == GS_SCHEDULER_STACK);
+
 #ifndef __aarch64__
 static_assert(offsetof(cpu_block, current_thread) == GS_CURRENT_THREAD);
 static_assert(offsetof(cpu_block, time_slice_left) == GS_TIME_SLICE_LEFT);
 static_assert(offsetof(cpu_block, thread_context) == GS_CONTEXT);
 static_assert(offsetof(cpu_block, cpu_no) == GS_CPU_NO);
-static_assert(offsetof(cpu_block, scheduler_stack) == GS_SCHEDULER_STACK);
 static_assert(offsetof(cpu_block, kernel_cr3) == GS_KERNEL_CR3);
 static_assert(offsetof(cpu_block, disable_preempt) == GS_DISABLE_PREEMPT);
 static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);
+#endif
 
 // timer.S
 extern "C" cpu_block* get_cpu_block();
-#endif

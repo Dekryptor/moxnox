@@ -38,7 +38,6 @@ uint32_t sync_lock_cpu = 0xffffffff;
 thread* sync_lock_thread = nullptr;
 #endif
 
-#ifndef __aarch64__
 static thread* pick_runnable_thread(thread* current) {
     list_entry* le;
     auto cb = get_cpu_block();
@@ -63,7 +62,9 @@ static thread* pick_runnable_thread(thread* current) {
     };
 
     if (current) { // loop through list from current thread
+#ifndef __aarch64__
         assert(current->status != thread_status::dead);
+#endif
 
         for (auto le = current->le.next; le != &thread_list; le = le->next) {
             auto& t = containing_record<thread>(le);
@@ -94,6 +95,9 @@ static thread* pick_runnable_thread(thread* current) {
 extern "C"
 void scheduler() {
 #ifdef DEBUG
+#ifdef __aarch64__
+    // FIXME
+#else
     uint64_t rflags = 0;
 
     __asm __volatile(
@@ -108,6 +112,7 @@ void scheduler() {
     if (rflags & 0x200) // IF flag set
         bsod("calling scheduler with interrupts enabled");
 #endif
+#endif
 
     auto& cb = *get_cpu_block();
 
@@ -119,6 +124,7 @@ void scheduler() {
         memcpy(&t.context, &cb.thread_context, sizeof(CONTEXT));
         t.current_cpu = 0xffffffff;
 
+#ifndef __aarch64__
         if (t.proc)
             t.proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
@@ -127,6 +133,7 @@ void scheduler() {
 
             thread_died(t, last_thread, false);
         }
+#endif
 
         if (t.status == thread_status::running)
             t.status = thread_status::runnable;
@@ -136,39 +143,58 @@ void scheduler() {
         }
     }
 
+#ifndef __aarch64__
     release_sync_lock();
+#endif
 
     do {
+#ifndef __aarch64__
         acquire_sync_lock();
+#endif
 
         cb.current_thread = pick_runnable_thread(cb.current_thread);
 
         if (cb.current_thread) {
+#ifndef __aarch64__
             assert(cb.current_thread->status == thread_status::runnable || cb.current_thread->status == thread_status::dying);
             assert(cb.current_thread->current_cpu == 0xffffffff);
+#endif
 
             if (cb.current_thread->status == thread_status::runnable)
                 cb.current_thread->status = thread_status::running;
 
             cb.current_thread->current_cpu = cb.cpu_no;
 
+#ifndef __aarch64__
             if (cb.current_thread->proc)
                 cb.current_thread->proc->running_cpus |= (uint64_t)1 << cb.cpu_no;
+#endif
         }
 
+#ifndef __aarch64__
         release_sync_lock();
+#endif
 
         if (cb.current_thread) {
             memcpy(&cb.thread_context, &cb.current_thread->context, sizeof(CONTEXT));
             cb.time_slice_left = time_slice;
 
+#ifdef __aarch64__
+            __asm("b scheduler_restore");
+#else
             __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
+#endif
         }
 
+#ifdef __aarch64__
+    // FIXME - wfe
+#else
         __asm("sti; hlt; cli");
+#endif
     } while (true);
 }
 
+#ifndef __aarch64__
 nt_status wait_for_object(object& obj, bool interruptible,
                           optional<uint64_t> timeout) {
 #ifdef DEBUG

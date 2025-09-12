@@ -5,10 +5,9 @@
 #include <version.h>
 #include <string.h>
 #include "scheduler.h"
+#include "context_offsets.h"
 
 #ifndef __aarch64__
-
-#include "context_offsets.h"
 #include "process.h"
 
 import bsod;
@@ -348,7 +347,18 @@ void startup(loader_block* lb) {
     init_timer(); // leaves interrupts disabled
 
     acquire_sync_lock();
+#endif
 
+#ifdef __aarch64__
+    __asm __volatile ( // doesn't return
+        "add x0, x18, #%0\n\t"
+        "ldr x0, [x0]\n\t"
+        "mov sp, x0\n\t"
+        "b scheduler"
+        :
+        : "i" (GS_SCHEDULER_STACK)
+    );
+#else
     __asm __volatile ( // doesn't return
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"

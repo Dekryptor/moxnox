@@ -1,5 +1,11 @@
 #pragma once
 
+#ifdef __aarch64__
+
+#define GS_SCHEDULER_STACK 0x3c0
+
+#else
+
 #define GS_CURRENT_THREAD 0x8
 #define GS_TIME_SLICE_LEFT 0x10
 #define GS_CONTEXT 0x20
@@ -57,3 +63,5 @@
 
 #define APIC_BASE 0xfffffab000000000
 #define APIC_EOI 0xb0
+
+#endif
