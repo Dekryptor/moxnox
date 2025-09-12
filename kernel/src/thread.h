@@ -80,8 +80,9 @@ public:
 
 static_assert(is_sync_object<thread>);
 
-#ifndef __aarch64__
 static_assert(offsetof(thread, context) == THREAD_CONTEXT);
+
+#ifndef __aarch64__
 static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 static_assert(offsetof(thread, status) == THREAD_STATUS);
 static_assert(offsetof(thread, proc) == THREAD_PROC);

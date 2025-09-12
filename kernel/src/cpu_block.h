@@ -20,10 +20,10 @@ struct cpu_block {
     char* printk_scratch;
 };
 
+static_assert(offsetof(cpu_block, current_thread) == GS_CURRENT_THREAD);
 static_assert(offsetof(cpu_block, scheduler_stack) == GS_SCHEDULER_STACK);
 
 #ifndef __aarch64__
-static_assert(offsetof(cpu_block, current_thread) == GS_CURRENT_THREAD);
 static_assert(offsetof(cpu_block, time_slice_left) == GS_TIME_SLICE_LEFT);
 static_assert(offsetof(cpu_block, thread_context) == GS_CONTEXT);
 static_assert(offsetof(cpu_block, cpu_no) == GS_CPU_NO);

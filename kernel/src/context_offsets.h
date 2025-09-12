@@ -2,7 +2,15 @@
 
 #ifdef __aarch64__
 
+#define GS_CURRENT_THREAD 0x8
 #define GS_SCHEDULER_STACK 0x3c0
+
+#define THREAD_CONTEXT 0x30
+
+#define CONTEXT_CPSR 0x4
+#define CONTEXT_X0 0x8
+#define CONTEXT_SP 0x100
+#define CONTEXT_PC 0x108
 
 #else
 

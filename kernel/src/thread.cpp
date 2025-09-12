@@ -36,7 +36,15 @@ import config;
 
 using namespace std;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+
+static_assert(offsetof(ARM64_NT_CONTEXT, Cpsr) == CONTEXT_CPSR);
+static_assert(offsetof(ARM64_NT_CONTEXT, X0) == CONTEXT_X0);
+static_assert(offsetof(ARM64_NT_CONTEXT, Sp) == CONTEXT_SP);
+static_assert(offsetof(ARM64_NT_CONTEXT, Pc) == CONTEXT_PC);
+
+#else
+
 static_assert(sizeof(AMD64_CONTEXT) == 0x4d0);
 
 static_assert(offsetof(AMD64_CONTEXT, ContextFlags) == CONTEXT_CONTEXT_FLAGS);
@@ -392,7 +400,7 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
     t.context.Sp = (uintptr_t)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x28);
     *(uint64_t*)t.context.Sp = 0;
 
-    // FIXME - Cpsr
+    t.context.Cpsr = 0x5; // EL1 with SP_EL1
 #else
     t.context.Rip = (uintptr_t)kernel_thread_start;
     t.context.Rcx = (uintptr_t)func;
