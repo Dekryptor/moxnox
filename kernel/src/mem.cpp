@@ -904,6 +904,7 @@ export void free_lower_half_mappings() {
         : "rax"
     );
 }
+#endif
 
 static uint8_t find_max_order(uint64_t pfn) {
     auto ret = (uint8_t)countr_zero(pfn);
@@ -971,7 +972,6 @@ export void setup_folios() {
         i += run_length - 2;
     }
 }
-#endif
 
 #ifdef __aarch64__
 static bool map_physical_memory(uint64_t num_pages) {

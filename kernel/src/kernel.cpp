@@ -186,9 +186,11 @@ void main_thread() {
     acpi_early_init_done = true;
 
     free_lower_half_mappings();
+#endif
 
     setup_folios();
 
+#ifndef __aarch64__
     scan_pci();
     init_pci(true);
 
