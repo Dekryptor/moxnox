@@ -39,7 +39,41 @@ scheduler_restore:
     ldr x29, [x0, #CONTEXT_X0 + 0xe8]
     ldr x30, [x0, #CONTEXT_X0 + 0xf0]
 
-    // FIXME - floating-point registers
+    ldr q0, [x0, #CONTEXT_V0]
+    ldr q1, [x0, #CONTEXT_V0 + 0x10]
+    ldr q2, [x0, #CONTEXT_V0 + 0x20]
+    ldr q3, [x0, #CONTEXT_V0 + 0x30]
+    ldr q4, [x0, #CONTEXT_V0 + 0x40]
+    ldr q5, [x0, #CONTEXT_V0 + 0x50]
+    ldr q6, [x0, #CONTEXT_V0 + 0x60]
+    ldr q7, [x0, #CONTEXT_V0 + 0x70]
+    ldr q8, [x0, #CONTEXT_V0 + 0x80]
+    ldr q9, [x0, #CONTEXT_V0 + 0x90]
+    ldr q10, [x0, #CONTEXT_V0 + 0xa0]
+    ldr q11, [x0, #CONTEXT_V0 + 0xb0]
+    ldr q12, [x0, #CONTEXT_V0 + 0xc0]
+    ldr q13, [x0, #CONTEXT_V0 + 0xd0]
+    ldr q14, [x0, #CONTEXT_V0 + 0xe0]
+    ldr q15, [x0, #CONTEXT_V0 + 0xf0]
+    ldr q16, [x0, #CONTEXT_V0 + 0x100]
+    ldr q17, [x0, #CONTEXT_V0 + 0x110]
+    ldr q18, [x0, #CONTEXT_V0 + 0x120]
+    ldr q19, [x0, #CONTEXT_V0 + 0x130]
+    ldr q20, [x0, #CONTEXT_V0 + 0x140]
+    ldr q21, [x0, #CONTEXT_V0 + 0x150]
+    ldr q22, [x0, #CONTEXT_V0 + 0x160]
+    ldr q23, [x0, #CONTEXT_V0 + 0x170]
+    ldr q24, [x0, #CONTEXT_V0 + 0x180]
+    ldr q25, [x0, #CONTEXT_V0 + 0x190]
+    ldr q26, [x0, #CONTEXT_V0 + 0x1a0]
+    ldr q27, [x0, #CONTEXT_V0 + 0x1b0]
+    ldr q28, [x0, #CONTEXT_V0 + 0x1c0]
+    ldr q29, [x0, #CONTEXT_V0 + 0x1d0]
+    ldr q30, [x0, #CONTEXT_V0 + 0x1e0]
+    ldr q31, [x0, #CONTEXT_V0 + 0x1f0]
+
+    // FIXME - Fpcr
+    // FIXME - Fpsr
 
     ldr x1, [x0, #CONTEXT_SP]
     mov sp, x1
@@ -49,6 +83,8 @@ scheduler_restore:
 
     ldr w1, [x0, #CONTEXT_CPSR] // gets zero-extended
     msr spsr_el1, x1
+
+    // FIXME - debug registers
 
     ldr x1, [x0, #CONTEXT_X0 + 0x8]
     ldr x0, [x0, #CONTEXT_X0]
