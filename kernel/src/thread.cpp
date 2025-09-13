@@ -43,6 +43,8 @@ static_assert(offsetof(ARM64_NT_CONTEXT, X0) == CONTEXT_X0);
 static_assert(offsetof(ARM64_NT_CONTEXT, Sp) == CONTEXT_SP);
 static_assert(offsetof(ARM64_NT_CONTEXT, Pc) == CONTEXT_PC);
 static_assert(offsetof(ARM64_NT_CONTEXT, V[0]) == CONTEXT_V0);
+static_assert(offsetof(ARM64_NT_CONTEXT, Fpcr) == CONTEXT_FPCR);
+static_assert(offsetof(ARM64_NT_CONTEXT, Fpsr) == CONTEXT_FPSR);
 
 #else
 

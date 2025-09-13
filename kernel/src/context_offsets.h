@@ -12,6 +12,8 @@
 #define CONTEXT_SP 0x100
 #define CONTEXT_PC 0x108
 #define CONTEXT_V0 0x110
+#define CONTEXT_FPCR 0x310
+#define CONTEXT_FPSR 0x314
 
 #else
 

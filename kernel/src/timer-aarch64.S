@@ -72,8 +72,11 @@ scheduler_restore:
     ldr q30, [x0, #CONTEXT_V0 + 0x1e0]
     ldr q31, [x0, #CONTEXT_V0 + 0x1f0]
 
-    // FIXME - Fpcr
-    // FIXME - Fpsr
+    ldr w1, [x0, #CONTEXT_FPCR] // gets zero-extended
+    msr fpcr, x1
+
+    ldr w1, [x0, #CONTEXT_FPSR] // gets zero-extended
+    msr fpsr, x1
 
     ldr x1, [x0, #CONTEXT_SP]
     mov sp, x1
