@@ -542,6 +542,8 @@ static weak_ordering cmp_mem_type(enum mem_type m1, enum mem_type m2) {
 }
 
 static void add_new_mem_entry(unsigned int pos) {
+    // FIXME - check doesn't exceed MAX_MAP_ENTRIES
+
     for (int i = (int)mem_entries_count; i >= (int)pos; i--) {
         mem_entries[i + 1] = mem_entries[i];
     }
@@ -786,6 +788,104 @@ static optional<uint64_t> alloc_page(enum mem_type type) {
     }
 
     return nullopt;
+}
+
+static bool set_pages_type(uint64_t addr, uint64_t len, enum mem_type type) {
+    for (unsigned int i = 0; i < mem_entries_count; i++) {
+        auto& m = mem_entries[i];
+
+        if (addr < m.addr) // shouldn't happen
+            return false;
+
+        if (addr >= m.addr + m.len)
+            continue;
+
+        // go to next if entry already of correct type
+        if (m.type == type) {
+            if (m.addr + m.len >= addr + len)
+                return true;
+
+            len -= m.addr + m.len - addr;
+            addr = m.addr + m.len;
+            continue;
+        }
+
+        if (addr == m.addr) {
+            if (len >= m.len) { // replace whole entry
+                // FIXME - merging with previous and next
+                m.type = type;
+
+                if (len == m.len)
+                    return true;
+
+                len -= m.len;
+                addr += m.len;
+                continue;
+            } else { // replace beginning of entry
+                if (i > 0 && mem_entries[i - 1].type == type) { // merge with previous
+                    mem_entries[i - 1].len += len;
+                    m.addr += len;
+                    m.len -= len;
+                } else {
+                    add_new_mem_entry(i + 1);
+
+                    mem_entries[i + 1].addr = m.addr + len;
+                    mem_entries[i + 1].len = m.len - len;
+                    mem_entries[i + 1].type = m.type;
+
+                    m.len = len;
+                    m.type = type;
+                }
+
+                return true;
+            }
+        } else {
+            if (addr + len < m.addr + m.len) { // punch hole in entry
+                add_new_mem_entry(i + 1);
+                add_new_mem_entry(i + 2);
+
+                auto& m2 = mem_entries[i + 1];
+                auto& m3 = mem_entries[i + 2];
+
+                m2.addr = addr;
+                m2.len = len;
+                m2.type = type;
+
+                m3.addr = addr + len;
+                m3.len = m.addr + m.len - addr - len;
+                m3.type = m.type;
+
+                m.len = addr - m.addr;
+
+                return true;
+            } else { // remove end of entry
+                uint64_t delta = m.addr + m.len - addr;
+
+                if (i < mem_entries_count - 1 && mem_entries[i + 1].type == type) { // merge with next
+                    m.len -= delta;
+                    mem_entries[i + 1].addr -= delta;
+                    mem_entries[i + 1].len += delta;
+                } else {
+                    add_new_mem_entry(i);
+
+                    mem_entries[i].len -= delta;
+
+                    mem_entries[i + 1].addr = addr;
+                    mem_entries[i + 1].len = delta;
+                    mem_entries[i + 1].type = type;
+                }
+
+                if (len == delta)
+                    return true;
+
+                addr += delta;
+                len += delta;
+                continue;
+            }
+        }
+    }
+
+    return false;
 }
 
 static bool do_paging() {
@@ -1113,9 +1213,15 @@ static bool load_image() {
             raw_copy_pages = 0;
 
         for (unsigned int i = 0; i < raw_copy_pages; i++) {
-            // FIXME - mark page as mem_type::image
             if (!add_pte(pte0, img_addr + s.VirtualAddress + (i << PAGE_SHIFT), (((uintptr_t)&payload_data + s.PointerToRawData) >> PAGE_SHIFT) + i)) {
                 print("add_pte failed\n");
+                return false;
+            }
+        }
+
+        if (raw_copy_pages != 0) {
+            if (!set_pages_type((uintptr_t)&payload_data + s.PointerToRawData, raw_copy_pages << PAGE_SHIFT, mem_type::image)) {
+                print("set_pages_type failed\n");
                 return false;
             }
         }
