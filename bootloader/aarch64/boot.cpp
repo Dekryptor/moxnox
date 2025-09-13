@@ -1107,14 +1107,14 @@ static bool load_image() {
 
         unsigned int raw_copy_pages, raw_pages, virtual_pages;
 
-        if (s.PointerToRawData & (PAGE_SIZE - 1))
+        if (!(s.PointerToRawData & (PAGE_SIZE - 1)))
             raw_copy_pages = s.SizeOfRawData >> PAGE_SHIFT;
         else
             raw_copy_pages = 0;
 
         for (unsigned int i = 0; i < raw_copy_pages; i++) {
             // FIXME - mark page as mem_type::image
-            if (!add_pte(pte0, img_addr + s.VirtualAddress + (i << PAGE_SHIFT), ((payload_data + s.PointerToRawData) >> PAGE_SHIFT) + i)) {
+            if (!add_pte(pte0, img_addr + s.VirtualAddress + (i << PAGE_SHIFT), (((uintptr_t)&payload_data + s.PointerToRawData) >> PAGE_SHIFT) + i)) {
                 print("add_pte failed\n");
                 return false;
             }
