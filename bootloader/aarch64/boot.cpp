@@ -959,6 +959,79 @@ static bool add_pte(span<ARM64_HARDWARE_PTE> pte0, uint64_t addr, uint64_t pfn) 
     return true;
 }
 
+static bool do_relocations(uint8_t* data) {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)data;
+
+    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+
+    auto& pe_header = *(IMAGE_NT_HEADERS*)((uint8_t*)&dos_header + dos_header.e_lfanew);
+
+    if (pe_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_BASERELOC ||
+        pe_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress == 0 ||
+        pe_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size < sizeof(IMAGE_BASE_RELOCATION)) {
+        return true;
+    }
+
+    auto size = pe_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
+
+    auto reloc = (IMAGE_BASE_RELOCATION*)(data + pe_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
+
+    auto base = pe_header.OptionalHeader64.ImageBase;
+
+    do {
+        if (size < reloc->SizeOfBlock)
+            return true;
+
+        // FIXME - check not out of bounds
+        auto ptr = (uint32_t*)(data + reloc->VirtualAddress);
+
+        auto addr = (uint16_t*)((uint8_t*)reloc + sizeof(IMAGE_BASE_RELOCATION));
+        auto count = (reloc->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(uint16_t);
+
+        for (unsigned int i = 0; i < count; i++) {
+            uint16_t offset = addr[i] & 0xfff;
+            uint16_t type = addr[i] >> 12;
+
+            switch (type) {
+                case IMAGE_REL_BASED_ABSOLUTE:
+                    // nop
+                break;
+
+                case IMAGE_REL_BASED_HIGHLOW:
+                {
+                    uint32_t* ptr2 = (uint32_t*)((uint8_t*)ptr + offset);
+
+                    *ptr2 = (uint32_t)(*ptr2 - base + (uintptr_t)data);
+                    break;
+                }
+
+                case IMAGE_REL_BASED_DIR64:
+                {
+                    uint64_t* ptr2 = (uint64_t*)((uint8_t*)ptr + offset);
+
+                    *ptr2 = *ptr2 - base + (uintptr_t)data;
+                    break;
+                }
+
+                default: {
+                    // FIXME - show error for unsupported relocation type
+                    return false;
+                }
+            }
+        }
+
+        size -= reloc->SizeOfBlock;
+
+        if (size < sizeof(IMAGE_BASE_RELOCATION))
+            break;
+
+        reloc = (IMAGE_BASE_RELOCATION*)((uint8_t*)reloc + reloc->SizeOfBlock);
+    } while (true);
+
+    return true;
+}
+
 static bool load_image() {
     auto& dos_header = *(IMAGE_DOS_HEADER*)&payload_data;
 
@@ -1159,11 +1232,12 @@ void start(uint64_t dtb, uint64_t image_base) {
     lb.map_ptr = (uintptr_t)mem_entries;
     lb.num_map_entries = mem_entries_count;
 
-    // FIXME - do relocations
-
     enable_fpu();
 
-    // FIXME - set up kernel stack?
+    if (!do_relocations((uint8_t*)img_addr)) {
+        // FIXME - print error
+        goto end;
+    }
 
     startup(&lb);
 
