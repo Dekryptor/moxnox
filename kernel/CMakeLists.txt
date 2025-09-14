@@ -112,10 +112,10 @@ target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-fno-inline -fno-omit-fr
 target_compile_options(kernel PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-fno-auto-import>)
 
 target_include_directories(kernel PRIVATE ../acpica/source/include)
+target_link_libraries(kernel acpica)
 
 if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     target_link_libraries(kernel freetype-static)
-    target_link_libraries(kernel acpica)
 endif()
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
