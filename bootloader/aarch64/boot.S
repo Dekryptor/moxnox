@@ -3,7 +3,7 @@
 ccmp	x18, #0, #0xd, pl // instruction that happens to start with "MZ"
 b	start_asm
 .quad	0 // text_offset
-.quad	0 // image_size (FIXME)
+.quad	image_end
 .quad	0xa // flags (place anywhere, page size = 4K, little-endian)
 .quad	0 // res2
 .quad	0 // res3
