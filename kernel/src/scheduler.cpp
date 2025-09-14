@@ -676,23 +676,29 @@ NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
 
     return ret;
 }
+#endif
 
 void disable_preempt() {
+#ifndef __aarch64__ // FIXME
     __asm __volatile(
         "inc QWORD PTR gs:%0\n"
         :
         : "i" (offsetof(cpu_block, disable_preempt))
     );
+#endif
 }
 
 void enable_preempt() {
+#ifndef __aarch64__ // FIXME
     __asm __volatile(
         "dec QWORD PTR gs:%0\n"
         :
         : "i" (offsetof(cpu_block, disable_preempt))
     );
+#endif
 }
 
+#ifndef __aarch64__
 void set_current_thread_waiting() {
     // must have synclock held
 
