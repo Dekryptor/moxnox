@@ -560,8 +560,8 @@ static span<uint8_t> find_payload(EFI_LOADED_IMAGE_PROTOCOL* image) {
         return span<uint8_t>();
     }
 
-    auto payload_size = *(uint64_t*)((uintptr_t)image->ImageBase + payload_sect->VirtualAddress);
-    auto payload_data = (uint8_t*)((uintptr_t)image->ImageBase + payload_sect->VirtualAddress + sizeof(uint64_t));
+    auto payload_size = payload_sect->VirtualSize;
+    auto payload_data = (uint8_t*)((uintptr_t)image->ImageBase + payload_sect->VirtualAddress);
 
     return span(payload_data, payload_size);
 }
