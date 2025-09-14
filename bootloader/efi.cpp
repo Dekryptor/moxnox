@@ -589,7 +589,13 @@ static bool check_header(span<const uint8_t> payload, IMAGE_NT_HEADERS** nth) {
         return false;
     }
 
-    if (nt_header->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
+#ifdef __aarch64__
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
+#else
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
+#endif
+
+    if (nt_header->FileHeader.Machine != this_arch) {
         print_string("Unsupported architecture.\n");
         return false;
     }
