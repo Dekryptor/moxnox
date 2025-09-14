@@ -2,6 +2,7 @@
 #include <string_view>
 #include <span>
 #include <tuple>
+#include <algorithm>
 #include <string.h>
 #include <pe.h>
 #include <loaderblock.h>
@@ -1516,6 +1517,8 @@ static EFI_STATUS find_initrd_file(EFI_LOADED_IMAGE_PROTOCOL* image) {
     return EFI_SUCCESS;
 }
 
+#ifndef __aarch64__
+
 __attribute__((always_inline))
 static uint64_t inline __readcr0() {
     uint64_t ret;
@@ -1627,6 +1630,8 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
     __builtin_unreachable();
 }
 
+#endif
+
 static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3,
                      uint64_t rsdp_pa) {
     EFI_STATUS status;
@@ -1688,7 +1693,11 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
 
     // FIXME - SetVirtualAddressMap
 
+#ifdef __aarch64__ // FIXME
+    while (true) { }
+#else
     start_kernel(entry_point, cr3, &lb);
+#endif
 
     return EFI_SUCCESS; // never reached
 }

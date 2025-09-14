@@ -18,7 +18,7 @@ set(CMAKE_C_LINK_EXECUTABLE "g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OB
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
-add_library(efistub SHARED efi.cpp)
+add_library(efistub SHARED ../efi.cpp)
 
 target_include_directories(efistub PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../gnu-efi/inc ${CMAKE_CURRENT_SOURCE_DIR}/../../gnu-efi/inc/x86_64)
 target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-zero-initialized-in-bss)
