@@ -1,5 +1,6 @@
 .section .rdata
 
+.p2align 3
 .globl payload_size
 payload_size:
 .quad payload_end - payload_data

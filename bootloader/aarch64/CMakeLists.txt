@@ -18,23 +18,37 @@ set(CMAKE_C_LINK_EXECUTABLE "ld <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJ
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
+add_library(efistub SHARED efi.cpp)
+
+target_include_directories(efistub PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../gnu-efi/inc ${CMAKE_CURRENT_SOURCE_DIR}/../../gnu-efi/inc/aarch64)
+target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-zero-initialized-in-bss)
+target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0 -Wl,--exclude-all-symbols -e efi_main)
+
+add_custom_command(
+    TARGET efistub
+    POST_BUILD
+    COMMAND objcopy -S -K efi_main -O pe-aarch64-little --section-alignment 0x1000 "${CMAKE_CURRENT_BINARY_DIR}/efistub.dll" "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
+    BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
+)
+
 set(SRC_FILES boot.S
     boot.cpp
     mem.S
     ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
 add_executable(boot ${SRC_FILES})
-add_dependencies(boot kernel)
+add_dependencies(boot kernel efistub)
 
 target_compile_options(boot PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Wno-unused-const-variable -Werror=pointer-arith -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -fno-threadsafe-statics -fvisibility=hidden -fno-auto-import -mno-red-zone -mno-stack-arg-probe -gdwarf-5 -fno-asynchronous-unwind-tables -mstrict-align)
 target_compile_options(boot PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
-target_link_options(boot PRIVATE -T ${CMAKE_SOURCE_DIR}/bootloader/aarch64/boot.ld)
+target_link_options(boot PRIVATE -T ${CMAKE_SOURCE_DIR}/bootloader/aarch64/boot.ld ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
 set(CMAKE_EXE_LINKER_FLAGS "-static") # use binutils rather than llvm for linking
 
 # Clang likes to generate .refptr stubs, stop it doing this
 target_compile_options(boot PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-fno-auto-import>)
 
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/payload.s PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/kernel/kernel.exe)
+set_source_files_properties(boot.S PROPERTIES OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj")
 
 set_property(TARGET boot PROPERTY LINKER_LANGUAGE C) # HACK
 set_property(TARGET boot PROPERTY LINK_DEPENDS ${CMAKE_SOURCE_DIR}/bootloader/aarch64/boot.ld)
