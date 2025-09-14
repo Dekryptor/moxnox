@@ -19,11 +19,11 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/visit.cpp
     src/print.cpp
     src/console.cpp
+    src/bsod.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
     src/inout.cpp
-    src/bsod.cpp
     src/tmpfs.cpp
     src/cpio.cpp
     src/acpi.cpp
@@ -72,7 +72,8 @@ set(AARCH64_MODULES ${GLOBAL_MODULES})
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_FILES src/kernel.cpp
         src/scheduler.cpp
-        src/handle.cpp)
+        src/handle.cpp
+        src/bsod2.cpp)
 
     set(SRC_ASM_FILES src/mem-aarch64.S
         src/timer-aarch64.S)

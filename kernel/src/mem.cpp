@@ -8,6 +8,7 @@ module;
 #include <algorithm>
 #include <mutex>
 #include "spinlock.h"
+#include "assert.h"
 
 #ifdef __aarch64__
 #include "mem-aarch64.h"
@@ -17,7 +18,6 @@ module;
 
 #ifndef __aarch64__
 #include "acpica.h"
-#include "assert.h"
 #endif
 
 export module mem;
@@ -25,11 +25,8 @@ export module mem;
 import config;
 import list;
 import print;
-
-#ifndef __aarch64__
 import format;
 import bsod;
-#endif
 
 #ifdef __aarch64__
 // mem-aarch64.S
@@ -278,6 +275,7 @@ int memcmp(const void* s1, const void* s2, size_t n) {
 
     return 0;
 }
+#endif
 
 template<>
 consteval bool format_spec_valid<enum page_state>(string_view fmt) {
@@ -323,7 +321,6 @@ span<char> do_format_arg(span<char> sp, string_view, enum page_state arg) {
             return do_format_arg(sp, "", (unsigned int)arg);
     }
 }
-#endif
 
 #ifdef __aarch64__
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
@@ -1249,9 +1246,7 @@ export void* malloc_aligned(size_t size, size_t align) {
     else if (size <= 8192)
         return alloc8k.malloc();
     else {
-#ifndef __aarch64__
         bsod_format("malloc asked to do over-large allocation ({:x} bytes)\n", size);
-#endif
         return nullptr;
     }
 }
@@ -1327,16 +1322,11 @@ void free(void* ptr) {
                 alloc64.free(ptr);
                 return;
 
-#ifndef __aarch64__
             default:
                 bsod_format("free called for unexpected page state {}", page.state);
-#endif
         }
-    } else {
-#ifndef __aarch64__
+    } else
         bsod_format("free called for non-physical address {:x}", (uintptr_t)ptr);
-#endif
-    }
 }
 
 export
@@ -1423,10 +1413,8 @@ export void free_folio(uint64_t pa) {
 
     lock_guard lock(pa_spinlock);
 
-#ifndef __aarch64__
     if (pages[pfn].state == page_state::free)
         bsod_format("free_folio called for PFN {:x} that is already free", pfn);
-#endif
 
     if (pages[pfn].state == page_state::used) {
         pages[pfn].used.refcount--;
@@ -1436,10 +1424,8 @@ export void free_folio(uint64_t pa) {
     }
 
 #ifdef DEBUG
-#ifndef __aarch64__
     if (pfn == zero_pfn)
         bsod("trying to free zero page");
-#endif
 #endif
 
     insert_tail_list(folio_free_lists[pages[pfn].order], pages[pfn].free.le);
@@ -1460,9 +1446,7 @@ export uint64_t cow_folio(uint64_t pa) {
     {
         lock_guard lock(pa_spinlock);
 
-#ifndef __aarch64__
         assert(p.state == page_state::used);
-#endif
 
         if (p.used.refcount == 1) // no COW necessary
             return pa;
@@ -1793,7 +1777,6 @@ export uint64_t va_to_pa_lookup(uint64_t va) {
 }
 #endif
 
-#ifndef __aarch64__
 export
 extern "C"
 void* memchr(const void* ptr, int ch, size_t count) {
@@ -1809,6 +1792,7 @@ void* memchr(const void* ptr, int ch, size_t count) {
     return nullptr;
 }
 
+#ifndef __aarch64__
 export
 extern "C"
 int strcmp(const char* s1, const char* s2) {
@@ -2013,9 +1997,7 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         if (!found)
             continue;
 
-#ifndef __aarch64__
         assert(!(bitmap[i] & (1 << bit)));
-#endif
         bitmap[i] |= 1 << bit;
 
         unsigned int index = (i * PAGES_PER_BITMAP_BLOCK) + PAGES_PER_BITMAP_BLOCK - 1;
@@ -2072,9 +2054,7 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         if (!found)
             continue;
 
-#ifndef __aarch64__
         assert(!(bitmap[i] & 1 << bit));
-#endif
 
         bitmap[i] |= 1 << bit;
         pfns[p.allocator.index] = pfn;
@@ -2092,9 +2072,7 @@ void allocator_cb<N, P, S>::free(uint64_t index) {
     auto& b = bitmap[index / 64];
     unsigned int bit = 63 - (index & 63);
 
-#ifndef __aarch64__
     assert(b & (1 << bit));
-#endif
 
     b &= ~(1 << bit);
 
@@ -2157,10 +2135,8 @@ void ::allocator<N, P, S>::free(void* ptr) {
 
     static constexpr size_t GRANULARITY = PAGE_SIZE * cb_type::PAGES_PER_BITMAP_BLOCK / (8 * sizeof(uint64_t));
 
-#ifndef __aarch64__
     assert(!(off & (GRANULARITY - 1)));
     assert(cb.pfns[p.allocator.index] == pfn);
-#endif
 
     uint64_t index = p.allocator.index * 8 * sizeof(uint64_t) / cb_type::PAGES_PER_BITMAP_BLOCK;
 

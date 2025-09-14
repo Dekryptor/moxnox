@@ -9,7 +9,6 @@
 #include "process.h"
 
 #ifndef __aarch64__
-import bsod;
 import acpi;
 import null;
 import list;
@@ -30,6 +29,7 @@ import process;
 import image;
 #endif
 
+import bsod;
 import print;
 import cmdline;
 import mem;
@@ -69,13 +69,13 @@ int atexit(void (*)(void)) {
     return 0;
 }
 
-#ifndef __aarch64__
 extern "C"
 void __cxa_pure_virtual() {
     // Clang wants this
     bsod("__cxa_pure_virtual() called");
 }
 
+#ifndef __aarch64__
 static object_ref create_init_process() {
     auto& p = static_cast<chardev&>(console_chardev.get());
 

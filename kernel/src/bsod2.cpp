@@ -1,27 +1,32 @@
 #include <optional>
 #include <source_location>
 #include <string_view>
+#include <mutex>
 #include "spinlock.h"
 #include "cpu_block.h"
 #include "scheduler.h"
 #include "ints.h"
-import chardev;
 
-import format;
-import dwarf;
+#ifndef __aarch64__
+import chardev;
 import unwind;
-import config;
 import interrupts;
 import smp;
 import pipe;
-import console;
 import image;
 import apic;
+#endif
+
+import format;
+import dwarf;
+import config;
+import console;
 
 using namespace std;
 
 static spinlock bsod_lock;
 
+#ifndef __aarch64__
 static void print_rip(chardev& p, uint64_t rip) {
     auto& cb = *get_cpu_block();
     uint64_t written;
@@ -90,16 +95,20 @@ static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_cal
             return;
     } while (true);
 }
+#endif
 
 void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
                                      unsigned int skip_callers) {
     disable_preempt();
 
+#ifndef __aarch64__
     // make sure that we don't get a deadlock if two BSODs at once
     __asm("sti");
+#endif
 
     lock_guard lock(bsod_lock);
 
+#ifndef __aarch64__
     __asm("cli");
 
     if (num_cpus > 1) {
@@ -135,6 +144,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     p.write(msg, written);
     p.write("\n", written);
+#endif
 
     auto& cb = *get_cpu_block();
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
@@ -142,6 +152,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     sp = format(sp, "{}:{}, {}, CPU {}\n",
                 sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
 
+#ifndef __aarch64__
     p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
             written);
 
@@ -171,4 +182,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     __asm("call halt_isr");
     __builtin_unreachable();
+#else
+    while (true) { } // FIXME
+#endif
 }

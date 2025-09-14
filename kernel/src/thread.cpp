@@ -24,10 +24,10 @@ import rbtree;
 export module thread;
 
 #ifndef __aarch64__
-import bsod;
 import apic;
 #endif
 
+import bsod;
 import list;
 import print;
 import mem;

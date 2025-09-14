@@ -7,14 +7,13 @@ import objects;
 #include "cpu_block.h"
 #include "process.h"
 #include "scheduler.h"
+#include "assert.h"
 
 #ifndef __aarch64__
 #include "tick_rate.h"
-#include "assert.h"
-
-import bsod;
 #endif
 
+import bsod;
 import print;
 import mem;
 import config;
@@ -62,9 +61,7 @@ static thread* pick_runnable_thread(thread* current) {
     };
 
     if (current) { // loop through list from current thread
-#ifndef __aarch64__
         assert(current->status != thread_status::dead);
-#endif
 
         for (auto le = current->le.next; le != &thread_list; le = le->next) {
             auto& t = containing_record<thread>(le);
@@ -151,10 +148,8 @@ void scheduler() {
         cb.current_thread = pick_runnable_thread(cb.current_thread);
 
         if (cb.current_thread) {
-#ifndef __aarch64__
             assert(cb.current_thread->status == thread_status::runnable || cb.current_thread->status == thread_status::dying);
             assert(cb.current_thread->current_cpu == 0xffffffff);
-#endif
 
             if (cb.current_thread->status == thread_status::runnable)
                 cb.current_thread->status = thread_status::running;
