@@ -2,7 +2,7 @@
 
 qemu-system-x86_64 -M q35 -enable-kvm -cpu host \
 -smp cores=4,threads=1 \
--kernel build/bootloader/boot \
+-kernel build/bootloader/x86/boot \
 -append "root=/dev/sda keywait" \
 -device ich9-ahci,id=ahci -drive id=disk,file=btrfs,if=none,format=raw \
 -device ide-hd,drive=disk,bus=ahci.0 \
