@@ -1012,7 +1012,7 @@ static bool map_physical_memory(uint64_t num_pages) {
         p1->AF = 1;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        p1->pfn = pa >> PAGE_SHIFT;
+        p1->pfn = i * PAGES_PER_GIGABYTE;
 #pragma GCC diagnostic pop
 
         p1++;
