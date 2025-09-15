@@ -200,13 +200,13 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length, string_view uid)
 
     // FIXME - numbering assumes that ACPI devices are started in order, i.e. all from one thread
 
-    // use _UID - 1 as number if present, otherwise start from end of numbered range
+    // use _UID as number if present, otherwise start from end of numbered range
 
     auto uidnum = parse_uid(uid);
     unsigned int num;
 
     if (uidnum.has_value())
-        num = *uidnum - 1;
+        num = *uidnum;
     else
         num = pl011_number.fetch_add(1);
 
