@@ -46,6 +46,57 @@ static bool have_edid __attribute__((section (".data"))) = false;
 
 #ifdef __aarch64__
 
+union ARM64_TCR_EL1 {
+    struct {
+        uint64_t T0SZ : 6;
+        uint64_t : 1;
+        uint64_t EPD0 : 1;
+        uint64_t IRGN0 : 2;
+        uint64_t ORGN0 : 2;
+        uint64_t SH0 : 2;
+        uint64_t TG0 : 2;
+        uint64_t T1SZ : 6;
+        uint64_t A1 : 1;
+        uint64_t EPD1 : 1;
+        uint64_t IRGN1 : 2;
+        uint64_t ORGN1 : 2;
+        uint64_t SH1 : 2;
+        uint64_t TG1 : 2;
+        uint64_t IPS : 3;
+        uint64_t : 1;
+        uint64_t AS : 1;
+        uint64_t TBI0 : 1;
+        uint64_t TBI1 : 1;
+        uint64_t HA : 1;
+        uint64_t HD : 1;
+        uint64_t HPD0 : 1;
+        uint64_t HPD1 : 1;
+        uint64_t HWU059 : 1;
+        uint64_t HWU060 : 1;
+        uint64_t HWU061 : 1;
+        uint64_t HWU062 : 1;
+        uint64_t HWU159 : 1;
+        uint64_t HWU160 : 1;
+        uint64_t HWU161 : 1;
+        uint64_t HWU162 : 1;
+        uint64_t TBID0 : 1;
+        uint64_t TBID1 : 1;
+        uint64_t NFD0 : 1;
+        uint64_t NFD1 : 1;
+        uint64_t E0PD0 : 1;
+        uint64_t E0PD1 : 1;
+        uint64_t TCMA0 : 1;
+        uint64_t TCMA1 : 1;
+        uint64_t DS : 1;
+        uint64_t MTX0 : 1;
+        uint64_t MTX1 : 1;
+        uint64_t : 2;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_TCR_EL1) == 8);
+
 struct ARM64_HARDWARE_PTE {
     uint64_t valid : 1;
     uint64_t table_entry : 1;
@@ -1674,7 +1725,39 @@ static EFI_STATUS find_initrd_file(EFI_LOADED_IMAGE_PROTOCOL* image) {
     return EFI_SUCCESS;
 }
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+
+__attribute__((always_inline))
+static void inline mair_el1_store(uint64_t v) {
+    __asm __volatile (
+        "msr\tmair_el1, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+static uint64_t inline tcr_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs\t%0, tcr_el1"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+static void inline tcr_el1_store(uint64_t v) {
+    __asm __volatile (
+        "msr\ttcr_el1, %0"
+        :
+        : "r" (v)
+    );
+}
+
+#else
 
 __attribute__((always_inline))
 static uint64_t inline __readcr0() {
@@ -1761,13 +1844,36 @@ static void inline _disable() {
 #ifdef __aarch64__
 
 __attribute__((noreturn))
-static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb) {
-    // FIXME - to EL1
+static void start_kernel(uint64_t entry_point, uint64_t ttbr1, loader_block* lb) {
+    // FIXME - to EL1 if EL2
+
+    // FIXME - disable interrupts?
 
     // FPU already enabled as per spec
 
-    // FIXME - MAIR
-    // FIXME - set upper half CR3
+    // set MAIR slot 0 to be normal memory
+    mair_el1_store(0xff);
+
+    {
+        ARM64_TCR_EL1 tcr;
+
+        tcr.value = tcr_el1_load();
+
+        tcr.TG0 = 0; // 4KB granule size
+        tcr.T0SZ = 16; // 48-bit memory size
+        tcr.T1SZ = 16; // 48-bit memory size
+        tcr.HA = 0; // hardware access flag disabled
+        tcr.EPD1 = 0; // enable upper-half page-walking
+
+        tcr_el1_store(tcr.value);
+    }
+
+    __asm __volatile (
+        "msr ttbr1_el1, %0\n\t"
+        "isb"
+        :
+        : "r" (ttbr1)
+    );
 
     // FIXME - call startup
     while (true) { }
