@@ -211,14 +211,18 @@ void main_thread() {
     // if no ACPI, look for serial port at its traditional address
     if (rsdp_pa == 0)
         init_serial(0x3f8, 4, "");
+#endif
 
     _printk = safe_print;
 
+#ifndef __aarch64__
     if (console_type == console_type::framebuffer && !init_fb_console())
         print("init_fb_console failed\n");
+#endif
 
     print(MOXNOX_VERSION_STRING "\n");
 
+#ifndef __aarch64__
     keywait();
 
     init_pci(false);
