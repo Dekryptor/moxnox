@@ -44,6 +44,33 @@ static u16string_view wcmdline __attribute__((section (".data")));
 static uint8_t edid[128] __attribute__((section (".data")));
 static bool have_edid __attribute__((section (".data"))) = false;
 
+#ifdef __aarch64__
+
+struct ARM64_HARDWARE_PTE {
+    uint64_t valid : 1;
+    uint64_t table_entry : 1;
+    uint64_t AttrIndex : 3;
+    uint64_t NS : 1;
+    uint64_t AP : 2;
+    uint64_t SH : 2;
+    uint64_t AF : 1;
+    uint64_t nG : 1;
+    uint64_t pfn : 39;
+    uint64_t DBM : 1;
+    uint64_t Contig : 1;
+    uint64_t PXN : 1;
+    uint64_t UXN : 1;
+    uint64_t software : 4;
+    uint64_t imp_def : 4;
+    uint64_t : 1;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_HARDWARE_PTE) == 8);
+
+static ARM64_HARDWARE_PTE* ttbr1 __attribute__((section (".data")));
+
+#else
+
 struct HARDWARE_PTE {
     uint64_t Valid:1;
     uint64_t Write:1;
@@ -64,6 +91,8 @@ struct HARDWARE_PTE {
 } __attribute__((packed));
 
 static HARDWARE_PTE* pml4t __attribute__((section (".data")));
+
+#endif
 
 struct RSDP_DESCRIPTOR {
     char signature[8];
@@ -1060,6 +1089,116 @@ static EFI_STATUS get_memory_map() {
     return EFI_SUCCESS;
 }
 
+#ifdef __aarch64__
+
+static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
+    EFI_STATUS status;
+    auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1, EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto level1 = (va & 0xff8000000000) >> 39;
+
+    if (!pte0[level1].valid) {
+        EFI_PHYSICAL_ADDRESS new_page;
+
+        status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
+        if (EFI_ERROR(status)) {
+            print_error("AllocatePages", status);
+            return status;
+        }
+
+        status = add_map_entry(new_page, EFI_PAGE_SIZE, mem_type::paging_table);
+        if (EFI_ERROR(status)) {
+            print_error("add_map_entry", status);
+            return status;
+        }
+
+        memset((void*)new_page, 0, EFI_PAGE_SIZE);
+
+        pte0[level1].valid = 1;
+        pte0[level1].table_entry = 1;
+        pte0[level1].AttrIndex = 0; // FIXME?
+        pte0[level1].AP = 0; // no access from userspace
+        pte0[level1].SH = 3; // inner shareable
+        pte0[level1].AF = 1;
+        pte0[level1].pfn = new_page >> EFI_PAGE_SHIFT;
+    }
+
+    auto pte1 = span((ARM64_HARDWARE_PTE*)(pte0[level1].pfn << EFI_PAGE_SHIFT),
+                     EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto level2 = (va & 0x7fc0000000) >> 30;
+
+    if (!pte1[level2].valid) {
+        EFI_PHYSICAL_ADDRESS new_page;
+
+        status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
+        if (EFI_ERROR(status)) {
+            print_error("AllocatePages", status);
+            return status;
+        }
+
+        status = add_map_entry(new_page, EFI_PAGE_SIZE, mem_type::paging_table);
+        if (EFI_ERROR(status)) {
+            print_error("add_map_entry", status);
+            return status;
+        }
+
+        memset((void*)new_page, 0, EFI_PAGE_SIZE);
+
+        pte1[level2].valid = 1;
+        pte1[level2].table_entry = 1;
+        pte1[level2].AttrIndex = 0; // FIXME?
+        pte1[level2].AP = 0; // no access from userspace
+        pte1[level2].SH = 3; // inner shareable
+        pte1[level2].AF = 1;
+        pte1[level2].pfn = new_page >> EFI_PAGE_SHIFT;
+    }
+
+    auto pte2 = span((ARM64_HARDWARE_PTE*)(pte1[level2].pfn << EFI_PAGE_SHIFT),
+                     EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto level3 = (va & 0x3fe00000) >> 21;
+
+    if (!pte2[level3].valid) {
+        EFI_PHYSICAL_ADDRESS new_page;
+
+        status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &new_page);
+        if (EFI_ERROR(status)) {
+            print_error("AllocatePages", status);
+            return status;
+        }
+
+        status = add_map_entry(new_page, EFI_PAGE_SIZE, mem_type::paging_table);
+        if (EFI_ERROR(status)) {
+            print_error("add_map_entry", status);
+            return status;
+        }
+
+        memset((void*)new_page, 0, EFI_PAGE_SIZE);
+
+        pte2[level3].valid = 1;
+        pte2[level3].table_entry = 1;
+        pte2[level3].AttrIndex = 0; // FIXME?
+        pte2[level3].AP = 0; // no access from userspace
+        pte2[level3].SH = 3; // inner shareable
+        pte2[level3].AF = 1;
+        pte2[level3].pfn = new_page >> EFI_PAGE_SHIFT;
+    }
+
+    auto pte3 = span((ARM64_HARDWARE_PTE*)(pte2[level3].pfn << EFI_PAGE_SHIFT),
+                     EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto level4 = (va & 0x1ff000) >> 12;
+
+    pte3[level4].valid = 1;
+    pte3[level4].table_entry = 1; // sic
+    pte3[level4].AttrIndex = 0; // FIXME?
+    pte3[level4].AP = 0; // no access from userspace
+    pte3[level4].SH = 3; // inner shareable
+    pte3[level4].AF = 1;
+    pte3[level4].pfn = pa >> EFI_PAGE_SHIFT;
+
+    return EFI_SUCCESS;
+}
+
+#else
+
 static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
     EFI_STATUS status;
     uint32_t pml4t_offset, pdpt_offset, pdt_offset, pt_offset;
@@ -1169,6 +1308,8 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
     return EFI_SUCCESS;
 }
 
+#endif
+
 static EFI_STATUS do_map(uint64_t va, uint64_t pa, uint64_t len) {
     EFI_STATUS status;
 
@@ -1204,7 +1345,13 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
         return status;
     }
 
+#ifdef __aarch64__
+    ttbr1 = (ARM64_HARDWARE_PTE*)addr;
+#else
     pml4t = (HARDWARE_PTE*)addr;
+#endif
+
+    memset((void*)addr, 0, EFI_PAGE_SIZE);
 
     num_map_entries_copy = num_map_entries;
 
@@ -1215,8 +1362,6 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
     }
 
     memcpy(map_copy, map, sizeof(map_entry) * num_map_entries);
-
-    memset(pml4t, 0, EFI_PAGE_SIZE);
 
     for (unsigned int i = 0; i < num_map_entries_copy; i++) {
         switch (map_copy[i].type) {
@@ -1248,6 +1393,7 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
         }
     }
 
+#ifndef __aarch64__
     // add recursive mapping
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -1255,8 +1401,13 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
 #pragma GCC diagnostic pop
     pml4t[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
     pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
+#endif
 
+#ifdef __aarch64__
+    cr3 = (uintptr_t)ttbr1;
+#else
     cr3 = (uintptr_t)pml4t;
+#endif
 
     return EFI_SUCCESS;
 }
@@ -1605,6 +1756,25 @@ static void inline _disable() {
     );
 }
 
+#endif
+
+#ifdef __aarch64__
+
+__attribute__((noreturn))
+static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb) {
+    // FIXME - to EL1
+
+    // FPU already enabled as per spec
+
+    // FIXME - MAIR
+    // FIXME - set upper half CR3
+
+    // FIXME - call startup
+    while (true) { }
+}
+
+#else
+
 __attribute__((noreturn))
 static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb) {
     _disable();
@@ -1699,11 +1869,7 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
 
     // FIXME - SetVirtualAddressMap
 
-#ifdef __aarch64__ // FIXME
-    while (true) { }
-#else
     start_kernel(entry_point, cr3, &lb);
-#endif
 
     return EFI_SUCCESS; // never reached
 }
