@@ -193,10 +193,10 @@ void main_thread() {
 #ifndef __aarch64__
     scan_pci();
     init_pci(true);
+#endif
 
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
-#endif
 
     if (!init_acpi_done) {
         init_acpi();

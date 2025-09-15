@@ -11,9 +11,9 @@ module;
 #include "spinlock.h"
 #include "scheduler.h"
 #include "cpu_block.h"
+#include "handle.h"
 
 #ifndef __aarch64__
-#include "handle.h"
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
@@ -24,12 +24,8 @@ export module console;
 #ifndef __aarch64__
 import inout;
 import serial;
-import bsod;
-import pipe;
-import acpi;
 import pci;
 import framebuffer;
-import chardev;
 #endif
 
 import print;
@@ -41,12 +37,17 @@ import vt100;
 import cp437;
 import cmdline;
 import thread;
+import bsod;
+import chardev;
+import pipe;
+import acpi;
+import object_ref;
 
 using namespace std;
 
-#ifndef __aarch64__
 export unsigned int console_cols; // FIXME
 
+#ifndef __aarch64__
 enum class console_colour : uint8_t {
     black = 0,
     blue = 1,
@@ -69,11 +70,11 @@ enum class console_colour : uint8_t {
 
 export void early_print(string_view s);
 
-#ifndef __aarch64__
 export object_ref console_chardev;
 static object_ref kmsg;
 static const unsigned int console_buffer_pages = 4;
 
+#ifndef __aarch64__
 static FT_Library ft = nullptr;
 static unsigned int font_width, font_height, font_descender;
 static bool fb_console_started = false, text_console_started = false;
@@ -114,6 +115,7 @@ public:
 
     nt_status flush(bool go_readonly) override;
 };
+#endif
 
 struct kmsg_buf_page {
     list_entry le;
@@ -135,6 +137,7 @@ public:
     list_entry pages = { &pages, &pages };
 };
 
+#ifndef __aarch64__
 struct console_info {
     uint32_t bg;
     uint32_t fg;
@@ -204,15 +207,19 @@ static enum console_colour fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
 static const size_t EDID_SIZE = 128;
 static uint8_t edid[EDID_SIZE];
 static bool have_edid;
+#endif
 
 export enum class console_type {
+#ifndef __aarch64__
     text,
+#endif
     framebuffer,
     other
 };
 
 export enum console_type console_type;
 
+#ifndef __aarch64__
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
@@ -225,6 +232,7 @@ struct console_fb {
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
 };
+#endif
 
 struct console_text {
     void console_overflow(unsigned int rows = 1);
@@ -239,9 +247,13 @@ struct console_text {
     unsigned int console_rows, console_cols;
 };
 
+#ifndef __aarch64__
 static console_fb console_fb_inst;
+#endif
+
 static console_text console_text_inst;
 
+#ifndef __aarch64__
 static constexpr uint16_t text_console_val(uint8_t c, enum console_colour bg,
                                            enum console_colour fg) {
     return (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
@@ -920,7 +932,6 @@ void early_print(string_view s) {
 #endif
 }
 
-#ifndef __aarch64__
 export void safe_print(string_view s) {
     uint64_t written_bytes;
 
@@ -932,11 +943,14 @@ export void safe_print(string_view s) {
 
     object_write_without_offset(kmsg.get(), buf, written_bytes);
 
+#ifndef __aarch64__
     // FIXME - this should be hidden behind a cmdline option
     if (console_type != console_type::other && com1_pipe_handle)
         object_write_without_offset(com1_pipe_handle.get(), buf, written_bytes);
+#endif
 }
 
+#ifndef __aarch64__
 static void console_event_recv() {
     auto buf_size = console_buffer_pages << PAGE_SHIFT;
 
@@ -959,6 +973,7 @@ static void console_event_recv() {
 
     vfree(buf, buf_size);
 }
+#endif
 
 static void flush_early_print() {
     safe_print(string_view(early_print_buf, early_print_buf_size));
@@ -1033,6 +1048,9 @@ export bool init_console(const loader_block_framebuffer& fb,
         return true;
     }
 
+#ifdef __aarch64__ // FIXME
+    return false;
+#else
     if (console_type == console_type::text) {
         console_text_inst.console_cols = tc.cols;
         console_text_inst.console_rows = tc.rows;
@@ -1127,8 +1145,10 @@ export bool init_console(const loader_block_framebuffer& fb,
         flush_early_print();
 
     return true;
+#endif
 }
 
+#ifndef __aarch64__
 static void* ft_alloc(FT_Memory, long size) {
     return malloc((size_t)size);
 }
@@ -1284,6 +1304,7 @@ nt_status console::flush(bool go_readonly) {
 
     return nt_status::SUCCESS;
 }
+#endif
 
 nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
     list_entry del_list = { &del_list, &del_list };
@@ -1397,4 +1418,3 @@ nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
     return nt_status::SUCCESS;
 }
-#endif
