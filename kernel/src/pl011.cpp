@@ -227,11 +227,6 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length, string_view uid)
     // if (num == 0)
         // com1_pipe_handle.swap(send_handle);
 
-    // TESTING
-    uint64_t written;
-    static const uint8_t msg[] = "hello world\n";
-    send_pipe.write(msg, written);
-
     return true;
 }
 
