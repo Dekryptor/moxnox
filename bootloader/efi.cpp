@@ -1875,8 +1875,13 @@ static void start_kernel(uint64_t entry_point, uint64_t ttbr1, loader_block* lb)
         : "r" (ttbr1)
     );
 
-    // FIXME - call startup
-    while (true) { }
+    void (*startup)(loader_block* lb);
+
+    startup = (decltype(startup))entry_point;
+
+    startup(lb);
+
+    __builtin_unreachable();
 }
 
 #else
