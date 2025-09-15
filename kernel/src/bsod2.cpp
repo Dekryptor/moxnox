@@ -8,15 +8,15 @@
 #include "ints.h"
 
 #ifndef __aarch64__
-import chardev;
 import unwind;
 import interrupts;
 import smp;
-import pipe;
 import image;
 import apic;
 #endif
 
+import chardev;
+import pipe;
 import format;
 import dwarf;
 import config;
@@ -122,6 +122,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
         while (processors_left_to_halt > 0) { }
     }
+#endif
 
     auto& p = static_cast<chardev&>(console_chardev.get());
     uint64_t written;
@@ -144,7 +145,6 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     p.write(msg, written);
     p.write("\n", written);
-#endif
 
     auto& cb = *get_cpu_block();
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
@@ -152,7 +152,6 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     sp = format(sp, "{}:{}, {}, CPU {}\n",
                 sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
 
-#ifndef __aarch64__
     p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
             written);
 
@@ -160,6 +159,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     CONTEXT context;
 
+#ifndef __aarch64__
     __asm __volatile(
         "mov %0, rsp\n"
         "\tmov %1, rbp\n"
@@ -171,15 +171,19 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
         :
         : "rax"
     );
+#endif
 
     p.write("\n", written);
 
+#ifndef __aarch64__
     print_stacktrace(context, p, skip_callers);
+#endif
 
     p.flush(true);
 
     shutdown_pipes();
 
+#ifndef __aarch64__
     __asm("call halt_isr");
     __builtin_unreachable();
 #else

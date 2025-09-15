@@ -262,7 +262,7 @@ void main_thread() {
 
     bsod_format("init process died (exit code {})", init_process.exit_status);
 #else
-    while (true) { }
+    bsod("FIXME");
 #endif
 }
 
