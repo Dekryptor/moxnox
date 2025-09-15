@@ -21,6 +21,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/console.cpp
     src/bsod.cpp
     src/acpi.cpp
+    src/module_init.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -62,12 +63,13 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/process.cpp
     src/image.cpp
     src/guid.cpp
-    src/module_init.cpp
     src/power.cpp
     src/apic.cpp
 )
 
-set(AARCH64_MODULES ${GLOBAL_MODULES})
+set(AARCH64_MODULES ${GLOBAL_MODULES}
+    src/pl011.cpp
+)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_FILES src/kernel.cpp
