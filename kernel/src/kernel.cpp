@@ -9,7 +9,6 @@
 #include "process.h"
 
 #ifndef __aarch64__
-import acpi;
 import null;
 import list;
 import interrupts;
@@ -35,6 +34,7 @@ import cmdline;
 import mem;
 import thread;
 import console;
+import acpi;
 
 using namespace std;
 
@@ -182,9 +182,9 @@ static void keywait() {
 void main_thread() {
     print("\e[2J\e[1;1H");  // erase screen, move to top left
 
-#ifndef __aarch64__
     acpi_early_init_done = true;
 
+#ifndef __aarch64__
     free_lower_half_mappings();
 #endif
 
@@ -196,6 +196,7 @@ void main_thread() {
 
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
+#endif
 
     if (!init_acpi_done) {
         init_acpi();
@@ -203,6 +204,7 @@ void main_thread() {
         init_acpi_done = true;
     }
 
+#ifndef __aarch64__
     if (!init_keyboard_pipe())
         print("init_keyboard_pipe failed\n");
 
@@ -300,9 +302,7 @@ void startup(loader_block* lb) {
     debug_addr = span((uint8_t*)(uintptr_t)lb->debug_addr_ptr, lb->debug_addr_size);
     debug_str_offsets = span((uint8_t*)(uintptr_t)lb->debug_str_offsets_ptr, lb->debug_str_offsets_size);
 
-#ifndef __aarch64__
     rsdp_pa = lb->rsdp_pa;
-#endif
 
     if (!init_memory(*lb))
         goto hang;
@@ -330,9 +330,11 @@ void startup(loader_block* lb) {
 #ifndef __aarch64__
     if (!init_interrupts())
         goto hang;
+#endif
 
     init_acpi_early();
 
+#ifndef __aarch64__
     if (!init_apic())
         goto hang;
 
@@ -346,9 +348,9 @@ void startup(loader_block* lb) {
 
 #ifndef __aarch64__
     init_timer(); // leaves interrupts disabled
+#endif
 
     acquire_sync_lock();
-#endif
 
 #ifdef __aarch64__
     __asm __volatile ( // doesn't return

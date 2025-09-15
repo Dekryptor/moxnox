@@ -85,9 +85,9 @@ static const uint16_t kernel_DS = 0x10;
 export uint16_t last_tid; // FIXME
 
 #ifndef __aarch64__
-
 // process.cpp
 extern section* ntdll;
+#endif
 
 export ::thread* get_current_thread() {
     disable_preempt();
@@ -99,6 +99,7 @@ export ::thread* get_current_thread() {
     return t;
 }
 
+#ifndef __aarch64__
 export void thread_died(::thread& t, bool& last_thread, bool remove_from_proc) {
     t.status = thread_status::dead;
     t.signalled = true;

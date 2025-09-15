@@ -20,13 +20,13 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/print.cpp
     src/console.cpp
     src/bsod.cpp
+    src/acpi.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
     src/inout.cpp
     src/tmpfs.cpp
     src/cpio.cpp
-    src/acpi.cpp
     src/rtc.cpp
     src/ps2keyboard.cpp
     src/null.cpp

@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <string_view>
 #include <atomic>
+#include <mutex>
 #include "acpica.h"
 #include "tick_rate.h"
 #include "spinlock.h"
@@ -10,16 +11,19 @@ module;
 
 export module acpi;
 
-import format;
-import print;
+#ifndef __aarch64__
 import inout;
-import mem;
-import list;
 import interrupts;
 import semaphore;
 import timer;
 import rwsem;
 import apic;
+#endif
+
+import format;
+import print;
+import mem;
+import list;
 import thread;
 
 using namespace std;
@@ -38,8 +42,10 @@ struct acpi_irq_num {
     list_entry handlers = { &handlers, &handlers };
 };
 
+#ifndef __aarch64__
 static rwsem irq_handlers_lock;
 static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
+#endif
 
 export struct acpi_device {
     list_entry le;
@@ -142,6 +148,7 @@ static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
 }
 
+#ifndef __aarch64__
 static bool acpi_isr_func(void* ctx) {
     auto& n = *(acpi_irq_num*)ctx;
 
@@ -156,6 +163,7 @@ static bool acpi_isr_func(void* ctx) {
 
     return false;
 }
+#endif
 
 export void init_acpi_early() {
     ACPI_STATUS Status;
@@ -180,11 +188,13 @@ export void init_acpi_early() {
 }
 
 static void power_button_pressed_thread() {
+#ifndef __aarch64__ // FIXME
     // FIXME - should be calling NtShutdownSystem (why does it not work?)
 
     AcpiEnterSleepStatePrep(5);
     __asm("cli");
     AcpiEnterSleepState(5);
+#endif
 
     print("power off\n");
 }
@@ -729,6 +739,7 @@ void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS) {
 extern "C"
 ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits,
                                   ACPI_SEMAPHORE* OutHandle) {
+#ifndef __aarch64__ // FIXME
     auto ref = create_semaphore(MaxUnits);
 
     auto& sem = static_cast<semaphore&>(ref.get());
@@ -737,15 +748,18 @@ ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits,
     sem.current_count = InitialUnits;
 
     *OutHandle = &sem;
+#endif
 
     return AE_OK;
 }
 
 extern "C"
 ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle) {
+#ifndef __aarch64__ // FIXME
     auto& sem = *static_cast<semaphore*>(Handle);
 
     sem.release();
+#endif
 
     return AE_OK;
 }
@@ -756,6 +770,7 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
     if (!acpi_early_init_done)
         return AE_OK;
 
+#ifndef __aarch64__ // FIXME
     auto& sem = *static_cast<semaphore*>(Handle);
 
     // FIXME - Timeout
@@ -768,6 +783,7 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
     sem.acquire();
     wait_for_object(sem, true);
     sem.release();
+#endif
 
     return AE_OK;
 }
@@ -777,6 +793,7 @@ ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units) {
     if (!acpi_early_init_done)
         return AE_OK;
 
+#ifndef __aarch64__ // FIXME
     auto& sem = *static_cast<semaphore*>(Handle);
 
     if (Units != 1) {
@@ -785,6 +802,7 @@ ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units) {
     }
 
     release_semaphore(sem);
+#endif
 
     return AE_OK;
 }
@@ -812,6 +830,7 @@ extern "C"
 ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
                                           ACPI_OSD_HANDLER ServiceRoutine,
                                           void* Context) {
+#ifndef __aarch64__ // FIXME
     auto h = new acpi_irq_handler;
     if (!h)
         return AE_NO_MEMORY;
@@ -849,6 +868,7 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
 
         return AE_ERROR;
     }
+#endif
 
     return AE_OK;
 }
@@ -856,6 +876,7 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
 extern "C"
 ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber,
                                          ACPI_OSD_HANDLER ServiceRoutine) {
+#ifndef __aarch64__ // FIXME
     lock_guard lock(irq_handlers_lock);
 
     for (auto le = irq_handlers.next; le != &irq_handlers; le = le->next) {
@@ -878,6 +899,7 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber,
             return AE_NOT_FOUND;
         }
     }
+#endif
 
     return AE_NOT_FOUND;
 }
@@ -917,6 +939,9 @@ void AcpiOsStall(UINT32 /*Microseconds*/) {
 
 extern "C"
 ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32* Value, UINT32 Width) {
+#ifdef __aarch64__ // FIXME?
+    return AE_NOT_IMPLEMENTED;
+#else
     if (Width == 32)
         *Value = inl((uint16_t)Address);
     else if (Width == 16)
@@ -927,10 +952,14 @@ ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32* Value, UINT32 Width)
         return AE_BAD_PARAMETER;
 
     return AE_OK;
+#endif
 }
 
 extern "C"
 ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width) {
+#ifdef __aarch64__ // FIXME?
+    return AE_NOT_IMPLEMENTED;
+#else
     if (Width == 32)
         outl((uint16_t)Address, Value);
     else if (Width == 16)
@@ -941,6 +970,7 @@ ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width)
         return AE_BAD_PARAMETER;
 
     return AE_OK;
+#endif
 }
 
 extern "C"
@@ -1020,8 +1050,12 @@ ACPI_STATUS AcpiOsWritePciConfiguration(ACPI_PCI_ID* /*PciId*/, UINT32 /*Reg*/,
 
 extern "C"
 UINT64 AcpiOsGetTimer() {
+#ifdef __aarch64__ // FIXME
+    return 0;
+#else
     // convert to units of 100ns
     return (uint64_t)(system_time * 10000000 / SYSTEM_TIME_RESOLUTION);
+#endif
 }
 
 extern "C"

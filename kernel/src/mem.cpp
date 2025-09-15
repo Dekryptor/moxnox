@@ -219,15 +219,14 @@ void* memset(void* s, int c, size_t n) {
     return orig_s;
 }
 
-#ifndef __aarch64__
 export
 extern "C"
 int memcmp(const void* s1, const void* s2, size_t n) {
     // FIXME - not completely accurate, as 1 or -1 is messed up by endianness
 
     while (n > sizeof(uint64_t)) {
-        uint64_t c1 = *(uint64_t*)s1;
-        uint64_t c2 = *(uint64_t*)s2;
+        uint64_t c1 = *(__unaligned uint64_t*)s1;
+        uint64_t c2 = *(__unaligned uint64_t*)s2;
 
         if (c1 != c2)
             return c1 > c2 ? 1 : -1;
@@ -238,8 +237,8 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     }
 
     while (n > sizeof(uint32_t)) {
-        uint32_t c1 = *(uint32_t*)s1;
-        uint32_t c2 = *(uint32_t*)s2;
+        uint32_t c1 = *(__unaligned uint32_t*)s1;
+        uint32_t c2 = *(__unaligned uint32_t*)s2;
 
         if (c1 != c2)
             return c1 > c2 ? 1 : -1;
@@ -250,8 +249,8 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     }
 
     while (n > sizeof(uint16_t)) {
-        uint16_t c1 = *(uint16_t*)s1;
-        uint16_t c2 = *(uint16_t*)s2;
+        uint16_t c1 = *(__unaligned uint16_t*)s1;
+        uint16_t c2 = *(__unaligned uint16_t*)s2;
 
         if (c1 != c2)
             return c1 > c2 ? 1 : -1;
@@ -275,7 +274,6 @@ int memcmp(const void* s1, const void* s2, size_t n) {
 
     return 0;
 }
-#endif
 
 template<>
 consteval bool format_spec_valid<enum page_state>(string_view fmt) {
@@ -1792,7 +1790,6 @@ void* memchr(const void* ptr, int ch, size_t count) {
     return nullptr;
 }
 
-#ifndef __aarch64__
 export
 extern "C"
 int strcmp(const char* s1, const char* s2) {
@@ -1832,6 +1829,7 @@ char* strcpy(char* dest, const char* src) {
     return orig_dest;
 }
 
+#ifndef __aarch64__
 export
 extern "C"
 long int strtol(const char* nptr, char** endptr, int base) {
@@ -1915,6 +1913,7 @@ void* memmove(void* dest, const void* src, size_t n) {
 
     return orig_dest;
 }
+#endif
 
 export
 extern "C"
@@ -1936,7 +1935,6 @@ int strncmp(const char* s1, const char* s2, size_t n) {
 
     return 0;
 }
-#endif
 
 template<unsigned N, enum page_state S>
 void* allocator_folio<N, S>::malloc() {
