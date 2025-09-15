@@ -18,6 +18,7 @@ import print;
 import pipe;
 import object_ref;
 import format;
+import mem;
 
 using namespace std;
 
@@ -54,7 +55,7 @@ public:
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status flush(bool go_readonly) override;
 
-    bool ready = true;
+    bool init = false, ready = true;
     uint64_t base_address;
 };
 
@@ -84,9 +85,22 @@ nt_status pl011_out_pipe::flush(bool go_readonly) {
     return nt_status::SUCCESS;
 }
 
-pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t base_address,
-                               unsigned int base_clock, unsigned int baud_rate) : pipe(buffer_pages), base_address(base_address) {
-    // FIXME - map device memory
+pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t pa,
+                               unsigned int base_clock, unsigned int baud_rate) : pipe(buffer_pages) {
+    // FIXME - unallocate in destructor(?)
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return;
+    }
+
+    if (!map_page(pa, va, mapping_type::no_cache)) {
+        print("map_page failed\n");
+        free_va(va, 1);
+        return;
+    }
+
+    base_address = va;
 
     auto& UARTFR = *(volatile uint32_t*)(base_address + 0x18);
     auto& UARTIBRD = *(volatile uint32_t*)(base_address + 0x24);
@@ -121,6 +135,8 @@ pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t base_address,
 
     // enable transmission and UART
     UARTCR |= PL011_UARTCR_TXE | PL011_UARTCR_UARTEN;
+
+    init = true;
 }
 
 static object_ref create_pl011_out_pipe(unsigned int buffer_pages, uint64_t base_address,
@@ -129,6 +145,12 @@ static object_ref create_pl011_out_pipe(unsigned int buffer_pages, uint64_t base
                                    baud_rate);
     if (!pptr) {
         print("new failed\n");
+        return {};
+    }
+
+    if (!pptr->init) {
+        print("pl011_out_pipe::pl011_out_pipe failed\n");
+        delete pptr;
         return {};
     }
 
@@ -156,7 +178,10 @@ static optional<unsigned int> parse_uid(string_view uid) {
 }
 
 static bool init_pl011(uint64_t mem_start, uint64_t mem_length, string_view uid) {
-    // FIXME - make sure mem_length is sane
+    if (mem_length == 0) {
+        print("init_pl011: invalid mem_length {}\n", mem_length);
+        return false;
+    }
 
     // FIXME - interrupts
 
@@ -201,6 +226,11 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length, string_view uid)
     // FIXME - set com1_pipe_handle(?)
     // if (num == 0)
         // com1_pipe_handle.swap(send_handle);
+
+    // TESTING
+    uint64_t written;
+    static const uint8_t msg[] = "hello world\n";
+    send_pipe.write(msg, written);
 
     return true;
 }
