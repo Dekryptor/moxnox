@@ -956,7 +956,7 @@ static bool do_paging() {
 
         tcr.value = tcr_el1_load();
 
-        tcr.TG0 = 3; // 64KB granule size
+        tcr.TG0 = 0; // 4KB granule size
         tcr.T0SZ = 16; // 48-bit memory size
         tcr.T1SZ = 16; // 48-bit memory size
         tcr.HA = 0; // hardware access flag disabled
