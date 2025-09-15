@@ -8,10 +8,10 @@ module;
 #include <variant>
 #include "spinlock.h"
 
-#ifndef __aarch64__
 import rbtree;
 import event;
 import pipe;
+#ifndef __aarch64__
 import timer;
 #endif
 
@@ -22,7 +22,9 @@ import page_cache;
 import rwsem;
 #include "inode.h"
 import volume;
+#endif
 import chardev;
+#ifndef __aarch64__
 import semaphore;
 #include "process.h"
 #include "section.h"
@@ -47,6 +49,7 @@ static void visit_obj(object& obj, const T& func) {
         case object_type::timer:
             func(static_cast<timer&>(obj));
         break;
+#endif
 
         case object_type::event:
             func(static_cast<event&>(obj));
@@ -56,6 +59,7 @@ static void visit_obj(object& obj, const T& func) {
             func(static_cast<chardev&>(obj));
         break;
 
+#ifndef __aarch64__
         case object_type::semaphore:
             func(static_cast<semaphore&>(obj));
         break;
