@@ -650,7 +650,12 @@ export bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     p3.valid = 1;
     p3.table_entry = 1;
-    p3.AttrIndex = 0;
+
+    if (type == mapping_type::no_cache)
+        p3.AttrIndex = 1; // nGnRnE device memory
+    else
+        p3.AttrIndex = 0; // normal memory
+
     p3.AP = 0; // no access from userspace
     p3.SH = 3; // inner shareable
     p3.AF = 1;
