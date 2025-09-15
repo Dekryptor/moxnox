@@ -1,6 +1,7 @@
 #include <span>
 #include <optional>
 #include <string_view>
+#include <mutex>
 #include "spinlock.h"
 #include "process.h"
 
@@ -46,7 +47,6 @@ void object_ref::reset() {
         object_release(rw->get());
 }
 
-#ifndef __aarch64__
 nt_status name_object(object& obj, string_view name, bool persistent) {
     if (name.empty())
         return nt_status::OBJECT_NAME_INVALID;
@@ -95,6 +95,7 @@ nt_status name_object(object& obj, string_view name, bool persistent) {
     return nt_status::SUCCESS;
 }
 
+#ifndef __aarch64__
 nt_status open_object(string_view name, object_ref& obj) {
     if (name.empty()) {
         obj = {};
@@ -126,6 +127,7 @@ nt_status open_object(string_view name, object_ref& obj) {
     obj = {};
     return nt_status::OBJECT_NAME_NOT_FOUND;
 }
+#endif
 
 void remove_object_name(object& obj) {
     name_entry* ne = nullptr;
@@ -154,6 +156,7 @@ void remove_object_name(object& obj) {
     }
 }
 
+#ifndef __aarch64__
 void handle_closed(object& obj) {
     auto new_handle_count = --obj.handle_count;
 

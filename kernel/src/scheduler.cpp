@@ -183,9 +183,9 @@ void scheduler() {
     } while (true);
 }
 
-#ifndef __aarch64__
 nt_status wait_for_object(object& obj, bool interruptible,
                           optional<uint64_t> timeout) {
+#ifndef __aarch64__ // FIXME
 #ifdef DEBUG
     uint64_t cr8 = 0, rflags = 0;
 
@@ -281,7 +281,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
     if (timeout.has_value() && current_thread->wait_timeout == 0)
         return nt_status::TIMEOUT;
-
+#endif
     return nt_status::SUCCESS;
 }
 
@@ -341,6 +341,7 @@ unsigned int wake_up_waiters(list_entry& waiters) {
     return ret;
 }
 
+#ifndef __aarch64__
 extern "C"
 void wait_timeout_expired(thread* tptr) {
     // interrupts disabled and sync_lock held

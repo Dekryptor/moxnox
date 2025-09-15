@@ -1249,11 +1249,13 @@ export void* malloc_aligned(size_t size, size_t align) {
     }
 }
 
+export
 extern "C"
 void* malloc(size_t size) {
     return malloc_aligned(size, 1);
 }
 
+export
 extern "C"
 void* calloc(size_t nmemb, size_t size) {
     // FIXME - should test for overflow of nmemb * size
@@ -1279,6 +1281,7 @@ export constexpr uint64_t va_to_pa_phys(void* ptr) {
     return (phys_memory_pfn(ptr) << PAGE_SHIFT) | ((uintptr_t)ptr & (PAGE_SIZE - 1));
 }
 
+export
 extern "C"
 void free(void* ptr) {
     if (!ptr)

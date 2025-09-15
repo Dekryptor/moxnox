@@ -83,13 +83,11 @@ static void visit_obj(object& obj, const T& func) {
     }
 }
 
-#ifndef __aarch64__
 export void object_acquire(object& obj) {
     visit_obj(obj, [](auto&& o) {
         o.acquire();
     });
 }
-#endif
 
 export void object_release(object& obj) {
     visit_obj(obj, [](auto&& o) {
@@ -117,6 +115,7 @@ export void object_on_wake(object& obj) {
             o.on_wake();
     });
 }
+#endif
 
 export nt_status object_write_without_offset(object& obj, span<const uint8_t> buf,
                                              uint64_t& written) {
@@ -134,6 +133,7 @@ export nt_status object_write_without_offset(object& obj, span<const uint8_t> bu
     return status;
 }
 
+#ifndef __aarch64__
 export nt_status object_write_with_offset(object& obj, span<const uint8_t> s,
                                           uint64_t offset, uint64_t& written_bytes) {
     nt_status status;

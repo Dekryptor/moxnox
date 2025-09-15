@@ -22,6 +22,9 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/bsod.cpp
     src/acpi.cpp
     src/module_init.cpp
+    src/pipe.cpp
+    src/event.cpp
+    src/chardev.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -39,8 +42,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/vfs.cpp
     src/pe.cpp
     src/semaphore.cpp
-    src/event.cpp
-    src/pipe.cpp
     src/timer.cpp
     src/syscalls.cpp
     src/smp.cpp
@@ -48,7 +49,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/rwsem.cpp
     src/nvme.cpp
     src/virtio.cpp
-    src/chardev.cpp
     src/virtio_block.cpp
     src/virtio_console.cpp
     src/xhci.cpp

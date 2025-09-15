@@ -4,6 +4,7 @@ module;
 #include <optional>
 #include <atomic>
 #include <string_view>
+#include <mutex>
 import objects;
 #include "process.h"
 import event;
@@ -289,11 +290,11 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
             break;
 
         // block while we wait for space to become available
-
+#ifndef __aarch64__
         auto status = wait_for_object(not_full_event, true);
         if (!success(status))
             return status;
-
+#endif
         if (server_closed)
             break;
 
@@ -417,6 +418,7 @@ export void shutdown_pipes() {
     }
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                                const OBJECT_ATTRIBUTES* object_attributes,
@@ -563,3 +565,4 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     return nt_status::SUCCESS;
 }
+#endif

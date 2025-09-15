@@ -4,6 +4,7 @@ module;
 #include <functional>
 #include <atomic>
 #include <optional>
+#include <mutex>
 import objects;
 #include "spinlock.h"
 #include "scheduler.h"
@@ -83,6 +84,7 @@ void event::on_wake() {
         signalled = false;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* /*object_attributes*/,
@@ -143,3 +145,4 @@ NTSTATUS NtSetEvent(HANDLE event_handle, int32_t* /*previous_state*/) {
 
     return nt_status::SUCCESS;
 }
+#endif
