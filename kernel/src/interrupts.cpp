@@ -1030,3 +1030,12 @@ void single_step_user() {
 }
 
 #endif
+
+#ifdef __aarch64__
+
+extern "C"
+void handle_exception() {
+    bsod("FIXME - handle exception");
+}
+
+#endif
