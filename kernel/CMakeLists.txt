@@ -77,8 +77,9 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
         src/handle.cpp
         src/bsod2.cpp)
 
-    set(SRC_ASM_FILES src/mem-aarch64.S
-        src/timer-aarch64.S)
+    set(SRC_ASM_FILES src/ints-aarch64.S
+        src/timer-aarch64.S
+        src/mem-aarch64.S)
 
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})

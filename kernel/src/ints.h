@@ -1,6 +1,12 @@
 #pragma once
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+
+// ints-aarch64.S
+extern "C" void load_vector_table();
+
+#else
+
 // ints-x86.S
 extern "C" void page_fault_isr();
 extern "C" void double_fault_isr();
@@ -13,4 +19,5 @@ extern "C" void yield_isr();
 extern "C" void breakpoint_isr();
 extern "C" void single_step_isr();
 extern volatile uint32_t processors_left_to_halt;
+
 #endif

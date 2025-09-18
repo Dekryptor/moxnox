@@ -674,7 +674,7 @@ static bool setup_gdt(task_state_segment* tss) {
 
 #ifdef __aarch64__
 export bool init_interrupts() {
-    // FIXME
+    load_vector_table();
 
     return true;
 }
