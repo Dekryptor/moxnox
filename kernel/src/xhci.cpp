@@ -4,6 +4,9 @@ module;
 #include <stdint.h>
 #include <optional>
 #include <string_view>
+#include <mutex>
+#include <algorithm>
+#include <bit>
 #include "xhci.h"
 #include "spinlock.h"
 #include "tick_rate.h"

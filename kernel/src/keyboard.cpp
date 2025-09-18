@@ -2,6 +2,7 @@ module;
 
 #include <span>
 #include <atomic>
+#include <mutex>
 #include "handle.h"
 #include "spinlock.h"
 import objects;

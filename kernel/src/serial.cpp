@@ -5,6 +5,7 @@ module;
 #include <string_view>
 #include <charconv>
 #include <atomic>
+#include <mutex>
 #include "handle.h"
 #include "spinlock.h"
 import pipe;

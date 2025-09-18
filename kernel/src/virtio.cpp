@@ -1,6 +1,8 @@
 module;
 
 #include <optional>
+#include <mutex>
+#include <algorithm>
 #include "acpica.h"
 #include "virtio.h"
 #include "spinlock.h"

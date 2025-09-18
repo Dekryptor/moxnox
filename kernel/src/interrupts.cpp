@@ -5,6 +5,7 @@ module;
 #include <string_view>
 #include <optional>
 #include <functional>
+#include <mutex>
 #include <loaderblock.h>
 #include "acpica.h"
 import objects;

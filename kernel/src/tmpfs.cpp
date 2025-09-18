@@ -5,6 +5,7 @@ module;
 #include <span>
 #include <optional>
 #include <string_view>
+#include <mutex>
 import objects;
 #include "spinlock.h"
 import rbtree;

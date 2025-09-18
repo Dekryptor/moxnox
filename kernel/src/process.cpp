@@ -5,6 +5,7 @@ module;
 #include <string_view>
 #include <functional>
 #include <variant>
+#include <mutex>
 #include "rangelock.h"
 #include "cpu_block.h"
 import objects;
@@ -875,7 +876,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
     return address;
 }
 
-static bool populate_teb(process& proc, thread& t) {
+static bool populate_teb(process& proc, ::thread& t) {
     // only care about first page
     static_assert(offsetof(TEB, NtTib.Self) >> PAGE_SHIFT == 0);
     static_assert(offsetof(TEB, ProcessEnvironmentBlock) >> PAGE_SHIFT == 0);
@@ -1336,7 +1337,7 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     }
 
     while (true) {
-        thread* t;
+        ::thread* t;
 
         {
             lock_guard lock(p.threads_lock);
@@ -1344,7 +1345,7 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
             if (is_list_empty(p.threads))
                 break;
 
-            t = (thread*)((uint8_t*)p.threads.next - offsetof(thread, process_le));
+            t = (::thread*)((uint8_t*)p.threads.next - offsetof(::thread, process_le));
 
             t->exit_status = exit_status;
             terminate_thread(*t, false);
@@ -1373,7 +1374,7 @@ void process::resume() {
     auto le = threads.next;
 
     while (le != &threads) {
-        auto& t = *(thread*)((uint8_t*)le - offsetof(thread, process_le));
+        auto& t = *(::thread*)((uint8_t*)le - offsetof(::thread, process_le));
 
         t.suspend_count--;
 
@@ -1394,7 +1395,7 @@ void process::suspend() {
     auto le = threads.next;
 
     while (le != &threads) {
-        auto& t = *(thread*)((uint8_t*)le - offsetof(thread, process_le));
+        auto& t = *(::thread*)((uint8_t*)le - offsetof(::thread, process_le));
 
         t.suspend_count++;
 
@@ -2939,7 +2940,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     // FIXME - desired_access
     // FIXME - object_attributes
 
-    auto tptr = new (align_val_t(16)) thread;
+    auto tptr = new (align_val_t(16)) ::thread;
     if (!tptr)
         return nt_status::INSUFFICIENT_RESOURCES;;
 
@@ -3280,7 +3281,7 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
 }
 
 extern "C++"
-nt_status process::get_next_thread(thread* threadptr, ACCESS_MASK /*desired_access*/,
+nt_status process::get_next_thread(::thread* threadptr, ACCESS_MASK /*desired_access*/,
                                    uint32_t /*handle_attributes*/, uint32_t /*flags*/,
                                    HANDLE* new_thread_handle) {
     object_ref obj;
@@ -3292,18 +3293,18 @@ nt_status process::get_next_thread(thread* threadptr, ACCESS_MASK /*desired_acce
     {
         lock_guard lg(threads_lock);
 
-        thread* next_thread;
+        ::thread* next_thread;
 
         if (!threadptr) {
             if (is_list_empty(threads))
                 return nt_status::NO_MORE_ENTRIES;
 
-            next_thread = (thread*)((uint8_t*)threads.next - offsetof(thread, process_le));
+            next_thread = (::thread*)((uint8_t*)threads.next - offsetof(::thread, process_le));
         } else {
             if (threadptr->process_le.next == &threads)
                 return nt_status::NO_MORE_ENTRIES;
 
-            next_thread = (thread*)((uint8_t*)threadptr->process_le.next - offsetof(thread, process_le));
+            next_thread = (::thread*)((uint8_t*)threadptr->process_le.next - offsetof(::thread, process_le));
         }
 
         next_thread->acquire();
@@ -3350,7 +3351,7 @@ NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
             return nt_status::OBJECT_TYPE_MISMATCH;
     }
 
-    thread* threadptr;
+    ::thread* threadptr;
 
     if (thread_handle == NtCurrentThread()) {
         threadptr = get_current_thread();
@@ -3368,14 +3369,14 @@ NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
         if (obj.type != object_type::thread)
             return nt_status::OBJECT_TYPE_MISMATCH;
 
-        threadptr = static_cast<thread*>(&obj);
+        threadptr = static_cast<::thread*>(&obj);
     } else
         threadptr = nullptr;
 
     auto& p = static_cast<process&>(proc.get());
 
     if (threadobj) {
-        auto& t = static_cast<thread&>(threadobj.get());
+        auto& t = static_cast<::thread&>(threadobj.get());
 
         if (t.proc != &p)
             return nt_status::INVALID_PARAMETER;

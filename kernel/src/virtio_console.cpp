@@ -20,6 +20,7 @@ import virtio;
 import list;
 import module_init;
 import power;
+import mem;
 
 using namespace std;
 

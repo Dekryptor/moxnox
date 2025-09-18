@@ -2,6 +2,7 @@ module;
 
 #include <span>
 #include <optional>
+#include <mutex>
 #include "spinlock.h"
 import evdev;
 #include "qwerty.h"

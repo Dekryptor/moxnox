@@ -5,6 +5,7 @@ module;
 #include <optional>
 #include <functional>
 #include <string_view>
+#include <mutex>
 #include "spinlock.h"
 #include "process.h"
 import page_cache;

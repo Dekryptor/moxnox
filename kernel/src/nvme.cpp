@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <string_view>
 #include <shared_mutex>
+#include <mutex>
 #include "handle.h"
 #include "spinlock.h"
 #include "nvme.h"

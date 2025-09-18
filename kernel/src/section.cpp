@@ -7,6 +7,7 @@ module;
 #include <optional>
 #include <string_view>
 #include <functional>
+#include <mutex>
 #include "spinlock.h"
 import rbtree;
 import event;

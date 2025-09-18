@@ -2,6 +2,7 @@ module;
 
 #include <string_view>
 #include <span>
+#include <mutex>
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "handle.h"
@@ -20,6 +21,7 @@ import evdev;
 import timer;
 import module_init;
 import thread;
+import mem;
 
 using namespace std;
 

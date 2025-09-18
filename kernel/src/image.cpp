@@ -3,6 +3,7 @@ module;
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <span>
 
 import list;

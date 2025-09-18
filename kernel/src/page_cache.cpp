@@ -1,6 +1,8 @@
 module;
 
 #include <span>
+#include <mutex>
+#include <algorithm>
 #include <string.h>
 #include "spinlock.h"
 #include "rangelock.h"

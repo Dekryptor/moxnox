@@ -7,6 +7,7 @@ module;
 #include <functional>
 #include <atomic>
 #include <string_view>
+#include <mutex>
 import objects;
 #include "spinlock.h"
 import rbtree;
@@ -75,7 +76,7 @@ public:
     page_cache<volume> cache{*this};
 
     rwsem mount_lock;
-    optional<reference_wrapper<filesystem>> filesystem;
+    optional<reference_wrapper<::filesystem>> filesystem;
 };
 
 static_assert(cacheable_flushable<volume>);
