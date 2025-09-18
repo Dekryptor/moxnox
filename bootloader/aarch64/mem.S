@@ -1,6 +1,11 @@
 .equ SPSR_EL1_WITH_SP_EL1, 0x5
 
-.equ HCR_RW, 1 << 31
+.equ HCR_EL2_E2H, 1 << 34
+.equ HCR_EL2_RW, 1 << 31
+.equ HCR_EL2_TGE, 1 << 27
+.equ HCR_EL2_AMO, 1 << 5
+.equ HCR_EL2_IMO, 1 << 4
+.equ HCR_EL2_FMO, 1 << 3
 
 .text
 
@@ -26,9 +31,14 @@ msr	elr_el2, lr
 mov	x0, SPSR_EL1_WITH_SP_EL1
 msr	spsr_el2, x0
 
-// set EL1 to 64-bit mode
 mrs	x0, hcr_el2
-orr	x0, x0, HCR_RW
+// set EL1 to 64-bit mode
+orr	x0, x0, HCR_EL2_RW
+// handle SErrors, IRQs, and FIQs in EL1
+orr x0, x0, HCR_EL2_AMO | HCR_EL2_IMO | HCR_EL2_FMO
+// don't route synchronous exceptions to EL2
+and x0, x0, ~HCR_EL2_E2H
+and x0, x0, ~HCR_EL2_TGE
 msr	hcr_el2, x0
 
 eret
@@ -49,7 +59,7 @@ msr	spsr_el3, x0
 
 // set EL1 to 64-bit mode
 mrs	x0, hcr_el2
-orr	x0, x0, HCR_RW
+orr	x0, x0, HCR_EL2_RW
 msr	hcr_el2, x0
 
 eret
