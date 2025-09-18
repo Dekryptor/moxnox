@@ -167,6 +167,13 @@ else()
     target_include_directories(freetype-static PRIVATE include)
     target_include_directories(freetype-static PUBLIC freetype/include)
 
+    # undo freetype's dllexport markings
+    add_custom_command(
+        TARGET freetype-static
+        POST_BUILD
+        COMMAND objcopy --remove-section .drectve "${CMAKE_CURRENT_BINARY_DIR}/libfreetype-static.a"
+    )
+
     add_library(freetype SHARED ${FREETYPE_FILES} ${CMAKE_SOURCE_DIR}/ftshim.cpp)
 
     target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
