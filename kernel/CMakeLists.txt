@@ -89,7 +89,7 @@ else()
         src/file.cpp
         src/bsod2.cpp)
 
-    set(SRC_ASM_FILES src/ints.S
+    set(SRC_ASM_FILES src/ints-x86.S
         src/timer-x86.S
         src/smp.S
         src/syscalls.S
