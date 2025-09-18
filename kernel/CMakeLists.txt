@@ -25,6 +25,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/pipe.cpp
     src/event.cpp
     src/chardev.cpp
+    src/interrupts.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -34,7 +35,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/rtc.cpp
     src/ps2keyboard.cpp
     src/null.cpp
-    src/interrupts.cpp
     src/serial.cpp
     src/btrfs.cpp
     src/sata.cpp

@@ -9,7 +9,6 @@
 
 #ifndef __aarch64__
 import unwind;
-import interrupts;
 import smp;
 import image;
 import apic;
@@ -21,6 +20,7 @@ import format;
 import dwarf;
 import config;
 import console;
+import interrupts;
 
 using namespace std;
 

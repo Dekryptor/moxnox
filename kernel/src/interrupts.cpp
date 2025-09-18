@@ -19,17 +19,21 @@ import objects;
 
 export module interrupts;
 
+#ifndef __aarch64__
+import apic;
+#endif
+
 import format;
 import print;
 import bsod;
 import mem;
 import config;
 import list;
-import apic;
-import thread;
 import thread;
 
 using namespace std;
+
+#ifndef __aarch64__
 
 // tlb.S
 extern "C" void invalidate_tlb_isr();
@@ -666,7 +670,15 @@ static bool setup_gdt(task_state_segment* tss) {
 
     return true;
 }
+#endif
 
+#ifdef __aarch64__
+export bool init_interrupts() {
+    // FIXME
+
+    return true;
+}
+#else
 export bool init_interrupts() {
     if (!setup_idt())
         return false;
@@ -680,7 +692,9 @@ export bool init_interrupts() {
 
     return true;
 }
+#endif
 
+#ifndef __aarch64__
 static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
                         nt_status exit_status) {
     auto& current_thread = *get_current_thread();
@@ -1014,3 +1028,5 @@ void single_step_user() {
 
     send_signal(er, ctx, nt_status::SINGLE_STEP);
 }
+
+#endif

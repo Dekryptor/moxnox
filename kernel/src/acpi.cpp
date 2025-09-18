@@ -13,7 +13,6 @@ export module acpi;
 
 #ifndef __aarch64__
 import inout;
-import interrupts;
 import semaphore;
 import timer;
 import rwsem;
@@ -25,6 +24,7 @@ import print;
 import mem;
 import list;
 import thread;
+import interrupts;
 
 using namespace std;
 

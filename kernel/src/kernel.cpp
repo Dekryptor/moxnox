@@ -11,7 +11,6 @@
 #ifndef __aarch64__
 import null;
 import list;
-import interrupts;
 import serial;
 import pci;
 import vfs;
@@ -35,6 +34,7 @@ import mem;
 import thread;
 import console;
 import acpi;
+import interrupts;
 
 using namespace std;
 
@@ -331,10 +331,8 @@ void startup(loader_block* lb) {
         goto hang;
 #endif
 
-#ifndef __aarch64__
     if (!init_interrupts())
         goto hang;
-#endif
 
     init_acpi_early();
 
