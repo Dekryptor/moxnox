@@ -3,6 +3,7 @@
 #ifdef __aarch64__
 
 #define GS_CURRENT_THREAD 0x8
+#define GS_CONTEXT 0x20
 #define GS_SCHEDULER_STACK 0x3c0
 
 #define THREAD_CONTEXT 0x30

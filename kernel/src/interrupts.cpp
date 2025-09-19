@@ -869,6 +869,8 @@ void general_protection_fault_user() {
     send_signal(er, ctx, nt_status::ACCESS_VIOLATION);
 }
 
+#endif
+
 extern "C"
 void invalid_opcode_kernel() {
     auto& cb = *get_cpu_block();
@@ -889,6 +891,8 @@ void invalid_opcode_kernel() {
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
 }
+
+#ifndef __aarch64__
 
 extern "C"
 void invalid_opcode_user() {
@@ -1034,8 +1038,9 @@ void single_step_user() {
 #ifdef __aarch64__
 
 extern "C"
-void handle_exception() {
-    bsod("FIXME - handle exception");
+void handle_kernel_exception() {
+    // FIXME - determine what type of exception it is
+    invalid_opcode_kernel();
 }
 
 #endif
