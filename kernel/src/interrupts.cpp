@@ -791,7 +791,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
 }
 
 extern "C"
-void page_fault(uintptr_t address, uint64_t error_code) {
+void page_fault_kernel(uintptr_t address, uint64_t error_code) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
 
@@ -1052,6 +1052,9 @@ void single_step_user() {
 static void unhandled_kernel_exception(uint64_t esr_value) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
+    ARM64_ESR esr;
+
+    esr.value = esr_value;
 
     char s[1024];
     auto sp = span(s, sizeof(s));
@@ -1063,7 +1066,37 @@ static void unhandled_kernel_exception(uint64_t esr_value) {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {} (ESR_EL1 = {:08x})\n", cb.cpu_no, esr_value);
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
+    sp = format(sp, "ESR_EL1 = {:08x} (ISS = {:x}, IL = {:x}, EC = {:x}, ISS2 = {:x})\n",
+                esr_value, esr.ISS, esr.IL, esr.EC, esr.ISS2);
+    sp = format(sp, "{}", cb.thread_context);
+
+    bsod(string_view(s, (size_t)(sp.data() - s)));
+}
+
+static void page_fault_kernel() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+    uint64_t address;
+
+    __asm __volatile (
+        "mrs %x[res], far_el1"
+        : [res] "=r" (address)
+    );
+
+    // FIXME - print what variety of page fault it is, using ISS in ESR_EL1
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = format(sp, "Page fault in kernel mode (address = {:x}, ", address);
+
+    if (!current_thread)
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
+
+    sp = format(sp, ", CPU {})\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
@@ -1076,9 +1109,14 @@ void handle_kernel_exception(uint64_t esr_value) {
     esr.value = esr_value;
 
     switch (esr.EC) {
-        case 0:
-            // FIXME - "unknown reason", might actually be other things
+        case 0: // "Unknown reason"
+            // FIXME - might actually be other things
             invalid_opcode_kernel();
+            break;
+
+        case 0x21: // Instruction Abort from same EL
+        case 0x25: // Data Abort from same EL
+            page_fault_kernel();
             break;
 
         default:

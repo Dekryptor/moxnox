@@ -206,7 +206,7 @@ page_fault_user_exception:
 1:
     mov rcx, cr2
     mov rdx, [rsp+0x20]
-    call page_fault
+    call page_fault_kernel
     jmp page_fault_end
 
 2:
