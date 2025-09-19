@@ -571,6 +571,111 @@ consteval bool format_spec_valid<AMD64_CONTEXT>(string_view fmt) {
     return fmt.empty();
 }
 
+span<char> do_format_arg(span<char> sp, string_view, const ARM64_NT_CONTEXT& ctx) {
+    sp = sp_strcpy(sp, " x0=");
+    sp = sp_itoa_hex(sp, ctx.X0, 16, true);
+    sp = sp_strcpy(sp, "  x1=");
+    sp = sp_itoa_hex(sp, ctx.X1, 16, true);
+    sp = sp_strcpy(sp, "  x2=");
+    sp = sp_itoa_hex(sp, ctx.X2, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, " x3=");
+    sp = sp_itoa_hex(sp, ctx.X3, 16, true);
+    sp = sp_strcpy(sp, "  x4=");
+    sp = sp_itoa_hex(sp, ctx.X4, 16, true);
+    sp = sp_strcpy(sp, "  x5=");
+    sp = sp_itoa_hex(sp, ctx.X5, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, " x6=");
+    sp = sp_itoa_hex(sp, ctx.X6, 16, true);
+    sp = sp_strcpy(sp, "  x7=");
+    sp = sp_itoa_hex(sp, ctx.X7, 16, true);
+    sp = sp_strcpy(sp, "  x8=");
+    sp = sp_itoa_hex(sp, ctx.X8, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, " x9=");
+    sp = sp_itoa_hex(sp, ctx.X9, 16, true);
+    sp = sp_strcpy(sp, " x10=");
+    sp = sp_itoa_hex(sp, ctx.X10, 16, true);
+    sp = sp_strcpy(sp, " x11=");
+    sp = sp_itoa_hex(sp, ctx.X11, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, "x12=");
+    sp = sp_itoa_hex(sp, ctx.X12, 16, true);
+    sp = sp_strcpy(sp, " x13=");
+    sp = sp_itoa_hex(sp, ctx.X13, 16, true);
+    sp = sp_strcpy(sp, " x14=");
+    sp = sp_itoa_hex(sp, ctx.X14, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, "x15=");
+    sp = sp_itoa_hex(sp, ctx.X15, 16, true);
+    sp = sp_strcpy(sp, " x16=");
+    sp = sp_itoa_hex(sp, ctx.X16, 16, true);
+    sp = sp_strcpy(sp, " x17=");
+    sp = sp_itoa_hex(sp, ctx.X17, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, "x18=");
+    sp = sp_itoa_hex(sp, ctx.X18, 16, true);
+    sp = sp_strcpy(sp, " x19=");
+    sp = sp_itoa_hex(sp, ctx.X19, 16, true);
+    sp = sp_strcpy(sp, " x20=");
+    sp = sp_itoa_hex(sp, ctx.X20, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, "x21=");
+    sp = sp_itoa_hex(sp, ctx.X21, 16, true);
+    sp = sp_strcpy(sp, " x22=");
+    sp = sp_itoa_hex(sp, ctx.X22, 16, true);
+    sp = sp_strcpy(sp, " x23=");
+    sp = sp_itoa_hex(sp, ctx.X23, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, "x24=");
+    sp = sp_itoa_hex(sp, ctx.X24, 16, true);
+    sp = sp_strcpy(sp, " x25=");
+    sp = sp_itoa_hex(sp, ctx.X25, 16, true);
+    sp = sp_strcpy(sp, " x26=");
+    sp = sp_itoa_hex(sp, ctx.X26, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, "x27=");
+    sp = sp_itoa_hex(sp, ctx.X27, 16, true);
+    sp = sp_strcpy(sp, " x28=");
+    sp = sp_itoa_hex(sp, ctx.X28, 16, true);
+    sp = sp_strcpy(sp, "  fp=");
+    sp = sp_itoa_hex(sp, ctx.Fp, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, " lr=");
+    sp = sp_itoa_hex(sp, ctx.Lr, 16, true);
+    sp = sp_strcpy(sp, "  sp=");
+    sp = sp_itoa_hex(sp, ctx.Sp, 16, true);
+    sp = sp_strcpy(sp, "  pc=");
+    sp = sp_itoa_hex(sp, ctx.Pc, 16, true);
+    sp = sp_strcpy(sp, "\n");
+
+    sp = sp_strcpy(sp, "cpsr=");
+    sp = sp_itoa_hex(sp, ctx.Cpsr, 8, true);
+    sp = sp_strcpy(sp, " fpcr=");
+    sp = sp_itoa_hex(sp, ctx.Fpcr, 8, true);
+    sp = sp_strcpy(sp, " fpsr=");
+    sp = sp_itoa_hex(sp, ctx.Fpsr, 8, true);
+    sp = sp_strcpy(sp, "\n");
+
+    return sp;
+}
+
+template<>
+consteval bool format_spec_valid<ARM64_NT_CONTEXT>(string_view fmt) {
+    return fmt.empty();
+}
+
 span<char> sp_u16string_view(span<char> buf, u16string_view u16sv) {
     if (buf.empty())
         return buf;
