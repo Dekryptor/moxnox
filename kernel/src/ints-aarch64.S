@@ -142,4 +142,5 @@ str	x1, [x0, #CONTEXT_X0 + 0x8]
 ldr	x1, [sp]
 str	x1, [x0, #CONTEXT_X0]
 
+mrs	x0, esr_el1
 b	handle_kernel_exception

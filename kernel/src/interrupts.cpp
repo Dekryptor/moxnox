@@ -33,7 +33,19 @@ import thread;
 
 using namespace std;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+
+union ARM64_ESR {
+    struct {
+        uint64_t ISS : 25;
+        uint64_t IL : 1;
+        uint64_t EC : 6;
+        uint64_t ISS2 : 24;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+#else
 
 // tlb.S
 extern "C" void invalidate_tlb_isr();
@@ -1037,10 +1049,42 @@ void single_step_user() {
 
 #ifdef __aarch64__
 
+static void unhandled_kernel_exception(uint64_t esr_value) {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = format(sp, "Unhandled exception in kernel mode, ");
+
+    if (!current_thread)
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
+
+    sp = format(sp, ", CPU {} (ESR_EL1 = {:08x})\n", cb.cpu_no, esr_value);
+    sp = format(sp, "{}", cb.thread_context);
+
+    bsod(string_view(s, (size_t)(sp.data() - s)));
+}
+
 extern "C"
-void handle_kernel_exception() {
-    // FIXME - determine what type of exception it is
-    invalid_opcode_kernel();
+void handle_kernel_exception(uint64_t esr_value) {
+    ARM64_ESR esr;
+
+    esr.value = esr_value;
+
+    switch (esr.EC) {
+        case 0:
+            // FIXME - "unknown reason", might actually be other things
+            invalid_opcode_kernel();
+            break;
+
+        default:
+            unhandled_kernel_exception(esr_value);
+            break;
+    }
 }
 
 #endif
