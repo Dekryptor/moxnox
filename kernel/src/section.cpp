@@ -9,7 +9,6 @@ module;
 #include <functional>
 #include <mutex>
 #include "spinlock.h"
-#include "inode.h"
 #include "file.h"
 #include <pe.h>
 #include <utility>

@@ -65,6 +65,7 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/guid.cpp
     src/power.cpp
     src/apic.cpp
+    src/inode.cpp
 )
 
 set(AARCH64_MODULES ${GLOBAL_MODULES}

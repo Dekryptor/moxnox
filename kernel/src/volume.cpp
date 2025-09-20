@@ -9,7 +9,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include "spinlock.h"
-#include "inode.h"
 #include "handle.h"
 #include "scheduler.h"
 #include "assert.h"
@@ -24,6 +23,8 @@ import list;
 import event;
 import thread;
 import guid;
+import page_cache;
+import rwsem;
 
 #include "volume.h"
 

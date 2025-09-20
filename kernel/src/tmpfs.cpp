@@ -7,7 +7,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include "spinlock.h"
-#include "inode.h"
 #include "file.h"
 #include "assert.h"
 
@@ -24,6 +23,7 @@ import timer;
 import vfs;
 import unicode;
 import object_ref;
+import page_cache;
 
 using namespace std;
 

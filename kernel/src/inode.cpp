@@ -1,13 +1,18 @@
-#pragma once
+module;
 
 #include <nt.h>
+#include <span>
+
+export module inode;
 
 import list;
 import objects;
 import page_cache;
 import rwsem;
 
-enum class inode_type : uint8_t {
+using namespace std;
+
+export enum class inode_type : uint8_t {
     unknown = 0,
     file = 1,
     directory = 2,
@@ -19,9 +24,9 @@ enum class inode_type : uint8_t {
     ea = 8
 };
 
-class filesystem;
+extern "C++" class filesystem;
 
-class inode : public object {
+export extern "C++" class inode : public object {
 public:
     inode(filesystem& fs) : object(object_type::inode), fs(fs) { }
 

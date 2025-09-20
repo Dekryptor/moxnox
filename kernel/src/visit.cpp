@@ -8,14 +8,13 @@ module;
 #include <variant>
 #include "spinlock.h"
 
+#include "thread.h"
+
 #ifndef __aarch64__
-#include "inode.h"
 #include "process.h"
 #include "section.h"
 #include "file.h"
 #endif
-
-#include "thread.h"
 
 export module visit;
 

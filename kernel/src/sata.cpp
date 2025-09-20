@@ -7,7 +7,6 @@ module;
 #include <string.h>
 #include "spinlock.h"
 #include "handle.h"
-#include "inode.h"
 #include "tick_rate.h"
 #include "scheduler.h"
 
@@ -27,6 +26,8 @@ import pci;
 import timer;
 import module_init;
 import thread;
+import page_cache;
+import rwsem;
 
 #include "sata.h"
 

@@ -12,7 +12,6 @@ module;
 #include "spinlock.h"
 #include "thread.h"
 #include "process.h"
-#include "inode.h"
 #include "file.h"
 #include "mapping.h"
 #include <pe.h>
@@ -39,6 +38,7 @@ import section;
 import apic;
 import thread;
 import rangelock;
+import rwsem;
 
 using namespace std;
 

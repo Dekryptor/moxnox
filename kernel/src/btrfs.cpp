@@ -10,7 +10,6 @@ module;
 #include "crc32c.h"
 #include "tick_rate.h"
 #include "spinlock.h"
-#include "inode.h"
 #include "file.h"
 #include "scheduler.h"
 #include "assert.h"
@@ -35,6 +34,8 @@ import object_ref;
 import config;
 import rbtree;
 import rangelock;
+import rwsem;
+import page_cache;
 
 using namespace std;
 

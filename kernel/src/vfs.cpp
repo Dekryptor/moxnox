@@ -8,7 +8,6 @@ module;
 #include <mutex>
 #include "spinlock.h"
 #include "process.h"
-#include "inode.h"
 #include "file.h"
 
 export module vfs;
@@ -26,6 +25,7 @@ import cmdline;
 import thread;
 import volume;
 import visit;
+import rwsem;
 
 using namespace std;
 

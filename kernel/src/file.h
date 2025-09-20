@@ -1,5 +1,9 @@
 #pragma once
 
+import inode;
+import list;
+import objects;
+
 struct dentry {
     ~dentry() {
         if (inode)
