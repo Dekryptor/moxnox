@@ -1847,7 +1847,8 @@ __attribute__((noreturn))
 static void start_kernel(uint64_t entry_point, uint64_t ttbr1, loader_block* lb) {
     // FIXME - to EL1 if EL2
 
-    // FIXME - disable interrupts?
+    // disable interrupts
+    __asm __volatile ("msr DAIFSet, #0xf");
 
     // FPU already enabled as per spec
 

@@ -1338,6 +1338,9 @@ void start(uint64_t dtb, uint64_t image_base) {
     lb.map_ptr = (uintptr_t)mem_entries;
     lb.num_map_entries = mem_entries_count;
 
+    // disable interrupts
+    __asm __volatile ("msr DAIFSet, #0xf");
+
     enable_fpu();
 
     if (!do_relocations((uint8_t*)img_addr)) {
