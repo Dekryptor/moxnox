@@ -332,10 +332,10 @@ void startup(loader_block* lb) {
         goto hang;
 #endif
 
+    init_acpi_early();
+
     if (!init_interrupts())
         goto hang;
-
-    init_acpi_early();
 
 #ifndef __aarch64__
     if (!init_apic())

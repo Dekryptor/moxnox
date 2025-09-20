@@ -686,7 +686,62 @@ static bool setup_gdt(task_state_segment* tss) {
 
 #ifdef __aarch64__
 export bool init_interrupts() {
+    ACPI_TABLE_HEADER* tbl;
+
     load_vector_table();
+
+    // FIXME - devicetree version
+
+    auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for MADT\n", status);
+        return false;
+    }
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MADT)) {
+        print("MADT table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_MADT));
+        return false;
+    }
+
+    span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
+              tbl->Length - sizeof(ACPI_TABLE_MADT));
+    optional<uint64_t> gicc_addr, gicd_addr;
+
+    auto data = madt;
+    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
+        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
+
+        switch (h.Type) {
+            case ACPI_MADT_TYPE_GENERIC_INTERRUPT:
+                if (!gicc_addr.has_value()) {
+                    auto& ent = *(ACPI_MADT_GENERIC_INTERRUPT*)data.data();
+
+                    gicc_addr = ent.BaseAddress;
+                }
+                break;
+
+            case ACPI_MADT_TYPE_GENERIC_DISTRIBUTOR:
+                if (!gicd_addr.has_value()) {
+                    auto& ent = *(ACPI_MADT_GENERIC_DISTRIBUTOR*)data.data();
+
+                    gicd_addr = ent.BaseAddress;
+                }
+                break;
+        }
+
+        data = data.subspan(h.Length);
+    }
+
+    if (!gicc_addr.has_value()) {
+        print("unable to find address of GIC controller\n");
+        return false;
+    }
+
+    if (!gicd_addr.has_value()) {
+        print("unable to find address of GIC distributor\n");
+        return false;
+    }
 
     return true;
 }
