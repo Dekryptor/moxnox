@@ -45,6 +45,43 @@ union ARM64_ESR {
     uint64_t value;
 } __attribute((packed));
 
+union ARM64_GICD_CTLR {
+    struct {
+        uint32_t EnableGrp0 : 1;
+        uint32_t EnableGrp1NS : 1;
+        uint32_t EnableGrp1S : 1;
+        uint32_t : 1;
+        uint32_t ARE_S : 1;
+        uint32_t ARE_NS : 1;
+        uint32_t DS : 1;
+        uint32_t E1NWF : 1;
+        uint32_t nASSGIreq : 1;
+        uint32_t : 22;
+        uint32_t RWP : 1;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+union ARM64_GICC_CTLR {
+    struct {
+        uint32_t EnableGrp0 : 1;
+        uint32_t EnableGrp1 : 1;
+        uint32_t  : 1;
+        uint32_t FIQEn : 1;
+        uint32_t CBPR : 1;
+        uint32_t FIQBypDisGrp0 : 1;
+        uint32_t IRQBypDisGrp0 : 1;
+        uint32_t FIQBypDisGrp1 : 1;
+        uint32_t IRQBypDisGrp1 : 1;
+        uint32_t EOImodeS : 1;
+        uint32_t EOImodeNS : 1;
+        uint32_t : 21;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+static uint64_t gicc, gicd;
+
 #else
 
 // tlb.S
@@ -685,10 +722,9 @@ static bool setup_gdt(task_state_segment* tss) {
 #endif
 
 #ifdef __aarch64__
-export bool init_interrupts() {
+static bool find_gic_addresses(optional<uint64_t>& gicc_addr,
+                               optional<uint64_t>& gicd_addr) {
     ACPI_TABLE_HEADER* tbl;
-
-    load_vector_table();
 
     // FIXME - devicetree version
 
@@ -706,7 +742,6 @@ export bool init_interrupts() {
 
     span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
               tbl->Length - sizeof(ACPI_TABLE_MADT));
-    optional<uint64_t> gicc_addr, gicd_addr;
 
     auto data = madt;
     while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
@@ -733,6 +768,17 @@ export bool init_interrupts() {
         data = data.subspan(h.Length);
     }
 
+    return true;
+}
+
+export bool init_interrupts() {
+    optional<uint64_t> gicc_addr, gicd_addr;
+
+    load_vector_table();
+
+    if (!find_gic_addresses(gicc_addr, gicd_addr))
+        return false;
+
     if (!gicc_addr.has_value()) {
         print("unable to find address of GIC controller\n");
         return false;
@@ -742,6 +788,40 @@ export bool init_interrupts() {
         print("unable to find address of GIC distributor\n");
         return false;
     }
+
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return false;
+    }
+
+    if (!map_page(*gicc_addr, va, mapping_type::no_cache)) {
+        print("map_page failed\n");
+        free_va(va, 1);
+        return false;
+    }
+
+    gicc = va;
+
+    va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return false;
+    }
+
+    if (!map_page(*gicd_addr, va, mapping_type::no_cache)) {
+        print("map_page failed\n");
+        free_va(va, 1);
+        return false;
+    }
+
+    gicd = va;
+
+    auto& GICD_CTLR = *(volatile ARM64_GICD_CTLR*)gicd;
+    auto& GICC_CTLR = *(volatile ARM64_GICD_CTLR*)gicc;
+
+    GICD_CTLR.EnableGrp0 = 1; // enable GICD
+    GICC_CTLR.EnableGrp0 = 1; // enable GICC
 
     return true;
 }
