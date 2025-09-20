@@ -21,11 +21,11 @@ export module visit;
 import event;
 import pipe;
 #ifndef __aarch64__
-import timer;
 import volume;
 import semaphore;
 #endif
 import chardev;
+import timer;
 
 using namespace std;
 
@@ -37,11 +37,9 @@ static void visit_obj(object& obj, const T& func) {
             func(static_cast<thread&>(obj));
         break;
 
-#ifndef __aarch64__
         case object_type::timer:
             func(static_cast<timer&>(obj));
         break;
-#endif
 
         case object_type::event:
             func(static_cast<event&>(obj));

@@ -14,9 +14,12 @@ import print;
 import list;
 import interrupts;
 import bsod;
+import thread;
+
+#ifndef __aarch64__
 import inout;
 import apic;
-import thread;
+#endif
 
 using namespace std;
 
@@ -51,6 +54,8 @@ public:
 
 static_assert(is_sync_object<timer>);
 static_assert(object_has_on_wake<timer>);
+
+#ifndef __aarch64__
 
 static_assert(offsetof(timer, le) == TIMER_LE);
 static_assert(offsetof(timer, ticks_left) == TIMER_TICKS_LEFT);
@@ -103,7 +108,13 @@ export void pit_delay(uint16_t delay) {
             break;
     }
 }
+#endif
 
+#ifdef __aarch64__
+export void init_timer() {
+    // FIXME
+}
+#else
 export void init_timer() {
     __asm __volatile("cli");
 
@@ -131,6 +142,7 @@ export void init_timer() {
 
     init_lapic_timer(false);
 }
+#endif
 
 export object_ref create_timer(bool autoreset) {
     auto tptr = new timer;
@@ -186,6 +198,7 @@ timer::~timer() {
     }
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
     SystemTime->QuadPart = (int64_t)((uint64_t)system_time + system_time_offset);
@@ -334,3 +347,4 @@ NTSTATUS NtDelayExecution(bool /*alertable*/, const LARGE_INTEGER* delay_interva
 
     return wait_for_object(t, true);
 }
+#endif

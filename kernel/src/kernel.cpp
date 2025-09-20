@@ -16,7 +16,6 @@ import pci;
 import vfs;
 import pe;
 import chardev;
-import timer;
 import syscalls;
 import smp;
 import evdev;
@@ -35,6 +34,7 @@ import thread;
 import console;
 import acpi;
 import interrupts;
+import timer;
 
 using namespace std;
 
@@ -348,9 +348,7 @@ void startup(loader_block* lb) {
 
     // FIXME - C++ exceptions
 
-#ifndef __aarch64__
     init_timer(); // leaves interrupts disabled
-#endif
 
     acquire_sync_lock();
 

@@ -26,6 +26,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/event.cpp
     src/chardev.cpp
     src/interrupts.cpp
+    src/timer.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -42,7 +43,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/vfs.cpp
     src/pe.cpp
     src/semaphore.cpp
-    src/timer.cpp
     src/syscalls.cpp
     src/smp.cpp
     src/volume.cpp
