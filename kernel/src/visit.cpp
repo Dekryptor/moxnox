@@ -8,8 +8,6 @@ module;
 #include <variant>
 #include "spinlock.h"
 
-import objects;
-
 #ifndef __aarch64__
 import page_cache;
 import rwsem;

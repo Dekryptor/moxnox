@@ -5,7 +5,6 @@ module;
 #include <optional>
 #include <span>
 #include "cpu_block.h"
-import objects;
 #include "thread.h"
 #include "rangelock.h"
 #include "scheduler.h"

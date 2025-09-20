@@ -7,7 +7,6 @@ module;
 #include <functional>
 #include <atomic>
 #include <mutex>
-import objects;
 #include "spinlock.h"
 #include "thread.h"
 #include "scheduler.h"

@@ -3,6 +3,7 @@
 #include <nt.h>
 
 import list;
+import objects;
 
 enum class inode_type : uint8_t {
     unknown = 0,

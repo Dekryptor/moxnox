@@ -4,7 +4,6 @@ module;
 #include <span>
 #include <optional>
 #include "cpu_block.h"
-import objects;
 #include "thread.h"
 #include "scheduler.h"
 #include "assert.h"

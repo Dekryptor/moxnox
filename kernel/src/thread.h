@@ -7,6 +7,7 @@
 
 import list;
 import object_ref;
+import objects;
 
 enum class thread_status {
     runnable,

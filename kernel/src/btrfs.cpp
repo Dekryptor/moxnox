@@ -12,7 +12,6 @@ module;
 #include "spinlock.h"
 import page_cache;
 import rwsem;
-import objects;
 #include "inode.h"
 #include "file.h"
 #include "scheduler.h"

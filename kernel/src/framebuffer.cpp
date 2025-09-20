@@ -10,7 +10,6 @@ module;
 #include <mutex>
 #include "spinlock.h"
 import page_cache;
-import objects;
 import rwsem;
 #include "inode.h"
 #include "section.h"

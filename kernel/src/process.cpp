@@ -10,7 +10,6 @@ module;
 #include "cpu_block.h"
 #include "mem-x86.h"
 #include "spinlock.h"
-import objects;
 #include "thread.h"
 #include "process.h"
 import page_cache;

@@ -9,7 +9,6 @@ module;
 #include <functional>
 #include <mutex>
 #include "spinlock.h"
-import objects;
 import page_cache;
 import rwsem;
 #include "inode.h"
