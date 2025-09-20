@@ -8,7 +8,6 @@ module;
 #include <mutex>
 #include "spinlock.h"
 #include "process.h"
-import rwsem;
 #include "inode.h"
 #include "file.h"
 

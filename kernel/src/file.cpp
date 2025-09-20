@@ -3,7 +3,6 @@
 #include <mutex>
 #include "handle.h"
 #include "spinlock.h"
-import rwsem;
 #include "inode.h"
 #include "file.h"
 import visit;

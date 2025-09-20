@@ -8,7 +8,6 @@ module;
 #include "spinlock.h"
 #include "handle.h"
 import rbtree;
-import rwsem;
 #include "inode.h"
 #include "tick_rate.h"
 #include "scheduler.h"
@@ -25,7 +24,6 @@ import interrupts;
 import semaphore;
 import event;
 import volume;
-import rwsem;
 import pci;
 import timer;
 import module_init;

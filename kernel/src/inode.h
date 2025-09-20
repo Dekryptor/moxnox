@@ -5,6 +5,7 @@
 import list;
 import objects;
 import page_cache;
+import rwsem;
 
 enum class inode_type : uint8_t {
     unknown = 0,

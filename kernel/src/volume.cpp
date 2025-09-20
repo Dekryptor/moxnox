@@ -9,7 +9,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include "spinlock.h"
-import rwsem;
 #include "inode.h"
 #include "handle.h"
 #include "scheduler.h"

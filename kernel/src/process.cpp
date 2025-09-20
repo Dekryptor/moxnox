@@ -12,7 +12,6 @@ module;
 #include "spinlock.h"
 #include "thread.h"
 #include "process.h"
-import rwsem;
 #include "inode.h"
 #include "file.h"
 #include "mapping.h"
@@ -33,7 +32,6 @@ import vfs;
 import string;
 import interrupts;
 import pe;
-import rwsem;
 import smp;
 import visit;
 import unicode;

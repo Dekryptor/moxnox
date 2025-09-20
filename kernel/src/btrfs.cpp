@@ -10,7 +10,6 @@ module;
 #include "crc32c.h"
 #include "tick_rate.h"
 #include "spinlock.h"
-import rwsem;
 #include "inode.h"
 #include "file.h"
 #include "scheduler.h"
@@ -26,7 +25,6 @@ import mem;
 import list;
 import string;
 import timer;
-import rwsem;
 import unicode;
 import event;
 import module_init;

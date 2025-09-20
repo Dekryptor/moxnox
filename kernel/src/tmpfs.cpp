@@ -8,7 +8,6 @@ module;
 #include <mutex>
 #include "spinlock.h"
 import rbtree;
-import rwsem;
 #include "inode.h"
 #include "file.h"
 #include "assert.h"

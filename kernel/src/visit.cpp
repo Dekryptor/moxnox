@@ -9,7 +9,6 @@ module;
 #include "spinlock.h"
 
 #ifndef __aarch64__
-import rwsem;
 #include "inode.h"
 #include "process.h"
 #include "section.h"
