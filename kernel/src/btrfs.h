@@ -466,31 +466,6 @@ struct btrfs_extent_owner_ref {
 
 static_assert(sizeof(btrfs_extent_owner_ref) == 8);
 
-struct ref_change_data {
-    list_entry le;
-    uint64_t root;
-    uint64_t objectid;
-    uint64_t offset;
-    int32_t count;
-};
-
-struct ref_change {
-    rbtree_node<uint64_t> tree;
-    bool is_metadata;
-
-    union {
-        struct {
-            uint8_t level;
-            uint64_t root;
-            int32_t count;
-        } metadata;
-        struct {
-            uint64_t extent_length;
-            list_entry rcds;
-        } data;
-    };
-};
-
 struct btrfs_free_space_info {
     uint32_t extent_count;
     uint32_t flags;

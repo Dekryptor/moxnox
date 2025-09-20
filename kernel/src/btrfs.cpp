@@ -7,23 +7,16 @@ module;
 #include <optional>
 #include <string_view>
 #include <mutex>
-import objects;
 #include "crc32c.h"
 #include "tick_rate.h"
 #include "spinlock.h"
 import page_cache;
 import rwsem;
+import objects;
 #include "inode.h"
-import rangelock;
 #include "file.h"
-import rbtree;
 #include "scheduler.h"
 #include "assert.h"
-import volume;
-import vfs;
-import object_ref;
-import mem;
-import config;
 #include "btrfs.h"
 
 export module btrfs;
@@ -40,6 +33,12 @@ import unicode;
 import event;
 import module_init;
 import thread;
+import volume;
+import vfs;
+import object_ref;
+import config;
+import rbtree;
+import rangelock;
 
 using namespace std;
 
@@ -75,6 +74,31 @@ static void init_btrfs() {
 }
 
 static module_init module_init_btrfs(init_btrfs);
+
+struct ref_change_data {
+    list_entry le;
+    uint64_t root;
+    uint64_t objectid;
+    uint64_t offset;
+    int32_t count;
+};
+
+struct ref_change {
+    rbtree_node<uint64_t> tree;
+    bool is_metadata;
+
+    union {
+        struct {
+            uint8_t level;
+            uint64_t root;
+            int32_t count;
+        } metadata;
+        struct {
+            uint64_t extent_length;
+            list_entry rcds;
+        } data;
+    };
+};
 
 struct chunk {
     ~chunk();
