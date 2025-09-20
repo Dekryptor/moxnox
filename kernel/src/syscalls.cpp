@@ -21,6 +21,7 @@ import visit;
 import unicode;
 import mem;
 import thread;
+import interrupts;
 
 using namespace std;
 
@@ -1754,7 +1755,7 @@ void maybe_yield(uint64_t syscall_ret) {
         }
 
         release_sync_lock();
-        __asm("sti");
+        enable_interrupts();
 
         if (last_thread) {
             t.proc->exit_status = t.exit_status;

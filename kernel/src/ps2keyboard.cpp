@@ -351,7 +351,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 
     auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    __asm __volatile("sti");
+    enable_interrupts();
 
     repeat_timer = create_timer(true);
     if (!repeat_timer) {

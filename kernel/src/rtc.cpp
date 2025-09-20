@@ -11,6 +11,7 @@ import acpi;
 import list;
 import print;
 import module_init;
+import interrupts;
 
 using namespace std;
 
@@ -96,7 +97,7 @@ static void init_rtc(uint16_t port) {
 
     auto register_b = get_rtc_register<0x0b>(port);
 
-    __asm("sti");
+    enable_interrupts();
 
     if (!(register_b & 0x04)) {
         now.second = (now.second & 0x0f) + (uint8_t)((now.second >> 4) * 10);

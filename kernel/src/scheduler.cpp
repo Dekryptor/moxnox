@@ -19,6 +19,7 @@ import config;
 import visit;
 import thread;
 import list;
+import interrupts;
 
 using namespace std;
 
@@ -218,14 +219,14 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
     if (interruptible && current_thread->status == thread_status::dying) {
         release_sync_lock();
-        __asm("sti");
+        enable_interrupts();
         return nt_status::THREAD_IS_TERMINATING;
     }
 
     {
         if (!object_is_sync_object(obj)) {
             release_sync_lock();
-            __asm("sti");
+            enable_interrupts();
             // FIXME - exception
             print("Not a sync object\n");
             return nt_status::INVALID_PARAMETER;
@@ -236,14 +237,14 @@ nt_status wait_for_object(object& obj, bool interruptible,
         if (so.signalled) {
             object_on_wake(obj);
             release_sync_lock();
-            __asm("sti");
+            enable_interrupts();
 
             return nt_status::SUCCESS;
         }
 
         if (timeout.has_value() && *timeout == 0) {
             release_sync_lock();
-            __asm("sti");
+            enable_interrupts();
             return nt_status::TIMEOUT;
         }
 
@@ -501,7 +502,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     if (current_thread->status == thread_status::dying) {
         release_sync_lock();
-        __asm("sti");
+        enable_interrupts();
         return nt_status::THREAD_IS_TERMINATING;
     }
 
@@ -513,7 +514,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
             if (so.signalled) {
                 object_on_wake(obj);
                 release_sync_lock();
-                __asm("sti");
+                enable_interrupts();
 
                 return (enum nt_status)((unsigned int)nt_status::SUCCESS + i);
             }
@@ -534,7 +535,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
             }
 
             release_sync_lock();
-            __asm("sti");
+            enable_interrupts();
 
             return nt_status::SUCCESS;
         }
@@ -542,7 +543,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     if (timeout.has_value() && *timeout == 0) {
         release_sync_lock();
-        __asm("sti");
+        enable_interrupts();
         return nt_status::TIMEOUT;
     }
 
@@ -552,7 +553,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     auto mwb = (multiple_wait_block*)malloc(mwb_size);
     if (!mwb) {
         release_sync_lock();
-        __asm("sti");
+        enable_interrupts();
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 

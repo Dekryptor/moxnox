@@ -62,7 +62,7 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
 
     disable_preempt();
 
-    __asm __volatile("sti");
+    enable_interrupts();
 
     print("shutting down\n");
     shutdown_pipes();

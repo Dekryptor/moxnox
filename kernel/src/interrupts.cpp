@@ -684,6 +684,16 @@ static bool setup_gdt(task_state_segment* tss) {
 #endif
 
 #ifdef __aarch64__
+export inline __attribute__((always_inline)) void enable_interrupts() {
+    // FIXME
+}
+#else
+export inline __attribute__((always_inline)) void enable_interrupts() {
+    __asm __volatile("sti");
+}
+#endif
+
+#ifdef __aarch64__
 export bool init_interrupts() {
     load_vector_table();
 
@@ -763,7 +773,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
-    __asm __volatile("sti");
+    enable_interrupts();
 
     auto& p = *current_thread.proc;
 
@@ -865,7 +875,7 @@ void general_protection_fault_user() {
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
-    __asm __volatile("sti");
+    enable_interrupts();
 
     EXCEPTION_RECORD er;
 
@@ -911,7 +921,7 @@ void invalid_opcode_user() {
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
-    __asm __volatile("sti");
+    enable_interrupts();
 
     EXCEPTION_RECORD er;
 
@@ -951,7 +961,7 @@ void divide_by_zero_user() {
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
-    __asm __volatile("sti");
+    enable_interrupts();
 
     EXCEPTION_RECORD er;
 
@@ -991,7 +1001,7 @@ void breakpoint_user() {
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
-    __asm __volatile("sti");
+    enable_interrupts();
 
     EXCEPTION_RECORD er;
 
@@ -1031,7 +1041,7 @@ void single_step_user() {
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
 
-    __asm __volatile("sti");
+    enable_interrupts();
 
     EXCEPTION_RECORD er;
 

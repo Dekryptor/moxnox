@@ -339,9 +339,9 @@ void startup(loader_block* lb) {
 #ifndef __aarch64__
     if (!init_apic())
         goto hang;
-
-    __asm("sti");
 #endif
+
+    enable_interrupts();
 
     if (!add_kernel_thread(main_thread))
         goto hang;

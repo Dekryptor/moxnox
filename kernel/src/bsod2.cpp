@@ -101,10 +101,8 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
                                      unsigned int skip_callers) {
     disable_preempt();
 
-#ifndef __aarch64__
     // make sure that we don't get a deadlock if two BSODs at once
-    __asm("sti");
-#endif
+    enable_interrupts();
 
     lock_guard lock(bsod_lock);
 
