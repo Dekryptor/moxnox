@@ -116,7 +116,7 @@ export void init_timer() {
 }
 #else
 export void init_timer() {
-    __asm __volatile("cli");
+    disable_interrupts();
 
     // setup APIC timer
 

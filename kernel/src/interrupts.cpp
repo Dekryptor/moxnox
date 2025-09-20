@@ -684,13 +684,25 @@ static bool setup_gdt(task_state_segment* tss) {
 #endif
 
 #ifdef __aarch64__
+
 export inline __attribute__((always_inline)) void enable_interrupts() {
     // FIXME
 }
+
+export inline __attribute__((always_inline)) void disable_interrupts() {
+    // FIXME
+}
+
 #else
+
 export inline __attribute__((always_inline)) void enable_interrupts() {
     __asm __volatile("sti");
 }
+
+export inline __attribute__((always_inline)) void disable_interrupts() {
+    __asm __volatile("cli");
+}
+
 #endif
 
 #ifdef __aarch64__
@@ -748,7 +760,7 @@ static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
         return false;
     }
 
-    __asm __volatile("cli");
+    disable_interrupts();
 
     auto& cb = *get_cpu_block();
 
@@ -780,7 +792,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     auto okay = p.handle_page_fault(address, error_code);
 
     if (okay) {
-        __asm __volatile("cli");
+        disable_interrupts();
         memcpy(&get_cpu_block()->thread_context, &ctx, sizeof(CONTEXT));
         return false;
     }

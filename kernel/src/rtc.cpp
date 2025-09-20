@@ -71,7 +71,7 @@ static void init_rtc(uint16_t port) {
 
     ymdhms now, last;
 
-    __asm("cli");
+    disable_interrupts();
 
     while (get_update_in_progress(port)) { }
 

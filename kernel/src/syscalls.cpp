@@ -1767,7 +1767,7 @@ void maybe_yield(uint64_t syscall_ret) {
             // FIXME - free userspace stack
         }
 
-        __asm("cli");
+        disable_interrupts();
         acquire_sync_lock();
 
         thread_died(t, last_thread, false);

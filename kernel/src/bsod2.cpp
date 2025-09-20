@@ -106,9 +106,9 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     lock_guard lock(bsod_lock);
 
-#ifndef __aarch64__
-    __asm("cli");
+    disable_interrupts();
 
+#ifndef __aarch64__
     if (num_cpus > 1) {
         processors_left_to_halt = num_cpus - 1;
 

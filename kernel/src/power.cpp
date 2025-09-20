@@ -26,7 +26,7 @@ static void reboot() {
 static void halt() {
     AcpiEnterSleepStatePrep(5);
 
-    __asm("cli");
+    disable_interrupts();
 
     AcpiEnterSleepState(5);
 }
@@ -46,7 +46,7 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     if (!success(status))
         return status;
 
-    __asm __volatile("cli");
+    disable_interrupts();
 
     if (num_cpus > 1) {
         processors_left_to_halt = num_cpus - 1;

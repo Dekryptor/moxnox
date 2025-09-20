@@ -192,7 +192,7 @@ static void power_button_pressed_thread() {
     // FIXME - should be calling NtShutdownSystem (why does it not work?)
 
     AcpiEnterSleepStatePrep(5);
-    __asm("cli");
+    disable_interrupts();
     AcpiEnterSleepState(5);
 #endif
 

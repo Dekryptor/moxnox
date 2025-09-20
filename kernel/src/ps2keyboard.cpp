@@ -343,7 +343,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         return;
     }
 
-    __asm __volatile("cli");
+    disable_interrupts();
 
     while (inb(port2) & 1) {
         inb(port1);

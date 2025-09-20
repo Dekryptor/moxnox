@@ -214,7 +214,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
 #endif
     auto current_thread = get_current_thread();
 
-    __asm("cli");
+    disable_interrupts();
     acquire_sync_lock();
 
     if (interruptible && current_thread->status == thread_status::dying) {
@@ -497,7 +497,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
 #endif
     auto current_thread = get_current_thread();
 
-    __asm("cli");
+    disable_interrupts();
     acquire_sync_lock();
 
     if (current_thread->status == thread_status::dying) {
