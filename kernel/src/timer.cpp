@@ -15,6 +15,7 @@ import list;
 import interrupts;
 import bsod;
 import thread;
+import disable_interrupts;
 
 #ifndef __aarch64__
 import inout;

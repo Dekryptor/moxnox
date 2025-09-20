@@ -13,6 +13,7 @@ module;
 export module rangelock;
 
 import bsod;
+import disable_interrupts;
 
 export struct rangelock_req {
     rangelock_req(rangelock& rl, uint64_t start, uint64_t length) : rl(rl) {
@@ -77,7 +78,7 @@ void rangelock_req::lock() {
         bsod("calling rangelock_req::lock with interrupts disabled");
 #endif
 
-    __asm __volatile("cli");
+    disable_interrupts();
     acquire_sync_lock();
 
     bool overlaps = false;
@@ -94,7 +95,7 @@ void rangelock_req::lock() {
     if (!overlaps) {
         insert_tail_list(rl.active, le);
         release_sync_lock();
-        __asm __volatile("sti");
+        enable_interrupts();
         return;
     }
 
@@ -106,7 +107,7 @@ void rangelock_req::lock() {
 }
 
 void rangelock_req::unlock() {
-    __asm __volatile("cli");
+    disable_interrupts();
     acquire_sync_lock();
 
     remove_entry_list(le);
@@ -155,5 +156,5 @@ void rangelock_req::unlock() {
     }
 
     release_sync_lock();
-    __asm __volatile("sti");
+    enable_interrupts();
 }

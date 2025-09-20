@@ -29,6 +29,7 @@ import print;
 import mem;
 import object_ref;
 import config;
+import disable_interrupts;
 
 using namespace std;
 
@@ -167,7 +168,7 @@ export void terminate_thread(::thread& t, bool remove_from_proc) {
 
     t.acquire();
 
-    __asm("cli");
+    disable_interrupts();
     acquire_sync_lock();
 
     terminate_thread2(t, last_thread, remove_from_proc);
@@ -175,7 +176,7 @@ export void terminate_thread(::thread& t, bool remove_from_proc) {
     thread_is_dead = t.status == thread_status::dead;
 
     release_sync_lock();
-    __asm("sti");
+    enable_interrupts();
 
     if (!t.proc || !thread_is_dead) {
         t.release();
@@ -327,18 +328,12 @@ NTSTATUS NtQueryInformationThread(HANDLE /*thread_handle*/, enum THREAD_INFORMAT
 
     return nt_status::NOT_IMPLEMENTED;
 }
-
-static void inline disable_interrupts2() {
-    __asm __volatile("cli");
-}
 #endif
 
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
 
-#ifndef __aarch64__
-    disable_interrupts2();
-#endif
+    disable_interrupts();
 
     auto& cb = *get_cpu_block();
     auto& t = *cb.current_thread;

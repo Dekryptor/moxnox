@@ -12,6 +12,7 @@ export module rwsem;
 
 import bsod;
 import list;
+import disable_interrupts;
 
 export class rwsem {
 public:
@@ -25,14 +26,6 @@ public:
     list_entry wait_list_shared = { &wait_list_shared, &wait_list_shared };
     list_entry wait_list_exclusive = { &wait_list_exclusive, &wait_list_exclusive };
 };
-
-static void inline disable_interrupts() {
-    __asm __volatile("cli");
-}
-
-static void inline enable_interrupts() {
-    __asm __volatile("sti");
-}
 
 void rwsem::lock() { // exclusive
     // FIXME - assert that interrupts enabled and cr8 == 0

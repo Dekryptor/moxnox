@@ -19,7 +19,7 @@ import config;
 import visit;
 import thread;
 import list;
-import interrupts;
+import disable_interrupts;
 
 using namespace std;
 

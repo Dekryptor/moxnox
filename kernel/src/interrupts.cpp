@@ -29,6 +29,7 @@ import mem;
 import config;
 import list;
 import thread;
+import disable_interrupts;
 
 using namespace std;
 
@@ -681,28 +682,6 @@ static bool setup_gdt(task_state_segment* tss) {
 
     return true;
 }
-#endif
-
-#ifdef __aarch64__
-
-export inline __attribute__((always_inline)) void enable_interrupts() {
-    // FIXME
-}
-
-export inline __attribute__((always_inline)) void disable_interrupts() {
-    // FIXME
-}
-
-#else
-
-export inline __attribute__((always_inline)) void enable_interrupts() {
-    __asm __volatile("sti");
-}
-
-export inline __attribute__((always_inline)) void disable_interrupts() {
-    __asm __volatile("cli");
-}
-
 #endif
 
 #ifdef __aarch64__

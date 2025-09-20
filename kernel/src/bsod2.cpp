@@ -21,6 +21,7 @@ import dwarf;
 import config;
 import console;
 import interrupts;
+import disable_interrupts;
 
 using namespace std;
 

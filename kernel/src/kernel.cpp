@@ -35,6 +35,7 @@ import console;
 import acpi;
 import interrupts;
 import timer;
+import disable_interrupts;
 
 using namespace std;
 

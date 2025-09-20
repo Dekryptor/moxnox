@@ -24,6 +24,7 @@ import mem;
 import list;
 import thread;
 import interrupts;
+import disable_interrupts;
 import timer;
 
 using namespace std;

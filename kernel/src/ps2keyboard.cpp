@@ -26,6 +26,7 @@ import timer;
 import module_init;
 import apic;
 import thread;
+import disable_interrupts;
 
 using namespace std;
 

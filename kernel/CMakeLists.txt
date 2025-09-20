@@ -27,6 +27,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/chardev.cpp
     src/interrupts.cpp
     src/timer.cpp
+    src/disable_interrupts.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}

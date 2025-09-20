@@ -14,6 +14,7 @@ import vfs;
 import smp;
 import apic;
 import pipe;
+import disable_interrupts;
 
 using namespace std;
 

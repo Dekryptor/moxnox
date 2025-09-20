@@ -11,7 +11,7 @@ import acpi;
 import list;
 import print;
 import module_init;
-import interrupts;
+import disable_interrupts;
 
 using namespace std;
 

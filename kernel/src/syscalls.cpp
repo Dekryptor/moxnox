@@ -21,7 +21,7 @@ import visit;
 import unicode;
 import mem;
 import thread;
-import interrupts;
+import disable_interrupts;
 
 using namespace std;
 
