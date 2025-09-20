@@ -8,7 +8,6 @@ module;
 #include <mutex>
 #include <loaderblock.h>
 #include "acpica.h"
-import objects;
 #include "cpu_block.h"
 #include "mem-x86.h"
 #include "spinlock.h"

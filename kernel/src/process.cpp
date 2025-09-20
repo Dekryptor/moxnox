@@ -8,16 +8,15 @@ module;
 #include <mutex>
 #include "rangelock.h"
 #include "cpu_block.h"
-import objects;
 #include "mem-x86.h"
 #include "spinlock.h"
+import objects;
 #include "thread.h"
+#include "process.h"
 import page_cache;
 import rwsem;
-#include "process.h"
 #include "inode.h"
 #include "file.h"
-import rangelock;
 #include "mapping.h"
 #include <pe.h>
 #include <ntdll.h>
@@ -43,6 +42,7 @@ import unicode;
 import section;
 import apic;
 import thread;
+import rangelock;
 
 using namespace std;
 

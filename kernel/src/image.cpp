@@ -6,11 +6,11 @@ module;
 #include <stddef.h>
 #include <span>
 
+export module image;
+
 import list;
 import bsod;
 import section;
-
-export module image;
 
 using namespace std;
 

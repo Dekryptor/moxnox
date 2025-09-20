@@ -5,7 +5,6 @@ module;
 #include <mutex>
 #include "handle.h"
 #include "spinlock.h"
-import objects;
 #include <ioctl.h>
 
 export module keyboard;

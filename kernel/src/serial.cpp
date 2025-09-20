@@ -8,8 +8,6 @@ module;
 #include <mutex>
 #include "handle.h"
 #include "spinlock.h"
-import pipe;
-import chardev;
 #include "acpica.h"
 #include "scheduler.h"
 #include <ioctl.h>
@@ -24,6 +22,8 @@ import interrupts;
 import acpi;
 import module_init;
 import apic;
+import pipe;
+import chardev;
 
 using namespace std;
 

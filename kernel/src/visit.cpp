@@ -8,24 +8,12 @@ module;
 #include <variant>
 #include "spinlock.h"
 
-import rbtree;
-import event;
-import pipe;
-#ifndef __aarch64__
-import timer;
-#endif
-
 import objects;
 
 #ifndef __aarch64__
 import page_cache;
 import rwsem;
 #include "inode.h"
-import volume;
-#endif
-import chardev;
-#ifndef __aarch64__
-import semaphore;
 #include "process.h"
 #include "section.h"
 #include "file.h"
@@ -34,6 +22,16 @@ import semaphore;
 #include "thread.h"
 
 export module visit;
+
+import rbtree;
+import event;
+import pipe;
+#ifndef __aarch64__
+import timer;
+import volume;
+import semaphore;
+#endif
+import chardev;
 
 using namespace std;
 

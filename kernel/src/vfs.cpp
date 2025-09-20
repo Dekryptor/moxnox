@@ -11,9 +11,7 @@ module;
 import page_cache;
 import rwsem;
 #include "inode.h"
-import volume;
 #include "file.h"
-import visit;
 
 export module vfs;
 
@@ -28,6 +26,8 @@ import unicode;
 import guid;
 import cmdline;
 import thread;
+import volume;
+import visit;
 
 using namespace std;
 

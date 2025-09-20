@@ -8,8 +8,6 @@ module;
 #include <string.h>
 #include "spinlock.h"
 #include "handle.h"
-import rbtree;
-import page_cache;
 
 export module virtio_block;
 
@@ -23,6 +21,8 @@ import mem;
 import rwsem;
 import list;
 import module_init;
+import rbtree;
+import page_cache;
 
 using namespace std;
 

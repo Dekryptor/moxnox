@@ -6,7 +6,6 @@ module;
 #include <string.h>
 #include "spinlock.h"
 #include "rangelock.h"
-import rbtree;
 #include "mapping.h"
 #include "assert.h"
 
@@ -18,6 +17,7 @@ import mem;
 import config;
 import list;
 import rangelock;
+import rbtree;
 
 using namespace std;
 

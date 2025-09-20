@@ -4,8 +4,6 @@ module;
 #include "acpica.h"
 #include "scheduler.h"
 #include "ints.h"
-import event;
-import pipe;
 
 export module power;
 
@@ -15,6 +13,7 @@ import interrupts;
 import vfs;
 import smp;
 import apic;
+import pipe;
 
 using namespace std;
 

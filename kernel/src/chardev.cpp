@@ -3,9 +3,10 @@ module;
 #include <nt.h>
 #include <span>
 #include <string_view>
-import objects;
 
 export module chardev;
+
+import objects;
 
 using namespace std;
 

@@ -8,8 +8,6 @@ module;
 #include "spinlock.h"
 #include "nvme.h"
 #include "scheduler.h"
-import rbtree;
-import page_cache;
 
 export module nvme;
 
@@ -25,6 +23,8 @@ import bsod;
 import rwsem;
 import pci;
 import module_init;
+import rbtree;
+import page_cache;
 
 using namespace std;
 

@@ -5,9 +5,7 @@ module;
 #include <atomic>
 #include <string_view>
 #include <mutex>
-import objects;
 #include "process.h"
-import event;
 #include "spinlock.h"
 #include "scheduler.h"
 
@@ -21,6 +19,7 @@ import bsod;
 import chardev;
 import unicode;
 import thread;
+import event;
 
 using namespace std;
 

@@ -6,7 +6,6 @@ module;
 #include <atomic>
 #include <optional>
 #include <mutex>
-import objects;
 #include "spinlock.h"
 #include "scheduler.h"
 
@@ -16,6 +15,7 @@ import print;
 import list;
 import bsod;
 import object_ref;
+import objects;
 
 using namespace std;
 
