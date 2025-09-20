@@ -23,7 +23,6 @@ import bsod;
 import rwsem;
 import pci;
 import module_init;
-import rbtree;
 import page_cache;
 
 using namespace std;

@@ -19,7 +19,6 @@ module;
 
 export module visit;
 
-import rbtree;
 import event;
 import pipe;
 #ifndef __aarch64__

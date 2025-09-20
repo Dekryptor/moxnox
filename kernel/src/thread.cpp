@@ -13,7 +13,6 @@ module;
 #include "cpu_block.h"
 
 #ifndef __aarch64__
-import rbtree;
 #include "section.h"
 #include "process.h"
 #endif

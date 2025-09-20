@@ -7,7 +7,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include "spinlock.h"
-import rbtree;
 #include "inode.h"
 #include "file.h"
 #include "assert.h"

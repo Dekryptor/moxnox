@@ -7,7 +7,6 @@ module;
 #include <string.h>
 #include "spinlock.h"
 #include "handle.h"
-import rbtree;
 #include "inode.h"
 #include "tick_rate.h"
 #include "scheduler.h"
