@@ -134,6 +134,8 @@ struct isr_func_info {
 
 static isr_func_info isr_funcs[0x20];
 
+#endif
+
 struct irq {
     list_entry le;
     uint32_t number;
@@ -150,6 +152,8 @@ struct irq_handler_info {
 };
 
 static list_entry irqs = { &irqs, &irqs };
+
+#ifndef __aarch64__
 
 extern "C" void dynamic_isr_30();
 extern "C" void dynamic_isr_31();
@@ -392,6 +396,18 @@ static irq* find_irq(uint32_t number, uint32_t apic_id) {
     return i;
 }
 
+#endif
+
+#ifdef __aarch64__
+
+export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
+    // FIXME
+
+    return true;
+}
+
+#else
+
 export bool add_irq_handler(uint32_t number, uint32_t apic_id,
                             irq_func_type func, void* ctx) {
     auto irq = find_irq(number, apic_id);
@@ -412,6 +428,10 @@ export bool add_irq_handler(uint32_t number, uint32_t apic_id,
 
     return true;
 };
+
+#endif
+
+#ifndef __aarch64__
 
 export bool init_apic() {
     // FIXME - can we assume that nothing's disabled the APIC? (Check EFI specs?)

@@ -7,6 +7,7 @@ module;
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "scheduler.h"
+#include "acpica.h"
 
 export module timer;
 
@@ -56,7 +57,11 @@ public:
 static_assert(is_sync_object<timer>);
 static_assert(object_has_on_wake<timer>);
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+
+static uint32_t CNTFRQ;
+
+#else
 
 static_assert(offsetof(timer, le) == TIMER_LE);
 static_assert(offsetof(timer, ticks_left) == TIMER_TICKS_LEFT);
@@ -112,10 +117,58 @@ export void pit_delay(uint16_t delay) {
 #endif
 
 #ifdef __aarch64__
-export void init_timer() {
-    // FIXME
+
+static optional<uint32_t> find_timer_irq() {
+    ACPI_TABLE_HEADER* tbl;
+
+    // FIXME - devicetree version
+
+    auto status = AcpiGetTable((char*)ACPI_SIG_GTDT, 1, &tbl);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for GTDT\n", status);
+        return nullopt;
+    }
+
+    if (tbl->Length < sizeof(ACPI_TABLE_GTDT)) {
+        print("GTDT table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_GTDT));
+        return nullopt;
+    }
+
+    auto& gtdt = *(ACPI_TABLE_GTDT*)tbl;
+
+    return gtdt.NonSecureEl1Interrupt;
 }
+
+export void init_timer() {
+    uint32_t irq;
+
+    if (auto opt = find_timer_irq(); !opt.has_value())
+        return;
+    else
+        irq = *opt;
+
+    // get hardware frequency
+    __asm __volatile (
+        "mrs %x[res], cntfrq_el0"
+        : [res] "=r" (CNTFRQ)
+    );
+
+    // FIXME - add IRQ entry
+
+    // set tick rate and enable interrupt
+    __asm __volatile (
+        "msr cntp_tval_el0, %x[res]"
+        "\n\tmov x0, #1"
+        "\n\tmsr cntp_ctl_el0, x0"
+        :
+        : [res] "r" (CNTFRQ / TICK_RATE)
+        : "x0"
+    );
+}
+
 #else
+
 export void init_timer() {
     disable_interrupts();
 
@@ -143,6 +196,7 @@ export void init_timer() {
 
     init_lapic_timer(false);
 }
+
 #endif
 
 export object_ref create_timer(bool autoreset) {
