@@ -7,7 +7,6 @@ module;
 #include "handle.h"
 #include "spinlock.h"
 #include "nvme.h"
-#include "scheduler.h"
 
 export module nvme;
 
@@ -24,6 +23,8 @@ import rwsem;
 import pci;
 import module_init;
 import page_cache;
+import scheduler;
+import list;
 
 using namespace std;
 

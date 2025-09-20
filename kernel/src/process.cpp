@@ -17,7 +17,6 @@ module;
 #include <pe.h>
 #include <ntdll.h>
 #include "section.h"
-#include "scheduler.h"
 #include "assert.h"
 
 export module process;
@@ -39,6 +38,7 @@ import apic;
 import thread;
 import rangelock;
 import rwsem;
+import scheduler;
 
 using namespace std;
 

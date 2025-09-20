@@ -6,7 +6,6 @@ module;
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "handle.h"
-#include "scheduler.h"
 #include <ioctl.h>
 
 export module usbhid;
@@ -22,6 +21,8 @@ import timer;
 import module_init;
 import thread;
 import mem;
+import scheduler;
+import list;
 
 using namespace std;
 

@@ -9,7 +9,6 @@ module;
 #include "handle.h"
 #include "spinlock.h"
 #include "acpica.h"
-#include "scheduler.h"
 #include <ioctl.h>
 
 export module serial;
@@ -24,6 +23,8 @@ import module_init;
 import apic;
 import pipe;
 import chardev;
+import scheduler;
+import list;
 
 using namespace std;
 

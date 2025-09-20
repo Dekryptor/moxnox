@@ -9,7 +9,6 @@ module;
 #include "cpu_block.h"
 #include "process.h"
 #include "thread.h"
-#include "scheduler.h"
 
 export module syscalls;
 

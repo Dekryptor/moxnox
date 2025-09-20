@@ -1,3 +1,5 @@
+module;
+
 #include <span>
 #include <optional>
 #include <functional>
@@ -5,12 +7,13 @@
 #include "thread.h"
 #include "cpu_block.h"
 #include "process.h"
-#include "scheduler.h"
 #include "assert.h"
 
 #ifndef __aarch64__
 #include "tick_rate.h"
 #endif
+
+export module scheduler;
 
 import bsod;
 import print;
@@ -25,16 +28,22 @@ using namespace std;
 
 static const uint64_t time_slice = 50; // ticks
 
-list_entry thread_list = { &thread_list, &thread_list };
-list_entry thread_list_timeout = { &thread_list_timeout, &thread_list_timeout };
+export extern "C++" {
+    list_entry thread_list = { &thread_list, &thread_list };
+}
+
+extern "C" {
+    list_entry thread_list_timeout = { &thread_list_timeout, &thread_list_timeout };
+    volatile uint64_t sync_lock_val = 0;
+}
 
 static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
-volatile uint64_t sync_lock_val = 0;
-
 #ifdef DEBUG
-uint32_t sync_lock_cpu = 0xffffffff;
-thread* sync_lock_thread = nullptr;
+extern "C" {
+    uint32_t sync_lock_cpu = 0xffffffff;
+    thread* sync_lock_thread = nullptr;
+}
 #endif
 
 static thread* pick_runnable_thread(thread* current) {
@@ -183,8 +192,9 @@ void scheduler() {
     } while (true);
 }
 
+export extern "C++"
 nt_status wait_for_object(object& obj, bool interruptible,
-                          optional<uint64_t> timeout) {
+                          optional<uint64_t> timeout = nullopt) {
 #ifndef __aarch64__ // FIXME
 #ifdef DEBUG
     uint64_t cr8 = 0, rflags = 0;
@@ -285,7 +295,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
     return nt_status::SUCCESS;
 }
 
-unsigned int wake_up_waiters(list_entry& waiters) {
+export extern "C++" unsigned int wake_up_waiters(list_entry& waiters) {
     unsigned int ret = 0;
 
     while (!is_list_empty(waiters)) {
@@ -369,7 +379,7 @@ void wait_timeout_expired(thread* tptr) {
 }
 #endif
 
-bool init_cpu_block(unsigned int cpu_no) {
+export bool init_cpu_block(unsigned int cpu_no) {
     auto pages = bytes_to_pages(sizeof(cpu_block));
     auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);
     auto& cb = *(cpu_block*)va;
@@ -443,7 +453,7 @@ bool init_cpu_block(unsigned int cpu_no) {
 }
 
 #ifndef __aarch64__
-NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable*/,
+extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable*/,
                                const LARGE_INTEGER* timeout) {
     auto objrw = deref_handle(object_handle);
     if (!objrw)
@@ -467,8 +477,8 @@ NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable*/,
     return wait_for_object(objrw.get(), true, t);
 }
 
-nt_status wait_for_objects(span<object*> objects, bool wait_any,
-                           optional<uint64_t> timeout) {
+export nt_status wait_for_objects(span<object*> objects, bool wait_any,
+                                  optional<uint64_t> timeout = nullopt) {
 #ifdef DEBUG
     uint64_t cr8 = 0, rflags = 0;
 
@@ -615,7 +625,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     return (enum nt_status)((unsigned int)nt_status::SUCCESS + index);
 }
 
-NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
+extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
                                   bool wait_any, bool alertable,
                                   const LARGE_INTEGER* timeout) {
     if (object_count == 1)
@@ -674,7 +684,7 @@ NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
 }
 #endif
 
-void disable_preempt() {
+export extern "C++" void disable_preempt() {
 #ifndef __aarch64__ // FIXME
     __asm __volatile(
         "inc QWORD PTR gs:%0\n"
@@ -684,7 +694,7 @@ void disable_preempt() {
 #endif
 }
 
-void enable_preempt() {
+export extern "C++" void enable_preempt() {
 #ifndef __aarch64__ // FIXME
     __asm __volatile(
         "dec QWORD PTR gs:%0\n"
@@ -695,7 +705,7 @@ void enable_preempt() {
 }
 
 #ifndef __aarch64__
-void set_current_thread_waiting() {
+export extern "C++" void set_current_thread_waiting() {
     // must have synclock held
 
     auto& cb = *get_cpu_block();

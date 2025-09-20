@@ -4,7 +4,6 @@
 #include <mutex>
 #include "spinlock.h"
 #include "cpu_block.h"
-#include "scheduler.h"
 #include "ints.h"
 
 #ifndef __aarch64__
@@ -22,6 +21,7 @@ import config;
 import console;
 import interrupts;
 import disable_interrupts;
+import scheduler;
 
 using namespace std;
 

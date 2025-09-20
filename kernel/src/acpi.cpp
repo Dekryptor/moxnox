@@ -7,7 +7,6 @@ module;
 #include "acpica.h"
 #include "tick_rate.h"
 #include "spinlock.h"
-#include "scheduler.h"
 
 export module acpi;
 
@@ -26,6 +25,7 @@ import thread;
 import interrupts;
 import disable_interrupts;
 import timer;
+import scheduler;
 
 using namespace std;
 

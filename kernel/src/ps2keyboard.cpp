@@ -10,7 +10,6 @@ import evdev;
 import pipe;
 #include "acpica.h"
 #include "tick_rate.h"
-#include "scheduler.h"
 #include <ioctl.h>
 
 export module ps2keyboard;
@@ -27,6 +26,8 @@ import module_init;
 import apic;
 import thread;
 import disable_interrupts;
+import scheduler;
+import list;
 
 using namespace std;
 

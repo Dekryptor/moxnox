@@ -1,8 +1,8 @@
 module;
 
 #include <string_view>
+#include <nt.h>
 #include "acpica.h"
-#include "scheduler.h"
 #include "ints.h"
 
 export module power;
@@ -15,6 +15,7 @@ import smp;
 import apic;
 import pipe;
 import disable_interrupts;
+import scheduler;
 
 using namespace std;
 

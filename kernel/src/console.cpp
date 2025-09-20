@@ -9,7 +9,6 @@ module;
 #include <loaderblock.h>
 #include <console.h>
 #include "spinlock.h"
-#include "scheduler.h"
 #include "cpu_block.h"
 #include "handle.h"
 
@@ -42,6 +41,8 @@ import chardev;
 import pipe;
 import acpi;
 import object_ref;
+import scheduler;
+import list;
 
 using namespace std;
 

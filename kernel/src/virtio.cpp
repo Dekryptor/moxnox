@@ -3,10 +3,10 @@ module;
 #include <optional>
 #include <mutex>
 #include <algorithm>
+#include <nt.h>
 #include "acpica.h"
 #include "virtio.h"
 #include "spinlock.h"
-#include "scheduler.h"
 #include <variant>
 
 export module virtio;
@@ -22,6 +22,8 @@ import acpi;
 import module_init;
 import apic;
 import object_ref;
+import scheduler;
+import list;
 
 using namespace std;
 

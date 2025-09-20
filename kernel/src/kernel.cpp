@@ -4,7 +4,6 @@
 #include <loaderblock.h>
 #include <version.h>
 #include <string.h>
-#include "scheduler.h"
 #include "context_offsets.h"
 #include "process.h"
 
@@ -36,6 +35,7 @@ import acpi;
 import interrupts;
 import timer;
 import disable_interrupts;
+import scheduler;
 
 using namespace std;
 

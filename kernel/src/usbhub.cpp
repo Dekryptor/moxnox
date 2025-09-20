@@ -2,8 +2,8 @@ module;
 
 #include <string_view>
 #include <atomic>
+#include <nt.h>
 #include "tick_rate.h"
-#include "scheduler.h"
 #include <span>
 #include <stdlib.h>
 
@@ -17,6 +17,8 @@ import mem;
 import timer;
 import module_init;
 import thread;
+import scheduler;
+import list;
 
 using namespace std;
 

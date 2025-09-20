@@ -11,7 +11,6 @@ module;
 #include "tick_rate.h"
 #include "spinlock.h"
 #include "file.h"
-#include "scheduler.h"
 #include "assert.h"
 #include "btrfs.h"
 
@@ -36,6 +35,7 @@ import rbtree;
 import rangelock;
 import rwsem;
 import page_cache;
+import scheduler;
 
 using namespace std;
 

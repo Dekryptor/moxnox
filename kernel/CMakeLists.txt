@@ -28,6 +28,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/interrupts.cpp
     src/timer.cpp
     src/disable_interrupts.cpp
+    src/scheduler.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -75,7 +76,6 @@ set(AARCH64_MODULES ${GLOBAL_MODULES}
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_FILES src/kernel.cpp
-        src/scheduler.cpp
         src/handle.cpp
         src/bsod2.cpp)
 
@@ -87,7 +87,6 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
 else()
     set(SRC_FILES src/kernel.cpp
-        src/scheduler.cpp
         src/handle.cpp
         src/file.cpp
         src/bsod2.cpp)

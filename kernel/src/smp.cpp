@@ -5,7 +5,7 @@ module;
 #include "acpica.h"
 #include "cpu_block.h"
 #include "mem-x86.h"
-#include "scheduler.h"
+#include <span>
 #include <atomic>
 
 export module smp;
@@ -17,6 +17,7 @@ import interrupts;
 import timer;
 import syscalls;
 import apic;
+import scheduler;
 
 using namespace std;
 

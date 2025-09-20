@@ -7,10 +7,10 @@ module;
 #include <mutex>
 #include <algorithm>
 #include <bit>
+#include <nt.h>
 #include "xhci.h"
 #include "spinlock.h"
 #include "tick_rate.h"
-#include "scheduler.h"
 
 export module xhci;
 
@@ -27,6 +27,8 @@ import rwsem;
 import module_init;
 import thread;
 import object_ref;
+import scheduler;
+import list;
 
 using namespace std;
 

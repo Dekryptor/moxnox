@@ -8,7 +8,6 @@ module;
 #include "spinlock.h"
 #include "handle.h"
 #include "tick_rate.h"
-#include "scheduler.h"
 
 export module sata;
 
@@ -28,6 +27,7 @@ import module_init;
 import thread;
 import page_cache;
 import rwsem;
+import scheduler;
 
 #include "sata.h"
 
