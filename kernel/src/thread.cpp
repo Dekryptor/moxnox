@@ -13,7 +13,6 @@ module;
 #include "cpu_block.h"
 
 #ifndef __aarch64__
-import page_cache;
 import rwsem;
 import rbtree;
 #include "section.h"

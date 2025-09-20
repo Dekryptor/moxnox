@@ -8,7 +8,6 @@ module;
 #include <mutex>
 #include "spinlock.h"
 import rbtree;
-import page_cache;
 import rwsem;
 #include "inode.h"
 #include "file.h"

@@ -12,7 +12,6 @@ module;
 #include "spinlock.h"
 #include "thread.h"
 #include "process.h"
-import page_cache;
 import rwsem;
 #include "inode.h"
 #include "file.h"

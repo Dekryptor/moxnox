@@ -10,7 +10,6 @@ module;
 #include "crc32c.h"
 #include "tick_rate.h"
 #include "spinlock.h"
-import page_cache;
 import rwsem;
 #include "inode.h"
 #include "file.h"

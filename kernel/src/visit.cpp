@@ -9,7 +9,6 @@ module;
 #include "spinlock.h"
 
 #ifndef __aarch64__
-import page_cache;
 import rwsem;
 #include "inode.h"
 #include "process.h"

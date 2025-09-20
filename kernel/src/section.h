@@ -4,6 +4,8 @@
 #include <string_view>
 #include "spinlock.h"
 
+import page_cache;
+
 enum class section_type {
     anonymous,
     file,
