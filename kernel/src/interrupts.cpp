@@ -88,7 +88,11 @@ union ARM64_GICC_PMR {
     uint32_t value;
 } __attribute((packed));
 
-static uint64_t gicc, gicd;
+extern "C++" {
+    uint64_t gicc;
+}
+
+static uint64_t gicd;
 
 #else
 
@@ -1348,6 +1352,19 @@ void handle_kernel_exception(uint64_t esr_value) {
             unhandled_kernel_exception(esr_value);
             break;
     }
+}
+
+extern "C"
+void handle_kernel_irq(uint32_t number) {
+    // FIXME - does the CPU definitely disable other interrupts?
+
+    // FIXME
+
+    // while (true) { }
+
+    print("handle_kernel_irq {:x}\n", number);
+
+    // FIXME - EOI
 }
 
 #endif
