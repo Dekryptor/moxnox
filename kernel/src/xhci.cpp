@@ -7,6 +7,7 @@ module;
 #include <mutex>
 #include <algorithm>
 #include <bit>
+#include <span>
 #include <nt.h>
 #include "xhci.h"
 #include "spinlock.h"

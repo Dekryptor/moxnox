@@ -2,6 +2,7 @@
 #include <source_location>
 #include <string_view>
 #include <mutex>
+#include <span>
 #include "spinlock.h"
 #include "cpu_block.h"
 #include "ints.h"

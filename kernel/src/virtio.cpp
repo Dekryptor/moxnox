@@ -3,6 +3,7 @@ module;
 #include <optional>
 #include <mutex>
 #include <algorithm>
+#include <span>
 #include <nt.h>
 #include "acpica.h"
 #include "virtio.h"
