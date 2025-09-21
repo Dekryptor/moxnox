@@ -349,7 +349,8 @@ void startup(loader_block* lb) {
 
     // FIXME - C++ exceptions
 
-    init_timer(); // leaves interrupts disabled
+    if (!init_timer()) // leaves interrupts disabled
+        goto hang;
 
     acquire_sync_lock();
 

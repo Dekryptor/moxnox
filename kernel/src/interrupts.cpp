@@ -125,7 +125,7 @@ export const uint8_t spurious_interrupt = 0xff;
 
 export uintptr_t mn_signal;
 
-static spinlock isr_lock, irq_lock;
+static spinlock isr_lock;
 
 struct isr_func_info {
     isr_func_type func;
@@ -135,6 +135,8 @@ struct isr_func_info {
 static isr_func_info isr_funcs[0x20];
 
 #endif
+
+static spinlock irq_lock;
 
 struct irq {
     list_entry le;
@@ -400,8 +402,64 @@ static irq* find_irq(uint32_t number, uint32_t apic_id) {
 
 #ifdef __aarch64__
 
+static irq* find_irq(uint32_t number) {
+    {
+        lock_guard lock(irq_lock);
+
+        for (auto le = irqs.next; le != &irqs; le = le->next) {
+            auto& i = containing_record<irq>(le);
+
+            if (i.number == number)
+                return &i;
+        }
+    }
+
+    auto i = new irq;
+
+    i->number = number;
+
+    {
+        lock_guard lock(irq_lock);
+
+        for (auto le = irqs.next; le != &irqs; le = le->next) {
+            auto& i2 = containing_record<irq>(le);
+
+            if (i2.number == number) {
+                delete i;
+                return &i2;
+            }
+        }
+
+        insert_tail_list(irqs, i->le);
+
+        // clear pending bit if new IRQ
+        auto& GICD_ICPENDR = *(volatile uint32_t*)(gicd + 0x200 + ((number / 32) * 4));
+        GICD_ICPENDR = 1 << (number % 32);
+    }
+
+    return i;
+}
+
 export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
-    // FIXME
+    auto irq = find_irq(number);
+    if (!irq)
+        return false;
+
+    auto info = new irq_handler_info;
+    if (!info)
+        return false;
+
+    info->func = func;
+    info->ctx = ctx;
+
+    {
+        lock_guard lock(irq->lock);
+        insert_tail_list(irq->handlers, info->le);
+    }
+
+    // enable IRQ
+    auto& GICD_ISENABLER = *(volatile uint32_t*)(gicd + 0x100 + ((number / 32) * 4));
+    GICD_ISENABLER = 1 << (number % 32);
 
     return true;
 }

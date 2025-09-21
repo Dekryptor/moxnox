@@ -118,6 +118,14 @@ export void pit_delay(uint16_t delay) {
 
 #ifdef __aarch64__
 
+static bool timer_irq(void*) {
+    // FIXME
+
+    while (true) { }
+
+    return true;
+}
+
 static optional<uint32_t> find_timer_irq() {
     ACPI_TABLE_HEADER* tbl;
 
@@ -140,11 +148,13 @@ static optional<uint32_t> find_timer_irq() {
     return gtdt.NonSecureEl1Interrupt;
 }
 
-export void init_timer() {
+export bool init_timer() {
     uint32_t irq;
 
+    disable_interrupts();
+
     if (auto opt = find_timer_irq(); !opt.has_value())
-        return;
+        return false;
     else
         irq = *opt;
 
@@ -154,7 +164,10 @@ export void init_timer() {
         : [res] "=r" (CNTFRQ)
     );
 
-    // FIXME - add IRQ entry
+    if (!add_irq_handler(irq, timer_irq, nullptr)) {
+        print("add_irq_handler failed\n");
+        return false;
+    }
 
     // set tick rate and enable interrupt
     __asm __volatile (
@@ -165,11 +178,13 @@ export void init_timer() {
         : [res] "r" (CNTFRQ / TICK_RATE)
         : "x0"
     );
+
+    return true;
 }
 
 #else
 
-export void init_timer() {
+export bool init_timer() {
     disable_interrupts();
 
     // setup APIC timer
@@ -195,6 +210,8 @@ export void init_timer() {
     add_idt_entry(timer_ap_interrupt, (void*)timer_isr_ap, false, 1, false);
 
     init_lapic_timer(false);
+
+    return true;
 }
 
 #endif
