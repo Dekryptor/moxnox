@@ -1358,13 +1358,30 @@ extern "C"
 void handle_kernel_irq(uint32_t number) {
     // FIXME - does the CPU definitely disable other interrupts?
 
-    // FIXME
+    {
+        lock_guard lock(irq_lock);
 
-    // while (true) { }
+        for (auto le = irqs.next; le != &irqs; le = le->next) {
+            auto& i = containing_record<irq>(le);
 
-    print("handle_kernel_irq {:x}\n", number);
+            if (i.number != number)
+                continue;
 
-    // FIXME - EOI
+            // FIXME - use refcounting so we can let go of irq_lock here(?)
+
+            for (auto le2 = i.handlers.next; le2 != &i.handlers; le2 = le2->next) {
+                auto& h = containing_record<irq_handler_info>(le2);
+
+                if (h.func(h.ctx))
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    auto& GICC_EOIR = *(volatile uint32_t*)(gicc + 0x10);
+    GICC_EOIR = number;
 }
 
 #endif
