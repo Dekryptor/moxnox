@@ -121,7 +121,17 @@ export void pit_delay(uint16_t delay) {
 static bool timer_irq(void*) {
     // FIXME
 
-    while (true) { }
+    // while (true) { }
+
+    // start clock again
+    __asm __volatile (
+        "msr cntp_tval_el0, %x[res]"
+        "\n\tmov x0, #1"
+        "\n\tmsr cntp_ctl_el0, x0"
+        :
+        : [res] "r" (CNTFRQ / TICK_RATE)
+        : "x0"
+    );
 
     return true;
 }
