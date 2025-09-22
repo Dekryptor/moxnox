@@ -16,6 +16,7 @@ import list;
 import bsod;
 import object_ref;
 import objects;
+import mem;
 
 using namespace std;
 
@@ -42,11 +43,24 @@ public:
 static_assert(is_sync_object<semaphore>);
 static_assert(object_has_on_wake<semaphore>);
 
-export object_ref create_semaphore(unsigned int maximum_count) {
-    auto sptr = new semaphore;
-    if (!sptr) {
-        print("new failed\n");
-        return {};
+export template<bool no_lock = false>
+object_ref create_semaphore(unsigned int maximum_count) {
+    semaphore* sptr;
+
+    if constexpr (no_lock) {
+        auto ptr = malloc_aligned<true>(sizeof(semaphore), alignof(semaphore));
+        if (!ptr) {
+            print("malloc_aligned failed\n");
+            return {};
+        }
+
+        sptr = new (ptr) semaphore;
+    } else {
+        sptr = new semaphore;
+        if (!sptr) {
+            print("new failed\n");
+            return {};
+        }
     }
 
     auto& s = *sptr;

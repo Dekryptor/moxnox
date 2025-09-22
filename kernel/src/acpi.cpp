@@ -26,6 +26,7 @@ import disable_interrupts;
 import timer;
 import scheduler;
 import semaphore;
+import object_ref;
 
 using namespace std;
 
@@ -709,7 +710,12 @@ ACPI_STATUS AcpiOsPhysicalTableOverride(ACPI_TABLE_HEADER* /*ExistingTable*/,
 
 extern "C"
 ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK* OutHandle) {
-    *OutHandle = new spinlock;
+    if (!acpi_early_init_done) {
+        auto ptr = malloc_aligned<true>(sizeof(spinlock), alignof(spinlock));
+
+        *OutHandle = new (ptr) spinlock;
+    } else
+        *OutHandle = new spinlock;
 
     return AE_OK;
 }
@@ -723,6 +729,9 @@ void AcpiOsDeleteLock(ACPI_SPINLOCK Handle) {
 
 extern "C"
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle) {
+    if (!acpi_early_init_done)
+        return 0;
+
     auto& lock = *(spinlock*)Handle;
 
     lock.lock();
@@ -732,6 +741,9 @@ ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle) {
 
 extern "C"
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS) {
+    if (!acpi_early_init_done)
+        return;
+
     auto& lock = *(spinlock*)Handle;
 
     lock.unlock();
@@ -740,7 +752,12 @@ void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS) {
 extern "C"
 ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits,
                                   ACPI_SEMAPHORE* OutHandle) {
-    auto ref = create_semaphore(MaxUnits);
+    object_ref ref;
+
+    if (!acpi_early_init_done)
+        ref = create_semaphore<true>(MaxUnits);
+    else
+        ref = create_semaphore<false>(MaxUnits);
 
     auto& sem = static_cast<semaphore&>(ref.get());
 
@@ -802,12 +819,18 @@ ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units) {
 
 extern "C"
 void* AcpiOsAllocate(ACPI_SIZE Size) {
-    return malloc(Size);
+    if (!acpi_early_init_done)
+        return malloc_aligned<true>(Size, 1);
+    else
+        return malloc(Size);
 }
 
 extern "C"
 void AcpiOsFree(void* Memory) {
-    free(Memory);
+    if (!acpi_early_init_done)
+        free_no_lock(Memory);
+    else
+        free(Memory);
 }
 
 extern "C"

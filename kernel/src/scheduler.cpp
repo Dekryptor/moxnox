@@ -385,24 +385,47 @@ export bool init_cpu_block(unsigned int cpu_no) {
     auto& cb = *(cpu_block*)va;
 
     for (unsigned int i = 0; i < pages; i++) {
-        auto pa = allocate_page();
-        if (!pa) {
-            print("allocate_page failed\n");
-            return false;
-        }
+        if (cpu_no == 0) {
+            auto pa = allocate_folio_no_lock(0, page_state::used);
+            if (!pa) {
+                print("allocate_folio_no_lock failed\n");
+                return false;
+            }
 
-        if (!map_page(pa, va, mapping_type::read_write)) {
-            print("map_page failed\n");
-            return false;
+            if (!map_page<true>(pa, va, mapping_type::read_write)) {
+                print("map_page failed\n");
+                return false;
+            }
+        } else {
+            auto pa = allocate_page();
+            if (!pa) {
+                print("allocate_page failed\n");
+                return false;
+            }
+
+            if (!map_page(pa, va, mapping_type::read_write)) {
+                print("map_page failed\n");
+                return false;
+            }
         }
 
         va += PAGE_SIZE;
     }
 
-    auto printk_scratch_pa = allocate_page();
-    if (!printk_scratch_pa) {
-        print("allocate_page failed\n");
-        return false;
+    uint64_t printk_scratch_pa;
+
+    if (cpu_no == 0) {
+        printk_scratch_pa = allocate_folio_no_lock(0, page_state::used);
+        if (!printk_scratch_pa) {
+            print("allocate_folio_no_lock failed\n");
+            return false;
+        }
+    } else {
+        printk_scratch_pa = allocate_page();
+        if (!printk_scratch_pa) {
+            print("allocate_page failed\n");
+            return false;
+        }
     }
 
     new (&cb) cpu_block;
@@ -412,7 +435,13 @@ export bool init_cpu_block(unsigned int cpu_no) {
     cb.cpu_no = cpu_no;
     cb.printk_scratch = (char*)phys_address(printk_scratch_pa);
 
-    auto stack = allocate_stack();
+    void* stack;
+
+    if (cpu_no == 0)
+        stack = allocate_stack_no_lock();
+    else
+        stack = allocate_stack();
+
     if (!stack)
         return false;
 

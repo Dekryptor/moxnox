@@ -885,13 +885,13 @@ export bool init_interrupts() {
         return false;
     }
 
-    auto va = allocate_va(1);
+    auto va = allocate_va_no_lock(1);
     if (!va) {
-        print("allocate_va failed\n");
+        print("allocate_va_no_lock failed\n");
         return false;
     }
 
-    if (!map_page(*gicc_addr, va, mapping_type::no_cache)) {
+    if (!map_page<true>(*gicc_addr, va, mapping_type::no_cache)) {
         print("map_page failed\n");
         free_va(va, 1);
         return false;
@@ -899,13 +899,13 @@ export bool init_interrupts() {
 
     gicc = va;
 
-    va = allocate_va(1);
+    va = allocate_va_no_lock(1);
     if (!va) {
-        print("allocate_va failed\n");
+        print("allocate_va_no_lock failed\n");
         return false;
     }
 
-    if (!map_page(*gicd_addr, va, mapping_type::no_cache)) {
+    if (!map_page<true>(*gicd_addr, va, mapping_type::no_cache)) {
         print("map_page failed\n");
         free_va(va, 1);
         return false;
