@@ -29,6 +29,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/timer.cpp
     src/disable_interrupts.cpp
     src/scheduler.cpp
+    src/null.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -37,7 +38,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/cpio.cpp
     src/rtc.cpp
     src/ps2keyboard.cpp
-    src/null.cpp
     src/serial.cpp
     src/btrfs.cpp
     src/sata.cpp

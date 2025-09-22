@@ -8,7 +8,6 @@
 #include "process.h"
 
 #ifndef __aarch64__
-import null;
 import serial;
 import pci;
 import vfs;
@@ -36,6 +35,7 @@ import list;
 import chardev;
 import evdev;
 import unicode;
+import null;
 
 using namespace std;
 
@@ -241,10 +241,12 @@ void main_thread() {
     }
 
     protect_kernel_pages();
+#endif
 
     if (!create_dev_null())
         print("create_dev_null failed\n");
 
+#ifndef __aarch64__
     if (!mount_root())
         bsod("mount_root failed");
 
