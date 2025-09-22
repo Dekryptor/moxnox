@@ -9,17 +9,13 @@
 
 #ifndef __aarch64__
 import null;
-import list;
 import serial;
 import pci;
 import vfs;
 import pe;
-import chardev;
 import syscalls;
 import smp;
-import evdev;
 import keyboard;
-import unicode;
 import section;
 import process;
 import image;
@@ -36,6 +32,10 @@ import interrupts;
 import timer;
 import disable_interrupts;
 import scheduler;
+import list;
+import chardev;
+import evdev;
+import unicode;
 
 using namespace std;
 
