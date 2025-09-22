@@ -23,6 +23,10 @@ import inout;
 import apic;
 #endif
 
+extern "C++" {
+    uint32_t timer_irq_no;
+}
+
 using namespace std;
 
 export class timer : public sync_object {
@@ -60,6 +64,10 @@ static_assert(object_has_on_wake<timer>);
 #ifdef __aarch64__
 
 static uint32_t CNTFRQ;
+
+extern "C++" {
+    uint64_t hardware_tick_rate;
+}
 
 #else
 
@@ -118,7 +126,7 @@ export void pit_delay(uint16_t delay) {
 
 #ifdef __aarch64__
 
-static bool timer_irq(void*) {
+static bool timer_irq_handler(void*) {
     // FIXME
 
     // while (true) { }
@@ -129,7 +137,7 @@ static bool timer_irq(void*) {
         "\n\tmov x0, #1"
         "\n\tmsr cntp_ctl_el0, x0"
         :
-        : [res] "r" (CNTFRQ / TICK_RATE)
+        : [res] "r" (hardware_tick_rate)
         : "x0"
     );
 
@@ -159,14 +167,12 @@ static optional<uint32_t> find_timer_irq() {
 }
 
 export bool init_timer() {
-    uint32_t irq;
-
     disable_interrupts();
 
     if (auto opt = find_timer_irq(); !opt.has_value())
         return false;
     else
-        irq = *opt;
+        timer_irq_no = *opt;
 
     // get hardware frequency
     __asm __volatile (
@@ -174,7 +180,9 @@ export bool init_timer() {
         : [res] "=r" (CNTFRQ)
     );
 
-    if (!add_irq_handler(irq, timer_irq, nullptr)) {
+    hardware_tick_rate = CNTFRQ / TICK_RATE;
+
+    if (!add_irq_handler(timer_irq_no, timer_irq_handler, nullptr)) {
         print("add_irq_handler failed\n");
         return false;
     }
@@ -185,7 +193,7 @@ export bool init_timer() {
         "\n\tmov x0, #1"
         "\n\tmsr cntp_ctl_el0, x0"
         :
-        : [res] "r" (CNTFRQ / TICK_RATE)
+        : [res] "r" (hardware_tick_rate)
         : "x0"
     );
 

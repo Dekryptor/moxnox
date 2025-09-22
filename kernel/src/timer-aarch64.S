@@ -1,5 +1,7 @@
 #include "context_offsets.h"
 
+.equ GICC_EOIR_OFFSET, 0x10
+
 // FIXME - DWARF information
 
 .global scheduler_restore
@@ -109,3 +111,32 @@ get_cpu_block:
     mov x0, x18
     ret
 get_cpu_block_end:
+
+// branched from kernel_irq_entry
+// can only use x0, x1, x2, and x3
+.global timer_isr
+timer_isr:
+// FIXME - timers
+// FIXME - wait timeouts
+// FIXME - time slices
+
+// start clock again
+adr	x1, hardware_tick_rate
+ldr	x1, [x1]
+msr	cntp_tval_el0, x1
+mov	x0, #1
+msr	cntp_ctl_el0, x0
+
+// set end-of-interrupt
+adr	x0, gicc
+ldr	x0, [x0]
+add	x0, x0, GICC_EOIR_OFFSET
+adr	x1, timer_irq_no
+ldr	w1, [x1]
+str	w1, [x0]
+
+// finish up and return
+ldp	x2, x3, [sp, #0x10]
+ldp	x0, x1, [sp]
+add	sp, sp, #0x20
+eret
