@@ -30,6 +30,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/disable_interrupts.cpp
     src/scheduler.cpp
     src/null.cpp
+    src/semaphore.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -44,7 +45,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/pci.cpp
     src/vfs.cpp
     src/pe.cpp
-    src/semaphore.cpp
     src/syscalls.cpp
     src/smp.cpp
     src/volume.cpp

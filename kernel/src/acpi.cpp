@@ -12,7 +12,6 @@ export module acpi;
 
 #ifndef __aarch64__
 import inout;
-import semaphore;
 import rwsem;
 import apic;
 #endif
@@ -26,6 +25,7 @@ import interrupts;
 import disable_interrupts;
 import timer;
 import scheduler;
+import semaphore;
 
 using namespace std;
 
@@ -740,7 +740,6 @@ void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS) {
 extern "C"
 ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits,
                                   ACPI_SEMAPHORE* OutHandle) {
-#ifndef __aarch64__ // FIXME
     auto ref = create_semaphore(MaxUnits);
 
     auto& sem = static_cast<semaphore&>(ref.get());
@@ -749,18 +748,15 @@ ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits,
     sem.current_count = InitialUnits;
 
     *OutHandle = &sem;
-#endif
 
     return AE_OK;
 }
 
 extern "C"
 ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle) {
-#ifndef __aarch64__ // FIXME
     auto& sem = *static_cast<semaphore*>(Handle);
 
     sem.release();
-#endif
 
     return AE_OK;
 }
@@ -771,7 +767,6 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
     if (!acpi_early_init_done)
         return AE_OK;
 
-#ifndef __aarch64__ // FIXME
     auto& sem = *static_cast<semaphore*>(Handle);
 
     // FIXME - Timeout
@@ -784,7 +779,6 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
     sem.acquire();
     wait_for_object(sem, true);
     sem.release();
-#endif
 
     return AE_OK;
 }
@@ -794,7 +788,6 @@ ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units) {
     if (!acpi_early_init_done)
         return AE_OK;
 
-#ifndef __aarch64__ // FIXME
     auto& sem = *static_cast<semaphore*>(Handle);
 
     if (Units != 1) {
@@ -803,7 +796,6 @@ ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units) {
     }
 
     release_semaphore(sem);
-#endif
 
     return AE_OK;
 }
