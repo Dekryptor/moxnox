@@ -1362,8 +1362,6 @@ void handle_kernel_exception(uint64_t esr_value) {
 
 extern "C"
 void handle_kernel_irq(uint32_t number) {
-    // FIXME - does the CPU definitely disable other interrupts?
-
     {
         lock_guard lock(irq_lock);
 
