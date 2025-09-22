@@ -126,24 +126,6 @@ export void pit_delay(uint16_t delay) {
 
 #ifdef __aarch64__
 
-static bool timer_irq_handler(void*) {
-    // FIXME
-
-    // while (true) { }
-
-    // start clock again
-    __asm __volatile (
-        "msr cntp_tval_el0, %x[res]"
-        "\n\tmov x0, #1"
-        "\n\tmsr cntp_ctl_el0, x0"
-        :
-        : [res] "r" (hardware_tick_rate)
-        : "x0"
-    );
-
-    return true;
-}
-
 static optional<uint32_t> find_timer_irq() {
     ACPI_TABLE_HEADER* tbl;
 
@@ -182,11 +164,6 @@ export bool init_timer() {
 
     hardware_tick_rate = CNTFRQ / TICK_RATE;
 
-    if (!add_irq_handler(timer_irq_no, timer_irq_handler, nullptr)) {
-        print("add_irq_handler failed\n");
-        return false;
-    }
-
     // set tick rate and enable interrupt
     __asm __volatile (
         "msr cntp_tval_el0, %x[res]"
@@ -196,6 +173,9 @@ export bool init_timer() {
         : [res] "r" (hardware_tick_rate)
         : "x0"
     );
+
+    clear_irq_pending_bit(timer_irq_no);
+    enable_irq(timer_irq_no);
 
     return true;
 }

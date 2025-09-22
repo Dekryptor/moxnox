@@ -406,6 +406,16 @@ static irq* find_irq(uint32_t number, uint32_t apic_id) {
 
 #ifdef __aarch64__
 
+export void clear_irq_pending_bit(uint32_t number) {
+    auto& GICD_ICPENDR = *(volatile uint32_t*)(gicd + 0x200 + ((number / 32) * 4));
+    GICD_ICPENDR = 1 << (number % 32);
+}
+
+export void enable_irq(uint32_t number) {
+    auto& GICD_ISENABLER = *(volatile uint32_t*)(gicd + 0x100 + ((number / 32) * 4));
+    GICD_ISENABLER = 1 << (number % 32);
+}
+
 static irq* find_irq(uint32_t number) {
     {
         lock_guard lock(irq_lock);
@@ -436,9 +446,7 @@ static irq* find_irq(uint32_t number) {
 
         insert_tail_list(irqs, i->le);
 
-        // clear pending bit if new IRQ
-        auto& GICD_ICPENDR = *(volatile uint32_t*)(gicd + 0x200 + ((number / 32) * 4));
-        GICD_ICPENDR = 1 << (number % 32);
+        clear_irq_pending_bit(number);
     }
 
     return i;
@@ -461,9 +469,7 @@ export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
         insert_tail_list(irq->handlers, info->le);
     }
 
-    // enable IRQ
-    auto& GICD_ISENABLER = *(volatile uint32_t*)(gicd + 0x100 + ((number / 32) * 4));
-    GICD_ISENABLER = 1 << (number % 32);
+    enable_irq(number);
 
     return true;
 }
