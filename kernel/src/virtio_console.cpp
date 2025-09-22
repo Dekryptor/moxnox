@@ -14,7 +14,6 @@ import bsod;
 import config;
 import chardev;
 import format;
-import serial;
 import pci;
 import virtio;
 import list;
