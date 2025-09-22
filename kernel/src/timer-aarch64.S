@@ -112,13 +112,85 @@ get_cpu_block:
     ret
 get_cpu_block_end:
 
+.macro timer_save_context
+	add	x0, x18, GS_CONTEXT
+	stp	x4, x5, [x0, #CONTEXT_X0 + 0x20]
+	stp	x6, x7, [x0, #CONTEXT_X0 + 0x30]
+	stp	x8, x9, [x0, #CONTEXT_X0 + 0x40]
+	stp	x10, x11, [x0, #CONTEXT_X0 + 0x50]
+	stp	x12, x13, [x0, #CONTEXT_X0 + 0x60]
+	stp	x14, x15, [x0, #CONTEXT_X0 + 0x70]
+	stp	x16, x17, [x0, #CONTEXT_X0 + 0x80]
+	stp	x18, x19, [x0, #CONTEXT_X0 + 0x90]
+	stp	x20, x21, [x0, #CONTEXT_X0 + 0xa0]
+	stp	x22, x23, [x0, #CONTEXT_X0 + 0xb0]
+	stp	x24, x25, [x0, #CONTEXT_X0 + 0xc0]
+	stp	x26, x27, [x0, #CONTEXT_X0 + 0xd0]
+	stp	x28, fp, [x0, #CONTEXT_X0 + 0xe0]
+	str	lr, [x0, #CONTEXT_X0 + 0xf0]
+
+	str	q0, [x0, #CONTEXT_V0]
+	str	q1, [x0, #CONTEXT_V0 + 0x10]
+	str	q2, [x0, #CONTEXT_V0 + 0x20]
+	str	q3, [x0, #CONTEXT_V0 + 0x30]
+	str	q4, [x0, #CONTEXT_V0 + 0x40]
+	str	q5, [x0, #CONTEXT_V0 + 0x50]
+	str	q6, [x0, #CONTEXT_V0 + 0x60]
+	str	q7, [x0, #CONTEXT_V0 + 0x70]
+	str	q8, [x0, #CONTEXT_V0 + 0x80]
+	str	q9, [x0, #CONTEXT_V0 + 0x90]
+	str	q10, [x0, #CONTEXT_V0 + 0xa0]
+	str	q11, [x0, #CONTEXT_V0 + 0xb0]
+	str	q12, [x0, #CONTEXT_V0 + 0xc0]
+	str	q13, [x0, #CONTEXT_V0 + 0xd0]
+	str	q14, [x0, #CONTEXT_V0 + 0xe0]
+	str	q15, [x0, #CONTEXT_V0 + 0xf0]
+	str	q16, [x0, #CONTEXT_V0 + 0x100]
+	str	q17, [x0, #CONTEXT_V0 + 0x110]
+	str	q18, [x0, #CONTEXT_V0 + 0x120]
+	str	q19, [x0, #CONTEXT_V0 + 0x130]
+	str	q20, [x0, #CONTEXT_V0 + 0x140]
+	str	q21, [x0, #CONTEXT_V0 + 0x150]
+	str	q22, [x0, #CONTEXT_V0 + 0x160]
+	str	q23, [x0, #CONTEXT_V0 + 0x170]
+	str	q24, [x0, #CONTEXT_V0 + 0x180]
+	str	q25, [x0, #CONTEXT_V0 + 0x190]
+	str	q26, [x0, #CONTEXT_V0 + 0x1a0]
+	str	q27, [x0, #CONTEXT_V0 + 0x1b0]
+	str	q28, [x0, #CONTEXT_V0 + 0x1c0]
+	str	q29, [x0, #CONTEXT_V0 + 0x1d0]
+	str	q30, [x0, #CONTEXT_V0 + 0x1e0]
+	str	q31, [x0, #CONTEXT_V0 + 0x1f0]
+
+	// FIXME - debug registers
+
+	mrs	x1, fpcr
+	str	w1, [x0, #CONTEXT_FPCR]
+
+	mrs	x1, fpsr
+	str	w1, [x0, #CONTEXT_FPSR]
+
+	add	x1, sp, #0x20
+	str	x1, [x0, #CONTEXT_SP]
+
+	mrs	x1, elr_el1
+	str	x1, [x0, #CONTEXT_PC]
+
+	mrs	x1, spsr_el1
+	str	w1, [x0, #CONTEXT_CPSR]
+
+	ldp	x2, x3, [sp, #0x10]
+	stp	x2, x3, [x0, #CONTEXT_X0 + 0x10]
+	ldr	x1, [sp, #0x8]
+	str	x1, [x0, #CONTEXT_X0 + 0x8]
+	ldr	x1, [sp]
+	str	x1, [x0, #CONTEXT_X0]
+.endm
+
 // branched from kernel_irq_entry
 // can only use x0, x1, x2, and x3
 .global timer_isr
 timer_isr:
-// FIXME - timers
-// FIXME - wait timeouts
-// FIXME - time slices
 
 // start clock again
 adr	x1, hardware_tick_rate
@@ -126,6 +198,47 @@ ldr	x1, [x1]
 msr	cntp_tval_el0, x1
 mov	x0, #1
 msr	cntp_ctl_el0, x0
+
+// FIXME - timers
+// FIXME - wait timeouts
+// FIXME - system time
+
+// decrease time slice
+
+add	x0, x18, GS_CURRENT_THREAD
+ldr	x0, [x0]
+cbz	x0, timer_isr_finish
+
+add	x0, x18, GS_DISABLE_PREEMPT
+ldr	x0, [x0]
+cbnz	x0, timer_isr_finish
+
+add	x0, x18, GS_TIME_SLICE_LEFT
+ldr	x1, [x0]
+sub	x1, x1, #1
+str	x1, [x0]
+cbnz	x1, timer_isr_finish
+
+// do context switch
+
+timer_save_context
+
+// set end-of-interrupt
+adr	x0, gicc
+ldr	x0, [x0]
+add	x0, x0, GICC_EOIR_OFFSET
+adr	x1, timer_irq_no
+ldr	w1, [x1]
+str	w1, [x0]
+
+bl	acquire_sync_lock
+
+add	x0, x18, GS_SCHEDULER_STACK
+ldr	x0, [x0]
+mov	sp, x0
+b	scheduler
+
+timer_isr_finish:
 
 // set end-of-interrupt
 adr	x0, gicc
