@@ -24,6 +24,7 @@ import mem;
 import interrupts;
 import config;
 import chardev;
+import scheduler;
 
 using namespace std;
 
@@ -218,11 +219,10 @@ nt_status pl011_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
 
         // block while we wait for space to become available
 
-        // FIXME
-        //auto status = wait_for_object(not_full_event, true);
+        auto status = wait_for_object(not_full_event, true);
 
-        // if (!success(status))
-            // return status;
+        if (!success(status))
+            return status;
     } while (true);
 
     written_bytes = (uint64_t)(s.data() - orig_s.data());
