@@ -137,7 +137,31 @@ nt_status pl011_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
 }
 
 nt_status pl011_out_pipe::flush(bool go_readonly) {
-    // FIXME
+    if (go_readonly)
+        readonly = true;
+
+    auto& UARTDR = *(volatile uint32_t*)base_address;
+    auto& UARTFR = *(volatile uint32_t*)(base_address + 0x18);
+
+    lock_guard l(lock);
+
+    while (true) {
+        if (buf_unread == 0) {
+            ready = true;
+            return nt_status::SUCCESS;
+        }
+
+        size_t buf_read_pos = buf_write_pos + (buf_pages << PAGE_SHIFT) - buf_unread;
+
+        while (buf_read_pos >= buf_pages << PAGE_SHIFT) {
+            buf_read_pos -= buf_pages << PAGE_SHIFT;
+        }
+
+        while (UARTFR & PL011_UARTFR_BUSY) { }
+        UARTDR = (uint32_t)buf[buf_read_pos];
+
+        buf_unread--;
+    }
 
     return nt_status::SUCCESS;
 }
