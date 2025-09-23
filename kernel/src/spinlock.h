@@ -5,23 +5,36 @@
 
 #ifdef __aarch64__
 
+extern uint64_t gicc;
+
 template<unsigned>
 class _spinlock {
 public:
     void lock() {
-        // FIXME - is there an equivalent to x86 cr8?
+        uint32_t current_priority;
+        auto& GICC_PMR = *(volatile uint32_t*)(gicc + 0x4);
+
+        current_priority = GICC_PMR;
+        GICC_PMR = 0; // FIXME - templatable priority?
 
         while (v.exchange(1, std::memory_order_acquire)) {
             // FIXME - is there an equivalent to x86 pause?
         }
+
+        old_priority = current_priority;
     }
 
     void unlock() {
         v.exchange(0, std::memory_order_release);
+
+        auto& GICC_PMR = *(volatile uint32_t*)(gicc + 0x4);
+
+        GICC_PMR = old_priority;
     }
 
 private:
     std::atomic<uint64_t> v = 0;
+    uint32_t old_priority;
 };
 
 using spinlock = _spinlock<5>;
