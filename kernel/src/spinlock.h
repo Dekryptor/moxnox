@@ -18,7 +18,7 @@ public:
         GICC_PMR = 0; // FIXME - templatable priority?
 
         while (v.exchange(1, std::memory_order_acquire)) {
-            // FIXME - is there an equivalent to x86 pause?
+            __asm("yield");
         }
 
         old_priority = current_priority;
