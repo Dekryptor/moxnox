@@ -59,20 +59,18 @@ static const uint32_t PL011_UARTICR_TXIC = 1 << 5;
 
 class pl011_out_pipe : public pipe {
 public:
-    pl011_out_pipe(unsigned int buffer_pages, uint64_t base_address,
-                   unsigned int base_clock, unsigned int baud_rate);
+    pl011_out_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status flush(bool go_readonly) override;
 
-    bool init = false, ready = true;
+    bool ready = true;
     uint64_t base_address;
 };
 
 class pl011_pipe : public chardev {
 public:
-    pl011_pipe(pl011_out_pipe& send_pipe) : send_pipe(send_pipe) {
-        send_pipe.acquire();
-    }
+    pl011_pipe(pl011_out_pipe& send_pipe, uint64_t base_address,
+               unsigned int base_clock, unsigned int baud_rate);
 
     ~pl011_pipe() {
         send_pipe.release();
@@ -93,7 +91,68 @@ public:
     void irq();
 
     pl011_out_pipe& send_pipe;
+    bool init = false;
+    uint64_t base_address;
 };
+
+pl011_pipe::pl011_pipe(pl011_out_pipe& send_pipe, uint64_t pa,
+                       unsigned int base_clock, unsigned int baud_rate) : send_pipe(send_pipe) {
+    send_pipe.acquire();
+
+    auto va = allocate_va(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return;
+    }
+
+    if (!map_page(pa, va, mapping_type::no_cache)) {
+        print("map_page failed\n");
+        free_va(va, 1);
+        return;
+    }
+
+    base_address = va;
+
+    auto& UARTFR = *(volatile uint32_t*)(base_address + 0x18);
+    auto& UARTIBRD = *(volatile uint32_t*)(base_address + 0x24);
+    auto& UARTFBRD = *(volatile uint32_t*)(base_address + 0x28);
+    auto& UARTLCR_H = *(volatile uint32_t*)(base_address + 0x2c);
+    auto& UARTCR = *(volatile uint32_t*)(base_address + 0x30);
+    auto& UARTIMSC = *(volatile uint32_t*)(base_address + 0x38);
+    auto& UARTICR = *(volatile uint32_t*)(base_address + 0x44);
+    auto& UARTDMACR = *(volatile uint32_t*)(base_address + 0x48);
+
+    // disable UART
+    UARTCR &= ~PL011_UARTCR_UARTEN;
+
+    while (UARTFR & PL011_UARTFR_BUSY) { }
+
+    // disable FIFOs
+    UARTLCR_H &= ~PL011_UARTLCR_H_FEN;
+
+    auto div = 4 * base_clock / baud_rate;
+
+    UARTIBRD = (div >> 6) & 0xffff;
+    UARTFBRD = div & 0x3f;
+
+    // set word length to 8 bits
+    UARTLCR_H &= ~(PL011_UARTLCR_H_WLEN_MASK);
+    UARTLCR_H |= 3 << PL011_UARTLCR_H_WLEN_OFFSET;
+
+    // mask interrupts
+    UARTIMSC = PL011_UARTIMSC_TXIM;
+
+    // clear pending interrupts
+    UARTICR = 0x3ff;
+
+    // disable DMA
+    UARTDMACR = 0;
+
+    // enable transmission and UART
+    UARTCR |= PL011_UARTCR_TXE | PL011_UARTCR_UARTEN;
+
+    init = true;
+}
 
 nt_status pl011_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
     auto orig_s = s;
@@ -231,76 +290,10 @@ static bool pl011_irq_handler(void* ctx) {
     return true;
 }
 
-pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t pa,
-                               unsigned int base_clock, unsigned int baud_rate) : pipe(buffer_pages) {
-    // FIXME - unallocate in destructor(?)
-    auto va = allocate_va(1);
-    if (!va) {
-        print("allocate_va failed\n");
-        return;
-    }
-
-    if (!map_page(pa, va, mapping_type::no_cache)) {
-        print("map_page failed\n");
-        free_va(va, 1);
-        return;
-    }
-
-    base_address = va;
-
-    auto& UARTFR = *(volatile uint32_t*)(base_address + 0x18);
-    auto& UARTIBRD = *(volatile uint32_t*)(base_address + 0x24);
-    auto& UARTFBRD = *(volatile uint32_t*)(base_address + 0x28);
-    auto& UARTLCR_H = *(volatile uint32_t*)(base_address + 0x2c);
-    auto& UARTCR = *(volatile uint32_t*)(base_address + 0x30);
-    auto& UARTIMSC = *(volatile uint32_t*)(base_address + 0x38);
-    auto& UARTICR = *(volatile uint32_t*)(base_address + 0x44);
-    auto& UARTDMACR = *(volatile uint32_t*)(base_address + 0x48);
-
-    // disable UART
-    UARTCR &= ~PL011_UARTCR_UARTEN;
-
-    while (UARTFR & PL011_UARTFR_BUSY) { }
-
-    // disable FIFOs
-    UARTLCR_H &= ~PL011_UARTLCR_H_FEN;
-
-    auto div = 4 * base_clock / baud_rate;
-
-    UARTIBRD = (div >> 6) & 0xffff;
-    UARTFBRD = div & 0x3f;
-
-    // set word length to 8 bits
-    UARTLCR_H &= ~(PL011_UARTLCR_H_WLEN_MASK);
-    UARTLCR_H |= 3 << PL011_UARTLCR_H_WLEN_OFFSET;
-
-    // mask interrupts
-    UARTIMSC = PL011_UARTIMSC_TXIM;
-
-    // clear pending interrupts
-    UARTICR = 0x3ff;
-
-    // disable DMA
-    UARTDMACR = 0;
-
-    // enable transmission and UART
-    UARTCR |= PL011_UARTCR_TXE | PL011_UARTCR_UARTEN;
-
-    init = true;
-}
-
-static object_ref create_pl011_out_pipe(unsigned int buffer_pages, uint64_t base_address,
-                                        unsigned int base_clock, unsigned int baud_rate) {
-    auto pptr = new pl011_out_pipe(buffer_pages, base_address, base_clock,
-                                   baud_rate);
+static object_ref create_pl011_out_pipe(unsigned int buffer_pages) {
+    auto pptr = new pl011_out_pipe(buffer_pages);
     if (!pptr) {
         print("new failed\n");
-        return {};
-    }
-
-    if (!pptr->init) {
-        print("pl011_out_pipe::pl011_out_pipe failed\n");
-        delete pptr;
         return {};
     }
 
@@ -335,8 +328,7 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
     }
 
     // FIXME - where does clock frequency come from?
-    auto send_handle = create_pl011_out_pipe(serial_buffer_pages, mem_start,
-                                             24000000/*FIXME*/, 115200);
+    auto send_handle = create_pl011_out_pipe(serial_buffer_pages);
     if (!send_handle) {
         print("create_serial_out_pipe failed\n");
         return false;
@@ -346,13 +338,22 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
 
     // FIXME - input pipe
 
-    auto pptr = new pl011_pipe(send_pipe);
+    auto pptr = new pl011_pipe(send_pipe, mem_start, 24000000/*FIXME*/,
+                               115200);
     if (!pptr) {
         print("new failed\n");
         return false;
     }
 
+    if (!pptr->init) {
+        print("pl011_pipe::pl011_pipe failed\n");
+        delete pptr;
+        return false;
+    }
+
     auto pipe_handle = object_ref{*pptr};
+
+    send_pipe.base_address = pptr->base_address;
 
     if (!add_irq_handler(irq, pl011_irq_handler, pptr)) {
         print("add_irq_handler failed\n");
