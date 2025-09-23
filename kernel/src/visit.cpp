@@ -89,7 +89,6 @@ export void object_release(object& obj) {
     });
 }
 
-#ifndef __aarch64__
 export bool object_is_sync_object(object& obj) {
     bool ret = false;
 
@@ -109,7 +108,6 @@ export void object_on_wake(object& obj) {
             o.on_wake();
     });
 }
-#endif
 
 export nt_status object_write_without_offset(object& obj, span<const uint8_t> buf,
                                              uint64_t& written) {
@@ -203,6 +201,7 @@ export bool object_is_exclusive(object& obj) {
 
     return ret;
 }
+#endif
 
 export sync_object& object_get_sync_object(object& obj) {
     sync_object* so = nullptr;
@@ -217,6 +216,7 @@ export sync_object& object_get_sync_object(object& obj) {
     return *so;
 }
 
+#ifndef __aarch64__
 export void object_last_handle_closed(object& obj) {
     visit_obj(obj, [&](auto&& o) {
         if constexpr (has_last_handle_closed<remove_reference_t<decltype(o)>>)

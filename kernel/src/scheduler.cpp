@@ -8,10 +8,7 @@ module;
 #include "cpu_block.h"
 #include "process.h"
 #include "assert.h"
-
-#ifndef __aarch64__
 #include "tick_rate.h"
-#endif
 
 export module scheduler;
 
@@ -184,19 +181,21 @@ void scheduler() {
 #endif
         }
 
+        enable_interrupts();
 #ifdef __aarch64__
     // FIXME - wfe
 #else
-        __asm("sti; hlt; cli");
+        __asm __volatile("hlt");
 #endif
+        disable_interrupts();
     } while (true);
 }
 
 export extern "C++"
 nt_status wait_for_object(object& obj, bool interruptible,
                           optional<uint64_t> timeout = nullopt) {
-#ifndef __aarch64__ // FIXME
 #ifdef DEBUG
+#ifndef __aarch64__ // FIXME
     uint64_t cr8 = 0, rflags = 0;
 
     __asm __volatile(
@@ -221,6 +220,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
     if (!(rflags & 0x200)) // IF flag not set
         bsod("calling wait_for_object with interrupts disabled");
+#endif
 #endif
     auto current_thread = get_current_thread();
 
@@ -281,7 +281,17 @@ nt_status wait_for_object(object& obj, bool interruptible,
         }
     }
 
+#ifdef __aarch64__
+    __asm __volatile (
+        "mov x0, lr"
+        "\n\tbl yield"
+        :
+        :
+        : "x0", "x1"
+    );
+#else
     yield(); // releases sync_lock
+#endif
 
     if (interruptible && current_thread->status == thread_status::dying)
         return nt_status::THREAD_IS_TERMINATING;
@@ -291,7 +301,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
     if (timeout.has_value() && current_thread->wait_timeout == 0)
         return nt_status::TIMEOUT;
-#endif
+
     return nt_status::SUCCESS;
 }
 
