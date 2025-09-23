@@ -115,6 +115,7 @@ static object_ref create_init_process() {
 
     return ref;
 }
+#endif
 
 static void keywait() {
     bool do_wait = false;
@@ -178,7 +179,6 @@ static void keywait() {
 
     print("\e[?25h");
 }
-#endif
 
 void main_thread() {
     print("\e[2J\e[1;1H");  // erase screen, move to top left
@@ -223,9 +223,9 @@ void main_thread() {
 
     print(MOXNOX_VERSION_STRING "\n");
 
-#ifndef __aarch64__
     keywait();
 
+#ifndef __aarch64__
     init_pci(false);
 
     init_syscalls();
