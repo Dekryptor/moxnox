@@ -289,11 +289,10 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
             break;
 
         // block while we wait for space to become available
-#ifndef __aarch64__
         auto status = wait_for_object(not_full_event, true);
         if (!success(status))
             return status;
-#endif
+
         if (server_closed)
             break;
 
