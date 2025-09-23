@@ -46,6 +46,7 @@ static atomic<unsigned int> pl011_number = 0;
 
 static const uint32_t PL011_UARTCR_UARTEN = 1 << 0;
 static const uint32_t PL011_UARTCR_TXE = 1 << 8;
+static const uint32_t PL011_UARTCR_RXE = 1 << 9;
 
 static const uint32_t PL011_UARTFR_BUSY = 1 << 3;
 
@@ -56,6 +57,10 @@ static const uint32_t PL011_UARTLCR_H_WLEN_MASK = 3 << PL011_UARTLCR_H_WLEN_OFFS
 static const uint32_t PL011_UARTMIS_TXMIS = 1 << 5;
 static const uint32_t PL011_UARTIMSC_TXIM = 1 << 5;
 static const uint32_t PL011_UARTICR_TXIC = 1 << 5;
+
+static const uint32_t PL011_UARTMIS_RXMIS = 1 << 4;
+static const uint32_t PL011_UARTIMSC_RXIM = 1 << 4;
+static const uint32_t PL011_UARTICR_RXIC = 1 << 4;
 
 class pl011_out_pipe : public pipe {
 public:
@@ -69,34 +74,38 @@ public:
 
 class pl011_pipe : public chardev {
 public:
-    pl011_pipe(pl011_out_pipe& send_pipe, uint64_t base_address,
-               unsigned int base_clock, unsigned int baud_rate);
+    pl011_pipe(pipe& recv_pipe, pl011_out_pipe& send_pipe,
+               uint64_t base_address, unsigned int base_clock,
+               unsigned int baud_rate);
 
     ~pl011_pipe() {
+        recv_pipe.release();
         send_pipe.release();
     }
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
-        return nt_status::NOT_IMPLEMENTED;
+        return recv_pipe.read(s, read_bytes);
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
         return send_pipe.write(s, written_bytes);
     }
 
-    /*sync_object& get_sync_object() override {
+    sync_object& get_sync_object() override {
         return recv_pipe;
-    }*/
+    }
 
     void irq();
 
+    pipe& recv_pipe;
     pl011_out_pipe& send_pipe;
     bool init = false;
     uint64_t base_address;
 };
 
-pl011_pipe::pl011_pipe(pl011_out_pipe& send_pipe, uint64_t pa,
-                       unsigned int base_clock, unsigned int baud_rate) : send_pipe(send_pipe) {
+pl011_pipe::pl011_pipe(pipe& recv_pipe, pl011_out_pipe& send_pipe, uint64_t pa,
+                       unsigned int base_clock, unsigned int baud_rate) : recv_pipe(recv_pipe), send_pipe(send_pipe) {
+    recv_pipe.acquire();
     send_pipe.acquire();
 
     auto va = allocate_va(1);
@@ -140,7 +149,7 @@ pl011_pipe::pl011_pipe(pl011_out_pipe& send_pipe, uint64_t pa,
     UARTLCR_H |= 3 << PL011_UARTLCR_H_WLEN_OFFSET;
 
     // mask interrupts
-    UARTIMSC = PL011_UARTIMSC_TXIM;
+    UARTIMSC = PL011_UARTIMSC_RXIM | PL011_UARTIMSC_TXIM;
 
     // clear pending interrupts
     UARTICR = 0x3ff;
@@ -148,8 +157,8 @@ pl011_pipe::pl011_pipe(pl011_out_pipe& send_pipe, uint64_t pa,
     // disable DMA
     UARTDMACR = 0;
 
-    // enable transmission and UART
-    UARTCR |= PL011_UARTCR_TXE | PL011_UARTCR_UARTEN;
+    // enable receiving, transmission, and UART
+    UARTCR |= PL011_UARTCR_RXE | PL011_UARTCR_TXE | PL011_UARTCR_UARTEN;
 
     init = true;
 }
@@ -280,6 +289,19 @@ void pl011_pipe::irq() {
             }
         }
     }
+
+    if (uartmis_value & PL011_UARTMIS_RXMIS) {
+        uint64_t written_bytes;
+        auto& UARTDR = *(volatile uint32_t*)send_pipe.base_address;
+        auto& UARTICR = *(volatile uint32_t*)(send_pipe.base_address + 0x44);
+
+        UARTICR |= PL011_UARTICR_RXIC;
+
+        auto c = (uint8_t)UARTDR;
+
+        // FIXME - don't sleep here!
+        recv_pipe.write(span(&c, 1), written_bytes);
+    }
 }
 
 static bool pl011_irq_handler(void* ctx) {
@@ -300,6 +322,18 @@ static object_ref create_pl011_out_pipe(unsigned int buffer_pages) {
     auto& p = *pptr;
 
     add_to_flushable_pipes_list(*pptr);
+
+    return p;
+}
+
+static object_ref create_pl011_in_pipe(unsigned int buffer_pages) {
+    auto pptr = new pipe(buffer_pages);
+    if (!pptr) {
+        print("new failed\n");
+        return {};
+    }
+
+    auto& p = *pptr;
 
     return p;
 }
@@ -330,16 +364,22 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
     // FIXME - where does clock frequency come from?
     auto send_handle = create_pl011_out_pipe(serial_buffer_pages);
     if (!send_handle) {
-        print("create_serial_out_pipe failed\n");
+        print("create_pl011_out_pipe failed\n");
+        return false;
+    }
+
+    auto recv_handle = create_pl011_in_pipe(serial_buffer_pages);
+    if (!recv_handle) {
+        print("create_pl011_in_pipe failed\n");
         return false;
     }
 
     auto& send_pipe = static_cast<pl011_out_pipe&>(send_handle.get());
 
-    // FIXME - input pipe
+    auto& recv_pipe = static_cast<pipe&>(recv_handle.get());
 
-    auto pptr = new pl011_pipe(send_pipe, mem_start, 24000000/*FIXME*/,
-                               115200);
+    auto pptr = new pl011_pipe(recv_pipe, send_pipe, mem_start,
+                               24000000/*FIXME*/, 115200);
     if (!pptr) {
         print("new failed\n");
         return false;
