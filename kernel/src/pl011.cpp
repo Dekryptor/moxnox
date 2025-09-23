@@ -23,6 +23,7 @@ import format;
 import mem;
 import interrupts;
 import config;
+import chardev;
 
 using namespace std;
 
@@ -59,14 +60,39 @@ static const uint32_t PL011_UARTICR_TXIC = 1 << 5;
 class pl011_out_pipe : public pipe {
 public:
     pl011_out_pipe(unsigned int buffer_pages, uint64_t base_address,
-                   unsigned int base_clock, unsigned int baud_rate,
-                   uint32_t irq);
+                   unsigned int base_clock, unsigned int baud_rate);
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status flush(bool go_readonly) override;
-    void irq();
 
     bool init = false, ready = true;
     uint64_t base_address;
+};
+
+class pl011_pipe : public chardev {
+public:
+    pl011_pipe(pl011_out_pipe& send_pipe) : send_pipe(send_pipe) {
+        send_pipe.acquire();
+    }
+
+    ~pl011_pipe() {
+        send_pipe.release();
+    }
+
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
+        return send_pipe.write(s, written_bytes);
+    }
+
+    /*sync_object& get_sync_object() override {
+        return recv_pipe;
+    }*/
+
+    void irq();
+
+    pl011_out_pipe& send_pipe;
 };
 
 nt_status pl011_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
@@ -166,38 +192,39 @@ nt_status pl011_out_pipe::flush(bool go_readonly) {
     return nt_status::SUCCESS;
 }
 
-void pl011_out_pipe::irq() {
-    auto uartmis_value = *(volatile uint32_t*)(base_address + 0x40);
-    auto& UARTICR = *(volatile uint32_t*)(base_address + 0x44);
+void pl011_pipe::irq() {
+    auto uartmis_value = *(volatile uint32_t*)(send_pipe.base_address + 0x40);
 
     if (uartmis_value & PL011_UARTMIS_TXMIS) {
+        auto& UARTICR = *(volatile uint32_t*)(send_pipe.base_address + 0x44);
+
         UARTICR |= PL011_UARTICR_TXIC;
 
         {
             sync_lock sl;
             lock_guard l(sl);
-            lock_guard l2(lock);
+            lock_guard l2(send_pipe.lock);
 
-            if (buf_unread == 0)
-                ready = true;
+            if (send_pipe.buf_unread == 0)
+                send_pipe.ready = true;
             else {
-                auto& UARTDR = *(volatile uint32_t*)base_address;
+                auto& UARTDR = *(volatile uint32_t*)send_pipe.base_address;
 
-                size_t buf_read_pos = buf_write_pos + (buf_pages << PAGE_SHIFT) - buf_unread;
+                size_t buf_read_pos = send_pipe.buf_write_pos + (send_pipe.buf_pages << PAGE_SHIFT) - send_pipe.buf_unread;
 
-                while (buf_read_pos >= buf_pages << PAGE_SHIFT) {
-                    buf_read_pos -= buf_pages << PAGE_SHIFT;
+                while (buf_read_pos >= send_pipe.buf_pages << PAGE_SHIFT) {
+                    buf_read_pos -= send_pipe.buf_pages << PAGE_SHIFT;
                 }
 
-                UARTDR = (uint32_t)(buf[buf_read_pos]);
-                buf_unread--;
+                UARTDR = (uint32_t)(send_pipe.buf[buf_read_pos]);
+                send_pipe.buf_unread--;
             }
         }
     }
 }
 
 static bool pl011_irq_handler(void* ctx) {
-    auto& p = *(pl011_out_pipe*)ctx;
+    auto& p = *(pl011_pipe*)ctx;
 
     p.irq();
 
@@ -205,8 +232,7 @@ static bool pl011_irq_handler(void* ctx) {
 }
 
 pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t pa,
-                               unsigned int base_clock, unsigned int baud_rate,
-                               uint32_t irq) : pipe(buffer_pages) {
+                               unsigned int base_clock, unsigned int baud_rate) : pipe(buffer_pages) {
     // FIXME - unallocate in destructor(?)
     auto va = allocate_va(1);
     if (!va) {
@@ -260,19 +286,13 @@ pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t pa,
     // enable transmission and UART
     UARTCR |= PL011_UARTCR_TXE | PL011_UARTCR_UARTEN;
 
-    if (!add_irq_handler(irq, pl011_irq_handler, this)) {
-        print("add_irq_handler failed\n");
-        return;
-    }
-
     init = true;
 }
 
 static object_ref create_pl011_out_pipe(unsigned int buffer_pages, uint64_t base_address,
-                                        unsigned int base_clock, unsigned int baud_rate,
-                                        uint32_t irq) {
+                                        unsigned int base_clock, unsigned int baud_rate) {
     auto pptr = new pl011_out_pipe(buffer_pages, base_address, base_clock,
-                                   baud_rate, irq);
+                                   baud_rate);
     if (!pptr) {
         print("new failed\n");
         return {};
@@ -316,7 +336,7 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
 
     // FIXME - where does clock frequency come from?
     auto send_handle = create_pl011_out_pipe(serial_buffer_pages, mem_start,
-                                             24000000/*FIXME*/, 115200, irq);
+                                             24000000/*FIXME*/, 115200);
     if (!send_handle) {
         print("create_serial_out_pipe failed\n");
         return false;
@@ -325,7 +345,19 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
     auto& send_pipe = static_cast<pl011_out_pipe&>(send_handle.get());
 
     // FIXME - input pipe
-    // FIXME - create duplex pipe
+
+    auto pptr = new pl011_pipe(send_pipe);
+    if (!pptr) {
+        print("new failed\n");
+        return false;
+    }
+
+    auto pipe_handle = object_ref{*pptr};
+
+    if (!add_irq_handler(irq, pl011_irq_handler, pptr)) {
+        print("add_irq_handler failed\n");
+        return false;
+    }
 
     // FIXME - numbering assumes that ACPI devices are started in order, i.e. all from one thread
 
@@ -345,7 +377,7 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
 
         sp = format(sp, "ttyAMA{}", num);
 
-        auto status = name_object(send_handle.get(), string_view(s, (size_t)(sp.data() - s)));
+        auto status = name_object(pipe_handle.get(), string_view(s, (size_t)(sp.data() - s)));
         if (!success(status)) {
             print("name_object returned {}\n", status);
             return false;
