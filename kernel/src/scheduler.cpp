@@ -183,7 +183,7 @@ void scheduler() {
 
         enable_interrupts();
 #ifdef __aarch64__
-    // FIXME - wfe
+        __asm __volatile("wfi");
 #else
         __asm __volatile("hlt");
 #endif
