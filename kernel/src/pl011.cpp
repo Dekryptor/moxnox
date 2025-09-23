@@ -7,8 +7,10 @@ module;
 #include <string_view>
 #include <atomic>
 #include <charconv>
+#include <mutex>
 #include <nt.h>
 #include "handle.h"
+#include "spinlock.h"
 
 export module pl011;
 
@@ -19,6 +21,8 @@ import pipe;
 import object_ref;
 import format;
 import mem;
+import interrupts;
+import config;
 
 using namespace std;
 
@@ -48,12 +52,18 @@ static const uint32_t PL011_UARTLCR_H_FEN = 1 << 4;
 static const unsigned int PL011_UARTLCR_H_WLEN_OFFSET = 5;
 static const uint32_t PL011_UARTLCR_H_WLEN_MASK = 3 << PL011_UARTLCR_H_WLEN_OFFSET;
 
+static const uint32_t PL011_UARTMIS_TXMIS = 1 << 5;
+static const uint32_t PL011_UARTIMSC_TXIM = 1 << 5;
+static const uint32_t PL011_UARTICR_TXIC = 1 << 5;
+
 class pl011_out_pipe : public pipe {
 public:
     pl011_out_pipe(unsigned int buffer_pages, uint64_t base_address,
-                   unsigned int base_clock, unsigned int baud_rate);
+                   unsigned int base_clock, unsigned int baud_rate,
+                   uint32_t irq);
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status flush(bool go_readonly) override;
+    void irq();
 
     bool init = false, ready = true;
     uint64_t base_address;
@@ -64,17 +74,64 @@ nt_status pl011_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
 
     written_bytes = 0;
 
+    if (s.empty())
+        return nt_status::SUCCESS;
+
     auto& UARTDR = *(volatile uint32_t*)base_address;
-    auto& UARTFR = *(volatile uint32_t*)(base_address + 0x18);
 
-    while (!s.empty()) {
-        while (UARTFR & PL011_UARTFR_BUSY) { }
+    do {
+        size_t to_copy;
 
-        UARTDR = (uint32_t)s[0];
-        written_bytes++;
+        {
+            lock_guard l(lock);
 
-        s = s.subspan(1, s.size() - 1);
-    }
+            if (ready) {
+                // send first character
+                UARTDR = (uint32_t)s[0];
+
+                ready = false;
+                s = s.subspan(1);
+
+                if (s.empty())
+                    break;
+            }
+
+            size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
+
+            to_copy = min(s.size(), buf_left);
+
+            if (to_copy > 0) {
+                if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
+                    auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
+
+                    memcpy(&buf[buf_write_pos], s.data(), first_bit);
+
+                    buf_write_pos = 0;
+                    buf_unread += first_bit;
+                    to_copy -= first_bit;
+                    s = s.subspan(first_bit);
+                }
+
+                memcpy(&buf[buf_write_pos], s.data(), to_copy);
+                buf_write_pos += to_copy;
+                buf_unread += to_copy;
+                s = s.subspan(to_copy);
+            }
+        }
+
+        if (s.empty())
+            break;
+
+        // block while we wait for space to become available
+
+        // FIXME
+        //auto status = wait_for_object(not_full_event, true);
+
+        // if (!success(status))
+            // return status;
+    } while (true);
+
+    written_bytes = (uint64_t)(s.data() - orig_s.data());
 
     return nt_status::SUCCESS;
 }
@@ -85,8 +142,47 @@ nt_status pl011_out_pipe::flush(bool go_readonly) {
     return nt_status::SUCCESS;
 }
 
+void pl011_out_pipe::irq() {
+    auto uartmis_value = *(volatile uint32_t*)(base_address + 0x40);
+    auto& UARTICR = *(volatile uint32_t*)(base_address + 0x44);
+
+    if (uartmis_value & PL011_UARTMIS_TXMIS) {
+        UARTICR |= PL011_UARTICR_TXIC;
+
+        {
+            sync_lock sl;
+            lock_guard l(sl);
+            lock_guard l2(lock);
+
+            if (buf_unread == 0)
+                ready = true;
+            else {
+                auto& UARTDR = *(volatile uint32_t*)base_address;
+
+                size_t buf_read_pos = buf_write_pos + (buf_pages << PAGE_SHIFT) - buf_unread;
+
+                while (buf_read_pos >= buf_pages << PAGE_SHIFT) {
+                    buf_read_pos -= buf_pages << PAGE_SHIFT;
+                }
+
+                UARTDR = (uint32_t)(buf[buf_read_pos]);
+                buf_unread--;
+            }
+        }
+    }
+}
+
+static bool pl011_irq_handler(void* ctx) {
+    auto& p = *(pl011_out_pipe*)ctx;
+
+    p.irq();
+
+    return true;
+}
+
 pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t pa,
-                               unsigned int base_clock, unsigned int baud_rate) : pipe(buffer_pages) {
+                               unsigned int base_clock, unsigned int baud_rate,
+                               uint32_t irq) : pipe(buffer_pages) {
     // FIXME - unallocate in destructor(?)
     auto va = allocate_va(1);
     if (!va) {
@@ -108,6 +204,7 @@ pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t pa,
     auto& UARTLCR_H = *(volatile uint32_t*)(base_address + 0x2c);
     auto& UARTCR = *(volatile uint32_t*)(base_address + 0x30);
     auto& UARTIMSC = *(volatile uint32_t*)(base_address + 0x38);
+    auto& UARTICR = *(volatile uint32_t*)(base_address + 0x44);
     auto& UARTDMACR = *(volatile uint32_t*)(base_address + 0x48);
 
     // disable UART
@@ -128,7 +225,10 @@ pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t pa,
     UARTLCR_H |= 3 << PL011_UARTLCR_H_WLEN_OFFSET;
 
     // mask interrupts
-    UARTIMSC = 0x7ff;
+    UARTIMSC = PL011_UARTIMSC_TXIM;
+
+    // clear pending interrupts
+    UARTICR = 0x3ff;
 
     // disable DMA
     UARTDMACR = 0;
@@ -136,13 +236,19 @@ pl011_out_pipe::pl011_out_pipe(unsigned int buffer_pages, uint64_t pa,
     // enable transmission and UART
     UARTCR |= PL011_UARTCR_TXE | PL011_UARTCR_UARTEN;
 
+    if (!add_irq_handler(irq, pl011_irq_handler, this)) {
+        print("add_irq_handler failed\n");
+        return;
+    }
+
     init = true;
 }
 
 static object_ref create_pl011_out_pipe(unsigned int buffer_pages, uint64_t base_address,
-                                        unsigned int base_clock, unsigned int baud_rate) {
+                                        unsigned int base_clock, unsigned int baud_rate,
+                                        uint32_t irq) {
     auto pptr = new pl011_out_pipe(buffer_pages, base_address, base_clock,
-                                   baud_rate);
+                                   baud_rate, irq);
     if (!pptr) {
         print("new failed\n");
         return {};
@@ -177,17 +283,16 @@ static optional<unsigned int> parse_uid(string_view uid) {
     return val;
 }
 
-static bool init_pl011(uint64_t mem_start, uint64_t mem_length, string_view uid) {
+static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
+                       uint32_t irq, string_view uid) {
     if (mem_length == 0) {
         print("init_pl011: invalid mem_length {}\n", mem_length);
         return false;
     }
 
-    // FIXME - interrupts
-
     // FIXME - where does clock frequency come from?
     auto send_handle = create_pl011_out_pipe(serial_buffer_pages, mem_start,
-                                             24000000/*FIXME*/, 115200);
+                                             24000000/*FIXME*/, 115200, irq);
     if (!send_handle) {
         print("create_serial_out_pipe failed\n");
         return false;
@@ -232,23 +337,32 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length, string_view uid)
 
 static void found_pl011(const acpi_device& d) {
     optional<pair<uint64_t, uint64_t>> mem;
+    optional<uint32_t> irq;
 
     for (auto le = d.resources.next; le != &d.resources; le = le->next) {
         auto& r = containing_record<acpi_device_resource>(le);
-
-        // FIXME - interrupt
 
         if (r.type == acpi_device_resource_type::fixed_memory32) {
             auto& r2 = static_cast<acpi_device_resource_fixed_memory32&>(r);
 
             if (!mem.has_value())
                 mem = make_pair(r2.fixed_memory32.Address, r2.fixed_memory32.AddressLength);
+        } else if (r.type == acpi_device_resource_type::irq) {
+            auto& r2 = static_cast<acpi_device_resource_irq&>(r);
+
+            if (!irq.has_value())
+                irq = r2.irq.Interrupt;
+        } else if (r.type == acpi_device_resource_type::extended_irq) {
+            auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
+
+            if (!irq.has_value())
+                irq = r2.extended_irq.Interrupt;
         }
     }
 
-    if (!mem.has_value())
+    if (!mem.has_value() || !irq.has_value())
         return;
 
-    if (!init_pl011(mem->first, mem->second, d.uid))
+    if (!init_pl011(mem->first, mem->second, *irq, d.uid))
         print("init_pl011 failed for {:x},{:x}\n", mem->first, mem->second);
 }
