@@ -899,30 +899,26 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
 
 #ifndef __aarch64__
 export void free_lower_half_mappings() {
-    auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
+    auto cr3 = __readcr3();
+    auto pml4 = span((HARDWARE_PTE*)phys_address(cr3 & ~(PAGE_SIZE - 1)), 512);
 
     for (unsigned int i = 0; i < 256; i++) {
         auto& p1 = pml4[i];
 
         if (p1.p) {
-            auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (i << PAGE_SHIFT)), 512);
+            auto pdpt = span((HARDWARE_PTE*)phys_address((uint64_t)p1.pfn << PAGE_SHIFT), 512);
 
             for (unsigned int j = 0; j < pdpt.size(); j++) {
                 auto& p2 = pdpt[j];
 
                 if (p2.p) {
-                    auto pdt = span((HARDWARE_PTE*)(SELFMAP_PDT | (i << (PAGE_SHIFT + 9)) | (j << PAGE_SHIFT)), 512);
+                    auto pdt = span((HARDWARE_PTE*)phys_address((uint64_t)p2.pfn << PAGE_SHIFT), 512);
 
                     for (unsigned int k = 0; k < pdt.size(); k++) {
                         auto& p3 = pdt[k];
 
-                        if (p3.p) {
-                            auto pt = span((HARDWARE_PTE*)(SELFMAP | (i << (PAGE_SHIFT + 18)) | (j << (PAGE_SHIFT + 9)) | (k << PAGE_SHIFT)), 512);
-
-                            memset(pt.data(), 0, PAGE_SIZE);
-
+                        if (p3.p)
                             mark_mem_as_free((uint64_t)p3.pfn << PAGE_SHIFT, PAGE_SIZE, false);
-                        }
                     }
 
                     mark_mem_as_free((uint64_t)p2.pfn << PAGE_SHIFT, PAGE_SIZE, false);
