@@ -33,6 +33,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/semaphore.cpp
     src/pe.cpp
     src/rwsem.cpp
+    src/rangelock.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -58,7 +59,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/usb.cpp
     src/usbhub.cpp
     src/keyboard.cpp
-    src/rangelock.cpp
     src/page_cache.cpp
     src/framebuffer.cpp
     src/section.cpp
