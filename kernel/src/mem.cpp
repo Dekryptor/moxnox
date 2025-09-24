@@ -719,10 +719,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         if (page == 0)
             return false;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        pml4_entry.pfn = page >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
+        pml4_entry.pfn = (page >> PAGE_SHIFT) & 0x3ffffffffffff;
         pml4_entry.p = 1;
         pml4_entry.w = 1;
         pml4_entry.u = va & 0x8000000000000000 ? 0 : 1;
@@ -744,10 +741,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         if (page == 0)
             return false;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        pdpt_entry.pfn = page >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
+        pdpt_entry.pfn = (page >> PAGE_SHIFT) & 0x3ffffffffffff;
         pdpt_entry.p = 1;
         pdpt_entry.w = 1;
         pdpt_entry.u = va & 0x8000000000000000 ? 0 : 1;
@@ -769,10 +763,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         if (page == 0)
             return false;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        pdt_entry.pfn = page >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
+        pdt_entry.pfn = (page >> PAGE_SHIFT) & 0x3ffffffffffff;
         pdt_entry.p = 1;
         pdt_entry.w = 1;
         pdt_entry.u = va & 0x8000000000000000 ? 0 : 1;
@@ -789,10 +780,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     *(uint64_t*)&pt_entry = 0;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-    pt_entry.pfn = pa >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
+    pt_entry.pfn = (pa >> PAGE_SHIFT) & 0x3ffffffffffff;
     pt_entry.p = 1;
 
     switch (type) {
@@ -839,6 +827,8 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     return true;
 }
+
+template bool map_page<true>(uint64_t pa, uint64_t va, enum mapping_type type);
 #endif
 
 static bool map_memblock(uint64_t pa, uint64_t num_pages, uint64_t& scratch_pages) {
