@@ -12,7 +12,6 @@ export module acpi;
 
 #ifndef __aarch64__
 import inout;
-import rwsem;
 import apic;
 #endif
 
@@ -27,6 +26,7 @@ import timer;
 import scheduler;
 import semaphore;
 import object_ref;
+import rwsem;
 
 using namespace std;
 
@@ -44,8 +44,8 @@ struct acpi_irq_num {
     list_entry handlers = { &handlers, &handlers };
 };
 
-#ifndef __aarch64__
 static rwsem irq_handlers_lock;
+#ifndef __aarch64__
 static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
 #endif
 

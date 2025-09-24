@@ -32,6 +32,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/null.cpp
     src/semaphore.cpp
     src/pe.cpp
+    src/rwsem.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -48,7 +49,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/syscalls.cpp
     src/smp.cpp
     src/volume.cpp
-    src/rwsem.cpp
     src/nvme.cpp
     src/virtio.cpp
     src/virtio_block.cpp

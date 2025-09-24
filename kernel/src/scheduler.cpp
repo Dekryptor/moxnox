@@ -743,7 +743,6 @@ export extern "C++" void enable_preempt() {
 #endif
 }
 
-#ifndef __aarch64__
 export extern "C++" void set_current_thread_waiting() {
     // must have synclock held
 
@@ -755,9 +754,10 @@ export extern "C++" void set_current_thread_waiting() {
     t->wait_interruptible = false;
     t->wait_timeout = 0;
 
+#ifndef __aarch64__
     if (t->proc)
         t->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+#endif
 
     yield();
 }
-#endif
