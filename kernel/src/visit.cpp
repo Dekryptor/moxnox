@@ -12,8 +12,12 @@ module;
 
 #ifndef __aarch64__
 #include "process.h"
-#include "section.h"
+#endif
+
 #include "file.h"
+
+#ifndef __aarch64__
+#include "section.h"
 #endif
 
 export module visit;
@@ -55,11 +59,11 @@ static void visit_obj(object& obj, const T& func) {
             func(static_cast<volume&>(obj));
         break;
 
-#ifndef __aarch64__
         case object_type::inode:
             func(static_cast<inode&>(obj));
         break;
 
+#ifndef __aarch64__
         case object_type::process:
             func(static_cast<process&>(obj));
         break;
@@ -123,7 +127,6 @@ export nt_status object_write_without_offset(object& obj, span<const uint8_t> bu
     return status;
 }
 
-#ifndef __aarch64__
 export nt_status object_write_with_offset(object& obj, span<const uint8_t> s,
                                           uint64_t offset, uint64_t& written_bytes) {
     nt_status status;
@@ -199,7 +202,6 @@ export bool object_is_exclusive(object& obj) {
 
     return ret;
 }
-#endif
 
 export sync_object& object_get_sync_object(object& obj) {
     sync_object* so = nullptr;
@@ -214,11 +216,9 @@ export sync_object& object_get_sync_object(object& obj) {
     return *so;
 }
 
-#ifndef __aarch64__
 export void object_last_handle_closed(object& obj) {
     visit_obj(obj, [&](auto&& o) {
         if constexpr (has_last_handle_closed<remove_reference_t<decltype(o)>>)
             o.last_handle_closed();
     });
 }
-#endif

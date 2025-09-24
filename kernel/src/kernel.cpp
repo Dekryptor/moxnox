@@ -10,7 +10,6 @@
 #ifndef __aarch64__
 import serial;
 import pci;
-import vfs;
 import syscalls;
 import smp;
 import keyboard;
@@ -36,6 +35,7 @@ import evdev;
 import unicode;
 import null;
 import pe;
+import vfs;
 
 using namespace std;
 

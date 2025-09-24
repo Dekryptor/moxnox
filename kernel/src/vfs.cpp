@@ -235,6 +235,7 @@ static nt_status extract_initrd_file(::filesystem& fs, string_view path,
     return nt_status::SUCCESS;
 }
 
+#ifndef __aarch64__
 static bool extract_initrd() {
     auto fs = create_tmpfs();
     if (!fs) {
@@ -291,6 +292,7 @@ export bool mount_root() {
 
     return true;
 }
+#endif
 
 export nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir,
                             object_ref& obj_ref, uint32_t create_disposition,
@@ -313,6 +315,7 @@ export nt_status open_inode(string_view fn, const optional<reference_wrapper<ino
                          create_options, create_result);
 }
 
+#ifndef __aarch64__
 export extern "C"
 NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                     IO_STATUS_BLOCK* io_status_block, void* buffer,
@@ -597,6 +600,7 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 
     return nt_status::SUCCESS;
 }
+#endif
 
 export nt_status flush_filesystems(bool make_readonly) {
     lock_guard lock(fs_lock);
