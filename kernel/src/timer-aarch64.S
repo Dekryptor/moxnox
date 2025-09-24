@@ -1,5 +1,7 @@
 #include "context_offsets.h"
 
+.arch_extension lse
+
 .equ GICC_EOIR_OFFSET, 0x10
 
 // FIXME - DWARF information
@@ -96,14 +98,43 @@ scheduler_restore:
 
     eret
 
+// FIXME - non-LSE version?
 .global acquire_sync_lock
 acquire_sync_lock:
-    // FIXME
+    adr x0, sync_lock_val
+    mov x1, #1
+    b 1f
+0:
+    yield
+1:
+    swpa x1, x1, [x0]
+    cbnz x1, 0b
+#ifdef DEBUG
+    add x0, x18, GS_CPU_NO
+    ldr w1, [x0]
+    adr x2, sync_lock_cpu
+    str w1, [x2]
+
+    add x0, x18, GS_CURRENT_THREAD
+    ldr x1, [x0]
+    adr x2, sync_lock_thread
+    str x1, [x2]
+#endif
     ret
 
 .global release_sync_lock
-release_sync_lock: # clobbers rax
-    // FIXME
+release_sync_lock:
+#ifdef DEBUG
+    mov w1, #0xffffffff
+    adr x2, sync_lock_cpu
+    str w1, [x2]
+
+    adr x2, sync_lock_thread
+    str xzr, [x2]
+#endif
+    adr x0, sync_lock_val
+    mov x1, #0
+    swpa x1, x1, [x0]
     ret
 
 .global get_cpu_block
