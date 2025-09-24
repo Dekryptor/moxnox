@@ -11,6 +11,7 @@ export module image;
 import list;
 import bsod;
 import section;
+import mem;
 
 using namespace std;
 
@@ -43,7 +44,7 @@ export void init_images_list(span<const uint8_t> debug_info,
     if (kernel_size == 0)
         bsod("get_image_size failed for kernel");
 
-    auto img = (struct kernel_image*)malloc(offsetof(struct kernel_image, name) + sizeof(kernel_name));
+    auto img = (struct kernel_image*)malloc_aligned<true>(offsetof(struct kernel_image, name) + sizeof(kernel_name), 1);
     if (!img)
         bsod("malloc failed");
 

@@ -10,7 +10,6 @@
 #ifndef __aarch64__
 import unwind;
 import smp;
-import image;
 import apic;
 #endif
 
@@ -23,6 +22,7 @@ import console;
 import interrupts;
 import disable_interrupts;
 import scheduler;
+import image;
 
 using namespace std;
 

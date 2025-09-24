@@ -1313,6 +1313,8 @@ void* malloc_aligned(size_t size, size_t align) {
     }
 }
 
+template void* malloc_aligned<true>(size_t size, size_t align);
+
 export
 extern "C"
 void* malloc(size_t size) {

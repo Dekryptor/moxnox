@@ -14,7 +14,6 @@ import syscalls;
 import smp;
 import keyboard;
 import process;
-import image;
 #endif
 
 import bsod;
@@ -36,6 +35,7 @@ import null;
 import pe;
 import vfs;
 import section;
+import image;
 
 using namespace std;
 
@@ -316,10 +316,8 @@ void startup(loader_block* lb) {
 
     call_global_constructors();
 
-#ifndef __aarch64__
     init_images_list(debug_info, debug_abbrev, debug_rnglists, debug_str,
                      debug_addr, debug_str_offsets);
-#endif
 
     if (!init_vablock())
         goto hang;

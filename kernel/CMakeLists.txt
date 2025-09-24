@@ -41,6 +41,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/inode.cpp
     src/cpio.cpp
     src/section.cpp
+    src/image.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -65,7 +66,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/keyboard.cpp
     src/framebuffer.cpp
     src/process.cpp
-    src/image.cpp
     src/power.cpp
     src/apic.cpp
 )
