@@ -185,9 +185,7 @@ void main_thread() {
 
     acpi_early_init_done = true;
 
-#ifndef __aarch64__
     free_lower_half_mappings();
-#endif
 
     setup_folios();
 

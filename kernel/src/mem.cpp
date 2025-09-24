@@ -31,6 +31,7 @@ import bsod;
 #ifdef __aarch64__
 // mem-aarch64.S
 extern "C" uint64_t ttbr1_el1_load();
+extern "C" uint64_t ttbr0_el1_load();
 #else
 // mem-x86.S
 export {
@@ -897,7 +898,39 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
     }
 }
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+export void free_lower_half_mappings() {
+    auto ttbr0 = ttbr0_el1_load();
+    auto pte0 = span((ARM64_HARDWARE_PTE*)phys_address(ttbr0), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+    for (auto& p1 : pte0) {
+        if (!p1.valid)
+            continue;
+
+        auto pte1 = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)p1.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+        for (auto& p2 : pte1) {
+            if (!p2.valid || !p2.table_entry)
+                continue;
+
+            auto pte2 = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)p2.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+            for (auto& p3 : pte2) {
+                if (!p3.valid || !p3.table_entry)
+                    continue;
+
+                mark_mem_as_free((uint64_t)p3.pfn << PAGE_SHIFT, PAGE_SIZE, false);
+            }
+
+            mark_mem_as_free((uint64_t)p2.pfn << PAGE_SHIFT, PAGE_SIZE, false);
+        }
+
+        mark_mem_as_free((uint64_t)p1.pfn << PAGE_SHIFT, PAGE_SIZE, false);
+    }
+
+    mark_mem_as_free(ttbr0, PAGE_SIZE, false);
+}
+#else
 export void free_lower_half_mappings() {
     auto cr3 = __readcr3();
     auto pml4 = span((HARDWARE_PTE*)phys_address(cr3 & ~(PAGE_SIZE - 1)), 512);
