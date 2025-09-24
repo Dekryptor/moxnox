@@ -40,6 +40,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/vfs.cpp
     src/inode.cpp
     src/cpio.cpp
+    src/section.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -63,7 +64,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/usbhub.cpp
     src/keyboard.cpp
     src/framebuffer.cpp
-    src/section.cpp
     src/process.cpp
     src/image.cpp
     src/power.cpp

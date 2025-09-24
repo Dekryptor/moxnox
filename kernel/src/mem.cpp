@@ -2402,6 +2402,7 @@ export constexpr uint8_t bytes_to_folio_order(size_t s) {
 
     return (uint8_t)(32 - countl_zero(p - 1));
 }
+#endif
 
 export void increase_page_refcount(uint64_t pfn) {
     auto& p = pages[pfn];
@@ -2416,7 +2417,6 @@ export void increase_page_refcount(uint64_t pfn) {
         p.used.refcount++;
     }
 }
-#endif
 
 export void* allocate_stack() {
     auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);

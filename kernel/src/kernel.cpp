@@ -13,7 +13,6 @@ import pci;
 import syscalls;
 import smp;
 import keyboard;
-import section;
 import process;
 import image;
 #endif
@@ -36,6 +35,7 @@ import unicode;
 import null;
 import pe;
 import vfs;
+import section;
 
 using namespace std;
 

@@ -601,6 +601,7 @@ uint64_t section::find_export(string_view name) {
     return ret;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          const LARGE_INTEGER* maximum_size, uint32_t section_page_protection,
@@ -845,6 +846,7 @@ NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
         return p.unmap_view_of_section(base_address);
     }
 }
+#endif
 
 extern "C++"
 NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_class, span<uint8_t> buf,
@@ -896,6 +898,7 @@ NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_
     }
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
                         void* section_information, size_t section_information_length, size_t* return_length) {
@@ -915,6 +918,7 @@ NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS se
     return s.query_info(section_information_class, span((uint8_t*)section_information, section_information_length),
                         return_length);
 }
+#endif
 
 export uint64_t get_image_size(void* image) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)image;
@@ -1209,6 +1213,7 @@ size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
     return read_pages;
 }
 
+#ifndef __aarch64__
 extern "C++"
 nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
     return visit([&](auto* ptr) {
@@ -1288,6 +1293,7 @@ NTSTATUS NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
 
     return nt_status::SUCCESS;
 }
+#endif
 
 extern "C++"
 nt_status section::ioctl(uint32_t code, span<const uint8_t> inbuf,

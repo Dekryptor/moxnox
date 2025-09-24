@@ -15,10 +15,7 @@ module;
 #endif
 
 #include "file.h"
-
-#ifndef __aarch64__
 #include "section.h"
-#endif
 
 export module visit;
 
@@ -67,11 +64,13 @@ static void visit_obj(object& obj, const T& func) {
         case object_type::process:
             func(static_cast<process&>(obj));
         break;
+#endif
 
         case object_type::section:
             func(static_cast<section&>(obj));
         break;
 
+#ifndef __aarch64__
         case object_type::file:
             func(static_cast<file&>(obj));
         break;
