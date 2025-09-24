@@ -11,7 +11,6 @@
 import serial;
 import pci;
 import vfs;
-import pe;
 import syscalls;
 import smp;
 import keyboard;
@@ -36,6 +35,7 @@ import chardev;
 import evdev;
 import unicode;
 import null;
+import pe;
 
 using namespace std;
 
@@ -237,9 +237,9 @@ void main_thread() {
 
         apic_ids[0] = current_cpu_id();
     }
+#endif
 
     protect_kernel_pages();
-#endif
 
     if (!create_dev_null())
         print("create_dev_null failed\n");

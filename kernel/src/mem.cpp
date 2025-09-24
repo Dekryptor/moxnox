@@ -1599,7 +1599,58 @@ export void unmap_page(uint64_t va) {
 }
 #endif
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+static ARM64_HARDWARE_PTE& find_pte(uint64_t va) {
+    // FIXME - can we do this without calling ttbr1_el1_load every time?
+
+    auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto& p0 = pte0[(va & 0xff8000000000) >> 39];
+
+    auto pte1 = span((ARM64_HARDWARE_PTE*)(p0.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto& p1 = pte1[(va & 0x7fc0000000) >> 30];
+
+    auto pte2 = span((ARM64_HARDWARE_PTE*)(p1.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto& p2 = pte2[(va & 0x3fe00000) >> 21];
+
+    auto pte3 = span((ARM64_HARDWARE_PTE*)(p2.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+    return pte3[(va & 0x1ff000) >> PAGE_SHIFT];
+}
+
+export void protect_page(uint64_t va, enum mapping_type type) {
+    auto& pte = find_pte(va);
+
+    pte.UXN = 1;
+
+    switch (type) {
+        case mapping_type::read_write:
+            pte.AP = 0; // EL0 no access, EL1 read-write
+            pte.PXN = 1;
+        break;
+
+        case mapping_type::read_only:
+            pte.AP = 2; // EL0 no access, EL1 read-only
+            pte.PXN = 1;
+        break;
+
+        case mapping_type::read_execute:
+            pte.AP = 2; // EL0 no access, EL1 read-only
+            pte.PXN = 0;
+        break;
+
+        case mapping_type::read_write_execute:
+            pte.AP = 0; // EL0 no access, EL1 read-write
+            pte.PXN = 0;
+        break;
+
+        case mapping_type::no_cache:
+        case mapping_type::no_access:
+        case mapping_type::write_combine:
+        case mapping_type::reserved:
+            break;
+    }
+}
+#else
 static void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
     lock_guard lock(protect_page_spinlock);
 
