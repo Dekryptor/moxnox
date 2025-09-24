@@ -34,6 +34,9 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/pe.cpp
     src/rwsem.cpp
     src/rangelock.cpp
+    src/volume.cpp
+    src/guid.cpp
+    src/page_cache.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -49,7 +52,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/vfs.cpp
     src/syscalls.cpp
     src/smp.cpp
-    src/volume.cpp
     src/nvme.cpp
     src/virtio.cpp
     src/virtio_block.cpp
@@ -59,12 +61,10 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/usb.cpp
     src/usbhub.cpp
     src/keyboard.cpp
-    src/page_cache.cpp
     src/framebuffer.cpp
     src/section.cpp
     src/process.cpp
     src/image.cpp
-    src/guid.cpp
     src/power.cpp
     src/apic.cpp
     src/inode.cpp

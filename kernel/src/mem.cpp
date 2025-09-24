@@ -1524,7 +1524,6 @@ export void free_folio(uint64_t pa) {
     free_folio_no_lock(pa);
 }
 
-#ifndef __aarch64__
 export uint64_t cow_folio(uint64_t pa) {
     uint64_t pfn = pa >> PAGE_SHIFT;
     auto& p = pages[pfn];
@@ -1567,6 +1566,11 @@ export uint64_t cow_folio(uint64_t pa) {
     return new_pa;
 }
 
+#ifdef __aarch64__
+export void unmap_and_free_page(uint64_t va) {
+    // FIXME
+}
+#else
 export void unmap_and_free_page(uint64_t va) {
     auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
 
@@ -2034,6 +2038,7 @@ char* strstr(const char* haystack, const char* needle) {
 
     return nullptr;
 }
+#endif
 
 export
 extern "C"
@@ -2065,7 +2070,6 @@ void* memmove(void* dest, const void* src, size_t n) {
 
     return orig_dest;
 }
-#endif
 
 export
 extern "C"
@@ -2337,7 +2341,6 @@ void ::allocator<N, P, S>::free(void* ptr) {
     }
 }
 
-#ifndef __aarch64__
 export void* vmalloc(size_t size) {
     uint64_t num_pages = bytes_to_pages(size);
 
@@ -2391,6 +2394,7 @@ export void vfree(void* ptr, size_t size) {
     }
 }
 
+#ifndef __aarch64__
 export void inline __attribute__((always_inline)) barrier() {
     __asm__ __volatile__ (
         ""

@@ -20,9 +20,7 @@ export module visit;
 
 import event;
 import pipe;
-#ifndef __aarch64__
 import volume;
-#endif
 import semaphore;
 import chardev;
 import timer;
@@ -53,11 +51,11 @@ static void visit_obj(object& obj, const T& func) {
             func(static_cast<semaphore&>(obj));
         break;
 
-#ifndef __aarch64__
         case object_type::volume:
             func(static_cast<volume&>(obj));
         break;
 
+#ifndef __aarch64__
         case object_type::inode:
             func(static_cast<inode&>(obj));
         break;
