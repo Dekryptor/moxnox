@@ -12,7 +12,6 @@ import serial;
 import pci;
 import syscalls;
 import smp;
-import keyboard;
 import process;
 #endif
 
@@ -36,6 +35,7 @@ import pe;
 import vfs;
 import section;
 import image;
+import keyboard;
 
 using namespace std;
 
@@ -203,10 +203,10 @@ void main_thread() {
         init_acpi_done = true;
     }
 
-#ifndef __aarch64__
     if (!init_keyboard_pipe())
         print("init_keyboard_pipe failed\n");
 
+#ifndef __aarch64__
     // if no ACPI, look for serial port at its traditional address
     if (rsdp_pa == 0)
         init_serial(0x3f8, 4, "");
