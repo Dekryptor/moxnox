@@ -844,13 +844,16 @@ static bool find_gic_addresses(optional<uint64_t>& gicc_addr,
         auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
         switch (h.Type) {
-            case ACPI_MADT_TYPE_GENERIC_INTERRUPT:
-                if (!gicc_addr.has_value()) {
-                    auto& ent = *(ACPI_MADT_GENERIC_INTERRUPT*)data.data();
+            case ACPI_MADT_TYPE_GENERIC_INTERRUPT: {
+                auto& ent = *(ACPI_MADT_GENERIC_INTERRUPT*)data.data();
 
+                // FIXME - are we always guaranteed to boot on core 0?
+
+                if (ent.CpuInterfaceNumber == 0 && !gicc_addr.has_value())
                     gicc_addr = ent.BaseAddress;
-                }
+
                 break;
+            }
 
             case ACPI_MADT_TYPE_GENERIC_DISTRIBUTOR:
                 if (!gicd_addr.has_value()) {
