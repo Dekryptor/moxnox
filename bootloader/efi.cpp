@@ -1920,8 +1920,7 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
 
 #endif
 
-static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3,
-                     uint64_t rsdp_pa) {
+static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa) {
     EFI_STATUS status;
     UINTN size, key, descsize;
     UINT32 version;
@@ -1981,9 +1980,7 @@ static EFI_STATUS go(EFI_HANDLE image_handle, uint64_t entry_point, uint64_t cr3
 
     // FIXME - SetVirtualAddressMap
 
-    start_kernel(entry_point, cr3, &lb);
-
-    return EFI_SUCCESS; // never reached
+    return EFI_SUCCESS;
 }
 
 extern "C"
@@ -2206,9 +2203,14 @@ extern "C"
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     EFI_STATUS Status;
     EFI_LOADED_IMAGE_PROTOCOL* image;
-    uint64_t entry_point, cr3, img_pa, rsdp_pa;
+    uint64_t entry_point, img_pa, rsdp_pa;
     size_t img_size;
     EFI_PHYSICAL_ADDRESS stack;
+#ifdef __aarch64__
+    uint64_t ttbr1;
+#else
+    uint64_t cr3;
+#endif
 
     systable = system_table;
     bs = system_table->BootServices;
@@ -2296,16 +2298,35 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         return Status;
     }
 
+    // FIXME - pass runtime services list through to kernel
+
+#ifdef __aarch64__
+    Status = setup_paging(ttbr1);
+    if (EFI_ERROR(Status)) {
+        print_error("setup_paging", Status);
+        return Status;
+    }
+#else
     Status = setup_paging(cr3);
     if (EFI_ERROR(Status)) {
         print_error("setup_paging", Status);
         return Status;
     }
+#endif
 
-    // FIXME - pass runtime services list through to kernel
+    Status = finish_setting_up(image_handle, rsdp_pa);
+    if (EFI_ERROR(Status)) {
+        print_error("finish_setting_up", Status);
+        return Status;
+    }
 
-    Status = go(image_handle, entry_point, cr3, rsdp_pa); // doesn't return unless unsuccessful
-    print_error("go", Status);
+#ifdef __aarch64__
+    start_kernel(entry_point, ttbr1, &lb);
+#else
+    start_kernel(entry_point, cr3, &lb);
+#endif
 
-    return Status;
+    // doesn't return unless unsuccessful
+
+    return EFI_LOAD_ERROR;
 }
