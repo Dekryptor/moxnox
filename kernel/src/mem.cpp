@@ -1582,7 +1582,15 @@ export void unmap_and_free_page(uint64_t va) {
 
 #ifdef __aarch64__
 export void unmap_page(uint64_t va) {
-    // FIXME
+    auto ttbr1 = ttbr1_el1_load();
+    auto& level1 = *(ARM64_HARDWARE_PTE*)phys_address(ttbr1 | (((va & 0xff8000000000) >> 39) << 3));
+    auto& level2 = *(ARM64_HARDWARE_PTE*)phys_address((level1.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
+    auto& level3 = *(ARM64_HARDWARE_PTE*)phys_address((level2.pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
+    auto& pt_entry = *(ARM64_HARDWARE_PTE*)phys_address((level3.pfn << PAGE_SHIFT) | (((va & 0x1ff000) >> PAGE_SHIFT) << 3));
+
+    pt_entry.valid = 0;
+
+    // FIXME - do we need to invalidate TLB?
 }
 #else
 export void unmap_page(uint64_t va) {
