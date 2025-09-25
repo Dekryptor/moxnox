@@ -1938,9 +1938,13 @@ export void free_va(uint64_t va, uint32_t num_pages) {
 
 #ifdef __aarch64__
 export uint64_t va_to_pa_lookup(uint64_t va) {
-    // FIXME
+    auto ttbr1 = ttbr1_el1_load();
+    auto& level1 = *(ARM64_HARDWARE_PTE*)phys_address(ttbr1 | (((va & 0xff8000000000) >> 39) << 3));
+    auto& level2 = *(ARM64_HARDWARE_PTE*)phys_address((level1.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
+    auto& level3 = *(ARM64_HARDWARE_PTE*)phys_address((level2.pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
+    auto& pt_entry = *(ARM64_HARDWARE_PTE*)phys_address((level3.pfn << PAGE_SHIFT) | (((va & 0x1ff000) >> PAGE_SHIFT) << 3));
 
-    return 0;
+    return (uint64_t)pt_entry.pfn << PAGE_SHIFT;
 }
 #else
 export uint64_t va_to_pa_lookup(uint64_t va) {
