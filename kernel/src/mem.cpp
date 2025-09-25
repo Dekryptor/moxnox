@@ -1583,7 +1583,10 @@ export void unmap_page(uint64_t va) {
 }
 #else
 export void unmap_page(uint64_t va) {
-    auto& pt_entry = *(HARDWARE_PTE*)(SELFMAP | (((va & 0xfffffffff000) >> PAGE_SHIFT) << 3));
+    auto& level1 = *(HARDWARE_PTE*)phys_address((__readcr3() & 0xfffffffffffff000) | (((va & 0xff8000000000) >> 39) << 3));
+    auto& level2 = *(HARDWARE_PTE*)phys_address((level1.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
+    auto& level3 = *(HARDWARE_PTE*)phys_address((level2.pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
+    auto& pt_entry = *(HARDWARE_PTE*)phys_address((level3.pfn << PAGE_SHIFT) | (((va & 0x1ff000) >> PAGE_SHIFT) << 3));
 
     pt_entry.p = 0;
 
