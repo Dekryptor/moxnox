@@ -118,6 +118,7 @@ struct ARM64_HARDWARE_PTE {
 
 static_assert(sizeof(ARM64_HARDWARE_PTE) == 8);
 
+static ARM64_HARDWARE_PTE* ttbr0 __attribute__((section (".data")));
 static ARM64_HARDWARE_PTE* ttbr1 __attribute__((section (".data")));
 
 #else
@@ -1378,6 +1379,162 @@ static EFI_STATUS do_map(uint64_t va, uint64_t pa, uint64_t len) {
     return EFI_SUCCESS;
 }
 
+#ifdef __aarch64__
+
+static EFI_STATUS setup_lower_half_mappings() {
+    EFI_STATUS status;
+    EFI_PHYSICAL_ADDRESS addr;
+    uint64_t level1;
+
+    status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
+    if (EFI_ERROR(status)) {
+        print_error("AllocatePages", status);
+        return status;
+    }
+
+    status = add_map_entry(addr, EFI_PAGE_SIZE, mem_type::paging_table);
+    if (EFI_ERROR(status)) {
+        print_error("add_map_entry", status);
+        return status;
+    }
+
+    ttbr0 = (ARM64_HARDWARE_PTE*)addr;
+
+    status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
+    if (EFI_ERROR(status)) {
+        print_error("AllocatePages", status);
+        return status;
+    }
+
+    status = add_map_entry(addr, EFI_PAGE_SIZE, mem_type::paging_table);
+    if (EFI_ERROR(status)) {
+        print_error("add_map_entry", status);
+        return status;
+    }
+
+    level1 = addr;
+
+    auto pte0 = span(ttbr0, EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto pte1 = span((ARM64_HARDWARE_PTE*)level1, EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+    memset(pte0.data(), 0, pte0.size_bytes());
+    memset(pte1.data(), 0, pte1.size_bytes());
+
+    // FIXME - check ID_AA64MMFR0_EL1 that 4KB page size supported
+
+    pte0[0].valid = 1;
+    pte0[0].table_entry = 1;
+    pte0[0].AttrIndex = 0;
+    pte0[0].AP = 0; // no access from userspace
+    pte0[0].SH = 3; // inner shareable
+    pte0[0].AF = 1;
+    pte0[0].pfn = level1 >> EFI_PAGE_SHIFT;
+
+    unsigned int num_mappable_mem_entries = num_map_entries;
+
+    while (num_mappable_mem_entries > 0 && (map[num_mappable_mem_entries - 1].type == mem_type::free || map[num_mappable_mem_entries - 1].type == mem_type::reserved)) {
+        num_mappable_mem_entries--;
+    }
+
+    const auto& last_mappable = map[num_mappable_mem_entries - 1];
+    static const uint64_t SZ_1G = 0x40000000;
+
+    uint64_t last_address = last_mappable.addr + last_mappable.len;
+    auto num_gigs = last_address / SZ_1G;
+
+    if (last_address % SZ_1G)
+        num_gigs++;
+
+    // FIXME - fails if would map more than 512GB
+    if (num_gigs > EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE))
+        num_gigs = EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE);
+
+    for (unsigned int i = 0; i < num_gigs; i++) {
+        pte1[i].valid = 1;
+        pte1[i].table_entry = 0;
+        pte1[i].AttrIndex = 0;
+        pte1[i].AP = 0; // no access from userspace
+        pte1[i].SH = 3; // inner shareable
+        pte1[i].AF = 1;
+        pte1[i].pfn = ((uint64_t)i * SZ_1G) >> EFI_PAGE_SHIFT;
+    }
+
+    return EFI_SUCCESS;
+}
+
+static EFI_STATUS setup_paging() {
+    EFI_STATUS status;
+    EFI_PHYSICAL_ADDRESS addr;
+    map_entry* map_copy;
+    unsigned int num_map_entries_copy;
+
+    status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
+    if (EFI_ERROR(status)) {
+        print_error("AllocatePages", status);
+        return status;
+    }
+
+    status = add_map_entry(addr, EFI_PAGE_SIZE, mem_type::paging_table);
+    if (EFI_ERROR(status)) {
+        print_error("add_map_entry", status);
+        return status;
+    }
+
+    ttbr1 = (ARM64_HARDWARE_PTE*)addr;
+
+    memset((void*)ttbr1, 0, EFI_PAGE_SIZE);
+
+    num_map_entries_copy = num_map_entries;
+
+    status = bs->AllocatePool(EfiLoaderData, sizeof(map_entry) * num_map_entries_copy, (void**)&map_copy);
+    if (EFI_ERROR(status)) {
+        print_error("AllocatePool", status);
+        return status;
+    }
+
+    memcpy(map_copy, map, sizeof(map_entry) * num_map_entries);
+
+    for (unsigned int i = 0; i < num_map_entries_copy; i++) {
+        switch (map_copy[i].type) {
+            case mem_type::bootloader:
+            case mem_type::acpi:
+            case mem_type::initrd:
+                status = do_map(map_copy[i].addr, map_copy[i].addr, map_copy[i].len); // identity map
+
+                if (EFI_ERROR(status))
+                    return status;
+                break;
+
+            case mem_type::image:
+                status = do_map(KERNEL_ADDR, map_copy[i].addr, map_copy[i].len);
+
+                if (EFI_ERROR(status))
+                    return status;
+                break;
+
+            case mem_type::stack:
+                status = do_map(KERNEL_STACK, map_copy[i].addr, map_copy[i].len);
+
+                if (EFI_ERROR(status))
+                    return status;
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    status = setup_lower_half_mappings();
+    if (EFI_ERROR(status)) {
+        print_error("setup_lower_half_mappings", status);
+        return status;
+    }
+
+    return EFI_SUCCESS;
+}
+
+#else
+
 static EFI_STATUS setup_paging(uint64_t& cr3) {
     EFI_STATUS status;
     EFI_PHYSICAL_ADDRESS addr;
@@ -1396,11 +1553,7 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
         return status;
     }
 
-#ifdef __aarch64__
-    ttbr1 = (ARM64_HARDWARE_PTE*)addr;
-#else
     pml4t = (HARDWARE_PTE*)addr;
-#endif
 
     memset((void*)addr, 0, EFI_PAGE_SIZE);
 
@@ -1444,7 +1597,6 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
         }
     }
 
-#ifndef __aarch64__
     // add recursive mapping
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -1452,16 +1604,13 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
 #pragma GCC diagnostic pop
     pml4t[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
     pml4t[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
-#endif
 
-#ifdef __aarch64__
-    cr3 = (uintptr_t)ttbr1;
-#else
     cr3 = (uintptr_t)pml4t;
-#endif
 
     return EFI_SUCCESS;
 }
+
+#endif
 
 static EFI_STATUS find_acpi_tables(uint64_t& rsdp_pa) {
     EFI_GUID acpi2_guid = ACPI_20_TABLE_GUID;
@@ -1844,7 +1993,7 @@ static void inline _disable() {
 #ifdef __aarch64__
 
 __attribute__((noreturn))
-static void start_kernel(uint64_t entry_point, uint64_t ttbr1, loader_block* lb) {
+static void start_kernel(uint64_t entry_point, loader_block* lb) {
     // FIXME - to EL1 if EL2
 
     // disable interrupts
@@ -1870,10 +2019,11 @@ static void start_kernel(uint64_t entry_point, uint64_t ttbr1, loader_block* lb)
     }
 
     __asm __volatile (
-        "msr ttbr1_el1, %0\n\t"
+        "msr ttbr0_el1, %0\n\t"
+        "msr ttbr1_el1, %1\n\t"
         "isb"
         :
-        : "r" (ttbr1)
+        : "r" (ttbr0), "r" (ttbr1)
     );
 
     void (*startup)(loader_block* lb);
@@ -2206,9 +2356,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     uint64_t entry_point, img_pa, rsdp_pa;
     size_t img_size;
     EFI_PHYSICAL_ADDRESS stack;
-#ifdef __aarch64__
-    uint64_t ttbr1;
-#else
+#ifndef __aarch64__
     uint64_t cr3;
 #endif
 
@@ -2301,7 +2449,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     // FIXME - pass runtime services list through to kernel
 
 #ifdef __aarch64__
-    Status = setup_paging(ttbr1);
+    Status = setup_paging();
     if (EFI_ERROR(Status)) {
         print_error("setup_paging", Status);
         return Status;
@@ -2321,7 +2469,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     }
 
 #ifdef __aarch64__
-    start_kernel(entry_point, ttbr1, &lb);
+    start_kernel(entry_point, &lb);
 #else
     start_kernel(entry_point, cr3, &lb);
 #endif
