@@ -827,9 +827,9 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     return true;
 }
+#endif
 
 template bool map_page<true>(uint64_t pa, uint64_t va, enum mapping_type type);
-#endif
 
 static bool map_memblock(uint64_t pa, uint64_t num_pages, uint64_t& scratch_pages) {
     uint64_t scratch_pa = pa + (num_pages << PAGE_SHIFT);
