@@ -28,7 +28,6 @@ using namespace std;
 
 static spinlock bsod_lock;
 
-#ifndef __aarch64__
 static void print_rip(chardev& p, uint64_t rip) {
     auto& cb = *get_cpu_block();
     uint64_t written;
@@ -67,6 +66,7 @@ static void print_rip(chardev& p, uint64_t rip) {
             written);
 }
 
+#ifndef __aarch64__
 optional<uint64_t> read_uint64_t(uint64_t addr) {
     // FIXME - do this safely
     return *(uint64_t*)addr;
@@ -79,8 +79,12 @@ static bool do_unwind_context(CONTEXT& context) {
 
     return unwind_context(context, img->base_address, img->size, nullptr);
 }
+#endif
 
 static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_callers) {
+#ifdef __aarch64__ // FIXME
+    print_rip(p, context.Pc);
+#else
     // not interested in top entry (bsod function)
     if (!do_unwind_context(context))
         return;
@@ -96,8 +100,8 @@ static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_cal
         if (!do_unwind_context(context))
             return;
     } while (true);
-}
 #endif
+}
 
 void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
                                      unsigned int skip_callers) {
@@ -159,7 +163,18 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     CONTEXT context;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+    __asm __volatile (
+        "mov x0, lr\n"
+        "bl 0f\n"
+        "0:\n"
+        "mov %0, lr\n"
+        "mov lr, x0\n"
+        : "=r" (context.Pc)
+        :
+        : "x0"
+    );
+#else
     __asm __volatile(
         "mov %0, rsp\n"
         "\tmov %1, rbp\n"
@@ -175,9 +190,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     p.write("\n", written);
 
-#ifndef __aarch64__
     print_stacktrace(context, p, skip_callers);
-#endif
 
     p.flush(true);
 
