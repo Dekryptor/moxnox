@@ -151,11 +151,61 @@ size_t strlen(const char* s) {
     return i;
 }
 
-// FIXME - should be in string module, but currently ICEs GCC 15 if placed there
 extern "C"
 int toupper(int c) {
     if (c >= 'a' && c <= 'z')
         return c - 'a' + 'A';
     else
         return c;
+}
+
+extern "C"
+long int strtol(const char* nptr, char** endptr, int base) {
+    long int val;
+
+    while (*nptr == ' ' || *nptr == '\t') {
+        nptr++;
+    }
+
+    val = 0;
+
+    while (true) {
+        if (*nptr >= '0' && *nptr <= '9') {
+            val *= base;
+            val += *nptr - '0';
+        } else {
+            if (endptr)
+                *endptr = (char*)nptr;
+
+            return val;
+        }
+
+        nptr++;
+    }
+}
+
+extern "C"
+char* strstr(const char* haystack, const char* needle) {
+    size_t len = strlen(needle);
+
+    while (true) {
+        bool found = true;
+
+        for (size_t i = 0; i < len; i++) {
+            if (haystack[i] == 0)
+                return nullptr;
+
+            if (haystack[i] != needle[i]) {
+                found = false;
+                break;
+            }
+        }
+
+        if (found)
+            return (char*)haystack;
+
+        haystack++;
+    }
+
+    return nullptr;
 }
