@@ -16,10 +16,6 @@ module;
 #include "mem-x86.h"
 #endif
 
-#ifndef __aarch64__
-#include "acpica.h"
-#endif
-
 export module mem;
 
 import config;
