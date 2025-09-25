@@ -1599,16 +1599,20 @@ export void unmap_page(uint64_t va) {
 static ARM64_HARDWARE_PTE& find_pte(uint64_t va) {
     // FIXME - can we do this without calling ttbr1_el1_load every time?
 
-    auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto pte0 = span((ARM64_HARDWARE_PTE*)phys_address(ttbr1_el1_load()),
+                     PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p0 = pte0[(va & 0xff8000000000) >> 39];
 
-    auto pte1 = span((ARM64_HARDWARE_PTE*)(p0.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto pte1 = span((ARM64_HARDWARE_PTE*)phys_address(p0.pfn << PAGE_SHIFT),
+                     PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p1 = pte1[(va & 0x7fc0000000) >> 30];
 
-    auto pte2 = span((ARM64_HARDWARE_PTE*)(p1.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto pte2 = span((ARM64_HARDWARE_PTE*)phys_address(p1.pfn << PAGE_SHIFT),
+                     PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p2 = pte2[(va & 0x3fe00000) >> 21];
 
-    auto pte3 = span((ARM64_HARDWARE_PTE*)(p2.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+    auto pte3 = span((ARM64_HARDWARE_PTE*)phys_address(p2.pfn << PAGE_SHIFT),
+                     PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
 
     return pte3[(va & 0x1ff000) >> PAGE_SHIFT];
 }
