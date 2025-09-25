@@ -2018,19 +2018,22 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
         tcr_el1_store(tcr.value);
     }
 
-    __asm __volatile (
-        "msr ttbr0_el1, %0\n\t"
-        "msr ttbr1_el1, %1\n\t"
-        "isb"
-        :
-        : "r" (ttbr0), "r" (ttbr1)
-    );
-
     void (*startup)(loader_block* lb);
 
     startup = (decltype(startup))entry_point;
 
-    startup(lb);
+    __asm __volatile (
+        "msr ttbr0_el1, %0\n\t"
+        "msr ttbr1_el1, %1\n\t"
+        "tlbi vmalle1\n\t"
+        "dsb ish\n\t"
+        "isb\n\t"
+        "mov x0, %2\n\t"
+        "br %3"
+        :
+        : "r" (ttbr0), "r" (ttbr1), "r" (lb), "r" (startup)
+        : "x0"
+    );
 
     __builtin_unreachable();
 }
