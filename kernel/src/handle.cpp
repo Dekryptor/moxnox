@@ -154,7 +154,6 @@ void remove_object_name(object& obj) {
     }
 }
 
-#ifndef __aarch64__
 void handle_closed(object& obj) {
     auto new_handle_count = --obj.handle_count;
 
@@ -166,4 +165,3 @@ void handle_closed(object& obj) {
     if (obj.named && !obj.persistent && new_handle_count == 0)
         remove_object_name(obj);
 }
-#endif

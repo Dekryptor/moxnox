@@ -60,11 +60,9 @@ static void visit_obj(object& obj, const T& func) {
             func(static_cast<inode&>(obj));
         break;
 
-#ifndef __aarch64__
         case object_type::process:
             func(static_cast<process&>(obj));
         break;
-#endif
 
         case object_type::section:
             func(static_cast<section&>(obj));

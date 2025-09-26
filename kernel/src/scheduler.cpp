@@ -162,10 +162,8 @@ void scheduler() {
 
             cb.current_thread->current_cpu = cb.cpu_no;
 
-#ifndef __aarch64__
             if (cb.current_thread->proc)
                 cb.current_thread->proc->running_cpus |= (uint64_t)1 << cb.cpu_no;
-#endif
         }
 
         release_sync_lock();
@@ -754,10 +752,8 @@ export extern "C++" void set_current_thread_waiting() {
     t->wait_interruptible = false;
     t->wait_timeout = 0;
 
-#ifndef __aarch64__
     if (t->proc)
         t->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
-#endif
 
     yield();
 }

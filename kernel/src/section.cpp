@@ -1213,7 +1213,6 @@ size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
     return read_pages;
 }
 
-#ifndef __aarch64__
 extern "C++"
 nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
     return visit([&](auto* ptr) {
@@ -1224,6 +1223,7 @@ nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
     }, get_cache());
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* object_attributes) {

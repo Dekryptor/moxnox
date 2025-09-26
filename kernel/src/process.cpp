@@ -30,15 +30,18 @@ import vfs;
 import string;
 import interrupts;
 import pe;
-import smp;
 import visit;
 import unicode;
 import section;
-import apic;
 import thread;
 import rangelock;
 import rwsem;
 import scheduler;
+
+#ifndef __aarch64__
+import smp;
+import apic;
+#endif
 
 using namespace std;
 
@@ -495,8 +498,13 @@ export  object_ref create_process(string_view fn, string_view curdir,
     uintptr_t entry_point_ctx_addr = (uintptr_t)stackaddr + stack_size - sizeof(CONTEXT) - 0x20;
 
     memset(&entry_point_context, 0, sizeof(entry_point_context));
+
+#ifdef __aarch64__
+    // FIXME
+#else
     entry_point_context.Rip = p.img_addr + img.entry_point;
     entry_point_context.Rsp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
+#endif
 
     if (!p.copy_to((void*)entry_point_ctx_addr, &entry_point_context, sizeof(entry_point_context))) {
         print("process::copy_to failed\n");
@@ -969,6 +977,7 @@ const char* exception::what() const noexcept {
 }
 #endif
 
+#ifndef __aarch64__
 static void send_tlb_ipi(uint8_t cpu_no) {
     tlb_cpus_left++;
 
@@ -1013,6 +1022,7 @@ static void send_page_tlb_ipi(process& proc, uint64_t va) {
         enable_preempt();
     }
 }
+#endif
 
 extern "C++"
 bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
@@ -1114,8 +1124,10 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
             pte->w = 1;
 
+#ifndef __aarch64__
             if (send_ipi)
                 send_page_tlb_ipi(*this, address);
+#endif
 
             return true;
         }
@@ -1296,6 +1308,7 @@ void process::terminate() {
     }
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     object_ref obj;
@@ -1356,6 +1369,7 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
 
     return nt_status::SUCCESS;
 }
+#endif
 
 extern "C++"
 void process::resume() {
@@ -1399,6 +1413,7 @@ void process::suspend() {
     }
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtResumeProcess(HANDLE proc_handle) {
     object_ref objrw;
@@ -1468,6 +1483,7 @@ NTSTATUS NtSuspendProcess(HANDLE proc_handle) {
 
     return nt_status::SUCCESS;
 }
+#endif
 
 extern "C++"
 nt_status process::add_handle(object& obj, uint32_t access_mask,
@@ -1640,6 +1656,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     return nt_status::SUCCESS;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
                                  size_t* region_size, uint32_t allocation_type, uint32_t protect) {
@@ -1701,6 +1718,7 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
 
     return p->allocate_vm(base_address, zero_bits, region_size, allocation_type, prot);
 }
+#endif
 
 static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
     span<HARDWARE_PTE> pt[4];
@@ -1808,6 +1826,7 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
     return nt_status::SUCCESS;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
                              uint32_t free_type) {
@@ -1841,6 +1860,7 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
 
     return p->free_vm(base_address, region_size, free_type);
 }
+#endif
 
 extern "C++"
 mapping::mapping(process& proc, section& sect) : proc(proc), sect(sect) {
@@ -2116,8 +2136,10 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 pte.w = 1;
                 pte.p = 1;
 
+#ifndef __aarch64__
                 if (send_ipi)
                     send_page_tlb_ipi(proc, address);
+#endif
 
                 cache.unpin(sect_page_num, 1);
 
@@ -2311,6 +2333,7 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
     return nt_status::SUCCESS;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
                                 uint32_t new_prot, uint32_t* old_prot) {
@@ -2388,6 +2411,7 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
 
     return protect_vm(*p, base_address, region_size, prot, cow, *old_prot);
 }
+#endif
 
 extern "C++"
 NTSTATUS process::close_handle(handle_t h) {
@@ -2460,6 +2484,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
     return nt_status::SUCCESS;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          HANDLE, bool, HANDLE section_handle, HANDLE, HANDLE) {
@@ -2651,6 +2676,7 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
     return nt_status::SUCCESS;
 }
+#endif
 
 extern "C++"
 NTSTATUS process::read_vm(void* base_address, void* buffer, uint32_t buffer_size,
@@ -2690,6 +2716,7 @@ NTSTATUS process::read_vm(void* base_address, void* buffer, uint32_t buffer_size
     return nt_status::SUCCESS;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
                              uint32_t* number_of_bytes_read) {
@@ -2723,6 +2750,7 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
 
     return p->read_vm(base_address, buffer, buffer_size, number_of_bytes_read);
 }
+#endif
 
 extern "C++"
 NTSTATUS process::write_vm(void* base_address, const void* buffer,
@@ -2762,6 +2790,7 @@ NTSTATUS process::write_vm(void* base_address, const void* buffer,
     return nt_status::SUCCESS;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const void* buffer,
                               uint32_t buffer_size, uint32_t* number_of_bytes_written) {
@@ -2795,6 +2824,7 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const v
 
     return p->write_vm(base_address, buffer, buffer_size, number_of_bytes_written);
 }
+#endif
 
 extern "C++"
 NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, span<uint8_t> buf,
@@ -2867,6 +2897,7 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
     }
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
                                    void* process_information, uint32_t process_information_length,
@@ -2902,6 +2933,7 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
     return p->query_info(process_information_class, span((uint8_t*)process_information, process_information_length),
                          return_length);
 }
+#endif
 
 extern "C++"
 object_ref process::get_stderr() {
@@ -2968,23 +3000,33 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     }
 
     memcpy(&start_context, &thread_context, sizeof(CONTEXT));
+#ifdef __aarch64__
+    // FIXME?
+#else
     start_context.EFlags |= 0x202; // IF, reserved flag
     start_context.SegCs = user_CS;
     start_context.SegSs = user_DS;
     start_context.SegEs = user_DS;
     start_context.SegFs = user_DS;
     start_context.SegGs = user_DS;
+#endif
 
     if ((start_context.ContextFlags & CONTEXT_FLOATING_POINT) != CONTEXT_FLOATING_POINT) {
+#ifdef __aarch64__
+        // FIXME
+#else
         memset(&start_context.FltSave, 0, sizeof(start_context.FltSave));
 
         start_context.FltSave.MxCsr = 0x1f80;
         start_context.FltSave.MxCsr_Mask = 0x2ffff;
+#endif
 
         start_context.ContextFlags |= CONTEXT_FLOATING_POINT;
     }
 
+#ifndef __aarch64__
     start_context.MxCsr = start_context.FltSave.MxCsr;
+#endif
 
     auto ctx_addr = (uintptr_t)initial_teb.StackBase - sizeof(CONTEXT);
 
@@ -3043,6 +3085,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     memset(&t.context, 0, sizeof(CONTEXT));
     memset(&t.syscall_context, 0, sizeof(CONTEXT));
 
+#ifndef __aarch64__
     t.context.EFlags |= 0x202; // IF, reserved flag
     t.context.SegCs = user_CS;
     t.context.SegSs = user_DS;
@@ -3054,6 +3097,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.Rdx = img_info_addr;
     t.context.R8 = ctx_addr;
     t.context.Rsp = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
+#endif
 
     t.kernel_mode = false;
 
@@ -3151,6 +3195,7 @@ nt_status process::flush_vm(void** base_address, size_t* region_size) {
     return ret;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
                               size_t* region_size, IO_STATUS_BLOCK* iosb) {
@@ -3186,6 +3231,7 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
 
     return p->flush_vm(base_address, region_size);
 }
+#endif
 
 extern "C++"
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
@@ -3251,6 +3297,7 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     if (cpus == 0)
         return;
 
+#ifndef __aarch64__
     {
         lock_guard lock(ipi_lock);
 
@@ -3274,6 +3321,7 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
 
         enable_preempt();
     }
+#endif
 }
 
 extern "C++"
@@ -3318,6 +3366,7 @@ nt_status process::get_next_thread(::thread* threadptr, ACCESS_MASK /*desired_ac
     return nt_status::SUCCESS;
 }
 
+#ifndef __aarch64__
 extern "C"
 NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                          ACCESS_MASK desired_access, uint32_t handle_attributes,
@@ -3502,3 +3551,4 @@ NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
 
     return nt_status::SUCCESS;
 }
+#endif

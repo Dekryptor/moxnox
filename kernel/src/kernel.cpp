@@ -12,7 +12,6 @@ import serial;
 import pci;
 import syscalls;
 import smp;
-import process;
 #endif
 
 import bsod;
@@ -36,6 +35,7 @@ import vfs;
 import section;
 import image;
 import keyboard;
+import process;
 
 using namespace std;
 

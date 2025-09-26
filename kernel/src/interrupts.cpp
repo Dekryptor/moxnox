@@ -127,8 +127,6 @@ export const uint8_t halt_interrupt = 0x60;
 export const uint8_t invalidate_tlb_interrupt = 0x21;
 export const uint8_t spurious_interrupt = 0xff;
 
-export uintptr_t mn_signal;
-
 static spinlock isr_lock;
 
 struct isr_func_info {
@@ -139,6 +137,8 @@ struct isr_func_info {
 static isr_func_info isr_funcs[0x20];
 
 #endif
+
+export uintptr_t mn_signal;
 
 static spinlock irq_lock;
 
