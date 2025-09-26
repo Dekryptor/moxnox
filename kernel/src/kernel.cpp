@@ -247,9 +247,9 @@ void main_thread() {
     if (!mount_root())
         bsod("mount_root failed");
 
-#ifndef __aarch64__
     load_ntdll();
 
+#ifndef __aarch64__
     auto init = create_init_process();
 
     if (!init)
