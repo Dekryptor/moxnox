@@ -9,12 +9,15 @@ module;
 #include <loaderblock.h>
 #include "acpica.h"
 #include "cpu_block.h"
-#include "mem-x86.h"
 #include "spinlock.h"
 #include "process.h"
 #include "assert.h"
 #include <span>
 #include "ints.h"
+
+#ifndef __aarch64__
+#include "mem-x86.h"
+#endif
 
 export module interrupts;
 

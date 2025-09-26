@@ -4,9 +4,12 @@ module;
 #include <string_view>
 #include "acpica.h"
 #include "cpu_block.h"
-#include "mem-x86.h"
 #include <span>
 #include <atomic>
+
+#ifndef __aarch64__
+#include "mem-x86.h"
+#endif
 
 export module smp;
 

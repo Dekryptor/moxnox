@@ -8,7 +8,6 @@ module;
 #include <mutex>
 #include "rangelock.h"
 #include "cpu_block.h"
-#include "mem-x86.h"
 #include "spinlock.h"
 #include "thread.h"
 #include "process.h"
@@ -18,6 +17,10 @@ module;
 #include <ntdll.h>
 #include "section.h"
 #include "assert.h"
+
+#ifndef __aarch64__
+#include "mem-x86.h"
+#endif
 
 export module process;
 
@@ -582,6 +585,7 @@ process::process() : sync_object(object_type::process, false) {
     initialized = true;
 }
 
+#ifndef __aarch64__
 static void free_page_tables(process& proc) {
     if (proc.cr3 == 0)
         return;
@@ -617,6 +621,7 @@ static void free_page_tables(process& proc) {
 
     free_folio(proc.cr3);
 }
+#endif
 
 extern "C++"
 process::~process() {
@@ -646,9 +651,12 @@ process::~process() {
     if (img)
         img->get().release();
 
+#ifndef __aarch64__ // FIXME
     free_page_tables(*this);
+#endif
 }
 
+#ifndef __aarch64__
 static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
                                 enum mapping_type protect, bool cow,
                                 bool reserve) {
@@ -768,6 +776,7 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
 
     return true;
 }
+#endif
 
 extern "C++"
 uintptr_t process::map_section(section& sect, uintptr_t address,
@@ -875,32 +884,40 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
             auto& s = sect.pe_sections[i];
 
             if (s.VirtualAddress > addr) {
+#ifndef __aarch64__
                 if (!set_page_protection(*this, address + addr, (uint32_t)((s.VirtualAddress - addr) >> PAGE_SHIFT),
                                          mapping_type::read_only, false, false)) {
                     return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
                 }
+#endif
             }
 
             uint64_t num_pages = bytes_to_pages(s.VirtualSize);
 
+#ifndef __aarch64__
             if (!set_page_protection(*this, address + s.VirtualAddress, (uint32_t)num_pages,
                                      characteristics_to_mapping_type(s.Characteristics),
                                      true, false)) {
                 return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
             }
+#endif
 
             addr = s.VirtualAddress + (num_pages << PAGE_SHIFT);
         }
 
         if (addr < sect.size) {
+#ifndef __aarch64__
             if (!set_page_protection(*this, address + addr, (uint32_t)((sect.size - addr) >> PAGE_SHIFT),
                                      mapping_type::read_only, false, false)) {
                 return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
             }
+#endif
         }
     } else {
+#ifndef __aarch64__
         if (!set_page_protection(*this, address, sect.num_pages, protect, cow, false))
             return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
+#endif
     }
 
     return address;
@@ -951,6 +968,7 @@ static bool populate_teb(process& proc, ::thread& t) {
     return true;
 }
 
+#ifndef __aarch64__
 static HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
     span<HARDWARE_PTE> pt[4];
 
@@ -973,6 +991,7 @@ static HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
 
     return &pt[0][(va & 0x1ff000) >> 12];
 }
+#endif
 
 #ifdef __llvm__ // work around Clang *really* wanting exceptions to be enabled
 extern "C++"
@@ -1575,11 +1594,13 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
             auto to_commit = min(size, m->address + m->size - addr);
 
+#ifndef __aarch64__
             if (!set_page_protection(*this, addr, (uint32_t)(to_commit >> PAGE_SHIFT), protect,
                                      false, false)) {
                 m->release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
+#endif
 
             if (to_commit == size) {
                 m->release();
@@ -1654,6 +1675,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         m->address = addr;
     }
 
+#ifndef __aarch64__
     if (!set_page_protection(*this, addr, num_pages, protect, false,
                              !(allocation_type & MEM_COMMIT))) {
         print("set_page_protection failed\n");
@@ -1664,6 +1686,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         }
         return nt_status::INSUFFICIENT_RESOURCES;
     }
+#endif
 
     *base_address = (void*)addr;
     *region_size = size;
@@ -1735,6 +1758,7 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
 }
 #endif
 
+#ifndef __aarch64__
 static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
@@ -1789,6 +1813,7 @@ static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
         pte.p = 0;
     }
 }
+#endif
 
 extern "C++"
 NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t free_type) {
@@ -1897,7 +1922,9 @@ mapping::~mapping() {
 
     // FIXME - send IPI to unmap on other CPUs by clearing TLB
 
+#ifndef __aarch64__
     unmap_proc_pages(proc, address, size >> PAGE_SHIFT);
+#endif
 
     visit([&](auto* ptr) {
         auto& cache = *ptr;
@@ -1922,6 +1949,7 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
             return false;
         }
 
+#ifndef __aarch64__
         auto pte = find_pte(proc, va);
         if (!pte) {
             cache.unpin(sect_page_num, 1);
@@ -1937,12 +1965,13 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
                 p = cache.find_page_cache_entry(sect_page_num);
             }
 
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
             pte->pfn = p->pfn;
-    #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
             pte->p = 1;
         }
+#endif
 
         cache.unpin(sect_page_num, 1);
 
@@ -1952,6 +1981,9 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
 
 extern "C++"
 bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
+#ifdef __aarch64__
+    return false; // FIXME
+#else
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
     uint64_t page_offset = offset & (PAGE_SIZE - 1);
@@ -2006,10 +2038,14 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     }
 
     return true;
+#endif
 }
 
 extern "C++"
 bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
+#ifdef __aarch64__
+    return false;
+#else
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
     uint64_t page_offset = offset & (PAGE_SIZE - 1);
@@ -2151,10 +2187,8 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 pte.w = 1;
                 pte.p = 1;
 
-#ifndef __aarch64__
                 if (send_ipi)
                     send_page_tlb_ipi(proc, address);
-#endif
 
                 cache.unpin(sect_page_num, 1);
 
@@ -2171,6 +2205,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     }
 
     return true;
+#endif
 }
 
 extern "C++"
@@ -2227,6 +2262,7 @@ object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
     }
 }
 
+#ifndef __aarch64__
 static uint32_t get_page_protection(process& proc, uint64_t va) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
@@ -2263,6 +2299,7 @@ static uint32_t get_page_protection(process& proc, uint64_t va) {
             return PAGE_EXECUTE_READ;
     }
 }
+#endif
 
 static nt_status protect_vm(process& proc, void** base_address, size_t* region_size,
                             enum mapping_type prot, bool cow, uint32_t& old_type) {
@@ -2291,8 +2328,10 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
 
             auto num_pages = min(pages, (uint32_t)((m->address + m->size - addr) >> PAGE_SHIFT));
 
+#ifndef __aarch64__
             if (first)
                 old_type = get_page_protection(proc, addr);
+#endif
 
             if (m->sect.type != section_type::image) {
                 if (prot == mapping_type::read_write_execute ||
@@ -2322,10 +2361,12 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
                 }
             }
 
+#ifndef __aarch64__
             if (!set_page_protection(proc, addr, num_pages, prot, cow, false)) {
                 m->release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
+#endif
 
             m->release();
 
@@ -3260,8 +3301,7 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
 
 extern "C++"
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
-    // clear write bit
-
+#ifndef __aarch64__ // FIXME
     span<HARDWARE_PTE> pt[4];
     uint64_t va = address + (page_num << PAGE_SHIFT);
     uint16_t index[4];
@@ -3322,7 +3362,6 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     if (cpus == 0)
         return;
 
-#ifndef __aarch64__
     {
         lock_guard lock(ipi_lock);
 
