@@ -235,7 +235,6 @@ static nt_status extract_initrd_file(::filesystem& fs, string_view path,
     return nt_status::SUCCESS;
 }
 
-#ifndef __aarch64__
 static bool extract_initrd() {
     auto fs = create_tmpfs();
     if (!fs) {
@@ -292,7 +291,6 @@ export bool mount_root() {
 
     return true;
 }
-#endif
 
 export nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir,
                             object_ref& obj_ref, uint32_t create_disposition,

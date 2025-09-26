@@ -1125,7 +1125,6 @@ export constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
-#ifndef __aarch64__
 static bool load_initrd(void* data, uintptr_t size) {
     auto num_pages = bytes_to_pages(size);
 
@@ -1147,6 +1146,7 @@ static bool load_initrd(void* data, uintptr_t size) {
     return true;
 }
 
+#ifndef __aarch64__
 static uint8_t get_maxphyaddr() {
     uint32_t eax, ebx, ecx, edx;
 
@@ -1260,13 +1260,11 @@ export bool init_memory(const loader_block& lb) {
     //         as mem_type::acpi (Seabios E820 reports it as reserved)
     map_physical_memory(max(total_pages, (uint64_t)(1 << (32 - PAGE_SHIFT))));
 
-#ifndef __aarch64__
     if (lb.initrd_size != 0) {
         load_initrd((void*)lb.initrd_data, lb.initrd_size);
 
         // FIXME - mark source memory as free (is page-aligned)
     }
-#endif
 
     zero_pfn = allocate_folio_no_lock(0, page_state::used) >> PAGE_SHIFT;
     if (!zero_pfn) {

@@ -244,10 +244,10 @@ void main_thread() {
     if (!create_dev_null())
         print("create_dev_null failed\n");
 
-#ifndef __aarch64__
     if (!mount_root())
         bsod("mount_root failed");
 
+#ifndef __aarch64__
     load_ntdll();
 
     auto init = create_init_process();
