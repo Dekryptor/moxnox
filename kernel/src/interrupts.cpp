@@ -1364,6 +1364,23 @@ void handle_kernel_exception(uint64_t esr_value) {
 }
 
 extern "C"
+void handle_user_exception() {
+    // FIXME
+
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = format(sp, "Unhandled exception in user mode (thread {:x}, CPU {})\n",
+                (uintptr_t)current_thread, cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
+
+    bsod(string_view(s, (size_t)(sp.data() - s)));
+}
+
+extern "C"
 void handle_kernel_irq(uint32_t number) {
     {
         lock_guard lock(irq_lock);

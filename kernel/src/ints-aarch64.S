@@ -5,7 +5,7 @@
 // FIXME - DWARF
 // FIXME - SEH(?)
 
-.macro save_context
+.macro save_context user
 	stp	x0, x1, [sp]
 
 	add	x0, x18, GS_CONTEXT
@@ -64,7 +64,11 @@
 	mrs	x1, fpsr
 	str	w1, [x0, #CONTEXT_FPSR]
 
-	add	x1, sp, #16
+	.if \user
+		mrs	x1, sp_el0
+	.else
+		add	x1, sp, #0x10
+	.endif
 	str	x1, [x0, #CONTEXT_SP]
 
 	mrs	x1, elr_el1
@@ -79,6 +83,10 @@
 	str	x1, [x0, #CONTEXT_X0 + 0x8]
 	ldr	x1, [sp]
 	str	x1, [x0, #CONTEXT_X0]
+.endm
+
+.macro restore_user_context
+	b	. // FIXME
 .endm
 
 .section .text.interrupts, "x"
@@ -111,7 +119,7 @@ b	.
 b	.
 .balign 128
 // Synchronous Exception, 64-bit EL0
-b	.
+b	user_exception_entry
 .balign 128
 // IRQ, 64-bit EL0
 b	.
@@ -145,11 +153,21 @@ msr	vbar_el1, x0
 ret
 
 kernel_exception_entry:
-sub	sp, sp, #16
-save_context
+sub	sp, sp, #0x10
+save_context 0
 
 mrs	x0, esr_el1
 b	handle_kernel_exception
+
+user_exception_entry:
+sub	sp, sp, #0x10
+save_context 1
+
+mrs	x0, esr_el1
+bl	handle_user_exception
+
+restore_user_context
+eret
 
 kernel_irq_entry:
 sub	sp, sp, #0x20
