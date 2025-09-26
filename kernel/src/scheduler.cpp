@@ -127,10 +127,14 @@ void scheduler() {
         memcpy(&t.context, &cb.thread_context, sizeof(CONTEXT));
         t.current_cpu = 0xffffffff;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+        t.syscall_stack = (void*)t.context.Sp;
+#endif
+
         if (t.proc)
             t.proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
+#ifndef __aarch64__
         if (t.kernel_mode && t.status == thread_status::dying) { // kernel thread died
             bool last_thread;
 
@@ -173,6 +177,8 @@ void scheduler() {
             cb.time_slice_left = time_slice;
 
 #ifdef __aarch64__
+            cb.thread_context.Sp = (uint64_t)cb.current_thread->syscall_stack;
+
             __asm("b scheduler_restore");
 #else
             __asm("jmp scheduler_restore"); // iretq will re-enable interrupts

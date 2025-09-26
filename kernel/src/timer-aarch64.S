@@ -82,9 +82,6 @@ scheduler_restore:
     ldr w1, [x0, #CONTEXT_FPSR] // gets zero-extended
     msr fpsr, x1
 
-    ldr x1, [x0, #CONTEXT_SP]
-    mov sp, x1
-
     ldr x1, [x0, #CONTEXT_PC]
     msr elr_el1, x1
 
@@ -93,6 +90,17 @@ scheduler_restore:
 
     // FIXME - debug registers
 
+    ldr x0, [x18, #GS_CURRENT_THREAD]
+    add x1, x0, THREAD_USER_STACK
+    ldr x1, [x1]
+    msr sp_el0, x1
+
+    add x1, x0, THREAD_SYSCALL_STACK
+    ldr x1, [x1]
+    mov sp, x1
+
+    ldr x0, [x18, #GS_CURRENT_THREAD]
+    add x0, x0, THREAD_CONTEXT
     ldr x1, [x0, #CONTEXT_X0 + 0x8]
     ldr x0, [x0, #CONTEXT_X0]
 

@@ -66,6 +66,9 @@ public:
     process* proc = nullptr;
     uint64_t affinity = 0xffffffffffffffff;
     void* syscall_stack = nullptr;
+#ifdef __aarch64__
+    uint64_t user_stack;
+#endif
     bool kernel_mode;
     enum nt_status exit_status = nt_status::PENDING;
     list_entry process_le;
@@ -82,12 +85,14 @@ public:
 static_assert(is_sync_object<thread>);
 
 static_assert(offsetof(thread, context) == THREAD_CONTEXT);
+static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+static_assert(offsetof(thread, user_stack) == THREAD_USER_STACK);
+#else
 static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 static_assert(offsetof(thread, status) == THREAD_STATUS);
 static_assert(offsetof(thread, proc) == THREAD_PROC);
-static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(thread, suspend_count) == THREAD_SUSPEND_COUNT);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
