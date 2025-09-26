@@ -43,11 +43,11 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/section.cpp
     src/image.cpp
     src/keyboard.cpp
+    src/tmpfs.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
     src/inout.cpp
-    src/tmpfs.cpp
     src/rtc.cpp
     src/ps2keyboard.cpp
     src/serial.cpp
