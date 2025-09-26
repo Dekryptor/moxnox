@@ -1363,9 +1363,28 @@ void handle_kernel_exception(uint64_t esr_value) {
     }
 }
 
-extern "C"
-void handle_user_exception() {
-    // FIXME
+static void invalid_opcode_user() {
+    // FIXME - send signal to thread instead
+
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = format(sp, "Invalid opcode in user mode (thread {:x}, CPU {})\n",
+                (uintptr_t)current_thread, cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
+
+    bsod(string_view(s, (size_t)(sp.data() - s)));
+}
+
+static void unhandled_user_exception(uint64_t esr_value) {
+    ARM64_ESR esr;
+
+    esr.value = esr_value;
+
+    // FIXME - send signal to thread instead
 
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
@@ -1375,9 +1394,29 @@ void handle_user_exception() {
 
     sp = format(sp, "Unhandled exception in user mode (thread {:x}, CPU {})\n",
                 (uintptr_t)current_thread, cb.cpu_no);
+    sp = format(sp, "ESR_EL1 = {:08x} (ISS = {:x}, IL = {:x}, EC = {:x}, ISS2 = {:x})\n",
+                esr_value, esr.ISS, esr.IL, esr.EC, esr.ISS2);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
+}
+
+extern "C"
+void handle_user_exception(uint64_t esr_value) {
+    ARM64_ESR esr;
+
+    esr.value = esr_value;
+
+    switch (esr.EC) {
+        case 0: // "Unknown reason"
+            // FIXME - might actually be other things
+            invalid_opcode_user();
+            break;
+
+        default:
+            unhandled_user_exception(esr_value);
+            break;
+    }
 }
 
 extern "C"
