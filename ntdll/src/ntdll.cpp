@@ -8,7 +8,10 @@
 
 using namespace std;
 
+#ifndef __aarch64__
 import print;
+#endif
+
 import format;
 
 extern uint8_t __image_base__;
@@ -26,6 +29,7 @@ bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
 }
 
+#ifndef __aarch64__
 // work round GCC 15 ICE (FIXME)
 static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
                                         uint32_t /*procedure_number*/, void** procedure_address) {
@@ -897,10 +901,12 @@ static void call_dll_main() {
         le = le->Flink;
     }
 }
+#endif
 
-extern "C"
-__attribute__((force_align_arg_pointer)) void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info,
-                     CONTEXT* context) {
+extern "C" FORCE_ALIGN_ARG_POINTER
+__declspec (dllexport) // FIXME
+void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT* context) {
+#ifndef __aarch64__ // FIXME
     if (!initialized) {
         auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
@@ -936,6 +942,7 @@ __attribute__((force_align_arg_pointer)) void mn_start_thread(mn_image_info* ntd
 
         initialized = true;
     }
+#endif
 
     // FIXME - call DllMain for modules if starting another thread
 

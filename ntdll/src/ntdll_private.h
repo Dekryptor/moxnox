@@ -5,6 +5,12 @@
 #include <string_view>
 #include <span>
 
+#ifndef __aarch64__
+#define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
+#else
+#define FORCE_ALIGN_ARG_POINTER
+#endif
+
 static const size_t PAGE_SIZE = 4096;
 static const uint64_t PAGE_SHIFT = 12;
 

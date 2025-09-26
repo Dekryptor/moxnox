@@ -9,14 +9,18 @@
 #include "exception_record_offsets.h"
 
 import format;
-import print;
 import dwarf;
+
+#ifndef __aarch64__
+import print;
 import unwind;
+#endif
 
 using namespace std;
 
 static_assert(offsetof(EXCEPTION_RECORD, ExceptionAddress) == EXCEPTION_RECORD_EXCEPTION_ADDRESS);
 
+#ifndef __aarch64__
 static ldr_entry* get_ldr_from_address(uint64_t addr) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto& ldr_data = *peb.Ldr;
@@ -172,9 +176,14 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 
     return nt_status::UNHANDLED_EXCEPTION;
 }
+#endif
 
-extern "C"
-__attribute__((force_align_arg_pointer)) void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
+extern "C" FORCE_ALIGN_ARG_POINTER
+__declspec (dllexport) // FIXME
+void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
+#ifdef __aarch64__
+    while (true) { } // FIXME
+#else
     char s[1024];
     auto sp = span(s, sizeof(s));
 
@@ -238,8 +247,10 @@ __attribute__((force_align_arg_pointer)) void mn_signal(EXCEPTION_RECORD* except
     }
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
+#endif
 }
 
+#ifndef __aarch64__
 extern "C"
 __attribute__((force_align_arg_pointer)) void mn_ctrl_c() {
     auto teb = NtCurrentTeb();
@@ -282,3 +293,4 @@ __attribute__((force_align_arg_pointer)) void mn_ctrl_c() {
 
     NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
 }
+#endif
