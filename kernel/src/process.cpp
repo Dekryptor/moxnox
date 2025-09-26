@@ -376,7 +376,13 @@ export  object_ref create_process(string_view fn, string_view curdir,
 
     p.img = static_cast<section&>(imgh.get());
 
-    if (p.img->get().machine != IMAGE_FILE_MACHINE_AMD64) {
+#ifdef __aarch64__
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
+#else
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
+#endif
+
+    if (p.img->get().machine != this_arch) {
         print("invalid architecture {:x}\n", p.img->get().machine);
         p.release();
         return {};
