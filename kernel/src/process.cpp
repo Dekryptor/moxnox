@@ -79,6 +79,26 @@ static atomic<uintptr_t> next_pid = 1;
 static spinlock process_list_lock;
 static rbtree_node<uintptr_t>* process_tree = nullptr;
 
+#ifndef __aarch64__
+union page_fault_error_code {
+    uint64_t value;
+    struct {
+        uint64_t present : 1;
+        uint64_t write : 1;
+        uint64_t user : 1;
+        uint64_t reserved_write : 1;
+        uint64_t instruction_fetch : 1;
+        uint64_t protection_key : 1;
+        uint64_t shadow_stack : 1;
+        uint64_t reserved1 : 8;
+        uint64_t sgx : 1;
+        uint64_t reserved2 : 48;
+    };
+};
+
+static_assert(sizeof(page_fault_error_code) == 8);
+#endif
+
 // FIXME - 32-bit processes
 
 static size_t dos_path_len(string_view s) {
@@ -931,24 +951,6 @@ static bool populate_teb(process& proc, ::thread& t) {
     return true;
 }
 
-union page_fault_error_code {
-    uint64_t value;
-    struct {
-        uint64_t present : 1;
-        uint64_t write : 1;
-        uint64_t user : 1;
-        uint64_t reserved_write : 1;
-        uint64_t instruction_fetch : 1;
-        uint64_t protection_key : 1;
-        uint64_t shadow_stack : 1;
-        uint64_t reserved1 : 8;
-        uint64_t sgx : 1;
-        uint64_t reserved2 : 48;
-    };
-};
-
-static_assert(sizeof(page_fault_error_code) == 8);
-
 static HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
     span<HARDWARE_PTE> pt[4];
 
@@ -1030,6 +1032,14 @@ static void send_page_tlb_ipi(process& proc, uint64_t va) {
 }
 #endif
 
+#ifdef __aarch64__
+extern "C++"
+bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
+    // FIXME
+
+    return false;
+}
+#else
 extern "C++"
 bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     page_fault_error_code ec;
@@ -1130,10 +1140,8 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
             pte->w = 1;
 
-#ifndef __aarch64__
             if (send_ipi)
                 send_page_tlb_ipi(*this, address);
-#endif
 
             return true;
         }
@@ -1154,6 +1162,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
     return ret;
 }
+#endif
 
 extern "C++"
 bool process::allocate_cr3() {

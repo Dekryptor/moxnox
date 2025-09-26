@@ -1401,9 +1401,10 @@ static void unhandled_user_exception(uint64_t esr_value) {
     bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
-static void page_fault_user() {
+static void page_fault_user(uint64_t esr_value) {
     auto& cb = *get_cpu_block();
-    auto current_thread = cb.current_thread;
+    auto& current_thread = *cb.current_thread;
+    CONTEXT ctx;
     uint64_t address;
 
     __asm __volatile (
@@ -1411,11 +1412,27 @@ static void page_fault_user() {
         : [res] "=r" (address)
     );
 
+    memcpy(&ctx, &cb.thread_context, sizeof(CONTEXT));
+
+    enable_interrupts();
+
+    auto& p = *current_thread.proc;
+
+    auto okay = p.handle_page_fault(address, esr_value);
+
+    if (okay) {
+        disable_interrupts();
+        memcpy(&get_cpu_block()->thread_context, &ctx, sizeof(CONTEXT));
+        return;
+    }
+
+    // FIXME - send signal to thread instead
+
     char s[1024];
     auto sp = span(s, sizeof(s));
 
     sp = format(sp, "Page fault in user mode (address = {:x}, thread {:x}, CPU {})\n",
-                address, (uintptr_t)current_thread, cb.cpu_no);
+                address, (uintptr_t)&current_thread, cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
@@ -1435,7 +1452,7 @@ void handle_user_exception(uint64_t esr_value) {
 
         case 0x20: // Instruction Abort from lower EL
         case 0x24: // Data Abort from lower EL
-            page_fault_user();
+            page_fault_user(esr_value);
             break;
 
         default:

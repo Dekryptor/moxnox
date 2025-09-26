@@ -29,7 +29,11 @@ public:
 
     uintptr_t map_section(section& sect, uintptr_t address, std::optional<int64_t> offset,
                           enum mapping_type protect, bool cow, size_t* view_size);
+#ifdef __aarch64__
+    bool handle_page_fault(uintptr_t address, uint64_t esr_value);
+#else
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
+#endif
     bool allocate_cr3();
     bool copy_from(void* ks_addr, const void* us_addr, size_t size);
     bool copy_to(void* us_addr, const void* ks_addr, size_t size);
