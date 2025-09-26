@@ -81,7 +81,7 @@
 	str	x1, [x0, #CONTEXT_X0]
 .endm
 
-.section .text.interrupts
+.section .text.interrupts, "x"
 
 .balign 2048
 .global vector_table
