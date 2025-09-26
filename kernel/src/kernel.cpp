@@ -76,7 +76,6 @@ void __cxa_pure_virtual() {
     bsod("__cxa_pure_virtual() called");
 }
 
-#ifndef __aarch64__
 static object_ref create_init_process() {
     auto& p = static_cast<chardev&>(console_chardev.get());
 
@@ -115,7 +114,6 @@ static object_ref create_init_process() {
 
     return ref;
 }
-#endif
 
 static void keywait() {
     bool do_wait = false;
@@ -249,7 +247,6 @@ void main_thread() {
 
     load_ntdll();
 
-#ifndef __aarch64__
     auto init = create_init_process();
 
     if (!init)
@@ -262,9 +259,6 @@ void main_thread() {
     auto& init_process = static_cast<process&>(init.get());
 
     bsod_format("init process died (exit code {})", init_process.exit_status);
-#else
-    bsod("FIXME");
-#endif
 }
 
 extern "C"
