@@ -1401,6 +1401,26 @@ static void unhandled_user_exception(uint64_t esr_value) {
     bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
+static void page_fault_user() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+    uint64_t address;
+
+    __asm __volatile (
+        "mrs %x[res], far_el1"
+        : [res] "=r" (address)
+    );
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = format(sp, "Page fault in user mode (address = {:x}, thread {:x}, CPU {})\n",
+                address, (uintptr_t)current_thread, cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
+
+    bsod(string_view(s, (size_t)(sp.data() - s)));
+}
+
 extern "C"
 void handle_user_exception(uint64_t esr_value) {
     ARM64_ESR esr;
@@ -1411,6 +1431,11 @@ void handle_user_exception(uint64_t esr_value) {
         case 0: // "Unknown reason"
             // FIXME - might actually be other things
             invalid_opcode_user();
+            break;
+
+        case 0x20: // Instruction Abort from lower EL
+        case 0x24: // Data Abort from lower EL
+            page_fault_user();
             break;
 
         default:
