@@ -3099,7 +3099,8 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.X0 = ntdll_info_addr;
     t.context.X1 = img_info_addr;
     t.context.X2 = ctx_addr;
-    t.context.Sp = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
+
+    t.user_stack = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
 #else
     t.context.EFlags |= 0x202; // IF, reserved flag
     t.context.SegCs = user_CS;

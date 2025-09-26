@@ -128,7 +128,10 @@ void scheduler() {
         t.current_cpu = 0xffffffff;
 
 #ifdef __aarch64__
-        t.syscall_stack = (void*)t.context.Sp;
+        if (t.kernel_mode)
+            t.syscall_stack = (void*)cb.thread_context.Sp;
+        else
+            t.user_stack = cb.thread_context.Sp;
 #endif
 
         if (t.proc)
@@ -177,7 +180,10 @@ void scheduler() {
             cb.time_slice_left = time_slice;
 
 #ifdef __aarch64__
-            cb.thread_context.Sp = (uint64_t)cb.current_thread->syscall_stack;
+            if (cb.current_thread->kernel_mode)
+                cb.thread_context.Sp = (uint64_t)cb.current_thread->syscall_stack;
+            else
+                cb.thread_context.Sp = cb.current_thread->user_stack;
 
             __asm("b scheduler_restore");
 #else
