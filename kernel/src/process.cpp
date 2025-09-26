@@ -3007,7 +3007,8 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
 
     memcpy(&start_context, &thread_context, sizeof(CONTEXT));
 #ifdef __aarch64__
-    // FIXME?
+    // FIXME - some bits of Cpsr might be valid to be set (e.g. condition flags)
+    start_context.Cpsr = 0; // aarch64, EL0
 #else
     start_context.EFlags |= 0x202; // IF, reserved flag
     start_context.SegCs = user_CS;
@@ -3019,7 +3020,9 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
 
     if ((start_context.ContextFlags & CONTEXT_FLOATING_POINT) != CONTEXT_FLOATING_POINT) {
 #ifdef __aarch64__
-        // FIXME
+        memset(&start_context.V[0], 0, sizeof(start_context.V));
+        start_context.Fpcr = 0;
+        start_context.Fpsr = 0;
 #else
         memset(&start_context.FltSave, 0, sizeof(start_context.FltSave));
 
@@ -3091,7 +3094,13 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     memset(&t.context, 0, sizeof(CONTEXT));
     memset(&t.syscall_context, 0, sizeof(CONTEXT));
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+    t.context.Pc = ntdll_addr + mn_start_thread;
+    t.context.X0 = ntdll_info_addr;
+    t.context.X1 = img_info_addr;
+    t.context.X2 = ctx_addr;
+    t.context.Sp = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
+#else
     t.context.EFlags |= 0x202; // IF, reserved flag
     t.context.SegCs = user_CS;
     t.context.SegSs = user_DS;
