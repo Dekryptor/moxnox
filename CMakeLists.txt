@@ -114,17 +114,17 @@ target_compile_options(evdev_sse PRIVATE ${USERSPACE_CFLAGS})
 
 add_subdirectory(kernel)
 add_subdirectory(ntdll)
+add_subdirectory(init)
+add_subdirectory(libmoxnox)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     add_subdirectory(bootloader/aarch64)
 else()
     add_subdirectory(bootloader/x86)
-    add_subdirectory(init)
     add_subdirectory(shell)
     add_subdirectory(usercon)
     add_subdirectory(kernelbase)
     add_subdirectory(ucrtbase)
-    add_subdirectory(libmoxnox)
 
     set(FREETYPE_FILES freetype/src/autofit/autofit.c
         freetype/src/base/ftbase.c

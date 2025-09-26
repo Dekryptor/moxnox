@@ -11,10 +11,16 @@ set(DLLS ntdll
 
 add_library(moxnox STATIC IMPORTED GLOBAL)
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    set(ARCH arm64)
+else()
+    set(ARCH "i386:x86-64")
+endif()
+
 foreach(DLL ${DLLS})
     add_custom_command(
         OUTPUT lib${DLL}.a
-        COMMAND ${DLLTOOL} -d ${CMAKE_CURRENT_SOURCE_DIR}/${DLL}.def -l ${CMAKE_CURRENT_BINARY_DIR}/lib${DLL}.a
+        COMMAND ${DLLTOOL} -d ${CMAKE_CURRENT_SOURCE_DIR}/${DLL}.def -l ${CMAKE_CURRENT_BINARY_DIR}/lib${DLL}.a -m ${ARCH}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${DLL}.def
     )
 

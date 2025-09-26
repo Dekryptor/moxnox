@@ -270,9 +270,13 @@ static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh
     initial_teb.StackAllocationBase = stack;
 
     memset(&context, 0, sizeof(context));
+#ifdef __aarch64__
+    // FIXME
+#else
     context.Rip = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
     context.EFlags = 0x200;
+#endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
 
     status = NtCreateThread(&thread, THREAD_ALL_ACCESS, nullptr, proc, &client_id, &context,
@@ -374,9 +378,13 @@ static void create_thread(void(*func)()) {
     initial_teb.StackAllocationBase = stack;
 
     memset(&context, 0, sizeof(context));
+#ifdef __aarch64__
+    // FIXME
+#else
     context.Rip = (uintptr_t)func;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
     context.EFlags = 0x200;
+#endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
 
     status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, NtCurrentProcess(), &client_id, &context,
@@ -392,8 +400,14 @@ static void create_thread(void(*func)()) {
     NtClose(h);
 }
 
+#ifndef __aarch64__
+#define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
+#else
+#define FORCE_ALIGN_ARG_POINTER
+#endif
+
 extern "C"
-__attribute__((force_align_arg_pointer)) void startup() {
+FORCE_ALIGN_ARG_POINTER void startup() {
     bool serial_mode = false;
 
     // FIXME - start services etc.
