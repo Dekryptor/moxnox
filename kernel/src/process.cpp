@@ -3259,10 +3259,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     }
 
     memcpy(&start_context, &thread_context, sizeof(CONTEXT));
-#ifdef __aarch64__
-    // FIXME - some bits of Cpsr might be valid to be set (e.g. condition flags)
-    start_context.Cpsr = 0; // aarch64, EL0
-#else
+#ifndef __aarch64__
     start_context.EFlags |= 0x202; // IF, reserved flag
     start_context.SegCs = user_CS;
     start_context.SegSs = user_DS;
