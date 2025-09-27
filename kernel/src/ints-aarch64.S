@@ -324,7 +324,7 @@ str	q30, [sp, #0x280]
 str	q31, [sp, #0x290]
 
 mov	w0, w2
-bl	handle_kernel_irq
+bl	handle_irq
 
 ldr	q31, [sp, #0x290]
 ldr	q30, [sp, #0x280]

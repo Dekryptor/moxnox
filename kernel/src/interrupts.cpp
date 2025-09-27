@@ -1460,7 +1460,7 @@ void handle_user_exception(uint64_t esr_value) {
 }
 
 extern "C"
-void handle_kernel_irq(uint32_t number) {
+void handle_irq(uint32_t number) {
     {
         lock_guard lock(irq_lock);
 
