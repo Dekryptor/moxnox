@@ -2199,9 +2199,6 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 
 extern "C++"
 bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
-#ifdef __aarch64__
-    return false;
-#else
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
     uint64_t page_offset = offset & (PAGE_SIZE - 1);
@@ -2216,7 +2213,15 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
         if (!pte.allow_write)
             return false;
 
-        if (pte.p && pte.w) {
+#ifdef __aarch64__
+        bool pte_valid = pte.valid;
+        bool pte_writable = pte.AP == ARM64_PTE_AP_EL0RW;
+#else
+        bool pte_valid = pte.p;
+        bool pte_writable = pte.w;
+#endif
+
+        if (pte_valid && pte_writable) {
             memcpy((uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
                    ks_addr, to_copy);
         } else if (pte.cow) {
@@ -2226,7 +2231,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 return false;
             }
 
-            if (!pte.p) {
+            if (!pte_valid) {
                 if (to_copy < PAGE_SIZE) {
                     page_cache_entry* p;
                     uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
@@ -2273,10 +2278,21 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             memcpy((uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
                    ks_addr, to_copy);
 
+#ifdef __aarch64__
+            pte.AP = ARM64_PTE_AP_EL0RW;
+
+            if (!pte.valid) {
+                pte.table_entry = 1;
+                pte.SH = 3; // inner shareable
+                pte.AF = 1;
+                pte.valid = 1;
+            }
+#else
             pte.w = 1;
 
             if (!pte.p)
                 pte.p = 1;
+#endif
         } else {
             uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
             page_cache_entry* p;
@@ -2340,11 +2356,21 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 #pragma GCC diagnostic pop
                 }
 
+#ifdef __aarch64__
+                pte.table_entry = 1;
+                pte.AP = ARM64_PTE_AP_EL0RW;
+                pte.SH = 3; // inner shareable
+                pte.AF = 1;
+                pte.valid = 1;
+#else
                 pte.w = 1;
                 pte.p = 1;
+#endif
 
+#ifndef __aarch64__
                 if (send_ipi)
                     send_page_tlb_ipi(proc, address);
+#endif
 
                 cache.unpin(sect_page_num, 1);
 
@@ -2361,7 +2387,6 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     }
 
     return true;
-#endif
 }
 
 extern "C++"
