@@ -8,7 +8,13 @@
 .macro save_context user
 	stp	x0, x1, [sp]
 
-	add	x0, x18, GS_CONTEXT
+	.if \user
+		mrs	x0, tpidr_el1
+		add	x0, x0, GS_CONTEXT
+	.else
+		add	x0, x18, GS_CONTEXT
+	.endif
+
 	stp	x2, x3, [x0, #CONTEXT_X0 + 0x10]
 	stp	x4, x5, [x0, #CONTEXT_X0 + 0x20]
 	stp	x6, x7, [x0, #CONTEXT_X0 + 0x30]
@@ -104,7 +110,7 @@
 	ldr x15, [x0, #CONTEXT_X0 + 0x78]
 	ldr x16, [x0, #CONTEXT_X0 + 0x80]
 	ldr x17, [x0, #CONTEXT_X0 + 0x88]
-	// FIXME - x18
+	ldr x18, [x0, #CONTEXT_X0 + 0x90]
 	ldr x19, [x0, #CONTEXT_X0 + 0x98]
 	ldr x20, [x0, #CONTEXT_X0 + 0xa0]
 	ldr x21, [x0, #CONTEXT_X0 + 0xa8]
@@ -243,6 +249,7 @@ user_exception_entry:
 sub	sp, sp, #0x10
 save_context 1
 
+mrs	x18, tpidr_el1
 mrs	x0, esr_el1
 bl	handle_user_exception
 
