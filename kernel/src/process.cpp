@@ -411,11 +411,19 @@ export  object_ref create_process(string_view fn, string_view curdir,
         return {};
     }
 
+#ifdef __aarch64__
+    if (!p.allocate_ttbr0()) {
+        print("process::allocate_ttbr0 failed\n");
+        p.release();
+        return {};
+    }
+#else
     if (!p.allocate_cr3()) {
         print("process::allocate_cr3 failed\n");
         p.release();
         return {};
     }
+#endif
 
     p.img->get().acquire();
 
@@ -1183,13 +1191,25 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 }
 #endif
 
+#ifdef __aarch64__
+extern "C++"
+bool process::allocate_ttbr0() {
+    ttbr0 = allocate_folio(0);
+    if (!ttbr0) {
+        print("allocate_folio failed\n");
+        return false;
+    }
+
+    return true;
+}
+#else
 extern "C++"
 bool process::allocate_cr3() {
     auto kernel_cr3 = get_cpu_block()->kernel_cr3;
 
     cr3 = allocate_folio(0);
     if (!cr3) {
-        print("allocate_page failed\n");
+        print("allocate_folio failed\n");
         return false;
     }
 
@@ -1204,6 +1224,7 @@ bool process::allocate_cr3() {
 
     return true;
 }
+#endif
 
 extern "C++"
 bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {

@@ -31,10 +31,11 @@ public:
                           enum mapping_type protect, bool cow, size_t* view_size);
 #ifdef __aarch64__
     bool handle_page_fault(uintptr_t address, uint64_t esr_value);
+    bool allocate_ttbr0();
 #else
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
-#endif
     bool allocate_cr3();
+#endif
     bool copy_from(void* ks_addr, const void* us_addr, size_t size);
     bool copy_to(void* us_addr, const void* ks_addr, size_t size);
     void terminate();
@@ -74,7 +75,11 @@ public:
     std::optional<std::reference_wrapper<section>> img;
     spinlock mappings_lock;
     list_entry mappings = { &mappings, &mappings };
+#ifdef __aarch64__
+    uint64_t ttbr0 = 0;
+#else
     uint64_t cr3 = 0;
+#endif
     spinlock threads_lock;
     list_entry threads = { &threads, &threads };
     enum nt_status exit_status = nt_status::PENDING;
