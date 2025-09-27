@@ -1437,6 +1437,9 @@ extern "C"
 void handle_user_exception(uint64_t esr_value) {
     ARM64_ESR esr;
 
+    // FIXME - set thread as being in kernel mode, and munge x18
+    // FIXME - take copy of context and enable interrupts (and restore context before returning)
+
     esr.value = esr_value;
 
     switch (esr.EC) {
