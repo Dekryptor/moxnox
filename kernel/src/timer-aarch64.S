@@ -221,15 +221,26 @@ get_cpu_block_end:
 	mrs	x1, fpsr
 	str	w1, [x0, #CONTEXT_FPSR]
 
-	add	x1, sp, #0x20
-	str	x1, [x0, #CONTEXT_SP]
-
 	mrs	x1, elr_el1
 	str	x1, [x0, #CONTEXT_PC]
 
 	mrs	x1, spsr_el1
 	str	w1, [x0, #CONTEXT_CPSR]
 
+	and	x1, x1, 0xf
+	cbnz	x1, 0f
+
+	// in user mode
+	mrs	x1, sp_el0
+	str	x1, [x0, #CONTEXT_SP]
+	b	1f
+
+0:
+	// in kernel mode
+	add	x1, sp, #0x20
+	str	x1, [x0, #CONTEXT_SP]
+
+1:
 	ldp	x2, x3, [sp, #0x10]
 	stp	x2, x3, [x0, #CONTEXT_X0 + 0x10]
 	ldr	x1, [sp, #0x8]
