@@ -329,7 +329,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
         p0.valid = 1;
         p0.table_entry = 1;
         p0.AttrIndex = 0;
-        p0.AP = 0; // no access from userspace
+        p0.AP = ARM64_PTE_AP_EL1RW;
         p0.SH = 3; // inner shareable
         p0.AF = 1;
 #pragma GCC diagnostic push
@@ -353,7 +353,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
         p1.valid = 1;
         p1.table_entry = 1;
         p1.AttrIndex = 0;
-        p1.AP = 0; // no access from userspace
+        p1.AP = ARM64_PTE_AP_EL1RW;
         p1.SH = 3; // inner shareable
         p1.AF = 1;
 #pragma GCC diagnostic push
@@ -377,7 +377,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
         p2.valid = 1;
         p2.table_entry = 1;
         p2.AttrIndex = 0;
-        p2.AP = 0; // no access from userspace
+        p2.AP = ARM64_PTE_AP_EL1RW;
         p2.SH = 3; // inner shareable
         p2.AF = 1;
 #pragma GCC diagnostic push
@@ -397,7 +397,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
     p3.valid = 1;
     p3.table_entry = 1;
     p3.AttrIndex = 0;
-    p3.AP = 0; // no access from userspace
+    p3.AP = ARM64_PTE_AP_EL1RW;
     p3.SH = 3; // inner shareable
     p3.AF = 1;
 #pragma GCC diagnostic push
@@ -599,7 +599,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
             p0.valid = 1;
             p0.table_entry = 1;
             p0.AttrIndex = 0;
-            p0.AP = 0; // no access from userspace
+            p0.AP = ARM64_PTE_AP_EL1RW;
             p0.SH = 3; // inner shareable
             p0.AF = 1;
 #pragma GCC diagnostic push
@@ -626,7 +626,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
             p1.valid = 1;
             p1.table_entry = 1;
             p1.AttrIndex = 0;
-            p1.AP = 0; // no access from userspace
+            p1.AP = ARM64_PTE_AP_EL1RW;
             p1.SH = 3; // inner shareable
             p1.AF = 1;
 #pragma GCC diagnostic push
@@ -653,7 +653,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
             p2.valid = 1;
             p2.table_entry = 1;
             p2.AttrIndex = 0;
-            p2.AP = 0; // no access from userspace
+            p2.AP = ARM64_PTE_AP_EL1RW;
             p2.SH = 3; // inner shareable
             p2.AF = 1;
 #pragma GCC diagnostic push
@@ -676,7 +676,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         else
             p3.AttrIndex = 0; // normal memory
 
-        p3.AP = 0; // no access from userspace
+        p3.AP = ARM64_PTE_AP_EL1RW;
         p3.SH = 3; // inner shareable
         p3.AF = 1;
 #pragma GCC diagnostic push
@@ -1041,7 +1041,7 @@ static bool map_physical_memory(uint64_t num_pages) {
     p0.valid = 1;
     p0.table_entry = 1;
     p0.AttrIndex = 0;
-    p0.AP = 0; // no access from userspace
+    p0.AP = ARM64_PTE_AP_EL1RW;
     p0.SH = 3; // inner shareable
     p0.AF = 1;
 #pragma GCC diagnostic push
@@ -1064,7 +1064,7 @@ static bool map_physical_memory(uint64_t num_pages) {
         p1->valid = 1;
         p1->table_entry = 0;
         p1->AttrIndex = 0;
-        p1->AP = 0; // no access from userspace
+        p1->AP = ARM64_PTE_AP_EL1RW;
         p1->SH = 3; // inner shareable
         p1->AF = 1;
 #pragma GCC diagnostic push
@@ -1645,22 +1645,22 @@ export void protect_page(uint64_t va, enum mapping_type type) {
 
     switch (type) {
         case mapping_type::read_write:
-            pte.AP = 0; // EL0 no access, EL1 read-write
+            pte.AP = ARM64_PTE_AP_EL1RW;
             pte.PXN = 1;
         break;
 
         case mapping_type::read_only:
-            pte.AP = 2; // EL0 no access, EL1 read-only
+            pte.AP = ARM64_PTE_AP_EL1RO;
             pte.PXN = 1;
         break;
 
         case mapping_type::read_execute:
-            pte.AP = 2; // EL0 no access, EL1 read-only
+            pte.AP = ARM64_PTE_AP_EL1RO;
             pte.PXN = 0;
         break;
 
         case mapping_type::read_write_execute:
-            pte.AP = 0; // EL0 no access, EL1 read-write
+            pte.AP = ARM64_PTE_AP_EL1RW;
             pte.PXN = 0;
         break;
 

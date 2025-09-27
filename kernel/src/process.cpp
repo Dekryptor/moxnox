@@ -18,7 +18,9 @@ module;
 #include "section.h"
 #include "assert.h"
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+#include "mem-aarch64.h"
+#else
 #include "mem-x86.h"
 #endif
 
@@ -664,7 +666,127 @@ process::~process() {
 #endif
 }
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
+                                enum mapping_type protect, bool cow,
+                                bool reserve) {
+    span<ARM64_HARDWARE_PTE> pt[4];
+    uint16_t index[4];
+
+    index[0] = (va & 0x1ff000) >> 12;
+    index[1] = (va & 0x3fe00000) >> 21;
+    index[2] = (va & 0x7fc0000000) >> 30;
+    index[3] = (va & 0xff8000000000) >> 39;
+
+    pt[3] = span((ARM64_HARDWARE_PTE*)phys_address(proc.ttbr0), 512);
+
+    auto redo_level = [&](uint8_t level) -> bool {
+        if (!pt[level][index[level]].valid) {
+            uint64_t pa = allocate_page();
+            if (pa == 0)
+                return false;
+
+            pt[level][index[level]].valid = 1;
+            pt[level][index[level]].table_entry = 1;
+            pt[level][index[level]].AP = ARM64_PTE_AP_EL0RW;
+            pt[level][index[level]].SH = 3; // inner shareable
+            pt[level][index[level]].AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            pt[level][index[level]].pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+            memset(phys_address(pa), 0, PAGE_SIZE);
+        }
+
+        pt[level - 1] = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
+
+        return true;
+    };
+
+    for (uint8_t level = 3; level > 0; level--) {
+        if (!redo_level(level))
+            return false;
+    }
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (i != 0) {
+            index[0]++;
+
+            if (index[0] == 512) {
+                index[0] = 0;
+                index[1]++;
+
+                if (index[1] == 512) {
+                    index[1] = 0;
+                    index[2]++;
+
+                    if (index[2] == 512) {
+                        index[2] = 0;
+                        index[3]++;
+
+                        redo_level(3);
+                    }
+
+                    redo_level(2);
+                }
+
+                redo_level(1);
+            }
+        }
+
+        auto& pte = pt[0][index[0]];
+
+        if (pte.valid && pte.AP == ARM64_PTE_AP_EL0RW && pte.cow) {
+            // don't clear COW flag if already COWed
+
+            // FIXME - should be able to make COWed page readonly?
+
+            switch (protect) {
+                case mapping_type::read_execute:
+                case mapping_type::read_write_execute:
+                    pte.UXN = 0;
+                    break;
+
+                default:
+                    pte.UXN = 1;
+                    break;
+            }
+        } else {
+            pte.valid = 0;
+            pte.reserved = reserve ? 1 : 0;
+
+            switch (protect) {
+                case mapping_type::read_write:
+                    pte.UXN = 1;
+                    pte.allow_write = 1;
+                    pte.cow = cow ? 1 : 0;
+                    break;
+
+                case mapping_type::read_execute:
+                    pte.UXN = 0;
+                    pte.allow_write = 0;
+                    pte.cow = 0;
+                    break;
+
+                case mapping_type::read_write_execute:
+                    pte.UXN = 0;
+                    pte.allow_write = 1;
+                    pte.cow = cow ? 1 : 0;
+                    break;
+
+                default:
+                    pte.UXN = 1;
+                    pte.allow_write = 0;
+                    pte.cow = 0;
+                    break;
+            }
+        }
+    }
+
+    return true;
+}
+#else
 static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
                                 enum mapping_type protect, bool cow,
                                 bool reserve) {
@@ -892,40 +1014,32 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
             auto& s = sect.pe_sections[i];
 
             if (s.VirtualAddress > addr) {
-#ifndef __aarch64__
                 if (!set_page_protection(*this, address + addr, (uint32_t)((s.VirtualAddress - addr) >> PAGE_SHIFT),
                                          mapping_type::read_only, false, false)) {
                     return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
                 }
-#endif
             }
 
             uint64_t num_pages = bytes_to_pages(s.VirtualSize);
 
-#ifndef __aarch64__
             if (!set_page_protection(*this, address + s.VirtualAddress, (uint32_t)num_pages,
                                      characteristics_to_mapping_type(s.Characteristics),
                                      true, false)) {
                 return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
             }
-#endif
 
             addr = s.VirtualAddress + (num_pages << PAGE_SHIFT);
         }
 
         if (addr < sect.size) {
-#ifndef __aarch64__
             if (!set_page_protection(*this, address + addr, (uint32_t)((sect.size - addr) >> PAGE_SHIFT),
                                      mapping_type::read_only, false, false)) {
                 return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
             }
-#endif
         }
     } else {
-#ifndef __aarch64__
         if (!set_page_protection(*this, address, sect.num_pages, protect, cow, false))
             return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
-#endif
     }
 
     return address;
@@ -1199,6 +1313,8 @@ bool process::allocate_ttbr0() {
         print("allocate_folio failed\n");
         return false;
     }
+
+    memset(phys_address(ttbr0), 0, PAGE_SIZE);
 
     return true;
 }
@@ -1615,13 +1731,11 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
             auto to_commit = min(size, m->address + m->size - addr);
 
-#ifndef __aarch64__
             if (!set_page_protection(*this, addr, (uint32_t)(to_commit >> PAGE_SHIFT), protect,
                                      false, false)) {
                 m->release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
-#endif
 
             if (to_commit == size) {
                 m->release();
@@ -1696,7 +1810,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         m->address = addr;
     }
 
-#ifndef __aarch64__
     if (!set_page_protection(*this, addr, num_pages, protect, false,
                              !(allocation_type & MEM_COMMIT))) {
         print("set_page_protection failed\n");
@@ -1707,7 +1820,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         }
         return nt_status::INSUFFICIENT_RESOURCES;
     }
-#endif
 
     *base_address = (void*)addr;
     *region_size = size;
@@ -2382,12 +2494,10 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
                 }
             }
 
-#ifndef __aarch64__
             if (!set_page_protection(proc, addr, num_pages, prot, cow, false)) {
                 m->release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
-#endif
 
             m->release();
 
