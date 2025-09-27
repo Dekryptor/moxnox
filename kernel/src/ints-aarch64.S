@@ -257,6 +257,7 @@ restore_user_context
 add	sp, sp, #0x10
 eret
 
+# irq number is in w2; clobbers x0 and x1
 .macro do_irq
 	sub	sp, sp, #0x290
 	stp	x4, x5, [sp]
