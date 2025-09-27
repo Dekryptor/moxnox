@@ -202,7 +202,7 @@ b	.
 b	user_exception_entry
 .balign 128
 // IRQ, 64-bit EL0
-b	.
+b	user_irq_entry
 .balign 128
 // FIQ, 64-bit EL0
 b	.
@@ -372,3 +372,7 @@ ldp	x0, x1, [sp]
 
 add	sp, sp, #0x20
 eret
+
+user_irq_entry:
+// FIXME - change x18
+b	kernel_irq_entry
