@@ -258,23 +258,6 @@ add	sp, sp, #0x10
 eret
 
 .macro do_irq
-	sub	sp, sp, #0x20
-
-	stp	x0, x1, [sp]
-	stp	x2, x3, [sp, #0x10]
-
-	adr	x2, gicc
-	ldr	x2, [x2]
-	add	x2, x2, GICC_IAR_OFFSET
-	ldr	w2, [x2]
-
-	adr	x3, timer_irq_no
-	ldr	w3, [x3]
-	sub	w3, w2, w3
-	cbnz	w3, 0f
-	b	timer_isr
-
-	0:
 	sub	sp, sp, #0x290
 	stp	x4, x5, [sp]
 	stp	x6, x7, [sp, #0x10]
@@ -371,22 +354,58 @@ eret
 	ldp	x6, x7, [sp, #0x10]
 	ldp	x4, x5, [sp]
 	add	sp, sp, #0x290
-
-	ldp	x2, x3, [sp, #0x10]
-	ldp	x0, x1, [sp]
-
-	add	sp, sp, #0x20
 .endm
 
 kernel_irq_entry:
+sub	sp, sp, #0x20
+
+stp	x0, x1, [sp]
+stp	x2, x3, [sp, #0x10]
+
+adr	x2, gicc
+ldr	x2, [x2]
+add	x2, x2, GICC_IAR_OFFSET
+ldr	w2, [x2]
+
+adr	x3, timer_irq_no
+ldr	w3, [x3]
+sub	w3, w2, w3
+cbnz	w3, 0f
+b	timer_isr
+
+0:
 do_irq
+
+ldp	x2, x3, [sp, #0x10]
+ldp	x0, x1, [sp]
+
+add	sp, sp, #0x20
 eret
 
 user_irq_entry:
-sub	sp, sp, #0x10
-stp	x18, xzr, [sp]
+sub	sp, sp, #0x30
+
+stp	x0, x1, [sp]
+stp	x2, x3, [sp, #0x10]
+stp	x18, xzr, [sp, #0x20]
 mrs	x18, tpidr_el1
+
+adr	x2, gicc
+ldr	x2, [x2]
+add	x2, x2, GICC_IAR_OFFSET
+ldr	w2, [x2]
+
+adr	x3, timer_irq_no
+ldr	w3, [x3]
+sub	w3, w2, w3
+cbnz	w3, 0f
+b	timer_isr
+
+0:
 do_irq
-ldp	x18, xzr, [sp]
-add	sp, sp, #0x10
+ldp	x18, xzr, [sp, #0x20]
+ldp	x2, x3, [sp, #0x10]
+ldp	x0, x1, [sp]
+
+add	sp, sp, #0x30
 eret
