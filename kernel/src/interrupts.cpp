@@ -15,7 +15,9 @@ module;
 #include <span>
 #include "ints.h"
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+#include "mem-aarch64.h"
+#else
 #include "mem-x86.h"
 #endif
 
@@ -37,16 +39,6 @@ import disable_interrupts;
 using namespace std;
 
 #ifdef __aarch64__
-
-union ARM64_ESR {
-    struct {
-        uint64_t ISS : 25;
-        uint64_t IL : 1;
-        uint64_t EC : 6;
-        uint64_t ISS2 : 24;
-    };
-    uint64_t value;
-} __attribute((packed));
 
 union ARM64_GICD_CTLR {
     struct {

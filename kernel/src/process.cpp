@@ -1199,9 +1199,29 @@ static void send_page_tlb_ipi(process& proc, uint64_t va) {
 #ifdef __aarch64__
 extern "C++"
 bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
-    // FIXME
+    ARM64_ESR esr;
 
-    return false;
+    esr.value = esr_value;
+
+    address &= ~(PAGE_SIZE - 1);
+
+    auto pte = find_pte(*this, address);
+
+    // FIXME - NX violations
+    // FIXME - COWing and marking cache as dirty
+
+    if (pte && pte->reserved)
+        return false;
+
+    auto m = find_mapping(*this, address);
+    if (!m)
+        return false;
+
+    auto ret = m->map((uint32_t)(address - m->address), address);
+
+    m->release();
+
+    return ret;
 }
 #else
 extern "C++"
@@ -2111,7 +2131,6 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
             return false;
         }
 
-#ifndef __aarch64__
         {
             page_cache_entry* p;
             rangelock_req rlr(cache.rl, sect_page_num, 1);
@@ -2121,13 +2140,18 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
                 p = cache.find_page_cache_entry(sect_page_num);
             }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
+#ifdef __aarch64__
             pte->pfn = p->pfn;
-#pragma GCC diagnostic pop
+            pte->AP = ARM64_PTE_AP_EL0RO;
+            pte->table_entry = 1;
+            pte->SH = 3; // inner shareable
+            pte->AF = 1;
+            pte->valid = 1;
+#else
+            pte->pfn = p->pfn & 0x7ffffffffffff;
             pte->p = 1;
-        }
 #endif
+        }
 
         cache.unpin(sect_page_num, 1);
 
