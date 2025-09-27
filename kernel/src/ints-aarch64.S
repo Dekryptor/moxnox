@@ -257,127 +257,136 @@ restore_user_context
 add	sp, sp, #0x10
 eret
 
+.macro do_irq
+	sub	sp, sp, #0x20
+
+	stp	x0, x1, [sp]
+	stp	x2, x3, [sp, #0x10]
+
+	adr	x2, gicc
+	ldr	x2, [x2]
+	add	x2, x2, GICC_IAR_OFFSET
+	ldr	w2, [x2]
+
+	adr	x3, timer_irq_no
+	ldr	w3, [x3]
+	sub	w3, w2, w3
+	cbnz	w3, 0f
+	b	timer_isr
+
+	0:
+	sub	sp, sp, #0x290
+	stp	x4, x5, [sp]
+	stp	x6, x7, [sp, #0x10]
+	stp	x8, x9, [sp, #0x20]
+	stp	x10, x11, [sp, #0x30]
+	stp	x12, x13, [sp, #0x40]
+	stp	x14, x15, [sp, #0x50]
+	stp	x16, x17, [sp, #0x60]
+	stp	x29, x30, [sp, #0x70]
+
+	mrs	x0, fpcr
+	mrs	x1, fpsr
+	stp	x0, x1, [sp, #0x80]
+
+	str	q0, [sp, #0x90]
+	str	q1, [sp, #0xa0]
+	str	q2, [sp, #0xb0]
+	str	q3, [sp, #0xc0]
+	str	q4, [sp, #0xd0]
+	str	q5, [sp, #0xe0]
+	str	q6, [sp, #0xf0]
+	str	q7, [sp, #0x100]
+	str	q8, [sp, #0x110]
+	str	q9, [sp, #0x120]
+	str	q10, [sp, #0x130]
+	str	q11, [sp, #0x140]
+	str	q12, [sp, #0x150]
+	str	q13, [sp, #0x160]
+	str	q14, [sp, #0x170]
+	str	q15, [sp, #0x180]
+	str	q16, [sp, #0x190]
+	str	q17, [sp, #0x1a0]
+	str	q18, [sp, #0x1b0]
+	str	q19, [sp, #0x1c0]
+	str	q20, [sp, #0x1d0]
+	str	q21, [sp, #0x1e0]
+	str	q22, [sp, #0x1f0]
+	str	q23, [sp, #0x200]
+	str	q24, [sp, #0x210]
+	str	q25, [sp, #0x220]
+	str	q26, [sp, #0x230]
+	str	q27, [sp, #0x240]
+	str	q28, [sp, #0x250]
+	str	q29, [sp, #0x260]
+	str	q30, [sp, #0x270]
+	str	q31, [sp, #0x280]
+
+	mov	w0, w2
+	bl	handle_irq
+
+	ldr	q31, [sp, #0x280]
+	ldr	q30, [sp, #0x270]
+	ldr	q29, [sp, #0x260]
+	ldr	q28, [sp, #0x250]
+	ldr	q27, [sp, #0x240]
+	ldr	q26, [sp, #0x230]
+	ldr	q25, [sp, #0x220]
+	ldr	q24, [sp, #0x210]
+	ldr	q23, [sp, #0x200]
+	ldr	q22, [sp, #0x1f0]
+	ldr	q21, [sp, #0x1e0]
+	ldr	q20, [sp, #0x1d0]
+	ldr	q19, [sp, #0x1c0]
+	ldr	q18, [sp, #0x1b0]
+	ldr	q17, [sp, #0x1a0]
+	ldr	q16, [sp, #0x190]
+	ldr	q15, [sp, #0x180]
+	ldr	q14, [sp, #0x170]
+	ldr	q13, [sp, #0x160]
+	ldr	q12, [sp, #0x150]
+	ldr	q11, [sp, #0x140]
+	ldr	q10, [sp, #0x130]
+	ldr	q9, [sp, #0x120]
+	ldr	q8, [sp, #0x110]
+	ldr	q7, [sp, #0x100]
+	ldr	q6, [sp, #0xf0]
+	ldr	q5, [sp, #0xe0]
+	ldr	q4, [sp, #0xd0]
+	ldr	q3, [sp, #0xc0]
+	ldr	q2, [sp, #0xb0]
+	ldr	q1, [sp, #0xa0]
+	ldr	q0, [sp, #0x90]
+
+	ldp	x0, x1, [sp, #0x80]
+	msr	fpcr, x0
+	msr	fpsr, x1
+
+	ldp	x29, x30, [sp, #0x70]
+	ldp	x16, x17, [sp, #0x60]
+	ldp	x14, x15, [sp, #0x50]
+	ldp	x12, x13, [sp, #0x40]
+	ldp	x10, x11, [sp, #0x30]
+	ldp	x8, x9, [sp, #0x20]
+	ldp	x6, x7, [sp, #0x10]
+	ldp	x4, x5, [sp]
+	add	sp, sp, #0x290
+
+	ldp	x2, x3, [sp, #0x10]
+	ldp	x0, x1, [sp]
+
+	add	sp, sp, #0x20
+.endm
+
 kernel_irq_entry:
-sub	sp, sp, #0x20
-
-stp	x0, x1, [sp]
-stp	x2, x3, [sp, #0x10]
-
-adr	x2, gicc
-ldr	x2, [x2]
-add	x2, x2, GICC_IAR_OFFSET
-ldr	w2, [x2]
-
-adr	x3, timer_irq_no
-ldr	w3, [x3]
-sub	w3, w2, w3
-cbnz	w3, 0f
-b	timer_isr
-
-0:
-sub	sp, sp, #0x290
-stp	x4, x5, [sp]
-stp	x6, x7, [sp, #0x10]
-stp	x8, x9, [sp, #0x20]
-stp	x10, x11, [sp, #0x30]
-stp	x12, x13, [sp, #0x40]
-stp	x14, x15, [sp, #0x50]
-stp	x16, x17, [sp, #0x60]
-stp	x29, x30, [sp, #0x70]
-
-mrs	x0, fpcr
-mrs	x1, fpsr
-stp	x0, x1, [sp, #0x80]
-
-str	q0, [sp, #0x90]
-str	q1, [sp, #0xa0]
-str	q2, [sp, #0xb0]
-str	q3, [sp, #0xc0]
-str	q4, [sp, #0xd0]
-str	q5, [sp, #0xe0]
-str	q6, [sp, #0xf0]
-str	q7, [sp, #0x100]
-str	q8, [sp, #0x110]
-str	q9, [sp, #0x120]
-str	q10, [sp, #0x130]
-str	q11, [sp, #0x140]
-str	q12, [sp, #0x150]
-str	q13, [sp, #0x160]
-str	q14, [sp, #0x170]
-str	q15, [sp, #0x180]
-str	q16, [sp, #0x190]
-str	q17, [sp, #0x1a0]
-str	q18, [sp, #0x1b0]
-str	q19, [sp, #0x1c0]
-str	q20, [sp, #0x1d0]
-str	q21, [sp, #0x1e0]
-str	q22, [sp, #0x1f0]
-str	q23, [sp, #0x200]
-str	q24, [sp, #0x210]
-str	q25, [sp, #0x220]
-str	q26, [sp, #0x230]
-str	q27, [sp, #0x240]
-str	q28, [sp, #0x250]
-str	q29, [sp, #0x260]
-str	q30, [sp, #0x270]
-str	q31, [sp, #0x280]
-
-mov	w0, w2
-bl	handle_irq
-
-ldr	q31, [sp, #0x280]
-ldr	q30, [sp, #0x270]
-ldr	q29, [sp, #0x260]
-ldr	q28, [sp, #0x250]
-ldr	q27, [sp, #0x240]
-ldr	q26, [sp, #0x230]
-ldr	q25, [sp, #0x220]
-ldr	q24, [sp, #0x210]
-ldr	q23, [sp, #0x200]
-ldr	q22, [sp, #0x1f0]
-ldr	q21, [sp, #0x1e0]
-ldr	q20, [sp, #0x1d0]
-ldr	q19, [sp, #0x1c0]
-ldr	q18, [sp, #0x1b0]
-ldr	q17, [sp, #0x1a0]
-ldr	q16, [sp, #0x190]
-ldr	q15, [sp, #0x180]
-ldr	q14, [sp, #0x170]
-ldr	q13, [sp, #0x160]
-ldr	q12, [sp, #0x150]
-ldr	q11, [sp, #0x140]
-ldr	q10, [sp, #0x130]
-ldr	q9, [sp, #0x120]
-ldr	q8, [sp, #0x110]
-ldr	q7, [sp, #0x100]
-ldr	q6, [sp, #0xf0]
-ldr	q5, [sp, #0xe0]
-ldr	q4, [sp, #0xd0]
-ldr	q3, [sp, #0xc0]
-ldr	q2, [sp, #0xb0]
-ldr	q1, [sp, #0xa0]
-ldr	q0, [sp, #0x90]
-
-ldp	x0, x1, [sp, #0x80]
-msr	fpcr, x0
-msr	fpsr, x1
-
-ldp	x29, x30, [sp, #0x70]
-ldp	x16, x17, [sp, #0x60]
-ldp	x14, x15, [sp, #0x50]
-ldp	x12, x13, [sp, #0x40]
-ldp	x10, x11, [sp, #0x30]
-ldp	x8, x9, [sp, #0x20]
-ldp	x6, x7, [sp, #0x10]
-ldp	x4, x5, [sp]
-add	sp, sp, #0x290
-
-ldp	x2, x3, [sp, #0x10]
-ldp	x0, x1, [sp]
-
-add	sp, sp, #0x20
+do_irq
 eret
 
 user_irq_entry:
-// FIXME - change x18
-b	kernel_irq_entry
+sub	sp, sp, #0x10
+stp	x18, xzr, [sp]
+mrs	x18, tpidr_el1
+do_irq
+ldp	x18, xzr, [sp]
+add	sp, sp, #0x10
+eret
