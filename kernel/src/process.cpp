@@ -1090,7 +1090,30 @@ static bool populate_teb(process& proc, ::thread& t) {
     return true;
 }
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+static ARM64_HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
+    span<ARM64_HARDWARE_PTE> pt[4];
+
+    pt[3] = span((ARM64_HARDWARE_PTE*)phys_address(proc.ttbr0), 512);
+
+    if (!pt[3][(va & 0xff8000000000) >> 39].valid)
+        return nullptr;
+
+    pt[2] = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)((pt[3][(va & 0xff8000000000) >> 39].pfn) << PAGE_SHIFT)), 512);
+
+    if (!pt[2][(va & 0x7fc0000000) >> 30].valid)
+        return nullptr;
+
+    pt[1] = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)((pt[2][(va & 0x7fc0000000) >> 30].pfn) << PAGE_SHIFT)), 512);
+
+    if (!pt[1][(va & 0x3fe00000) >> 21].valid)
+        return nullptr;
+
+    pt[0] = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)((pt[1][(va & 0x3fe00000) >> 21].pfn) << PAGE_SHIFT)), 512);
+
+    return &pt[0][(va & 0x1ff000) >> 12];
+}
+#else
 static HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
     span<HARDWARE_PTE> pt[4];
 
@@ -2082,13 +2105,13 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
             return false;
         }
 
-#ifndef __aarch64__
         auto pte = find_pte(proc, va);
         if (!pte) {
             cache.unpin(sect_page_num, 1);
             return false;
         }
 
+#ifndef __aarch64__
         {
             page_cache_entry* p;
             rangelock_req rlr(cache.rl, sect_page_num, 1);
