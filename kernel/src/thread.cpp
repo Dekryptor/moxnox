@@ -413,9 +413,10 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
     t.context.SegFs = kernel_DS;
     t.context.SegGs = kernel_DS;
     t.context.SegSs = kernel_DS;
-#endif
 
     t.kernel_mode = true;
+#endif
+
     t.teb = nullptr;
 
     t.status = thread_status::runnable;

@@ -3363,9 +3363,9 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.Rdx = img_info_addr;
     t.context.R8 = ctx_addr;
     t.context.Rsp = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
-#endif
 
     t.kernel_mode = false;
+#endif
 
     t.suspend_count = create_suspended ? 1 : 0;
     t.status = thread_status::runnable;

@@ -68,8 +68,9 @@ public:
     void* syscall_stack = nullptr;
 #ifdef __aarch64__
     uint64_t user_stack;
-#endif
+#else
     bool kernel_mode;
+#endif
     enum nt_status exit_status = nt_status::PENDING;
     list_entry process_le;
     std::atomic<uint32_t> suspend_count = 0;
