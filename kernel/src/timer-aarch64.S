@@ -8,8 +8,6 @@
 
 .global scheduler_restore
 scheduler_restore:
-    // FIXME - userspace (set x18 to TLB, jump to EL0, set ttbr0)
-
     ldr x0, [x18, #GS_CURRENT_THREAD]
     add x0, x0, THREAD_CONTEXT
 
@@ -29,7 +27,7 @@ scheduler_restore:
     ldr x15, [x0, #CONTEXT_X0 + 0x78]
     ldr x16, [x0, #CONTEXT_X0 + 0x80]
     ldr x17, [x0, #CONTEXT_X0 + 0x88]
-    // FIXME - x18
+    // x18 done below
     ldr x19, [x0, #CONTEXT_X0 + 0x98]
     ldr x20, [x0, #CONTEXT_X0 + 0xa0]
     ldr x21, [x0, #CONTEXT_X0 + 0xa8]
@@ -113,6 +111,14 @@ scheduler_restore:
 0:
     ldr x0, [x18, #GS_CURRENT_THREAD]
     add x0, x0, THREAD_CONTEXT
+
+    ldr w1, [x0, #CONTEXT_CPSR]
+    and x1, x1, 0xf
+    cbnz x1, 1f
+    // thread is in user mode
+    ldr x18, [x0, #CONTEXT_X0 + 0x90]
+
+1:
     ldr x1, [x0, #CONTEXT_X0 + 0x8]
     ldr x0, [x0, #CONTEXT_X0]
 
