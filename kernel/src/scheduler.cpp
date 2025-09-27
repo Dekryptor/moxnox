@@ -491,7 +491,8 @@ export bool init_cpu_block(unsigned int cpu_no) {
 
 #ifdef __aarch64__
     __asm __volatile (
-        "mov x18, %0"
+        "mov x18, %0\n\t"
+        "msr tpidr_el1, x18\n\t"
         :
         : "r" (&cb)
     );
