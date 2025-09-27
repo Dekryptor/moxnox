@@ -99,6 +99,18 @@ scheduler_restore:
     ldr x1, [x1]
     mov sp, x1
 
+    add x1, x0, THREAD_PROC
+    ldr x1, [x1]
+    cbz x1, 0f
+
+    // FIXME - should set ttbr0 to 0 for kernel threads if in debug mode? (once free_lower_half_mappings is done)
+
+    // user thread
+    add x1, x1, PROCESS_TTBR0
+    ldr x1, [x1]
+    msr ttbr0_el1, x1
+
+0:
     ldr x0, [x18, #GS_CURRENT_THREAD]
     add x0, x0, THREAD_CONTEXT
     ldr x1, [x0, #CONTEXT_X0 + 0x8]

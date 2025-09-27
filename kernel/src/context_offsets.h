@@ -10,6 +10,7 @@
 #define GS_DISABLE_PREEMPT 0x3c8
 
 #define THREAD_CONTEXT 0x30
+#define THREAD_PROC 0x760
 #define THREAD_SYSCALL_STACK 0x770
 #define THREAD_USER_STACK 0x778
 
@@ -20,6 +21,8 @@
 #define CONTEXT_V0 0x110
 #define CONTEXT_FPCR 0x310
 #define CONTEXT_FPSR 0x314
+
+#define PROCESS_TTBR0 0x50
 
 #else
 

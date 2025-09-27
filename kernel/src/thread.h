@@ -85,6 +85,7 @@ public:
 static_assert(is_sync_object<thread>);
 
 static_assert(offsetof(thread, context) == THREAD_CONTEXT);
+static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 
 #ifdef __aarch64__
@@ -92,7 +93,6 @@ static_assert(offsetof(thread, user_stack) == THREAD_USER_STACK);
 #else
 static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 static_assert(offsetof(thread, status) == THREAD_STATUS);
-static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(thread, suspend_count) == THREAD_SUSPEND_COUNT);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
