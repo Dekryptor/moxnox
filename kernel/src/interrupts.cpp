@@ -1338,10 +1338,24 @@ static void page_fault_kernel() {
 
     // FIXME - print what variety of page fault it is, using ISS in ESR_EL1
 
+    auto pte = find_pte(address);
+    bool stack_overflow = false;
+
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = format(sp, "Page fault in kernel mode (address = {:x}, ", address);
+    if ((!pte || !pte->valid) && current_thread &&
+        address >= (uintptr_t)current_thread->kernel_stack &&
+        address < (uintptr_t)current_thread->kernel_stack + (KERNEL_GUARD_PAGES << PAGE_SHIFT)) {
+        stack_overflow = true;
+    }
+
+    if (stack_overflow)
+        sp = format(sp, "Stack overflow");
+    else
+        sp = format(sp, "Page fault");
+
+    sp = format(sp, " in kernel mode (address = {:x}, ", address);
 
     if (!current_thread)
         sp = format(sp, "not in thread");
@@ -1350,10 +1364,8 @@ static void page_fault_kernel() {
 
     sp = format(sp, ", CPU {})\n", cb.cpu_no);
 
-    auto pte = find_pte(address);
-
     // FIXME - parse PTE for explanation of why page fault happened
-    if (pte)
+    if (pte && !stack_overflow)
         sp = format(sp, "pte: {}\n", *pte);
 
     sp = format(sp, "{}", cb.thread_context);
