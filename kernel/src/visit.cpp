@@ -7,13 +7,8 @@ module;
 #include <string_view>
 #include <variant>
 #include "spinlock.h"
-
 #include "thread.h"
-
-#ifndef __aarch64__
 #include "process.h"
-#endif
-
 #include "file.h"
 #include "section.h"
 
@@ -68,11 +63,9 @@ static void visit_obj(object& obj, const T& func) {
             func(static_cast<section&>(obj));
         break;
 
-#ifndef __aarch64__
         case object_type::file:
             func(static_cast<file&>(obj));
         break;
-#endif
     }
 }
 
