@@ -1330,6 +1330,13 @@ static void page_fault_kernel() {
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
     sp = format(sp, ", CPU {})\n", cb.cpu_no);
+
+    auto pte = find_pte(address);
+
+    // FIXME - parse PTE for explanation of why page fault happened
+    if (pte)
+        sp = format(sp, "pte: {}\n", *pte);
+
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));

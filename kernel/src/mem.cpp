@@ -317,6 +317,52 @@ span<char> do_format_arg(span<char> sp, string_view, enum page_state arg) {
     }
 }
 
+export template<>
+consteval bool format_spec_valid<ARM64_HARDWARE_PTE>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, const ARM64_HARDWARE_PTE& p) {
+    sp = do_format_arg(sp, "", "valid=");
+    sp = do_format_arg(sp, "", p.valid);
+    sp = do_format_arg(sp, "", ", table_entry=");
+    sp = do_format_arg(sp, "", p.table_entry);
+    sp = do_format_arg(sp, "", ", AttrIndex=");
+    sp = do_format_arg(sp, "", p.AttrIndex);
+    sp = do_format_arg(sp, "", ", NS=");
+    sp = do_format_arg(sp, "", p.NS);
+    sp = do_format_arg(sp, "", ", AP=");
+    sp = do_format_arg(sp, "", p.AP);
+    sp = do_format_arg(sp, "", ", SH=");
+    sp = do_format_arg(sp, "", p.SH);
+    sp = do_format_arg(sp, "", ", AF=");
+    sp = do_format_arg(sp, "", p.AF);
+    sp = do_format_arg(sp, "", ", nG=");
+    sp = do_format_arg(sp, "", p.nG);
+    sp = do_format_arg(sp, "", ", pfn=");
+    sp = do_format_arg(sp, "", p.pfn);
+    sp = do_format_arg(sp, "", ", DBM=");
+    sp = do_format_arg(sp, "", p.DBM);
+    sp = do_format_arg(sp, "", ", Contig=");
+    sp = do_format_arg(sp, "", p.Contig);
+    sp = do_format_arg(sp, "", ", PXN=");
+    sp = do_format_arg(sp, "", p.PXN);
+    sp = do_format_arg(sp, "", ", UXN=");
+    sp = do_format_arg(sp, "", p.UXN);
+    sp = do_format_arg(sp, "", ", allow_write=");
+    sp = do_format_arg(sp, "", p.allow_write);
+    sp = do_format_arg(sp, "", ", cow=");
+    sp = do_format_arg(sp, "", p.cow);
+    sp = do_format_arg(sp, "", ", reserved=");
+    sp = do_format_arg(sp, "", p.reserved);
+    sp = do_format_arg(sp, "", ", software=");
+    sp = do_format_arg(sp, "", p.software);
+    sp = do_format_arg(sp, "", ", imp_def=");
+    sp = do_format_arg(sp, "", p.imp_def);
+
+    return sp;
+}
+
 #ifdef __aarch64__
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
     auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
@@ -1617,29 +1663,42 @@ export void unmap_page(uint64_t va) {
 #endif
 
 #ifdef __aarch64__
-static ARM64_HARDWARE_PTE& find_pte(uint64_t va) {
-    // FIXME - can we do this without calling ttbr1_el1_load every time?
+export ARM64_HARDWARE_PTE* find_pte(uint64_t va) {
+    bool lower_half = !(va & 0x8000000000000000);
 
-    auto pte0 = span((ARM64_HARDWARE_PTE*)phys_address(ttbr1_el1_load()),
+    // FIXME - huge pages
+
+    auto pte0 = span((ARM64_HARDWARE_PTE*)phys_address(lower_half ? ttbr0_el1_load() : ttbr1_el1_load()),
                      PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p0 = pte0[(va & 0xff8000000000) >> 39];
+
+    if (!p0.valid)
+        return nullptr;
 
     auto pte1 = span((ARM64_HARDWARE_PTE*)phys_address(p0.pfn << PAGE_SHIFT),
                      PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p1 = pte1[(va & 0x7fc0000000) >> 30];
 
+    if (!p1.valid)
+        return nullptr;
+
     auto pte2 = span((ARM64_HARDWARE_PTE*)phys_address(p1.pfn << PAGE_SHIFT),
                      PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p2 = pte2[(va & 0x3fe00000) >> 21];
 
+    if (!p2.valid)
+        return nullptr;
+
     auto pte3 = span((ARM64_HARDWARE_PTE*)phys_address(p2.pfn << PAGE_SHIFT),
                      PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
 
-    return pte3[(va & 0x1ff000) >> PAGE_SHIFT];
+    return &pte3[(va & 0x1ff000) >> PAGE_SHIFT];
 }
 
 export void protect_page(uint64_t va, enum mapping_type type) {
-    auto& pte = find_pte(va);
+    // FIXME - can we do this without calling ttbr1_el1_load every time?
+
+    auto& pte = *find_pte(va);
 
     pte.UXN = 1;
 
