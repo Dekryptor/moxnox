@@ -50,7 +50,7 @@ NTSTATUS NtDisplayString(const UNICODE_STRING* string) {
     return nt_status::SUCCESS;
 }
 
-static bool copy_from_process(void* ks_addr, const void* us_addr, size_t size) {
+extern "C" bool copy_from_process(void* ks_addr, const void* us_addr, size_t size) {
     auto t = get_current_thread();
 
     return t->proc->copy_from(ks_addr, us_addr, size);
@@ -109,30 +109,13 @@ NTSTATUS user_NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     return NtTerminateProcess(process_handle, exit_status);
 }
 
-template<size_t N>
-static bool copy_stack_args(::thread& t, array<uintptr_t, N>& args) {
-    // 1 uint64_t for return address, followed by 4 for shadow store
-    return copy_from_process(args.data(), (void*)((uintptr_t)t.syscall_context.Rsp + (5 * sizeof(uint64_t))),
-                             args.size() * sizeof(uintptr_t));
-}
-
 extern "C"
 NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
-                          void* apc_context) {
-    auto& t = *get_current_thread();
+                          void* apc_context, IO_STATUS_BLOCK* us_iosb, void* us_buf,
+                          uint32_t length, LARGE_INTEGER* us_byte_offset, uint32_t* us_key) {
     IO_STATUS_BLOCK iosb;
-    array<uintptr_t, 5> args;
     LARGE_INTEGER byte_offset;
     uint32_t key;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto us_iosb = (IO_STATUS_BLOCK*)args[0];
-    auto us_buf = (void*)args[1];
-    auto length = (uint32_t)args[2];
-    auto us_byte_offset = (LARGE_INTEGER*)args[3];
-    auto us_key = (uint32_t*)args[4];
 
     if (!us_iosb)
         return nt_status::INVALID_PARAMETER;
@@ -196,18 +179,11 @@ NTSTATUS user_NtSuspendProcess(HANDLE proc_handle) {
 
 extern "C"
 NTSTATUS user_NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
-                                      size_t* region_size) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 2> args;
-
+                                      size_t* region_size, uint32_t allocation_type,
+                                      uint32_t protect) {
     if (!region_size || !base_address)
         return nt_status::INVALID_PARAMETER;
 
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto allocation_type = (uint32_t)args[0];
-    auto protect = (uint32_t)args[1];
     void* addr;
     size_t size;
 
@@ -260,21 +236,12 @@ NTSTATUS user_NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_
 
 extern "C"
 NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
-                         void* apc_context) {
-    auto& t = *get_current_thread();
+                         void* apc_context, IO_STATUS_BLOCK* us_iosb, void* us_buf,
+                         uint32_t length, LARGE_INTEGER* us_byte_offset,
+                         uint32_t* us_key) {
     IO_STATUS_BLOCK iosb;
-    array<uintptr_t, 5> args;
     LARGE_INTEGER byte_offset;
     uint32_t key;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto us_iosb = (IO_STATUS_BLOCK*)args[0];
-    auto us_buf = (void*)args[1];
-    auto length = (uint32_t)args[2];
-    auto us_byte_offset = (LARGE_INTEGER*)args[3];
-    auto us_key = (uint32_t*)args[4];
 
     if (!us_iosb)
         return nt_status::INVALID_PARAMETER;
@@ -328,17 +295,9 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
 
 extern "C"
 NTSTATUS user_NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
-                                     uint32_t new_prot) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
-
+                                     uint32_t new_prot, uint32_t* us_old_prot) {
     if (!region_size || !base_address)
         return nt_status::INVALID_PARAMETER;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto us_old_prot = (uint32_t*)args[0];
 
     if (!us_old_prot)
         return nt_status::ACCESS_VIOLATION;
@@ -447,9 +406,12 @@ static void free_object_attributes(OBJECT_ATTRIBUTES& oa) {
 
 extern "C"
 NTSTATUS user_NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
-                           const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 7> args;
+                           const OBJECT_ATTRIBUTES* object_attributes,
+                           IO_STATUS_BLOCK* io_status_block,
+                           const LARGE_INTEGER* allocation_size,
+                           uint32_t file_attributes, uint32_t share_access,
+                           uint32_t create_disposition, uint32_t create_options,
+                           void* ea_buffer, uint32_t ea_length) {
     HANDLE h;
     IO_STATUS_BLOCK iosb;
     LARGE_INTEGER alloc;
@@ -458,19 +420,8 @@ NTSTATUS user_NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
     UNICODE_STRING us;
     NTSTATUS ret;
 
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
     if (!file_handle || !io_status_block)
         return nt_status::INVALID_PARAMETER;
-
-    auto allocation_size = (const LARGE_INTEGER*)args[0];
-    auto file_attributes = (uint32_t)args[1];
-    auto share_access = (uint32_t)args[2];
-    auto create_disposition = (uint32_t)args[3];
-    auto create_options = (uint32_t)args[4];
-    auto ea_buffer = (void*)args[5];
-    auto ea_length = (uint32_t)args[6];
 
     if (allocation_size) {
         if (!copy_from_process(&alloc, allocation_size, sizeof(LARGE_INTEGER)))
@@ -523,23 +474,17 @@ NTSTATUS user_NtClose(HANDLE handle) {
 
 extern "C"
 NTSTATUS user_NtCreateSection(HANDLE* section_handle, ACCESS_MASK desired_access,
-                              const OBJECT_ATTRIBUTES* object_attributes, const LARGE_INTEGER* maximum_size) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 3> args;
+                              const OBJECT_ATTRIBUTES* object_attributes,
+                              const LARGE_INTEGER* maximum_size,
+                              uint32_t section_page_protection,
+                              uint32_t allocation_attributes, HANDLE file_handle) {
     LARGE_INTEGER size;
     HANDLE h;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
 
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
     if (!section_handle)
         return nt_status::INVALID_PARAMETER;
-
-    auto section_page_protection = (uint32_t)args[0];
-    auto allocation_attributes = (uint32_t)args[1];
-    auto file_handle = (HANDLE)args[2];
 
     if (maximum_size) {
         if (!copy_from_process(&size, maximum_size, sizeof(LARGE_INTEGER)))
@@ -568,26 +513,17 @@ NTSTATUS user_NtCreateSection(HANDLE* section_handle, ACCESS_MASK desired_access
 }
 
 extern "C"
-NTSTATUS user_NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void** base_address,
-                                 uintptr_t zero_bits) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 6> args;
+NTSTATUS user_NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle,
+                                 void** base_address, uintptr_t zero_bits,
+                                 size_t commit_size, LARGE_INTEGER* section_offset,
+                                 size_t* view_size, enum SECTION_INHERIT inherit_disposition,
+                                 uint32_t allocation_type, uint32_t win32_protect) {
     void* addr;
     LARGE_INTEGER offset;
     size_t size;
 
     if (!base_address)
         return nt_status::INVALID_PARAMETER;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto commit_size = (size_t)args[0];
-    auto section_offset = (LARGE_INTEGER*)args[1];
-    auto view_size = (size_t*)args[2];
-    auto inherit_disposition = (enum SECTION_INHERIT)args[3];
-    auto allocation_type = (uint32_t)args[4];
-    auto win32_protect = (uint32_t)args[5];
 
     if (!view_size)
         return nt_status::INVALID_PARAMETER;
@@ -630,24 +566,15 @@ NTSTATUS user_NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
 }
 
 extern "C"
-NTSTATUS user_NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
-                                   void* apc_context) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 7> args;
+NTSTATUS user_NtQueryDirectoryFile(HANDLE file_handle, HANDLE event,
+                                   PIO_APC_ROUTINE apc_routine, void* apc_context,
+                                   IO_STATUS_BLOCK* us_iosb, void* us_file_information,
+                                   uint32_t length, FILE_INFORMATION_CLASS fic,
+                                   bool return_single_entry, const UNICODE_STRING* us_file_name,
+                                   bool restart_scan) {
     IO_STATUS_BLOCK iosb;
     void* info;
     UNICODE_STRING file_name;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto us_iosb = (IO_STATUS_BLOCK*)args[0];
-    auto us_file_information = (void*)args[1];
-    auto length = (uint32_t)args[2];
-    auto fic = (FILE_INFORMATION_CLASS)args[3];
-    auto return_single_entry = (bool)args[4];
-    auto us_file_name = (const UNICODE_STRING*)args[5];
-    auto restart_scan = (bool)args[6];
 
     if (!file_handle)
         return nt_status::INVALID_PARAMETER;
@@ -696,9 +623,11 @@ NTSTATUS user_NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROU
 
 extern "C"
 NTSTATUS user_NtCreateThread(HANDLE* us_thread_handle, ACCESS_MASK desired_access,
-                             const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 4> args;
+                             const OBJECT_ATTRIBUTES* object_attributes,
+                             HANDLE process_handle, CLIENT_ID* us_client_id,
+                             const CONTEXT* us_thread_context,
+                             const INITIAL_TEB* us_initial_teb,
+                             bool create_suspended) {
     NTSTATUS status;
     HANDLE h;
     CLIENT_ID client_id;
@@ -706,14 +635,6 @@ NTSTATUS user_NtCreateThread(HANDLE* us_thread_handle, ACCESS_MASK desired_acces
     INITIAL_TEB initial_teb;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto us_client_id = (CLIENT_ID*)args[0];
-    auto us_thread_context = (const CONTEXT*)args[1];
-    auto us_initial_teb = (const INITIAL_TEB*)args[2];
-    auto create_suspended = (bool)args[3];
 
     if (!us_thread_handle || !us_client_id || !us_thread_context || !us_initial_teb)
         return nt_status::INVALID_PARAMETER;
@@ -780,15 +701,9 @@ NTSTATUS user_NtWaitForSingleObject(HANDLE object_handle, bool alertable, const 
 
 extern "C"
 NTSTATUS user_NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
-                                       bool wait_any, bool alertable) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+                                       bool wait_any, bool alertable,
+                                       const LARGE_INTEGER* us_time_out) {
     LARGE_INTEGER time_out;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto us_time_out = (const LARGE_INTEGER*)args[0];
 
     if (us_time_out) {
         if (!copy_from_process(&time_out, us_time_out, sizeof(LARGE_INTEGER)))
@@ -817,21 +732,14 @@ NTSTATUS user_NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_ar
 
 extern "C"
 NTSTATUS user_NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
-                              const OBJECT_ATTRIBUTES* object_attributes, HANDLE parent_process) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 4> args;
+                              const OBJECT_ATTRIBUTES* object_attributes,
+                              HANDLE parent_process, bool inherit_object_table,
+                              HANDLE section_handle, HANDLE debug_port,
+                              HANDLE exception_port) {
     HANDLE h;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto inherit_object_table = (bool)args[0];
-    auto section_handle = (HANDLE)args[1];
-    auto debug_port = (HANDLE)args[2];
-    auto exception_port = (HANDLE)args[3];
 
     if (!process_handle)
         return nt_status::INVALID_PARAMETER;
@@ -857,19 +765,12 @@ NTSTATUS user_NtCreateProcess(HANDLE* process_handle, ACCESS_MASK desired_access
 }
 
 extern "C"
-NTSTATUS user_NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
-                                HANDLE* target_handle) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 3> args;
+NTSTATUS user_NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle,
+                                HANDLE target_process_handle, HANDLE* target_handle,
+                                ACCESS_MASK desired_access, uint32_t handle_attributes,
+                                uint32_t options) {
     NTSTATUS status;
     HANDLE h;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto desired_access = (ACCESS_MASK)args[0];
-    auto handle_attributes = (uint32_t)args[1];
-    auto options = (uint32_t)args[2];
 
     status = NtDuplicateObject(source_process_handle, source_handle, target_process_handle, target_handle ? &h : nullptr,
                                desired_access, handle_attributes, options);
@@ -886,17 +787,11 @@ NTSTATUS user_NtDuplicateObject(HANDLE source_process_handle, HANDLE source_hand
 
 extern "C"
 NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address,
-                                  void* buffer, uint32_t buffer_size) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+                                  void* buffer, uint32_t buffer_size,
+                                  uint32_t* number_of_bytes_read) {
     NTSTATUS status;
     void* buf;
     uint32_t read;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto number_of_bytes_read = (uint32_t*)args[0];
 
     if (!buffer)
         return nt_status::INVALID_PARAMETER;
@@ -930,17 +825,11 @@ NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address,
 
 extern "C"
 NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
-                                   const void* buffer, uint32_t buffer_size) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+                                   const void* buffer, uint32_t buffer_size,
+                                   uint32_t* number_of_bytes_written) {
     NTSTATUS status;
     void* buf;
     uint32_t written;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto number_of_bytes_written = (uint32_t*)args[0];
 
     if (!buffer)
         return nt_status::INVALID_PARAMETER;
@@ -974,17 +863,11 @@ NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
 
 extern "C"
 NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
-                                        void* process_information, uint32_t process_information_length) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+                                        void* process_information, uint32_t process_information_length,
+                                        uint32_t* return_length) {
     NTSTATUS status;
     void* buf;
     uint32_t retlen;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto return_length = (uint32_t*)args[0];
 
     if (!process_information)
         return nt_status::INVALID_PARAMETER;
@@ -1026,17 +909,11 @@ NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOC
 
 extern "C"
 NTSTATUS user_NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
-                             void* section_information, size_t section_information_length) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+                             void* section_information, size_t section_information_length,
+                             size_t* return_length) {
     NTSTATUS status;
     void* buf;
     size_t retlen;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto return_length = (size_t*)args[0];
 
     if (!section_information)
         return nt_status::INVALID_PARAMETER;
@@ -1071,17 +948,11 @@ NTSTATUS user_NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLA
 
 extern "C"
 NTSTATUS user_NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
-                                       void* thread_information, uint32_t thread_information_length) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+                                       void* thread_information, uint32_t thread_information_length,
+                                       uint32_t* return_length) {
     NTSTATUS status;
     void* buf;
     uint32_t retlen;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto return_length = (uint32_t*)args[0];
 
     if (!thread_information)
         return nt_status::INVALID_PARAMETER;
@@ -1159,18 +1030,10 @@ NTSTATUS user_NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK desired_access,
 
 extern "C"
 NTSTATUS user_NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
-                         PTIMER_APC_ROUTINE timer_apc_routine, void* timer_context) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 3> args;
+                         PTIMER_APC_ROUTINE timer_apc_routine, void* timer_context,
+                         bool resume_timer, int32_t period, bool* previous_state) {
     LARGE_INTEGER ks_due_time;
     bool ks_previous_state;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto resume_timer = (bool)args[0];
-    auto period = (int32_t)args[1];
-    auto previous_state = (bool*)args[2];
 
     if (!copy_from_process(&ks_due_time, due_time, sizeof(ks_due_time)))
         return nt_status::ACCESS_VIOLATION;
@@ -1227,22 +1090,13 @@ NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE /*event*/, PIO_APC_ROU
 
 extern "C"
 NTSTATUS user_NtDeviceIoControlFile(HANDLE file_handle, HANDLE event,
-                                    PIO_APC_ROUTINE apc_routine, void* apc_context) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 6> args;
+                                    PIO_APC_ROUTINE apc_routine, void* apc_context,
+                                    IO_STATUS_BLOCK* user_iosb, uint32_t control_code,
+                                    const void* user_input_buffer, uint32_t input_buffer_len,
+                                    void* user_output_buffer, uint32_t output_buffer_len) {
     IO_STATUS_BLOCK iosb;
     void* input_buffer = nullptr;
     void* output_buffer = nullptr;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto user_iosb = (IO_STATUS_BLOCK*)args[0];
-    auto control_code = (uint32_t)args[1];
-    auto user_input_buffer = (const void*)args[2];
-    auto input_buffer_len = (uint32_t)args[3];
-    auto user_output_buffer = (void*)args[4];
-    auto output_buffer_len = (uint32_t)args[5];
 
     if (!user_iosb)
         return nt_status::INVALID_PARAMETER;
@@ -1289,16 +1143,10 @@ NTSTATUS user_NtDeviceIoControlFile(HANDLE file_handle, HANDLE event,
 }
 
 extern "C"
-NTSTATUS user_NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_iosb, void* us_buffer,
-                                   uint32_t buffer_size) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+NTSTATUS user_NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_iosb,
+                                   void* us_buffer, uint32_t buffer_size,
+                                   FILE_INFORMATION_CLASS file_information_class) {
     IO_STATUS_BLOCK iosb;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto file_information_class = (FILE_INFORMATION_CLASS)args[0];
 
     if (!us_iosb || !us_buffer || buffer_size == 0)
         return nt_status::INVALID_PARAMETER;
@@ -1326,16 +1174,10 @@ NTSTATUS user_NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_iosb,
 }
 
 extern "C"
-NTSTATUS user_NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_iosb, void* us_buffer,
-                                     uint32_t buffer_size) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+NTSTATUS user_NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_iosb,
+                                     void* us_buffer, uint32_t buffer_size,
+                                     FILE_INFORMATION_CLASS file_information_class) {
     IO_STATUS_BLOCK iosb;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto file_information_class = (FILE_INFORMATION_CLASS)args[0];
 
     if (!us_iosb || !us_buffer || buffer_size == 0)
         return nt_status::INVALID_PARAMETER;
@@ -1423,29 +1265,18 @@ NTSTATUS user_NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
 extern "C"
 NTSTATUS user_NtCreateNamedPipeFile(HANDLE* us_file_handle, ACCESS_MASK desired_access,
                                     const OBJECT_ATTRIBUTES* object_attributes,
-                                    IO_STATUS_BLOCK* us_iosb) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 10> args;
+                                    IO_STATUS_BLOCK* us_iosb, uint32_t share_access,
+                                    uint32_t create_disposition, uint32_t create_options,
+                                    uint32_t named_pipe_type, uint32_t read_mode,
+                                    uint32_t completion_mode, uint32_t maximum_instances,
+                                    uint32_t inbound_quota, uint32_t outbound_quota,
+                                    LARGE_INTEGER* us_default_timeout) {
     LARGE_INTEGER default_timeout;
     HANDLE file_handle;
     IO_STATUS_BLOCK iosb;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS ret;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto share_access = (uint32_t)args[0];
-    auto create_disposition = (uint32_t)args[1];
-    auto create_options = (uint32_t)args[2];
-    auto named_pipe_type = (uint32_t)args[3];
-    auto read_mode = (uint32_t)args[4];
-    auto completion_mode = (uint32_t)args[5];
-    auto maximum_instances = (uint32_t)args[6];
-    auto inbound_quota = (uint32_t)args[7];
-    auto outbound_quota = (uint32_t)args[8];
-    auto us_default_timeout = (LARGE_INTEGER*)args[9];
 
     if (!us_file_handle || !us_iosb || !object_attributes)
         return nt_status::INVALID_PARAMETER;
@@ -1482,20 +1313,13 @@ NTSTATUS user_NtCreateNamedPipeFile(HANDLE* us_file_handle, ACCESS_MASK desired_
 extern "C"
 NTSTATUS user_NtOpenFile(HANDLE* us_file_handle, ACCESS_MASK desired_access,
                          const OBJECT_ATTRIBUTES* object_attributes,
-                         IO_STATUS_BLOCK* us_iosb) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 2> args;
+                         IO_STATUS_BLOCK* us_iosb, uint32_t share_access,
+                         uint32_t open_options) {
     HANDLE file_handle;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
     nt_status ret;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto share_access = (uint32_t)args[0];
-    auto open_options = (uint32_t)args[1];
 
     if (!us_file_handle || !us_iosb || !object_attributes)
         return nt_status::INVALID_PARAMETER;
@@ -1523,17 +1347,10 @@ NTSTATUS user_NtOpenFile(HANDLE* us_file_handle, ACCESS_MASK desired_access,
 extern "C"
 NTSTATUS user_NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                               ACCESS_MASK desired_access,
-                              uint32_t handle_attributes) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 2> args;
+                              uint32_t handle_attributes, uint32_t flags,
+                              HANDLE* us_new_thread_handle) {
     HANDLE new_thread_handle;
     nt_status ret;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto flags = (uint32_t)args[0];
-    auto us_new_thread_handle = (HANDLE*)args[1];
 
     if (!us_new_thread_handle)
         return nt_status::INVALID_PARAMETER;
@@ -1599,16 +1416,10 @@ NTSTATUS user_NtSetContextThread(HANDLE thread_handle, const CONTEXT* us_context
 
 extern "C"
 NTSTATUS user_NtGetNextProcess(HANDLE process_handle, ACCESS_MASK desired_access,
-                               ULONG handle_attributes, ULONG flags) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+                               ULONG handle_attributes, ULONG flags,
+                               HANDLE* us_new_process_handle) {
     HANDLE new_process_handle;
     nt_status ret;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto us_new_process_handle = (HANDLE*)args[0];
 
     if (!us_new_process_handle)
         return nt_status::INVALID_PARAMETER;
@@ -1678,9 +1489,7 @@ NTSTATUS user_NtDelayExecution(bool alertable,
 extern "C"
 NTSTATUS user_NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
                             const OBJECT_ATTRIBUTES* object_attributes,
-                            EVENT_TYPE event_type) {
-    auto& t = *get_current_thread();
-    array<uintptr_t, 1> args;
+                            EVENT_TYPE event_type, bool initial_state) {
     HANDLE h;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -1688,11 +1497,6 @@ NTSTATUS user_NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
 
     if (!event_handle)
         return nt_status::INVALID_PARAMETER;
-
-    if (!copy_stack_args(t, args))
-        return nt_status::ACCESS_VIOLATION;
-
-    auto initial_state = (bool)args[0];
 
     if (object_attributes) {
         ret = copy_object_attributes(oa, us, object_attributes);

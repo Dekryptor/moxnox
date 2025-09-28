@@ -4,6 +4,8 @@
 #include "context.S"
 #include "dwarf.S"
 
+.equ STATUS_ACCESS_VIOLATION, 0xc0000005
+
 .section .debug_abbrev, "dr"
 
 .uleb128 1 # entry num
@@ -70,7 +72,55 @@ dwarf_func_asm syscall_handler
 .endm
 
 .macro syscall_func name, args
-    .quad "user_\name"
+    .ifle \args - 4
+        .quad "user_\name"
+    .else
+        .quad "stack_\name"
+
+        .text
+        "stack_\name":
+            sub rsp, (\args - 4) * 8
+            push r9
+            push r8
+            push rdx
+            push rcx
+
+            # ks_addr
+            mov rcx, rsp
+            add rcx, 0x20
+            # us_addr
+            mov rdx, gs:GS_CURRENT_THREAD
+            add rdx, THREAD_SYSCALL_CONTEXT + CONTEXT_RSP
+            mov rdx, [rdx]
+            add rdx, 0x28
+            # size
+            mov r8, (\args - 4) * 8
+
+            # bool copy_from_process(void* ks_addr, const void* us_addr, size_t size);
+            sub rsp, 0x20
+            call copy_from_process
+            add rsp, 0x20
+
+            pop rcx
+            pop rdx
+            pop r8
+            pop r9
+
+            test rax, rax
+            jnz 0f
+
+            mov rax, STATUS_ACCESS_VIOLATION
+            add rsp, (\args - 4) * 8
+            ret
+
+0:
+            sub rsp, 0x20
+            call "user_\name"
+            add rsp, 0x20 + ((\args - 4) * 8)
+            ret
+
+        .section .rdata
+    .endif
 .endm
 
 .section .rdata
