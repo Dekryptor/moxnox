@@ -79,7 +79,6 @@ NTSTATUS file::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_b
     return status;
 }
 
-#ifndef __aarch64__
 NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
                               void* apc_context, IO_STATUS_BLOCK* io_status_block,
                               void* file_information, uint32_t length,
@@ -102,7 +101,6 @@ NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE 
 
     return ret;
 }
-#endif
 
 NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& io_status_block,
                                void* file_information, uint32_t length,
@@ -134,7 +132,6 @@ NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& 
     return ret;
 }
 
-#ifndef __aarch64__
 NTSTATUS NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer,
                               uint32_t buffer_size, FILE_INFORMATION_CLASS file_information_class) {
     auto objrw = deref_handle(file_handle);
@@ -152,7 +149,6 @@ NTSTATUS NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* b
 
     return f.set_information(buffer, buffer_size, file_information_class);
 }
-#endif
 
 NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
                                FILE_INFORMATION_CLASS file_information_class) {
@@ -163,7 +159,6 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
                                                     file_information_class);
 }
 
-#ifndef __aarch64__
 NTSTATUS NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer,
                                 uint32_t buffer_size, FILE_INFORMATION_CLASS file_information_class) {
     uint64_t retlen;
@@ -191,7 +186,6 @@ NTSTATUS NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void*
 
     return ret;
 }
-#endif
 
 NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
                                  FILE_INFORMATION_CLASS file_information_class,

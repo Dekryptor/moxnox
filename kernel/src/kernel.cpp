@@ -10,7 +10,6 @@
 #ifndef __aarch64__
 import serial;
 import pci;
-import syscalls;
 import smp;
 #endif
 
@@ -36,6 +35,7 @@ import section;
 import image;
 import keyboard;
 import process;
+import syscalls;
 
 using namespace std;
 

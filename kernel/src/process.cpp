@@ -1610,7 +1610,6 @@ void process::terminate() {
     }
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     object_ref obj;
@@ -1671,7 +1670,6 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
 
     return nt_status::SUCCESS;
 }
-#endif
 
 extern "C++"
 void process::resume() {
@@ -1715,7 +1713,6 @@ void process::suspend() {
     }
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtResumeProcess(HANDLE proc_handle) {
     object_ref objrw;
@@ -1785,7 +1782,6 @@ NTSTATUS NtSuspendProcess(HANDLE proc_handle) {
 
     return nt_status::SUCCESS;
 }
-#endif
 
 extern "C++"
 nt_status process::add_handle(object& obj, uint32_t access_mask,
@@ -1958,7 +1954,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     return nt_status::SUCCESS;
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
                                  size_t* region_size, uint32_t allocation_type, uint32_t protect) {
@@ -2020,7 +2015,6 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
 
     return p->allocate_vm(base_address, zero_bits, region_size, allocation_type, prot);
 }
-#endif
 
 #ifndef __aarch64__
 static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
@@ -2130,7 +2124,6 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
     return nt_status::SUCCESS;
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
                              uint32_t free_type) {
@@ -2164,7 +2157,6 @@ NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* re
 
     return p->free_vm(base_address, region_size, free_type);
 }
-#endif
 
 extern "C++"
 mapping::mapping(process& proc, section& sect) : proc(proc), sect(sect) {
@@ -2680,7 +2672,6 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
     return nt_status::SUCCESS;
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
                                 uint32_t new_prot, uint32_t* old_prot) {
@@ -2758,7 +2749,6 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
 
     return protect_vm(*p, base_address, region_size, prot, cow, *old_prot);
 }
-#endif
 
 extern "C++"
 NTSTATUS process::close_handle(handle_t h) {
@@ -2831,10 +2821,12 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
     return nt_status::SUCCESS;
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          HANDLE, bool, HANDLE section_handle, HANDLE, HANDLE) {
+#ifdef __aarch64__ // FIXME
+    return nt_status::NOT_IMPLEMENTED;
+#else
     object_ref sect;
 
     // FIXME - desired_access
@@ -2935,6 +2927,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     *process_handle = h;
 
     return nt_status::SUCCESS;
+#endif
 }
 
 extern "C"
@@ -3023,7 +3016,6 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
 
     return nt_status::SUCCESS;
 }
-#endif
 
 extern "C++"
 NTSTATUS process::read_vm(void* base_address, void* buffer, uint32_t buffer_size,
@@ -3063,7 +3055,6 @@ NTSTATUS process::read_vm(void* base_address, void* buffer, uint32_t buffer_size
     return nt_status::SUCCESS;
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
                              uint32_t* number_of_bytes_read) {
@@ -3097,7 +3088,6 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
 
     return p->read_vm(base_address, buffer, buffer_size, number_of_bytes_read);
 }
-#endif
 
 extern "C++"
 NTSTATUS process::write_vm(void* base_address, const void* buffer,
@@ -3137,7 +3127,6 @@ NTSTATUS process::write_vm(void* base_address, const void* buffer,
     return nt_status::SUCCESS;
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const void* buffer,
                               uint32_t buffer_size, uint32_t* number_of_bytes_written) {
@@ -3171,7 +3160,6 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const v
 
     return p->write_vm(base_address, buffer, buffer_size, number_of_bytes_written);
 }
-#endif
 
 extern "C++"
 NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, span<uint8_t> buf,
@@ -3244,7 +3232,6 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
     }
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
                                    void* process_information, uint32_t process_information_length,
@@ -3280,7 +3267,6 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
     return p->query_info(process_information_class, span((uint8_t*)process_information, process_information_length),
                          return_length);
 }
-#endif
 
 extern "C++"
 object_ref process::get_stderr() {
@@ -3550,7 +3536,6 @@ nt_status process::flush_vm(void** base_address, size_t* region_size) {
     return ret;
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
                               size_t* region_size, IO_STATUS_BLOCK* iosb) {
@@ -3586,7 +3571,6 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
 
     return p->flush_vm(base_address, region_size);
 }
-#endif
 
 extern "C++"
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
@@ -3719,7 +3703,6 @@ nt_status process::get_next_thread(::thread* threadptr, ACCESS_MASK /*desired_ac
     return nt_status::SUCCESS;
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                          ACCESS_MASK desired_access, uint32_t handle_attributes,
@@ -3904,4 +3887,3 @@ NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
 
     return nt_status::SUCCESS;
 }
-#endif

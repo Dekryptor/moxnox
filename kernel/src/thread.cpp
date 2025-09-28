@@ -11,11 +11,8 @@ module;
 #include "thread.h"
 #include "scheduler.h"
 #include "cpu_block.h"
-
-#ifndef __aarch64__
 #include "section.h"
 #include "process.h"
-#endif
 
 export module thread;
 
@@ -115,12 +112,14 @@ export void thread_died(::thread& t, bool& last_thread, bool remove_from_proc) {
 
     // t.release(); // FIXME - why does this crash?
 }
+#endif
 
 static void terminate_thread2(::thread& t, bool& last_thread,
                               bool remove_from_proc) {
     if (t.status == thread_status::dying || t.status == thread_status::dead)
         return;
 
+#ifndef __aarch64__ // FIXME
     if (t.kernel_mode) {
         if (t.wait_interruptible) {
             switch (t.status) {
@@ -161,6 +160,7 @@ static void terminate_thread2(::thread& t, bool& last_thread,
             // FIXME - send yield ISR
         }
     }
+#endif
 }
 
 export void terminate_thread(::thread& t, bool remove_from_proc) {
@@ -195,7 +195,6 @@ export void terminate_thread(::thread& t, bool remove_from_proc) {
 
     t.release();
 }
-#endif
 
 extern "C++"
 ::thread::~thread() {
@@ -219,7 +218,6 @@ extern "C++"
 #endif
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     object_ref obj;
@@ -328,7 +326,6 @@ NTSTATUS NtQueryInformationThread(HANDLE /*thread_handle*/, enum THREAD_INFORMAT
 
     return nt_status::NOT_IMPLEMENTED;
 }
-#endif
 
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
     func(param1, param2);
@@ -443,7 +440,6 @@ export object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count) {
     object_ref objrw;
@@ -483,6 +479,9 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 
 extern "C"
 NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
+#ifdef __aarch64__ // FIXME
+    return nt_status::NOT_IMPLEMENTED;
+#else
     object_ref objrw;
     ::thread* t;
 
@@ -519,10 +518,14 @@ NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
     }
 
     return nt_status::SUCCESS;
+#endif
 }
 
 extern "C"
 NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
+#ifdef __aarch64__ // FIXME
+    return nt_status::NOT_IMPLEMENTED;
+#else
     object_ref objrw;
     ::thread* t;
 
@@ -563,6 +566,5 @@ NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
     }
 
     return nt_status::SUCCESS;
-}
-
 #endif
+}

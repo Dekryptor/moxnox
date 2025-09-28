@@ -77,8 +77,6 @@ static_assert(offsetof(timer, ticks_left) == TIMER_TICKS_LEFT);
 static const uint8_t timer_interrupt = 0x20;
 static const uint8_t timer_ap_interrupt = 0x24;
 
-static const unsigned int TIMER_PERIOD_RESOLUTION = 1000; // milliseconds
-
 volatile uint64_t timer_count;
 
 uint32_t apic_timer_freq;
@@ -86,6 +84,8 @@ uint32_t apic_timer_freq;
 export const uint32_t PIT_HZ = 1193182;
 
 #endif
+
+static const unsigned int TIMER_PERIOD_RESOLUTION = 1000; // milliseconds
 
 export extern "C" {
     list_entry active_timer_list = { &active_timer_list, &active_timer_list };
@@ -272,7 +272,6 @@ timer::~timer() {
     }
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
     SystemTime->QuadPart = (int64_t)((uint64_t)system_time + system_time_offset);
@@ -421,4 +420,3 @@ NTSTATUS NtDelayExecution(bool /*alertable*/, const LARGE_INTEGER* delay_interva
 
     return wait_for_object(t, true);
 }
-#endif

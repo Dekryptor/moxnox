@@ -45,6 +45,8 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/keyboard.cpp
     src/tmpfs.cpp
     src/process.cpp
+    src/syscalls.cpp
+    src/power.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -55,7 +57,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/btrfs.cpp
     src/sata.cpp
     src/pci.cpp
-    src/syscalls.cpp
     src/smp.cpp
     src/nvme.cpp
     src/virtio.cpp
@@ -66,7 +67,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/usb.cpp
     src/usbhub.cpp
     src/framebuffer.cpp
-    src/power.cpp
     src/apic.cpp
 )
 

@@ -529,7 +529,6 @@ export bool init_cpu_block(unsigned int cpu_no) {
     return true;
 }
 
-#ifndef __aarch64__
 extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable*/,
                                const LARGE_INTEGER* timeout) {
     auto objrw = deref_handle(object_handle);
@@ -554,6 +553,7 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable
     return wait_for_object(objrw.get(), true, t);
 }
 
+#ifndef __aarch64__
 export nt_status wait_for_objects(span<object*> objects, bool wait_any,
                                   optional<uint64_t> timeout = nullopt) {
 #ifdef DEBUG
@@ -701,10 +701,14 @@ export nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     return (enum nt_status)((unsigned int)nt_status::SUCCESS + index);
 }
+#endif
 
 extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
                                   bool wait_any, bool alertable,
                                   const LARGE_INTEGER* timeout) {
+#ifdef __aarch64__ // FIXME
+    return nt_status::NOT_IMPLEMENTED;
+#else
     if (object_count == 1)
         return NtWaitForSingleObject(objects_array[0], alertable, timeout);
 
@@ -758,8 +762,8 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
     }
 
     return ret;
-}
 #endif
+}
 
 export extern "C++" void disable_preempt() {
 #ifndef __aarch64__ // FIXME

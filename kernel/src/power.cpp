@@ -8,14 +8,16 @@ module;
 export module power;
 
 import print;
-import inout;
 import interrupts;
 import vfs;
-import smp;
-import apic;
 import pipe;
 import disable_interrupts;
 import scheduler;
+
+#ifndef __aarch64__
+import smp;
+import apic;
+#endif
 
 using namespace std;
 
@@ -50,6 +52,7 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
 
     disable_interrupts();
 
+#ifndef __aarch64__ // FIXME
     if (num_cpus > 1) {
         processors_left_to_halt = num_cpus - 1;
 
@@ -61,6 +64,7 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
 
         while (processors_left_to_halt > 0) { }
     }
+#endif
 
     disable_preempt();
 

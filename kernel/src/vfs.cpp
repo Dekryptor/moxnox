@@ -313,7 +313,6 @@ export nt_status open_inode(string_view fn, const optional<reference_wrapper<ino
                          create_options, create_result);
 }
 
-#ifndef __aarch64__
 export extern "C"
 NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                     IO_STATUS_BLOCK* io_status_block, void* buffer,
@@ -598,7 +597,6 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 
     return nt_status::SUCCESS;
 }
-#endif
 
 export nt_status flush_filesystems(bool make_readonly) {
     lock_guard lock(fs_lock);

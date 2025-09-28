@@ -22,7 +22,6 @@ struct name_entry {
 static spinlock name_lock;
 static list_entry name_list = { &name_list, &name_list };
 
-#ifndef __aarch64__
 object_ref deref_handle(handle_t h) {
     auto t = get_current_thread();
 
@@ -40,7 +39,6 @@ object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask) {
 
     return t->proc->deref_handle(h, access_mask);
 }
-#endif
 
 void object_ref::reset() {
     if (rw)

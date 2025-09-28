@@ -416,7 +416,6 @@ export void shutdown_pipes() {
     }
 }
 
-#ifndef __aarch64__
 extern "C"
 NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                                const OBJECT_ATTRIBUTES* object_attributes,
@@ -563,4 +562,3 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     return nt_status::SUCCESS;
 }
-#endif

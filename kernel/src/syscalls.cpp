@@ -1534,6 +1534,7 @@ NTSTATUS user_NtSetEvent(HANDLE event_handle, int32_t* us_previous_state) {
     return ret;
 }
 
+#ifndef __aarch64__
 extern "C"
 void maybe_yield(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
@@ -1583,3 +1584,4 @@ void maybe_yield(uint64_t syscall_ret) {
         : "i" (GS_SCHEDULER_STACK)
     );
 }
+#endif
