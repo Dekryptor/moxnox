@@ -161,13 +161,6 @@ release_sync_lock:
     swpa x1, x1, [x0]
     ret
 
-.global get_cpu_block
-get_cpu_block:
-    mov x0, x18
-    ret
-get_cpu_block_end:
-
-
 // x0 has been set to lr before calling this function
 .global yield
 yield:

@@ -34,5 +34,18 @@ static_assert(offsetof(cpu_block, kernel_cr3) == GS_KERNEL_CR3);
 static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);
 #endif
 
+#ifdef __aarch64__
+extern "C++" inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mov %x[res], x18"
+        : [res] "=r" (ret)
+    );
+
+    return (cpu_block*)ret;
+}
+#else
 // timer.S
 extern "C" cpu_block* get_cpu_block();
+#endif
