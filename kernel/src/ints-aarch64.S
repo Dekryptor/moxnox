@@ -423,19 +423,19 @@ eret
 	str	w1, [x0, #CONTEXT_CPSR]
 
 	and	x1, x1, 0xf
-	cbnz	x1, 0f
+	cbnz	x1, 8f
 
 	// in user mode
 	mrs	x1, sp_el0
 	str	x1, [x0, #CONTEXT_SP]
-	b	1f
+	b	7f
 
-0:
+8:
 	// in kernel mode
 	add	x1, sp, #0x20
 	str	x1, [x0, #CONTEXT_SP]
 
-1:
+7:
 	ldp	x2, x3, [sp, #0x10]
 	stp	x2, x3, [x0, #CONTEXT_X0 + 0x10]
 	ldr	x1, [sp, #0x8]
@@ -445,67 +445,68 @@ eret
 .endm
 
 // can only use x0, x1, x2, and x3
-timer_isr:
-// start clock again
-adr	x1, hardware_tick_rate
-ldr	x1, [x1]
-msr	cntp_tval_el0, x1
-mov	x0, #1
-msr	cntp_ctl_el0, x0
+.macro timer_isr
+	// start clock again
+	adr	x1, hardware_tick_rate
+	ldr	x1, [x1]
+	msr	cntp_tval_el0, x1
+	mov	x0, #1
+	msr	cntp_ctl_el0, x0
 
-// FIXME - timers
-// FIXME - wait timeouts
-// FIXME - system time
+	// FIXME - timers
+	// FIXME - wait timeouts
+	// FIXME - system time
 
-// decrease time slice
+	// decrease time slice
 
-add	x0, x18, GS_CURRENT_THREAD
-ldr	x0, [x0]
-cbz	x0, 0f
+	add	x0, x18, GS_CURRENT_THREAD
+	ldr	x0, [x0]
+	cbz	x0, 9f
 
-add	x0, x18, GS_DISABLE_PREEMPT
-ldr	x0, [x0]
-cbnz	x0, 0f
+	add	x0, x18, GS_DISABLE_PREEMPT
+	ldr	x0, [x0]
+	cbnz	x0, 9f
 
-add	x0, x18, GS_TIME_SLICE_LEFT
-ldr	x1, [x0]
-sub	x1, x1, #1
-str	x1, [x0]
-cbnz	x1, 0f
+	add	x0, x18, GS_TIME_SLICE_LEFT
+	ldr	x1, [x0]
+	sub	x1, x1, #1
+	str	x1, [x0]
+	cbnz	x1, 9f
 
-// do context switch
+	// do context switch
 
-timer_save_context
+	timer_save_context
 
-// set end-of-interrupt
-adr	x0, gicc
-ldr	x0, [x0]
-add	x0, x0, GICC_EOIR_OFFSET
-adr	x1, timer_irq_no
-ldr	w1, [x1]
-str	w1, [x0]
+	// set end-of-interrupt
+	adr	x0, gicc
+	ldr	x0, [x0]
+	add	x0, x0, GICC_EOIR_OFFSET
+	adr	x1, timer_irq_no
+	ldr	w1, [x1]
+	str	w1, [x0]
 
-bl	acquire_sync_lock
+	bl	acquire_sync_lock
 
-add	x0, x18, GS_SCHEDULER_STACK
-ldr	x0, [x0]
-mov	sp, x0
-b	scheduler
+	add	x0, x18, GS_SCHEDULER_STACK
+	ldr	x0, [x0]
+	mov	sp, x0
+	b	scheduler
 
-0:
-// set end-of-interrupt
-adr	x0, gicc
-ldr	x0, [x0]
-add	x0, x0, GICC_EOIR_OFFSET
-adr	x1, timer_irq_no
-ldr	w1, [x1]
-str	w1, [x0]
+9:
+	// set end-of-interrupt
+	adr	x0, gicc
+	ldr	x0, [x0]
+	add	x0, x0, GICC_EOIR_OFFSET
+	adr	x1, timer_irq_no
+	ldr	w1, [x1]
+	str	w1, [x0]
 
-// finish up and return
-ldp	x2, x3, [sp, #0x10]
-ldp	x0, x1, [sp]
-add	sp, sp, #0x20
-eret
+	// finish up and return
+	ldp	x2, x3, [sp, #0x10]
+	ldp	x0, x1, [sp]
+	add	sp, sp, #0x20
+	eret
+.endm
 
 kernel_irq_entry:
 sub	sp, sp, #0x20
@@ -522,7 +523,7 @@ adr	x3, timer_irq_no
 ldr	w3, [x3]
 sub	w3, w2, w3
 cbnz	w3, 0f
-b	timer_isr
+timer_isr
 
 0:
 do_irq
@@ -550,7 +551,7 @@ adr	x3, timer_irq_no
 ldr	w3, [x3]
 sub	w3, w2, w3
 cbnz	w3, 0f
-b	timer_isr
+timer_isr
 
 0:
 do_irq
