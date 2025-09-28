@@ -6,6 +6,7 @@ module;
 #include <optional>
 #include <functional>
 #include <mutex>
+#include <source_location>
 #include <loaderblock.h>
 #include "acpica.h"
 #include "cpu_block.h"
@@ -1114,8 +1115,6 @@ void general_protection_fault_user() {
     send_signal(er, ctx, nt_status::ACCESS_VIOLATION);
 }
 
-#endif
-
 extern "C"
 void invalid_opcode_kernel() {
     auto& cb = *get_cpu_block();
@@ -1136,8 +1135,6 @@ void invalid_opcode_kernel() {
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
 }
-
-#ifndef __aarch64__
 
 extern "C"
 void invalid_opcode_user() {
@@ -1282,6 +1279,27 @@ void single_step_user() {
 
 #ifdef __aarch64__
 
+static void invalid_opcode_kernel() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = format(sp, "Invalid opcode in kernel mode, ");
+
+    if (!current_thread)
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
+
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
+
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         0, &cb.thread_context);
+}
+
 static void unhandled_kernel_exception(uint64_t esr_value) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
@@ -1304,7 +1322,8 @@ static void unhandled_kernel_exception(uint64_t esr_value) {
                 esr_value, esr.ISS, esr.IL, esr.EC, esr.ISS2);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         0, &cb.thread_context);
 }
 
 static void page_fault_kernel() {
@@ -1339,7 +1358,8 @@ static void page_fault_kernel() {
 
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         0, &cb.thread_context);
 }
 
 extern "C"

@@ -105,7 +105,8 @@ static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_cal
 }
 
 void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
-                                     unsigned int skip_callers) {
+                                     unsigned int skip_callers,
+                                     CONTEXT* captured_context) {
     disable_interrupts();
 
     auto& cb = *get_cpu_block();
@@ -171,34 +172,39 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     CONTEXT context;
 
+    if (!captured_context) {
 #ifdef __aarch64__
-    __asm __volatile (
-        "mov x0, lr\n"
-        "bl 0f\n"
-        "0:\n"
-        "mov %0, lr\n"
-        "mov lr, x0\n"
-        : "=r" (context.Pc)
-        :
-        : "x0"
-    );
+        __asm __volatile (
+            "mov x0, lr\n"
+            "bl 0f\n"
+            "0:\n"
+            "mov %0, lr\n"
+            "mov lr, x0\n"
+            : "=r" (context.Pc)
+            :
+            : "x0"
+        );
 #else
-    __asm __volatile(
-        "mov %0, rsp\n"
-        "\tmov %1, rbp\n"
-        "\tcall 0f\n"
-        "\t0:\n"
-        "\tpop rax\n"
-        "\tmov %2, rax\n"
-        : "=m" (context.Rsp), "=m" (context.Rbp), "=m" (context.Rip)
-        :
-        : "rax"
-    );
+        __asm __volatile(
+            "mov %0, rsp\n"
+            "\tmov %1, rbp\n"
+            "\tcall 0f\n"
+            "\t0:\n"
+            "\tpop rax\n"
+            "\tmov %2, rax\n"
+            : "=m" (context.Rsp), "=m" (context.Rbp), "=m" (context.Rip)
+            :
+            : "rax"
+        );
 #endif
+    }
 
     p.write("\n", written);
 
-    print_stacktrace(context, p, skip_callers);
+    if (captured_context)
+        print_stacktrace(*captured_context, p, skip_callers);
+    else
+        print_stacktrace(context, p, skip_callers);
 
     p.flush(true);
 
