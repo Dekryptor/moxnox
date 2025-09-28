@@ -317,6 +317,7 @@ span<char> do_format_arg(span<char> sp, string_view, enum page_state arg) {
     }
 }
 
+#ifdef __aarch64__
 export template<>
 consteval bool format_spec_valid<ARM64_HARDWARE_PTE>(string_view fmt) {
     return fmt.empty();
@@ -363,7 +364,6 @@ export span<char> do_format_arg(span<char> sp, string_view, const ARM64_HARDWARE
     return sp;
 }
 
-#ifdef __aarch64__
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
     auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p0 = pte0[(va & 0xff8000000000) >> 39];
