@@ -26,7 +26,8 @@ import image;
 
 using namespace std;
 
-static spinlock bsod_lock;
+static atomic<unsigned int> bsod_count = 0;
+static uint32_t bsod_cpu = 0xffffffff;
 
 static void print_rip(chardev& p, uint64_t rip) {
     auto& cb = *get_cpu_block();
@@ -105,14 +106,22 @@ static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_cal
 
 void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
                                      unsigned int skip_callers) {
-    disable_preempt();
-
-    // make sure that we don't get a deadlock if two BSODs at once
-    enable_interrupts();
-
-    lock_guard lock(bsod_lock);
-
     disable_interrupts();
+
+    auto& cb = *get_cpu_block();
+
+    if (bsod_count.fetch_add(1) == 0)
+        bsod_cpu = cb.cpu_no;
+    else {
+        if (cb.cpu_no != bsod_cpu) {
+#ifdef __aarch64__
+            while (true) { } // FIXME
+#else
+            __asm("call halt_isr");
+            __builtin_unreachable();
+#endif
+        }
+    }
 
 #ifndef __aarch64__
     if (num_cpus > 1) {
@@ -150,7 +159,6 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     p.write(msg, written);
     p.write("\n", written);
 
-    auto& cb = *get_cpu_block();
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
     sp = format(sp, "{}:{}, {}, CPU {}\n",
@@ -196,10 +204,10 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     shutdown_pipes();
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+    while (true) { } // FIXME
+#else
     __asm("call halt_isr");
     __builtin_unreachable();
-#else
-    while (true) { } // FIXME
 #endif
 }
