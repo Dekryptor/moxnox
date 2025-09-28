@@ -74,12 +74,12 @@ set(AARCH64_MODULES ${GLOBAL_MODULES}
     src/pl011.cpp
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    set(SRC_FILES src/kernel.cpp
-        src/handle.cpp
-        src/file.cpp
-        src/bsod2.cpp)
+set(SRC_FILES src/kernel.cpp
+    src/handle.cpp
+    src/file.cpp
+    src/bsod2.cpp)
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_ASM_FILES src/ints-aarch64.S
         src/timer-aarch64.S
         src/mem-aarch64.S)
@@ -87,11 +87,6 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
 else()
-    set(SRC_FILES src/kernel.cpp
-        src/handle.cpp
-        src/file.cpp
-        src/bsod2.cpp)
-
     set(SRC_ASM_FILES src/ints-x86.S
         src/timer-x86.S
         src/smp.S
