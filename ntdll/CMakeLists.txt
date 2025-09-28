@@ -9,12 +9,13 @@ enable_language(ASM)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_FILES src/ntdll.cpp
+        src/syscalls-aarch64.S
         src/except.cpp
         src/continue-aarch64.S)
 else()
     set(SRC_FILES src/ntdll.cpp
         src/ntdll.def
-        src/syscalls.S
+        src/syscalls-x86.S
         src/string.cpp
         src/mem.cpp
         src/heap.cpp
