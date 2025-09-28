@@ -69,17 +69,21 @@ dwarf_func_asm syscall_handler
     .quad "stub_\name"
 .endm
 
+.macro syscall_func name, args
+    .quad "user_\name"
+.endm
+
 .section .rdata
 syscalls:
-    .quad user_NtDisplayString
-    .quad user_NtTerminateThread
-    .quad user_NtTerminateProcess
-    .quad user_NtWriteFile
-    .quad user_NtResumeProcess
-    .quad user_NtAllocateVirtualMemory
-    .quad user_NtFreeVirtualMemory
-    .quad user_NtReadFile
-    .quad user_NtProtectVirtualMemory
+    syscall_func "NtDisplayString", 1
+    syscall_func "NtTerminateThread", 2
+    syscall_func "NtTerminateProcess", 2
+    syscall_func "NtWriteFile", 9
+    syscall_func "NtResumeProcess", 1
+    syscall_func "NtAllocateVirtualMemory", 6
+    syscall_func "NtFreeVirtualMemory", 4
+    syscall_func "NtReadFile", 9
+    syscall_func "NtProtectVirtualMemory", 5
     syscall_stub "NtAcceptConnectPort"
     syscall_stub "NtAccessCheck"
     syscall_stub "NtAccessCheckAndAuditAlarm"
@@ -92,39 +96,39 @@ syscalls:
     syscall_stub "NtAllocateUuids"
     syscall_stub "NtCallbackReturn"
     syscall_stub "NtCancelIoFile"
-    .quad user_NtCancelTimer
+    syscall_func "NtCancelTimer", 2
     syscall_stub "NtClearEvent"
-    .quad user_NtClose
+    syscall_func "NtClose", 1
     syscall_stub "NtCloseObjectAuditAlarm"
     syscall_stub "NtCompleteConnectPort"
     syscall_stub "NtConnectPort"
     syscall_stub "NtCreateDirectoryObject"
-    .quad user_NtCreateEvent
+    syscall_func "NtCreateEvent", 5
     syscall_stub "NtCreateEventPair"
-    .quad user_NtCreateFile
+    syscall_func "NtCreateFile", 11
     syscall_stub "NtCreateIoCompletion"
     syscall_stub "NtCreateKey"
     syscall_stub "NtCreateMailslotFile"
     syscall_stub "NtCreateMutant"
-    .quad user_NtCreateNamedPipeFile
+    syscall_func "NtCreateNamedPipeFile", 14
     syscall_stub "NtCreatePagingFile"
     syscall_stub "NtCreatePort"
-    .quad user_NtCreateProcess
+    syscall_func "NtCreateProcess", 8
     syscall_stub "NtCreateProfile"
-    .quad user_NtCreateSection
+    syscall_func "NtCreateSection", 7
     syscall_stub "NtCreateSemaphore"
     syscall_stub "NtCreateSymbolicLinkObject"
-    .quad user_NtCreateThread
-    .quad user_NtCreateTimer
+    syscall_func "NtCreateThread", 8
+    syscall_func "NtCreateTimer", 4
     syscall_stub "NtCreateToken"
-    .quad user_NtDelayExecution
+    syscall_func "NtDelayExecution", 2
     syscall_stub "NtDeleteAtom"
     syscall_stub "NtDeleteFile"
     syscall_stub "NtDeleteKey"
     syscall_stub "NtDeleteObjectAuditAlarm"
     syscall_stub "NtDeleteValueKey"
-    .quad user_NtDeviceIoControlFile
-    .quad user_NtDuplicateObject
+    syscall_func "NtDeviceIoControlFile", 10
+    syscall_func "NtDuplicateObject", 7
     syscall_stub "NtDuplicateToken"
     syscall_stub "NtEnumerateKey"
     syscall_stub "NtEnumerateValueKey"
@@ -133,10 +137,10 @@ syscalls:
     syscall_stub "NtFlushBuffersFile"
     syscall_stub "NtFlushInstructionCache"
     syscall_stub "NtFlushKey"
-    .quad user_NtFlushVirtualMemory
+    syscall_func "NtFlushVirtualMemory", 4
     syscall_stub "NtFlushWriteBuffer"
     syscall_stub "NtFsControlFile"
-    .quad user_NtGetContextThread
+    syscall_func "NtGetContextThread", 2
     syscall_stub "NtImpersonateClientOfPort"
     syscall_stub "NtImpersonateThread"
     syscall_stub "NtInitializeRegistry"
@@ -147,20 +151,20 @@ syscalls:
     syscall_stub "NtLockFile"
     syscall_stub "NtLockVirtualMemory"
     syscall_stub "NtMakeTemporaryObject"
-    .quad user_NtMapViewOfSection
+    syscall_func "NtMapViewOfSection", 10
     syscall_stub "NtNotifyChangeDirectoryFile"
     syscall_stub "NtNotifyChangeKey"
     syscall_stub "NtOpenDirectoryObject"
     syscall_stub "NtOpenEvent"
     syscall_stub "NtOpenEventPair"
-    .quad user_NtOpenFile
+    syscall_func "NtOpenFile", 6
     syscall_stub "NtOpenIoCompletion"
     syscall_stub "NtOpenKey"
     syscall_stub "NtOpenMutant"
     syscall_stub "NtOpenObjectAuditAlarm"
-    .quad user_NtOpenProcess
+    syscall_func "NtOpenProcess", 4
     syscall_stub "NtOpenProcessToken"
-    .quad user_NtOpenSection
+    syscall_func "NtOpenSection", 3
     syscall_stub "NtOpenSemaphore"
     syscall_stub "NtOpenSymbolicLinkObject"
     syscall_stub "NtOpenThread"
@@ -173,16 +177,16 @@ syscalls:
     syscall_stub "NtPulseEvent"
     syscall_stub "NtQueryAttributesFile"
     syscall_stub "NtQueryDefaultLocale"
-    .quad user_NtQueryDirectoryFile
+    syscall_func "NtQueryDirectoryFile", 11
     syscall_stub "NtQueryDirectoryObject"
     syscall_stub "NtQueryEaFile"
     syscall_stub "NtQueryEvent"
     syscall_stub "NtQueryFullAttributesFile"
     syscall_stub "NtQueryInformationAtom"
-    .quad user_NtQueryInformationFile
+    syscall_func "NtQueryInformationFile", 5
     syscall_stub "NtQueryInformationPort"
-    .quad user_NtQueryInformationProcess
-    .quad user_NtQueryInformationThread
+    syscall_func "NtQueryInformationProcess", 5
+    syscall_func "NtQueryInformationThread", 5
     syscall_stub "NtQueryInformationToken"
     syscall_stub "NtQueryIntervalProfile"
     syscall_stub "NtQueryIoCompletion"
@@ -191,13 +195,13 @@ syscalls:
     syscall_stub "NtQueryMutant"
     syscall_stub "NtQueryObject"
     syscall_stub "NtQueryPerformanceCounter"
-    .quad user_NtQuerySection
+    syscall_func "NtQuerySection", 5
     syscall_stub "NtQuerySecurityObject"
     syscall_stub "NtQuerySemaphore"
     syscall_stub "NtQuerySymbolicLinkObject"
     syscall_stub "NtQuerySystemEnvironmentValue"
     syscall_stub "NtQuerySystemInformation"
-    .quad user_NtQuerySystemTime
+    syscall_func "NtQuerySystemTime", 1
     syscall_stub "NtQueryTimer"
     syscall_stub "NtQueryTimerResolution"
     syscall_stub "NtQueryValueKey"
@@ -208,7 +212,7 @@ syscalls:
     syscall_stub "NtRaiseHardError"
     syscall_stub "NtReadFileScatter"
     syscall_stub "NtReadRequestData"
-    .quad user_NtReadVirtualMemory
+    syscall_func "NtReadVirtualMemory", 5
     syscall_stub "NtRegisterThreadTerminatePort"
     syscall_stub "NtReleaseMutant"
     syscall_stub "NtReleaseSemaphore"
@@ -221,16 +225,16 @@ syscalls:
     syscall_stub "NtRequestWaitReplyPort"
     syscall_stub "NtResetEvent"
     syscall_stub "NtRestoreKey"
-    .quad user_NtResumeThread
+    syscall_func "NtResumeThread", 2
     syscall_stub "NtSaveKey"
-    .quad user_NtSetContextThread
+    syscall_func "NtSetContextThread", 2
     syscall_stub "NtSetDefaultHardErrorPort"
     syscall_stub "NtSetDefaultLocale"
     syscall_stub "NtSetEaFile"
-    .quad user_NtSetEvent
+    syscall_func "NtSetEvent", 2
     syscall_stub "NtSetHighEventPair"
     syscall_stub "NtSetHighWaitLowEventPair"
-    .quad user_NtSetInformationFile
+    syscall_func "NtSetInformationFile", 5
     syscall_stub "NtSetInformationKey"
     syscall_stub "NtSetInformationObject"
     syscall_stub "NtSetInformationProcess"
@@ -246,30 +250,30 @@ syscalls:
     syscall_stub "NtSetSystemInformation"
     syscall_stub "NtSetSystemPowerState"
     syscall_stub "NtSetSystemTime"
-    .quad user_NtSetTimer
+    syscall_func "NtSetTimer", 7
     syscall_stub "NtSetTimerResolution"
     syscall_stub "NtSetValueKey"
     syscall_stub "NtSetVolumeInformationFile"
-    .quad user_NtShutdownSystem
+    syscall_func "NtShutdownSystem", 1
     syscall_stub "NtSignalAndWaitForSingleObject"
     syscall_stub "NtStartProfile"
     syscall_stub "NtStopProfile"
-    .quad user_NtSuspendThread
+    syscall_func "NtSuspendThread", 2
     syscall_stub "NtSystemDebugControl"
     syscall_stub "NtTestAlert"
     syscall_stub "NtUnloadDriver"
     syscall_stub "NtUnloadKey"
     syscall_stub "NtUnlockFile"
     syscall_stub "NtUnlockVirtualMemory"
-    .quad user_NtUnmapViewOfSection
+    syscall_func "NtUnmapViewOfSection", 2
     syscall_stub "NtVdmControl"
-    .quad user_NtWaitForMultipleObjects
-    .quad user_NtWaitForSingleObject
+    syscall_func "NtWaitForMultipleObjects", 5
+    syscall_func "NtWaitForSingleObject", 3
     syscall_stub "NtWaitHighEventPair"
     syscall_stub "NtWaitLowEventPair"
     syscall_stub "NtWriteFileGather"
     syscall_stub "NtWriteRequestData"
-    .quad user_NtWriteVirtualMemory
+    syscall_func "NtWriteVirtualMemory", 5
     syscall_stub "NtYieldExecution"
     syscall_stub "NtAccessCheckByType"
     syscall_stub "NtAccessCheckByTypeAndAuditAlarm"
@@ -348,8 +352,8 @@ syscalls:
     syscall_stub "NtGetCurrentProcessorNumber"
     syscall_stub "NtGetDevicePowerState"
     syscall_stub "NtGetMUIRegistryInfo"
-    .quad user_NtGetNextProcess
-    .quad user_NtGetNextThread
+    syscall_func "NtGetNextProcess", 5
+    syscall_func "NtGetNextThread", 6
     syscall_stub "NtGetNlsSectionPtr"
     syscall_stub "NtGetNotificationResourceManager"
     syscall_stub "NtGetPlugPlayEvent"
@@ -456,7 +460,7 @@ syscalls:
     syscall_stub "NtShutdownWorkerFactory"
     syscall_stub "NtSinglePhaseReject"
     syscall_stub "NtStartTm"
-    .quad user_NtSuspendProcess
+    syscall_func "NtSuspendProcess", 1
     syscall_stub "NtTerminateJobObject"
     syscall_stub "NtThawRegistry"
     syscall_stub "NtThawTransactions"
