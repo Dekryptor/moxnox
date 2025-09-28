@@ -12,11 +12,11 @@ struct cpu_block {
     uint64_t time_slice_left;
     CONTEXT thread_context;
     uint32_t cpu_no;
-#ifndef __aarch64__
-    void* gdt;
-#endif
     void* scheduler_stack;
-#ifndef __aarch64__
+#ifdef __aarch64__
+    uintptr_t emergency_sp;
+#else
+    void* gdt;
     uint64_t kernel_cr3;
     uint64_t syscall_rax;
 #endif

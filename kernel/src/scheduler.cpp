@@ -409,6 +409,23 @@ void wait_timeout_expired(thread* tptr) {
 }
 #endif
 
+#ifdef __aarch64__
+template<bool no_lock>
+uintptr_t allocate_emergency_stack() {
+    uint64_t pa;
+
+    if constexpr (no_lock)
+        pa = allocate_folio_no_lock(0, page_state::used);
+    else
+        pa = allocate_folio(0, page_state::used);
+
+    if (!pa)
+        return 0;
+
+    return (uintptr_t)phys_address(pa) + PAGE_SIZE;
+}
+#endif
+
 export bool init_cpu_block(unsigned int cpu_no) {
     auto pages = bytes_to_pages(sizeof(cpu_block));
     auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);
@@ -476,6 +493,13 @@ export bool init_cpu_block(unsigned int cpu_no) {
         return false;
 
     cb.scheduler_stack = ((uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT)) - 0x20; // 0x20 for MS ABI
+
+#ifdef __aarch64__
+    if (cpu_no == 0)
+        cb.emergency_sp = allocate_emergency_stack<true>();
+    else
+        cb.emergency_sp = allocate_emergency_stack<false>();
+#endif
 
 #ifdef __aarch64__
     __asm __volatile (
