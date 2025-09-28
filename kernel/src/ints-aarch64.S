@@ -6,7 +6,7 @@
 // FIXME - DWARF
 // FIXME - SEH(?)
 
-.macro save_context user
+.macro save_exception_context user
 	stp	x0, x1, [sp]
 
 	.if \user
@@ -74,7 +74,7 @@
 	.if \user
 		mrs	x1, sp_el0
 	.else
-		add	x1, sp, #0x10
+		ldr	x1, [x18, #GS_EMERGENCY_SCRATCH + 0x8]
 	.endif
 	str	x1, [x0, #CONTEXT_SP]
 
@@ -88,7 +88,12 @@
 
 	ldr	x1, [sp, #8]
 	str	x1, [x0, #CONTEXT_X0 + 0x8]
-	ldr	x1, [sp]
+
+	.if \user
+		ldr	x1, [sp]
+	.else
+		ldr	x1, [x18, #GS_EMERGENCY_SCRATCH]
+	.endif
 	str	x1, [x0, #CONTEXT_X0]
 .endm
 
@@ -240,15 +245,22 @@ msr	vbar_el1, x0
 ret
 
 kernel_exception_entry:
+str	x0, [x18, #GS_EMERGENCY_SCRATCH]
+mov	x0, sp
+str	x0, [x18, #GS_EMERGENCY_SCRATCH + 0x8]
+
+ldr	x0, [x18, #GS_EMERGENCY_SP]
+mov	sp, x0
+
 sub	sp, sp, #0x10
-save_context 0
+save_exception_context 0
 
 mrs	x0, esr_el1
 b	handle_kernel_exception
 
 user_exception_entry:
 sub	sp, sp, #0x10
-save_context 1
+save_exception_context 1
 
 mrs	x18, tpidr_el1
 mrs	x0, esr_el1
