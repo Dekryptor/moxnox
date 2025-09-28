@@ -1207,8 +1207,96 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
 
     auto pte = find_pte(*this, address);
 
-    // FIXME - NX violations
-    // FIXME - COWing and marking cache as dirty
+    if (pte && pte->valid) {
+        // FIXME - NX violations
+
+        // don't handle if kernel-only page
+        if (pte->AP == ARM64_PTE_AP_EL1RW || pte->AP == ARM64_PTE_AP_EL1RO)
+            return false;
+
+        rangelock_req rlr(rl, address >> PAGE_SHIFT, 1);
+
+        if (pte->allow_write && pte->AP == ARM64_PTE_AP_EL0RO) { // mark cache as dirty
+            auto m = find_mapping(*this, address);
+
+            if (!m)
+                return false;
+
+            uint64_t page_num = (address - m->address) >> PAGE_SHIFT;
+            uint64_t sect_page_num = page_num + (m->offset >> PAGE_SHIFT);
+            bool send_ipi = false;
+
+            if (pte->cow) {
+                auto pfn = allocate_folio(0) >> PAGE_SHIFT;
+                if (pfn == 0) {
+                    print("allocate_folio failed\n");
+                    m->release();
+                    return false;
+                }
+
+                memcpy(phys_address(pfn << PAGE_SHIFT),
+                       phys_address(pte->pfn << PAGE_SHIFT),
+                       PAGE_SIZE);
+                pte->pfn = pfn;
+            } else {
+                visit([&](auto* ptr) {
+                    auto& cache = *ptr;
+
+                    cache.read_into_cache_and_pin(sect_page_num, 1);
+
+                    rangelock_req rlr(cache.rl, sect_page_num, 1);
+
+                    page_cache_entry* p;
+
+                    {
+                        lock_guard lg(cache.cache_lock);
+
+                        p = cache.find_page_cache_entry(sect_page_num);
+                    }
+
+                    if (!p->dirty) {
+                        assert(p->pfn != 0);
+
+                        auto new_pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                        if (new_pfn == 0) {
+                            print("out of memory\n");
+                            cache.unpin(sect_page_num, 1);
+                            m->release();
+                            return false;
+                        }
+
+                        if (new_pfn != p->pfn) {
+                            p->pfn = new_pfn;
+
+                            send_ipi = true;
+                        }
+
+                        p->dirty = 1;
+                        cache.mark_dirty();
+                    }
+
+                    pte->pfn = p->pfn;
+
+                    cache.unpin(sect_page_num, 1); // FIXME?
+
+                    return true;
+                }, m->sect.get_cache());
+            }
+
+            m->release();
+
+            pte->AP = ARM64_PTE_AP_EL0RW; // FIXME - do we need tlb flush?
+
+#if 0 // FIXME
+            if (send_ipi)
+                send_page_tlb_ipi(*this, address);
+#endif
+
+            return true;
+        }
+
+        return false;
+    }
 
     if (pte && pte->reserved)
         return false;
