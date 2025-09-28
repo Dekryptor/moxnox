@@ -358,7 +358,7 @@ eret
 	add	sp, sp, #0x290
 .endm
 
-.macro timer_save_context
+.macro timer_save_context user
 	add	x0, x18, GS_CONTEXT
 	stp	x4, x5, [x0, #CONTEXT_X0 + 0x20]
 	stp	x6, x7, [x0, #CONTEXT_X0 + 0x30]
@@ -367,7 +367,14 @@ eret
 	stp	x12, x13, [x0, #CONTEXT_X0 + 0x60]
 	stp	x14, x15, [x0, #CONTEXT_X0 + 0x70]
 	stp	x16, x17, [x0, #CONTEXT_X0 + 0x80]
-	stp	x18, x19, [x0, #CONTEXT_X0 + 0x90]
+
+	.if \user
+		ldr	x1, [sp, #0x20]
+		stp	x1, x19, [x0, #CONTEXT_X0 + 0x90]
+	.else
+		stp	x18, x19, [x0, #CONTEXT_X0 + 0x90]
+	.endif
+
 	stp	x20, x21, [x0, #CONTEXT_X0 + 0xa0]
 	stp	x22, x23, [x0, #CONTEXT_X0 + 0xb0]
 	stp	x24, x25, [x0, #CONTEXT_X0 + 0xc0]
@@ -422,20 +429,14 @@ eret
 	mrs	x1, spsr_el1
 	str	w1, [x0, #CONTEXT_CPSR]
 
-	and	x1, x1, 0xf
-	cbnz	x1, 8f
+	.if \user
+		mrs	x1, sp_el0
+		str	x1, [x0, #CONTEXT_SP]
+	.else
+		add	x1, sp, #0x20
+		str	x1, [x0, #CONTEXT_SP]
+	.endif
 
-	// in user mode
-	mrs	x1, sp_el0
-	str	x1, [x0, #CONTEXT_SP]
-	b	7f
-
-8:
-	// in kernel mode
-	add	x1, sp, #0x20
-	str	x1, [x0, #CONTEXT_SP]
-
-7:
 	ldp	x2, x3, [sp, #0x10]
 	stp	x2, x3, [x0, #CONTEXT_X0 + 0x10]
 	ldr	x1, [sp, #0x8]
@@ -445,7 +446,7 @@ eret
 .endm
 
 // can only use x0, x1, x2, and x3
-.macro timer_isr
+.macro timer_isr user
 	// start clock again
 	adr	x1, hardware_tick_rate
 	ldr	x1, [x1]
@@ -475,7 +476,7 @@ eret
 
 	// do context switch
 
-	timer_save_context
+	timer_save_context \user
 
 	// set end-of-interrupt
 	adr	x0, gicc
@@ -517,7 +518,7 @@ adr	x3, timer_irq_no
 ldr	w3, [x3]
 sub	w3, w2, w3
 cbnz	w3, 0f
-timer_isr
+timer_isr 0
 b	kernel_irq_entry_finish
 
 0:
@@ -547,7 +548,7 @@ adr	x3, timer_irq_no
 ldr	w3, [x3]
 sub	w3, w2, w3
 cbnz	w3, 0f
-timer_isr
+timer_isr 1
 b	user_irq_entry_finish
 
 0:
