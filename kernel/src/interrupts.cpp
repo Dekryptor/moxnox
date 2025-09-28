@@ -1358,105 +1358,95 @@ void handle_kernel_exception(uint64_t esr_value) {
     }
 }
 
-static void invalid_opcode_user() {
+static void invalid_opcode_user(const CONTEXT& ctx) {
     // FIXME - send signal to thread instead
-
-    auto& cb = *get_cpu_block();
-    auto current_thread = cb.current_thread;
 
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = format(sp, "Invalid opcode in user mode (thread {:x}, CPU {})\n",
-                (uintptr_t)current_thread, cb.cpu_no);
-    sp = format(sp, "{}", cb.thread_context);
+    sp = format(sp, "Invalid opcode in user mode (thread {:x})\n",
+                (uintptr_t)get_current_thread());
+    sp = format(sp, "{}", ctx);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
-static void unhandled_user_exception(uint64_t esr_value) {
+static void unhandled_user_exception(uint64_t esr_value, const CONTEXT& ctx) {
     ARM64_ESR esr;
 
     esr.value = esr_value;
 
     // FIXME - send signal to thread instead
 
-    auto& cb = *get_cpu_block();
-    auto current_thread = cb.current_thread;
-
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = format(sp, "Unhandled exception in user mode (thread {:x}, CPU {})\n",
-                (uintptr_t)current_thread, cb.cpu_no);
+    sp = format(sp, "Unhandled exception in user mode (thread {:x})\n",
+                (uintptr_t)get_current_thread());
     sp = format(sp, "ESR_EL1 = {:08x} (ISS = {:x}, IL = {:x}, EC = {:x}, ISS2 = {:x})\n",
                 esr_value, esr.ISS, esr.IL, esr.EC, esr.ISS2);
-    sp = format(sp, "{}", cb.thread_context);
+    sp = format(sp, "{}", ctx);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
-static void page_fault_user(uint64_t esr_value) {
-    auto& cb = *get_cpu_block();
-    auto& current_thread = *cb.current_thread;
-    CONTEXT ctx;
-    uint64_t address;
-
-    __asm __volatile (
-        "mrs %x[res], far_el1"
-        : [res] "=r" (address)
-    );
-
-    memcpy(&ctx, &cb.thread_context, sizeof(CONTEXT));
-
-    enable_interrupts();
+static void page_fault_user(uint64_t address, uint64_t esr_value,
+                            const CONTEXT& ctx) {
+    auto& current_thread = *get_current_thread();
 
     auto& p = *current_thread.proc;
 
-    auto okay = p.handle_page_fault(address, esr_value);
-
-    if (okay) {
-        disable_interrupts();
-        memcpy(&get_cpu_block()->thread_context, &ctx, sizeof(CONTEXT));
+    if (p.handle_page_fault(address, esr_value))
         return;
-    }
 
     // FIXME - send signal to thread instead
 
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = format(sp, "Page fault in user mode (address = {:x}, thread {:x}, CPU {})\n",
-                address, (uintptr_t)&current_thread, cb.cpu_no);
-    sp = format(sp, "{}", cb.thread_context);
+    sp = format(sp, "Page fault in user mode (address = {:x}, thread {:x})\n",
+                address, (uintptr_t)&current_thread);
+    sp = format(sp, "{}", ctx);
 
     bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
 extern "C"
 void handle_user_exception(uint64_t esr_value) {
+    CONTEXT ctx;
     ARM64_ESR esr;
-
-    // FIXME - set thread as being in kernel mode, and munge x18
-    // FIXME - take copy of context and enable interrupts (and restore context before returning)
+    uint64_t address;
 
     esr.value = esr_value;
+
+    if (esr.EC == 0x20 || esr.EC == 0x24) { // Instruction Abort or Data Abort
+        __asm __volatile (
+            "mrs %x[res], far_el1"
+            : [res] "=r" (address)
+        );
+    }
+
+    memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    enable_interrupts();
 
     switch (esr.EC) {
         case 0: // "Unknown reason"
             // FIXME - might actually be other things
-            invalid_opcode_user();
+            invalid_opcode_user(ctx);
             break;
 
         case 0x20: // Instruction Abort from lower EL
         case 0x24: // Data Abort from lower EL
-            page_fault_user(esr_value);
+            page_fault_user(address, esr_value, ctx);
             break;
 
         default:
-            unhandled_user_exception(esr_value);
+            unhandled_user_exception(esr_value, ctx);
             break;
     }
+
+    disable_interrupts();
+    memcpy(&get_cpu_block()->thread_context, &ctx, sizeof(CONTEXT));
 }
 
 extern "C"
