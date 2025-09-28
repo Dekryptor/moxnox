@@ -491,17 +491,21 @@ struct TEB {
 };
 
 __inline __attribute((always_inline)) TEB* NtCurrentTeb() {
-#ifdef __aarch64__
-    return nullptr; // FIXME!
-#else
     TEB* ret;
 
+#ifdef __aarch64__
+    __asm __volatile (
+        "mov %x[res], x18"
+        : [res] "=r" (ret)
+    );
+#else
     __asm("mov %0, gs:%1"
         : "=a" (ret)
         : "i" (offsetof(TEB, NtTib.Self))
     );
-    return ret;
 #endif
+
+    return ret;
 }
 
 struct M128A {
