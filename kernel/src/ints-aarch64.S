@@ -500,12 +500,6 @@ eret
 	adr	x1, timer_irq_no
 	ldr	w1, [x1]
 	str	w1, [x0]
-
-	// finish up and return
-	ldp	x2, x3, [sp, #0x10]
-	ldp	x0, x1, [sp]
-	add	sp, sp, #0x20
-	eret
 .endm
 
 kernel_irq_entry:
@@ -524,10 +518,12 @@ ldr	w3, [x3]
 sub	w3, w2, w3
 cbnz	w3, 0f
 timer_isr
+b	kernel_irq_entry_finish
 
 0:
 do_irq
 
+kernel_irq_entry_finish:
 ldp	x2, x3, [sp, #0x10]
 ldp	x0, x1, [sp]
 
@@ -552,9 +548,12 @@ ldr	w3, [x3]
 sub	w3, w2, w3
 cbnz	w3, 0f
 timer_isr
+b	user_irq_entry_finish
 
 0:
 do_irq
+
+user_irq_entry_finish:
 ldp	x18, xzr, [sp, #0x20]
 ldp	x2, x3, [sp, #0x10]
 ldp	x0, x1, [sp]
