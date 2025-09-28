@@ -479,24 +479,17 @@ export bool init_cpu_block(unsigned int cpu_no) {
 
 #ifdef __aarch64__
     __asm __volatile (
-        "mrs %x[res], ttbr1_el1"
-        : [res] "=r" (cb.kernel_cr3)
-    );
-#else
-    __asm __volatile (
-        "mov rax, cr3"
-        : "=a" (cb.kernel_cr3)
-    );
-#endif
-
-#ifdef __aarch64__
-    __asm __volatile (
         "mov x18, %0\n\t"
         "msr tpidr_el1, x18\n\t"
         :
         : "r" (&cb)
     );
 #else
+    __asm __volatile (
+        "mov rax, cr3"
+        : "=a" (cb.kernel_cr3)
+    );
+
     __asm __volatile(
         "mov ecx, 0xc0000101\n\t"
         "mov rax, %0\n\t"

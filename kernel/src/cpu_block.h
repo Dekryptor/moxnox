@@ -16,9 +16,11 @@ struct cpu_block {
     void* gdt;
 #endif
     void* scheduler_stack;
+#ifndef __aarch64__
     uint64_t kernel_cr3;
-    std::atomic<uint64_t> disable_preempt = 0;
     uint64_t syscall_rax;
+#endif
+    std::atomic<uint64_t> disable_preempt = 0;
     char* printk_scratch;
 };
 
