@@ -7,8 +7,6 @@
 // FIXME - SEH(?)
 
 .macro save_exception_context user
-	stp	x0, x1, [sp]
-
 	.if \user
 		mrs	x0, tpidr_el1
 		add	x0, x0, GS_CONTEXT
@@ -85,6 +83,8 @@
 	str	w1, [x0, #CONTEXT_CPSR]
 
 	// FIXME - debug registers
+
+	// x0/xzr and x1 already pushed on stack beforehand
 
 	ldr	x1, [sp, #8]
 	str	x1, [x0, #CONTEXT_X0 + 0x8]
@@ -253,33 +253,128 @@ ldr	x0, [x18, #GS_EMERGENCY_SP]
 mov	sp, x0
 
 sub	sp, sp, #0x10
+stp	xzr, x1, [sp]
 save_exception_context 0
 
 mrs	x0, esr_el1
 b	handle_kernel_exception
 
-user_exception_entry:
-sub	sp, sp, #0x10
-save_exception_context 1
+.macro syscall_stub name
+	.quad 0 // FIXME
+    # .text
+    # .global "stub_\name"
+    # "stub_\name":
+    #     lea rcx, [rip+0f]
+    #     jmp unimplemented_syscall
+    # 0:
+    #     .ascii "\name\0"
+    # .section .rdata
+    # .quad "stub_\name"
+.endm
 
+.macro syscall_func name, args
+	// FIXME - stack variables
+	.quad "user_\name"
+.endm
+
+.section .rdata
+syscalls:
+#include "syscall-list.S"
+end_syscalls:
+
+.section .text
+
+do_syscall:
+and	x1, x0, 0xffff
+cmp	x1, #0x1000
+b.lt	unknown_syscall
+sub	x1, x1, 0x1000
+cmp	x1, #NUM_SYSCALLS
+b.ge	unknown_syscall
+
+// save x18, x19, lr, elr_el1, and spsr_el1
+sub	sp, sp, #0x30
+stp	x18, x19, [sp]
+stp	lr, xzr, [sp, #0x10]
+
+mrs	x18, elr_el1
+mrs	x19, spsr_el1
+stp	x18, x19, [sp, #0x20]
+
+adrp	x0, syscalls
+add	x0, x0, :lo12:syscalls
+lsl	x1, x1, #3
+add	x0, x0, x1
+ldr	x19, [x0]
+
+// switch to kernel x18
 mrs	x18, tpidr_el1
 
-mrs	x9, esr_el1
-and	x10, x9, 0xfc000000
-asr	x10, x10, 26
-sub	x10, x10, 0x15
-cbnz	x10, 0f
+msr	DAIFClr, #0xf // enable interrupts
 
-// syscall
-// FIXME
+// load x0 and x1 again and call handler
+ldp	x0, x1, [sp, #0x30]
+blr	x19
+
+msr	DAIFSet, #0xf // disable interrupts
+
+// restore elr_e1 and spsr_el1
+ldp	x18, x19, [sp, #0x20]
+msr	elr_el1, x18
+msr	spsr_el1, x19
+
+// restore x18, x19, and lr
+ldp	x18, x19, [sp]
+ldp	lr, xzr, [sp, #0x10]
+
+// clear volatile regs to avoid leakage
+mov	x1, xzr
+mov	x2, xzr
+mov	x3, xzr
+mov	x4, xzr
+mov	x5, xzr
+mov	x6, xzr
+mov	x7, xzr
+mov	x8, xzr
+mov	x9, xzr
+mov	x10, xzr
+mov	x11, xzr
+mov	x12, xzr
+mov	x13, xzr
+mov	x14, xzr
+mov	x15, xzr
+mov	x16, xzr
+mov	x17, xzr
+
+// FIXME - maybe_yield
+
+add	sp, sp, #0x40
+eret
+
+unknown_syscall:
 // return STATUS_NOT_IMPLEMENTED
 mov	w0, 2
 movk	w0, #0xc000, lsl 16
-str	x0, [x18, #GS_CONTEXT + CONTEXT_X0]
-b	1f
+mov	x1, xzr // don't leak to userspace
+add	sp, sp, #0x10
+eret
+
+user_exception_entry:
+sub	sp, sp, #0x10
+stp	x0, x1, [sp]
+
+mrs	x0, esr_el1
+and	x1, x0, 0xfc000000
+asr	x1, x10, 26
+sub	x1, x10, 0x15
+cbnz	x1, 0f
+b	do_syscall
 
 0:
-mov	x0, x9
+save_exception_context 1
+
+mrs	x18, tpidr_el1
+mrs	x0, esr_el1
 bl	handle_user_exception
 
 1:

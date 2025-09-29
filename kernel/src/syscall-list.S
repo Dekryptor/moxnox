@@ -1,3 +1,7 @@
+# FIXME - Clang forces the nice version to be a memory address (GAS is okay)
+# .equ NUM_SYSCALLS, (end_syscalls - syscalls) / 8
+.equ NUM_SYSCALLS, 0x18f
+
 syscall_func "NtDisplayString", 1
 syscall_func "NtTerminateThread", 2
 syscall_func "NtTerminateProcess", 2

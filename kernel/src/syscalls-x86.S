@@ -128,10 +128,6 @@ syscalls:
 #include "syscall-list.S"
 end_syscalls:
 
-# FIXME - Clang forces the nice version to be a memory address (GAS is okay)
-# .equ NUM_SYSCALLS, (end_syscalls - syscalls) / 8
-.equ NUM_SYSCALLS, 0x18f
-
 .section .text
 
 .global init_syscalls
