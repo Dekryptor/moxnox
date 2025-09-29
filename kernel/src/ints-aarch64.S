@@ -365,8 +365,8 @@ stp	x0, x1, [sp]
 
 mrs	x0, esr_el1
 and	x1, x0, 0xfc000000
-asr	x1, x10, 26
-sub	x1, x10, 0x15
+asr	x1, x1, 26
+sub	x1, x1, 0x15
 cbnz	x1, 0f
 b	do_syscall
 
