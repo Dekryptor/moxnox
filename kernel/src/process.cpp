@@ -3418,7 +3418,6 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     }
 
     memset(&t.context, 0, sizeof(CONTEXT));
-    memset(&t.syscall_context, 0, sizeof(CONTEXT));
 
 #ifdef __aarch64__
     t.context.Pc = ntdll_addr + mn_start_thread;
@@ -3429,6 +3428,8 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
 
     t.user_stack = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
 #else
+    memset(&t.syscall_context, 0, sizeof(CONTEXT));
+
     t.context.EFlags |= 0x202; // IF, reserved flag
     t.context.SegCs = user_CS;
     t.context.SegSs = user_DS;

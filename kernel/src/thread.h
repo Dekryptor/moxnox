@@ -59,7 +59,9 @@ public:
 
     list_entry le;
     CONTEXT context;
+#ifndef __aarch64__
     CONTEXT syscall_context;
+#endif
     enum thread_status status;
     uint32_t tid;
     void* kernel_stack = nullptr;
