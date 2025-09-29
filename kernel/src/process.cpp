@@ -2241,9 +2241,6 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
 
 extern "C++"
 bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
-#ifdef __aarch64__
-    return false; // FIXME
-#else
     uint64_t page_num = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
     uint64_t page_offset = offset & (PAGE_SIZE - 1);
@@ -2255,7 +2252,13 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 
         auto to_copy = min((uint32_t)(PAGE_SIZE - page_offset), size);
 
-        if (pte.p) {
+#ifdef __aarch64__
+        bool pte_valid = pte.valid;
+#else
+        bool pte_valid = pte.p;
+#endif
+
+        if (pte_valid) {
             memcpy(ks_addr, (uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
                    to_copy);
         } else {
@@ -2298,7 +2301,6 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     }
 
     return true;
-#endif
 }
 
 extern "C++"
