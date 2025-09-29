@@ -988,5 +988,9 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
 
     // FIXME - call DllMain for modules if starting another thread
 
+#ifdef __aarch64__
+    context->X18 = (uintptr_t)NtCurrentTeb();
+#endif
+
     NtContinue(context, false);
 }
