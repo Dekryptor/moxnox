@@ -709,7 +709,13 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)addr;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)addr + dos_header.e_lfanew);
 
-    if (nt_header.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) {
+#ifdef __aarch64__
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
+#else
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
+#endif
+
+    if (nt_header.FileHeader.Machine != this_arch) {
         NtClose(h);
         NtUnmapViewOfSection(NtCurrentProcess(), addr);
         free(us.Buffer);
