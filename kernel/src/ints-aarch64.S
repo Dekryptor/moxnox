@@ -260,16 +260,17 @@ mrs	x0, esr_el1
 b	handle_kernel_exception
 
 .macro syscall_stub name
-	.quad 0 // FIXME
-    # .text
-    # .global "stub_\name"
-    # "stub_\name":
-    #     lea rcx, [rip+0f]
-    #     jmp unimplemented_syscall
-    # 0:
-    #     .ascii "\name\0"
-    # .section .rdata
-    # .quad "stub_\name"
+	.quad "stub_\name"
+
+	.text
+	"stub_\name":
+		adr	x0, 0f
+		b	unimplemented_syscall
+	0:
+		.ascii "\name\0"
+		.p2align 2
+
+	.section .rdata
 .endm
 
 .macro syscall_func name, args
