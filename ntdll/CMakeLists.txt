@@ -10,6 +10,7 @@ enable_language(ASM)
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_FILES src/ntdll.cpp
         src/syscalls-aarch64.S
+        src/string.cpp
         src/except.cpp
         src/continue-aarch64.S)
 else()
@@ -26,11 +27,9 @@ endif()
 
 add_library(ntdll SHARED ${SRC_FILES})
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    target_sources(ntdll PUBLIC FILE_SET CXX_MODULES FILES
-        src/print.cpp
-    )
-endif()
+target_sources(ntdll PUBLIC FILE_SET CXX_MODULES FILES
+    src/print.cpp
+)
 
 target_compile_options(ntdll PRIVATE ${USERSPACE_CFLAGS})
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)
