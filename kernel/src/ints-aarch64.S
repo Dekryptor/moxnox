@@ -274,8 +274,54 @@ b	handle_kernel_exception
 .endm
 
 .macro syscall_func name, args
-	// FIXME - stack variables
-	.quad "user_\name"
+	.ifle \args - 8
+		.quad "user_\name"
+	.else
+		.quad "stack_\name"
+
+		.text
+		"stack_\name":
+			sub	sp, sp, 0x50 + (\args - 8) * 8 // FIXME - make sure aligned
+
+			stp	x0, x1, [sp]
+			stp	x2, x3, [sp, #0x10]
+			stp	x4, x5, [sp, #0x20]
+			stp	x6, x7, [sp, #0x30]
+			str	lr, [sp, #0x40 + ((\args - 8) * 8)]
+
+			// ks_addr
+			add	x0, sp, #0x40
+			// us_addr
+			mrs	x1, sp_el0
+			// size
+			mov	x2, #(\args - 8) * 8
+
+			// bool copy_from_process(void* ks_addr, const void* us_addr, size_t size);
+			bl	copy_from_process
+			cbnz	x0, 0f
+
+			// return STATUS_ACCESS_VIOLATION if copy_from_process returned false
+			mov	w0, 5
+			movk	w0, #0xc000, lsl 16
+			ldr	lr, [sp, #0x40 + ((\args - 8) * 8)]
+			add	sp, sp, 0x50 + (\args - 8) * 8
+			ret
+
+0:
+			ldp	x0, x1, [sp]
+			ldp	x2, x3, [sp, #0x10]
+			ldp	x4, x5, [sp, #0x20]
+			ldp	x6, x7, [sp, #0x30]
+			add	sp, sp, #0x40
+
+			bl	"user_\name"
+
+			ldr	lr, [sp, #((\args - 8) * 8)]
+			add	sp, sp, 0x10 + ((\args - 8) * 8)
+			ret
+
+		.section .rdata
+	.endif
 .endm
 
 .section .rdata
@@ -710,7 +756,6 @@ user_NtContinue:
 
 sub	sp, sp, #CONTEXT_SIZEOF
 
-// FIXME - copy thread_context from x0 to stack
 # extern "C" bool copy_from_process(void* ks_addr, const void* us_addr, size_t size) {
 mov	x2, #CONTEXT_SIZEOF
 mov	x1, x0 // us_addr
@@ -795,8 +840,6 @@ ldr	x1, [sp, #CONTEXT_SP]
 msr	sp_el0, x1
 
 ldp	x0, x1, [sp, #CONTEXT_X0]
-
-// FIXME - add stack space back from caller
 
 // 0x30 bytes from do_syscall, 0x10 from user_exception_entry
 add	sp, sp, #(CONTEXT_SIZEOF + 0x30 + 0x10)
