@@ -90,7 +90,7 @@ else()
     set(SRC_ASM_FILES src/ints-x86.S
         src/timer-x86.S
         src/smp.S
-        src/syscalls.S
+        src/syscalls-x86.S
         src/mem-x86.S
         src/tlb.S
         ${CMAKE_CURRENT_BINARY_DIR}/font.S)
