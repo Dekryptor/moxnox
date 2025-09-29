@@ -93,7 +93,6 @@ export ::thread* get_current_thread() {
     return t;
 }
 
-#ifndef __aarch64__
 export void thread_died(::thread& t, bool& last_thread, bool remove_from_proc) {
     t.status = thread_status::dead;
     t.signalled = true;
@@ -112,15 +111,19 @@ export void thread_died(::thread& t, bool& last_thread, bool remove_from_proc) {
 
     // t.release(); // FIXME - why does this crash?
 }
-#endif
 
 static void terminate_thread2(::thread& t, bool& last_thread,
                               bool remove_from_proc) {
     if (t.status == thread_status::dying || t.status == thread_status::dead)
         return;
 
-#ifndef __aarch64__ // FIXME
-    if (t.kernel_mode) {
+#ifdef __aarch64__
+    bool kernel_mode = true; // FIXME
+#else
+    bool kernel_mode = t.kernel_mode;
+#endif
+
+    if (kernel_mode) {
         if (t.wait_interruptible) {
             switch (t.status) {
                 case thread_status::waiting: {
@@ -160,7 +163,6 @@ static void terminate_thread2(::thread& t, bool& last_thread,
             // FIXME - send yield ISR
         }
     }
-#endif
 }
 
 export void terminate_thread(::thread& t, bool remove_from_proc) {
@@ -212,10 +214,8 @@ extern "C++"
         free_va((uintptr_t)kernel_stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     }
 
-#ifndef __aarch64__
     if (proc)
         proc->release();
-#endif
 }
 
 extern "C"
@@ -382,7 +382,6 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
     memset(&t.context, 0, sizeof(t.context));
 
 #ifdef __aarch64__
-    // FIXME
     t.context.Pc = (uintptr_t)kernel_thread_start;
     t.context.X0 = (uintptr_t)func;
     t.context.X1 = (uintptr_t)param1;
