@@ -703,3 +703,101 @@ ldp	x0, x1, [sp]
 
 add	sp, sp, #0x30
 eret
+
+// NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool raise_alert);
+user_NtContinue:
+// FIXME - raise_alert
+
+sub	sp, sp, #CONTEXT_SIZEOF
+
+// FIXME - copy thread_context from x0 to stack
+# extern "C" bool copy_from_process(void* ks_addr, const void* us_addr, size_t size) {
+mov	x2, #CONTEXT_SIZEOF
+mov	x1, x0 // us_addr
+mov	x0, sp // ks_addr
+bl	copy_from_process
+
+cbnz	x0, 0f
+// return STATUS_ACCESS_VIOLATION if copy_from_process returned false
+mov	w0, 5
+movk	w0, #0xc000, lsl 16
+add	sp, sp, #CONTEXT_SIZEOF
+ret
+
+0:
+ldp	x2, x3, [sp, #CONTEXT_X0 + 0x10]
+ldp	x4, x5, [sp, #CONTEXT_X0 + 0x20]
+ldp	x6, x7, [sp, #CONTEXT_X0 + 0x30]
+ldp	x8, x9, [sp, #CONTEXT_X0 + 0x40]
+ldp	x10, x11, [sp, #CONTEXT_X0 + 0x50]
+ldp	x12, x13, [sp, #CONTEXT_X0 + 0x60]
+ldp	x14, x15, [sp, #CONTEXT_X0 + 0x70]
+ldp	x16, x17, [sp, #CONTEXT_X0 + 0x80]
+ldp	x18, x19, [sp, #CONTEXT_X0 + 0x90]
+ldp	x20, x21, [sp, #CONTEXT_X0 + 0xa0]
+ldp	x22, x23, [sp, #CONTEXT_X0 + 0xb0]
+ldp	x24, x25, [sp, #CONTEXT_X0 + 0xc0]
+ldp	x26, x27, [sp, #CONTEXT_X0 + 0xd0]
+ldp	x28, fp, [sp, #CONTEXT_X0 + 0xe0]
+ldr	lr, [sp, #CONTEXT_X0 + 0xf0]
+
+ldr	q0, [sp, #CONTEXT_V0]
+ldr	q1, [sp, #CONTEXT_V0 + 0x10]
+ldr	q2, [sp, #CONTEXT_V0 + 0x20]
+ldr	q3, [sp, #CONTEXT_V0 + 0x30]
+ldr	q4, [sp, #CONTEXT_V0 + 0x40]
+ldr	q5, [sp, #CONTEXT_V0 + 0x50]
+ldr	q6, [sp, #CONTEXT_V0 + 0x60]
+ldr	q7, [sp, #CONTEXT_V0 + 0x70]
+ldr	q8, [sp, #CONTEXT_V0 + 0x80]
+ldr	q9, [sp, #CONTEXT_V0 + 0x90]
+ldr	q10, [sp, #CONTEXT_V0 + 0xa0]
+ldr	q11, [sp, #CONTEXT_V0 + 0xb0]
+ldr	q12, [sp, #CONTEXT_V0 + 0xc0]
+ldr	q13, [sp, #CONTEXT_V0 + 0xd0]
+ldr	q14, [sp, #CONTEXT_V0 + 0xe0]
+ldr	q15, [sp, #CONTEXT_V0 + 0xf0]
+ldr	q16, [sp, #CONTEXT_V0 + 0x100]
+ldr	q17, [sp, #CONTEXT_V0 + 0x110]
+ldr	q18, [sp, #CONTEXT_V0 + 0x120]
+ldr	q19, [sp, #CONTEXT_V0 + 0x130]
+ldr	q20, [sp, #CONTEXT_V0 + 0x140]
+ldr	q21, [sp, #CONTEXT_V0 + 0x150]
+ldr	q22, [sp, #CONTEXT_V0 + 0x160]
+ldr	q23, [sp, #CONTEXT_V0 + 0x170]
+ldr	q24, [sp, #CONTEXT_V0 + 0x180]
+ldr	q25, [sp, #CONTEXT_V0 + 0x190]
+ldr	q26, [sp, #CONTEXT_V0 + 0x1a0]
+ldr	q27, [sp, #CONTEXT_V0 + 0x1b0]
+ldr	q28, [sp, #CONTEXT_V0 + 0x1c0]
+ldr	q29, [sp, #CONTEXT_V0 + 0x1d0]
+ldr	q30, [sp, #CONTEXT_V0 + 0x1e0]
+ldr	q31, [sp, #CONTEXT_V0 + 0x1f0]
+
+ldr	w1, [sp, #CONTEXT_FPCR]
+msr	fpcr, x1
+
+ldr	w1, [sp, #CONTEXT_FPSR]
+msr	fpsr, x1
+
+// FIXME - debug registers
+
+msr	DAIFSet, #0xf // disable interrupts
+
+ldr	w1, [sp, #CONTEXT_CPSR]
+and	w1, w1, #0xfe000000 // only allow condition flags
+msr	spsr_el1, x1
+
+ldr	x1, [sp, #CONTEXT_PC]
+msr	elr_el1, x1
+
+ldr	x1, [sp, #CONTEXT_SP]
+msr	sp_el0, x1
+
+ldp	x0, x1, [sp, #CONTEXT_X0]
+
+// FIXME - add stack space back from caller
+
+// 0x30 bytes from do_syscall, 0x10 from user_exception_entry
+add	sp, sp, #(CONTEXT_SIZEOF + 0x30 + 0x10)
+eret

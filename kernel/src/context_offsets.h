@@ -24,6 +24,7 @@
 #define CONTEXT_V0 0x110
 #define CONTEXT_FPCR 0x310
 #define CONTEXT_FPSR 0x314
+#define CONTEXT_SIZEOF 0x390
 
 #define PROCESS_TTBR0 0x50
 

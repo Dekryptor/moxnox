@@ -40,6 +40,8 @@ static_assert(offsetof(ARM64_NT_CONTEXT, V[0]) == CONTEXT_V0);
 static_assert(offsetof(ARM64_NT_CONTEXT, Fpcr) == CONTEXT_FPCR);
 static_assert(offsetof(ARM64_NT_CONTEXT, Fpsr) == CONTEXT_FPSR);
 
+static_assert(sizeof(ARM64_NT_CONTEXT) == CONTEXT_SIZEOF);
+
 #else
 
 static_assert(sizeof(AMD64_CONTEXT) == 0x4d0);
