@@ -319,6 +319,14 @@ blr	x19
 
 msr	DAIFSet, #0xf // disable interrupts
 
+mov	x19, x0
+bl	acquire_sync_lock
+
+bl	maybe_yield
+
+bl	release_sync_lock
+mov	x0, x19
+
 // restore elr_e1 and spsr_el1
 ldp	x18, x19, [sp, #0x20]
 msr	elr_el1, x18

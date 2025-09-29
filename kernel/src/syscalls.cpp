@@ -1534,7 +1534,55 @@ NTSTATUS user_NtSetEvent(HANDLE event_handle, int32_t* us_previous_state) {
     return ret;
 }
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+extern "C"
+void maybe_yield() {
+    // interrupts are disabled and sync_lock held
+
+    auto& cb = *get_cpu_block();
+    auto& t = *cb.current_thread;
+
+    if (t.status != thread_status::dying && t.suspend_count == 0)
+        return;
+
+    if (t.status == thread_status::dying) {
+        bool last_thread = false;
+
+        if (t.proc) {
+            lock_guard lock(t.proc->threads_lock);
+            remove_entry_list(t.process_le);
+            last_thread = is_list_empty(t.proc->threads);
+        }
+
+        release_sync_lock();
+        enable_interrupts();
+
+        if (last_thread) {
+            t.proc->exit_status = t.exit_status;
+            t.proc->terminate();
+        } else {
+            size_t region_size = 0;
+
+            t.proc->free_vm((void**)&t.teb, &region_size, MEM_RELEASE);
+            // FIXME - free userspace stack
+        }
+
+        disable_interrupts();
+        acquire_sync_lock();
+
+        thread_died(t, last_thread, false);
+    }
+
+    __asm __volatile ( // doesn't return, releases sync_lock
+        "add x0, x18, #%0\n\t"
+        "ldr x0, [x0]\n\t"
+        "mov sp, x0\n\t"
+        "b scheduler"
+        :
+        : "i" (GS_SCHEDULER_STACK)
+    );
+}
+#else
 extern "C"
 void maybe_yield(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
