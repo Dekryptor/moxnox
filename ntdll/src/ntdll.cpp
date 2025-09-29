@@ -26,7 +26,6 @@ bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
 }
 
-#ifndef __aarch64__
 // work round GCC 15 ICE (FIXME)
 static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
                                         uint32_t /*procedure_number*/, void** procedure_address) {
@@ -898,7 +897,6 @@ static void call_dll_main() {
         le = le->Flink;
     }
 }
-#endif
 
 #ifdef __aarch64__
 extern "C"
@@ -946,9 +944,7 @@ void* memcpy(void* dest, const void* src, size_t n) {
 #endif
 
 extern "C" FORCE_ALIGN_ARG_POINTER
-__declspec (dllexport) // FIXME
 void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT* context) {
-#ifndef __aarch64__ // FIXME
     if (!initialized) {
         auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
@@ -984,7 +980,6 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
 
         initialized = true;
     }
-#endif
 
     // FIXME - call DllMain for modules if starting another thread
 

@@ -7,20 +7,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
+set(SRC_FILES src/ntdll.cpp
+    src/ntdll.def
+    src/string.cpp
+    src/mem.cpp
+    src/heap.cpp
+    src/except.cpp)
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    set(SRC_FILES src/ntdll.cpp
-        src/syscalls-aarch64.S
-        src/string.cpp
-        src/except.cpp)
+    list(APPEND SRC_FILES
+        src/syscalls-aarch64.S)
 else()
-    set(SRC_FILES src/ntdll.cpp
-        src/ntdll.def
+    list(APPEND SRC_FILES
         src/syscalls-x86.S
-        src/string.cpp
-        src/mem.cpp
-        src/heap.cpp
         src/mem.S
-        src/except.cpp
         src/continue-x86.S)
 endif()
 
@@ -34,7 +34,7 @@ target_compile_options(ntdll PRIVATE ${USERSPACE_CFLAGS})
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    target_link_libraries(ntdll format dwarf) # unwind_sse list_sse)
+    target_link_libraries(ntdll format dwarf list) # unwind_sse
 else()
     target_link_libraries(ntdll format_sse dwarf_sse unwind_sse list_sse)
 endif()

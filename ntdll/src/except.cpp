@@ -10,9 +10,9 @@
 
 import format;
 import dwarf;
+import print;
 
 #ifndef __aarch64__
-import print;
 import unwind;
 #endif
 
@@ -179,7 +179,6 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 #endif
 
 extern "C" FORCE_ALIGN_ARG_POINTER
-__declspec (dllexport) // FIXME
 void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 #ifdef __aarch64__
     while (true) { } // FIXME
@@ -250,7 +249,6 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 #endif
 }
 
-#ifndef __aarch64__
 extern "C"
 __attribute__((force_align_arg_pointer)) void mn_ctrl_c() {
     auto teb = NtCurrentTeb();
@@ -293,4 +291,3 @@ __attribute__((force_align_arg_pointer)) void mn_ctrl_c() {
 
     NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
 }
-#endif
