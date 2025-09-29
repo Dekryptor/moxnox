@@ -397,3 +397,6 @@ do_syscall "NtWaitForKeyedEvent", 0x118b
 do_syscall "NtWaitForMultipleObjects32", 0x118c
 do_syscall "NtWaitForWorkViaWorkerFactory", 0x118d
 do_syscall "NtWorkerFactoryWorkerReady", 0x118e
+#ifdef __aarch64__
+do_syscall "NtContinue", 0x118f
+#endif

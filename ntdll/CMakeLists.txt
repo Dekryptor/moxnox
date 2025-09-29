@@ -11,8 +11,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_FILES src/ntdll.cpp
         src/syscalls-aarch64.S
         src/string.cpp
-        src/except.cpp
-        src/continue-aarch64.S)
+        src/except.cpp)
 else()
     set(SRC_FILES src/ntdll.cpp
         src/ntdll.def

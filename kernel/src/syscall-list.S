@@ -1,6 +1,6 @@
 # FIXME - Clang forces the nice version to be a memory address (GAS is okay)
 # .equ NUM_SYSCALLS, (end_syscalls - syscalls) / 8
-.equ NUM_SYSCALLS, 0x18f
+.equ NUM_SYSCALLS, 0x190
 
 syscall_func "NtDisplayString", 1
 syscall_func "NtTerminateThread", 2
@@ -401,3 +401,4 @@ syscall_stub "NtWaitForKeyedEvent"
 syscall_stub "NtWaitForMultipleObjects32"
 syscall_stub "NtWaitForWorkViaWorkerFactory"
 syscall_stub "NtWorkerFactoryWorkerReady"
+syscall_stub "NtContinue"
