@@ -539,7 +539,8 @@ export  object_ref create_process(string_view fn, string_view curdir,
     memset(&entry_point_context, 0, sizeof(entry_point_context));
 
 #ifdef __aarch64__
-    // FIXME
+    entry_point_context.Pc = p.img_addr + img.entry_point;
+    entry_point_context.Sp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
 #else
     entry_point_context.Rip = p.img_addr + img.entry_point;
     entry_point_context.Rsp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
