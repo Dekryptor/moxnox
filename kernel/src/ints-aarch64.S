@@ -263,9 +263,26 @@ sub	sp, sp, #0x10
 save_exception_context 1
 
 mrs	x18, tpidr_el1
-mrs	x0, esr_el1
+
+mrs	x9, esr_el1
+and	x10, x9, 0xfc000000
+asr	x10, x10, 26
+sub	x10, x10, 0x15
+cbnz	x10, 0f
+
+// syscall
+// FIXME
+// return STATUS_NOT_IMPLEMENTED
+mov	w0, 2
+movk	w0, #0xc000, lsl 16
+str	x0, [x18, #GS_CONTEXT + CONTEXT_X0]
+b	1f
+
+0:
+mov	x0, x9
 bl	handle_user_exception
 
+1:
 restore_user_context
 add	sp, sp, #0x10
 eret
