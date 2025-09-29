@@ -70,9 +70,8 @@ public:
     void* syscall_stack = nullptr;
 #ifdef __aarch64__
     uint64_t user_stack;
-#else
-    bool kernel_mode;
 #endif
+    bool kernel_mode;
     enum nt_status exit_status = nt_status::PENDING;
     list_entry process_le;
     std::atomic<uint32_t> suspend_count = 0;
@@ -90,13 +89,13 @@ static_assert(is_sync_object<thread>);
 static_assert(offsetof(thread, context) == THREAD_CONTEXT);
 static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
+static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
 
 #ifdef __aarch64__
 static_assert(offsetof(thread, user_stack) == THREAD_USER_STACK);
 #else
 static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 static_assert(offsetof(thread, status) == THREAD_STATUS);
-static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(thread, suspend_count) == THREAD_SUSPEND_COUNT);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
 static_assert(offsetof(thread, timeout_le) == THREAD_TIMEOUT_LE);

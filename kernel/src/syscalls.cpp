@@ -1545,6 +1545,8 @@ void maybe_yield() {
     if (t.status != thread_status::dying && t.suspend_count == 0)
         return;
 
+    t.kernel_mode = false;
+
     if (t.status == thread_status::dying) {
         bool last_thread = false;
 

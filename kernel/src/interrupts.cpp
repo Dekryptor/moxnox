@@ -1452,6 +1452,7 @@ static void page_fault_user(uint64_t address, uint64_t esr_value,
 
 extern "C"
 void handle_user_exception(uint64_t esr_value) {
+    auto& t = *get_current_thread();
     CONTEXT ctx;
     ARM64_ESR esr;
     uint64_t address;
@@ -1466,6 +1467,8 @@ void handle_user_exception(uint64_t esr_value) {
     }
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    t.kernel_mode = true;
+
     enable_interrupts();
 
     switch (esr.EC) {
@@ -1485,7 +1488,9 @@ void handle_user_exception(uint64_t esr_value) {
     }
 
     disable_interrupts();
+
     memcpy(&get_cpu_block()->thread_context, &ctx, sizeof(CONTEXT));
+    t.kernel_mode = false;
 }
 
 extern "C"

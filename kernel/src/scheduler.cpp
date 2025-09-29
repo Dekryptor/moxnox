@@ -43,16 +43,6 @@ extern "C" {
 }
 #endif
 
-#ifdef __aarch64__
-static bool thread_in_kernel_mode(const thread& t) {
-    return !!(t.context.Cpsr & 0xf);
-}
-#else
-static bool thread_in_kernel_mode(const thread& t) {
-    return t.kernel_mode;
-}
-#endif
-
 static thread* pick_runnable_thread(thread* current) {
     list_entry* le;
     auto cb = get_cpu_block();
@@ -70,7 +60,7 @@ static thread* pick_runnable_thread(thread* current) {
         if (!(t.affinity & mask))
             return nullptr;
 
-        if (!thread_in_kernel_mode(t) && t.suspend_count != 0)
+        if (!t.kernel_mode && t.suspend_count != 0)
             return nullptr;
 
         return &t;
@@ -138,7 +128,7 @@ void scheduler() {
         t.current_cpu = 0xffffffff;
 
 #ifdef __aarch64__
-        if (thread_in_kernel_mode(t))
+        if (t.kernel_mode)
             t.syscall_stack = (void*)cb.thread_context.Sp;
         else
             t.user_stack = cb.thread_context.Sp;
@@ -190,7 +180,7 @@ void scheduler() {
             cb.time_slice_left = time_slice;
 
 #ifdef __aarch64__
-            if (thread_in_kernel_mode(*cb.current_thread))
+            if (cb.current_thread->kernel_mode)
                 cb.thread_context.Sp = (uint64_t)cb.current_thread->syscall_stack;
             else
                 cb.thread_context.Sp = cb.current_thread->user_stack;

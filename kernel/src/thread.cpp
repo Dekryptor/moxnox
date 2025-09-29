@@ -117,13 +117,7 @@ static void terminate_thread2(::thread& t, bool& last_thread,
     if (t.status == thread_status::dying || t.status == thread_status::dead)
         return;
 
-#ifdef __aarch64__
-    bool kernel_mode = true; // FIXME
-#else
-    bool kernel_mode = t.kernel_mode;
-#endif
-
-    if (kernel_mode) {
+    if (t.kernel_mode) {
         if (t.wait_interruptible) {
             switch (t.status) {
                 case thread_status::waiting: {
@@ -409,9 +403,9 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
     t.context.SegFs = kernel_DS;
     t.context.SegGs = kernel_DS;
     t.context.SegSs = kernel_DS;
+#endif
 
     t.kernel_mode = true;
-#endif
 
     t.teb = nullptr;
 

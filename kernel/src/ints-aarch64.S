@@ -311,6 +311,12 @@ ldr	x19, [x0]
 // switch to kernel x18
 mrs	x18, tpidr_el1
 
+add	x0, x18, #GS_CURRENT_THREAD
+ldr	x0, [x0]
+add	x0, x0, #THREAD_KERNEL_MODE
+mov	x1, #1
+strb	w1, [x0]
+
 msr	DAIFClr, #0xf // enable interrupts
 
 // load x0 and x1 again and call handler
@@ -326,6 +332,11 @@ bl	maybe_yield
 
 bl	release_sync_lock
 mov	x0, x19
+
+add	x19, x18, #GS_CURRENT_THREAD
+ldr	x19, [x19]
+add	x19, x19, #THREAD_KERNEL_MODE
+strb	wzr, [x19]
 
 // restore elr_e1 and spsr_el1
 ldp	x18, x19, [sp, #0x20]
@@ -354,8 +365,6 @@ mov	x14, xzr
 mov	x15, xzr
 mov	x16, xzr
 mov	x17, xzr
-
-// FIXME - maybe_yield
 
 add	sp, sp, #0x40
 eret
