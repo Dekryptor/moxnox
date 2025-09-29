@@ -25,6 +25,9 @@ target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-memb
 target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0 -Wl,--exclude-all-symbols -e efi_main)
 target_link_libraries(efistub format)
 
+# FIXME - why does efistub not work with lld?
+set_property(TARGET efistub PROPERTY LINKER_TYPE BFD)
+
 add_custom_command(
     TARGET efistub
     POST_BUILD
