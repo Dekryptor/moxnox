@@ -105,6 +105,9 @@ scheduler_restore:
     add x1, x1, PROCESS_TTBR0
     ldr x1, [x1]
     msr ttbr0_el1, x1
+    tlbi vmalle1
+    dsb ish
+    isb
 
 0:
     ldr x0, [x18, #GS_CURRENT_THREAD]
