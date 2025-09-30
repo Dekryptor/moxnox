@@ -309,7 +309,7 @@ void nvme_queue::release_slot(uint8_t slot) {
     {
         lock_guard l(slot_lock);
 
-        allocated_slots &= ~(1 << (uint32_t)slot);
+        allocated_slots &= ~((uint32_t)1 << slot);
     }
 
     release_semaphore(static_cast<semaphore&>(sem.get()));
