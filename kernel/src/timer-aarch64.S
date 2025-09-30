@@ -236,7 +236,9 @@ str	x1, [x0, #CONTEXT_SP]
 
 str	lr, [x0, #CONTEXT_PC]
 
-mrs	x1, spsr_el1
+// FIXME - is there an easy way to get the actual CPSR?
+mrs	x1, nzcv
+add	x1, x1, #0x5 // EL1 with SP_EL1
 str	w1, [x0, #CONTEXT_CPSR]
 
 add	x0, x18, GS_SCHEDULER_STACK
