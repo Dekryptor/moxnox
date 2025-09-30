@@ -94,10 +94,15 @@ export bool send_ctrl_c(HANDLE proc) {
     initial_teb.StackAllocationBase = stack;
 
     memset(&context, 0, sizeof(context));
+#ifdef __aarch64__
+    context.Pc = (uintptr_t)addr;
+    context.Sp = (uintptr_t)initial_teb.StackBase - 0x20;
+#else
     context.Rip = (uintptr_t)addr;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
     context.EFlags = 0x200;
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
+#endif
 
     status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc,
                             &client_id, &context, &initial_teb, true);

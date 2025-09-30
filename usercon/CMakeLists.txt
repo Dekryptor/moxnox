@@ -17,10 +17,13 @@ target_sources(usercon PUBLIC FILE_SET CXX_MODULES FILES
 target_compile_options(usercon PRIVATE ${USERSPACE_CFLAGS})
 target_link_options(usercon PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(usercon harfbuzz)
 target_link_libraries(usercon moxnox -lgcc)
 target_link_libraries(usercon format_sse rbtree_sse unique_handle list_sse vt100_sse signal unicode_sse cp437_sse cmdline evdev_sse)
-target_link_libraries(usercon freetype)
+
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    target_link_libraries(usercon harfbuzz)
+    target_link_libraries(usercon freetype)
+endif()
 
 install(TARGETS usercon DESTINATION ${CMAKE_INSTALL_PREFIX}
     CXX_MODULES_BMI EXCLUDE_FROM_ALL)

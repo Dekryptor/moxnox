@@ -47,13 +47,13 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     add_library(unwind_sse STATIC)
     target_sources(unwind_sse PUBLIC FILE_SET CXX_MODULES FILES modules/unwind.cpp)
     target_compile_options(unwind_sse PRIVATE ${USERSPACE_CFLAGS})
-
-    add_library(signal STATIC)
-    target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
-    target_compile_options(signal PRIVATE ${USERSPACE_CFLAGS})
-    target_link_libraries(signal unique_handle)
-    target_link_libraries(signal moxnox)
 endif()
+
+add_library(signal STATIC)
+target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
+target_compile_options(signal PRIVATE ${USERSPACE_CFLAGS})
+target_link_libraries(signal unique_handle)
+target_link_libraries(signal moxnox)
 
 add_library(list STATIC)
 target_sources(list PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
@@ -118,13 +118,13 @@ add_subdirectory(init)
 add_subdirectory(libmoxnox)
 add_subdirectory(kernelbase)
 add_subdirectory(ucrtbase)
+add_subdirectory(usercon)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     add_subdirectory(bootloader/aarch64)
 else()
     add_subdirectory(bootloader/x86)
     add_subdirectory(shell)
-    add_subdirectory(usercon)
 
     set(FREETYPE_FILES freetype/src/autofit/autofit.c
         freetype/src/base/ftbase.c
