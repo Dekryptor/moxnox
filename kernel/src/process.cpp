@@ -754,7 +754,6 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
                     break;
             }
         } else {
-            pte.valid = 0;
             pte.reserved = reserve ? 1 : 0;
 
             switch (protect) {
@@ -872,7 +871,6 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
                     break;
             }
         } else {
-            pte.p = 0;
             pte.u = 1;
             pte.w = 0;
             pte.reserved = reserve ? 1 : 0;
