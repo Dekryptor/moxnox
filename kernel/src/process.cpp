@@ -2825,9 +2825,6 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 extern "C"
 NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          HANDLE, bool, HANDLE section_handle, HANDLE, HANDLE) {
-#ifdef __aarch64__ // FIXME
-    return nt_status::NOT_IMPLEMENTED;
-#else
     object_ref sect;
 
     // FIXME - desired_access
@@ -2866,11 +2863,19 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     p.img = img;
     img.acquire();
 
+#ifdef __aarch64__
+    if (!p.allocate_ttbr0()) {
+        print("process::allocate_ttbr0 failed\n");
+        p.release();
+        return nt_status::INTERNAL_ERROR;
+    }
+#else
     if (!p.allocate_cr3()) {
         print("process::allocate_cr3 failed\n");
         p.release();
         return nt_status::INTERNAL_ERROR;
     }
+#endif
 
     p.img_addr = p.map_section(img, img.preferred_base + img.size > MAX_USERSPACE_ADDRESS ? 0 : img.preferred_base,
                                nullopt, mapping_type::read_only, true, nullptr);
@@ -2928,7 +2933,6 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     *process_handle = h;
 
     return nt_status::SUCCESS;
-#endif
 }
 
 extern "C"
