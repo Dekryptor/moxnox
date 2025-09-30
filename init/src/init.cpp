@@ -271,7 +271,8 @@ static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh
 
     memset(&context, 0, sizeof(context));
 #ifdef __aarch64__
-    // FIXME
+    context.Pc = (uintptr_t)sii.TransferAddress;
+    context.Sp = (uintptr_t)initial_teb.StackBase - 0x20;
 #else
     context.Rip = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
@@ -379,7 +380,8 @@ static void create_thread(void(*func)()) {
 
     memset(&context, 0, sizeof(context));
 #ifdef __aarch64__
-    // FIXME
+    context.Pc = (uintptr_t)func;
+    context.Sp = (uintptr_t)initial_teb.StackBase - 0x20;
 #else
     context.Rip = (uintptr_t)func;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
