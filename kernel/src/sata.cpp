@@ -180,7 +180,7 @@ void sata_device::release_slot(uint8_t slot) {
     {
         lock_guard l(slot_lock);
 
-        allocated_slots &= ~(1 << (uint32_t)slot);
+        allocated_slots &= ~((uint32_t)1 << slot);
     }
 
     release_semaphore(static_cast<semaphore&>(slot_semaphore.get()));
@@ -227,13 +227,13 @@ bool sata_device::identify() {
     auto status = wait_for_object(events[slot].get(), true);
     if (!success(status)) {
         print("sata_device::identify: wait_for_object returned {}\n", status);
-        pending_slots &= ~(1 << slot);
+        pending_slots &= ~((uint32_t)1 << slot);
         release_slot(slot);
         free(buf);
         return false;
     }
 
-    pending_slots &= ~(1 << slot);
+    pending_slots &= ~((uint32_t)1 << slot);
 
     reset_event(static_cast<event&>(events[slot].get()));
 
@@ -532,7 +532,7 @@ void sata_device::isr() {
     for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
         if (signalled & (1 << i)) {
             set_event(static_cast<event&>(events[i].get()));
-            pending_slots &= ~(1 << i);
+            pending_slots &= ~((uint32_t)1 << i);
         }
     }
 }
@@ -553,7 +553,7 @@ void sata_card::isr() {
         if (abar_is & 1 << dev.port_num) {
             dev.isr();
 
-            abar_is &= ~(1 << dev.port_num);
+            abar_is &= ~((uint32_t)1 << dev.port_num);
             if (abar_is == 0)
                 break;
         }
