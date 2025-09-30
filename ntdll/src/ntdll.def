@@ -13,6 +13,7 @@ RtlCaptureContext
 memcmp
 memset
 memmove
+memcpy
 strlen
 memchr
 strcmp
