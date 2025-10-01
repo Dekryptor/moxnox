@@ -940,13 +940,16 @@ export bool init_interrupts() {
 }
 #endif
 
-#ifndef __aarch64__
 static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
                         nt_status exit_status) {
     auto& current_thread = *get_current_thread();
     auto& p = *current_thread.proc;
 
+#ifdef __aarch64__
+    uintptr_t us_context = ctx.Sp - sizeof(CONTEXT);
+#else
     uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
+#endif
 
     us_context &= ~(uint64_t)(alignof(CONTEXT) - 1);
 
@@ -978,6 +981,12 @@ static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
     auto& cb = *get_cpu_block();
 
     memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
+#ifdef __aarch64__
+    cb.thread_context.Pc = p.ntdll_addr + mn_signal;
+    cb.thread_context.X0 = us_er;
+    cb.thread_context.X1 = us_context;
+    cb.thread_context.Sp = us_er;
+#else
     cb.thread_context.Rip = p.ntdll_addr + mn_signal;
     cb.thread_context.Rcx = us_er;
     cb.thread_context.Rdx = us_context;
@@ -987,10 +996,12 @@ static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
         // clear TF flag when we return
         cb.thread_context.EFlags &= ~(uint32_t)0x100;
     }
+#endif
 
     return true;
 }
 
+#ifndef __aarch64__
 extern "C"
 bool page_fault_user(uintptr_t address, uint64_t error_code) {
     auto& current_thread = *get_current_thread();
@@ -1442,16 +1453,18 @@ static void page_fault_user(uint64_t address, uint64_t esr_value,
     if (p.handle_page_fault(address, esr_value))
         return;
 
-    // FIXME - send signal to thread instead
+    EXCEPTION_RECORD er;
 
-    char s[1024];
-    auto sp = span(s, sizeof(s));
+    er.ExceptionFlags = 0;
+    er.ExceptionRecord = nullptr;
+    er.ExceptionAddress = (void*)ctx.Pc;
+    er.ExceptionCode = (uint32_t)nt_status::ACCESS_VIOLATION;
 
-    sp = format(sp, "Page fault in user mode (address = {:x}, thread {:x})\n",
-                address, (uintptr_t)&current_thread);
-    sp = format(sp, "{}", ctx);
+    er.NumberParameters = 2;
+    er.ExceptionInformation[0] = 0; // FIXME - what goes here on aarch64?
+    er.ExceptionInformation[1] = address;
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    send_signal(er, ctx, nt_status::ACCESS_VIOLATION);
 }
 
 extern "C"
