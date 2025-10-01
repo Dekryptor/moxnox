@@ -633,7 +633,7 @@ eret
 	add	x3, x18, GS_CURRENT_THREAD
 	ldr	x3, [x3]
 	add	x2, x3, THREAD_SYSCALL_STACK
-	add	x1, sp, #0x20
+	add	x1, sp, #0x30
 	str	x1, [x2]
 	add	x2, x3, THREAD_USER_STACK
 	mrs	x1, sp_el0
@@ -706,7 +706,8 @@ eret
 .endm
 
 kernel_irq_entry:
-sub	sp, sp, #0x20
+// extra 0x10 bytes for "red zone"
+sub	sp, sp, #0x30
 
 stp	x0, x1, [sp]
 stp	x2, x3, [sp, #0x10]
@@ -730,7 +731,7 @@ kernel_irq_entry_finish:
 ldp	x2, x3, [sp, #0x10]
 ldp	x0, x1, [sp]
 
-add	sp, sp, #0x20
+add	sp, sp, #0x30
 eret
 
 user_irq_entry:
