@@ -531,10 +531,10 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable
     return wait_for_object(objrw.get(), true, t);
 }
 
-#ifndef __aarch64__
 export nt_status wait_for_objects(span<object*> objects, bool wait_any,
                                   optional<uint64_t> timeout = nullopt) {
 #ifdef DEBUG
+#ifndef __aarch64__ // FIXME
     uint64_t cr8 = 0, rflags = 0;
 
     __asm __volatile(
@@ -559,6 +559,7 @@ export nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     if (!(rflags & 0x200)) // IF flag not set
         bsod("calling wait_for_objects with interrupts disabled");
+#endif
 #endif
     auto current_thread = get_current_thread();
 
@@ -679,14 +680,10 @@ export nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     return (enum nt_status)((unsigned int)nt_status::SUCCESS + index);
 }
-#endif
 
 extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
                                   bool wait_any, bool alertable,
                                   const LARGE_INTEGER* timeout) {
-#ifdef __aarch64__ // FIXME
-    return nt_status::NOT_IMPLEMENTED;
-#else
     if (object_count == 1)
         return NtWaitForSingleObject(objects_array[0], alertable, timeout);
 
@@ -740,7 +737,6 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
     }
 
     return ret;
-#endif
 }
 
 export extern "C++" void disable_preempt() {
