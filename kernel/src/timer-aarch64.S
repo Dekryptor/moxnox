@@ -231,15 +231,21 @@ str	w1, [x0, #CONTEXT_FPCR]
 mrs	x1, fpsr
 str	w1, [x0, #CONTEXT_FPSR]
 
-add	x1, sp, #0x10
-str	x1, [x0, #CONTEXT_SP]
-
 str	lr, [x0, #CONTEXT_PC]
 
 // FIXME - is there an easy way to get the actual CPSR?
 mrs	x1, nzcv
 add	x1, x1, #0x5 // EL1 with SP_EL1
 str	w1, [x0, #CONTEXT_CPSR]
+
+add	x0, x18, GS_CURRENT_THREAD
+ldr	x0, [x0]
+add	x2, x0, THREAD_SYSCALL_STACK
+add	x1, sp, #0x10
+str	x1, [x2]
+add	x2, x0, THREAD_USER_STACK
+mrs	x1, sp_el0
+str	x1, [x2]
 
 add	x0, x18, GS_SCHEDULER_STACK
 ldr	x0, [x0]

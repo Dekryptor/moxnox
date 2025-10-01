@@ -69,18 +69,31 @@
 	mrs	x1, fpsr
 	str	w1, [x0, #CONTEXT_FPSR]
 
-	.if \user
-		mrs	x1, sp_el0
-	.else
-		ldr	x1, [x18, #GS_EMERGENCY_SCRATCH + 0x8]
-	.endif
-	str	x1, [x0, #CONTEXT_SP]
-
 	mrs	x1, elr_el1
 	str	x1, [x0, #CONTEXT_PC]
 
 	mrs	x1, spsr_el1
 	str	w1, [x0, #CONTEXT_CPSR]
+
+	.if \user
+		mrs	x1, tpidr_el1
+		add	x3, x1, GS_CURRENT_THREAD
+	.else
+		add	x3, x18, GS_CURRENT_THREAD
+	.endif
+	ldr	x3, [x3]
+
+	.if \user
+		add	x1, sp, 0x10
+	.else
+		ldr	x1, [x18, #GS_EMERGENCY_SCRATCH + 0x8]
+	.endif
+
+	add	x2, x3, THREAD_SYSCALL_STACK
+	str	x1, [x2]
+	add	x2, x3, THREAD_USER_STACK
+	mrs	x1, sp_el0
+	str	x1, [x2]
 
 	// FIXME - debug registers
 
@@ -617,13 +630,14 @@ eret
 	mrs	x1, spsr_el1
 	str	w1, [x0, #CONTEXT_CPSR]
 
-	.if \user
-		mrs	x1, sp_el0
-		str	x1, [x0, #CONTEXT_SP]
-	.else
-		add	x1, sp, #0x20
-		str	x1, [x0, #CONTEXT_SP]
-	.endif
+	add	x3, x18, GS_CURRENT_THREAD
+	ldr	x3, [x3]
+	add	x2, x3, THREAD_SYSCALL_STACK
+	add	x1, sp, #0x20
+	str	x1, [x2]
+	add	x2, x3, THREAD_USER_STACK
+	mrs	x1, sp_el0
+	str	x1, [x2]
 
 	ldp	x2, x3, [sp, #0x10]
 	stp	x2, x3, [x0, #CONTEXT_X0 + 0x10]
