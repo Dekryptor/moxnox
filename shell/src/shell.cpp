@@ -388,9 +388,14 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     initial_teb.StackAllocationBase = stack;
 
     memset(&context, 0, sizeof(context));
+#ifdef __aarch64__
+    context.Pc = (uintptr_t)sii.TransferAddress;
+    context.Sp = (uintptr_t)initial_teb.StackBase - 0x20;
+#else
     context.Rip = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
     context.EFlags = 0x200;
+#endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
 
     status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc.get(),
@@ -626,6 +631,7 @@ static void try_run_program(string_view program, string_view cmdline,
     start_program(sect.get(), sii, cmdline, server_handle, client_handle);
 }
 
+#ifndef __aarch64__
 static void int3() {
     __asm("int 3");
 }
@@ -652,6 +658,7 @@ static void divide_by_zero() {
 static void general_protection_fault() {
     *(uint8_t*)0x123456789abcdef0 = 1;
 }
+#endif
 
 static void scroll(string_view param) {
     int val;
@@ -791,6 +798,7 @@ static void process_line(string_view sv, HANDLE server_handle,
         timer();
     else if (cmd == "segfault")
         segfault(); // TESTING
+#ifndef __aarch64__
     else if (cmd == "int3")
         int3(); // TESTING
     else if (cmd == "int1")
@@ -801,6 +809,7 @@ static void process_line(string_view sv, HANDLE server_handle,
         divide_by_zero(); // TESTING
     else if (cmd == "gpf")
         general_protection_fault(); // TESTING
+#endif
     else if (cmd == "scroll") // TESTING
         scroll(param);
     else if (cmd == "cursor") // TESTING

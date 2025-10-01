@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <span>
 #include <string_view>
+#include <stdlib.h>
 
 import unique_handle;
 import shelllib;

@@ -151,30 +151,34 @@ install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 ###
 
-add_executable(screenshot src/screenshot.cpp)
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    add_executable(screenshot src/screenshot.cpp)
 
-target_compile_options(screenshot PRIVATE ${USERSPACE_CFLAGS})
-target_link_options(screenshot PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+    target_compile_options(screenshot PRIVATE ${USERSPACE_CFLAGS})
+    target_link_options(screenshot PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(screenshot shelllib)
-target_link_libraries(screenshot format_sse unicode_sse cmdline)
-target_link_libraries(screenshot moxnox)
-target_link_libraries(screenshot libpng zlib)
+    target_link_libraries(screenshot shelllib)
+    target_link_libraries(screenshot format_sse unicode_sse cmdline)
+    target_link_libraries(screenshot moxnox)
+    target_link_libraries(screenshot libpng zlib)
 
-install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX})
+    install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX})
+endif()
 
 ###
 
-add_executable(seh-test src/seh-test.cpp)
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    add_executable(seh-test src/seh-test.cpp)
 
-target_compile_options(seh-test PRIVATE ${USERSPACE_CFLAGS})
-target_link_options(seh-test PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+    target_compile_options(seh-test PRIVATE ${USERSPACE_CFLAGS})
+    target_link_options(seh-test PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(seh-test shelllib)
-target_link_libraries(seh-test format_sse)
-target_link_libraries(seh-test moxnox)
+    target_link_libraries(seh-test shelllib)
+    target_link_libraries(seh-test format_sse)
+    target_link_libraries(seh-test moxnox)
 
-install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX})
+    install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX})
+endif()
 
 ###
 
