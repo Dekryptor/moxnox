@@ -1467,6 +1467,7 @@ void handle_user_exception(uint64_t esr_value) {
     }
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    ctx.Sp = t.user_stack;
     t.kernel_mode = true;
 
     enable_interrupts();
