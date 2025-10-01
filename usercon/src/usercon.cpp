@@ -899,9 +899,6 @@ static void recv_data_fb(string_view s) {
 
 static bool run_program(u16string_view exe, u16string_view cmdline,
                         unique_handle& proc, HANDLE client_handle) {
-#ifdef __aarch64__
-    return false; // FIXME
-#else
     HANDLE h, stdinh = 0, stdouth, curdirh = 0;
     unique_handle file, sect, thread;
     OBJECT_ATTRIBUTES oa;
@@ -962,7 +959,13 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
         return false;
     }
 
-    if (sii.Machine != IMAGE_FILE_MACHINE_AMD64) {
+#ifdef __aarch64__
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
+#else
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
+#endif
+
+    if (sii.Machine != this_arch) {
         print("{}: unsupported architecture\n", exe);
         return false;
     }
@@ -1131,9 +1134,14 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
     initial_teb.StackAllocationBase = stack;
 
     memset(&context, 0, sizeof(context));
+#ifdef __aarch64__
+    context.Pc = (uintptr_t)sii.TransferAddress;
+    context.Sp = (uintptr_t)initial_teb.StackBase - 0x20;
+#else
     context.Rip = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
     context.EFlags = 0x200;
+#endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
 
     status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc.get(),
@@ -1150,7 +1158,6 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
     NtResumeThread(thread.get(), nullptr);
 
     return true;
-#endif
 }
 
 static void handle_ctrl_alt_delete(HANDLE client_handle) {
