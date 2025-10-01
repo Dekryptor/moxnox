@@ -623,7 +623,13 @@ static void try_run_program(string_view program, string_view cmdline,
         return;
     }
 
-    if (sii.Machine != IMAGE_FILE_MACHINE_AMD64) {
+#ifdef __aarch64__
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
+#else
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
+#endif
+
+    if (sii.Machine != this_arch) {
         print("{}: unsupported architecture\n", program); // FIXME - stderr
         return;
     }
