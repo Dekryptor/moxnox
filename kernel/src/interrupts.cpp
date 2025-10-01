@@ -1376,9 +1376,13 @@ static void page_fault_kernel() {
 
 extern "C"
 void handle_kernel_exception(uint64_t esr_value) {
+    auto& cb = *get_cpu_block();
     ARM64_ESR esr;
 
     esr.value = esr_value;
+
+    if (cb.current_thread)
+        cb.thread_context.Sp = (uint64_t)cb.current_thread->syscall_stack;
 
     switch (esr.EC) {
         case 0: // "Unknown reason"
