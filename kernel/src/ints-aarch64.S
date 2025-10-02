@@ -600,6 +600,12 @@ eret
 	stp	x24, x25, [x0, #CONTEXT_X0 + 0xc0]
 	stp	x26, x27, [x0, #CONTEXT_X0 + 0xd0]
 	stp	x28, fp, [x0, #CONTEXT_X0 + 0xe0]
+
+	.if \user
+		ldr	lr, [sp, #0x28]
+	.else
+		ldr	lr, [sp, #0x20]
+	.endif
 	str	lr, [x0, #CONTEXT_X0 + 0xf0]
 
 	str	q0, [x0, #CONTEXT_V0]
@@ -652,7 +658,11 @@ eret
 	add	x3, x18, GS_CURRENT_THREAD
 	ldr	x3, [x3]
 	add	x2, x3, THREAD_SYSCALL_STACK
-	add	x1, sp, #0x30
+	.if \user
+		add	x1, sp, #0x30
+	.else
+		add	x1, sp, #0x40
+	.endif
 	str	x1, [x2]
 	add	x2, x3, THREAD_USER_STACK
 	mrs	x1, sp_el0
@@ -731,10 +741,11 @@ eret
 
 kernel_irq_entry:
 // extra 0x10 bytes for "red zone"
-sub	sp, sp, #0x30
+sub	sp, sp, #0x40
 
 stp	x0, x1, [sp]
 stp	x2, x3, [sp, #0x10]
+stp	lr, xzr, [sp, #0x20]
 
 adr	x2, gicc
 ldr	x2, [x2]
@@ -752,10 +763,11 @@ b	kernel_irq_entry_finish
 do_irq
 
 kernel_irq_entry_finish:
+ldp	lr, xzr, [sp, #0x20]
 ldp	x2, x3, [sp, #0x10]
 ldp	x0, x1, [sp]
 
-add	sp, sp, #0x30
+add	sp, sp, #0x40
 eret
 
 user_irq_entry:
@@ -763,7 +775,7 @@ sub	sp, sp, #0x30
 
 stp	x0, x1, [sp]
 stp	x2, x3, [sp, #0x10]
-stp	x18, xzr, [sp, #0x20]
+stp	x18, lr, [sp, #0x20]
 mrs	x18, tpidr_el1
 
 adr	x2, gicc
@@ -782,7 +794,7 @@ b	user_irq_entry_finish
 do_irq
 
 user_irq_entry_finish:
-ldp	x18, xzr, [sp, #0x20]
+ldp	x18, lr, [sp, #0x20]
 ldp	x2, x3, [sp, #0x10]
 ldp	x0, x1, [sp]
 
