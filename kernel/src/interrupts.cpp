@@ -1469,6 +1469,26 @@ static void page_fault_user(uint64_t address, uint64_t esr_value,
     send_signal(er, ctx, nt_status::ACCESS_VIOLATION);
 }
 
+static void breakpoint_user(uint64_t esr_value, CONTEXT& ctx) {
+    ARM64_ESR esr;
+
+    esr.value = esr_value;
+
+    EXCEPTION_RECORD er;
+
+    er.ExceptionFlags = 0;
+    er.ExceptionRecord = nullptr;
+    er.ExceptionAddress = (void*)ctx.Pc;
+    er.ExceptionCode = (uint32_t)nt_status::BREAKPOINT;
+
+    // FIXME - does NT return the ISS value like this?
+
+    er.NumberParameters = 1;
+    er.ExceptionInformation[0] = esr.ISS;
+
+    send_signal(er, ctx, nt_status::BREAKPOINT);
+}
+
 extern "C"
 void handle_user_exception(uint64_t esr_value) {
     auto& t = *get_current_thread();
@@ -1500,6 +1520,10 @@ void handle_user_exception(uint64_t esr_value) {
         case 0x20: // Instruction Abort from lower EL
         case 0x24: // Data Abort from lower EL
             page_fault_user(address, esr_value, ctx);
+            break;
+
+        case 0x3c: // BRK instruction execution in AArch64 state
+            breakpoint_user(esr_value, ctx);
             break;
 
         default:
