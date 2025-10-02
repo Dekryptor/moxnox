@@ -20,7 +20,6 @@ using namespace std;
 
 static_assert(offsetof(EXCEPTION_RECORD, ExceptionAddress) == EXCEPTION_RECORD_EXCEPTION_ADDRESS);
 
-#ifndef __aarch64__
 static ldr_entry* get_ldr_from_address(uint64_t addr) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto& ldr_data = *peb.Ldr;
@@ -92,6 +91,7 @@ static void print_rip(uint64_t rip) {
     print("{}", string_view(s, (size_t)(sp.data() - s)));
 }
 
+#ifndef __aarch64__
 optional<uint64_t> read_uint64_t(uint64_t addr) {
     NTSTATUS status;
     uint64_t ret;
@@ -104,16 +104,22 @@ optional<uint64_t> read_uint64_t(uint64_t addr) {
 
     return ret;
 }
+#endif
 
 static bool do_unwind_context(CONTEXT& context, UNWIND_INFO** unwind_info) {
+#ifdef __aarch64__
+    return false; // FIXME
+#else
     auto ent = get_ldr_from_address(context.Rip);
     if (!ent)
         return false;
 
     return unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage,
                           unwind_info);
+#endif
 }
 
+#ifndef __aarch64__
 static nt_status handle_exception(EXCEPTION_RECORD* exception,
                                   const CONTEXT& orig_context) {
     CONTEXT context;
@@ -180,12 +186,10 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 
 extern "C" FORCE_ALIGN_ARG_POINTER
 void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
-#ifdef __aarch64__
-    while (true) { } // FIXME
-#else
     char s[1024];
     auto sp = span(s, sizeof(s));
 
+#ifndef __aarch64__
     auto status = handle_exception(exception, *context);
     if (success(status))
         NtContinue(context, false); // doesn't return
@@ -194,6 +198,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         sp = format(sp, "Error {} received while trying to handle exception\n", status);
         print("{}", string_view(s, (size_t)(sp.data() - s)));
     }
+#endif
 
     // FIXME - print EXE name
 
@@ -238,7 +243,11 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         print("\n");
 
         do {
+#ifdef __aarch64__
+            print_rip(context->Pc);
+#else
             print_rip(context->Rip);
+#endif
 
             if (!do_unwind_context(*context, nullptr))
                 break;
@@ -246,7 +255,6 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     }
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
-#endif
 }
 
 extern "C"
