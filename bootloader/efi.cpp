@@ -97,6 +97,47 @@ union ARM64_TCR_EL1 {
 
 static_assert(sizeof(ARM64_TCR_EL1) == 8);
 
+union ARM64_SCTLR_EL1 {
+    struct {
+        uint64_t M : 1;
+        uint64_t A : 1;
+        uint64_t C : 1;
+        uint64_t SA : 1;
+        uint64_t SA0 : 1;
+        uint64_t : 1;
+        uint64_t nAA : 1;
+        uint64_t : 2;
+        uint64_t UMA : 1;
+        uint64_t EnRCTX : 1;
+        uint64_t : 1;
+        uint64_t I : 1;
+        uint64_t EnDB : 1;
+        uint64_t DZE : 1;
+        uint64_t UCT : 1;
+        uint64_t nTWI : 1;
+        uint64_t BR : 1;
+        uint64_t nTWE : 1;
+        uint64_t WXN : 1;
+        uint64_t : 1;
+        uint64_t IESB : 1;
+        uint64_t : 1;
+        uint64_t SPAN : 1;
+        uint64_t E0E : 1;
+        uint64_t EE : 1;
+        uint64_t UCI : 1;
+        uint64_t EnDA : 1;
+        uint64_t : 2;
+        uint64_t EnIB : 1;
+        uint64_t EnIA : 1;
+        uint64_t : 12;
+        uint64_t DSSBS : 1;
+        uint64_t : 19;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_SCTLR_EL1) == 8);
+
 struct ARM64_HARDWARE_PTE {
     uint64_t valid : 1;
     uint64_t table_entry : 1;
@@ -2016,6 +2057,25 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
         tcr.EPD1 = 0; // enable upper-half page-walking
 
         tcr_el1_store(tcr.value);
+    }
+
+    {
+        ARM64_SCTLR_EL1 sctlr;
+
+        __asm __volatile (
+            "mrs %x[res], sctlr_el1"
+            : [res] "=r" (sctlr.value)
+        );
+
+        sctlr.A = 0; // allow unaligned
+        sctlr.SA = 1; // stack alignment in kernel mode
+        sctlr.SA0 = 1; // stack alignment in user mode
+
+        __asm __volatile (
+            "msr sctlr_el1, %x[res]"
+            :
+            : [res] "r" (sctlr.value)
+        );
     }
 
     void (*startup)(loader_block* lb);
