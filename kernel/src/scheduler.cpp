@@ -470,7 +470,13 @@ export bool init_cpu_block(unsigned int cpu_no) {
     if (!stack)
         return false;
 
-    cb.scheduler_stack = ((uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT)) - 0x20; // 0x20 for MS ABI
+    cb.scheduler_stack = (uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
+
+#ifdef __aarch64__
+    cb.scheduler_stack = (uint8_t*)cb.scheduler_stack - 0x10; // 0x10 for red zone
+#else
+    cb.scheduler_stack = (uint8_t*)cb.scheduler_stack - 0x20; // 0x20 for MS ABI
+#endif
 
 #ifdef __aarch64__
     if (cpu_no == 0)
