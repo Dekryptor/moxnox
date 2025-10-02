@@ -946,7 +946,7 @@ static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
     auto& p = *current_thread.proc;
 
 #ifdef __aarch64__
-    uintptr_t us_context = ctx.Sp - sizeof(CONTEXT);
+    uintptr_t us_context = ctx.Sp - sizeof(CONTEXT) - 0x10; // 0x10 bytes for red zone
 #else
     uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
 #endif
