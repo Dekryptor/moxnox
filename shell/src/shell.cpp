@@ -637,11 +637,15 @@ static void try_run_program(string_view program, string_view cmdline,
     start_program(sect.get(), sii, cmdline, server_handle, client_handle);
 }
 
-#ifndef __aarch64__
 static void int3() {
+#ifdef __aarch64__
+    __asm("brk #1337");
+#else
     __asm("int 3");
+#endif
 }
 
+#ifndef __aarch64__
 static void int1() {
     __asm __volatile(
         "pushf\n"
@@ -804,9 +808,9 @@ static void process_line(string_view sv, HANDLE server_handle,
         timer();
     else if (cmd == "segfault")
         segfault(); // TESTING
-#ifndef __aarch64__
     else if (cmd == "int3")
         int3(); // TESTING
+#ifndef __aarch64__
     else if (cmd == "int1")
         int1(); // TESTING
     else if (cmd == "ill")
