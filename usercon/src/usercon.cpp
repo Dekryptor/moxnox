@@ -1136,10 +1136,10 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
     memset(&context, 0, sizeof(context));
 #ifdef __aarch64__
     context.Pc = (uintptr_t)sii.TransferAddress;
-    context.Sp = (uintptr_t)initial_teb.StackBase - 0x20;
+    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
 #else
     context.Rip = (uintptr_t)sii.TransferAddress;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20;
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20; // 0x20 bytes for MS ABI
     context.EFlags = 0x200;
 #endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
