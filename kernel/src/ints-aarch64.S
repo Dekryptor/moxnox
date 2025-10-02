@@ -870,7 +870,9 @@ msr	fpsr, x1
 msr	DAIFSet, #0xf // disable interrupts
 
 ldr	w1, [sp, #CONTEXT_CPSR]
-and	w1, w1, #0xfe000000 // only allow condition flags
+// only allow N, Z, C, V, Q, and GE flags (is this right?)
+mov	w0, #0xf80f0000
+and	w1, w1, w0
 msr	spsr_el1, x1
 
 ldr	x1, [sp, #CONTEXT_PC]
