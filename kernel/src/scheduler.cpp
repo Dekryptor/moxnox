@@ -130,13 +130,11 @@ void scheduler() {
         if (t.proc)
             t.proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
-#ifndef __aarch64__
         if (t.kernel_mode && t.status == thread_status::dying) { // kernel thread died
             bool last_thread;
 
             thread_died(t, last_thread, false);
         }
-#endif
 
         if (t.status == thread_status::running)
             t.status = thread_status::runnable;
@@ -359,7 +357,6 @@ export extern "C++" unsigned int wake_up_waiters(list_entry& waiters) {
     return ret;
 }
 
-#ifndef __aarch64__
 extern "C"
 void wait_timeout_expired(thread* tptr) {
     // interrupts disabled and sync_lock held
@@ -385,7 +382,6 @@ void wait_timeout_expired(thread* tptr) {
 
     t.status = thread_status::runnable;
 }
-#endif
 
 #ifdef __aarch64__
 template<bool no_lock>
