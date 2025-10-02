@@ -42,12 +42,27 @@ using spinlock = _spinlock<5>;
 class sync_lock {
 public:
     void lock() {
+        uint32_t current_priority;
+        auto& GICC_PMR = *(volatile uint32_t*)(gicc + 0x4);
+
+        current_priority = GICC_PMR;
+        GICC_PMR = 0;
+
         acquire_sync_lock();
+
+        old_priority = current_priority;
     }
 
     void unlock() {
         release_sync_lock();
+
+        auto& GICC_PMR = *(volatile uint32_t*)(gicc + 0x4);
+
+        GICC_PMR = old_priority;
     }
+
+private:
+    uint32_t old_priority;
 };
 
 #else
