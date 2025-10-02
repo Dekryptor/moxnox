@@ -1244,7 +1244,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
                        PAGE_SIZE);
                 pte->pfn = pfn;
             } else {
-                visit([&](auto* ptr) {
+                auto ret = visit([&](auto* ptr) {
                     auto& cache = *ptr;
 
                     cache.read_into_cache_and_pin(sect_page_num, 1);
@@ -1286,11 +1286,24 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
 
                     return true;
                 }, m->sect.get_cache());
+
+                if (!ret) {
+                    m->release();
+                    return false;
+                }
             }
 
             m->release();
 
-            pte->AP = ARM64_PTE_AP_EL0RW; // FIXME - do we need tlb flush?
+            pte->AP = ARM64_PTE_AP_EL0RW;
+
+            __asm __volatile (
+                "tlbi vae1, %x[res]\n"
+                "dsb ish\n"
+                "isb\n"
+                :
+                : [res] "r" (address >> PAGE_SHIFT)
+            );
 
 #if 0 // FIXME
             if (send_ipi)
