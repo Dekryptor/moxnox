@@ -1,4 +1,5 @@
 #include "context_offsets.h"
+#include "tick_rate.h"
 
 .equ GICC_IAR_OFFSET, 0xc
 .equ GICC_EOIR_OFFSET, 0x10
@@ -674,9 +675,14 @@ eret
 	mov	x0, #1
 	msr	cntp_ctl_el0, x0
 
+	adr	x0, system_time
+	ldr	x1, [x0]
+	mov	x2, #(SYSTEM_TIME_RESOLUTION / TICK_RATE)
+	add	x1, x1, x2
+	str	x1, [x0]
+
 	// FIXME - timers
 	// FIXME - wait timeouts
-	// FIXME - system time
 
 	// decrease time slice
 
