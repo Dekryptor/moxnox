@@ -2055,6 +2055,12 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
         tcr.T1SZ = 16; // 48-bit memory size
         tcr.HA = 0; // hardware access flag disabled
         tcr.EPD1 = 0; // enable upper-half page-walking
+        tcr.IRGN0 = 1; // normal memory, inner WB RA WA cacheable
+        tcr.ORGN0 = 1; // normal memory, outer WB RA WA cacheable
+        tcr.SH0 = 3; // inner shareable
+        tcr.IRGN1 = 1; // normal memory, inner WB RA WA cacheable
+        tcr.ORGN1 = 1; // normal memory, outer WB RA WA cacheable
+        tcr.SH1 = 3; // inner shareable
 
         tcr_el1_store(tcr.value);
     }
