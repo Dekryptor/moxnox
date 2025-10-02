@@ -1426,23 +1426,24 @@ static void invalid_opcode_user(const CONTEXT& ctx) {
     bsod(string_view(s, (size_t)(sp.data() - s)));
 }
 
-static void unhandled_user_exception(uint64_t esr_value, const CONTEXT& ctx) {
+static void unhandled_user_exception(uint64_t esr_value, CONTEXT& ctx) {
     ARM64_ESR esr;
 
     esr.value = esr_value;
 
-    // FIXME - send signal to thread instead
+    // FIXME - what exactly does NT do in this case?
 
-    char s[1024];
-    auto sp = span(s, sizeof(s));
+    EXCEPTION_RECORD er;
 
-    sp = format(sp, "Unhandled exception in user mode (thread {:x})\n",
-                (uintptr_t)get_current_thread());
-    sp = format(sp, "ESR_EL1 = {:08x} (ISS = {:x}, IL = {:x}, EC = {:x}, ISS2 = {:x})\n",
-                esr_value, esr.ISS, esr.IL, esr.EC, esr.ISS2);
-    sp = format(sp, "{}", ctx);
+    er.ExceptionFlags = 0;
+    er.ExceptionRecord = nullptr;
+    er.ExceptionAddress = (void*)ctx.Pc;
+    er.ExceptionCode = (uint32_t)nt_status::UNHANDLED_EXCEPTION;
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    er.NumberParameters = 1;
+    er.ExceptionInformation[0] = esr_value;
+
+    send_signal(er, ctx, nt_status::UNHANDLED_EXCEPTION);
 }
 
 static void page_fault_user(uint64_t address, uint64_t esr_value,
