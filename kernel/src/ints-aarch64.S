@@ -297,7 +297,11 @@ b	handle_kernel_exception
 
 		.text
 		"stack_\name":
-			sub	sp, sp, 0x50 + (\args - 8) * 8 // FIXME - make sure aligned
+			.if \args % 2 == 1
+				sub	sp, sp, 0x50 + (\args - 7) * 8
+			.else
+				sub	sp, sp, 0x50 + (\args - 8) * 8
+			.endif
 
 			stp	x0, x1, [sp]
 			stp	x2, x3, [sp, #0x10]
@@ -320,7 +324,13 @@ b	handle_kernel_exception
 			mov	w0, 5
 			movk	w0, #0xc000, lsl 16
 			ldr	lr, [sp, #0x40 + ((\args - 8) * 8)]
-			add	sp, sp, 0x50 + (\args - 8) * 8
+
+			.if \args % 2 == 1
+				add	sp, sp, 0x50 + (\args - 7) * 8
+			.else
+				add	sp, sp, 0x50 + (\args - 8) * 8
+			.endif
+
 			ret
 
 0:
@@ -333,7 +343,12 @@ b	handle_kernel_exception
 			bl	"user_\name"
 
 			ldr	lr, [sp, #((\args - 8) * 8)]
-			add	sp, sp, 0x10 + ((\args - 8) * 8)
+
+			.if \args % 2 == 1
+				add	sp, sp, 0x10 + ((\args - 7) * 8)
+			.else
+				add	sp, sp, 0x10 + ((\args - 8) * 8)
+			.endif
 			ret
 
 		.section .rdata
