@@ -654,21 +654,35 @@ static void int1() {
     );
 }
 
-static void illegal_instruction() {
-    __asm("ud2");
-}
-
-static void divide_by_zero() {
-    __asm __volatile(
-        "xor rax, rax\n"
-        "idiv rax\n"
-    );
-}
-
 static void general_protection_fault() {
     *(uint8_t*)0x123456789abcdef0 = 1;
 }
 #endif
+
+static void illegal_instruction() {
+#ifdef __aarch64__
+    __asm("udf #1337");
+#else
+    __asm("ud2");
+#endif
+}
+
+static void divide_by_zero() {
+#ifdef __aarch64__
+    // no exception on aarch64
+    __asm __volatile(
+        "udiv x0, x0, xzr"
+        :
+        :
+        : "x0"
+    );
+#else
+    __asm __volatile(
+        "xor rax, rax\n"
+        "idiv rax\n"
+    );
+#endif
+}
 
 static void scroll(string_view param) {
     int val;
@@ -810,13 +824,13 @@ static void process_line(string_view sv, HANDLE server_handle,
         segfault(); // TESTING
     else if (cmd == "int3")
         int3(); // TESTING
-#ifndef __aarch64__
-    else if (cmd == "int1")
-        int1(); // TESTING
     else if (cmd == "ill")
         illegal_instruction(); // TESTING
     else if (cmd == "div")
         divide_by_zero(); // TESTING
+#ifndef __aarch64__
+    else if (cmd == "int1")
+        int1(); // TESTING
     else if (cmd == "gpf")
         general_protection_fault(); // TESTING
 #endif
