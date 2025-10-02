@@ -534,16 +534,22 @@ export  object_ref create_process(string_view fn, string_view curdir,
     initial_teb.StackLimit = (uint8_t*)stackaddr + stack_size;
     initial_teb.StackAllocationBase = stackaddr;
 
-    uintptr_t entry_point_ctx_addr = (uintptr_t)stackaddr + stack_size - sizeof(CONTEXT) - 0x20;
+    uintptr_t entry_point_ctx_addr = (uintptr_t)stackaddr + stack_size - sizeof(CONTEXT);
+
+#ifdef __aarch64__
+    entry_point_ctx_addr -= 0x10; // 0x10 for red zone
+#else
+    entry_point_ctx_addr -= 0x20; // 0x20 for MS ABI
+#endif
 
     memset(&entry_point_context, 0, sizeof(entry_point_context));
 
 #ifdef __aarch64__
     entry_point_context.Pc = p.img_addr + img.entry_point;
-    entry_point_context.Sp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
+    entry_point_context.Sp = entry_point_ctx_addr + sizeof(CONTEXT);
 #else
     entry_point_context.Rip = p.img_addr + img.entry_point;
-    entry_point_context.Rsp = (uintptr_t)stackaddr + stack_size - 0x20; // 0x20 for MS ABI
+    entry_point_context.Rsp = entry_point_ctx_addr + sizeof(CONTEXT);
 #endif
 
     if (!p.copy_to((void*)entry_point_ctx_addr, &entry_point_context, sizeof(entry_point_context))) {
