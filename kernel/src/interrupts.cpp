@@ -1413,17 +1413,16 @@ void handle_kernel_exception(uint64_t esr_value) {
     }
 }
 
-static void invalid_opcode_user(const CONTEXT& ctx) {
-    // FIXME - send signal to thread instead
+static void invalid_opcode_user(CONTEXT& ctx) {
+    EXCEPTION_RECORD er;
 
-    char s[1024];
-    auto sp = span(s, sizeof(s));
+    er.ExceptionCode = (uint32_t)nt_status::ILLEGAL_INSTRUCTION;
+    er.ExceptionFlags = 0;
+    er.ExceptionRecord = nullptr;
+    er.ExceptionAddress = (void*)ctx.Pc;
+    er.NumberParameters = 0;
 
-    sp = format(sp, "Invalid opcode in user mode (thread {:x})\n",
-                (uintptr_t)get_current_thread());
-    sp = format(sp, "{}", ctx);
-
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    send_signal(er, ctx, nt_status::ILLEGAL_INSTRUCTION);
 }
 
 static void unhandled_user_exception(uint64_t esr_value, CONTEXT& ctx) {
