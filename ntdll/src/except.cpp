@@ -230,6 +230,26 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
                 sp = format(sp, "Unhandled single-step breakpoint\n");
             break;
 
+#ifdef __aarch64__
+            case nt_status::UNHANDLED_EXCEPTION: {
+                union ARM64_ESR {
+                    struct {
+                        uint64_t ISS : 25;
+                        uint64_t IL : 1;
+                        uint64_t EC : 6;
+                        uint64_t ISS2 : 24;
+                    };
+                    uint64_t value;
+                } __attribute((packed)) esr;
+
+                esr.value = exception->ExceptionInformation[0];
+
+                sp = format(sp, "Unhandled exception (ESR_EL1 = {:08x} [ISS = {:x}, IL = {:x}, EC = {:x}, ISS2 = {:x}])\n",
+                            esr.value, esr.ISS, esr.IL, esr.EC, esr.ISS2);
+                break;
+            }
+#endif
+
             default:
                 sp = format(sp, "Unhandled exception {:08x}\n", exception->ExceptionCode);
             break;
