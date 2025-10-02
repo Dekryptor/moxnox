@@ -71,9 +71,6 @@ extern "C++" {
 
 #else
 
-static_assert(offsetof(timer, le) == TIMER_LE);
-static_assert(offsetof(timer, ticks_left) == TIMER_TICKS_LEFT);
-
 static const uint8_t timer_interrupt = 0x20;
 static const uint8_t timer_ap_interrupt = 0x24;
 
@@ -84,6 +81,9 @@ uint32_t apic_timer_freq;
 export const uint32_t PIT_HZ = 1193182;
 
 #endif
+
+static_assert(offsetof(timer, le) == TIMER_LE);
+static_assert(offsetof(timer, ticks_left) == TIMER_TICKS_LEFT);
 
 static const unsigned int TIMER_PERIOD_RESOLUTION = 1000; // milliseconds
 

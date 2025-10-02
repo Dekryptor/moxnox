@@ -26,6 +26,9 @@
 #define CONTEXT_FPSR 0x314
 #define CONTEXT_SIZEOF 0x390
 
+#define TIMER_LE 0x28
+#define TIMER_TICKS_LEFT 0x38
+
 #define PROCESS_TTBR0 0x50
 
 #else

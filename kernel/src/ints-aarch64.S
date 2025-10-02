@@ -676,6 +676,109 @@ eret
 	str	x1, [x0, #CONTEXT_X0]
 .endm
 
+.macro call_timer_expired
+	sub	sp, sp, #0x2b0
+	stp	x0, x1, [sp]
+	stp	x2, x3, [sp, #0x10]
+	stp	x4, x5, [sp, #0x20]
+	stp	x6, x7, [sp, #0x30]
+	stp	x8, x9, [sp, #0x40]
+	stp	x10, x11, [sp, #0x50]
+	stp	x12, x13, [sp, #0x60]
+	stp	x14, x15, [sp, #0x70]
+	stp	x16, x17, [sp, #0x80]
+	stp	x29, x30, [sp, #0x90]
+
+	mrs	x0, fpcr
+	mrs	x1, fpsr
+	stp	x0, x1, [sp, #0xa0]
+
+	str	q0, [sp, #0xb0]
+	str	q1, [sp, #0xc0]
+	str	q2, [sp, #0xd0]
+	str	q3, [sp, #0xe0]
+	str	q4, [sp, #0xf0]
+	str	q5, [sp, #0x100]
+	str	q6, [sp, #0x110]
+	str	q7, [sp, #0x120]
+	str	q8, [sp, #0x130]
+	str	q9, [sp, #0x140]
+	str	q10, [sp, #0x150]
+	str	q11, [sp, #0x160]
+	str	q12, [sp, #0x170]
+	str	q13, [sp, #0x180]
+	str	q14, [sp, #0x190]
+	str	q15, [sp, #0x1a0]
+	str	q16, [sp, #0x1b0]
+	str	q17, [sp, #0x1c0]
+	str	q18, [sp, #0x1d0]
+	str	q19, [sp, #0x1e0]
+	str	q20, [sp, #0x1f0]
+	str	q21, [sp, #0x200]
+	str	q22, [sp, #0x210]
+	str	q23, [sp, #0x220]
+	str	q24, [sp, #0x230]
+	str	q25, [sp, #0x240]
+	str	q26, [sp, #0x250]
+	str	q27, [sp, #0x260]
+	str	q28, [sp, #0x270]
+	str	q29, [sp, #0x280]
+	str	q30, [sp, #0x290]
+	str	q31, [sp, #0x2a0]
+
+	ldr	x0, [sp]
+	bl	timer_expired
+
+	ldr	q31, [sp, #0x2a0]
+	ldr	q30, [sp, #0x290]
+	ldr	q29, [sp, #0x280]
+	ldr	q28, [sp, #0x270]
+	ldr	q27, [sp, #0x260]
+	ldr	q26, [sp, #0x250]
+	ldr	q25, [sp, #0x240]
+	ldr	q24, [sp, #0x230]
+	ldr	q23, [sp, #0x220]
+	ldr	q22, [sp, #0x210]
+	ldr	q21, [sp, #0x200]
+	ldr	q20, [sp, #0x1f0]
+	ldr	q19, [sp, #0x1e0]
+	ldr	q18, [sp, #0x1d0]
+	ldr	q17, [sp, #0x1c0]
+	ldr	q16, [sp, #0x1b0]
+	ldr	q15, [sp, #0x1a0]
+	ldr	q14, [sp, #0x190]
+	ldr	q13, [sp, #0x180]
+	ldr	q12, [sp, #0x170]
+	ldr	q11, [sp, #0x160]
+	ldr	q10, [sp, #0x150]
+	ldr	q9, [sp, #0x140]
+	ldr	q8, [sp, #0x130]
+	ldr	q7, [sp, #0x120]
+	ldr	q6, [sp, #0x110]
+	ldr	q5, [sp, #0x100]
+	ldr	q4, [sp, #0xf0]
+	ldr	q3, [sp, #0xe0]
+	ldr	q2, [sp, #0xd0]
+	ldr	q1, [sp, #0xc0]
+	ldr	q0, [sp, #0xb0]
+
+	ldp	x0, x1, [sp, #0xa0]
+	msr	fpcr, x0
+	msr	fpsr, x1
+
+	ldp	x29, x30, [sp, #0x90]
+	ldp	x16, x17, [sp, #0x80]
+	ldp	x14, x15, [sp, #0x70]
+	ldp	x12, x13, [sp, #0x60]
+	ldp	x10, x11, [sp, #0x50]
+	ldp	x8, x9, [sp, #0x40]
+	ldp	x6, x7, [sp, #0x30]
+	ldp	x4, x5, [sp, #0x20]
+	ldp	x2, x3, [sp, #0x10]
+	ldp	x0, x1, [sp]
+	add	sp, sp, #0x2b0
+.endm
+
 // can only use x0, x1, x2, and x3
 .macro timer_isr user
 	// start clock again
@@ -685,13 +788,42 @@ eret
 	mov	x0, #1
 	msr	cntp_ctl_el0, x0
 
+	// system time
+
 	adr	x0, system_time
 	ldr	x1, [x0]
 	mov	x2, #(SYSTEM_TIME_RESOLUTION / TICK_RATE)
 	add	x1, x1, x2
 	str	x1, [x0]
 
-	// FIXME - timers
+	// timers
+	bl	acquire_sync_lock
+
+	adr	x1, active_timer_list  // set x1 to &active_timer_list
+	ldr	x0, [x1]  // set x0 to active_timer_list.next
+
+8:
+	cmp	x0, x1
+	b.eq	7f
+
+	ldr	x2, [x0] // set x2 to le->next
+	sub	x0, x0, #TIMER_LE
+
+	// reduce ticks_left
+	ldr	x3, [x0, #TIMER_TICKS_LEFT]
+	sub	x3, x3, #1
+	str	x3, [x0, #TIMER_TICKS_LEFT]
+	cbnz	x3, 6f
+
+	call_timer_expired
+
+6:
+	mov	x0, x2
+	b	8b
+
+7:
+	bl	release_sync_lock
+
 	// FIXME - wait timeouts
 
 	// decrease time slice
