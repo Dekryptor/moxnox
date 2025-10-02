@@ -940,7 +940,7 @@ export bool init_interrupts() {
 }
 #endif
 
-static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
+static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
                         nt_status exit_status) {
     auto& current_thread = *get_current_thread();
     auto& p = *current_thread.proc;
@@ -976,17 +976,18 @@ static bool send_signal(const EXCEPTION_RECORD& er, const CONTEXT& ctx,
         return false;
     }
 
+#ifdef __aarch64__
+    ctx.Pc = p.ntdll_addr + mn_signal;
+    ctx.X0 = us_er;
+    ctx.X1 = us_context;
+    ctx.Sp = us_er;
+#else
     disable_interrupts();
 
     auto& cb = *get_cpu_block();
 
     memcpy(&cb.thread_context, &ctx, sizeof(CONTEXT));
-#ifdef __aarch64__
-    cb.thread_context.Pc = p.ntdll_addr + mn_signal;
-    cb.thread_context.X0 = us_er;
-    cb.thread_context.X1 = us_context;
-    cb.thread_context.Sp = us_er;
-#else
+
     cb.thread_context.Rip = p.ntdll_addr + mn_signal;
     cb.thread_context.Rcx = us_er;
     cb.thread_context.Rdx = us_context;
@@ -1445,7 +1446,7 @@ static void unhandled_user_exception(uint64_t esr_value, const CONTEXT& ctx) {
 }
 
 static void page_fault_user(uint64_t address, uint64_t esr_value,
-                            const CONTEXT& ctx) {
+                            CONTEXT& ctx) {
     auto& current_thread = *get_current_thread();
 
     auto& p = *current_thread.proc;
