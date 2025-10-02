@@ -1175,11 +1175,11 @@ static bool load_initrd(void* data, uintptr_t size) {
     auto num_pages = bytes_to_pages(size);
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        auto pa = allocate_page();
+        auto pa = allocate_folio_no_lock(0, page_state::used);
         if (!pa)
             bsod("allocate_page failed in load_initrd");
 
-        if (!map_page(pa, (uintptr_t)initrd_addr + (i << PAGE_SHIFT), mapping_type::read_write))
+        if (!map_page<true>(pa, (uintptr_t)initrd_addr + (i << PAGE_SHIFT), mapping_type::read_write))
             bsod("map_page failed in load_initrd");
     }
 
