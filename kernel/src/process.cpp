@@ -3435,7 +3435,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.X2 = ctx_addr;
     t.context.X18 = (uintptr_t)t.teb;
 
-    t.user_stack = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
+    t.user_stack = (uintptr_t)img_info_addr - 0x10; // 0x10 for red zone
 #else
     memset(&t.syscall_context, 0, sizeof(CONTEXT));
 
@@ -3463,7 +3463,13 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    t.syscall_stack = ((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT)) - 0x20; // 0x20 for MS ABI
+    t.syscall_stack = (uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
+
+#ifdef __aarch64__
+    t.syscall_stack = (uint8_t*)t.syscall_stack - 0x10; // 0x10 bytes for red zone
+#else
+    t.syscall_stack = (uint8_t*)t.syscall_stack - 0x20; // 0x20 bytes for MS ABI
+#endif
 
     t.proc = this;
     this->acquire();
