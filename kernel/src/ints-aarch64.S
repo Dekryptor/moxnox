@@ -190,6 +190,9 @@
 	ldr	w1, [x0, #CONTEXT_CPSR]
 	msr	spsr_el1, x1
 
+	ldr	x1, [x0, #CONTEXT_SP]
+	msr	sp_el0, x1
+
 	ldr x1, [x0, #CONTEXT_X0 + 0x8]
 	ldr x0, [x0, #CONTEXT_X0]
 .endm
