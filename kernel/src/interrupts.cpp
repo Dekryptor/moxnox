@@ -1312,6 +1312,27 @@ static void invalid_opcode_kernel() {
          0, &cb.thread_context);
 }
 
+static void stack_alignment_exception_kernel() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = format(sp, "Stack alignment exception in kernel mode, ");
+
+    if (!current_thread)
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
+
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
+
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         0, &cb.thread_context);
+}
+
 static void unhandled_kernel_exception(uint64_t esr_value) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
@@ -1405,6 +1426,10 @@ void handle_kernel_exception(uint64_t esr_value) {
         case 0x21: // Instruction Abort from same EL
         case 0x25: // Data Abort from same EL
             page_fault_kernel();
+            break;
+
+        case 0x26:
+            stack_alignment_exception_kernel();
             break;
 
         default:
