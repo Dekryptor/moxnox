@@ -574,7 +574,7 @@ eret
 .endm
 
 .macro call_func func
-	sub	sp, sp, #0x2b0
+	sub	sp, sp, #0x2a0
 	stp	x0, x1, [sp]
 	stp	x2, x3, [sp, #0x10]
 	stp	x4, x5, [sp, #0x20]
@@ -586,50 +586,42 @@ eret
 	stp	x16, x17, [sp, #0x80]
 	stp	x29, x30, [sp, #0x90]
 
-	mrs	x0, fpcr
-	mrs	x1, fpsr
-	stp	x0, x1, [sp, #0xa0]
-
-	stp	q0, q1, [sp, #0xb0]
-	stp	q2, q3, [sp, #0xd0]
-	stp	q4, q5, [sp, #0xf0]
-	stp	q6, q7, [sp, #0x110]
-	stp	q8, q9, [sp, #0x130]
-	stp	q10, q11, [sp, #0x150]
-	stp	q12, q13, [sp, #0x170]
-	stp	q14, q15, [sp, #0x190]
-	stp	q16, q17, [sp, #0x1b0]
-	stp	q18, q19, [sp, #0x1d0]
-	stp	q20, q21, [sp, #0x1f0]
-	stp	q22, q23, [sp, #0x210]
-	stp	q24, q25, [sp, #0x230]
-	stp	q26, q27, [sp, #0x250]
-	stp	q28, q29, [sp, #0x270]
-	stp	q30, q31, [sp, #0x290]
+	stp	q0, q1, [sp, #0xa0]
+	stp	q2, q3, [sp, #0xc0]
+	stp	q4, q5, [sp, #0xe0]
+	stp	q6, q7, [sp, #0x100]
+	stp	q8, q9, [sp, #0x120]
+	stp	q10, q11, [sp, #0x140]
+	stp	q12, q13, [sp, #0x160]
+	stp	q14, q15, [sp, #0x180]
+	stp	q16, q17, [sp, #0x1a0]
+	stp	q18, q19, [sp, #0x1c0]
+	stp	q20, q21, [sp, #0x1e0]
+	stp	q22, q23, [sp, #0x200]
+	stp	q24, q25, [sp, #0x220]
+	stp	q26, q27, [sp, #0x240]
+	stp	q28, q29, [sp, #0x260]
+	stp	q30, q31, [sp, #0x280]
 
 	ldr	x0, [sp]
 	bl	\func
 
-	ldp	q30, q31, [sp, #0x290]
-	ldp	q28, q29, [sp, #0x270]
-	ldp	q26, q27, [sp, #0x250]
-	ldp	q24, q25, [sp, #0x230]
-	ldp	q22, q23, [sp, #0x210]
-	ldp	q20, q21, [sp, #0x1f0]
-	ldp	q18, q19, [sp, #0x1d0]
-	ldp	q16, q17, [sp, #0x1b0]
-	ldp	q14, q15, [sp, #0x190]
-	ldp	q12, q13, [sp, #0x170]
-	ldp	q10, q11, [sp, #0x150]
-	ldp	q8, q9, [sp, #0x130]
-	ldp	q6, q7, [sp, #0x110]
-	ldp	q4, q5, [sp, #0xf0]
-	ldp	q2, q3, [sp, #0xd0]
-	ldp	q0, q1, [sp, #0xb0]
-
-	ldp	x0, x1, [sp, #0xa0]
-	msr	fpcr, x0
-	msr	fpsr, x1
+	ldp	q30, q31, [sp, #0x280]
+	ldp	q28, q29, [sp, #0x260]
+	ldp	q26, q27, [sp, #0x240]
+	ldp	q24, q25, [sp, #0x220]
+	ldp	q22, q23, [sp, #0x200]
+	ldp	q20, q21, [sp, #0x1e0]
+	ldp	q18, q19, [sp, #0x1c0]
+	ldp	q16, q17, [sp, #0x1a0]
+	ldp	q14, q15, [sp, #0x180]
+	ldp	q12, q13, [sp, #0x160]
+	ldp	q10, q11, [sp, #0x140]
+	ldp	q8, q9, [sp, #0x120]
+	ldp	q6, q7, [sp, #0x100]
+	ldp	q4, q5, [sp, #0xe0]
+	ldp	q2, q3, [sp, #0xc0]
+	ldp	q0, q1, [sp, #0xa0]
 
 	ldp	x29, x30, [sp, #0x90]
 	ldp	x16, x17, [sp, #0x80]
@@ -641,7 +633,7 @@ eret
 	ldp	x4, x5, [sp, #0x20]
 	ldp	x2, x3, [sp, #0x10]
 	ldp	x0, x1, [sp]
-	add	sp, sp, #0x2b0
+	add	sp, sp, #0x2a0
 .endm
 
 // can only use x0, x1, x2, and x3
