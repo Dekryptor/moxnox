@@ -6,9 +6,9 @@ module;
 #include <charconv>
 #include <atomic>
 #include <mutex>
-#include "handle.h"
-#include "spinlock.h"
-#include "acpica.h"
+#include "../handle.h"
+#include "../spinlock.h"
+#include "../acpica.h"
 #include <ioctl.h>
 
 export module serial;

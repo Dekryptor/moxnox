@@ -9,8 +9,8 @@ module;
 #include <charconv>
 #include <mutex>
 #include <nt.h>
-#include "handle.h"
-#include "spinlock.h"
+#include "../handle.h"
+#include "../spinlock.h"
 
 export module pl011;
 

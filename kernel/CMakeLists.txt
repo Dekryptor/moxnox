@@ -50,10 +50,11 @@ set(GLOBAL_MODULES src/cmdline.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
-    src/inout.cpp
-    src/rtc.cpp
-    src/ps2keyboard.cpp
-    src/serial.cpp
+    src/x86/inout.cpp
+    src/x86/rtc.cpp
+    src/x86/ps2keyboard.cpp
+    src/x86/serial.cpp
+    src/x86/apic.cpp
     src/btrfs.cpp
     src/sata.cpp
     src/pci.cpp
@@ -67,11 +68,10 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/usb.cpp
     src/usbhub.cpp
     src/framebuffer.cpp
-    src/apic.cpp
 )
 
 set(AARCH64_MODULES ${GLOBAL_MODULES}
-    src/pl011.cpp
+    src/aarch64/pl011.cpp
 )
 
 set(SRC_FILES src/kernel.cpp

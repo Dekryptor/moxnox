@@ -3,13 +3,13 @@ module;
 #include <span>
 #include <optional>
 #include <mutex>
-#include "spinlock.h"
+#include "../spinlock.h"
 import evdev;
-#include "qwerty.h"
-#include "handle.h"
+#include "../qwerty.h"
+#include "../handle.h"
 import pipe;
-#include "acpica.h"
-#include "tick_rate.h"
+#include "../acpica.h"
+#include "../tick_rate.h"
 #include <ioctl.h>
 
 export module ps2keyboard;
