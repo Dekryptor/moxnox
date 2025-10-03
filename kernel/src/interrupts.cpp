@@ -980,7 +980,7 @@ static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
     ctx.Pc = p.ntdll_addr + mn_signal;
     ctx.X0 = us_er;
     ctx.X1 = us_context;
-    ctx.Sp = us_er;
+    ctx.Sp = us_er & ~(uint64_t)0xf;
 #else
     disable_interrupts();
 
