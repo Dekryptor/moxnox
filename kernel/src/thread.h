@@ -90,6 +90,8 @@ static_assert(offsetof(thread, context) == THREAD_CONTEXT);
 static_assert(offsetof(thread, proc) == THREAD_PROC);
 static_assert(offsetof(thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(thread, kernel_mode) == THREAD_KERNEL_MODE);
+static_assert(offsetof(thread, timeout_le) == THREAD_TIMEOUT_LE);
+static_assert(offsetof(thread, wait_timeout) == THREAD_WAIT_TIMEOUT);
 
 #ifdef __aarch64__
 static_assert(offsetof(thread, user_stack) == THREAD_USER_STACK);
@@ -98,8 +100,6 @@ static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 static_assert(offsetof(thread, status) == THREAD_STATUS);
 static_assert(offsetof(thread, suspend_count) == THREAD_SUSPEND_COUNT);
 static_assert(offsetof(thread, teb) == THREAD_TEB);
-static_assert(offsetof(thread, timeout_le) == THREAD_TIMEOUT_LE);
-static_assert(offsetof(thread, wait_timeout) == THREAD_WAIT_TIMEOUT);
 
 static_assert(sizeof(thread::status) == 4);
 static_assert((unsigned int)thread_status::dead == ENUM_THREAD_STATUS_DEAD);

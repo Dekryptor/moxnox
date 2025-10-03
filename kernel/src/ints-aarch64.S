@@ -581,7 +581,7 @@ eret
 	str	x1, [x0, #CONTEXT_X0]
 .endm
 
-.macro call_timer_expired
+.macro call_func func
 	sub	sp, sp, #0x2b0
 	stp	x0, x1, [sp]
 	stp	x2, x3, [sp, #0x10]
@@ -616,7 +616,7 @@ eret
 	stp	q30, q31, [sp, #0x290]
 
 	ldr	x0, [sp]
-	bl	timer_expired
+	bl	\func
 
 	ldp	q30, q31, [sp, #0x290]
 	ldp	q28, q29, [sp, #0x270]
@@ -688,16 +688,37 @@ eret
 	str	x3, [x0, #TIMER_TICKS_LEFT]
 	cbnz	x3, 6f
 
-	call_timer_expired
+	call_func timer_expired
 
 6:
 	mov	x0, x2
 	b	8b
 
+	// wait timeouts
 7:
-	bl	release_sync_lock
+	adr	x1, thread_list_timeout // set x1 to &thread_list_timeout
+	ldr	x0, [x1] // set x0 to thread_list_timeout.next
 
-	// FIXME - wait timeouts
+4:
+	cmp	x0, x1
+	b.eq	5f
+
+	ldr	x2, [x0] // set x2 to le->next
+	sub	x0, x0, #THREAD_TIMEOUT_LE
+
+	// reduce wait_timeout
+	ldr	x3, [x0, #THREAD_WAIT_TIMEOUT]
+	sub	x3, x3, #1
+	str	x3, [x0, #THREAD_WAIT_TIMEOUT]
+	cbnz	x3, 3f
+
+	call_func wait_timeout_expired
+
+3:
+	mov	x0, x2
+	b	4b
+5:
+	bl	release_sync_lock
 
 	// decrease time slice
 
