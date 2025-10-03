@@ -325,13 +325,30 @@ cmp	x1, #NUM_SYSCALLS
 b.ge	unknown_syscall
 
 // save x18, x19, lr, elr_el1, and spsr_el1
-sub	sp, sp, #0x30
+sub	sp, sp, #0x230
 stp	x18, x19, [sp]
 stp	lr, xzr, [sp, #0x10]
 
 mrs	x18, elr_el1
 mrs	x19, spsr_el1
 stp	x18, x19, [sp, #0x20]
+
+stp	q0, q1, [sp, #0x30]
+stp	q2, q3, [sp, #0x50]
+stp	q4, q5, [sp, #0x70]
+stp	q6, q7, [sp, #0x90]
+stp	q8, q9, [sp, #0xb0]
+stp	q10, q11, [sp, #0xd0]
+stp	q12, q13, [sp, #0xf0]
+stp	q14, q15, [sp, #0x110]
+stp	q16, q17, [sp, #0x130]
+stp	q18, q19, [sp, #0x150]
+stp	q20, q21, [sp, #0x170]
+stp	q22, q23, [sp, #0x190]
+stp	q24, q25, [sp, #0x1b0]
+stp	q26, q27, [sp, #0x1d0]
+stp	q28, q29, [sp, #0x1f0]
+stp	q30, q31, [sp, #0x210]
 
 adrp	x0, syscalls
 add	x0, x0, :lo12:syscalls
@@ -351,7 +368,8 @@ strb	w1, [x0]
 msr	DAIFClr, #0xf // enable interrupts
 
 // load x0 and x1 again and call handler
-ldp	x0, x1, [sp, #0x30]
+ldr	x0, [sp, #0x230]
+ldr	x1, [sp, #0x238]
 blr	x19
 
 msr	DAIFSet, #0xf // disable interrupts
@@ -378,6 +396,23 @@ msr	spsr_el1, x19
 ldp	x18, x19, [sp]
 ldp	lr, xzr, [sp, #0x10]
 
+ldp	q30, q31, [sp, #0x210]
+ldp	q28, q29, [sp, #0x1f0]
+ldp	q26, q27, [sp, #0x1d0]
+ldp	q24, q25, [sp, #0x1b0]
+ldp	q22, q23, [sp, #0x190]
+ldp	q20, q21, [sp, #0x170]
+ldp	q18, q19, [sp, #0x150]
+ldp	q16, q17, [sp, #0x130]
+ldp	q14, q15, [sp, #0x110]
+ldp	q12, q13, [sp, #0xf0]
+ldp	q10, q11, [sp, #0xd0]
+ldp	q8, q9, [sp, #0xb0]
+ldp	q6, q7, [sp, #0x90]
+ldp	q4, q5, [sp, #0x70]
+ldp	q2, q3, [sp, #0x50]
+ldp	q0, q1, [sp, #0x30]
+
 // clear volatile regs to avoid leakage
 mov	x1, xzr
 mov	x2, xzr
@@ -397,7 +432,7 @@ mov	x15, xzr
 mov	x16, xzr
 mov	x17, xzr
 
-add	sp, sp, #0x40
+add	sp, sp, #0x240
 eret
 
 unknown_syscall:
@@ -888,6 +923,6 @@ msr	sp_el0, x1
 
 ldp	x0, x1, [sp, #CONTEXT_X0]
 
-// 0x30 bytes from do_syscall, 0x10 from user_exception_entry
-add	sp, sp, #(CONTEXT_SIZEOF + 0x30 + 0x10)
+// 0x230 bytes from do_syscall, 0x10 from user_exception_entry
+add	sp, sp, #(CONTEXT_SIZEOF + 0x230 + 0x10)
 eret
