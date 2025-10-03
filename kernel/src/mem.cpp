@@ -2187,8 +2187,8 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         if (!found)
             continue;
 
-        assert(!(bitmap[i] & (1 << bit)));
-        bitmap[i] |= 1 << bit;
+        assert(!(bitmap[i] & ((uint64_t)1 << bit)));
+        bitmap[i] |= (uint64_t)1 << bit;
 
         unsigned int index = (i * PAGES_PER_BITMAP_BLOCK) + PAGES_PER_BITMAP_BLOCK - 1;
 
@@ -2249,9 +2249,9 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         if (!found)
             continue;
 
-        assert(!(bitmap[i] & 1 << bit));
+        assert(!(bitmap[i] & (uint64_t)1 << bit));
 
-        bitmap[i] |= 1 << bit;
+        bitmap[i] |= (uint64_t)1 << bit;
         pfns[p.allocator.index] = pfn;
 
         return pfn << PAGE_SHIFT;
@@ -2268,9 +2268,9 @@ void allocator_cb<N, P, S>::free(uint64_t index) {
     auto& b = bitmap[index / 64];
     unsigned int bit = 63 - (index & 63);
 
-    assert(b & (1 << bit));
+    assert(b & ((uint64_t)1 << bit));
 
-    b &= ~(1 << bit);
+    b &= ~((uint64_t)1 << bit);
 
     static constexpr unsigned int BITMAP_BITS_PER_PAGE = sizeof(uint64_t) * 8 / PAGES_PER_BITMAP_BLOCK;
     static constexpr uint64_t MASK = BITMAP_BITS_PER_PAGE == 64 ? 0xffffffffffffffff : ((uint64_t)1 << BITMAP_BITS_PER_PAGE) - 1;
