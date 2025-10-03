@@ -742,7 +742,9 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
 }
 
 export extern "C++" void disable_preempt() {
-#ifndef __aarch64__ // FIXME
+#ifdef __aarch64__
+    get_cpu_block()->disable_preempt++;
+#else
     __asm __volatile(
         "inc QWORD PTR gs:%0\n"
         :
@@ -752,7 +754,9 @@ export extern "C++" void disable_preempt() {
 }
 
 export extern "C++" void enable_preempt() {
-#ifndef __aarch64__ // FIXME
+#ifdef __aarch64__
+    get_cpu_block()->disable_preempt--;
+#else
     __asm __volatile(
         "dec QWORD PTR gs:%0\n"
         :
