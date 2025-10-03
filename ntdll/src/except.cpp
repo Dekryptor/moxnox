@@ -230,6 +230,10 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
                 sp = format(sp, "Unhandled single-step breakpoint\n");
             break;
 
+            case nt_status::BAD_STACK:
+                sp = format(sp, "Stack alignment error\n");
+            break;
+
 #ifdef __aarch64__
             case nt_status::UNHANDLED_EXCEPTION: {
                 union ARM64_ESR {
