@@ -1513,6 +1513,18 @@ static void breakpoint_user(uint64_t esr_value, CONTEXT& ctx) {
     send_signal(er, ctx, nt_status::BREAKPOINT);
 }
 
+static void stack_alignment_exception_user(CONTEXT& ctx) {
+    EXCEPTION_RECORD er;
+
+    er.ExceptionCode = (uint32_t)nt_status::BAD_STACK;
+    er.ExceptionFlags = 0;
+    er.ExceptionRecord = nullptr;
+    er.ExceptionAddress = (void*)ctx.Pc;
+    er.NumberParameters = 0;
+
+    send_signal(er, ctx, nt_status::BAD_STACK);
+}
+
 extern "C"
 void handle_user_exception(uint64_t esr_value) {
     auto& t = *get_current_thread();
@@ -1544,6 +1556,10 @@ void handle_user_exception(uint64_t esr_value) {
         case 0x20: // Instruction Abort from lower EL
         case 0x24: // Data Abort from lower EL
             page_fault_user(address, esr_value, ctx);
+            break;
+
+        case 0x26:
+            stack_alignment_exception_user(ctx);
             break;
 
         case 0x3c: // BRK instruction execution in AArch64 state
