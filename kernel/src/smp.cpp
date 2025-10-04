@@ -33,6 +33,9 @@ using namespace std;
 
 static const uint64_t MPIDR_MASK = 0xff00ffffff;
 
+// in aarch64/smp.S
+extern "C" uint8_t ap_trampoline;
+
 export uint64_t* cpu_ids;
 
 #else
@@ -253,8 +256,8 @@ static void ap_startup() {
 #endif
 
 #ifdef __aarch64__
-static void start_cpu(uint64_t mpidr) {
-    auto ret = CPU_ON(mpidr, 0/*FIXME*/, 0);
+static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys) {
+    auto ret = CPU_ON(mpidr, entry_point_phys, 0);
 
     if (ret != PSCI_STATUS::SUCCESS) {
         ap_left--;
@@ -374,8 +377,10 @@ export bool init_smp() {
 
     ap_left.store(ap_count, memory_order_release);
 
+    auto ap_trampoline_phys = va_to_pa_lookup((uint64_t)&ap_trampoline);
+
     for (unsigned int i = 1; i < num_cpus; i++) {
-        start_cpu(cpu_ids[i]);
+        start_cpu(cpu_ids[i], ap_trampoline_phys);
     }
 
     // FIXME - spin waiting for ap_left to become 0
