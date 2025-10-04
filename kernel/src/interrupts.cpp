@@ -810,22 +810,22 @@ static bool setup_gdt(task_state_segment* tss) {
 #endif
 
 #ifdef __aarch64__
-static bool find_gic_addresses(optional<uint64_t>& gicc_addr,
-                               optional<uint64_t>& gicd_addr) {
+static optional<uint64_t> find_gicc_address() {
     ACPI_TABLE_HEADER* tbl;
+    optional<uint64_t> gicc_addr;
 
     // FIXME - devicetree version
 
     auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
     if (ACPI_FAILURE(status)) {
         print("AcpiGetTable returned {} for MADT\n", status);
-        return false;
+        return nullopt;
     }
 
     if (tbl->Length < sizeof(ACPI_TABLE_MADT)) {
         print("MADT table was {:x} bytes, expected at least {:x}\n",
               tbl->Length, sizeof(ACPI_TABLE_MADT));
-        return false;
+        return nullopt;
     }
 
     span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
@@ -846,7 +846,40 @@ static bool find_gic_addresses(optional<uint64_t>& gicc_addr,
 
                 break;
             }
+        }
 
+        data = data.subspan(h.Length);
+    }
+
+    return gicc_addr;
+}
+
+static optional<uint64_t> find_gicd_address() {
+    ACPI_TABLE_HEADER* tbl;
+    optional<uint64_t> gicd_addr;
+
+    // FIXME - devicetree version
+
+    auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for MADT\n", status);
+        return nullopt;
+    }
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MADT)) {
+        print("MADT table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_MADT));
+        return nullopt;
+    }
+
+    span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
+              tbl->Length - sizeof(ACPI_TABLE_MADT));
+
+    auto data = madt;
+    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
+        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
+
+        switch (h.Type) {
             case ACPI_MADT_TYPE_GENERIC_DISTRIBUTOR:
                 if (!gicd_addr.has_value()) {
                     auto& ent = *(ACPI_MADT_GENERIC_DISTRIBUTOR*)data.data();
@@ -859,24 +892,13 @@ static bool find_gic_addresses(optional<uint64_t>& gicc_addr,
         data = data.subspan(h.Length);
     }
 
-    return true;
+    return gicd_addr;
 }
 
-export bool init_interrupts() {
-    optional<uint64_t> gicc_addr, gicd_addr;
-
-    load_vector_table();
-
-    if (!find_gic_addresses(gicc_addr, gicd_addr))
-        return false;
-
+export bool init_interrupts_this_cpu() {
+    auto gicc_addr = find_gicc_address();
     if (!gicc_addr.has_value()) {
         print("unable to find address of GIC controller\n");
-        return false;
-    }
-
-    if (!gicd_addr.has_value()) {
-        print("unable to find address of GIC distributor\n");
         return false;
     }
 
@@ -896,7 +918,27 @@ export bool init_interrupts() {
 
     cb.gicc = va;
 
-    va = allocate_va_no_lock(1);
+    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
+    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
+
+    GICC_CTLR.EnableGrp0 = 1; // enable GICC
+
+    // allow all interrupts through
+    GICC_PMR.Priority = 0xff;
+
+    return true;
+}
+
+static bool init_interrupts_global() {
+    load_vector_table();
+
+    auto gicd_addr = find_gicd_address();
+    if (!gicd_addr.has_value()) {
+        print("unable to find address of GIC distributor\n");
+        return false;
+    }
+
+    auto va = allocate_va_no_lock(1);
     if (!va) {
         print("allocate_va_no_lock failed\n");
         return false;
@@ -911,17 +953,22 @@ export bool init_interrupts() {
     gicd = va;
 
     auto& GICD_CTLR = *(volatile ARM64_GICD_CTLR*)gicd;
-    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
-    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
 
     GICD_CTLR.EnableGrp0 = 1; // enable GICD
-    GICC_CTLR.EnableGrp0 = 1; // enable GICC
-
-    // allow all interrupts through
-    GICC_PMR.Priority = 0xff;
 
     return true;
 }
+
+export bool init_interrupts() {
+    if (!init_interrupts_global())
+        return false;
+
+    if (!init_interrupts_this_cpu())
+        return false;
+
+    return true;
+}
+
 #else
 export bool init_interrupts() {
     if (!setup_idt())
