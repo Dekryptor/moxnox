@@ -10,6 +10,42 @@ import print;
 
 using namespace std;
 
+static const uint32_t PSCI_VERSION_FUNC_ID = 0x84000000;
+
+static uint32_t psci_version;
+
+template<bool hvc, uint32_t id>
+uint32_t psci_func() {
+    uint32_t ret;
+
+    if constexpr (hvc) {
+        __asm __volatile (
+            "mov w0, #%w[func]\n"
+            "hvc #0\n"
+            "mov %w[res], w0\n"
+            : [res] "=r" (ret)
+            : [func] "i" (id)
+            : "x0"
+        );
+    } else {
+        __asm __volatile (
+            "mov w0, #%w[func]\n"
+            "smc #0\n"
+            "mov %w[res], w0\n"
+            : [res] "=r" (ret)
+            : [func] "i" (id)
+            : "x0"
+        );
+    }
+
+    return ret;
+}
+
+template<bool hvc>
+uint32_t PSCI_VERSION() {
+    return psci_func<hvc, PSCI_VERSION_FUNC_ID>();
+}
+
 export bool init_psci() {
     ACPI_TABLE_HEADER* tbl;
 
@@ -32,9 +68,14 @@ export bool init_psci() {
     if (!(fadt.ArmBootFlags & ACPI_FADT_PSCI_COMPLIANT))
         return true;
 
-    // FIXME - ACPI_FADT_PSCI_USE_HVC
+    bool hvc = fadt.ArmBootFlags & ACPI_FADT_PSCI_USE_HVC;
 
-    print("FIXME - check PSCI\n");
+    if (hvc)
+        psci_version = PSCI_VERSION<true>();
+    else
+        psci_version = PSCI_VERSION<false>();
+
+    print("using psci {}.{}\n", psci_version >> 16, psci_version & 0xffff);
 
     return true;
 }
