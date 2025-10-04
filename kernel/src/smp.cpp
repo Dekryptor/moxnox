@@ -337,7 +337,7 @@ static uint64_t vbar_el1_load() {
 
 static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
                       uint64_t boot_stack, uint64_t identity_map,
-                      uint64_t cpu_block) {
+                      cpu_block* cpu_block) {
     auto boot_sp = (uint8_t*)(boot_stack + PAGE_SIZE - 0x50);
     auto boot_sp_va = (uint8_t*)phys_address((uintptr_t)boot_sp);
 
@@ -348,7 +348,7 @@ static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
     *(uint64_t*)(boot_sp_va + (5 * sizeof(uint64_t))) = tcr_el1_load();
     *(uint64_t*)(boot_sp_va + (4 * sizeof(uint64_t))) = mair_el1_load();
     *(uint64_t*)(boot_sp_va + (3 * sizeof(uint64_t))) = vbar_el1_load();
-    *(uint64_t*)(boot_sp_va + (2 * sizeof(uint64_t))) = cpu_block;
+    *(uint64_t*)(boot_sp_va + (2 * sizeof(uint64_t))) = (uintptr_t)cpu_block;
     *(uint64_t*)(boot_sp_va + sizeof(uint64_t)) = (uintptr_t)ap_startup;
 
     auto ret = CPU_ON(mpidr, entry_point_phys, (uint64_t)boot_sp);
@@ -495,14 +495,6 @@ export bool init_smp() {
 
                 if ((ent.ArmMpidr & MPIDR_MASK) != bsp_id) {
                     cpu_ids[i] = ent.ArmMpidr & MPIDR_MASK;
-
-                    // FIXME - is it safe to enable GICC before sending CPU_ON?
-                    if (!init_interrupts_cpu(cpu_ids[i])) {
-                        print("init_interrupts_cpu failed for CPU {} (MPIDR {:x})\n",
-                              i, cpu_ids[i]);
-                        return false;
-                    }
-
                     i++;
                 }
             }
@@ -517,7 +509,7 @@ export bool init_smp() {
 
     struct info {
         uint64_t stack;
-        uint64_t cpu_block;
+        cpu_block* cpu_block;
     };
 
     auto boot_info = (info*)malloc(sizeof(info) * ap_count);
@@ -532,7 +524,7 @@ export bool init_smp() {
             return false;
         }
 
-        boot_info[i].cpu_block = init_cpu_block(i + 1);
+        boot_info[i].cpu_block = (cpu_block*)init_cpu_block(i + 1);
 
         if (!boot_info[i].cpu_block) {
             print("init_cpu_block failed\n");
@@ -545,6 +537,16 @@ export bool init_smp() {
             free(boot_info);
             return false;
         }
+
+        // FIXME - is it safe to enable GICC before sending CPU_ON?
+        auto gicc = init_interrupts_cpu(cpu_ids[i + 1]);
+        if (!gicc) {
+            print("init_interrupts_cpu failed for CPU {} (MPIDR {:x})\n",
+                  i + 1, cpu_ids[i + 1]);
+            return false;
+        }
+
+        boot_info[i].cpu_block->gicc = gicc;
     }
 
     ap_left.store(ap_count, memory_order_release);

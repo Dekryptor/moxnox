@@ -895,38 +895,35 @@ static optional<uint64_t> find_gicd_address() {
     return gicd_addr;
 }
 
-export bool init_interrupts_cpu(uint64_t mpidr) {
+export uint64_t init_interrupts_cpu(uint64_t mpidr) {
     auto gicc_addr = find_gicc_address(mpidr);
     if (!gicc_addr.has_value()) {
         print("unable to find address of GIC controller\n");
-        return false;
+        return 0;
     }
 
+    // FIXME - no_lock
     auto va = allocate_va_no_lock(1);
     if (!va) {
         print("allocate_va_no_lock failed\n");
-        return false;
+        return 0;
     }
 
     if (!map_page<true>(*gicc_addr, va, mapping_type::no_cache)) {
         print("map_page failed\n");
         free_va(va, 1);
-        return false;
+        return 0;
     }
 
-    auto& cb = *get_cpu_block();
-
-    cb.gicc = va;
-
-    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
-    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
+    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)va;
+    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(va + 0x4);
 
     GICC_CTLR.EnableGrp0 = 1; // enable GICC
 
     // allow all interrupts through
     GICC_PMR.Priority = 0xff;
 
-    return true;
+    return va;
 }
 
 static bool init_interrupts_global() {
@@ -972,8 +969,12 @@ export bool init_interrupts() {
 
     mpidr &= MPIDR_MASK;
 
-    if (!init_interrupts_cpu(mpidr))
+    auto gicc = init_interrupts_cpu(mpidr);
+    if (!gicc)
         return false;
+
+    auto& cb = *get_cpu_block();
+    cb.gicc = gicc;
 
     return true;
 }
