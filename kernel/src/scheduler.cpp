@@ -449,6 +449,8 @@ export uintptr_t init_cpu_block(unsigned int cpu_no) {
         }
     }
 
+    memset(&cb, 0, sizeof(cb));
+
     new (&cb) cpu_block;
 
     cb.self = &cb;
