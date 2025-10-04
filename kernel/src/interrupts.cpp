@@ -84,10 +84,6 @@ union ARM64_GICC_PMR {
     uint32_t value;
 } __attribute((packed));
 
-extern "C++" {
-    uint64_t gicc;
-}
-
 static uint64_t gicd;
 
 #else
@@ -896,7 +892,9 @@ export bool init_interrupts() {
         return false;
     }
 
-    gicc = va;
+    auto& cb = *get_cpu_block();
+
+    cb.gicc = va;
 
     va = allocate_va_no_lock(1);
     if (!va) {
@@ -913,8 +911,8 @@ export bool init_interrupts() {
     gicd = va;
 
     auto& GICD_CTLR = *(volatile ARM64_GICD_CTLR*)gicd;
-    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)gicc;
-    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(gicc + 0x4);
+    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
+    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
 
     GICD_CTLR.EnableGrp0 = 1; // enable GICD
     GICC_CTLR.EnableGrp0 = 1; // enable GICC
@@ -1602,7 +1600,9 @@ void handle_irq(uint32_t number) {
         }
     }
 
-    auto& GICC_EOIR = *(volatile uint32_t*)(gicc + 0x10);
+    auto& cb = *get_cpu_block();
+
+    auto& GICC_EOIR = *(volatile uint32_t*)(cb.gicc + 0x10);
     GICC_EOIR = number;
 }
 

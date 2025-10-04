@@ -5,14 +5,15 @@
 
 #ifdef __aarch64__
 
-extern uint64_t gicc;
+#include "cpu_block.h"
 
 template<unsigned>
 class _spinlock {
 public:
     void lock() {
+        auto& cb = *get_cpu_block(); // FIXME
         uint32_t current_priority;
-        auto& GICC_PMR = *(volatile uint32_t*)(gicc + 0x4);
+        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
         current_priority = GICC_PMR;
         GICC_PMR = 0; // FIXME - templatable priority?
@@ -25,9 +26,11 @@ public:
     }
 
     void unlock() {
+        auto& cb = *get_cpu_block();
+
         v.exchange(0, std::memory_order_release);
 
-        auto& GICC_PMR = *(volatile uint32_t*)(gicc + 0x4);
+        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
         GICC_PMR = old_priority;
     }
@@ -42,8 +45,9 @@ using spinlock = _spinlock<5>;
 class sync_lock {
 public:
     void lock() {
+        auto& cb = *get_cpu_block(); // FIXME
         uint32_t current_priority;
-        auto& GICC_PMR = *(volatile uint32_t*)(gicc + 0x4);
+        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
         current_priority = GICC_PMR;
         GICC_PMR = 0;
@@ -54,9 +58,11 @@ public:
     }
 
     void unlock() {
+        auto& cb = *get_cpu_block();
+
         release_sync_lock();
 
-        auto& GICC_PMR = *(volatile uint32_t*)(gicc + 0x4);
+        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
         GICC_PMR = old_priority;
     }

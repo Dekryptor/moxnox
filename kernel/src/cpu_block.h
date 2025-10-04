@@ -16,6 +16,7 @@ struct cpu_block {
 #ifdef __aarch64__
     uintptr_t emergency_sp;
     uint64_t emergency_scratch[2];
+    uint64_t gicc;
 #else
     void* gdt;
     uint64_t kernel_cr3;
@@ -35,6 +36,7 @@ static_assert(offsetof(cpu_block, disable_preempt) == GS_DISABLE_PREEMPT);
 #ifdef __aarch64__
 static_assert(offsetof(cpu_block, emergency_sp) == GS_EMERGENCY_SP);
 static_assert(offsetof(cpu_block, emergency_scratch) == GS_EMERGENCY_SCRATCH);
+static_assert(offsetof(cpu_block, gicc) == GS_GICC);
 #else
 static_assert(offsetof(cpu_block, kernel_cr3) == GS_KERNEL_CR3);
 static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);

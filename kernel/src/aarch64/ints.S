@@ -760,7 +760,7 @@ eret
 	timer_save_context \user
 
 	// set end-of-interrupt
-	adr	x0, gicc
+	add	x0, x18, GS_GICC
 	ldr	x0, [x0]
 	add	x0, x0, GICC_EOIR_OFFSET
 	adr	x1, timer_irq_no
@@ -776,7 +776,7 @@ eret
 
 9:
 	// set end-of-interrupt
-	adr	x0, gicc
+	add	x0, x18, GS_GICC
 	ldr	x0, [x0]
 	add	x0, x0, GICC_EOIR_OFFSET
 	adr	x1, timer_irq_no
@@ -792,7 +792,7 @@ stp	x0, x1, [sp]
 stp	x2, x3, [sp, #0x10]
 stp	lr, xzr, [sp, #0x20]
 
-adr	x2, gicc
+add	x2, x18, GS_GICC
 ldr	x2, [x2]
 add	x2, x2, GICC_IAR_OFFSET
 ldr	w2, [x2]
@@ -823,7 +823,7 @@ stp	x2, x3, [sp, #0x10]
 stp	x18, lr, [sp, #0x20]
 mrs	x18, tpidr_el1
 
-adr	x2, gicc
+add	x2, x18, GS_GICC
 ldr	x2, [x2]
 add	x2, x2, GICC_IAR_OFFSET
 ldr	w2, [x2]
