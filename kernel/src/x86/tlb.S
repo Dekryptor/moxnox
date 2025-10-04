@@ -1,6 +1,6 @@
 .intel_syntax noprefix
 
-#include "context_offsets.h"
+#include "../context_offsets.h"
 
 .equ PAGE_SIZE, 0x1000
 

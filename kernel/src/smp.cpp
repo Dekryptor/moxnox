@@ -37,7 +37,7 @@ export uint64_t* cpu_ids;
 
 #else
 
-// in smp.S
+// in x86/smp.S
 extern "C" uint8_t ap_trampoline;
 extern "C" uint8_t ap_trampoline_end;
 extern "C" uint8_t ap_trampoline_cr3;

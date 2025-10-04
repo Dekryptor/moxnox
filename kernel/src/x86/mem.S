@@ -1,8 +1,8 @@
 .intel_syntax noprefix
 
 #include "context.S"
-#include "dwarf.S"
-#include "context_offsets.h"
+#include "../dwarf.S"
+#include "../context_offsets.h"
 
 .equ IA32_PAT_MSR, 0x277
 

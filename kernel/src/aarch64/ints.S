@@ -1,5 +1,5 @@
-#include "context_offsets.h"
-#include "tick_rate.h"
+#include "../context_offsets.h"
+#include "../tick_rate.h"
 
 .equ GICC_IAR_OFFSET, 0xc
 .equ GICC_EOIR_OFFSET, 0x10
@@ -311,7 +311,7 @@ b	handle_kernel_exception
 
 .section .rdata
 syscalls:
-#include "syscall-list.S"
+#include "../syscall-list.S"
 end_syscalls:
 
 .section .text

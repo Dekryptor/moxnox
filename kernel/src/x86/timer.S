@@ -1,8 +1,8 @@
 .intel_syntax noprefix
 
 #include "context.S"
-#include "tick_rate.h"
-#include "dwarf.S"
+#include "../tick_rate.h"
+#include "../dwarf.S"
 
 .equ IA32_KERNEL_GS_BASE, 0xc0000102
 

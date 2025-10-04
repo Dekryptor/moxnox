@@ -25,11 +25,11 @@ import format;
 import bsod;
 
 #ifdef __aarch64__
-// mem-aarch64.S
+// aarch64/mem.S
 extern "C" uint64_t ttbr1_el1_load();
 extern "C" uint64_t ttbr0_el1_load();
 #else
-// mem-x86.S
+// x86/mem.S
 export {
     extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
     extern "C" void init_pat();

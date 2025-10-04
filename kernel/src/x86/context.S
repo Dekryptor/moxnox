@@ -1,4 +1,4 @@
-#include "context_offsets.h"
+#include "../context_offsets.h"
 
 .macro save_context # clobbers rax
     mov gs:GS_CONTEXT + CONTEXT_RAX, rax

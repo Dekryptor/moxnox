@@ -81,19 +81,19 @@ set(SRC_FILES src/kernel.cpp
     src/bsod2.cpp)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    set(SRC_ASM_FILES src/ints-aarch64.S
-        src/timer-aarch64.S
-        src/mem-aarch64.S)
+    set(SRC_ASM_FILES src/aarch64/ints.S
+        src/aarch64/timer.S
+        src/aarch64/mem.S)
 
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
 else()
-    set(SRC_ASM_FILES src/ints-x86.S
-        src/timer-x86.S
-        src/smp.S
-        src/syscalls-x86.S
-        src/mem-x86.S
-        src/tlb.S
+    set(SRC_ASM_FILES src/x86/ints.S
+        src/x86/timer.S
+        src/x86/syscalls.S
+        src/x86/mem.S
+        src/x86/smp.S
+        src/x86/tlb.S
         ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})

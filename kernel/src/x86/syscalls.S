@@ -1,8 +1,8 @@
 .intel_syntax noprefix
 
-#include "context_offsets.h"
+#include "../context_offsets.h"
 #include "context.S"
-#include "dwarf.S"
+#include "../dwarf.S"
 
 .equ STATUS_ACCESS_VIOLATION, 0xc0000005
 
@@ -125,7 +125,7 @@ dwarf_func_asm syscall_handler
 
 .section .rdata
 syscalls:
-#include "syscall-list.S"
+#include "../syscall-list.S"
 end_syscalls:
 
 .section .text

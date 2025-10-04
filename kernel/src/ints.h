@@ -2,12 +2,12 @@
 
 #ifdef __aarch64__
 
-// ints-aarch64.S
+// aarch64/ints.S
 extern "C" void load_vector_table();
 
 #else
 
-// ints-x86.S
+// x86/ints.S
 extern "C" void page_fault_isr();
 extern "C" void double_fault_isr();
 extern "C" void general_protection_fault_isr();

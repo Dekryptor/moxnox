@@ -1,7 +1,7 @@
 .intel_syntax noprefix
 
 #include "context.S"
-#include "dwarf.S"
+#include "../dwarf.S"
 
 .section .debug_abbrev, "dr"
 
