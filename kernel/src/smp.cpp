@@ -34,8 +34,6 @@ using namespace std;
 
 #ifdef __aarch64__
 
-static const uint64_t MPIDR_MASK = 0xff00ffffff;
-
 // in aarch64/smp.S
 extern "C" uint8_t ap_trampoline;
 

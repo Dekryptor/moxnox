@@ -84,6 +84,8 @@ union ARM64_GICC_PMR {
     uint32_t value;
 } __attribute((packed));
 
+export const uint64_t MPIDR_MASK = 0xff00ffffff;
+
 static uint64_t gicd;
 
 #else
@@ -810,7 +812,7 @@ static bool setup_gdt(task_state_segment* tss) {
 #endif
 
 #ifdef __aarch64__
-static optional<uint64_t> find_gicc_address() {
+static optional<uint64_t> find_gicc_address(uint64_t mpidr) {
     ACPI_TABLE_HEADER* tbl;
     optional<uint64_t> gicc_addr;
 
@@ -839,9 +841,7 @@ static optional<uint64_t> find_gicc_address() {
             case ACPI_MADT_TYPE_GENERIC_INTERRUPT: {
                 auto& ent = *(ACPI_MADT_GENERIC_INTERRUPT*)data.data();
 
-                // FIXME - are we always guaranteed to boot on core 0?
-
-                if (ent.CpuInterfaceNumber == 0 && !gicc_addr.has_value())
+                if ((ent.ArmMpidr & MPIDR_MASK) == mpidr && !gicc_addr.has_value())
                     gicc_addr = ent.BaseAddress;
 
                 break;
@@ -895,8 +895,8 @@ static optional<uint64_t> find_gicd_address() {
     return gicd_addr;
 }
 
-export bool init_interrupts_this_cpu() {
-    auto gicc_addr = find_gicc_address();
+export bool init_interrupts_cpu(uint64_t mpidr) {
+    auto gicc_addr = find_gicc_address(mpidr);
     if (!gicc_addr.has_value()) {
         print("unable to find address of GIC controller\n");
         return false;
@@ -960,10 +960,19 @@ static bool init_interrupts_global() {
 }
 
 export bool init_interrupts() {
+    uint64_t mpidr;
+
     if (!init_interrupts_global())
         return false;
 
-    if (!init_interrupts_this_cpu())
+    __asm __volatile (
+        "mrs %x[res], mpidr_el1"
+        : [res] "=r" (mpidr)
+    );
+
+    mpidr &= MPIDR_MASK;
+
+    if (!init_interrupts_cpu(mpidr))
         return false;
 
     return true;
