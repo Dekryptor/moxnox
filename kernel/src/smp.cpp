@@ -495,6 +495,14 @@ export bool init_smp() {
 
                 if ((ent.ArmMpidr & MPIDR_MASK) != bsp_id) {
                     cpu_ids[i] = ent.ArmMpidr & MPIDR_MASK;
+
+                    // FIXME - is it safe to enable GICC before sending CPU_ON?
+                    if (!init_interrupts_cpu(cpu_ids[i])) {
+                        print("init_interrupts_cpu failed for CPU {} (MPIDR {:x})\n",
+                              i, cpu_ids[i]);
+                        return false;
+                    }
+
                     i++;
                 }
             }
