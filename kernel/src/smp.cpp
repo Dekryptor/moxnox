@@ -45,8 +45,6 @@ extern "C" uint64_t ap_trampoline_start_func;
 
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
 
-static atomic<unsigned int> ap_left;
-
 struct gdt_ptr {
     uint16_t limit;
     uint64_t base;
@@ -59,6 +57,8 @@ export uint8_t* cpu_ids;
 #endif
 
 export unsigned int num_cpus;
+
+static atomic<unsigned int> ap_left;
 
 #ifndef __aarch64__
 static void start_ap(uint8_t i) {
@@ -252,6 +252,18 @@ static void ap_startup() {
 }
 #endif
 
+#ifdef __aarch64__
+static void start_cpu(uint64_t mpidr) {
+    auto ret = CPU_ON(mpidr, 0/*FIXME*/, 0);
+
+    if (ret != PSCI_STATUS::SUCCESS) {
+        ap_left--;
+        print("CPU_ON returned {} for CPU with MPIDR {:x}\n", ret, mpidr);
+        return;
+    }
+}
+#endif
+
 export bool init_smp() {
 #ifdef __aarch64__
     if (psci_version == 0) // FIXME - support spin-table
@@ -339,7 +351,35 @@ export bool init_smp() {
     if (ap_count == 0)
         return true;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+    {
+        unsigned int i = 1;
+
+        data = madt;
+        while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
+            auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
+
+            if (h.Type == ACPI_MADT_TYPE_GENERIC_INTERRUPT) {
+                auto& ent = *(ACPI_MADT_GENERIC_INTERRUPT*)data.data();
+
+                if ((ent.ArmMpidr & MPIDR_MASK) != bsp_id) {
+                    cpu_ids[i] = ent.ArmMpidr & MPIDR_MASK;
+                    i++;
+                }
+            }
+
+            data = data.subspan(h.Length);
+        }
+    }
+
+    ap_left.store(ap_count, memory_order_release);
+
+    for (unsigned int i = 1; i < num_cpus; i++) {
+        start_cpu(cpu_ids[i]);
+    }
+
+    // FIXME - spin waiting for ap_left to become 0
+#else
     auto trampoline = (void*)0;
 
     // we already reserved page 0 in the bootloader
