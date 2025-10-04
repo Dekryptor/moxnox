@@ -11,12 +11,26 @@ template<unsigned>
 class _spinlock {
 public:
     void lock() {
-        auto& cb = *get_cpu_block(); // FIXME
+        uint64_t daif;
+
+        __asm __volatile (
+            "mrs %x[res], daif\n"
+            "msr DAIFSet, #0xf\n"
+            : [res] "=r" (daif)
+        );
+
+        auto& cb = *get_cpu_block();
         uint32_t current_priority;
         auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
         current_priority = GICC_PMR;
         GICC_PMR = 0; // FIXME - templatable priority?
+
+        __asm __volatile (
+            "msr daif, %x[res]"
+            :
+            : [res] "r" (daif)
+        );
 
         while (v.exchange(1, std::memory_order_acquire)) {
             __asm("yield");
@@ -45,12 +59,26 @@ using spinlock = _spinlock<5>;
 class sync_lock {
 public:
     void lock() {
-        auto& cb = *get_cpu_block(); // FIXME
+        uint64_t daif;
+
+        __asm __volatile (
+            "mrs %x[res], daif\n"
+            "msr DAIFSet, #0xf\n"
+            : [res] "=r" (daif)
+        );
+
+        auto& cb = *get_cpu_block();
         uint32_t current_priority;
         auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
         current_priority = GICC_PMR;
         GICC_PMR = 0;
+
+        __asm __volatile (
+            "msr daif, %x[res]"
+            :
+            : [res] "r" (daif)
+        );
 
         acquire_sync_lock();
 
