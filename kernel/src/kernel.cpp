@@ -7,7 +7,9 @@
 #include "context_offsets.h"
 #include "process.h"
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+import psci;
+#else
 import serial;
 import pci;
 import smp;
@@ -225,7 +227,13 @@ void main_thread() {
     init_pci(false);
 
     init_syscalls();
+#endif
 
+#ifdef __aarch64__
+    init_psci();
+#endif
+
+#ifndef __aarch64__
     if (!init_smp()) {
         apic_ids = (uint8_t*)malloc(1);
         if (!apic_ids) {

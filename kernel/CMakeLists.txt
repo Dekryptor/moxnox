@@ -72,6 +72,7 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
 
 set(AARCH64_MODULES ${GLOBAL_MODULES}
     src/aarch64/pl011.cpp
+    src/aarch64/psci.cpp
 )
 
 set(SRC_FILES src/kernel.cpp
