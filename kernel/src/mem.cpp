@@ -26,8 +26,10 @@ import bsod;
 
 #ifdef __aarch64__
 // aarch64/mem.S
-extern "C" uint64_t ttbr1_el1_load();
-extern "C" uint64_t ttbr0_el1_load();
+export {
+    extern "C" uint64_t ttbr1_el1_load();
+    extern "C" uint64_t ttbr0_el1_load();
+}
 #else
 // x86/mem.S
 export {
