@@ -314,7 +314,8 @@ static uint64_t vbar_el1_load() {
 }
 
 static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
-                      uint64_t boot_stack, uint64_t identity_map) {
+                      uint64_t boot_stack, uint64_t identity_map,
+                      uint64_t cpu_block) {
     auto boot_sp = (uint8_t*)(boot_stack + PAGE_SIZE - 0x40);
     auto boot_sp_va = (uint8_t*)phys_address((uintptr_t)boot_sp);
 
@@ -325,6 +326,7 @@ static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
     *(uint64_t*)(boot_sp_va + (3 * sizeof(uint64_t))) = tcr_el1_load();
     *(uint64_t*)(boot_sp_va + (2 * sizeof(uint64_t))) = mair_el1_load();
     *(uint64_t*)(boot_sp_va + sizeof(uint64_t)) = vbar_el1_load();
+    *(uint64_t*)boot_sp_va = cpu_block;
 
     auto ret = CPU_ON(mpidr, entry_point_phys, (uint64_t)boot_sp);
 
@@ -485,15 +487,34 @@ export bool init_smp() {
     if (!identity_map)
         return false;
 
-    auto boot_stacks = (uint64_t*)malloc(sizeof(uint64_t) * ap_count);
+    struct info {
+        uint64_t stack;
+        uint64_t cpu_block;
+    };
+
+    auto boot_info = (info*)malloc(sizeof(info) * ap_count);
     for (unsigned int i = 0; i < ap_count; i++) {
-        boot_stacks[i] = allocate_page();
-        if (!boot_stacks[i]) {
+        boot_info[i].stack = allocate_page();
+        if (!boot_info[i].stack) {
             print("allocate_page failed\n");
             for (unsigned int j = 0; j < i; j++) {
-                free_folio(boot_stacks[j]);
+                free_folio(boot_info[j].stack);
             }
-            free(boot_stacks);
+            free(boot_info);
+            return false;
+        }
+
+        boot_info[i].cpu_block = init_cpu_block(i + 1);
+
+        if (!boot_info[i].cpu_block) {
+            print("init_cpu_block failed\n");
+
+            // FIXME - should free other cpu_blocks instead (or just bsod)
+
+            for (unsigned int j = 0; j < i; j++) {
+                free_folio(boot_info[j].stack);
+            }
+            free(boot_info);
             return false;
         }
     }
@@ -503,8 +524,8 @@ export bool init_smp() {
     auto ap_trampoline_phys = va_to_pa_lookup((uint64_t)&ap_trampoline);
 
     for (unsigned int i = 1; i < num_cpus; i++) {
-        start_cpu(cpu_ids[i], ap_trampoline_phys, boot_stacks[i - 1],
-                  identity_map);
+        start_cpu(cpu_ids[i], ap_trampoline_phys, boot_info[i - 1].stack,
+                  identity_map, boot_info[i - 1].cpu_block);
     }
 
     // FIXME - spin waiting for ap_left to become 0

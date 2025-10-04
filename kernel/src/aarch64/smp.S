@@ -7,7 +7,7 @@ ap_trampoline:
 	// x1 = ttbr0, x2 = ttbr1, x3 = sctlr, x4 = cpacr, x5 = tcr, x6 = mair
 	// x7 = vbar
 
-	ldp	xzr, x7, [sp]
+	ldp	x18, x7, [sp]
 	ldp	x6, x5, [sp, 0x10]
 	ldp	x4, x3, [sp, 0x20]
 	ldp	x2, x1, [sp, 0x30]
@@ -20,8 +20,7 @@ ap_trampoline:
 	msr	cpacr_el1, x4
 	msr	tcr_el1, x5
 	msr	sctlr_el1, x3
-
-	// FIXME - x18
+	msr tpidr_el1, x18
 
 	// FIXME - set scheduler stack
 	// FIXME - reduce ap_left

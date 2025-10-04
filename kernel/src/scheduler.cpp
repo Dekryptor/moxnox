@@ -400,7 +400,7 @@ uintptr_t allocate_emergency_stack() {
 }
 #endif
 
-export bool init_cpu_block(unsigned int cpu_no) {
+export uintptr_t init_cpu_block(unsigned int cpu_no) {
     auto pages = bytes_to_pages(sizeof(cpu_block));
     auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);
     auto& cb = *(cpu_block*)va;
@@ -410,23 +410,23 @@ export bool init_cpu_block(unsigned int cpu_no) {
             auto pa = allocate_folio_no_lock(0, page_state::used);
             if (!pa) {
                 print("allocate_folio_no_lock failed\n");
-                return false;
+                return 0;
             }
 
             if (!map_page<true>(pa, va, mapping_type::read_write)) {
                 print("map_page failed\n");
-                return false;
+                return 0;
             }
         } else {
             auto pa = allocate_page();
             if (!pa) {
                 print("allocate_page failed\n");
-                return false;
+                return 0;
             }
 
             if (!map_page(pa, va, mapping_type::read_write)) {
                 print("map_page failed\n");
-                return false;
+                return 0;
             }
         }
 
@@ -439,13 +439,13 @@ export bool init_cpu_block(unsigned int cpu_no) {
         printk_scratch_pa = allocate_folio_no_lock(0, page_state::used);
         if (!printk_scratch_pa) {
             print("allocate_folio_no_lock failed\n");
-            return false;
+            return 0;
         }
     } else {
         printk_scratch_pa = allocate_page();
         if (!printk_scratch_pa) {
             print("allocate_page failed\n");
-            return false;
+            return 0;
         }
     }
 
@@ -464,7 +464,7 @@ export bool init_cpu_block(unsigned int cpu_no) {
         stack = allocate_stack();
 
     if (!stack)
-        return false;
+        return 0;
 
     cb.scheduler_stack = (uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
 
@@ -482,12 +482,14 @@ export bool init_cpu_block(unsigned int cpu_no) {
 #endif
 
 #ifdef __aarch64__
-    __asm __volatile (
-        "mov x18, %0\n\t"
-        "msr tpidr_el1, x18\n\t"
-        :
-        : "r" (&cb)
-    );
+    if (cpu_no == 0) {
+        __asm __volatile (
+            "mov x18, %0\n\t"
+            "msr tpidr_el1, x18\n\t"
+            :
+            : "r" (&cb)
+        );
+    }
 #else
     __asm __volatile (
         "mov rax, cr3"
@@ -506,7 +508,7 @@ export bool init_cpu_block(unsigned int cpu_no) {
     );
 #endif
 
-    return true;
+    return (uintptr_t)&cb;
 }
 
 extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable*/,
