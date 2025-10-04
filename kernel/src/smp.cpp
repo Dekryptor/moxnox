@@ -207,7 +207,26 @@ static void setup_ap_gdt(task_state_segment* tss) {
         : "ax"
     );
 }
+#endif
 
+#ifdef __aarch64__
+static void __attribute__((noreturn)) ap_startup() {
+    // FIXME - set up timer
+
+    ap_left.fetch_sub(1, memory_order_acq_rel);
+
+    __asm __volatile ( // doesn't return
+        "add x0, x18, #%0\n\t"
+        "ldr x0, [x0]\n\t"
+        "mov sp, x0\n\t"
+        "b scheduler"
+        :
+        : "i" (GS_SCHEDULER_STACK)
+    );
+
+    __builtin_unreachable();
+}
+#else
 static void ap_startup() {
     // load IDT
     __asm __volatile (
@@ -316,17 +335,18 @@ static uint64_t vbar_el1_load() {
 static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
                       uint64_t boot_stack, uint64_t identity_map,
                       uint64_t cpu_block) {
-    auto boot_sp = (uint8_t*)(boot_stack + PAGE_SIZE - 0x40);
+    auto boot_sp = (uint8_t*)(boot_stack + PAGE_SIZE - 0x50);
     auto boot_sp_va = (uint8_t*)phys_address((uintptr_t)boot_sp);
 
-    *(uint64_t*)(boot_sp_va + (7 * sizeof(uint64_t))) = identity_map;
-    *(uint64_t*)(boot_sp_va + (6 * sizeof(uint64_t))) = ttbr1_el1_load();
-    *(uint64_t*)(boot_sp_va + (5 * sizeof(uint64_t))) = sctlr_el1_load();
-    *(uint64_t*)(boot_sp_va + (4 * sizeof(uint64_t))) = cpacr_el1_load();
-    *(uint64_t*)(boot_sp_va + (3 * sizeof(uint64_t))) = tcr_el1_load();
-    *(uint64_t*)(boot_sp_va + (2 * sizeof(uint64_t))) = mair_el1_load();
-    *(uint64_t*)(boot_sp_va + sizeof(uint64_t)) = vbar_el1_load();
-    *(uint64_t*)boot_sp_va = cpu_block;
+    *(uint64_t*)(boot_sp_va + (9 * sizeof(uint64_t))) = identity_map;
+    *(uint64_t*)(boot_sp_va + (8 * sizeof(uint64_t))) = ttbr1_el1_load();
+    *(uint64_t*)(boot_sp_va + (7 * sizeof(uint64_t))) = sctlr_el1_load();
+    *(uint64_t*)(boot_sp_va + (6 * sizeof(uint64_t))) = cpacr_el1_load();
+    *(uint64_t*)(boot_sp_va + (5 * sizeof(uint64_t))) = tcr_el1_load();
+    *(uint64_t*)(boot_sp_va + (4 * sizeof(uint64_t))) = mair_el1_load();
+    *(uint64_t*)(boot_sp_va + (3 * sizeof(uint64_t))) = vbar_el1_load();
+    *(uint64_t*)(boot_sp_va + (2 * sizeof(uint64_t))) = cpu_block;
+    *(uint64_t*)(boot_sp_va + sizeof(uint64_t)) = (uintptr_t)ap_startup;
 
     auto ret = CPU_ON(mpidr, entry_point_phys, (uint64_t)boot_sp);
 
@@ -410,11 +430,8 @@ export bool init_smp() {
         if (h.Type == ACPI_MADT_TYPE_GENERIC_INTERRUPT) {
             auto& ent = *(ACPI_MADT_GENERIC_INTERRUPT*)data.data();
 
-            if ((ent.ArmMpidr & MPIDR_MASK) != bsp_id) {
-                print("MPIDR: {:x}\n", ent.ArmMpidr);
-
+            if ((ent.ArmMpidr & MPIDR_MASK) != bsp_id)
                 ap_count++;
-            }
         }
 #else
         if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
@@ -528,9 +545,16 @@ export bool init_smp() {
                   identity_map, boot_info[i - 1].cpu_block);
     }
 
-    // FIXME - spin waiting for ap_left to become 0
-    // FIXME - free boot stacks
-    // FIXME - free identity map
+    while (ap_left.load(memory_order_acquire) > 0) {
+        __asm("yield");
+    }
+
+    for (unsigned int i = 0; i < ap_count; i++) {
+        free_folio(boot_info[i].stack);
+    }
+    free(boot_info);
+
+    free_folio(identity_map);
 #else
     auto trampoline = (void*)0;
 

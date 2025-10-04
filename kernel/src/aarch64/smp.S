@@ -5,12 +5,13 @@ ap_trampoline:
 	mov	sp, x0 // load boot stack
 
 	// x1 = ttbr0, x2 = ttbr1, x3 = sctlr, x4 = cpacr, x5 = tcr, x6 = mair
-	// x7 = vbar
+	// x7 = vbar, x8 = ap_startup
 
-	ldp	x18, x7, [sp]
-	ldp	x6, x5, [sp, 0x10]
-	ldp	x4, x3, [sp, 0x20]
-	ldp	x2, x1, [sp, 0x30]
+	ldp xzr, x8, [sp]
+	ldp	x18, x7, [sp, 0x10]
+	ldp	x6, x5, [sp, 0x20]
+	ldp	x4, x3, [sp, 0x30]
+	ldp	x2, x1, [sp, 0x40]
 
 	msr	ttbr0_el1, x1
 	msr	ttbr1_el1, x2
@@ -22,8 +23,5 @@ ap_trampoline:
 	msr	sctlr_el1, x3
 	msr tpidr_el1, x18
 
-	// FIXME - set scheduler stack
-	// FIXME - reduce ap_left
-	// FIXME - jump to scheduler
-
-	b	. // FIXME
+	// jump to ap_startup
+	br	x8
