@@ -28,6 +28,7 @@ import interrupts;
 import timer;
 import syscalls;
 import scheduler;
+import disable_interrupts;
 
 using namespace std;
 
@@ -211,9 +212,13 @@ static void setup_ap_gdt(task_state_segment* tss) {
 
 #ifdef __aarch64__
 static void __attribute__((noreturn)) ap_startup() {
+    disable_interrupts();
+
     // FIXME - set up timer
 
     ap_left.fetch_sub(1, memory_order_acq_rel);
+
+    acquire_sync_lock();
 
     __asm __volatile ( // doesn't return
         "add x0, x18, #%0\n\t"
