@@ -325,7 +325,7 @@ void startup(loader_block* lb) {
         goto hang;
 
 #ifdef __aarch64__
-    if (!init_cpu_block(0)) // FIXME
+    if (!init_cpu_block(0))
         goto hang;
 #else
     if (!init_cpu_block(current_cpu_id()))
