@@ -258,13 +258,73 @@ static void ap_startup() {
 #endif
 
 #ifdef __aarch64__
+static uint64_t sctlr_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], sctlr_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+static uint64_t cpacr_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], cpacr_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+static uint64_t tcr_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], tcr_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+static uint64_t mair_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], mair_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+static uint64_t vbar_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], vbar_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
 static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
                       uint64_t boot_stack, uint64_t identity_map) {
-    auto boot_sp = (uint8_t*)(boot_stack + PAGE_SIZE - 0x10);
+    auto boot_sp = (uint8_t*)(boot_stack + PAGE_SIZE - 0x40);
     auto boot_sp_va = (uint8_t*)phys_address((uintptr_t)boot_sp);
 
-    *(uint64_t*)boot_sp_va = identity_map;
-    *(uint64_t*)(boot_sp_va + sizeof(uint64_t)) = ttbr1_el1_load();
+    *(uint64_t*)(boot_sp_va + (7 * sizeof(uint64_t))) = identity_map;
+    *(uint64_t*)(boot_sp_va + (6 * sizeof(uint64_t))) = ttbr1_el1_load();
+    *(uint64_t*)(boot_sp_va + (5 * sizeof(uint64_t))) = sctlr_el1_load();
+    *(uint64_t*)(boot_sp_va + (4 * sizeof(uint64_t))) = cpacr_el1_load();
+    *(uint64_t*)(boot_sp_va + (3 * sizeof(uint64_t))) = tcr_el1_load();
+    *(uint64_t*)(boot_sp_va + (2 * sizeof(uint64_t))) = mair_el1_load();
+    *(uint64_t*)(boot_sp_va + sizeof(uint64_t)) = vbar_el1_load();
 
     auto ret = CPU_ON(mpidr, entry_point_phys, (uint64_t)boot_sp);
 

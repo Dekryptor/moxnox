@@ -4,16 +4,22 @@
 ap_trampoline:
 	mov	sp, x0 // load boot stack
 
-	ldp	x1, x2, [sp]
+	// x1 = ttbr0, x2 = ttbr1, x3 = sctlr, x4 = cpacr, x5 = tcr, x6 = mair
+	// x7 = vbar
+
+	ldp	xzr, x7, [sp]
+	ldp	x6, x5, [sp, 0x10]
+	ldp	x4, x3, [sp, 0x20]
+	ldp	x2, x1, [sp, 0x30]
+
 	msr	ttbr0_el1, x1
 	msr	ttbr1_el1, x2
 
-	// FIXME - enable paging
-	// FIXME - sctlr_el1
-	// FIXME - cpacr_el1
-	// FIXME - tcr_el1
-	// FIXME - mair
-	// FIXME - vbar_el1
+	msr	mair_el1, x6
+	msr	vbar_el1, x7
+	msr	cpacr_el1, x4
+	msr	tcr_el1, x5
+	msr	sctlr_el1, x3
 
 	// FIXME - x18
 
