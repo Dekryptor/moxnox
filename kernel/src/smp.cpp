@@ -29,7 +29,14 @@ import scheduler;
 
 using namespace std;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+
+static const uint64_t MPIDR_MASK = 0xff00ffffff;
+
+export uint64_t* cpu_ids;
+
+#else
+
 // in smp.S
 extern "C" uint8_t ap_trampoline;
 extern "C" uint8_t ap_trampoline_end;
@@ -47,9 +54,11 @@ struct gdt_ptr {
 
 static gdt_ptr bsp_gdt, bsp_idt;
 
-export uint8_t* apic_ids;
-export unsigned int num_cpus;
+export uint8_t* cpu_ids;
+
 #endif
+
+export unsigned int num_cpus;
 
 #ifndef __aarch64__
 static void start_ap(uint8_t i) {
@@ -97,7 +106,20 @@ static void start_ap(uint8_t i) {
         } while (*icr1 & 0x1000);
     }
 }
+#endif
 
+#ifdef __aarch64__
+export uint64_t current_cpu_id() {
+    uint64_t mpidr;
+
+    __asm __volatile (
+        "mrs %x[res], mpidr_el1"
+        : [res] "=r" (mpidr)
+    );
+
+    return mpidr & MPIDR_MASK;
+}
+#else
 export uint8_t current_cpu_id() {
     uint32_t eax, ebx, ecx, edx;
 
@@ -109,7 +131,9 @@ export uint8_t current_cpu_id() {
 
     return (uint8_t)((ebx >> 24) & 0xff);
 }
+#endif
 
+#ifndef __aarch64__
 static void setup_ap_gdt(task_state_segment* tss) {
     auto& cb = *get_cpu_block();
 
@@ -215,7 +239,7 @@ static void ap_startup() {
 
     auto num = ap_left.fetch_sub(1, memory_order_acq_rel);
 
-    apic_ids[num_cpus - num] = apic_id;
+    cpu_ids[num_cpus - num] = apic_id;
 
     acquire_sync_lock();
 
@@ -234,6 +258,8 @@ export bool init_smp() {
         return false;
 #endif
 
+    // FIXME - support devicetree
+
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
     if (ACPI_FAILURE(status)) {
@@ -250,14 +276,24 @@ export bool init_smp() {
     span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
               tbl->Length - sizeof(ACPI_TABLE_MADT));
 
-#ifndef __aarch64__
-    uint8_t bsp_id = current_cpu_id();
     unsigned int ap_count = 0;
+    auto bsp_id = current_cpu_id();
 
     auto data = madt;
     while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
         auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
+#ifdef __aarch64__
+        if (h.Type == ACPI_MADT_TYPE_GENERIC_INTERRUPT) {
+            auto& ent = *(ACPI_MADT_GENERIC_INTERRUPT*)data.data();
+
+            if ((ent.ArmMpidr & MPIDR_MASK) != bsp_id) {
+                print("MPIDR: {:x}\n", ent.ArmMpidr);
+
+                ap_count++;
+            }
+        }
+#else
         if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
             auto& ent = *(ACPI_MADT_LOCAL_APIC*)data.data();
 
@@ -284,24 +320,26 @@ export bool init_smp() {
                 ap_count++;
             }
         }
+#endif
 
         data = data.subspan(h.Length);
     }
 
-    apic_ids = (uint8_t*)malloc(ap_count + 1);
-    if (!apic_ids) {
+    cpu_ids = (decltype(bsp_id)*)malloc(ap_count + 1);
+    if (!cpu_ids) {
         print("malloc failed\n");
         return false;
     }
 
-    apic_ids[0] = current_cpu_id();
-    memset(apic_ids + 1, 0, sizeof(uint8_t) * ap_count);
+    cpu_ids[0] = current_cpu_id();
+    memset(cpu_ids + 1, 0, sizeof(decltype(bsp_id)) * ap_count);
 
     num_cpus = ap_count + 1;
 
     if (ap_count == 0)
         return true;
 
+#ifndef __aarch64__
     auto trampoline = (void*)0;
 
     // we already reserved page 0 in the bootloader

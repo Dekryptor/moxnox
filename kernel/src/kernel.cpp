@@ -234,15 +234,15 @@ void main_thread() {
 #endif
 
     if (!init_smp()) {
-#ifndef __aarch64__ // FIXME
-        apic_ids = (uint8_t*)malloc(1);
-        if (!apic_ids) {
+        auto bsp_id = current_cpu_id();
+
+        cpu_ids = (decltype(bsp_id)*)malloc(1);
+        if (!cpu_ids) {
             print("malloc failed\n");
             return;
         }
 
-        apic_ids[0] = current_cpu_id();
-#endif
+        cpu_ids[0] = bsp_id;
     }
 
     protect_kernel_pages();
