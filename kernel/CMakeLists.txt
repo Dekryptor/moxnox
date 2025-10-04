@@ -47,6 +47,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/process.cpp
     src/syscalls.cpp
     src/power.cpp
+    src/smp.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -58,7 +59,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/btrfs.cpp
     src/sata.cpp
     src/pci.cpp
-    src/smp.cpp
     src/nvme.cpp
     src/virtio.cpp
     src/virtio_block.cpp

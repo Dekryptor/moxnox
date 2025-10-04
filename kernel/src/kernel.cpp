@@ -12,7 +12,6 @@ import psci;
 #else
 import serial;
 import pci;
-import smp;
 #endif
 
 import bsod;
@@ -38,6 +37,7 @@ import image;
 import keyboard;
 import process;
 import syscalls;
+import smp;
 
 using namespace std;
 
@@ -233,8 +233,8 @@ void main_thread() {
     init_psci();
 #endif
 
-#ifndef __aarch64__
     if (!init_smp()) {
+#ifndef __aarch64__ // FIXME
         apic_ids = (uint8_t*)malloc(1);
         if (!apic_ids) {
             print("malloc failed\n");
@@ -242,8 +242,8 @@ void main_thread() {
         }
 
         apic_ids[0] = current_cpu_id();
-    }
 #endif
+    }
 
     protect_kernel_pages();
 

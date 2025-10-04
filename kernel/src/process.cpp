@@ -42,9 +42,9 @@ import thread;
 import rangelock;
 import rwsem;
 import scheduler;
+import smp;
 
 #ifndef __aarch64__
-import smp;
 import apic;
 #endif
 

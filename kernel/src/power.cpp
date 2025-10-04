@@ -13,9 +13,9 @@ import vfs;
 import pipe;
 import disable_interrupts;
 import scheduler;
+import smp;
 
 #ifndef __aarch64__
-import smp;
 import apic;
 #endif
 

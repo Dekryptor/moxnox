@@ -16,7 +16,7 @@ static const uint32_t PSCI_VERSION_FUNC_ID = 0x84000000;
 static const uint32_t CPU_ON_FUNC_ID = 0xc4000003;
 
 static bool use_hvc;
-static uint32_t psci_version;
+export uint32_t psci_version = 0;
 
 export enum class PSCI_STATUS : int64_t {
     SUCCESS = 0,
@@ -138,6 +138,7 @@ export bool init_psci() {
     if ((psci_version >> 16) == 0 && (psci_version & 0xffff) < 2) {
         print("psci version was {}.{}, expected at least 0.2\n",
               psci_version >> 16, psci_version & 0xffff);
+        psci_version = 0;
         return false;
     }
 

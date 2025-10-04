@@ -13,17 +13,23 @@ module;
 
 export module smp;
 
+#ifdef __aarch64__
+import psci;
+#else
+import apic;
+#endif
+
 import print;
 import mem;
 import config;
 import interrupts;
 import timer;
 import syscalls;
-import apic;
 import scheduler;
 
 using namespace std;
 
+#ifndef __aarch64__
 // in smp.S
 extern "C" uint8_t ap_trampoline;
 extern "C" uint8_t ap_trampoline_end;
@@ -43,7 +49,9 @@ static gdt_ptr bsp_gdt, bsp_idt;
 
 export uint8_t* apic_ids;
 export unsigned int num_cpus;
+#endif
 
+#ifndef __aarch64__
 static void start_ap(uint8_t i) {
     // FIXME - should we be disabling interrupts here?
 
@@ -218,8 +226,14 @@ static void ap_startup() {
         : "i" (GS_SCHEDULER_STACK)
     );
 }
+#endif
 
 export bool init_smp() {
+#ifdef __aarch64__
+    if (psci_version == 0) // FIXME - support spin-table
+        return false;
+#endif
+
     ACPI_TABLE_HEADER* tbl;
     auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
     if (ACPI_FAILURE(status)) {
@@ -236,6 +250,7 @@ export bool init_smp() {
     span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
               tbl->Length - sizeof(ACPI_TABLE_MADT));
 
+#ifndef __aarch64__
     uint8_t bsp_id = current_cpu_id();
     unsigned int ap_count = 0;
 
@@ -345,6 +360,7 @@ export bool init_smp() {
     }
 
     unmap_page(0);
+#endif
 
     return true;
 }
