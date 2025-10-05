@@ -58,7 +58,7 @@ union ARM64_GICD_CTLR {
     uint32_t value;
 } __attribute((packed));
 
-union ARM64_GICC_CTLR {
+export union ARM64_GICC_CTLR {
     struct {
         uint32_t EnableGrp0 : 1;
         uint32_t EnableGrp1 : 1;
@@ -76,7 +76,7 @@ union ARM64_GICC_CTLR {
     uint32_t value;
 } __attribute((packed));
 
-union ARM64_GICC_PMR {
+export union ARM64_GICC_PMR {
     struct {
         uint32_t Priority : 8;
         uint32_t : 24;
@@ -915,14 +915,6 @@ export uint64_t init_interrupts_cpu(uint64_t mpidr) {
         return 0;
     }
 
-    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)va;
-    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(va + 0x4);
-
-    GICC_CTLR.EnableGrp0 = 1; // enable GICC
-
-    // allow all interrupts through
-    GICC_PMR.Priority = 0xff;
-
     return va;
 }
 
@@ -975,6 +967,14 @@ export bool init_interrupts() {
 
     auto& cb = *get_cpu_block();
     cb.gicc = gicc;
+
+    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
+    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
+
+    GICC_CTLR.EnableGrp0 = 1; // enable GICC
+
+    // allow all interrupts through
+    GICC_PMR.Priority = 0xff;
 
     return true;
 }

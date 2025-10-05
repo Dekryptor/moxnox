@@ -212,7 +212,27 @@ static void setup_ap_gdt(task_state_segment* tss) {
 static void __attribute__((noreturn)) ap_startup() {
     disable_interrupts();
 
-    // FIXME - set up timer
+    auto& cb = *get_cpu_block();
+    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
+    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
+
+    GICC_CTLR.EnableGrp0 = 1; // enable GICC
+
+    // allow all interrupts through
+    GICC_PMR.Priority = 0xff;
+
+    // set up timer
+    __asm __volatile (
+        "msr cntp_tval_el0, %x[res]"
+        "\n\tmov x0, #1"
+        "\n\tmsr cntp_ctl_el0, x0"
+        :
+        : [res] "r" (hardware_tick_rate)
+        : "x0"
+    );
+
+    clear_irq_pending_bit(timer_irq_no);
+    enable_irq(timer_irq_no);
 
     ap_left.fetch_sub(1, memory_order_acq_rel);
 

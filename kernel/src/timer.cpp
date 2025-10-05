@@ -23,7 +23,7 @@ import inout;
 import apic;
 #endif
 
-extern "C++" {
+export extern "C++" {
     uint32_t timer_irq_no;
 }
 
@@ -65,7 +65,7 @@ static_assert(object_has_on_wake<timer>);
 
 static uint32_t CNTFRQ;
 
-extern "C++" {
+export extern "C++" {
     uint64_t hardware_tick_rate;
 }
 
