@@ -37,6 +37,9 @@ using namespace std;
 // in aarch64/smp.S
 extern "C" uint8_t ap_trampoline;
 
+// in aarch64/ints.S
+extern "C" uint8_t vector_table_ap;
+
 export uint64_t* cpu_ids;
 
 #else
@@ -212,6 +215,12 @@ static void setup_ap_gdt(task_state_segment* tss) {
 static void __attribute__((noreturn)) ap_startup() {
     disable_interrupts();
 
+    __asm __volatile (
+        "msr vbar_el1, %x[res]"
+        :
+        : [res] "r" (&vector_table_ap)
+    );
+
     auto& cb = *get_cpu_block();
     auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
     auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
@@ -344,17 +353,6 @@ static uint64_t mair_el1_load() {
     return ret;
 }
 
-static uint64_t vbar_el1_load() {
-    uint64_t ret;
-
-    __asm __volatile (
-        "mrs %x[res], vbar_el1"
-        : [res] "=r" (ret)
-    );
-
-    return ret;
-}
-
 static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
                       uint64_t boot_stack, uint64_t identity_map,
                       cpu_block* cpu_block) {
@@ -367,7 +365,7 @@ static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
     *(uint64_t*)(boot_sp_va + (6 * sizeof(uint64_t))) = cpacr_el1_load();
     *(uint64_t*)(boot_sp_va + (5 * sizeof(uint64_t))) = tcr_el1_load();
     *(uint64_t*)(boot_sp_va + (4 * sizeof(uint64_t))) = mair_el1_load();
-    *(uint64_t*)(boot_sp_va + (3 * sizeof(uint64_t))) = vbar_el1_load();
+    *(uint64_t*)(boot_sp_va + (3 * sizeof(uint64_t))) = 0; //vbar_el1_load();
     *(uint64_t*)(boot_sp_va + (2 * sizeof(uint64_t))) = (uintptr_t)cpu_block;
     *(uint64_t*)(boot_sp_va + sizeof(uint64_t)) = (uintptr_t)ap_startup;
 

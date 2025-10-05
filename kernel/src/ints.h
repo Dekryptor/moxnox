@@ -3,7 +3,7 @@
 #ifdef __aarch64__
 
 // aarch64/ints.S
-extern "C" void load_vector_table();
+extern "C" void load_vector_table_bsp();
 
 #else
 

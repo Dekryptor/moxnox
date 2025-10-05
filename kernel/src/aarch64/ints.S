@@ -154,8 +154,8 @@
 .section .text.interrupts, "x"
 
 .balign 2048
-.global vector_table
-vector_table:
+.global vector_table_bsp
+vector_table_bsp:
 // Synchronous Exception, EL1 using SP_EL0 stack
 b	.
 .balign 128
@@ -172,7 +172,7 @@ b	.
 b	kernel_exception_entry
 .balign 128
 // IRQ, EL1 using SP_EL1 stack
-b	kernel_irq_entry
+b	kernel_irq_entry_bsp
 .balign 128
 // FIQ, EL1 using SP_EL1 stack
 b	.
@@ -184,7 +184,58 @@ b	.
 b	user_exception_entry
 .balign 128
 // IRQ, 64-bit EL0
-b	user_irq_entry
+b	user_irq_entry_bsp
+.balign 128
+// FIQ, 64-bit EL0
+b	.
+.balign 128
+// SError, 64-bit EL0
+b	.
+.balign 128
+// Synchronous Exception, 32-bit EL0
+b	.
+.balign 128
+// IRQ, 32-bit EL0
+b	.
+.balign 128
+// FIQ, 32-bit EL0
+b	.
+.balign 128
+// SError, 32-bit EL0
+b	.
+.balign 128
+
+.global vector_table_ap
+vector_table_ap:
+// Synchronous Exception, EL1 using SP_EL0 stack
+b	.
+.balign 128
+// IRQ, EL1 using SP_EL0 stack
+b	.
+.balign 128
+// FIQ, EL1 using SP_EL0 stack
+b	.
+.balign 128
+// SError, EL1 using SP_EL0 stack
+b	.
+.balign 128
+// Synchronous Exception, EL1 using SP_EL1 stack
+b	kernel_exception_entry
+.balign 128
+// IRQ, EL1 using SP_EL1 stack
+b	kernel_irq_entry_ap
+.balign 128
+// FIQ, EL1 using SP_EL1 stack
+b	.
+.balign 128
+// SError, EL1 using SP_EL1 stack
+b	.
+.balign 128
+// Synchronous Exception, 64-bit EL0
+b	user_exception_entry
+.balign 128
+// IRQ, 64-bit EL0
+b	user_irq_entry_ap
 .balign 128
 // FIQ, 64-bit EL0
 b	.
@@ -207,10 +258,10 @@ b	.
 
 .section .text
 
-// void load_vector_table();
-.global load_vector_table
-load_vector_table:
-adr	x0, vector_table
+// void load_vector_table_bsp();
+.global load_vector_table_bsp
+load_vector_table_bsp:
+adr	x0, vector_table_bsp
 msr	vbar_el1, x0
 ret
 
@@ -672,7 +723,7 @@ eret
 .endm
 
 // can only use x0, x1, x2, and x3
-.macro timer_isr user
+.macro timer_isr user, bsp
 	// start clock again
 	adr	x1, hardware_tick_rate
 	ldr	x1, [x1]
@@ -680,64 +731,66 @@ eret
 	mov	x0, #1
 	msr	cntp_ctl_el0, x0
 
-	// system time
+	.if \bsp
+		// system time
 
-	adr	x0, system_time
-	ldr	x1, [x0]
-	mov	x2, #(SYSTEM_TIME_RESOLUTION / TICK_RATE)
-	add	x1, x1, x2
-	str	x1, [x0]
+		adr	x0, system_time
+		ldr	x1, [x0]
+		mov	x2, #(SYSTEM_TIME_RESOLUTION / TICK_RATE)
+		add	x1, x1, x2
+		str	x1, [x0]
 
-	// timers
-	bl	acquire_sync_lock
+		// timers
+		bl	acquire_sync_lock
 
-	adr	x1, active_timer_list  // set x1 to &active_timer_list
-	ldr	x0, [x1]  // set x0 to active_timer_list.next
+		adr	x1, active_timer_list  // set x1 to &active_timer_list
+		ldr	x0, [x1]  // set x0 to active_timer_list.next
 
 8:
-	cmp	x0, x1
-	b.eq	7f
+		cmp	x0, x1
+		b.eq	7f
 
-	ldr	x2, [x0] // set x2 to le->next
-	sub	x0, x0, #TIMER_LE
+		ldr	x2, [x0] // set x2 to le->next
+		sub	x0, x0, #TIMER_LE
 
-	// reduce ticks_left
-	ldr	x3, [x0, #TIMER_TICKS_LEFT]
-	sub	x3, x3, #1
-	str	x3, [x0, #TIMER_TICKS_LEFT]
-	cbnz	x3, 6f
+		// reduce ticks_left
+		ldr	x3, [x0, #TIMER_TICKS_LEFT]
+		sub	x3, x3, #1
+		str	x3, [x0, #TIMER_TICKS_LEFT]
+		cbnz	x3, 6f
 
-	call_func timer_expired
+		call_func timer_expired
 
 6:
-	mov	x0, x2
-	b	8b
+		mov	x0, x2
+		b	8b
 
-	// wait timeouts
+		// wait timeouts
 7:
-	adr	x1, thread_list_timeout // set x1 to &thread_list_timeout
-	ldr	x0, [x1] // set x0 to thread_list_timeout.next
+		adr	x1, thread_list_timeout // set x1 to &thread_list_timeout
+		ldr	x0, [x1] // set x0 to thread_list_timeout.next
 
 4:
-	cmp	x0, x1
-	b.eq	5f
+		cmp	x0, x1
+		b.eq	5f
 
-	ldr	x2, [x0] // set x2 to le->next
-	sub	x0, x0, #THREAD_TIMEOUT_LE
+		ldr	x2, [x0] // set x2 to le->next
+		sub	x0, x0, #THREAD_TIMEOUT_LE
 
-	// reduce wait_timeout
-	ldr	x3, [x0, #THREAD_WAIT_TIMEOUT]
-	sub	x3, x3, #1
-	str	x3, [x0, #THREAD_WAIT_TIMEOUT]
-	cbnz	x3, 3f
+		// reduce wait_timeout
+		ldr	x3, [x0, #THREAD_WAIT_TIMEOUT]
+		sub	x3, x3, #1
+		str	x3, [x0, #THREAD_WAIT_TIMEOUT]
+		cbnz	x3, 3f
 
-	call_func wait_timeout_expired
+		call_func wait_timeout_expired
 
 3:
-	mov	x0, x2
-	b	4b
+		mov	x0, x2
+		b	4b
 5:
-	bl	release_sync_lock
+		bl	release_sync_lock
+	.endif
 
 	// decrease time slice
 
@@ -784,28 +837,30 @@ eret
 	str	w1, [x0]
 .endm
 
-kernel_irq_entry:
-// extra 0x10 bytes for "red zone"
-sub	sp, sp, #0x40
+.macro kernel_irq_entry bsp
+	// extra 0x10 bytes for "red zone"
+	sub	sp, sp, #0x40
 
-stp	x0, x1, [sp]
-stp	x2, x3, [sp, #0x10]
-stp	lr, xzr, [sp, #0x20]
+	stp	x0, x1, [sp]
+	stp	x2, x3, [sp, #0x10]
+	stp	lr, xzr, [sp, #0x20]
 
-add	x2, x18, GS_GICC
-ldr	x2, [x2]
-add	x2, x2, GICC_IAR_OFFSET
-ldr	w2, [x2]
+	add	x2, x18, GS_GICC
+	ldr	x2, [x2]
+	add	x2, x2, GICC_IAR_OFFSET
+	ldr	w2, [x2]
 
-adr	x3, timer_irq_no
-ldr	w3, [x3]
-sub	w3, w2, w3
-cbnz	w3, 0f
-timer_isr 0
-b	kernel_irq_entry_finish
+	adr	x3, timer_irq_no
+	ldr	w3, [x3]
+	sub	w3, w2, w3
+	cbnz	w3, 0f
+	timer_isr 0, \bsp
+	b	kernel_irq_entry_finish
 
-0:
-do_irq
+	0:
+	do_irq
+	b	kernel_irq_entry_finish
+.endm
 
 kernel_irq_entry_finish:
 ldp	lr, xzr, [sp, #0x20]
@@ -815,28 +870,36 @@ ldp	x0, x1, [sp]
 add	sp, sp, #0x40
 eret
 
-user_irq_entry:
-sub	sp, sp, #0x30
+kernel_irq_entry_bsp:
+kernel_irq_entry 1
 
-stp	x0, x1, [sp]
-stp	x2, x3, [sp, #0x10]
-stp	x18, lr, [sp, #0x20]
-mrs	x18, tpidr_el1
+kernel_irq_entry_ap:
+kernel_irq_entry 0
 
-add	x2, x18, GS_GICC
-ldr	x2, [x2]
-add	x2, x2, GICC_IAR_OFFSET
-ldr	w2, [x2]
+.macro user_irq_entry bsp
+	sub	sp, sp, #0x30
 
-adr	x3, timer_irq_no
-ldr	w3, [x3]
-sub	w3, w2, w3
-cbnz	w3, 0f
-timer_isr 1
-b	user_irq_entry_finish
+	stp	x0, x1, [sp]
+	stp	x2, x3, [sp, #0x10]
+	stp	x18, lr, [sp, #0x20]
+	mrs	x18, tpidr_el1
 
-0:
-do_irq
+	add	x2, x18, GS_GICC
+	ldr	x2, [x2]
+	add	x2, x2, GICC_IAR_OFFSET
+	ldr	w2, [x2]
+
+	adr	x3, timer_irq_no
+	ldr	w3, [x3]
+	sub	w3, w2, w3
+	cbnz	w3, 0f
+	timer_isr 1, \bsp
+	b	user_irq_entry_finish
+
+	0:
+	do_irq
+	b	user_irq_entry_finish
+.endm
 
 user_irq_entry_finish:
 ldp	x18, lr, [sp, #0x20]
@@ -845,6 +908,12 @@ ldp	x0, x1, [sp]
 
 add	sp, sp, #0x30
 eret
+
+user_irq_entry_bsp:
+user_irq_entry 1
+
+user_irq_entry_ap:
+user_irq_entry 0
 
 // NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool raise_alert);
 user_NtContinue:

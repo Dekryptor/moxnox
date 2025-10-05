@@ -919,7 +919,7 @@ export uint64_t init_interrupts_cpu(uint64_t mpidr) {
 }
 
 static bool init_interrupts_global() {
-    load_vector_table();
+    load_vector_table_bsp();
 
     auto gicd_addr = find_gicd_address();
     if (!gicd_addr.has_value()) {
