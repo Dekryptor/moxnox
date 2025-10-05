@@ -84,9 +84,33 @@ export union ARM64_GICC_PMR {
     uint32_t value;
 } __attribute((packed));
 
-export const uint64_t MPIDR_MASK = 0xff00ffffff;
+export union ARM64_GICD_SGIR {
+    struct {
+        uint32_t SGIINTID : 4;
+        uint32_t : 11;
+        uint32_t NSATT : 1;
+        uint32_t CPUTargetList : 8;
+        uint32_t TargetListFilter : 2;
+        uint32_t : 6;
+    };
+    uint32_t value;
+} __attribute((packed));
 
-static uint64_t gicd;
+export union ARM64_GICC_IAR {
+    struct {
+        uint32_t InterruptID : 10;
+        uint32_t CPUID : 3;
+        uint32_t : 19;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+export const uint8_t HALT_SGI = 0;
+
+export const uint64_t MPIDR_MASK = 0xff00ffffff;
+export uint64_t gicd;
+
+export atomic<unsigned int> processors_left_to_halt;
 
 #else
 
@@ -1643,15 +1667,32 @@ void handle_user_exception(uint64_t esr_value) {
     t.kernel_mode = false;
 }
 
+export void __attribute__((noreturn)) halt_isr() {
+    processors_left_to_halt--;
+
+    disable_interrupts();
+
+    while (true) {
+        __asm __volatile("wfi");
+    }
+}
+
 extern "C"
 void handle_irq(uint32_t number) {
+    ARM64_GICC_IAR iar;
+
+    iar.value = number;
+
+    if (iar.InterruptID == HALT_SGI)
+        halt_isr();
+
     {
         lock_guard lock(irq_lock);
 
         for (auto le = irqs.next; le != &irqs; le = le->next) {
             auto& i = containing_record<irq>(le);
 
-            if (i.number != number)
+            if (i.number != iar.InterruptID)
                 continue;
 
             // FIXME - use refcounting so we can let go of irq_lock here(?)

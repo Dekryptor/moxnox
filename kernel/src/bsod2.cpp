@@ -124,8 +124,23 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
         }
     }
 
-#ifndef __aarch64__
     if (num_cpus > 1) {
+#ifdef __aarch64__
+        processors_left_to_halt = num_cpus - 1;
+
+        auto& GICD_SGIR = *(volatile uint32_t*)(gicd + 0xf00);
+        ARM64_GICD_SGIR sgir;
+
+        sgir.value = 0;
+        sgir.TargetListFilter = 1; // send IPI to everybody else
+        sgir.SGIINTID = HALT_SGI;
+
+        GICD_SGIR = sgir.value;
+
+        while (processors_left_to_halt.load(memory_order_acquire) > 0) {
+            __asm("yield");
+        }
+#else
         processors_left_to_halt = num_cpus - 1;
 
         // send IPI to other cores to stop them
@@ -135,8 +150,8 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
         *icr1 = 0xc0000 | halt_interrupt;
 
         while (processors_left_to_halt > 0) { }
-    }
 #endif
+    }
 
     auto& p = static_cast<chardev&>(console_chardev.get());
     uint64_t written;
@@ -211,9 +226,10 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     shutdown_pipes();
 
 #ifdef __aarch64__
-    while (true) { } // FIXME
+    halt_isr();
 #else
     __asm("call halt_isr");
-    __builtin_unreachable();
 #endif
+
+    __builtin_unreachable();
 }
