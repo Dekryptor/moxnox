@@ -356,18 +356,17 @@ static uint64_t mair_el1_load() {
 static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
                       uint64_t boot_stack, uint64_t identity_map,
                       cpu_block* cpu_block) {
-    auto boot_sp = (uint8_t*)(boot_stack + PAGE_SIZE - 0x50);
+    auto boot_sp = (uint8_t*)(boot_stack + PAGE_SIZE - 0x40);
     auto boot_sp_va = (uint8_t*)phys_address((uintptr_t)boot_sp);
 
-    *(uint64_t*)(boot_sp_va + (9 * sizeof(uint64_t))) = identity_map;
-    *(uint64_t*)(boot_sp_va + (8 * sizeof(uint64_t))) = ttbr1_el1_load();
-    *(uint64_t*)(boot_sp_va + (7 * sizeof(uint64_t))) = sctlr_el1_load();
-    *(uint64_t*)(boot_sp_va + (6 * sizeof(uint64_t))) = cpacr_el1_load();
-    *(uint64_t*)(boot_sp_va + (5 * sizeof(uint64_t))) = tcr_el1_load();
-    *(uint64_t*)(boot_sp_va + (4 * sizeof(uint64_t))) = mair_el1_load();
-    *(uint64_t*)(boot_sp_va + (3 * sizeof(uint64_t))) = 0; //vbar_el1_load();
-    *(uint64_t*)(boot_sp_va + (2 * sizeof(uint64_t))) = (uintptr_t)cpu_block;
+    *(uint64_t*)(boot_sp_va + (7 * sizeof(uint64_t))) = identity_map;
+    *(uint64_t*)(boot_sp_va + (6 * sizeof(uint64_t))) = ttbr1_el1_load();
+    *(uint64_t*)(boot_sp_va + (5 * sizeof(uint64_t))) = sctlr_el1_load();
+    *(uint64_t*)(boot_sp_va + (4 * sizeof(uint64_t))) = cpacr_el1_load();
+    *(uint64_t*)(boot_sp_va + (3 * sizeof(uint64_t))) = tcr_el1_load();
+    *(uint64_t*)(boot_sp_va + (2 * sizeof(uint64_t))) = mair_el1_load();
     *(uint64_t*)(boot_sp_va + sizeof(uint64_t)) = (uintptr_t)ap_startup;
+    *(uint64_t*)boot_sp_va = (uintptr_t)cpu_block;
 
     auto ret = CPU_ON(mpidr, entry_point_phys, (uint64_t)boot_sp);
 

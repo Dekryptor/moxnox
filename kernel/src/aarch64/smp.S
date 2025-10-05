@@ -7,11 +7,10 @@ ap_trampoline:
 	// x1 = ttbr0, x2 = ttbr1, x3 = sctlr, x4 = cpacr, x5 = tcr, x6 = mair
 	// x7 = ap_startup
 
-	ldp xzr, x7, [sp]
-	ldp	x18, xzr, [sp, 0x10]
-	ldp	x6, x5, [sp, 0x20]
-	ldp	x4, x3, [sp, 0x30]
-	ldp	x2, x1, [sp, 0x40]
+	ldp	x18, x7, [sp]
+	ldp	x6, x5, [sp, 0x10]
+	ldp	x4, x3, [sp, 0x20]
+	ldp	x2, x1, [sp, 0x30]
 
 	msr	ttbr0_el1, x1
 	msr	ttbr1_el1, x2
