@@ -790,6 +790,14 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
         }
     }
 
+    __asm __volatile (
+        "tlbi vae1, %x[res]\n"
+        "dsb ish\n"
+        "isb\n"
+        :
+        : [res] "r" (va >> PAGE_SHIFT)
+    );
+
     return true;
 }
 #else
