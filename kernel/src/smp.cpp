@@ -555,8 +555,7 @@ export bool init_smp() {
             return false;
         }
 
-        // FIXME - is it safe to enable GICC before sending CPU_ON?
-        auto gicc = init_interrupts_cpu(cpu_ids[i + 1]);
+        auto gicc = init_interrupts_cpu<false>(cpu_ids[i + 1]);
         if (!gicc) {
             print("init_interrupts_cpu failed for CPU {} (MPIDR {:x})\n",
                   i + 1, cpu_ids[i + 1]);

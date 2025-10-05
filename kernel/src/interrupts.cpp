@@ -895,21 +895,31 @@ static optional<uint64_t> find_gicd_address() {
     return gicd_addr;
 }
 
-export uint64_t init_interrupts_cpu(uint64_t mpidr) {
+export template<bool no_lock>
+uint64_t init_interrupts_cpu(uint64_t mpidr) {
     auto gicc_addr = find_gicc_address(mpidr);
     if (!gicc_addr.has_value()) {
         print("unable to find address of GIC controller\n");
         return 0;
     }
 
-    // FIXME - no_lock
-    auto va = allocate_va_no_lock(1);
-    if (!va) {
-        print("allocate_va_no_lock failed\n");
-        return 0;
+    uint64_t va;
+
+    if constexpr (no_lock) {
+        va = allocate_va_no_lock(1);
+        if (!va) {
+            print("allocate_va_no_lock failed\n");
+            return 0;
+        }
+    } else {
+        va = allocate_va(1);
+        if (!va) {
+            print("allocate_va failed\n");
+            return 0;
+        }
     }
 
-    if (!map_page<true>(*gicc_addr, va, mapping_type::no_cache)) {
+    if (!map_page<no_lock>(*gicc_addr, va, mapping_type::no_cache)) {
         print("map_page failed\n");
         free_va(va, 1);
         return 0;
@@ -961,7 +971,7 @@ export bool init_interrupts() {
 
     mpidr &= MPIDR_MASK;
 
-    auto gicc = init_interrupts_cpu(mpidr);
+    auto gicc = init_interrupts_cpu<true>(mpidr);
     if (!gicc)
         return false;
 
