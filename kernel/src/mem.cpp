@@ -1645,7 +1645,13 @@ export void unmap_page(uint64_t va) {
 
     pt_entry.valid = 0;
 
-    // FIXME - do we need to invalidate TLB?
+    __asm __volatile (
+        "tlbi vae1, %x[res]\n"
+        "dsb ish\n"
+        "isb\n"
+        :
+        : [res] "r" (va >> PAGE_SHIFT)
+    );
 }
 #else
 export void unmap_page(uint64_t va) {
