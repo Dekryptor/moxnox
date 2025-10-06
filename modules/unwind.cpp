@@ -535,10 +535,11 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                 if (i == codes.size() - 1)
                     return false;
 
-                // FIXME - add_fp
+                // add_fp
+                context.Fp = context.Sp - (codes[i + 1] * 8);
 
                 i++;
-                return false;
+                break;
 
             case 0xe3:
                 // nop
