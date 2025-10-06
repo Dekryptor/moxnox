@@ -404,8 +404,9 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
     for (size_t i = 0; i < codes.size(); i++) {
         switch (codes[i]) {
             case 0x00 ... 0x1f:
-                // FIXME - alloc_s
-                return false;
+                // alloc_s
+                context.Sp += codes[i] * 16;
+                break;
 
             case 0x20 ... 0x3f:
                 // FIXME - save_r19r20_x
