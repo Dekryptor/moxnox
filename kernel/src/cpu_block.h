@@ -7,7 +7,7 @@
 class thread;
 
 struct cpu_block {
-    std::atomic<uint64_t> disable_preempt = 0;
+    std::atomic<uint64_t> disable_preempt = 0; // must be first
     thread* current_thread;
     uint64_t time_slice_left;
     CONTEXT thread_context;

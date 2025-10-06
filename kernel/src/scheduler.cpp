@@ -746,20 +746,14 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
 
 export extern "C++" void disable_preempt() {
 #ifdef __aarch64__
-    uint64_t daif;
+    static_assert(offsetof(cpu_block, disable_preempt) == 0);
 
     __asm __volatile (
-        "mrs %x[res], daif\n"
-        "msr DAIFSet, #0xf\n"
-        : [res] "=r" (daif)
-    );
-
-    get_cpu_block()->disable_preempt++;
-
-    __asm __volatile (
-        "msr daif, %x[res]"
+        "mov x8, #1\n"
+        "ldaddal x8, x8, [x18]\n"
         :
-        : [res] "r" (daif)
+        :
+        : "x8"
     );
 #else
     __asm __volatile(
