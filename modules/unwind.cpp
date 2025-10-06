@@ -10,6 +10,7 @@ export module unwind;
 
 using namespace std;
 
+#ifndef __aarch64__
 extern "C++" optional<uint64_t> read_uint64_t(uint64_t addr);
 
 static span<const uint8_t> find_pdata(void* img_addr) {
@@ -343,9 +344,13 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
     return true;
 }
+#endif
 
 export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
                            UNWIND_INFO** unwind_info) {
+#ifdef __aarch64__
+    return false; // FIXME
+#else
     bool machine_frame = false;
 
     auto rt_func = find_runtime_function(img_addr, context.Rip);
@@ -369,4 +374,5 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
     }
 
     return true;
+#endif
 }

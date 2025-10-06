@@ -33,12 +33,7 @@ target_sources(ntdll PUBLIC FILE_SET CXX_MODULES FILES
 
 target_compile_options(ntdll PRIVATE ${USERSPACE_CFLAGS})
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)
-
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    target_link_libraries(ntdll format dwarf list) # unwind
-else()
-    target_link_libraries(ntdll format dwarf unwind list)
-endif()
+target_link_libraries(ntdll format dwarf unwind list)
 
 install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX}
     CXX_MODULES_BMI EXCLUDE_FROM_ALL

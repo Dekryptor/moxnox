@@ -8,7 +8,6 @@
 #include "ints.h"
 
 #ifndef __aarch64__
-import unwind;
 import apic;
 #endif
 
@@ -23,6 +22,7 @@ import disable_interrupts;
 import scheduler;
 import image;
 import smp;
+import unwind;
 
 using namespace std;
 
@@ -72,21 +72,23 @@ optional<uint64_t> read_uint64_t(uint64_t addr) {
     // FIXME - do this safely
     return *(uint64_t*)addr;
 }
+#endif
 
 static bool do_unwind_context(CONTEXT& context) {
+#ifdef __aarch64__
+    auto img = get_kernel_image_from_address(context.Pc);
+#else
     auto img = get_kernel_image_from_address(context.Rip);
+#endif
     if (!img)
         return false;
 
     return unwind_context(context, img->base_address, img->size, nullptr);
 }
-#endif
 
 static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_callers) {
-#ifdef __aarch64__ // FIXME
-    print_rip(p, context.Pc);
-#else
     // not interested in top entry (bsod function)
+    // FIXME - not if context from page fault etc.
     if (!do_unwind_context(context))
         return;
 
@@ -96,12 +98,15 @@ static void print_stacktrace(CONTEXT& context, chardev& p, unsigned int skip_cal
     }
 
     do {
+#ifdef __aarch64__
+        print_rip(p, context.Pc);
+#else
         print_rip(p, context.Rip);
+#endif
 
         if (!do_unwind_context(context))
             return;
     } while (true);
-#endif
 }
 
 void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
