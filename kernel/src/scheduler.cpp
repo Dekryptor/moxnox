@@ -453,7 +453,6 @@ export uintptr_t init_cpu_block(unsigned int cpu_no) {
 
     new (&cb) cpu_block;
 
-    cb.self = &cb;
     cb.current_thread = nullptr;
     cb.cpu_no = cpu_no;
     cb.printk_scratch = (char*)phys_address(printk_scratch_pa);

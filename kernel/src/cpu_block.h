@@ -7,7 +7,6 @@
 class thread;
 
 struct cpu_block {
-    cpu_block* self;
     thread* current_thread;
     uint64_t time_slice_left;
     CONTEXT thread_context;
