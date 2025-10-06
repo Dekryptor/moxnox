@@ -10,8 +10,39 @@ export module unwind;
 
 using namespace std;
 
-#ifndef __aarch64__
 extern "C++" optional<uint64_t> read_uint64_t(uint64_t addr);
+
+#ifdef __aarch64__
+
+struct IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY {
+    uint32_t BeginAddress;
+    union {
+        uint32_t UnwindData;
+        struct {
+            uint32_t Flag : 2;
+            uint32_t FunctionLength : 11;
+            uint32_t RegF : 3;
+            uint32_t RegI : 4;
+            uint32_t H : 1;
+            uint32_t CR : 2;
+            uint32_t FrameSize : 9;
+        };
+    };
+};
+
+union IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA {
+    uint32_t HeaderData;
+    struct {
+        uint32_t FunctionLength : 18;
+        uint32_t Version : 2;
+        uint32_t ExceptionDataPresent : 1;
+        uint32_t EpilogInHeader : 1;
+        uint32_t EpilogCount : 5;
+        uint32_t CodeWords : 5;
+    };
+};
+
+#endif
 
 static span<const uint8_t> find_pdata(void* img_addr) {
     const auto& dos_header = *(IMAGE_DOS_HEADER*)img_addr;
@@ -41,6 +72,7 @@ static span<const uint8_t> find_pdata(void* img_addr) {
     return span<const uint8_t>();
 }
 
+#ifndef __aarch64__
 static const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t rip) {
     rip -= (uintptr_t)img_addr;
 
@@ -346,11 +378,60 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 }
 #endif
 
+#ifdef __aarch64__
+
+static const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY* find_runtime_function(void* img_addr, uint64_t pc) {
+    pc -= (uintptr_t)img_addr;
+
+    // FIXME - how do JITted programs provide their pdata?
+
+    auto pdata = find_pdata(img_addr);
+    if (pdata.empty())
+        return nullptr;
+
+    span rt_funcs((IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY*)pdata.data(),
+                  pdata.size() / sizeof(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY));
+
+    for (const auto& f : rt_funcs) {
+        uint32_t length;
+
+        if (f.BeginAddress > pc) // stored in order
+            break;
+
+        if (f.Flag)// packed unwind data
+            length = f.FunctionLength * 4;
+        else {
+            const auto& xdata = *(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA*)((uintptr_t)img_addr + f.UnwindData);
+
+            length = xdata.FunctionLength * 4;
+        }
+
+        if (pc >= f.BeginAddress && pc < f.BeginAddress + length)
+            return &f;
+    }
+
+    return nullptr;
+}
+
 export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
                            UNWIND_INFO** unwind_info) {
-#ifdef __aarch64__
-    return false; // FIXME
+    auto rt_func = find_runtime_function(img_addr, context.Pc);
+
+    // rt_func should return nullptr for leaf functions that don't use stack
+    if (rt_func) {
+        // FIXME - unwind_context2
+        return false;
+    }
+
+    context.Pc = context.Lr;
+
+    return true;
+}
+
 #else
+
+export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
+                           UNWIND_INFO** unwind_info) {
     bool machine_frame = false;
 
     auto rt_func = find_runtime_function(img_addr, context.Rip);
@@ -374,5 +455,6 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
     }
 
     return true;
-#endif
 }
+
+#endif
