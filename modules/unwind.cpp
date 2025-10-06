@@ -380,6 +380,204 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
 #ifdef __aarch64__
 
+static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
+                            const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY& rt_func) {
+    // FIXME - handle case when address in prologue or epilogue
+
+    if (rt_func.Flag) {
+        // FIXME - packed unwind data
+        return false;
+    }
+
+    const auto& xdata = *(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA*)((uintptr_t)img_addr + rt_func.UnwindData);
+
+    if (xdata.EpilogCount == 0 && xdata.CodeWords == 0) {
+        // FIXME - extended epilogue count and extended code words
+        return false;
+    }
+
+    // FIXME - epilogue scopes
+
+    span codes(((uint8_t*)&xdata) + sizeof(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA),
+               xdata.CodeWords * sizeof(uint32_t));
+
+    for (size_t i = 0; i < codes.size(); i++) {
+        switch (codes[i]) {
+            case 0x00 ... 0x1f:
+                // FIXME - alloc_s
+                return false;
+
+            case 0x20 ... 0x3f:
+                // FIXME - save_r19r20_x
+                return false;
+
+            case 0x40 ... 0x7f:
+                // FIXME - save_fplr
+                return false;
+
+            case 0x80 ... 0xbf:
+                // FIXME - save_fplr_x
+                return false;
+
+            case 0xc0 ... 0xc7:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - alloc_m
+
+                i++;
+                return false;
+
+            case 0xc8 ... 0xcb:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - save_regp
+
+                i++;
+                return false;
+
+            case 0xcc ... 0xcf:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - save_regp_x
+
+                i++;
+                return false;
+
+            case 0xd0 ... 0xd3:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - save_reg
+
+                i++;
+                return false;
+
+            case 0xd4 ... 0xd5:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - save_reg_x
+
+                i++;
+                return false;
+
+            case 0xd6 ... 0xd7:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - save_lrpair
+
+                i++;
+                return false;
+
+            case 0xd8 ... 0xd9:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - save_fregp
+
+                i++;
+                return false;
+
+            case 0xda ... 0xdb:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - save_fregp_x
+
+                i++;
+                return false;
+
+            case 0xdc ... 0xdd:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - save_freg
+
+                i++;
+                return false;
+
+            case 0xde:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - save_freg_x
+
+                i++;
+                return false;
+
+            case 0xdf:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - alloc_z
+
+                i++;
+                return false;
+
+            case 0xe0:
+                if (i > codes.size() - 4)
+                    return false;
+
+                // FIXME - alloc_l
+
+                i += 3;
+                return false;
+
+            case 0xe1:
+                // FIXME - set_fp
+                return false;
+
+            case 0xe2:
+                if (i == codes.size() - 1)
+                    return false;
+
+                // FIXME - add_fp
+
+                i++;
+                return false;
+
+            case 0xe3:
+                // nop
+                break;
+
+            case 0xe4:
+                // end
+                i = codes.size() - 1;
+                break;
+
+            case 0xe5:
+                // FIXME - end_c
+                return false;
+
+            case 0xe6:
+                // FIXME - save_next
+                return false;
+
+            case 0xe7:
+                if (i > codes.size() - 3)
+                    return false;
+
+                // FIXME - save_any_xreg, save_any_dreg, save_any_qreg, save_zreg, save_preg
+
+                i += 2;
+                return false;
+
+            case 0xfc:
+                // FIXME - pac_sign_lr
+                return false;
+
+            default:
+                return false;
+        }
+    }
+
+    return true;
+}
+
 static const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY* find_runtime_function(void* img_addr, uint64_t pc) {
     pc -= (uintptr_t)img_addr;
 
@@ -398,7 +596,7 @@ static const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY* find_runtime_function(void* img
         if (f.BeginAddress > pc) // stored in order
             break;
 
-        if (f.Flag)// packed unwind data
+        if (f.Flag) // packed unwind data
             length = f.FunctionLength * 4;
         else {
             const auto& xdata = *(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA*)((uintptr_t)img_addr + f.UnwindData);
@@ -413,14 +611,13 @@ static const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY* find_runtime_function(void* img
     return nullptr;
 }
 
-export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
-                           UNWIND_INFO** unwind_info) {
+export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size) {
     auto rt_func = find_runtime_function(img_addr, context.Pc);
 
     // rt_func should return nullptr for leaf functions that don't use stack
     if (rt_func) {
-        // FIXME - unwind_context2
-        return false;
+        if (!unwind_context2(context, img_addr, img_size, *rt_func))
+            return false;
     }
 
     context.Pc = context.Lr;
@@ -431,7 +628,7 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
 #else
 
 export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
-                           UNWIND_INFO** unwind_info) {
+                           UNWIND_INFO** unwind_info = nullptr) {
     bool machine_frame = false;
 
     auto rt_func = find_runtime_function(img_addr, context.Rip);
