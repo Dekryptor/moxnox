@@ -67,12 +67,10 @@ static void print_rip(chardev& p, uint64_t rip) {
             written);
 }
 
-#ifndef __aarch64__
 optional<uint64_t> read_uint64_t(uint64_t addr) {
     // FIXME - do this safely
     return *(uint64_t*)addr;
 }
-#endif
 
 static bool do_unwind_context(CONTEXT& context) {
 #ifdef __aarch64__
