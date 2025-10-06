@@ -10,12 +10,11 @@ export module print;
 
 import format;
 import config;
+import disable_interrupts;
 
 using namespace std;
 
 extern "C++" void (*_printk)(string_view s);
-extern "C++" void disable_preempt();
-extern "C++" void enable_preempt();
 
 export
 template<typename... Args>

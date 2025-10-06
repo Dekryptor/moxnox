@@ -744,38 +744,6 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
     return ret;
 }
 
-export extern "C++" void disable_preempt() {
-#ifdef __aarch64__
-    static_assert(offsetof(cpu_block, disable_preempt) == 0);
-
-    __asm __volatile (
-        "mov x8, #1\n"
-        "ldaddal x8, x8, [x18]\n"
-        :
-        :
-        : "x8"
-    );
-#else
-    __asm __volatile(
-        "inc QWORD PTR gs:%0\n"
-        :
-        : "i" (offsetof(cpu_block, disable_preempt))
-    );
-#endif
-}
-
-export extern "C++" void enable_preempt() {
-#ifdef __aarch64__
-    get_cpu_block()->disable_preempt--;
-#else
-    __asm __volatile(
-        "dec QWORD PTR gs:%0\n"
-        :
-        : "i" (offsetof(cpu_block, disable_preempt))
-    );
-#endif
-}
-
 export extern "C++" void set_current_thread_waiting() {
     // must have synclock held
 

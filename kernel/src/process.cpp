@@ -43,6 +43,7 @@ import rangelock;
 import rwsem;
 import scheduler;
 import smp;
+import disable_interrupts;
 
 #ifndef __aarch64__
 import apic;

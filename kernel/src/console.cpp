@@ -43,6 +43,7 @@ import acpi;
 import object_ref;
 import scheduler;
 import list;
+import disable_interrupts;
 
 using namespace std;
 
