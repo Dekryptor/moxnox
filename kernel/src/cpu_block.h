@@ -7,6 +7,7 @@
 class thread;
 
 struct cpu_block {
+    std::atomic<uint64_t> disable_preempt = 0;
     thread* current_thread;
     uint64_t time_slice_left;
     CONTEXT thread_context;
@@ -21,7 +22,6 @@ struct cpu_block {
     uint64_t kernel_cr3;
     uint64_t syscall_rax;
 #endif
-    std::atomic<uint64_t> disable_preempt = 0;
     char* printk_scratch;
 };
 
