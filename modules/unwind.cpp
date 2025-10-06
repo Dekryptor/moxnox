@@ -550,7 +550,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                     return false;
 
                 // add_fp
-                context.Fp = context.Sp - (codes[i + 1] * 8);
+                context.Sp = context.Fp - (codes[i + 1] * 8);
 
                 i++;
                 break;
