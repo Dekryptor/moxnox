@@ -20,7 +20,7 @@ target_sources(kernelbase PUBLIC FILE_SET CXX_MODULES FILES
 target_compile_options(kernelbase PRIVATE ${USERSPACE_CFLAGS})
 target_link_options(kernelbase PUBLIC -nostartfiles -nostdlib)
 
-target_link_libraries(kernelbase PRIVATE format_sse)
+target_link_libraries(kernelbase PRIVATE format)
 target_link_libraries(kernelbase PRIVATE moxnox)
 
 install(TARGETS kernelbase DESTINATION ${CMAKE_INSTALL_PREFIX}

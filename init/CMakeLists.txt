@@ -19,7 +19,7 @@ add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 target_compile_options(init PRIVATE ${USERSPACE_CFLAGS})
 target_link_options(init PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(init format_sse cmdline)
+target_link_libraries(init format cmdline)
 target_link_libraries(init moxnox)
 
 install(TARGETS init DESTINATION ${CMAKE_INSTALL_PREFIX}

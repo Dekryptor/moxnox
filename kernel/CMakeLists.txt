@@ -88,6 +88,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
 
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
+    target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev)
 else()
     set(SRC_ASM_FILES src/x86/ints.S
         src/x86/timer.S
@@ -99,10 +100,8 @@ else()
 
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AMD64_MODULES})
-    target_link_libraries(kernel unwind)
+    target_link_libraries(kernel format_kernel dwarf_kernel list_kernel unicode_kernel rbtree_kernel vt100_kernel cp437_kernel evdev_kernel unwind_kernel)
 endif()
-
-target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev)
 
 target_compile_options(kernel PRIVATE ${KERNEL_CFLAGS} -Wno-unused-const-variable)
 # target_compile_options(kernel PRIVATE -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}/= -ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=)

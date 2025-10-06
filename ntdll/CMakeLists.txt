@@ -35,9 +35,9 @@ target_compile_options(ntdll PRIVATE ${USERSPACE_CFLAGS})
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    target_link_libraries(ntdll format dwarf list) # unwind_sse
+    target_link_libraries(ntdll format dwarf list) # unwind
 else()
-    target_link_libraries(ntdll format_sse dwarf_sse unwind_sse list_sse)
+    target_link_libraries(ntdll format dwarf unwind list)
 endif()
 
 install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX}
