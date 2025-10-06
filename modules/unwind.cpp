@@ -469,14 +469,25 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                 i++;
                 return false;
 
-            case 0xd4 ... 0xd5:
+            case 0xd4 ... 0xd5: {
                 if (i == codes.size() - 1)
                     return false;
 
-                // FIXME - save_reg_x
+                uint8_t x = ((codes[i] & 1) << 3) | (codes[i + 1] >> 5);
+                uint8_t z = codes[i + 1] & 0x1f;
+
+                // save_reg_x
+
+                if (auto ret = read_uint64_t(context.Sp); ret.has_value())
+                    context.X[19 + x] = *ret;
+                else
+                    return false;
+
+                context.Sp += (z + 1) * 8;
 
                 i++;
-                return false;
+                break;
+            }
 
             case 0xd6 ... 0xd7:
                 if (i == codes.size() - 1)
