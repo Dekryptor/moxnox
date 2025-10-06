@@ -200,7 +200,8 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
             "mov lr, x0\n"
             "mov %1, lr\n"
             "mov %2, sp\n"
-            : "=r" (context.Pc), "=r" (context.Lr), "=r" (context.Sp)
+            "mov %3, fp\n"
+            : "=r" (context.Pc), "=r" (context.Lr), "=r" (context.Sp), "=r" (context.Fp)
             :
             : "x0"
         );
