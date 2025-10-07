@@ -11,10 +11,7 @@
 import format;
 import dwarf;
 import print;
-
-#ifndef __aarch64__
 import unwind;
-#endif
 
 using namespace std;
 
@@ -91,7 +88,6 @@ static void print_rip(uint64_t rip) {
     print("{}", string_view(s, (size_t)(sp.data() - s)));
 }
 
-#ifndef __aarch64__
 optional<uint64_t> read_uint64_t(uint64_t addr) {
     NTSTATUS status;
     uint64_t ret;
@@ -104,16 +100,19 @@ optional<uint64_t> read_uint64_t(uint64_t addr) {
 
     return ret;
 }
-#endif
 
 static bool do_unwind_context(CONTEXT& context, UNWIND_INFO** unwind_info) {
 #ifdef __aarch64__
-    return false; // FIXME
+    auto ent = get_ldr_from_address(context.Pc);
 #else
     auto ent = get_ldr_from_address(context.Rip);
+#endif
     if (!ent)
         return false;
 
+#ifdef __aarch64__ // FIXME - unwind_info
+    return unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage);
+#else
     return unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage,
                           unwind_info);
 #endif
