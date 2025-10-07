@@ -391,6 +391,9 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
     const auto& xdata = *(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA*)((uintptr_t)img_addr + rt_func.UnwindData);
 
+    if (xdata.Version != 0)
+        return false;
+
     if (xdata.EpilogCount == 0 && xdata.CodeWords == 0) {
         // FIXME - extended epilogue count and extended code words
         return false;
