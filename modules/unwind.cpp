@@ -399,9 +399,14 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
         return false;
     }
 
-    // FIXME - epilogue scopes
+    uint16_t epilogue_count;
 
-    span codes(((uint8_t*)&xdata) + sizeof(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA),
+    if (xdata.EpilogInHeader)
+        epilogue_count = 0;
+    else
+        epilogue_count = xdata.EpilogCount;
+
+    span codes(((uint8_t*)&xdata) + sizeof(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA) + (epilogue_count * sizeof(uint32_t)),
                xdata.CodeWords * sizeof(uint32_t));
 
     for (size_t i = 0; i < codes.size(); i++) {
