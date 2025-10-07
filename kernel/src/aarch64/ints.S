@@ -258,13 +258,6 @@ b	.
 
 .section .text
 
-// void load_vector_table_bsp();
-.global load_vector_table_bsp
-load_vector_table_bsp:
-adr	x0, vector_table_bsp
-msr	vbar_el1, x0
-ret
-
 kernel_exception_entry:
 str	x0, [x18, #GS_EMERGENCY_SCRATCH]
 mov	x0, sp

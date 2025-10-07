@@ -953,7 +953,11 @@ uint64_t init_interrupts_cpu(uint64_t mpidr) {
 }
 
 static bool init_interrupts_global() {
-    load_vector_table_bsp();
+    __asm __volatile (
+        "msr vbar_el1, %x[res]"
+        :
+        : [res] "r" (&vector_table_bsp)
+    );
 
     auto gicd_addr = find_gicd_address();
     if (!gicd_addr.has_value()) {
