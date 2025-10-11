@@ -42,6 +42,12 @@ union IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA {
     };
 };
 
+struct aarch64_seh_extended_counts {
+    uint16_t epilogue_count;
+    uint8_t code_words;
+    uint8_t reserved;
+};
+
 #endif
 
 static span<const uint8_t> find_pdata(void* img_addr) {
@@ -472,20 +478,27 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
     if (xdata.Version != 0)
         return false;
 
-    if (xdata.EpilogCount == 0 && xdata.CodeWords == 0) {
-        // FIXME - extended epilogue count and extended code words
-        return false;
+    uint8_t code_words;
+    uint16_t epilogue_count;
+    size_t off = 0;
+
+    if (xdata.EpilogInHeader) {
+        code_words = xdata.CodeWords;
+        epilogue_count = 0;
+    } else if (xdata.EpilogCount != 0 || xdata.CodeWords != 0) {
+        code_words = xdata.CodeWords;
+        epilogue_count = xdata.EpilogCount;
+    } else {
+        auto& ec = *(aarch64_seh_extended_counts*)((uint8_t*)&xdata + sizeof(uint32_t));
+
+        off = sizeof(aarch64_seh_extended_counts);
+
+        epilogue_count = ec.epilogue_count;
+        code_words = ec.code_words;
     }
 
-    uint16_t epilogue_count;
-
-    if (xdata.EpilogInHeader)
-        epilogue_count = 0;
-    else
-        epilogue_count = xdata.EpilogCount;
-
-    span codes(((uint8_t*)&xdata) + sizeof(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA) + (epilogue_count * sizeof(uint32_t)),
-               xdata.CodeWords * sizeof(uint32_t));
+    span codes((uint8_t*)&xdata + sizeof(uint32_t) + off + (epilogue_count * sizeof(uint32_t)),
+               code_words * sizeof(uint32_t));
 
     for (size_t i = 0; i < codes.size(); i++) {
         switch (codes[i]) {
