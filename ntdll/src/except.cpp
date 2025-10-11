@@ -101,7 +101,7 @@ optional<uint64_t> read_uint64_t(uint64_t addr) {
     return ret;
 }
 
-static bool do_unwind_context(CONTEXT& context, UNWIND_INFO** unwind_info) {
+static bool do_unwind_context(CONTEXT& context) {
 #ifdef __aarch64__
     auto ent = get_ldr_from_address(context.Pc);
 #else
@@ -110,49 +110,41 @@ static bool do_unwind_context(CONTEXT& context, UNWIND_INFO** unwind_info) {
     if (!ent)
         return false;
 
-#ifdef __aarch64__ // FIXME - unwind_info
     return unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage);
-#else
-    return unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage,
-                          unwind_info);
-#endif
 }
 
-#ifndef __aarch64__
 static nt_status handle_exception(EXCEPTION_RECORD* exception,
-                                  const CONTEXT& orig_context) {
+                                  CONTEXT& orig_context) {
     CONTEXT context;
 
     context = orig_context;
 
     while (true) {
-        UNWIND_INFO* unwind_info = nullptr;
+        uint32_t handler_addr = 0;
 
+#ifdef __aarch64__
+        auto ent = get_ldr_from_address(context.Pc);
+#else
         auto ent = get_ldr_from_address(context.Rip);
+#endif
         if (!ent)
             break;
 
         auto prev_context = context;
 
         if (!unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage,
-                            &unwind_info)) {
+                            &handler_addr)) {
             break;
         }
 
         // FIXME - should be using RtlVirtualUnwind?
 
-        if (!unwind_info || !(unwind_info->flags & UNW_FLAG_EHANDLER))
+        // FIXME - UNW_FLAG_UHANDLER handlers
+
+        if (!handler_addr)
             continue;
 
-        auto ptr = (uint8_t*)unwind_info + sizeof(UNWIND_INFO) + (unwind_info->unwind_codes_count * sizeof(UNWIND_CODE));
-
-        if (unwind_info->unwind_codes_count % 2)
-            ptr += sizeof(UNWIND_CODE);
-
-        auto handler = (EXCEPTION_ROUTINE)((uint8_t*)ent->ldr.DllBase + *(uint32_t*)ptr);
-
-        if (!handler)
-            continue;
+        auto handler = (EXCEPTION_ROUTINE)((uint8_t*)ent->ldr.DllBase + handler_addr);
 
         // FIXME - frame
         // FIXME - dispatcher context
@@ -161,6 +153,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
         switch (disp) {
             case EXCEPTION_DISPOSITION::ExceptionContinueExecution:
                 // FIXME - check for EH_NONCONTINUABLE
+                memcpy(&orig_context, &prev_context, sizeof(CONTEXT));
                 return nt_status::SUCCESS;
 
             case EXCEPTION_DISPOSITION::ExceptionContinueSearch:
@@ -181,14 +174,12 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 
     return nt_status::UNHANDLED_EXCEPTION;
 }
-#endif
 
 extern "C" FORCE_ALIGN_ARG_POINTER
 void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-#ifndef __aarch64__
     auto status = handle_exception(exception, *context);
     if (success(status))
         NtContinue(context, false); // doesn't return
@@ -197,7 +188,6 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         sp = format(sp, "Error {} received while trying to handle exception\n", status);
         print("{}", string_view(s, (size_t)(sp.data() - s)));
     }
-#endif
 
     // FIXME - print EXE name
 
@@ -272,7 +262,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
             print_rip(context->Rip);
 #endif
 
-            if (!do_unwind_context(*context, nullptr))
+            if (!do_unwind_context(*context))
                 break;
         } while (true);
     }

@@ -227,7 +227,7 @@ static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t va
 
 static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                             const RUNTIME_FUNCTION* prt_func,
-                            bool& machine_frame, UNWIND_INFO** unwind_info) {
+                            bool& machine_frame, uint32_t* handler_addr) {
     uint32_t func_offset;
     uint64_t frame = context.Rsp;
 
@@ -364,8 +364,17 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
             }
         }
 
-        if (unwind_info)
-            *unwind_info = &ui;
+        if (handler_addr) {
+            if (ui.flags & UNW_FLAG_EHANDLER) {
+                auto ptr = (uint8_t*)&ui + sizeof(UNWIND_INFO) + (ui.unwind_codes_count * sizeof(UNWIND_CODE));
+
+                if (ui.unwind_codes_count % 2)
+                    ptr += sizeof(UNWIND_CODE);
+
+                *handler_addr = *(uint32_t*)ptr;
+            } else
+                *handler_addr = 0;
+        }
 
         if (!(ui.flags & UNW_FLAG_CHAININFO))
             break;
@@ -467,7 +476,8 @@ static bool unwind_context_packed(CONTEXT& context, void* img_addr, size_t img_s
 }
 
 static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
-                            const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY& rt_func) {
+                            const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY& rt_func,
+                            uint32_t* handler_addr) {
     // FIXME - handle case when address in prologue or epilogue
 
     if (rt_func.Flag)
@@ -981,6 +991,9 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
         }
     }
 
+    if (handler_addr && xdata.ExceptionDataPresent)
+        *handler_addr = *(uint32_t*)((uint8_t*)&xdata + sizeof(uint32_t) + off + (epilogue_count * sizeof(uint32_t)) + (code_words * sizeof(uint32_t)));
+
     return true;
 }
 
@@ -1017,13 +1030,16 @@ static const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY* find_runtime_function(void* img
     return nullptr;
 }
 
-export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size) {
+export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
+                           uint32_t* handler_addr = nullptr) {
     auto rt_func = find_runtime_function(img_addr, context.Pc);
 
     // rt_func should return nullptr for leaf functions that don't use stack
     if (rt_func) {
-        if (!unwind_context2(context, img_addr, img_size, *rt_func))
+        if (!unwind_context2(context, img_addr, img_size, *rt_func,
+                             handler_addr)) {
             return false;
+        }
     }
 
     context.Pc = context.Lr;
@@ -1034,7 +1050,7 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size) {
 #else
 
 export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
-                           UNWIND_INFO** unwind_info = nullptr) {
+                           uint32_t* handler_addr = nullptr) {
     bool machine_frame = false;
 
     auto rt_func = find_runtime_function(img_addr, context.Rip);
@@ -1042,7 +1058,7 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
     // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
     if (rt_func) {
         if (!unwind_context2(context, img_addr, img_size, rt_func,
-                             machine_frame, unwind_info)) {
+                             machine_frame, handler_addr)) {
             return false;
         }
     }
