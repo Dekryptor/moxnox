@@ -9,11 +9,7 @@ import page_cache;
 import objects;
 import inode;
 
-enum class section_type {
-    anonymous,
-    file,
-    image
-};
+#include "section2.h"
 
 struct section_info {
     uint64_t offset;
@@ -27,13 +23,6 @@ struct dwarf_info {
     section_info debug_str;
     section_info debug_addr;
     section_info debug_str_offsets;
-};
-
-class anon_section_cache {
-public:
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
-
-    page_cache<anon_section_cache> cache{*this};
 };
 
 static_assert(cacheable<anon_section_cache>);

@@ -15,7 +15,7 @@ module;
 #include "mapping.h"
 #include <pe.h>
 #include <ntdll.h>
-#include "section.h"
+#include "section2.h"
 #include "assert.h"
 
 #ifdef __aarch64__
@@ -44,6 +44,9 @@ import rwsem;
 import scheduler;
 import smp;
 import disable_interrupts;
+import page_cache;
+import objects;
+import inode;
 
 #ifndef __aarch64__
 import apic;
