@@ -1,4 +1,5 @@
 #include "../../kernel/src/context_offsets.h"
+#include "exception_record_offsets.h"
 #include "dwarf.S"
 
 .section .debug_abbrev, "dr"
@@ -134,7 +135,12 @@ RtlRaiseException:
 	add	x0, sp, #0x10
 	bl	RtlCaptureContext
 
+	// put lr as exception_record->ExceptionAddress
+	ldr	x1, [sp, #0x8]
 	ldr	x0, [sp]
+	str	x1, [x0, #EXCEPTION_RECORD_EXCEPTION_ADDRESS]
+
+	// x0 is already address of exception_record
 	add	x1, sp, #0x10
 	b	mn_signal
 .seh_endproc
