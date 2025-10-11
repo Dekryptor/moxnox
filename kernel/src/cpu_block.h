@@ -8,6 +8,9 @@ class thread;
 
 struct cpu_block {
     std::atomic<uint64_t> disable_preempt = 0; // must be first
+#ifndef __aarch64__
+    cpu_block* self;
+#endif
     thread* current_thread;
     uint64_t time_slice_left;
     CONTEXT thread_context;
@@ -37,6 +40,7 @@ static_assert(offsetof(cpu_block, emergency_sp) == GS_EMERGENCY_SP);
 static_assert(offsetof(cpu_block, emergency_scratch) == GS_EMERGENCY_SCRATCH);
 static_assert(offsetof(cpu_block, gicc) == GS_GICC);
 #else
+static_assert(offsetof(cpu_block, self) == GS_SELF);
 static_assert(offsetof(cpu_block, kernel_cr3) == GS_KERNEL_CR3);
 static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);
 #endif

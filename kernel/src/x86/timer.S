@@ -329,7 +329,7 @@ release_sync_lock_end:
 
 .global get_cpu_block
 get_cpu_block:
-    mov rax, gs:0
+    mov rax, gs:GS_SELF
     ret
 get_cpu_block_end:
 

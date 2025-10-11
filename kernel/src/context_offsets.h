@@ -37,8 +37,9 @@
 #else
 
 #define GS_DISABLE_PREEMPT 0x0
-#define GS_CURRENT_THREAD 0x8
-#define GS_TIME_SLICE_LEFT 0x10
+#define GS_SELF 0x8
+#define GS_CURRENT_THREAD 0x10
+#define GS_TIME_SLICE_LEFT 0x18
 #define GS_CONTEXT 0x20
 #define GS_CPU_NO 0x4f0
 #define GS_SCHEDULER_STACK 0x4f8
