@@ -592,8 +592,9 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                 return false;
 
             case 0xe1:
-                // FIXME - set_fp
-                return false;
+                // set_fp
+                context.Sp = context.Fp;
+                break;
 
             case 0xe2:
                 if (i == codes.size() - 1)
