@@ -2,6 +2,7 @@
 
 #include <variant>
 #include <string_view>
+#include <pe.h>
 #include "spinlock.h"
 
 import page_cache;
@@ -27,8 +28,6 @@ struct dwarf_info {
     section_info debug_addr;
     section_info debug_str_offsets;
 };
-
-struct IMAGE_SECTION_HEADER;
 
 class anon_section_cache {
 public:
