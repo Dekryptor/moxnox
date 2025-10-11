@@ -1402,7 +1402,7 @@ static void invalid_opcode_kernel() {
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
-         0, &cb.thread_context);
+         &cb.thread_context);
 }
 
 static void stack_alignment_exception_kernel() {
@@ -1423,7 +1423,7 @@ static void stack_alignment_exception_kernel() {
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
-         0, &cb.thread_context);
+         &cb.thread_context);
 }
 
 static void unhandled_kernel_exception(uint64_t esr_value) {
@@ -1449,7 +1449,7 @@ static void unhandled_kernel_exception(uint64_t esr_value) {
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
-         0, &cb.thread_context);
+         &cb.thread_context);
 }
 
 static void page_fault_kernel() {
@@ -1497,7 +1497,7 @@ static void page_fault_kernel() {
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
-         0, &cb.thread_context);
+         &cb.thread_context);
 }
 
 extern "C"

@@ -48,6 +48,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/syscalls.cpp
     src/power.cpp
     src/smp.cpp
+    src/kernel_images.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}

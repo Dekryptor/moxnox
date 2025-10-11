@@ -12,22 +12,74 @@ export module bsod;
 import format;
 import config;
 import disable_interrupts;
+import unwind;
+import kernel_images;
 
 using namespace std;
 
 extern "C++" __attribute__((noreturn)) void _bsod(string_view msg, source_location sl,
-                                                  unsigned int skip_callers,
-                                                  CONTEXT* captured_context);
+                                                  const CONTEXT& captured_context);
 
 export bool in_bsod = false;
+
+bool do_unwind_context(CONTEXT& context) {
+#ifdef __aarch64__
+    auto img = get_kernel_image_from_address(context.Pc);
+#else
+    auto img = get_kernel_image_from_address(context.Rip);
+#endif
+    if (!img)
+        return false;
+
+    return unwind_context(context, img->base_address, img->size);
+}
+
+inline __attribute__((always_inline)) void capture_context(CONTEXT& ctx) {
+    // FIXME - all regs?
+
+#ifdef __aarch64__
+    __asm __volatile (
+        "mov x0, lr\n"
+        "bl 0f\n"
+        "0:\n"
+        "mov %0, lr\n"
+        "mov lr, x0\n"
+        "mov %1, lr\n"
+        "mov %2, sp\n"
+        "mov %3, fp\n"
+        : "=r" (ctx.Pc), "=r" (ctx.Lr), "=r" (ctx.Sp), "=r" (ctx.Fp)
+        :
+        : "x0"
+    );
+#else
+    __asm __volatile(
+        "mov %0, rsp\n"
+        "\tmov %1, rbp\n"
+        "\tcall 0f\n"
+        "\t0:\n"
+        "\tpop rax\n"
+        "\tmov %2, rax\n"
+        : "=m" (ctx.Rsp), "=m" (ctx.Rbp), "=m" (ctx.Rip)
+        :
+        : "rax"
+    );
+#endif
+}
 
 export
 __attribute__((noreturn))
 void bsod(string_view msg, source_location sl = source_location::current(),
-          unsigned int skip_callers = 1, CONTEXT* captured_context = nullptr) {
+          CONTEXT* captured_context = nullptr) {
+    CONTEXT this_context;
+
     in_bsod = true;
 
-    _bsod(msg, sl, skip_callers, captured_context);
+    if (!captured_context) {
+        capture_context(this_context);
+        do_unwind_context(this_context);
+    }
+
+    _bsod(msg, sl, captured_context ? *captured_context : this_context);
 }
 
 export
@@ -36,6 +88,8 @@ struct bsod_format {
     __attribute__((noreturn))
     bsod_format(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args,
                 const source_location& sl = source_location::current()) {
+        CONTEXT this_context;
+
         disable_preempt();
 
         auto& cb = *get_cpu_block();
@@ -44,8 +98,13 @@ struct bsod_format {
 
         sp = format_to(sp, fmt.sv, make_tuple(args...));
 
-        bsod(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
-             sl, 2);
+        in_bsod = true;
+
+        capture_context(this_context);
+        do_unwind_context(this_context);
+
+        _bsod(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
+              sl, this_context);
 
         enable_preempt();
     }
