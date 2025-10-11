@@ -380,14 +380,92 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
 #ifdef __aarch64__
 
+static bool unwind_context_packed(CONTEXT& context, void* img_addr, size_t img_size,
+                                  const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY& rf) {
+    // FIXME - unwinding in prologue or epilogue
+
+    size_t intsz = rf.RegI * sizeof(uint64_t);
+
+    if (rf.CR == 1)
+        intsz += sizeof(uint64_t); // lr
+
+    size_t fpsz = rf.RegF ? ((rf.RegF + 1) * sizeof(uint64_t)) : 0;
+    size_t savsz = intsz + fpsz;
+
+    if (rf.H)
+        savsz += 8 * sizeof(uint64_t);
+
+    savsz = (savsz + 0xf) & ~0xf;
+
+    size_t locsz = (rf.FrameSize * 16) - savsz;
+
+    if (rf.CR == 2 || rf.CR == 3) { // step 6a, 6b, or 6c
+        // mov sp, x29
+        context.Sp = context.X[29];
+
+        // ldr x29, [sp]
+        if (auto ret = read_uint64_t(context.Sp); ret.has_value())
+            context.X[29] = *ret;
+        else
+            return false;
+
+        // ldr lr, [sp, #8]
+        if (auto ret = read_uint64_t(context.Sp + 8); ret.has_value())
+            context.Lr = *ret;
+        else
+            return false;
+    }
+
+    // step 6
+    context.Sp += locsz;
+
+    // can ignore case when H == 1 (step 5)
+
+    if (rf.RegF > 0) { // step 4
+        for (unsigned int i = 0; i < rf.RegF + 1; i++) {
+            // ldr d(8+i), [sp, #intsz + (i * 8)]
+            if (auto ret = read_uint64_t(context.Sp + intsz + (i * 8)); ret.has_value())
+                *(uint64_t*)&context.V[8 + i].D[0] = *ret;
+            else
+                return false;
+        }
+    }
+
+    if (rf.CR == 1) {
+        // ldr lr, [sp,#(intsz-8)]
+
+        if (auto ret = read_uint64_t(context.Sp + intsz - 8); ret.has_value())
+            context.Lr = *ret;
+        else
+            return false;
+    }
+
+    if (rf.RegI > 0) { // step 2
+        for (unsigned int i = 0; i < rf.RegI; i++) {
+            // ldr x(19 + i), [sp, #savsz + (i * 8)]
+            if (auto ret = read_uint64_t(context.Sp + savsz + (i + 8)); ret.has_value())
+                context.X[19 + i] = *ret;
+            else
+                return false;
+        }
+    }
+
+    context.Sp += savsz;
+
+    if (rf.CR == 2) { // step 1
+        // FIXME - pacibsp
+        return false;
+    }
+
+    return true;
+}
+
 static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                             const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY& rt_func) {
     // FIXME - handle case when address in prologue or epilogue
 
-    if (rt_func.Flag) {
-        // FIXME - packed unwind data
-        return false;
-    }
+    if (rt_func.Flag)
+        return unwind_context_packed(context, img_addr, img_size, rt_func);
 
     const auto& xdata = *(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA*)((uintptr_t)img_addr + rt_func.UnwindData);
 
