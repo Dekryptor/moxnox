@@ -416,9 +416,25 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                 context.Sp += codes[i] * 16;
                 break;
 
-            case 0x20 ... 0x3f:
-                // FIXME - save_r19r20_x
-                return false;
+            case 0x20 ... 0x3f: {
+                // save_r19r20_x
+
+                uint8_t z = codes[i] & 0x1f;
+
+                if (auto ret = read_uint64_t(context.Sp); ret.has_value())
+                    context.X[19] = *ret;
+                else
+                    return false;
+
+                if (auto ret = read_uint64_t(context.Sp + 8); ret.has_value())
+                    context.X[20] = *ret;
+                else
+                    return false;
+
+                context.Sp += z * 8;
+
+                break;
+            }
 
             case 0x40 ... 0x7f: {
                 uint32_t z = codes[i] & 0x3f;
