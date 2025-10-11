@@ -59,7 +59,25 @@ RtlCaptureContext:
 	ret
 
 # void RtlRaiseException(EXCEPTION_RECORD* exception_record);
+.seh_proc RtlRaiseException
 .global RtlRaiseException
 RtlRaiseException:
-	// FIXME
-	b	.
+	sub	sp, sp, #0x3a0
+	.seh_stackalloc 0x3a0
+
+	// stack:
+	// exception_record (sp)
+	// lr (sp + 0x8)
+	// context (sp + 0x10)
+
+	stp	x0, lr, [sp]
+	.seh_save_reg lr, 8
+	.seh_endprologue
+
+	add	x0, sp, #0x10
+	bl	RtlCaptureContext
+
+	ldr	x0, [sp]
+	add	x1, sp, #0x10
+	b	mn_signal
+.seh_endproc
