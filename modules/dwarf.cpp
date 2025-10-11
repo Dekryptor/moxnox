@@ -1066,7 +1066,7 @@ static void get_func_name(span<const uint8_t> debug_str,
     if (name.empty() && !linkage_name.empty())
         name = linkage_name;
 
-    if (!name.empty() && !abstract_origin.has_value()) {
+    if (!name.empty() && !abstract_origin.has_value() && !specification.has_value()) {
         sp = format(sp, "{}", name);
         return;
     }
