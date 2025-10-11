@@ -730,9 +730,147 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                 i = codes.size() - 1;
                 break;
 
-            case 0xe6:
-                // FIXME - save_next
-                return false;
+            case 0xe6: {
+                unsigned int next_chain = 1;
+
+                // save_next
+
+                while (i + next_chain < codes.size()) {
+                    if (codes[i + next_chain] == 0xe6)
+                        next_chain++;
+                    else
+                        break;
+                }
+
+                if (i + next_chain == codes.size())
+                    return false;
+
+                switch (codes[i + next_chain]) {
+                    case 0x20 ... 0x3f: { // save_r19r20_x
+                        uint8_t z = codes[i + next_chain] & 0x1f;
+
+                        if (next_chain >= 6)
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp); ret.has_value())
+                            context.X[19 + (next_chain * 2)] = *ret;
+                        else
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp + 8); ret.has_value())
+                            context.X[20 + (next_chain * 2)] = *ret;
+                        else
+                            return false;
+
+                        context.Sp += z * 8;
+
+                        break;
+                    }
+
+                    case 0xc8 ... 0xcb: { // save_regp
+                        if (i + next_chain == codes.size() - 1)
+                            return false;
+
+                        uint8_t x = ((codes[i + next_chain] & 3) << 2) | (codes[i + next_chain + 1] >> 6);
+                        uint8_t z = (codes[i + next_chain + 1] & 0x3f) + (next_chain * 2);
+
+                        if ((next_chain * 2) + x >= 11)
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp + (z * 8)); ret.has_value())
+                            context.X[19 + (next_chain * 2) + x] = *ret;
+                        else
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp + ((z + 1) * 8)); ret.has_value())
+                            context.X[20 + (next_chain * 2) + x] = *ret;
+                        else
+                            return false;
+
+                        break;
+                    }
+
+                    case 0xcc ... 0xcf: { // save_regp_x
+                        if (i + next_chain == codes.size() - 1)
+                            return false;
+
+                        uint8_t x = ((codes[i + next_chain] & 3) << 2) | (codes[i + next_chain + 1] >> 6);
+                        uint8_t z = codes[i + next_chain + 1] & 0x3f;
+
+                        if ((next_chain * 2) + x >= 11)
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp); ret.has_value())
+                            context.X[19 + (next_chain * 2) + x] = *ret;
+                        else
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp + 8); ret.has_value())
+                            context.X[20 + (next_chain * 2) + x] = *ret;
+                        else
+                            return false;
+
+                        context.Sp += (z + 1) * 8;
+
+                        break;
+                    }
+
+                    case 0xd8 ... 0xd9: { // save_fregp
+                        if (i + next_chain == codes.size() - 1)
+                            return false;
+
+                        uint8_t x = ((codes[i + next_chain] & 1) << 2) | (codes[i + next_chain + 1] >> 6);
+                        uint8_t z = (codes[i + next_chain + 1] & 0x3f) + (next_chain * 2);
+
+                        if ((next_chain * 2) + x >= 22)
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp + (z * 8)); ret.has_value())
+                            *(uint64_t*)&context.V[8 + (next_chain * 2) + x].D[0] = *ret;
+                        else
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp + ((z + 1) * 8)); ret.has_value())
+                            *(uint64_t*)&context.V[9 + (next_chain * 2) + x].D[0] = *ret;
+                        else
+                            return false;
+
+                        break;
+                    }
+
+                    case 0xda ... 0xdb: { // save_fregp_x
+                        if (i + next_chain == codes.size() - 1)
+                            return false;
+
+                        uint8_t x = ((codes[i + next_chain] & 1) << 2) | (codes[i + next_chain + 1] >> 6);
+                        uint8_t z = codes[i + next_chain + 1] & 0x3f;
+
+                        if ((next_chain * 2) + x >= 22)
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp); ret.has_value())
+                            *(uint64_t*)&context.V[8 + (next_chain * 2) + x].D[0] = *ret;
+                        else
+                            return false;
+
+                        if (auto ret = read_uint64_t(context.Sp + 8); ret.has_value())
+                            *(uint64_t*)&context.V[9 + (next_chain * 2) + x].D[0] = *ret;
+                        else
+                            return false;
+
+                        context.Sp += (z + 1) * 8;
+
+                        break;
+                    }
+
+                    // FIXME - save_any_xreg, save_any_dreg, save_any_qreg
+
+                    default:
+                        return false;
+                }
+
+                break;
+            }
 
             case 0xe7:
                 if (i > codes.size() - 3)
