@@ -11,7 +11,6 @@ module;
 #include "acpica.h"
 #include "cpu_block.h"
 #include "spinlock.h"
-#include "process.h"
 #include "assert.h"
 #include <span>
 #include "ints.h"
