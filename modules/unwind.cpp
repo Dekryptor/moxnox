@@ -725,14 +725,10 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                 // nop
                 break;
 
-            case 0xe4:
-                // end
+            case 0xe4: // end
+            case 0xe5: // end_c
                 i = codes.size() - 1;
                 break;
-
-            case 0xe5:
-                // FIXME - end_c
-                return false;
 
             case 0xe6:
                 // FIXME - save_next
