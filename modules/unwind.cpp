@@ -676,14 +676,19 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                 i++;
                 return false;
 
-            case 0xe0:
+            case 0xe0: {
                 if (i > codes.size() - 4)
                     return false;
 
-                // FIXME - alloc_l
+                // alloc_l
+
+                auto size = (codes[i + 1] << 16) | (codes[i + 2] << 8) | codes[i + 3];
+
+                context.Sp += size * 16;
 
                 i += 3;
-                return false;
+                break;
+            }
 
             case 0xe1:
                 // set_fp
