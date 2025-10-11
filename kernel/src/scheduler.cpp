@@ -4,11 +4,13 @@ module;
 #include <optional>
 #include <functional>
 #include <atomic>
+#include <string.h>
 #include "thread.h"
 #include "cpu_block.h"
-#include "process.h"
 #include "assert.h"
 #include "tick_rate.h"
+#include "timer-asm.h"
+#include "handle.h"
 
 export module scheduler;
 

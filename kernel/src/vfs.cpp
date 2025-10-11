@@ -6,9 +6,10 @@ module;
 #include <functional>
 #include <string_view>
 #include <mutex>
+#include <nt.h>
 #include "spinlock.h"
-#include "process.h"
 #include "file.h"
+#include "handle.h"
 
 export module vfs;
 
@@ -26,6 +27,7 @@ import thread;
 import volume;
 import visit;
 import rwsem;
+import object_ref;
 
 using namespace std;
 

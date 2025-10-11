@@ -38,6 +38,7 @@ import keyboard;
 import process;
 import syscalls;
 import smp;
+import object_ref;
 
 using namespace std;
 

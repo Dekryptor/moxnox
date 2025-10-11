@@ -3,11 +3,12 @@ module;
 #include <span>
 #include <atomic>
 #include <mutex>
-#include "process.h"
+#include "context_offsets.h"
 #include "spinlock.h"
 #include "tick_rate.h"
 #include "scheduler.h"
 #include "acpica.h"
+#include "handle.h"
 
 export module timer;
 
@@ -17,6 +18,8 @@ import interrupts;
 import bsod;
 import thread;
 import disable_interrupts;
+import objects;
+import object_ref;
 
 #ifndef __aarch64__
 import inout;

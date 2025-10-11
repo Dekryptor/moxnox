@@ -3,12 +3,15 @@
 #include <string_view>
 #include <mutex>
 #include "spinlock.h"
-#include "process.h"
+#include "handle.h"
 
 import print;
 import visit;
 import list;
 import thread;
+import objects;
+import object_ref;
+import mem;
 
 using namespace std;
 
