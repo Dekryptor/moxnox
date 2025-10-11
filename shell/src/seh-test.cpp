@@ -7,8 +7,13 @@ import print;
 enum EXCEPTION_DISPOSITION handler2(EXCEPTION_RECORD* rec, void* /*frame*/,
                                     CONTEXT* context,
                                     DISPATCHER_CONTEXT* /*dispatch*/) {
+#ifdef __aarch64__
+    print("rec->ExceptionCode = {:x}, context->Pc = {:x}\n",
+          rec->ExceptionCode, context->Pc);
+#else
     print("rec->ExceptionCode = {:x}, context->Rip = {:x}\n",
           rec->ExceptionCode, context->Rip);
+#endif
 
     if (rec->ExceptionCode == 0x12345678)
         return EXCEPTION_DISPOSITION::ExceptionContinueExecution;

@@ -167,18 +167,16 @@ endif()
 
 ###
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    add_executable(seh-test src/seh-test.cpp)
+add_executable(seh-test src/seh-test.cpp)
 
-    target_compile_options(seh-test PRIVATE ${USERSPACE_CFLAGS})
-    target_link_options(seh-test PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+target_compile_options(seh-test PRIVATE ${USERSPACE_CFLAGS})
+target_link_options(seh-test PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-    target_link_libraries(seh-test shelllib)
-    target_link_libraries(seh-test format)
-    target_link_libraries(seh-test moxnox)
+target_link_libraries(seh-test shelllib)
+target_link_libraries(seh-test format)
+target_link_libraries(seh-test moxnox)
 
-    install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX})
-endif()
+install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 ###
 
