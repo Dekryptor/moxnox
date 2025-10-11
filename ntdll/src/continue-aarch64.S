@@ -1,4 +1,60 @@
 #include "../../kernel/src/context_offsets.h"
+#include "dwarf.S"
+
+.section .debug_abbrev, "dr"
+
+.uleb128 1 // entry num
+.uleb128 DW_TAG_compile_unit
+.byte 1 // has children
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_udata
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_language
+.uleb128 DW_FORM_data2
+.uleb128 0
+.uleb128 0
+
+.uleb128 2 // entry num
+.uleb128 DW_TAG_subprogram
+.byte 0 // has children
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_data8
+.uleb128 0
+.uleb128 0
+
+.uleb128 0
+
+.section .debug_info, "dr"
+
+.long .debug_info_end - .debug_info_start
+
+.debug_info_start:
+.short 5 // version
+.byte DW_UT_compile
+.byte 8 // address size
+.secrel32 .debug_abbrev
+
+.uleb128 1
+.quad .text // low_pc
+.uleb128 .text_end - .text // high_pc
+.asciz __FILE__ // name
+.short DW_LANG_Mips_Assembler // language
+
+dwarf_func_asm RtlCaptureContext
+dwarf_func_asm RtlRaiseException
+
+.uleb128 0
+
+.debug_info_end:
+
+.text
 
 # NTSTATUS RtlCaptureContext(CONTEXT* context);
 .global RtlCaptureContext
@@ -57,6 +113,7 @@ RtlCaptureContext:
 	// return STATUS_SUCCESS
 	mov x0, xzr
 	ret
+RtlCaptureContext_end:
 
 # void RtlRaiseException(EXCEPTION_RECORD* exception_record);
 .seh_proc RtlRaiseException
@@ -81,3 +138,6 @@ RtlRaiseException:
 	add	x1, sp, #0x10
 	b	mn_signal
 .seh_endproc
+RtlRaiseException_end:
+
+.text_end:
