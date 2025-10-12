@@ -351,18 +351,24 @@ kernel_exception_entry_end:
 		.quad "stack_\name"
 
 		.text
+		.seh_proc "stack_\name"
 		"stack_\name":
 			.if \args % 2 == 1
 				sub	sp, sp, 0x50 + (\args - 7) * 8
+				.seh_stackalloc 0x50 + (\args - 7) * 8
 			.else
 				sub	sp, sp, 0x50 + (\args - 8) * 8
+				.seh_stackalloc 0x50 + (\args - 8) * 8
 			.endif
+
+			str	lr, [sp, #0x40 + ((\args - 8) * 8)]
+			.seh_save_reg lr, 0x40 + ((\args - 8) * 8)
+			.seh_endprologue
 
 			stp	x0, x1, [sp]
 			stp	x2, x3, [sp, #0x10]
 			stp	x4, x5, [sp, #0x20]
 			stp	x6, x7, [sp, #0x30]
-			str	lr, [sp, #0x40 + ((\args - 8) * 8)]
 
 			// ks_addr
 			add	x0, sp, #0x40
@@ -378,13 +384,20 @@ kernel_exception_entry_end:
 			// return STATUS_ACCESS_VIOLATION if copy_from_process returned false
 			mov	w0, 5
 			movk	w0, #0xc000, lsl 16
+
+			.seh_startepilogue
+
 			ldr	lr, [sp, #0x40 + ((\args - 8) * 8)]
+			.seh_save_reg lr, 0x40 + ((\args - 8) * 8)
 
 			.if \args % 2 == 1
 				add	sp, sp, 0x50 + (\args - 7) * 8
+				.seh_stackalloc 0x50 + (\args - 7) * 8
 			.else
 				add	sp, sp, 0x50 + (\args - 8) * 8
+				.seh_stackalloc 0x50 + (\args - 8) * 8
 			.endif
+			.seh_endepilogue
 
 			ret
 
@@ -405,6 +418,7 @@ kernel_exception_entry_end:
 				add	sp, sp, 0x10 + ((\args - 8) * 8)
 			.endif
 			ret
+		.seh_endproc
 		stack_\name\()_end:
 
 		.section .debug_info, "dr"
