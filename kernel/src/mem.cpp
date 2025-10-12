@@ -24,12 +24,7 @@ import print;
 import format;
 import bsod;
 
-#ifdef __aarch64__
-// aarch64/mem.S
-export {
-    extern "C" uint64_t ttbr0_el1_load();
-}
-#else
+#ifndef __aarch64__
 // x86/mem.S
 export {
     extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
@@ -363,6 +358,17 @@ export span<char> do_format_arg(span<char> sp, string_view, const ARM64_HARDWARE
     sp = do_format_arg(sp, "", p.imp_def);
 
     return sp;
+}
+
+export uint64_t ttbr0_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], ttbr0_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
 }
 
 export uint64_t ttbr1_el1_load() {
