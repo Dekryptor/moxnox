@@ -504,6 +504,24 @@ static void segfault() {
     *(volatile uint8_t*)0 = 0;
 }
 
+inline __attribute__((always_inline)) void inline3() {
+    __asm __volatile("nop");
+    *(volatile uint8_t*)0 = 0;
+    __asm __volatile("nop");
+}
+
+inline __attribute__((always_inline)) void inline2() {
+    __asm __volatile("nop");
+    inline3();
+    __asm __volatile("nop");
+}
+
+static void __attribute__((noinline)) inline1() {
+    __asm __volatile("nop");
+    inline2();
+    __asm __volatile("nop");
+}
+
 static void halt() {
     auto status = NtShutdownSystem(SHUTDOWN_ACTION::ShutdownPowerOff);
 
@@ -822,6 +840,8 @@ static void process_line(string_view sv, HANDLE server_handle,
         timer();
     else if (cmd == "segfault")
         segfault(); // TESTING
+    else if (cmd == "inline")
+        inline1(); // TESTING
     else if (cmd == "int3")
         int3(); // TESTING
     else if (cmd == "ill")
