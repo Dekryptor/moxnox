@@ -99,7 +99,7 @@ export bool send_ctrl_c(HANDLE proc) {
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 for red zone
 #else
     context.Rip = (uintptr_t)addr;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20; // 0x20 for MS ABI
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20 - sizeof(uint64_t); // red zone, plus (unused) return pointer
     context.EFlags = 0x200;
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
 #endif

@@ -271,7 +271,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 }
 
 extern "C"
-__attribute__((force_align_arg_pointer)) void mn_ctrl_c() {
+void mn_ctrl_c() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     optional<uintptr_t> kernelbase;
