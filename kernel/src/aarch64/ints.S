@@ -59,10 +59,6 @@ dwarf_func_asm user_irq_entry_ap
 dwarf_func_asm kernel_exception_entry
 dwarf_func_asm user_exception_entry
 
-.uleb128 0
-
-.debug_info_end:
-
 .text
 
 // FIXME - SEH(?)
@@ -409,6 +405,10 @@ kernel_exception_entry_end:
 				add	sp, sp, 0x10 + ((\args - 8) * 8)
 			.endif
 			ret
+		stack_\name\()_end:
+
+		.section .debug_info, "dr"
+		dwarf_func_asm stack_\name
 
 		.section .rdata
 	.endif
@@ -1057,3 +1057,9 @@ eret
 user_NtContinue_end:
 
 .text_end:
+
+.section .debug_info, "dr"
+
+.uleb128 0
+
+.debug_info_end:
