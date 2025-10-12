@@ -27,7 +27,6 @@ import bsod;
 #ifdef __aarch64__
 // aarch64/mem.S
 export {
-    extern "C" uint64_t ttbr1_el1_load();
     extern "C" uint64_t ttbr0_el1_load();
 }
 #else
@@ -364,6 +363,17 @@ export span<char> do_format_arg(span<char> sp, string_view, const ARM64_HARDWARE
     sp = do_format_arg(sp, "", p.imp_def);
 
     return sp;
+}
+
+export uint64_t ttbr1_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], ttbr1_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
 }
 
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
