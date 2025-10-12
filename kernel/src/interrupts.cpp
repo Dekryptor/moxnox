@@ -1083,7 +1083,7 @@ static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
     cb.thread_context.Rip = p.ntdll_addr + mn_signal;
     cb.thread_context.Rcx = us_er;
     cb.thread_context.Rdx = us_context;
-    cb.thread_context.Rsp = us_er;
+    cb.thread_context.Rsp = us_er - 0x20 - sizeof(uint64_t); // red zone, plus (unused) return pointer
 
     if (exit_status == nt_status::SINGLE_STEP) {
         // clear TF flag when we return

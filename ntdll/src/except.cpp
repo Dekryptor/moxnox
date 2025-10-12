@@ -175,7 +175,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
     return nt_status::UNHANDLED_EXCEPTION;
 }
 
-extern "C" FORCE_ALIGN_ARG_POINTER
+extern "C"
 void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     char s[1024];
     auto sp = span(s, sizeof(s));
