@@ -1,8 +1,64 @@
 #include "../context_offsets.h"
+#include "../dwarf.S"
 
 .arch_extension lse
 
-// FIXME - DWARF information
+.section .debug_abbrev, "dr"
+
+.uleb128 1 // entry num
+.uleb128 DW_TAG_compile_unit
+.byte 1 // has children
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_udata
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_language
+.uleb128 DW_FORM_data2
+.uleb128 0
+.uleb128 0
+
+.uleb128 2 // entry num
+.uleb128 DW_TAG_subprogram
+.byte 0 // has children
+.uleb128 DW_AT_name
+.uleb128 DW_FORM_string
+.uleb128 DW_AT_low_pc
+.uleb128 DW_FORM_addr
+.uleb128 DW_AT_high_pc
+.uleb128 DW_FORM_data8
+.uleb128 0
+.uleb128 0
+
+.uleb128 0
+
+.section .debug_info, "dr"
+
+.long .debug_info_end - .debug_info_start
+
+.debug_info_start:
+.short 5 // version
+.byte DW_UT_compile
+.byte 8 // address size
+.secrel32 .debug_abbrev
+
+.uleb128 1
+.quad .text // low_pc
+.uleb128 .text_end - .text // high_pc
+.asciz __FILE__ // name
+.short DW_LANG_Mips_Assembler // language
+
+dwarf_func_asm scheduler_restore
+dwarf_func_asm acquire_sync_lock
+dwarf_func_asm release_sync_lock
+dwarf_func_asm yield
+
+.uleb128 0
+
+.debug_info_end:
+
+.text
 
 .global scheduler_restore
 scheduler_restore:
@@ -94,6 +150,7 @@ scheduler_restore:
     ldp x0, x1, [x0, #CONTEXT_X0]
 
     eret
+scheduler_restore_end:
 
 // FIXME - non-LSE version?
 .global acquire_sync_lock
@@ -118,6 +175,7 @@ acquire_sync_lock:
     str x1, [x2]
 #endif
     ret
+acquire_sync_lock_end:
 
 .global release_sync_lock
 release_sync_lock:
@@ -133,6 +191,7 @@ release_sync_lock:
     mov x1, #0
     swpa x1, x1, [x0]
     ret
+release_sync_lock_end:
 
 // x0 has been set to lr before calling this function
 .global yield
@@ -205,3 +264,6 @@ add	x0, x18, GS_SCHEDULER_STACK
 ldr	x0, [x0]
 mov	sp, x0
 b	scheduler
+yield_end:
+
+.text_end:
