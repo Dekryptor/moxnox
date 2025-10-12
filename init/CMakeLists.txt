@@ -16,7 +16,7 @@ target_sources(init PUBLIC FILE_SET CXX_MODULES FILES
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
-target_compile_options(init PRIVATE ${USERSPACE_CFLAGS})
+target_compile_options(init PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(init PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(init format cmdline)

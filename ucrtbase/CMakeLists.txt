@@ -9,7 +9,7 @@ set(SRC_FILES src/ucrtbase.cpp)
 
 add_library(ucrtbase SHARED ${SRC_FILES})
 
-target_compile_options(ucrtbase PRIVATE ${USERSPACE_CFLAGS})
+target_compile_options(ucrtbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ucrtbase PUBLIC -nostartfiles -nostdlib)
 
 target_link_libraries(ucrtbase PRIVATE moxnox)

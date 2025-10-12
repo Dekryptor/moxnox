@@ -17,7 +17,7 @@ add_library(kernelbase SHARED ${SRC_FILES})
 target_sources(kernelbase PUBLIC FILE_SET CXX_MODULES FILES
     src/print.cpp)
 
-target_compile_options(kernelbase PRIVATE ${USERSPACE_CFLAGS})
+target_compile_options(kernelbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(kernelbase PUBLIC -nostartfiles -nostdlib)
 
 target_link_libraries(kernelbase PRIVATE format)

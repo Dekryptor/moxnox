@@ -31,7 +31,7 @@ target_sources(ntdll PUBLIC FILE_SET CXX_MODULES FILES
     src/print.cpp
 )
 
-target_compile_options(ntdll PRIVATE ${USERSPACE_CFLAGS})
+target_compile_options(ntdll PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(ntdll format dwarf unwind list)
 
