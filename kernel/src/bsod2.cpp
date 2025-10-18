@@ -34,21 +34,18 @@ static void print_rip(chardev& p, uint64_t rip) {
     uint64_t written;
     auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
-    sp = format(sp, "{:016x}", rip);
-
     auto img = get_kernel_image_from_address(rip);
 
     if (img) {
         // FIXME - also get filename and line no. from DWARF
-
-        sp = format(sp, " ");
 
         dwarf_print_function(img->debug_info, img->debug_abbrev,
                              img->debug_rnglists, img->debug_addr,
                              img->debug_str, img->debug_str_offsets,
                              rip - (uintptr_t)img->base_address,
                              (uint64_t)img->base_address, sp, img->name); // FIXME - should be preferred base
-    }
+    } else
+        sp = format(sp, "{:016x}", rip);
 
     sp = format(sp, "\n");
 

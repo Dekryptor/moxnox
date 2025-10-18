@@ -49,8 +49,6 @@ static void print_rip(uint64_t rip) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = format(sp, "{:016x}", rip);
-
     auto ent = get_ldr_from_address(rip);
 
     if (ent) {
@@ -65,8 +63,6 @@ static void print_rip(uint64_t rip) {
 
         auto mod_name_sv = string_view(mod_name, utf16_to_utf8_len(u16sv_mod_name));
 
-        sp = format(sp, " ");
-
         auto debug_info = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_info, ent->size_debug_info);
         auto debug_abbrev = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_abbrev, ent->size_debug_abbrev);
         auto debug_rnglists = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_rnglists, ent->size_debug_rnglists);
@@ -79,7 +75,8 @@ static void print_rip(uint64_t rip) {
         dwarf_print_function(debug_info, debug_abbrev, debug_rnglists,
                              debug_addr, debug_str, debug_str_offsets,
                              rva, base, sp, mod_name_sv);
-    }
+    } else
+        sp = format(sp, "{:016x}", rip);
 
     sp = format(sp, "\n");
 
