@@ -506,7 +506,7 @@ static void segfault() {
 
 inline __attribute__((always_inline)) void inline3() {
     __asm __volatile("nop");
-    *(volatile uint8_t*)0 = 0;
+    segfault();
     __asm __volatile("nop");
 }
 
