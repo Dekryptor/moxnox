@@ -45,9 +45,7 @@ static void print_rip(chardev& p, uint64_t rip) {
                              rip - (uintptr_t)img->base_address,
                              (uint64_t)img->base_address, sp, img->name); // FIXME - should be preferred base
     } else
-        sp = format(sp, "{:016x}", rip);
-
-    sp = format(sp, "\n");
+        sp = format(sp, "{:016x}\n", rip);
 
     p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
             written);

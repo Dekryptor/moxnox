@@ -76,9 +76,7 @@ static void print_rip(uint64_t rip) {
                              debug_addr, debug_str, debug_str_offsets,
                              rva, base, sp, mod_name_sv);
     } else
-        sp = format(sp, "{:016x}", rip);
-
-    sp = format(sp, "\n");
+        sp = format(sp, "{:016x}\n", rip);
 
     print("{}", string_view(s, (size_t)(sp.data() - s)));
 }

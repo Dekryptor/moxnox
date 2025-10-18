@@ -1227,7 +1227,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     auto abbrev_list = load_abbrev_entries(abbrev);
 
     if (abbrev_list.empty()) {
-        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})\n", rva + base, mod_name, rva);
         return;
     }
 
@@ -1286,7 +1286,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     if (rva + base != func_start)
         sp = format(sp, "+{:x}", rva + base - func_start);
 
-    sp = format(sp, ")");
+    sp = format(sp, ")\n");
 }
 
 export void dwarf_print_function(span<const uint8_t> debug_info,
@@ -1298,7 +1298,7 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
                                  uint64_t rva, uint64_t base,
                                  span<char>& sp, string_view mod_name) {
     if (debug_info.empty()) {
-        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})\n", rva + base, mod_name, rva);
         return;
     }
 
@@ -1389,7 +1389,7 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
     });
 
     if (found_cu.empty()) {
-        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})\n", rva + base, mod_name, rva);
         return;
     }
 
