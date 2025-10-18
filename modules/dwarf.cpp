@@ -1040,43 +1040,15 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
     return string_view((char*)debug_str.data() + list[index]);
 }
 
-static void get_func_name(span<const uint8_t> debug_str,
-                          span<const uint8_t> debug_str_offsets,
-                          span<const uint8_t> die,
-                          span<const uint8_t> att_list,
-                          span<const uint8_t*> abbrev_list,
-                          span<const uint8_t> cu, span<char>& sp,
-                          optional<uint32_t> str_offsets_base) {
-    string_view name, linkage_name;
-    optional<uint32_t> specification, abstract_origin;
-
-    loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
-        if (att_num == DW_AT::name && form_is_string(form))
-            name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
-        else if (att_num == DW_AT::linkage_name && form_is_string(form))
-            linkage_name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
-        else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
-            specification = *(uint32_t*)data.data();
-        else if (att_num == DW_AT::abstract_origin && form == DW_FORM::ref4)
-            abstract_origin = *(uint32_t*)data.data();
-
-        return true;
-    });
-
-    if (name.empty() && !linkage_name.empty())
-        name = linkage_name;
-
-    if (!name.empty() && !abstract_origin.has_value() && !specification.has_value()) {
-        sp = format(sp, "{}", name);
-        return;
-    }
-
-    // if class function, we need to follow the specification
-    if (!specification.has_value() && !abstract_origin.has_value()) {
-        sp = format(sp, "???");
-        return;
-    }
-
+static size_t get_func_name2(span<const uint8_t> debug_str,
+                             span<const uint8_t> debug_str_offsets,
+                             optional<uint32_t> str_offsets_base,
+                             span<const uint8_t*> abbrev_list,
+                             span<const uint8_t> cu,
+                             optional<uint32_t>& specification,
+                             optional<uint32_t>& abstract_origin,
+                             string_view& name, string_view& linkage_name,
+                             span<char>& sp) {
     size_t written = 0;
 
     do {
@@ -1140,6 +1112,50 @@ static void get_func_name(span<const uint8_t> debug_str,
             ref = ref2;
         } while (true);
     } while (specification.has_value() || abstract_origin.has_value());
+
+    return written;
+}
+
+static void get_func_name(span<const uint8_t> debug_str,
+                          span<const uint8_t> debug_str_offsets,
+                          span<const uint8_t> die,
+                          span<const uint8_t> att_list,
+                          span<const uint8_t*> abbrev_list,
+                          span<const uint8_t> cu, span<char>& sp,
+                          optional<uint32_t> str_offsets_base) {
+    string_view name, linkage_name;
+    optional<uint32_t> specification, abstract_origin;
+
+    loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
+        if (att_num == DW_AT::name && form_is_string(form))
+            name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
+        else if (att_num == DW_AT::linkage_name && form_is_string(form))
+            linkage_name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
+        else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
+            specification = *(uint32_t*)data.data();
+        else if (att_num == DW_AT::abstract_origin && form == DW_FORM::ref4)
+            abstract_origin = *(uint32_t*)data.data();
+
+        return true;
+    });
+
+    if (name.empty() && !linkage_name.empty())
+        name = linkage_name;
+
+    if (!name.empty() && !abstract_origin.has_value() && !specification.has_value()) {
+        sp = format(sp, "{}", name);
+        return;
+    }
+
+    // if class function, we need to follow the specification
+    if (!specification.has_value() && !abstract_origin.has_value()) {
+        sp = format(sp, "???");
+        return;
+    }
+
+    auto written = get_func_name2(debug_str, debug_str_offsets, str_offsets_base,
+                                  abbrev_list, cu, specification, abstract_origin,
+                                  name, linkage_name, sp);
 
     if (written == 0) {
         if (name.empty() && !linkage_name.empty())
@@ -1279,6 +1295,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
             return true;
         } else {
             optional<uint64_t> low_pc, high_pc, inline_length;
+            optional<uint32_t> abstract_origin;
 
             if (depth <= function_depth)
                 return false;
@@ -1296,7 +1313,8 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
                         inline_length = *(uint64_t*)data.data();
                     else if (form == DW_FORM::data4) // FIXME - generic integer-reading code
                         inline_length = *(uint32_t*)data.data();
-                }
+                } else if (att_num == DW_AT::abstract_origin && form == DW_FORM::ref4)
+                    abstract_origin = *(uint32_t*)data.data();
 
                 return true;
             });
@@ -1310,9 +1328,30 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
             if (rva + base < *low_pc || rva + base >= *high_pc)
                 return true;
 
-            // FIXME
+            if (!abstract_origin.has_value()) {
+                sp = format(sp, "---------------- ({}!unknown inline)\n", mod_name);
+                return true;
+            }
 
-            sp = format(sp, "---------------- ({}!INLINE)\n", mod_name);
+            optional<uint32_t> specification;
+            string_view name, linkage_name;
+
+            sp = format(sp, "---------------- ({}!", mod_name);
+
+            auto written = get_func_name2(debug_str, debug_str_offsets, str_offsets_base, abbrev_list,
+                                          cu, specification, abstract_origin, name, linkage_name,
+                                          sp);
+
+            if (written == 0)
+                sp = format(sp, "unknown inline");
+            else {
+                sp = span(sp.data() + written, written > sp.size() ? 0 : sp.size() - written);
+
+                if (rva + base > *low_pc)
+                    sp = format(sp, "+{:x}", rva + base - *low_pc);
+            }
+
+            sp = format(sp, ")\n");
 
             return true;
         }
