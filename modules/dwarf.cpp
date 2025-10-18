@@ -1217,7 +1217,7 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
 static void dwarf_print_function2(span<const uint8_t> debug_addr,
                                   span<const uint8_t> debug_str,
                                   span<const uint8_t> debug_str_offsets,
-                                  uint64_t addr, span<const uint8_t> cu,
+                                  uint64_t rva, uint64_t base, span<const uint8_t> cu,
                                   span<const uint8_t> abbrev,
                                   span<char>& sp, optional<uint32_t> addr_base,
                                   optional<uint32_t> str_offsets_base,
@@ -1227,7 +1227,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     auto abbrev_list = load_abbrev_entries(abbrev);
 
     if (abbrev_list.empty()) {
-        sp = format(sp, "({}+{:x})", mod_name, addr);
+        sp = format(sp, "({}+{:x})", mod_name, rva);
         return;
     }
 
@@ -1262,7 +1262,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
         if (!low_pc.has_value() || !high_pc.has_value())
             return true;
 
-        if (addr < *low_pc || addr >= *high_pc)
+        if (rva + base < *low_pc || rva + base >= *high_pc)
             return true;
 
         die = orig_die;
@@ -1279,12 +1279,12 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     free(abbrev_list.data());
 
     if (func_start == 0) {
-        sp = format(sp, "({}+{:x})", mod_name, addr);
+        sp = format(sp, "({}+{:x})", mod_name, rva);
         return;
     }
 
-    if (addr != func_start)
-        sp = format(sp, "+{:x}", addr - func_start);
+    if (rva + base != func_start)
+        sp = format(sp, "+{:x}", rva + base - func_start);
 
     sp = format(sp, ")");
 }
@@ -1295,10 +1295,10 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
                                  span<const uint8_t> debug_addr,
                                  span<const uint8_t> debug_str,
                                  span<const uint8_t> debug_str_offsets,
-                                 uint64_t addr, span<char>& sp,
-                                 string_view mod_name) {
+                                 uint64_t rva, uint64_t base,
+                                 span<char>& sp, string_view mod_name) {
     if (debug_info.empty()) {
-        sp = format(sp, "({}+{:x})", mod_name, addr);
+        sp = format(sp, "({}+{:x})", mod_name, rva);
         return;
     }
 
@@ -1350,7 +1350,7 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
             });
 
             if (ranges_offset.has_value()) {
-                if (addr_in_range(addr, debug_rnglists.subspan(*ranges_offset),
+                if (addr_in_range(rva + base, debug_rnglists.subspan(*ranges_offset),
                                   debug_addr, addr_base)) {
                     found_cu = current_cu;
                     found_debug_abbrev_object = debug_abbrev_object;
@@ -1367,13 +1367,13 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
 
                 auto offset = *(uint32_t*)(debug_rnglists.data() + *rnglist_base + (*rnglistx * sizeof(uint32_t)));
 
-                if (addr_in_range(addr, debug_rnglists.subspan(*rnglist_base + offset),
+                if (addr_in_range(rva + base, debug_rnglists.subspan(*rnglist_base + offset),
                                   debug_addr, addr_base)) {
                     found_cu = current_cu;
                     found_debug_abbrev_object = debug_abbrev_object;
                 }
             } else if (low_pc.has_value() && high_pc.has_value()) {
-                if (addr >= *low_pc && addr < *low_pc + *high_pc) {
+                if (rva + base >= *low_pc && rva + base < *low_pc + *high_pc) {
                     found_cu = current_cu;
                     found_debug_abbrev_object = debug_abbrev_object;
                 }
@@ -1389,11 +1389,11 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
     });
 
     if (found_cu.empty()) {
-        sp = format(sp, "({}+{:x})", mod_name, addr);
+        sp = format(sp, "({}+{:x})", mod_name, rva);
         return;
     }
 
-    dwarf_print_function2(debug_addr, debug_str, debug_str_offsets, addr,
+    dwarf_print_function2(debug_addr, debug_str, debug_str_offsets, rva, base,
                           found_cu, debug_abbrev.subspan(found_debug_abbrev_object),
                           sp, addr_base, str_offsets_base, mod_name);
 }

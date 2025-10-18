@@ -78,7 +78,7 @@ static void print_rip(uint64_t rip) {
 
         dwarf_print_function(debug_info, debug_abbrev, debug_rnglists,
                              debug_addr, debug_str, debug_str_offsets,
-                             rva + base, sp, mod_name_sv);
+                             rva, base, sp, mod_name_sv);
     }
 
     sp = format(sp, "\n");
