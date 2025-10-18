@@ -1224,6 +1224,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
                                   string_view mod_name) {
     uint64_t func_start = 0;
     span<const uint8_t> function_die, function_att_list;
+    unsigned int function_depth;
 
     auto abbrev_list = load_abbrev_entries(abbrev);
 
@@ -1233,49 +1234,88 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     }
 
     loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool has_children, span<const uint8_t> die,
-                                           span<const uint8_t> att_list, unsigned int,
+                                           span<const uint8_t> att_list, unsigned int depth,
                                            uint32_t) -> bool {
-        optional<uint64_t> low_pc, high_pc, func_length;
+        if (function_die.empty()) {
+            optional<uint64_t> low_pc, high_pc, func_length;
 
-        if (tag != DW_TAG::subprogram)
+            if (tag != DW_TAG::subprogram)
+                return true;
+
+            auto orig_die = die;
+
+            loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
+                if (att_num == DW_AT::low_pc && form_is_address(form))
+                    low_pc = read_address(data, form, debug_addr, addr_base);
+                else if (att_num == DW_AT::high_pc) {
+                    if (form_is_address(form))
+                        high_pc = read_address(data, form, debug_addr, addr_base);
+                    else if (form == DW_FORM::data8) // FIXME - generic integer-reading code
+                        func_length = *(uint64_t*)data.data();
+                    else if (form == DW_FORM::data4) // FIXME - generic integer-reading code
+                        func_length = *(uint32_t*)data.data();
+                }
+
+                return true;
+            });
+
+            if (!high_pc.has_value() && low_pc.has_value() && func_length.has_value())
+                high_pc = *low_pc + *func_length;
+
+            if (!low_pc.has_value() || !high_pc.has_value())
+                return true;
+
+            if (rva + base < *low_pc || rva + base >= *high_pc)
+                return true;
+
+            function_die = orig_die;
+            function_att_list = att_list;
+            function_depth = depth;
+            func_start = *low_pc;
+
+            if (!has_children)
+                return false;
+
             return true;
+        } else {
+            optional<uint64_t> low_pc, high_pc, inline_length;
 
-        auto orig_die = die;
+            if (depth <= function_depth)
+                return false;
 
-        loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
-            if (att_num == DW_AT::low_pc && form_is_address(form))
-                low_pc = read_address(data, form, debug_addr, addr_base);
-            else if (att_num == DW_AT::high_pc) {
-                if (form_is_address(form))
-                    high_pc = read_address(data, form, debug_addr, addr_base);
-                else if (form == DW_FORM::data8) // FIXME - generic integer-reading code
-                    func_length = *(uint64_t*)data.data();
-                else if (form == DW_FORM::data4) // FIXME - generic integer-reading code
-                    func_length = *(uint32_t*)data.data();
-            }
+            if (tag != DW_TAG::inlined_subroutine)
+                return true;
+
+            loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
+                if (att_num == DW_AT::low_pc && form_is_address(form))
+                    low_pc = read_address(data, form, debug_addr, addr_base);
+                else if (att_num == DW_AT::high_pc) {
+                    if (form_is_address(form))
+                        high_pc = read_address(data, form, debug_addr, addr_base);
+                    else if (form == DW_FORM::data8) // FIXME - generic integer-reading code
+                        inline_length = *(uint64_t*)data.data();
+                    else if (form == DW_FORM::data4) // FIXME - generic integer-reading code
+                        inline_length = *(uint32_t*)data.data();
+                }
+
+                return true;
+            });
+
+            if (!high_pc.has_value() && low_pc.has_value() && inline_length.has_value())
+                high_pc = *low_pc + *inline_length;
+
+            if (!low_pc.has_value() || !high_pc.has_value())
+                return true;
+
+            if (rva + base < *low_pc || rva + base >= *high_pc)
+                return true;
+
+            // FIXME
+
+            sp = format(sp, "---------------- ({}!INLINE)\n", mod_name);
 
             return true;
-        });
-
-        if (!high_pc.has_value() && low_pc.has_value() && func_length.has_value())
-            high_pc = *low_pc + *func_length;
-
-        if (!low_pc.has_value() || !high_pc.has_value())
-            return true;
-
-        if (rva + base < *low_pc || rva + base >= *high_pc)
-            return true;
-
-        function_die = orig_die;
-        function_att_list = att_list;
-        func_start = *low_pc;
-
-        if (!has_children)
-            return false;
-
-        // FIXME - inline functions
-
-        return true;
+        }
     });
 
     if (!function_die.empty()) {
