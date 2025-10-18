@@ -1214,19 +1214,22 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
     return list[index];
 }
 
-static uint64_t dwarf_find_function2(span<const uint8_t> debug_addr,
-                                     span<const uint8_t> debug_str,
-                                     span<const uint8_t> debug_str_offsets,
-                                     uint64_t addr, span<const uint8_t> cu,
-                                     span<const uint8_t> abbrev,
-                                     span<char>& sp, optional<uint32_t> addr_base,
-                                     optional<uint32_t> str_offsets_base) {
+static void dwarf_print_function2(span<const uint8_t> debug_addr,
+                                  span<const uint8_t> debug_str,
+                                  span<const uint8_t> debug_str_offsets,
+                                  uint64_t addr, span<const uint8_t> cu,
+                                  span<const uint8_t> abbrev,
+                                  span<char>& sp, optional<uint32_t> addr_base,
+                                  optional<uint32_t> str_offsets_base,
+                                  string_view mod_name) {
     uint64_t func_start = 0;
 
     auto abbrev_list = load_abbrev_entries(abbrev);
 
-    if (abbrev_list.empty())
-        return 0;
+    if (abbrev_list.empty()) {
+        sp = format(sp, "({}+{:x})", mod_name, addr);
+        return;
+    }
 
     loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
                                            span<const uint8_t> att_list, unsigned int,
@@ -1264,6 +1267,8 @@ static uint64_t dwarf_find_function2(span<const uint8_t> debug_addr,
 
         die = orig_die;
 
+        sp = format(sp, "({}!", mod_name);
+
         get_func_name(debug_str, debug_str_offsets, die, att_list,
                       abbrev_list, cu, sp, str_offsets_base);
 
@@ -1273,18 +1278,29 @@ static uint64_t dwarf_find_function2(span<const uint8_t> debug_addr,
 
     free(abbrev_list.data());
 
-    return func_start;
+    if (func_start == 0) {
+        sp = format(sp, "({}+{:x})", mod_name, addr);
+        return;
+    }
+
+    if (addr != func_start)
+        sp = format(sp, "+{:x}", addr - func_start);
+
+    sp = format(sp, ")");
 }
 
-export uint64_t dwarf_find_function(span<const uint8_t> debug_info,
-                                    span<const uint8_t> debug_abbrev,
-                                    span<const uint8_t> debug_rnglists,
-                                    span<const uint8_t> debug_addr,
-                                    span<const uint8_t> debug_str,
-                                    span<const uint8_t> debug_str_offsets,
-                                    uint64_t addr, span<char>& sp) {
-    if (debug_info.empty())
-        return 0;
+export void dwarf_print_function(span<const uint8_t> debug_info,
+                                 span<const uint8_t> debug_abbrev,
+                                 span<const uint8_t> debug_rnglists,
+                                 span<const uint8_t> debug_addr,
+                                 span<const uint8_t> debug_str,
+                                 span<const uint8_t> debug_str_offsets,
+                                 uint64_t addr, span<char>& sp,
+                                 string_view mod_name) {
+    if (debug_info.empty()) {
+        sp = format(sp, "({}+{:x})", mod_name, addr);
+        return;
+    }
 
     span<const uint8_t> found_cu;
     uint32_t found_debug_abbrev_object;
@@ -1372,10 +1388,12 @@ export uint64_t dwarf_find_function(span<const uint8_t> debug_info,
         return true;
     });
 
-    if (found_cu.empty())
-        return 0;
+    if (found_cu.empty()) {
+        sp = format(sp, "({}+{:x})", mod_name, addr);
+        return;
+    }
 
-    return dwarf_find_function2(debug_addr, debug_str, debug_str_offsets, addr,
-                                found_cu, debug_abbrev.subspan(found_debug_abbrev_object),
-                                sp, addr_base, str_offsets_base);
+    dwarf_print_function2(debug_addr, debug_str, debug_str_offsets, addr,
+                          found_cu, debug_abbrev.subspan(found_debug_abbrev_object),
+                          sp, addr_base, str_offsets_base, mod_name);
 }

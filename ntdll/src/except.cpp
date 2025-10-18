@@ -12,6 +12,7 @@ import format;
 import dwarf;
 import print;
 import unwind;
+import unicode;
 
 using namespace std;
 
@@ -53,9 +54,18 @@ static void print_rip(uint64_t rip) {
     auto ent = get_ldr_from_address(rip);
 
     if (ent) {
+        char mod_name[255];
+        uint64_t rva = rip - (uintptr_t)ent->ldr.DllBase;
+
         // FIXME - also get filename and line no. from DWARF
 
-        sp = format(sp, " ({}!", ent->ldr.BaseDllName);
+        auto u16sv_mod_name = u16string_view(ent->ldr.BaseDllName.Buffer, ent->ldr.BaseDllName.Length / sizeof(char16_t));
+
+        utf16_to_utf8(mod_name, u16sv_mod_name);
+
+        auto mod_name_sv = string_view(mod_name, utf16_to_utf8_len(u16sv_mod_name));
+
+        sp = format(sp, " ");
 
         auto debug_info = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_info, ent->size_debug_info);
         auto debug_abbrev = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_abbrev, ent->size_debug_abbrev);
@@ -66,21 +76,9 @@ static void print_rip(uint64_t rip) {
 
         auto base = get_preferred_base(*ent);
 
-        auto func_start = dwarf_find_function(debug_info, debug_abbrev, debug_rnglists,
-                                              debug_addr, debug_str, debug_str_offsets,
-                                              rip - (uintptr_t)ent->ldr.DllBase + base, sp);
-
-        if (func_start != 0) {
-            if (rip - (uintptr_t)ent->ldr.DllBase + base != func_start)
-                sp = format(sp, "+{:x}", rip - (uintptr_t)ent->ldr.DllBase + base - func_start);
-        } else {
-            // erase exclamation mark
-            sp = span(sp.data() - 1, sp.size() + 1);
-
-            sp = format(sp, "+{:x}", rip - (uintptr_t)ent->ldr.DllBase);
-        }
-
-        sp = format(sp, ")");
+        dwarf_print_function(debug_info, debug_abbrev, debug_rnglists,
+                             debug_addr, debug_str, debug_str_offsets,
+                             rva + base, sp, mod_name_sv);
     }
 
     sp = format(sp, "\n");
@@ -257,10 +255,11 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 
         do {
 #ifdef __aarch64__
-            print_rip(context->Pc);
+            uint64_t rip = context->Pc;
 #else
-            print_rip(context->Rip);
+            uint64_t rip = context->Rip;
 #endif
+            print_rip(rip);
 
             if (!do_unwind_context(*context))
                 break;

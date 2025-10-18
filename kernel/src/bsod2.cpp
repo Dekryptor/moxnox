@@ -41,24 +41,12 @@ static void print_rip(chardev& p, uint64_t rip) {
     if (img) {
         // FIXME - also get filename and line no. from DWARF
 
-        sp = format(sp, " ({}!", img->name);
+        sp = format(sp, " ");
 
-        auto func_start = dwarf_find_function(img->debug_info, img->debug_abbrev,
-                                              img->debug_rnglists, img->debug_addr,
-                                              img->debug_str, img->debug_str_offsets,
-                                              rip, sp);
-
-        if (func_start != 0) {
-            if (rip != func_start)
-                sp = format(sp, "+{:x}", rip - func_start);
-        } else {
-            // erase exclamation mark
-            sp = span(sp.data() - 1, sp.size() + 1);
-
-            sp = format(sp, "+{:x}", rip - (uintptr_t)img->base_address);
-        }
-
-        sp = format(sp, ")");
+        dwarf_print_function(img->debug_info, img->debug_abbrev,
+                             img->debug_rnglists, img->debug_addr,
+                             img->debug_str, img->debug_str_offsets,
+                             rip, sp, img->name);
     }
 
     sp = format(sp, "\n");
