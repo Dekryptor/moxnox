@@ -1223,6 +1223,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
                                   optional<uint32_t> str_offsets_base,
                                   string_view mod_name) {
     uint64_t func_start = 0;
+    span<const uint8_t> function_die, function_att_list;
 
     auto abbrev_list = load_abbrev_entries(abbrev);
 
@@ -1231,7 +1232,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
         return;
     }
 
-    loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool, span<const uint8_t> die,
+    loop_through_dies(cu, abbrev_list, [&](enum DW_TAG tag, bool has_children, span<const uint8_t> die,
                                            span<const uint8_t> att_list, unsigned int,
                                            uint32_t) -> bool {
         optional<uint64_t> low_pc, high_pc, func_length;
@@ -1265,16 +1266,25 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
         if (rva + base < *low_pc || rva + base >= *high_pc)
             return true;
 
-        die = orig_die;
+        function_die = orig_die;
+        function_att_list = att_list;
+        func_start = *low_pc;
 
+        if (!has_children)
+            return false;
+
+        // FIXME - inline functions
+
+        return true;
+    });
+
+    if (!function_die.empty()) {
         sp = format(sp, "{:016x} ({}!", rva + base, mod_name);
 
-        get_func_name(debug_str, debug_str_offsets, die, att_list,
-                      abbrev_list, cu, sp, str_offsets_base);
-
-        func_start = *low_pc;
-        return false;
-    });
+        get_func_name(debug_str, debug_str_offsets, function_die,
+                      function_att_list, abbrev_list, cu, sp,
+                      str_offsets_base);
+    }
 
     free(abbrev_list.data());
 
