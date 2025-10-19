@@ -33,8 +33,8 @@ export struct page_cache_entry {
 
 export
 template<typename T>
-concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages) {
-    { t.read_into_cache(page_num, num_pages) } -> same_as<size_t>;
+concept cacheable = requires(T t, uint64_t page_num, uint64_t num_pages, uint64_t& read_pages) {
+    { t.read_into_cache(page_num, num_pages, read_pages) } -> same_as<nt_status>;
 };
 
 export
@@ -579,15 +579,18 @@ bool read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
                 // FIXME - better if we could allocate contiguous physical pages? (folios?)
 
                 while (pages_left > 0) {
-                    auto ret = cache.dev.read_into_cache(page_num_start, pages_left);
+                    uint64_t read_pages;
 
-                    if (ret == 0) {
-                        print("read_into_cache failed\n");
-                        return 0;
+                    auto status = cache.dev.read_into_cache(page_num_start, pages_left,
+                                                            read_pages);
+
+                    if (!success(status)) {
+                        print("read_into_cache returned {}\n", status);
+                        return false;
                     }
 
-                    page_num_start += ret;
-                    pages_left -= ret;
+                    page_num_start += read_pages;
+                    pages_left -= read_pages;
                 }
             }
 
@@ -632,17 +635,20 @@ uint64_t page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t nu
                 // FIXME - better if we could allocate contiguous physical pages? (folios?)
 
                 while (pages_left > 0) {
-                    auto ret = dev.read_into_cache(page_num_start, pages_left);
+                    uint64_t read_pages;
 
-                    if (ret == 0) {
+                    auto status = dev.read_into_cache(page_num_start, pages_left,
+                                                      read_pages);
+
+                    if (!success(status) || read_pages == 0) {
                         clean_pages(*this, range_start, range_length - pages_left);
-                        unpin(page_num_start + ret,
-                              first_page + num_pages - page_num_start - ret);
-                        return page_num_start + ret - first_page;
+                        unpin(page_num_start,
+                              first_page + num_pages - page_num_start);
+                        return page_num_start - first_page;
                     }
 
-                    page_num_start += ret;
-                    pages_left -= ret;
+                    page_num_start += read_pages;
+                    pages_left -= read_pages;
                 }
             }
 

@@ -56,7 +56,8 @@ public:
                                 bool fua = false) = 0;
 
     nt_status read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
-    uint64_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
+                              uint64_t& read_pages);
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages);
 
     void probe();
@@ -384,7 +385,8 @@ nt_status diskpart::dio_read(uint64_t page_num, uint64_t num_pages,
                            it, read_pages);
 }
 
-uint64_t volume::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status volume::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                  uint64_t& read_pages) {
     page_cache_entry* p;
 
     for (uint64_t i = 0; i < num_pages; i++) {
@@ -399,7 +401,7 @@ uint64_t volume::read_into_cache(uint64_t page_num, uint64_t num_pages) {
             auto pa = allocate_folio(0);
             if (!pa) {
                 print("allocate_folio failed\n");
-                return 0;
+                return nt_status::INSUFFICIENT_RESOURCES;
             }
 
 #pragma GCC diagnostic push
@@ -411,15 +413,13 @@ uint64_t volume::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
     page_cache_iterator iter(cache, page_num);
 
-    uint64_t read_pages;
-
     auto status = dio_read(page_num, num_pages, iter, read_pages);
     if (!success(status)) {
         print("dio_read returned {}\n", status);
-        return 0;
+        return status;
     }
 
-    return read_pages;
+    return nt_status::SUCCESS;
 }
 
 nt_status diskpart::dio_write(uint64_t page_num, uint64_t num_pages,

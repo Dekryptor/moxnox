@@ -34,7 +34,8 @@ class image_section_cache {
 public:
     image_section_cache(section& sect) : sect(sect) { }
 
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
+                              uint64_t& read_pages);
 
     page_cache<image_section_cache> cache{*this};
 
@@ -965,7 +966,8 @@ cache_variant section::get_cache() {
 }
 
 extern "C++"
-size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                               uint64_t& read_pages) {
     auto& f = sect.ino->get();
     auto header_pages = bytes_to_pages(sect.size_of_headers);
     page_cache_entry* src_p;
@@ -975,13 +977,13 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
     // FIXME - if something fails, should return what we've read so far rather than 0
 
     if (page_num < header_pages) {
-        auto read_pages = f.cache.read_into_cache_and_pin(page_num, min(header_pages - page_num, num_pages));
-        if (read_pages == 0) {
+        auto cache_read_pages = f.cache.read_into_cache_and_pin(page_num, min(header_pages - page_num, num_pages));
+        if (cache_read_pages == 0) {
             print("image_read_into_cache: read_into_cache_and_pin failed\n");
-            return 0;
+            return nt_status::INTERNAL_ERROR; // FIXME - return proper error
         }
 
-        for (unsigned int i = 0; i < read_pages; i++) {
+        for (unsigned int i = 0; i < cache_read_pages; i++) {
             size_t to_copy;
 
             if (page_num + i == header_pages - 1 && sect.size_of_headers % PAGE_SIZE)
@@ -1019,9 +1021,9 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
                 if (!dest_p->pfn) {
                     print("allocate_folio failed\n");
 
-                    f.cache.unpin(page_num, read_pages);
-                    // FIXME - set error to nt_status::INSUFFICIENT_RESOURCES
-                    return 0;
+                    f.cache.unpin(page_num, cache_read_pages);
+
+                    return nt_status::INSUFFICIENT_RESOURCES;
                 }
 
                 memcpy(get_phys_address(*dest_p), get_phys_address(*src_p),
@@ -1031,13 +1033,15 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
             }
         }
 
-        f.cache.unpin(page_num, read_pages);
+        f.cache.unpin(page_num, cache_read_pages);
 
-        page_num += read_pages;
-        num_pages -= read_pages;
+        page_num += cache_read_pages;
+        num_pages -= cache_read_pages;
 
-        if (num_pages == 0)
-            return read_pages;
+        if (num_pages == 0) {
+            read_pages = cache_read_pages;
+            return nt_status::SUCCESS;
+        }
     }
 
     unsigned int cur_sect = 0;
@@ -1098,8 +1102,7 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
                     if (pinned_pages != 0)
                         f.cache.unpin(file_start_page, pinned_pages);
 
-                    // FIXME - set error to nt_status::INTERNAL_ERROR
-                    return 0;
+                    return nt_status::INTERNAL_ERROR;
                 }
 
                 auto to_copy = min((size_t)(s.VirtualAddress + min(s.VirtualSize, s.SizeOfRawData) - (page_num << PAGE_SHIFT)), PAGE_SIZE);
@@ -1133,8 +1136,7 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
                 if (!dest_p->pfn) {
                     print("allocate_folio failed\n");
                     f.cache.unpin(file_start_page, num_file_pages);
-                    // FIXME - set error to nt_status::INSUFFICIENT_RESOURCES
-                    return 0;
+                    return nt_status::INSUFFICIENT_RESOURCES;
                 }
 
                 auto sp = span((uint8_t*)get_phys_address(*dest_p), to_copy);
@@ -1167,20 +1169,21 @@ size_t image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_page
         num_pages--;
     }
 
-    return orig_num_pages;
+    read_pages = orig_num_pages;
+    return nt_status::SUCCESS;
 }
 
 extern "C++"
-size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                              uint64_t& read_pages) {
     // infinite anonymous sections are used for process VM
 
     if (!cache.pin(page_num, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
-        return 0;
+        return nt_status::INTERNAL_ERROR; // FIXME - return proper error
     }
 
     page_cache_entry* p;
-    uint64_t read_pages = num_pages;
 
     for (uint64_t i = 0; i < num_pages; i++) {
         {
@@ -1205,7 +1208,8 @@ size_t anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
 
     cache.unpin(page_num, num_pages);
 
-    return read_pages;
+    read_pages = num_pages;
+    return nt_status::SUCCESS;
 }
 
 extern "C++"

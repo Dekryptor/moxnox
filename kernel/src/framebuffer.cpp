@@ -32,7 +32,8 @@ export spinlock cursor_lock;
 
 class framebuffer_cache : public custom_section_cache {
 public:
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
+                             uint64_t& read_pages) override;
     NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                         span<uint8_t> buf, size_t* return_length) override;
@@ -45,7 +46,8 @@ public:
 
 class text_console_cache : public custom_section_cache {
 public:
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
+                             uint64_t& read_pages) override;
     NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                         span<uint8_t> buf, size_t* return_length) override;
@@ -57,14 +59,14 @@ private:
     bool cursor_enabled = true;
 };
 
-size_t framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                             uint64_t& read_pages) {
     if (!cache.pin(page_num, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
-        return 0;
+        return nt_status::INTERNAL_ERROR; // FIXME - return proper error
     }
 
     page_cache_entry* p;
-    uint64_t read_pages = num_pages;
 
     for (uint64_t i = 0; i < num_pages; i++) {
         {
@@ -89,7 +91,8 @@ size_t framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages)
 
     cache.unpin(page_num, num_pages);
 
-    return read_pages;
+    read_pages = num_pages;
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS framebuffer_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
@@ -163,14 +166,14 @@ export void create_framebuffer_section() {
     }
 }
 
-size_t text_console_cache::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status text_console_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                              uint64_t& read_pages) {
     if (!cache.pin(page_num, num_pages, nullptr)) {
         print("page_cache::pin failed\n");
-        return 0;
+        return nt_status::INTERNAL_ERROR; // FIXME - return proper error
     }
 
     page_cache_entry* p;
-    uint64_t read_pages = num_pages;
 
     for (uint64_t i = 0; i < num_pages; i++) {
         {
@@ -195,7 +198,8 @@ size_t text_console_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
 
     cache.unpin(page_num, num_pages);
 
-    return read_pages;
+    read_pages = num_pages;
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS text_console_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {

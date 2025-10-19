@@ -29,7 +29,8 @@ static_assert(cacheable<anon_section_cache>);
 
 class custom_section_cache {
 public:
-    virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
+    virtual NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                     uint64_t& read_pages) = 0;
     virtual NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                                 std::span<uint8_t> buf, size_t* return_length) = 0;
     virtual NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) = 0;

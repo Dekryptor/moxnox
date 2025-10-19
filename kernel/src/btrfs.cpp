@@ -148,7 +148,8 @@ public:
     NTSTATUS query_information(std::span<uint8_t> buffer,
                                FILE_INFORMATION_CLASS file_information_class,
                                uint64_t& retlen) override;
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages) override;
+    nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
+                              uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status set_basic_information(std::span<const uint8_t> buffer);
     nt_status query_standard_information(std::span<uint8_t> buffer, uint64_t& retlen);
@@ -162,11 +163,14 @@ public:
     list_entry extents = { &extents, &extents };
 
 private:
-    size_t read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages);
-    size_t read_inline_extent_into_cache(uint64_t page_num, uint64_t num_pages,
-                                         const inode_extent& ie);
-    size_t read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
-                                  const inode_extent& ie);
+    nt_status read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages,
+                                     uint64_t& read_pages);
+    nt_status read_inline_extent_into_cache(uint64_t page_num, uint64_t num_pages,
+                                            const inode_extent& ie,
+                                            uint64_t& read_pages);
+    nt_status read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
+                                     const inode_extent& ie,
+                                     uint64_t& read_pages);
     nt_status get_last_dir_index(uint64_t& ret);
     nt_status add_file_extent(uint64_t extent_address, uint64_t extent_length,
                               uint64_t extent_offset, uint64_t file_offset,
@@ -206,7 +210,8 @@ public:
     void flush_thread();
     bool flush_tree(const chunk& c, uint64_t addr);
     nt_status flush_data(const chunk& c, uint64_t addr, uint64_t length);
-    size_t read_into_cache(uint64_t page_num, uint64_t num_pages);
+    nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
+                              uint64_t& read_pages);
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages);
 
     btrfs_super_block* sb = nullptr;
@@ -771,7 +776,8 @@ static chunk* find_chunk(const btrfs_filesystem& fs, uint64_t address) {
     return nullptr;
 }
 
-uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                            uint64_t& read_pages) {
     uint64_t addr = page_num << PAGE_SHIFT;
 
     // find chunk
@@ -780,23 +786,23 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
 
     if (!pc) {
         print("Could not find chunk for logical address {:x}\n", addr);
-        return 0;
+        return nt_status::DISK_CORRUPT_ERROR;
     }
 
     auto& c = *pc;
 
     if (c.ci.type & BTRFS_BLOCK_GROUP_RAID0) {
         print("RAID0 not supported\n");
-        return 0;
+        return nt_status::NOT_SUPPORTED;
     } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID10) {
         print("RAID10 not supported\n");
-        return 0;
+        return nt_status::NOT_SUPPORTED;
     } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID5) {
         print("RAID10 not supported\n");
-        return 0;
+        return nt_status::NOT_SUPPORTED;
     } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID6) {
         print("RAID10 not supported\n");
-        return 0;
+        return nt_status::NOT_SUPPORTED;
     }
 
     // chunk is SINGLE, DUP, RAID1, RAID1C3, or RAID1C4
@@ -812,7 +818,7 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
     auto pages_read = vol->cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
                                                          num_pages);
     if (pages_read == 0)
-        return 0;
+        return nt_status::INTERNAL_ERROR; // FIXME - proper error
 
     {
         rangelock_req rlr(vol->cache.rl, disk_addr >> PAGE_SHIFT, num_pages);
@@ -846,7 +852,8 @@ uint64_t btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_pages
 
     vol->cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
 
-    return pages_read;
+    read_pages = pages_read;
+    return nt_status::SUCCESS;
 }
 
 bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
@@ -3060,7 +3067,8 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
     }
 }
 
-size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages,
+                                              uint64_t& read_pages) {
     page_cache_entry* dest_p;
 
     for (uint64_t i = 0; i < num_pages; i++) {
@@ -3081,24 +3089,30 @@ size_t btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages
 #pragma GCC diagnostic pop
     }
 
-    return num_pages;
+    read_pages = num_pages;
+    return nt_status::SUCCESS;
 }
 
-size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
-                                                  uint64_t num_pages,
-                                                  const inode_extent& ie) {
+nt_status btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
+                                                     uint64_t num_pages,
+                                                     const inode_extent& ie,
+                                                     uint64_t& read_pages) {
     if (ie.ed.compression != 0) {
         print("FIXME - compression\n"); // FIXME
-        return 0;
+        return nt_status::NOT_SUPPORTED;
     }
 
-    if (page_num >= bytes_to_pages(ie.ed.ram_bytes))
-        return 0;
+    if (page_num >= bytes_to_pages(ie.ed.ram_bytes)) {
+        read_pages = 0;
+        return nt_status::SUCCESS;
+    }
 
     num_pages = min(num_pages, (uint64_t)bytes_to_pages(ie.ed.ram_bytes) - page_num);
 
-    if (num_pages == 0)
-        return 0;
+    if (num_pages == 0) {
+        read_pages = 0;
+        return nt_status::SUCCESS;
+    }
 
     page_cache_entry* dest_p;
 
@@ -3115,7 +3129,13 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
                 auto pa = allocate_folio(0);
                 if (!pa) {
                     print("allocate_folio failed\n");
-                    return i;
+
+                    if (i == 0)
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    else {
+                        read_pages = i;
+                        return nt_status::SUCCESS;
+                    }
                 }
 
 #pragma GCC diagnostic push
@@ -3135,7 +3155,8 @@ size_t btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
         memset((uint8_t*)dest_va + to_copy, 0, PAGE_SIZE - to_copy);
     }
 
-    return num_pages;
+    read_pages = num_pages;
+    return nt_status::SUCCESS;
 }
 
 static nt_status next_leaf(btrfs_filesystem& fs, btrfs_path& p) {
@@ -3267,23 +3288,23 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
     return nt_status::SUCCESS;
 }
 
-size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
-                                           const inode_extent& ie) {
+nt_status btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
+                                              const inode_extent& ie,
+                                              uint64_t& read_pages) {
     if (ie.ed.compression != 0) {
         print("FIXME - compression\n"); // FIXME
-        return 0;
+        return nt_status::NOT_SUPPORTED;
     }
 
     uint64_t addr = ie.ed.disk_bytenr + ie.ed.offset + (page_num << PAGE_SHIFT) - ie.offset;
 
+    // FIXME - shouldn't there be an offset here?
     num_pages = min(num_pages, ie.ed.num_bytes >> PAGE_SHIFT);
 
     auto pages_read = fs.cache.read_into_cache_and_pin(addr >> PAGE_SHIFT,
                                                        num_pages);
     if (pages_read == 0)
-        return 0;
-
-    size_t ret = pages_read;
+        return nt_status::INTERNAL_ERROR; // FIXME - return proper error
 
     {
         rangelock_req rlr(fs.cache.rl, addr >> PAGE_SHIFT, num_pages);
@@ -3320,16 +3341,18 @@ size_t btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pages
     if (!(ii.flags & BTRFS_INODE_NODATASUM)) {
         if (auto status = check_csums(*this, page_num, addr, num_pages); !success(status)) {
             print("check_csums returned {}\n", status);
-            return 0;
+            return status;
         }
     }
 
     // FIXME - read from another copy (and replace) if csum is bad
 
-    return ret;
+    read_pages = pages_read;
+    return nt_status::SUCCESS;
 }
 
-size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                       uint64_t& read_pages) {
     uint64_t lastoff = page_num << PAGE_SHIFT;
 
     // FIXME - extents should be an RB tree
@@ -3342,28 +3365,31 @@ size_t btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages) {
 
         if (ie.offset > lastoff) {
             auto pages_to_zero = min(num_pages, (ie.offset - lastoff) >> PAGE_SHIFT);
-            return read_zeroes_into_cache(page_num, pages_to_zero);
+            return read_zeroes_into_cache(page_num, pages_to_zero, read_pages);
         }
 
         switch (ie.ed.type) {
             case btrfs_extent_type::inline_extent:
-                return read_inline_extent_into_cache(page_num, num_pages, ie);
+                return read_inline_extent_into_cache(page_num, num_pages, ie,
+                                                     read_pages);
 
             case btrfs_extent_type::regular:
-                return read_extent_into_cache(page_num, num_pages, ie);
+                return read_extent_into_cache(page_num, num_pages, ie,
+                                              read_pages);
 
             case btrfs_extent_type::prealloc: {
                 auto pages_to_zero = min(num_pages, ie.ed.ram_bytes >> PAGE_SHIFT);
-                return read_zeroes_into_cache(page_num, pages_to_zero);
+                return read_zeroes_into_cache(page_num, pages_to_zero,
+                                              read_pages);
             }
 
             default:
                 print("unknown btrfs extent type {:x}\n", (unsigned int)ie.ed.type);
-                return 0;
+                return nt_status::DISK_CORRUPT_ERROR;
         }
     }
 
-    return read_zeroes_into_cache(page_num, num_pages);
+    return read_zeroes_into_cache(page_num, num_pages, read_pages);
 }
 
 static nt_status allocate_data(btrfs_filesystem& fs, uint64_t size,

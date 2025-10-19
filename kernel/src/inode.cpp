@@ -51,7 +51,8 @@ public:
                                        FILE_INFORMATION_CLASS file_information_class,
                                        uint64_t& retlen) = 0;
 
-    virtual size_t read_into_cache(uint64_t page_num, uint64_t num_pages) = 0;
+    virtual nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                      uint64_t& read_pages) = 0;
     virtual nt_status flush_cache(uint64_t page_num, uint64_t num_pages) = 0;
 
     filesystem& fs;
