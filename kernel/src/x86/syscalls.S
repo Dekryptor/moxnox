@@ -55,10 +55,6 @@
 dwarf_func_asm init_syscalls
 dwarf_func_asm syscall_handler
 
-.uleb128 0
-
-.debug_info_end:
-
 .macro syscall_stub name
     .text
     .global "stub_\name"
@@ -76,6 +72,9 @@ dwarf_func_asm syscall_handler
         .quad "user_\name"
     .else
         .quad "stack_\name"
+
+        .section .debug_info, "dr"
+        dwarf_func_asm "stack_\name"
 
         .text
         "stack_\name":
@@ -118,6 +117,7 @@ dwarf_func_asm syscall_handler
             call "user_\name"
             add rsp, 0x20 + ((\args - 4) * 8)
             ret
+        "stack_\name\()_end":
 
         .section .rdata
     .endif
@@ -231,3 +231,9 @@ Lno_syscall:
 syscall_handler_end:
 
 .text_end:
+
+.section .debug_info, "dr"
+
+.uleb128 0
+
+.debug_info_end:
