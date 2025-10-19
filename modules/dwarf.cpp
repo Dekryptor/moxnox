@@ -1397,7 +1397,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     free(abbrev_list.data());
 
     if (func_start == 0) {
-        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})\n", rva + base, mod_name, rva);
         return;
     }
 
