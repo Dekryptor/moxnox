@@ -8,8 +8,8 @@ module;
 #include <mutex>
 #include <source_location>
 #include <loaderblock.h>
+#include <nt.h>
 #include "acpica.h"
-#include "cpu_block.h"
 #include "spinlock.h"
 #include "assert.h"
 #include <span>
@@ -35,6 +35,7 @@ import config;
 import list;
 import thread;
 import disable_interrupts;
+import cpu_block;
 
 using namespace std;
 

@@ -5,7 +5,6 @@ module;
 #include <span>
 #include <tuple>
 #include <nt.h>
-#include "cpu_block.h"
 
 export module bsod;
 
@@ -14,6 +13,7 @@ import config;
 import disable_interrupts;
 import unwind;
 import kernel_images;
+import cpu_block;
 
 using namespace std;
 

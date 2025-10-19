@@ -6,7 +6,6 @@ module;
 #include <atomic>
 #include <string.h>
 #include "thread.h"
-#include "cpu_block.h"
 #include "assert.h"
 #include "tick_rate.h"
 #include "timer-asm.h"
@@ -22,6 +21,7 @@ import visit;
 import thread;
 import list;
 import disable_interrupts;
+import cpu_block;
 
 using namespace std;
 

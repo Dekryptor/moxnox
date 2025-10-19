@@ -9,7 +9,6 @@ module;
 #include <loaderblock.h>
 #include <console.h>
 #include "spinlock.h"
-#include "cpu_block.h"
 #include "handle.h"
 
 #ifndef __aarch64__
@@ -44,6 +43,7 @@ import object_ref;
 import scheduler;
 import list;
 import disable_interrupts;
+import cpu_block;
 
 using namespace std;
 

@@ -3,7 +3,6 @@ module;
 #include "timer-asm.h"
 #include <string_view>
 #include "acpica.h"
-#include "cpu_block.h"
 #include <span>
 #include <atomic>
 
@@ -29,6 +28,7 @@ import timer;
 import syscalls;
 import scheduler;
 import disable_interrupts;
+import cpu_block;
 
 using namespace std;
 
@@ -253,7 +253,7 @@ static void __attribute__((noreturn)) ap_startup() {
         "mov sp, x0\n\t"
         "b scheduler"
         :
-        : "i" (GS_SCHEDULER_STACK)
+        : "i" (offsetof(cpu_block, scheduler_stack))
     );
 
     __builtin_unreachable();
@@ -303,7 +303,7 @@ static void ap_startup() {
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"
         :
-        : "i" (GS_SCHEDULER_STACK)
+        : "i" (offsetof(cpu_block, scheduler_stack))
     );
 }
 #endif

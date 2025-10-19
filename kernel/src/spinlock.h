@@ -5,7 +5,7 @@
 
 #ifdef __aarch64__
 
-#include "cpu_block.h"
+import cpu_block;
 
 template<unsigned>
 class _spinlock {

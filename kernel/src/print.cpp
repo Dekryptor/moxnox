@@ -4,13 +4,13 @@ module;
 #include <string_view>
 #include <tuple>
 #include <nt.h>
-#include "cpu_block.h"
 
 export module print;
 
 import format;
 import config;
 import disable_interrupts;
+import cpu_block;
 
 using namespace std;
 

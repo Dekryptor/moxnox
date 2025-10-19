@@ -7,7 +7,6 @@ module;
 #include <variant>
 #include <mutex>
 #include "rangelock.h"
-#include "cpu_block.h"
 #include "spinlock.h"
 #include "thread.h"
 #include "process.h"
@@ -47,6 +46,7 @@ import disable_interrupts;
 import page_cache;
 import objects;
 import inode;
+import cpu_block;
 
 #ifndef __aarch64__
 import apic;

@@ -39,6 +39,7 @@ import process;
 import syscalls;
 import smp;
 import object_ref;
+import cpu_block;
 
 using namespace std;
 
@@ -362,14 +363,14 @@ void startup(loader_block* lb) {
         "mov sp, x0\n\t"
         "b scheduler"
         :
-        : "i" (GS_SCHEDULER_STACK)
+        : "i" (offsetof(cpu_block, scheduler_stack))
     );
 #else
     __asm __volatile ( // doesn't return
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"
         :
-        : "i" (GS_SCHEDULER_STACK)
+        : "i" (offsetof(cpu_block, scheduler_stack))
     );
 #endif
 

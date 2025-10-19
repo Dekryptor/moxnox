@@ -1,6 +1,8 @@
 module;
 
-#include "cpu_block.h"
+#include <stddef.h>
+
+import cpu_block;
 
 export module disable_interrupts;
 

@@ -4,7 +4,6 @@ module;
 #include <nt.h>
 #include <optional>
 #include <span>
-#include "cpu_block.h"
 #include "thread.h"
 #include "rangelock.h"
 #include "scheduler.h"
@@ -14,6 +13,7 @@ export module rangelock;
 
 import bsod;
 import disable_interrupts;
+import cpu_block;
 
 export struct rangelock_req {
     rangelock_req(rangelock& rl, uint64_t start, uint64_t length) : rl(rl) {

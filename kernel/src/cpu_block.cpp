@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include "context_offsets.h"
 #include <atomic>
@@ -6,8 +6,12 @@
 
 class thread;
 
-struct cpu_block {
-    std::atomic<uint64_t> disable_preempt = 0; // must be first
+export module cpu_block;
+
+using namespace std;
+
+export struct cpu_block {
+    atomic<uint64_t> disable_preempt = 0; // must be first
 #ifndef __aarch64__
     cpu_block* self;
 #endif
@@ -46,7 +50,7 @@ static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);
 #endif
 
 #ifdef __aarch64__
-extern "C++" inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
+export extern "C++" inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
     uint64_t ret;
 
     __asm __volatile (
@@ -58,5 +62,5 @@ extern "C++" inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
 }
 #else
 // timer.S
-extern "C" cpu_block* get_cpu_block();
+export extern "C" cpu_block* get_cpu_block();
 #endif

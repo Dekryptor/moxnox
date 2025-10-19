@@ -6,7 +6,6 @@ module;
 #include <optional>
 #include <functional>
 #include <mutex>
-#include "cpu_block.h"
 #include "process.h"
 #include "thread.h"
 
@@ -21,6 +20,7 @@ import unicode;
 import mem;
 import thread;
 import disable_interrupts;
+import cpu_block;
 
 using namespace std;
 
@@ -1581,7 +1581,7 @@ void maybe_yield() {
         "mov sp, x0\n\t"
         "b scheduler"
         :
-        : "i" (GS_SCHEDULER_STACK)
+        : "i" (offsetof(cpu_block, scheduler_stack))
     );
 }
 #else
@@ -1631,7 +1631,7 @@ void maybe_yield(uint64_t syscall_ret) {
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"
         :
-        : "i" (GS_SCHEDULER_STACK)
+        : "i" (offsetof(cpu_block, scheduler_stack))
     );
 }
 #endif

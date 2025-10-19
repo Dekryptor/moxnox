@@ -10,7 +10,6 @@ module;
 #include "spinlock.h"
 #include "thread.h"
 #include "scheduler.h"
-#include "cpu_block.h"
 #include "section.h"
 #include "process.h"
 
@@ -27,6 +26,7 @@ import mem;
 import object_ref;
 import config;
 import disable_interrupts;
+import cpu_block;
 
 using namespace std;
 
@@ -340,7 +340,7 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"
         :
-        : "i" (GS_SCHEDULER_STACK)
+        : "i" (offsetof(cpu_block, scheduler_stack))
     );
 #endif
 }

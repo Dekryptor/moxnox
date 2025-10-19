@@ -3,8 +3,8 @@
 #include <string_view>
 #include <mutex>
 #include <span>
+#include <nt.h>
 #include "spinlock.h"
-#include "cpu_block.h"
 #include "ints.h"
 
 #ifndef __aarch64__
@@ -23,6 +23,7 @@ import scheduler;
 import kernel_images;
 import smp;
 import unwind;
+import cpu_block;
 
 using namespace std;
 
