@@ -3910,9 +3910,10 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
             return status;
         }
 
-        if (!fs.cache.pin(addr >> PAGE_SHIFT, num_pages, nullptr)) {
-            print("page_cache::pin failed\n");
-            return nt_status::INSUFFICIENT_RESOURCES;
+        status = fs.cache.pin(addr >> PAGE_SHIFT, num_pages, nullptr);
+        if (!success(status)) {
+            print("page_cache::pin returned {}\n", status);
+            return status;
         }
 
         // reflink cache to filesystem cache and mark dirty

@@ -57,8 +57,8 @@ public:
 
     using dev_type = T;
 
-    bool pin(uint64_t first_page, uint64_t num_pages,
-             page_cache_entry** first_unread);
+    nt_status pin(uint64_t first_page, uint64_t num_pages,
+                  page_cache_entry** first_unread);
     void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
                           span<uint8_t> data, uint64_t offset);
     void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
@@ -183,8 +183,8 @@ page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
 }
 
 template<typename T>
-bool page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
-                        page_cache_entry** first_unread) {
+nt_status page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
+                             page_cache_entry** first_unread) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
@@ -194,8 +194,8 @@ bool page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
 
     if (!ent) {
         p = create_new_page_cache_entry(first_page);
-        if (!p) // FIXME - throw error
-            return false;
+        if (!p)
+            return nt_status::INSUFFICIENT_RESOURCES;
 
         if (first_unread)
             *first_unread = p;
@@ -215,7 +215,7 @@ bool page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
         if (!ent || ent->tree.key != page_num) {
             p = create_new_page_cache_entry(page_num);
             if (!p) // FIXME - throw error
-                return false;
+                return nt_status::INSUFFICIENT_RESOURCES;
 
             if (first_unread && !*first_unread)
                 *first_unread = p;
@@ -230,7 +230,7 @@ bool page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
         }
     }
 
-    return true;
+    return nt_status::SUCCESS;
 }
 
 export void* get_phys_address(const page_cache_entry& ent) {
@@ -384,8 +384,9 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
                                 span<const uint8_t> data) {
     // FIXME - add page cache to list of things that need to be flushed
 
-    if (!pin(first_page, num_pages, nullptr))
-        return false;
+    auto status = pin(first_page, num_pages, nullptr);
+    if (!success(status))
+        return false; // FIXME - return error
 
     // copy pages and set as dirty
 
@@ -554,8 +555,9 @@ bool read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
 
     // FIXME - lock range
 
-    if (!cache.pin(first_page, num_pages, &first_unread))
-        return false;
+    auto status = cache.pin(first_page, num_pages, &first_unread);
+    if (!success(status))
+        return false; // FIXME - return error
 
     if (first_unread) {
         page_cache_entry* ent = first_unread;
@@ -610,8 +612,9 @@ uint64_t page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t nu
 
     rangelock_req rlr(rl, first_page, num_pages);
 
-    if (!pin(first_page, num_pages, &first_unread))
-        return 0;
+    auto status = pin(first_page, num_pages, &first_unread);
+    if (!success(status))
+        return 0; // FIXME - return error
 
     if (first_unread) {
         page_cache_entry* ent = first_unread;

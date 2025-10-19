@@ -435,8 +435,9 @@ nt_status diskpart::dio_write(uint64_t page_num, uint64_t num_pages,
 }
 
 nt_status volume::flush_cache(uint64_t page_num, uint64_t num_pages) {
-    if (!cache.pin(page_num, num_pages, nullptr))
-        return nt_status::INTERNAL_ERROR;
+    auto status = cache.pin(page_num, num_pages, nullptr);
+    if (!success(status))
+        return status;
 
     page_cache_iterator iter(cache, page_num);
 

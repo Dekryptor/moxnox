@@ -331,10 +331,11 @@ nt_status section::load_image() {
 
     auto& cache = image_cache->cache;
 
-    if (!cache.pin(0, num_pages, nullptr)) {
-        print("page_cache::pin failed\n");
+    auto status = cache.pin(0, num_pages, nullptr);
+    if (!success(status)) {
+        print("page_cache::pin returned {}\n", status);
         f.cache.unpin(0, 1);
-        return nt_status::INSUFFICIENT_RESOURCES;
+        return status;
     }
 
     f.cache.unpin(0, 1);
@@ -1178,9 +1179,10 @@ nt_status anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pa
                                               uint64_t& read_pages) {
     // infinite anonymous sections are used for process VM
 
-    if (!cache.pin(page_num, num_pages, nullptr)) {
-        print("page_cache::pin failed\n");
-        return nt_status::INTERNAL_ERROR; // FIXME - return proper error
+    auto status = cache.pin(page_num, num_pages, nullptr);
+    if (!success(status)) {
+        print("page_cache::pin returned {}\n", status);
+        return status;
     }
 
     page_cache_entry* p;
