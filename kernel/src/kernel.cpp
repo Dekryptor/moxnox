@@ -275,7 +275,8 @@ void main_thread() {
 extern "C"
 void startup(loader_block* lb) {
     span<const uint8_t> debug_info, debug_abbrev, debug_rnglists, debug_str,
-                        debug_addr, debug_str_offsets;
+                        debug_addr, debug_str_offsets, debug_line,
+                        debug_line_str;
 
     // FIXME - should restart if anything fails before we can show error message
 
@@ -311,6 +312,8 @@ void startup(loader_block* lb) {
     debug_str = span((uint8_t*)(uintptr_t)lb->debug_str_ptr, lb->debug_str_size);
     debug_addr = span((uint8_t*)(uintptr_t)lb->debug_addr_ptr, lb->debug_addr_size);
     debug_str_offsets = span((uint8_t*)(uintptr_t)lb->debug_str_offsets_ptr, lb->debug_str_offsets_size);
+    debug_line = span((uint8_t*)(uintptr_t)lb->debug_line_ptr, lb->debug_line_size);
+    debug_line_str = span((uint8_t*)(uintptr_t)lb->debug_line_str_ptr, lb->debug_line_str_size);
 
     rsdp_pa = lb->rsdp_pa;
 
@@ -322,7 +325,7 @@ void startup(loader_block* lb) {
     call_global_constructors();
 
     init_images_list(debug_info, debug_abbrev, debug_rnglists, debug_str,
-                     debug_addr, debug_str_offsets);
+                     debug_addr, debug_str_offsets, debug_line, debug_line_str);
 
     if (!init_vablock())
         goto hang;
