@@ -3343,7 +3343,7 @@ nt_status btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pa
     fs.cache.unpin(addr >> PAGE_SHIFT, pages_read);
 
     if (!(ii.flags & BTRFS_INODE_NODATASUM)) {
-        if (auto status = check_csums(*this, page_num, addr, num_pages); !success(status)) {
+        if (auto status = check_csums(*this, page_num, addr, pages_read); !success(status)) {
             print("check_csums returned {}\n", status);
             return status;
         }
