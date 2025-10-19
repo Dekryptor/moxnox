@@ -29,6 +29,22 @@ struct dwarf_cu_header {
 
 static_assert(sizeof(dwarf_cu_header) == 12);
 
+struct dwarf_line_no_header {
+    uint32_t unit_length;
+    uint16_t version;
+    uint8_t address_size;
+    uint8_t segment_selector_size;
+    uint32_t header_length;
+    uint8_t minimum_instruction_length;
+    uint8_t maximum_operations_per_instruction;
+    uint8_t default_is_stmt;
+    int8_t line_base;
+    uint8_t line_range;
+    uint8_t opcode_base;
+} __attribute__((packed));
+
+static_assert(sizeof(dwarf_line_no_header) == 18);
+
 enum class DW_FORM : uint8_t {
     unknown = 0x00,
     addr = 0x01,
@@ -1516,9 +1532,31 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
                           sp, addr_base, str_offsets_base, mod_name);
 }
 
+static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
+                                   span<const uint8_t> debug_line_str,
+                                   uint64_t addr, span<char>& sp) {
+    // FIXME
+
+    return false;
+}
+
 export void dwarf_print_line_no(span<const uint8_t> debug_line,
                                 span<const uint8_t> debug_line_str,
                                 uint64_t addr, span<char>& sp) {
-    // FIXME
-    sp = format(sp, "???\n");
+    while (debug_line.size() >= sizeof(dwarf_line_no_header)) {
+        const auto& h = *(dwarf_line_no_header*)debug_line.data();
+
+        if (h.unit_length >= 0xfffffff0) // FIXME - support 64-bit DWARF
+            return;
+
+        if (debug_line.size() < sizeof(uint32_t) + h.unit_length)
+            return;
+
+        if (dwarf_print_line_no_cu(span(debug_line.data(), sizeof(uint32_t) + h.unit_length),
+                                   debug_line_str, addr, sp))
+            return;
+
+        debug_line = span(debug_line.data() + sizeof(uint32_t) + h.unit_length,
+                          debug_line.size() - sizeof(uint32_t) - h.unit_length);
+    }
 }
