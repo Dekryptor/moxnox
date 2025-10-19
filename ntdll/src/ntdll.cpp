@@ -590,6 +590,10 @@ static void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     ntdll.size_debug_addr = ntdll_info.size_debug_addr;
     ntdll.offset_debug_str_offsets = ntdll_info.offset_debug_str_offsets;
     ntdll.size_debug_str_offsets = ntdll_info.size_debug_str_offsets;
+    ntdll.offset_debug_line = ntdll_info.offset_debug_line;
+    ntdll.size_debug_line = ntdll_info.size_debug_line;
+    ntdll.offset_debug_line_str = ntdll_info.offset_debug_line_str;
+    ntdll.size_debug_line_str = ntdll_info.size_debug_line_str;
 
     auto& img = add_ldr_entry(img_info.base, image_path, base_name, true);
 
@@ -605,6 +609,10 @@ static void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     img.size_debug_addr = img_info.size_debug_addr;
     img.offset_debug_str_offsets = img_info.offset_debug_str_offsets;
     img.size_debug_str_offsets = img_info.size_debug_str_offsets;
+    img.offset_debug_line = img_info.offset_debug_line;
+    img.size_debug_line = img_info.size_debug_line;
+    img.offset_debug_line_str = img_info.offset_debug_line_str;
+    img.size_debug_line_str = img_info.size_debug_line_str;
 }
 
 static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FILE_HEADER& file_header,
@@ -765,6 +773,12 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
         } else if (name == ".debug_str_offsets") {
             ent.offset_debug_str_offsets = sect.VirtualAddress;
             ent.size_debug_str_offsets = sect.VirtualSize;
+        } else if (name == ".debug_line") {
+            ent.offset_debug_line = sect.VirtualAddress;
+            ent.size_debug_line = sect.VirtualSize;
+        } else if (name == ".debug_line_str") {
+            ent.offset_debug_line_str = sect.VirtualAddress;
+            ent.size_debug_line_str = sect.VirtualSize;
         }
     }
 

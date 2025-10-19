@@ -81,4 +81,8 @@ struct ldr_entry {
     uint64_t size_debug_addr;
     uint64_t offset_debug_str_offsets;
     uint64_t size_debug_str_offsets;
+    uint64_t offset_debug_line;
+    uint64_t size_debug_line;
+    uint64_t offset_debug_line_str;
+    uint64_t size_debug_line_str;
 };
