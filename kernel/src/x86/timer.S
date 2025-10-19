@@ -58,7 +58,6 @@ dwarf_func_asm scheduler_restore
 dwarf_func_asm yield
 dwarf_func_asm acquire_sync_lock
 dwarf_func_asm release_sync_lock
-dwarf_func_asm get_cpu_block
 
 .uleb128 0
 
@@ -326,11 +325,5 @@ release_sync_lock: # clobbers rax
     xchg [rip+sync_lock_val], rax
     ret
 release_sync_lock_end:
-
-.global get_cpu_block
-get_cpu_block:
-    mov rax, gs:GS_SELF
-    ret
-get_cpu_block_end:
 
 .text_end:

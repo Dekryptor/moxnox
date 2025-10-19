@@ -50,7 +50,7 @@ static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);
 #endif
 
 #ifdef __aarch64__
-export extern "C++" inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
+export inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
     uint64_t ret;
 
     __asm __volatile (
@@ -61,6 +61,18 @@ export extern "C++" inline __attribute__((always_inline)) cpu_block* get_cpu_blo
     return (cpu_block*)ret;
 }
 #else
-// timer.S
-export extern "C" cpu_block* get_cpu_block();
+export inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
+#ifdef __llvm__
+    return (cpu_block*)*(uint8_t* __attribute__((address_space(256)))*)offsetof(cpu_block, self);
+#else
+    cpu_block* ret;
+
+    __asm("mov %0, gs:%1"
+        : "=r" (ret)
+        : "i" (offsetof(cpu_block, self))
+    );
+
+    return ret;
+#endif
+}
 #endif
