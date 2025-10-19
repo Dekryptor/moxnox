@@ -69,12 +69,18 @@ static void print_rip(uint64_t rip) {
         auto debug_addr = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_addr, ent->size_debug_addr);
         auto debug_str = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_str, ent->size_debug_str);
         auto debug_str_offsets = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_str_offsets, ent->size_debug_str_offsets);
+        auto debug_line = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_line,
+                               ent->size_debug_line);
+        auto debug_line_str = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_line_str,
+                                   ent->size_debug_line_str);
 
         auto base = get_preferred_base(*ent);
 
         dwarf_print_function(debug_info, debug_abbrev, debug_rnglists,
                              debug_addr, debug_str, debug_str_offsets,
                              rva, base, sp, mod_name_sv);
+
+        dwarf_print_line_no(debug_line, debug_line_str, rva + base, sp);
     } else
         sp = format(sp, "{:016x}\n", rip);
 

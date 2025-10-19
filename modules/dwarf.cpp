@@ -1515,3 +1515,10 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
                           found_cu, debug_abbrev.subspan(found_debug_abbrev_object),
                           sp, addr_base, str_offsets_base, mod_name);
 }
+
+export void dwarf_print_line_no(span<const uint8_t> debug_line,
+                                span<const uint8_t> debug_line_str,
+                                uint64_t addr, span<char>& sp) {
+    // FIXME
+    sp = format(sp, "???\n");
+}
