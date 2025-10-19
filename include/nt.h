@@ -492,21 +492,34 @@ struct TEB {
 };
 
 __inline __attribute((always_inline)) TEB* NtCurrentTeb() {
+#ifdef __aarch64__
     TEB* ret;
 
-#ifdef __aarch64__
     __asm __volatile (
         "mov %x[res], x18"
         : [res] "=r" (ret)
     );
+
+    return ret;
+#else // x86
+
+#ifdef __llvm__
+    return (TEB*)*(uint8_t* __attribute__((address_space(256)))*)offsetof(TEB, NtTib.Self);
 #else
-    __asm("mov %0, gs:%1"
+    TEB* ret;
+
+    // 0x30 == offsetof(TEB, NtTib.Self)
+    // FIXME - GCC insists on putting $ before the immediate in AT&T mode, which
+    //         gas doesn't like
+    __asm("{movq %%gs:0x30, %0|mov %0, gs:%1}"
         : "=a" (ret)
         : "i" (offsetof(TEB, NtTib.Self))
     );
-#endif
 
     return ret;
+#endif
+
+#endif
 }
 
 struct M128A {
