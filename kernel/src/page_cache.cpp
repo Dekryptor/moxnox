@@ -71,7 +71,8 @@ public:
     page_cache_entry* find_page_cache_entry(uint64_t page_num);
     page_cache_entry* find_page_cache_entry_or_earlier(uint64_t page_num);
     size_t write(span<const uint8_t> data, uint64_t offset);
-    uint64_t read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages);
+    nt_status read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages,
+                                      uint64_t& read_pages);
     size_t read(span<uint8_t> data, uint64_t offset);
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
     void mark_dirty();
@@ -433,6 +434,7 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
 
 template<typename T>
 size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
+    uint64_t read_pages;
     uint64_t written = 0;
 
     if (data.empty())
@@ -445,8 +447,9 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
     if (offset & (PAGE_SIZE - 1)) {
         auto inpage_offset = offset & (PAGE_SIZE - 1);
 
-        if (read_into_cache_and_pin(first_page, 1) == 0)
-            return 0;
+        auto status = read_into_cache_and_pin(first_page, 1, read_pages);
+        if (!success(status) || read_pages == 0)
+            return 0; // FIXME - return error
 
         {
             rangelock_req rlr(rl, first_page, 1);
@@ -504,7 +507,9 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
         first_page += num_pages;
     }
 
-    if (read_into_cache_and_pin(first_page, 1) == 0)
+    auto status = read_into_cache_and_pin(first_page, 1, read_pages);
+
+    if (!success(status) || read_pages == 0)
         return written;
 
     {
@@ -607,14 +612,15 @@ bool read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
 }
 
 template<typename T>
-uint64_t page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages) {
+nt_status page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages,
+                                                 uint64_t& read_pages) {
     page_cache_entry* first_unread = nullptr;
 
     rangelock_req rlr(rl, first_page, num_pages);
 
     auto status = pin(first_page, num_pages, &first_unread);
     if (!success(status))
-        return 0; // FIXME - return error
+        return status;
 
     if (first_unread) {
         page_cache_entry* ent = first_unread;
@@ -638,20 +644,25 @@ uint64_t page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t nu
                 // FIXME - better if we could allocate contiguous physical pages? (folios?)
 
                 while (pages_left > 0) {
-                    uint64_t read_pages;
+                    uint64_t cache_read_pages;
 
                     auto status = dev.read_into_cache(page_num_start, pages_left,
-                                                      read_pages);
+                                                      cache_read_pages);
 
-                    if (!success(status) || read_pages == 0) {
+                    if (!success(status) || cache_read_pages == 0) {
                         clean_pages(*this, range_start, range_length - pages_left);
                         unpin(page_num_start,
                               first_page + num_pages - page_num_start);
-                        return page_num_start - first_page;
+                        read_pages = page_num_start - first_page;
+
+                        if (read_pages > 0)
+                            return nt_status::SUCCESS;
+                        else
+                            return status;
                     }
 
-                    page_num_start += read_pages;
-                    pages_left -= read_pages;
+                    page_num_start += cache_read_pages;
+                    pages_left -= cache_read_pages;
                 }
             }
 
@@ -662,7 +673,8 @@ uint64_t page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t nu
         }
     }
 
-    return num_pages;
+    read_pages = num_pages;
+    return nt_status::SUCCESS;
 }
 
 template<typename T>

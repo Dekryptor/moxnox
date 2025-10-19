@@ -187,9 +187,12 @@ static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FI
     auto page_start = (uint64_t)(copy_start >> PAGE_SHIFT);
     auto page_end = (uint64_t)(copy_end >> PAGE_SHIFT);
 
-    auto pinned_pages = (uint32_t)f.cache.read_into_cache_and_pin(page_start, page_end - page_start + 1);
+    uint64_t pinned_pages;
 
-    if (pinned_pages < page_end - page_start + 1) {
+    auto status = f.cache.read_into_cache_and_pin(page_start, page_end - page_start + 1,
+                                                  pinned_pages);
+
+    if (!success(status) || pinned_pages < page_end - page_start + 1) {
         f.cache.unpin(page_start, pinned_pages);
         return format(buf, "{}", name);
     }
@@ -218,10 +221,13 @@ nt_status section::load_image() {
     auto& f = ino->get();
     uint32_t section_alignment;
     page_cache_entry* src_p;
+    uint64_t read_pages;
 
-    if (f.cache.read_into_cache_and_pin(0, 1) == 0) {
-        print("section::load_image: read_into_cache_and_pin failed\n");
-        return nt_status::INTERNAL_ERROR;
+    auto status = f.cache.read_into_cache_and_pin(0, 1, read_pages);
+
+    if (!success(status)) {
+        print("section::load_image: read_into_cache_and_pin returned {}\n", status);
+        return status;
     }
 
     {
@@ -331,7 +337,7 @@ nt_status section::load_image() {
 
     auto& cache = image_cache->cache;
 
-    auto status = cache.pin(0, num_pages, nullptr);
+    status = cache.pin(0, num_pages, nullptr);
     if (!success(status)) {
         print("page_cache::pin returned {}\n", status);
         f.cache.unpin(0, 1);
@@ -499,10 +505,12 @@ uint64_t section::find_export(string_view name) {
     page_cache_entry* p;
 
     auto& cache = image_cache->cache;
+    uint64_t read_pages;
 
-    if (cache.read_into_cache_and_pin(0, 1) == 0) {
-        print("read_into_cache_and_pin failed\n");
-        return 0;
+    auto status = cache.read_into_cache_and_pin(0, 1, read_pages);
+    if (!success(status)) {
+        print("read_into_cache_and_pin returned {}\n", status);
+        return 0; // FIXME - return error
     }
 
     {
@@ -557,10 +565,17 @@ uint64_t section::find_export(string_view name) {
         return 0;
     }
 
-    auto pinned_pages = cache.read_into_cache_and_pin(exp_dir_start >> PAGE_SHIFT,
-                                                      exp_dir_pages);
+    uint64_t pinned_pages;
 
-    if (pinned_pages != exp_dir_pages) {
+    status = cache.read_into_cache_and_pin(exp_dir_start >> PAGE_SHIFT,
+                                           exp_dir_pages, pinned_pages);
+
+    if (!success(status)) {
+        print("section::find_export: read_into_cache_and_pin returned {}\n",
+              status);
+        free_va(va, exp_dir_pages);
+        return 0; // FIXME - return error
+    } else if (pinned_pages != exp_dir_pages) {
         print("section::find_export: read_into_cache_and_pin returned {}, expected {}\n",
               pinned_pages, exp_dir_pages);
         cache.unpin(exp_dir_start >> PAGE_SHIFT, pinned_pages);
@@ -978,10 +993,14 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
     // FIXME - if something fails, should return what we've read so far rather than 0
 
     if (page_num < header_pages) {
-        auto cache_read_pages = f.cache.read_into_cache_and_pin(page_num, min(header_pages - page_num, num_pages));
-        if (cache_read_pages == 0) {
-            print("image_read_into_cache: read_into_cache_and_pin failed\n");
-            return nt_status::INTERNAL_ERROR; // FIXME - return proper error
+        uint64_t cache_read_pages;
+
+        auto status = f.cache.read_into_cache_and_pin(page_num, min(header_pages - page_num, num_pages),
+                                                      cache_read_pages);
+        if (!success(status)) {
+            print("image_read_into_cache: read_into_cache_and_pin returned {}\n",
+                  status);
+            return status;
         }
 
         for (unsigned int i = 0; i < cache_read_pages; i++) {
@@ -1097,9 +1116,13 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
                 auto file_end_page = file_end >> PAGE_SHIFT;
                 auto num_file_pages = file_end_page - file_start_page + 1;
                 uint64_t offset = s.PointerToRawData & (PAGE_SIZE - 1);
+                uint64_t pinned_pages;
 
-                auto pinned_pages = f.cache.read_into_cache_and_pin(file_start_page, num_file_pages);
-                if (pinned_pages < num_file_pages) {
+                auto status = f.cache.read_into_cache_and_pin(file_start_page, num_file_pages,
+                                                              pinned_pages);
+                if (!success(status))
+                    return status;
+                else if (pinned_pages < num_file_pages) {
                     if (pinned_pages != 0)
                         f.cache.unpin(file_start_page, pinned_pages);
 

@@ -815,10 +815,12 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
     if (addr + (num_pages << PAGE_SHIFT) > c.offset + c.ci.length)
         num_pages = (c.offset + c.ci.length - addr) >> PAGE_SHIFT;
 
-    auto pages_read = vol->cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
-                                                         num_pages);
-    if (pages_read == 0)
-        return nt_status::INTERNAL_ERROR; // FIXME - proper error
+    uint64_t pages_read;
+
+    auto status = vol->cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
+                                                     num_pages, pages_read);
+    if (!success(status))
+        return status;
 
     {
         rangelock_req rlr(vol->cache.rl, disk_addr >> PAGE_SHIFT, num_pages);
@@ -3301,10 +3303,12 @@ nt_status btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pa
     // FIXME - shouldn't there be an offset here?
     num_pages = min(num_pages, ie.ed.num_bytes >> PAGE_SHIFT);
 
-    auto pages_read = fs.cache.read_into_cache_and_pin(addr >> PAGE_SHIFT,
-                                                       num_pages);
-    if (pages_read == 0)
-        return nt_status::INTERNAL_ERROR; // FIXME - return proper error
+    uint64_t pages_read;
+
+    auto status = fs.cache.read_into_cache_and_pin(addr >> PAGE_SHIFT,
+                                                   num_pages, pages_read);
+    if (!success(status))
+        return status;
 
     {
         rangelock_req rlr(fs.cache.rl, addr >> PAGE_SHIFT, num_pages);

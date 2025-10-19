@@ -1256,9 +1256,15 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
                 pte->pfn = pfn;
             } else {
                 auto ret = visit([&](auto* ptr) {
+                    uint64_t read_pages;
                     auto& cache = *ptr;
 
-                    cache.read_into_cache_and_pin(sect_page_num, 1);
+                    auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
+                                                                read_pages);
+                    if (!success(status)) {
+                        print("read_into_cache_and_pin returned {}\n", status);
+                        return false;
+                    }
 
                     rangelock_req rlr(cache.rl, sect_page_num, 1);
 
@@ -1388,8 +1394,14 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
             } else {
                 visit([&](auto* ptr) {
                     auto& cache = *ptr;
+                    uint64_t read_pages;
 
-                    cache.read_into_cache_and_pin(sect_page_num, 1);
+                    auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
+                                                                read_pages);
+                    if (!success(status)) {
+                        print("read_into_cache_and_pin returned {}\n", status);
+                        return false;
+                    }
 
                     rangelock_req rlr(cache.rl, sect_page_num, 1);
 
@@ -2227,10 +2239,12 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
     uint64_t sect_page_num = page_num + (offset >> PAGE_SHIFT);
 
     return visit([&](auto* ptr) {
+        uint64_t read_pages;
         auto& cache = *ptr;
 
-        if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
-            print("page_cache::read_into_cache_and_pin failed\n");
+        auto status = cache.read_into_cache_and_pin(sect_page_num, 1, read_pages);
+        if (!success(status)) {
+            print("page_cache::read_into_cache_and_pin returned {}\n", status);
             return false;
         }
 
@@ -2296,10 +2310,14 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
             uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
 
             auto b = visit([&](auto* ptr) {
+                uint64_t read_pages;
                 auto& cache = *ptr;
 
-                if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
-                    print("page_cache::read_into_cache_and_pin failed\n");
+                auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
+                                                            read_pages);
+                if (!success(status)) {
+                    print("page_cache::read_into_cache_and_pin returned {}\n",
+                          status);
                     return false;
                 }
 
@@ -2372,10 +2390,14 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
 
                     auto b = visit([&](auto* ptr) {
+                        uint64_t read_pages;
                         auto& cache = *ptr;
 
-                        if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
-                            print("page_cache::read_into_cache_and_pin failed\n");
+                        auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
+                                                                    read_pages);
+                        if (!success(status)) {
+                            print("page_cache::read_into_cache_and_pin returned {}\n",
+                                  status);
                             free_folio(pa);
                             return false;
                         }
@@ -2436,8 +2458,13 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 auto& cache = *ptr;
 
                 if (to_copy < PAGE_SIZE) {
-                    if (cache.read_into_cache_and_pin(sect_page_num, 1) == 0) {
-                        print("page_cache::read_into_cache_and_pin failed\n");
+                    uint64_t read_pages;
+
+                    auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
+                                                                read_pages);
+                    if (!success(status)) {
+                        print("page_cache::read_into_cache_and_pin returned {}\n",
+                              status);
                         return false;
                     }
                 } else
