@@ -1908,8 +1908,15 @@ nt_status btrfs_filesystem::find_item(root& r, const btrfs_key& k, btrfs_path& p
 
         auto& th = *(btrfs_header*)p.data[level];
 
+        if (th.bytenr != addr) {
+            print("btrfs_filesystem::find_item: metadata address was {:x}, expected {:x}\n",
+                  th.bytenr, addr);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
         if (th.level != level) {
-            print("Tree level was incorrect ({:x}, expected {:x})\n", th.level, level);
+            print("btrfs_filesystem::find_item: metadata level at {:x} was {:x}, expected {:x}\n",
+                  addr, th.level, level);
             return nt_status::DISK_CORRUPT_ERROR;
         }
 
