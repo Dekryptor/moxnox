@@ -10,7 +10,6 @@ module;
 #include <span>
 #include <nt.h>
 #include "xhci.h"
-#include "spinlock.h"
 #include "tick_rate.h"
 
 export module xhci;
@@ -30,6 +29,7 @@ import thread;
 import object_ref;
 import scheduler;
 import list;
+import spinlock;
 
 using namespace std;
 

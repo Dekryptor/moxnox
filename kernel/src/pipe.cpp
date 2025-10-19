@@ -6,7 +6,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include "handle.h"
-#include "spinlock.h"
 #include "scheduler.h"
 
 export module pipe;
@@ -20,6 +19,7 @@ import chardev;
 import unicode;
 import thread;
 import event;
+import spinlock;
 
 using namespace std;
 

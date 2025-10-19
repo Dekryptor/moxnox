@@ -5,7 +5,6 @@ module;
 #include <shared_mutex>
 #include <mutex>
 #include "handle.h"
-#include "spinlock.h"
 #include "nvme.h"
 
 export module nvme;
@@ -25,6 +24,7 @@ import module_init;
 import page_cache;
 import scheduler;
 import list;
+import spinlock;
 
 using namespace std;
 

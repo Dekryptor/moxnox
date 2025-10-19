@@ -4,7 +4,6 @@ module;
 #include <mutex>
 #include <algorithm>
 #include <string.h>
-#include "spinlock.h"
 #include "rangelock.h"
 #include "mapping.h"
 #include "assert.h"
@@ -18,6 +17,7 @@ import config;
 import list;
 import rangelock;
 import rbtree;
+import spinlock;
 
 using namespace std;
 

@@ -7,7 +7,6 @@ module;
 #include <nt.h>
 #include "acpica.h"
 #include "virtio.h"
-#include "spinlock.h"
 #include <variant>
 
 export module virtio;
@@ -25,6 +24,7 @@ import apic;
 import object_ref;
 import scheduler;
 import list;
+import spinlock;
 
 using namespace std;
 

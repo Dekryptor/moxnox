@@ -7,7 +7,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include <nt.h>
-#include "spinlock.h"
 #include "file.h"
 #include "handle.h"
 

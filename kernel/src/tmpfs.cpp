@@ -6,7 +6,6 @@ module;
 #include <optional>
 #include <string_view>
 #include <mutex>
-#include "spinlock.h"
 #include "file.h"
 #include "assert.h"
 

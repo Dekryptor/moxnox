@@ -3,8 +3,8 @@
 #include <string_view>
 #include <mutex>
 #include <span>
+#include <atomic>
 #include <nt.h>
-#include "spinlock.h"
 #include "ints.h"
 
 #ifndef __aarch64__

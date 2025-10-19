@@ -6,6 +6,7 @@
 #include <string.h>
 #include "context_offsets.h"
 #include "process.h"
+#include "timer-asm.h"
 
 #ifdef __aarch64__
 import psci;

@@ -8,7 +8,6 @@ module;
 #include <functional>
 #include <string_view>
 #include <mutex>
-#include "spinlock.h"
 #include "section.h"
 #include "handle.h"
 
@@ -18,6 +17,7 @@ import print;
 import mem;
 import config;
 import inout;
+import spinlock;
 
 using namespace std;
 

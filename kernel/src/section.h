@@ -3,11 +3,11 @@
 #include <variant>
 #include <string_view>
 #include <pe.h>
-#include "spinlock.h"
 
 import page_cache;
 import objects;
 import inode;
+import spinlock;
 
 #include "section2.h"
 

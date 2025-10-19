@@ -10,7 +10,6 @@ module;
 #include <mutex>
 #include <nt.h>
 #include "../handle.h"
-#include "../spinlock.h"
 
 export module pl011;
 
@@ -25,6 +24,7 @@ import interrupts;
 import config;
 import chardev;
 import scheduler;
+import spinlock;
 
 using namespace std;
 

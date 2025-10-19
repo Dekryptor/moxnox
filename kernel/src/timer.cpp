@@ -4,11 +4,11 @@ module;
 #include <atomic>
 #include <mutex>
 #include "context_offsets.h"
-#include "spinlock.h"
 #include "tick_rate.h"
 #include "scheduler.h"
 #include "acpica.h"
 #include "handle.h"
+#include "timer-asm.h"
 
 export module timer;
 
@@ -20,6 +20,7 @@ import thread;
 import disable_interrupts;
 import objects;
 import object_ref;
+import spinlock;
 
 #ifndef __aarch64__
 import inout;

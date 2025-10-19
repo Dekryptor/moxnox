@@ -8,7 +8,6 @@ module;
 #include <string_view>
 #include <functional>
 #include <mutex>
-#include "spinlock.h"
 #include "file.h"
 #include <pe.h>
 #include <utility>

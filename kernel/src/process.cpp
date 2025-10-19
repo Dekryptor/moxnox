@@ -7,7 +7,6 @@ module;
 #include <variant>
 #include <mutex>
 #include "rangelock.h"
-#include "spinlock.h"
 #include "thread.h"
 #include "process.h"
 #include "file.h"

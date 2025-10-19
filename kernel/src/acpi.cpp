@@ -6,7 +6,6 @@ module;
 #include <mutex>
 #include "acpica.h"
 #include "tick_rate.h"
-#include "spinlock.h"
 
 export module acpi;
 
@@ -27,6 +26,7 @@ import scheduler;
 import semaphore;
 import object_ref;
 import rwsem;
+import spinlock;
 
 using namespace std;
 

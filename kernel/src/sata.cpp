@@ -5,7 +5,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include <string.h>
-#include "spinlock.h"
 #include "handle.h"
 #include "tick_rate.h"
 
@@ -28,6 +27,7 @@ import thread;
 import page_cache;
 import rwsem;
 import scheduler;
+import spinlock;
 
 #include "sata.h"
 

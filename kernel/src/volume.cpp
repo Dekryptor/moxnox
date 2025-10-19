@@ -8,7 +8,6 @@ module;
 #include <atomic>
 #include <string_view>
 #include <mutex>
-#include "spinlock.h"
 #include "handle.h"
 #include "scheduler.h"
 #include "assert.h"

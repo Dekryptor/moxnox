@@ -2,7 +2,6 @@
 #include <optional>
 #include <string_view>
 #include <mutex>
-#include "spinlock.h"
 #include "handle.h"
 
 import print;
@@ -12,6 +11,7 @@ import thread;
 import objects;
 import object_ref;
 import mem;
+import spinlock;
 
 using namespace std;
 

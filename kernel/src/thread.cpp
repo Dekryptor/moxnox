@@ -7,11 +7,11 @@ module;
 #include <functional>
 #include <atomic>
 #include <mutex>
-#include "spinlock.h"
 #include "thread.h"
 #include "scheduler.h"
 #include "section.h"
 #include "process.h"
+#include "timer-asm.h"
 
 export module thread;
 
@@ -27,6 +27,7 @@ import object_ref;
 import config;
 import disable_interrupts;
 import cpu_block;
+import spinlock;
 
 using namespace std;
 

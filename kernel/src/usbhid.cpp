@@ -3,7 +3,6 @@ module;
 #include <string_view>
 #include <span>
 #include <mutex>
-#include "spinlock.h"
 #include "tick_rate.h"
 #include "handle.h"
 #include <ioctl.h>
@@ -23,6 +22,7 @@ import thread;
 import mem;
 import scheduler;
 import list;
+import spinlock;
 
 using namespace std;
 

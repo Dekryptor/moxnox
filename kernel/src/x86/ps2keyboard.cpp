@@ -3,7 +3,6 @@ module;
 #include <span>
 #include <optional>
 #include <mutex>
-#include "../spinlock.h"
 import evdev;
 #include "../qwerty.h"
 #include "../handle.h"
@@ -28,6 +27,7 @@ import thread;
 import disable_interrupts;
 import scheduler;
 import list;
+import spinlock;
 
 using namespace std;
 

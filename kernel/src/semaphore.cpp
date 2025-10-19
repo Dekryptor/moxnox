@@ -6,7 +6,6 @@ module;
 #include <atomic>
 #include <optional>
 #include <mutex>
-#include "spinlock.h"
 #include "scheduler.h"
 
 export module semaphore;
@@ -17,6 +16,7 @@ import bsod;
 import object_ref;
 import objects;
 import mem;
+import spinlock;
 
 using namespace std;
 

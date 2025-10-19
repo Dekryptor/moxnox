@@ -4,7 +4,6 @@ module;
 #include <atomic>
 #include <mutex>
 #include "handle.h"
-#include "spinlock.h"
 #include <ioctl.h>
 
 export module keyboard;
@@ -14,6 +13,7 @@ import print;
 import evdev;
 import list;
 import thread;
+import spinlock;
 
 using namespace std;
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "spinlock.h"
 #include "context_offsets.h"
 #include "handle.h"
 #include "rangelock.h"
@@ -9,6 +8,7 @@
 
 import rbtree;
 import mem;
+import spinlock;
 
 class section;
 class thread;

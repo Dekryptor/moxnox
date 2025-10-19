@@ -10,7 +10,6 @@ module;
 #include <loaderblock.h>
 #include <nt.h>
 #include "acpica.h"
-#include "spinlock.h"
 #include "assert.h"
 #include <span>
 #include "ints.h"
@@ -36,6 +35,7 @@ import list;
 import thread;
 import disable_interrupts;
 import cpu_block;
+import spinlock;
 
 using namespace std;
 

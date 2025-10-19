@@ -7,7 +7,6 @@ module;
 #include <bit>
 #include <algorithm>
 #include <mutex>
-#include "spinlock.h"
 #include "assert.h"
 
 #ifdef __aarch64__
@@ -23,6 +22,7 @@ import list;
 import print;
 import format;
 import bsod;
+import spinlock;
 
 #ifndef __aarch64__
 // x86/mem.S

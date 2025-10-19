@@ -2,7 +2,6 @@
 #include <atomic>
 #include <mutex>
 #include "handle.h"
-#include "spinlock.h"
 #include "file.h"
 import visit;
 import mem;

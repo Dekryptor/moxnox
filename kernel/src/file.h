@@ -1,8 +1,11 @@
 #pragma once
 
+#include <atomic>
+
 import inode;
 import list;
 import objects;
+import spinlock;
 
 struct dentry {
     ~dentry() {

@@ -9,7 +9,6 @@ module;
 #include <mutex>
 #include "crc32c.h"
 #include "tick_rate.h"
-#include "spinlock.h"
 #include "file.h"
 #include "assert.h"
 #include "btrfs.h"

@@ -7,7 +7,6 @@ module;
 #include <atomic>
 #include <mutex>
 #include "../handle.h"
-#include "../spinlock.h"
 #include "../acpica.h"
 #include <ioctl.h>
 
@@ -25,6 +24,7 @@ import pipe;
 import chardev;
 import scheduler;
 import list;
+import spinlock;
 
 using namespace std;
 

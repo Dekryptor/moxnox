@@ -1,13 +1,15 @@
-#pragma once
+module;
 
 #include <atomic>
 #include "timer-asm.h"
+
+export module spinlock;
 
 #ifdef __aarch64__
 
 import cpu_block;
 
-template<unsigned>
+export template<unsigned>
 class _spinlock {
 public:
     void lock() {
@@ -54,9 +56,9 @@ private:
     uint32_t old_priority;
 };
 
-using spinlock = _spinlock<5>;
+export using spinlock = _spinlock<5>;
 
-class sync_lock {
+export class sync_lock {
 public:
     void lock() {
         uint64_t daif;
@@ -101,7 +103,7 @@ private:
 
 #else
 
-template<unsigned CR8>
+export template<unsigned CR8>
 class _spinlock {
 public:
     void lock() {
@@ -143,9 +145,9 @@ private:
     uint64_t old_cr8;
 };
 
-using spinlock = _spinlock<5>;
+export using spinlock = _spinlock<5>;
 
-class sync_lock {
+export class sync_lock {
 public:
     void lock() {
         uint64_t current_cr8;

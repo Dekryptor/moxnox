@@ -8,7 +8,6 @@ module;
 #include <mutex>
 #include <loaderblock.h>
 #include <console.h>
-#include "spinlock.h"
 #include "handle.h"
 
 #ifndef __aarch64__
@@ -44,6 +43,7 @@ import scheduler;
 import list;
 import disable_interrupts;
 import cpu_block;
+import spinlock;
 
 using namespace std;
 

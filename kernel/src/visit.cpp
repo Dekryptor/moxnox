@@ -6,7 +6,6 @@ module;
 #include <functional>
 #include <string_view>
 #include <variant>
-#include "spinlock.h"
 #include "thread.h"
 #include "file.h"
 #include "section.h"

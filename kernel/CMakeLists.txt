@@ -50,6 +50,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/smp.cpp
     src/kernel_images.cpp
     src/cpu_block.cpp
+    src/spinlock.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}

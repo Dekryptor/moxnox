@@ -6,7 +6,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include <string.h>
-#include "spinlock.h"
 #include "handle.h"
 
 export module virtio_block;

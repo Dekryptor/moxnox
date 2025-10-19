@@ -8,6 +8,7 @@ module;
 #include <mutex>
 #include "process.h"
 #include "thread.h"
+#include "timer-asm.h"
 
 export module syscalls;
 
