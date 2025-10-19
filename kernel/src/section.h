@@ -23,6 +23,8 @@ struct dwarf_info {
     section_info debug_str;
     section_info debug_addr;
     section_info debug_str_offsets;
+    section_info debug_line;
+    section_info debug_line_str;
 };
 
 static_assert(cacheable<anon_section_cache>);

@@ -384,6 +384,12 @@ nt_status section::load_image() {
         } else if (name == ".debug_str_offsets") {
             dwinfo.debug_str_offsets.offset = sect.VirtualAddress;
             dwinfo.debug_str_offsets.size = sect.VirtualSize;
+        } else if (name == ".debug_line") {
+            dwinfo.debug_line.offset = sect.VirtualAddress;
+            dwinfo.debug_line.size = sect.VirtualSize;
+        } else if (name == ".debug_line_str") {
+            dwinfo.debug_line_str.offset = sect.VirtualAddress;
+            dwinfo.debug_line_str.size = sect.VirtualSize;
         }
 
         if (sect.VirtualAddress % section_alignment) {

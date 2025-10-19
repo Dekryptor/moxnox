@@ -3444,6 +3444,10 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     ntdll_info.size_debug_addr = ntdll->dwinfo.debug_addr.size;
     ntdll_info.offset_debug_str_offsets = ntdll->dwinfo.debug_str_offsets.offset;
     ntdll_info.size_debug_str_offsets = ntdll->dwinfo.debug_str_offsets.size;
+    ntdll_info.offset_debug_line = ntdll->dwinfo.debug_line.offset;
+    ntdll_info.size_debug_line = ntdll->dwinfo.debug_line.size;
+    ntdll_info.offset_debug_line_str = ntdll->dwinfo.debug_line_str.offset;
+    ntdll_info.size_debug_line_str = ntdll->dwinfo.debug_line_str.size;
 
     auto ntdll_info_addr = ctx_addr - sizeof(ntdll_info);
 
@@ -3468,6 +3472,10 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     img_info.size_debug_addr = sect.dwinfo.debug_addr.size;
     img_info.offset_debug_str_offsets = sect.dwinfo.debug_str_offsets.offset;
     img_info.size_debug_str_offsets = sect.dwinfo.debug_str_offsets.size;
+    img_info.offset_debug_line = sect.dwinfo.debug_line.offset;
+    img_info.size_debug_line = sect.dwinfo.debug_line.size;
+    img_info.offset_debug_line_str = sect.dwinfo.debug_line_str.offset;
+    img_info.size_debug_line_str = sect.dwinfo.debug_line_str.size;
 
     auto img_info_addr = ntdll_info_addr - sizeof(img_info);
 
