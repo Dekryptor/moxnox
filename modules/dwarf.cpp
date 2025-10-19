@@ -11,6 +11,7 @@ module;
 export module dwarf;
 
 import format;
+import list;
 
 using namespace std;
 
@@ -1241,6 +1242,13 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     uint64_t func_start = 0;
     span<const uint8_t> function_die, function_att_list;
     unsigned int function_depth;
+    list_entry inlines = { &inlines, &inlines };
+
+    struct inline_func {
+        list_entry le;
+        uint32_t abstract_origin;
+        uint64_t low_pc;
+    };
 
     auto abbrev_list = load_abbrev_entries(abbrev);
 
@@ -1333,29 +1341,50 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
                 return true;
             }
 
-            optional<uint32_t> specification;
-            string_view name, linkage_name;
-
-            sp = format(sp, "---------------- ({}!", mod_name);
-
-            auto written = get_func_name2(debug_str, debug_str_offsets, str_offsets_base, abbrev_list,
-                                          cu, specification, abstract_origin, name, linkage_name,
-                                          sp);
-
-            if (written == 0)
-                sp = format(sp, "unknown inline");
-            else {
-                sp = span(sp.data() + written, written > sp.size() ? 0 : sp.size() - written);
-
-                if (rva + base > *low_pc)
-                    sp = format(sp, "+{:x}", rva + base - *low_pc);
+            auto inline_entry = (inline_func*)malloc(sizeof(inline_func));
+            if (!inline_entry) {
+                sp = format(sp, "(malloc failed)\n");
+                return true;
             }
 
-            sp = format(sp, ")\n");
+            inline_entry->abstract_origin = *abstract_origin;
+            inline_entry->low_pc = *low_pc;
+
+            insert_tail_list(inlines, inline_entry->le);
 
             return true;
         }
     });
+
+    while (!is_list_empty(inlines)) {
+        auto& inline_entry = containing_record<inline_func>(inlines.prev);
+
+        optional<uint32_t> abstract_origin, specification;
+        string_view name, linkage_name;
+
+        abstract_origin = inline_entry.abstract_origin;
+
+        sp = format(sp, "---------------- ({}!", mod_name);
+
+        auto written = get_func_name2(debug_str, debug_str_offsets, str_offsets_base,
+                                      abbrev_list, cu, specification,
+                                      abstract_origin, name,
+                                      linkage_name, sp);
+
+        if (written == 0)
+            sp = format(sp, "unknown inline");
+        else {
+            sp = span(sp.data() + written, written > sp.size() ? 0 : sp.size() - written);
+
+            if (rva + base > inline_entry.low_pc)
+                sp = format(sp, "+{:x}", rva + base - inline_entry.low_pc);
+        }
+
+        sp = format(sp, ")\n");
+
+        remove_entry_list(inline_entry.le);
+        free(&inline_entry);
+    }
 
     if (!function_die.empty()) {
         sp = format(sp, "{:016x} ({}!", rva + base, mod_name);
