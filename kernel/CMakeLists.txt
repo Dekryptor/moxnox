@@ -51,6 +51,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/kernel_images.cpp
     src/cpu_block.cpp
     src/spinlock.cpp
+    src/pci.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -61,7 +62,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/x86/apic.cpp
     src/btrfs.cpp
     src/sata.cpp
-    src/pci.cpp
     src/nvme.cpp
     src/virtio.cpp
     src/virtio_block.cpp

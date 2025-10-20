@@ -12,7 +12,6 @@
 import psci;
 #else
 import serial;
-import pci;
 #endif
 
 import bsod;
@@ -41,6 +40,7 @@ import syscalls;
 import smp;
 import object_ref;
 import cpu_block;
+import pci;
 
 using namespace std;
 
@@ -192,10 +192,8 @@ void main_thread() {
 
     setup_folios();
 
-#ifndef __aarch64__
     scan_pci();
     init_pci(true);
-#endif
 
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
@@ -226,9 +224,9 @@ void main_thread() {
 
     keywait();
 
-#ifndef __aarch64__
     init_pci(false);
 
+#ifndef __aarch64__
     init_syscalls();
 #endif
 
