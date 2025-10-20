@@ -368,6 +368,14 @@ static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
     *(uint64_t*)(boot_sp_va + sizeof(uint64_t)) = (uintptr_t)ap_startup;
     *(uint64_t*)boot_sp_va = (uintptr_t)cpu_block;
 
+    __asm __volatile(
+        "dc cvac, %x[res]\n"
+        "dsb sy\n"
+        "isb\n"
+        :
+        : [res] "r" (boot_sp_va)
+    );
+
     auto ret = CPU_ON(mpidr, entry_point_phys, (uint64_t)boot_sp);
 
     if (ret != PSCI_STATUS::SUCCESS) {
