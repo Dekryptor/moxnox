@@ -4,13 +4,13 @@
 #include <mutex>
 #include <span>
 #include <atomic>
-#include <nt.h>
 #include "ints.h"
 
 #ifndef __aarch64__
 import apic;
 #endif
 
+import nt;
 import chardev;
 import pipe;
 import format;

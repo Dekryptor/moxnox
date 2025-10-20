@@ -4,10 +4,10 @@ module;
 #include <source_location>
 #include <span>
 #include <tuple>
-#include <nt.h>
 
 export module bsod;
 
+import nt;
 import format;
 import config;
 import disable_interrupts;

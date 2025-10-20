@@ -1,4 +1,3 @@
-#include <nt.h>
 #include <ntdll.h>
 
 import format;

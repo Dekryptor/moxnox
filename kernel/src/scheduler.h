@@ -1,8 +1,8 @@
 #pragma once
 
-#include <nt.h>
 #include <optional>
 
+import nt;
 import list;
 
 class object;

@@ -8,7 +8,6 @@ module;
 #include <mutex>
 #include <source_location>
 #include <loaderblock.h>
-#include <nt.h>
 #include "acpica.h"
 #include "assert.h"
 #include <span>
@@ -26,6 +25,7 @@ export module interrupts;
 import apic;
 #endif
 
+import nt;
 import format;
 import print;
 import bsod;

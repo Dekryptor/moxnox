@@ -1,3 +1,5 @@
+import nt;
+
 #include <ntdll.h>
 
 extern "C"

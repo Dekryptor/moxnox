@@ -1,10 +1,11 @@
 #pragma once
 
-#include <nt.h>
 #include <optional>
 #include <functional>
 #include <string_view>
+#include <stdint.h>
 
+import nt;
 import objects;
 import object_ref;
 

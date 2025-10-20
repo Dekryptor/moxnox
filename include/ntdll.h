@@ -1,7 +1,8 @@
 #pragma once
 
 #include <stdint.h>
-#include <nt.h>
+
+import nt;
 
 using PRTL_HEAP_COMMIT_ROUTINE = NTSTATUS (*)(const void* base, void** commit_address,
                                               size_t* commit_size);

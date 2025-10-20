@@ -1,7 +1,8 @@
 #pragma once
 
-#include <nt.h>
 #include <atomic>
+
+import nt;
 
 class process;
 class section;

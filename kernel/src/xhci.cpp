@@ -8,12 +8,12 @@ module;
 #include <algorithm>
 #include <bit>
 #include <span>
-#include <nt.h>
 #include "xhci.h"
 #include "tick_rate.h"
 
 export module xhci;
 
+import nt;
 import pci;
 import print;
 import format;

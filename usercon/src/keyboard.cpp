@@ -3,10 +3,10 @@ module;
 #include <stdint.h>
 #include <string_view>
 #include <span>
-#include <nt.h>
 #include <ioctl.h>
 #include <string.h>
 
+import nt;
 import evdev;
 import list;
 import print;

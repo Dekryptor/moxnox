@@ -6,7 +6,6 @@ module;
 #include <functional>
 #include <string_view>
 #include <mutex>
-#include <nt.h>
 #include "file.h"
 #include "handle.h"
 

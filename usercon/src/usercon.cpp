@@ -1,4 +1,3 @@
-#include "nt.h"
 #include <ntdll.h>
 #include <pe.h>
 #include <string_view>
@@ -16,6 +15,7 @@
 #include <hb-ft.h>
 #endif
 
+import nt;
 import format;
 import rbtree;
 import unique_handle;

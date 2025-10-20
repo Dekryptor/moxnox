@@ -1,8 +1,6 @@
-module;
-
-#include <nt.h>
-
 export module unique_handle;
+
+import nt;
 
 export class __attribute__ ((warn_unused)) unique_handle {
 public:

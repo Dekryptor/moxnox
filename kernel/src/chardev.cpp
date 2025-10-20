@@ -1,11 +1,12 @@
 module;
 
-#include <nt.h>
 #include <span>
 #include <string_view>
+#include <stdint.h>
 
 export module chardev;
 
+import nt;
 import objects;
 
 using namespace std;

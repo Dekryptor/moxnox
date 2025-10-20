@@ -1,6 +1,5 @@
 module;
 
-#include <nt.h>
 #include <span>
 #include <optional>
 #include <functional>

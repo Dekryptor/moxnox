@@ -1,10 +1,11 @@
 #pragma once
 
-#include <nt.h>
-#include <cstdint>
+#include <stdint.h>
+#include <stddef.h>
 #include <atomic>
 #include "context_offsets.h"
 
+import nt;
 import list;
 import object_ref;
 import objects;

@@ -2,13 +2,13 @@ module;
 
 #include <string_view>
 #include <atomic>
-#include <nt.h>
 #include "tick_rate.h"
 #include <span>
 #include <stdlib.h>
 
 export module usbhub;
 
+import nt;
 import print;
 import format;
 import xhci;

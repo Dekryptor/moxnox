@@ -2,7 +2,6 @@ module;
 
 #include <variant>
 #include <ioctl.h>
-#include <nt.h>
 #include <span>
 #include <optional>
 #include <functional>
@@ -13,6 +12,7 @@ module;
 
 export module framebuffer;
 
+import nt;
 import print;
 import mem;
 import config;

@@ -4,13 +4,13 @@ module;
 #include <mutex>
 #include <algorithm>
 #include <span>
-#include <nt.h>
 #include "acpica.h"
 #include "virtio.h"
 #include <variant>
 
 export module virtio;
 
+import nt;
 import print;
 import mem;
 import config;

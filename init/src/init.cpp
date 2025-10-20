@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <nt.h>
 #include <ntdll.h>
 #include <ioctl.h>
 #include <span>

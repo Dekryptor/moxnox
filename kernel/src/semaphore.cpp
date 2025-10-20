@@ -1,6 +1,5 @@
 module;
 
-#include <nt.h>
 #include <span>
 #include <functional>
 #include <atomic>
@@ -10,6 +9,7 @@ module;
 
 export module semaphore;
 
+import nt;
 import print;
 import list;
 import bsod;

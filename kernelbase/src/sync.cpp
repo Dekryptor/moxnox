@@ -1,4 +1,6 @@
-#include <nt.h>
+#include <stdint.h>
+
+import nt;
 
 extern "C" __declspec(dllexport)
 void Sleep(uint32_t timeout) {

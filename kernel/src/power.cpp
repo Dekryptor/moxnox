@@ -1,12 +1,12 @@
 module;
 
 #include <string_view>
-#include <nt.h>
 #include "acpica.h"
 #include "ints.h"
 
 export module power;
 
+import nt;
 import print;
 import interrupts;
 import vfs;

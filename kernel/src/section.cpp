@@ -1,6 +1,5 @@
 module;
 
-#include <nt.h>
 #include <variant>
 #include <shared_mutex>
 #include <span>

@@ -1,7 +1,6 @@
 module;
 
 #include "timer-asm.h"
-#include <nt.h>
 #include <optional>
 #include <span>
 #include "thread.h"

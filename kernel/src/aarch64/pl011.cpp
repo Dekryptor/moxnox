@@ -8,7 +8,6 @@ module;
 #include <atomic>
 #include <charconv>
 #include <mutex>
-#include <nt.h>
 #include "../handle.h"
 
 export module pl011;

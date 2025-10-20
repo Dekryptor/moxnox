@@ -1,10 +1,12 @@
 module;
 
-#include <nt.h>
 #include <string_view>
 #include <span>
+#include <stdint.h>
 
 export module shelllib;
+
+import nt;
 
 using namespace std;
 

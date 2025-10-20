@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <nt.h>
 #include <pe.h>
 #include <ntdll.h>
 #include <kernelbase.h>

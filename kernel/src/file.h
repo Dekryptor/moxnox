@@ -2,6 +2,7 @@
 
 #include <atomic>
 
+import nt;
 import inode;
 import list;
 import objects;

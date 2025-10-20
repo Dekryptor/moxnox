@@ -2,11 +2,13 @@ module;
 
 #include "context_offsets.h"
 #include <atomic>
-#include <nt.h>
+#include <stddef.h>
 
 class thread;
 
 export module cpu_block;
+
+import nt;
 
 using namespace std;
 

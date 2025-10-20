@@ -3,10 +3,11 @@ module;
 #include <string_view>
 #include <span>
 #include <tuple>
-#include <nt.h>
+#include <stdint.h>
 
 export module print;
 
+import nt;
 import format;
 
 using namespace std;

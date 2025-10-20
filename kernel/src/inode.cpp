@@ -1,10 +1,11 @@
 module;
 
-#include <nt.h>
 #include <span>
+#include <stdint.h>
 
 export module inode;
 
+import nt;
 import list;
 import objects;
 import page_cache;

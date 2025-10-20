@@ -2,7 +2,6 @@ module;
 
 #include <shared_mutex>
 #include <variant>
-#include <nt.h>
 #include <span>
 #include <optional>
 #include <string_view>

@@ -1,11 +1,11 @@
 module;
 
-#include <nt.h>
 #include <atomic>
 #include <span>
 
 export module objects;
 
+import nt;
 import list;
 
 using namespace std;

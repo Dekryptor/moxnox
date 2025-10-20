@@ -2,7 +2,6 @@
 #include "list.h"
 #include <pe.h>
 #include <optional>
-#include <nt.h>
 #include <stdlib.h>
 #include <string.h>
 

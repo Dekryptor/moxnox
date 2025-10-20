@@ -4,6 +4,7 @@
 #include <string_view>
 #include <pe.h>
 
+import nt;
 import page_cache;
 import objects;
 import inode;

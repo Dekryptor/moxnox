@@ -1,6 +1,5 @@
 module;
 
-#include <nt.h>
 #include <ioctl.h>
 #include <span>
 #include <string_view>
@@ -8,6 +7,7 @@ module;
 
 export module text;
 
+import nt;
 import cp437;
 import vt100;
 import print;

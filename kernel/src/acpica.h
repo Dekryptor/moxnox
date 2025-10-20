@@ -12,7 +12,7 @@ typedef int32_t INT32;
 typedef uint32_t UINT32;
 typedef uint16_t UINT16;
 typedef uint8_t UINT8;
-typedef uint8_t BOOLEAN;
+#define BOOLEAN uint8_t
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -21,5 +21,7 @@ extern "C" {
     #include <acpi.h>
 }
 #pragma GCC diagnostic pop
+
+#undef BOOLEAN
 
 #undef _LINUX

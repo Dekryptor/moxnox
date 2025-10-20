@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.28)
 
 project(moxnox)
 
@@ -25,6 +25,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(format_kernel STATIC)
     target_sources(format_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
     target_compile_options(format_kernel PRIVATE ${KERNEL_CFLAGS})
+    target_link_libraries(format_kernel nt_kernel)
 
     add_library(dwarf_kernel STATIC)
     target_sources(dwarf_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/dwarf.cpp)
@@ -34,6 +35,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(unwind_kernel STATIC)
     target_sources(unwind_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/unwind.cpp)
     target_compile_options(unwind_kernel PRIVATE ${KERNEL_CFLAGS})
+    target_link_libraries(unwind_kernel nt_kernel)
 
     add_library(list_kernel STATIC)
     target_sources(list_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
@@ -58,11 +60,16 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(evdev_kernel STATIC)
     target_sources(evdev_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/evdev.cpp)
     target_compile_options(evdev_kernel PRIVATE ${KERNEL_CFLAGS})
+
+    add_library(nt_kernel STATIC)
+    target_sources(nt_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/nt.cpp)
+    target_compile_options(nt_kernel PRIVATE ${KERNEL_CFLAGS})
 endif()
 
 add_library(format STATIC)
 target_sources(format PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
 target_compile_options(format PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(format nt)
 
 add_library(dwarf STATIC)
 target_sources(dwarf PUBLIC FILE_SET CXX_MODULES FILES modules/dwarf.cpp)
@@ -72,6 +79,7 @@ target_link_libraries(dwarf format list)
 add_library(unwind STATIC)
 target_sources(unwind PUBLIC FILE_SET CXX_MODULES FILES modules/unwind.cpp)
 target_compile_options(unwind PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(unwind nt)
 
 add_library(signal STATIC)
 target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
@@ -94,6 +102,7 @@ target_compile_options(rbtree PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 add_library(unique_handle STATIC)
 target_sources(unique_handle PUBLIC FILE_SET CXX_MODULES FILES modules/unique_handle.cpp)
 target_compile_options(unique_handle PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(unique_handle nt)
 
 add_library(vt100 STATIC)
 target_sources(vt100 PUBLIC FILE_SET CXX_MODULES FILES modules/vt100.cpp)
@@ -110,6 +119,10 @@ target_compile_options(cmdline PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 add_library(evdev STATIC)
 target_sources(evdev PUBLIC FILE_SET CXX_MODULES FILES modules/evdev.cpp)
 target_compile_options(evdev PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+add_library(nt STATIC)
+target_sources(nt PUBLIC FILE_SET CXX_MODULES FILES modules/nt.cpp)
+target_compile_options(nt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 add_subdirectory(kernel)
 add_subdirectory(ntdll)
@@ -178,11 +191,11 @@ else()
     target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
     target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
     target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
-    target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS})
+    target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
     target_include_directories(freetype PRIVATE include)
     target_include_directories(freetype PUBLIC freetype/include)
     target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(freetype PRIVATE moxnox)
+    target_link_libraries(freetype PRIVATE moxnox nt)
 
     install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL
@@ -210,12 +223,12 @@ else()
         ${CMAKE_SOURCE_DIR}/hbshim.cpp)
 
     target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_OT_SHAPE -DHB_NO_OT_LAYOUT -DHB_NO_MT)
-    target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions ${GENERAL_CFLAGS})
+    target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -fno-rtti ${GENERAL_CFLAGS})
     target_compile_options(harfbuzz PRIVATE -include ${CMAKE_SOURCE_DIR}/hbshim.h)
     target_include_directories(harfbuzz PUBLIC harfbuzz/src)
     target_link_libraries(harfbuzz PUBLIC freetype)
     target_link_options(harfbuzz PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(harfbuzz PRIVATE moxnox -lgcc)
+    target_link_libraries(harfbuzz PRIVATE moxnox nt -lgcc)
 
     install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL
@@ -406,9 +419,9 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     )
 
     target_include_directories(zlib PUBLIC zlib)
-    target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS})
+    target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
     target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(zlib PRIVATE moxnox)
+    target_link_libraries(zlib PRIVATE moxnox nt)
 
     install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL
@@ -434,9 +447,9 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     )
 
     target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
-    target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS})
+    target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
     target_link_libraries(libpng PUBLIC zlib)
-    target_link_libraries(libpng PRIVATE moxnox)
+    target_link_libraries(libpng PRIVATE moxnox nt)
 
     install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL

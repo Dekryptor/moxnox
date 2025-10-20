@@ -5,9 +5,10 @@ module;
 #include <source_location>
 #include <chrono>
 #include <stdint.h>
-#include <nt.h>
 
 export module format;
+
+import nt;
 
 using namespace std;
 

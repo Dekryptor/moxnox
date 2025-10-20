@@ -4,7 +4,6 @@ module;
 #include <optional>
 #include <functional>
 #include <string_view>
-#include <nt.h>
 #include "handle.h"
 
 export module null;
