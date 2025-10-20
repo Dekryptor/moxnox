@@ -4,6 +4,7 @@ module;
 #include <span>
 #include <string_view>
 #include <mutex>
+#include <atomic>
 #include <string.h>
 #include "handle.h"
 #include "tick_rate.h"
@@ -640,6 +641,9 @@ static bool init_sata(const pci_device& dev) {
 
     // FIXME - BIOS handoff?
 
+#ifdef __aarch64__
+    // FIXME
+#else
     auto int_num = add_isr(sata_isr_func, sc);
     if (int_num == 0) {
         print("add_isr failed\n");
@@ -659,6 +663,7 @@ static bool init_sata(const pci_device& dev) {
         msi.v32.message_data = int_num;
 
     msi.message_control = msi.message_control | 1; // enable
+#endif
 
     sc->abar->is = 0xffffffff; // clear pending interrupts
     sc->abar->ghc.ie = 1; // enable interrupts
@@ -787,8 +792,12 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
 }
 
 sata_card::~sata_card() {
+#ifdef __aarch64__
+    // FIXME
+#else
     if (isr_registered)
         remove_isr(sata_isr_func, this);
+#endif
 }
 
 nt_status sata_device::flush() {
