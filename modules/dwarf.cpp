@@ -1708,8 +1708,11 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                 }
 
                 case fixed_advance_pc:
-                    // FIXME
-                    return false;
+                    state.address += *(uint16_t*)data.data();
+                    state.op_index = 0;
+
+                    data = data.subspan(sizeof(uint16_t));
+                    break;
 
                 case set_prologue_end:
                     state.prologue_end = true;
