@@ -337,7 +337,7 @@ export span<char> do_format_arg(span<char> sp, string_view, const ARM64_HARDWARE
     sp = do_format_arg(sp, "", ", nG=");
     sp = do_format_arg(sp, "", p.nG);
     sp = do_format_arg(sp, "", ", pfn=");
-    sp = do_format_arg(sp, "", p.pfn);
+    sp = do_format_arg(sp, ":x", p.pfn);
     sp = do_format_arg(sp, "", ", DBM=");
     sp = do_format_arg(sp, "", p.DBM);
     sp = do_format_arg(sp, "", ", Contig=");
