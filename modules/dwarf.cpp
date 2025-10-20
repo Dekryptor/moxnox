@@ -303,6 +303,27 @@ enum class DW_RLE : uint8_t {
     start_length = 0x07
 };
 
+enum class DW_LNS : uint8_t {
+    copy = 0x01,
+    advance_pc = 0x02,
+    advance_line = 0x03,
+    set_file = 0x04,
+    set_column = 0x05,
+    negate_stmt = 0x06,
+    set_basic_block = 0x07,
+    const_add_pc = 0x08,
+    fixed_advance_pc = 0x09,
+    set_prologue_end = 0x0a,
+    set_epilogue_begin = 0x0b,
+    set_isa = 0x0c
+};
+
+enum class DW_LNE : uint8_t {
+    end_sequence = 0x01,
+    set_address = 0x02,
+    set_discriminator = 0x04
+};
+
 template<typename T>
 concept cus_func = invocable<T, span<const uint8_t>, uint32_t> &&
 requires(T t, span<const uint8_t> s, uint32_t n) { { t(s, n) } -> convertible_to<bool>; };
@@ -1532,10 +1553,158 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
                           sp, addr_base, str_offsets_base, mod_name);
 }
 
+struct dwarf_line_no_state {
+    dwarf_line_no_state(bool default_is_stmt) : is_stmt(default_is_stmt) { }
+
+    uleb128 address = 0;
+    uint8_t op_index = 0;
+    uleb128 file = 1;
+    uleb128 line = 1;
+    uleb128 column = 0;
+    bool is_stmt;
+    bool basic_block = false;
+    bool end_sequence = false;
+    bool prologue_end = false;
+    bool epilogue_begin = false;
+    uleb128 isa = 0;
+    uleb128 discriminator = 0;
+};
+
 static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                                    span<const uint8_t> debug_line_str,
                                    uint64_t addr, span<char>& sp) {
-    // FIXME
+    const auto& h = *(dwarf_line_no_header*)debug_line.data();
+
+    if (h.version != 5) // FIXME - support versions other than DWARF 5?
+        return false;
+
+    if (debug_line.size() < h.header_length + offsetof(dwarf_line_no_header, minimum_instruction_length))
+        return false;
+
+    auto data = span(debug_line.data() + h.header_length + offsetof(dwarf_line_no_header, minimum_instruction_length),
+                     debug_line.size() - h.header_length - offsetof(dwarf_line_no_header, minimum_instruction_length));
+
+    dwarf_line_no_state state(h.default_is_stmt);
+
+    while (!data.empty()) {
+        if (data[0] == 0) {
+            data = data.subspan(1);
+
+            auto bytes = read_uleb128(data);
+
+            if (data.size() < bytes || bytes < 1)
+                return false;
+
+            auto opc = (enum DW_LNE)data[0];
+
+            data = data.subspan(sizeof(enum DW_LNE));
+
+            switch (opc) {
+                using enum DW_LNE;
+
+                // case end_sequence:
+                //     // FIXME
+                //     return false;
+                //
+                // case set_address:
+                //     // FIXME
+                //     return false;
+
+                default: // unknown, skip
+                    data = data.subspan(bytes - sizeof(enum DW_LNE));
+                    break;
+            }
+        } else if (data[0] < h.opcode_base) {
+            auto e = (enum DW_LNS)data[0];
+
+            data = data.subspan(sizeof(enum DW_LNS));
+
+            switch (e) {
+                using enum DW_LNS;
+
+                // case copy:
+                //     // FIXME
+                //     return false;
+                //
+                // case advance_pc:
+                //     // FIXME
+                //     return false;
+                //
+                // case advance_line:
+                //     // FIXME
+                //     return false;
+                //
+                // case set_file:
+                //     // FIXME
+                //     return false;
+
+                case set_column:
+                    state.column = read_uleb128(data);
+                    break;
+
+                // case negate_stmt:
+                //     // FIXME
+                //     return false;
+                //
+                // case set_basic_block:
+                //     // FIXME
+                //     return false;
+                //
+                // case const_add_pc:
+                //     // FIXME
+                //     return false;
+
+                case fixed_advance_pc:
+                    // FIXME
+                    return false;
+
+                // case set_prologue_end:
+                //     // FIXME
+                //     return false;
+                //
+                // case set_epilogue_begin:
+                //     // FIXME
+                //     return false;
+                //
+                // case set_isa:
+                //     // FIXME
+                //     return false;
+
+                default: { // unknown, skip
+                    auto lengths = span(debug_line.data() + sizeof(dwarf_line_no_header),
+                                        debug_line.size() - sizeof(dwarf_line_no_header));
+
+                    for (unsigned int i = 1; i < (unsigned int)e; i++) {
+                        skip_leb128(lengths);
+                    }
+
+                    auto len = read_uleb128(lengths);
+
+                    for (unsigned int i = 0; i < len; i++) {
+                        skip_leb128(data);
+                    }
+
+                    break;
+                }
+            }
+        } else { // special opcode
+            uint8_t adj = data[0] - h.opcode_base;
+            uint8_t op_adv = adj / h.line_range;
+
+            data = data.subspan(1);
+
+            state.address += h.minimum_instruction_length * ((state.op_index + op_adv) / h.maximum_operations_per_instruction);
+            state.op_index = (state.op_index + op_adv) % h.maximum_operations_per_instruction;
+            state.line += adj % h.line_range;
+
+            // FIXME - new row in matrix
+
+            state.basic_block = false;
+            state.prologue_end = false;
+            state.epilogue_begin = false;
+            state.discriminator = 0;
+        }
+    }
 
     return false;
 }
