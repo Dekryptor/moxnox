@@ -109,6 +109,7 @@ export const uint8_t HALT_SGI = 0;
 
 export const uint64_t MPIDR_MASK = 0xff00ffffff;
 export uint64_t gicd;
+static uint64_t msi_frame = 0;
 
 export atomic<unsigned int> processors_left_to_halt;
 
@@ -952,6 +953,47 @@ uint64_t init_interrupts_cpu(uint64_t mpidr) {
     return va;
 }
 
+static optional<uint64_t> find_msi_frame_address() {
+    ACPI_TABLE_HEADER* tbl;
+    optional<uint64_t> msi_frame_pa;
+
+    // FIXME - devicetree version
+
+    auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for MADT\n", status);
+        return nullopt;
+    }
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MADT)) {
+        print("MADT table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_MADT));
+        return nullopt;
+    }
+
+    span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
+              tbl->Length - sizeof(ACPI_TABLE_MADT));
+
+    auto data = madt;
+    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
+        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
+
+        switch (h.Type) {
+            case ACPI_MADT_TYPE_GENERIC_MSI_FRAME:
+                if (!msi_frame_pa.has_value()) {
+                    auto& ent = *(ACPI_MADT_GENERIC_MSI_FRAME*)data.data();
+
+                    msi_frame_pa = ent.BaseAddress;
+                }
+                break;
+        }
+
+        data = data.subspan(h.Length);
+    }
+
+    return msi_frame_pa;
+}
+
 static bool init_interrupts_global() {
     __asm __volatile (
         "msr vbar_el1, %x[res]"
@@ -982,6 +1024,24 @@ static bool init_interrupts_global() {
     auto& GICD_CTLR = *(volatile ARM64_GICD_CTLR*)gicd;
 
     GICD_CTLR.EnableGrp0 = 1; // enable GICD
+
+    auto msi_frame_pa = find_msi_frame_address();
+
+    if (msi_frame_pa.has_value()) {
+        auto va = allocate_va_no_lock(1);
+        if (!va) {
+            print("allocate_va_no_lock failed\n");
+            return false;
+        }
+
+        if (!map_page<true>(*msi_frame_pa, va, mapping_type::no_cache)) {
+            print("map_page failed\n");
+            free_va(va, 1);
+            return false;
+        }
+
+        msi_frame = va;
+    }
 
     return true;
 }
