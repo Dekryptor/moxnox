@@ -38,13 +38,14 @@ static void print_rip(chardev& p, uint64_t rip) {
     auto img = get_kernel_image_from_address(rip);
 
     if (img) {
-        // FIXME - also get filename and line no. from DWARF
-
         dwarf_print_function(img->debug_info, img->debug_abbrev,
                              img->debug_rnglists, img->debug_addr,
                              img->debug_str, img->debug_str_offsets,
                              rip - (uintptr_t)img->base_address,
                              (uint64_t)img->base_address, sp, img->name); // FIXME - should be preferred base
+
+        dwarf_print_line_no(img->debug_line, img->debug_line_str,
+                            rip, sp); // FIXME - adjust rip to preferred base
     } else
         sp = format(sp, "{:016x}\n", rip);
 
