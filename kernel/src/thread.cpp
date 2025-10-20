@@ -336,7 +336,16 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
 
     t.status = thread_status::dying;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+    __asm __volatile ( // doesn't return, releases sync_lock
+        "add x0, x18, #%0\n\t"
+        "ldr x0, [x0]\n\t"
+        "mov sp, x0\n\t"
+        "b scheduler"
+        :
+        : "i" (offsetof(cpu_block, scheduler_stack))
+    );
+#else
     __asm __volatile ( // doesn't return, releases sync_lock
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"
