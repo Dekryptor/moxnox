@@ -516,8 +516,8 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
         return;
     }
 
-    // Qemu's MSI-X won't work unless bus master is set and old-fashioned IRQs disabled
-    dev.header->command |= PCI_COMMAND_INTX_DISABLE | PCI_COMMAND_MASTER;
+    // Qemu's MSI-X won't work unless old-fashioned IRQs disabled
+    dev.header->command |= PCI_COMMAND_INTX_DISABLE;
 
     common = (volatile virtio_pci_common_cfg*)(dev.bar[common_cfg->bar].data() + common_cfg->offset);
 

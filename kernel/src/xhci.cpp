@@ -452,8 +452,6 @@ bool xhci::init_scratchpad() {
 }
 
 xhci::xhci(const pci_device& dev) : dev(dev) {
-    dev.header->command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
-
     if (!dev.msix && dev.msi.empty()) {
         print("init_xhci: no MSI or MSI-X capability\n");
         return;

@@ -196,8 +196,8 @@ export struct pci_device {
     list_entry vendor_specific_caps = { &vendor_specific_caps, &vendor_specific_caps };
 };
 
-export const uint16_t PCI_COMMAND_MEMORY = 0x0002;
-export const uint16_t PCI_COMMAND_MASTER = 0x0004;
+static const uint16_t PCI_COMMAND_MEMORY = 0x0002;
+static const uint16_t PCI_COMMAND_MASTER = 0x0004;
 export const uint16_t PCI_COMMAND_INTX_DISABLE = 0x0400;
 
 export struct pci_recognizer {
@@ -397,9 +397,11 @@ static void device_found1(const volatile pci_header& h, list_entry& buses) {
     insert_tail_list(buses, e->le);
 }
 
-static void device_found(const volatile pci_header& h, uint8_t bus, uint8_t dev,
+static void device_found(volatile pci_header& h, uint8_t bus, uint8_t dev,
                          uint8_t func, list_entry& buses) {
     print("found PCI device {:02x}:{:02x}:{:x} {:04x}:{:04x}\n", bus, dev, func, h.vendor_id, h.device_id);
+
+    h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
     switch (h.header_type & 0x7f) {
         case 0:
@@ -437,7 +439,7 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
             return;
         }
 
-        const volatile auto& h = *(pci_header*)va;
+        volatile auto& h = *(pci_header*)va;
 
         if (h.vendor_id == 0xffff || h.vendor_id == 0x0000) {
             unmap_page(va);
@@ -465,7 +467,7 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
                     return;
                 }
 
-                const volatile auto& h2 = *(pci_header*)va;
+                volatile auto& h2 = *(pci_header*)va;
 
                 if (h2.vendor_id == 0xffff || h2.vendor_id == 0x0000) {
                     unmap_page(va);
