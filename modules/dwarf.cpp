@@ -1586,6 +1586,11 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
 
     dwarf_line_no_state state(h.default_is_stmt);
 
+    auto found = [&]() {
+        // FIXME
+        sp = format(sp, "file {}, line {}\n", state.file, state.line);
+    };
+
     while (!data.empty()) {
         if (data[0] == 0) {
             data = data.subspan(1);
@@ -1602,18 +1607,35 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
             switch (opc) {
                 using enum DW_LNE;
 
-                // case end_sequence:
-                //     // FIXME
-                //     return false;
-                //
-                // case set_address:
-                //     // FIXME
-                //     return false;
+                case end_sequence:
+                    state.end_sequence = true;
+
+                    if (state.address == addr) {
+                        found();
+                        return true;
+                    }
+
+                    state = dwarf_line_no_state(h.default_is_stmt);
+                    break;
+
+                case set_address:
+                    if (bytes - sizeof(enum DW_LNE) != sizeof(uint64_t))
+                        return false;
+
+                    state.address = *(uint64_t*)data.data();
+
+                    data = data.subspan(sizeof(uint64_t));
+                    break;
+
+                case set_discriminator:
+                    state.discriminator = read_uleb128(data);
+                    break;
 
                 default: // unknown, skip
                     data = data.subspan(bytes - sizeof(enum DW_LNE));
                     break;
             }
+
         } else if (data[0] < h.opcode_base) {
             auto e = (enum DW_LNS)data[0];
 
@@ -1622,53 +1644,70 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
             switch (e) {
                 using enum DW_LNS;
 
-                // case copy:
-                //     // FIXME
-                //     return false;
-                //
-                // case advance_pc:
-                //     // FIXME
-                //     return false;
-                //
+                case copy:
+                    if (state.address == addr) {
+                        found();
+                        return true;
+                    }
+
+                    state.basic_block = false;
+                    state.prologue_end = false;
+                    state.epilogue_begin = false;
+                    state.discriminator = 0;
+                    break;
+
+                case advance_pc: {
+                    auto op_adv = (uint64_t)read_uleb128(data);
+
+                    state.address += h.minimum_instruction_length * ((state.op_index + op_adv) / h.maximum_operations_per_instruction);
+                    state.op_index = (state.op_index + op_adv) % h.maximum_operations_per_instruction;
+                    break;
+                }
+
                 // case advance_line:
                 //     // FIXME
                 //     return false;
-                //
-                // case set_file:
-                //     // FIXME
-                //     return false;
+
+                case set_file:
+                    state.file = read_uleb128(data);
+                    break;
 
                 case set_column:
                     state.column = read_uleb128(data);
                     break;
 
-                // case negate_stmt:
-                //     // FIXME
-                //     return false;
-                //
-                // case set_basic_block:
-                //     // FIXME
-                //     return false;
-                //
-                // case const_add_pc:
-                //     // FIXME
-                //     return false;
+                case negate_stmt:
+                    state.is_stmt = !state.is_stmt;
+                    break;
+
+                case set_basic_block:
+                    state.basic_block = true;
+                    break;
+
+                case const_add_pc: {
+                    uint8_t adj = 255 - h.opcode_base;
+                    uint8_t op_adv = adj / h.line_range;
+
+                    state.address += h.minimum_instruction_length * ((state.op_index + op_adv) / h.maximum_operations_per_instruction);
+                    state.op_index = (state.op_index + op_adv) % h.maximum_operations_per_instruction;
+                    break;
+                }
 
                 case fixed_advance_pc:
                     // FIXME
                     return false;
 
-                // case set_prologue_end:
-                //     // FIXME
-                //     return false;
-                //
-                // case set_epilogue_begin:
-                //     // FIXME
-                //     return false;
-                //
-                // case set_isa:
-                //     // FIXME
-                //     return false;
+                case set_prologue_end:
+                    state.prologue_end = true;
+                    break;
+
+                case set_epilogue_begin:
+                    state.epilogue_begin = true;
+                    break;
+
+                case set_isa:
+                    state.isa = read_uleb128(data);
+                    break;
 
                 default: { // unknown, skip
                     auto lengths = span(debug_line.data() + sizeof(dwarf_line_no_header),
@@ -1695,9 +1734,12 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
 
             state.address += h.minimum_instruction_length * ((state.op_index + op_adv) / h.maximum_operations_per_instruction);
             state.op_index = (state.op_index + op_adv) % h.maximum_operations_per_instruction;
-            state.line += adj % h.line_range;
+            state.line += h.line_base + (adj % h.line_range);
 
-            // FIXME - new row in matrix
+            if (state.address == addr) {
+                found();
+                return true;
+            }
 
             state.basic_block = false;
             state.prologue_end = false;
