@@ -1319,7 +1319,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     auto abbrev_list = load_abbrev_entries(abbrev);
 
     if (abbrev_list.empty()) {
-        sp = format(sp, "{:016x} ({}+{:x})\n", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
         return;
     }
 
@@ -1463,14 +1463,14 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     free(abbrev_list.data());
 
     if (func_start == 0) {
-        sp = format(sp, "{:016x} ({}+{:x})\n", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
         return;
     }
 
     if (rva + base != func_start)
         sp = format(sp, "+{:x}", rva + base - func_start);
 
-    sp = format(sp, ")\n");
+    sp = format(sp, ")");
 }
 
 export void dwarf_print_function(span<const uint8_t> debug_info,
@@ -1764,9 +1764,9 @@ static void dwarf_print_line_no_cu2(span<const uint8_t> debug_line,
     }
 
     if (dir_fn.empty())
-        sp = format(sp, "{}:{}\n", fn, line);
+        sp = format(sp, "{}:{}", fn, line);
     else
-        sp = format(sp, "{}/{}:{}\n", dir_fn, fn, line);
+        sp = format(sp, "{}/{}:{}", dir_fn, fn, line);
 }
 
 struct dwarf_line_no_state {
