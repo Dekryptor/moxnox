@@ -18,6 +18,7 @@ using namespace std;
 extern "C++" void do_print(string_view sv);
 
 using uleb128 = unsigned __int128;
+using sleb128 = signed __int128;
 
 struct dwarf_cu_header {
     uint32_t unit_length;
@@ -365,6 +366,19 @@ static uleb128 read_uleb128(span<const uint8_t>& sp) {
         if (!(byte & 0x80))
             break;
     }
+
+    return ret;
+}
+
+static sleb128 read_sleb128(span<const uint8_t>& sp) {
+    auto orig_sp = sp;
+
+    auto ret = (sleb128)read_uleb128(sp);
+
+    auto bytes = sp.data() - orig_sp.data();
+
+    if (ret & (1 << (bytes * 7) - 1))
+        ret |= ~(sleb128)0 << (bytes * 7);
 
     return ret;
 }
@@ -1664,9 +1678,9 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                     break;
                 }
 
-                // case advance_line:
-                //     // FIXME
-                //     return false;
+                case advance_line:
+                    state.line += read_sleb128(data);
+                    break;
 
                 case set_file:
                     state.file = read_uleb128(data);
