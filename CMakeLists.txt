@@ -69,23 +69,23 @@ endif()
 add_library(format STATIC)
 target_sources(format PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
 target_compile_options(format PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(format nt)
+target_link_libraries(format PRIVATE nt)
 
 add_library(dwarf STATIC)
 target_sources(dwarf PUBLIC FILE_SET CXX_MODULES FILES modules/dwarf.cpp)
 target_compile_options(dwarf PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(dwarf format list)
+target_link_libraries(dwarf PRIVATE format list)
 
 add_library(unwind STATIC)
 target_sources(unwind PUBLIC FILE_SET CXX_MODULES FILES modules/unwind.cpp)
 target_compile_options(unwind PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(unwind nt)
+target_link_libraries(unwind PRIVATE nt)
 
 add_library(signal STATIC)
 target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
 target_compile_options(signal PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(signal unique_handle)
-target_link_libraries(signal moxnox)
+target_link_libraries(signal PRIVATE unique_handle)
+target_link_libraries(signal PRIVATE moxnox)
 
 add_library(list STATIC)
 target_sources(list PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
@@ -102,7 +102,7 @@ target_compile_options(rbtree PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 add_library(unique_handle STATIC)
 target_sources(unique_handle PUBLIC FILE_SET CXX_MODULES FILES modules/unique_handle.cpp)
 target_compile_options(unique_handle PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(unique_handle nt)
+target_link_libraries(unique_handle PRIVATE nt)
 
 add_library(vt100 STATIC)
 target_sources(vt100 PUBLIC FILE_SET CXX_MODULES FILES modules/vt100.cpp)
@@ -195,7 +195,7 @@ else()
     target_include_directories(freetype PRIVATE include)
     target_include_directories(freetype PUBLIC freetype/include)
     target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(freetype PRIVATE moxnox nt)
+    target_link_libraries(freetype PRIVATE moxnox)
 
     install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL
@@ -228,7 +228,7 @@ else()
     target_include_directories(harfbuzz PUBLIC harfbuzz/src)
     target_link_libraries(harfbuzz PUBLIC freetype)
     target_link_options(harfbuzz PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(harfbuzz PRIVATE moxnox nt -lgcc)
+    target_link_libraries(harfbuzz PRIVATE moxnox -lgcc)
 
     install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL
@@ -421,7 +421,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     target_include_directories(zlib PUBLIC zlib)
     target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
     target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(zlib PRIVATE moxnox nt)
+    target_link_libraries(zlib PRIVATE moxnox)
 
     install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL
@@ -449,7 +449,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
     target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
     target_link_libraries(libpng PUBLIC zlib)
-    target_link_libraries(libpng PRIVATE moxnox nt)
+    target_link_libraries(libpng PRIVATE moxnox)
 
     install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL

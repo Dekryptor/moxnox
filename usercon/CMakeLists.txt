@@ -17,7 +17,7 @@ target_sources(usercon PUBLIC FILE_SET CXX_MODULES FILES
 target_compile_options(usercon PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(usercon PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(usercon moxnox nt -lgcc)
+target_link_libraries(usercon moxnox -lgcc)
 target_link_libraries(usercon format rbtree unique_handle list vt100 signal unicode cp437 cmdline evdev)
 
 if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)

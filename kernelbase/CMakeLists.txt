@@ -21,7 +21,7 @@ target_compile_options(kernelbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(kernelbase PUBLIC -nostartfiles -nostdlib)
 
 target_link_libraries(kernelbase PRIVATE format)
-target_link_libraries(kernelbase PRIVATE moxnox nt)
+target_link_libraries(kernelbase PRIVATE moxnox)
 
 install(TARGETS kernelbase DESTINATION ${CMAKE_INSTALL_PREFIX}
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
