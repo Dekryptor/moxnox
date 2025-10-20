@@ -1658,26 +1658,67 @@ static void dwarf_print_line_no_cu2(span<const uint8_t> debug_line,
 
     auto f = file_formats;
     string_view fn;
-
-    // FIXME - print directory
+    optional<uint64_t> dir_index;
 
     for (unsigned int j = 0; j < num_file_formats; j++) {
         auto lnct = read_dw_enum<DW_LNCT>(f);
         auto form = read_dw_enum<DW_FORM>(f);
 
-        if (lnct == DW_LNCT::path) {
-            fn = read_string(data, form, debug_str, debug_str_offsets,
-                             debug_line_str, nullopt);
-        }
+        switch (lnct) {
+            using enum DW_LNCT;
 
-        if (!skip_att(form, data))
-            return;
+            case path:
+                fn = read_string(data, form, debug_str, debug_str_offsets,
+                                debug_line_str, nullopt);
+
+                if (!skip_att(form, data))
+                    return;
+            break;
+
+            case directory_index:
+                switch (form) {
+                    using enum DW_FORM;
+
+                    case data1:
+                        dir_index = data[0];
+                        data = data.subspan(1);
+                        break;
+
+                    case data2:
+                        dir_index = *(uint16_t*)data.data();
+                        data = data.subspan(sizeof(uint16_t));
+                        break;
+
+                    case udata:
+                        dir_index = (uint64_t)read_uleb128(data);
+                        break;
+
+                    default:
+                        if (!skip_att(form, data))
+                            return;
+                        break;
+                }
+                break;
+
+            default:
+                if (!skip_att(form, data))
+                    return;
+
+                break;
+        }
     }
 
     if (fn.empty())
         return;
 
-    sp = format(sp, "{}:{}\n", fn, line);
+    if (!dir_index.has_value()) {
+        sp = format(sp, "{}:{}\n", fn, line);
+        return;
+    }
+
+    // FIXME - print directory
+
+    sp = format(sp, "{} ({}):{}\n", fn, *dir_index, line);
 }
 
 struct dwarf_line_no_state {
