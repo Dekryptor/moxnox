@@ -377,7 +377,7 @@ static sleb128 read_sleb128(span<const uint8_t>& sp) {
 
     auto bytes = sp.data() - orig_sp.data();
 
-    if (ret & (1 << (bytes * 7) - 1))
+    if (ret & (1 << ((bytes * 7) - 1)))
         ret |= ~(sleb128)0 << (bytes * 7);
 
     return ret;
@@ -1599,6 +1599,7 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                      debug_line.size() - h.header_length - offsetof(dwarf_line_no_header, minimum_instruction_length));
 
     dwarf_line_no_state state(h.default_is_stmt);
+    optional<uint64_t> last_addr;
 
     auto found = [&]() {
         // FIXME
@@ -1609,7 +1610,7 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
         if (data[0] == 0) {
             data = data.subspan(1);
 
-            auto bytes = read_uleb128(data);
+            auto bytes = (size_t)read_uleb128(data);
 
             if (data.size() < bytes || bytes < 1)
                 return false;
@@ -1624,12 +1625,13 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                 case end_sequence:
                     state.end_sequence = true;
 
-                    if (state.address == addr) {
+                    if (last_addr.has_value() && *last_addr < addr && state.address > addr) {
                         found();
                         return true;
                     }
 
                     state = dwarf_line_no_state(h.default_is_stmt);
+                    last_addr = nullopt;
                     break;
 
                 case set_address:
@@ -1659,10 +1661,12 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                 using enum DW_LNS;
 
                 case copy:
-                    if (state.address == addr) {
+                    if ((last_addr.has_value() && *last_addr < addr && state.address > addr) || state.address == addr) {
                         found();
                         return true;
                     }
+
+                    last_addr = state.address;
 
                     state.basic_block = false;
                     state.prologue_end = false;
@@ -1674,7 +1678,7 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                     auto op_adv = (uint64_t)read_uleb128(data);
 
                     state.address += h.minimum_instruction_length * ((state.op_index + op_adv) / h.maximum_operations_per_instruction);
-                    state.op_index = (state.op_index + op_adv) % h.maximum_operations_per_instruction;
+                    state.op_index = (uint8_t)((state.op_index + op_adv) % h.maximum_operations_per_instruction);
                     break;
                 }
 
@@ -1703,7 +1707,7 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                     uint8_t op_adv = adj / h.line_range;
 
                     state.address += h.minimum_instruction_length * ((state.op_index + op_adv) / h.maximum_operations_per_instruction);
-                    state.op_index = (state.op_index + op_adv) % h.maximum_operations_per_instruction;
+                    state.op_index = (uint8_t)((state.op_index + op_adv) % h.maximum_operations_per_instruction);
                     break;
                 }
 
@@ -1750,13 +1754,15 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
             data = data.subspan(1);
 
             state.address += h.minimum_instruction_length * ((state.op_index + op_adv) / h.maximum_operations_per_instruction);
-            state.op_index = (state.op_index + op_adv) % h.maximum_operations_per_instruction;
+            state.op_index = (uint8_t)((state.op_index + op_adv) % h.maximum_operations_per_instruction);
             state.line += h.line_base + (adj % h.line_range);
 
-            if (state.address == addr) {
+            if ((last_addr.has_value() && *last_addr < addr && state.address > addr) || state.address == addr) {
                 found();
                 return true;
             }
+
+            last_addr = state.address;
 
             state.basic_block = false;
             state.prologue_end = false;
