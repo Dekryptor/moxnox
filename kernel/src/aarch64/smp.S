@@ -4,6 +4,10 @@
 ap_trampoline:
 	mov	sp, x0 // load boot stack
 
+	tlbi vmalle1
+	dsb ish
+	isb
+
 	// x1 = ttbr0, x2 = ttbr1, x3 = sctlr, x4 = cpacr, x5 = tcr, x6 = mair
 	// x7 = ap_startup
 
@@ -20,6 +24,10 @@ ap_trampoline:
 	msr	tcr_el1, x5
 	msr	sctlr_el1, x3
 	msr tpidr_el1, x18
+
+	tlbi vmalle1
+	dsb ish
+	isb
 
 	// jump to ap_startup
 	br	x7
