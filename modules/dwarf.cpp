@@ -325,6 +325,14 @@ enum class DW_LNE : uint8_t {
     set_discriminator = 0x04
 };
 
+enum class DW_LNCT : uint8_t {
+    path = 0x01,
+    directory_index = 0x02,
+    timestamp = 0x03,
+    size = 0x04,
+    MD5 = 0x05
+};
+
 template<typename T>
 concept cus_func = invocable<T, span<const uint8_t>, uint32_t> &&
 requires(T t, span<const uint8_t> s, uint32_t n) { { t(s, n) } -> convertible_to<bool>; };
@@ -412,6 +420,137 @@ static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args..
     do_print(string_view(s, (size_t)(sp.data() - s)));
 }
 
+static bool skip_att(enum DW_FORM form, span<const uint8_t>& die) {
+    switch (form) {
+        case DW_FORM::addr:
+            die = die.subspan(sizeof(uintptr_t));
+        break;
+
+        case DW_FORM::block2:
+            die = die.subspan(sizeof(uint16_t) + *(uint16_t*)die.data());
+        break;
+
+        case DW_FORM::block4:
+            die = die.subspan(sizeof(uint32_t) + *(uint32_t*)die.data());
+        break;
+
+        case DW_FORM::data2:
+        case DW_FORM::ref2:
+        case DW_FORM::strx2:
+        case DW_FORM::addrx2:
+            die = die.subspan(2);
+        break;
+
+        case DW_FORM::strx3:
+        case DW_FORM::addrx3:
+            die = die.subspan(3);
+        break;
+
+        case DW_FORM::data4:
+        case DW_FORM::ref4:
+        case DW_FORM::strx4:
+        case DW_FORM::addrx4:
+            die = die.subspan(4);
+        break;
+
+        case DW_FORM::data8:
+        case DW_FORM::ref8:
+            die = die.subspan(8);
+        break;
+
+        case DW_FORM::string: {
+            string_view sv((char*)die.data(), die.size());
+
+            if (auto nul = sv.find_first_of('\0'); nul != string_view::npos)
+                die = die.subspan(nul + 1);
+            else
+                die = span<const uint8_t>();
+
+            break;
+        }
+
+        case DW_FORM::block:
+        case DW_FORM::exprloc: {
+            auto len = read_uleb128(die);
+            die = die.subspan((size_t)len);
+            break;
+        }
+
+        case DW_FORM::block1:
+            die = die.subspan(1 + die[0]);
+        break;
+
+        case DW_FORM::data1:
+        case DW_FORM::ref1:
+        case DW_FORM::strx1:
+        case DW_FORM::addrx1:
+            die = die.subspan(1);
+        break;
+
+        case DW_FORM::flag:
+            do_print("FIXME - skipping because of DW_FORM_flag\n"); // FIXME
+            return false;
+
+        case DW_FORM::sdata:
+        case DW_FORM::udata:
+        case DW_FORM::strx:
+        case DW_FORM::addrx:
+        case DW_FORM::rnglistx:
+        case DW_FORM::loclistx:
+            skip_leb128(die);
+        break;
+
+        case DW_FORM::strp:
+        case DW_FORM::strp_sup:
+        case DW_FORM::line_strp:
+        case DW_FORM::sec_offset:
+            die = die.subspan(4);
+        break;
+
+        case DW_FORM::ref_addr:
+            do_print("FIXME - skipping because of DW_FORM_ref_addr\n"); // FIXME
+            return false;
+
+        case DW_FORM::ref_udata:
+            do_print("FIXME - skipping because of DW_FORM_ref_udata\n"); // FIXME
+            return false;
+
+        case DW_FORM::indirect:
+            do_print("FIXME - skipping because of DW_FORM_indirect\n"); // FIXME
+            return false;
+
+        case DW_FORM::flag_present:
+        break;
+
+        case DW_FORM::ref_sig8:
+            do_print("FIXME - skipping because of DW_FORM_ref_sig8\n"); // FIXME
+            return false;
+
+
+        case DW_FORM::ref_sup4:
+            do_print("FIXME - skipping because of DW_FORM_ref_sup4\n"); // FIXME
+            return false;
+
+        case DW_FORM::data16:
+            die = die.subspan(16);
+        break;
+
+        case DW_FORM::implicit_const:
+        break;
+
+        case DW_FORM::ref_sup8:
+            do_print("FIXME - skipping because of DW_FORM_ref_sup8\n"); // FIXME
+            return false;
+
+        default: {
+            print("skipping DIE because of unknown DW_FORM value {}\n", (unsigned int)form);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
     while (true) {
         auto att_num = read_dw_enum<enum DW_AT>(att_list);
@@ -420,132 +559,8 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
         if (att_num == (enum DW_AT)0)
             break;
 
-        switch (form) {
-            case DW_FORM::addr:
-                die = die.subspan(sizeof(uintptr_t));
-            break;
-
-            case DW_FORM::block2:
-                die = die.subspan(sizeof(uint16_t) + *(uint16_t*)die.data());
-            break;
-
-            case DW_FORM::block4:
-                die = die.subspan(sizeof(uint32_t) + *(uint32_t*)die.data());
-            break;
-
-            case DW_FORM::data2:
-            case DW_FORM::ref2:
-            case DW_FORM::strx2:
-            case DW_FORM::addrx2:
-                die = die.subspan(2);
-            break;
-
-            case DW_FORM::strx3:
-            case DW_FORM::addrx3:
-                die = die.subspan(3);
-            break;
-
-            case DW_FORM::data4:
-            case DW_FORM::ref4:
-            case DW_FORM::strx4:
-            case DW_FORM::addrx4:
-                die = die.subspan(4);
-            break;
-
-            case DW_FORM::data8:
-            case DW_FORM::ref8:
-                die = die.subspan(8);
-            break;
-
-            case DW_FORM::string: {
-                string_view sv((char*)die.data(), die.size());
-
-                if (auto nul = sv.find_first_of('\0'); nul != string_view::npos)
-                    die = die.subspan(nul + 1);
-                else
-                    die = span<const uint8_t>();
-
-                break;
-            }
-
-            case DW_FORM::block:
-            case DW_FORM::exprloc: {
-                auto len = read_uleb128(die);
-                die = die.subspan((size_t)len);
-                break;
-            }
-
-            case DW_FORM::block1:
-                die = die.subspan(1 + die[0]);
-            break;
-
-            case DW_FORM::data1:
-            case DW_FORM::ref1:
-            case DW_FORM::strx1:
-            case DW_FORM::addrx1:
-                die = die.subspan(1);
-            break;
-
-            case DW_FORM::flag:
-                do_print("FIXME - skipping because of DW_FORM_flag\n"); // FIXME
-                return false;
-
-            case DW_FORM::sdata:
-            case DW_FORM::udata:
-            case DW_FORM::strx:
-            case DW_FORM::addrx:
-            case DW_FORM::rnglistx:
-            case DW_FORM::loclistx:
-                skip_leb128(die);
-            break;
-
-            case DW_FORM::strp:
-            case DW_FORM::strp_sup:
-            case DW_FORM::line_strp:
-            case DW_FORM::sec_offset:
-                die = die.subspan(4);
-            break;
-
-            case DW_FORM::ref_addr:
-                do_print("FIXME - skipping because of DW_FORM_ref_addr\n"); // FIXME
-                return false;
-
-            case DW_FORM::ref_udata:
-                do_print("FIXME - skipping because of DW_FORM_ref_udata\n"); // FIXME
-                return false;
-
-            case DW_FORM::indirect:
-                do_print("FIXME - skipping because of DW_FORM_indirect\n"); // FIXME
-                return false;
-
-            case DW_FORM::flag_present:
-            break;
-
-            case DW_FORM::ref_sig8:
-                do_print("FIXME - skipping because of DW_FORM_ref_sig8\n"); // FIXME
-                return false;
-
-
-            case DW_FORM::ref_sup4:
-                do_print("FIXME - skipping because of DW_FORM_ref_sup4\n"); // FIXME
-                return false;
-
-            case DW_FORM::data16:
-                die = die.subspan(16);
-            break;
-
-            case DW_FORM::implicit_const:
-            break;
-
-            case DW_FORM::ref_sup8:
-                do_print("FIXME - skipping because of DW_FORM_ref_sup8\n"); // FIXME
-                return false;
-
-            default: {
-                print("skipping DIE because of unknown DW_FORM value {}\n", (unsigned int)form);
-                return false;
-            }
-        }
+        if (!skip_att(form, die))
+            return false;
 
         if (form == DW_FORM::implicit_const)
             skip_leb128(att_list);
@@ -1035,6 +1050,7 @@ static bool form_is_string(enum DW_FORM form) {
 static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
                                span<const uint8_t> debug_str,
                                span<const uint8_t> debug_str_offsets,
+                               span<const uint8_t> debug_line_str,
                                optional<uint32_t> str_offsets_base) {
     uint64_t index;
 
@@ -1046,8 +1062,7 @@ static string_view read_string(span<const uint8_t> data, enum DW_FORM form,
             return string_view((char*)debug_str.data() + *(uint32_t*)data.data());
 
         case DW_FORM::line_strp:
-            do_print("FIXME - DW_FORM::line_strp\n");
-            return string_view();
+            return string_view((char*)debug_line_str.data() + *(uint32_t*)data.data());
 
         case DW_FORM::strp_sup:
             do_print("FIXME - DW_FORM::strp_sup\n");
@@ -1127,9 +1142,9 @@ static size_t get_func_name2(span<const uint8_t> debug_str,
 
                 loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
                     if (att_num == DW_AT::name && form_is_string(form))
-                        name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
+                        name = read_string(data, form, debug_str, debug_str_offsets, span<const uint8_t>(), str_offsets_base);
                     else if (att_num == DW_AT::linkage_name && form_is_string(form))
-                        linkage_name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
+                        linkage_name = read_string(data, form, debug_str, debug_str_offsets, span<const uint8_t>(), str_offsets_base);
                     else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
                         specification = *(uint32_t*)data.data();
                     else if (att_num == DW_AT::abstract_origin && form == DW_FORM::ref4)
@@ -1180,9 +1195,9 @@ static void get_func_name(span<const uint8_t> debug_str,
 
     loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) -> bool {
         if (att_num == DW_AT::name && form_is_string(form))
-            name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
+            name = read_string(data, form, debug_str, debug_str_offsets, span<const uint8_t>(), str_offsets_base);
         else if (att_num == DW_AT::linkage_name && form_is_string(form))
-            linkage_name = read_string(data, form, debug_str, debug_str_offsets, str_offsets_base);
+            linkage_name = read_string(data, form, debug_str, debug_str_offsets, span<const uint8_t>(), str_offsets_base);
         else if (att_num == DW_AT::specification && form == DW_FORM::ref4)
             specification = *(uint32_t*)data.data();
         else if (att_num == DW_AT::abstract_origin && form == DW_FORM::ref4)
@@ -1567,13 +1582,111 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
                           sp, addr_base, str_offsets_base, mod_name);
 }
 
+static void dwarf_print_line_no_cu2(span<const uint8_t> debug_line,
+                                    span<const uint8_t> debug_line_str,
+                                    span<const uint8_t> debug_str,
+                                    span<const uint8_t> debug_str_offsets,
+                                    uint64_t file, uint64_t line,
+                                    span<char>& sp) {
+    const auto& h = *(dwarf_line_no_header*)debug_line.data();
+
+    // skip header and opcode info
+
+    auto data = span(debug_line.data() + sizeof(dwarf_line_no_header) + h.opcode_base - 1,
+                     debug_line.size() - sizeof(dwarf_line_no_header) - h.opcode_base + 1);
+
+    // skip dir formats
+
+    auto num_dir_formats = data[0];
+
+    data = data.subspan(1);
+
+    auto dir_formats = data;
+
+    for (unsigned int i = 0; i < num_dir_formats; i++) {
+        skip_leb128(data);
+        skip_leb128(data);
+    }
+
+    // skip directories
+
+    auto num_dirs = (uint64_t)read_uleb128(data);
+
+    for (unsigned int i = 0; i < num_dirs; i++) {
+        auto f = dir_formats;
+
+        for (unsigned int j = 0; j < num_dir_formats; j++) {
+            skip_leb128(f);
+
+            auto form = read_dw_enum<DW_FORM>(f);
+
+            if (!skip_att(form, data))
+                return;
+        }
+    }
+
+    // skip file formats
+
+    auto num_file_formats = data[0];
+
+    data = data.subspan(1);
+
+    auto file_formats = data;
+
+    for (unsigned int i = 0; i < num_file_formats; i++) {
+        skip_leb128(data);
+        skip_leb128(data);
+    }
+
+    auto num_files = (unsigned int)read_uleb128(data);
+
+    if (file >= num_files)
+        return;
+
+    for (unsigned int i = 0; i < file; i++) {
+        auto f = file_formats;
+
+        for (unsigned int j = 0; j < num_file_formats; j++) {
+            skip_leb128(f);
+
+            auto form = read_dw_enum<DW_FORM>(f);
+
+            if (!skip_att(form, data))
+                return;
+        }
+    }
+
+    auto f = file_formats;
+    string_view fn;
+
+    // FIXME - print directory
+
+    for (unsigned int j = 0; j < num_file_formats; j++) {
+        auto lnct = read_dw_enum<DW_LNCT>(f);
+        auto form = read_dw_enum<DW_FORM>(f);
+
+        if (lnct == DW_LNCT::path) {
+            fn = read_string(data, form, debug_str, debug_str_offsets,
+                             debug_line_str, nullopt);
+        }
+
+        if (!skip_att(form, data))
+            return;
+    }
+
+    if (fn.empty())
+        return;
+
+    sp = format(sp, "{}:{}\n", fn, line);
+}
+
 struct dwarf_line_no_state {
     dwarf_line_no_state(bool default_is_stmt) : is_stmt(default_is_stmt) { }
 
     uleb128 address = 0;
     uint8_t op_index = 0;
-    uleb128 file = 1;
-    uleb128 line = 1;
+    uint64_t file = 1;
+    uint64_t line = 1;
     uleb128 column = 0;
     bool is_stmt;
     bool basic_block = false;
@@ -1586,6 +1699,8 @@ struct dwarf_line_no_state {
 
 static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                                    span<const uint8_t> debug_line_str,
+                                   span<const uint8_t> debug_str,
+                                   span<const uint8_t> debug_str_offsets,
                                    uint64_t addr, span<char>& sp) {
     const auto& h = *(dwarf_line_no_header*)debug_line.data();
 
@@ -1600,11 +1715,6 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
 
     dwarf_line_no_state state(h.default_is_stmt);
     optional<uint64_t> last_addr;
-
-    auto found = [&]() {
-        // FIXME
-        sp = format(sp, "file {}, line {}\n", state.file, state.line);
-    };
 
     while (!data.empty()) {
         if (data[0] == 0) {
@@ -1626,7 +1736,9 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                     state.end_sequence = true;
 
                     if (last_addr.has_value() && *last_addr < addr && state.address > addr) {
-                        found();
+                        dwarf_print_line_no_cu2(debug_line, debug_line_str,
+                                                debug_str, debug_str_offsets,
+                                                state.file, state.line, sp);
                         return true;
                     }
 
@@ -1662,7 +1774,9 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
 
                 case copy:
                     if ((last_addr.has_value() && *last_addr < addr && state.address > addr) || state.address == addr) {
-                        found();
+                        dwarf_print_line_no_cu2(debug_line, debug_line_str,
+                                                debug_str, debug_str_offsets,
+                                                state.file, state.line, sp);
                         return true;
                     }
 
@@ -1683,11 +1797,11 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
                 }
 
                 case advance_line:
-                    state.line += read_sleb128(data);
+                    state.line = (uint64_t)((int64_t)state.line + (int64_t)read_sleb128(data));
                     break;
 
                 case set_file:
-                    state.file = read_uleb128(data);
+                    state.file = (uint64_t)read_uleb128(data);
                     break;
 
                 case set_column:
@@ -1758,7 +1872,9 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
             state.line += h.line_base + (adj % h.line_range);
 
             if ((last_addr.has_value() && *last_addr < addr && state.address > addr) || state.address == addr) {
-                found();
+                dwarf_print_line_no_cu2(debug_line, debug_line_str,
+                                        debug_str, debug_str_offsets,
+                                        state.file, state.line, sp);
                 return true;
             }
 
@@ -1776,6 +1892,8 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
 
 export void dwarf_print_line_no(span<const uint8_t> debug_line,
                                 span<const uint8_t> debug_line_str,
+                                span<const uint8_t> debug_str,
+                                span<const uint8_t> debug_str_offsets,
                                 uint64_t addr, span<char>& sp) {
     while (debug_line.size() >= sizeof(dwarf_line_no_header)) {
         const auto& h = *(dwarf_line_no_header*)debug_line.data();
@@ -1787,8 +1905,10 @@ export void dwarf_print_line_no(span<const uint8_t> debug_line,
             return;
 
         if (dwarf_print_line_no_cu(span(debug_line.data(), sizeof(uint32_t) + h.unit_length),
-                                   debug_line_str, addr, sp))
+                                   debug_line_str, debug_str, debug_str_offsets,
+                                   addr, sp)) {
             return;
+        }
 
         debug_line = span(debug_line.data() + sizeof(uint32_t) + h.unit_length,
                           debug_line.size() - sizeof(uint32_t) - h.unit_length);

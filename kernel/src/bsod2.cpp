@@ -45,6 +45,7 @@ static void print_rip(chardev& p, uint64_t rip) {
                              (uint64_t)img->base_address, sp, img->name); // FIXME - should be preferred base
 
         dwarf_print_line_no(img->debug_line, img->debug_line_str,
+                            img->debug_str, img->debug_str_offsets,
                             rip, sp); // FIXME - adjust rip to preferred base
     } else
         sp = format(sp, "{:016x}\n", rip);

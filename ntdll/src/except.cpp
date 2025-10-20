@@ -80,7 +80,8 @@ static void print_rip(uint64_t rip) {
                              debug_addr, debug_str, debug_str_offsets,
                              rva, base, sp, mod_name_sv);
 
-        dwarf_print_line_no(debug_line, debug_line_str, rva + base, sp);
+        dwarf_print_line_no(debug_line, debug_line_str, debug_str,
+                            debug_str_offsets, rva + base, sp);
     } else
         sp = format(sp, "{:016x}\n", rip);
 
