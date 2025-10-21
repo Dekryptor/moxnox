@@ -588,4 +588,7 @@ public:
     spinlock port_list_lock;
     list_entry port_list = { &port_list, &port_list };
     bool isr_registered = false;
+#ifdef __aarch64__
+    uint16_t irq_num;
+#endif
 };

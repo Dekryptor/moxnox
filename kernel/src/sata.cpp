@@ -661,16 +661,17 @@ static bool init_sata(const pci_device& dev) {
     // FIXME - BIOS handoff?
 
 #ifdef __aarch64__
-    // FIXME
-    uint16_t int_num = 0x50; // FIXME - allocate MSI IRQ no.
+    auto int_num = allocate_msi_irq();
 
     set_irq_edge_triggered(int_num, true);
 
     if (!add_irq_handler(int_num, sata_isr_func, sc)) {
-        // FIXME - undo MSI allocation
+        free_msi_irq(int_num);
         print("add_irq_handler failed\n");
         return false;
     }
+
+    sc->irq_num = int_num;
 #else
     auto int_num = add_isr(sata_isr_func, sc);
     if (int_num == 0) {
@@ -830,11 +831,14 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
 }
 
 sata_card::~sata_card() {
+    if (!isr_registered)
+        return;
+
 #ifdef __aarch64__
-    // FIXME
+    remove_irq_handler(irq_num, sata_isr_func, this);
+    free_msi_irq(irq_num);
 #else
-    if (isr_registered)
-        remove_isr(sata_isr_func, this);
+    remove_isr(sata_isr_func, this);
 #endif
 }
 

@@ -107,12 +107,27 @@ export union ARM64_GICC_IAR {
 
 export const uint8_t HALT_SGI = 0;
 
+union ARM64_GICv2m_MSI_TYPER {
+    struct {
+        uint32_t num_spis : 10;
+        uint32_t : 6;
+        uint32_t base_spi : 10;
+        uint32_t : 6;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+static const unsigned int MSI_TYPER = 0x08;
 static const unsigned int MSI_SETSPI_NS = 0x40;
 
 export const uint64_t MPIDR_MASK = 0xff00ffffff;
 export uint64_t gicd;
 static uint64_t msi_frame = 0;
 export uint64_t msi_frame_setspi = 0;
+static uint16_t msi_base_spi;
+
+static spinlock msi_alloc_lock;
+static uint8_t msi_alloc[128]; // initialized to 0
 
 export atomic<unsigned int> processors_left_to_halt;
 
@@ -494,6 +509,10 @@ export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
     enable_irq(number);
 
     return true;
+}
+
+export void remove_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
+    // FIXME
 }
 
 #else
@@ -1039,7 +1058,10 @@ static bool init_interrupts_global() {
 
     auto msi_frame_pa = find_msi_frame_address();
 
-    if (msi_frame_pa.has_value()) {
+    if (!msi_frame_pa.has_value())
+        return true;
+
+    {
         auto va = allocate_va_no_lock(1);
         if (!va) {
             print("allocate_va_no_lock failed\n");
@@ -1053,9 +1075,28 @@ static bool init_interrupts_global() {
         }
 
         msi_frame = va;
-
-        msi_frame_setspi = *msi_frame_pa + MSI_SETSPI_NS;
     }
+
+    msi_frame_setspi = *msi_frame_pa + MSI_SETSPI_NS;
+
+    ARM64_GICv2m_MSI_TYPER t;
+
+    t.value = *(volatile uint32_t*)(msi_frame + MSI_TYPER);
+
+    msi_base_spi = t.base_spi;
+
+    auto num_spis = t.num_spis;
+    auto ptr = msi_alloc;
+
+    while (num_spis >= 8) {
+        *ptr = 0xff;
+
+        ptr++;
+        num_spis -= 8;
+    }
+
+    if (num_spis != 0)
+        *ptr = (uint8_t)((1 << num_spis) - 1);
 
     return true;
 }
@@ -1790,6 +1831,32 @@ void handle_irq(uint32_t number) {
 
     auto& GICC_EOIR = *(volatile uint32_t*)(cb.gicc + 0x10);
     GICC_EOIR = number;
+}
+
+export uint16_t allocate_msi_irq() {
+    lock_guard lg(msi_alloc_lock);
+
+    for (unsigned int i = 0; i < sizeof(msi_alloc); i++) {
+        if (msi_alloc[i] == 0)
+            continue;
+
+        for (unsigned int j = 0; j < 8; j++) {
+            if (msi_alloc[i] & (1 << j)) {
+                msi_alloc[i] &= ~(1 << j);
+                return (uint16_t)(msi_base_spi + (i * 8) + j);
+            }
+        }
+    }
+
+    return 0;
+}
+
+export void free_msi_irq(uint16_t num) {
+    lock_guard lg(msi_alloc_lock);
+
+    num -= msi_base_spi;
+
+    msi_alloc[num / 8] &= ~(1 << (num % 8));
 }
 
 #endif
