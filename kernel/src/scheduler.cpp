@@ -110,6 +110,17 @@ void scheduler() {
 
     if (!daif)
         bsod("calling scheduler with interrupts enabled");
+
+    {
+        auto& cb = *get_cpu_block();
+        uint32_t current_priority;
+        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
+
+        current_priority = GICC_PMR;
+
+        if ((current_priority & 0xf0) != 0xf0)
+            bsod_format("calling scheduler with GICC_PMR of {:x}\n", current_priority);
+    }
 #else
     uint64_t rflags = 0;
 
@@ -124,6 +135,8 @@ void scheduler() {
 
     if (rflags & 0x200) // IF flag set
         bsod("calling scheduler with interrupts enabled");
+
+    // FIXME - check cr8
 #endif
 #endif
 
