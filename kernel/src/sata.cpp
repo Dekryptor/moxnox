@@ -561,9 +561,17 @@ void sata_card::isr() {
     }
 }
 
+#ifdef __aarch64__
+static bool sata_isr_func(void* ctx) {
+    ((sata_card*)ctx)->isr();
+
+    return true;
+}
+#else
 static void sata_isr_func(void* ctx) {
     ((sata_card*)ctx)->isr();
 }
+#endif
 
 static bool wait_until(unsigned int ms, const invocable auto& func) {
     auto tim_ref = create_timer(true);
@@ -654,27 +662,44 @@ static bool init_sata(const pci_device& dev) {
 
 #ifdef __aarch64__
     // FIXME
+    uint16_t int_num = 0x50; // FIXME - allocate MSI IRQ no.
+
+    set_irq_edge_triggered(int_num, true);
+
+    if (!add_irq_handler(int_num, sata_isr_func, sc)) {
+        // FIXME - undo MSI allocation
+        print("add_irq_handler failed\n");
+        return false;
+    }
 #else
     auto int_num = add_isr(sata_isr_func, sc);
     if (int_num == 0) {
         print("add_isr failed\n");
         return false;
     }
+#endif
 
     sc->isr_registered = true;
 
     auto& msi = *(volatile pci_msi*)dev.msi.data();
 
+#ifdef __aarch64__
+    msi.message_address_low = msi_frame_setspi & 0xffffffff;
+#else
     msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
 
     if (msi.message_control & 0x80) { // 64-bit
+#ifdef __aarch64__
+        msi.v64.message_address_high = msi_frame_setspi >> 32;
+#else
         msi.v64.message_address_high = 0;
+#endif
         msi.v64.message_data = int_num;
     } else
         msi.v32.message_data = int_num;
 
     msi.message_control = msi.message_control | 1; // enable
-#endif
 
     sc->abar->ghc.ae = 1; // enable ACPI
 

@@ -107,9 +107,12 @@ export union ARM64_GICC_IAR {
 
 export const uint8_t HALT_SGI = 0;
 
+static const unsigned int MSI_SETSPI_NS = 0x40;
+
 export const uint64_t MPIDR_MASK = 0xff00ffffff;
 export uint64_t gicd;
 static uint64_t msi_frame = 0;
+export uint64_t msi_frame_setspi = 0;
 
 export atomic<unsigned int> processors_left_to_halt;
 
@@ -994,6 +997,15 @@ static optional<uint64_t> find_msi_frame_address() {
     return msi_frame_pa;
 }
 
+export void set_irq_edge_triggered(uint32_t number, bool edge) {
+    auto& GICD_ICFGR = *(volatile uint32_t*)(gicd + 0xc00 + ((number / 16) * 4));
+
+    if (edge)
+        GICD_ICFGR |= 1 << ((number % 16) + 1);
+    else
+        GICD_ICFGR &= ~(uint32_t)(1 << ((number % 16) + 1));
+}
+
 static bool init_interrupts_global() {
     __asm __volatile (
         "msr vbar_el1, %x[res]"
@@ -1041,6 +1053,8 @@ static bool init_interrupts_global() {
         }
 
         msi_frame = va;
+
+        msi_frame_setspi = *msi_frame_pa + MSI_SETSPI_NS;
     }
 
     return true;
