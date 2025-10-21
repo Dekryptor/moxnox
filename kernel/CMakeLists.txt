@@ -58,6 +58,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/nvme.cpp
     src/xhci.cpp
     src/usb.cpp
+    src/usbhub.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -70,7 +71,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/virtio_block.cpp
     src/virtio_console.cpp
     src/usbhid.cpp
-    src/usbhub.cpp
     src/framebuffer.cpp
 )
 
