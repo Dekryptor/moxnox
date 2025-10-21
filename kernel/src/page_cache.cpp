@@ -546,9 +546,9 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
 }
 
 template<typename T>
-bool read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
+nt_status read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
     if (length == 0)
-        return true;
+        return nt_status::SUCCESS;
 
     uint64_t first_page = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + length - 1) >> PAGE_SHIFT) - first_page + 1;
@@ -562,7 +562,7 @@ bool read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
 
     auto status = cache.pin(first_page, num_pages, &first_unread);
     if (!success(status))
-        return false; // FIXME - return error
+        return status;
 
     if (first_unread) {
         page_cache_entry* ent = first_unread;
@@ -593,7 +593,7 @@ bool read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
 
                     if (!success(status)) {
                         print("read_into_cache returned {}\n", status);
-                        return false;
+                        return status;
                     }
 
                     page_num_start += read_pages;
@@ -608,7 +608,7 @@ bool read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
         }
     }
 
-    return true;
+    return nt_status::SUCCESS;
 }
 
 template<typename T>
@@ -682,8 +682,9 @@ size_t page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
     if (data.empty())
         return 0;
 
-    if (!read_and_pin(*this, offset, data.size()))
-        return 0;
+    auto status = read_and_pin(*this, offset, data.size());
+    if (!success(status))
+        return 0; // FIXME - return error
 
     uint64_t first_page = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
