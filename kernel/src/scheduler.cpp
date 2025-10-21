@@ -567,7 +567,33 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable
 export nt_status wait_for_objects(span<object*> objects, bool wait_any,
                                   optional<uint64_t> timeout = nullopt) {
 #ifdef DEBUG
-#ifndef __aarch64__ // FIXME
+#ifdef __aarch64__
+    uint64_t daif = 0;
+
+    __asm __volatile(
+        "mrs %x[res], daif"
+        : [res] "=r" (daif)
+    );
+
+    if (daif)
+        bsod("calling wait_for_objects with interrupts disabled");
+
+    uint32_t current_priority;
+
+    {
+        disable_interrupts();
+
+        auto& cb = *get_cpu_block();
+        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
+
+        current_priority = GICC_PMR;
+
+        enable_interrupts();
+    }
+
+    if (current_priority != 0xff)
+        bsod_format("calling wait_for_objects with GICC_PMR of {:x}\n", current_priority);
+#else
     uint64_t cr8 = 0, rflags = 0;
 
     __asm __volatile(
