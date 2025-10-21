@@ -819,18 +819,88 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
 
     uint64_t pages_read;
 
-    auto status = vol->cache.read_into_cache_and_pin(disk_addr >> PAGE_SHIFT,
-                                                     num_pages, pages_read);
+    uint64_t disk_read_start = disk_addr >> PAGE_SHIFT;
+    uint64_t disk_read_pages = num_pages;
+    uint64_t prefix_pages = 0, suffix_pages = 0;
+    bool is_metadata = c.ci.type & (BTRFS_BLOCK_GROUP_METADATA | BTRFS_BLOCK_GROUP_SYSTEM);
+    unsigned int pages_per_tree = sb->nodesize >> PAGE_SHIFT;
+
+    if (is_metadata) {
+        prefix_pages = disk_read_start & (pages_per_tree - 1);
+        disk_read_start -= prefix_pages;
+        disk_read_pages += prefix_pages;
+
+        if (disk_read_pages & (pages_per_tree - 1)) {
+            suffix_pages = pages_per_tree - (disk_read_pages & (pages_per_tree - 1));
+            disk_read_pages += suffix_pages;
+        }
+    }
+
+    auto status = vol->cache.read_into_cache_and_pin(disk_read_start, disk_read_pages,
+                                                     pages_read);
     if (!success(status))
         return status;
 
-    {
-        rangelock_req rlr(vol->cache.rl, disk_addr >> PAGE_SHIFT, num_pages);
+    if (is_metadata && pages_read & (pages_per_tree - 1)) {
+        unsigned int ignore_pages = pages_read & (pages_per_tree - 1);
+
+        vol->cache.unpin(disk_read_start + pages_read - ignore_pages,
+                         ignore_pages);
+        pages_read -= ignore_pages;
+        suffix_pages = 0;
+    }
+
+    if (pages_read > prefix_pages + suffix_pages) {
+        rangelock_req rlr(vol->cache.rl, disk_read_start, pages_read);
+
+        if (is_metadata) {
+            uint64_t exp_addr = (page_num - prefix_pages) << PAGE_SHIFT;
+            page_cache_entry* p = nullptr;
+
+            for (unsigned int i = 0; i < pages_read / pages_per_tree; i++) {
+                print("FIXME - check csum of {:x}\n", exp_addr);
+
+                for (unsigned int j = 0; j < pages_per_tree; j++) {
+                    {
+                        lock_guard lg(vol->cache.cache_lock);
+
+                        if (!p)
+                            p = vol->cache.find_page_cache_entry(disk_read_start);
+                        else
+                            p = vol->cache.next_page_cache_entry(*p);
+                    }
+
+                    if (j == 0) {
+                        const auto& th = *(btrfs_header*)get_phys_address(*p);
+
+                        if (th.bytenr != exp_addr) {
+                            print("btrfs_filesystem::read_into_cache: metadata had address of {:x}, expected {:x}\n",
+                                  th.bytenr, exp_addr);
+
+                            if (i == 0) {
+                                vol->cache.unpin(disk_read_start, pages_read);
+                                return nt_status::DISK_CORRUPT_ERROR;
+                            }
+
+                            vol->cache.unpin(disk_read_start + (i * pages_per_tree),
+                                             pages_read - (i * pages_per_tree));
+
+                            pages_read = i * pages_per_tree;
+                            suffix_pages = 0;
+                        }
+                    }
+
+                    // FIXME - calculate csum
+                }
+
+                exp_addr += pages_per_tree << PAGE_SHIFT;
+            }
+        }
 
         page_cache_entry* dest_p;
         page_cache_entry* src_p;
 
-        for (uint64_t i = 0; i < pages_read; i++) {
+        for (uint64_t i = 0; i < pages_read - prefix_pages - suffix_pages; i++) {
             {
                 lock_guard lg(cache.cache_lock);
 
@@ -844,7 +914,7 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
                 lock_guard lg(vol->cache.cache_lock);
 
                 if (i == 0)
-                    src_p = vol->cache.find_page_cache_entry(disk_addr >> PAGE_SHIFT);
+                    src_p = vol->cache.find_page_cache_entry(disk_read_start + prefix_pages);
                 else
                     src_p = vol->cache.next_page_cache_entry(*src_p);
             }
@@ -854,9 +924,9 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
         }
     }
 
-    vol->cache.unpin(disk_addr >> PAGE_SHIFT, pages_read);
+    vol->cache.unpin(disk_read_start, pages_read);
 
-    read_pages = pages_read;
+    read_pages = pages_read - prefix_pages - suffix_pages;
     return nt_status::SUCCESS;
 }
 
