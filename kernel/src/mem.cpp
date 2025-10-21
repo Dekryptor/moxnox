@@ -2455,6 +2455,7 @@ export void inline __attribute__((always_inline)) barrier() {
         : "memory"
     );
 }
+#endif
 
 export constexpr uint8_t bytes_to_folio_order(size_t s) {
     uint32_t p = bytes_to_pages(s);
@@ -2464,7 +2465,6 @@ export constexpr uint8_t bytes_to_folio_order(size_t s) {
 
     return (uint8_t)(32 - countl_zero(p - 1));
 }
-#endif
 
 export void increase_page_refcount(uint64_t pfn) {
     auto& p = pages[pfn];
