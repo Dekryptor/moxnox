@@ -661,25 +661,7 @@ nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
         return status;
     }
 
-    // FIXME - need locking
-
-    const auto& th = *(btrfs_header*)data.data();
-    if (th.flags & HEADER_FLAG_WRITTEN) {
-        auto crc32 = ~calc_crc32c(0xffffffff, span((const uint8_t*)&th.fsid,
-                                  sb->nodesize - sizeof(th.csum)));
-
-        if (*(uint32_t*)&th != crc32) {
-            print("metadata csum error at {:x} ({:08x}, expected {:08x})\n",
-                  addr, crc32, *(uint32_t*)&th);
-            // FIXME - evict from cache
-            // FIXME - try to read other copies if present
-            // FIXME - if success, copy good copies over bad
-            // FIXME - increase dev stats counter
-            return nt_status::DISK_CORRUPT_ERROR;
-        }
-    }
-
-    // FIXME - check address, level, and subvol ID
+    // FIXME - check level (and subvol ID?)
     // FIXME - if duff, read from other version (and replace)
 
     return nt_status::SUCCESS;
@@ -858,7 +840,8 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
             page_cache_entry* p = nullptr;
 
             for (unsigned int i = 0; i < pages_read / pages_per_tree; i++) {
-                print("FIXME - check csum of {:x}\n", exp_addr);
+                uint32_t exp_csum, csum;
+                bool error = false;
 
                 for (unsigned int j = 0; j < pages_per_tree; j++) {
                     {
@@ -876,21 +859,42 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
                         if (th.bytenr != exp_addr) {
                             print("btrfs_filesystem::read_into_cache: metadata had address of {:x}, expected {:x}\n",
                                   th.bytenr, exp_addr);
-
-                            if (i == 0) {
-                                vol->cache.unpin(disk_read_start, pages_read);
-                                return nt_status::DISK_CORRUPT_ERROR;
-                            }
-
-                            vol->cache.unpin(disk_read_start + (i * pages_per_tree),
-                                             pages_read - (i * pages_per_tree));
-
-                            pages_read = i * pages_per_tree;
-                            suffix_pages = 0;
+                            error = true;
+                            break;
                         }
+
+                        exp_csum = *(uint32_t*)th.csum.data();
+                        csum = calc_crc32c(0xffffffff, span((const uint8_t*)&th.fsid, PAGE_SIZE - sizeof(th.csum)));
+                    } else
+                        csum = calc_crc32c(csum, span((const uint8_t*)get_phys_address(*p), PAGE_SIZE));
+                }
+
+                if (!error) {
+                    csum = ~csum;
+
+                    if (csum != exp_csum) {
+                        print("btrfs_filesystem::read_into_cache: metadata at {:x} had csum {:08x}, expected {:08x}\n",
+                              exp_addr, csum, exp_csum);
+                        error = true;
+                    }
+                }
+
+                if (error) {
+                    // FIXME - try to read other copies if present
+                    // FIXME - if success, copy good copies over bad
+                    // FIXME - increase dev stats counter
+
+                    if (i == 0) {
+                        vol->cache.unpin(disk_read_start, pages_read);
+                        return nt_status::DISK_CORRUPT_ERROR;
                     }
 
-                    // FIXME - calculate csum
+                    vol->cache.unpin(disk_read_start + (i * pages_per_tree),
+                                     pages_read - (i * pages_per_tree));
+
+                    pages_read = i * pages_per_tree;
+                    suffix_pages = 0;
+                    break;
                 }
 
                 exp_addr += pages_per_tree << PAGE_SHIFT;
