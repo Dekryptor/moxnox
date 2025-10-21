@@ -101,7 +101,15 @@ extern "C"
 void scheduler() {
 #ifdef DEBUG
 #ifdef __aarch64__
-    // FIXME
+    uint64_t daif = 0;
+
+    __asm __volatile(
+        "mrs %x[res], daif"
+        : [res] "=r" (daif)
+    );
+
+    if (!daif)
+        bsod("calling scheduler with interrupts enabled");
 #else
     uint64_t rflags = 0;
 
