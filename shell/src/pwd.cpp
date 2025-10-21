@@ -1,10 +1,11 @@
-#include <ntdll.h>
 #include <string_view>
 #include <span>
 #include <stdlib.h>
 
 using namespace std;
 
+import nt;
+import ntdll;
 import shelllib;
 import unicode;
 

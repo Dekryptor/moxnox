@@ -1,8 +1,12 @@
-#pragma once
+module;
 
 #include <stdint.h>
 
+export module ntdll;
+
 import nt;
+
+export {
 
 using PRTL_HEAP_COMMIT_ROUTINE = NTSTATUS (*)(const void* base, void** commit_address,
                                               size_t* commit_size);
@@ -21,17 +25,17 @@ struct RTL_HEAP_PARAMETERS {
     size_t Reserved[2];
 };
 
-static const uint32_t HEAP_NO_SERIALIZE = 0x00000001;
-static const uint32_t HEAP_GROWABLE  = 0x00000002;
-static const uint32_t HEAP_GENERATE_EXCEPTIONS = 0x00000004;
-static const uint32_t HEAP_ZERO_MEMORY = 0x00000008;
-static const uint32_t HEAP_REALLOC_IN_PLACE_ONLY = 0x00000010;
-static const uint32_t HEAP_TAIL_CHECKING_ENABLED = 0x00000020;
-static const uint32_t HEAP_FREE_CHECKING_ENABLED = 0x00000040;
-static const uint32_t HEAP_DISABLE_COALESCE_ON_FREE = 0x00000080;
-static const uint32_t HEAP_CREATE_ALIGN_16 = 0x00010000;
-static const uint32_t HEAP_CREATE_ENABLE_TRACING = 0x00020000;
-static const uint32_t HEAP_CREATE_ENABLE_EXECUTE = 0x00040000;
+const uint32_t HEAP_NO_SERIALIZE = 0x00000001;
+const uint32_t HEAP_GROWABLE  = 0x00000002;
+const uint32_t HEAP_GENERATE_EXCEPTIONS = 0x00000004;
+const uint32_t HEAP_ZERO_MEMORY = 0x00000008;
+const uint32_t HEAP_REALLOC_IN_PLACE_ONLY = 0x00000010;
+const uint32_t HEAP_TAIL_CHECKING_ENABLED = 0x00000020;
+const uint32_t HEAP_FREE_CHECKING_ENABLED = 0x00000040;
+const uint32_t HEAP_DISABLE_COALESCE_ON_FREE = 0x00000080;
+const uint32_t HEAP_CREATE_ALIGN_16 = 0x00010000;
+const uint32_t HEAP_CREATE_ENABLE_TRACING = 0x00020000;
+const uint32_t HEAP_CREATE_ENABLE_EXECUTE = 0x00040000;
 
 struct LDR_DATA_TABLE_ENTRY {
     LIST_ENTRY InLoadOrderLinks;
@@ -81,10 +85,10 @@ struct LDR_DATA_TABLE_ENTRY {
     uint32_t TimeDateStamp;
 };
 
-static const uint32_t DLL_PROCESS_DETACH = 0;
-static const uint32_t DLL_PROCESS_ATTACH = 1;
-static const uint32_t DLL_THREAD_ATTACH = 2;
-static const uint32_t DLL_THREAD_DETACH = 3;
+const uint32_t DLL_PROCESS_DETACH = 0;
+const uint32_t DLL_PROCESS_ATTACH = 1;
+const uint32_t DLL_THREAD_ATTACH = 2;
+const uint32_t DLL_THREAD_DETACH = 3;
 
 struct mn_image_info {
     void* base;
@@ -151,6 +155,8 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
                                 uint32_t procedure_number, void** procedure_address);
 }
 
-static __inline void* GetProcessHeap() {
+__inline void* GetProcessHeap() {
     return (void*)NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap;
 }
+
+};

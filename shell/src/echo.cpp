@@ -1,7 +1,8 @@
-#include <ntdll.h>
 #include <string_view>
 #include <span>
 
+import nt;
+import ntdll;
 import shelllib;
 import unicode;
 import cmdline;

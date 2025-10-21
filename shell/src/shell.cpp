@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pe.h>
-#include <ntdll.h>
 #include <kernelbase.h>
 #include <ioctl.h>
 #include <span>
@@ -11,6 +10,8 @@
 
 using namespace std;
 
+import nt;
+import ntdll;
 import shelllib;
 import format;
 import print;

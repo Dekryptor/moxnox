@@ -1,7 +1,9 @@
-#include <ntdll.h>
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
+#include <stdint.h>
+
+import nt;
 
 static void* ft_alloc(FT_Memory, long size) {
     return malloc((size_t)size);

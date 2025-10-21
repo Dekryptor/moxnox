@@ -1,4 +1,3 @@
-#include <ntdll.h>
 #include <pe.h>
 #include <string_view>
 #include <tuple>
@@ -16,6 +15,7 @@
 #endif
 
 import nt;
+import ntdll;
 import format;
 import rbtree;
 import unique_handle;

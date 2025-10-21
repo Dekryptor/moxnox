@@ -1,4 +1,3 @@
-#include "ntdll.h"
 #include "ntdll_private.h"
 #include "list.h"
 #include <utf16_to_utf8.h>

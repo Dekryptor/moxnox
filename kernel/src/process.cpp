@@ -12,7 +12,6 @@ module;
 #include "file.h"
 #include "mapping.h"
 #include <pe.h>
-#include <ntdll.h>
 #include "section2.h"
 #include "assert.h"
 
@@ -46,6 +45,7 @@ import page_cache;
 import objects;
 import inode;
 import cpu_block;
+import ntdll;
 
 #ifndef __aarch64__
 import apic;

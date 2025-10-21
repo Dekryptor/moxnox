@@ -1,5 +1,5 @@
-#include <ntdll.h>
-
+import nt;
+import ntdll;
 import format;
 import print;
 

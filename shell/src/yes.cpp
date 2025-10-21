@@ -1,6 +1,8 @@
-#include <ntdll.h>
 #include <string_view>
+#include <stdint.h>
 
+import nt;
+import ntdll;
 import shelllib;
 import print;
 

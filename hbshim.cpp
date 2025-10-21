@@ -1,7 +1,8 @@
-#include <ntdll.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+import nt;
 
 extern "C"
 void __imp__assert(const char* /*_Message*/, const char* /*_File*/, unsigned /*_Line*/) {

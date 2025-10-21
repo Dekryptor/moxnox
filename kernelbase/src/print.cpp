@@ -1,12 +1,13 @@
 module;
 
-#include <ntdll.h>
 #include <span>
 #include <string_view>
 #include <tuple>
+#include <stdint.h>
 
 export module print;
 
+import nt;
 import format;
 
 using namespace std;

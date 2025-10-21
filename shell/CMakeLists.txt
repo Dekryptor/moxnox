@@ -28,7 +28,7 @@ target_compile_options(shell PRIVATE -fno-exceptions -masm=intel ${USERSPACE_CFL
 target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(shell shelllib unicode unique_handle signal cmdline list)
-target_link_libraries(shell moxnox)
+target_link_libraries(shell moxnox ntdll_mod)
 target_link_libraries(shell format)
 
 install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}
@@ -43,7 +43,7 @@ target_compile_options(echo PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(echo PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(echo shelllib unicode cmdline)
-target_link_libraries(echo moxnox)
+target_link_libraries(echo moxnox ntdll_mod)
 
 install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -56,7 +56,7 @@ target_link_options(ls PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(ls shelllib)
 target_link_libraries(ls format list cmdline)
-target_link_libraries(ls moxnox)
+target_link_libraries(ls moxnox ntdll_mod)
 
 install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -69,7 +69,7 @@ target_link_options(cat PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(cat shelllib)
 target_link_libraries(cat format cmdline)
-target_link_libraries(cat moxnox)
+target_link_libraries(cat moxnox ntdll_mod)
 
 install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -81,7 +81,7 @@ target_compile_options(pwd PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(pwd PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(pwd shelllib unicode)
-target_link_libraries(pwd moxnox)
+target_link_libraries(pwd moxnox ntdll_mod)
 
 install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -93,7 +93,7 @@ target_compile_options(yes PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(yes PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(yes shelllib format)
-target_link_libraries(yes moxnox)
+target_link_libraries(yes moxnox ntdll_mod)
 
 install(TARGETS yes DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -106,7 +106,7 @@ target_link_options(mkdir PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(mkdir shelllib)
 target_link_libraries(mkdir format cmdline)
-target_link_libraries(mkdir moxnox)
+target_link_libraries(mkdir moxnox ntdll_mod)
 
 install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -119,7 +119,7 @@ target_link_options(touch PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(touch shelllib)
 target_link_libraries(touch format cmdline)
-target_link_libraries(touch moxnox)
+target_link_libraries(touch moxnox ntdll_mod)
 
 install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -132,7 +132,7 @@ target_link_options(rm PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(rm shelllib)
 target_link_libraries(rm format cmdline)
-target_link_libraries(rm moxnox)
+target_link_libraries(rm moxnox ntdll_mod)
 
 install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -145,7 +145,7 @@ target_link_options(rmdir PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(rmdir shelllib)
 target_link_libraries(rmdir format cmdline)
-target_link_libraries(rmdir moxnox)
+target_link_libraries(rmdir moxnox ntdll_mod)
 
 install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -159,7 +159,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
 
     target_link_libraries(screenshot shelllib)
     target_link_libraries(screenshot format unicode cmdline)
-    target_link_libraries(screenshot moxnox)
+    target_link_libraries(screenshot moxnox ntdll_mod)
     target_link_libraries(screenshot libpng zlib)
 
     install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -174,7 +174,7 @@ target_link_options(seh-test PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(seh-test shelllib)
 target_link_libraries(seh-test format)
-target_link_libraries(seh-test moxnox)
+target_link_libraries(seh-test moxnox ntdll_mod)
 
 install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -186,7 +186,7 @@ target_compile_options(ps PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ps PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(ps shelllib unique_handle format list)
-target_link_libraries(ps moxnox)
+target_link_libraries(ps moxnox ntdll_mod)
 
 install(TARGETS ps DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -198,7 +198,7 @@ target_compile_options(kill PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(kill PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(kill shelllib cmdline format unique_handle)
-target_link_libraries(kill moxnox)
+target_link_libraries(kill moxnox ntdll_mod)
 
 install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -210,7 +210,7 @@ target_compile_options(killall PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(killall PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(killall shelllib cmdline format unique_handle)
-target_link_libraries(killall moxnox)
+target_link_libraries(killall moxnox ntdll_mod)
 
 install(TARGETS killall DESTINATION ${CMAKE_INSTALL_PREFIX})
 
@@ -223,6 +223,6 @@ target_link_options(reboot PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(reboot shelllib)
 target_link_libraries(reboot format)
-target_link_libraries(reboot moxnox)
+target_link_libraries(reboot moxnox ntdll_mod)
 
 install(TARGETS reboot DESTINATION ${CMAKE_INSTALL_PREFIX})

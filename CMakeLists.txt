@@ -64,6 +64,11 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(nt_kernel STATIC)
     target_sources(nt_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/nt.cpp)
     target_compile_options(nt_kernel PRIVATE ${KERNEL_CFLAGS})
+
+    add_library(ntdll_kernel STATIC)
+    target_sources(ntdll_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/ntdll.cpp)
+    target_compile_options(ntdll_kernel PRIVATE ${KERNEL_CFLAGS})
+    target_link_libraries(ntdll_kernel nt_kernel)
 endif()
 
 add_library(format STATIC)
@@ -85,7 +90,7 @@ add_library(signal STATIC)
 target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
 target_compile_options(signal PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(signal PRIVATE unique_handle)
-target_link_libraries(signal PRIVATE moxnox)
+target_link_libraries(signal PRIVATE moxnox ntdll_mod)
 
 add_library(list STATIC)
 target_sources(list PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
@@ -123,6 +128,11 @@ target_compile_options(evdev PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 add_library(nt STATIC)
 target_sources(nt PUBLIC FILE_SET CXX_MODULES FILES modules/nt.cpp)
 target_compile_options(nt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+add_library(ntdll_mod STATIC)
+target_sources(ntdll_mod PUBLIC FILE_SET CXX_MODULES FILES modules/ntdll.cpp)
+target_compile_options(ntdll_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(ntdll_mod nt)
 
 add_subdirectory(kernel)
 add_subdirectory(ntdll)
@@ -421,7 +431,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     target_include_directories(zlib PUBLIC zlib)
     target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
     target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(zlib PRIVATE moxnox)
+    target_link_libraries(zlib PRIVATE moxnox ntdll_mod)
 
     install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL
@@ -449,7 +459,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
     target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
     target_link_libraries(libpng PUBLIC zlib)
-    target_link_libraries(libpng PRIVATE moxnox)
+    target_link_libraries(libpng PRIVATE moxnox ntdll_mod)
 
     install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL

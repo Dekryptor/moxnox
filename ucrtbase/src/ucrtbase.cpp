@@ -1,5 +1,8 @@
-#include <ntdll.h>
 #include <string.h>
+#include <stdint.h>
+
+import nt;
+import ntdll;
 
 extern "C" __declspec(dllexport)
 void* malloc(size_t size) {

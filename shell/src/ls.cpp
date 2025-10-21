@@ -1,4 +1,3 @@
-#include <ntdll.h>
 #include <string_view>
 #include <span>
 #include <chrono>
@@ -6,6 +5,8 @@
 
 using namespace std;
 
+import nt;
+import ntdll;
 import shelllib;
 import format;
 import print;

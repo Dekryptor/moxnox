@@ -1,9 +1,11 @@
-#include <ntdll.h>
 #include <algorithm>
 #include <span>
 #include <string_view>
 #include <stdlib.h>
+#include <stdint.h>
 
+import nt;
+import ntdll;
 import unique_handle;
 import shelllib;
 import print;

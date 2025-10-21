@@ -1,6 +1,5 @@
 module;
 
-#include <ntdll.h>
 #include <pe.h>
 #include <string_view>
 #include <span>
@@ -10,6 +9,8 @@ module;
 
 export module signal;
 
+import nt;
+import ntdll;
 import unique_handle;
 
 using namespace std;

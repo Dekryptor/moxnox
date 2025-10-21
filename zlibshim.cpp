@@ -1,6 +1,7 @@
-import nt;
+#include <stdint.h>
 
-#include <ntdll.h>
+import nt;
+import ntdll;
 
 extern "C"
 int DllMainCRTStartup(HANDLE hinstDLL, uint32_t dwReason, void* lpvReserved) {

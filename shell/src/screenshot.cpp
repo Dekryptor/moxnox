@@ -1,10 +1,11 @@
-#include <ntdll.h>
 #include <string_view>
 #include <span>
 #include <chrono>
 #include <string.h>
 #include <png.h>
 
+import nt;
+import ntdll;
 import shelllib;
 import print;
 import format;

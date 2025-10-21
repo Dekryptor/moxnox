@@ -1,5 +1,7 @@
 #pragma once
 
+import nt;
+
 static void __inline InitializeListHead(LIST_ENTRY* head) {
     head->Flink = head;
     head->Blink = head;

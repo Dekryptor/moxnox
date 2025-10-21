@@ -1,9 +1,10 @@
 #pragma once
 
-#include <ntdll.h>
 #include <stdint.h>
 #include <string_view>
 #include <span>
+
+import ntdll;
 
 #ifndef __aarch64__
 #define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))

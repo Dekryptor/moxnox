@@ -1,8 +1,10 @@
-#include <ntdll.h>
 #include <span>
 #include <string_view>
 #include <string.h>
+#include <stdint.h>
 
+import nt;
+import ntdll;
 import shelllib;
 import cmdline;
 import print;

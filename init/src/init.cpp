@@ -1,13 +1,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ntdll.h>
 #include <ioctl.h>
 #include <span>
 #include <string_view>
 
 using namespace std;
 
+import nt;
+import ntdll;
 import print;
 import cmdline;
 
