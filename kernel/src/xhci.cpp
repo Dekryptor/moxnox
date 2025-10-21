@@ -1,6 +1,7 @@
 module;
 
 #include <utility>
+#include <atomic>
 #include <stdint.h>
 #include <optional>
 #include <string_view>
@@ -301,9 +302,17 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
+#ifdef __aarch64__
+static bool xhci_isr_func(void* ctx) {
+    ((xhci*)ctx)->isr();
+
+    return true;
+}
+#else
 static void xhci_isr_func(void* ctx) {
     ((xhci*)ctx)->isr();
 }
+#endif
 
 xhci_queue::~xhci_queue() {
     if (ring) {
@@ -652,12 +661,29 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
         ((xhci*)ctx)->port_status_change_thread();
     }, this);
 
+#ifdef __aarch64__
+    // FIXME - free interrupt number in destructor
+    auto int_num = allocate_msi_irq();
+    if (int_num == 0) {
+        print("allocate_msi_irq failed\n");
+        return;
+    }
+
+    set_irq_edge_triggered(int_num, true);
+
+    if (!add_irq_handler(int_num, xhci_isr_func, this)) {
+        free_msi_irq(int_num);
+        print("add_irq_handler failed\n");
+        return;
+    }
+#else
     // FIXME - free interrupt number in destructor
     auto int_num = add_isr(xhci_isr_func, this);
     if (int_num == 0) {
         print("add_isr failed\n");
         return;
     }
+#endif
 
     if (dev.msix) {
         // enable MSI-X
@@ -667,16 +693,29 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
         auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
 
         vec.message_data = int_num;
+#ifdef __aarch64__
+        vec.message_address_high = msi_frame_setspi >> 32;
+        vec.message_address_low = msi_frame_setspi & 0xffffffff;
+#else
         vec.message_address_high = 0;
         vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
         vec.vector_control &= ~(uint32_t)1; // unmask
     } else {
         auto& msi = *(volatile pci_msi*)dev.msi.data();
 
+#ifdef __aarch64__
+        msi.message_address_low = msi_frame_setspi & 0xffffffff;
+#else
         msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
 
         if (msi.message_control & 0x80) { // 64-bit
+#ifdef __aarch64__
+            msi.v64.message_address_high = msi_frame_setspi >> 32;
+#else
             msi.v64.message_address_high = 0;
+#endif
             msi.v64.message_data = int_num;
         } else
             msi.v32.message_data = int_num;
