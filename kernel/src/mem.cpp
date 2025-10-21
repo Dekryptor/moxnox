@@ -2446,16 +2446,21 @@ export void vfree(void* ptr, size_t size) {
     }
 }
 
-#ifndef __aarch64__
 export void inline __attribute__((always_inline)) barrier() {
+#ifdef __aarch64__
+    __asm __volatile (
+        "dsb ish\n\t"
+        "isb\n\t"
+    );
+#else
     __asm__ __volatile__ (
         ""
         :
         :
         : "memory"
     );
-}
 #endif
+}
 
 export constexpr uint8_t bytes_to_folio_order(size_t s) {
     uint32_t p = bytes_to_pages(s);
