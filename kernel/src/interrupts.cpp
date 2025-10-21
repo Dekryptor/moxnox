@@ -1020,9 +1020,9 @@ export void set_irq_edge_triggered(uint32_t number, bool edge) {
     auto& GICD_ICFGR = *(volatile uint32_t*)(gicd + 0xc00 + ((number / 16) * 4));
 
     if (edge)
-        GICD_ICFGR |= 1 << ((number % 16) + 1);
+        GICD_ICFGR |= 1 << ((2 * (number % 16)) + 1);
     else
-        GICD_ICFGR &= ~(uint32_t)(1 << ((number % 16) + 1));
+        GICD_ICFGR &= ~(uint32_t)(1 << ((2 * (number % 16)) + 1));
 }
 
 static bool init_interrupts_global() {
