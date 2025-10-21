@@ -794,7 +794,8 @@ user_exception_entry_end:
 // can only use x0, x1, x2, and x3
 .macro timer_isr user, bsp
 	// start clock again
-	adr	x1, hardware_tick_rate
+	adrp	x1, hardware_tick_rate
+	add	x1, x1, :lo12:hardware_tick_rate
 	ldr	x1, [x1]
 	msr	cntp_tval_el0, x1
 	mov	x0, #1
@@ -803,7 +804,8 @@ user_exception_entry_end:
 	.if \bsp
 		// system time
 
-		adr	x0, system_time
+		adrp	x0, system_time
+		add	x0, x0, :lo12:system_time
 		ldr	x1, [x0]
 		mov	x2, #(SYSTEM_TIME_RESOLUTION / TICK_RATE)
 		add	x1, x1, x2
@@ -812,7 +814,8 @@ user_exception_entry_end:
 		// timers
 		bl	acquire_sync_lock
 
-		adr	x1, active_timer_list  // set x1 to &active_timer_list
+		adrp	x1, active_timer_list  // set x1 to &active_timer_list
+		add	x1, x1, :lo12:active_timer_list
 		ldr	x0, [x1]  // set x0 to active_timer_list.next
 
 8:
@@ -836,7 +839,8 @@ user_exception_entry_end:
 
 		// wait timeouts
 7:
-		adr	x1, thread_list_timeout // set x1 to &thread_list_timeout
+		adrp	x1, thread_list_timeout // set x1 to &thread_list_timeout
+		add	x1, x1, :lo12:thread_list_timeout
 		ldr	x0, [x1] // set x0 to thread_list_timeout.next
 
 4:
@@ -885,7 +889,8 @@ user_exception_entry_end:
 	add	x0, x18, GS_GICC
 	ldr	x0, [x0]
 	add	x0, x0, GICC_EOIR_OFFSET
-	adr	x1, timer_irq_no
+	adrp	x1, timer_irq_no
+	add	x1, x1, :lo12:timer_irq_no
 	ldr	w1, [x1]
 	str	w1, [x0]
 
@@ -901,7 +906,8 @@ user_exception_entry_end:
 	add	x0, x18, GS_GICC
 	ldr	x0, [x0]
 	add	x0, x0, GICC_EOIR_OFFSET
-	adr	x1, timer_irq_no
+	adrp	x1, timer_irq_no
+	add	x1, x1, :lo12:timer_irq_no
 	ldr	w1, [x1]
 	str	w1, [x0]
 .endm
@@ -919,7 +925,8 @@ user_exception_entry_end:
 	add	x2, x2, GICC_IAR_OFFSET
 	ldr	w2, [x2]
 
-	adr	x3, timer_irq_no
+	adrp	x3, timer_irq_no
+	add	x3, x3, :lo12:timer_irq_no
 	ldr	w3, [x3]
 	sub	w3, w2, w3
 	cbnz	w3, 0f
@@ -960,7 +967,8 @@ kernel_irq_entry_ap_end:
 	add	x2, x2, GICC_IAR_OFFSET
 	ldr	w2, [x2]
 
-	adr	x3, timer_irq_no
+	adrp	x3, timer_irq_no
+	add	x3, x3, :lo12:timer_irq_no
 	ldr	w3, [x3]
 	sub	w3, w2, w3
 	cbnz	w3, 0f
