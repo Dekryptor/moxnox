@@ -20,11 +20,14 @@ import event;
 import pci;
 import acpi;
 import module_init;
-import apic;
 import object_ref;
 import scheduler;
 import list;
 import spinlock;
+
+#ifndef __aarch64__
+import apic;
+#endif
 
 using namespace std;
 
@@ -197,11 +200,21 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
+#ifdef __aarch64__
+static bool virtio_pci_isr_func(void* ctx) {
+    auto& vq = *(virt_queue*)ctx;
+
+    vq.isr();
+
+    return true;
+}
+#else
 static void virtio_pci_isr_func(void* ctx) {
     auto& vq = *(virt_queue*)ctx;
 
     vq.isr();
 }
+#endif
 
 bool virtio_pci_device::add_virtqueue(uint16_t num) {
     common->queue_select = num;
@@ -265,13 +278,6 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
     vq->queue = &queue;
     vq->queue_pa = pa;
 
-    auto int_num = add_isr(virtio_pci_isr_func, vq);
-    if (int_num == 0) {
-        print("add_isr failed\n");
-        delete vq;
-        return false;
-    }
-
     write_volatile64(&common->queue_desc, pa);
     write_volatile64(&common->queue_driver, pa + ((uintptr_t)&queue.available - (uintptr_t)&queue));
     write_volatile64(&common->queue_device, pa + ((uintptr_t)&queue.used - (uintptr_t)&queue));
@@ -287,11 +293,43 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
         return false;
     }
 
+#ifdef __aarch64__
+    // FIXME - free interrupt number
+    auto int_num = allocate_msi_irq();
+    if (int_num == 0) {
+        print("allocate_msi_irq failed\n");
+        delete vq;
+        return false;
+    }
+
+    set_irq_edge_triggered(int_num, true);
+
+    if (!add_irq_handler(int_num, virtio_pci_isr_func, vq)) {
+        free_msi_irq(int_num);
+        print("add_irq_handler failed\n");
+        delete vq;
+        return false;
+    }
+#else
+    // FIXME - free interrupt number
+    auto int_num = add_isr(virtio_pci_isr_func, vq);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        delete vq;
+        return false;
+    }
+#endif
+
     auto vec = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
 
     vec[msix_vector].message_data = int_num;
+#ifdef __aarch64__
+    vec[msix_vector].message_address_high = msi_frame_setspi >> 32;
+    vec[msix_vector].message_address_low = msi_frame_setspi & 0xffffffff;
+#else
     vec[msix_vector].message_address_high = 0;
     vec[msix_vector].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
     vec[msix_vector].vector_control &= ~(uint32_t)1; // unmask
 
     common->queue_enable = 1;
@@ -361,7 +399,9 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
         queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
 
         barrier();
+#ifndef __aarch64__
         __asm __volatile("sfence" ::: "memory");
+#endif
 
         queue->available.idx++;
     }
@@ -402,7 +442,9 @@ nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
         queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
 
         barrier();
+#ifndef __aarch64__
         __asm __volatile("sfence" ::: "memory");
+#endif
 
         queue->available.idx++;
     }
@@ -442,7 +484,9 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
         queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
 
         barrier();
+#ifndef __aarch64__
         __asm __volatile("sfence" ::: "memory");
+#endif
 
         queue->available.idx++;
     }
@@ -899,6 +943,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs_v2& regs,
                 return false;
             }
 
+#ifndef __aarch64__
             auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
             if (!add_irq_handler(irq, local_apic_id, virtio_mmio_isr_func, v)) {
@@ -906,6 +951,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs_v2& regs,
                 delete v;
                 return false;
             }
+#endif
 
             if (!r.func(*v)) {
                 // FIXME - remove IRQ handler
