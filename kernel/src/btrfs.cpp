@@ -6,7 +6,6 @@ module;
 #include <optional>
 #include <string_view>
 #include <mutex>
-#include "crc32c.h"
 #include "tick_rate.h"
 #include "file.h"
 #include "assert.h"
@@ -34,6 +33,7 @@ import rangelock;
 import rwsem;
 import page_cache;
 import scheduler;
+import crc32c;
 
 using namespace std;
 

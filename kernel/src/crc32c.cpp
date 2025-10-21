@@ -1,7 +1,13 @@
+module;
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <span>
 #include <string_view>
+
+export module crc32c;
+
+using namespace std;
 
 static constexpr uint32_t crctable[] = {
     0x00000000, 0xf26b8303, 0xe13b70f7, 0x1350f3f4, 0xc79a971f, 0x35f1141c, 0x26a1e7e8, 0xd4ca64eb,
@@ -38,9 +44,9 @@ static constexpr uint32_t crctable[] = {
     0x79b737ba, 0x8bdcb4b9, 0x988c474d, 0x6ae7c44e, 0xbe2da0a5, 0x4c4623a6, 0x5f16d052, 0xad7d5351,
 };
 
-template<typename T>
-requires std::is_same_v<T, char> || std::is_same_v<T, uint8_t>
-constexpr uint32_t calc_crc32c(uint32_t seed, std::span<const T> msg) {
+export template<typename T>
+requires is_same_v<T, char> || is_same_v<T, uint8_t>
+constexpr uint32_t calc_crc32c(uint32_t seed, span<const T> msg) {
     // FIXME - asm version
 
     uint32_t rem = seed;
@@ -52,8 +58,8 @@ constexpr uint32_t calc_crc32c(uint32_t seed, std::span<const T> msg) {
     return rem;
 }
 
-constexpr uint32_t calc_crc32c(uint32_t seed, std::string_view msg) {
-    return calc_crc32c(seed, std::span(msg.data(), msg.size()));
+export constexpr uint32_t calc_crc32c(uint32_t seed, string_view msg) {
+    return calc_crc32c(seed, span(msg.data(), msg.size()));
 }
 
 static_assert(~calc_crc32c(0xffffffff, "123456789") == 0xe3069283);

@@ -54,6 +54,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/pci.cpp
     src/sata.cpp
     src/btrfs.cpp
+    src/crc32c.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
