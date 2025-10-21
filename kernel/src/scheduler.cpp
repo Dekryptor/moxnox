@@ -222,7 +222,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
     enable_interrupts();
 
-    if (current_priority != 0xff)
+    if ((current_priority & 0xf0) != 0xf0)
         bsod_format("calling wait_for_object with GICC_PMR of {:x}\n", current_priority);
 #else
     uint64_t cr8 = 0, rflags = 0;
@@ -599,7 +599,7 @@ export nt_status wait_for_objects(span<object*> objects, bool wait_any,
         enable_interrupts();
     }
 
-    if (current_priority != 0xff)
+    if ((current_priority & 0xf0) != 0xf0)
         bsod_format("calling wait_for_objects with GICC_PMR of {:x}\n", current_priority);
 #else
     uint64_t cr8 = 0, rflags = 0;
