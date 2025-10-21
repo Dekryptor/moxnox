@@ -90,7 +90,7 @@ add_library(signal STATIC)
 target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
 target_compile_options(signal PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(signal PRIVATE unique_handle)
-target_link_libraries(signal PRIVATE moxnox ntdll_mod)
+target_link_libraries(signal PRIVATE moxnox)
 
 add_library(list STATIC)
 target_sources(list PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
@@ -431,7 +431,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     target_include_directories(zlib PUBLIC zlib)
     target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
     target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(zlib PRIVATE moxnox ntdll_mod)
+    target_link_libraries(zlib PRIVATE moxnox)
 
     install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL
@@ -459,7 +459,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
     target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
     target_link_libraries(libpng PUBLIC zlib)
-    target_link_libraries(libpng PRIVATE moxnox ntdll_mod)
+    target_link_libraries(libpng PRIVATE moxnox)
 
     install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}
         ARCHIVE EXCLUDE_FROM_ALL

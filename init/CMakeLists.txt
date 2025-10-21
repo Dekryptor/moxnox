@@ -20,7 +20,7 @@ target_compile_options(init PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(init PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(init format cmdline)
-target_link_libraries(init moxnox ntdll_mod)
+target_link_libraries(init moxnox)
 
 install(TARGETS init DESTINATION ${CMAKE_INSTALL_PREFIX}
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
