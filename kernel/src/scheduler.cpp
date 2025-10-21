@@ -193,7 +193,30 @@ export extern "C++"
 nt_status wait_for_object(object& obj, bool interruptible,
                           optional<uint64_t> timeout = nullopt) {
 #ifdef DEBUG
-#ifndef __aarch64__ // FIXME
+#ifdef __aarch64__
+    uint64_t daif = 0;
+
+    __asm __volatile(
+        "mrs %x[res], daif"
+        : [res] "=r" (daif)
+    );
+
+    if (daif)
+        bsod("calling wait_for_object with interrupts disabled");
+
+    disable_interrupts();
+
+    auto& cb = *get_cpu_block();
+    uint32_t current_priority;
+    auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
+
+    current_priority = GICC_PMR;
+
+    enable_interrupts();
+
+    if (current_priority != 0xff)
+        bsod_format("calling wait_for_object with GICC_PMR of {:x}\n", current_priority);
+#else
     uint64_t cr8 = 0, rflags = 0;
 
     __asm __volatile(
