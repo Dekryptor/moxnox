@@ -55,6 +55,18 @@ struct HBA_PORT_PxSSTS {
 
 static_assert(sizeof(HBA_PORT_PxSSTS) == sizeof(uint32_t));
 
+struct HBA_PORT_PxTFD {
+    uint32_t sts_err : 1;
+    uint32_t sts_cs1 : 2;
+    uint32_t sts_drq : 1;
+    uint32_t sts_cs2 : 3;
+    uint32_t sts_bsy : 1;
+    uint32_t err : 8;
+    uint32_t : 16;
+};
+
+static_assert(sizeof(HBA_PORT_PxTFD) == sizeof(uint32_t));
+
 struct HBA_PORT {
     uint32_t clb;
     uint32_t clbu;
@@ -64,7 +76,7 @@ struct HBA_PORT {
     uint32_t ie;
     HBA_PORT_PxCMD cmd;
     uint32_t rsv0;
-    uint32_t tfd;
+    HBA_PORT_PxTFD tfd;
     uint32_t sig;
     HBA_PORT_PxSSTS ssts;
     HBA_PORT_PxSCTL sctl;

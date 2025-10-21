@@ -592,21 +592,32 @@ static bool wait_until(unsigned int ms, const invocable auto& func) {
 }
 
 bool sata_card::reset_port(volatile HBA_PORT& p) {
+    // see section 10.1 of AHCI spec
+
     p.cmd.st = 0;
+    p.cmd.cr = 0;
+    p.cmd.fre = 0;
+    p.cmd.fr = 0;
+    p.sctl.det = 0;
 
-    // wait up to 500ms for PxCMD.CR to clear to 0
-    wait_until(500, [&]() {
-        return !p.cmd.cr;
-    });
+    // FIXME - should we be setting clb, clbu, fb, and fbu here?
 
-    if (p.cmd.fre) {
-        p.cmd.fre = 0;
+    p.cmd.fre = 1;
+    p.cmd.sud = 1;
 
-        if (!wait_until(500, [&]() { return !p.cmd.fr; }))
-            return false;
+    if (!wait_until(10, [&]() { return p.ssts.det == 1 || p.ssts.det == 3; })) {
+        // FIXME - free clb and fb memory?
+        return false;
     }
 
     p.serr = 0xffffffff;
+
+    // wait up to 32s for device to be ready
+
+    if (!wait_until(32000, [&]() { return !p.tfd.sts_bsy && !p.tfd.sts_drq && !p.tfd.sts_err; })) {
+        // FIXME - free clb and fb memory?
+        return false;
+    }
 
     return true;
 }
@@ -664,6 +675,8 @@ static bool init_sata(const pci_device& dev) {
 
     msi.message_control = msi.message_control | 1; // enable
 #endif
+
+    sc->abar->ghc.ae = 1; // enable ACPI
 
     sc->abar->is = 0xffffffff; // clear pending interrupts
     sc->abar->ghc.ie = 1; // enable interrupts
