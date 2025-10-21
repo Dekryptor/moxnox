@@ -662,6 +662,10 @@ static bool init_sata(const pci_device& dev) {
 
 #ifdef __aarch64__
     auto int_num = allocate_msi_irq();
+    if (int_num == 0) {
+        print("allocate_msi_irq failed\n");
+        return false;
+    }
 
     set_irq_edge_triggered(int_num, true);
 
