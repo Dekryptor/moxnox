@@ -73,7 +73,7 @@ public:
     size_t write(span<const uint8_t> data, uint64_t offset);
     nt_status read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages,
                                       uint64_t& read_pages);
-    size_t read(span<uint8_t> data, uint64_t offset);
+    nt_status read(span<uint8_t> data, uint64_t offset);
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
     void mark_dirty();
     nt_status flush(uint64_t page_num, uint64_t num_pages, bool clear_dirty);
@@ -678,13 +678,13 @@ nt_status page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t n
 }
 
 template<typename T>
-size_t page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
+nt_status page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
     if (data.empty())
-        return 0;
+        return nt_status::SUCCESS;
 
     auto status = read_and_pin(*this, offset, data.size());
     if (!success(status))
-        return 0; // FIXME - return error
+        return status;
 
     uint64_t first_page = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
@@ -693,7 +693,7 @@ size_t page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
 
     // FIXME - LRU
 
-    return data.size();
+    return nt_status::SUCCESS;
 }
 
 template<typename T>

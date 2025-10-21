@@ -654,9 +654,11 @@ static bool btrfs_probe(volume& vol) {
 nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
     assert(data.size() == sb->nodesize);
 
-    if (!cache.read(data, addr)) {
-        print("Short read\n");
-        return nt_status::INTERNAL_ERROR;
+    auto status = cache.read(data, addr);
+    if (!success(status)) {
+        print("btrfs_filesystem::read_metadata: page_cache::read returned {}\n",
+              status);
+        return status;
     }
 
     // FIXME - need locking

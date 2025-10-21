@@ -353,8 +353,11 @@ nt_status volume::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes
     // FIXME - return error if offset past end of device
     // FIXME - truncate data buffer if we would read past end of device
 
-    // FIXME - return errors properly
-    read_bytes = cache.read(data, offset);
+    auto status = cache.read(data, offset);
+    if (!success(status))
+        return status;
+
+    read_bytes = data.size();
     return nt_status::SUCCESS;
 }
 

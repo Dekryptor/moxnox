@@ -634,7 +634,11 @@ nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
     if (offset + s.size() > size)
         s = s.subspan(0, size - offset);
 
-    read_bytes = cache.read(s, offset);
+    auto status = cache.read(s, offset);
+    if (!success(status))
+        return status;
+
+    read_bytes = s.size();
     return nt_status::SUCCESS;
 }
 
