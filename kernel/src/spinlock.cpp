@@ -42,13 +42,15 @@ public:
     }
 
     void unlock() {
+        uint32_t last_priority = old_priority;
+
         auto& cb = *get_cpu_block();
 
         v.exchange(0, std::memory_order_release);
 
         auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
-        GICC_PMR = old_priority;
+        GICC_PMR = last_priority;
     }
 
 private:
@@ -88,13 +90,15 @@ public:
     }
 
     void unlock() {
+        uint32_t last_priority = old_priority;
+
         auto& cb = *get_cpu_block();
 
         release_sync_lock();
 
         auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
-        GICC_PMR = old_priority;
+        GICC_PMR = last_priority;
     }
 
 private:
