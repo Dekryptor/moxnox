@@ -1018,6 +1018,8 @@ add	sp, sp, #CONTEXT_SIZEOF
 ret
 
 0:
+msr	DAIFSet, #0xf // disable interrupts
+
 ldp	x2, x3, [sp, #CONTEXT_X0 + 0x10]
 ldp	x4, x5, [sp, #CONTEXT_X0 + 0x20]
 ldp	x6, x7, [sp, #CONTEXT_X0 + 0x30]
@@ -1058,8 +1060,6 @@ ldr	w1, [sp, #CONTEXT_FPSR]
 msr	fpsr, x1
 
 // FIXME - debug registers
-
-msr	DAIFSet, #0xf // disable interrupts
 
 ldr	w1, [sp, #CONTEXT_CPSR]
 // only allow N, Z, C, V, Q, and GE flags (is this right?)
