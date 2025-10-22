@@ -1043,6 +1043,9 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
         }
     }
 
+    if (context.Pc == context.Lr) // avoid loops in user_exception_entry etc.
+        return false;
+
     context.Pc = context.Lr;
 
     return true;
