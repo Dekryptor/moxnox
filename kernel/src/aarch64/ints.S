@@ -58,6 +58,7 @@ dwarf_func_asm user_irq_entry_bsp
 dwarf_func_asm user_irq_entry_ap
 dwarf_func_asm kernel_exception_entry
 dwarf_func_asm user_exception_entry
+dwarf_func_asm do_syscall
 
 .text
 
@@ -561,6 +562,7 @@ movk	w0, #0xc000, lsl 16
 mov	x1, xzr // don't leak to userspace
 add	sp, sp, #0x10
 eret
+do_syscall_end:
 
 user_exception_entry:
 sub	sp, sp, #0x10
