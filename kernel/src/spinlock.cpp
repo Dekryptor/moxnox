@@ -10,6 +10,12 @@ export module spinlock;
 import cpu_block;
 import disable_interrupts;
 
+#endif
+
+using namespace std;
+
+#ifdef __aarch64__
+
 export template<unsigned>
 class _spinlock {
 public:
@@ -25,7 +31,7 @@ public:
 
         enable_preempt();
 
-        while (v.exchange(1, std::memory_order_acquire)) {
+        while (v.exchange(1, memory_order_acquire)) {
             __asm("yield");
         }
 
@@ -37,7 +43,7 @@ public:
 
         auto& cb = *get_cpu_block();
 
-        v.exchange(0, std::memory_order_release);
+        v.exchange(0, memory_order_release);
 
         auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
@@ -45,7 +51,7 @@ public:
     }
 
 private:
-    std::atomic<uint64_t> v = 0;
+    atomic<uint64_t> v = 0;
     uint32_t old_priority;
 };
 
@@ -105,7 +111,7 @@ public:
             : "rax"
         );
 
-        while (v.exchange(1, std::memory_order_acquire)) {
+        while (v.exchange(1, memory_order_acquire)) {
             __asm("pause");
         }
 
@@ -115,7 +121,7 @@ public:
     void unlock() {
         uint64_t last_cr8 = old_cr8;
 
-        v.exchange(0, std::memory_order_release);
+        v.exchange(0, memory_order_release);
 
         __asm __volatile(
             "mov rax, %0\n"
@@ -127,7 +133,7 @@ public:
     }
 
 private:
-    std::atomic<uint64_t> v = 0;
+    atomic<uint64_t> v = 0;
     uint64_t old_cr8;
 };
 
