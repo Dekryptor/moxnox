@@ -1548,6 +1548,9 @@ void free_folio_no_lock(uint64_t pa) {
     if (pages[pfn].state == page_state::free)
         bsod_format("free_folio called for PFN {:x} that is already free", pfn);
 
+    if (pages[pfn].state == page_state::folio_following)
+        bsod_format("free_folio called for PFN {:x} with state folio_following", pfn);
+
     if (pages[pfn].state == page_state::used) {
         pages[pfn].used.refcount--;
 
