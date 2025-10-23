@@ -824,7 +824,7 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
         return status;
 
     if (is_metadata && pages_read & (pages_per_tree - 1)) {
-        unsigned int ignore_pages = pages_read & (pages_per_tree - 1);
+        auto ignore_pages = (unsigned int)(pages_read & (pages_per_tree - 1));
 
         vol->cache.unpin(disk_read_start + pages_read - ignore_pages,
                          ignore_pages);
