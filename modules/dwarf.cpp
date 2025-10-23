@@ -1958,7 +1958,7 @@ static bool dwarf_print_line_no_cu(span<const uint8_t> debug_line,
 
             state.address += h.minimum_instruction_length * ((state.op_index + op_adv) / h.maximum_operations_per_instruction);
             state.op_index = (uint8_t)((state.op_index + op_adv) % h.maximum_operations_per_instruction);
-            state.line += h.line_base + (adj % h.line_range);
+            state.line = (uint64_t)((int64_t)state.line + h.line_base + (adj % h.line_range));
 
             if ((last_addr.has_value() && *last_addr < addr && state.address > addr) || state.address == addr) {
                 dwarf_print_line_no_cu2(debug_line, debug_line_str,
