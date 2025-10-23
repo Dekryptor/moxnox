@@ -12,6 +12,7 @@ import print;
 import bsod;
 import config;
 import chardev;
+import pipe;
 import format;
 import pci;
 import virtio;
@@ -19,8 +20,11 @@ import list;
 import module_init;
 import power;
 import mem;
+import thread;
 
 using namespace std;
+
+static const unsigned int serial_buffer_pages = 1;
 
 const uint64_t VIRTIO_CONSOLE_F_SIZE = 1 << 0;
 const uint64_t VIRTIO_CONSOLE_F_MULTIPORT = 1 << 1;
@@ -65,18 +69,32 @@ static module_init module_init_virtio_console(init_virtio_pci);
 template<typename T>
 class virtio_console : public chardev {
 public:
-    virtio_console(pci_device& d);
-    virtio_console(T& t);
-    ~virtio_console();
+    virtio_console(pci_device& d, pipe& recv_pipe);
+    virtio_console(T& t, pipe& recv_pipe);
 
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    ~virtio_console() {
+        recv_pipe.release();
+        delete &dev;
+    }
+
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
+        return recv_pipe.read(s, read_bytes);
+    }
+
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+
+    sync_object& get_sync_object() override {
+        return recv_pipe;
+    }
 
     nt_status write(string_view sv, uint64_t& written_bytes) {
         return write(span((uint8_t*)sv.data(), sv.length()), written_bytes);
     }
 
+    void recv_thread();
+
     T& dev;
+    pipe& recv_pipe;
 
 private:
     virt_queue* recv_queue = nullptr;
@@ -86,7 +104,9 @@ private:
 static atomic<uint32_t> virtio_console_num = 0;
 
 template<>
-virtio_console<virtio_pci_device>::virtio_console(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {
+virtio_console<virtio_pci_device>::virtio_console(pci_device& d, pipe& recv_pipe) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)), recv_pipe(recv_pipe) {
+    recv_pipe.acquire();
+
     if (dev.device_cfg->length < sizeof(virtio_console_config)) {
         print("virtio_console: device cfg length was {}, expected at least {}\n",
               dev.device_cfg->length, sizeof(virtio_console_config));
@@ -101,10 +121,16 @@ virtio_console<virtio_pci_device>::virtio_console(pci_device& d) : dev(*new virt
         else if (vq.num == 1)
             send_queue = &vq;
     }
+
+    add_kernel_thread([](void* ctx) {
+        ((virtio_console<virtio_pci_device>*)ctx)->recv_thread();
+    }, this);
 }
 
 template<>
-virtio_console<virtio_mmio_device>::virtio_console(virtio_mmio_device& d) : dev(d) {
+virtio_console<virtio_mmio_device>::virtio_console(virtio_mmio_device& d, pipe& recv_pipe) : dev(d), recv_pipe(recv_pipe) {
+    recv_pipe.acquire();
+
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
 
@@ -113,35 +139,52 @@ virtio_console<virtio_mmio_device>::virtio_console(virtio_mmio_device& d) : dev(
         else if (vq.num == 1)
             send_queue = &vq;
     }
+
+    add_kernel_thread([](void* ctx) {
+        ((virtio_console<virtio_mmio_device>*)ctx)->recv_thread();
+    }, this);
 }
 
 template<typename T>
-virtio_console<T>::~virtio_console() {
-    delete &dev;
-}
+void virtio_console<T>::recv_thread() {
+    // FIXME - die gracefully if device ever goes away
 
-template<typename T>
-nt_status virtio_console<T>::read(span<uint8_t> s, uint64_t& read_bytes) {
-    auto buf_size = min(s.size(), PAGE_SIZE);
+    auto buf_size = PAGE_SIZE;
     auto buf = (uint8_t*)malloc(buf_size);
     if (!buf) {
         print("malloc failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
+        return;
     }
 
-    uint64_t buf_read_bytes;
+    while (true) {
+        uint64_t buf_read_bytes, written_bytes;
 
-    auto status = recv_queue->read(span(buf, buf_size), buf_read_bytes);
-    if (!success(status)) {
-        free(buf);
-        return status;
+        auto status = recv_queue->read(span(buf, buf_size), buf_read_bytes);
+
+        if (!success(status)) {
+            print("recv_queue->read returned {}\n", status);
+            continue;
+        }
+
+        if (buf_read_bytes == 0)
+            continue;
+
+        auto read_buf = span(buf, buf_read_bytes);
+
+        while (true) {
+            status = recv_pipe.write(read_buf, written_bytes);
+            if (!success(status)) {
+                print("recv_pipe.write returned {}\n", status);
+                break;
+            }
+
+            if (written_bytes == read_buf.size())
+                break;
+
+            read_buf = span(read_buf.data() + written_bytes,
+                            read_buf.size() - written_bytes);
+        }
     }
-
-    memcpy(s.data(), buf, buf_read_bytes);
-
-    read_bytes = buf_read_bytes;
-
-    return nt_status::SUCCESS;
 }
 
 template<typename T>
@@ -181,8 +224,28 @@ nt_status virtio_console<T>::write(span<const uint8_t> s, uint64_t& written_byte
     return status;
 }
 
+static object_ref create_virtio_console_in_pipe(unsigned int buffer_pages) {
+    auto pptr = new pipe(buffer_pages);
+    if (!pptr) {
+        print("new failed\n");
+        return {};
+    }
+
+    auto& p = *pptr;
+
+    return p;
+}
+
 void found_virtio_pci_console(pci_device& dev) {
-    auto v = new virtio_console<virtio_pci_device>(dev);
+    auto recv_handle = create_virtio_console_in_pipe(serial_buffer_pages);
+    if (!recv_handle) {
+        print("create_virtio_console_in_pipe failed\n");
+        return;
+    }
+
+    auto& recv_pipe = static_cast<pipe&>(recv_handle.get());
+
+    auto v = new virtio_console<virtio_pci_device>(dev, recv_pipe);
     if (!v) {
         print("new failed\n");
         return;
@@ -210,7 +273,15 @@ void found_virtio_pci_console(pci_device& dev) {
 }
 
 static bool found_virtio_mmio_console(virtio_mmio_device& dev) {
-    auto pv = new virtio_console<virtio_mmio_device>(dev);
+    auto recv_handle = create_virtio_console_in_pipe(serial_buffer_pages);
+    if (!recv_handle) {
+        print("create_virtio_console_in_pipe failed\n");
+        return false;
+    }
+
+    auto& recv_pipe = static_cast<pipe&>(recv_handle.get());
+
+    auto pv = new virtio_console<virtio_mmio_device>(dev, recv_pipe);
     if (!pv) {
         print("new failed\n");
         return false;
