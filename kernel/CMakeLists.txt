@@ -62,6 +62,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/usbhid.cpp
     src/virtio.cpp
     src/virtio_block.cpp
+    src/virtio_console.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -70,7 +71,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/x86/ps2keyboard.cpp
     src/x86/serial.cpp
     src/x86/apic.cpp
-    src/virtio_console.cpp
     src/framebuffer.cpp
 )
 
