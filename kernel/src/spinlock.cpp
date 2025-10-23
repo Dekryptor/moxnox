@@ -8,18 +8,13 @@ export module spinlock;
 #ifdef __aarch64__
 
 import cpu_block;
+import disable_interrupts;
 
 export template<unsigned>
 class _spinlock {
 public:
     void lock() {
-        uint64_t daif;
-
-        __asm __volatile (
-            "mrs %x[res], daif\n"
-            "msr DAIFSet, #0xf\n"
-            : [res] "=r" (daif)
-        );
+        disable_preempt();
 
         auto& cb = *get_cpu_block();
         uint32_t current_priority;
@@ -28,11 +23,7 @@ public:
         current_priority = GICC_PMR;
         GICC_PMR = 0; // FIXME - templatable priority?
 
-        __asm __volatile (
-            "msr daif, %x[res]"
-            :
-            : [res] "r" (daif)
-        );
+        enable_preempt();
 
         while (v.exchange(1, std::memory_order_acquire)) {
             __asm("yield");
@@ -63,26 +54,17 @@ export using spinlock = _spinlock<5>;
 export class sync_lock {
 public:
     void lock() {
-        uint64_t daif;
+        uint32_t current_priority;
 
-        __asm __volatile (
-            "mrs %x[res], daif\n"
-            "msr DAIFSet, #0xf\n"
-            : [res] "=r" (daif)
-        );
+        disable_preempt();
 
         auto& cb = *get_cpu_block();
-        uint32_t current_priority;
         auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
         current_priority = GICC_PMR;
         GICC_PMR = 0;
 
-        __asm __volatile (
-            "msr daif, %x[res]"
-            :
-            : [res] "r" (daif)
-        );
+        enable_preempt();
 
         acquire_sync_lock();
 
@@ -92,9 +74,9 @@ public:
     void unlock() {
         uint32_t last_priority = old_priority;
 
-        auto& cb = *get_cpu_block();
-
         release_sync_lock();
+
+        auto& cb = *get_cpu_block();
 
         auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
