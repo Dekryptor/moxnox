@@ -2168,7 +2168,10 @@ template<bool no_lock>
 void allocator_folio<N, S>::free(void* ptr) {
     auto pfn = phys_memory_pfn(ptr);
 
-    free_folio_no_lock(pfn << PAGE_SHIFT);
+    if constexpr (no_lock)
+        free_folio_no_lock(pfn << PAGE_SHIFT);
+    else
+        free_folio(pfn << PAGE_SHIFT);
 }
 
 template<unsigned N, unsigned P, enum page_state S>
