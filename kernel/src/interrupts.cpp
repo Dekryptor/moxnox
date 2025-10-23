@@ -1269,7 +1269,8 @@ void page_fault_kernel(uintptr_t address, uint64_t error_code) {
 
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         &cb.thread_context);
 }
 
 extern "C"
@@ -1290,7 +1291,8 @@ void double_fault() {
     sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         &cb.thread_context);
 }
 
 extern "C"
@@ -1311,7 +1313,8 @@ void general_protection_fault_kernel(uint64_t error_code) {
     sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         &cb.thread_context);
 }
 
 extern "C"
@@ -1353,7 +1356,8 @@ void invalid_opcode_kernel() {
     sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         &cb.thread_context);
 }
 
 extern "C"
@@ -1393,7 +1397,8 @@ void divide_by_zero_kernel() {
     sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         &cb.thread_context);
 }
 
 extern "C"
@@ -1433,7 +1438,8 @@ void breakpoint_kernel() {
     sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         &cb.thread_context);
 }
 
 extern "C"
@@ -1473,7 +1479,8 @@ void single_step_kernel() {
     sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "{}", cb.thread_context);
 
-    bsod(string_view(s, (size_t)(sp.data() - s)));
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         &cb.thread_context);
 }
 
 extern "C"
