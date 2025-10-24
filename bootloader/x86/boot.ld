@@ -39,6 +39,7 @@ SECTIONS
     .text 0x100000 : AT(setup_size) {
         text = .;
         *pm-main.cpp.obj(.text)
+        *pe.cpp.obj(.text)
         . = ALIGN(4096);
     }
 
