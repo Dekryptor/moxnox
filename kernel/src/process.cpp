@@ -31,7 +31,6 @@ import list;
 import vfs;
 import string;
 import interrupts;
-import pe;
 import visit;
 import unicode;
 import section;

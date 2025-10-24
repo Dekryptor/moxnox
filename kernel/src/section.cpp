@@ -19,7 +19,6 @@ import format;
 import print;
 import mem;
 import config;
-import pe;
 import bsod;
 import rangelock;
 import string;

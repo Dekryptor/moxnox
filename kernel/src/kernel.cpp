@@ -30,7 +30,6 @@ import chardev;
 import evdev;
 import unicode;
 import null;
-import pe;
 import vfs;
 import section;
 import image;

@@ -31,7 +31,6 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/scheduler.cpp
     src/null.cpp
     src/semaphore.cpp
-    src/pe.cpp
     src/rwsem.cpp
     src/rangelock.cpp
     src/volume.cpp
