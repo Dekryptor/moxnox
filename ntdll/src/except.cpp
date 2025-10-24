@@ -1,6 +1,5 @@
 #include "ntdll_private.h"
 #include "list.h"
-#include <utf16_to_utf8.h>
 #include <kernelbase.h>
 #include <stdlib.h>
 #include <optional>
