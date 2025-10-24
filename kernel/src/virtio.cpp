@@ -943,7 +943,13 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs_v2& regs,
                 return false;
             }
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+            if (!add_irq_handler(irq, virtio_mmio_isr_func, v)) {
+                print("add_irq_handler failed\n");
+                delete v;
+                return false;
+            }
+#else
             auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
             if (!add_irq_handler(irq, local_apic_id, virtio_mmio_isr_func, v)) {
