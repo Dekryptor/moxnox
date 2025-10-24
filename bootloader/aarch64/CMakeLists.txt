@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.28)
 project(moxnox)
 
 set(CMAKE_CXX_STANDARD_LIBRARIES "")
+set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "")
 set(CMAKE_C_STANDARD_LIBRARIES "")
 
 set(CMAKE_CXX_STANDARD 23)
@@ -14,7 +15,7 @@ add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 # ------------------
 
-set(CMAKE_C_LINK_EXECUTABLE "ld <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET>") # HACK
+set(CMAKE_C_LINK_EXECUTABLE "ld <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> <LINK_LIBRARIES> -o <TARGET>") # HACK
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
@@ -43,9 +44,10 @@ set(SRC_FILES boot.S
 add_executable(boot ${SRC_FILES})
 add_dependencies(boot kernel efistub)
 
-target_compile_options(boot PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Wno-unused-const-variable -Werror=pointer-arith -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -fno-threadsafe-statics -fvisibility=hidden -fno-auto-import -mno-red-zone -mno-stack-arg-probe -gdwarf-5 -fno-asynchronous-unwind-tables -mstrict-align)
+target_compile_options(boot PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Wno-unused-const-variable -Werror=pointer-arith -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -fno-threadsafe-statics -fvisibility=hidden -fno-auto-import -mno-red-zone -mno-stack-arg-probe -gdwarf-5 -fno-asynchronous-unwind-tables -mstrict-align -march=armv8.1-a)
 target_compile_options(boot PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
 target_link_options(boot PRIVATE -T ${CMAKE_SOURCE_DIR}/bootloader/aarch64/boot.ld ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
+target_link_libraries(boot pe)
 set(CMAKE_EXE_LINKER_FLAGS "-static") # use binutils rather than llvm for linking
 
 # Clang likes to generate .refptr stubs, stop it doing this
