@@ -1,7 +1,6 @@
 #include <span>
 #include <atomic>
 #include <string_view>
-#include <loaderblock.h>
 #include <version.h>
 #include <string.h>
 #include "context_offsets.h"
@@ -40,6 +39,7 @@ import smp;
 import object_ref;
 import cpu_block;
 import pci;
+import loaderblock;
 
 using namespace std;
 

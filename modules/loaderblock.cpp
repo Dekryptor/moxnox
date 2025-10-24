@@ -1,6 +1,10 @@
-#pragma once
+module;
 
 #include <stdint.h>
+
+export module loaderblock;
+
+export {
 
 enum class mem_type {
     free,
@@ -66,4 +70,6 @@ struct loader_block {
     uint64_t debug_line_str_size;
 } __attribute__((packed));
 
-static const uint64_t SELFMAP = 0xfffff68000000000;
+const uint64_t SELFMAP = 0xfffff68000000000;
+
+}

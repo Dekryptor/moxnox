@@ -1,12 +1,12 @@
 #include <stdbool.h>
 #include <stdint.h>
-#include <loaderblock.h>
 #include <string_view>
 #include "x86.h"
 
-using namespace std;
-
 import pe;
+import loaderblock;
+
+using namespace std;
 
 struct vbe_mode_info {
     uint16_t mode_number;
@@ -65,7 +65,7 @@ extern "C" bool have_long_mode();
 
 static const unsigned int MAX_MAP_ENTRIES = 128; // same as E820_COUNT
 
-static struct map_entry mem_entries[MAX_MAP_ENTRIES];
+static map_entry mem_entries[MAX_MAP_ENTRIES];
 static uint32_t mem_entries_count;
 static uint64_t debug_info_ptr, debug_abbrev_ptr, debug_rnglists_ptr,
                 debug_str_ptr, debug_addr_ptr, debug_str_offsets_ptr,

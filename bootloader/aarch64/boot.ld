@@ -15,6 +15,8 @@ SECTIONS
         *boot.S.obj(.text)
         *boot.cpp.obj(.text)
         *mem.S.obj(.text)
+        *pe.cpp.obj(.text)
+        *loaderblock.cpp.obj(.text)
     }
 
     . = ALIGN(4096);

@@ -24,7 +24,7 @@ add_library(efistub SHARED ../efi.cpp)
 target_include_directories(efistub PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../gnu-efi/inc ${CMAKE_CURRENT_SOURCE_DIR}/../../gnu-efi/inc/x86_64)
 target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-zero-initialized-in-bss)
 target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0 -Wl,--exclude-all-symbols -e efi_main)
-target_link_libraries(efistub format_kernel pe_kernel)
+target_link_libraries(efistub format_kernel pe_kernel loaderblock)
 
 add_custom_command(
     TARGET efistub
@@ -43,7 +43,7 @@ add_dependencies(boot kernel efistub)
 
 target_compile_options(boot PUBLIC -march=i386 -m32 -fno-ident -fno-pic -ffreestanding -fno-exceptions -fno-rtti -masm=intel)
 target_link_options(boot PUBLIC -Wl,-T ${CMAKE_SOURCE_DIR}/bootloader/x86/boot.ld -nostartfiles -nostdlib ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
-target_link_libraries(boot pe_32bit)
+target_link_libraries(boot pe_32bit loaderblock_32bit)
 set(CMAKE_EXE_LINKER_FLAGS "-static") # use binutils rather than llvm for linking
 
 # Clang likes to generate .refptr stubs, stop it doing this

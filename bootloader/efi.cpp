@@ -4,12 +4,12 @@
 #include <tuple>
 #include <algorithm>
 #include <string.h>
-#include <loaderblock.h>
 
 using namespace std;
 
 import format;
 import pe;
+import loaderblock;
 
 static EFI_SYSTEM_TABLE* systable __attribute__((section (".data")));
 static EFI_BOOT_SERVICES* bs __attribute__((section (".data")));

@@ -6,7 +6,6 @@ module;
 #include <cstring>
 #include <bit>
 #include <mutex>
-#include <loaderblock.h>
 #include <console.h>
 #include "handle.h"
 
@@ -44,6 +43,7 @@ import list;
 import disable_interrupts;
 import cpu_block;
 import spinlock;
+import loaderblock;
 
 using namespace std;
 

@@ -7,7 +7,6 @@ module;
 #include <functional>
 #include <mutex>
 #include <source_location>
-#include <loaderblock.h>
 #include "acpica.h"
 #include "assert.h"
 #include <span>
@@ -36,6 +35,7 @@ import thread;
 import disable_interrupts;
 import cpu_block;
 import spinlock;
+import loaderblock;
 
 using namespace std;
 

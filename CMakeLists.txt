@@ -76,7 +76,11 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64") # FIXME - should actually be i
 
     add_library(pe_32bit STATIC)
     target_sources(pe_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/pe.cpp)
-    target_compile_options(pe_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -ffreestanding -fno-exceptions -fno-rtti -masm=intel)
+    target_compile_options(pe_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -ffreestanding -fno-exceptions -fno-rtti)
+
+    add_library(loaderblock_32bit STATIC)
+    target_sources(loaderblock_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/loaderblock.cpp)
+    target_compile_options(loaderblock_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -ffreestanding -fno-exceptions -fno-rtti)
 endif()
 
 add_library(format STATIC)
@@ -145,6 +149,10 @@ target_link_libraries(ntdll_mod nt)
 add_library(pe STATIC)
 target_sources(pe PUBLIC FILE_SET CXX_MODULES FILES modules/pe.cpp)
 target_compile_options(pe PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+add_library(loaderblock STATIC)
+target_sources(loaderblock PUBLIC FILE_SET CXX_MODULES FILES modules/loaderblock.cpp)
+target_compile_options(loaderblock PRIVATE ${KERNEL_CFLAGS})
 
 add_subdirectory(kernel)
 add_subdirectory(ntdll)

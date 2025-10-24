@@ -5,10 +5,10 @@
 #include <system_error>
 #include <charconv>
 #include <optional>
-#include <loaderblock.h>
 #include "devicetree.h"
 
 import pe;
+import loaderblock;
 
 using namespace std;
 

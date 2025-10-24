@@ -40,6 +40,7 @@ SECTIONS
         text = .;
         *pm-main.cpp.obj(.text)
         *pe.cpp.obj(.text)
+        *loaderblock.cpp.obj(.text)
         . = ALIGN(4096);
     }
 

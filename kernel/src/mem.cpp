@@ -1,6 +1,5 @@
 module;
 
-#include <loaderblock.h>
 #include <string_view>
 #include <span>
 #include <cstring>
@@ -24,6 +23,7 @@ import format;
 import bsod;
 import spinlock;
 import pe;
+import loaderblock;
 
 extern "C" uint8_t __image_base__;
 
