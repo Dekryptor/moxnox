@@ -21,7 +21,7 @@ else()
     set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-exceptions -fno-rtti -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -masm=intel ${GENERAL_CFLAGS})
 endif()
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64") # FIXME - should actually be is amd64
     add_library(format_kernel STATIC)
     target_sources(format_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
     target_compile_options(format_kernel PRIVATE ${KERNEL_CFLAGS})
@@ -73,7 +73,10 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(pe_kernel STATIC)
     target_sources(pe_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/pe.cpp)
     target_compile_options(pe_kernel PRIVATE ${KERNEL_CFLAGS})
-    target_link_libraries(pe_kernel nt_kernel)
+
+    add_library(pe_32bit STATIC)
+    target_sources(pe_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/pe.cpp)
+    target_compile_options(pe_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -ffreestanding -fno-exceptions -fno-rtti -masm=intel)
 endif()
 
 add_library(format STATIC)

@@ -3,9 +3,10 @@
 #include <loaderblock.h>
 #include <string_view>
 #include "x86.h"
-#include "pe.h"
 
 using namespace std;
+
+import pe;
 
 struct vbe_mode_info {
     uint16_t mode_number;
