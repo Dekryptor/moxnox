@@ -6,6 +6,30 @@ export module loaderblock;
 
 export {
 
+using EFI_STATUS = uint64_t;
+
+struct EFI_TIME {
+    uint16_t Year;
+    uint8_t Month;
+    uint8_t Day;
+    uint8_t Hour;
+    uint8_t Minute;
+    uint8_t Second;
+    uint8_t Pad1;
+    uint32_t Nanosecond;
+    int16_t TimeZone;
+    uint8_t Daylight;
+    uint8_t Pad2;
+};
+
+struct EFI_TIME_CAPABILITIES {
+    uint32_t Resolution;
+    uint32_t Accuracy;
+    bool SetsToZero;
+};
+
+using EFI_GET_TIME = EFI_STATUS (*)(EFI_TIME* Time, EFI_TIME_CAPABILITIES* Capabilities);
+
 enum class mem_type {
     free,
     reserved,
@@ -68,6 +92,7 @@ struct loader_block {
     uint64_t debug_line_size;
     uint64_t debug_line_str_ptr;
     uint64_t debug_line_str_size;
+    EFI_GET_TIME GetTime;
 } __attribute__((packed));
 
 const uint64_t SELFMAP = 0xfffff68000000000;
