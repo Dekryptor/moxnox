@@ -6,7 +6,7 @@
 #include <charconv>
 #include <optional>
 #include <loaderblock.h>
-#include <pe.h>
+#include "pe.h"
 #include "devicetree.h"
 
 using namespace std;

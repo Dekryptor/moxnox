@@ -1,13 +1,14 @@
 module;
 
-#include <pe.h>
 #include <span>
 #include <string_view>
 #include <optional>
+#include <stdint.h>
 
 export module unwind;
 
 import nt;
+import pe;
 
 using namespace std;
 

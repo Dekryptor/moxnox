@@ -1,17 +1,18 @@
 module;
 
-#include <pe.h>
 #include <string_view>
 #include <span>
 #include <optional>
 #include <tuple>
 #include <string.h>
+#include <stdint.h>
 
 export module signal;
 
 import nt;
 import ntdll;
 import unique_handle;
+import pe;
 
 using namespace std;
 

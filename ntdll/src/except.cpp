@@ -1,7 +1,6 @@
 #include "ntdll_private.h"
 #include "list.h"
 #include <utf16_to_utf8.h>
-#include <pe.h>
 #include <kernelbase.h>
 #include <stdlib.h>
 #include <optional>
@@ -12,6 +11,7 @@ import dwarf;
 import print;
 import unwind;
 import unicode;
+import pe;
 
 using namespace std;
 

@@ -1,4 +1,3 @@
-#include <pe.h>
 #include <string_view>
 #include <tuple>
 #include <span>
@@ -29,6 +28,7 @@ import text;
 import cmdline;
 import evdev;
 import keyboard;
+import pe;
 
 using namespace std;
 

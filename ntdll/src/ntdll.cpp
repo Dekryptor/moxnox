@@ -1,6 +1,5 @@
 #include "ntdll_private.h"
 #include "list.h"
-#include <pe.h>
 #include <optional>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +8,7 @@ using namespace std;
 
 import print;
 import format;
+import pe;
 
 extern uint8_t __image_base__;
 

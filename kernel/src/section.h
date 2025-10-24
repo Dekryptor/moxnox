@@ -2,13 +2,13 @@
 
 #include <variant>
 #include <string_view>
-#include <pe.h>
 
 import nt;
 import page_cache;
 import objects;
 import inode;
 import spinlock;
+import pe;
 
 #include "section2.h"
 

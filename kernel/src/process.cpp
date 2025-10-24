@@ -11,7 +11,6 @@ module;
 #include "process.h"
 #include "file.h"
 #include "mapping.h"
-#include <pe.h>
 #include "section2.h"
 #include "assert.h"
 
@@ -45,6 +44,7 @@ import objects;
 import inode;
 import cpu_block;
 import ntdll;
+import pe;
 
 #ifndef __aarch64__
 import apic;

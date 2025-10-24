@@ -7,7 +7,6 @@ module;
 #include <bit>
 #include <algorithm>
 #include <mutex>
-#include <pe.h>
 #include "assert.h"
 
 #ifdef __aarch64__
@@ -24,6 +23,7 @@ import print;
 import format;
 import bsod;
 import spinlock;
+import pe;
 
 extern "C" uint8_t __image_base__;
 

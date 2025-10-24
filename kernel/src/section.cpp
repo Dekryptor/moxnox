@@ -8,7 +8,6 @@ module;
 #include <functional>
 #include <mutex>
 #include "file.h"
-#include <pe.h>
 #include <utility>
 #include "section.h"
 #include "process.h"
@@ -24,6 +23,7 @@ import rangelock;
 import string;
 import unicode;
 import thread;
+import pe;
 
 using namespace std;
 
