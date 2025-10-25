@@ -40,6 +40,7 @@ import object_ref;
 import cpu_block;
 import pci;
 import loaderblock;
+import efi;
 
 using namespace std;
 
@@ -316,6 +317,11 @@ void startup(loader_block* lb) {
 
     if (!init_memory(*lb))
         goto hang;
+
+    if (lb->SetVirtualAddressMap) {
+        if (!map_uefi(*lb))
+            goto hang;
+    }
 
     lb = nullptr; // no longer valid
 

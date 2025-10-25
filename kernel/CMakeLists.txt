@@ -62,6 +62,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/virtio.cpp
     src/virtio_block.cpp
     src/virtio_console.cpp
+    src/efi.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
