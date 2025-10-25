@@ -2402,57 +2402,134 @@ void ::allocator<N, P, S>::free(void* ptr) {
     }
 }
 
+static constexpr uint8_t pages_to_max_folio_order(size_t p) {
+    return min((uint8_t)((8 * sizeof(p)) - countl_zero(p) - 1), MAX_FOLIO_ORDER);
+}
+
+static uint64_t try_allocate_folio(uint8_t order, enum page_state state = page_state::used) {
+    lock_guard lock(pa_spinlock);
+
+    while (true) {
+        if (is_list_empty(folio_free_lists[order])) {
+            if (order == 0)
+                break;
+
+            order--;
+            continue;
+        }
+
+        auto& p = *(page*)((uint8_t*)folio_free_lists[order].next - offsetof(page, free.le));
+        auto pfn = (uint64_t)(&p - pages);
+
+        remove_entry_list(p.free.le);
+        p.state = state;
+
+        if (state == page_state::used)
+            p.used.refcount = 1;
+
+        free_folios[order]--;
+
+        return pfn << PAGE_SHIFT;
+    }
+
+    // if couldn't allocate anything, try to allocate a level-0 folio through fragmentation
+
+    return allocate_folio_no_lock(0, state);
+}
+
+static uint8_t get_folio_order(uint64_t pa) {
+    return pages[pa >> PAGE_SHIFT].order;
+}
+
 export void* vmalloc(size_t size) {
     uint64_t num_pages = bytes_to_pages(size);
+    uint64_t pages_left = num_pages;
 
-    auto va = allocate_va((uint32_t)num_pages);
-    if (!va) {
+    // FIXME - map with huge pages if possible
+
+    if (size == 0)
+        return nullptr;
+
+    auto orig_va = allocate_va((uint32_t)num_pages);
+    if (!orig_va) {
         print("allocate_va failed\n");
         return nullptr;
     }
 
-    for (size_t i = 0; i < num_pages; i++) {
-        auto pa = allocate_page();
+    auto va = orig_va;
+
+    while (pages_left > 0) {
+        auto max_order = pages_to_max_folio_order(pages_left);
+
+        auto pa = try_allocate_folio(max_order);
         if (!pa) {
-            print("allocate_page failed\n");
+            print("try_allocate_folio failed\n");
 
-            for (size_t j = 0; j < i; j++) {
-                auto pa = va_to_pa_lookup(va + (j << PAGE_SHIFT));
+            va = orig_va;
+            while (pages_left < num_pages) {
+                auto pa = va_to_pa_lookup(va);
+                auto order = get_folio_order(pa);
 
                 free_folio(pa);
-                unmap_page(va + (j << PAGE_SHIFT));
+
+                for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
+                    unmap_page(va);
+                    va += PAGE_SIZE;
+                }
+
+                pages_left += 1 << order;
             }
 
-            free_va(va, (uint32_t)num_pages);
+            free_va(orig_va, (uint32_t)num_pages);
 
             return nullptr;
         }
 
-        if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-            free_folio(pa);
+        auto order = get_folio_order(pa);
 
-            for (size_t j = 0; j < i; j++) {
-                auto pa = va_to_pa_lookup(va + (j << PAGE_SHIFT));
+        // FIXME - map_folio?
 
+        for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
+            if (!map_page(pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT),
+                          mapping_type::read_write)) {
                 free_folio(pa);
-                unmap_page(va + (j << PAGE_SHIFT));
+
+                va = orig_va;
+                while (pages_left < num_pages) {
+                    auto pa = va_to_pa_lookup(va);
+                    auto order = get_folio_order(pa);
+
+                    free_folio(pa);
+
+                    for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
+                        unmap_page(va);
+                        va += PAGE_SIZE;
+                    }
+
+                    pages_left += 1 << order;
+                }
+
+                free_va(orig_va, (uint32_t)num_pages);
+
+                return nullptr;
             }
-
-            free_va(va, (uint32_t)num_pages);
-
-            return nullptr;
         }
+
+        va += 1 << (order + PAGE_SHIFT);
+        pages_left -= 1 << order;
     }
 
-    return (void*)va;
+    return (void*)orig_va;
 }
 
 export void vfree(void* ptr, size_t size) {
     uint64_t num_pages = bytes_to_pages(size);
 
-    for (unsigned int i = 0; i < num_pages; i++) {
-        unmap_and_free_page((uint64_t)ptr + (i << PAGE_SHIFT));
-    }
+    // FIXME
+
+    // for (unsigned int i = 0; i < num_pages; i++) {
+    //     unmap_and_free_page((uint64_t)ptr + (i << PAGE_SHIFT));
+    // }
 }
 
 export void inline __attribute__((always_inline)) barrier() {
