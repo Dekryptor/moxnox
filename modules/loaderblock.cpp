@@ -81,7 +81,8 @@ enum class mem_type {
     uefi_code,
     uefi_data,
     framebuffer,
-    initrd
+    initrd,
+    mmio
 };
 
 struct map_entry {

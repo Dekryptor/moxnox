@@ -43,6 +43,9 @@ export bool map_uefi(const loader_block& lb) {
         } else if (m.type == mem_type::uefi_data) {
             d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesData;
             mt = mapping_type::read_write;
+        } else if (m.type == mem_type::mmio) {
+            d->Type = EFI_MEMORY_TYPE::EfiMemoryMappedIO;
+            mt = mapping_type::no_cache;
         } else
             continue;
 
@@ -65,6 +68,7 @@ export bool map_uefi(const loader_block& lb) {
 
         va += m.len;
         count++;
+        d++;
     }
 
     if (count == 0)
