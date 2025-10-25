@@ -12,6 +12,7 @@ import list;
 import print;
 import module_init;
 import disable_interrupts;
+import efi;
 
 using namespace std;
 
@@ -38,19 +39,6 @@ static uint8_t get_rtc_register(uint16_t port) {
 
 static bool get_update_in_progress(uint16_t port) {
     return get_rtc_register<0xa>(port) & 0x80;
-}
-
-static constexpr int64_t ymd_to_num(const chrono::year_month_day& d) noexcept {
-    int m2 = ((int)(unsigned int)d.month() - 14) / 12;
-    int64_t n;
-
-    n = (1461 * ((int)d.year() + 4800 + m2)) / 4;
-    n += (367 * ((int)(unsigned int)d.month() - 2 - (12 * m2))) / 12;
-    n -= (3 * (((int)d.year() + 4900 + m2)/100)) / 4;
-    n += (unsigned int)d.day();
-    n -= 2337889;
-
-    return n;
 }
 
 static void init_rtc(uint16_t port) {
@@ -126,6 +114,10 @@ static void init_rtc(uint16_t port) {
 
 static void found_rtc(const acpi_device& d) {
     optional<uint16_t> port;
+
+    // ignore RTCs if EFI has provided the GetTime function
+    if (GetTime)
+        return;
 
     for (auto le = d.resources.next; le != &d.resources; le = le->next) {
         auto& r = containing_record<acpi_device_resource>(le);

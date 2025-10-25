@@ -198,6 +198,9 @@ void main_thread() {
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
 
+    if (GetTime)
+        set_time_from_efi();
+
     if (!init_acpi_done) {
         init_acpi();
         find_acpi_devices();
