@@ -17,6 +17,9 @@ using namespace std;
 
 extern "C++" void do_print(string_view sv);
 
+using malloc_func = void* (*)(size_t);
+using free_func = void (*)(void*);
+
 using uleb128 = unsigned __int128;
 using sleb128 = signed __int128;
 
@@ -569,7 +572,8 @@ static bool skip_die(span<const uint8_t>& die, span<const uint8_t> att_list) {
     return true;
 }
 
-static span<const uint8_t*> load_abbrev_entries(span<const uint8_t> abbrev) {
+static span<const uint8_t*> load_abbrev_entries(span<const uint8_t> abbrev,
+                                                malloc_func _malloc) {
     auto orig_abbrev = abbrev;
     unsigned int count = 0;
 
@@ -601,7 +605,7 @@ static span<const uint8_t*> load_abbrev_entries(span<const uint8_t> abbrev) {
     if (count == 0)
         return span<const uint8_t*>();
 
-    auto arr = (const uint8_t**)malloc(sizeof(const uint8_t*) * (count + 1));
+    auto arr = (const uint8_t**)_malloc(sizeof(const uint8_t*) * (count + 1));
     if (!arr)
         return span<const uint8_t*>();
 
@@ -981,7 +985,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
 }
 
 static uint32_t find_die_parent(span<const uint8_t> cu, span<const uint8_t*> abbrev_list,
-                                uint32_t offset) {
+                                uint32_t offset, malloc_func _malloc, free_func _free) {
     unsigned int max_depth = 0, cur_depth;
 
     loop_through_dies(cu, abbrev_list, [&](enum DW_TAG, bool, span<const uint8_t>,
@@ -999,7 +1003,7 @@ static uint32_t find_die_parent(span<const uint8_t> cu, span<const uint8_t*> abb
     if (max_depth == 0)
         return 0;
 
-    auto stack = (uint32_t*)malloc(max_depth * sizeof(uint32_t));
+    auto stack = (uint32_t*)_malloc(max_depth * sizeof(uint32_t));
     if (!stack)
         return 0;
 
@@ -1018,13 +1022,13 @@ static uint32_t find_die_parent(span<const uint8_t> cu, span<const uint8_t*> abb
     });
 
     if (cur_depth == 0) {
-        free(stack);
+        _free(stack);
         return 0;
     }
 
     auto ret = stack[cur_depth - 1];
 
-    free(stack);
+    _free(stack);
 
     return ret;
 }
@@ -1115,7 +1119,8 @@ static size_t get_func_name2(span<const uint8_t> debug_str,
                              optional<uint32_t>& specification,
                              optional<uint32_t>& abstract_origin,
                              string_view& name, string_view& linkage_name,
-                             span<char>& sp) {
+                             span<char>& sp, malloc_func _malloc,
+                             free_func _free) {
     size_t written = 0;
 
     do {
@@ -1172,7 +1177,7 @@ static size_t get_func_name2(span<const uint8_t> debug_str,
             if (write_sep && sp.size() > name.size())
                 memcpy(sp.data() + name.size(), sep, min(sizeof(sep), sp.size() - name.size()));
 
-            auto ref2 = find_die_parent(cu, abbrev_list, ref);
+            auto ref2 = find_die_parent(cu, abbrev_list, ref, _malloc, _free);
             if (ref2 == 0)
                 break;
 
@@ -1189,7 +1194,8 @@ static void get_func_name(span<const uint8_t> debug_str,
                           span<const uint8_t> att_list,
                           span<const uint8_t*> abbrev_list,
                           span<const uint8_t> cu, span<char>& sp,
-                          optional<uint32_t> str_offsets_base) {
+                          optional<uint32_t> str_offsets_base,
+                          malloc_func _malloc, free_func _free) {
     string_view name, linkage_name;
     optional<uint32_t> specification, abstract_origin;
 
@@ -1222,7 +1228,7 @@ static void get_func_name(span<const uint8_t> debug_str,
 
     auto written = get_func_name2(debug_str, debug_str_offsets, str_offsets_base,
                                   abbrev_list, cu, specification, abstract_origin,
-                                  name, linkage_name, sp);
+                                  name, linkage_name, sp, _malloc, _free);
 
     if (written == 0) {
         if (name.empty() && !linkage_name.empty())
@@ -1304,7 +1310,8 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
                                   span<const uint8_t> abbrev,
                                   span<char>& sp, optional<uint32_t> addr_base,
                                   optional<uint32_t> str_offsets_base,
-                                  string_view mod_name) {
+                                  string_view mod_name, malloc_func _malloc,
+                                  free_func _free) {
     uint64_t func_start = 0;
     span<const uint8_t> function_die, function_att_list;
     unsigned int function_depth;
@@ -1316,7 +1323,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
         uint64_t low_pc;
     };
 
-    auto abbrev_list = load_abbrev_entries(abbrev);
+    auto abbrev_list = load_abbrev_entries(abbrev, _malloc);
 
     if (abbrev_list.empty()) {
         sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
@@ -1407,7 +1414,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
                 return true;
             }
 
-            auto inline_entry = (inline_func*)malloc(sizeof(inline_func));
+            auto inline_entry = (inline_func*)_malloc(sizeof(inline_func));
             if (!inline_entry) {
                 sp = format(sp, "(malloc failed)\n");
                 return true;
@@ -1435,7 +1442,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
         auto written = get_func_name2(debug_str, debug_str_offsets, str_offsets_base,
                                       abbrev_list, cu, specification,
                                       abstract_origin, name,
-                                      linkage_name, sp);
+                                      linkage_name, sp, _malloc, _free);
 
         if (written == 0)
             sp = format(sp, "unknown inline");
@@ -1449,7 +1456,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
         sp = format(sp, ")\n");
 
         remove_entry_list(inline_entry.le);
-        free(&inline_entry);
+        _free(&inline_entry);
     }
 
     if (!function_die.empty()) {
@@ -1457,10 +1464,10 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
 
         get_func_name(debug_str, debug_str_offsets, function_die,
                       function_att_list, abbrev_list, cu, sp,
-                      str_offsets_base);
+                      str_offsets_base, _malloc, _free);
     }
 
-    free(abbrev_list.data());
+    _free(abbrev_list.data());
 
     if (func_start == 0) {
         sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
@@ -1480,7 +1487,9 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
                                  span<const uint8_t> debug_str,
                                  span<const uint8_t> debug_str_offsets,
                                  uint64_t rva, uint64_t base,
-                                 span<char>& sp, string_view mod_name) {
+                                 span<char>& sp, string_view mod_name,
+                                 malloc_func _malloc = malloc,
+                                 free_func _free = free) {
     if (debug_info.empty()) {
         sp = format(sp, "{:016x} ({}+{:x})\n", rva + base, mod_name, rva);
         return;
@@ -1494,7 +1503,8 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
     loop_through_cus(debug_info, [&](span<const uint8_t> cu, uint32_t debug_abbrev_object) -> bool {
         auto current_cu = cu;
 
-        auto abbrev_list = load_abbrev_entries(debug_abbrev.subspan(debug_abbrev_object));
+        auto abbrev_list = load_abbrev_entries(debug_abbrev.subspan(debug_abbrev_object),
+                                               _malloc);
 
         if (abbrev_list.empty())
             return true;
@@ -1564,7 +1574,7 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
             }
         }
 
-        free(abbrev_list.data());
+        _free(abbrev_list.data());
 
         if (!found_cu.empty())
             return false;
@@ -1579,7 +1589,8 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
 
     dwarf_print_function2(debug_addr, debug_str, debug_str_offsets, rva, base,
                           found_cu, debug_abbrev.subspan(found_debug_abbrev_object),
-                          sp, addr_base, str_offsets_base, mod_name);
+                          sp, addr_base, str_offsets_base, mod_name,
+                          _malloc, _free);
 }
 
 static void dwarf_print_line_no_cu2(span<const uint8_t> debug_line,
