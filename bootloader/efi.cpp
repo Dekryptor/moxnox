@@ -1128,7 +1128,27 @@ static EFI_STATUS get_memory_map() {
 
     bs->FreePool(memory_map);
 
-    // FIXME - do we need to order memory map, and resolve any overlaps?
+    // sort
+
+    while (true) {
+        bool changed = false;
+
+        for (unsigned i = 0; i < num_map_entries - 1; i++) {
+            auto& a = map[i];
+            auto& b = map[i + 1];
+
+            if (a.addr > b.addr) {
+                swap(a, b);
+                changed = true;
+                i--;
+            }
+        }
+
+        if (!changed)
+            break;
+    }
+
+    // FIXME - do we need to resolve any overlaps?
 
     // add missing entries
     if (map[0].addr != 0) {
