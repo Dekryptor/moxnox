@@ -25,6 +25,8 @@ export EFI_GET_TIME GetTime = nullptr;
 
 static const EFI_STATUS EFI_SUCCESS = 0;
 
+static const uint64_t EFI_MEMORY_RUNTIME = 0x8000000000000000;
+
 export bool map_uefi(const loader_block& lb) {
     auto map_entries = span((map_entry*)lb.map_ptr, lb.num_map_entries);
     unsigned int count = 0;
@@ -61,7 +63,7 @@ export bool map_uefi(const loader_block& lb) {
         d->PhysicalStart = m.addr;
         d->VirtualStart = va;
         d->NumberOfPages = m.len >> PAGE_SHIFT;
-        d->Attribute = 0;
+        d->Attribute = EFI_MEMORY_RUNTIME;
 
         if (!GetTime && (uintptr_t)lb.GetTime >= m.addr && (uintptr_t)lb.GetTime < m.addr + m.len)
             GetTime = (EFI_GET_TIME)((uintptr_t)lb.GetTime - m.addr + va);
