@@ -24,11 +24,20 @@ import kernel_images;
 import smp;
 import unwind;
 import cpu_block;
+import mem;
 
 using namespace std;
 
 static atomic<unsigned int> bsod_count = 0;
 static uint32_t bsod_cpu = 0xffffffff;
+
+static void* bsod_malloc(size_t s) {
+    return malloc_aligned<true>(s, 1);
+}
+
+static void bsod_free(void* ptr) {
+    free_no_lock(ptr);
+}
 
 static void print_rip(chardev& p, uint64_t rip) {
     auto& cb = *get_cpu_block();
@@ -42,7 +51,8 @@ static void print_rip(chardev& p, uint64_t rip) {
                              img->debug_rnglists, img->debug_addr,
                              img->debug_str, img->debug_str_offsets,
                              rip - (uintptr_t)img->base_address,
-                             (uint64_t)img->base_address, sp, img->name); // FIXME - should be preferred base
+                             (uint64_t)img->base_address, sp, img->name, // FIXME - should be preferred base
+                             bsod_malloc, bsod_free);
 
         sp = format(sp, " ");
 
