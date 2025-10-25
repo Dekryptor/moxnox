@@ -1623,6 +1623,8 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
             case mem_type::bootloader:
             case mem_type::acpi:
             case mem_type::initrd:
+            case mem_type::uefi_code:
+            case mem_type::uefi_data:
                 status = do_map(map_copy[i].addr, map_copy[i].addr, map_copy[i].len); // identity map
 
                 if (EFI_ERROR(status))
