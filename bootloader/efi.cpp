@@ -1104,7 +1104,7 @@ static EFI_STATUS get_memory_map() {
     auto ptr = (uint8_t*)memory_map;
     auto left = map_size;
 
-    while (left > descriptor_size) {
+    while (left >= descriptor_size) {
         auto& m = *(EFI_MEMORY_DESCRIPTOR*)ptr;
         auto& me = map[num_map_entries];
 
