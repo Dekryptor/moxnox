@@ -94,6 +94,7 @@ static uint8_t* const initrd_addr = (uint8_t*)0xfffffa5000000000;
 
 static const uint64_t UEFI_VABLOCK = 0xfffffa6000000000;
 static _EFI_MEMORY_DESCRIPTOR uefi_mappings[256];
+export EFI_GET_TIME GetTime = nullptr;
 
 static spinlock va_spinlock;
 spinlock mapping_spinlock;
@@ -2685,6 +2686,9 @@ static bool map_uefi(const loader_block& lb) {
         d->NumberOfPages = m.len >> PAGE_SHIFT;
         d->Attribute = 0;
 
+        if (!GetTime && (uintptr_t)lb.GetTime >= m.addr && (uintptr_t)lb.GetTime < m.addr + m.len)
+            GetTime = (EFI_GET_TIME)((uintptr_t)lb.GetTime - m.addr + va);
+
         va += m.len;
         count++;
     }
@@ -2700,8 +2704,6 @@ static bool map_uefi(const loader_block& lb) {
         print("SetVirtualAddressMap returned {}\n", ret);
         return false;
     }
-
-    // FIXME - rebase GetTime
 
     return true;
 }
