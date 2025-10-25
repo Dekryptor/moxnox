@@ -85,7 +85,7 @@ static_assert(sizeof(struct page) == 24);
 page* pages = (page*)0xfffffa0000000000;
 static uint64_t total_pages;
 
-static _spinlock<6> pa_spinlock;
+export _spinlock<6> pa_spinlock;
 
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 static uint64_t vablock_size;

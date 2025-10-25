@@ -50,6 +50,10 @@ public:
         GICC_PMR = last_priority;
     }
 
+    void force_unlock() {
+        v = 0;
+    }
+
 private:
     atomic<uint64_t> v = 0;
     uint32_t old_priority;
@@ -130,6 +134,10 @@ public:
             : "m" (last_cr8)
             : "rax"
         );
+    }
+
+    void force_unlock() {
+        v = 0;
     }
 
 private:

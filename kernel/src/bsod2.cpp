@@ -148,6 +148,9 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 #endif
     }
 
+    // don't deadlock in malloc if we BSOD'd while holding pa_spinlock
+    pa_spinlock.force_unlock();
+
     auto& p = static_cast<chardev&>(console_chardev.get());
     uint64_t written;
 
