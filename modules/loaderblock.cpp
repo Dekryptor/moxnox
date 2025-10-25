@@ -4,9 +4,13 @@ module;
 
 export module loaderblock;
 
+using UINTN = uint64_t;
+using EFI_PHYSICAL_ADDRESS = uint64_t;
+using EFI_VIRTUAL_ADDRESS = uint64_t;
+
 export {
 
-using EFI_STATUS = uint64_t;
+using EFI_STATUS = UINTN;
 
 struct EFI_TIME {
     uint16_t Year;
@@ -28,7 +32,23 @@ struct EFI_TIME_CAPABILITIES {
     bool SetsToZero;
 };
 
+const uint32_t EFI_MEMORY_DESCRIPTOR_VERSION = 1;
+
+struct _EFI_MEMORY_DESCRIPTOR {
+    uint32_t Type;
+    uint32_t Pad;
+    EFI_PHYSICAL_ADDRESS PhysicalStart;
+    EFI_VIRTUAL_ADDRESS VirtualStart;
+    uint64_t NumberOfPages;
+    uint64_t Attribute;
+};
+
 using EFI_GET_TIME = EFI_STATUS (*)(EFI_TIME* Time, EFI_TIME_CAPABILITIES* Capabilities);
+
+using EFI_SET_VIRTUAL_ADDRESS_MAP = EFI_STATUS (*)(UINTN MemoryMapSize,
+                                                   UINTN DescriptorSize,
+                                                   uint32_t DescriptorVersion,
+                                                   _EFI_MEMORY_DESCRIPTOR* VirtualMap);
 
 enum class mem_type {
     free,
@@ -93,6 +113,7 @@ struct loader_block {
     uint64_t debug_line_str_ptr;
     uint64_t debug_line_str_size;
     EFI_GET_TIME GetTime;
+    EFI_SET_VIRTUAL_ADDRESS_MAP SetVirtualAddressMap;
 } __attribute__((packed));
 
 const uint64_t SELFMAP = 0xfffff68000000000;
