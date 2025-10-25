@@ -2547,12 +2547,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         }
     }
 
-    Status = add_map_entry((uintptr_t)lb.framebuffer.phys_address,
-                           bytes_to_pages(lb.framebuffer.pixels_per_scan_line * lb.framebuffer.height * 4) << EFI_PAGE_SHIFT,
-                           mem_type::framebuffer);
-    if (EFI_ERROR(Status)) {
-        print_error("add_map_entry", Status);
-        return Status;
+    if (lb.framebuffer.phys_address != 0) {
+        Status = add_map_entry((uintptr_t)lb.framebuffer.phys_address,
+                               bytes_to_pages(lb.framebuffer.pixels_per_scan_line * lb.framebuffer.height * 4) << EFI_PAGE_SHIFT,
+                               mem_type::framebuffer);
+        if (EFI_ERROR(Status)) {
+            print_error("add_map_entry", Status);
+            return Status;
+        }
     }
 
 #ifdef __aarch64__
