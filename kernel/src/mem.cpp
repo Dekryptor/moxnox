@@ -2524,12 +2524,22 @@ export void* vmalloc(size_t size) {
 
 export void vfree(void* ptr, size_t size) {
     uint64_t num_pages = bytes_to_pages(size);
+    uint64_t pages_left = num_pages;
+    auto va = (uintptr_t)ptr;
 
-    // FIXME
+    while (pages_left > 0) {
+        auto pa = va_to_pa_lookup(va);
+        auto order = get_folio_order(pa);
 
-    // for (unsigned int i = 0; i < num_pages; i++) {
-    //     unmap_and_free_page((uint64_t)ptr + (i << PAGE_SHIFT));
-    // }
+        free_folio(pa);
+
+        for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
+            unmap_page(va);
+            va += PAGE_SIZE;
+        }
+
+        pages_left -= 1 << order;
+    }
 }
 
 export void inline __attribute__((always_inline)) barrier() {
