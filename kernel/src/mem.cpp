@@ -92,6 +92,9 @@ static uint64_t vablock_size;
 
 static uint8_t* const initrd_addr = (uint8_t*)0xfffffa5000000000;
 
+static const uint64_t UEFI_VABLOCK = 0xfffffa6000000000;
+static _EFI_MEMORY_DESCRIPTOR uefi_mappings[256];
+
 static spinlock va_spinlock;
 spinlock mapping_spinlock;
 static spinlock protect_page_spinlock;
@@ -165,6 +168,8 @@ static_assert(sizeof(decltype(alloc512)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc256)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc128)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc64)::cb_type) <= PAGE_SIZE);
+
+static bool map_uefi(const loader_block& lb);
 
 export inline void* phys_address(uint64_t pa) {
     return (void*)(PHYS_MEMORY | pa);
@@ -1340,6 +1345,11 @@ export bool init_memory(const loader_block& lb) {
     }
 
     memset(phys_address(zero_pfn << PAGE_SHIFT), 0, PAGE_SIZE);
+
+    if (lb.SetVirtualAddressMap) {
+        if (!map_uefi(lb))
+            return false;
+    }
 
     return true;
 }
@@ -2638,4 +2648,60 @@ export void protect_kernel_pages() {
             va += PAGE_SIZE;
         }
     }
+}
+
+static bool map_uefi(const loader_block& lb) {
+    auto map_entries = span((map_entry*)lb.map_ptr, lb.num_map_entries);
+    unsigned int count = 0;
+
+    // FIXME
+    using EFI_MEMORY_DESCRIPTOR = _EFI_MEMORY_DESCRIPTOR;
+    using EFI_MEMORY_TYPE = _EFI_MEMORY_TYPE;
+
+    uint64_t va = UEFI_VABLOCK;
+
+    // FIXME - bsod if we would overflow uefi_mappings
+
+    auto d = uefi_mappings;
+    for (const auto& m : map_entries) {
+        if (m.type == mem_type::uefi_code)
+            d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesCode;
+        else if (m.type == mem_type::uefi_data)
+            d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesData;
+        else
+            continue;
+
+        for (unsigned int i = 0; i < m.len >> PAGE_SHIFT; i++) {
+            if (!map_page<true>(m.addr + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT),
+                                mapping_type::read_write_execute)) { // FIXME
+                print("map_page failed\n");
+                return false;
+            }
+        }
+
+        d->Pad = 0;
+        d->PhysicalStart = m.addr;
+        d->VirtualStart = va;
+        d->NumberOfPages = m.len >> PAGE_SHIFT;
+        d->Attribute = 0;
+
+        va += m.len;
+        count++;
+    }
+
+    if (count == 0)
+        bsod("SetVirtualAddressMap set but no UEFI mappings given");
+
+    auto ret = lb.SetVirtualAddressMap(count * sizeof(EFI_MEMORY_DESCRIPTOR),
+                                       sizeof(EFI_MEMORY_DESCRIPTOR),
+                                       EFI_MEMORY_DESCRIPTOR_VERSION,
+                                       uefi_mappings);
+    if (ret != 0) { // FIXME - enum
+        print("SetVirtualAddressMap returned {}\n", ret);
+        return false;
+    }
+
+    // FIXME - rebase GetTime
+
+    return true;
 }

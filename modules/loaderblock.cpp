@@ -34,8 +34,28 @@ struct EFI_TIME_CAPABILITIES {
 
 const uint32_t EFI_MEMORY_DESCRIPTOR_VERSION = 1;
 
+enum class _EFI_MEMORY_TYPE : uint32_t {
+    EfiReservedMemoryType,
+    EfiLoaderCode,
+    EfiLoaderData,
+    EfiBootServicesCode,
+    EfiBootServicesData,
+    EfiRuntimeServicesCode,
+    EfiRuntimeServicesData,
+    EfiConventionalMemory,
+    EfiUnusableMemory,
+    EfiACPIReclaimMemory,
+    EfiACPIMemoryNVS,
+    EfiMemoryMappedIO,
+    EfiMemoryMappedIOPortSpace,
+    EfiPalCode,
+    EfiPersistentMemory,
+    EfiUnacceptedMemoryType,
+    EfiMaxMemoryType
+};
+
 struct _EFI_MEMORY_DESCRIPTOR {
-    uint32_t Type;
+    _EFI_MEMORY_TYPE Type;
     uint32_t Pad;
     EFI_PHYSICAL_ADDRESS PhysicalStart;
     EFI_VIRTUAL_ADDRESS VirtualStart;
