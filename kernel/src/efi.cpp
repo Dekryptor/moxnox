@@ -35,16 +35,20 @@ export bool map_uefi(const loader_block& lb) {
 
     auto d = uefi_mappings;
     for (const auto& m : map_entries) {
-        if (m.type == mem_type::uefi_code)
+        enum mapping_type mt;
+
+        if (m.type == mem_type::uefi_code) {
             d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesCode;
-        else if (m.type == mem_type::uefi_data)
+            mt = mapping_type::read_execute;
+        } else if (m.type == mem_type::uefi_data) {
             d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesData;
-        else
+            mt = mapping_type::read_write;
+        } else
             continue;
 
         for (unsigned int i = 0; i < m.len >> PAGE_SHIFT; i++) {
             if (!map_page<true>(m.addr + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT),
-                                mapping_type::read_write_execute)) { // FIXME
+                                mt)) {
                 print("map_page failed\n");
                 return false;
             }
