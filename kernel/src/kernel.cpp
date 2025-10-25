@@ -199,7 +199,7 @@ void main_thread() {
         bsod("init_console failed\n");
 
     if (GetTime)
-        set_time_from_efi();
+        get_time_from_efi();
 
     if (!init_acpi_done) {
         init_acpi();

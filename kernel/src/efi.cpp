@@ -101,7 +101,7 @@ export constexpr int64_t ymd_to_num(const chrono::year_month_day& d) noexcept {
     return n;
 }
 
-export void set_time_from_efi() {
+export void get_time_from_efi() {
     EFI_TIME now;
 
     auto ret = GetTime(&now, nullptr);
