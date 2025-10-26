@@ -106,6 +106,12 @@ union page_fault_error_code {
 static_assert(sizeof(page_fault_error_code) == 8);
 #endif
 
+#ifdef __aarch64__
+using pte_type = ARM64_HARDWARE_PTE;
+#else
+using pte_type = HARDWARE_PTE;
+#endif
+
 // FIXME - 32-bit processes
 
 static size_t dos_path_len(string_view s) {
@@ -1211,6 +1217,117 @@ static void send_page_tlb_ipi(process& proc, uint64_t va) {
 }
 #endif
 
+static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
+    auto m = find_mapping(p, address);
+
+    if (!m)
+        return false;
+
+    uint64_t page_num = (address - m->address) >> PAGE_SHIFT;
+    uint64_t sect_page_num = page_num + (m->offset >> PAGE_SHIFT);
+    bool send_ipi = false;
+
+    if (pte.cow) {
+        auto pfn = allocate_folio(0) >> PAGE_SHIFT;
+        if (pfn == 0) {
+            print("allocate_folio failed\n");
+            m->release();
+            return false;
+        }
+
+        memcpy(phys_address(pfn << PAGE_SHIFT),
+                phys_address(pte.pfn << PAGE_SHIFT),
+                PAGE_SIZE);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pte.pfn = pfn;
+#pragma GCC diagnostic pop
+    } else {
+        auto ret = visit([&](auto* ptr) {
+            auto& cache = *ptr;
+            uint64_t read_pages;
+
+            auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
+                                                        read_pages);
+            if (!success(status)) {
+                print("read_into_cache_and_pin returned {}\n", status);
+                return false;
+            }
+
+            rangelock_req rlr(cache.rl, sect_page_num, 1);
+
+            page_cache_entry* p;
+
+            {
+                lock_guard lg(cache.cache_lock);
+
+                p = cache.find_page_cache_entry(sect_page_num);
+            }
+
+            if (!p->dirty) {
+                assert(p->pfn != 0);
+
+                auto new_pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                if (new_pfn == 0) {
+                    print("out of memory\n");
+                    cache.unpin(sect_page_num, 1);
+                    m->release();
+                    return false;
+                }
+
+                if (new_pfn != p->pfn) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                    p->pfn = new_pfn;
+#pragma GCC diagnostic pop
+
+                    send_ipi = true;
+                }
+
+                p->dirty = 1;
+                cache.mark_dirty();
+            }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            pte.pfn = p->pfn;
+#pragma GCC diagnostic pop
+
+            cache.unpin(sect_page_num, 1); // FIXME?
+
+            return true;
+        }, m->sect.get_cache());
+
+        if (!ret) {
+            m->release();
+            return false;
+        }
+    }
+
+    m->release();
+
+#ifdef __aarch64__
+    pte.AP = ARM64_PTE_AP_EL0RW;
+
+    __asm __volatile (
+        "tlbi vae1, %x[res]\n"
+        "dsb ish\n"
+        "isb\n"
+        :
+        : [res] "r" (address >> PAGE_SHIFT)
+    );
+#else
+    pte.w = 1;
+#endif
+
+#ifndef __aarch64__ // FIXME
+    if (send_ipi)
+        send_page_tlb_ipi(p, address);
+#endif
+
+    return true;
+}
+
 #ifdef __aarch64__
 extern "C++"
 bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
@@ -1231,103 +1348,8 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
 
         rangelock_req rlr(rl, address >> PAGE_SHIFT, 1);
 
-        if (pte->allow_write && pte->AP == ARM64_PTE_AP_EL0RO) { // mark cache as dirty
-            auto m = find_mapping(*this, address);
-
-            if (!m)
-                return false;
-
-            uint64_t page_num = (address - m->address) >> PAGE_SHIFT;
-            uint64_t sect_page_num = page_num + (m->offset >> PAGE_SHIFT);
-            bool send_ipi = false;
-
-            if (pte->cow) {
-                auto pfn = allocate_folio(0) >> PAGE_SHIFT;
-                if (pfn == 0) {
-                    print("allocate_folio failed\n");
-                    m->release();
-                    return false;
-                }
-
-                memcpy(phys_address(pfn << PAGE_SHIFT),
-                       phys_address(pte->pfn << PAGE_SHIFT),
-                       PAGE_SIZE);
-                pte->pfn = pfn;
-            } else {
-                auto ret = visit([&](auto* ptr) {
-                    uint64_t read_pages;
-                    auto& cache = *ptr;
-
-                    auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
-                                                                read_pages);
-                    if (!success(status)) {
-                        print("read_into_cache_and_pin returned {}\n", status);
-                        return false;
-                    }
-
-                    rangelock_req rlr(cache.rl, sect_page_num, 1);
-
-                    page_cache_entry* p;
-
-                    {
-                        lock_guard lg(cache.cache_lock);
-
-                        p = cache.find_page_cache_entry(sect_page_num);
-                    }
-
-                    if (!p->dirty) {
-                        assert(p->pfn != 0);
-
-                        auto new_pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
-                        if (new_pfn == 0) {
-                            print("out of memory\n");
-                            cache.unpin(sect_page_num, 1);
-                            m->release();
-                            return false;
-                        }
-
-                        if (new_pfn != p->pfn) {
-                            p->pfn = new_pfn;
-
-                            send_ipi = true;
-                        }
-
-                        p->dirty = 1;
-                        cache.mark_dirty();
-                    }
-
-                    pte->pfn = p->pfn;
-
-                    cache.unpin(sect_page_num, 1); // FIXME?
-
-                    return true;
-                }, m->sect.get_cache());
-
-                if (!ret) {
-                    m->release();
-                    return false;
-                }
-            }
-
-            m->release();
-
-            pte->AP = ARM64_PTE_AP_EL0RW;
-
-            __asm __volatile (
-                "tlbi vae1, %x[res]\n"
-                "dsb ish\n"
-                "isb\n"
-                :
-                : [res] "r" (address >> PAGE_SHIFT)
-            );
-
-#if 0 // FIXME
-            if (send_ipi)
-                send_page_tlb_ipi(*this, address);
-#endif
-
-            return true;
-        }
+        if (pte->allow_write && pte->AP == ARM64_PTE_AP_EL0RO) // mark cache as dirty
+            return handle_page_fault2(*this, address, *pte);
 
         return false;
     }
@@ -1365,98 +1387,8 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
         rangelock_req rlr(rl, address >> PAGE_SHIFT, 1);
 
-        if (pte->allow_write && !pte->w) { // mark cache as dirty
-            auto m = find_mapping(*this, address);
-
-            if (!m)
-                return false;
-
-            uint64_t page_num = (address - m->address) >> PAGE_SHIFT;
-            uint64_t sect_page_num = page_num + (m->offset >> PAGE_SHIFT);
-            bool send_ipi = false;
-
-            if (pte->cow) {
-                auto pfn = allocate_folio(0) >> PAGE_SHIFT;
-                if (pfn == 0) {
-                    print("allocate_folio failed\n");
-                    m->release();
-                    return false;
-                }
-
-                memcpy(phys_address(pfn << PAGE_SHIFT),
-                       phys_address(pte->pfn << PAGE_SHIFT),
-                       PAGE_SIZE);
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                pte->pfn = pfn;
-#pragma GCC diagnostic pop
-            } else {
-                visit([&](auto* ptr) {
-                    auto& cache = *ptr;
-                    uint64_t read_pages;
-
-                    auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
-                                                                read_pages);
-                    if (!success(status)) {
-                        print("read_into_cache_and_pin returned {}\n", status);
-                        return false;
-                    }
-
-                    rangelock_req rlr(cache.rl, sect_page_num, 1);
-
-                    page_cache_entry* p;
-
-                    {
-                        lock_guard lg(cache.cache_lock);
-
-                        p = cache.find_page_cache_entry(sect_page_num);
-                    }
-
-                    if (!p->dirty) {
-                        assert(p->pfn != 0);
-
-                        auto new_pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
-                        if (new_pfn == 0) {
-                            print("out of memory\n");
-                            cache.unpin(sect_page_num, 1);
-                            m->release();
-                            return false;
-                        }
-
-                        if (new_pfn != p->pfn) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                            p->pfn = new_pfn;
-#pragma GCC diagnostic pop
-
-                            send_ipi = true;
-                        }
-
-                        p->dirty = 1;
-                        cache.mark_dirty();
-                    }
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                    pte->pfn = p->pfn;
-#pragma GCC diagnostic pop
-
-
-                    cache.unpin(sect_page_num, 1); // FIXME?
-
-                    return true;
-                }, m->sect.get_cache());
-            }
-
-            m->release();
-
-            pte->w = 1;
-
-            if (send_ipi)
-                send_page_tlb_ipi(*this, address);
-
-            return true;
-        }
+        if (pte->allow_write && !pte->w) // mark cache as dirty
+            return handle_page_fault2(*this, address, *pte);
 
         return false;
     }
