@@ -72,6 +72,7 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/x86/serial.cpp
     src/x86/apic.cpp
     src/framebuffer.cpp
+    src/virtio_gpu.cpp
 )
 
 set(AARCH64_MODULES ${GLOBAL_MODULES}
