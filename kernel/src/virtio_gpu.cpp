@@ -30,7 +30,7 @@ const uint64_t VIRTIO_GPU_F_RESOURCE_UUID = 1 << 2;
 const uint64_t VIRTIO_GPU_F_RESOURCE_BLOB = 1 << 3;
 const uint64_t VIRTIO_GPU_F_CONTEXT_INIT = 1 << 4;
 
-const uint64_t SUPPORTED_FEATURES = 0;
+const uint64_t SUPPORTED_FEATURES = VIRTIO_RING_F_INDIRECT_DESC;
 
 struct virtio_gpu_config {
     uint32_t events_read;
@@ -103,7 +103,7 @@ struct virtio_gpu_ctrl_hdr {
 
 static_assert(sizeof(virtio_gpu_ctrl_hdr) == 24);
 
-static const size_t VIRTIO_GPU_MAX_SCANOUTS = 16;
+const size_t VIRTIO_GPU_MAX_SCANOUTS = 16;
 
 struct virtio_gpu_rect {
     uint32_t x;
@@ -167,7 +167,10 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    void get_display_info();
+
     T& dev;
+    uint32_t num_scanouts;
 
 private:
     virt_queue* control_queue = nullptr;
@@ -182,6 +185,10 @@ virtio_gpu<virtio_pci_device>::virtio_gpu(pci_device& d) : dev(*new virtio_pci_d
         return;
     }
 
+    auto& cfg = *(volatile virtio_gpu_config*)(d.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset);
+
+    num_scanouts = cfg.num_scanouts;
+
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
 
@@ -194,6 +201,10 @@ virtio_gpu<virtio_pci_device>::virtio_gpu(pci_device& d) : dev(*new virtio_pci_d
 
 template<>
 virtio_gpu<virtio_mmio_device>::virtio_gpu(virtio_mmio_device& d) : dev(d) {
+    auto& cfg = *(volatile virtio_gpu_config*)(d.config);
+
+    num_scanouts = cfg.num_scanouts;
+
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
 
@@ -204,23 +215,151 @@ virtio_gpu<virtio_mmio_device>::virtio_gpu(virtio_mmio_device& d) : dev(d) {
     }
 }
 
+template<>
+consteval bool format_spec_valid<enum VIRTIO_GPU_RESP>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, enum VIRTIO_GPU_RESP r) {
+    switch (r) {
+        using enum VIRTIO_GPU_RESP;
+
+        case OK_NODATA:
+            return do_format_arg(sp, "", "OK_NODATA");
+        case OK_DISPLAY_INFO:
+            return do_format_arg(sp, "", "OK_DISPLAY_INFO");
+        case OK_CAPSET_INFO:
+            return do_format_arg(sp, "", "OK_CAPSET_INFO");
+        case OK_CAPSET:
+            return do_format_arg(sp, "", "OK_CAPSET");
+        case OK_EDID:
+            return do_format_arg(sp, "", "OK_EDID");
+        case OK_RESOURCE_UUID:
+            return do_format_arg(sp, "", "OK_RESOURCE_UUID");
+        case OK_MAP_INFO:
+            return do_format_arg(sp, "", "OK_MAP_INFO");
+        case ERR_UNSPEC:
+            return do_format_arg(sp, "", "ERR_UNSPEC");
+        case ERR_OUT_OF_MEMORY:
+            return do_format_arg(sp, "", "ERR_OUT_OF_MEMORY");
+        case ERR_INVALID_SCANOUT_ID:
+            return do_format_arg(sp, "", "ERR_INVALID_SCANOUT_ID");
+        case ERR_INVALID_RESOURCE_ID:
+            return do_format_arg(sp, "", "ERR_INVALID_RESOURCE_ID");
+        case ERR_INVALID_CONTEXT_ID:
+            return do_format_arg(sp, "", "ERR_INVALID_CONTEXT_ID");
+        case ERR_INVALID_PARAMETER:
+            return do_format_arg(sp, "", "ERR_INVALID_PARAMETER");
+        default:
+            return do_format_arg(sp, "", (uint32_t)r);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<virtio_gpu_rect>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, const virtio_gpu_rect& r) {
+    sp = do_format_arg(sp, "", "(");
+    sp = do_format_arg(sp, "", r.x);
+    sp = do_format_arg(sp, "", ",");
+    sp = do_format_arg(sp, "", r.y);
+    sp = do_format_arg(sp, "", ",");
+    sp = do_format_arg(sp, "", r.width);
+    sp = do_format_arg(sp, "", ",");
+    sp = do_format_arg(sp, "", r.height);
+    sp = do_format_arg(sp, "", ")");
+
+    return sp;
+}
+
+template<typename T>
+void virtio_gpu<T>::get_display_info() {
+    uint64_t read_bytes;
+
+    auto req = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
+    if (!req) {
+        print("malloc failed\n");
+        return;
+    }
+
+    auto resp = (virtio_gpu_resp_display_info*)malloc(sizeof(virtio_gpu_resp_display_info));
+    if (!resp) {
+        print("malloc failed\n");
+        free(req);
+        return;
+    }
+
+    memset(req, 0, sizeof(*req));
+    req->type = (uint32_t)VIRTIO_GPU_CMD::GET_DISPLAY_INFO;
+
+    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
+    if (!descs) {
+        print("malloc failed\n");
+        free(resp);
+        free(req);
+        return;
+    }
+
+    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].len = sizeof(virtio_gpu_ctrl_hdr);
+    descs[0].flags = VIRTQ_DESC_F_NEXT;
+    descs[0].next = 1;
+
+    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].len = sizeof(virtio_gpu_resp_display_info);
+    descs[1].flags = VIRTQ_DESC_F_WRITE;
+    descs[1].next = 0;
+
+    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
+                                          read_bytes);
+    if (!success(status)) {
+        free(descs);
+        free(resp);
+        free(req);
+        return;
+    }
+
+    free(descs);
+    free(req);
+
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp->hdr.type;
+
+    if (resp_err != VIRTIO_GPU_RESP::OK_DISPLAY_INFO) {
+        print("VIRTIO_GPU_CMD_GET_DISPLAY_INFO returned {}\n", resp_err);
+        free(resp);
+        return;
+    }
+
+    for (size_t i = 0; i < num_scanouts; i++) {
+        print("scanout {}: r {}, enabled {}, flags {}\n",
+              i, resp->pmodes[i].r, resp->pmodes[i].enabled,
+              resp->pmodes[i].flags);
+    }
+
+    // FIXME
+
+    free(resp);
+}
+
 static atomic<uint32_t> virtio_gpu_num = 0;
 
 void found_virtio_pci_gpu(pci_device& dev) {
-    print("FIXME - found_virtio_pci_gpu\n");
-
-    auto v = new virtio_gpu<virtio_pci_device>(dev);
-    if (!v) {
+    auto pv = new virtio_gpu<virtio_pci_device>(dev);
+    if (!pv) {
         print("new failed\n");
         return;
     }
 
-    object_ref ref{*v};
+    object_ref ref{*pv};
 
-    if (!v->dev.initialized)
+    auto& v = *pv;
+
+    if (!v.dev.initialized)
         return;
 
-    v->dev.finalize();
+    v.dev.finalize();
 
     {
         char s[10];
@@ -228,15 +367,15 @@ void found_virtio_pci_gpu(pci_device& dev) {
 
         sp = format(sp, "virtgpu{}", virtio_gpu_num.fetch_add(1));
 
-        auto status = name_object(*v, string_view(s, (size_t)(sp.data() - s)));
+        auto status = name_object(v, string_view(s, (size_t)(sp.data() - s)));
         if (!success(status))
             print("name_object returned {}\n", status);
     }
+
+    v.get_display_info();
 }
 
 static bool found_virtio_mmio_gpu(virtio_mmio_device& dev) {
-    print("FIXME - found_virtio_mmio_gpu\n");
-
     auto pv = new virtio_gpu<virtio_mmio_device>(dev);
     if (!pv) {
         print("new failed\n");
@@ -264,6 +403,8 @@ static bool found_virtio_mmio_gpu(virtio_mmio_device& dev) {
             return false;
         }
     }
+
+    v.get_display_info();
 
     return true;
 }
