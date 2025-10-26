@@ -146,6 +146,23 @@ struct virtio_gpu_resource_create_2d {
 
 static_assert(sizeof(virtio_gpu_resource_create_2d) == 40);
 
+struct virtio_gpu_mem_entry {
+    uint64_t addr;
+    uint32_t length;
+    uint32_t padding;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_gpu_mem_entry) == 16);
+
+struct virtio_gpu_resource_attach_backing {
+    virtio_gpu_ctrl_hdr hdr;
+    uint32_t resource_id;
+    uint32_t nr_entries;
+    virtio_gpu_mem_entry entries[1];
+} __attribute((packed));
+
+static_assert(offsetof(virtio_gpu_resource_attach_backing, entries) == 32);
+
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 export void found_virtio_pci_gpu(pci_device& dev);
@@ -189,9 +206,11 @@ public:
     }
 
     void start();
+
     bool get_display_info(virtio_gpu_resp_display_info& disp_info);
     optional<uint32_t> create_resource(VIRTIO_GPU_FORMAT format,
                                        uint32_t width, uint32_t height);
+    bool attach_backing(uint32_t resource, span<uint8_t> buf);
 
     T& dev;
     uint32_t num_scanouts;
@@ -363,7 +382,7 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
     }
 
     auto resp = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
-    if (!req) {
+    if (!resp) {
         print("malloc failed\n");
         free(req);
         return nullopt;
@@ -392,7 +411,7 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
     descs[0].next = 1;
 
     descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
-    descs[1].len = sizeof(virtio_gpu_resp_display_info);
+    descs[1].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
@@ -418,6 +437,133 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
     }
 
     return num;
+}
+
+unsigned int calc_num_mem_entries(span<const uint8_t> buf) {
+    unsigned int ret = 0;
+
+    // buf must come from vmalloc
+
+    while (!buf.empty()) {
+        auto pa = va_to_pa_lookup((uintptr_t)buf.data());
+        auto order = get_folio_order(pa);
+
+        ret++;
+
+        if (buf.size() <= (size_t)(1 << (PAGE_SHIFT + order)))
+            break;
+
+        buf = buf.subspan(1 << (PAGE_SHIFT + order));
+    }
+
+    return ret;
+}
+
+void populate_entries(span<virtio_gpu_mem_entry> entries, span<const uint8_t> buf) {
+    while (!buf.empty()) {
+        auto pa = va_to_pa_lookup((uintptr_t)buf.data());
+        auto order = get_folio_order(pa);
+        auto& e = entries.front();
+
+        e.addr = pa;
+        e.length = 1 << (PAGE_SHIFT + order);
+        e.padding = 0;
+
+        buf = buf.subspan(1 << (PAGE_SHIFT + order));
+        entries = entries.subspan(1);
+    }
+}
+
+void populate_descs(span<virtq_desc> descs, span<const uint8_t> buf) {
+    uint16_t i = 0;
+
+    while (!buf.empty()) {
+        auto pa = va_to_pa_lookup((uintptr_t)buf.data());
+        auto order = get_folio_order(pa);
+        auto& d = descs.front();
+
+        d.addr = pa;
+        d.len = (uint32_t)min(buf.size(), (size_t)(1 << (PAGE_SHIFT + order)));
+        d.flags = VIRTQ_DESC_F_NEXT;
+        d.next = i + 1;
+
+        if (buf.size() <= (size_t)(1 << (PAGE_SHIFT + order)))
+            break;
+
+        buf = buf.subspan(1 << (PAGE_SHIFT + order));
+        descs = descs.subspan(1);
+        i++;
+    }
+}
+
+template<typename T>
+bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
+    uint64_t read_bytes;
+
+    auto num_entries = calc_num_mem_entries(buf);
+
+    auto req_size = (uint32_t)(offsetof(virtio_gpu_resource_attach_backing, entries) +
+                               (num_entries * sizeof(virtio_gpu_mem_entry)));
+
+    auto req = (virtio_gpu_resource_attach_backing*)vmalloc(req_size);
+    if (!req) {
+        print("vmalloc failed\n");
+        return false;
+    }
+
+    auto resp = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
+    if (!resp) {
+        print("malloc failed\n");
+        vfree(req, req_size);
+        return false;
+    }
+
+    memset(req, 0, req_size);
+    req->hdr.type = (uint32_t)VIRTIO_GPU_CMD::RESOURCE_ATTACH_BACKING;
+    req->resource_id = resource;
+    req->nr_entries = num_entries;
+
+    populate_entries(span(req->entries, num_entries), buf);
+
+    auto req_entries = calc_num_mem_entries(span((uint8_t*)req, req_size));
+
+    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * (req_entries + 1));
+    if (!descs) {
+        print("malloc failed\n");
+        free(resp);
+        vfree(req, req_size);
+        return false;
+    }
+
+    populate_descs(span(descs, num_entries), span((uint8_t*)req, req_size));
+
+    descs[req_entries].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[req_entries].len = sizeof(virtio_gpu_ctrl_hdr);
+    descs[req_entries].flags = VIRTQ_DESC_F_WRITE;
+    descs[req_entries].next = 0;
+
+    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (req_entries + 1)),
+                                          read_bytes);
+    if (!success(status)) {
+        free(descs);
+        free(resp);
+        vfree(req, req_size);
+        return false;
+    }
+
+    free(descs);
+    vfree(req, req_size);
+
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp->type;
+
+    free(resp);
+
+    if (resp_err != VIRTIO_GPU_RESP::OK_NODATA) {
+        print("VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING returned {}\n", resp_err);
+        return false;
+    }
+
+    return true;
 }
 
 template<typename T>
@@ -455,6 +601,7 @@ void virtio_gpu<T>::start() {
 
     // FIXME - multiple scanouts
 
+    // FIXME - unref resource in destructor
     auto res = create_resource(VIRTIO_GPU_FORMAT::B8G8R8A8_UNORM, r.width,
                                r.height);
     if (!res.has_value()) {
@@ -462,7 +609,20 @@ void virtio_gpu<T>::start() {
         return;
     }
 
-    // FIXME - attach backing
+    // FIXME - vfree in destructor
+    auto backing = (uint32_t*)vmalloc(sizeof(uint32_t) * r.width * r.height);
+    if (!backing) {
+        print("vmalloc failed\n");
+        // FIXME - unref resource
+        return;
+    }
+
+    if (!attach_backing(*res, span((uint8_t*)backing, sizeof(uint32_t) * r.width * r.height))) {
+        print("attach_backing failed\n");
+        // FIXME - vfree
+        // FIXME - unref resource
+    }
+
     // FIXME - set scanout
 
     // FIXME - replace existing framebuffer if present

@@ -2437,7 +2437,7 @@ static uint64_t try_allocate_folio(uint8_t order, enum page_state state = page_s
     return allocate_folio_no_lock(0, state);
 }
 
-static uint8_t get_folio_order(uint64_t pa) {
+export uint8_t get_folio_order(uint64_t pa) {
     return pages[pa >> PAGE_SHIFT].order;
 }
 
