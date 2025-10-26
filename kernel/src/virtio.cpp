@@ -32,7 +32,7 @@ import apic;
 using namespace std;
 
 // FIXME - allow dynamic queue size (maximum supported by device?)
-const size_t QUEUE_SIZE = 32;
+const size_t QUEUE_SIZE = 16;
 
 export const uint8_t VIRTQ_DESC_F_NEXT = 1;
 export const uint8_t VIRTQ_DESC_F_WRITE = 2;
