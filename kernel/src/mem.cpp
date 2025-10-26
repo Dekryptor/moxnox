@@ -2459,7 +2459,8 @@ export void* vmalloc(size_t size) {
     auto va = orig_va;
 
     while (pages_left > 0) {
-        auto max_order = pages_to_max_folio_order(pages_left);
+        // auto max_order = pages_to_max_folio_order(pages_left); // FIXME
+        uint8_t max_order = 0;
 
         auto pa = try_allocate_folio(max_order);
         if (!pa) {
