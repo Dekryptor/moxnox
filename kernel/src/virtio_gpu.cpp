@@ -125,6 +125,27 @@ struct virtio_gpu_resp_display_info {
 
 static_assert(sizeof(virtio_gpu_resp_display_info) == 408);
 
+enum class VIRTIO_GPU_FORMAT : uint32_t {
+    B8G8R8A8_UNORM = 1,
+    B8G8R8X8_UNORM = 2,
+    A8R8G8B8_UNORM = 3,
+    X8R8G8B8_UNORM = 4,
+    R8G8B8A8_UNORM = 67,
+    X8B8G8R8_UNORM = 68,
+    A8B8G8R8_UNORM = 121,
+    R8G8B8X8_UNORM = 134,
+};
+
+struct virtio_gpu_resource_create_2d {
+    virtio_gpu_ctrl_hdr hdr;
+    uint32_t resource_id;
+    VIRTIO_GPU_FORMAT format;
+    uint32_t width;
+    uint32_t height;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_gpu_resource_create_2d) == 40);
+
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 export void found_virtio_pci_gpu(pci_device& dev);
@@ -169,6 +190,8 @@ public:
 
     void start();
     bool get_display_info(virtio_gpu_resp_display_info& disp_info);
+    optional<uint32_t> create_resource(VIRTIO_GPU_FORMAT format,
+                                       uint32_t width, uint32_t height);
 
     T& dev;
     uint32_t num_scanouts;
@@ -176,6 +199,7 @@ public:
 private:
     virt_queue* control_queue = nullptr;
     virt_queue* cursor_queue = nullptr;
+    atomic<uint32_t> resource_num = 1;
 };
 
 template<>
@@ -327,6 +351,76 @@ bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
 }
 
 template<typename T>
+optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
+                                                  uint32_t width,
+                                                  uint32_t height) {
+    uint64_t read_bytes;
+
+    auto req = (virtio_gpu_resource_create_2d*)malloc(sizeof(virtio_gpu_resource_create_2d));
+    if (!req) {
+        print("malloc failed\n");
+        return nullopt;
+    }
+
+    auto resp = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
+    if (!req) {
+        print("malloc failed\n");
+        free(req);
+        return nullopt;
+    }
+
+    uint32_t num = resource_num.fetch_add(1);
+
+    memset(req, 0, sizeof(*req));
+    req->hdr.type = (uint32_t)VIRTIO_GPU_CMD::RESOURCE_CREATE_2D;
+    req->resource_id = num;
+    req->format = format;
+    req->width = width;
+    req->height = height;
+
+    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
+    if (!descs) {
+        print("malloc failed\n");
+        free(resp);
+        free(req);
+        return nullopt;
+    }
+
+    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].len = sizeof(virtio_gpu_resource_create_2d);
+    descs[0].flags = VIRTQ_DESC_F_NEXT;
+    descs[0].next = 1;
+
+    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].len = sizeof(virtio_gpu_resp_display_info);
+    descs[1].flags = VIRTQ_DESC_F_WRITE;
+    descs[1].next = 0;
+
+    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
+                                          read_bytes);
+    if (!success(status)) {
+        free(descs);
+        free(resp);
+        free(req);
+        return nullopt;
+    }
+
+    free(descs);
+    free(req);
+
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp->type;
+
+    free(resp);
+
+    if (resp_err != VIRTIO_GPU_RESP::OK_NODATA) {
+        print("VIRTIO_GPU_CMD_RESOURCE_CREATE_2D returned {}\n", resp_err);
+        return nullopt;
+    }
+
+    return num;
+}
+
+template<typename T>
 void virtio_gpu<T>::start() {
     auto disp_info = (virtio_gpu_resp_display_info*)malloc(sizeof(virtio_gpu_resp_display_info));
     if (!disp_info) {
@@ -346,7 +440,32 @@ void virtio_gpu<T>::start() {
               disp_info->pmodes[i].flags);
     }
 
+    if (!disp_info->pmodes[0].enabled) {
+        print("virtio_gpu::start: scanout 0 not enabled\n");
+        free(disp_info);
+        return;
+    }
+
+    auto r = disp_info->pmodes[0].r;
+
     free(disp_info);
+
+    // FIXME - check video cmdline option
+    // FIXME - get EDID?
+
+    // FIXME - multiple scanouts
+
+    auto res = create_resource(VIRTIO_GPU_FORMAT::B8G8R8A8_UNORM, r.width,
+                               r.height);
+    if (!res.has_value()) {
+        print("virtio_gpu::create_resource failed\n");
+        return;
+    }
+
+    // FIXME - attach backing
+    // FIXME - set scanout
+
+    // FIXME - replace existing framebuffer if present
 }
 
 static atomic<uint32_t> virtio_gpu_num = 0;
