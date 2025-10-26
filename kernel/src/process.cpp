@@ -1218,6 +1218,21 @@ static void send_page_tlb_ipi(process& proc, uint64_t va) {
 #endif
 
 static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
+    rangelock_req rlr(p.rl, address >> PAGE_SHIFT, 1);
+
+    if (!pte.allow_write)
+        return false;
+
+#ifdef __aarch64__
+    if (pte.AP != ARM64_PTE_AP_EL0RO)
+        return false;
+#else
+    if (pte.w)
+        return false;
+#endif
+
+    // mark cache as dirty
+
     auto m = find_mapping(p, address);
 
     if (!m)
@@ -1346,12 +1361,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
         if (pte->AP == ARM64_PTE_AP_EL1RW || pte->AP == ARM64_PTE_AP_EL1RO)
             return false;
 
-        rangelock_req rlr(rl, address >> PAGE_SHIFT, 1);
-
-        if (pte->allow_write && pte->AP == ARM64_PTE_AP_EL0RO) // mark cache as dirty
-            return handle_page_fault2(*this, address, *pte);
-
-        return false;
+        return handle_page_fault2(*this, address, *pte);
     }
 
     if (pte && pte->reserved)
@@ -1385,12 +1395,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
         if (!pte)
             return false;
 
-        rangelock_req rlr(rl, address >> PAGE_SHIFT, 1);
-
-        if (pte->allow_write && !pte->w) // mark cache as dirty
-            return handle_page_fault2(*this, address, *pte);
-
-        return false;
+        return handle_page_fault2(*this, address, *pte);
     }
 
     if (pte && pte->reserved)
