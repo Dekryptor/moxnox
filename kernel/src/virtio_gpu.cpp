@@ -167,7 +167,8 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    void get_display_info();
+    void start();
+    bool get_display_info(virtio_gpu_resp_display_info& disp_info);
 
     T& dev;
     uint32_t num_scanouts;
@@ -275,20 +276,13 @@ span<char> do_format_arg(span<char> sp, string_view, const virtio_gpu_rect& r) {
 }
 
 template<typename T>
-void virtio_gpu<T>::get_display_info() {
+bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
     uint64_t read_bytes;
 
     auto req = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
     if (!req) {
         print("malloc failed\n");
-        return;
-    }
-
-    auto resp = (virtio_gpu_resp_display_info*)malloc(sizeof(virtio_gpu_resp_display_info));
-    if (!resp) {
-        print("malloc failed\n");
-        free(req);
-        return;
+        return false;
     }
 
     memset(req, 0, sizeof(*req));
@@ -297,9 +291,8 @@ void virtio_gpu<T>::get_display_info() {
     auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
     if (!descs) {
         print("malloc failed\n");
-        free(resp);
         free(req);
-        return;
+        return false;
     }
 
     descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
@@ -307,7 +300,7 @@ void virtio_gpu<T>::get_display_info() {
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].addr = (phys_memory_pfn(&disp_info) << PAGE_SHIFT) + ((uintptr_t)&disp_info & (PAGE_SIZE - 1));
     descs[1].len = sizeof(virtio_gpu_resp_display_info);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
@@ -316,31 +309,44 @@ void virtio_gpu<T>::get_display_info() {
                                           read_bytes);
     if (!success(status)) {
         free(descs);
-        free(resp);
         free(req);
-        return;
+        return false;
     }
 
     free(descs);
     free(req);
 
-    auto resp_err = (enum VIRTIO_GPU_RESP)resp->hdr.type;
+    auto resp_err = (enum VIRTIO_GPU_RESP)disp_info.hdr.type;
 
     if (resp_err != VIRTIO_GPU_RESP::OK_DISPLAY_INFO) {
         print("VIRTIO_GPU_CMD_GET_DISPLAY_INFO returned {}\n", resp_err);
-        free(resp);
+        return false;
+    }
+
+    return true;
+}
+
+template<typename T>
+void virtio_gpu<T>::start() {
+    auto disp_info = (virtio_gpu_resp_display_info*)malloc(sizeof(virtio_gpu_resp_display_info));
+    if (!disp_info) {
+        print("malloc failed\n");
+        return;
+    }
+
+    if (!get_display_info(*disp_info)) {
+        print("virtio_gpu::get_display_info failed\n");
+        free(disp_info);
         return;
     }
 
     for (size_t i = 0; i < num_scanouts; i++) {
         print("scanout {}: r {}, enabled {}, flags {}\n",
-              i, resp->pmodes[i].r, resp->pmodes[i].enabled,
-              resp->pmodes[i].flags);
+              i, disp_info->pmodes[i].r, disp_info->pmodes[i].enabled,
+              disp_info->pmodes[i].flags);
     }
 
-    // FIXME
-
-    free(resp);
+    free(disp_info);
 }
 
 static atomic<uint32_t> virtio_gpu_num = 0;
@@ -372,7 +378,7 @@ void found_virtio_pci_gpu(pci_device& dev) {
             print("name_object returned {}\n", status);
     }
 
-    v.get_display_info();
+    v.start();
 }
 
 static bool found_virtio_mmio_gpu(virtio_mmio_device& dev) {
@@ -404,7 +410,7 @@ static bool found_virtio_mmio_gpu(virtio_mmio_device& dev) {
         }
     }
 
-    v.get_display_info();
+    v.start();
 
     return true;
 }
