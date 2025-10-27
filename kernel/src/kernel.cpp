@@ -218,10 +218,8 @@ void main_thread() {
 
     _printk = safe_print;
 
-#ifndef __aarch64__
     if ((console_type == console_type::boot_framebuffer || console_type == console_type::other_framebuffer) && !init_fb_console())
         print("init_fb_console failed\n");
-#endif
 
     print(MOXNOX_VERSION_STRING "\n");
 

@@ -167,55 +167,57 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     add_subdirectory(bootloader/aarch64)
 else()
     add_subdirectory(bootloader/x86)
+endif()
 
-    set(FREETYPE_FILES freetype/src/autofit/autofit.c
-        freetype/src/base/ftbase.c
-        freetype/src/base/ftbbox.c
-        freetype/src/base/ftbdf.c
-        freetype/src/base/ftbitmap.c
-        freetype/src/base/ftcid.c
-        freetype/src/base/ftfstype.c
-        freetype/src/base/ftgasp.c
-        freetype/src/base/ftglyph.c
-        freetype/src/base/ftgxval.c
-        freetype/src/base/ftinit.c
-        freetype/src/base/ftmm.c
-        freetype/src/base/ftotval.c
-        freetype/src/base/ftpatent.c
-        freetype/src/base/ftpfr.c
-        freetype/src/base/ftstroke.c
-        freetype/src/base/ftsynth.c
-        freetype/src/base/fttype1.c
-        freetype/src/base/ftwinfnt.c
-        freetype/src/bzip2/ftbzip2.c
-        freetype/src/cache/ftcache.c
-        freetype/src/gzip/ftgzip.c
-        freetype/src/lzw/ftlzw.c
-        freetype/src/pcf/pcf.c
-        freetype/src/pfr/pfr.c
-        freetype/src/pshinter/pshinter.c
-        freetype/src/raster/raster.c
-        freetype/src/sfnt/sfnt.c
-        freetype/src/smooth/smooth.c
-        freetype/src/truetype/truetype.c
-        freetype/src/winfonts/winfnt.c)
+set(FREETYPE_FILES freetype/src/autofit/autofit.c
+    freetype/src/base/ftbase.c
+    freetype/src/base/ftbbox.c
+    freetype/src/base/ftbdf.c
+    freetype/src/base/ftbitmap.c
+    freetype/src/base/ftcid.c
+    freetype/src/base/ftfstype.c
+    freetype/src/base/ftgasp.c
+    freetype/src/base/ftglyph.c
+    freetype/src/base/ftgxval.c
+    freetype/src/base/ftinit.c
+    freetype/src/base/ftmm.c
+    freetype/src/base/ftotval.c
+    freetype/src/base/ftpatent.c
+    freetype/src/base/ftpfr.c
+    freetype/src/base/ftstroke.c
+    freetype/src/base/ftsynth.c
+    freetype/src/base/fttype1.c
+    freetype/src/base/ftwinfnt.c
+    freetype/src/bzip2/ftbzip2.c
+    freetype/src/cache/ftcache.c
+    freetype/src/gzip/ftgzip.c
+    freetype/src/lzw/ftlzw.c
+    freetype/src/pcf/pcf.c
+    freetype/src/pfr/pfr.c
+    freetype/src/pshinter/pshinter.c
+    freetype/src/raster/raster.c
+    freetype/src/sfnt/sfnt.c
+    freetype/src/smooth/smooth.c
+    freetype/src/truetype/truetype.c
+    freetype/src/winfonts/winfnt.c)
 
-    add_library(freetype-static STATIC ${FREETYPE_FILES})
+add_library(freetype-static STATIC ${FREETYPE_FILES})
 
-    target_compile_definitions(freetype-static PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
-    target_compile_definitions(freetype-static PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
-    target_compile_definitions(freetype-static PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
-    target_compile_options(freetype-static PRIVATE -mno-stack-arg-probe -gdwarf-5)
-    target_include_directories(freetype-static PRIVATE include)
-    target_include_directories(freetype-static PUBLIC freetype/include)
+target_compile_definitions(freetype-static PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
+target_compile_definitions(freetype-static PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
+target_compile_definitions(freetype-static PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
+target_compile_options(freetype-static PRIVATE -mno-stack-arg-probe -gdwarf-5)
+target_include_directories(freetype-static PRIVATE include)
+target_include_directories(freetype-static PUBLIC freetype/include)
 
-    # undo freetype's dllexport markings
-    add_custom_command(
-        TARGET freetype-static
-        POST_BUILD
-        COMMAND objcopy --remove-section .drectve "${CMAKE_CURRENT_BINARY_DIR}/libfreetype-static.a"
-    )
+# undo freetype's dllexport markings
+add_custom_command(
+    TARGET freetype-static
+    POST_BUILD
+    COMMAND objcopy --remove-section .drectve "${CMAKE_CURRENT_BINARY_DIR}/libfreetype-static.a"
+)
 
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     add_library(freetype SHARED ${FREETYPE_FILES} ${CMAKE_SOURCE_DIR}/ftshim.cpp)
 
     target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)

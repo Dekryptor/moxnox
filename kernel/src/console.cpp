@@ -8,12 +8,9 @@ module;
 #include <mutex>
 #include <console.h>
 #include "handle.h"
-
-#ifndef __aarch64__
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
-#endif
 
 export module console;
 
@@ -21,7 +18,6 @@ export module console;
 import inout;
 import serial;
 import pci;
-import framebuffer;
 #endif
 
 import print;
@@ -44,6 +40,7 @@ import disable_interrupts;
 import cpu_block;
 import spinlock;
 import loaderblock;
+import framebuffer;
 
 using namespace std;
 
@@ -76,18 +73,19 @@ export object_ref console_chardev;
 static object_ref kmsg;
 static const unsigned int console_buffer_pages = 4;
 
-#ifndef __aarch64__
 static FT_Library ft = nullptr;
 static unsigned int font_width, font_height, font_descender;
-static bool fb_console_started = false, text_console_started = false;
+static bool fb_console_started = false;
 static bool show_cursor = true;
+
+#ifndef __aarch64__
+static bool text_console_started = false;;
 #endif
 
 static spinlock early_print_lock;
 static char early_print_buf[65536];
 static size_t early_print_buf_size = 0;
 
-#ifndef __aarch64__
 static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
 // font.S
@@ -117,7 +115,6 @@ public:
 
     nt_status flush(bool go_readonly) override;
 };
-#endif
 
 struct kmsg_buf_page {
     list_entry le;
@@ -139,7 +136,6 @@ public:
     list_entry pages = { &pages, &pages };
 };
 
-#ifndef __aarch64__
 struct console_info {
     uint32_t bg;
     uint32_t fg;
@@ -161,17 +157,6 @@ static const uint32_t vt100_colours[] = {
     0xb2b2b2,
 };
 
-static const enum console_colour vt100_colours_text[] = {
-    console_colour::black,
-    console_colour::red,
-    console_colour::green,
-    console_colour::brown,
-    console_colour::blue,
-    console_colour::magenta,
-    console_colour::cyan,
-    console_colour::light_grey,
-};
-
 static const uint32_t vt100_bright_colours[] = {
     0x686868,
     0xff5454,
@@ -181,6 +166,18 @@ static const uint32_t vt100_bright_colours[] = {
     0xff54ff,
     0x54ffff,
     0xffffff,
+};
+
+#ifndef __aarch64__
+static const enum console_colour vt100_colours_text[] = {
+    console_colour::black,
+    console_colour::red,
+    console_colour::green,
+    console_colour::brown,
+    console_colour::blue,
+    console_colour::magenta,
+    console_colour::cyan,
+    console_colour::light_grey,
 };
 
 static const enum console_colour vt100_bright_colours_text[] = {
@@ -193,6 +190,7 @@ static const enum console_colour vt100_bright_colours_text[] = {
     console_colour::light_cyan,
     console_colour::white,
 };
+#endif
 
 static const unsigned int DEFAULT_BG_COLOUR_INDEX = 0;
 static const unsigned int DEFAULT_FG_COLOUR_INDEX = 7;
@@ -201,15 +199,16 @@ static const uint32_t DEFAULT_FG_COLOUR = vt100_colours[DEFAULT_FG_COLOUR_INDEX]
 static uint32_t bg_colour_index = 0, fg_colour_index = 7;
 static bool bg_bright = false, fg_bright = false, bold = false;
 static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
+#ifndef __aarch64__
 static const auto DEFAULT_BG_COLOUR_TEXT = console_colour::black;
 static const auto DEFAULT_FG_COLOUR_TEXT = console_colour::light_grey;
 static enum console_colour bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
 static enum console_colour fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+#endif
 
 static const size_t EDID_SIZE = 128;
 static uint8_t edid[EDID_SIZE];
 static bool have_edid;
-#endif
 
 export enum class console_type {
 #ifndef __aarch64__
@@ -222,7 +221,6 @@ export enum class console_type {
 
 export enum console_type console_type;
 
-#ifndef __aarch64__
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
@@ -235,7 +233,6 @@ struct console_fb {
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
 };
-#endif
 
 struct console_text {
     void console_overflow(unsigned int rows = 1);
@@ -250,10 +247,7 @@ struct console_text {
     unsigned int console_rows, console_cols;
 };
 
-#ifndef __aarch64__
 static console_fb console_fb_inst;
-#endif
-
 static console_text console_text_inst;
 
 #ifndef __aarch64__
@@ -282,6 +276,191 @@ void console_text::move_cursor() {
     }
 }
 
+void console_text::console_overflow(unsigned int rows) {
+    memcpy(text_console.data(), &text_console[console_cols * rows],
+            (console_rows - rows) * console_cols * sizeof(uint16_t));
+
+    for (uint8_t y = 0; y < rows; y++) {
+        for (uint8_t x = 0; x < console_cols; x++) {
+            text_console_putc(x, (uint8_t)(console_rows - rows + y), ' ',
+                                bg_colour_text, fg_colour_text);
+        }
+    }
+}
+
+void console_text::print_char(char32_t c, bool no_move) {
+    if (c == '\n') {
+        if (!no_move) {
+            cursor_x = 0;
+            cursor_y++;
+
+            if (cursor_y == console_rows) {
+                console_overflow();
+                cursor_y = console_rows - 1;
+            }
+        }
+    } else if (c == '\b') {
+        if (cursor_x > 0) { // FIXME
+            cursor_x--;
+
+            if (console_output_mode & ENABLE_PROCESSED_OUTPUT) {
+                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
+                                  bg_colour_text, fg_colour_text);
+            }
+        }
+    } else {
+        text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
+                          bg_colour_text, fg_colour_text);
+
+        if (!no_move) {
+            cursor_x++;
+
+            if (cursor_x == console_cols) {
+                cursor_x = 0;
+                cursor_y++;
+
+                if (cursor_y == console_rows) {
+                    console_overflow();
+                    cursor_y = console_rows - 1;
+                }
+            }
+        }
+    }
+}
+
+static void recalc_colours_text(bool fg) {
+    bool bright = fg ? fg_bright : bg_bright;
+    unsigned int index = fg ? fg_colour_index : bg_colour_index;
+    enum console_colour* colour = fg ? &fg_colour_text : &bg_colour_text;
+
+    if (bright || (fg && bold))
+        *colour = vt100_bright_colours_text[index];
+    else
+        *colour = vt100_colours_text[index];
+}
+
+void console_text::handle_sgr_part_num(unsigned int num) {
+    switch (num) {
+        case 0: // reset
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_bright = false;
+            bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+
+            bold = false;
+            break;
+
+        case 1:
+            bold = true;
+            recalc_colours_text(true);
+            break;
+
+        // FIXME - 5 - blink
+        // FIXME - 7 - reverse video
+
+        case 22:
+            bold = false;
+            recalc_colours_text(false);
+            break;
+
+        // FIXME - 25 - not blinking
+
+        case 30:
+        case 31:
+        case 32:
+        case 33:
+        case 34:
+        case 35:
+        case 36:
+        case 37:
+            fg_colour_index = num - 30;
+            fg_bright = false;
+            recalc_colours_text(true);
+            break;
+
+        case 39:
+            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
+            fg_bright = false;
+            fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
+            break;
+
+        case 40:
+        case 41:
+        case 42:
+        case 43:
+        case 44:
+        case 45:
+        case 46:
+        case 47:
+            bg_colour_index = num - 40;
+            bg_bright = false;
+            recalc_colours_text(false);
+            break;
+
+        case 49:
+            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
+            bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
+            bg_bright = false;
+            break;
+
+        case 90:
+        case 91:
+        case 92:
+        case 93:
+        case 94:
+        case 95:
+        case 96:
+        case 97:
+            fg_colour_index = num - 90;
+            fg_bright = true;
+            recalc_colours_text(true);
+            break;
+
+        case 100:
+        case 101:
+        case 102:
+        case 103:
+        case 104:
+        case 105:
+        case 106:
+        case 107:
+            bg_colour_index = num - 100;
+            bg_bright = true;
+            recalc_colours_text(false);
+            break;
+    }
+}
+
+void console_text::enable_cursor(bool enabled) {
+    if (enabled) {
+        uint8_t cursor_start = 14, cursor_end = 15;
+
+        outb(0x3d4, 0x0a);
+        outb(0x3d5, (inb(0x3d5) & 0xc0) | cursor_start);
+
+        outb(0x3d4, 0x0b);
+        outb(0x3d5, (inb(0x3d5) & 0xe0) | cursor_end);
+    } else {
+        outb(0x3d4, 0xa);
+        outb(0x3d5, 0x20);
+    }
+}
+
+void console_text::scroll_down(unsigned int rows) {
+    memmove(&text_console[console_cols * rows], text_console.data(),
+            (console_rows - rows) * console_cols * sizeof(uint16_t));
+
+    for (uint8_t y = 0; y < rows; y++) {
+        for (uint8_t x = 0; x < console_cols; x++) {
+            text_console_putc(x, y, ' ', bg_colour_text, fg_colour_text);
+        }
+    }
+}
+#endif
+
 void console_fb::console_overflow(unsigned int rows) {
     memcpy(console, &console[console_cols * rows], (console_rows - rows) * console_cols * sizeof(console_info));
 
@@ -299,18 +478,6 @@ void console_fb::console_overflow(unsigned int rows) {
         c->glyph = glyph;
         c->bold = bold;
         c++;
-    }
-}
-
-void console_text::console_overflow(unsigned int rows) {
-    memcpy(text_console.data(), &text_console[console_cols * rows],
-            (console_rows - rows) * console_cols * sizeof(uint16_t));
-
-    for (uint8_t y = 0; y < rows; y++) {
-        for (uint8_t x = 0; x < console_cols; x++) {
-            text_console_putc(x, (uint8_t)(console_rows - rows + y), ' ',
-                                bg_colour_text, fg_colour_text);
-        }
     }
 }
 
@@ -385,46 +552,6 @@ void console_fb::print_char(char32_t c, bool no_move) {
     }
 }
 
-void console_text::print_char(char32_t c, bool no_move) {
-    if (c == '\n') {
-        if (!no_move) {
-            cursor_x = 0;
-            cursor_y++;
-
-            if (cursor_y == console_rows) {
-                console_overflow();
-                cursor_y = console_rows - 1;
-            }
-        }
-    } else if (c == '\b') {
-        if (cursor_x > 0) { // FIXME
-            cursor_x--;
-
-            if (console_output_mode & ENABLE_PROCESSED_OUTPUT) {
-                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
-                                  bg_colour_text, fg_colour_text);
-            }
-        }
-    } else {
-        text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
-                          bg_colour_text, fg_colour_text);
-
-        if (!no_move) {
-            cursor_x++;
-
-            if (cursor_x == console_cols) {
-                cursor_x = 0;
-                cursor_y++;
-
-                if (cursor_y == console_rows) {
-                    console_overflow();
-                    cursor_y = console_rows - 1;
-                }
-            }
-        }
-    }
-}
-
 void console_fb::cursor_changed() {
     if (show_cursor) {
         auto& p = console[(cursor_y * console_cols) + cursor_x];
@@ -442,17 +569,6 @@ static void recalc_colours(bool fg) {
         *colour = vt100_bright_colours[index];
     else
         *colour = vt100_colours[index];
-}
-
-static void recalc_colours_text(bool fg) {
-    bool bright = fg ? fg_bright : bg_bright;
-    unsigned int index = fg ? fg_colour_index : bg_colour_index;
-    enum console_colour* colour = fg ? &fg_colour_text : &bg_colour_text;
-
-    if (bright || (fg && bold))
-        *colour = vt100_bright_colours_text[index];
-    else
-        *colour = vt100_colours_text[index];
 }
 
 void console_fb::handle_sgr_part_num(unsigned int num) {
@@ -560,118 +676,8 @@ void console_fb::handle_sgr_part_num(unsigned int num) {
     }
 }
 
-void console_text::handle_sgr_part_num(unsigned int num) {
-    switch (num) {
-        case 0: // reset
-            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
-            fg_bright = false;
-            fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
-
-            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
-            bg_bright = false;
-            bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
-
-            bold = false;
-            break;
-
-        case 1:
-            bold = true;
-            recalc_colours_text(true);
-            break;
-
-        // FIXME - 5 - blink
-        // FIXME - 7 - reverse video
-
-        case 22:
-            bold = false;
-            recalc_colours_text(false);
-            break;
-
-        // FIXME - 25 - not blinking
-
-        case 30:
-        case 31:
-        case 32:
-        case 33:
-        case 34:
-        case 35:
-        case 36:
-        case 37:
-            fg_colour_index = num - 30;
-            fg_bright = false;
-            recalc_colours_text(true);
-            break;
-
-        case 39:
-            fg_colour_index = DEFAULT_FG_COLOUR_INDEX;
-            fg_bright = false;
-            fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
-            break;
-
-        case 40:
-        case 41:
-        case 42:
-        case 43:
-        case 44:
-        case 45:
-        case 46:
-        case 47:
-            bg_colour_index = num - 40;
-            bg_bright = false;
-            recalc_colours_text(false);
-            break;
-
-        case 49:
-            bg_colour_index = DEFAULT_BG_COLOUR_INDEX;
-            bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
-            bg_bright = false;
-            break;
-
-        case 90:
-        case 91:
-        case 92:
-        case 93:
-        case 94:
-        case 95:
-        case 96:
-        case 97:
-            fg_colour_index = num - 90;
-            fg_bright = true;
-            recalc_colours_text(true);
-            break;
-
-        case 100:
-        case 101:
-        case 102:
-        case 103:
-        case 104:
-        case 105:
-        case 106:
-        case 107:
-            bg_colour_index = num - 100;
-            bg_bright = true;
-            recalc_colours_text(false);
-            break;
-    }
-}
-
 void console_fb::enable_cursor(bool enabled) {
     show_cursor = enabled;
-}
-
-void console_text::enable_cursor(bool enabled) {
-    if (enabled) {
-        uint8_t cursor_start = 14, cursor_end = 15;
-
-        outb(0x3d4, 0x0a);
-        outb(0x3d5, (inb(0x3d5) & 0xc0) | cursor_start);
-
-        outb(0x3d4, 0x0b);
-        outb(0x3d5, (inb(0x3d5) & 0xe0) | cursor_end);
-    } else {
-        outb(0x3d4, 0xa);
-        outb(0x3d5, 0x20);
-    }
 }
 
 void console_fb::scroll_down(unsigned int rows) {
@@ -692,17 +698,6 @@ void console_fb::scroll_down(unsigned int rows) {
         c->glyph = glyph;
         c->bold = bold;
         c++;
-    }
-}
-
-void console_text::scroll_down(unsigned int rows) {
-    memmove(&text_console[console_cols * rows], text_console.data(),
-            (console_rows - rows) * console_cols * sizeof(uint16_t));
-
-    for (uint8_t y = 0; y < rows; y++) {
-        for (uint8_t x = 0; x < console_cols; x++) {
-            text_console_putc(x, y, ' ', bg_colour_text, fg_colour_text);
-        }
     }
 }
 
@@ -894,7 +889,6 @@ static void copy_shadow_framebuffer() {
         }
     }
 }
-#endif
 
 static void add_to_early_print_buf(string_view s) {
     lock_guard lock(early_print_lock);
@@ -910,9 +904,7 @@ static void add_to_early_print_buf(string_view s) {
 }
 
 void early_print(string_view s) {
-#ifdef __aarch64__
-    add_to_early_print_buf(s);
-#else
+#ifndef __aarch64__
     if (console_type == console_type::text) {
         if (!text_console_started) {
             add_to_early_print_buf(s);
@@ -922,6 +914,7 @@ void early_print(string_view s) {
         do_print(console_text_inst, s);
         return;
     }
+#endif
 
     if (!fb_console_started) {
         add_to_early_print_buf(s);
@@ -940,7 +933,6 @@ void early_print(string_view s) {
         copy_shadow_framebuffer();
 
     enable_preempt();
-#endif
 }
 
 export void safe_print(string_view s) {
@@ -961,7 +953,6 @@ export void safe_print(string_view s) {
 #endif
 }
 
-#ifndef __aarch64__
 static void console_event_recv() {
     auto buf_size = console_buffer_pages << PAGE_SHIFT;
 
@@ -984,7 +975,6 @@ static void console_event_recv() {
 
     vfree(buf, buf_size);
 }
-#endif
 
 static void flush_early_print() {
     safe_print(string_view(early_print_buf, early_print_buf_size));
@@ -1059,9 +1049,7 @@ export bool init_console(const loader_block_framebuffer& fb,
         return true;
     }
 
-#ifdef __aarch64__ // FIXME
-    return false;
-#else
+#ifndef __aarch64__
     if (console_type == console_type::text) {
         console_text_inst.console_cols = tc.cols;
         console_text_inst.console_rows = tc.rows;
@@ -1086,50 +1074,55 @@ export bool init_console(const loader_block_framebuffer& fb,
         text_console_started = true;
 
         create_text_console_section();
-    } else if (!framebuffer.empty()) { // not using boot framebuffer
-        console_type = console_type::other_framebuffer;
-        create_other_framebuffer_section();
     } else {
-        uint32_t size = fb.pixels_per_scan_line * fb.height * sizeof(uint32_t);
+#endif
+        if (!framebuffer.empty()) { // not using boot framebuffer
+            console_type = console_type::other_framebuffer;
+            create_other_framebuffer_section();
+        } else {
+            uint32_t size = fb.pixels_per_scan_line * fb.height * sizeof(uint32_t);
 
-        if (size == 0) {
-            print("Framebuffer size was 0.\n");
-            return false;
-        }
-
-        auto num_pages = bytes_to_pages(size);
-        auto va = allocate_va(num_pages);
-        if (!va) {
-            print("allocate_va failed\n");
-            return false;
-        }
-
-        framebuffer = span((uint32_t*)va, fb.pixels_per_scan_line * fb.height);
-
-        for (unsigned int i = 0; i < num_pages; i++) {
-            if (!map_page((uintptr_t)fb.phys_address + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
-                print("map_page failed\n");
+            if (size == 0) {
+                print("Framebuffer size was 0.\n");
                 return false;
             }
+
+            auto num_pages = bytes_to_pages(size);
+            auto va = allocate_va(num_pages);
+            if (!va) {
+                print("allocate_va failed\n");
+                return false;
+            }
+
+            framebuffer = span((uint32_t*)va, fb.pixels_per_scan_line * fb.height);
+
+            for (unsigned int i = 0; i < num_pages; i++) {
+                if (!map_page((uintptr_t)fb.phys_address + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::write_combine)) {
+                    print("map_page failed\n");
+                    return false;
+                }
+            }
+
+            auto ptr = (uint32_t*)vmalloc(fb.pixels_per_scan_line * fb.height * sizeof(uint32_t));
+            if (!ptr) {
+                print("vmalloc failed\n");
+                return false;
+            }
+
+            shadow_framebuffer = span(ptr, fb.pixels_per_scan_line * fb.height);
+
+            fb_width = fb.width;
+            fb_height = fb.height;
+            fb_pixels_per_scan_line = fb.pixels_per_scan_line;
+
+            memset(framebuffer.data(), 0, framebuffer.size_bytes());
+            memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());
+
+            create_boot_framebuffer_section();
         }
-
-        auto ptr = (uint32_t*)vmalloc(fb.pixels_per_scan_line * fb.height * sizeof(uint32_t));
-        if (!ptr) {
-            print("vmalloc failed\n");
-            return false;
-        }
-
-        shadow_framebuffer = span(ptr, fb.pixels_per_scan_line * fb.height);
-
-        fb_width = fb.width;
-        fb_height = fb.height;
-        fb_pixels_per_scan_line = fb.pixels_per_scan_line;
-
-        memset(framebuffer.data(), 0, framebuffer.size_bytes());
-        memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());
-
-        create_boot_framebuffer_section();
+#ifndef __aarch64__
     }
+#endif
 
     {
         auto pptr = new class console(console_buffer_pages);
@@ -1159,10 +1152,8 @@ export bool init_console(const loader_block_framebuffer& fb,
         flush_early_print();
 
     return true;
-#endif
 }
 
-#ifndef __aarch64__
 static void* ft_alloc(FT_Memory, long size) {
     return malloc((size_t)size);
 }
@@ -1318,7 +1309,6 @@ nt_status console::flush(bool go_readonly) {
 
     return nt_status::SUCCESS;
 }
-#endif
 
 nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
     list_entry del_list = { &del_list, &del_list };
