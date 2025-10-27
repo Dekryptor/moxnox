@@ -26,6 +26,7 @@ using namespace std;
 
 export span<uint32_t> framebuffer, shadow_framebuffer;
 export uint32_t fb_width, fb_height, fb_pixels_per_scan_line, fb_dpi;
+export void(*flush_framebuffer)();
 
 #ifndef __aarch64__
 export span<uint16_t> text_console;

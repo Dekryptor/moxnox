@@ -738,6 +738,8 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
 
 static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y,
                          bool is_cursor) {
+    auto fb = console_type == console_type::boot_framebuffer ? shadow_framebuffer : framebuffer;
+
     auto gi = load_glyph(face, c.glyph);
     if (!gi)
         return;
@@ -776,7 +778,7 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
     uint32_t bg_colour_b = bg & 0xff;
     uint32_t fg_colour_b = fg & 0xff;
 
-    auto base = shadow_framebuffer.data() + ((uint32_t)y * fb_pixels_per_scan_line) + fb_x + gi->bitmap_left;
+    auto base = fb.data() + ((uint32_t)y * fb_pixels_per_scan_line) + fb_x + gi->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
@@ -801,7 +803,8 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
 }
 
 static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h, uint32_t col) {
-    auto dest = shadow_framebuffer.data() + (fb_pixels_per_scan_line * y) + x;
+    auto fb = console_type == console_type::boot_framebuffer ? shadow_framebuffer : framebuffer;
+    auto dest = fb.data() + (fb_pixels_per_scan_line * y) + x;
 
     for (unsigned int i = 0; i < h; i++) {
         for (unsigned int j = 0; j < w; j++) {
@@ -813,7 +816,7 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
     }
 }
 
-static void refresh_shadow_framebuffer() {
+static void refresh_framebuffer() {
     auto* c = &console[0];
 
     for (unsigned int y = 0; y < console_fb_inst.console_rows; y++) {
@@ -861,7 +864,7 @@ static void shadow_blit(unsigned int x, unsigned int y, unsigned int width,
     }
 }
 
-static void refresh_framebuffer() {
+static void copy_shadow_framebuffer() {
     auto* c = &console[0];
 
     for (unsigned int y = 0; y < console_fb_inst.console_rows; y++) {
@@ -929,10 +932,12 @@ void early_print(string_view s) {
 
     do_print(console_fb_inst, s);
 
-    if (console_type == console_type::boot_framebuffer) {
-        refresh_shadow_framebuffer();
-        refresh_framebuffer();
-    }
+    refresh_framebuffer();
+
+    if (flush_framebuffer)
+        flush_framebuffer();
+    else
+        copy_shadow_framebuffer();
 
     enable_preempt();
 #endif

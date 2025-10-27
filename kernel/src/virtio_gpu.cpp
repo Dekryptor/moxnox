@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <atomic>
 #include <string_view>
+#include <variant>
 #include <ioctl.h>
 #include "handle.h"
 
@@ -254,6 +255,9 @@ private:
     virt_queue* cursor_queue = nullptr;
     atomic<uint32_t> resource_num = 1;
 };
+
+variant<virtio_gpu<virtio_pci_device>*, virtio_gpu<virtio_mmio_device>*> flush_framebuffer_device;
+uint32_t flush_framebuffer_resource;
 
 template<>
 virtio_gpu<virtio_pci_device>::virtio_gpu(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {
@@ -799,6 +803,26 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
     return true;
 }
 
+void virtio_gpu_flush_framebuffer() {
+    visit([](auto&& v) {
+        virtio_gpu_rect r;
+
+        r.x = r.y = 0;
+        r.width = fb_width;
+        r.height = fb_height;
+
+        if (!v->transfer_to_host(r, 0, flush_framebuffer_resource)) {
+            print("virtio_gpu::transfer_to_host failed\n");
+            return;
+        }
+
+        if (!v->resource_flush(r, flush_framebuffer_resource)) {
+            print("virtio_gpu::resource_flush failed\n");
+            return;
+        }
+    }, flush_framebuffer_device);
+}
+
 template<typename T>
 void virtio_gpu<T>::start() {
     auto disp_info = (virtio_gpu_resp_display_info*)malloc(sizeof(virtio_gpu_resp_display_info));
@@ -863,7 +887,11 @@ void virtio_gpu<T>::start() {
         // FIXME - unref resource
     }
 
-    // FIXME - clear backing
+    memset(backing, 0, sizeof(uint32_t) * r.width * r.height);
+
+    flush_framebuffer_device = decltype(flush_framebuffer_device)(this);
+    flush_framebuffer_resource = *res;
+    flush_framebuffer = virtio_gpu_flush_framebuffer;
 
     if (!transfer_to_host(r, 0, *res)) {
         print("virtio_gpu::transfer_to_host failed\n");
