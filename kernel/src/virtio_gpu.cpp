@@ -477,8 +477,11 @@ void populate_entries(span<virtio_gpu_mem_entry> entries, span<const uint8_t> bu
         auto& e = entries.front();
 
         e.addr = pa;
-        e.length = 1 << (PAGE_SHIFT + order);
+        e.length = (uint32_t)min(buf.size(), (size_t)(1 << (PAGE_SHIFT + order)));
         e.padding = 0;
+
+        if (buf.size() <= (size_t)(1 << (PAGE_SHIFT + order)))
+            break;
 
         buf = buf.subspan(1 << (PAGE_SHIFT + order));
         entries = entries.subspan(1);
