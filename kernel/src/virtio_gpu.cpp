@@ -182,6 +182,15 @@ struct virtio_gpu_transfer_to_host_2d {
 
 static_assert(sizeof(virtio_gpu_transfer_to_host_2d) == 56);
 
+struct virtio_gpu_resource_flush {
+    virtio_gpu_ctrl_hdr hdr;
+    virtio_gpu_rect r;
+    uint32_t resource_id;
+    uint32_t padding;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_gpu_resource_flush) == 48);
+
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 export void found_virtio_pci_gpu(pci_device& dev);
@@ -234,6 +243,7 @@ public:
                      uint32_t resource);
     bool transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
                           uint32_t resource);
+    bool resource_flush(const virtio_gpu_rect& r, uint32_t resource);
 
     T& dev;
     uint32_t num_scanouts;
@@ -725,6 +735,70 @@ bool virtio_gpu<T>::transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
 }
 
 template<typename T>
+bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) {
+    uint64_t read_bytes;
+
+    auto req = (virtio_gpu_resource_flush*)malloc(sizeof(virtio_gpu_resource_flush));
+    if (!req) {
+        print("malloc failed\n");
+        return false;
+    }
+
+    auto resp = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
+    if (!resp) {
+        print("malloc failed\n");
+        free(req);
+        return false;
+    }
+
+    memset(req, 0, sizeof(*req));
+    req->hdr.type = (uint32_t)VIRTIO_GPU_CMD::RESOURCE_FLUSH;
+    req->r = r;
+    req->resource_id = resource;
+
+    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
+    if (!descs) {
+        print("malloc failed\n");
+        free(resp);
+        free(req);
+        return false;
+    }
+
+    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].len = sizeof(virtio_gpu_resource_flush);
+    descs[0].flags = VIRTQ_DESC_F_NEXT;
+    descs[0].next = 1;
+
+    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].len = sizeof(virtio_gpu_ctrl_hdr);
+    descs[1].flags = VIRTQ_DESC_F_WRITE;
+    descs[1].next = 0;
+
+    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
+                                          read_bytes);
+    if (!success(status)) {
+        free(descs);
+        free(resp);
+        free(req);
+        return false;
+    }
+
+    free(descs);
+    free(req);
+
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp->type;
+
+    free(resp);
+
+    if (resp_err != VIRTIO_GPU_RESP::OK_NODATA) {
+        print("VIRTIO_GPU_CMD_RESOURCE_FLUSH returned {}\n", resp_err);
+        return false;
+    }
+
+    return true;
+}
+
+template<typename T>
 void virtio_gpu<T>::start() {
     auto disp_info = (virtio_gpu_resp_display_info*)malloc(sizeof(virtio_gpu_resp_display_info));
     if (!disp_info) {
@@ -792,6 +866,12 @@ void virtio_gpu<T>::start() {
 
     if (!transfer_to_host(r, 0, *res)) {
         print("virtio_gpu::transfer_to_host failed\n");
+        // FIXME - vfree
+        // FIXME - unref resource
+    }
+
+    if (!resource_flush(r, *res)) {
+        print("virtio_gpu::resource_flush failed\n");
         // FIXME - vfree
         // FIXME - unref resource
     }
