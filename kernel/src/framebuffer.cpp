@@ -130,8 +130,11 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
     if (start + len > fb.size_bytes())
         len = fb.size_bytes() - start;
 
-    memcpy((uint8_t*)framebuffer.data() + start, (uint8_t*)fb.data() + start,
-           len);
+    if constexpr (BOOT) {
+        memcpy((uint8_t*)framebuffer.data() + start,
+               (uint8_t*)fb.data() + start, len);
+    } else
+        flush_framebuffer(); // FIXME - only flush what's changed
 
     return nt_status::SUCCESS;
 }
