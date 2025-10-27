@@ -435,55 +435,53 @@ target_compile_definitions(acpica PRIVATE -D_LINUX -DACPI_NO_ERROR_MESSAGES -DAC
 target_compile_options(acpica PRIVATE -include ${CMAKE_SOURCE_DIR}/acpica-shim.h)
 target_compile_options(acpica PRIVATE -Wno-overflow -Wno-shift-count-overflow -Wno-constant-conversion -gdwarf-5)
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    add_library(zlib SHARED
-        zlib/adler32.c
-        zlib/crc32.c
-        zlib/deflate.c
-        zlib/inffast.c
-        zlib/inflate.c
-        zlib/inftrees.c
-        zlib/trees.c
-        zlib/zutil.c
-        ${CMAKE_SOURCE_DIR}/zlibshim.cpp
-    )
+add_library(zlib SHARED
+    zlib/adler32.c
+    zlib/crc32.c
+    zlib/deflate.c
+    zlib/inffast.c
+    zlib/inflate.c
+    zlib/inftrees.c
+    zlib/trees.c
+    zlib/zutil.c
+    ${CMAKE_SOURCE_DIR}/zlibshim.cpp
+)
 
-    target_include_directories(zlib PUBLIC zlib)
-    target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-    target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(zlib PRIVATE moxnox)
+target_include_directories(zlib PUBLIC zlib)
+target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
+target_link_libraries(zlib PRIVATE moxnox)
 
-    install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
-        ARCHIVE EXCLUDE_FROM_ALL
-    )
+install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
+    ARCHIVE EXCLUDE_FROM_ALL
+)
 
-    add_library(libpng SHARED
-        libpng/png.c
-        libpng/pngerror.c
-        libpng/pngget.c
-        libpng/pngmem.c
-        libpng/pngpread.c
-        libpng/pngread.c
-        libpng/pngrio.c
-        libpng/pngrtran.c
-        libpng/pngrutil.c
-        libpng/pngset.c
-        libpng/pngtrans.c
-        libpng/pngwio.c
-        libpng/pngwrite.c
-        libpng/pngwtran.c
-        libpng/pngwutil.c
-        ${CMAKE_SOURCE_DIR}/libpngshim.cpp
-    )
+add_library(libpng SHARED
+    libpng/png.c
+    libpng/pngerror.c
+    libpng/pngget.c
+    libpng/pngmem.c
+    libpng/pngpread.c
+    libpng/pngread.c
+    libpng/pngrio.c
+    libpng/pngrtran.c
+    libpng/pngrutil.c
+    libpng/pngset.c
+    libpng/pngtrans.c
+    libpng/pngwio.c
+    libpng/pngwrite.c
+    libpng/pngwtran.c
+    libpng/pngwutil.c
+    ${CMAKE_SOURCE_DIR}/libpngshim.cpp
+)
 
-    target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
-    target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-    target_link_libraries(libpng PUBLIC zlib)
-    target_link_libraries(libpng PRIVATE moxnox)
+target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
+target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_link_libraries(libpng PUBLIC zlib)
+target_link_libraries(libpng PRIVATE moxnox)
 
-    install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}
-        ARCHIVE EXCLUDE_FROM_ALL
-    )
-endif()
+install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}
+    ARCHIVE EXCLUDE_FROM_ALL
+)
 
 install(SCRIPT initrd.cmake)
