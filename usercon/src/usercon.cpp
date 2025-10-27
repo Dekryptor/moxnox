@@ -4,14 +4,11 @@
 #include <memory>
 #include <array>
 #include <stdlib.h>
-
-#ifndef __aarch64__
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
 #include <hb.h>
 #include <hb-ft.h>
-#endif
 
 import nt;
 import ntdll;
@@ -39,7 +36,6 @@ static const string_view welcome_message = "\nWelcome to \e[1mMoxnox\e[m\n\n";
 
 extern uint64_t __CTOR_LIST__;
 
-#ifndef __aarch64__
 struct glyph_info {
     // FIXME - destructor
 
@@ -90,19 +86,15 @@ struct console_line {
     bool changed = false;
     console_cell cells[0];
 };
-#endif
 
-#ifndef __aarch64__
 static FT_Library ft;
 static font_info font, bold_font, italic_font, bold_italic_font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
-
 static console_line* curline = nullptr;
 static list_entry lines = { &lines, &lines };
 static unsigned int num_lines = 0;
-#endif
 
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
@@ -175,7 +167,6 @@ void do_print(string_view s) {
                 (uint32_t)s.size(), nullptr, nullptr);
 }
 
-#ifndef __aarch64__
 void console_fb::console_overflow(unsigned int rows) {
     auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
 
@@ -895,7 +886,6 @@ static void recv_data_fb(string_view s) {
         y++;
     }
 }
-#endif
 
 static bool run_program(u16string_view exe, u16string_view cmdline,
                         unique_handle& proc, HANDLE client_handle) {
@@ -1431,6 +1421,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
     } while (true);
 }
 
+#ifndef __aarch64__
 static int try_text_console() {
     text_console = init_text_console();
     if (text_console.empty()) {
@@ -1442,18 +1433,25 @@ static int try_text_console() {
 
     return 0;
 }
+#endif
 
-#ifndef __aarch64__
 static int do_console() {
     bool no_framebuffer = false;
 
     framebuffer = init_framebuffer(no_framebuffer);
+#ifdef __aarch64__
+    if (framebuffer.empty()) {
+        print("init_framebuffer failed\n");
+        return 1;
+    }
+#else
     if (no_framebuffer)
         return try_text_console();
     else if (framebuffer.empty()) {
         print("init_framebuffer failed\n");
         return 1;
     }
+#endif
 
     auto error = FT_Init_FreeType(&ft); // FIXME - free at end
     if (error) {
@@ -1512,7 +1510,6 @@ static int do_console() {
 
     return 0;
 }
-#endif
 
 static void serial_print(string_view s) {
     auto teb = NtCurrentTeb();
@@ -1774,14 +1771,8 @@ static int _main() {
 
     if (serial_mode)
         ret = do_serial_console();
-    else {
-#ifdef __aarch64__
-        print("FIXME - non-serial console on aarch64\n");
-        ret = 1;
-#else
+    else
         ret = do_console();
-#endif
-    }
 
     if (buf)
         RtlFreeHeap(GetProcessHeap(), 0, buf);

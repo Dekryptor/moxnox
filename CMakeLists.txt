@@ -12,7 +12,7 @@ include_directories(include)
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    set(GENERAL_CFLAGS -gdwarf-5 -stdlib=libc++ -march=armv8.1-a)
+    set(GENERAL_CFLAGS -gdwarf-5 $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++> -march=armv8.1-a)
     set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-rtti -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
     set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
 else()
@@ -217,55 +217,53 @@ add_custom_command(
     COMMAND objcopy --remove-section .drectve "${CMAKE_CURRENT_BINARY_DIR}/libfreetype-static.a"
 )
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
-    add_library(freetype SHARED ${FREETYPE_FILES} ${CMAKE_SOURCE_DIR}/ftshim.cpp)
+add_library(freetype SHARED ${FREETYPE_FILES} ${CMAKE_SOURCE_DIR}/ftshim.cpp)
 
-    target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
-    target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
-    target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
-    target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-    target_include_directories(freetype PRIVATE include)
-    target_include_directories(freetype PUBLIC freetype/include)
-    target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(freetype PRIVATE moxnox)
+target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
+target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
+target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
+target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_include_directories(freetype PRIVATE include)
+target_include_directories(freetype PUBLIC freetype/include)
+target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
+target_link_libraries(freetype PRIVATE moxnox)
 
-    install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
-        ARCHIVE EXCLUDE_FROM_ALL
-    )
+install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
+    ARCHIVE EXCLUDE_FROM_ALL
+)
 
-    add_library(harfbuzz SHARED
-        harfbuzz/src/hb-blob.cc
-        harfbuzz/src/hb-buffer.cc
-        harfbuzz/src/hb-common.cc
-        harfbuzz/src/hb-face-builder.cc
-        harfbuzz/src/hb-face.cc
-        harfbuzz/src/hb-fallback-shape.cc
-        harfbuzz/src/hb-font.cc
-        harfbuzz/src/hb-ft.cc
-        harfbuzz/src/hb-number.cc
-        harfbuzz/src/hb-ot-face.cc
-        harfbuzz/src/hb-ot-font.cc
-        harfbuzz/src/hb-ot-metrics.cc
-        harfbuzz/src/hb-shape.cc
-        harfbuzz/src/hb-shape-plan.cc
-        harfbuzz/src/hb-shaper.cc
-        harfbuzz/src/hb-static.cc
-        harfbuzz/src/hb-ucd.cc
-        harfbuzz/src/hb-unicode.cc
-        ${CMAKE_SOURCE_DIR}/hbshim.cpp)
+add_library(harfbuzz STATIC # FIXME - SHARED doesn't work on aarch64
+    harfbuzz/src/hb-blob.cc
+    harfbuzz/src/hb-buffer.cc
+    harfbuzz/src/hb-common.cc
+    harfbuzz/src/hb-face-builder.cc
+    harfbuzz/src/hb-face.cc
+    harfbuzz/src/hb-fallback-shape.cc
+    harfbuzz/src/hb-font.cc
+    harfbuzz/src/hb-ft.cc
+    harfbuzz/src/hb-number.cc
+    harfbuzz/src/hb-ot-face.cc
+    harfbuzz/src/hb-ot-font.cc
+    harfbuzz/src/hb-ot-metrics.cc
+    harfbuzz/src/hb-shape.cc
+    harfbuzz/src/hb-shape-plan.cc
+    harfbuzz/src/hb-shaper.cc
+    harfbuzz/src/hb-static.cc
+    harfbuzz/src/hb-ucd.cc
+    harfbuzz/src/hb-unicode.cc
+    ${CMAKE_SOURCE_DIR}/hbshim.cpp)
 
-    target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_OT_SHAPE -DHB_NO_OT_LAYOUT -DHB_NO_MT)
-    target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -fno-rtti ${GENERAL_CFLAGS})
-    target_compile_options(harfbuzz PRIVATE -include ${CMAKE_SOURCE_DIR}/hbshim.h)
-    target_include_directories(harfbuzz PUBLIC harfbuzz/src)
-    target_link_libraries(harfbuzz PUBLIC freetype)
-    target_link_options(harfbuzz PUBLIC -nostartfiles -nostdlib)
-    target_link_libraries(harfbuzz PRIVATE moxnox -lgcc)
+target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_OT_SHAPE -DHB_NO_OT_LAYOUT -DHB_NO_MT)
+target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -fno-rtti ${GENERAL_CFLAGS})
+target_compile_options(harfbuzz PRIVATE -include ${CMAKE_SOURCE_DIR}/hbshim.h)
+target_include_directories(harfbuzz PUBLIC harfbuzz/src)
+target_link_libraries(harfbuzz PUBLIC freetype)
+target_link_options(harfbuzz PUBLIC -nostartfiles -nostdlib)
+target_link_libraries(harfbuzz PRIVATE moxnox -lgcc)
 
-    install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}
-        ARCHIVE EXCLUDE_FROM_ALL
-    )
-endif()
+install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}
+    ARCHIVE EXCLUDE_FROM_ALL
+)
 
 add_library(acpica
     acpica/source/components/dispatcher/dsargs.c
