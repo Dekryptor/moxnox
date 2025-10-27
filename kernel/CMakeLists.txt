@@ -63,6 +63,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/virtio_block.cpp
     src/virtio_console.cpp
     src/efi.cpp
+    src/virtio_gpu.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -72,7 +73,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/x86/serial.cpp
     src/x86/apic.cpp
     src/framebuffer.cpp
-    src/virtio_gpu.cpp
 )
 
 set(AARCH64_MODULES ${GLOBAL_MODULES}
