@@ -98,20 +98,26 @@ struct loader_block_framebuffer {
     uint32_t pixels_per_scan_line;
 } __attribute__((packed));
 
+#ifndef __aarch64__
 struct loader_block_text_console {
     uint16_t cols;
     uint16_t rows;
     uint64_t phys_address;
 } __attribute__((packed));
+#endif
 
 struct loader_block {
     uint64_t map_ptr;
     uint32_t num_map_entries;
     uint64_t rsdp_pa;
+#ifndef __aarch64__
     bool text_mode;
+#endif
     union {
         loader_block_framebuffer framebuffer;
+#ifndef __aarch64__
         loader_block_text_console text_console;
+#endif
     };
     uint64_t cmdline;
     uint64_t initrd_data;

@@ -1312,12 +1312,14 @@ export bool init_memory(const loader_block& lb) {
 
     mark_mem_as_used(0, PAGE_SIZE);
 
+#ifndef __aarch64__
     if (lb.text_mode) {
         size_t bytes = lb.text_console.cols * lb.text_console.rows * sizeof(uint16_t);
 
         mark_mem_as_used(lb.text_console.phys_address,
                          bytes_to_pages(bytes) << PAGE_SHIFT);
     }
+#endif
 
     // FIXME - probably should double-check that framebuffer memory is marked used
 

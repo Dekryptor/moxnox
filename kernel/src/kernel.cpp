@@ -48,7 +48,9 @@ extern uint64_t __CTOR_LIST__;
 
 static char cmdline_arr[255];
 static loader_block_framebuffer lb_fb;
+#ifndef __aarch64__
 static loader_block_text_console lb_tc;
+#endif
 
 void (*_printk)(string_view s) = early_print;
 
@@ -195,8 +197,13 @@ void main_thread() {
     scan_pci();
     init_pci(true);
 
+#ifdef __aarch64__
+    if (!init_console(lb_fb))
+        bsod("init_console failed\n");
+#else
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
+#endif
 
     if (GetTime)
         get_time_from_efi();
@@ -279,9 +286,11 @@ void startup(loader_block* lb) {
 
     // FIXME - should restart if anything fails before we can show error message
 
+#ifndef __aarch64__
     if (lb->text_mode)
         memcpy(&lb_tc, &lb->text_console, sizeof(lb_tc));
     else
+#endif
         memcpy(&lb_fb, &lb->framebuffer, sizeof(lb_fb));
 
     if (lb->cmdline) {

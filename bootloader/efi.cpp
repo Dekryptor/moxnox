@@ -2182,7 +2182,9 @@ static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa) {
     lb.map_ptr = (uintptr_t)map;
     lb.num_map_entries = num_map_entries;
     lb.rsdp_pa = rsdp_pa;
+#ifndef __aarch64__
     lb.text_mode = false;
+#endif
     lb.cmdline = (uintptr_t)cmdline;
     lb.initrd_data = initrd_data;
     lb.initrd_size = initrd_size;

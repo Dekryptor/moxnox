@@ -998,8 +998,13 @@ static bool create_kmsg() {
     return true;
 }
 
+#ifndef __aarch64__
 export bool init_console(const loader_block_framebuffer& fb,
-                         const loader_block_text_console& tc) {
+                         const loader_block_text_console& tc)
+#else
+export bool init_console(const loader_block_framebuffer& fb)
+#endif
+{
     string_view console_opt;
 
     loop_through_cmdline([&](string_view s) {
