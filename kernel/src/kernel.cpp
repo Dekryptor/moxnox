@@ -219,7 +219,7 @@ void main_thread() {
     _printk = safe_print;
 
 #ifndef __aarch64__
-    if (console_type == console_type::framebuffer && !init_fb_console())
+    if ((console_type == console_type::boot_framebuffer || console_type == console_type::other_framebuffer) && !init_fb_console())
         print("init_fb_console failed\n");
 #endif
 
@@ -304,7 +304,7 @@ void startup(loader_block* lb) {
     if (lb->text_mode)
         console_type = console_type::text;
     else
-        console_type = console_type::framebuffer;
+        console_type = console_type::boot_framebuffer;
 #endif
 
     debug_info = span((uint8_t*)(uintptr_t)lb->debug_info_ptr, lb->debug_info_size);

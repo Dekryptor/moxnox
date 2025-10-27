@@ -21,6 +21,7 @@ import module_init;
 import power;
 import mem;
 import thread;
+import framebuffer;
 
 using namespace std;
 
@@ -862,7 +863,7 @@ void virtio_gpu<T>::start() {
         // FIXME - unref resource
     }
 
-    // FIXME - replace existing framebuffer if present
+    // FIXME - clear backing
 
     if (!transfer_to_host(r, 0, *res)) {
         print("virtio_gpu::transfer_to_host failed\n");
@@ -875,6 +876,11 @@ void virtio_gpu<T>::start() {
         // FIXME - vfree
         // FIXME - unref resource
     }
+
+    framebuffer = span(backing, r.width * r.height);
+    fb_width = fb_pixels_per_scan_line = r.width;
+    fb_height = r.height;
+    fb_dpi = 72; // FIXME!
 }
 
 static atomic<uint32_t> virtio_gpu_num = 0;

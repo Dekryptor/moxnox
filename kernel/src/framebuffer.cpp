@@ -34,6 +34,7 @@ static span<uint16_t> shadow_text_console;
 export spinlock cursor_lock;
 #endif
 
+template<bool BOOT>
 class framebuffer_cache : public custom_section_cache {
 public:
     NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
@@ -65,13 +66,21 @@ private:
 };
 #endif
 
-nt_status framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
-                                             uint64_t& read_pages) {
+template<bool BOOT>
+nt_status framebuffer_cache<BOOT>::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                                   uint64_t& read_pages) {
     auto status = cache.pin(page_num, num_pages, nullptr);
     if (!success(status)) {
         print("page_cache::pin returned {}\n", status);
         return status;
     }
+
+    span<uint32_t> fb;
+
+    if constexpr (BOOT)
+        fb = shadow_framebuffer;
+    else
+        fb = framebuffer;
 
     page_cache_entry* p;
 
@@ -88,7 +97,7 @@ nt_status framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pag
         if (p->pfn)
             continue;
 
-        auto va = (uintptr_t)((uint8_t*)shadow_framebuffer.data() + ((page_num + i) << PAGE_SHIFT));
+        auto va = (uintptr_t)((uint8_t*)fb.data() + ((page_num + i) << PAGE_SHIFT));
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -102,26 +111,33 @@ nt_status framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pag
     return nt_status::SUCCESS;
 }
 
-NTSTATUS framebuffer_cache::flush_cache(uint64_t page_num, uint64_t num_pages) {
+template<bool BOOT>
+NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pages) {
     auto start = page_num << PAGE_SHIFT;
+    span<uint32_t> fb;
 
-    if (start >= shadow_framebuffer.size_bytes())
+    if constexpr (BOOT)
+        fb = shadow_framebuffer;
+    else
+        fb = framebuffer;
+
+    if (start >= fb.size_bytes())
         return nt_status::SUCCESS;
 
     auto len = num_pages << PAGE_SHIFT;
 
-    if (start + len > shadow_framebuffer.size_bytes())
-        len = shadow_framebuffer.size_bytes() - start;
+    if (start + len > fb.size_bytes())
+        len = fb.size_bytes() - start;
 
-    memcpy((uint8_t*)framebuffer.data() + start,
-           (uint8_t*)shadow_framebuffer.data() + start,
+    memcpy((uint8_t*)framebuffer.data() + start, (uint8_t*)fb.data() + start,
            len);
 
     return nt_status::SUCCESS;
 }
 
-NTSTATUS framebuffer_cache::query_info(enum SECTION_INFORMATION_CLASS section_information_class,
-                                       span<uint8_t> buf, size_t* return_length) {
+template<bool BOOT>
+NTSTATUS framebuffer_cache<BOOT>::query_info(enum SECTION_INFORMATION_CLASS section_information_class,
+                                             span<uint8_t> buf, size_t* return_length) {
     switch (section_information_class) {
         case SECTION_INFORMATION_CLASS::MoxnoxFramebufferInformation: {
             if (buf.size() < sizeof(MN_SECTION_FRAMEBUFFER_INFORMATION))
@@ -144,7 +160,7 @@ NTSTATUS framebuffer_cache::query_info(enum SECTION_INFORMATION_CLASS section_in
     }
 }
 
-export void create_framebuffer_section() {
+export void create_boot_framebuffer_section() {
     nt_status status;
 
     auto s = new section;
@@ -158,7 +174,36 @@ export void create_framebuffer_section() {
     s->num_pages = bytes_to_pages(s->size);
     s->page_protection = PAGE_READWRITE;
 
-    s->custom_cache = new framebuffer_cache;
+    s->custom_cache = new framebuffer_cache<true>;
+    if (!s->custom_cache) {
+        print("new failed\n");
+        s->release();
+        return;
+    }
+
+    status = name_object(*s, "framebuffer", true);
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
+        s->release();
+        return;
+    }
+}
+
+export void create_other_framebuffer_section() {
+    nt_status status;
+
+    auto s = new section;
+    if (!s) {
+        print("new failed\n");
+        return;
+    }
+
+    s->type = section_type::anonymous;
+    s->size = (uint32_t)framebuffer.size_bytes();
+    s->num_pages = bytes_to_pages(s->size);
+    s->page_protection = PAGE_READWRITE;
+
+    s->custom_cache = new framebuffer_cache<false>;
     if (!s->custom_cache) {
         print("new failed\n");
         s->release();

@@ -215,7 +215,8 @@ export enum class console_type {
 #ifndef __aarch64__
     text,
 #endif
-    framebuffer,
+    boot_framebuffer,
+    other_framebuffer,
     other
 };
 
@@ -927,8 +928,11 @@ void early_print(string_view s) {
     disable_preempt();
 
     do_print(console_fb_inst, s);
-    refresh_shadow_framebuffer();
-    refresh_framebuffer();
+
+    if (console_type == console_type::boot_framebuffer) {
+        refresh_shadow_framebuffer();
+        refresh_framebuffer();
+    }
 
     enable_preempt();
 #endif
@@ -1077,6 +1081,9 @@ export bool init_console(const loader_block_framebuffer& fb,
         text_console_started = true;
 
         create_text_console_section();
+    } else if (!framebuffer.empty()) { // not using boot framebuffer
+        console_type = console_type::other_framebuffer;
+        create_other_framebuffer_section();
     } else {
         uint32_t size = fb.pixels_per_scan_line * fb.height * sizeof(uint32_t);
 
@@ -1116,7 +1123,7 @@ export bool init_console(const loader_block_framebuffer& fb,
         memset(framebuffer.data(), 0, framebuffer.size_bytes());
         memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());
 
-        create_framebuffer_section();
+        create_boot_framebuffer_section();
     }
 
     {
