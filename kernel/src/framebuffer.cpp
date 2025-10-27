@@ -16,19 +16,23 @@ import nt;
 import print;
 import mem;
 import config;
-import inout;
 import spinlock;
+
+#ifndef __aarch64__
+import inout;
+#endif
 
 using namespace std;
 
 export span<uint32_t> framebuffer, shadow_framebuffer;
 export uint32_t fb_width, fb_height, fb_pixels_per_scan_line, fb_dpi;
 
+#ifndef __aarch64__
 export span<uint16_t> text_console;
 export uint32_t text_console_cols, text_console_rows;
 static span<uint16_t> shadow_text_console;
-
 export spinlock cursor_lock;
+#endif
 
 class framebuffer_cache : public custom_section_cache {
 public:
@@ -44,6 +48,7 @@ public:
     }
 };
 
+#ifndef __aarch64__
 class text_console_cache : public custom_section_cache {
 public:
     NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
@@ -58,6 +63,7 @@ private:
     nt_status set_cursor(span<const uint8_t> inbuf, uintptr_t& written);
     bool cursor_enabled = true;
 };
+#endif
 
 nt_status framebuffer_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
                                              uint64_t& read_pages) {
@@ -167,6 +173,7 @@ export void create_framebuffer_section() {
     }
 }
 
+#ifndef __aarch64__
 nt_status text_console_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
                                               uint64_t& read_pages) {
     auto status = cache.pin(page_num, num_pages, nullptr);
@@ -345,3 +352,4 @@ export void create_text_console_section() {
         return;
     }
 }
+#endif
