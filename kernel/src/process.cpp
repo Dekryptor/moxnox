@@ -3587,8 +3587,7 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
 
 extern "C++"
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
-#ifndef __aarch64__ // FIXME
-    span<HARDWARE_PTE> pt[4];
+    span<pte_type> pt[4];
     uint64_t va = address + (page_num << PAGE_SHIFT);
     uint16_t index[4];
 
@@ -3597,10 +3596,14 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     index[2] = (va & 0x7fc0000000) >> 30;
     index[3] = (va & 0xff8000000000) >> 39;
 
-    pt[3] = span((HARDWARE_PTE*)phys_address(proc.cr3), 512);
+#ifdef __aarch64__
+    pt[3] = span((pte_type*)phys_address(proc.ttbr0), 512);
+#else
+    pt[3] = span((pte_type*)phys_address(proc.cr3), 512);
+#endif
 
     auto redo_level = [&](uint8_t level) {
-        pt[level - 1] = span((HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
+        pt[level - 1] = span((pte_type*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
     };
 
     for (uint8_t level = 3; level > 0; level--) {
@@ -3638,9 +3641,22 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
         if (pte.cow || pte.reserved)
             continue;
 
+#ifdef __aarch64__
+        pte.AP = ARM64_PTE_AP_EL0RO;
+
+        __asm __volatile (
+            "tlbi vae1, %x[res]\n"
+            "dsb ish\n"
+            "isb\n"
+            :
+            : [res] "r" (va >> PAGE_SHIFT)
+        );
+#else
         pte.w = 0;
+#endif
     }
 
+#ifndef __aarch64__ // FIXME
     // send IPIs to invalidate TLBs on other processors
 
     auto cpus = proc.running_cpus.load();
