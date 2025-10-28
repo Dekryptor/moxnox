@@ -207,8 +207,8 @@ static enum console_colour fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
 #endif
 
 static const size_t EDID_SIZE = 128;
-static uint8_t edid[EDID_SIZE];
-static bool have_edid;
+export uint8_t edid[EDID_SIZE];
+export bool have_edid;
 
 export enum class console_type {
 #ifndef __aarch64__

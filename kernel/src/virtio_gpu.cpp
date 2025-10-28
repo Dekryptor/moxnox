@@ -24,6 +24,7 @@ import mem;
 import thread;
 import framebuffer;
 import cmdline;
+import console;
 
 using namespace std;
 
@@ -33,7 +34,8 @@ const uint64_t VIRTIO_GPU_F_RESOURCE_UUID = 1 << 2;
 const uint64_t VIRTIO_GPU_F_RESOURCE_BLOB = 1 << 3;
 const uint64_t VIRTIO_GPU_F_CONTEXT_INIT = 1 << 4;
 
-const uint64_t SUPPORTED_FEATURES = VIRTIO_RING_F_INDIRECT_DESC;
+const uint64_t SUPPORTED_FEATURES = VIRTIO_RING_F_INDIRECT_DESC |
+                                    VIRTIO_GPU_F_EDID;
 
 struct virtio_gpu_config {
     uint32_t events_read;
@@ -194,6 +196,23 @@ struct virtio_gpu_resource_flush {
 
 static_assert(sizeof(virtio_gpu_resource_flush) == 48);
 
+struct virtio_gpu_get_edid {
+    virtio_gpu_ctrl_hdr hdr;
+    uint32_t scanout;
+    uint32_t padding;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_gpu_get_edid) == 32);
+
+struct virtio_gpu_resp_edid {
+    virtio_gpu_ctrl_hdr hdr;
+    uint32_t size;
+    uint32_t padding;
+    uint8_t edid[1024];
+} __attribute((packed));
+
+static_assert(sizeof(virtio_gpu_resp_edid) == 1056);
+
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 export void found_virtio_pci_gpu(pci_device& dev);
@@ -239,6 +258,7 @@ public:
     void start();
 
     bool get_display_info(virtio_gpu_resp_display_info& disp_info);
+    bool get_edid(uint32_t scanout, span<uint8_t> ret);
     optional<uint32_t> create_resource(VIRTIO_GPU_FORMAT format,
                                        uint32_t width, uint32_t height);
     bool attach_backing(uint32_t resource, span<uint8_t> buf);
@@ -404,6 +424,71 @@ bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
         print("VIRTIO_GPU_CMD_GET_DISPLAY_INFO returned {}\n", resp_err);
         return false;
     }
+
+    return true;
+}
+
+template<typename T>
+bool virtio_gpu<T>::get_edid(uint32_t scanout, span<uint8_t> ret) {
+    uint64_t read_bytes;
+
+    auto req = (virtio_gpu_get_edid*)malloc(sizeof(virtio_gpu_get_edid));
+    if (!req) {
+        print("malloc failed\n");
+        return false;
+    }
+
+    auto resp = (virtio_gpu_resp_edid*)malloc(sizeof(virtio_gpu_resp_edid));
+    if (!resp) {
+        print("malloc failed\n");
+        free(req);
+        return false;
+    }
+
+    memset(req, 0, sizeof(*req));
+    req->hdr.type = (uint32_t)VIRTIO_GPU_CMD::GET_EDID;
+    req->scanout = scanout;
+
+    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
+    if (!descs) {
+        print("malloc failed\n");
+        free(req);
+        return false;
+    }
+
+    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].len = sizeof(virtio_gpu_get_edid);
+    descs[0].flags = VIRTQ_DESC_F_NEXT;
+    descs[0].next = 1;
+
+    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].len = sizeof(virtio_gpu_resp_edid);
+    descs[1].flags = VIRTQ_DESC_F_WRITE;
+    descs[1].next = 0;
+
+    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
+                                          read_bytes);
+    if (!success(status)) {
+        free(descs);
+        free(resp);
+        free(req);
+        return false;
+    }
+
+    free(descs);
+    free(req);
+
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp->hdr.type;
+
+    if (resp_err != VIRTIO_GPU_RESP::OK_EDID) {
+        print("VIRTIO_GPU_CMD_GET_EDID returned {}\n", resp_err);
+        free(resp);
+        return false;
+    }
+
+    memcpy(ret.data(), resp->edid, min(ret.size(), sizeof(resp->edid)));
+
+    free(resp);
 
     return true;
 }
@@ -885,6 +970,13 @@ void virtio_gpu<T>::start() {
     auto r = disp_info->pmodes[0].r;
 
     free(disp_info);
+
+    if (dev.negotiated_features & VIRTIO_GPU_F_EDID) {
+        if (!get_edid(0, span(edid)))
+            print("virtio_gpu::get_edid failed\n");
+        else
+            have_edid = true;
+    }
 
     // check video cmdline option
 
