@@ -837,12 +837,6 @@ void virtio_gpu<T>::start() {
         return;
     }
 
-    for (size_t i = 0; i < num_scanouts; i++) {
-        print("scanout {}: r {}, enabled {}, flags {}\n",
-              i, disp_info->pmodes[i].r, disp_info->pmodes[i].enabled,
-              disp_info->pmodes[i].flags);
-    }
-
     if (!disp_info->pmodes[0].enabled) {
         print("virtio_gpu::start: scanout 0 not enabled\n");
         free(disp_info);
