@@ -1153,8 +1153,7 @@ export bool init_console(const loader_block_framebuffer& fb)
             print("add_kernel_thread failed\n");
             return false;
         }
-    } else
-        flush_early_print();
+    }
 
     return true;
 }
