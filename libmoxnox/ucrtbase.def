@@ -7,3 +7,4 @@ realloc
 floorf
 ceilf
 abort
+_assert

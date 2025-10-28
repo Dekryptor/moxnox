@@ -89,6 +89,12 @@ void abort() {
     __builtin_unreachable();
 }
 
+extern "C" __declspec(dllexport)
+void _assert(const char* str, const char* file, unsigned int line) {
+    // FIXME - print message
+    abort();
+}
+
 extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
