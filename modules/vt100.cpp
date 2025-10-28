@@ -461,7 +461,7 @@ void erase_in_display(T& t, string_view s) {
         case 2: // clear entire screen
         case 3:
             // FIXME - make sure this doesn't break scrollback
-            t.console_overflow(t.console_rows);
+            t.console_overflow(t.cursor_y);
             break;
     }
 
