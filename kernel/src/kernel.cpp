@@ -197,14 +197,6 @@ void main_thread() {
     scan_pci();
     init_pci(true);
 
-#ifdef __aarch64__
-    if (!init_console(lb_fb))
-        bsod("init_console failed\n");
-#else
-    if (!init_console(lb_fb, lb_tc))
-        bsod("init_console failed\n");
-#endif
-
     if (GetTime)
         get_time_from_efi();
 
@@ -213,6 +205,14 @@ void main_thread() {
         find_acpi_devices();
         init_acpi_done = true;
     }
+
+#ifdef __aarch64__
+    if (!init_console(lb_fb))
+        bsod("init_console failed\n");
+#else
+    if (!init_console(lb_fb, lb_tc))
+        bsod("init_console failed\n");
+#endif
 
     if (!init_keyboard_pipe())
         print("init_keyboard_pipe failed\n");
