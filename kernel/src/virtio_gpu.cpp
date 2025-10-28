@@ -1051,6 +1051,8 @@ void virtio_gpu<T>::start() {
     fb_width = fb_pixels_per_scan_line = r.width;
     fb_height = r.height;
     fb_dpi = 72; // FIXME!
+
+    console_type = console_type::other_framebuffer;
 }
 
 static atomic<uint32_t> virtio_gpu_num = 0;
