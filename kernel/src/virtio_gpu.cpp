@@ -23,6 +23,7 @@ import power;
 import mem;
 import thread;
 import framebuffer;
+import cmdline;
 
 using namespace std;
 
@@ -823,6 +824,44 @@ void virtio_gpu_flush_framebuffer() {
     }, flush_framebuffer_device);
 }
 
+void parse_video_option(string_view s, virtio_gpu_rect& r) {
+    string_view wsv, hsv;
+
+    if (auto x = s.find('x'); x == string_view::npos)
+        return;
+    else {
+        wsv = string_view(s.data(), x);
+        hsv = string_view(s.data() + x + 1, s.size() - x - 1);
+    }
+
+    if (wsv.empty() || hsv.empty())
+        return;
+
+    unsigned int w = 0;
+    for (auto c : wsv) {
+        if (c >= '0' && c <= '9') {
+            w *= 10;
+            w += (unsigned int)(c - '0');
+        } else
+            return;
+    }
+
+    unsigned int h = 0;
+    for (auto c : hsv) {
+        if (c >= '0' && c <= '9') {
+            h *= 10;
+            h += (unsigned int)(c - '0');
+        } else
+            return;
+    }
+
+    if (w == 0 || h == 0)
+        return;
+
+    r.width = w;
+    r.height = h;
+}
+
 template<typename T>
 void virtio_gpu<T>::start() {
     auto disp_info = (virtio_gpu_resp_display_info*)malloc(sizeof(virtio_gpu_resp_display_info));
@@ -847,7 +886,24 @@ void virtio_gpu<T>::start() {
 
     free(disp_info);
 
-    // FIXME - check video cmdline option
+    // check video cmdline option
+
+    string_view video_opt;
+
+    loop_through_cmdline([&](string_view s) {
+        static const string_view prefix = "video=";
+
+        if (s.size() >= prefix.size() && string_view(s.data(), prefix.size()) == prefix) {
+            video_opt = string_view(s.data() + prefix.size(), s.size() - prefix.size());
+            return false;
+        }
+
+        return true;
+    });
+
+    if (!video_opt.empty())
+        parse_video_option(video_opt, r);
+
     // FIXME - get EDID?
 
     // FIXME - multiple scanouts
