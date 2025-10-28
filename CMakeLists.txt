@@ -232,7 +232,7 @@ install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
-add_library(harfbuzz STATIC # FIXME - SHARED doesn't work on aarch64
+add_library(harfbuzz SHARED
     harfbuzz/src/hb-blob.cc
     harfbuzz/src/hb-buffer.cc
     harfbuzz/src/hb-common.cc

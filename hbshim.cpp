@@ -5,11 +5,6 @@
 import nt;
 
 extern "C"
-void __imp__assert(const char* /*_Message*/, const char* /*_File*/, unsigned /*_Line*/) {
-    // FIXME
-}
-
-extern "C"
 int __mingw_vsnprintf(char* /*_DstBuf*/, size_t /*_MaxCount*/, const char* /*_Format*/,
                       va_list /*_ArgList*/) {
     // FIXME
