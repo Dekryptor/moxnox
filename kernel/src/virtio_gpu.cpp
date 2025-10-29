@@ -889,13 +889,15 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
     return true;
 }
 
-void virtio_gpu_flush_framebuffer() {
-    visit([](auto&& v) {
+void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
+                                  unsigned int width, unsigned int height) {
+    visit([&](auto&& v) {
         virtio_gpu_rect r;
 
-        r.x = r.y = 0;
-        r.width = fb_width;
-        r.height = fb_height;
+        r.x = x;
+        r.y = y;
+        r.width = width;
+        r.height = height;
 
         if (!v->transfer_to_host(r, 0, flush_framebuffer_resource)) {
             print("virtio_gpu::transfer_to_host failed\n");

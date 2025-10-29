@@ -928,7 +928,7 @@ void early_print(string_view s) {
     refresh_framebuffer();
 
     if (flush_framebuffer)
-        flush_framebuffer();
+        flush_framebuffer(0, 0, fb_width, fb_height);
     else
         copy_shadow_framebuffer();
 

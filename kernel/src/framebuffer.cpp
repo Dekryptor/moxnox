@@ -26,7 +26,8 @@ using namespace std;
 
 export span<uint32_t> framebuffer, shadow_framebuffer;
 export uint32_t fb_width, fb_height, fb_pixels_per_scan_line, fb_dpi;
-export void(*flush_framebuffer)();
+export void(*flush_framebuffer)(unsigned int, unsigned int, unsigned int,
+                                unsigned int);
 
 #ifndef __aarch64__
 export span<uint16_t> text_console;
@@ -133,8 +134,12 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
     if constexpr (BOOT) {
         memcpy((uint8_t*)framebuffer.data() + start,
                (uint8_t*)fb.data() + start, len);
-    } else
-        flush_framebuffer(); // FIXME - only flush what's changed
+    } else {
+        auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
+        auto y2 = (unsigned int)((((page_num + num_pages) << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
+
+        flush_framebuffer(0, y1, fb_width, y2);
+    }
 
     return nt_status::SUCCESS;
 }
