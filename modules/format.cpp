@@ -450,6 +450,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "FILE_IS_A_DIRECTORY");
         case nt_status::NOT_SUPPORTED:
             return sp_strcpy(sp, "NOT_SUPPORTED");
+        case nt_status::CANT_WAIT:
+            return sp_strcpy(sp, "CANT_WAIT");
         case nt_status::INTERNAL_ERROR:
             return sp_strcpy(sp, "INTERNAL_ERROR");
         case nt_status::DIRECTORY_NOT_EMPTY:
