@@ -51,8 +51,6 @@ extern "C" uint8_t ap_trampoline_cr3;
 extern "C" uint64_t ap_trampoline_start_func;
 extern "C" uint64_t ap_trampoline_rsp;
 
-static const uint64_t KERNEL_STACK = 0xfffff90000000000;
-
 struct gdt_ptr {
     uint16_t limit;
     uint64_t base;
@@ -576,6 +574,7 @@ export bool init_smp() {
 #else
     struct info {
         uint8_t id;
+        uint64_t stack;
     };
 
     auto boot_info = (info*)malloc(sizeof(info) * ap_count);
@@ -593,25 +592,27 @@ export bool init_smp() {
                 if (ent.Id != bsp_id && ent.LapicFlags & (ACPI_MADT_ENABLED | ACPI_MADT_ONLINE_CAPABLE)) {
                     boot_info[i].id = ent.Id;
 
-                    uint64_t va = KERNEL_STACK | ((ent.Id * KERNEL_STACK_PAGES) << PAGE_SHIFT);
+                    boot_info[i].stack = allocate_va(1);
+                    if (!boot_info[i].stack) {
+                        print("allocate_va failed\n");
+                        // FIXME - deallocate what's already been allocated (or BSOD)
+                        free(boot_info);
+                        return false;
+                    }
 
-                    for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-                        auto pa = allocate_page();
-                        if (!pa) {
-                            print("allocate_page failed\n");
-                            // FIXME - deallocate what's already been allocated (or BSOD)
-                            free(boot_info);
-                            return false;
-                        }
+                    auto pa = allocate_page();
+                    if (!pa) {
+                        print("allocate_page failed\n");
+                        // FIXME - deallocate what's already been allocated (or BSOD)
+                        free(boot_info);
+                        return false;
+                    }
 
-                        if (!map_page(pa, va, mapping_type::read_write)) {
-                            print("map_page failed\n");
-                            // FIXME - deallocate what's already been allocated (or BSOD)
-                            free(boot_info);
-                            return false;
-                        }
-
-                        va += PAGE_SIZE;
+                    if (!map_page(pa, boot_info[i].stack, mapping_type::read_write)) {
+                        print("map_page failed\n");
+                        // FIXME - deallocate what's already been allocated (or BSOD)
+                        free(boot_info);
+                        return false;
                     }
 
                     i++;
@@ -662,7 +663,7 @@ export bool init_smp() {
         else {
             print("CPU found\n");
 
-            *ap_rsp = (KERNEL_STACK | ((boot_info[i].id * KERNEL_STACK_PAGES) << PAGE_SHIFT)) + 0x7fe0;
+            *ap_rsp = boot_info[i].stack + PAGE_SIZE - 0x20; // 0x20 for MS ABI
 
             start_ap(boot_info[i].id);
         }
@@ -673,6 +674,15 @@ export bool init_smp() {
     }
 
     unmap_page(0);
+
+    for (unsigned int i = 0; i < ap_count; i++) {
+        auto pa = va_to_pa_lookup(boot_info[i].stack);
+
+        free_folio(pa);
+        unmap_page(boot_info[i].stack);
+        free_va(boot_info[i].stack, 1);
+    }
+
     free(boot_info);
 #endif
 
