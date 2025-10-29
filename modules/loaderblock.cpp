@@ -76,7 +76,6 @@ enum class mem_type {
     bootloader,
     image,
     paging_table,
-    stack,
     acpi,
     uefi_code,
     uefi_data,

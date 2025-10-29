@@ -16,9 +16,6 @@ static EFI_BOOT_SERVICES* bs __attribute__((section (".data")));
 
 static const uintptr_t KERNEL_ADDR = 0xfffff80000000000;
 
-static const uint64_t KERNEL_STACK = 0xfffff90000000000;
-static const unsigned int KERNEL_STACK_PAGES = 8;
-
 static map_entry map[256] __attribute__((section (".data")));
 static unsigned int num_map_entries = 0;
 
@@ -1585,13 +1582,6 @@ static EFI_STATUS setup_paging() {
                     return status;
                 break;
 
-            case mem_type::stack:
-                status = do_map(KERNEL_STACK, map_copy[i].addr, map_copy[i].len);
-
-                if (EFI_ERROR(status))
-                    return status;
-                break;
-
             default:
                 break;
         }
@@ -1655,13 +1645,6 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
 
             case mem_type::image:
                 status = do_map(KERNEL_ADDR, map_copy[i].addr, map_copy[i].len);
-
-                if (EFI_ERROR(status))
-                    return status;
-                break;
-
-            case mem_type::stack:
-                status = do_map(KERNEL_STACK, map_copy[i].addr, map_copy[i].len);
 
                 if (EFI_ERROR(status))
                     return status;
@@ -2160,11 +2143,10 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
 
     // set stack and jump to entry point
     __asm__ __volatile__ (
-        "mov\trsp, %0"
-        "\n\tjmp\t%2"
+        "and rsp, ~0xf\n"
+        "call %1\n"
         :
-        : "i" (KERNEL_STACK + (KERNEL_STACK_PAGES << EFI_PAGE_SHIFT) - 0x20), // 0x20 for MS ABI
-          "c" (lb),
+        : "c" (lb),
           "r" (entry_point)
     );
 
@@ -2466,7 +2448,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     EFI_LOADED_IMAGE_PROTOCOL* image;
     uint64_t entry_point, img_pa, rsdp_pa;
     size_t img_size;
-    EFI_PHYSICAL_ADDRESS stack;
 #ifndef __aarch64__
     uint64_t cr3;
 #endif
@@ -2487,12 +2468,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     Status = load_pe(payload, KERNEL_ADDR, entry_point, img_pa, img_size);
     if (EFI_ERROR(Status)) {
         print_error("load_pe", Status);
-        return Status;
-    }
-
-    Status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, KERNEL_STACK_PAGES, &stack);
-    if (EFI_ERROR(Status)) {
-        print_error("AllocatePages", Status);
         return Status;
     }
 
@@ -2529,12 +2504,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     }
 
     Status = add_map_entry(img_pa, img_size, mem_type::image);
-    if (EFI_ERROR(Status)) {
-        print_error("add_map_entry", Status);
-        return Status;
-    }
-
-    Status = add_map_entry(stack, KERNEL_STACK_PAGES << EFI_PAGE_SHIFT, mem_type::stack);
     if (EFI_ERROR(Status)) {
         print_error("add_map_entry", Status);
         return Status;
