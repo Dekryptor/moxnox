@@ -320,7 +320,11 @@ static void do_serial() {
 
     // FIXME - should be soliciting username and password
 
+#ifdef __aarch64__
+    static const char16_t dev[] = u"\\dev\\ttyAMA0";
+#else
     static const char16_t dev[] = u"\\dev\\ttyS0";
+#endif
 
     us.Length = us.MaximumLength = (uint16_t)(sizeof(dev) - sizeof(char16_t));
     us.Buffer = (char16_t*)dev;
