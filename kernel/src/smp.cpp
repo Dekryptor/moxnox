@@ -466,28 +466,8 @@ export bool init_smp() {
         if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
             auto& ent = *(ACPI_MADT_LOCAL_APIC*)data.data();
 
-            if (ent.Id != bsp_id && ent.LapicFlags & (ACPI_MADT_ENABLED | ACPI_MADT_ONLINE_CAPABLE)) {
-                uint64_t va = KERNEL_STACK | ((ent.Id * KERNEL_STACK_PAGES) << PAGE_SHIFT);
-
-                for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-                    auto pa = allocate_page();
-                    if (!pa) {
-                        print("allocate_page failed\n");
-                        // FIXME - deallocate what's already been allocated (or BSOD)
-                        return false;
-                    }
-
-                    if (!map_page(pa, va, mapping_type::read_write)) {
-                        print("map_page failed\n");
-                        // FIXME - deallocate what's already been allocated (or BSOD)
-                        return false;
-                    }
-
-                    va += PAGE_SIZE;
-                }
-
+            if (ent.Id != bsp_id && ent.LapicFlags & (ACPI_MADT_ENABLED | ACPI_MADT_ONLINE_CAPABLE))
                 ap_count++;
-            }
         }
 #endif
 
@@ -594,6 +574,54 @@ export bool init_smp() {
 
     free_folio(identity_map);
 #else
+    struct info {
+        uint8_t id;
+    };
+
+    auto boot_info = (info*)malloc(sizeof(info) * ap_count);
+
+    {
+        unsigned int i = 0;
+
+        auto data = madt;
+        while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
+            auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
+
+            if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
+                auto& ent = *(ACPI_MADT_LOCAL_APIC*)data.data();
+
+                if (ent.Id != bsp_id && ent.LapicFlags & (ACPI_MADT_ENABLED | ACPI_MADT_ONLINE_CAPABLE)) {
+                    boot_info[i].id = ent.Id;
+
+                    uint64_t va = KERNEL_STACK | ((ent.Id * KERNEL_STACK_PAGES) << PAGE_SHIFT);
+
+                    for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
+                        auto pa = allocate_page();
+                        if (!pa) {
+                            print("allocate_page failed\n");
+                            // FIXME - deallocate what's already been allocated (or BSOD)
+                            free(boot_info);
+                            return false;
+                        }
+
+                        if (!map_page(pa, va, mapping_type::read_write)) {
+                            print("map_page failed\n");
+                            // FIXME - deallocate what's already been allocated (or BSOD)
+                            free(boot_info);
+                            return false;
+                        }
+
+                        va += PAGE_SIZE;
+                    }
+
+                    i++;
+                }
+            }
+
+            data = data.subspan(h.Length);
+        }
+    }
+
     auto trampoline = (void*)0;
 
     // we already reserved page 0 in the bootloader
@@ -628,27 +656,16 @@ export bool init_smp() {
 
     ap_left.store(ap_count, memory_order_acq_rel);
 
-    data = madt;
-    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
-        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
+    for (unsigned int i = 0; i < ap_count; i++) {
+        if (boot_info[i].id > 63)
+            print("Ignoring high-numbered CPUs (FIXME)\n"); // FIXME
+        else {
+            print("CPU found\n");
 
-        if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
-            auto& ent = *(ACPI_MADT_LOCAL_APIC*)data.data();
+            *ap_rsp = (KERNEL_STACK | ((boot_info[i].id * KERNEL_STACK_PAGES) << PAGE_SHIFT)) + 0x7fe0;
 
-            if (ent.Id != bsp_id && ent.LapicFlags & (ACPI_MADT_ENABLED | ACPI_MADT_ONLINE_CAPABLE)) {
-                if (ent.Id > 63)
-                    print("Ignoring high-numbered CPUs (FIXME)\n"); // FIXME
-                else {
-                    print("CPU found\n");
-
-                    *ap_rsp = (KERNEL_STACK | ((ent.Id * KERNEL_STACK_PAGES) << PAGE_SHIFT)) + 0x7fe0;
-
-                    start_ap(ent.Id);
-                }
-            }
+            start_ap(boot_info[i].id);
         }
-
-        data = data.subspan(h.Length);
     }
 
     while (ap_left.load(memory_order_acq_rel) > 0) {
@@ -656,6 +673,7 @@ export bool init_smp() {
     }
 
     unmap_page(0);
+    free(boot_info);
 #endif
 
     return true;
