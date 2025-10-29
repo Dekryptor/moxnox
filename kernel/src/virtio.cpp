@@ -24,6 +24,8 @@ import object_ref;
 import scheduler;
 import list;
 import spinlock;
+import disable_interrupts;
+import cpu_block;
 
 #ifndef __aarch64__
 import apic;
@@ -85,6 +87,7 @@ public:
 
 private:
     uint8_t get_slot();
+    optional<uint8_t> try_get_slot();
     void release_slot(uint8_t slot);
 
     uint32_t allocated_slots = 0;
@@ -362,6 +365,26 @@ uint8_t virt_queue::get_slot() {
     }
 }
 
+optional<uint8_t> virt_queue::try_get_slot() {
+    if (!try_acquire_semaphore(static_cast<semaphore&>(sem.get())))
+        return nullopt;
+
+    lock_guard l(slot_lock);
+
+    uint32_t mask = 1;
+    uint8_t c = 0;
+
+    while (true) {
+        if (!(allocated_slots & mask)) {
+            allocated_slots |= mask;
+            return c;
+        }
+
+        mask <<= 1;
+        c++;
+    }
+}
+
 void virt_queue::release_slot(uint8_t slot) {
     {
         lock_guard l(slot_lock);
@@ -428,7 +451,16 @@ nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
         return nt_status::SUCCESS;
     }
 
-    auto slot = get_slot();
+    auto no_wait = interrupts_disabled();
+    uint8_t slot;
+
+    if (no_wait) {
+        if (auto s = try_get_slot(); s.has_value())
+            slot = *s;
+        else
+            return nt_status::CANT_WAIT;
+    } else
+        slot = get_slot();
 
     // s needs to be in phys memory range
 
@@ -451,8 +483,19 @@ nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
 
     *notification_addr = num;
 
-    // FIXME - make interruptible
-    wait_for_object(events[slot].get(), false);
+    if (interrupts_disabled()) { // if interrupts disabled, poll
+        auto& e = static_cast<event&>(events[slot].get());
+
+        while (true) {
+            isr();
+
+            if (e.signalled)
+                break;
+        }
+    } else {
+        // FIXME - make interruptible
+        wait_for_object(events[slot].get(), false);
+    }
 
     read_bytes = lengths[slot];
 
@@ -627,6 +670,14 @@ virt_queue::~virt_queue() {
 }
 
 void virt_queue::isr() {
+    bool holding_sync_lock = false;
+
+    if (interrupts_disabled()) {
+        auto& cb = *get_cpu_block();
+
+        holding_sync_lock = sync_lock_cpu == cb.cpu_no;
+    }
+
     lock_guard lock(submit_lock);
 
     auto idx = queue->used.idx % QUEUE_SIZE;
@@ -634,7 +685,12 @@ void virt_queue::isr() {
     while (old_used_idx != idx) {
         lengths[queue->used.ring[old_used_idx].id] = queue->used.ring[old_used_idx].len;
 
-        set_event(static_cast<event&>(events[queue->used.ring[old_used_idx].id].get()));
+        auto& e = static_cast<event&>(events[queue->used.ring[old_used_idx].id].get());
+
+        if (holding_sync_lock)
+            e.set_holding_sync_lock();
+        else
+            set_event(e);
 
         old_used_idx++;
         if (old_used_idx == QUEUE_SIZE)
