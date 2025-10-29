@@ -138,7 +138,7 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
         auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
         auto y2 = (unsigned int)((((page_num + num_pages) << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
 
-        flush_framebuffer(0, y1, fb_width, y2);
+        flush_framebuffer(0, y1, fb_width, min(fb_height, y2 - y1 + 1));
     }
 
     return nt_status::SUCCESS;
