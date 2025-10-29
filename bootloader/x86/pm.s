@@ -139,10 +139,7 @@ _have_long_mode:
 .section .text
 .globl long_mode_start
 long_mode_start:
-    shl rdx, 32
-    mov eax, eax # clear top half
-    or rdx, rax
-    mov rsp, rdx
+    and rsp, ~0xf
     xor rbp, rbp
 
     lea rax, _entry_point[rip]

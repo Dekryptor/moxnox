@@ -75,8 +75,6 @@ static uint32_t debug_info_size, debug_abbrev_size, debug_rnglists_size,
                 debug_line_size, debug_line_str_size;
 
 static const uint64_t img_addr = 0xfffff80000000000;
-static const uint64_t KERNEL_STACK = 0xfffff90000000000;
-static const unsigned int KERNEL_STACK_PAGES = 8;
 
 static uintptr_t initrd_addr = 0;
 
@@ -551,12 +549,6 @@ static void enable_paging() {
             case mem_type::image:
                 for (uint64_t j = 0; j < m.len; j += PAGE_SIZE) {
                     map_page(pd, m.addr + j, img_addr + j);
-                }
-            break;
-
-            case mem_type::stack:
-                for (uint64_t j = 0; j < m.len; j += PAGE_SIZE) {
-                    map_page(pd, m.addr + j, KERNEL_STACK + j);
                 }
             break;
 
@@ -1171,8 +1163,6 @@ static void set_graphics_info() {
     }
 }
 
-static constexpr uint64_t START_RSP = KERNEL_STACK + (KERNEL_STACK_PAGES << PAGE_SHIFT) - 0x20; // 0x20 for MS ABI
-
 extern "C"
 void protected_mode_main() {
     if (pm_vbe_selected_mode == 0xffff) {
@@ -1211,8 +1201,6 @@ void protected_mode_main() {
         goto halt;
     }
 
-    get_pages(mem_type::stack, KERNEL_STACK_PAGES);
-
     enable_paging();
 
     lb.map_ptr = (uintptr_t)mem_entries;
@@ -1244,11 +1232,7 @@ void protected_mode_main() {
         "push 0x18\n\t"
         "lea eax, long_mode_start\n\t"
         "push eax\n\t"
-        "mov eax, %0\n\t"
-        "mov edx, %1\n\t"
         "retf\n\t"
-        :
-        : "i" (START_RSP & 0xffffffff), "i" (START_RSP >> 32)
     );
 
 halt:
