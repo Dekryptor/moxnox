@@ -1,6 +1,7 @@
 module;
 
 #include <stddef.h>
+#include <stdint.h>
 
 import cpu_block;
 
@@ -57,5 +58,31 @@ export inline __attribute__((always_inline)) void enable_preempt() {
         :
         : "i" (offsetof(cpu_block, disable_preempt))
     );
+#endif
+}
+
+export bool interrupts_disabled() {
+#ifdef __aarch64__
+    uint64_t daif = 0;
+
+    __asm __volatile(
+        "mrs %x[res], daif"
+        : [res] "=r" (daif)
+    );
+
+    return daif != 0;
+#else
+    uint64_t rflags = 0;
+
+    __asm __volatile(
+        "pushf\n"
+        "pop rax\n"
+        "mov %0, rax\n"
+        :
+        : "m" (rflags)
+        : "rax"
+    );
+
+    return !(rflags & 0x200); // IF flag not set
 #endif
 }

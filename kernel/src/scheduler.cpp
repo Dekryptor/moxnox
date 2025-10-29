@@ -214,17 +214,10 @@ export extern "C++"
 nt_status wait_for_object(object& obj, bool interruptible,
                           optional<uint64_t> timeout = nullopt) {
 #ifdef DEBUG
-#ifdef __aarch64__
-    uint64_t daif = 0;
-
-    __asm __volatile(
-        "mrs %x[res], daif"
-        : [res] "=r" (daif)
-    );
-
-    if (daif)
+    if (interrupts_disabled())
         bsod("calling wait_for_object with interrupts disabled");
 
+#ifdef __aarch64__
     disable_interrupts();
 
     auto& cb = *get_cpu_block();
@@ -238,7 +231,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
     if ((current_priority & 0xf0) != 0xf0)
         bsod_format("calling wait_for_object with GICC_PMR of {:x}\n", current_priority);
 #else
-    uint64_t cr8 = 0, rflags = 0;
+    uint64_t cr8 = 0;
 
     __asm __volatile(
         "mov rax, cr8\n"
@@ -250,18 +243,6 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
     if (cr8)
         bsod("calling wait_for_object when cr8 != 0");
-
-    __asm __volatile(
-        "pushf\n"
-        "pop rax\n"
-        "mov %0, rax\n"
-        :
-        : "m" (rflags)
-        : "rax"
-    );
-
-    if (!(rflags & 0x200)) // IF flag not set
-        bsod("calling wait_for_object with interrupts disabled");
 #endif
 #endif
     auto current_thread = get_current_thread();
@@ -588,17 +569,10 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable
 export nt_status wait_for_objects(span<object*> objects, bool wait_any,
                                   optional<uint64_t> timeout = nullopt) {
 #ifdef DEBUG
-#ifdef __aarch64__
-    uint64_t daif = 0;
-
-    __asm __volatile(
-        "mrs %x[res], daif"
-        : [res] "=r" (daif)
-    );
-
-    if (daif)
+    if (interrupts_disabled())
         bsod("calling wait_for_objects with interrupts disabled");
 
+#ifdef __aarch64__
     uint32_t current_priority;
 
     {
@@ -615,7 +589,7 @@ export nt_status wait_for_objects(span<object*> objects, bool wait_any,
     if ((current_priority & 0xf0) != 0xf0)
         bsod_format("calling wait_for_objects with GICC_PMR of {:x}\n", current_priority);
 #else
-    uint64_t cr8 = 0, rflags = 0;
+    uint64_t cr8 = 0;
 
     __asm __volatile(
         "mov rax, cr8\n"
@@ -627,18 +601,6 @@ export nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     if (cr8)
         bsod("calling wait_for_objects when cr8 != 0");
-
-    __asm __volatile(
-        "pushf\n"
-        "pop rax\n"
-        "mov %0, rax\n"
-        :
-        : "m" (rflags)
-        : "rax"
-    );
-
-    if (!(rflags & 0x200)) // IF flag not set
-        bsod("calling wait_for_objects with interrupts disabled");
 #endif
 #endif
     auto current_thread = get_current_thread();
