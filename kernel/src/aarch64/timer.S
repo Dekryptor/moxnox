@@ -164,13 +164,14 @@ acquire_sync_lock:
 1:
     swpa x1, x1, [x0]
     cbnz x1, 0b
-#ifdef DEBUG
+
     add x0, x18, GS_CPU_NO
     ldr w1, [x0]
     adrp x2, sync_lock_cpu
     add x2, x2, :lo12:sync_lock_cpu
     str w1, [x2]
 
+#ifdef DEBUG
     add x0, x18, GS_CURRENT_THREAD
     ldr x1, [x0]
     adrp x2, sync_lock_thread

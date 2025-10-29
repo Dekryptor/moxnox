@@ -17,6 +17,8 @@ import object_ref;
 import objects;
 import mem;
 import spinlock;
+import disable_interrupts;
+import cpu_block;
 
 using namespace std;
 
@@ -73,21 +75,71 @@ object_ref create_semaphore(unsigned int maximum_count) {
     return s;
 }
 
+export bool try_acquire_semaphore(semaphore& s) {
+    auto func = [&]() -> bool {
+        lock_guard l2(s.lock);
+
+        if (s.current_count == s.maximum_count)
+            return false;
+
+        s.current_count++;
+
+        if (s.current_count == s.maximum_count)
+            s.signalled = false;
+
+        return true;
+    };
+
+    bool ignore_sync_lock = false;
+
+    if (interrupts_disabled()) {
+        auto& cb = *get_cpu_block();
+
+        ignore_sync_lock = sync_lock_cpu == cb.cpu_no;
+    }
+
+    if (ignore_sync_lock)
+        return func();
+    else {
+        sync_lock sl;
+        lock_guard l1(sl);
+
+        return func();
+    }
+}
+
 export void release_semaphore(semaphore& s) {
+    auto func = [&]() {
+        lock_guard l2(s.lock);
+
+        // wake up one thread
+
+        s.current_count--;
+
+        auto waiter_count = wake_up_waiters(s.waiters);
+
+        if (waiter_count == 0)
+            s.signalled = true;
+    };
+
     // FIXME - what if not held by current thread?
 
-    sync_lock sl;
-    lock_guard l1(sl);
-    lock_guard l2(s.lock);
+    bool ignore_sync_lock = false;
 
-    // wake up one thread
+    if (interrupts_disabled()) {
+        auto& cb = *get_cpu_block();
 
-    s.current_count--;
+        ignore_sync_lock = sync_lock_cpu == cb.cpu_no;
+    }
 
-    auto waiter_count = wake_up_waiters(s.waiters);
+    if (ignore_sync_lock)
+        func();
+    else {
+        sync_lock sl;
+        lock_guard l1(sl);
 
-    if (waiter_count == 0)
-        s.signalled = true;
+        func();
+    }
 }
 
 void semaphore::on_wake() {

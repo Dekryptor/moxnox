@@ -14,6 +14,10 @@ import disable_interrupts;
 
 using namespace std;
 
+extern "C" {
+    export uint32_t sync_lock_cpu = 0xffffffff;
+}
+
 #ifdef __aarch64__
 
 export template<unsigned>

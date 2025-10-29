@@ -306,9 +306,9 @@ acquire_sync_lock: # clobbers rax
     xchg [rip+sync_lock_val], rax
     test rax, rax
     jnz 0b
-#ifdef DEBUG
     mov eax, gs:GS_CPU_NO
     mov DWORD PTR [rip+sync_lock_cpu], eax
+#ifdef DEBUG
     mov rax, gs:GS_CURRENT_THREAD
     mov QWORD PTR [rip+sync_lock_thread], rax
 #endif

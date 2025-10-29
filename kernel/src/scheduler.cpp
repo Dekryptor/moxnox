@@ -38,12 +38,11 @@ extern "C" {
 
 static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
-#ifdef DEBUG
 extern "C" {
-    uint32_t sync_lock_cpu = 0xffffffff;
+#ifdef DEBUG
     thread* sync_lock_thread = nullptr;
-}
 #endif
+}
 
 static thread* pick_runnable_thread(thread* current) {
     list_entry* le;
