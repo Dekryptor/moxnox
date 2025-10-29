@@ -25,6 +25,7 @@ import chardev;
 import scheduler;
 import list;
 import spinlock;
+import console;
 
 using namespace std;
 
@@ -92,8 +93,6 @@ public:
     serial_out_pipe& send_pipe;
     uint16_t port;
 };
-
-export object_ref com1_pipe_handle;
 
 static object_ref create_serial_in_pipe(unsigned int buffer_pages) {
     auto pptr = new pipe(buffer_pages);

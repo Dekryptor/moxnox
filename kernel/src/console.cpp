@@ -16,8 +16,6 @@ export module console;
 
 #ifndef __aarch64__
 import inout;
-import serial;
-import pci;
 #endif
 
 import print;
@@ -72,6 +70,8 @@ export void early_print(string_view s);
 export object_ref console_chardev;
 static object_ref kmsg;
 static const unsigned int console_buffer_pages = 4;
+
+export object_ref com1_pipe_handle;
 
 static FT_Library ft = nullptr;
 static unsigned int font_width, font_height, font_descender;
@@ -946,11 +946,9 @@ export void safe_print(string_view s) {
 
     object_write_without_offset(kmsg.get(), buf, written_bytes);
 
-#ifndef __aarch64__
     // FIXME - this should be hidden behind a cmdline option
     if (console_type != console_type::other && com1_pipe_handle)
         object_write_without_offset(com1_pipe_handle.get(), buf, written_bytes);
-#endif
 }
 
 static void console_event_recv() {

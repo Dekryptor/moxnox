@@ -24,6 +24,7 @@ import config;
 import chardev;
 import scheduler;
 import spinlock;
+import console;
 
 using namespace std;
 
@@ -424,9 +425,8 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
         }
     }
 
-    // FIXME - set com1_pipe_handle(?)
-    // if (num == 0)
-        // com1_pipe_handle.swap(send_handle);
+    if (num == 0)
+        com1_pipe_handle.swap(pipe_handle);
 
     return true;
 }
