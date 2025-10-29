@@ -154,6 +154,10 @@ add_library(loaderblock STATIC)
 target_sources(loaderblock PUBLIC FILE_SET CXX_MODULES FILES modules/loaderblock.cpp)
 target_compile_options(loaderblock PRIVATE ${KERNEL_CFLAGS})
 
+add_library(kernelbase_mod STATIC)
+target_sources(kernelbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/kernelbase.cpp)
+target_compile_options(kernelbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
 add_subdirectory(kernel)
 add_subdirectory(ntdll)
 add_subdirectory(init)

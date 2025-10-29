@@ -1,6 +1,5 @@
 #include "ntdll_private.h"
 #include "list.h"
-#include <kernelbase.h>
 #include <stdlib.h>
 #include <optional>
 #include "exception_record_offsets.h"
@@ -11,6 +10,7 @@ import print;
 import unwind;
 import unicode;
 import pe;
+import kernelbase;
 
 using namespace std;
 

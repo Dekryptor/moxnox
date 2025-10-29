@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <kernelbase.h>
 #include <ioctl.h>
 #include <span>
 #include <charconv>
@@ -19,6 +18,7 @@ import unique_handle;
 import signal;
 import list;
 import pe;
+import kernelbase;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;

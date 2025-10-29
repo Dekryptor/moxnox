@@ -1,7 +1,8 @@
-#include <kernelbase.h>
+#include <stdint.h>
 
 import nt;
 import ntdll;
+import kernelbase;
 
 struct ctrl_handler {
     ctrl_handler* next;
