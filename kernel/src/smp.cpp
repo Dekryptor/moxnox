@@ -49,6 +49,7 @@ extern "C" uint8_t ap_trampoline;
 extern "C" uint8_t ap_trampoline_end;
 extern "C" uint8_t ap_trampoline_cr3;
 extern "C" uint64_t ap_trampoline_start_func;
+extern "C" uint64_t ap_trampoline_rsp;
 
 static const uint64_t KERNEL_STACK = 0xfffff90000000000;
 
@@ -617,6 +618,8 @@ export bool init_smp() {
 
     *ap_start_func = (uintptr_t)ap_startup;
 
+    uint64_t* ap_rsp = (uint64_t*)((uint8_t*)trampoline + ((uint8_t*)&ap_trampoline_rsp - &ap_trampoline));
+
     __asm __volatile (
         "sgdt %0\n"
         "sidt %1\n"
@@ -637,6 +640,8 @@ export bool init_smp() {
                     print("Ignoring high-numbered CPUs (FIXME)\n"); // FIXME
                 else {
                     print("CPU found\n");
+
+                    *ap_rsp = (KERNEL_STACK | ((ent.Id * KERNEL_STACK_PAGES) << PAGE_SHIFT)) + 0x7fe0;
 
                     start_ap(ent.Id);
                 }
