@@ -59,7 +59,8 @@ export enum class page_state : uint8_t {
     allocator_512,
     allocator_256,
     allocator_128,
-    allocator_64
+    allocator_64,
+    boot
 };
 
 struct page {
@@ -77,6 +78,9 @@ struct page {
             void* cb;
             unsigned int index;
         } allocator;
+        struct {
+            list_entry le;
+        } boot;
     };
 };
 
@@ -104,6 +108,8 @@ export constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
 
 list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 uint64_t free_folios[MAX_FOLIO_ORDER + 1];
+
+list_entry boot_pages = { &boot_pages, &boot_pages };
 
 #ifndef __aarch64__
 uint8_t MAXPHYADDR = 36;
@@ -923,6 +929,22 @@ static void mark_mem_as_free(uint64_t pa, size_t len, bool skip_spinlock) {
     }
 }
 
+static void mark_mem_as_boot(uint64_t pa, size_t len) {
+    // deliberately not taking pa_spinlock
+
+    uint64_t pfn = pa >> PAGE_SHIFT;
+    uint64_t num_pages = len >> PAGE_SHIFT;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        if (pages[pfn].state != page_state::boot) {
+            insert_tail_list(boot_pages, pages[pfn].boot.le);
+            pages[pfn].state = page_state::boot;
+        }
+
+        pfn++;
+    }
+}
+
 static void mark_mem_as_used(uint64_t pa, size_t len) {
     uint64_t pfn = pa >> PAGE_SHIFT;
     uint64_t num_pages = len >> PAGE_SHIFT;
@@ -934,6 +956,9 @@ static void mark_mem_as_used(uint64_t pa, size_t len) {
             remove_entry_list(pages[pfn].free.le);
             pages[pfn].state = page_state::used;
             free_folios[0]--;
+        } else if (pages[pfn].state == page_state::boot) {
+            remove_entry_list(pages[pfn].boot.le);
+            pages[pfn].state = page_state::used;
         }
 
         pfn++;
@@ -1291,9 +1316,10 @@ export bool init_memory(const loader_block& lb) {
     }
 
     for (auto& map : map_entries) {
-        // bootloader memory also gets marked as free (inc. page tables)
-        if (map.type == mem_type::free || map.type == mem_type::bootloader)
+        if (map.type == mem_type::free)
             mark_mem_as_free(map.addr, map.len, true);
+        else if (map.type == mem_type::bootloader)
+            mark_mem_as_boot(map.addr, map.len);
     }
 
     // subtract memblock itself, and scratch that we've used
@@ -1569,6 +1595,17 @@ export void free_folio(uint64_t pa) {
     lock_guard lock(pa_spinlock);
 
     free_folio_no_lock(pa);
+}
+
+export void free_bootloader_memory() {
+    while (!is_list_empty(boot_pages)) {
+        auto& p = *(page*)((uint8_t*)boot_pages.next - offsetof(page, boot.le));
+        auto orig_pfn = (uint64_t)(&p - pages);
+
+        remove_entry_list(p.boot.le);
+
+        free_folio_no_lock(orig_pfn << PAGE_SHIFT);
+    }
 }
 
 export uint64_t cow_folio(uint64_t pa) {
