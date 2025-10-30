@@ -88,12 +88,11 @@ static uint64_t total_pages;
 export _spinlock<6> pa_spinlock;
 
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
-static uint64_t vablock_size;
+uint64_t vablock_size;
 
 static uint8_t* const initrd_addr = (uint8_t*)0xfffffa5000000000;
 
-static spinlock va_spinlock;
-spinlock mapping_spinlock;
+spinlock va_spinlock, mapping_spinlock;
 static spinlock protect_page_spinlock;
 
 export span<const uint8_t> initrd;
@@ -1797,7 +1796,7 @@ export void protect_page(uint64_t va, enum mapping_type type) {
 }
 #endif
 
-static void mark_vamem_as_used(uint64_t off, size_t num_pages) {
+void mark_vamem_as_used(uint64_t off, size_t num_pages) {
     if (off & 63) {
         auto& b = vablock[off >> 6];
 
@@ -1867,7 +1866,7 @@ export bool init_vablock() {
     return true;
 }
 
-static uint64_t leading_ones(uint64_t n) {
+uint64_t leading_ones(uint64_t n) {
     uint64_t ret = 0;
 
     while (n & 0x8000000000000000) {
@@ -1878,7 +1877,7 @@ static uint64_t leading_ones(uint64_t n) {
     return ret;
 }
 
-static uint64_t trailing_ones(uint64_t n) {
+uint64_t trailing_ones(uint64_t n) {
     uint64_t ret = 0;
 
     while (n & 1) {
@@ -1889,7 +1888,7 @@ static uint64_t trailing_ones(uint64_t n) {
     return ret;
 }
 
-export uint64_t allocate_va_no_lock(uint32_t num_pages) {
+inline __attribute((always_inline)) uint64_t allocate_va_no_lock(uint32_t num_pages) {
     auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
     uint64_t run_start = 0;
     uint64_t run_length = 0;
@@ -1966,11 +1965,19 @@ export uint64_t allocate_va_no_lock(uint32_t num_pages) {
     return 0;
 }
 
-export uint64_t allocate_va(uint32_t num_pages) {
-    lock_guard lock(va_spinlock);
+export template<bool no_lock = false>
+uint64_t allocate_va(uint32_t num_pages) {
+    if constexpr (no_lock)
+        return allocate_va_no_lock(num_pages);
+    else {
+        lock_guard lock(va_spinlock);
 
-    return allocate_va_no_lock(num_pages);
+        return allocate_va_no_lock(num_pages);
+    }
 }
+
+template uint64_t allocate_va<true>(uint32_t);
+template uint64_t allocate_va<false>(uint32_t);
 
 export void free_va(uint64_t va, uint32_t num_pages) {
     va -= (uintptr_t)vablock;
@@ -2595,7 +2602,7 @@ export void* allocate_stack() {
 }
 
 export void* allocate_stack_no_lock() {
-    auto stack = (void*)allocate_va_no_lock(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+    auto stack = (void*)allocate_va<true>(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     if (!stack) {
         print("allocate_va failed\n");
         return nullptr;

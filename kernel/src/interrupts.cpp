@@ -950,20 +950,10 @@ uint64_t init_interrupts_cpu(uint64_t mpidr) {
         return 0;
     }
 
-    uint64_t va;
-
-    if constexpr (no_lock) {
-        va = allocate_va_no_lock(1);
-        if (!va) {
-            print("allocate_va_no_lock failed\n");
-            return 0;
-        }
-    } else {
-        va = allocate_va(1);
-        if (!va) {
-            print("allocate_va failed\n");
-            return 0;
-        }
+    auto va = allocate_va<no_lock>(1);
+    if (!va) {
+        print("allocate_va failed\n");
+        return 0;
     }
 
     if (!map_page<no_lock>(*gicc_addr, va, mapping_type::no_cache)) {
@@ -1038,9 +1028,9 @@ static bool init_interrupts_global() {
         return false;
     }
 
-    auto va = allocate_va_no_lock(1);
+    auto va = allocate_va<true>(1);
     if (!va) {
-        print("allocate_va_no_lock failed\n");
+        print("allocate_va failed\n");
         return false;
     }
 
@@ -1062,9 +1052,9 @@ static bool init_interrupts_global() {
         return true;
 
     {
-        auto va = allocate_va_no_lock(1);
+        auto va = allocate_va<true>(1);
         if (!va) {
-            print("allocate_va_no_lock failed\n");
+            print("allocate_va failed\n");
             return false;
         }
 
