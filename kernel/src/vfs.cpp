@@ -254,7 +254,11 @@ static bool extract_initrd() {
     auto num_pages = bytes_to_pages(initrd.size());
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        unmap_and_free_page((uintptr_t)(initrd.data() + (i << PAGE_SHIFT)));
+        auto va = (uintptr_t)(initrd.data() + (i << PAGE_SHIFT));
+        auto pa = va_to_pa_lookup(va);
+
+        unmap_page(va);
+        free_folio(pa);
     }
 
     initrd = span<uint8_t>();

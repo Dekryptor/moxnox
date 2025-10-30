@@ -1625,41 +1625,6 @@ export uint64_t cow_folio(uint64_t pa) {
 }
 
 #ifdef __aarch64__
-export void unmap_and_free_page(uint64_t va) {
-    auto ttbr1 = ttbr1_el1_load();
-    auto& level1 = *(ARM64_HARDWARE_PTE*)phys_address(ttbr1 | (((va & 0xff8000000000) >> 39) << 3));
-    auto& level2 = *(ARM64_HARDWARE_PTE*)phys_address((level1.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
-    auto& level3 = *(ARM64_HARDWARE_PTE*)phys_address((level2.pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
-    auto& pt_entry = *(ARM64_HARDWARE_PTE*)phys_address((level3.pfn << PAGE_SHIFT) | (((va & 0x1ff000) >> PAGE_SHIFT) << 3));
-
-    if (!pt_entry.valid)
-        return;
-
-    auto pa = ((uint64_t)pt_entry.pfn) << PAGE_SHIFT;
-
-    free_folio(pa);
-
-    pt_entry.valid = 0;
-}
-#else
-export void unmap_and_free_page(uint64_t va) {
-    auto& level1 = *(HARDWARE_PTE*)phys_address((__readcr3() & 0xfffffffffffff000) | (((va & 0xff8000000000) >> 39) << 3));
-    auto& level2 = *(HARDWARE_PTE*)phys_address((level1.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
-    auto& level3 = *(HARDWARE_PTE*)phys_address((level2.pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
-    auto& pt_entry = *(HARDWARE_PTE*)phys_address((level3.pfn << PAGE_SHIFT) | (((va & 0x1ff000) >> PAGE_SHIFT) << 3));
-
-    if (!pt_entry.p)
-        return;
-
-    auto pa = ((uint64_t)pt_entry.pfn) << PAGE_SHIFT;
-
-    free_folio(pa);
-
-    pt_entry.p = 0;
-}
-#endif
-
-#ifdef __aarch64__
 export void unmap_page(uint64_t va) {
     auto ttbr1 = ttbr1_el1_load();
     auto& level1 = *(ARM64_HARDWARE_PTE*)phys_address(ttbr1 | (((va & 0xff8000000000) >> 39) << 3));
