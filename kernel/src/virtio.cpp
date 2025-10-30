@@ -230,45 +230,36 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
 
     common->queue_size = QUEUE_SIZE;
 
-    static const size_t NUM_PAGES = bytes_to_pages(sizeof(virtq<QUEUE_SIZE>));
-
-    auto pa = allocate_folio(bytes_to_folio_order(sizeof(virtq<QUEUE_SIZE>)));
+    auto order = bytes_to_folio_order(sizeof(virtq<QUEUE_SIZE>));
+    auto pa = allocate_folio(order);
     if (!pa) {
         print("allocate folio failed\n");
         return false;
     }
 
-    auto va = allocate_va(NUM_PAGES);
+    auto va = allocate_va(1 << order);
     if (!va) {
         print("allocate_va failed\n");
         free_folio(pa);
         return false;
     }
 
-    for (unsigned int i = 0; i < NUM_PAGES; i++) {
-        if (!map_page(pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::no_cache)) {
-            print("map_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                unmap_page(va + (j << PAGE_SHIFT));
-            }
-
-            free_va(va, NUM_PAGES);
-            free_folio(pa);
-
-            return false;
-        }
+    if (!map_folio(pa, va, mapping_type::no_cache)) {
+        print("map_folio failed\n");
+        free_va(va, 1 << order);
+        free_folio(pa);
+        return false;
     }
 
     auto vq = new virt_queue;
     if (!vq) {
         print("new failed\n");
 
-        for (unsigned int i = 0; i < NUM_PAGES; i++) {
+        for (unsigned int i = 0; i < (unsigned int)1 << order; i++) {
             unmap_page(va + (i << PAGE_SHIFT));
         }
 
-        free_va(va, NUM_PAGES);
+        free_va(va, 1 << order);
         free_folio(pa);
         return false;
     }
