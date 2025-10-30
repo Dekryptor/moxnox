@@ -598,34 +598,28 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
     volatile auto& run_regs = *(xhci_run_regs*)((uint8_t*)&cap_regs + cap_regs.RTSOFF);
 
     size_t event_ring_bytes = EVENT_RING_SIZE * sizeof(xhci_trb_common);
-    uint32_t event_ring_num_pages = bytes_to_pages(event_ring_bytes);
+    auto event_ring_order = bytes_to_folio_order(event_ring_bytes);
 
-    event_ring_pa = allocate_folio(bytes_to_folio_order(event_ring_bytes));
+    event_ring_pa = allocate_folio(event_ring_order);
     if (!event_ring_pa) {
         print("allocate folio failed\n");
         return;
     }
 
-    auto va = allocate_va(event_ring_num_pages);
+    auto va = allocate_va(1 << event_ring_order);
     if (!va) {
         print("allocate_va failed\n");
         free_folio(event_ring_pa);
         return;
     }
 
-    for (unsigned int i = 0; i < event_ring_num_pages; i++) {
-        if (!map_page(event_ring_pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::no_cache)) {
-            print("map_page failed\n");
+    if (!map_folio(event_ring_pa, va, mapping_type::no_cache)) {
+        print("map_folio failed\n");
 
-            for (unsigned int j = 0; j < i; j++) {
-                unmap_page(va + (j << PAGE_SHIFT));
-            }
+        free_va(va, 1 << event_ring_order);
+        free_folio(event_ring_pa);
 
-            free_va(va, event_ring_num_pages);
-            free_folio(event_ring_pa);
-
-            return;
-        }
+        return;
     }
 
     event_ring = (xhci_trb_common*)va;
@@ -732,17 +726,16 @@ xhci::~xhci() {
         free(dcbaa);
 
     if (event_ring) {
-        auto size_bytes = EVENT_RING_SIZE * sizeof(xhci_trb_common);
-
-        uint32_t num_pages = bytes_to_pages(size_bytes);
+        size_t event_ring_bytes = EVENT_RING_SIZE * sizeof(xhci_trb_common);
+        auto event_ring_order = bytes_to_folio_order(event_ring_bytes);
 
         auto va = (uintptr_t)event_ring;
 
-        for (unsigned int i = 0; i < num_pages; i++) {
+        for (unsigned int i = 0; i < (unsigned int)1 << event_ring_order; i++) {
             unmap_page(va + (i << PAGE_SHIFT));
         }
 
-        free_va(va, num_pages);
+        free_va(va, 1 << event_ring_order);
 
         free_folio(event_ring_pa);
     }
