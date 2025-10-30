@@ -9,9 +9,9 @@ module;
 #include "assert.h"
 
 #ifdef __aarch64__
-#include "mem-aarch64.h"
+#include "aarch64/mem.h"
 #else
-#include "mem-x86.h"
+#include "x86/mem.h"
 #endif
 
 export module mem;
