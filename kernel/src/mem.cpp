@@ -2509,60 +2509,16 @@ export void increase_page_refcount(uint64_t pfn) {
     }
 }
 
-export void* allocate_stack() {
-    auto stack = (void*)allocate_va(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+export template<bool no_lock = false>
+void* allocate_stack() {
+    auto stack = (void*)allocate_va<no_lock>(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     if (!stack) {
         print("allocate_va failed\n");
         return nullptr;
     }
 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-        auto pa = allocate_page();
-        if (!pa) {
-            print("allocate_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
-                auto pa = va_to_pa_lookup(va);
-
-                free_folio(pa);
-                unmap_page(va);
-            }
-
-            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-
-            return nullptr;
-        }
-
-        if (!map_page(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
-            print("map_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
-                auto pa = va_to_pa_lookup(va);
-
-                free_folio(pa);
-                unmap_page(va);
-            }
-
-            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-
-            return nullptr;
-        }
-    }
-
-    return stack;
-}
-
-export void* allocate_stack_no_lock() {
-    auto stack = (void*)allocate_va<true>(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-    if (!stack) {
-        print("allocate_va failed\n");
-        return nullptr;
-    }
-
-    for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-        auto pa = allocate_folio<true>(0, page_state::used);
+        auto pa = allocate_folio<no_lock>(0, page_state::used);
         if (!pa) {
             print("allocate_folio failed\n");
 
@@ -2579,7 +2535,7 @@ export void* allocate_stack_no_lock() {
             return nullptr;
         }
 
-        if (!map_page<true>(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
+        if (!map_page<no_lock>(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
             print("map_page failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
@@ -2598,6 +2554,9 @@ export void* allocate_stack_no_lock() {
 
     return stack;
 }
+
+template void* allocate_stack<true>();
+template void* allocate_stack<false>();
 
 export enum mapping_type characteristics_to_mapping_type(uint32_t c) {
     if (c & IMAGE_SCN_MEM_WRITE && !(c & IMAGE_SCN_MEM_EXECUTE))

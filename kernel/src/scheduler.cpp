@@ -483,9 +483,9 @@ export uintptr_t init_cpu_block(unsigned int cpu_no) {
     void* stack;
 
     if (cpu_no == 0)
-        stack = allocate_stack_no_lock();
+        stack = allocate_stack<true>();
     else
-        stack = allocate_stack();
+        stack = allocate_stack<false>();
 
     if (!stack)
         return 0;

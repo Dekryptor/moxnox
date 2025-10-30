@@ -70,7 +70,9 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
 
     enable_interrupts();
 
-    print("shutting down\n");
+    // FIXME - GCC fails without superfluous parameter ("not a constant expression because it refers to an incompletely initialized variable")
+    // (after making allocate_stack into a template??)
+    print("shutting down\n", "");
     shutdown_pipes();
 
     shutting_down = true;
