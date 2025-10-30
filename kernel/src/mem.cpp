@@ -1986,6 +1986,28 @@ export uint64_t va_to_pa_lookup(uint64_t va) {
 }
 #endif
 
+export uint8_t get_folio_order(uint64_t pa) {
+    return pages[pa >> PAGE_SHIFT].order;
+}
+
+export bool map_folio(uint64_t pa, uint64_t va, enum mapping_type type) {
+    auto order = get_folio_order(pa);
+
+    // FIXME - huge pages
+
+    for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
+        if (!map_page(pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), type)) {
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            return false;
+        }
+    }
+
+    return true;
+}
+
 export
 extern "C"
 void* memchr(const void* ptr, int ch, size_t count) {
@@ -2364,10 +2386,6 @@ static uint64_t try_allocate_folio(uint8_t order, enum page_state state = page_s
     return allocate_folio<true>(0, state);
 }
 
-export uint8_t get_folio_order(uint64_t pa) {
-    return pages[pa >> PAGE_SHIFT].order;
-}
-
 export void* vmalloc(size_t size) {
     uint64_t num_pages = bytes_to_pages(size);
     uint64_t pages_left = num_pages;
@@ -2415,32 +2433,27 @@ export void* vmalloc(size_t size) {
 
         auto order = get_folio_order(pa);
 
-        // FIXME - map_folio?
+        if (!map_folio(pa, va, mapping_type::read_write)) {
+            free_folio(pa);
 
-        for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
-            if (!map_page(pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT),
-                          mapping_type::read_write)) {
+            va = orig_va;
+            while (pages_left < num_pages) {
+                auto pa = va_to_pa_lookup(va);
+                auto order = get_folio_order(pa);
+
                 free_folio(pa);
 
-                va = orig_va;
-                while (pages_left < num_pages) {
-                    auto pa = va_to_pa_lookup(va);
-                    auto order = get_folio_order(pa);
-
-                    free_folio(pa);
-
-                    for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
-                        unmap_page(va);
-                        va += PAGE_SIZE;
-                    }
-
-                    pages_left += 1 << order;
+                for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
+                    unmap_page(va);
+                    va += PAGE_SIZE;
                 }
 
-                free_va(orig_va, (uint32_t)num_pages);
-
-                return nullptr;
+                pages_left += 1 << order;
             }
+
+            free_va(orig_va, (uint32_t)num_pages);
+
+            return nullptr;
         }
 
         va += 1 << (order + PAGE_SHIFT);
