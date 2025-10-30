@@ -1866,17 +1866,6 @@ export bool init_vablock() {
     return true;
 }
 
-uint64_t leading_ones(uint64_t n) {
-    uint64_t ret = 0;
-
-    while (n & 0x8000000000000000) {
-        ret++;
-        n <<= 1;
-    }
-
-    return ret;
-}
-
 uint64_t trailing_ones(uint64_t n) {
     uint64_t ret = 0;
 
@@ -1906,7 +1895,7 @@ inline __attribute((always_inline)) uint64_t allocate_va_no_lock(uint32_t num_pa
             if (run_length == 0)
                 run_start = i * 64;
 
-            run_length += leading_ones(mb[i]);
+            run_length += countl_one(mb[i]);
 
             if (run_length >= num_pages) {
                 mark_vamem_as_used(run_start, num_pages);
