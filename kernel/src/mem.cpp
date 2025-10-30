@@ -2490,6 +2490,8 @@ export void vfree(void* ptr, size_t size) {
 
         pages_left -= 1 << order;
     }
+
+    free_va((uintptr_t)ptr, (uint32_t)num_pages);
 }
 
 export void inline __attribute__((always_inline)) barrier() {
