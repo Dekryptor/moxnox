@@ -318,15 +318,15 @@ xhci_queue::~xhci_queue() {
     if (ring) {
         auto size_bytes = (size + 1) * sizeof(xhci_trb_common);
 
-        uint32_t num_pages = bytes_to_pages(size_bytes);
+        auto order = bytes_to_folio_order(size_bytes);
 
         auto va = (uintptr_t)ring;
 
-        for (unsigned int i = 0; i < num_pages; i++) {
+        for (unsigned int i = 0; i < (unsigned int)1 << order; i++) {
             unmap_page(va + (i << PAGE_SHIFT));
         }
 
-        free_va(va, num_pages);
+        free_va(va, 1 << order);
 
         free_folio(ring_pa);
     }
@@ -339,7 +339,7 @@ void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
                             uint32_t doorbell_val) {
     auto size_bytes = (size + 1) * sizeof(xhci_trb_common);
 
-    uint32_t num_pages = bytes_to_pages(size_bytes);
+    auto order = bytes_to_folio_order(size_bytes);
 
     ring_pa = allocate_folio(bytes_to_folio_order(size_bytes));
     if (!ring_pa) {
@@ -347,26 +347,20 @@ void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
         return;
     }
 
-    auto va = allocate_va(num_pages);
+    auto va = allocate_va(1 << order);
     if (!va) {
         print("allocate_va failed\n");
         free_folio(ring_pa);
         return;
     }
 
-    for (unsigned int i = 0; i < num_pages; i++) {
-        if (!map_page(ring_pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::no_cache)) {
-            print("map_page failed\n");
+    if (!map_folio(ring_pa, va, mapping_type::no_cache)) {
+        print("map_folio failed\n");
 
-            for (unsigned int j = 0; j < i; j++) {
-                unmap_page(va + (j << PAGE_SHIFT));
-            }
+        free_va(va, 1 << order);
+        free_folio(ring_pa);
 
-            free_va(va, num_pages);
-            free_folio(ring_pa);
-
-            return;
-        }
+        return;
     }
 
     ring = (xhci_trb_common*)va;
