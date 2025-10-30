@@ -412,13 +412,7 @@ void wait_timeout_expired(thread* tptr) {
 #ifdef __aarch64__
 template<bool no_lock>
 uintptr_t allocate_emergency_stack() {
-    uint64_t pa;
-
-    if constexpr (no_lock)
-        pa = allocate_folio_no_lock(0, page_state::used);
-    else
-        pa = allocate_folio(0, page_state::used);
-
+    auto pa = allocate_folio<no_lock>(0, page_state::used);
     if (!pa)
         return 0;
 
@@ -433,9 +427,9 @@ export uintptr_t init_cpu_block(unsigned int cpu_no) {
 
     for (unsigned int i = 0; i < pages; i++) {
         if (cpu_no == 0) {
-            auto pa = allocate_folio_no_lock(0, page_state::used);
+            auto pa = allocate_folio<true>(0, page_state::used);
             if (!pa) {
-                print("allocate_folio_no_lock failed\n");
+                print("allocate_folio failed\n");
                 return 0;
             }
 
@@ -462,9 +456,9 @@ export uintptr_t init_cpu_block(unsigned int cpu_no) {
     uint64_t printk_scratch_pa;
 
     if (cpu_no == 0) {
-        printk_scratch_pa = allocate_folio_no_lock(0, page_state::used);
+        printk_scratch_pa = allocate_folio<true>(0, page_state::used);
         if (!printk_scratch_pa) {
-            print("allocate_folio_no_lock failed\n");
+            print("allocate_folio failed\n");
             return 0;
         }
     } else {

@@ -102,8 +102,8 @@ static const uint64_t PHYS_MEMORY = 0xffff990000000000;
 
 export constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
 
-static list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
-static uint64_t free_folios[MAX_FOLIO_ORDER + 1];
+list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
+uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
 #ifndef __aarch64__
 uint8_t MAXPHYADDR = 36;
@@ -551,7 +551,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 }
 #endif
 
-static void fragment_folio(uint64_t pfn, uint8_t desired_order) {
+void fragment_folio(uint64_t pfn, uint8_t desired_order) {
     uint8_t order = pages[pfn].order;
 
     // break folio into smaller pieces
@@ -587,7 +587,7 @@ static void fragment_folio(uint64_t pfn, uint8_t desired_order) {
     }
 }
 
-export uint64_t allocate_folio_no_lock(uint8_t order, enum page_state state) {
+inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t order, enum page_state state) {
     for (unsigned int i = order; i <= MAX_FOLIO_ORDER; i++) {
         if (is_list_empty(folio_free_lists[i]))
             continue;
@@ -618,11 +618,19 @@ export uint64_t allocate_folio_no_lock(uint8_t order, enum page_state state) {
     return 0;
 }
 
-export uint64_t allocate_folio(uint8_t order, enum page_state state = page_state::used) {
-    lock_guard lock(pa_spinlock);
+export template<bool no_lock = false>
+uint64_t allocate_folio(uint8_t order, enum page_state state = page_state::used) {
+    if constexpr (no_lock)
+        return allocate_folio_no_lock(order, state);
+    else {
+        lock_guard lock(pa_spinlock);
 
-    return allocate_folio_no_lock(order, state);
+        return allocate_folio_no_lock(order, state);
+    }
 }
+
+template uint64_t allocate_folio<true>(uint8_t, enum page_state);
+template uint64_t allocate_folio<false>(uint8_t, enum page_state);
 
 export uint64_t allocate_page(enum page_state state = page_state::used) {
     return allocate_folio(0, state);
@@ -651,14 +659,8 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         auto& p0 = *(ARM64_HARDWARE_PTE*)phys_address(ttbr1_el1_load() | (((va & 0xff8000000000) >> 39) << 3));
 
         if (!p0.valid) {
-            uint64_t page;
-
             // FIXME - should there be an allocate_zeroed_page?
-            if constexpr (no_lock)
-                page = allocate_folio_no_lock(0, page_state::used);
-            else
-                page = allocate_page();
-
+            auto page = allocate_folio<no_lock>(0, page_state::used);
             if (page == 0)
                 return false;
 
@@ -679,13 +681,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         auto& p1 = *(ARM64_HARDWARE_PTE*)phys_address((p0.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
 
         if (!p1.valid) {
-            uint64_t page;
-
-            if constexpr (no_lock)
-                page = allocate_folio_no_lock(0, page_state::used);
-            else
-                page = allocate_page();
-
+            auto page = allocate_folio<no_lock>(0, page_state::used);
             if (page == 0)
                 return false;
 
@@ -706,13 +702,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         auto& p2 = *(ARM64_HARDWARE_PTE*)phys_address((p1.pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
 
         if (!p2.valid) {
-            uint64_t page;
-
-            if constexpr (no_lock)
-                page = allocate_folio_no_lock(0, page_state::used);
-            else
-                page = allocate_page();
-
+            auto page = allocate_folio<no_lock>(0, page_state::used);
             if (page == 0)
                 return false;
 
@@ -1098,9 +1088,9 @@ static bool map_physical_memory(uint64_t num_pages) {
     auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p0 = pte0[(PHYS_MEMORY & 0xff8000000000) >> 39];
 
-    auto pa = allocate_folio_no_lock(0, page_state::used);
+    auto pa = allocate_folio<true>(0, page_state::used);
     if (!pa) {
-        print("allocate_folio_no_lock failed\n");
+        print("allocate_folio failed\n");
         return false;
     }
 
@@ -1195,9 +1185,9 @@ static bool load_initrd(void* data, uintptr_t size) {
     auto num_pages = bytes_to_pages(size);
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        auto pa = allocate_folio_no_lock(0, page_state::used);
+        auto pa = allocate_folio<true>(0, page_state::used);
         if (!pa)
-            bsod("allocate_page failed in load_initrd");
+            bsod("allocate_folio failed in load_initrd");
 
         if (!map_page<true>(pa, (uintptr_t)initrd_addr + (i << PAGE_SHIFT), mapping_type::read_write))
             bsod("map_page failed in load_initrd");
@@ -1334,7 +1324,7 @@ export bool init_memory(const loader_block& lb) {
         // FIXME - mark source memory as free (is page-aligned)
     }
 
-    zero_pfn = allocate_folio_no_lock(0, page_state::used) >> PAGE_SHIFT;
+    zero_pfn = allocate_folio<true>(0, page_state::used) >> PAGE_SHIFT;
     if (!zero_pfn) {
         print("could not allocate zero page\n");
         return false;
@@ -1837,9 +1827,9 @@ export bool init_vablock() {
     auto va = (uintptr_t)vablock;
 
     for (unsigned int i = 0; i < num_pages; i++) {
-        auto pa = allocate_folio_no_lock(0, page_state::used);
+        auto pa = allocate_folio<true>(0, page_state::used);
         if (!pa) {
-            print("allocate_folio_no_lock failed\n");
+            print("allocate_folio failed\n");
             return false;
         }
 
@@ -2105,13 +2095,7 @@ int strncmp(const char* s1, const char* s2, size_t n) {
 template<unsigned N, enum page_state S>
 template<bool no_lock>
 void* allocator_folio<N, S>::malloc() {
-    uint64_t p;
-
-    if constexpr (no_lock)
-        p = allocate_folio_no_lock(N, S);
-    else
-        p = allocate_folio(N, S);
-
+    auto p = allocate_folio<no_lock>(N, S);
     if (!p)
         return nullptr;
 
@@ -2195,13 +2179,7 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
         }
     }
 
-    uint64_t pfn;
-
-    if constexpr (no_lock)
-        pfn = allocate_folio_no_lock(0, page_state_type) >> PAGE_SHIFT;
-    else
-        pfn = allocate_page(page_state_type) >> PAGE_SHIFT;
-
+    auto pfn = allocate_folio<no_lock>(0, page_state_type) >> PAGE_SHIFT;
     if (!pfn)
         return 0;
 
@@ -2296,12 +2274,9 @@ void* ::allocator<N, P, S>::malloc() {
                 return phys_address(pa);
         }
 
-        uint64_t p;
-
-        if constexpr (no_lock)
-            p = allocate_folio_no_lock(0, page_state::used);
-        else
-            p = allocate_page();
+        auto p = allocate_folio<no_lock>(0, page_state::used);
+        if (!p)
+            return nullptr;
 
         auto cb = (cb_type*)phys_address(p);
 
@@ -2386,7 +2361,7 @@ static uint64_t try_allocate_folio(uint8_t order, enum page_state state = page_s
 
     // if couldn't allocate anything, try to allocate a level-0 folio through fragmentation
 
-    return allocate_folio_no_lock(0, state);
+    return allocate_folio<true>(0, state);
 }
 
 export uint8_t get_folio_order(uint64_t pa) {
@@ -2587,9 +2562,9 @@ export void* allocate_stack_no_lock() {
     }
 
     for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-        auto pa = allocate_folio_no_lock(0, page_state::used);
+        auto pa = allocate_folio<true>(0, page_state::used);
         if (!pa) {
-            print("allocate_folio_no_lock failed\n");
+            print("allocate_folio failed\n");
 
             for (unsigned int j = 0; j < i; j++) {
                 auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
