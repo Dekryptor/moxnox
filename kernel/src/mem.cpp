@@ -1866,17 +1866,6 @@ export bool init_vablock() {
     return true;
 }
 
-uint64_t trailing_ones(uint64_t n) {
-    uint64_t ret = 0;
-
-    while (n & 1) {
-        ret++;
-        n >>= 1;
-    }
-
-    return ret;
-}
-
 inline __attribute((always_inline)) uint64_t allocate_va_no_lock(uint32_t num_pages) {
     auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
     uint64_t run_start = 0;
@@ -1939,7 +1928,7 @@ inline __attribute((always_inline)) uint64_t allocate_va_no_lock(uint32_t num_pa
         if (val == 0xffffffffffffffff)
             continue;
 
-        auto t1 = trailing_ones(val);
+        auto t1 = countr_one(val);
         run_length = t1;
         run_start = ((i + 1) * 64) - t1;
     }
