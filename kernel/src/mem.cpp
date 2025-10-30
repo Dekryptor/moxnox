@@ -1990,13 +1990,14 @@ export uint8_t get_folio_order(uint64_t pa) {
     return pages[pa >> PAGE_SHIFT].order;
 }
 
-export bool map_folio(uint64_t pa, uint64_t va, enum mapping_type type) {
+export template<bool no_lock = false>
+bool map_folio(uint64_t pa, uint64_t va, enum mapping_type type) {
     auto order = get_folio_order(pa);
 
     // FIXME - huge pages
 
     for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
-        if (!map_page(pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), type)) {
+        if (!map_page<no_lock>(pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), type)) {
             for (unsigned int j = 0; j < i; j++) {
                 unmap_page(va + (j << PAGE_SHIFT));
             }
@@ -2355,35 +2356,43 @@ static constexpr uint8_t pages_to_max_folio_order(size_t p) {
     return min((uint8_t)((8 * sizeof(p)) - countl_zero(p) - 1), MAX_FOLIO_ORDER);
 }
 
-static uint64_t try_allocate_folio(uint8_t order, enum page_state state = page_state::used) {
-    lock_guard lock(pa_spinlock);
+template<bool no_lock = false>
+uint64_t try_allocate_folio(uint8_t order, enum page_state state = page_state::used) {
+    auto func = [&]() -> uint64_t {
+        while (true) {
+            if (is_list_empty(folio_free_lists[order])) {
+                if (order == 0)
+                    break;
 
-    while (true) {
-        if (is_list_empty(folio_free_lists[order])) {
-            if (order == 0)
-                break;
+                order--;
+                continue;
+            }
 
-            order--;
-            continue;
+            auto& p = *(page*)((uint8_t*)folio_free_lists[order].next - offsetof(page, free.le));
+            auto pfn = (uint64_t)(&p - pages);
+
+            remove_entry_list(p.free.le);
+            p.state = state;
+
+            if (state == page_state::used)
+                p.used.refcount = 1;
+
+            free_folios[order]--;
+
+            return pfn << PAGE_SHIFT;
         }
 
-        auto& p = *(page*)((uint8_t*)folio_free_lists[order].next - offsetof(page, free.le));
-        auto pfn = (uint64_t)(&p - pages);
+        // if couldn't allocate anything, try to allocate a level-0 folio through fragmentation
 
-        remove_entry_list(p.free.le);
-        p.state = state;
+        return allocate_folio<true>(0, state);
+    };
 
-        if (state == page_state::used)
-            p.used.refcount = 1;
-
-        free_folios[order]--;
-
-        return pfn << PAGE_SHIFT;
+    if constexpr (no_lock)
+        return func();
+    else {
+        lock_guard lock(pa_spinlock);
+        return func();
     }
-
-    // if couldn't allocate anything, try to allocate a level-0 folio through fragmentation
-
-    return allocate_folio<true>(0, state);
 }
 
 export void* vmalloc(size_t size) {
@@ -2524,48 +2533,76 @@ export void increase_page_refcount(uint64_t pfn) {
 
 export template<bool no_lock = false>
 void* allocate_stack() {
-    auto stack = (void*)allocate_va<no_lock>(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
-    if (!stack) {
+    auto va = allocate_va<no_lock>(KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+    if (!va) {
         print("allocate_va failed\n");
         return nullptr;
     }
 
-    for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
-        auto pa = allocate_folio<no_lock>(0, page_state::used);
+    auto orig_va = va;
+    uint64_t pages_left = KERNEL_STACK_PAGES;
+
+    va += KERNEL_GUARD_PAGES << PAGE_SHIFT;
+
+    while (pages_left > 0) {
+        auto max_order = pages_to_max_folio_order(pages_left);
+
+        auto pa = try_allocate_folio<no_lock>(max_order);
         if (!pa) {
             print("allocate_folio failed\n");
 
-            for (unsigned int j = 0; j < i; j++) {
-                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
+            va = orig_va + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
+            while (pages_left < KERNEL_STACK_PAGES) {
                 auto pa = va_to_pa_lookup(va);
+                auto order = get_folio_order(pa);
 
                 free_folio(pa);
-                unmap_page(va);
+
+                for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
+                    unmap_page(va);
+                    va += PAGE_SIZE;
+                }
+
+                pages_left += 1 << order;
             }
 
-            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+            free_va(orig_va, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
 
             return nullptr;
         }
 
-        if (!map_page<no_lock>(pa, (uintptr_t)stack + ((i + KERNEL_GUARD_PAGES) << PAGE_SHIFT), mapping_type::read_write)) {
+        auto order = get_folio_order(pa);
+
+        if (!map_folio<no_lock>(pa, va, mapping_type::read_write)) {
             print("map_page failed\n");
 
-            for (unsigned int j = 0; j < i; j++) {
-                auto va = (uintptr_t)stack + ((j + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
+            free_folio(pa);
+
+            va = orig_va + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
+            while (pages_left < KERNEL_STACK_PAGES) {
                 auto pa = va_to_pa_lookup(va);
+                auto order = get_folio_order(pa);
 
                 free_folio(pa);
-                unmap_page(va);
+
+                for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
+                    unmap_page(va);
+                    va += PAGE_SIZE;
+                }
+
+                pages_left += 1 << order;
             }
 
-            free_va((uintptr_t)stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
+            free_va(orig_va, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
 
             return nullptr;
         }
+
+        va += 1 << (order + PAGE_SHIFT);
+        pages_left -= 1 << order;
     }
 
-    return stack;
+    return (void*)orig_va;
 }
 
 template void* allocate_stack<true>();

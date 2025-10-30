@@ -199,13 +199,20 @@ extern "C++"
 ::thread::~thread() {
     if (kernel_stack) {
         auto va = (uintptr_t)kernel_stack + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
-        for (unsigned int i = 0; i < KERNEL_STACK_PAGES; i++) {
+        uint64_t pages_left = KERNEL_STACK_PAGES;
+
+        while (pages_left > 0) {
             auto pa = va_to_pa_lookup(va);
+            auto order = get_folio_order(pa);
 
             free_folio(pa);
-            unmap_page(va);
 
-            va += PAGE_SIZE;
+            for (unsigned int i = 0; i < (unsigned int)(1 << order); i++) {
+                unmap_page(va);
+                va += PAGE_SIZE;
+            }
+
+            pages_left -= 1 << order;
         }
 
         free_va((uintptr_t)kernel_stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
