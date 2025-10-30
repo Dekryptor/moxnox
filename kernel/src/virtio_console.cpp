@@ -21,6 +21,7 @@ import module_init;
 import power;
 import mem;
 import thread;
+import console;
 
 using namespace std;
 
@@ -260,16 +261,21 @@ void found_virtio_pci_console(pci_device& dev) {
 
     // FIXME - make sure devices are numbered consistently
 
+    auto num = virtio_console_num.fetch_add(1);
+
     {
         char s[10];
         span sp(s, sizeof(s));
 
-        sp = format(sp, "hvc{}", virtio_console_num.fetch_add(1));
+        sp = format(sp, "hvc{}", num);
 
         auto status = name_object(*v, string_view(s, (size_t)(sp.data() - s)));
         if (!success(status))
             print("name_object returned {}\n", status);
     }
+
+    if (num == 0 && !com1_pipe_handle)
+        com1_pipe_handle.swap(ref);
 }
 
 static bool found_virtio_mmio_console(virtio_mmio_device& dev) {
@@ -298,11 +304,13 @@ static bool found_virtio_mmio_console(virtio_mmio_device& dev) {
 
     // FIXME - make sure devices are numbered consistently
 
+    auto num = virtio_console_num.fetch_add(1);
+
     {
         char s[10];
         span sp(s, sizeof(s));
 
-        sp = format(sp, "hvc{}", virtio_console_num.fetch_add(1));
+        sp = format(sp, "hvc{}", num);
 
         auto status = name_object(v, string_view(s, (size_t)(sp.data() - s)));
         if (!success(status)) {
@@ -310,6 +318,9 @@ static bool found_virtio_mmio_console(virtio_mmio_device& dev) {
             return false;
         }
     }
+
+    if (num == 0 && !com1_pipe_handle)
+        com1_pipe_handle.swap(ref);
 
     return true;
 }

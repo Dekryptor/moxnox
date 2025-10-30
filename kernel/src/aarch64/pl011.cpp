@@ -425,7 +425,7 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
         }
     }
 
-    if (num == 0)
+    if (num == 0 && !com1_pipe_handle)
         com1_pipe_handle.swap(pipe_handle);
 
     return true;

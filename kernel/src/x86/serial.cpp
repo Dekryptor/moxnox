@@ -232,7 +232,7 @@ export bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
         return false;
     }
 
-    if (num == 0)
+    if (num == 0 && !com1_pipe_handle)
         com1_pipe_handle.swap(pipe_handle);
 
     return true;
