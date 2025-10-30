@@ -156,45 +156,10 @@ pipe::pipe(unsigned int buffer_pages) : buf_pages(buffer_pages) {
         return;
     }
 
-    auto va = allocate_va(buffer_pages);
+    auto va = vmalloc(buffer_pages << PAGE_SHIFT);
     if (!va) {
-        // FIXME - exception
-        print("allocate_va failed\n");
+        print("vmalloc failed\n");
         return;
-    }
-
-    for (unsigned int i = 0; i < buffer_pages; i++) {
-        auto pa = allocate_page();
-        if (!pa) {
-            // FIXME - exception
-            print("allocate_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                auto pa = va_to_pa_lookup(va + (j << PAGE_SHIFT));
-
-                free_folio(pa);
-                unmap_page(va + (j << PAGE_SHIFT));
-            }
-
-            free_va(va, buffer_pages);
-            return;
-        }
-
-        if (!map_page(pa, va + (i << PAGE_SHIFT), mapping_type::read_write)) {
-            // FIXME - exception
-            print("map_page failed\n");
-
-            for (unsigned int j = 0; j < i; j++) {
-                auto pa = va_to_pa_lookup(va + (j << PAGE_SHIFT));
-
-                free_folio(pa);
-                unmap_page(va + (j << PAGE_SHIFT));
-            }
-
-            free_folio(pa);
-            free_va(va, buffer_pages);
-            return;
-        }
     }
 
     buf = (uint8_t*)va;
@@ -204,18 +169,7 @@ pipe::~pipe() {
     if (!buf)
         return;
 
-    auto va = (uintptr_t)buf;
-
-    for (unsigned int i = 0; i < buf_pages; i++) {
-        auto pa = va_to_pa_lookup(va);
-
-        free_folio(pa);
-        unmap_page(va);
-
-        va += PAGE_SIZE;
-    }
-
-    free_va((uintptr_t)buf, buf_pages);
+    vfree(buf, buf_pages << PAGE_SHIFT);
 }
 
 nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
