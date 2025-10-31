@@ -201,11 +201,8 @@ void main_thread() {
     if (GetTime)
         get_time_from_efi();
 
-    if (!init_acpi_done) {
-        init_acpi();
-        find_acpi_devices();
-        init_acpi_done = true;
-    }
+    init_acpi();
+    find_acpi_devices();
 
 #ifdef __aarch64__
     if (!init_console(lb_fb))

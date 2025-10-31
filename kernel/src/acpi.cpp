@@ -144,7 +144,6 @@ export struct acpi_recognizer {
 export list_entry pnp_hids = { &pnp_hids, &pnp_hids };
 
 export bool acpi_early_init_done = false;
-export bool init_acpi_done = false;
 
 static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
