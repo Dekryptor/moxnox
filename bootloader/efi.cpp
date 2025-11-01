@@ -2067,17 +2067,18 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
 
         tcr.value = tcr_el1_load();
 
-        tcr.TG0 = 0; // 4KB granule size
         tcr.T0SZ = 16; // 48-bit memory size
-        tcr.T1SZ = 16; // 48-bit memory size
-        tcr.HA = 0; // hardware access flag disabled
-        tcr.EPD1 = 0; // enable upper-half page-walking
         tcr.IRGN0 = 1; // normal memory, inner WB RA WA cacheable
         tcr.ORGN0 = 1; // normal memory, outer WB RA WA cacheable
         tcr.SH0 = 3; // inner shareable
+        tcr.TG0 = 0; // 4KB granule size
+        tcr.T1SZ = 16; // 48-bit memory size
+        tcr.EPD1 = 0; // enable upper-half page-walking
         tcr.IRGN1 = 1; // normal memory, inner WB RA WA cacheable
         tcr.ORGN1 = 1; // normal memory, outer WB RA WA cacheable
         tcr.SH1 = 3; // inner shareable
+        tcr.TG1 = 2; // 4KB granule size
+        tcr.HA = 0; // hardware access flag disabled
 
         tcr_el1_store(tcr.value);
     }
@@ -2090,9 +2091,12 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
             : [res] "=r" (sctlr.value)
         );
 
+        sctlr.M = 1; // enable paging
         sctlr.A = 0; // allow unaligned
+        sctlr.C = 1; // enable caching
         sctlr.SA = 1; // stack alignment in kernel mode
         sctlr.SA0 = 1; // stack alignment in user mode
+        sctlr.I = 1; // enable instruction caching
 
         __asm __volatile (
             "msr sctlr_el1, %x[res]"
