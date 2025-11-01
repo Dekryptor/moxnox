@@ -139,6 +139,73 @@ union ARM64_SCTLR_EL1 {
 
 static_assert(sizeof(ARM64_SCTLR_EL1) == 8);
 
+union ARM64_HCR_EL2 {
+    struct {
+        uint64_t VM : 1;
+        uint64_t SWIO : 1;
+        uint64_t PTW : 1;
+        uint64_t FMO : 1;
+        uint64_t IMO : 1;
+        uint64_t AMO : 1;
+        uint64_t VF : 1;
+        uint64_t VI : 1;
+        uint64_t VSE : 1;
+        uint64_t FB : 1;
+        uint64_t BSU : 2;
+        uint64_t DC : 1;
+        uint64_t TWI : 1;
+        uint64_t TWE : 1;
+        uint64_t TID0 : 1;
+        uint64_t TID1 : 1;
+        uint64_t TID2 : 1;
+        uint64_t TID3 : 1;
+        uint64_t TSC : 1;
+        uint64_t TIDCP : 1;
+        uint64_t TACR : 1;
+        uint64_t TSW : 1;
+        uint64_t TPCP : 1;
+        uint64_t TPU : 1;
+        uint64_t TTLB : 1;
+        uint64_t TVM : 1;
+        uint64_t TGE : 1;
+        uint64_t TDZ : 1;
+        uint64_t HCD : 1;
+        uint64_t TRVM : 1;
+        uint64_t RW : 1;
+        uint64_t CD : 1;
+        uint64_t ID : 1;
+        uint64_t E2H : 1;
+        uint64_t TLOR : 1;
+        uint64_t TERR : 1;
+        uint64_t TEA : 1;
+        uint64_t : 2;
+        uint64_t APK : 1;
+        uint64_t API : 1;
+        uint64_t NV : 1;
+        uint64_t NV1 : 1;
+        uint64_t AT : 1;
+        uint64_t NV2 : 1;
+        uint64_t FWB : 1;
+        uint64_t FIEN : 1;
+        uint64_t GPF : 1;
+        uint64_t TID4 : 1;
+        uint64_t TICAB : 1;
+        uint64_t AMVOFFEN : 1;
+        uint64_t TOCU : 1;
+        uint64_t EnSCXT : 1;
+        uint64_t TTLBIS : 1;
+        uint64_t TTLBOS : 1;
+        uint64_t ATA : 1;
+        uint64_t DCT : 1;
+        uint64_t TID5 : 1;
+        uint64_t TWEDEn : 1;
+        uint64_t TWEDEL : 4;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_HCR_EL2) == 8);
+
 struct ARM64_HARDWARE_PTE {
     uint64_t valid : 1;
     uint64_t table_entry : 1;
@@ -1964,6 +2031,27 @@ static void inline tcr_el1_store(uint64_t v) {
     );
 }
 
+__attribute__((always_inline))
+static uint64_t inline hcr_el2_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %0, hcr_el2"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+static void inline hcr_el2_store(uint64_t v) {
+    __asm __volatile (
+        "msr hcr_el2, %0"
+        :
+        : "r" (v)
+    );
+}
+
 #else
 
 __attribute__((always_inline))
@@ -2207,21 +2295,18 @@ static bool prepare_for_el1() {
         return false;
     }
 
-    // FIXME - less asm
-    __asm __volatile (
-        "mrs x0, hcr_el2\n"
-        // set EL1 to 64-bit mode
-        "orr x0, x0, (1 << 31)\n" // set HCR_EL2_RW
-        // handle SErrors, IRQs, and FIQs in EL1
-        "orr x0, x0, (1 << 5) | (1 << 4) | (1 << 3)\n" // set HCR_EL2_AMO, HCR_EL2_IMO, and HCR_EL2_FMO
-        // don't route synchronous exceptions to EL2
-        "and x0, x0, ~(1 << 34)\n" // clear HCR_EL2_E2H
-        "and x0, x0, ~(1 << 27)\n" // clear HCR_EL2_TGE
-        "msr hcr_el2, x0\n"
-        :
-        :
-        : "x0"
-    );
+    ARM64_HCR_EL2 hcr;
+
+    hcr.value = hcr_el2_load();
+
+    hcr.RW = 1; // set EL1 to 64-bit mode
+    hcr.AMO = 1; // handle SERrors in EL1
+    hcr.IMO = 1; // handle IRQs in EL1
+    hcr.FMO = 1; // handle FIQs in EL1
+    hcr.E2H = 0; // OS runs at EL1
+    hcr.TGE = 0; // don't trap general exceptions at EL0
+
+    hcr_el2_store(hcr.value);
 
     return true;
 }
