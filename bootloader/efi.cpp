@@ -2050,10 +2050,18 @@ static void inline _disable() {
 
 #ifdef __aarch64__
 
-__attribute__((noreturn))
-static void start_kernel(uint64_t entry_point, loader_block* lb) {
-    // FIXME - to EL1 if EL2
+static uint8_t get_current_el() {
+    uint64_t CurrentEL;
 
+    __asm __volatile (
+        "mrs %x[res], CurrentEL"
+        : [res] "=r" (CurrentEL)
+    );
+
+    return (CurrentEL >> 2) & 3;
+}
+
+static void start_kernel(uint64_t entry_point, loader_block* lb) {
     // disable interrupts
     __asm __volatile ("msr DAIFSet, #0xf");
 
@@ -2110,17 +2118,43 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
     startup = (decltype(startup))entry_point;
 
     __asm __volatile (
-        "msr ttbr0_el1, %0\n\t"
-        "msr ttbr1_el1, %1\n\t"
-        "tlbi vmalle1\n\t"
-        "dsb ish\n\t"
-        "isb\n\t"
-        "mov x0, %2\n\t"
-        "br %3"
+        "msr ttbr0_el1, %0\n"
+        "msr ttbr1_el1, %1\n"
+        "tlbi vmalle1\n"
+        "dsb ish\n"
+        "isb\n"
         :
-        : "r" (ttbr0), "r" (ttbr1), "r" (lb), "r" (startup)
-        : "x0"
+        : "r" (ttbr0), "r" (ttbr1)
     );
+
+    if (get_current_el() == 2) {
+        __asm __volatile (
+            // set EL1 stack
+            "mov x0, sp\n"
+            "msr sp_el1, x0\n"
+
+            // set destination address
+            "msr elr_el2, %1\n"
+
+            // set status register
+            "mov x0, #0x3c5\n" // EL1 with SP_EL1, interrupts disabled
+            "msr spsr_el2, x0\n"
+
+            "mov x0, %0\n"
+            "eret\n"
+            :
+            : "r" (lb), "r" (startup)
+            : "x0"
+        );
+    } else {
+        __asm __volatile (
+            "mov x0, %0\n"
+            "br %1"
+            :
+            : "r" (lb), "r" (startup)
+            : "x0"
+        );
+    }
 
     __builtin_unreachable();
 }
@@ -2155,6 +2189,40 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
     );
 
     __builtin_unreachable();
+}
+
+#endif
+
+#ifdef __aarch64__
+
+static bool prepare_for_el1() {
+    auto el = get_current_el();
+
+    if (el == 1)
+        return true;
+
+    if (el != 2) {
+        print("unexpectedly running at EL{}\n", el);
+        return false;
+    }
+
+    // FIXME - less asm
+    __asm __volatile (
+        "mrs x0, hcr_el2\n"
+        // set EL1 to 64-bit mode
+        "orr x0, x0, (1 << 31)\n" // set HCR_EL2_RW
+        // handle SErrors, IRQs, and FIQs in EL1
+        "orr x0, x0, (1 << 5) | (1 << 4) | (1 << 3)\n" // set HCR_EL2_AMO, HCR_EL2_IMO, and HCR_EL2_FMO
+        // don't route synchronous exceptions to EL2
+        "and x0, x0, ~(1 << 34)\n" // clear HCR_EL2_E2H
+        "and x0, x0, ~(1 << 27)\n" // clear HCR_EL2_TGE
+        "msr hcr_el2, x0\n"
+        :
+        :
+        : "x0"
+    );
+
+    return true;
 }
 
 #endif
@@ -2533,6 +2601,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     }
 
 #ifdef __aarch64__
+    if (!prepare_for_el1())
+        return EFI_INVALID_PARAMETER;
+
     Status = setup_paging();
     if (EFI_ERROR(Status)) {
         print_error("setup_paging", Status);
