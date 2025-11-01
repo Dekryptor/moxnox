@@ -748,6 +748,14 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
         // FIXME - type
 
+        __asm __volatile (
+            "tlbi vae1, %x[res]\n"
+            "dsb ish\n"
+            "isb\n"
+            :
+            : [res] "r" (va >> PAGE_SHIFT)
+        );
+
         return true;
     };
 
