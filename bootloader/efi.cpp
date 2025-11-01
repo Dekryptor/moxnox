@@ -2087,6 +2087,7 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
         tcr.SH1 = 3; // inner shareable
         tcr.TG1 = 2; // 4KB granule size
         tcr.HA = 0; // hardware access flag disabled
+        tcr.IPS = 5; // physical addresses of 48 bits (256 TB)
 
         tcr_el1_store(tcr.value);
     }
