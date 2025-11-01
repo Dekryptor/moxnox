@@ -2492,7 +2492,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     }
 
     Status = init_framebuffer(image_handle);
-    if (EFI_ERROR(Status)) {
+    if (EFI_ERROR(Status) && Status != EFI_NOT_FOUND) {
         print_error("init_framebuffer", Status);
         return Status;
     }
