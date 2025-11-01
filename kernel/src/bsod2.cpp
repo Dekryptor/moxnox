@@ -151,43 +151,45 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     // don't deadlock in malloc if we BSOD'd while holding pa_spinlock
     pa_spinlock.force_unlock();
 
-    auto& p = static_cast<chardev&>(console_chardev.get());
-    uint64_t written;
+    if (console_chardev) {
+        auto& p = static_cast<chardev&>(console_chardev.get());
+        uint64_t written;
 
-    // clear screen to blue and print message
+        // clear screen to blue and print message
 
-    p.write(
-        "\e[97;44m" // change to blue and white
-        "\e[2J" // erase screen
-        "\e[?25l" // hide cursor
-        "\e[1;1H", // move to top left
-        written
-    );
+        p.write(
+            "\e[97;44m" // change to blue and white
+            "\e[2J" // erase screen
+            "\e[?25l" // hide cursor
+            "\e[1;1H", // move to top left
+            written
+        );
 
-    for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
-        p.write(" ", written);
+        for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
+            p.write(" ", written);
+        }
+
+        p.write("\e[1mBSOD\e[22m\n\n", written);
+
+        p.write(msg, written);
+        p.write("\n", written);
+
+        auto sp = span(cb.printk_scratch, PAGE_SIZE);
+
+        sp = format(sp, "{}:{}, {}, CPU {}\n",
+                    sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
+
+        p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
+                written);
+
+        // FIXME - print context?
+
+        p.write("\n", written);
+
+        print_stacktrace(captured_context, p);
+
+        p.flush(true);
     }
-
-    p.write("\e[1mBSOD\e[22m\n\n", written);
-
-    p.write(msg, written);
-    p.write("\n", written);
-
-    auto sp = span(cb.printk_scratch, PAGE_SIZE);
-
-    sp = format(sp, "{}:{}, {}, CPU {}\n",
-                sl.file_name(), sl.line(), sl.function_name(), cb.cpu_no);
-
-    p.write(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)),
-            written);
-
-    // FIXME - print context?
-
-    p.write("\n", written);
-
-    print_stacktrace(captured_context, p);
-
-    p.flush(true);
 
     shutdown_pipes();
 
