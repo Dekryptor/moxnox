@@ -2300,9 +2300,9 @@ static bool prepare_for_el1() {
     hcr.value = hcr_el2_load();
 
     hcr.RW = 1; // set EL1 to 64-bit mode
-    hcr.AMO = 1; // handle SERrors in EL1
-    hcr.IMO = 1; // handle IRQs in EL1
-    hcr.FMO = 1; // handle FIQs in EL1
+    hcr.AMO = 0; // handle SERrors in EL1
+    hcr.IMO = 0; // handle IRQs in EL1
+    hcr.FMO = 0; // handle FIQs in EL1
     hcr.E2H = 0; // OS runs at EL1
     hcr.TGE = 0; // don't trap general exceptions at EL0
 
