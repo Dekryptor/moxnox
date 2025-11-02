@@ -27,6 +27,7 @@ import semaphore;
 import object_ref;
 import rwsem;
 import spinlock;
+import config;
 
 using namespace std;
 
@@ -833,12 +834,69 @@ void AcpiOsFree(void* Memory) {
 }
 
 extern "C"
-void* AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS Where, ACPI_SIZE) {
-    return phys_address(Where);
+void* AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS Where, ACPI_SIZE Length) {
+    auto pa = (uint64_t)Where;
+
+    // FIXME - check EFI memory map for whether it should be writethrough, non-cached, etc.
+
+    if (pa & (PAGE_SIZE - 1)) {
+        Length += pa & (PAGE_SIZE - 1);
+        pa &= ~(PAGE_SIZE - 1);
+    }
+
+    if (Length & (PAGE_SIZE - 1))
+        Length += PAGE_SIZE - (Length & (PAGE_SIZE - 1));
+
+    if (Length == 0)
+        return nullptr;
+
+    auto num_pages = (uint32_t)(Length >> PAGE_SHIFT);
+    auto va = allocate_va(num_pages);
+
+    if (!va) {
+        print("allocate_va failed\n");
+        return nullptr;
+    }
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (!map_page(pa + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT), mapping_type::no_cache)) {
+            print("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, num_pages);
+
+            return nullptr;
+        }
+    }
+
+    return (void*)(va + (Where & (PAGE_SIZE - 1)));
 }
 
 extern "C"
-void AcpiOsUnmapMemory(void*, ACPI_SIZE) {
+void AcpiOsUnmapMemory(void* LogicalAddress, ACPI_SIZE Size) {
+    auto va = (uint64_t)LogicalAddress;
+
+    if (va & (PAGE_SIZE - 1)) {
+        Size += va & (PAGE_SIZE - 1);
+        va &= ~(PAGE_SIZE - 1);
+    }
+
+    if (Size & (PAGE_SIZE - 1))
+        Size += PAGE_SIZE - (Size & (PAGE_SIZE - 1));
+
+    if (Size == 0)
+        return;
+
+    auto num_pages = (uint32_t)(Size >> PAGE_SHIFT);
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        unmap_page(va + (i << PAGE_SHIFT));
+    }
+
+    free_va(va, num_pages);
 }
 
 extern "C"
