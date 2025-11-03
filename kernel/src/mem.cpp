@@ -117,6 +117,15 @@ uint8_t MAXPHYADDR = 36;
 
 export uint64_t zero_pfn;
 
+export struct init_map_entry {
+    list_entry le;
+    uint64_t addr;
+    uint64_t len;
+    enum mem_type type;
+};
+
+export list_entry init_mappings = { &init_mappings, &init_mappings };
+
 template<unsigned N, enum page_state S>
 class allocator_folio {
 public:
@@ -1256,8 +1265,57 @@ static uint8_t get_maxphyaddr() {
 
     return (uint8_t)(eax & 0xff);
 }
-
 #endif
+
+export template<bool no_lock = false>
+void* malloc_aligned(size_t size, size_t align) {
+    if (size == 0)
+        return nullptr;
+
+    if (size < align)
+        size = align;
+
+    if (size <= 64)
+        return alloc64.malloc<no_lock>();
+    else if (size <= 128)
+        return alloc128.malloc<no_lock>();
+    else if (size <= 256)
+        return alloc256.malloc<no_lock>();
+    else if (size <= 512)
+        return alloc512.malloc<no_lock>();
+    else if (size <= 1024)
+        return alloc1k.malloc<no_lock>();
+    else if (size <= 2048)
+        return alloc2k.malloc<no_lock>();
+    else if (size <= 4096)
+        return alloc4k.malloc<no_lock>();
+    else if (size <= 8192)
+        return alloc8k.malloc<no_lock>();
+    else {
+        bsod_format("malloc asked to do over-large allocation ({:x} bytes)\n", size);
+        return nullptr;
+    }
+}
+
+template void* malloc_aligned<true>(size_t size, size_t align);
+
+export bool copy_map_ptr(const loader_block& lb) {
+    auto map = span((map_entry*)lb.map_ptr, lb.num_map_entries);
+
+    for (const auto& m : map) {
+        auto e = (init_map_entry*)malloc_aligned<true>(sizeof(init_map_entry),
+                                                       alignof(init_map_entry));
+        if (!e)
+            return false;
+
+        e->addr = m.addr;
+        e->len = m.len;
+        e->type = m.type;
+        insert_tail_list(init_mappings, e->le);
+    }
+
+    return true;
+}
 
 export bool init_memory(const loader_block& lb) {
     uint64_t num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
@@ -1369,38 +1427,6 @@ export bool init_memory(const loader_block& lb) {
     return true;
 }
 
-export template<bool no_lock = false>
-void* malloc_aligned(size_t size, size_t align) {
-    if (size == 0)
-        return nullptr;
-
-    if (size < align)
-        size = align;
-
-    if (size <= 64)
-        return alloc64.malloc<no_lock>();
-    else if (size <= 128)
-        return alloc128.malloc<no_lock>();
-    else if (size <= 256)
-        return alloc256.malloc<no_lock>();
-    else if (size <= 512)
-        return alloc512.malloc<no_lock>();
-    else if (size <= 1024)
-        return alloc1k.malloc<no_lock>();
-    else if (size <= 2048)
-        return alloc2k.malloc<no_lock>();
-    else if (size <= 4096)
-        return alloc4k.malloc<no_lock>();
-    else if (size <= 8192)
-        return alloc8k.malloc<no_lock>();
-    else {
-        bsod_format("malloc asked to do over-large allocation ({:x} bytes)\n", size);
-        return nullptr;
-    }
-}
-
-template void* malloc_aligned<true>(size_t size, size_t align);
-
 export
 extern "C"
 void* malloc(size_t size) {
@@ -1421,7 +1447,7 @@ void* calloc(size_t nmemb, size_t size) {
     return ptr;
 }
 
-static constexpr bool is_phys_memory(void* ptr) {
+export constexpr bool is_phys_memory(void* ptr) {
     return ((uintptr_t)ptr & PHYS_MEMORY_MASK) == PHYS_MEMORY;
 }
 

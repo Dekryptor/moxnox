@@ -331,9 +331,10 @@ void startup(loader_block* lb) {
             goto hang;
     }
 
-    lb = nullptr; // no longer valid
-
     call_global_constructors();
+
+    if (!copy_map_ptr(*lb))
+        goto hang;
 
     init_images_list(debug_info, debug_abbrev, debug_rnglists, debug_str,
                      debug_addr, debug_str_offsets, debug_line, debug_line_str);

@@ -28,6 +28,7 @@ import object_ref;
 import rwsem;
 import spinlock;
 import config;
+import loaderblock;
 
 using namespace std;
 
@@ -837,7 +838,21 @@ extern "C"
 void* AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS Where, ACPI_SIZE Length) {
     auto pa = (uint64_t)Where;
 
-    // FIXME - check EFI memory map for whether it should be writethrough, non-cached, etc.
+    // FIXME - check EFI memory map for whether it should be writethrough, write-combining, etc.
+
+    mem_type t = mem_type::mmio;
+
+    for (auto le = init_mappings.next; le != &init_mappings; le = le->next) {
+        const auto& m = containing_record<init_map_entry>(le);
+
+        if (Where >= m.addr && Where < m.addr + m.len) {
+            t = m.type;
+            break;
+        }
+    }
+
+    if (t != mem_type::mmio)
+        return phys_address(Where);
 
     if (pa & (PAGE_SIZE - 1)) {
         Length += pa & (PAGE_SIZE - 1);
@@ -877,6 +892,9 @@ void* AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS Where, ACPI_SIZE Length) {
 
 extern "C"
 void AcpiOsUnmapMemory(void* LogicalAddress, ACPI_SIZE Size) {
+    if (is_phys_memory(LogicalAddress))
+        return;
+
     auto va = (uint64_t)LogicalAddress;
 
     if (va & (PAGE_SIZE - 1)) {
