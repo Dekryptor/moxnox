@@ -851,7 +851,7 @@ void* AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS Where, ACPI_SIZE Length) {
         }
     }
 
-    if (t != mem_type::mmio)
+    if (t != mem_type::mmio && t != mem_type::reserved)
         return phys_address(Where);
 
     if (pa & (PAGE_SIZE - 1)) {
