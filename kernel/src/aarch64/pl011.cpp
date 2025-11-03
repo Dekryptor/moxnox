@@ -70,6 +70,7 @@ public:
     nt_status flush(bool go_readonly) override;
 
     bool ready = true;
+    bool sent_cr = false;
     uint64_t base_address;
 };
 
@@ -182,13 +183,21 @@ nt_status pl011_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) 
 
             if (ready) {
                 // send first character
-                UARTDR = (uint32_t)s[0];
 
-                ready = false;
-                s = s.subspan(1);
+                if (s[0] == '\n' && !sent_cr) {
+                    UARTDR = '\r';
+                    ready = false;
+                    sent_cr = true;
+                } else {
+                    UARTDR = (uint32_t)s[0];
+                    sent_cr = s[0] == '\r';
 
-                if (s.empty())
-                    break;
+                    ready = false;
+                    s = s.subspan(1);
+
+                    if (s.empty())
+                        break;
+                }
             }
 
             size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
@@ -252,9 +261,17 @@ nt_status pl011_out_pipe::flush(bool go_readonly) {
         }
 
         while (UARTFR & PL011_UARTFR_BUSY) { }
-        UARTDR = (uint32_t)buf[buf_read_pos];
 
-        buf_unread--;
+        if (buf[buf_read_pos] == '\n' && !sent_cr) {
+            UARTDR = '\r';
+            sent_cr = true;
+        } else {
+            UARTDR = (uint32_t)buf[buf_read_pos];
+            sent_cr = buf[buf_read_pos] == '\r';
+
+            buf_unread--;
+        }
+
     }
 
     return nt_status::SUCCESS;
@@ -284,8 +301,14 @@ void pl011_pipe::irq() {
                     buf_read_pos -= send_pipe.buf_pages << PAGE_SHIFT;
                 }
 
-                UARTDR = (uint32_t)(send_pipe.buf[buf_read_pos]);
-                send_pipe.buf_unread--;
+                if (send_pipe.buf[buf_read_pos] == '\n' && !send_pipe.sent_cr) {
+                    UARTDR = '\r';
+                    send_pipe.sent_cr = true;
+                } else {
+                    UARTDR = (uint32_t)(send_pipe.buf[buf_read_pos]);
+                    send_pipe.sent_cr = send_pipe.buf[buf_read_pos] == '\r';
+                    send_pipe.buf_unread--;
+                }
             }
         }
     }
