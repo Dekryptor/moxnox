@@ -134,6 +134,108 @@ export struct acpi_device_resource_csi2_serial_bus : acpi_device_resource {
     ACPI_RESOURCE_CSI2_SERIALBUS csi2_serial_bus;
 };
 
+enum class acpi_status {
+    OK = 0x0000,
+    ERROR = 0x0001,
+    NO_ACPI_TABLES = 0x0002,
+    NO_NAMESPACE = 0x0003,
+    NO_MEMORY = 0x0004,
+    NOT_FOUND = 0x0005,
+    NOT_EXIST = 0x0006,
+    ALREADY_EXISTS = 0x0007,
+    TYPE = 0x0008,
+    NULL_OBJECT = 0x0009,
+    NULL_ENTRY = 0x000A,
+    BUFFER_OVERFLOW = 0x000B,
+    STACK_OVERFLOW = 0x000C,
+    STACK_UNDERFLOW = 0x000D,
+    NOT_IMPLEMENTED = 0x000E,
+    SUPPORT = 0x000F,
+    LIMIT = 0x0010,
+    TIME = 0x0011,
+    ACQUIRE_DEADLOCK = 0x0012,
+    RELEASE_DEADLOCK = 0x0013,
+    NOT_ACQUIRED = 0x0014,
+    ALREADY_ACQUIRED = 0x0015,
+    NO_HARDWARE_RESPONSE = 0x0016,
+    NO_GLOBAL_LOCK = 0x0017,
+    ABORT_METHOD = 0x0018,
+    SAME_HANDLER = 0x0019,
+    NO_HANDLER = 0x001A,
+    OWNER_ID_LIMIT = 0x001B,
+    NOT_CONFIGURED = 0x001C,
+    ACCESS = 0x001D,
+    IO_ERROR = 0x001E,
+    NUMERIC_OVERFLOW = 0x001F,
+    HEX_OVERFLOW = 0x0020,
+    DECIMAL_OVERFLOW = 0x0021,
+    OCTAL_OVERFLOW = 0x0022,
+    END_OF_TABLE = 0x0023,
+    BAD_PARAMETER = 0x1001,
+    BAD_CHARACTER = 0x1002,
+    BAD_PATHNAME = 0x1003,
+    BAD_DATA = 0x1004,
+    BAD_HEX_CONSTANT = 0x1005,
+    BAD_OCTAL_CONSTANT = 0x1006,
+    BAD_DECIMAL_CONSTANT = 0x1007,
+    MISSING_ARGUMENTS = 0x1008,
+    BAD_ADDRESS = 0x1009,
+    BAD_SIGNATURE = 0x2001,
+    BAD_HEADER = 0x2002,
+    BAD_CHECKSUM = 0x2003,
+    BAD_VALUE = 0x2004,
+    INVALID_TABLE_LENGTH = 0x2005,
+    AML_BAD_OPCODE = 0x3001,
+    AML_NO_OPERAND = 0x3002,
+    AML_OPERAND_TYPE = 0x3003,
+    AML_OPERAND_VALUE = 0x3004,
+    AML_UNINITIALIZED_LOCAL = 0x3005,
+    AML_UNINITIALIZED_ARG = 0x3006,
+    AML_UNINITIALIZED_ELEMENT = 0x3007,
+    AML_NUMERIC_OVERFLOW = 0x3008,
+    AML_REGION_LIMIT = 0x3009,
+    AML_BUFFER_LIMIT = 0x300A,
+    AML_PACKAGE_LIMIT = 0x300B,
+    AML_DIVIDE_BY_ZERO = 0x300C,
+    AML_BAD_NAME = 0x300D,
+    AML_NAME_NOT_FOUND = 0x300E,
+    AML_INTERNAL = 0x300F,
+    AML_INVALID_SPACE_ID = 0x3010,
+    AML_STRING_LIMIT = 0x3011,
+    AML_NO_RETURN_VALUE = 0x3012,
+    AML_METHOD_LIMIT = 0x3013,
+    AML_NOT_OWNER = 0x3014,
+    AML_MUTEX_ORDER = 0x3015,
+    AML_MUTEX_NOT_ACQUIRED = 0x3016,
+    AML_INVALID_RESOURCE_TYPE = 0x3017,
+    AML_INVALID_INDEX = 0x3018,
+    AML_REGISTER_LIMIT = 0x3019,
+    AML_NO_WHILE = 0x301A,
+    AML_ALIGNMENT = 0x301B,
+    AML_NO_RESOURCE_END_TAG = 0x301C,
+    AML_BAD_RESOURCE_VALUE = 0x301D,
+    AML_CIRCULAR_REFERENCE = 0x301E,
+    AML_BAD_RESOURCE_LENGTH = 0x301F,
+    AML_ILLEGAL_ADDRESS = 0x3020,
+    AML_LOOP_TIMEOUT = 0x3021,
+    AML_UNINITIALIZED_NODE = 0x3022,
+    AML_TARGET_TYPE = 0x3023,
+    AML_PROTOCOL = 0x3024,
+    AML_BUFFER_LENGTH = 0x3025,
+    CTRL_RETURN_VALUE = 0x4001,
+    CTRL_PENDING = 0x4002,
+    CTRL_TERMINATE = 0x4003,
+    CTRL_TRUE = 0x4004,
+    CTRL_FALSE = 0x4005,
+    CTRL_DEPTH = 0x4006,
+    CTRL_END = 0x4007,
+    CTRL_TRANSFER = 0x4008,
+    CTRL_BREAK = 0x4009,
+    CTRL_CONTINUE = 0x400A,
+    CTRL_PARSE_CONTINUE = 0x400B,
+    CTRL_PARSE_PENDING = 0x400C,
+};
+
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
 
 export struct acpi_recognizer {
@@ -146,6 +248,218 @@ export struct acpi_recognizer {
 export list_entry pnp_hids = { &pnp_hids, &pnp_hids };
 
 export bool acpi_early_init_done = false;
+
+template<>
+consteval bool format_spec_valid<acpi_status>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, acpi_status arg) {
+    switch (arg) {
+        using enum acpi_status;
+        do_format_arg(sp, "", "INODE_ITEM");
+        case OK:
+            return do_format_arg(sp, "", "AE_OK");
+        case ERROR:
+            return do_format_arg(sp, "", "AE_ERROR");
+        case NO_ACPI_TABLES:
+            return do_format_arg(sp, "", "AE_NO_ACPI_TABLES");
+        case NO_NAMESPACE:
+            return do_format_arg(sp, "", "AE_NO_NAMESPACE");
+        case NO_MEMORY:
+            return do_format_arg(sp, "", "AE_NO_MEMORY");
+        case NOT_FOUND:
+            return do_format_arg(sp, "", "AE_NOT_FOUND");
+        case NOT_EXIST:
+            return do_format_arg(sp, "", "AE_NOT_EXIST");
+        case ALREADY_EXISTS:
+            return do_format_arg(sp, "", "AE_ALREADY_EXISTS");
+        case TYPE:
+            return do_format_arg(sp, "", "AE_TYPE");
+        case NULL_OBJECT:
+            return do_format_arg(sp, "", "AE_NULL_OBJECT");
+        case NULL_ENTRY:
+            return do_format_arg(sp, "", "AE_NULL_ENTRY");
+        case BUFFER_OVERFLOW:
+            return do_format_arg(sp, "", "AE_BUFFER_OVERFLOW");
+        case STACK_OVERFLOW:
+            return do_format_arg(sp, "", "AE_STACK_OVERFLOW");
+        case STACK_UNDERFLOW:
+            return do_format_arg(sp, "", "AE_STACK_UNDERFLOW");
+        case NOT_IMPLEMENTED:
+            return do_format_arg(sp, "", "AE_NOT_IMPLEMENTED");
+        case SUPPORT:
+            return do_format_arg(sp, "", "AE_SUPPORT");
+        case LIMIT:
+            return do_format_arg(sp, "", "AE_LIMIT");
+        case TIME:
+            return do_format_arg(sp, "", "AE_TIME");
+        case ACQUIRE_DEADLOCK:
+            return do_format_arg(sp, "", "AE_ACQUIRE_DEADLOCK");
+        case RELEASE_DEADLOCK:
+            return do_format_arg(sp, "", "AE_RELEASE_DEADLOCK");
+        case NOT_ACQUIRED:
+            return do_format_arg(sp, "", "AE_NOT_ACQUIRED");
+        case ALREADY_ACQUIRED:
+            return do_format_arg(sp, "", "AE_ALREADY_ACQUIRED");
+        case NO_HARDWARE_RESPONSE:
+            return do_format_arg(sp, "", "AE_NO_HARDWARE_RESPONSE");
+        case NO_GLOBAL_LOCK:
+            return do_format_arg(sp, "", "AE_NO_GLOBAL_LOCK");
+        case ABORT_METHOD:
+            return do_format_arg(sp, "", "AE_ABORT_METHOD");
+        case SAME_HANDLER:
+            return do_format_arg(sp, "", "AE_SAME_HANDLER");
+        case NO_HANDLER:
+            return do_format_arg(sp, "", "AE_NO_HANDLER");
+        case OWNER_ID_LIMIT:
+            return do_format_arg(sp, "", "AE_OWNER_ID_LIMIT");
+        case NOT_CONFIGURED:
+            return do_format_arg(sp, "", "AE_NOT_CONFIGURED");
+        case ACCESS:
+            return do_format_arg(sp, "", "AE_ACCESS");
+        case IO_ERROR:
+            return do_format_arg(sp, "", "AE_IO_ERROR");
+        case NUMERIC_OVERFLOW:
+            return do_format_arg(sp, "", "AE_NUMERIC_OVERFLOW");
+        case HEX_OVERFLOW:
+            return do_format_arg(sp, "", "AE_HEX_OVERFLOW");
+        case DECIMAL_OVERFLOW:
+            return do_format_arg(sp, "", "AE_DECIMAL_OVERFLOW");
+        case OCTAL_OVERFLOW:
+            return do_format_arg(sp, "", "AE_OCTAL_OVERFLOW");
+        case END_OF_TABLE:
+            return do_format_arg(sp, "", "AE_END_OF_TABLE");
+        case BAD_PARAMETER:
+            return do_format_arg(sp, "", "AE_BAD_PARAMETER");
+        case BAD_CHARACTER:
+            return do_format_arg(sp, "", "AE_BAD_CHARACTER");
+        case BAD_PATHNAME:
+            return do_format_arg(sp, "", "AE_BAD_PATHNAME");
+        case BAD_DATA:
+            return do_format_arg(sp, "", "AE_BAD_DATA");
+        case BAD_HEX_CONSTANT:
+            return do_format_arg(sp, "", "AE_BAD_HEX_CONSTANT");
+        case BAD_OCTAL_CONSTANT:
+            return do_format_arg(sp, "", "AE_BAD_OCTAL_CONSTANT");
+        case BAD_DECIMAL_CONSTANT:
+            return do_format_arg(sp, "", "AE_BAD_DECIMAL_CONSTANT");
+        case MISSING_ARGUMENTS:
+            return do_format_arg(sp, "", "AE_MISSING_ARGUMENTS");
+        case BAD_ADDRESS:
+            return do_format_arg(sp, "", "AE_BAD_ADDRESS");
+        case BAD_SIGNATURE:
+            return do_format_arg(sp, "", "AE_BAD_SIGNATURE");
+        case BAD_HEADER:
+            return do_format_arg(sp, "", "AE_BAD_HEADER");
+        case BAD_CHECKSUM:
+            return do_format_arg(sp, "", "AE_BAD_CHECKSUM");
+        case BAD_VALUE:
+            return do_format_arg(sp, "", "AE_BAD_VALUE");
+        case INVALID_TABLE_LENGTH:
+            return do_format_arg(sp, "", "AE_INVALID_TABLE_LENGTH");
+        case AML_BAD_OPCODE:
+            return do_format_arg(sp, "", "AE_AML_BAD_OPCODE");
+        case AML_NO_OPERAND:
+            return do_format_arg(sp, "", "AE_AML_NO_OPERAND");
+        case AML_OPERAND_TYPE:
+            return do_format_arg(sp, "", "AE_AML_OPERAND_TYPE");
+        case AML_OPERAND_VALUE:
+            return do_format_arg(sp, "", "AE_AML_OPERAND_VALUE");
+        case AML_UNINITIALIZED_LOCAL:
+            return do_format_arg(sp, "", "AE_AML_UNINITIALIZED_LOCAL");
+        case AML_UNINITIALIZED_ARG:
+            return do_format_arg(sp, "", "AE_AML_UNINITIALIZED_ARG");
+        case AML_UNINITIALIZED_ELEMENT:
+            return do_format_arg(sp, "", "AE_AML_UNINITIALIZED_ELEMENT");
+        case AML_NUMERIC_OVERFLOW:
+            return do_format_arg(sp, "", "AE_AML_NUMERIC_OVERFLOW");
+        case AML_REGION_LIMIT:
+            return do_format_arg(sp, "", "AE_AML_REGION_LIMIT");
+        case AML_BUFFER_LIMIT:
+            return do_format_arg(sp, "", "AE_AML_BUFFER_LIMIT");
+        case AML_PACKAGE_LIMIT:
+            return do_format_arg(sp, "", "AE_AML_PACKAGE_LIMIT");
+        case AML_DIVIDE_BY_ZERO:
+            return do_format_arg(sp, "", "AE_AML_DIVIDE_BY_ZERO");
+        case AML_BAD_NAME:
+            return do_format_arg(sp, "", "AE_AML_BAD_NAME");
+        case AML_NAME_NOT_FOUND:
+            return do_format_arg(sp, "", "AE_AML_NAME_NOT_FOUND");
+        case AML_INTERNAL:
+            return do_format_arg(sp, "", "AE_AML_INTERNAL");
+        case AML_INVALID_SPACE_ID:
+            return do_format_arg(sp, "", "AE_AML_INVALID_SPACE_ID");
+        case AML_STRING_LIMIT:
+            return do_format_arg(sp, "", "AE_AML_STRING_LIMIT");
+        case AML_NO_RETURN_VALUE:
+            return do_format_arg(sp, "", "AE_AML_NO_RETURN_VALUE");
+        case AML_METHOD_LIMIT:
+            return do_format_arg(sp, "", "AE_AML_METHOD_LIMIT");
+        case AML_NOT_OWNER:
+            return do_format_arg(sp, "", "AE_AML_NOT_OWNER");
+        case AML_MUTEX_ORDER:
+            return do_format_arg(sp, "", "AE_AML_MUTEX_ORDER");
+        case AML_MUTEX_NOT_ACQUIRED:
+            return do_format_arg(sp, "", "AE_AML_MUTEX_NOT_ACQUIRED");
+        case AML_INVALID_RESOURCE_TYPE:
+            return do_format_arg(sp, "", "AE_AML_INVALID_RESOURCE_TYPE");
+        case AML_INVALID_INDEX:
+            return do_format_arg(sp, "", "AE_AML_INVALID_INDEX");
+        case AML_REGISTER_LIMIT:
+            return do_format_arg(sp, "", "AE_AML_REGISTER_LIMIT");
+        case AML_NO_WHILE:
+            return do_format_arg(sp, "", "AE_AML_NO_WHILE");
+        case AML_ALIGNMENT:
+            return do_format_arg(sp, "", "AE_AML_ALIGNMENT");
+        case AML_NO_RESOURCE_END_TAG:
+            return do_format_arg(sp, "", "AE_AML_NO_RESOURCE_END_TAG");
+        case AML_BAD_RESOURCE_VALUE:
+            return do_format_arg(sp, "", "AE_AML_BAD_RESOURCE_VALUE");
+        case AML_CIRCULAR_REFERENCE:
+            return do_format_arg(sp, "", "AE_AML_CIRCULAR_REFERENCE");
+        case AML_BAD_RESOURCE_LENGTH:
+            return do_format_arg(sp, "", "AE_AML_BAD_RESOURCE_LENGTH");
+        case AML_ILLEGAL_ADDRESS:
+            return do_format_arg(sp, "", "AE_AML_ILLEGAL_ADDRESS");
+        case AML_LOOP_TIMEOUT:
+            return do_format_arg(sp, "", "AE_AML_LOOP_TIMEOUT");
+        case AML_UNINITIALIZED_NODE:
+            return do_format_arg(sp, "", "AE_AML_UNINITIALIZED_NODE");
+        case AML_TARGET_TYPE:
+            return do_format_arg(sp, "", "AE_AML_TARGET_TYPE");
+        case AML_PROTOCOL:
+            return do_format_arg(sp, "", "AE_AML_PROTOCOL");
+        case AML_BUFFER_LENGTH:
+            return do_format_arg(sp, "", "AE_AML_BUFFER_LENGTH");
+        case CTRL_RETURN_VALUE:
+            return do_format_arg(sp, "", "AE_CTRL_RETURN_VALUE");
+        case CTRL_PENDING:
+            return do_format_arg(sp, "", "AE_CTRL_PENDING");
+        case CTRL_TERMINATE:
+            return do_format_arg(sp, "", "AE_CTRL_TERMINATE");
+        case CTRL_TRUE:
+            return do_format_arg(sp, "", "AE_CTRL_TRUE");
+        case CTRL_FALSE:
+            return do_format_arg(sp, "", "AE_CTRL_FALSE");
+        case CTRL_DEPTH:
+            return do_format_arg(sp, "", "AE_CTRL_DEPTH");
+        case CTRL_END:
+            return do_format_arg(sp, "", "AE_CTRL_END");
+        case CTRL_TRANSFER:
+            return do_format_arg(sp, "", "AE_CTRL_TRANSFER");
+        case CTRL_BREAK:
+            return do_format_arg(sp, "", "AE_CTRL_BREAK");
+        case CTRL_CONTINUE:
+            return do_format_arg(sp, "", "AE_CTRL_CONTINUE");
+        case CTRL_PARSE_CONTINUE:
+            return do_format_arg(sp, "", "AE_CTRL_PARSE_CONTINUE");
+        case CTRL_PARSE_PENDING:
+            return do_format_arg(sp, "", "AE_CTRL_PARSE_PENDING");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
 
 static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
@@ -173,19 +487,19 @@ export void init_acpi_early() {
 
     Status = AcpiInitializeSubsystem();
     if (ACPI_FAILURE(Status)) {
-        print("AcpiInitializeSubsystem returned {}\n", Status);
+        print("AcpiInitializeSubsystem returned {}\n", (acpi_status)Status);
         return;
     }
 
     Status = AcpiInitializeTables(nullptr, 16, false);
     if (ACPI_FAILURE(Status)) {
-        print("AcpiInitializeTables returned {}\n", Status);
+        print("AcpiInitializeTables returned {}\n", (acpi_status)Status);
         return;
     }
 
     Status = AcpiLoadTables();
     if (ACPI_FAILURE(Status)) {
-        print("AcpiLoadTables returned {}\n", Status);
+        print("AcpiLoadTables returned {}\n", (acpi_status)Status);
         return;
     }
 }
@@ -215,26 +529,26 @@ export void init_acpi() {
     Status = AcpiInstallNotifyHandler(ACPI_ROOT_OBJECT, ACPI_SYSTEM_NOTIFY,
                                       acpi_notify_handler, nullptr);
     if (ACPI_FAILURE(Status)) {
-        print("AcpiInstallNotifyHandler returned {}\n", Status);
+        print("AcpiInstallNotifyHandler returned {}\n", (acpi_status)Status);
         return;
     }
 
     Status = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
     if (ACPI_FAILURE (Status)) {
-        print("AcpiEnableSubsystem returned {}\n", Status);
+        print("AcpiEnableSubsystem returned {}\n", (acpi_status)Status);
         return;
     }
 
     Status = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
     if (ACPI_FAILURE(Status)) {
-        print("AcpiInitializeObjects returned {}\n", Status);
+        print("AcpiInitializeObjects returned {}\n", (acpi_status)Status);
         return;
     }
 
     Status = AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON,
                                           power_button_pressed, nullptr);
     if (ACPI_FAILURE(Status)) {
-        print("AcpiInstallFixedEventHandler returned {}\n", Status);
+        print("AcpiInstallFixedEventHandler returned {}\n", (acpi_status)Status);
         return;
     }
 }
@@ -466,7 +780,7 @@ static void find_device_resources(acpi_device& d, ACPI_HANDLE obj) {
     status = AcpiWalkResources(obj, (char*)"_CRS", find_device_resources_cb, &d);
 
     if (ACPI_FAILURE(status) && status != AE_NOT_FOUND) {
-        print("AcpiWalkResources returned {}\n", status);
+        print("AcpiWalkResources returned {}\n", (acpi_status)status);
         return;
     }
 }
@@ -480,7 +794,7 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
 
     status = AcpiGetObjectInfo(Object, &devinfo);
     if (ACPI_FAILURE(status)) {
-        print("AcpiGetObjectInfo returned {}\n", status);
+        print("AcpiGetObjectInfo returned {}\n", (acpi_status)status);
         return AE_OK;
     }
 
@@ -509,7 +823,7 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
 
     status = AcpiGetName(Object, ACPI_FULL_PATHNAME, &name);
     if (ACPI_FAILURE(status)) {
-        print("AcpiGetName returned {}\n", status);
+        print("AcpiGetName returned {}\n", (acpi_status)status);
         ACPI_FREE(devinfo);
         return AE_OK;
     }
@@ -590,7 +904,7 @@ export void find_acpi_devices() {
 
     status = AcpiGetDevices(nullptr, found_device, nullptr, nullptr);
     if (ACPI_FAILURE(status)) {
-        print("AcpiGetDevices returned {}\n", status);
+        print("AcpiGetDevices returned {}\n", (acpi_status)status);
         return;
     }
 
