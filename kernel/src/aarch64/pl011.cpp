@@ -438,21 +438,49 @@ static void found_pl011(const acpi_device& d) {
     for (auto le = d.resources.next; le != &d.resources; le = le->next) {
         auto& r = containing_record<acpi_device_resource>(le);
 
-        if (r.type == acpi_device_resource_type::fixed_memory32) {
-            auto& r2 = static_cast<acpi_device_resource_fixed_memory32&>(r);
+        switch (r.type) {
+            case acpi_device_resource_type::fixed_memory32: {
+                auto& r2 = static_cast<acpi_device_resource_fixed_memory32&>(r);
 
-            if (!mem.has_value())
-                mem = make_pair(r2.fixed_memory32.Address, r2.fixed_memory32.AddressLength);
-        } else if (r.type == acpi_device_resource_type::irq) {
-            auto& r2 = static_cast<acpi_device_resource_irq&>(r);
+                if (!mem.has_value()) {
+                    mem = make_pair(r2.fixed_memory32.Address,
+                                    r2.fixed_memory32.AddressLength);
+                }
 
-            if (!irq.has_value())
-                irq = r2.irq.Interrupt;
-        } else if (r.type == acpi_device_resource_type::extended_irq) {
-            auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
+                break;
+            }
 
-            if (!irq.has_value())
-                irq = r2.extended_irq.Interrupt;
+            case acpi_device_resource_type::address64: {
+                auto& r2 = static_cast<acpi_device_resource_address64&>(r);
+
+                if (!mem.has_value()) {
+                    mem = make_pair(r2.address64.Address.Minimum,
+                                    r2.address64.Address.AddressLength);
+                }
+
+                break;
+            }
+
+            case acpi_device_resource_type::irq: {
+                auto& r2 = static_cast<acpi_device_resource_irq&>(r);
+
+                if (!irq.has_value())
+                    irq = r2.irq.Interrupt;
+
+                break;
+            }
+
+            case acpi_device_resource_type::extended_irq: {
+                auto& r2 = static_cast<acpi_device_resource_extended_irq&>(r);
+
+                if (!irq.has_value())
+                    irq = r2.extended_irq.Interrupt;
+
+                break;
+            }
+
+            default:
+                break;
         }
     }
 
