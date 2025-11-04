@@ -4,10 +4,10 @@ module;
 #include <atomic>
 #include <string_view>
 #include <ioctl.h>
-#include "handle.h"
 
 export module virtio_console;
 
+import nt;
 import print;
 import bsod;
 import config;
@@ -22,6 +22,8 @@ import power;
 import mem;
 import thread;
 import console;
+import handle;
+import object_ref;
 
 using namespace std;
 

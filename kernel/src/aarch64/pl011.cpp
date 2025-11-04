@@ -8,10 +8,10 @@ module;
 #include <atomic>
 #include <charconv>
 #include <mutex>
-#include "../handle.h"
 
 export module pl011;
 
+import nt;
 import module_init;
 import acpi;
 import print;
@@ -25,6 +25,7 @@ import chardev;
 import scheduler;
 import spinlock;
 import console;
+import handle;
 
 using namespace std;
 

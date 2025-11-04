@@ -8,7 +8,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include "section.h"
-#include "handle.h"
 
 export module framebuffer;
 
@@ -17,6 +16,7 @@ import print;
 import mem;
 import config;
 import spinlock;
+import handle;
 
 #ifndef __aarch64__
 import inout;

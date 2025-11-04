@@ -3,17 +3,19 @@ module;
 #include <span>
 #include <atomic>
 #include <mutex>
-#include "handle.h"
 #include <ioctl.h>
 
 export module keyboard;
 
+import nt;
 import pipe;
 import print;
 import evdev;
 import list;
 import thread;
 import spinlock;
+import handle;
+import object_ref;
 
 using namespace std;
 

@@ -4,11 +4,11 @@ module;
 #include <string_view>
 #include <shared_mutex>
 #include <mutex>
-#include "handle.h"
 #include "nvme.h"
 
 export module nvme;
 
+import nt;
 import print;
 import format;
 import config;
@@ -25,6 +25,8 @@ import page_cache;
 import scheduler;
 import list;
 import spinlock;
+import handle;
+import object_ref;
 
 using namespace std;
 

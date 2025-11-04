@@ -4,12 +4,15 @@ module;
 #include <optional>
 #include <functional>
 #include <string_view>
-#include "handle.h"
+#include <stdint.h>
 
 export module null;
 
+import nt;
 import print;
 import chardev;
+import handle;
+import object_ref;
 
 using namespace std;
 

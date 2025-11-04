@@ -9,7 +9,6 @@ module;
 #include "assert.h"
 #include "tick_rate.h"
 #include "timer-asm.h"
-#include "handle.h"
 
 export module scheduler;
 
@@ -22,6 +21,7 @@ import thread;
 import list;
 import disable_interrupts;
 import cpu_block;
+import handle;
 
 using namespace std;
 

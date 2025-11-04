@@ -7,7 +7,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include "file.h"
-#include "handle.h"
 
 export module vfs;
 
@@ -26,6 +25,7 @@ import volume;
 import visit;
 import rwsem;
 import object_ref;
+import handle;
 
 using namespace std;
 

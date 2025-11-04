@@ -6,10 +6,10 @@ module;
 #include <string_view>
 #include <mutex>
 #include <string.h>
-#include "handle.h"
 
 export module virtio_block;
 
+import nt;
 import print;
 import pci;
 import format;
@@ -21,6 +21,8 @@ import rwsem;
 import list;
 import module_init;
 import page_cache;
+import handle;
+import object_ref;
 
 using namespace std;
 

@@ -5,7 +5,6 @@ module;
 #include <atomic>
 #include <string_view>
 #include <mutex>
-#include "handle.h"
 #include "scheduler.h"
 
 export module pipe;
@@ -20,6 +19,8 @@ import unicode;
 import thread;
 import event;
 import spinlock;
+import handle;
+import object_ref;
 
 using namespace std;
 

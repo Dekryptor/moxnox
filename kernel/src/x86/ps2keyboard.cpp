@@ -5,7 +5,6 @@ module;
 #include <mutex>
 import evdev;
 #include "../qwerty.h"
-#include "../handle.h"
 import pipe;
 #include "../acpica.h"
 #include "../tick_rate.h"
@@ -13,6 +12,7 @@ import pipe;
 
 export module ps2keyboard;
 
+import nt;
 import print;
 import inout;
 import mem;
@@ -28,6 +28,8 @@ import disable_interrupts;
 import scheduler;
 import list;
 import spinlock;
+import handle;
+import object_ref;
 
 using namespace std;
 

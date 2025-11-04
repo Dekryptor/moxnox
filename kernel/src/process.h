@@ -1,14 +1,18 @@
 #pragma once
 
 #include "context_offsets.h"
-#include "handle.h"
 #include "rangelock.h"
 #include <span>
 #include <atomic>
+#include <optional>
 
+import nt;
 import rbtree;
 import mem;
 import spinlock;
+import handle;
+import object_ref;
+import objects;
 
 class section;
 class thread;

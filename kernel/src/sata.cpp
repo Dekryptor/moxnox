@@ -6,11 +6,11 @@ module;
 #include <mutex>
 #include <atomic>
 #include <string.h>
-#include "handle.h"
 #include "tick_rate.h"
 
 export module sata;
 
+import nt;
 import print;
 import format;
 import bsod;
@@ -29,6 +29,8 @@ import page_cache;
 import rwsem;
 import scheduler;
 import spinlock;
+import handle;
+import object_ref;
 
 #include "sata.h"
 

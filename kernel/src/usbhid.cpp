@@ -5,11 +5,11 @@ module;
 #include <span>
 #include <mutex>
 #include "tick_rate.h"
-#include "handle.h"
 #include <ioctl.h>
 
 export module usbhid;
 
+import nt;
 import print;
 import format;
 import xhci;
@@ -24,6 +24,8 @@ import mem;
 import scheduler;
 import list;
 import spinlock;
+import handle;
+import object_ref;
 
 using namespace std;
 

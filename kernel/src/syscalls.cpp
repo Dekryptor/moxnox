@@ -12,6 +12,7 @@ module;
 
 export module syscalls;
 
+import nt;
 import format;
 import print;
 import string;

@@ -6,7 +6,6 @@ module;
 #include <optional>
 #include <mutex>
 #include "scheduler.h"
-#include "handle.h"
 
 export module event;
 
@@ -16,6 +15,8 @@ import bsod;
 import object_ref;
 import thread;
 import spinlock;
+import handle;
+import objects;
 
 using namespace std;
 

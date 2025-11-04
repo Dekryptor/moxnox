@@ -7,7 +7,6 @@ module;
 #include <atomic>
 #include <string_view>
 #include <mutex>
-#include "handle.h"
 #include "scheduler.h"
 #include "assert.h"
 
@@ -23,6 +22,9 @@ import thread;
 import guid;
 import page_cache;
 import rwsem;
+import objects;
+import object_ref;
+import handle;
 
 #include "volume.h"
 

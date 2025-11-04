@@ -6,12 +6,12 @@ module;
 #include <charconv>
 #include <atomic>
 #include <mutex>
-#include "../handle.h"
 #include "../acpica.h"
 #include <ioctl.h>
 
 export module serial;
 
+import nt;
 import print;
 import format;
 import inout;
@@ -26,6 +26,8 @@ import scheduler;
 import list;
 import spinlock;
 import console;
+import handle;
+import object_ref;
 
 using namespace std;
 

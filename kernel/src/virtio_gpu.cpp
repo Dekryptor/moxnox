@@ -4,11 +4,12 @@ module;
 #include <atomic>
 #include <string_view>
 #include <variant>
+#include <optional>
 #include <ioctl.h>
-#include "handle.h"
 
 export module virtio_gpu;
 
+import nt;
 import print;
 import bsod;
 import config;
@@ -25,6 +26,8 @@ import thread;
 import framebuffer;
 import cmdline;
 import console;
+import handle;
+import object_ref;
 
 using namespace std;
 

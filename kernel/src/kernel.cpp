@@ -1,6 +1,7 @@
 #include <span>
 #include <atomic>
 #include <string_view>
+#include <optional>
 #include <version.h>
 #include <string.h>
 #include "context_offsets.h"

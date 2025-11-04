@@ -7,7 +7,6 @@ module;
 #include "tick_rate.h"
 #include "scheduler.h"
 #include "acpica.h"
-#include "handle.h"
 #include "timer-asm.h"
 
 export module timer;
@@ -21,6 +20,7 @@ import disable_interrupts;
 import objects;
 import object_ref;
 import spinlock;
+import handle;
 
 #ifndef __aarch64__
 import inout;

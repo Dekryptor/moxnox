@@ -28,6 +28,7 @@ import config;
 import disable_interrupts;
 import cpu_block;
 import spinlock;
+import handle;
 
 using namespace std;
 
