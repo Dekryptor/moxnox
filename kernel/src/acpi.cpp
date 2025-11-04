@@ -265,7 +265,7 @@ consteval bool format_spec_valid<acpi_status>(string_view fmt) {
 span<char> do_format_arg(span<char> sp, string_view, acpi_status arg) {
     switch (arg) {
         using enum acpi_status;
-        do_format_arg(sp, "", "INODE_ITEM");
+
         case OK:
             return do_format_arg(sp, "", "AE_OK");
         case ERROR:
