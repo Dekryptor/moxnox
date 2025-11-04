@@ -1,16 +1,16 @@
 #include <span>
 #include <atomic>
 #include <mutex>
-#include "file.h"
+
+import nt;
 import visit;
 import mem;
 import handle;
+import file;
+import objects;
+import inode;
 
 using namespace std;
-
-file::file(object& ino, uint32_t create_options) : object(object_type::file), ino(ino), create_options(create_options) {
-    object_acquire(ino);
-}
 
 file::~file() {
     object_release(ino);

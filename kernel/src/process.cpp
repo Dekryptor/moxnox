@@ -9,7 +9,6 @@ module;
 #include "rangelock.h"
 #include "thread.h"
 #include "process.h"
-#include "file.h"
 #include "mapping.h"
 #include "section2.h"
 #include "assert.h"
@@ -45,6 +44,7 @@ import inode;
 import cpu_block;
 import ntdll;
 import pe;
+import file;
 
 #ifndef __aarch64__
 import apic;

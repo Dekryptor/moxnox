@@ -7,7 +7,6 @@ module;
 #include <string_view>
 #include <functional>
 #include <mutex>
-#include "file.h"
 #include <utility>
 #include "section.h"
 #include "process.h"
@@ -24,6 +23,7 @@ import string;
 import unicode;
 import thread;
 import pe;
+import file;
 
 using namespace std;
 

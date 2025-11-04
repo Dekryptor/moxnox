@@ -1,6 +1,9 @@
-#pragma once
+module;
 
 #include <atomic>
+#include <span>
+
+export module file;
 
 import nt;
 import inode;
@@ -8,7 +11,9 @@ import list;
 import objects;
 import spinlock;
 
-struct dentry {
+using namespace std;
+
+export struct dentry {
     ~dentry() {
         if (inode)
             inode->release();
@@ -28,14 +33,20 @@ struct dentry {
     inode* inode = nullptr;
     list_entry le;
     unsigned int index;
-    std::atomic<unsigned int> refcount = 1;
+    atomic<unsigned int> refcount = 1;
     size_t name_len;
     char name[0];
 };
 
+extern "C++" void object_acquire(object& obj); // FIXME
+
+export extern "C++"
 class file : public object {
 public:
-    file(object& ino, uint32_t create_options);
+    file(object& ino, uint32_t create_options) : object(object_type::file), ino(ino), create_options(create_options) {
+        object_acquire(ino);
+    }
+
     ~file();
 
     void acquire() {
@@ -55,10 +66,10 @@ public:
     size_t namelen = 0;
     uint32_t create_options;
 
-    NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes);
-    NTSTATUS read(std::span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
-    NTSTATUS write(std::span<const uint8_t> s, uint64_t& written_bytes);
-    NTSTATUS write(std::span<const uint8_t> s, uint64_t offset,
+    NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes);
+    NTSTATUS read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
+    NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes);
+    NTSTATUS write(span<const uint8_t> s, uint64_t offset,
                    uint64_t& written_bytes);
     NTSTATUS query_directory(HANDLE event, PIO_APC_ROUTINE apc_routine,
                              void* apc_context, IO_STATUS_BLOCK& io_status_block,

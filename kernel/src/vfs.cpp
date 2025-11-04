@@ -6,10 +6,11 @@ module;
 #include <functional>
 #include <string_view>
 #include <mutex>
-#include "file.h"
+#include <atomic>
 
 export module vfs;
 
+import nt;
 import print;
 import bsod;
 import cpio;
@@ -26,6 +27,10 @@ import visit;
 import rwsem;
 import object_ref;
 import handle;
+import file;
+import inode;
+import spinlock;
+import objects;
 
 using namespace std;
 

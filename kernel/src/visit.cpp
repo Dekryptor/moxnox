@@ -6,7 +6,6 @@ module;
 #include <string_view>
 #include <variant>
 #include "thread.h"
-#include "file.h"
 #include "section.h"
 
 export module visit;
@@ -17,6 +16,7 @@ import volume;
 import semaphore;
 import chardev;
 import timer;
+import file;
 
 using namespace std;
 
@@ -66,7 +66,7 @@ static void visit_obj(object& obj, const T& func) {
     }
 }
 
-export void object_acquire(object& obj) {
+export extern "C++" void object_acquire(object& obj) {
     visit_obj(obj, [](auto&& o) {
         o.acquire();
     });

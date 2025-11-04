@@ -66,6 +66,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/virtio_gpu.cpp
     src/framebuffer.cpp
     src/handle.cpp
+    src/file.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}

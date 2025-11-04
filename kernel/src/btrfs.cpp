@@ -7,12 +7,12 @@ module;
 #include <string_view>
 #include <mutex>
 #include "tick_rate.h"
-#include "file.h"
 #include "assert.h"
 #include "btrfs.h"
 
 export module btrfs;
 
+import nt;
 import print;
 import format;
 import bsod;
@@ -34,6 +34,10 @@ import rwsem;
 import page_cache;
 import scheduler;
 import crc32c;
+import file;
+import inode;
+import spinlock;
+import objects;
 
 using namespace std;
 

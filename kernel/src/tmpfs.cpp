@@ -5,11 +5,11 @@ module;
 #include <optional>
 #include <string_view>
 #include <mutex>
-#include "file.h"
 #include "assert.h"
 
 export module tmpfs;
 
+import nt;
 import bsod;
 import print;
 import mem;
@@ -22,6 +22,9 @@ import vfs;
 import unicode;
 import object_ref;
 import page_cache;
+import file;
+import inode;
+import spinlock;
 
 using namespace std;
 
