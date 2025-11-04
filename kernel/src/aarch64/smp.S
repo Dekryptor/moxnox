@@ -15,6 +15,10 @@ ap_trampoline:
 	mov	x0, #0x80000000 // RW flag (EL1 is 64-bit)
 	msr	hcr_el2, x0
 
+	// allow EL0 and EL1 to use timer
+	mov	x0, #0x3 // EL1PCTEN, EL1PCEN
+	msr	cnthctl_el2, x0
+
 	// drop to EL1
 	mov	x0, sp
 	msr	sp_el1, x0
