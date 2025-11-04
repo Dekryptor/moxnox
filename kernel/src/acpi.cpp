@@ -58,6 +58,14 @@ export struct acpi_device {
     string_view uid;
     list_entry resources = { &resources, &resources };
     span<string_view> cids;
+    list_entry properties = { &properties, &properties };
+    char buf[0];
+};
+
+struct acpi_property {
+    list_entry le;
+    string_view name;
+    uint64_t val;
     char buf[0];
 };
 
@@ -785,6 +793,78 @@ static void find_device_resources(acpi_device& d, ACPI_HANDLE obj) {
     }
 }
 
+static void add_device_properties(acpi_device& dev, const ACPI_OBJECT& pkg) {
+    if (pkg.Type != ACPI_TYPE_PACKAGE || pkg.Package.Count != 2)
+        return;
+
+    auto& name = pkg.Package.Elements[0];
+    auto& val = pkg.Package.Elements[1];
+
+    if (name.Type != ACPI_TYPE_STRING)
+        return;
+
+    // FIXME - value can also be string, local reference, or package
+    if (val.Type == ACPI_TYPE_INTEGER) {
+        size_t size = offsetof(acpi_property, buf) + name.String.Length;
+
+        auto p = (acpi_property*)malloc(size); // FIXME?
+        if (!p) {
+            print("malloc failed\n");
+            return;
+        }
+
+        new (p) acpi_property;
+
+        memcpy(p->buf, name.String.Pointer, name.String.Length);
+        p->name = string_view(p->buf, name.String.Length);
+        p->val = val.Integer.Value;
+
+        insert_tail_list(dev.properties, p->le);
+    }
+}
+
+static void find_device_properties(acpi_device& dev, ACPI_HANDLE Object) {
+    ACPI_STATUS status;
+    ACPI_BUFFER buf = { ACPI_ALLOCATE_BUFFER, nullptr };
+
+    static const uint8_t device_props_guid[] = { 0x14, 0xd8, 0xff, 0xda, 0xba, 0x6e, 0x8c, 0x4d, 0x8a, 0x91, 0xbc, 0x9b, 0xbf, 0x4a, 0xa3, 0x01 };
+
+    status = AcpiEvaluateObjectTyped(Object, "_DSD", nullptr, &buf,
+                                     ACPI_TYPE_PACKAGE);
+    if (ACPI_FAILURE(status)) {
+        if (status != AE_NOT_FOUND)
+            print("AcpiEvaluateObjectTyped returned {}\n", (acpi_status)status);
+        return;
+    }
+
+    auto& props = *(ACPI_OBJECT*)buf.Pointer;
+
+    if (props.Type != ACPI_TYPE_PACKAGE || props.Package.Count % 2) {
+        AcpiOsFree(buf.Pointer);
+        return;
+    }
+
+    for (unsigned int i = 0; i < props.Package.Count; i += 2) {
+        auto& guid = props.Package.Elements[i];
+        auto& properties = props.Package.Elements[i + 1];
+
+        if (guid.Type != ACPI_TYPE_BUFFER || guid.Buffer.Length != 16)
+            break;
+
+        if (memcmp(guid.Buffer.Pointer, device_props_guid, sizeof(device_props_guid)))
+            continue;
+
+        if (properties.Type != ACPI_TYPE_PACKAGE)
+            break;
+
+        for (unsigned int j = 0; j < properties.Package.Count; j++) {
+            add_device_properties(dev, properties.Package.Elements[j]);
+        }
+    }
+
+    AcpiOsFree(buf.Pointer);
+}
+
 static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
                                 void* /*Context*/, void** /*ReturnValue*/) {
     ACPI_STATUS status;
@@ -895,6 +975,8 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
     ACPI_FREE(devinfo);
 
     find_device_resources(*d, Object);
+
+    find_device_properties(*d, Object);
 
     return AE_OK;
 }
