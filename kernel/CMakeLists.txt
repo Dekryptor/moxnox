@@ -65,7 +65,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/efi.cpp
     src/virtio_gpu.cpp
     src/framebuffer.cpp
-    src/handle2.cpp
+    src/handle.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -82,7 +82,7 @@ set(AARCH64_MODULES ${GLOBAL_MODULES}
 )
 
 set(SRC_FILES src/kernel.cpp
-    src/handle.cpp
+    src/handle2.cpp
     src/file.cpp
     src/bsod2.cpp)
 
