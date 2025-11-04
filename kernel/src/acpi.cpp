@@ -62,7 +62,7 @@ export struct acpi_device {
     char buf[0];
 };
 
-struct acpi_property {
+export struct acpi_property {
     list_entry le;
     string_view name;
     uint64_t val;

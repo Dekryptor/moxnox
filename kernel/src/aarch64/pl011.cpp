@@ -77,7 +77,7 @@ public:
 class pl011_pipe : public chardev {
 public:
     pl011_pipe(pipe& recv_pipe, pl011_out_pipe& send_pipe,
-               uint64_t base_address, unsigned int base_clock,
+               uint64_t base_address, uint64_t base_clock,
                unsigned int baud_rate);
 
     ~pl011_pipe() {
@@ -106,7 +106,7 @@ public:
 };
 
 pl011_pipe::pl011_pipe(pipe& recv_pipe, pl011_out_pipe& send_pipe, uint64_t pa,
-                       unsigned int base_clock, unsigned int baud_rate) : recv_pipe(recv_pipe), send_pipe(send_pipe) {
+                       uint64_t base_clock, unsigned int baud_rate) : recv_pipe(recv_pipe), send_pipe(send_pipe) {
     recv_pipe.acquire();
     send_pipe.acquire();
 
@@ -378,7 +378,8 @@ static optional<unsigned int> parse_uid(string_view uid) {
 }
 
 static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
-                       uint32_t irq, string_view uid) {
+                       uint32_t irq, string_view uid,
+                       uint64_t base_clock) {
     if (mem_length == 0) {
         print("init_pl011: invalid mem_length {}\n", mem_length);
         return false;
@@ -401,8 +402,8 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
 
     auto& recv_pipe = static_cast<pipe&>(recv_handle.get());
 
-    auto pptr = new pl011_pipe(recv_pipe, send_pipe, mem_start,
-                               24000000/*FIXME*/, 115200);
+    auto pptr = new pl011_pipe(recv_pipe, send_pipe, mem_start, base_clock,
+                               115200);
     if (!pptr) {
         print("new failed\n");
         return false;
@@ -510,6 +511,17 @@ static void found_pl011(const acpi_device& d) {
     if (!mem.has_value() || !irq.has_value())
         return;
 
-    if (!init_pl011(mem->first, mem->second, *irq, d.uid))
+    uint64_t base_clock = 24000000;
+
+    for (auto le = d.properties.next; le != &d.properties; le = le->next) {
+        auto& p = containing_record<acpi_property>(le);
+
+        if (p.name == "clock-frequency") {
+            base_clock = p.val;
+            break;
+        }
+    }
+
+    if (!init_pl011(mem->first, mem->second, *irq, d.uid, base_clock))
         print("init_pl011 failed for {:x},{:x}\n", mem->first, mem->second);
 }
