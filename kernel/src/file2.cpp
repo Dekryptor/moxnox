@@ -12,12 +12,6 @@ import inode;
 
 using namespace std;
 
-file::~file() {
-    object_release(ino);
-
-    free(name);
-}
-
 NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
     NTSTATUS status;
 

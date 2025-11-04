@@ -10,6 +10,8 @@ import inode;
 import list;
 import objects;
 import spinlock;
+import visit;
+import mem;
 
 using namespace std;
 
@@ -38,8 +40,6 @@ export struct dentry {
     char name[0];
 };
 
-extern "C++" void object_acquire(object& obj); // FIXME
-
 export extern "C++"
 class file : public object {
 public:
@@ -47,7 +47,11 @@ public:
         object_acquire(ino);
     }
 
-    ~file();
+    ~file() {
+        object_release(ino);
+
+        free(name);
+    }
 
     void acquire() {
         refcount++;
