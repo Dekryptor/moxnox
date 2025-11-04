@@ -4,6 +4,30 @@
 ap_trampoline:
 	mov	sp, x0 // load boot stack
 
+	mrs	x0, CurrentEL
+	and	x0, x0, 0xc
+	sub	x0, x0, 0x8
+
+	// if already in EL1, jump to ap_trampoline_el1
+	cbnz	x0, ap_trampoline_el1
+
+	// set HCR_EL2
+	mov	x0, #0x80000000 // RW flag (EL1 is 64-bit)
+	msr	hcr_el2, x0
+
+	// drop to EL1
+	mov	x0, sp
+	msr	sp_el1, x0
+
+	adrp	x0, ap_trampoline_el1
+	add	x0, x0, :lo12:ap_trampoline_el1
+	msr	elr_el2, x0
+
+	mov	x0, #0x3c5  // EL1 with SP_EL1, interrupts disabled
+	msr	spsr_el2, x0
+	eret
+
+ap_trampoline_el1:
 	tlbi vmalle1
 	dsb ish
 	isb
