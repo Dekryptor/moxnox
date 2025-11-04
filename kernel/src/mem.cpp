@@ -102,7 +102,7 @@ static spinlock protect_page_spinlock;
 export span<const uint8_t> initrd;
 
 constexpr uint64_t PHYS_MEMORY_MASK = 0xffffff0000000000;
-static const uint64_t PHYS_MEMORY = 0xffff990000000000;
+const uint64_t PHYS_MEMORY = 0xffff990000000000;
 
 export constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
 
