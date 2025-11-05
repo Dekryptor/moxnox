@@ -42,7 +42,7 @@ export bool map_uefi(const loader_block& lb) {
 
         if (m.type == mem_type::uefi_code) {
             d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesCode;
-            mt = mapping_type::read_execute;
+            mt = mapping_type::read_write_execute;
         } else if (m.type == mem_type::uefi_data) {
             d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesData;
             mt = mapping_type::read_write;
