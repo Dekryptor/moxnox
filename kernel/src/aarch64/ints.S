@@ -235,7 +235,7 @@ b	kernel_irq_entry_bsp
 b	.
 .balign 128
 // SError, EL1 using SP_EL1 stack
-b	.
+b	kernel_exception_entry
 .balign 128
 // Synchronous Exception, 64-bit EL0
 b	user_exception_entry
@@ -247,7 +247,7 @@ b	user_irq_entry_bsp
 b	.
 .balign 128
 // SError, 64-bit EL0
-b	.
+b	user_serror_exception_entry
 .balign 128
 // Synchronous Exception, 32-bit EL0
 b	.
@@ -274,7 +274,7 @@ b	.
 b	.
 .balign 128
 // SError, EL1 using SP_EL0 stack
-b	.
+b	kernel_exception_entry
 .balign 128
 // Synchronous Exception, EL1 using SP_EL1 stack
 b	kernel_exception_entry
@@ -298,7 +298,7 @@ b	user_irq_entry_ap
 b	.
 .balign 128
 // SError, 64-bit EL0
-b	.
+b	user_serror_exception_entry
 .balign 128
 // Synchronous Exception, 32-bit EL0
 b	.
@@ -587,6 +587,10 @@ restore_user_context
 add	sp, sp, #0x10
 eret
 user_exception_entry_end:
+
+user_serror_exception_entry:
+mrs	x18, tpidr_el1
+b	kernel_exception_entry
 
 # irq number is in w2; clobbers x0 and x1
 .macro do_irq

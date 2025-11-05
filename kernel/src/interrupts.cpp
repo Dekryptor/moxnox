@@ -1548,12 +1548,20 @@ static void unhandled_kernel_exception(uint64_t esr_value) {
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    sp = format(sp, "Unhandled exception in kernel mode, ");
+    if (esr.EC == 0x2f) {
+        auto DFSC = esr.ISS & 0x3f;
+
+        if (DFSC == 0x11)
+            sp = format(sp, "Asynchronous SError exception");
+        else
+            sp = format(sp, "Uncategorized SError exception");
+    } else
+        sp = format(sp, "Unhandled exception in kernel mode");
 
     if (!current_thread)
-        sp = format(sp, "not in thread");
+        sp = format(sp, ", not in thread");
     else
-        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
+        sp = format(sp, ", thread {:x}", (uintptr_t)current_thread);
 
     sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "ESR_EL1 = {:08x} (ISS = {:x}, IL = {:x}, EC = {:x}, ISS2 = {:x})\n",
