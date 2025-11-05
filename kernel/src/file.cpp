@@ -14,6 +14,7 @@ import spinlock;
 import visit;
 import mem;
 import handle;
+import thread;
 
 using namespace std;
 

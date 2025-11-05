@@ -223,6 +223,24 @@ extern "C++"
         proc->release();
 }
 
+export object_ref deref_handle(handle_t h) {
+    auto t = get_current_thread();
+
+    if (!t->proc)
+        return nullopt;
+
+    return t->proc->deref_handle(h);
+}
+
+export object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask) {
+    auto t = get_current_thread();
+
+    if (!t->proc)
+        return nullopt;
+
+    return t->proc->deref_handle(h, access_mask);
+}
+
 extern "C"
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     object_ref obj;

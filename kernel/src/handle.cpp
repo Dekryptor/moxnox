@@ -15,17 +15,11 @@ import print;
 import spinlock;
 import list;
 import visit;
+import mem;
 
 using namespace std;
 
-export {
-
-using handle_t = uint64_t;
-
-extern "C++" object_ref deref_handle(handle_t h);
-extern "C++" object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask);
-
-}
+export using handle_t = uint64_t;
 
 struct name_entry {
     list_entry le;
