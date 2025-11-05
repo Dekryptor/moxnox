@@ -14,6 +14,8 @@ import pipe;
 import disable_interrupts;
 import scheduler;
 import smp;
+import efi;
+import loaderblock;
 
 #ifndef __aarch64__
 import apic;
@@ -24,15 +26,22 @@ using namespace std;
 export bool shutting_down = false;
 
 static void reboot() {
-    AcpiReset();
+    if (ResetSystem)
+        ResetSystem(EFI_RESET_TYPE::Cold, (EFI_STATUS)0, 0, nullptr);
+    else
+        AcpiReset();
 }
 
 static void halt() {
-    AcpiEnterSleepStatePrep(5);
+    if (ResetSystem)
+        ResetSystem(EFI_RESET_TYPE::Shutdown, (EFI_STATUS)0, 0, nullptr);
+    else {
+        AcpiEnterSleepStatePrep(5);
 
-    disable_interrupts();
+        disable_interrupts();
 
-    AcpiEnterSleepState(5);
+        AcpiEnterSleepState(5);
+    }
 }
 
 // work round ICE on GCC 15
