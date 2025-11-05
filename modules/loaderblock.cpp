@@ -70,6 +70,17 @@ using EFI_SET_VIRTUAL_ADDRESS_MAP = EFI_STATUS (*)(UINTN MemoryMapSize,
                                                    uint32_t DescriptorVersion,
                                                    _EFI_MEMORY_DESCRIPTOR* VirtualMap);
 
+enum class EFI_RESET_TYPE {
+    Cold,
+    Warm,
+    Shutdown
+};
+
+// gnu-efi has the return type as EFI_STATUS, but the spec says void
+using EFI_RESET_SYSTEM = EFI_STATUS (*) (EFI_RESET_TYPE ResetType,
+                                         EFI_STATUS ResetStatus,
+                                         UINTN DataSize, char16_t* ResetData);
+
 enum class mem_type {
     free,
     reserved,
@@ -140,6 +151,7 @@ struct loader_block {
     uint64_t debug_line_str_size;
     EFI_GET_TIME GetTime;
     EFI_SET_VIRTUAL_ADDRESS_MAP SetVirtualAddressMap;
+    EFI_RESET_SYSTEM ResetSystem;
 } __attribute__((packed));
 
 const uint64_t SELFMAP = 0xfffff68000000000;

@@ -2347,6 +2347,7 @@ static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa) {
     lb.debug_line_str_size = debug_line_str_size;
     lb.GetTime = (decltype(lb.GetTime))systable->RuntimeServices->GetTime;
     lb.SetVirtualAddressMap = (decltype(lb.SetVirtualAddressMap))systable->RuntimeServices->SetVirtualAddressMap;
+    lb.ResetSystem = (decltype(lb.ResetSystem))systable->RuntimeServices->ResetSystem;
 
     // exit boot services
 
