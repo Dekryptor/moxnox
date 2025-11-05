@@ -399,11 +399,17 @@ static void device_found1(const volatile pci_header& h, list_entry& buses) {
 
 static void device_found(volatile pci_header& h, uint8_t bus, uint8_t dev,
                          uint8_t func, list_entry& buses) {
-    print("found PCI device {:02x}:{:02x}:{:x} {:04x}:{:04x}\n", bus, dev, func, h.vendor_id, h.device_id);
+    uint16_t vendor_id = h.vendor_id;
+    uint16_t device_id = h.device_id;
+
+    print("found PCI device {:02x}:{:02x}:{:x} {:04x}:{:04x}\n", bus, dev, func,
+          vendor_id, device_id);
 
     h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
-    switch (h.header_type & 0x7f) {
+    uint8_t header_type = h.header_type;
+
+    switch (header_type & 0x7f) {
         case 0:
             device_found0(h, bus, dev, func);
             break;
@@ -415,7 +421,7 @@ static void device_found(volatile pci_header& h, uint8_t bus, uint8_t dev,
         // FIXME - header type 2? (PCI-to-CardBus bridge)
 
         default:
-            print("Unhandled PCI header type {:x}\n", (uint8_t)(h.header_type & 0x7f));
+            print("Unhandled PCI header type {:x}\n", (uint8_t)(header_type & 0x7f));
             break;
     }
 }
@@ -440,8 +446,9 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
         }
 
         volatile auto& h = *(pci_header*)va;
+        uint16_t vendor_id = h.vendor_id;
 
-        if (h.vendor_id == 0xffff || h.vendor_id == 0x0000) {
+        if (vendor_id == 0xffff || vendor_id == 0x0000) {
             unmap_page(va);
             free_va(va, 1);
             continue;
@@ -468,8 +475,9 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
                 }
 
                 volatile auto& h2 = *(pci_header*)va;
+                uint16_t vendor_id = h2.vendor_id;
 
-                if (h2.vendor_id == 0xffff || h2.vendor_id == 0x0000) {
+                if (vendor_id == 0xffff || vendor_id == 0x0000) {
                     unmap_page(va);
                     free_va(va, 1);
                     continue;
