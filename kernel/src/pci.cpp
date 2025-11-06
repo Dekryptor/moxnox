@@ -605,10 +605,9 @@ static void found_pci_bus(const acpi_device& dev) {
     ACPI_TABLE_HEADER* tbl;
 
     auto status = acpi_evaluate_integer(dev.handle, (char*)"_SEG", seg);
-    if (status == AE_NOT_FOUND) {
-        print("_SEG item not found for {}\n", dev.acpi_name);
-        return;
-    } else if (ACPI_FAILURE(status)) {
+    if (status == AE_NOT_FOUND)
+        seg = 0; // _SEG is optional
+    else if (ACPI_FAILURE(status)) {
         print("acpi_evaluate_integer returned {} for _SEG for {}\n",
               (acpi_status)status, dev.acpi_name);
         return;
