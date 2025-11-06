@@ -420,15 +420,17 @@ static void device_found(volatile pci_header& h, uint16_t seg, uint8_t bus,
                          uint8_t dev, uint8_t func, list_entry& buses) {
     uint16_t vendor_id = h.vendor_id;
     uint16_t device_id = h.device_id;
+    uint8_t header_type = h.header_type & 0x7f;
+
+    if (header_type != 0 && header_type != 1)
+        return;
 
     print("found PCI device {:04x}:{:02x}:{:02x}:{:x} {:04x}:{:04x}\n",
           seg, bus, dev, func, vendor_id, device_id);
 
     h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
-    uint8_t header_type = h.header_type;
-
-    switch (header_type & 0x7f) {
+    switch (header_type) {
         case 0:
             device_found0(h, bus, dev, func);
             break;
@@ -438,10 +440,6 @@ static void device_found(volatile pci_header& h, uint16_t seg, uint8_t bus,
             break;
 
         // FIXME - header type 2? (PCI-to-CardBus bridge)
-
-        default:
-            print("Unhandled PCI header type {:x}\n", (uint8_t)(header_type & 0x7f));
-            break;
     }
 }
 
