@@ -416,13 +416,13 @@ static void device_found1(const volatile pci_header& h, list_entry& buses) {
     insert_tail_list(buses, e->le);
 }
 
-static void device_found(volatile pci_header& h, uint8_t bus, uint8_t dev,
-                         uint8_t func, list_entry& buses) {
+static void device_found(volatile pci_header& h, uint16_t seg, uint8_t bus,
+                         uint8_t dev, uint8_t func, list_entry& buses) {
     uint16_t vendor_id = h.vendor_id;
     uint16_t device_id = h.device_id;
 
-    print("found PCI device {:02x}:{:02x}:{:x} {:04x}:{:04x}\n", bus, dev, func,
-          vendor_id, device_id);
+    print("found PCI device {:04x}:{:02x}:{:02x}:{:x} {:04x}:{:04x}\n",
+          seg, bus, dev, func, vendor_id, device_id);
 
     h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
@@ -475,7 +475,7 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
 
         bool multifunction = h.header_type & 0x80;
 
-        device_found(h, bus, dev, 0, buses);
+        device_found(h, item.PciSegment, bus, dev, 0, buses);
 
         if (multifunction) {
             for (uint8_t func = 1; func < 8; func++) {
@@ -502,7 +502,7 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
                     continue;
                 }
 
-                device_found(h2, bus, dev, func, buses);
+                device_found(h2, item.PciSegment, bus, dev, func, buses);
             }
         }
     }
