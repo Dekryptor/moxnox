@@ -249,7 +249,7 @@ export constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) 
 }
 
 static constexpr uint64_t pci_pa(const ACPI_MCFG_ALLOCATION& item, uint8_t bus, uint8_t device, uint8_t function) {
-    return item.Address | (uint64_t)((bus - item.StartBusNumber) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12);
+    return item.Address + ((uint64_t)((bus - item.StartBusNumber) << 20) | (uint64_t)(device << 15) | (uint64_t)(function << 12));
 }
 
 static void device_found0(const volatile pci_header& h, uint8_t bus, uint8_t dev, uint8_t func) {
