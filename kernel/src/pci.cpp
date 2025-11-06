@@ -2,6 +2,8 @@ module;
 
 #include <span>
 #include <atomic>
+#include <optional>
+#include <algorithm>
 #include "acpica.h"
 #include "pci.h"
 
@@ -15,6 +17,8 @@ import event;
 import thread;
 import object_ref;
 import scheduler;
+import acpi;
+import module_init;
 
 using namespace std;
 
@@ -219,6 +223,21 @@ export struct pci_class_recognizer {
 };
 
 export list_entry pci_classes = { &pci_classes, &pci_classes };
+
+static void found_pci_bus(const acpi_device& dev);
+
+// FIXME - PNP0A03 is non-express PCI?
+static acpi_recognizer mod_pnp_hids[] = {
+    { {}, "PNP0A08", found_pci_bus, nullptr }
+};
+
+static void init_acpi_hids() {
+    for (unsigned int i = 0; i < sizeof(mod_pnp_hids) / sizeof(*mod_pnp_hids); i++) {
+        insert_tail_list(pnp_hids, mod_pnp_hids[i].le);
+    }
+}
+
+static module_init module_init_serial(init_acpi_hids);
 
 struct check_bus_entry {
     list_entry le;
@@ -489,31 +508,6 @@ static void check_bus(uint8_t bus, const ACPI_MCFG_ALLOCATION& item,
     }
 }
 
-static void check_buses(const ACPI_MCFG_ALLOCATION& item) {
-    list_entry buses = { &buses, &buses };
-
-    {
-        auto e = new check_bus_entry;
-        if (!e) {
-            print("malloc failed\n");
-            return;
-        }
-
-        e->num = item.StartBusNumber;
-        insert_tail_list(buses, e->le);
-    }
-
-    while (!is_list_empty(buses)) {
-        auto& e = containing_record<check_bus_entry>(buses.next);
-
-        remove_entry_list(e.le);
-
-        check_bus(e.num, item, buses);
-
-        free(&e);
-    }
-}
-
 static void pci_device_found(void* ctx, void* ctx2) {
     auto& dev = *(pci_device*)ctx;
     auto early = (bool)ctx2;
@@ -550,36 +544,6 @@ static void pci_device_found(void* ctx, void* ctx2) {
 
     if (--devices_left == 0)
         set_event(static_cast<event&>(init_device_event.get()));
-}
-
-export void scan_pci() {
-    ACPI_TABLE_HEADER* tbl;
-    auto status = AcpiGetTable((char*)ACPI_SIG_MCFG, 1, &tbl);
-
-    if (status == AE_NOT_FOUND) // no PCIe
-        return;
-    else if (ACPI_FAILURE(status)) {
-        print("AcpiGetTable returned {} for MCFG\n", status);
-        return;
-    }
-
-    if (tbl->Length < sizeof(ACPI_TABLE_MCFG)) {
-        print("MCFG table was {:x} bytes, expected at least {:x}\n",
-              tbl->Length, sizeof(ACPI_TABLE_MCFG));
-        return;
-    }
-
-    auto items = span((ACPI_MCFG_ALLOCATION*)((uint8_t*)tbl + sizeof(ACPI_TABLE_MCFG)),
-                      (tbl->Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION));
-
-    if (items.empty()) {
-        print("No ACPI_MCFG_ALLOCATIONs found\n");
-        return;
-    }
-
-    for (const auto& item: items) {
-        check_buses(item);
-    }
 }
 
 export void init_pci(bool early) {
@@ -633,5 +597,136 @@ pci_device::~pci_device() {
         remove_entry_list(ent.le);
 
         delete &ent;
+    }
+}
+
+static void found_pci_bus(const acpi_device& dev) {
+    uint64_t seg;
+    ACPI_TABLE_HEADER* tbl;
+
+    auto status = acpi_evaluate_integer(dev.handle, (char*)"_SEG", seg);
+    if (status == AE_NOT_FOUND) {
+        print("_SEG item not found for {}\n", dev.acpi_name);
+        return;
+    } else if (ACPI_FAILURE(status)) {
+        print("acpi_evaluate_integer returned {} for _SEG for {}\n",
+              (acpi_status)status, dev.acpi_name);
+        return;
+    }
+
+    optional<uint8_t> bus_start, bus_end;
+
+    for (auto le = dev.resources.next; le != &dev.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        switch (r.type) {
+            case acpi_device_resource_type::address16: {
+                auto& r2 = static_cast<acpi_device_resource_address16&>(r);
+
+                if (r2.address16.Address.AddressLength > 0 &&
+                    r2.address16.ResourceType == ACPI_BUS_NUMBER_RANGE) {
+                    bus_start = r2.address16.Address.Minimum;
+                    bus_end = r2.address16.Address.Minimum +
+                              r2.address16.Address.AddressLength - 1;
+                }
+
+                break;
+            }
+
+            case acpi_device_resource_type::address32: {
+                auto& r2 = static_cast<acpi_device_resource_address32&>(r);
+
+                if (r2.address32.Address.AddressLength > 0 &&
+                    r2.address32.ResourceType == ACPI_BUS_NUMBER_RANGE) {
+                    bus_start = r2.address32.Address.Minimum;
+                    bus_end = r2.address32.Address.Minimum +
+                              r2.address32.Address.AddressLength - 1;
+                }
+
+                break;
+            }
+
+            case acpi_device_resource_type::address64: {
+                auto& r2 = static_cast<acpi_device_resource_address64&>(r);
+
+                if (r2.address64.Address.AddressLength > 0 &&
+                    r2.address64.ResourceType == ACPI_BUS_NUMBER_RANGE) {
+                    bus_start = r2.address64.Address.Minimum;
+                    bus_end = r2.address64.Address.Minimum +
+                              r2.address64.Address.AddressLength - 1;
+                }
+
+                break;
+            }
+
+            default:
+                break;
+        }
+
+        if (bus_start.has_value())
+            break;
+    }
+
+    if (!bus_start.has_value()) {
+        print("unable to find bus numbers for {}\n", dev.acpi_name);
+        return;
+    }
+
+    status = AcpiGetTable((char*)ACPI_SIG_MCFG, 1, &tbl);
+
+    if (status == AE_NOT_FOUND) {
+        print("found_pci_bus: unable to find MCFG table\n");
+        return;
+    } else if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for MCFG\n", (enum acpi_status)status);
+        return;
+    }
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MCFG)) {
+        print("MCFG table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_MCFG));
+        return;
+    }
+
+    auto items = span((ACPI_MCFG_ALLOCATION*)((uint8_t*)tbl + sizeof(ACPI_TABLE_MCFG)),
+                      (tbl->Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION));
+
+    if (items.empty()) {
+        print("No ACPI_MCFG_ALLOCATIONs found\n");
+        return;
+    }
+
+    for (auto& it : items) {
+        if (it.PciSegment != seg)
+            continue;
+
+        if (*bus_end < it.StartBusNumber || *bus_start > it.EndBusNumber)
+            continue;
+
+        auto start = max(*bus_start, it.StartBusNumber);
+        auto end = min(*bus_end, it.EndBusNumber);
+
+        list_entry buses = { &buses, &buses };
+
+        for (unsigned int num = start; num <= end; num++) {
+            auto e = new check_bus_entry;
+            if (!e) {
+                print("malloc failed\n");
+                return;
+            }
+
+            e->num = (uint8_t)num;
+            insert_tail_list(buses, e->le);
+        }
+
+        while (!is_list_empty(buses)) {
+            auto& e = containing_record<check_bus_entry>(buses.next);
+
+            remove_entry_list(e.le);
+
+            check_bus(e.num, it, buses);
+
+            free(&e);
+        }
     }
 }

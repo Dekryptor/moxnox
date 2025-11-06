@@ -59,6 +59,7 @@ export struct acpi_device {
     list_entry resources = { &resources, &resources };
     span<string_view> cids;
     list_entry properties = { &properties, &properties };
+    ACPI_HANDLE handle;
     char buf[0];
 };
 
@@ -142,7 +143,7 @@ export struct acpi_device_resource_csi2_serial_bus : acpi_device_resource {
     ACPI_RESOURCE_CSI2_SERIALBUS csi2_serial_bus;
 };
 
-enum class acpi_status {
+export enum class acpi_status {
     OK = 0x0000,
     ERROR = 0x0001,
     NO_ACPI_TABLES = 0x0002,
@@ -262,7 +263,7 @@ consteval bool format_spec_valid<acpi_status>(string_view fmt) {
     return fmt.empty();
 }
 
-span<char> do_format_arg(span<char> sp, string_view, acpi_status arg) {
+export span<char> do_format_arg(span<char> sp, string_view, acpi_status arg) {
     switch (arg) {
         using enum acpi_status;
 
@@ -937,6 +938,8 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
 
     new (d) acpi_device;
 
+    d->handle = Object;
+
     auto ptr = d->buf;
 
     memcpy(ptr, acpi_name.data(), acpi_name.size());
@@ -1562,4 +1565,25 @@ ACPI_STATUS AcpiOsEnterSleep(UINT8 SleepState, UINT32 RegaValue, UINT32 RegbValu
 extern "C"
 void AcpiOsPrintf(const char* /*Format*/, ...) {
     print("FIXME - AcpiOsPrintf\n");
+}
+
+export ACPI_STATUS acpi_evaluate_integer(ACPI_HANDLE handle, ACPI_STRING path,
+                                         uint64_t& val) {
+    ACPI_OBJECT obj;
+    ACPI_BUFFER buf;
+
+    buf.Length = sizeof(obj);
+    buf.Pointer = &obj;
+
+    auto status = AcpiEvaluateObject(handle, path, nullptr, &buf);
+    if (ACPI_FAILURE(status))
+        return status;
+
+    if (obj.Type != ACPI_TYPE_INTEGER)
+        return AE_BAD_DATA;
+
+    val = obj.Integer.Value;
+
+    return AE_OK;
+
 }

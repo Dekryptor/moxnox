@@ -196,14 +196,13 @@ void main_thread() {
 
     setup_folios();
 
-    scan_pci();
-    init_pci(true);
-
     if (GetTime)
         get_time_from_efi();
 
     init_acpi();
     find_acpi_devices();
+
+    init_pci(true);
 
 #ifdef __aarch64__
     if (!init_console(lb_fb))
