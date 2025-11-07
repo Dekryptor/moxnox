@@ -913,6 +913,8 @@ static bool map_memblock(uint64_t pa, uint64_t num_pages, uint64_t& scratch_page
     uint64_t scratch_pa = pa + (num_pages << PAGE_SHIFT);
     uint64_t va = (uintptr_t)pages;
 
+    va += (first_pfn * sizeof(page)) & ~(PAGE_SIZE - 1);
+
     while (num_pages > 0) {
         if (!map_page_with_scratch(va, pa, scratch_pa, scratch_pages))
             return false;
@@ -1362,9 +1364,9 @@ export bool init_memory(const loader_block& lb) {
     num_memblock_bytes = total_pages * sizeof(page);
     num_memblock_pages = bytes_to_pages(num_memblock_bytes);
 
-    if (first_real_entry > 0) {
-        // FIXME - don't map memory for initial reserved pages
-    }
+    // FIXME - align to huge page boundary?
+    if (first_pfn > 0)
+        num_memblock_pages -= (first_pfn * sizeof(page)) >> PAGE_SHIFT;
 
     orig_scratch_pages = 5; // pages needed for paging tables
 
@@ -1445,7 +1447,9 @@ export bool init_memory(const loader_block& lb) {
     // subtract memblock itself, and scratch that we've used
     mark_mem_as_used(memblock_pa, (num_memblock_pages + (orig_scratch_pages - scratch_pages)) << PAGE_SHIFT);
 
-    if (first_real_entry > 0)
+    // FIXME - page 0 and text console should be reserved rather than used
+
+    if (first_real_entry == 0)
         mark_mem_as_used(0, PAGE_SIZE);
 
 #ifndef __aarch64__
