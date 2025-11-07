@@ -51,6 +51,7 @@ export enum class mapping_type {
 export enum class page_state : uint8_t {
     free,
     used,
+    reserved,
     folio_following,
     allocator_8k,
     allocator_4k,
@@ -948,22 +949,6 @@ static void mark_mem_as_free(uint64_t pa, size_t len, bool skip_spinlock) {
     }
 }
 
-static void mark_mem_as_boot(uint64_t pa, size_t len) {
-    // deliberately not taking pa_spinlock
-
-    uint64_t pfn = pa >> PAGE_SHIFT;
-    uint64_t num_pages = len >> PAGE_SHIFT;
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        if (pages[pfn].state != page_state::boot) {
-            insert_tail_list(boot_pages, pages[pfn].boot.le);
-            pages[pfn].state = page_state::boot;
-        }
-
-        pfn++;
-    }
-}
-
 static void mark_mem_as_used(uint64_t pa, size_t len) {
     uint64_t pfn = pa >> PAGE_SHIFT;
     uint64_t num_pages = len >> PAGE_SHIFT;
@@ -1383,16 +1368,54 @@ export bool init_memory(const loader_block& lb) {
 
     // populate memblock from loader block
 
-    for (uint64_t i = 0; i < total_pages; i++) {
-        pages[i].state = page_state::used;
-        pages[i].order = 0;
-    }
+    for (size_t i = 0; i < num_map_entries; i++) {
+        auto& map = map_entries[i];
+        auto pfn_start = map.addr >> PAGE_SHIFT;
 
-    for (auto& map : map_entries) {
-        if (map.type == mem_type::free)
-            mark_mem_as_free(map.addr, map.len, true);
-        else if (map.type == mem_type::bootloader)
-            mark_mem_as_boot(map.addr, map.len);
+        switch (map.type) {
+            case mem_type::free:
+                for (uint64_t j = 0; j < map.len >> PAGE_SHIFT; j++) {
+                    auto& p = pages[pfn_start + j];
+
+                    insert_tail_list(folio_free_lists[0], p.free.le);
+                    p.state = page_state::free;
+                    p.order = 0;
+                    free_folios[0]++;
+                }
+            break;
+
+            case mem_type::initrd:
+            case mem_type::paging_table:
+            case mem_type::image:
+                for (uint64_t j = 0; j < map.len >> PAGE_SHIFT; j++) {
+                    auto& p = pages[pfn_start + j];
+
+                    p.state = page_state::used;
+                    p.order = 0;
+                }
+            break;
+
+            case mem_type::bootloader:
+                for (uint64_t j = 0; j < map.len >> PAGE_SHIFT; j++) {
+                    auto& p = pages[pfn_start + j];
+
+                    if (p.state != page_state::boot)
+                        insert_tail_list(boot_pages, p.boot.le);
+
+                    p.state = page_state::boot;
+                    p.order = 0;
+                }
+            break;
+
+            default:
+                for (uint64_t j = 0; j < map.len >> PAGE_SHIFT; j++) {
+                    auto& p = pages[pfn_start + j];
+
+                    p.state = page_state::reserved;
+                    p.order = 0;
+                }
+            break;
+        }
     }
 
     // subtract memblock itself, and scratch that we've used
