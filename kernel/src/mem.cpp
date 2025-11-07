@@ -183,7 +183,7 @@ static_assert(sizeof(decltype(alloc128)::cb_type) <= PAGE_SIZE);
 static_assert(sizeof(decltype(alloc64)::cb_type) <= PAGE_SIZE);
 
 export inline void* phys_address(uint64_t pa) {
-    return (void*)(PHYS_MEMORY | pa);
+    return (void*)(PHYS_MEMORY + pa);
 }
 
 static bool treat_as_free(enum mem_type type) {
