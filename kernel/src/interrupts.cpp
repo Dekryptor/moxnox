@@ -131,6 +131,8 @@ static uint8_t msi_alloc[128]; // initialized to 0
 
 export atomic<unsigned int> processors_left_to_halt;
 
+static uint8_t gic_ver;
+
 #else
 
 // tlb.S
@@ -901,9 +903,8 @@ static optional<uint64_t> find_gicc_address(uint64_t mpidr) {
     return gicc_addr;
 }
 
-static optional<uint64_t> find_gicd_address() {
+static optional<pair<uint64_t, uint8_t>> find_gicd() {
     ACPI_TABLE_HEADER* tbl;
-    optional<uint64_t> gicd_addr;
 
     // FIXME - devicetree version
 
@@ -927,19 +928,17 @@ static optional<uint64_t> find_gicd_address() {
         auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
 
         switch (h.Type) {
-            case ACPI_MADT_TYPE_GENERIC_DISTRIBUTOR:
-                if (!gicd_addr.has_value()) {
-                    auto& ent = *(ACPI_MADT_GENERIC_DISTRIBUTOR*)data.data();
+            case ACPI_MADT_TYPE_GENERIC_DISTRIBUTOR: {
+                auto& ent = *(ACPI_MADT_GENERIC_DISTRIBUTOR*)data.data();
 
-                    gicd_addr = ent.BaseAddress;
-                }
-                break;
+                return make_pair(ent.BaseAddress, ent.Version);
+            }
         }
 
         data = data.subspan(h.Length);
     }
 
-    return gicd_addr;
+    return nullopt;
 }
 
 export template<bool no_lock>
@@ -1022,11 +1021,18 @@ static bool init_interrupts_global() {
         : [res] "r" (&vector_table_bsp)
     );
 
-    auto gicd_addr = find_gicd_address();
-    if (!gicd_addr.has_value()) {
+    auto gicd_pair = find_gicd();
+    if (!gicd_pair.has_value()) {
         print("unable to find address of GIC distributor\n");
         return false;
     }
+
+    auto gicd_addr = gicd_pair->first;
+
+    gic_ver = gicd_pair->second;
+
+    if (gic_ver != 2 && gic_ver != 3)
+        bsod_format("unexpected GIC version {}", gic_ver);
 
     auto va = allocate_va<true>(1);
     if (!va) {
@@ -1034,7 +1040,7 @@ static bool init_interrupts_global() {
         return false;
     }
 
-    if (!map_page<true>(*gicd_addr, va, mapping_type::no_cache)) {
+    if (!map_page<true>(gicd_addr, va, mapping_type::no_cache)) {
         print("map_page failed\n");
         free_va(va, 1);
         return false;
@@ -1097,27 +1103,37 @@ export bool init_interrupts() {
     if (!init_interrupts_global())
         return false;
 
-    __asm __volatile (
-        "mrs %x[res], mpidr_el1"
-        : [res] "=r" (mpidr)
-    );
+    if (gic_ver == 2) {
+        __asm __volatile (
+            "mrs %x[res], mpidr_el1"
+            : [res] "=r" (mpidr)
+        );
 
-    mpidr &= MPIDR_MASK;
+        mpidr &= MPIDR_MASK;
 
-    auto gicc = init_interrupts_cpu<true>(mpidr);
-    if (!gicc)
-        return false;
+        auto gicc = init_interrupts_cpu<true>(mpidr);
+        if (!gicc)
+            return false;
 
-    auto& cb = *get_cpu_block();
-    cb.gicc = gicc;
+        auto& cb = *get_cpu_block();
+        cb.gicc = gicc;
 
-    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
-    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
+        auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
+        auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
 
-    GICC_CTLR.EnableGrp0 = 1; // enable GICC
+        GICC_CTLR.EnableGrp0 = 1; // enable GICC
 
-    // allow all interrupts through
-    GICC_PMR.Priority = 0xff;
+        // allow all interrupts through
+        GICC_PMR.Priority = 0xff;
+    } else {
+        // allow all interrupts through
+        __asm __volatile (
+            "msr ICC_PMR_EL1, %x[val]\n"
+            :
+            : [val] "r" (0xff)
+            : "x0"
+        );
+    }
 
     return true;
 }
