@@ -96,6 +96,27 @@ static thread* pick_runnable_thread(thread* current) {
     return nullptr;
 }
 
+#ifdef DEBUG
+#ifdef __aarch64__
+static uint32_t get_interrupt_priority() {
+    if (gic_ver == 2) {
+        auto& cb = *get_cpu_block();
+
+        return *(volatile uint32_t*)(cb.gicc + 0x4);
+    } else {
+        uint64_t val;
+
+        __asm __volatile (
+            "mrs %x[val], ICC_PMR_EL1\n"
+            : [val] "=r" (val)
+        );
+
+        return (uint32_t)val;
+    }
+}
+#endif
+#endif
+
 extern "C"
 void scheduler() {
 #ifdef DEBUG
@@ -111,11 +132,7 @@ void scheduler() {
         bsod("calling scheduler with interrupts enabled");
 
     {
-        auto& cb = *get_cpu_block();
-        uint32_t current_priority;
-        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
-
-        current_priority = GICC_PMR;
+        auto current_priority = get_interrupt_priority();
 
         if ((current_priority & 0xf0) != 0xf0)
             bsod_format("calling scheduler with GICC_PMR of {:x}\n", current_priority);
@@ -217,18 +234,16 @@ nt_status wait_for_object(object& obj, bool interruptible,
         bsod("calling wait_for_object with interrupts disabled");
 
 #ifdef __aarch64__
-    disable_interrupts();
+    {
+        disable_interrupts();
 
-    auto& cb = *get_cpu_block();
-    uint32_t current_priority;
-    auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
+        auto current_priority = get_interrupt_priority();
 
-    current_priority = GICC_PMR;
+        enable_interrupts();
 
-    enable_interrupts();
-
-    if ((current_priority & 0xf0) != 0xf0)
-        bsod_format("calling wait_for_object with GICC_PMR of {:x}\n", current_priority);
+        if ((current_priority & 0xf0) != 0xf0)
+            bsod_format("calling wait_for_object with GICC_PMR of {:x}\n", current_priority);
+    }
 #else
     uint64_t cr8 = 0;
 
@@ -566,21 +581,16 @@ export nt_status wait_for_objects(span<object*> objects, bool wait_any,
         bsod("calling wait_for_objects with interrupts disabled");
 
 #ifdef __aarch64__
-    uint32_t current_priority;
-
     {
         disable_interrupts();
 
-        auto& cb = *get_cpu_block();
-        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
-
-        current_priority = GICC_PMR;
+        auto current_priority = get_interrupt_priority();
 
         enable_interrupts();
-    }
 
-    if ((current_priority & 0xf0) != 0xf0)
-        bsod_format("calling wait_for_objects with GICC_PMR of {:x}\n", current_priority);
+        if ((current_priority & 0xf0) != 0xf0)
+            bsod_format("calling wait_for_objects with GICC_PMR of {:x}\n", current_priority);
+    }
 #else
     uint64_t cr8 = 0;
 
