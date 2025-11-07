@@ -88,7 +88,7 @@ struct page {
 static_assert(sizeof(struct page) == 24);
 
 page* pages = (page*)0xfffffa0000000000;
-static uint64_t total_pages;
+static uint64_t total_pages, first_pfn;
 
 export _spinlock<6> pa_spinlock;
 
@@ -1063,14 +1063,10 @@ static uint8_t find_max_order(uint64_t pfn) {
     return ret;
 }
 
-static uint64_t last_page;
-
 export void setup_folios() {
     lock_guard lock(pa_spinlock);
 
-    for (uint64_t i = 0; i < total_pages; i += 2) {
-        last_page = i;
-
+    for (uint64_t i = first_pfn; i < total_pages; i += 2) {
         if (pages[i].state != page_state::free)
             continue;
 
@@ -1336,11 +1332,39 @@ export bool init_memory(const loader_block& lb) {
 
     auto map_entries = span(lb_map, num_map_entries);
 
+    size_t first_real_entry;
+    for (size_t i = 0; i < num_map_entries; i++) {
+        bool found = false;
+
+        switch (map_entries[i].type) {
+            case mem_type::free:
+            case mem_type::initrd:
+            case mem_type::paging_table:
+            case mem_type::image:
+            case mem_type::bootloader:
+                first_real_entry = i;
+                found = true;
+                break;
+
+            default:
+                break;
+        }
+
+        if (found)
+            break;
+    }
+
+    first_pfn = map_entries[first_real_entry].addr >> PAGE_SHIFT;
+
     auto& m = map_entries[num_map_entries - 1];
     total_pages = (m.addr + m.len) >> PAGE_SHIFT;
 
     num_memblock_bytes = total_pages * sizeof(page);
     num_memblock_pages = bytes_to_pages(num_memblock_bytes);
+
+    if (first_real_entry > 0) {
+        // FIXME - don't map memory for initial reserved pages
+    }
 
     orig_scratch_pages = 5; // pages needed for paging tables
 
@@ -1368,7 +1392,7 @@ export bool init_memory(const loader_block& lb) {
 
     // populate memblock from loader block
 
-    for (size_t i = 0; i < num_map_entries; i++) {
+    for (size_t i = first_real_entry; i < num_map_entries; i++) {
         auto& map = map_entries[i];
         auto pfn_start = map.addr >> PAGE_SHIFT;
 
@@ -1421,7 +1445,8 @@ export bool init_memory(const loader_block& lb) {
     // subtract memblock itself, and scratch that we've used
     mark_mem_as_used(memblock_pa, (num_memblock_pages + (orig_scratch_pages - scratch_pages)) << PAGE_SHIFT);
 
-    mark_mem_as_used(0, PAGE_SIZE);
+    if (first_real_entry > 0)
+        mark_mem_as_used(0, PAGE_SIZE);
 
 #ifndef __aarch64__
     if (lb.text_mode) {
@@ -1575,7 +1600,7 @@ void operator delete(void* ptr, size_t) noexcept {
 
 static void try_to_compact(uint64_t pfn) {
     while (true) {
-        uint64_t first_pfn, second_pfn;
+        uint64_t pfn_first, pfn_second;
         uint8_t order = pages[pfn].order;
 
         if (order == MAX_FOLIO_ORDER)
@@ -1584,7 +1609,7 @@ static void try_to_compact(uint64_t pfn) {
         auto num_pages = (uint64_t)1 << order;
 
         if (pfn & ((uint64_t)1 << order)) { // compact left
-            if (pfn < num_pages)
+            if (pfn < first_pfn + num_pages)
                 return;
 
             if (pages[pfn - num_pages].state != page_state::free)
@@ -1593,8 +1618,8 @@ static void try_to_compact(uint64_t pfn) {
             if (pages[pfn - num_pages].order != order)
                 return;
 
-            first_pfn = pfn - num_pages;
-            second_pfn = pfn;
+            pfn_first = pfn - num_pages;
+            pfn_second = pfn;
         } else { // compact right
             if (pfn + num_pages >= total_pages)
                 return;
@@ -1605,37 +1630,42 @@ static void try_to_compact(uint64_t pfn) {
             if (pages[pfn + num_pages].order != order)
                 return;
 
-            first_pfn = pfn;
-            second_pfn = pfn + num_pages;
+            pfn_first = pfn;
+            pfn_second = pfn + num_pages;
         }
 
-        remove_entry_list(pages[first_pfn].free.le);
-        remove_entry_list(pages[second_pfn].free.le);
+        remove_entry_list(pages[pfn_first].free.le);
+        remove_entry_list(pages[pfn_second].free.le);
 
         free_folios[order] -= 2;
 
         for (uint64_t i = 0; i < num_pages * 2; i++) {
-            pages[first_pfn + i].order++;
+            pages[pfn_first + i].order++;
         }
 
-        pages[second_pfn].state = page_state::folio_following;
+        pages[pfn_second].state = page_state::folio_following;
 
-        insert_tail_list(folio_free_lists[order + 1], pages[first_pfn].free.le);
+        insert_tail_list(folio_free_lists[order + 1], pages[pfn_first].free.le);
 
         free_folios[order + 1]++;
 
-        pfn = first_pfn;
+        pfn = pfn_first;
     }
 }
 
 void free_folio_no_lock(uint64_t pa) {
     auto pfn = pa >> PAGE_SHIFT;
 
+#ifdef DEBUG
+    if (pfn < first_pfn)
+        bsod_format("free_folio called for PFN {:x} below minimum {:x}", pfn, first_pfn);
+
     if (pages[pfn].state == page_state::free)
         bsod_format("free_folio called for PFN {:x} that is already free", pfn);
 
     if (pages[pfn].state == page_state::folio_following)
         bsod_format("free_folio called for PFN {:x} with state folio_following", pfn);
+#endif
 
     if (pages[pfn].state == page_state::used) {
         pages[pfn].used.refcount--;
