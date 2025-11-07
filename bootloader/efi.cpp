@@ -1537,35 +1537,12 @@ static EFI_STATUS setup_lower_half_mappings() {
 
     ttbr0 = (ARM64_HARDWARE_PTE*)addr;
 
-    status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
-    if (EFI_ERROR(status)) {
-        print_error("AllocatePages", status);
-        return status;
-    }
-
-    status = add_map_entry(addr, EFI_PAGE_SIZE, mem_type::paging_table);
-    if (EFI_ERROR(status)) {
-        print_error("add_map_entry", status);
-        return status;
-    }
-
-    level1 = addr;
-
-    auto pte0 = span(ttbr0, EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
-    auto pte1 = span((ARM64_HARDWARE_PTE*)level1, EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
-
-    memset(pte0.data(), 0, pte0.size_bytes());
-    memset(pte1.data(), 0, pte1.size_bytes());
-
     // FIXME - check ID_AA64MMFR0_EL1 that 4KB page size supported
 
-    pte0[0].valid = 1;
-    pte0[0].table_entry = 1;
-    pte0[0].AttrIndex = 0;
-    pte0[0].AP = 0; // no access from userspace
-    pte0[0].SH = 3; // inner shareable
-    pte0[0].AF = 1;
-    pte0[0].pfn = level1 >> EFI_PAGE_SHIFT;
+    static const size_t PTES_PER_PAGE = EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE);
+
+    auto pte0 = span(ttbr0, PTES_PER_PAGE);
+    memset(pte0.data(), 0, pte0.size_bytes());
 
     unsigned int num_mappable_mem_entries = num_map_entries;
 
@@ -1583,17 +1560,52 @@ static EFI_STATUS setup_lower_half_mappings() {
         num_gigs++;
 
     // FIXME - fails if would map more than 512GB
-    if (num_gigs > EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE))
-        num_gigs = EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE);
+    // if (num_gigs > PTES_PER_PAGE) {
+    //     print("num_gigs is huge\n");
+    //     num_gigs = PTES_PER_PAGE;
+    // }
+
+    span<ARM64_HARDWARE_PTE> pte1;
 
     for (unsigned int i = 0; i < num_gigs; i++) {
-        pte1[i].valid = 1;
-        pte1[i].table_entry = 0;
-        pte1[i].AttrIndex = 0;
-        pte1[i].AP = 0; // no access from userspace
-        pte1[i].SH = 3; // inner shareable
-        pte1[i].AF = 1;
-        pte1[i].pfn = ((uint64_t)i * SZ_1G) >> EFI_PAGE_SHIFT;
+        if ((i % PTES_PER_PAGE) == 0) {
+            status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
+            if (EFI_ERROR(status)) {
+                print_error("AllocatePages", status);
+                return status;
+            }
+
+            status = add_map_entry(addr, EFI_PAGE_SIZE, mem_type::paging_table);
+            if (EFI_ERROR(status)) {
+                print_error("add_map_entry", status);
+                return status;
+            }
+
+            level1 = addr;
+
+            pte1 = span((ARM64_HARDWARE_PTE*)level1, PTES_PER_PAGE);
+            memset(pte1.data(), 0, pte1.size_bytes());
+
+            auto& p0 = pte0[i / PTES_PER_PAGE];
+
+            p0.valid = 1;
+            p0.table_entry = 1;
+            p0.AttrIndex = 0;
+            p0.AP = 0; // no access from userspace
+            p0.SH = 3; // inner shareable
+            p0.AF = 1;
+            p0.pfn = level1 >> EFI_PAGE_SHIFT;
+        }
+
+        auto& p1 = pte1[i % PTES_PER_PAGE];
+
+        p1.valid = 1;
+        p1.table_entry = 0;
+        p1.AttrIndex = 0;
+        p1.AP = 0; // no access from userspace
+        p1.SH = 3; // inner shareable
+        p1.AF = 1;
+        p1.pfn = ((uint64_t)i * SZ_1G) >> EFI_PAGE_SHIFT;
     }
 
     return EFI_SUCCESS;
