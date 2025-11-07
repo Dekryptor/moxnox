@@ -104,7 +104,7 @@ export span<const uint8_t> initrd;
 static const uint64_t MAX_PHYS_MEMORY_BITS = 44; // 16TB
 
 constexpr uint64_t PHYS_MEMORY_MASK = ~(((uint64_t)1 << MAX_PHYS_MEMORY_BITS) - 1);
-const uint64_t PHYS_MEMORY = 0xffff990000000000;
+const uint64_t PHYS_MEMORY = 0xffff900000000000;
 
 export constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
 
