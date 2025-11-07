@@ -9,6 +9,8 @@ export module disable_interrupts;
 
 #ifdef __aarch64__
 
+export uint8_t gic_ver;
+
 export inline __attribute__((always_inline)) void enable_interrupts() {
     __asm __volatile("msr DAIFClr, #0xf");
 }

@@ -131,8 +131,6 @@ static uint8_t msi_alloc[128]; // initialized to 0
 
 export atomic<unsigned int> processors_left_to_halt;
 
-static uint8_t gic_ver;
-
 #else
 
 // tlb.S

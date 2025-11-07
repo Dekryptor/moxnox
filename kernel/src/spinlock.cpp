@@ -24,16 +24,28 @@ export template<unsigned>
 class _spinlock {
 public:
     void lock() {
-        disable_preempt();
-
-        auto& cb = *get_cpu_block();
         uint32_t current_priority;
-        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
-        current_priority = GICC_PMR;
-        GICC_PMR = 0; // FIXME - templatable priority?
+        // FIXME - self-modifying code here?
 
-        enable_preempt();
+        if (gic_ver == 2) {
+            disable_preempt();
+
+            auto& cb = *get_cpu_block();
+            auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
+
+            current_priority = GICC_PMR;
+            GICC_PMR = 0; // FIXME - templatable priority?
+
+            enable_preempt();
+        } else {
+            __asm __volatile (
+                "mrs %x[old_val], ICC_PMR_EL1\n"
+                "msr ICC_PMR_EL1, %x[new_val]\n"
+                : [old_val] "=r" (current_priority)
+                : [new_val] "r" (0) // FIXME - templatable priority?
+            );
+        }
 
         while (v.exchange(1, memory_order_acquire)) {
             __asm("yield");
@@ -45,13 +57,20 @@ public:
     void unlock() {
         uint32_t last_priority = old_priority;
 
-        auto& cb = *get_cpu_block();
-
         v.exchange(0, memory_order_release);
 
-        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
+        if (gic_ver == 2) {
+            auto& cb = *get_cpu_block();
+            auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
-        GICC_PMR = last_priority;
+            GICC_PMR = last_priority;
+        } else {
+            __asm __volatile (
+                "msr ICC_PMR_EL1, %x[val]"
+                :
+                : [val] "r" (last_priority)
+            );
+        }
     }
 
     void force_unlock() {
@@ -70,15 +89,24 @@ public:
     void lock() {
         uint32_t current_priority;
 
-        disable_preempt();
+        if (gic_ver == 2) {
+            disable_preempt();
 
-        auto& cb = *get_cpu_block();
-        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
+            auto& cb = *get_cpu_block();
+            auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
-        current_priority = GICC_PMR;
-        GICC_PMR = 0;
+            current_priority = GICC_PMR;
+            GICC_PMR = 0;
 
-        enable_preempt();
+            enable_preempt();
+        } else {
+            __asm __volatile (
+                "mrs %x[old_val], ICC_PMR_EL1\n"
+                "msr ICC_PMR_EL1, %x[new_val]\n"
+                : [old_val] "=r" (current_priority)
+                : [new_val] "r" (0)
+            );
+        }
 
         acquire_sync_lock();
 
@@ -90,11 +118,18 @@ public:
 
         release_sync_lock();
 
-        auto& cb = *get_cpu_block();
+        if (gic_ver == 2) {
+            auto& cb = *get_cpu_block();
+            auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
 
-        auto& GICC_PMR = *(volatile uint32_t*)(cb.gicc + 0x4);
-
-        GICC_PMR = last_priority;
+            GICC_PMR = last_priority;
+        } else {
+            __asm __volatile (
+                "msr ICC_PMR_EL1, %x[val]"
+                :
+                : [val] "r" (last_priority)
+            );
+        }
     }
 
 private:
