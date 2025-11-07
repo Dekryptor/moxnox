@@ -101,7 +101,9 @@ static spinlock protect_page_spinlock;
 
 export span<const uint8_t> initrd;
 
-constexpr uint64_t PHYS_MEMORY_MASK = 0xffffff0000000000;
+static const uint64_t MAX_PHYS_MEMORY_BITS = 44; // 16TB
+
+constexpr uint64_t PHYS_MEMORY_MASK = ~(((uint64_t)1 << MAX_PHYS_MEMORY_BITS) - 1);
 const uint64_t PHYS_MEMORY = 0xffff990000000000;
 
 export constexpr uint8_t MAX_FOLIO_ORDER = 9; // 2MB
@@ -1127,38 +1129,43 @@ export void setup_folios() {
 
 #ifdef __aarch64__
 static bool map_physical_memory(uint64_t num_pages) {
-    auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
-    auto& p0 = pte0[(PHYS_MEMORY & 0xff8000000000) >> 39];
-
-    auto pa = allocate_folio<true>(0, page_state::used);
-    if (!pa) {
-        print("allocate_folio failed\n");
-        return false;
-    }
-
-    p0.valid = 1;
-    p0.table_entry = 1;
-    p0.AttrIndex = 0;
-    p0.AP = ARM64_PTE_AP_EL1RW;
-    p0.SH = 3; // inner shareable
-    p0.AF = 1;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-    p0.pfn = pa >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-
-    memset((void*)(p0.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
-
-    auto pte1 = span((ARM64_HARDWARE_PTE*)(p0.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
-
+    static const size_t PTES_PER_PAGE = PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE);
     static const uint64_t PAGES_PER_GIGABYTE = 1024 * 1024 * 1024 / PAGE_SIZE;
 
-    // FIXME - if more than 512GB, will need to allocate second p0 entry
-
+    auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PTES_PER_PAGE);
     uint64_t gigabytes = (num_pages + PAGES_PER_GIGABYTE - 1) / PAGES_PER_GIGABYTE;
-    auto* p1 = &pte1[(PHYS_MEMORY & 0x7fc0000000) >> 30];
+
+    ARM64_HARDWARE_PTE* p1;
 
     for (unsigned int i = 0; i < gigabytes; i++) {
+        if ((i % PTES_PER_PAGE) == 0) {
+            auto& p0 = pte0[((PHYS_MEMORY & 0xff8000000000) >> 39) + (i / PTES_PER_PAGE)];
+
+            auto pa = allocate_folio<true>(0, page_state::used);
+            if (!pa) {
+                print("allocate_folio failed\n");
+                return false;
+            }
+
+            p0.valid = 1;
+            p0.table_entry = 1;
+            p0.AttrIndex = 0;
+            p0.AP = ARM64_PTE_AP_EL1RW;
+            p0.SH = 3; // inner shareable
+            p0.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+            p0.pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+            memset((void*)(p0.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
+
+            auto pte1 = span((ARM64_HARDWARE_PTE*)(p0.pfn << PAGE_SHIFT), PTES_PER_PAGE);
+
+            // because PHYS_MEMORY is aligned to 512GB
+            p1 = &pte1[0];
+        }
+
         p1->valid = 1;
         p1->table_entry = 0;
         p1->AttrIndex = 0;
@@ -1401,6 +1408,8 @@ export bool init_memory(const loader_block& lb) {
                          bytes_to_pages(bytes) << PAGE_SHIFT);
     }
 #endif
+
+    // FIXME - MAX_PHYSICAL_MEMORY_BITS
 
     // FIXME - probably should double-check that framebuffer memory is marked used
 
