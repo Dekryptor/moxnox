@@ -402,9 +402,15 @@ export uint64_t ttbr1_el1_load() {
     return ret;
 }
 
-static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
+static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa,
+                                  uint64_t& scratch_pages, bool use_huge_pages) {
     auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p0 = pte0[(va & 0xff8000000000) >> 39];
+
+    if (use_huge_pages) {
+        assert(!(va & (HUGE_PAGE_SIZE - 1)));
+        assert(!(pa & (HUGE_PAGE_SIZE - 1)));
+    }
 
     if (!p0.valid) {
         if (scratch_pages == 0)
@@ -454,49 +460,68 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
     auto pte2 = span((ARM64_HARDWARE_PTE*)(p1.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto& p2 = pte2[(va & 0x3fe00000) >> 21];
 
-    if (!p2.valid) {
-        if (scratch_pages == 0)
-            return false;
-
+    if (use_huge_pages) {
         p2.valid = 1;
-        p2.table_entry = 1;
+        p2.table_entry = 0;
         p2.AttrIndex = 0;
         p2.AP = ARM64_PTE_AP_EL1RW;
         p2.SH = 3; // inner shareable
         p2.AF = 1;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        p2.pfn = scratch_pa >> PAGE_SHIFT;
+        p2.pfn = pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
+    } else {
+        if (!p2.valid) {
+            if (scratch_pages == 0)
+                return false;
 
-        memset((void*)(p2.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
-
-        scratch_pa += PAGE_SIZE;
-        scratch_pages--;
-    }
-
-    auto pte3 = span((ARM64_HARDWARE_PTE*)(p2.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
-    auto& p3 = pte3[(va & 0x1ff000) >> PAGE_SHIFT];
-
-    p3.valid = 1;
-    p3.table_entry = 1;
-    p3.AttrIndex = 0;
-    p3.AP = ARM64_PTE_AP_EL1RW;
-    p3.SH = 3; // inner shareable
-    p3.AF = 1;
+            p2.valid = 1;
+            p2.table_entry = 1;
+            p2.AttrIndex = 0;
+            p2.AP = ARM64_PTE_AP_EL1RW;
+            p2.SH = 3; // inner shareable
+            p2.AF = 1;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    p3.pfn = pa >> PAGE_SHIFT;
+            p2.pfn = scratch_pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
+
+            memset((void*)(p2.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
+
+            scratch_pa += PAGE_SIZE;
+            scratch_pages--;
+        }
+
+        auto pte3 = span((ARM64_HARDWARE_PTE*)(p2.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+        auto& p3 = pte3[(va & 0x1ff000) >> PAGE_SHIFT];
+
+        p3.valid = 1;
+        p3.table_entry = 1;
+        p3.AttrIndex = 0;
+        p3.AP = ARM64_PTE_AP_EL1RW;
+        p3.SH = 3; // inner shareable
+        p3.AF = 1;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p3.pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    }
 
     return true;
 }
 #else
-static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa, uint64_t& scratch_pages) {
+static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa,
+                                  uint64_t& scratch_pages, bool use_huge_pages) {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
     auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((va & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
     auto pdt = span((HARDWARE_PTE*)(SELFMAP_PDT | (((va & 0xffffc0000000) >> 30) << PAGE_SHIFT)), 512);
     auto pt = span((HARDWARE_PTE*)(SELFMAP | (((va & 0xffffffe00000) >> 21) << PAGE_SHIFT)), 512);
+
+    if (use_huge_pages) {
+        assert(!(va & (HUGE_PAGE_SIZE - 1)));
+        assert(!(pa & (HUGE_PAGE_SIZE - 1)));
+    }
 
     auto& pml4_entry = pml4[(va & 0xff8000000000) >> 39];
 
@@ -538,32 +563,43 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 
     auto& pdt_entry = pdt[(va & 0x3fe00000) >> 21];
 
-    if (!pdt_entry.p) {
-        if (scratch_pages == 0)
-            return false;
-
+    if (use_huge_pages) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pdt_entry.pfn = scratch_pa >> PAGE_SHIFT;
+        pdt_entry.pfn = pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
         pdt_entry.p = 1;
         pdt_entry.w = 1;
-
-        memset(pt.data(), 0, PAGE_SIZE);
-
-        scratch_pa += PAGE_SIZE;
-        scratch_pages--;
-    }
-
-    auto& pt_entry = pt[(va & 0x1ff000) >> PAGE_SHIFT];
+        pdt_entry.xd = 1;
+        pdt_entry.ps = 1;
+    } else {
+        if (!pdt_entry.p) {
+            if (scratch_pages == 0)
+                return false;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    pt_entry.pfn = pa >> PAGE_SHIFT;
+            pdt_entry.pfn = scratch_pa >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
-    pt_entry.p = 1;
-    pt_entry.w = 1;
-    pt_entry.xd = 1;
+            pdt_entry.p = 1;
+            pdt_entry.w = 1;
+
+            memset(pt.data(), 0, PAGE_SIZE);
+
+            scratch_pa += PAGE_SIZE;
+            scratch_pages--;
+        }
+
+        auto& pt_entry = pt[(va & 0x1ff000) >> PAGE_SHIFT];
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        pt_entry.pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+        pt_entry.p = 1;
+        pt_entry.w = 1;
+        pt_entry.xd = 1;
+    }
 
     return true;
 }
@@ -909,19 +945,31 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
 template bool map_page<true>(uint64_t pa, uint64_t va, enum mapping_type type);
 
-static bool map_memblock(uint64_t pa, uint64_t num_pages, uint64_t& scratch_pages) {
+static bool map_memblock(uint64_t pa, uint64_t num_pages, uint64_t& scratch_pages,
+                         bool use_huge_pages) {
     uint64_t scratch_pa = pa + (num_pages << PAGE_SHIFT);
     uint64_t va = (uintptr_t)pages;
 
     va += (first_pfn * sizeof(page)) & ~(PAGE_SIZE - 1);
 
-    while (num_pages > 0) {
-        if (!map_page_with_scratch(va, pa, scratch_pa, scratch_pages))
-            return false;
+    if (use_huge_pages) {
+        while (num_pages > 0) {
+            if (!map_page_with_scratch(va, pa, scratch_pa, scratch_pages, true))
+                return false;
 
-        va += PAGE_SIZE;
-        pa += PAGE_SIZE;
-        num_pages--;
+            va += HUGE_PAGE_SIZE;
+            pa += HUGE_PAGE_SIZE;
+            num_pages -= 1 << (HUGE_PAGE_SHIFT - PAGE_SHIFT);
+        }
+    } else {
+        while (num_pages > 0) {
+            if (!map_page_with_scratch(va, pa, scratch_pa, scratch_pages, false))
+                return false;
+
+            va += PAGE_SIZE;
+            pa += PAGE_SIZE;
+            num_pages--;
+        }
     }
 
     return true;
@@ -1361,17 +1409,36 @@ export bool init_memory(const loader_block& lb) {
     auto& m = map_entries[num_map_entries - 1];
     total_pages = (m.addr + m.len) >> PAGE_SHIFT;
 
+    bool use_huge_pages = false;
+
+    if ((total_pages - first_pfn) * sizeof(page) >= 1 << HUGE_PAGE_SHIFT)
+        use_huge_pages = true;
+
     num_memblock_bytes = total_pages * sizeof(page);
     num_memblock_pages = bytes_to_pages(num_memblock_bytes);
 
-    // FIXME - align to huge page boundary?
-    if (first_pfn > 0)
-        num_memblock_pages -= (first_pfn * sizeof(page)) >> PAGE_SHIFT;
+    if (use_huge_pages) {
+        static const auto PAGES_PER_HUGE_PAGE = 1 << (HUGE_PAGE_SHIFT - PAGE_SHIFT);
+
+        // round up to next huge page size
+        if (num_memblock_pages & (PAGES_PER_HUGE_PAGE - 1)) {
+            num_memblock_pages &= ~(PAGES_PER_HUGE_PAGE - 1);
+            num_memblock_pages += PAGES_PER_HUGE_PAGE;
+        }
+
+        if (first_pfn > 0)
+            num_memblock_pages -= ((first_pfn * sizeof(page)) >> HUGE_PAGE_SHIFT) << (HUGE_PAGE_SHIFT - PAGE_SHIFT);
+    } else {
+        if (first_pfn > 0)
+            num_memblock_pages -= (first_pfn * sizeof(page)) >> PAGE_SHIFT;
+    }
 
     orig_scratch_pages = 5; // pages needed for paging tables
 
+    // FIXME - don't hardcode as 512, should be PAGE_SIZE / pte size
     orig_scratch_pages += num_memblock_pages / 512; // for second-level pages
     orig_scratch_pages += num_memblock_pages / (512 * 512); // for third-level pages
+    // FIXME - one less if huge pages?
 
     scratch_pages = orig_scratch_pages;
     needed_pages = num_memblock_pages + scratch_pages;
@@ -1381,16 +1448,38 @@ export bool init_memory(const loader_block& lb) {
     memblock_pa = 0;
     for (auto& map : map_entries) {
         if (map.type == mem_type::free && map.len >= (needed_pages << PAGE_SHIFT)) {
-            memblock_pa = map.addr;
-            break;
+            if (use_huge_pages) {
+                auto start = map.addr;
+                auto len = map.len;
+
+                if (start & (HUGE_PAGE_SIZE - 1)) {
+                    auto diff = HUGE_PAGE_SIZE - (start & (HUGE_PAGE_SIZE - 1));
+
+                    if (len < diff)
+                        continue;
+
+                    start += diff;
+                    len -= diff;
+                }
+
+                if (len >= (needed_pages << PAGE_SHIFT)) {
+                    memblock_pa = start;
+                    break;
+                }
+            } else {
+                memblock_pa = map.addr;
+                break;
+            }
         }
     }
 
     if (memblock_pa == 0)
         return false;
 
-    if (!map_memblock(memblock_pa, num_memblock_pages, scratch_pages))
+    if (!map_memblock(memblock_pa, num_memblock_pages, scratch_pages, use_huge_pages))
         return false;
+
+    // FIXME - do we need to flush the TLBs etc. on ARM here?
 
     // populate memblock from loader block
 
