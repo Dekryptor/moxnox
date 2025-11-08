@@ -122,6 +122,7 @@ static const unsigned int MSI_SETSPI_NS = 0x40;
 
 export const uint64_t MPIDR_MASK = 0xff00ffffff;
 export uint64_t gicd;
+static uint64_t gicr;
 static uint64_t msi_frame = 0;
 export uint64_t msi_frame_setspi = 0;
 static uint16_t msi_base_spi;
@@ -939,6 +940,44 @@ static optional<pair<uint64_t, uint8_t>> find_gicd() {
     return nullopt;
 }
 
+static optional<pair<uint64_t, uint64_t>> find_gicr() {
+    ACPI_TABLE_HEADER* tbl;
+
+    // FIXME - devicetree version
+
+    auto status = AcpiGetTable((char*)ACPI_SIG_MADT, 1, &tbl);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for MADT\n", status);
+        return nullopt;
+    }
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MADT)) {
+        print("MADT table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_MADT));
+        return nullopt;
+    }
+
+    span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
+              tbl->Length - sizeof(ACPI_TABLE_MADT));
+
+    auto data = madt;
+    while (data.size() > sizeof(ACPI_SUBTABLE_HEADER)) {
+        auto& h = *(ACPI_SUBTABLE_HEADER*)data.data();
+
+        switch (h.Type) {
+            case ACPI_MADT_TYPE_GENERIC_REDISTRIBUTOR: {
+                auto& ent = *(ACPI_MADT_GENERIC_REDISTRIBUTOR*)data.data();
+
+                return make_pair(ent.BaseAddress, ent.Length);
+            }
+        }
+
+        data = data.subspan(h.Length);
+    }
+
+    return nullopt;
+}
+
 export template<bool no_lock>
 uint64_t init_interrupts_cpu(uint64_t mpidr) {
     auto gicc_addr = find_gicc_address(mpidr);
@@ -1050,47 +1089,75 @@ static bool init_interrupts_global() {
 
     GICD_CTLR.EnableGrp0 = 1; // enable GICD
 
-    auto msi_frame_pa = find_msi_frame_address();
+    if (gic_ver > 2) {
+        auto gicr_pair = find_gicr();
+        if (!gicr_pair.has_value()) {
+            print("unable to find address of GIC redistributor\n");
+            return false;
+        }
 
-    if (!msi_frame_pa.has_value())
-        return true;
+        auto [gicr_addr, gicr_size] = *gicr_pair;
 
-    {
-        auto va = allocate_va<true>(1);
+        auto num_pages = bytes_to_pages(gicr_size);
+
+        auto va = allocate_va<true>(num_pages);
         if (!va) {
             print("allocate_va failed\n");
             return false;
         }
 
-        if (!map_page<true>(*msi_frame_pa, va, mapping_type::no_cache)) {
-            print("map_page failed\n");
-            free_va(va, 1);
-            return false;
+        for (unsigned int i = 0; i < num_pages; i++) {
+            if (!map_page<true>(gicr_addr + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT),
+                                mapping_type::no_cache)) {
+                print("map_page failed\n");
+                free_va(va, num_pages);
+                return false;
+            }
         }
 
-        msi_frame = va;
+        gicr = va;
+    } else { // gic_ver == 2
+        auto msi_frame_pa = find_msi_frame_address();
+
+        if (msi_frame_pa.has_value()) {
+            {
+                auto va = allocate_va<true>(1);
+                if (!va) {
+                    print("allocate_va failed\n");
+                    return false;
+                }
+
+                if (!map_page<true>(*msi_frame_pa, va, mapping_type::no_cache)) {
+                    print("map_page failed\n");
+                    free_va(va, 1);
+                    return false;
+                }
+
+                msi_frame = va;
+            }
+
+            msi_frame_setspi = *msi_frame_pa + MSI_SETSPI_NS;
+
+            ARM64_GICv2m_MSI_TYPER t;
+
+            t.value = *(volatile uint32_t*)(msi_frame + MSI_TYPER);
+
+            msi_base_spi = t.base_spi;
+
+            auto num_spis = t.num_spis;
+            auto ptr = msi_alloc;
+
+            while (num_spis >= 8) {
+                *ptr = 0xff;
+
+                ptr++;
+                num_spis -= 8;
+            }
+
+            if (num_spis != 0)
+                *ptr = (uint8_t)((1 << num_spis) - 1);
+        }
     }
-
-    msi_frame_setspi = *msi_frame_pa + MSI_SETSPI_NS;
-
-    ARM64_GICv2m_MSI_TYPER t;
-
-    t.value = *(volatile uint32_t*)(msi_frame + MSI_TYPER);
-
-    msi_base_spi = t.base_spi;
-
-    auto num_spis = t.num_spis;
-    auto ptr = msi_alloc;
-
-    while (num_spis >= 8) {
-        *ptr = 0xff;
-
-        ptr++;
-        num_spis -= 8;
-    }
-
-    if (num_spis != 0)
-        *ptr = (uint8_t)((1 << num_spis) - 1);
 
     return true;
 }
