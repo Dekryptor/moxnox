@@ -1085,9 +1085,17 @@ static bool init_interrupts_global() {
 
     gicd = va;
 
+    ARM64_GICD_CTLR ctlr;
+
     auto& GICD_CTLR = *(volatile ARM64_GICD_CTLR*)gicd;
 
-    GICD_CTLR.EnableGrp0 = 1; // enable GICD
+    ctlr.value = GICD_CTLR.value;
+
+    // enable GICD
+    ctlr.EnableGrp0 = 1;
+    ctlr.EnableGrp1NS = 1;
+
+    GICD_CTLR.value = ctlr.value;
 
     if (gic_ver > 2) {
         auto gicr_pair = find_gicr();
@@ -1116,6 +1124,17 @@ static bool init_interrupts_global() {
         }
 
         gicr = va;
+
+        // put all SGIs and PPIs in group 1
+        auto& GICR_IGROUPR0 = *(volatile uint32_t*)(gicr + 0x10080);
+        GICR_IGROUPR0 = 0xffffffff;
+
+        // enable group 1 interrupts
+        __asm __volatile (
+            "msr ICC_IGRPEN1_EL1, %x[val]"
+            :
+            : [val] "r" (1)
+        );
     } else { // gic_ver == 2
         auto msi_frame_pa = find_msi_frame_address();
 
