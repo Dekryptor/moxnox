@@ -892,14 +892,23 @@ b	kernel_exception_entry
 	timer_save_context \user
 
 	// set end-of-interrupt
-	add	x0, x18, GS_GICC
-	ldr	x0, [x0]
-	add	x0, x0, GICC_EOIR_OFFSET
 	adrp	x1, timer_irq_no
 	add	x1, x1, :lo12:timer_irq_no
 	ldr	w1, [x1]
+	add	x0, x18, GS_GICC
+	ldr	x0, [x0]
+	cbnz	x0, 10f
+
+	// GICv3
+	msr	ICC_EOIR1_EL1, x1
+	b	11f
+
+10:
+	// GICv2
+	add	x0, x0, GICC_EOIR_OFFSET
 	str	w1, [x0]
 
+11:
 	bl	acquire_sync_lock
 
 	add	x0, x18, GS_SCHEDULER_STACK
@@ -909,13 +918,22 @@ b	kernel_exception_entry
 
 9:
 	// set end-of-interrupt
-	add	x0, x18, GS_GICC
-	ldr	x0, [x0]
-	add	x0, x0, GICC_EOIR_OFFSET
 	adrp	x1, timer_irq_no
 	add	x1, x1, :lo12:timer_irq_no
 	ldr	w1, [x1]
+	add	x0, x18, GS_GICC
+	ldr	x0, [x0]
+	cbnz	x0, 12f
+
+	// GICv3
+	msr	ICC_EOIR1_EL1, x1
+	b	13f
+
+12:
+	// GICv2
+	add	x0, x0, GICC_EOIR_OFFSET
 	str	w1, [x0]
+13:
 .endm
 
 .macro kernel_irq_entry bsp
@@ -928,9 +946,18 @@ b	kernel_exception_entry
 
 	add	x2, x18, GS_GICC
 	ldr	x2, [x2]
+	cbnz	x2, 1f
+
+	// GICv3
+	mrs	x2, ICC_IAR1_EL1
+	b	2f
+
+1:
+	// GICv2
 	add	x2, x2, GICC_IAR_OFFSET
 	ldr	w2, [x2]
 
+2:
 	adrp	x3, timer_irq_no
 	add	x3, x3, :lo12:timer_irq_no
 	ldr	w3, [x3]
@@ -970,9 +997,18 @@ kernel_irq_entry_ap_end:
 
 	add	x2, x18, GS_GICC
 	ldr	x2, [x2]
+	cbnz	x2, 15f
+
+	// GICv3
+	mrs	x2, ICC_IAR1_EL1
+	b	14f
+
+15:
+	// GICv2
 	add	x2, x2, GICC_IAR_OFFSET
 	ldr	w2, [x2]
 
+14:
 	adrp	x3, timer_irq_no
 	add	x3, x3, :lo12:timer_irq_no
 	ldr	w3, [x3]
@@ -981,7 +1017,7 @@ kernel_irq_entry_ap_end:
 	timer_isr 1, \bsp
 	b	user_irq_entry_finish
 
-	0:
+0:
 	do_irq
 	b	user_irq_entry_finish
 .endm
