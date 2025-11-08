@@ -450,8 +450,13 @@ export void clear_irq_pending_bit(uint32_t number) {
 }
 
 export void enable_irq(uint32_t number) {
-    auto& GICD_ISENABLER = *(volatile uint32_t*)(gicd + 0x100 + ((number / 32) * 4));
-    GICD_ISENABLER = 1 << (number % 32);
+    if (gicr && number < 32) { // PPIs and SGIs use GICR if GICv3
+        auto& GICR_ISENABLER0 = *(volatile uint32_t*)(gicr + 0x10100);
+        GICR_ISENABLER0 = 1 << number;
+    } else {
+        auto& GICD_ISENABLER = *(volatile uint32_t*)(gicd + 0x100 + ((number / 32) * 4));
+        GICD_ISENABLER = 1 << (number % 32);
+    }
 }
 
 static irq* find_irq(uint32_t number) {
