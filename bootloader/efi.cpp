@@ -2424,9 +2424,17 @@ char* strstr(const char* haystack, const char* needle) {
 }
 
 static void parse_video_option(unsigned int& preferred_width,
-                               unsigned int& preferred_height) {
+                               unsigned int& preferred_height,
+                               bool& novideo) {
     if (cmdline[0] == 0)
         return;
+
+    // FIXME - we could be matching in the middle of other options here
+
+    if (strstr(cmdline, "novideo")) {
+        novideo = true;
+        return;
+    }
 
     static const char param[] = "video=";
 
@@ -2569,8 +2577,12 @@ static EFI_STATUS init_framebuffer(EFI_HANDLE image_handle) {
     UINTN count;
     EFI_STATUS status;
     unsigned int preferred_width = 0, preferred_height = 0;
+    bool novideo = false;
 
-    parse_video_option(preferred_width, preferred_height);
+    parse_video_option(preferred_width, preferred_height, novideo);
+
+    if (novideo)
+        return EFI_NOT_FOUND;
 
     status = bs->LocateHandleBuffer(ByProtocol, &guid, NULL, &count, &handles);
     if (EFI_ERROR(status))
