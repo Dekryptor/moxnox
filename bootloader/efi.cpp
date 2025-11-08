@@ -1956,10 +1956,9 @@ static EFI_STATUS find_initrd_file(EFI_LOADED_IMAGE_PROTOCOL* image) {
 
     if (Status == EFI_UNSUPPORTED || Status == EFI_NOT_FOUND) {
         Status = open_volume(buf, image, file);
-        bs->FreePool(buf);
 
         if (EFI_ERROR(Status)) {
-            while (true) { }
+            bs->FreePool(buf);
             return Status;
         }
     } else if (EFI_ERROR(Status)) {
