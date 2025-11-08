@@ -41,9 +41,8 @@ public:
         } else {
             __asm __volatile (
                 "mrs %x[old_val], ICC_PMR_EL1\n"
-                "msr ICC_PMR_EL1, %x[new_val]\n"
+                "msr ICC_PMR_EL1, xzr\n"
                 : [old_val] "=r" (current_priority)
-                : [new_val] "r" (0) // FIXME - templatable priority?
             );
         }
 
@@ -102,9 +101,8 @@ public:
         } else {
             __asm __volatile (
                 "mrs %x[old_val], ICC_PMR_EL1\n"
-                "msr ICC_PMR_EL1, %x[new_val]\n"
+                "msr ICC_PMR_EL1, xzr\n"
                 : [old_val] "=r" (current_priority)
-                : [new_val] "r" (0)
             );
         }
 
