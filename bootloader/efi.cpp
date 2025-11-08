@@ -51,57 +51,6 @@ static bool have_edid __attribute__((section (".data"))) = false;
 
 #ifdef __aarch64__
 
-union ARM64_TCR_EL1 {
-    struct {
-        uint64_t T0SZ : 6;
-        uint64_t : 1;
-        uint64_t EPD0 : 1;
-        uint64_t IRGN0 : 2;
-        uint64_t ORGN0 : 2;
-        uint64_t SH0 : 2;
-        uint64_t TG0 : 2;
-        uint64_t T1SZ : 6;
-        uint64_t A1 : 1;
-        uint64_t EPD1 : 1;
-        uint64_t IRGN1 : 2;
-        uint64_t ORGN1 : 2;
-        uint64_t SH1 : 2;
-        uint64_t TG1 : 2;
-        uint64_t IPS : 3;
-        uint64_t : 1;
-        uint64_t AS : 1;
-        uint64_t TBI0 : 1;
-        uint64_t TBI1 : 1;
-        uint64_t HA : 1;
-        uint64_t HD : 1;
-        uint64_t HPD0 : 1;
-        uint64_t HPD1 : 1;
-        uint64_t HWU059 : 1;
-        uint64_t HWU060 : 1;
-        uint64_t HWU061 : 1;
-        uint64_t HWU062 : 1;
-        uint64_t HWU159 : 1;
-        uint64_t HWU160 : 1;
-        uint64_t HWU161 : 1;
-        uint64_t HWU162 : 1;
-        uint64_t TBID0 : 1;
-        uint64_t TBID1 : 1;
-        uint64_t NFD0 : 1;
-        uint64_t NFD1 : 1;
-        uint64_t E0PD0 : 1;
-        uint64_t E0PD1 : 1;
-        uint64_t TCMA0 : 1;
-        uint64_t TCMA1 : 1;
-        uint64_t DS : 1;
-        uint64_t MTX0 : 1;
-        uint64_t MTX1 : 1;
-        uint64_t : 2;
-    };
-    uint64_t value;
-} __attribute((packed));
-
-static_assert(sizeof(ARM64_TCR_EL1) == 8);
-
 union ARM64_HCR_EL2 {
     struct {
         uint64_t VM : 1;
