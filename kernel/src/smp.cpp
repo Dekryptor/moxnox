@@ -29,6 +29,7 @@ import syscalls;
 import scheduler;
 import disable_interrupts;
 import cpu_block;
+import cmdline;
 
 using namespace std;
 
@@ -427,6 +428,21 @@ export bool init_smp() {
     if (psci_version == 0) // FIXME - support spin-table
         return false;
 #endif
+
+    bool nosmp = false;
+    loop_through_cmdline([&](string_view s) {
+        static const string_view prefix = "console=";
+
+        if (s == "nosmp") {
+            nosmp = true;
+            return false;
+        }
+
+        return true;
+    });
+
+    if (nosmp)
+        return false;
 
     // FIXME - support devicetree
 
