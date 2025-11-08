@@ -20,7 +20,7 @@ export void loop_through_cmdline(cmdline_func auto func) {
             s.remove_prefix(c);
         }
 
-        if (s.empty())
+        if (s.empty() || s[0] == ' ')
             break;
 
         if (auto c = s.find_first_of(' '); c != string_view::npos) {
