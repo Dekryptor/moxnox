@@ -1939,8 +1939,16 @@ void handle_irq(uint32_t number) {
 
     auto& cb = *get_cpu_block();
 
-    auto& GICC_EOIR = *(volatile uint32_t*)(cb.gicc + 0x10);
-    GICC_EOIR = number;
+    if (cb.gicc) {
+        auto& GICC_EOIR = *(volatile uint32_t*)(cb.gicc + 0x10);
+        GICC_EOIR = number;
+    } else {
+        __asm __volatile (
+            "msr ICC_EOIR1_EL1, %x[val]"
+            :
+            : [val] "r" (number)
+        );
+    }
 }
 
 export uint16_t allocate_msi_irq() {
