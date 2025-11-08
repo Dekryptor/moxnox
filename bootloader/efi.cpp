@@ -11,6 +11,10 @@ import format;
 import pe;
 import loaderblock;
 
+#ifdef __aarch64__
+import aarch64;
+#endif
+
 static EFI_SYSTEM_TABLE* systable __attribute__((section (".data")));
 static EFI_BOOT_SERVICES* bs __attribute__((section (".data")));
 
@@ -97,47 +101,6 @@ union ARM64_TCR_EL1 {
 } __attribute((packed));
 
 static_assert(sizeof(ARM64_TCR_EL1) == 8);
-
-union ARM64_SCTLR_EL1 {
-    struct {
-        uint64_t M : 1;
-        uint64_t A : 1;
-        uint64_t C : 1;
-        uint64_t SA : 1;
-        uint64_t SA0 : 1;
-        uint64_t : 1;
-        uint64_t nAA : 1;
-        uint64_t : 2;
-        uint64_t UMA : 1;
-        uint64_t EnRCTX : 1;
-        uint64_t : 1;
-        uint64_t I : 1;
-        uint64_t EnDB : 1;
-        uint64_t DZE : 1;
-        uint64_t UCT : 1;
-        uint64_t nTWI : 1;
-        uint64_t BR : 1;
-        uint64_t nTWE : 1;
-        uint64_t WXN : 1;
-        uint64_t : 1;
-        uint64_t IESB : 1;
-        uint64_t : 1;
-        uint64_t SPAN : 1;
-        uint64_t E0E : 1;
-        uint64_t EE : 1;
-        uint64_t UCI : 1;
-        uint64_t EnDA : 1;
-        uint64_t : 2;
-        uint64_t EnIB : 1;
-        uint64_t EnIA : 1;
-        uint64_t : 12;
-        uint64_t DSSBS : 1;
-        uint64_t : 19;
-    };
-    uint64_t value;
-} __attribute((packed));
-
-static_assert(sizeof(ARM64_SCTLR_EL1) == 8);
 
 union ARM64_HCR_EL2 {
     struct {

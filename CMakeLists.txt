@@ -158,6 +158,13 @@ add_library(kernelbase_mod STATIC)
 target_sources(kernelbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/kernelbase.cpp)
 target_compile_options(kernelbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    add_library(aarch64 STATIC)
+    target_sources(aarch64 PUBLIC FILE_SET CXX_MODULES FILES modules/aarch64.cpp)
+    target_compile_options(aarch64 PRIVATE ${KERNEL_CFLAGS})
+    target_link_libraries(aarch64 format)
+endif()
+
 add_subdirectory(kernel)
 add_subdirectory(ntdll)
 add_subdirectory(init)
