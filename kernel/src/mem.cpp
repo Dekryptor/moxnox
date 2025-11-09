@@ -633,6 +633,9 @@ inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t orde
         auto orig_pfn = (uint64_t)(&p - pages);
         uint64_t pfn;
 
+        assert(p.state == page_state::free);
+        assert(p.order == i);
+
         if (i == order)
             pfn = orig_pfn;
         else {
