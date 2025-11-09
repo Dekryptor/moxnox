@@ -141,6 +141,7 @@ static_assert(sizeof(ARM64_HARDWARE_PTE) == 8);
 
 static ARM64_HARDWARE_PTE* ttbr0 __attribute__((section (".data")));
 static ARM64_HARDWARE_PTE* ttbr1 __attribute__((section (".data")));
+static uint8_t attr_index_normal;
 
 #else
 
@@ -1216,7 +1217,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
 
         pte0[level1].valid = 1;
         pte0[level1].table_entry = 1;
-        pte0[level1].AttrIndex = 0; // FIXME?
+        pte0[level1].AttrIndex = 0;
         pte0[level1].AP = 0; // no access from userspace
         pte0[level1].SH = 3; // inner shareable
         pte0[level1].AF = 1;
@@ -1246,7 +1247,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
 
         pte1[level2].valid = 1;
         pte1[level2].table_entry = 1;
-        pte1[level2].AttrIndex = 0; // FIXME?
+        pte1[level2].AttrIndex = 0;
         pte1[level2].AP = 0; // no access from userspace
         pte1[level2].SH = 3; // inner shareable
         pte1[level2].AF = 1;
@@ -1276,7 +1277,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
 
         pte2[level3].valid = 1;
         pte2[level3].table_entry = 1;
-        pte2[level3].AttrIndex = 0; // FIXME?
+        pte2[level3].AttrIndex = 0;
         pte2[level3].AP = 0; // no access from userspace
         pte2[level3].SH = 3; // inner shareable
         pte2[level3].AF = 1;
@@ -1289,7 +1290,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
 
     pte3[level4].valid = 1;
     pte3[level4].table_entry = 1; // sic
-    pte3[level4].AttrIndex = 0; // FIXME?
+    pte3[level4].AttrIndex = attr_index_normal;
     pte3[level4].AP = 0; // no access from userspace
     pte3[level4].SH = 3; // inner shareable
     pte3[level4].AF = 1;
@@ -1449,7 +1450,7 @@ static EFI_STATUS setup_lower_half_mappings() {
 
     ttbr0 = (ARM64_HARDWARE_PTE*)addr;
 
-    // FIXME - check ID_AA64MMFR0_EL1 that 4KB page size supported
+    // 4KB page size support guaranteed by EFI spec
 
     static const size_t PTES_PER_PAGE = EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE);
 
@@ -1513,7 +1514,7 @@ static EFI_STATUS setup_lower_half_mappings() {
 
         p1.valid = 1;
         p1.table_entry = 0;
-        p1.AttrIndex = 0;
+        p1.AttrIndex = attr_index_normal;
         p1.AP = 0; // no access from userspace
         p1.SH = 3; // inner shareable
         p1.AF = 1;
@@ -1523,11 +1524,57 @@ static EFI_STATUS setup_lower_half_mappings() {
     return EFI_SUCCESS;
 }
 
+static uint8_t get_current_el() {
+    uint64_t CurrentEL;
+
+    __asm __volatile (
+        "mrs %x[res], CurrentEL"
+        : [res] "=r" (CurrentEL)
+    );
+
+    return (CurrentEL >> 2) & 3;
+}
+
 static EFI_STATUS setup_paging() {
     EFI_STATUS status;
     EFI_PHYSICAL_ADDRESS addr;
     map_entry* map_copy;
     unsigned int num_map_entries_copy;
+    uint64_t mair;
+
+    if (get_current_el() == 1) {
+        __asm __volatile (
+            "mrs %x[res], mair_el1"
+            : [res] "=r" (mair)
+        );
+    } else {
+        __asm __volatile (
+            "mrs %x[res], mair_el2"
+            : [res] "=r" (mair)
+        );
+
+        __asm __volatile (
+            "msr mair_el1, %x[res]"
+            :
+            : [res] "r" (mair)
+        );
+    }
+
+    bool found = false;
+    for (uint8_t i = 0; i < 8; i++) {
+        auto attr = (mair >> (i * 8)) & 0xff;
+
+        if (attr == 0xff) {
+            attr_index_normal = i;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) { // FIXME - should be setting it up if this happens?
+        print("could not find normal memory attribute index in MAIR\n");
+        return EFI_INVALID_PARAMETER;
+    }
 
     status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
     if (EFI_ERROR(status)) {
@@ -1925,15 +1972,6 @@ static EFI_STATUS find_initrd_file(EFI_LOADED_IMAGE_PROTOCOL* image) {
 #ifdef __aarch64__
 
 __attribute__((always_inline))
-static void inline mair_el1_store(uint64_t v) {
-    __asm __volatile (
-        "msr\tmair_el1, %0"
-        :
-        : "r" (v)
-    );
-}
-
-__attribute__((always_inline))
 static uint64_t inline tcr_el1_load() {
     uint64_t ret;
 
@@ -2061,25 +2099,12 @@ static void inline _disable() {
 
 #ifdef __aarch64__
 
-static uint8_t get_current_el() {
-    uint64_t CurrentEL;
-
-    __asm __volatile (
-        "mrs %x[res], CurrentEL"
-        : [res] "=r" (CurrentEL)
-    );
-
-    return (CurrentEL >> 2) & 3;
-}
-
 static void start_kernel(uint64_t entry_point, loader_block* lb) {
     // disable interrupts
     __asm __volatile ("msr DAIFSet, #0xf");
 
-    // FPU already enabled as per spec
 
-    // set MAIR slot 0 to be normal memory
-    mair_el1_store(0xff);
+    // FPU already enabled as per spec
 
     {
         ARM64_TCR_EL1 tcr;
