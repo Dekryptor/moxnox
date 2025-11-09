@@ -114,8 +114,15 @@ uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
 list_entry boot_pages = { &boot_pages, &boot_pages };
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+
+export uint8_t attr_index_normal = 0;
+static uint8_t attr_index_uncached = 1;
+
+#else
+
 uint8_t MAXPHYADDR = 36;
+
 #endif
 
 export uint64_t zero_pfn;
@@ -463,7 +470,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
     if (use_huge_pages) {
         p2.valid = 1;
         p2.table_entry = 0;
-        p2.AttrIndex = 0;
+        p2.AttrIndex = attr_index_normal;
         p2.AP = ARM64_PTE_AP_EL1RW;
         p2.SH = 3; // inner shareable
         p2.AF = 1;
@@ -498,7 +505,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 
         p3.valid = 1;
         p3.table_entry = 1;
-        p3.AttrIndex = 0;
+        p3.AttrIndex = attr_index_normal;
         p3.AP = ARM64_PTE_AP_EL1RW;
         p3.SH = 3; // inner shareable
         p3.AF = 1;
@@ -782,9 +789,9 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         p3.table_entry = 1;
 
         if (type == mapping_type::no_cache)
-            p3.AttrIndex = 1; // nGnRnE device memory
+            p3.AttrIndex = attr_index_uncached; // nGnRnE device memory
         else
-            p3.AttrIndex = 0; // normal memory
+            p3.AttrIndex = attr_index_normal; // normal memory
 
         p3.AP = ARM64_PTE_AP_EL1RW;
         p3.SH = 3; // inner shareable
@@ -1199,7 +1206,7 @@ static bool map_physical_memory(uint64_t num_pages) {
 
         p1->valid = 1;
         p1->table_entry = 0;
-        p1->AttrIndex = 0;
+        p1->AttrIndex = attr_index_normal;
         p1->AP = ARM64_PTE_AP_EL1RW;
         p1->SH = 3; // inner shareable
         p1->AF = 1;

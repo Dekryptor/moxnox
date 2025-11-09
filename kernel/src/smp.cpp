@@ -412,7 +412,7 @@ static uint64_t setup_identity_map() {
     for (unsigned int i = 0; i < pte1.size(); i++) {
         pte1[i].valid = 1;
         pte1[i].table_entry = 0;
-        pte1[i].AttrIndex = 0;
+        pte1[i].AttrIndex = attr_index_normal;
         pte1[i].AP = 0; // no access from userspace
         pte1[i].SH = 3; // inner shareable
         pte1[i].AF = 1;
