@@ -6,6 +6,7 @@ module;
 #include <bit>
 #include <algorithm>
 #include <mutex>
+#include <optional>
 #include "assert.h"
 
 #ifdef __aarch64__
@@ -116,8 +117,8 @@ list_entry boot_pages = { &boot_pages, &boot_pages };
 
 #ifdef __aarch64__
 
-export uint8_t attr_index_normal = 0;
-static uint8_t attr_index_uncached = 1;
+export uint8_t attr_index_normal;
+static uint8_t attr_index_uncached;
 
 #else
 
@@ -1362,6 +1363,34 @@ export bool copy_map_ptr(const loader_block& lb) {
     return true;
 }
 
+static void check_mair() {
+    uint64_t mair;
+    optional<uint8_t> normal, uncached;
+
+    __asm __volatile (
+        "mrs %x[res], mair_el1"
+        : [res] "=r" (mair)
+    );
+
+    for (uint8_t i = 0; i < 8; i++) {
+        auto attr = (mair >> (i * 8)) & 0xff;
+
+        if (attr == 0xff && !normal.has_value())
+            normal = i;
+        else if (attr == 0x00 && !uncached.has_value())
+            uncached = i;
+    }
+
+    if (!normal.has_value())
+        bsod_format("could not find MAIR index for normal memory");
+
+    if (!uncached.has_value())
+        bsod_format("could not find MAIR index for uncached memory");
+
+    attr_index_normal = *normal;
+    attr_index_uncached = *uncached;
+}
+
 export bool init_memory(const loader_block& lb) {
     uint64_t num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
     unsigned int num_map_entries = lb.num_map_entries;
@@ -1373,7 +1402,9 @@ export bool init_memory(const loader_block& lb) {
         folio_free_lists[i].prev = &folio_free_lists[i];
     }
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+    check_mair();
+#else
     init_pat();
 
     MAXPHYADDR = get_maxphyaddr();
