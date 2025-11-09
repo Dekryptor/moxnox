@@ -191,8 +191,8 @@ void main_thread() {
 
     acpi_early_init_done = true;
 
-    free_bootloader_memory();
     free_lower_half_mappings();
+    free_bootloader_memory();
 
     setup_folios();
 

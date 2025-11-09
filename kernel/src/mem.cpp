@@ -989,6 +989,9 @@ static void mark_mem_as_free(uint64_t pa, size_t len, bool skip_spinlock) {
 
     auto func = [&]() {
         for (uint64_t i = 0; i < num_pages; i++) {
+            if (pages[pfn].state == page_state::boot)
+                remove_entry_list(pages[pfn].boot.le);
+
             if (pages[pfn].state != page_state::free) {
                 insert_tail_list(folio_free_lists[0], pages[pfn].free.le);
                 pages[pfn].state = page_state::free;
