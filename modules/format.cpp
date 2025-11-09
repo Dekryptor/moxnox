@@ -4,6 +4,7 @@ module;
 #include <string_view>
 #include <source_location>
 #include <chrono>
+#include <optional>
 #include <stdint.h>
 
 export module format;
@@ -56,6 +57,7 @@ span<char> sp_itoa(span<char> dest, uint64_t num, unsigned int padding = 0, bool
 
     uint64_t place = 10000000000000000000ull;
 
+#ifndef __i386 // FIXME
     for (unsigned int i = 0; i < 20; i++) {
         if (!first || padding >= 20 - i || num >= place) {
             uint64_t digit = num / place;
@@ -78,6 +80,7 @@ span<char> sp_itoa(span<char> dest, uint64_t num, unsigned int padding = 0, bool
 
         place /= 10;
     }
+#endif
 
     return dest;
 }

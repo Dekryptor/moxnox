@@ -86,4 +86,8 @@ SECTIONS
 
     image_end = .;
     image_size_val = image_end - image_base;
+
+    /DISCARD/ : {
+        *(.pdata*)
+    }
 }

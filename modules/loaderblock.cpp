@@ -1,8 +1,14 @@
 module;
 
 #include <stdint.h>
+#include <string_view>
+#include <span>
 
 export module loaderblock;
+
+import format;
+
+using namespace std;
 
 using UINTN = uint64_t;
 using EFI_PHYSICAL_ADDRESS = uint64_t;
@@ -94,6 +100,42 @@ enum class mem_type {
     initrd,
     mmio
 };
+
+template<>
+consteval bool format_spec_valid<mem_type>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, enum mem_type t) {
+    switch (t) {
+        using enum mem_type;
+
+        case free:
+            return do_format_arg(sp, "", "free");
+        case reserved:
+            return do_format_arg(sp, "", "reserved");
+        case bootloader:
+            return do_format_arg(sp, "", "bootloader");
+        case image:
+            return do_format_arg(sp, "", "image");
+        case paging_table:
+            return do_format_arg(sp, "", "paging_table");
+        case acpi:
+            return do_format_arg(sp, "", "acpi");
+        case uefi_code:
+            return do_format_arg(sp, "", "uefi_code");
+        case uefi_data:
+            return do_format_arg(sp, "", "uefi_data");
+        case framebuffer:
+            return do_format_arg(sp, "", "framebuffer");
+        case initrd:
+            return do_format_arg(sp, "", "initrd");
+        case mmio:
+            return do_format_arg(sp, "", "mmio");
+        default:
+            return do_format_arg(sp, "", (unsigned int)t);
+    }
+}
 
 const uint64_t EFI_MEMORY_UC = 0x0000000000000001;
 const uint64_t EFI_MEMORY_WC = 0x0000000000000002;
