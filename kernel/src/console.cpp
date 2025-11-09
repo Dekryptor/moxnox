@@ -892,24 +892,36 @@ static void copy_shadow_framebuffer() {
     }
 }
 
-static void add_to_early_print_buf(string_view s) {
-    lock_guard lock(early_print_lock);
+template<bool no_lock>
+void add_to_early_print_buf(string_view s) {
+    auto func = [&]() {
+        if (early_print_buf_size == sizeof(early_print_buf))
+            return;
 
-    if (early_print_buf_size == sizeof(early_print_buf))
-        return;
+        auto to_copy = min(s.size(), sizeof(early_print_buf) - early_print_buf_size);
 
-    auto to_copy = min(s.size(), sizeof(early_print_buf) - early_print_buf_size);
+        memcpy(early_print_buf + early_print_buf_size, s.data(), to_copy);
 
-    memcpy(early_print_buf + early_print_buf_size, s.data(), to_copy);
+        early_print_buf_size += to_copy;
+    };
 
-    early_print_buf_size += to_copy;
+    if constexpr (no_lock)
+        func();
+    else {
+        lock_guard lock(early_print_lock);
+        func();
+    }
+}
+
+export void very_early_print(string_view s) {
+    add_to_early_print_buf<true>(s);
 }
 
 void early_print(string_view s) {
 #ifndef __aarch64__
     if (console_type == console_type::text) {
         if (!text_console_started) {
-            add_to_early_print_buf(s);
+            add_to_early_print_buf<false>(s);
             return;
         }
 
@@ -919,7 +931,7 @@ void early_print(string_view s) {
 #endif
 
     if (!fb_console_started) {
-        add_to_early_print_buf(s);
+        add_to_early_print_buf<false>(s);
         return;
     }
 

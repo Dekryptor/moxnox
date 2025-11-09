@@ -53,7 +53,7 @@ static loader_block_framebuffer lb_fb;
 static loader_block_text_console lb_tc;
 #endif
 
-void (*_printk)(string_view s) = early_print;
+void (*_printk)(string_view s) = very_early_print;
 
 static void call_global_constructors() {
     auto v = &__CTOR_LIST__;
@@ -361,6 +361,8 @@ void startup(loader_block* lb) {
 #endif
 
     enable_interrupts();
+
+    _printk = early_print;
 
     if (!add_kernel_thread(main_thread))
         goto hang;
