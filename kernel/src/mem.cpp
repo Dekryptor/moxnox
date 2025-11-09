@@ -26,6 +26,10 @@ import spinlock;
 import pe;
 import loaderblock;
 
+#ifdef __aarch64__
+import aarch64;
+#endif
+
 extern "C" uint8_t __image_base__;
 
 #ifndef __aarch64__
@@ -342,52 +346,6 @@ span<char> do_format_arg(span<char> sp, string_view, enum page_state arg) {
 }
 
 #ifdef __aarch64__
-export template<>
-consteval bool format_spec_valid<ARM64_HARDWARE_PTE>(string_view fmt) {
-    return fmt.empty();
-}
-
-export span<char> do_format_arg(span<char> sp, string_view, const ARM64_HARDWARE_PTE& p) {
-    sp = do_format_arg(sp, "", "valid=");
-    sp = do_format_arg(sp, "", p.valid);
-    sp = do_format_arg(sp, "", ", table_entry=");
-    sp = do_format_arg(sp, "", p.table_entry);
-    sp = do_format_arg(sp, "", ", AttrIndex=");
-    sp = do_format_arg(sp, "", p.AttrIndex);
-    sp = do_format_arg(sp, "", ", NS=");
-    sp = do_format_arg(sp, "", p.NS);
-    sp = do_format_arg(sp, "", ", AP=");
-    sp = do_format_arg(sp, "", p.AP);
-    sp = do_format_arg(sp, "", ", SH=");
-    sp = do_format_arg(sp, "", p.SH);
-    sp = do_format_arg(sp, "", ", AF=");
-    sp = do_format_arg(sp, "", p.AF);
-    sp = do_format_arg(sp, "", ", nG=");
-    sp = do_format_arg(sp, "", p.nG);
-    sp = do_format_arg(sp, "", ", pfn=");
-    sp = do_format_arg(sp, ":x", p.pfn);
-    sp = do_format_arg(sp, "", ", DBM=");
-    sp = do_format_arg(sp, "", p.DBM);
-    sp = do_format_arg(sp, "", ", Contig=");
-    sp = do_format_arg(sp, "", p.Contig);
-    sp = do_format_arg(sp, "", ", PXN=");
-    sp = do_format_arg(sp, "", p.PXN);
-    sp = do_format_arg(sp, "", ", UXN=");
-    sp = do_format_arg(sp, "", p.UXN);
-    sp = do_format_arg(sp, "", ", allow_write=");
-    sp = do_format_arg(sp, "", p.allow_write);
-    sp = do_format_arg(sp, "", ", cow=");
-    sp = do_format_arg(sp, "", p.cow);
-    sp = do_format_arg(sp, "", ", reserved=");
-    sp = do_format_arg(sp, "", p.reserved);
-    sp = do_format_arg(sp, "", ", software=");
-    sp = do_format_arg(sp, "", p.software);
-    sp = do_format_arg(sp, "", ", imp_def=");
-    sp = do_format_arg(sp, "", p.imp_def);
-
-    return sp;
-}
-
 export uint64_t ttbr0_el1_load() {
     uint64_t ret;
 

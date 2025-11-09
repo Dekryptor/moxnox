@@ -102,6 +102,30 @@ export union ARM64_TCR_EL1 {
 
 static_assert(sizeof(ARM64_TCR_EL1) == 8);
 
+export struct ARM64_HARDWARE_PTE {
+    uint64_t valid : 1;
+    uint64_t table_entry : 1;
+    uint64_t AttrIndex : 3;
+    uint64_t NS : 1;
+    uint64_t AP : 2;
+    uint64_t SH : 2;
+    uint64_t AF : 1;
+    uint64_t nG : 1;
+    uint64_t pfn : 39;
+    uint64_t DBM : 1;
+    uint64_t Contig : 1;
+    uint64_t PXN : 1;
+    uint64_t UXN : 1;
+    uint64_t allow_write : 1; // custom
+    uint64_t cow : 1; // custom
+    uint64_t reserved : 1; // custom
+    uint64_t software : 1;
+    uint64_t imp_def : 4;
+    uint64_t : 1;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_HARDWARE_PTE) == 8);
+
 export template<>
 consteval bool format_spec_valid<ARM64_SCTLR_EL1>(string_view fmt) {
     return fmt.empty();
@@ -248,6 +272,52 @@ export span<char> do_format_arg(span<char> sp, string_view, const ARM64_TCR_EL1&
     sp = do_format_arg(sp, "", t.MTX0);
     sp = do_format_arg(sp, "", ", MTX1=");
     sp = do_format_arg(sp, "", t.MTX1);
+
+    return sp;
+}
+
+export template<>
+consteval bool format_spec_valid<ARM64_HARDWARE_PTE>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, const ARM64_HARDWARE_PTE& p) {
+    sp = do_format_arg(sp, "", "valid=");
+    sp = do_format_arg(sp, "", p.valid);
+    sp = do_format_arg(sp, "", ", table_entry=");
+    sp = do_format_arg(sp, "", p.table_entry);
+    sp = do_format_arg(sp, "", ", AttrIndex=");
+    sp = do_format_arg(sp, "", p.AttrIndex);
+    sp = do_format_arg(sp, "", ", NS=");
+    sp = do_format_arg(sp, "", p.NS);
+    sp = do_format_arg(sp, "", ", AP=");
+    sp = do_format_arg(sp, "", p.AP);
+    sp = do_format_arg(sp, "", ", SH=");
+    sp = do_format_arg(sp, "", p.SH);
+    sp = do_format_arg(sp, "", ", AF=");
+    sp = do_format_arg(sp, "", p.AF);
+    sp = do_format_arg(sp, "", ", nG=");
+    sp = do_format_arg(sp, "", p.nG);
+    sp = do_format_arg(sp, "", ", pfn=");
+    sp = do_format_arg(sp, ":x", p.pfn);
+    sp = do_format_arg(sp, "", ", DBM=");
+    sp = do_format_arg(sp, "", p.DBM);
+    sp = do_format_arg(sp, "", ", Contig=");
+    sp = do_format_arg(sp, "", p.Contig);
+    sp = do_format_arg(sp, "", ", PXN=");
+    sp = do_format_arg(sp, "", p.PXN);
+    sp = do_format_arg(sp, "", ", UXN=");
+    sp = do_format_arg(sp, "", p.UXN);
+    sp = do_format_arg(sp, "", ", allow_write=");
+    sp = do_format_arg(sp, "", p.allow_write);
+    sp = do_format_arg(sp, "", ", cow=");
+    sp = do_format_arg(sp, "", p.cow);
+    sp = do_format_arg(sp, "", ", reserved=");
+    sp = do_format_arg(sp, "", p.reserved);
+    sp = do_format_arg(sp, "", ", software=");
+    sp = do_format_arg(sp, "", p.software);
+    sp = do_format_arg(sp, "", ", imp_def=");
+    sp = do_format_arg(sp, "", p.imp_def);
 
     return sp;
 }

@@ -16,6 +16,7 @@ export module smp;
 
 #ifdef __aarch64__
 import psci;
+import aarch64;
 #else
 import apic;
 #endif

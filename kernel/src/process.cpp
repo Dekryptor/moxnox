@@ -46,7 +46,9 @@ import ntdll;
 import pe;
 import file;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+import aarch64;
+#else
 import apic;
 #endif
 
