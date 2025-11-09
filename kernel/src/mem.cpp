@@ -919,6 +919,8 @@ static bool map_memblock(uint64_t pa, uint64_t num_pages, uint64_t& scratch_page
     va += (first_pfn * sizeof(page)) & ~(PAGE_SIZE - 1);
 
     if (use_huge_pages) {
+        va &= ~(HUGE_PAGE_SIZE - 1);
+
         while (num_pages > 0) {
             if (!map_page_with_scratch(va, pa, scratch_pa, scratch_pages, true))
                 return false;
