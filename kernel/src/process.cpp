@@ -2206,6 +2206,7 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
             pte->SH = 3; // inner shareable
             pte->AF = 1;
             pte->valid = 1;
+            pte->AttrIndex = attr_index_normal;
 #else
             pte->pfn = p->pfn & 0x7ffffffffffff;
             pte->p = 1;
