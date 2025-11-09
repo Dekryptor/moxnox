@@ -26,8 +26,6 @@ export EFI_RESET_SYSTEM ResetSystem = nullptr;
 
 static const EFI_STATUS EFI_SUCCESS = 0;
 
-static const uint64_t EFI_MEMORY_RUNTIME = 0x8000000000000000;
-
 export bool map_uefi(const loader_block& lb) {
     auto map_entries = span((map_entry*)lb.map_ptr, lb.num_map_entries);
     unsigned int count = 0;
@@ -40,16 +38,25 @@ export bool map_uefi(const loader_block& lb) {
     for (const auto& m : map_entries) {
         enum mapping_type mt;
 
-        if (m.type == mem_type::uefi_code) {
+        if (!(m.efi_attributes & EFI_MEMORY_RUNTIME))
+            continue;
+
+        if (m.type == mem_type::uefi_code)
             d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesCode;
-            mt = mapping_type::read_write_execute;
-        } else if (m.type == mem_type::uefi_data) {
+        else if (m.type == mem_type::uefi_data)
             d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesData;
-            mt = mapping_type::read_write;
-        } else if (m.type == mem_type::mmio) {
+        else if (m.type == mem_type::mmio)
             d->Type = EFI_MEMORY_TYPE::EfiMemoryMappedIO;
+        else
+            continue;
+
+        // FIXME - read-only and NX flags
+
+        if (m.efi_attributes & EFI_MEMORY_WB)
+            mt = mapping_type::read_write_execute;
+        else if (m.efi_attributes & EFI_MEMORY_UC)
             mt = mapping_type::no_cache;
-        } else
+        else
             continue;
 
         for (unsigned int i = 0; i < m.len >> PAGE_SHIFT; i++) {
