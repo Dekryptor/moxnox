@@ -2376,6 +2376,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
             if (!pte.valid) {
                 pte.table_entry = 1;
+                pte.AttrIndex = attr_index_normal;
                 pte.SH = 3; // inner shareable
                 pte.AF = 1;
                 pte.valid = 1;
@@ -2456,6 +2457,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
 #ifdef __aarch64__
                 pte.table_entry = 1;
+                pte.AttrIndex = attr_index_normal;
                 pte.AP = ARM64_PTE_AP_EL0RW;
                 pte.SH = 3; // inner shareable
                 pte.AF = 1;
