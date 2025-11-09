@@ -623,7 +623,7 @@ void fragment_folio(uint64_t pfn, uint8_t desired_order) {
     remove_entry_list(pages[pfn].free.le);
 
     for (unsigned int i = 0; i < (unsigned int)(order - desired_order); i++) {
-        auto first_pfn = pfn;
+        auto pfn_first = pfn;
 
         pages[pfn].state = page_state::free;
 
@@ -635,7 +635,7 @@ void fragment_folio(uint64_t pfn, uint8_t desired_order) {
             pfn++;
         }
 
-        insert_tail_list(folio_free_lists[new_order], pages[first_pfn].free.le);
+        insert_tail_list(folio_free_lists[new_order], pages[pfn_first].free.le);
         free_folios[new_order]++;
     }
 
