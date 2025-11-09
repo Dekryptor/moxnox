@@ -357,6 +357,7 @@ static uint64_t get_pages(enum mem_type type, unsigned int num_pages) {
         mem_entries[i + 1].addr = ret + (num_pages * PAGE_SIZE);
         mem_entries[i + 1].len = m.len - (num_pages * PAGE_SIZE);
         mem_entries[i + 1].type = mem_type::free;
+        mem_entries[i + 1].efi_attributes = 0;
 
         m.len = num_pages * PAGE_SIZE;
         m.type = type;
@@ -719,6 +720,7 @@ static void sanitize_mem_entries() {
                     c.addr = b.addr + b.len;
                     c.len = a_end - c.addr;
                     c.type = a.type;
+                    c.efi_attributes = 0;
                 } else
                     b.len = 0;
             } else {
@@ -757,6 +759,7 @@ static void sanitize_mem_entries() {
             mem_entries[i + 1].addr = new_address;
             mem_entries[i + 1].len = new_length;
             mem_entries[i + 1].type = mem_type::reserved;
+            mem_entries[i + 1].efi_attributes = 0;
 
             i--;
         }
@@ -808,6 +811,7 @@ static void mark_bootloader_memory() {
         m2.addr = bootloader_end;
         m2.len = m.addr + m.len - bootloader_end;
         m2.type = m.type;
+        m2.efi_attributes = 0;
 
         m.len = bootloader_end - m.addr;
         m.type = mem_type::bootloader;
@@ -1022,6 +1026,7 @@ static void copy_e820_entries() {
 
         n.addr = e.address;
         n.len = e.length;
+        n.efi_attributes = 0;
 
         switch (e.type) {
             case e820_mem_type::free:

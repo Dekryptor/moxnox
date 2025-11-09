@@ -99,6 +99,7 @@ struct map_entry {
     uint64_t addr;
     uint64_t len;
     enum mem_type type;
+    uint64_t efi_attributes;
 } __attribute__((packed));
 
 struct loader_block_framebuffer {
