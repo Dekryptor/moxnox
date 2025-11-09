@@ -12,6 +12,7 @@ import config;
 import mem;
 import print;
 import timer;
+import format;
 
 using namespace std;
 
@@ -26,13 +27,27 @@ export EFI_RESET_SYSTEM ResetSystem = nullptr;
 
 static const EFI_STATUS EFI_SUCCESS = 0;
 
+extern "C++" void (*_printk)(string_view s);
+
+// print not setup properly by the time map_uefi runs
+template<typename... Args>
+void do_print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+    char buf[4096];
+
+    auto sp = span(buf, PAGE_SIZE);
+
+    sp = format_to(sp, fmt.sv, make_tuple(args...));
+
+    _printk(string_view(buf, (size_t)(sp.data() - buf)));
+}
+
 export bool map_uefi(const loader_block& lb) {
     auto map_entries = span((map_entry*)lb.map_ptr, lb.num_map_entries);
     unsigned int count = 0;
 
     uint64_t va = UEFI_VABLOCK;
 
-    // FIXME - bsod if we would overflow uefi_mappings
+    // FIXME - fail if we would overflow uefi_mappings
 
     auto d = uefi_mappings;
     for (const auto& m : map_entries) {
@@ -62,7 +77,7 @@ export bool map_uefi(const loader_block& lb) {
         for (unsigned int i = 0; i < m.len >> PAGE_SHIFT; i++) {
             if (!map_page<true>(m.addr + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT),
                                 mt)) {
-                print("map_page failed\n");
+                do_print("map_page failed\n");
                 return false;
             }
         }
@@ -84,15 +99,19 @@ export bool map_uefi(const loader_block& lb) {
         d++;
     }
 
-    if (count == 0)
-        bsod("SetVirtualAddressMap set but no UEFI mappings given");
+    if (count == 0) {
+        do_print("SetVirtualAddressMap set but no UEFI mappings given");
+        GetTime = nullptr;
+        ResetSystem = nullptr;
+        return false;
+    }
 
     auto ret = lb.SetVirtualAddressMap(count * sizeof(EFI_MEMORY_DESCRIPTOR),
                                        sizeof(EFI_MEMORY_DESCRIPTOR),
                                        EFI_MEMORY_DESCRIPTOR_VERSION,
                                        uefi_mappings);
     if (ret != EFI_SUCCESS) { // FIXME - enum
-        print("SetVirtualAddressMap returned {}\n", ret);
+        do_print("SetVirtualAddressMap returned {}\n", ret);
         return false;
     }
 
