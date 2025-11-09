@@ -118,7 +118,6 @@ union ARM64_HCR_EL2 {
 
 static_assert(sizeof(ARM64_HCR_EL2) == 8);
 
-static ARM64_HARDWARE_PTE* ttbr0 __attribute__((section (".data")));
 static ARM64_HARDWARE_PTE* ttbr1 __attribute__((section (".data")));
 static uint8_t attr_index_normal;
 
@@ -1410,99 +1409,6 @@ static EFI_STATUS do_map(uint64_t va, uint64_t pa, uint64_t len) {
 
 #ifdef __aarch64__
 
-static EFI_STATUS setup_lower_half_mappings() {
-    EFI_STATUS status;
-    EFI_PHYSICAL_ADDRESS addr;
-    uint64_t level1;
-
-    status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
-    if (EFI_ERROR(status)) {
-        print_error("AllocatePages", status);
-        return status;
-    }
-
-    status = add_map_entry(addr, EFI_PAGE_SIZE, mem_type::paging_table);
-    if (EFI_ERROR(status)) {
-        print_error("add_map_entry", status);
-        return status;
-    }
-
-    ttbr0 = (ARM64_HARDWARE_PTE*)addr;
-
-    // 4KB page size support guaranteed by EFI spec
-
-    static const size_t PTES_PER_PAGE = EFI_PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE);
-
-    auto pte0 = span(ttbr0, PTES_PER_PAGE);
-    memset(pte0.data(), 0, pte0.size_bytes());
-
-    unsigned int num_mappable_mem_entries = num_map_entries;
-
-    while (num_mappable_mem_entries > 0 && (map[num_mappable_mem_entries - 1].type == mem_type::free || map[num_mappable_mem_entries - 1].type == mem_type::reserved)) {
-        num_mappable_mem_entries--;
-    }
-
-    const auto& last_mappable = map[num_mappable_mem_entries - 1];
-    static const uint64_t SZ_1G = 0x40000000;
-
-    uint64_t last_address = last_mappable.addr + last_mappable.len;
-    auto num_gigs = last_address / SZ_1G;
-
-    if (last_address % SZ_1G)
-        num_gigs++;
-
-    // FIXME - fails if would map more than 512GB
-    // if (num_gigs > PTES_PER_PAGE) {
-    //     print("num_gigs is huge\n");
-    //     num_gigs = PTES_PER_PAGE;
-    // }
-
-    span<ARM64_HARDWARE_PTE> pte1;
-
-    for (unsigned int i = 0; i < num_gigs; i++) {
-        if ((i % PTES_PER_PAGE) == 0) {
-            status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, 1, &addr);
-            if (EFI_ERROR(status)) {
-                print_error("AllocatePages", status);
-                return status;
-            }
-
-            status = add_map_entry(addr, EFI_PAGE_SIZE, mem_type::paging_table);
-            if (EFI_ERROR(status)) {
-                print_error("add_map_entry", status);
-                return status;
-            }
-
-            level1 = addr;
-
-            pte1 = span((ARM64_HARDWARE_PTE*)level1, PTES_PER_PAGE);
-            memset(pte1.data(), 0, pte1.size_bytes());
-
-            auto& p0 = pte0[i / PTES_PER_PAGE];
-
-            p0.valid = 1;
-            p0.table_entry = 1;
-            p0.AttrIndex = 0;
-            p0.AP = 0; // no access from userspace
-            p0.SH = 3; // inner shareable
-            p0.AF = 1;
-            p0.pfn = level1 >> EFI_PAGE_SHIFT;
-        }
-
-        auto& p1 = pte1[i % PTES_PER_PAGE];
-
-        p1.valid = 1;
-        p1.table_entry = 0;
-        p1.AttrIndex = attr_index_normal;
-        p1.AP = 0; // no access from userspace
-        p1.SH = 3; // inner shareable
-        p1.AF = 1;
-        p1.pfn = ((uint64_t)i * SZ_1G) >> EFI_PAGE_SHIFT;
-    }
-
-    return EFI_SUCCESS;
-}
-
 static uint8_t get_current_el() {
     uint64_t CurrentEL;
 
@@ -1602,12 +1508,6 @@ static EFI_STATUS setup_paging() {
             default:
                 break;
         }
-    }
-
-    status = setup_lower_half_mappings();
-    if (EFI_ERROR(status)) {
-        print_error("setup_lower_half_mappings", status);
-        return status;
     }
 
     return EFI_SUCCESS;
@@ -2134,17 +2034,19 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
     startup = (decltype(startup))entry_point;
 
     __asm __volatile (
-        "msr ttbr0_el1, %0\n"
-        "msr ttbr1_el1, %1\n"
+        "msr ttbr1_el1, %0\n"
         "tlbi vmalle1\n"
         "dsb ish\n"
         "isb\n"
         :
-        : "r" (ttbr0), "r" (ttbr1)
+        : "r" (ttbr1)
     );
 
     if (get_current_el() == 2) {
         __asm __volatile (
+            "mrs x0, ttbr0_el2\n"
+            "msr ttbr0_el1, x0\n"
+
             // set EL1 stack
             "mov x0, sp\n"
             "msr sp_el1, x0\n"
