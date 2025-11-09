@@ -607,6 +607,23 @@ void fragment_folio(uint64_t pfn, uint8_t desired_order) {
     }
 }
 
+#if 0
+static void check_free_folios() {
+    for (unsigned int i = 0; i <= MAX_FOLIO_ORDER; i++) {
+        for (auto le = folio_free_lists[i].next; le != &folio_free_lists[i]; le = le->next) {
+            auto& p = *(page*)((uint8_t*)le - offsetof(page, free.le));
+            auto pfn = (uint64_t)(&p - pages);
+
+            assert(p.state == page_state::free);
+            assert(p.order == i);
+            assert(p.free.le.prev->next == &p.free.le);
+            assert(p.free.le.next->prev == &p.free.le);
+            assert(!(pfn & ((1 << i) - 1)));
+        }
+    }
+}
+#endif
+
 inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t order, enum page_state state) {
     for (unsigned int i = order; i <= MAX_FOLIO_ORDER; i++) {
         if (is_list_empty(folio_free_lists[i]))
