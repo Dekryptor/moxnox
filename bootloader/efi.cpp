@@ -947,6 +947,8 @@ static EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type
             map[i].len = start - map[i].addr;
             map[i+1].len = map[i+1].addr + map[i+1].len - start - len;
             map[i+1].addr = start + len;
+            map[i+1].type = map[i].type;
+            map[i+1].efi_attributes = map[i].efi_attributes;
         }
     }
 
@@ -960,6 +962,7 @@ static EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type
         map[0].addr = 0;
         map[0].len = len;
         map[0].type = type;
+        map[0].efi_attributes = 0;
         num_map_entries++;
 
         return EFI_SUCCESS;
@@ -983,6 +986,7 @@ static EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type
             map[i+1].addr = start;
             map[i+1].len = len;
             map[i+1].type = type;
+            map[i+1].efi_attributes = 0;
 
             num_map_entries++;
         }
