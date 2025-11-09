@@ -1346,6 +1346,7 @@ export bool copy_map_ptr(const loader_block& lb) {
     return true;
 }
 
+#ifdef __aarch64__
 static void check_mair() {
     uint64_t mair;
     optional<uint8_t> normal, uncached;
@@ -1373,6 +1374,7 @@ static void check_mair() {
     attr_index_normal = *normal;
     attr_index_uncached = *uncached;
 }
+#endif
 
 export bool init_memory(const loader_block& lb) {
     uint64_t num_memblock_bytes, num_memblock_pages, orig_scratch_pages, scratch_pages, needed_pages;
