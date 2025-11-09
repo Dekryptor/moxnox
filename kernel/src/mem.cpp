@@ -1809,6 +1809,9 @@ export void free_bootloader_memory() {
         auto& p = *(page*)((uint8_t*)boot_pages.next - offsetof(page, boot.le));
         auto orig_pfn = (uint64_t)(&p - pages);
 
+        assert(p.state == page_state::boot);
+        assert(p.order == 0);
+
         remove_entry_list(p.boot.le);
 
         free_folio_no_lock(orig_pfn << PAGE_SHIFT);
