@@ -1677,7 +1677,7 @@ static void unhandled_kernel_exception(uint64_t esr_value) {
          &cb.thread_context);
 }
 
-static void page_fault_kernel() {
+static void page_fault_kernel(uint32_t esr_value) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
     uint64_t address;
@@ -1713,7 +1713,7 @@ static void page_fault_kernel() {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {})\n", cb.cpu_no);
+    sp = format(sp, ", CPU {}, ESR_EL1 = {:08x})\n", cb.cpu_no, esr_value);
 
     // FIXME - parse PTE for explanation of why page fault happened
     if (pte && !stack_overflow)
@@ -1743,7 +1743,7 @@ void handle_kernel_exception(uint64_t esr_value) {
 
         case 0x21: // Instruction Abort from same EL
         case 0x25: // Data Abort from same EL
-            page_fault_kernel();
+            page_fault_kernel(esr_value);
             break;
 
         case 0x26:
