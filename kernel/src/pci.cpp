@@ -227,13 +227,13 @@ export list_entry pci_classes = { &pci_classes, &pci_classes };
 static void found_pci_bus(const acpi_device& dev);
 
 // FIXME - PNP0A03 is non-express PCI?
-static acpi_recognizer mod_pnp_hids[] = {
+static acpi_recognizer mod_pnp_hids_pci[] = {
     { {}, "PNP0A08", found_pci_bus, nullptr }
 };
 
 static void init_acpi_hids() {
-    for (unsigned int i = 0; i < sizeof(mod_pnp_hids) / sizeof(*mod_pnp_hids); i++) {
-        insert_tail_list(pnp_hids, mod_pnp_hids[i].le);
+    for (unsigned int i = 0; i < sizeof(mod_pnp_hids_pci) / sizeof(*mod_pnp_hids_pci); i++) {
+        insert_tail_list(pnp_hids, mod_pnp_hids_pci[i].le);
     }
 }
 
