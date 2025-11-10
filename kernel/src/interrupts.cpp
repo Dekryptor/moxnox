@@ -1677,7 +1677,98 @@ static void unhandled_kernel_exception(uint64_t esr_value) {
          &cb.thread_context);
 }
 
-static void page_fault_kernel(uint32_t esr_value) {
+static string_view aarch64_dfsc_to_string(uint8_t dfsc) {
+    switch (dfsc) {
+        case 0b000000:
+            return "Address size fault, level 0 of translation or translation table base register";
+        case 0b000001:
+            return "Address size fault, level 1";
+        case 0b000010:
+            return "Address size fault, level 2";
+        case 0b000011:
+            return "Address size fault, level 3";
+        case 0b000100:
+            return "Translation fault, level 0";
+        case 0b000101:
+            return "Translation fault, level 1";
+        case 0b000110:
+            return "Translation fault, level 2";
+        case 0b000111:
+            return "Translation fault, level 3";
+        case 0b001001:
+            return "Access flag fault, level 1";
+        case 0b001010:
+            return "Access flag fault, level 2";
+        case 0b001011:
+            return "Access flag fault, level 3";
+        case 0b001000:
+            return "Access flag fault, level 0";
+        case 0b001100:
+            return "Permission fault, level 0";
+        case 0b001101:
+            return "Permission fault, level 1";
+        case 0b001110:
+            return "Permission fault, level 2";
+        case 0b001111:
+            return "Permission fault, level 3";
+        case 0b010000:
+            return "Synchronous External abort, not on translation table walk or hardware update of translation table";
+        case 0b010010:
+            return "Synchronous External abort on translation table walk or hardware update of translation table, level -2";
+        case 0b010011:
+            return "Synchronous External abort on translation table walk or hardware update of translation table, level -1";
+        case 0b010100:
+            return "Synchronous External abort on translation table walk or hardware update of translation table, level 0";
+        case 0b010101:
+            return "Synchronous External abort on translation table walk or hardware update of translation table, level 1";
+        case 0b010110:
+            return "Synchronous External abort on translation table walk or hardware update of translation table, level 2";
+        case 0b010111:
+            return "Synchronous External abort on translation table walk or hardware update of translation table, level 3";
+        case 0b011000:
+            return "Synchronous parity or ECC error on memory access, not on translation table walk";
+        case 0b011011:
+            return "Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level -1";
+        case 0b011100:
+            return "Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level 0";
+        case 0b011101:
+            return "Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level 1";
+        case 0b011110:
+            return "Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level 2";
+        case 0b011111:
+            return "Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level 3";
+        case 0b100010:
+            return "Granule Protection Fault on translation table walk or hardware update of translation table, level -2";
+        case 0b100011:
+            return "Granule Protection Fault on translation table walk or hardware update of translation table, level -1";
+        case 0b100100:
+            return "Granule Protection Fault on translation table walk or hardware update of translation table, level 0";
+        case 0b100101:
+            return "Granule Protection Fault on translation table walk or hardware update of translation table, level 1";
+        case 0b100110:
+            return "Granule Protection Fault on translation table walk or hardware update of translation table, level 2";
+        case 0b100111:
+            return "Granule Protection Fault on translation table walk or hardware update of translation table, level 3";
+        case 0b101000:
+            return "Granule Protection Fault, not on translation table walk or hardware update of translation table";
+        case 0b101001:
+            return "Address size fault, level -1";
+        case 0b101010:
+            return "Translation fault, level -2";
+        case 0b101011:
+            return "Translation fault, level -1";
+        case 0b101100:
+            return "Address Size fault, level -2";
+        case 0b110000:
+            return "TLB conflict abort";
+        case 0b110001:
+            return "Unsupported atomic hardware update fault";
+        default:
+            return "";
+    }
+}
+
+static void page_fault_kernel(uint64_t esr_value) {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
     uint64_t address;
@@ -1713,7 +1804,11 @@ static void page_fault_kernel(uint32_t esr_value) {
     else
         sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
 
-    sp = format(sp, ", CPU {}, ESR_EL1 = {:08x})\n", cb.cpu_no, esr_value);
+    sp = format(sp, ", CPU {}, ESR_EL1 = {:08x}, opcode = {:08x})\n", cb.cpu_no, esr_value, *(uint32_t*)cb.thread_context.Pc);
+
+    auto dfsc_string = aarch64_dfsc_to_string(esr_value & 0x3f);
+    if (!dfsc_string.empty())
+        sp = format(sp, "{}\n", dfsc_string);
 
     // FIXME - parse PTE for explanation of why page fault happened
     if (pte && !stack_overflow)
