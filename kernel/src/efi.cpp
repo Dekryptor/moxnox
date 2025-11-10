@@ -140,7 +140,7 @@ export void get_time_from_efi() {
 
     auto ret = GetTime(&now, nullptr);
     if (ret != EFI_SUCCESS) { // FIXME - enum
-        print("GetTime returned {}\n", ret);
+        print("GetTime returned {:x}\n", ret);
         return;
     }
 
