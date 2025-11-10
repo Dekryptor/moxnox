@@ -1200,7 +1200,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
         pte0[level1].valid = 1;
         pte0[level1].table_entry = 1;
         pte0[level1].AttrIndex = 0;
-        pte0[level1].AP = 0; // no access from userspace
+        pte0[level1].AP = ARM64_PTE_AP_EL1RW; // no access from userspace
         pte0[level1].SH = 3; // inner shareable
         pte0[level1].AF = 1;
         pte0[level1].pfn = new_page >> EFI_PAGE_SHIFT;
@@ -1230,7 +1230,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
         pte1[level2].valid = 1;
         pte1[level2].table_entry = 1;
         pte1[level2].AttrIndex = 0;
-        pte1[level2].AP = 0; // no access from userspace
+        pte1[level2].AP = ARM64_PTE_AP_EL1RW; // no access from userspace
         pte1[level2].SH = 3; // inner shareable
         pte1[level2].AF = 1;
         pte1[level2].pfn = new_page >> EFI_PAGE_SHIFT;
@@ -1260,7 +1260,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
         pte2[level3].valid = 1;
         pte2[level3].table_entry = 1;
         pte2[level3].AttrIndex = 0;
-        pte2[level3].AP = 0; // no access from userspace
+        pte2[level3].AP = ARM64_PTE_AP_EL1RW; // no access from userspace
         pte2[level3].SH = 3; // inner shareable
         pte2[level3].AF = 1;
         pte2[level3].pfn = new_page >> EFI_PAGE_SHIFT;
@@ -1273,7 +1273,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
     pte3[level4].valid = 1;
     pte3[level4].table_entry = 1; // sic
     pte3[level4].AttrIndex = attr_index_normal;
-    pte3[level4].AP = 0; // no access from userspace
+    pte3[level4].AP = ARM64_PTE_AP_EL1RW; // no access from userspace
     pte3[level4].SH = 3; // inner shareable
     pte3[level4].AF = 1;
     pte3[level4].pfn = pa >> EFI_PAGE_SHIFT;
@@ -2025,6 +2025,7 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
         sctlr.SA = 1; // stack alignment in kernel mode
         sctlr.SA0 = 1; // stack alignment in user mode
         sctlr.I = 1; // enable instruction caching
+        sctlr.WXN = 0; // write permissions doesn't imply no-execute
 
         __asm __volatile (
             "msr sctlr_el1, %x[res]"

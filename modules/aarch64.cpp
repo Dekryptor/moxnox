@@ -102,6 +102,11 @@ export union ARM64_TCR_EL1 {
 
 static_assert(sizeof(ARM64_TCR_EL1) == 8);
 
+export const uint64_t ARM64_PTE_AP_EL1RW = 0;
+export const uint64_t ARM64_PTE_AP_EL0RW = 1;
+export const uint64_t ARM64_PTE_AP_EL1RO = 2;
+export const uint64_t ARM64_PTE_AP_EL0RO = 3;
+
 export struct ARM64_HARDWARE_PTE {
     uint64_t valid : 1;
     uint64_t table_entry : 1;
