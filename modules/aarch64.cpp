@@ -143,6 +143,26 @@ export union ARM64_ESR {
 
 static_assert(sizeof(ARM64_ESR) == 8);
 
+export union ARM64_CPACR_EL1 {
+    struct {
+        uint64_t : 16;
+        uint64_t ZEN : 2;
+        uint64_t : 2;
+        uint64_t FPEN : 2;
+        uint64_t : 2;
+        uint64_t SMEN : 2;
+        uint64_t : 2;
+        uint64_t TTA : 1;
+        uint64_t E0POE : 1;
+        uint64_t TAM : 1;
+        uint64_t TCPAC : 1;
+        uint64_t : 32;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_CPACR_EL1) == 8);
+
 export template<>
 consteval bool format_spec_valid<ARM64_SCTLR_EL1>(string_view fmt) {
     return fmt.empty();

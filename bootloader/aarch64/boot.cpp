@@ -20,26 +20,6 @@ extern uint8_t payload_data;
 extern const uint64_t payload_size;
 extern uint32_t image_size;
 
-union ARM64_CPACR_EL1 {
-    struct {
-        uint64_t : 16;
-        uint64_t ZEN : 2;
-        uint64_t : 2;
-        uint64_t FPEN : 2;
-        uint64_t : 2;
-        uint64_t SMEN : 2;
-        uint64_t : 2;
-        uint64_t TTA : 1;
-        uint64_t E0POE : 1;
-        uint64_t TAM : 1;
-        uint64_t TCPAC : 1;
-        uint64_t : 32;
-    };
-    uint64_t value;
-} __attribute((packed));
-
-static_assert(sizeof(ARM64_CPACR_EL1) == 8);
-
 #define MAX_MAP_ENTRIES 256
 
 static const uint64_t img_addr = 0xfffff80000000000;
