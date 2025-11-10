@@ -129,6 +129,7 @@ dwarf_func_asm do_syscall
 		add	x1, sp, 0x10
 	.else
 		ldr	x1, [x18, #GS_EMERGENCY_SCRATCH + 0x8]
+		cbz	x3, 16f // handle case when not in thread
 	.endif
 
 	add	x2, x3, THREAD_SYSCALL_STACK
@@ -139,6 +140,7 @@ dwarf_func_asm do_syscall
 
 	// FIXME - debug registers
 
+16:
 	// x0/xzr and x1 already pushed on stack beforehand
 
 	ldr	x1, [sp, #8]
