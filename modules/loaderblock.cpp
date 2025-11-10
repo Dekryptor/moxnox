@@ -18,6 +18,13 @@ export {
 
 using EFI_STATUS = UINTN;
 
+struct _EFI_GUID {
+    uint32_t Data1;
+    uint16_t Data2;
+    uint16_t Data3;
+    uint8_t Data4[8];
+};
+
 struct EFI_TIME {
     uint16_t Year;
     uint8_t Month;
@@ -86,6 +93,22 @@ enum class EFI_RESET_TYPE {
 using EFI_RESET_SYSTEM = EFI_STATUS (*) (EFI_RESET_TYPE ResetType,
                                          EFI_STATUS ResetStatus,
                                          UINTN DataSize, char16_t* ResetData);
+
+const _EFI_GUID EFI_GLOBAL_VARIABLE = { 0x8be4df61, 0x93ca, 0x11d2, {0xaa, 0x0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c} };
+
+const uint32_t EFI_VARIABLE_NON_VOLATILE = 0x00000001;
+const uint32_t EFI_VARIABLE_BOOTSERVICE_ACCESS = 0x00000002;
+const uint32_t EFI_VARIABLE_RUNTIME_ACCESS = 0x00000004;
+const uint32_t EFI_VARIABLE_HARDWARE_ERROR_RECORD = 0x00000008;
+const uint32_t EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS = 0x00000010;
+const uint32_t EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS = 0x00000020;
+const uint32_t EFI_VARIABLE_APPEND_WRITE = 0x00000040;
+const uint32_t EFI_VARIABLE_ENHANCED_AUTHENTICATED_ACCESS = 0x00000080;
+
+using EFI_SET_VARIABLE = EFI_STATUS (*) (const char16_t* VariableName,
+                                         const _EFI_GUID* VendorGuid,
+                                         uint32_t Attributes, UINTN DataSize,
+                                         void* Data);
 
 enum class mem_type {
     free,
@@ -210,6 +233,7 @@ struct loader_block {
     EFI_GET_TIME GetTime;
     EFI_SET_VIRTUAL_ADDRESS_MAP SetVirtualAddressMap;
     EFI_RESET_SYSTEM ResetSystem;
+    EFI_SET_VARIABLE SetVariable;
 } __attribute__((packed));
 
 const uint64_t SELFMAP = 0xfffff68000000000;

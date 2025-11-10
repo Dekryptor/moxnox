@@ -24,6 +24,7 @@ static const uint64_t UEFI_VABLOCK = 0xfffffa6000000000;
 static _EFI_MEMORY_DESCRIPTOR uefi_mappings[256];
 export EFI_GET_TIME GetTime = nullptr;
 export EFI_RESET_SYSTEM ResetSystem = nullptr;
+export EFI_SET_VARIABLE SetVariable = nullptr;
 
 static const EFI_STATUS EFI_SUCCESS = 0;
 
@@ -93,6 +94,9 @@ export bool map_uefi(const loader_block& lb) {
 
         if (!ResetSystem && (uintptr_t)lb.ResetSystem >= m.addr && (uintptr_t)lb.ResetSystem < m.addr + m.len)
             ResetSystem = (EFI_RESET_SYSTEM)((uintptr_t)lb.ResetSystem - m.addr + va);
+
+        if (!SetVariable && (uintptr_t)lb.SetVariable >= m.addr && (uintptr_t)lb.SetVariable < m.addr + m.len)
+            SetVariable = (EFI_SET_VARIABLE)((uintptr_t)lb.SetVariable - m.addr + va);
 
         va += m.len;
         count++;
