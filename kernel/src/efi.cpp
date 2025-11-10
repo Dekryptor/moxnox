@@ -94,6 +94,11 @@ export bool map_uefi(const loader_block& lb) {
         d->NumberOfPages = m.len >> PAGE_SHIFT;
         d->Attribute = EFI_MEMORY_RUNTIME;
 
+        if (m.efi_attributes & EFI_MEMORY_UC)
+            d->Attribute |= EFI_MEMORY_UC;
+        else if (m.efi_attributes & EFI_MEMORY_WB)
+            d->Attribute |= EFI_MEMORY_WB;
+
         if (!GetTime && (uintptr_t)lb.GetTime >= m.addr && (uintptr_t)lb.GetTime < m.addr + m.len)
             GetTime = (EFI_GET_TIME)((uintptr_t)lb.GetTime - m.addr + va);
 
