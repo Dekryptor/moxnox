@@ -9,6 +9,7 @@
 
 import pe;
 import loaderblock;
+import aarch64;
 
 using namespace std;
 
@@ -18,78 +19,6 @@ static const unsigned int PAGE_SHIFT = 12;
 extern uint8_t payload_data;
 extern const uint64_t payload_size;
 extern uint32_t image_size;
-
-struct ARM64_HARDWARE_PTE {
-    uint64_t valid : 1;
-    uint64_t table_entry : 1;
-    uint64_t AttrIndex : 3;
-    uint64_t NS : 1;
-    uint64_t AP : 2;
-    uint64_t SH : 2;
-    uint64_t AF : 1;
-    uint64_t nG : 1;
-    uint64_t pfn : 39;
-    uint64_t DBM : 1;
-    uint64_t Contig : 1;
-    uint64_t PXN : 1;
-    uint64_t UXN : 1;
-    uint64_t software : 4;
-    uint64_t imp_def : 4;
-    uint64_t : 1;
-} __attribute((packed));
-
-static_assert(sizeof(ARM64_HARDWARE_PTE) == 8);
-
-union ARM64_TCR_EL1 {
-    struct {
-        uint64_t T0SZ : 6;
-        uint64_t : 1;
-        uint64_t EPD0 : 1;
-        uint64_t IRGN0 : 2;
-        uint64_t ORGN0 : 2;
-        uint64_t SH0 : 2;
-        uint64_t TG0 : 2;
-        uint64_t T1SZ : 6;
-        uint64_t A1 : 1;
-        uint64_t EPD1 : 1;
-        uint64_t IRGN1 : 2;
-        uint64_t ORGN1 : 2;
-        uint64_t SH1 : 2;
-        uint64_t TG1 : 2;
-        uint64_t IPS : 3;
-        uint64_t : 1;
-        uint64_t AS : 1;
-        uint64_t TBI0 : 1;
-        uint64_t TBI1 : 1;
-        uint64_t HA : 1;
-        uint64_t HD : 1;
-        uint64_t HPD0 : 1;
-        uint64_t HPD1 : 1;
-        uint64_t HWU059 : 1;
-        uint64_t HWU060 : 1;
-        uint64_t HWU061 : 1;
-        uint64_t HWU062 : 1;
-        uint64_t HWU159 : 1;
-        uint64_t HWU160 : 1;
-        uint64_t HWU161 : 1;
-        uint64_t HWU162 : 1;
-        uint64_t TBID0 : 1;
-        uint64_t TBID1 : 1;
-        uint64_t NFD0 : 1;
-        uint64_t NFD1 : 1;
-        uint64_t E0PD0 : 1;
-        uint64_t E0PD1 : 1;
-        uint64_t TCMA0 : 1;
-        uint64_t TCMA1 : 1;
-        uint64_t DS : 1;
-        uint64_t MTX0 : 1;
-        uint64_t MTX1 : 1;
-        uint64_t : 2;
-    };
-    uint64_t value;
-} __attribute((packed));
-
-static_assert(sizeof(ARM64_TCR_EL1) == 8);
 
 union ARM64_CPACR_EL1 {
     struct {
@@ -110,47 +39,6 @@ union ARM64_CPACR_EL1 {
 } __attribute((packed));
 
 static_assert(sizeof(ARM64_CPACR_EL1) == 8);
-
-union ARM64_SCTLR_EL1 {
-    struct {
-        uint64_t M : 1;
-        uint64_t A : 1;
-        uint64_t C : 1;
-        uint64_t SA : 1;
-        uint64_t SA0 : 1;
-        uint64_t : 1;
-        uint64_t nAA : 1;
-        uint64_t : 2;
-        uint64_t UMA : 1;
-        uint64_t EnRCTX : 1;
-        uint64_t : 1;
-        uint64_t I : 1;
-        uint64_t EnDB : 1;
-        uint64_t DZE : 1;
-        uint64_t UCT : 1;
-        uint64_t nTWI : 1;
-        uint64_t BR : 1;
-        uint64_t nTWE : 1;
-        uint64_t WXN : 1;
-        uint64_t : 1;
-        uint64_t IESB : 1;
-        uint64_t : 1;
-        uint64_t SPAN : 1;
-        uint64_t E0E : 1;
-        uint64_t EE : 1;
-        uint64_t UCI : 1;
-        uint64_t EnDA : 1;
-        uint64_t : 2;
-        uint64_t EnIB : 1;
-        uint64_t EnIA : 1;
-        uint64_t : 12;
-        uint64_t DSSBS : 1;
-        uint64_t : 19;
-    };
-    uint64_t value;
-} __attribute((packed));
-
-static_assert(sizeof(ARM64_SCTLR_EL1) == 8);
 
 #define MAX_MAP_ENTRIES 256
 
