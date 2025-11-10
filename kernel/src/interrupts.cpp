@@ -12,15 +12,15 @@ module;
 #include <span>
 #include "ints.h"
 
-#ifdef __aarch64__
-#include "aarch64/mem.h"
-#else
+#ifndef __aarch64__
 #include "x86/mem.h"
 #endif
 
 export module interrupts;
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+import aarch64;
+#else
 import apic;
 #endif
 

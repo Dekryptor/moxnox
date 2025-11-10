@@ -6,9 +6,7 @@ module;
 #include <span>
 #include <atomic>
 
-#ifdef __aarch64__
-#include "aarch64/mem.h"
-#else
+#ifndef __aarch64__
 #include "x86/mem.h"
 #endif
 

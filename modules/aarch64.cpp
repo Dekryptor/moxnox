@@ -131,6 +131,18 @@ export struct ARM64_HARDWARE_PTE {
 
 static_assert(sizeof(ARM64_HARDWARE_PTE) == 8);
 
+export union ARM64_ESR {
+    struct {
+        uint64_t ISS : 25;
+        uint64_t IL : 1;
+        uint64_t EC : 6;
+        uint64_t ISS2 : 24;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_ESR) == 8);
+
 export template<>
 consteval bool format_spec_valid<ARM64_SCTLR_EL1>(string_view fmt) {
     return fmt.empty();

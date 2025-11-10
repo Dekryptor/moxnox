@@ -13,9 +13,7 @@ module;
 #include "section2.h"
 #include "assert.h"
 
-#ifdef __aarch64__
-#include "aarch64/mem.h"
-#else
+#ifndef __aarch64__
 #include "x86/mem.h"
 #endif
 
