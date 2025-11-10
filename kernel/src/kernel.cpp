@@ -186,18 +186,14 @@ static void keywait() {
     print("\e[?25h");
 }
 
-void main_thread() {
+void main_thread(void* ctx) {
+    auto& lb = *(loader_block*)ctx;
+
     print("\e[2J\e[1;1H");  // erase screen, move to top left
 
     acpi_early_init_done = true;
 
-    free_lower_half_mappings();
-    free_bootloader_memory();
-
     setup_folios();
-
-    if (GetTime)
-        get_time_from_efi();
 
     init_acpi();
     find_acpi_devices();
@@ -212,6 +208,22 @@ void main_thread() {
         bsod("init_console failed\n");
 #endif
 
+    _printk = safe_print;
+
+    if ((console_type == console_type::boot_framebuffer || console_type == console_type::other_framebuffer) && !init_fb_console())
+        print("init_fb_console failed\n");
+
+    if (lb.SetVirtualAddressMap) {
+        if (!map_uefi(lb))
+            bsod("map_uefi failed");
+    }
+
+    free_lower_half_mappings();
+    free_bootloader_memory();
+
+    if (GetTime)
+        get_time_from_efi();
+
     if (!init_keyboard_pipe())
         print("init_keyboard_pipe failed\n");
 
@@ -221,10 +233,6 @@ void main_thread() {
         init_serial(0x3f8, 4, "");
 #endif
 
-    _printk = safe_print;
-
-    if ((console_type == console_type::boot_framebuffer || console_type == console_type::other_framebuffer) && !init_fb_console())
-        print("init_fb_console failed\n");
 
     print(MOXNOX_VERSION_STRING "\n");
 
@@ -326,11 +334,6 @@ void startup(loader_block* lb) {
     if (!init_memory(*lb))
         goto hang;
 
-    if (lb->SetVirtualAddressMap) {
-        if (!map_uefi(*lb))
-            goto hang;
-    }
-
     call_global_constructors();
 
     if (!copy_map_ptr(*lb))
@@ -364,7 +367,7 @@ void startup(loader_block* lb) {
 
     _printk = early_print;
 
-    if (!add_kernel_thread(main_thread))
+    if (!add_kernel_thread(main_thread, lb))
         goto hang;
 
     // FIXME - C++ exceptions
