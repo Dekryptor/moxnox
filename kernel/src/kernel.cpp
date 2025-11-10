@@ -233,7 +233,6 @@ void main_thread(void* ctx) {
         init_serial(0x3f8, 4, "");
 #endif
 
-
     print(MOXNOX_VERSION_STRING "\n");
 
     keywait();
