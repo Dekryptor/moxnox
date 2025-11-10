@@ -34,14 +34,7 @@ static void (*startup)(loader_block* lb) __attribute__((section (".data")));
 extern "C" uint8_t get_current_el();
 extern "C" void el2_to_el1();
 extern "C" void el3_to_el1();
-extern "C" uint64_t tcr_el1_load();
-extern "C" void tcr_el1_store(uint64_t tcr_el1);
 extern "C" void enable_paging(uint64_t ttbr0, uint64_t ttbr1);
-extern "C" uint64_t cpacr_el1_load();
-extern "C" void cpacr_el1_store(uint64_t cpacr_el1);
-extern "C" uint64_t sctlr_el1_load();
-extern "C" void sctlr_el1_store(uint64_t sctlr_el1);
-extern "C" void mair_el1_store(uint64_t mair_el1);
 
 extern "C"
 size_t strlen(const char* s) {

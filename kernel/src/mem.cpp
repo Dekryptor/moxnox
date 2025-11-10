@@ -344,28 +344,6 @@ span<char> do_format_arg(span<char> sp, string_view, enum page_state arg) {
 }
 
 #ifdef __aarch64__
-export uint64_t ttbr0_el1_load() {
-    uint64_t ret;
-
-    __asm __volatile (
-        "mrs %x[res], ttbr0_el1"
-        : [res] "=r" (ret)
-    );
-
-    return ret;
-}
-
-export uint64_t ttbr1_el1_load() {
-    uint64_t ret;
-
-    __asm __volatile (
-        "mrs %x[res], ttbr1_el1"
-        : [res] "=r" (ret)
-    );
-
-    return ret;
-}
-
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa,
                                   uint64_t& scratch_pages, bool use_huge_pages) {
     auto pte0 = span((ARM64_HARDWARE_PTE*)ttbr1_el1_load(), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));

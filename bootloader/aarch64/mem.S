@@ -64,18 +64,6 @@ msr	hcr_el2, x0
 
 eret
 
-// uint64_t tcr_el1_load();
-.global tcr_el1_load
-tcr_el1_load:
-mrs	x0, tcr_el1
-ret
-
-// void tcr_el1_store(uint64_t tcr_el1);
-.global tcr_el1_store
-tcr_el1_store:
-msr	tcr_el1, x0
-ret
-
 // void enable_paging(uint64_t ttbr0, uint64_t ttbr1);
 .global enable_paging
 enable_paging:
@@ -85,32 +73,3 @@ isb
 
 ret
 
-// uint64_t cpacr_el1_load();
-.global cpacr_el1_load
-cpacr_el1_load:
-mrs	x0, cpacr_el1
-ret
-
-// void cpacr_el1_store(uint64_t cpacr_el1);
-.global cpacr_el1_store
-cpacr_el1_store:
-msr	cpacr_el1, x0
-ret
-
-// uint64_t sctlr_el1_load();
-.global sctlr_el1_load
-sctlr_el1_load:
-mrs	x0, sctlr_el1
-ret
-
-// void sctlr_el1_store(uint64_t sctlr_el1);
-.global sctlr_el1_store
-sctlr_el1_store:
-msr	sctlr_el1, x0
-ret
-
-// void mair_el1_store(uint64_t mair_el1);
-.global mair_el1_store
-mair_el1_store:
-msr	mair_el1, x0
-ret

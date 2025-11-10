@@ -358,3 +358,132 @@ export span<char> do_format_arg(span<char> sp, string_view, const ARM64_HARDWARE
 
     return sp;
 }
+
+__attribute__((always_inline))
+export uint64_t inline tcr_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs\t%0, tcr_el1"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+export void inline tcr_el1_store(uint64_t v) {
+    __asm __volatile (
+        "msr\ttcr_el1, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+export uint64_t inline hcr_el2_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %0, hcr_el2"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+export void inline hcr_el2_store(uint64_t v) {
+    __asm __volatile (
+        "msr hcr_el2, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+export uint64_t sctlr_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], sctlr_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+export uint64_t cpacr_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], cpacr_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+export uint64_t mair_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], mair_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+export void inline mair_el1_store(uint64_t v) {
+    __asm __volatile (
+        "msr mair_el1, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+export void inline sctlr_el1_store(uint64_t v) {
+    __asm __volatile (
+        "msr sctlr_el1, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+export void inline cpacr_el1_store(uint64_t v) {
+    __asm __volatile (
+        "msr cpacr_el1, %0"
+        :
+        : "r" (v)
+    );
+}
+
+__attribute__((always_inline))
+export uint64_t inline ttbr0_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], ttbr0_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+export uint64_t inline ttbr1_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], ttbr1_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}

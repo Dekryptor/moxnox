@@ -308,50 +308,6 @@ static void ap_startup() {
 #endif
 
 #ifdef __aarch64__
-static uint64_t sctlr_el1_load() {
-    uint64_t ret;
-
-    __asm __volatile (
-        "mrs %x[res], sctlr_el1"
-        : [res] "=r" (ret)
-    );
-
-    return ret;
-}
-
-static uint64_t cpacr_el1_load() {
-    uint64_t ret;
-
-    __asm __volatile (
-        "mrs %x[res], cpacr_el1"
-        : [res] "=r" (ret)
-    );
-
-    return ret;
-}
-
-static uint64_t tcr_el1_load() {
-    uint64_t ret;
-
-    __asm __volatile (
-        "mrs %x[res], tcr_el1"
-        : [res] "=r" (ret)
-    );
-
-    return ret;
-}
-
-static uint64_t mair_el1_load() {
-    uint64_t ret;
-
-    __asm __volatile (
-        "mrs %x[res], mair_el1"
-        : [res] "=r" (ret)
-    );
-
-    return ret;
-}
-
 static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
                       uint64_t boot_stack, uint64_t identity_map,
                       cpu_block* cpu_block) {

@@ -1852,51 +1852,7 @@ static EFI_STATUS find_initrd_file(EFI_LOADED_IMAGE_PROTOCOL* image) {
     return EFI_SUCCESS;
 }
 
-#ifdef __aarch64__
-
-__attribute__((always_inline))
-static uint64_t inline tcr_el1_load() {
-    uint64_t ret;
-
-    __asm __volatile (
-        "mrs\t%0, tcr_el1"
-        : "=r" (ret)
-    );
-
-    return ret;
-}
-
-__attribute__((always_inline))
-static void inline tcr_el1_store(uint64_t v) {
-    __asm __volatile (
-        "msr\ttcr_el1, %0"
-        :
-        : "r" (v)
-    );
-}
-
-__attribute__((always_inline))
-static uint64_t inline hcr_el2_load() {
-    uint64_t ret;
-
-    __asm __volatile (
-        "mrs %0, hcr_el2"
-        : "=r" (ret)
-    );
-
-    return ret;
-}
-
-__attribute__((always_inline))
-static void inline hcr_el2_store(uint64_t v) {
-    __asm __volatile (
-        "msr hcr_el2, %0"
-        :
-        : "r" (v)
-    );
-}
-
-#else
+#ifndef __aarch64__
 
 __attribute__((always_inline))
 static uint64_t inline __readcr0() {
