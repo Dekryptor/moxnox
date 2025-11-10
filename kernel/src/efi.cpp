@@ -48,6 +48,11 @@ export bool map_uefi(const loader_block& lb) {
 
     uint64_t va = UEFI_VABLOCK;
 
+#ifdef __aarch64__
+    // work round buggy firmware trying to fixup non-writable code
+    mark_lower_half_writable();
+#endif
+
     // FIXME - fail if we would overflow uefi_mappings
 
     auto d = uefi_mappings;

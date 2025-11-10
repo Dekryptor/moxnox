@@ -1044,6 +1044,56 @@ export void free_lower_half_mappings() {
 
     mark_mem_as_free(ttbr0, PAGE_SIZE, false);
 }
+
+export void mark_lower_half_writable() {
+    auto ttbr0 = ttbr0_el1_load();
+    auto pte0 = span((ARM64_HARDWARE_PTE*)phys_address(ttbr0), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+    for (auto& p1 : pte0) {
+        if (!p1.valid)
+            continue;
+
+        auto pte1 = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)p1.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+        for (auto& p2 : pte1) {
+            if (!p2.valid)
+                continue;
+
+            if (!p2.table_entry) {
+                p2.AP = ARM64_PTE_AP_EL1RW;
+                continue;
+            }
+
+            auto pte2 = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)p2.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+            for (auto& p3 : pte2) {
+                if (!p3.valid)
+                    continue;
+
+                if (!p3.table_entry) {
+                    p3.AP = ARM64_PTE_AP_EL1RW;
+                    continue;
+                }
+
+                auto pte3 = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)p3.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
+
+                for (auto& p4 : pte3) {
+                    if (!p4.valid)
+                        continue;
+
+                    p4.AP = ARM64_PTE_AP_EL1RW;
+                }
+            }
+        }
+    }
+
+    __asm __volatile (
+        "tlbi vmalle1\n"
+        "dsb ish\n"
+        "isb\n"
+    );
+}
+
 #else
 export void free_lower_half_mappings() {
     auto cr3 = __readcr3();
