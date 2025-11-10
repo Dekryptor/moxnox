@@ -231,13 +231,13 @@ static acpi_recognizer mod_pnp_hids_pci[] = {
     { {}, "PNP0A08", found_pci_bus, nullptr }
 };
 
-static void init_acpi_hids() {
+static void init_acpi_hids_pci() {
     for (unsigned int i = 0; i < sizeof(mod_pnp_hids_pci) / sizeof(*mod_pnp_hids_pci); i++) {
         insert_tail_list(pnp_hids, mod_pnp_hids_pci[i].le);
     }
 }
 
-static module_init module_init_serial(init_acpi_hids);
+static module_init module_init_pci(init_acpi_hids_pci);
 
 struct check_bus_entry {
     list_entry le;
