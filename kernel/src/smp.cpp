@@ -452,7 +452,7 @@ export bool init_smp() {
         data = data.subspan(h.Length);
     }
 
-    cpu_ids = (decltype(bsp_id)*)malloc(ap_count + 1);
+    cpu_ids = (decltype(bsp_id)*)malloc(sizeof(decltype(bsp_id)) * (ap_count + 1));
     if (!cpu_ids) {
         print("malloc failed\n");
         return false;
