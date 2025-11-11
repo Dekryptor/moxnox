@@ -1125,6 +1125,8 @@ static EFI_STATUS get_memory_map() {
         map[0].len = map[1].addr;
         map[0].type = mem_type::reserved;
         map[0].efi_attributes = 0;
+
+        num_map_entries++;
     } else {
         if (map[0].type != mem_type::reserved) { // snatch first page
             insert_map_entry(0);
@@ -1136,6 +1138,8 @@ static EFI_STATUS get_memory_map() {
 
             map[1].addr += EFI_PAGE_SIZE;
             map[1].len -= EFI_PAGE_SIZE;
+
+            num_map_entries++;
         }
     }
 
