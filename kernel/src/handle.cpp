@@ -50,8 +50,7 @@ export nt_status name_object(object& obj, string_view name, bool persistent = tr
         return nt_status::INTERNAL_ERROR; // FIXME?
     }
 
-    auto le = name_list.next;
-    while (le != &name_list) {
+    for (auto le = name_list.next; le != &name_list; le = le->next) {
         auto& ne2 = containing_record<name_entry>(le);
 
         if (ne2.name_len == name.length()) {
@@ -63,8 +62,6 @@ export nt_status name_object(object& obj, string_view name, bool persistent = tr
                 return nt_status::OBJECT_NAME_COLLISION;
             }
         }
-
-        le = le->next;
     }
 
     obj.named = true;
