@@ -487,6 +487,12 @@ export bool init_smp() {
         cpu_block* cpu_block;
     };
 
+    bool using_gicv2;
+
+    disable_preempt();
+    using_gicv2 = get_cpu_block()->gicc != 0;
+    enable_preempt();
+
     auto boot_info = (info*)malloc(sizeof(info) * ap_count);
     for (unsigned int i = 0; i < ap_count; i++) {
         boot_info[i].stack = allocate_page();
@@ -513,14 +519,17 @@ export bool init_smp() {
             return false;
         }
 
-        auto gicc = init_interrupts_cpu<false>(cpu_ids[i + 1]);
-        if (!gicc) {
-            print("init_interrupts_cpu failed for CPU {} (MPIDR {:x})\n",
-                  i + 1, cpu_ids[i + 1]);
-            return false;
-        }
+        if (using_gicv2) {
+            auto gicc = init_interrupts_cpu<false>(cpu_ids[i + 1]);
+            if (!gicc) {
+                print("init_interrupts_cpu failed for CPU {} (MPIDR {:x})\n",
+                    i + 1, cpu_ids[i + 1]);
+                return false;
+            }
 
-        boot_info[i].cpu_block->gicc = gicc;
+            boot_info[i].cpu_block->gicc = gicc;
+        } else
+            boot_info[i].cpu_block->gicc = 0;
     }
 
     ap_left.store(ap_count, memory_order_release);
