@@ -397,8 +397,6 @@ export bool init_smp() {
 
     bool nosmp = false;
     loop_through_cmdline([&](string_view s) {
-        static const string_view prefix = "console=";
-
         if (s == "nosmp") {
             nosmp = true;
             return false;
