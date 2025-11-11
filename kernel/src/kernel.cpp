@@ -14,6 +14,8 @@ import psci;
 import serial;
 #endif
 
+import config;
+import format;
 import bsod;
 import print;
 import cmdline;
@@ -232,6 +234,8 @@ void main_thread(void* ctx) {
     if (rsdp_pa == 0)
         init_serial(0x3f8, 4, "");
 #endif
+
+    print("found {} of memory\n", byte_size(num_ram_pages << PAGE_SHIFT));
 
     print(MOXNOX_VERSION_STRING "\n");
 

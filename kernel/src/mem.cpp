@@ -129,6 +129,7 @@ uint8_t MAXPHYADDR = 36;
 #endif
 
 export uint64_t zero_pfn;
+export uint64_t num_ram_pages = 0;
 
 export struct init_map_entry {
     list_entry le;
@@ -1555,6 +1556,8 @@ export bool init_memory(const loader_block& lb) {
                     p.order = 0;
                     free_folios[0]++;
                 }
+
+                num_ram_pages += map.len >> PAGE_SHIFT;
             break;
 
             case mem_type::initrd:
@@ -1566,6 +1569,8 @@ export bool init_memory(const loader_block& lb) {
                     p.state = page_state::used;
                     p.order = 0;
                 }
+
+                num_ram_pages += map.len >> PAGE_SHIFT;
             break;
 
             case mem_type::bootloader:
@@ -1578,6 +1583,8 @@ export bool init_memory(const loader_block& lb) {
                     p.state = page_state::boot;
                     p.order = 0;
                 }
+
+                num_ram_pages += map.len >> PAGE_SHIFT;
             break;
 
             default:
@@ -1587,6 +1594,8 @@ export bool init_memory(const loader_block& lb) {
                     p.state = page_state::reserved;
                     p.order = 0;
                 }
+
+                num_ram_pages += map.len >> PAGE_SHIFT;
             break;
         }
     }
