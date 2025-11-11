@@ -221,13 +221,24 @@ static void __attribute__((noreturn)) ap_startup() {
     );
 
     auto& cb = *get_cpu_block();
-    auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
-    auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
 
-    GICC_CTLR.EnableGrp0 = 1; // enable GICC
+    if (cb.gicc) {
+        auto& GICC_CTLR = *(volatile ARM64_GICC_CTLR*)cb.gicc;
+        auto& GICC_PMR = *(volatile ARM64_GICC_PMR*)(cb.gicc + 0x4);
 
-    // allow all interrupts through
-    GICC_PMR.Priority = 0xff;
+        GICC_CTLR.EnableGrp0 = 1; // enable GICC
+
+        // allow all interrupts through
+        GICC_PMR.Priority = 0xff;
+    } else {
+        // allow all interrupts through
+        __asm __volatile (
+            "msr ICC_PMR_EL1, %x[val]\n"
+            :
+            : [val] "r" (0xff)
+            : "x0"
+        );
+    }
 
     // set up timer
     __asm __volatile (
