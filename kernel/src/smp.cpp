@@ -245,6 +245,17 @@ static void __attribute__((noreturn)) ap_startup() {
         // put all SGIs and PPIs in group 1
         auto& GICR_IGROUPR0 = *(volatile uint32_t*)(cpu_gicr + 0x10080);
         GICR_IGROUPR0 = 0xffffffff;
+
+        // enable all SGIs and PPIs
+        auto& GICR_ISENABLER0 = *(volatile uint32_t*)(cpu_gicr + 0x10100);
+        GICR_ISENABLER0 = 0xffffffff;
+
+        // enable group 1 interrupts
+        __asm __volatile (
+            "msr ICC_IGRPEN1_EL1, %x[val]"
+            :
+            : [val] "r" (1)
+        );
     }
 
     // set up timer
