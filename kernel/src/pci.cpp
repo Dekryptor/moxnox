@@ -192,6 +192,7 @@ export struct pci_device {
     uint8_t bus;
     uint8_t device;
     uint8_t function;
+    uint8_t pin;
     array<span<volatile uint8_t>, 6> bar;
     span<volatile uint8_t> msi;
     volatile pci_msix* msix = nullptr;
@@ -262,6 +263,7 @@ static void device_found0(const volatile pci_header& h, uint8_t bus, uint8_t dev
     pci_dev.bus = bus;
     pci_dev.device = dev;
     pci_dev.function = func;
+    pci_dev.pin = h0.interrupt_pin;
 
     if (h0.status & 0x10 && (h0.capabilities_pointer & ~0x3) != 0) {
         auto ptr = (uint8_t*)((uint8_t*)&h0 + (h0.capabilities_pointer & ~0x3));
@@ -388,6 +390,15 @@ static void device_found0(const volatile pci_header& h, uint8_t bus, uint8_t dev
                 }
             }
         }
+    }
+
+    if (pci_dev.pin != 0) {
+        char p[2];
+
+        p[0] = (char)(pci_dev.pin + 'A' - 1);
+        p[1] = 0;
+
+        print("pin {}\n", p);
     }
 
     insert_tail_list(pci_device_list, pci_dev.le);
