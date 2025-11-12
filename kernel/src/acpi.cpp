@@ -1585,5 +1585,4 @@ export ACPI_STATUS acpi_evaluate_integer(ACPI_HANDLE handle, ACPI_STRING path,
     val = obj.Integer.Value;
 
     return AE_OK;
-
 }
