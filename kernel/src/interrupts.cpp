@@ -117,6 +117,24 @@ union ARM64_GICv2m_MSI_TYPER {
     uint32_t value;
 } __attribute((packed));
 
+export union ARM64_ICC_SGI1R {
+    struct {
+        uint64_t TargetList : 16;
+        uint64_t Aff1 : 8;
+        uint64_t INTID : 4;
+        uint64_t : 4;
+        uint64_t Aff2 : 8;
+        uint64_t IRM : 1;
+        uint64_t : 3;
+        uint64_t RS : 4;
+        uint64_t Aff3 : 8;
+        uint64_t : 8;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_ICC_SGI1R) == 8);
+
 static const unsigned int MSI_TYPER = 0x08;
 static const unsigned int MSI_SETSPI_NS = 0x40;
 
@@ -450,8 +468,17 @@ export void clear_irq_pending_bit(uint32_t number) {
 
 export void enable_irq(uint32_t number) {
     if (gicr && number < 32) { // PPIs and SGIs use GICR if GICv3
-        auto& GICR_ISENABLER0 = *(volatile uint32_t*)(gicr + 0x10100);
+        disable_preempt();
+
+        auto& cb = *get_cpu_block();
+
+        // FIXME - different for GICv4
+        auto cpu_gicr = gicr + (cb.cpu_no * 0x20000);
+
+        auto& GICR_ISENABLER0 = *(volatile uint32_t*)(cpu_gicr + 0x10100);
         GICR_ISENABLER0 = 1 << number;
+
+        enable_preempt();
     } else {
         auto& GICD_ISENABLER = *(volatile uint32_t*)(gicd + 0x100 + ((number / 32) * 4));
         GICD_ISENABLER = 1 << (number % 32);
@@ -1139,6 +1166,8 @@ static bool init_interrupts_global() {
             :
             : [val] "r" (1)
         );
+
+        enable_irq(HALT_SGI);
     } else { // gic_ver == 2
         auto msi_frame_pa = find_msi_frame_address();
 

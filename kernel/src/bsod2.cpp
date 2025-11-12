@@ -123,14 +123,28 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 #ifdef __aarch64__
         processors_left_to_halt = num_cpus - 1;
 
-        auto& GICD_SGIR = *(volatile uint32_t*)(gicd + 0xf00);
-        ARM64_GICD_SGIR sgir;
+        if (cb.gicc) { // GICv2
+            auto& GICD_SGIR = *(volatile uint32_t*)(gicd + 0xf00);
+            ARM64_GICD_SGIR sgir;
 
-        sgir.value = 0;
-        sgir.TargetListFilter = 1; // send IPI to everybody else
-        sgir.SGIINTID = HALT_SGI;
+            sgir.value = 0;
+            sgir.TargetListFilter = 1; // send IPI to everybody else
+            sgir.SGIINTID = HALT_SGI;
 
-        GICD_SGIR = sgir.value;
+            GICD_SGIR = sgir.value;
+        } else {
+            ARM64_ICC_SGI1R sgir;
+
+            sgir.value = 0;
+            sgir.IRM = 1;
+            sgir.INTID = HALT_SGI;
+
+            __asm __volatile (
+                "msr icc_sgi1r_el1, %x[res]"
+                :
+                : [res] "r" (sgir.value)
+            );
+        }
 
         while (processors_left_to_halt.load(memory_order_acquire) > 0) {
             __asm("yield");
