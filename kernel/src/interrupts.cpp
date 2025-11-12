@@ -121,8 +121,7 @@ static const unsigned int MSI_TYPER = 0x08;
 static const unsigned int MSI_SETSPI_NS = 0x40;
 
 export const uint64_t MPIDR_MASK = 0xff00ffffff;
-export uint64_t gicd;
-static uint64_t gicr;
+export uint64_t gicd, gicr;
 static uint64_t msi_frame = 0;
 export uint64_t msi_frame_setspi = 0;
 static uint16_t msi_base_spi;

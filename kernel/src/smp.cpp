@@ -238,6 +238,13 @@ static void __attribute__((noreturn)) ap_startup() {
             : [val] "r" (0xff)
             : "x0"
         );
+
+        // FIXME - different for GICv4
+        auto cpu_gicr = gicr + (cb.cpu_no * 0x20000);
+
+        // put all SGIs and PPIs in group 1
+        auto& GICR_IGROUPR0 = *(volatile uint32_t*)(cpu_gicr + 0x10080);
+        GICR_IGROUPR0 = 0xffffffff;
     }
 
     // set up timer
