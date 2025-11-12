@@ -230,6 +230,110 @@ export union ARM64_HCR_EL2 {
 
 static_assert(sizeof(ARM64_HCR_EL2) == 8);
 
+export union ARM64_GICD_CTLR {
+    struct {
+        uint32_t EnableGrp0 : 1;
+        uint32_t EnableGrp1NS : 1;
+        uint32_t EnableGrp1S : 1;
+        uint32_t : 1;
+        uint32_t ARE_S : 1;
+        uint32_t ARE_NS : 1;
+        uint32_t DS : 1;
+        uint32_t E1NWF : 1;
+        uint32_t nASSGIreq : 1;
+        uint32_t : 22;
+        uint32_t RWP : 1;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_GICD_CTLR) == 4);
+
+export union ARM64_GICC_CTLR {
+    struct {
+        uint32_t EnableGrp0 : 1;
+        uint32_t EnableGrp1 : 1;
+        uint32_t  : 1;
+        uint32_t FIQEn : 1;
+        uint32_t CBPR : 1;
+        uint32_t FIQBypDisGrp0 : 1;
+        uint32_t IRQBypDisGrp0 : 1;
+        uint32_t FIQBypDisGrp1 : 1;
+        uint32_t IRQBypDisGrp1 : 1;
+        uint32_t EOImodeS : 1;
+        uint32_t EOImodeNS : 1;
+        uint32_t : 21;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_GICC_CTLR) == 4);
+
+export union ARM64_GICC_PMR {
+    struct {
+        uint32_t Priority : 8;
+        uint32_t : 24;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_GICC_PMR) == 4);
+
+export union ARM64_GICD_SGIR {
+    struct {
+        uint32_t SGIINTID : 4;
+        uint32_t : 11;
+        uint32_t NSATT : 1;
+        uint32_t CPUTargetList : 8;
+        uint32_t TargetListFilter : 2;
+        uint32_t : 6;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_GICD_SGIR) == 4);
+
+export union ARM64_GICC_IAR {
+    struct {
+        uint32_t InterruptID : 10;
+        uint32_t CPUID : 3;
+        uint32_t : 19;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_GICC_IAR) == 4);
+
+export union ARM64_GICv2m_MSI_TYPER {
+    struct {
+        uint32_t num_spis : 10;
+        uint32_t : 6;
+        uint32_t base_spi : 10;
+        uint32_t : 6;
+    };
+    uint32_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_GICv2m_MSI_TYPER) == 4);
+
+export union ARM64_ICC_SGI1R {
+    struct {
+        uint64_t TargetList : 16;
+        uint64_t Aff1 : 8;
+        uint64_t INTID : 4;
+        uint64_t : 4;
+        uint64_t Aff2 : 8;
+        uint64_t IRM : 1;
+        uint64_t : 3;
+        uint64_t RS : 4;
+        uint64_t Aff3 : 8;
+        uint64_t : 8;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_ICC_SGI1R) == 8);
+
 export template<>
 consteval bool format_spec_valid<ARM64_SCTLR_EL1>(string_view fmt) {
     return fmt.empty();

@@ -6,7 +6,9 @@
 #include <atomic>
 #include "ints.h"
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+import aarch64;
+#else
 import apic;
 #endif
 
