@@ -12,7 +12,6 @@ import interrupts;
 import vfs;
 import pipe;
 import disable_interrupts;
-import scheduler;
 import smp;
 import efi;
 import loaderblock;
