@@ -193,6 +193,7 @@ export struct pci_device {
     uint8_t device;
     uint8_t function;
     uint8_t pin;
+    optional<uint32_t> irq;
     array<span<volatile uint8_t>, 6> bar;
     span<volatile uint8_t> msi;
     volatile pci_msix* msix = nullptr;
@@ -302,9 +303,6 @@ static optional<uint32_t> search_routing(check_bus_entry& bus, uint8_t dev,
         if (((ent.Address >> 16) & 0xffff) == dev && pin == ent.Pin + 1) {
             ACPI_HANDLE h;
 
-            print("FIXME - routing (pin {:x}, address {:x}, source index {:x}, source {})\n",
-                  ent.Pin, ent.Address, ent.SourceIndex, ent.Source);
-
             if (!ent.Source[0])
                 return ent.SourceIndex; // source index is actually IRQ
 
@@ -379,9 +377,11 @@ static optional<uint32_t> search_routing(check_bus_entry& bus, uint8_t dev,
     return nullopt;
 }
 
-static void device_found0(const volatile pci_header& h, check_bus_entry& bus,
-                          uint8_t dev, uint8_t func) {
+static void device_found0(const volatile pci_header& h, uint16_t seg,
+                          check_bus_entry& bus, uint8_t dev, uint8_t func) {
     volatile auto& h0 = *(pci_header0*)&h;
+    uint16_t vendor_id = h.vendor_id;
+    uint16_t device_id = h.device_id;
 
     auto ppci_dev = new pci_device;
     if (!ppci_dev) {
@@ -523,25 +523,23 @@ static void device_found0(const volatile pci_header& h, check_bus_entry& bus,
         }
     }
 
-    if (pci_dev.pin != 0) {
-        char p[2];
+    if (pci_dev.pin != 0 && !bus.routing.empty()) {
+        auto irq = search_routing(bus, dev, pci_dev.pin);
 
-        p[0] = (char)(pci_dev.pin + 'A' - 1);
-        p[1] = 0;
-
-        print("pin {}\n", p);
-
-        if (!bus.routing.empty()) {
-            auto irq = search_routing(bus, dev, pci_dev.pin);
-
-            if (!irq.has_value())
-                print("no IRQ found\n");
-            else
-                print("IRQ {}\n", *irq);
-            // FIXME
-        }
+        if (!irq.has_value())
+            print("no IRQ found for {:04x}:{:02x}:{:02x}:{:x}\n",
+                    seg, bus.num, dev, func);
+        else
+            pci_dev.irq = *irq;
     }
 
+    if (pci_dev.irq.has_value()) {
+        print("found PCI device {:04x}:{:02x}:{:02x}:{:x} {:04x}:{:04x} (IRQ {})\n",
+              seg, bus.num, dev, func, vendor_id, device_id, *pci_dev.irq);
+    } else {
+        print("found PCI device {:04x}:{:02x}:{:02x}:{:x} {:04x}:{:04x}\n",
+              seg, bus.num, dev, func, vendor_id, device_id);
+    }
 
     insert_tail_list(pci_device_list, pci_dev.le);
 }
@@ -661,21 +659,16 @@ static void device_found1(const volatile pci_header& h, check_bus_entry& bus,
 static void device_found(volatile pci_header& h, uint16_t seg,
                          check_bus_entry& bus, uint8_t dev, uint8_t func,
                          list_entry& buses) {
-    uint16_t vendor_id = h.vendor_id;
-    uint16_t device_id = h.device_id;
     uint8_t header_type = h.header_type & 0x7f;
 
     if (header_type != 0 && header_type != 1)
         return;
 
-    print("found PCI device {:04x}:{:02x}:{:02x}:{:x} {:04x}:{:04x}\n",
-          seg, bus.num, dev, func, vendor_id, device_id);
-
     h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
     switch (header_type) {
         case 0:
-            device_found0(h, bus, dev, func);
+            device_found0(h, seg, bus, dev, func);
             break;
 
         case 1:
