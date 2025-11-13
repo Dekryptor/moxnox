@@ -545,7 +545,7 @@ static void call_pic_func() {
 
     auto status = AcpiEvaluateObject(nullptr, (char*)"\\_PIC", &params,
                                      nullptr);
-    if (ACPI_FAILURE(status)) {
+    if (ACPI_FAILURE(status) && status != AE_NOT_FOUND) {
         print("AcpiEvaluateObject returned {} for \\_PIC\n", (acpi_status)status);
         return;
     }
