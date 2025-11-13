@@ -241,19 +241,6 @@ static void init_acpi_hids_pci() {
 
 static module_init module_init_pci(init_acpi_hids_pci);
 
-struct check_bus_entry {
-    ~check_bus_entry() {
-        if (free_routing)
-            vfree(routing.data(), bytes_to_pages(routing.size()) << PAGE_SHIFT);
-    }
-
-    list_entry le;
-    uint8_t num;
-    ACPI_HANDLE handle;
-    span<uint8_t> routing;
-    bool free_routing = false;
-};
-
 export constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) {
     return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
 }
@@ -290,10 +277,8 @@ static ACPI_STATUS get_resources(ACPI_HANDLE handle, span<uint8_t>& out) {
     return AE_OK;
 }
 
-static optional<uint32_t> search_routing(check_bus_entry& bus, uint8_t dev,
-                                         uint8_t pin) {
-    auto routing = bus.routing;
-
+static optional<uint32_t> search_routing(ACPI_HANDLE handle, uint8_t dev,
+                                         uint8_t pin, span<uint8_t> routing) {
     while (routing.size() > 0) {
         auto& ent = *(ACPI_PCI_ROUTING_TABLE*)routing.data();
 
@@ -306,7 +291,7 @@ static optional<uint32_t> search_routing(check_bus_entry& bus, uint8_t dev,
             if (!ent.Source[0])
                 return ent.SourceIndex; // source index is actually IRQ
 
-            auto status = AcpiGetHandle(bus.handle, ent.Source, &h);
+            auto status = AcpiGetHandle(handle, ent.Source, &h);
             if (ACPI_FAILURE(status)) {
                 print("AcpiGetHandle returned {} for {}\n", (acpi_status)status,
                       ent.Source);
@@ -378,7 +363,8 @@ static optional<uint32_t> search_routing(check_bus_entry& bus, uint8_t dev,
 }
 
 static void device_found0(const volatile pci_header& h, uint16_t seg,
-                          check_bus_entry& bus, uint8_t dev, uint8_t func) {
+                          uint8_t bus, uint8_t dev, uint8_t func,
+                          ACPI_HANDLE handle, span<uint8_t> routing) {
     volatile auto& h0 = *(pci_header0*)&h;
     uint16_t vendor_id = h.vendor_id;
     uint16_t device_id = h.device_id;
@@ -391,7 +377,7 @@ static void device_found0(const volatile pci_header& h, uint16_t seg,
 
     auto& pci_dev = *ppci_dev;
     pci_dev.header = &h0;
-    pci_dev.bus = bus.num;
+    pci_dev.bus = bus;
     pci_dev.device = dev;
     pci_dev.function = func;
     pci_dev.pin = h0.interrupt_pin;
@@ -523,52 +509,25 @@ static void device_found0(const volatile pci_header& h, uint16_t seg,
         }
     }
 
-    if (pci_dev.pin != 0 && !bus.routing.empty()) {
-        auto irq = search_routing(bus, dev, pci_dev.pin);
+    if (pci_dev.pin != 0 && !routing.empty()) {
+        auto irq = search_routing(handle, dev, pci_dev.pin, routing);
 
         if (!irq.has_value())
-            print("no IRQ found for {:04x}:{:02x}:{:02x}:{:x}\n",
-                    seg, bus.num, dev, func);
+            print("no IRQ found for {:04x}:{:02x}:{:02x}:{:x}\n", seg,
+                  bus, dev, func);
         else
             pci_dev.irq = *irq;
     }
 
     if (pci_dev.irq.has_value()) {
         print("found PCI device {:04x}:{:02x}:{:02x}:{:x} {:04x}:{:04x} (IRQ {})\n",
-              seg, bus.num, dev, func, vendor_id, device_id, *pci_dev.irq);
+              seg, bus, dev, func, vendor_id, device_id, *pci_dev.irq);
     } else {
         print("found PCI device {:04x}:{:02x}:{:02x}:{:x} {:04x}:{:04x}\n",
-              seg, bus.num, dev, func, vendor_id, device_id);
+              seg, bus, dev, func, vendor_id, device_id);
     }
 
     insert_tail_list(pci_device_list, pci_dev.le);
-}
-
-struct device_callback_context {
-    uint8_t device;
-    uint8_t function;
-    optional<ACPI_HANDLE> handle;
-};
-
-static ACPI_STATUS device_callback(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
-                                   void* Context,
-                                   void** /*ReturnValue*/) {
-    auto& ctx = *(device_callback_context*)Context;
-
-    uint64_t adr;
-    auto status = acpi_evaluate_integer(Object, (char*)"_ADR", adr);
-    if (ACPI_FAILURE(status)) {
-        if (status != AE_NOT_FOUND)
-            print("acpi_evaluate_integer returned {}\n", (acpi_status)status);
-        return AE_OK;
-    }
-
-    if (adr != (uint32_t)(((uint32_t)ctx.device << 16) | ctx.function))
-        return AE_OK;
-
-    ctx.handle = Object;
-
-    return AE_OK;
 }
 
 static ACPI_STATUS find_routing(ACPI_HANDLE handle, span<uint8_t>& out) {
@@ -603,88 +562,25 @@ static ACPI_STATUS find_routing(ACPI_HANDLE handle, span<uint8_t>& out) {
     return AE_OK;
 }
 
-static void device_found1(const volatile pci_header& h, check_bus_entry& bus,
-                          list_entry& buses, uint8_t dev, uint8_t func) {
-    volatile auto& h1 = *(pci_header1*)&h;
-
-    if (h1.class_code != pci_class::bridge)
-        return;
-
-    if ((enum pci_bridge)h1.sub_class != pci_bridge::pci_to_pci_bridge)
-        return;
-
-    device_callback_context ctx;
-
-    ctx.device = dev;
-    ctx.function = func;
-
-    auto status = AcpiWalkNamespace(ACPI_TYPE_DEVICE, bus.handle, 1,
-                                    device_callback, nullptr, &ctx, nullptr);
-    if (ACPI_FAILURE(status)) {
-        print("AcpiWalkNamespace returned {}\n", (acpi_status)status);
-        return;
-    }
-
-    auto e = new check_bus_entry;
-    if (!e) {
-        print("malloc failed\n");
-        return;
-    }
-
-    e->num = h1.secondary_bus_number;
-
-    if (ctx.handle.has_value()) {
-        e->handle = *ctx.handle;
-
-        span<uint8_t> routing;
-
-        status = find_routing(e->handle, routing);
-
-        if (status == AE_NOT_FOUND)
-            e->routing = bus.routing;
-        else if (ACPI_FAILURE(status)) {
-            print("find_routing returned {} for _PRT for {:02x}:{:02x}:{:x}\n",
-                  (acpi_status)status, bus.num, dev, func);
-            delete e;
-            return;
-        } else {
-            e->routing = routing;
-            e->free_routing = true;
-        }
-    }
-
-    insert_tail_list(buses, e->le);
-}
-
 static void device_found(volatile pci_header& h, uint16_t seg,
-                         check_bus_entry& bus, uint8_t dev, uint8_t func,
-                         list_entry& buses) {
+                         uint8_t bus, uint8_t dev, uint8_t func,
+                         ACPI_HANDLE handle, span<uint8_t> routing) {
     uint8_t header_type = h.header_type & 0x7f;
 
-    if (header_type != 0 && header_type != 1)
+    if (header_type != 0)
         return;
 
     h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
-    switch (header_type) {
-        case 0:
-            device_found0(h, seg, bus, dev, func);
-            break;
-
-        case 1:
-            device_found1(h, bus, buses, dev, func);
-            break;
-
-        // FIXME - header type 2? (PCI-to-CardBus bridge)
-    }
+    device_found0(h, seg, bus, dev, func, handle, routing);
 }
 
-static void check_bus(check_bus_entry& bus, const ACPI_MCFG_ALLOCATION& item,
-                      list_entry& buses) {
+static void check_bus(uint8_t bus, ACPI_HANDLE handle, span<uint8_t> routing,
+                      const ACPI_MCFG_ALLOCATION& item) {
     // FIXME - handle VA leaks?
 
     for (uint8_t dev = 0; dev < 32; dev++) {
-        auto pa = pci_pa(item, bus.num, dev, 0);
+        auto pa = pci_pa(item, bus, dev, 0);
 
         auto va = allocate_va(1);
         if (!va) {
@@ -709,11 +605,11 @@ static void check_bus(check_bus_entry& bus, const ACPI_MCFG_ALLOCATION& item,
 
         bool multifunction = h.header_type & 0x80;
 
-        device_found(h, item.PciSegment, bus, dev, 0, buses);
+        device_found(h, item.PciSegment, bus, dev, 0, handle, routing);
 
         if (multifunction) {
             for (uint8_t func = 1; func < 8; func++) {
-                pa = pci_pa(item, bus.num, dev, func);
+                pa = pci_pa(item, bus, dev, func);
 
                 va = allocate_va(1);
                 if (!va) {
@@ -736,7 +632,8 @@ static void check_bus(check_bus_entry& bus, const ACPI_MCFG_ALLOCATION& item,
                     continue;
                 }
 
-                device_found(h2, item.PciSegment, bus, dev, func, buses);
+                device_found(h2, item.PciSegment, bus, dev, func, handle,
+                             routing);
             }
         }
     }
@@ -952,30 +849,8 @@ static void found_pci_bus(const acpi_device& dev) {
         auto start = max(*bus_start, it.StartBusNumber);
         auto end = min(*bus_end, it.EndBusNumber);
 
-        list_entry buses = { &buses, &buses };
-
         for (unsigned int num = start; num <= end; num++) {
-            auto e = new check_bus_entry;
-            if (!e) {
-                print("malloc failed\n");
-                vfree(routing.data(), routing_pages << PAGE_SHIFT);
-                return;
-            }
-
-            e->num = (uint8_t)num;
-            e->handle = dev.handle;
-            e->routing = routing;
-            insert_tail_list(buses, e->le);
-        }
-
-        while (!is_list_empty(buses)) {
-            auto& e = containing_record<check_bus_entry>(buses.next);
-
-            remove_entry_list(e.le);
-
-            check_bus(e, it, buses);
-
-            free(&e);
+            check_bus((uint8_t)num, dev.handle, routing, it);
         }
     }
 
