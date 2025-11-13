@@ -243,6 +243,7 @@ static module_init module_init_pci(init_acpi_hids_pci);
 struct check_bus_entry {
     list_entry le;
     uint8_t num;
+    ACPI_HANDLE handle;
     span<uint8_t> routing;
 };
 
@@ -250,7 +251,42 @@ export constexpr uint32_t apic_msi_address(uint8_t processor, bool rh, bool dm) 
     return 0xfee00000 | (uint32_t)(processor << 12) | (rh ? 0x8 : 0x0) | (dm ? 0x4 : 0x0);
 }
 
-static void search_routing(span<uint8_t> routing, uint8_t dev, uint8_t pin) {
+static ACPI_STATUS get_resources(ACPI_HANDLE handle, span<uint8_t>& out) {
+    ACPI_BUFFER buf;
+
+    buf.Length = 0;
+    buf.Pointer = nullptr;
+
+    auto status = AcpiGetCurrentResources(handle, &buf);
+    if (ACPI_FAILURE(status) && status != AE_BUFFER_OVERFLOW)
+        return status;
+
+    if (buf.Length == 0)
+        return AE_BAD_DATA;
+
+    auto pages = bytes_to_pages(buf.Length);
+
+    buf.Pointer = vmalloc(pages << PAGE_SHIFT);
+    if (!buf.Pointer) {
+        print("vmalloc failed\n");
+        return AE_NO_MEMORY;
+    }
+
+    status = AcpiGetCurrentResources(handle, &buf);
+    if (ACPI_FAILURE(status)) {
+        vfree(buf.Pointer, pages << PAGE_SHIFT);
+        return status;
+    }
+
+    out = span((uint8_t*)buf.Pointer, buf.Length);
+
+    return AE_OK;
+}
+
+static optional<uint32_t> search_routing(check_bus_entry& bus, uint8_t dev,
+                                         uint8_t pin) {
+    auto routing = bus.routing;
+
     while (routing.size() > 0) {
         auto& ent = *(ACPI_PCI_ROUTING_TABLE*)routing.data();
 
@@ -258,12 +294,83 @@ static void search_routing(span<uint8_t> routing, uint8_t dev, uint8_t pin) {
             break;
 
         if (((ent.Address >> 16) & 0xffff) == dev && pin == ent.Pin + 1) {
+            ACPI_HANDLE h;
+
             print("FIXME - routing (pin {:x}, address {:x}, source index {:x}, source {})\n",
                   ent.Pin, ent.Address, ent.SourceIndex, ent.Source);
+
+            if (!ent.Source[0])
+                return ent.SourceIndex; // source index is actually IRQ
+
+            auto status = AcpiGetHandle(bus.handle, ent.Source, &h);
+            if (ACPI_FAILURE(status)) {
+                print("AcpiGetHandle returned {} for {}\n", (acpi_status)status,
+                      ent.Source);
+                return nullopt;
+            }
+
+            // FIXME - Linux doesn't search resource straightaway (see acpi_pci_irq_check_entry)
+
+            span<uint8_t> res, orig_res;
+
+            status = get_resources(h, res);
+            if (ACPI_FAILURE(status)) {
+                print("get_resources returned {} for {}\n", (acpi_status)status,
+                      ent.Source);
+                return nullopt;
+            }
+
+            orig_res = res;
+
+            uint32_t i = 0;
+            while (!res.empty()) {
+                auto& r = *(ACPI_RESOURCE*)res.data();
+
+                if (r.Length == 0)
+                    break;
+
+                if (i == ent.SourceIndex) {
+                    switch (r.Type) {
+                        case ACPI_RESOURCE_TYPE_EXTENDED_IRQ: {
+                            auto ret = r.Data.ExtendedIrq.Interrupt;
+
+                            vfree(orig_res.data(), bytes_to_pages(orig_res.size()) << PAGE_SHIFT);
+
+                            return ret;
+                        }
+
+                        case ACPI_RESOURCE_TYPE_IRQ: {
+                            auto ret = r.Data.Irq.Interrupt;
+
+                            vfree(orig_res.data(), bytes_to_pages(orig_res.size()) << PAGE_SHIFT);
+
+                            return ret;
+                        }
+
+                        default:
+                            print("search_routing: unexpected ACPI resource type {}\n",
+                                  r.Type);
+                            vfree(orig_res.data(), bytes_to_pages(orig_res.size()) << PAGE_SHIFT);
+                            return nullopt;
+                    }
+                }
+
+                res = res.subspan(r.Length);
+                i++;
+            }
+
+            print("source index {} not found in resources for {}\n",
+                  ent.SourceIndex, ent.Source);
+
+            vfree(orig_res.data(), bytes_to_pages(orig_res.size()) << PAGE_SHIFT);
+
+            return nullopt;
         }
 
         routing = routing.subspan(ent.Length);
     }
+
+    return nullopt;
 }
 
 static void device_found0(const volatile pci_header& h, check_bus_entry& bus,
@@ -419,7 +526,12 @@ static void device_found0(const volatile pci_header& h, check_bus_entry& bus,
         print("pin {}\n", p);
 
         if (!bus.routing.empty()) {
-            search_routing(bus.routing, dev, pci_dev.pin);
+            auto irq = search_routing(bus, dev, pci_dev.pin);
+
+            if (!irq.has_value())
+                print("no IRQ found\n");
+            else
+                print("IRQ {}\n", *irq);
             // FIXME
         }
     }
@@ -791,6 +903,7 @@ static void found_pci_bus(const acpi_device& dev) {
             }
 
             e->num = (uint8_t)num;
+            e->handle = dev.handle;
             e->routing = routing;
             insert_tail_list(buses, e->le);
         }
