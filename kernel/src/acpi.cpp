@@ -854,7 +854,7 @@ static void find_device_properties(acpi_device& dev, ACPI_HANDLE Object) {
 
     static const uint8_t device_props_guid[] = { 0x14, 0xd8, 0xff, 0xda, 0xba, 0x6e, 0x8c, 0x4d, 0x8a, 0x91, 0xbc, 0x9b, 0xbf, 0x4a, 0xa3, 0x01 };
 
-    status = AcpiEvaluateObjectTyped(Object, "_DSD", nullptr, &buf,
+    status = AcpiEvaluateObjectTyped(Object, (char*)"_DSD", nullptr, &buf,
                                      ACPI_TYPE_PACKAGE);
     if (ACPI_FAILURE(status)) {
         if (status != AE_NOT_FOUND)
