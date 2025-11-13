@@ -532,6 +532,26 @@ static uint32_t power_button_pressed(void*) {
     return 0;
 }
 
+#ifndef __aarch64__
+static void call_pic_func() {
+    ACPI_OBJECT param;
+    ACPI_OBJECT_LIST params;
+
+    param.Type = ACPI_TYPE_INTEGER;
+    param.Integer.Value = 1; // APIC mode
+
+    params.Count = 1;
+    params.Pointer = &param;
+
+    auto status = AcpiEvaluateObject(nullptr, (char*)"\\_PIC", &params,
+                                     nullptr);
+    if (ACPI_FAILURE(status)) {
+        print("AcpiEvaluateObject returned {} for \\_PIC\n", (acpi_status)status);
+        return;
+    }
+}
+#endif
+
 export void init_acpi() {
     ACPI_STATUS Status;
 
@@ -560,6 +580,10 @@ export void init_acpi() {
         print("AcpiInstallFixedEventHandler returned {}\n", (acpi_status)Status);
         return;
     }
+
+#ifndef __aarch64__
+    call_pic_func();
+#endif
 }
 
 static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
