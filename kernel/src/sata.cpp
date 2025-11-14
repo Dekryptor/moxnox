@@ -702,6 +702,8 @@ static bool init_sata(const pci_device& dev) {
             print("add_irq_handler failed\n");
             return false;
         }
+
+        sc->isr_registered = true;
     } else {
         print("init_sata: no MSI and no IRQ found\n");
         return false;
@@ -840,12 +842,15 @@ sata_card::~sata_card() {
         return;
 
     // FIXME
+    if (!dev.msi.empty()) {
 #ifdef __aarch64__
-    remove_irq_handler(msi_irq, sata_isr_func, this);
-    free_msi_irq(msi_irq);
+        remove_irq_handler(msi_irq, sata_isr_func, this);
+        free_msi_irq(msi_irq);
 #else
-    remove_isr(sata_isr_func, this);
+        remove_isr(sata_isr_func, this);
 #endif
+    } else if (dev.irq.has_value())
+        remove_irq_handler(*dev.irq, sata_isr_func, this);
 }
 
 nt_status sata_device::flush() {

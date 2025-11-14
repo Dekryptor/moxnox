@@ -453,10 +453,6 @@ export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
     return true;
 }
 
-export void remove_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
-    // FIXME
-}
-
 #else
 
 export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
@@ -483,6 +479,10 @@ export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
 };
 
 #endif
+
+export void remove_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
+    // FIXME
+}
 
 #ifndef __aarch64__
 
