@@ -540,13 +540,13 @@ void sata_device::isr() {
     }
 }
 
-void sata_card::isr() {
+bool sata_card::isr() {
     auto abar_is = abar->is;
 
     abar->is = abar_is;
 
     if (abar_is == 0)
-        return;
+        return false;
 
     lock_guard lock(port_list_lock);
 
@@ -561,12 +561,12 @@ void sata_card::isr() {
                 break;
         }
     }
+
+    return true;
 }
 
 static bool sata_isr_func(void* ctx) {
-    ((sata_card*)ctx)->isr();
-
-    return true; // FIXME
+    return ((sata_card*)ctx)->isr();
 }
 
 static bool wait_until(unsigned int ms, const invocable auto& func) {

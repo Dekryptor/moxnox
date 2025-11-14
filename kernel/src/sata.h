@@ -577,7 +577,7 @@ class sata_card {
 public:
     sata_card(const pci_device& dev) : dev(dev) { }
     ~sata_card();
-    void isr();
+    bool isr();
     bool reset_port(volatile HBA_PORT& p);
 
     const pci_device& dev;
