@@ -667,7 +667,7 @@ static bool init_sata(const pci_device& dev) {
             return false;
         }
 
-        sc->irq_num = int_num;
+        sc->msi_irq = int_num;
 #else
         auto int_num = add_isr(sata_isr_func, sc);
         if (int_num == 0) {
@@ -841,8 +841,8 @@ sata_card::~sata_card() {
 
     // FIXME
 #ifdef __aarch64__
-    remove_irq_handler(irq_num, sata_isr_func, this);
-    free_msi_irq(irq_num);
+    remove_irq_handler(msi_irq, sata_isr_func, this);
+    free_msi_irq(msi_irq);
 #else
     remove_isr(sata_isr_func, this);
 #endif

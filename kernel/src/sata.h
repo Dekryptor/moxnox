@@ -589,6 +589,6 @@ public:
     list_entry port_list = { &port_list, &port_list };
     bool isr_registered = false;
 #ifdef __aarch64__
-    uint16_t irq_num;
+    uint16_t msi_irq;
 #endif
 };
