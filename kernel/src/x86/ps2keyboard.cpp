@@ -22,7 +22,6 @@ import acpi;
 import keyboard;
 import timer;
 import module_init;
-import apic;
 import thread;
 import disable_interrupts;
 import scheduler;
@@ -353,8 +352,6 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         inb(port1);
     }
 
-    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
-
     enable_interrupts();
 
     repeat_timer = create_timer(true);
@@ -368,7 +365,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         return;
     }
 
-    if (!add_irq_handler(irq, local_apic_id, keyboard_isr_func, nullptr)) {
+    if (!add_irq_handler(irq, keyboard_isr_func, nullptr)) {
         print("add_irq_handler failed\n");
         return;
     }

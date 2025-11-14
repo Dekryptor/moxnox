@@ -15,10 +15,6 @@ module;
 
 export module thread;
 
-#ifndef __aarch64__
-import apic;
-#endif
-
 import bsod;
 import list;
 import print;

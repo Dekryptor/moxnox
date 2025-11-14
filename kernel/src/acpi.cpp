@@ -11,7 +11,6 @@ export module acpi;
 
 #ifndef __aarch64__
 import inout;
-import apic;
 #endif
 
 import format;
@@ -1373,9 +1372,7 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
     insert_tail_list(irq_handlers, n->le);
     insert_tail_list(n->handlers, h->le);
 
-    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
-
-    if (!add_irq_handler(InterruptNumber, local_apic_id, acpi_isr_func, n)) {
+    if (!add_irq_handler(InterruptNumber, acpi_isr_func, n)) {
         print("add_irq_handler failed\n");
         delete h;
         delete n;

@@ -27,10 +27,6 @@ import spinlock;
 import disable_interrupts;
 import cpu_block;
 
-#ifndef __aarch64__
-import apic;
-#endif
-
 using namespace std;
 
 // FIXME - allow dynamic queue size (maximum supported by device?)
@@ -984,21 +980,11 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs_v2& regs,
                 return false;
             }
 
-#ifdef __aarch64__
             if (!add_irq_handler(irq, virtio_mmio_isr_func, v)) {
                 print("add_irq_handler failed\n");
                 delete v;
                 return false;
             }
-#else
-            auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
-
-            if (!add_irq_handler(irq, local_apic_id, virtio_mmio_isr_func, v)) {
-                print("add_irq_handler failed\n");
-                delete v;
-                return false;
-            }
-#endif
 
             if (!r.func(*v)) {
                 // FIXME - remove IRQ handler

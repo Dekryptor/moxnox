@@ -457,8 +457,10 @@ export void remove_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
 
 #else
 
-export bool add_irq_handler(uint32_t number, uint32_t apic_id,
-                            irq_func_type func, void* ctx) {
+export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
+    // FIXME - allow IRQs to be spread around CPUs
+    auto apic_id = *(volatile uint32_t*)&local_apic[0x20];
+
     auto irq = find_irq(number, apic_id);
     if (!irq)
         return false;

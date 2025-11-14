@@ -19,7 +19,6 @@ import config;
 import interrupts;
 import acpi;
 import module_init;
-import apic;
 import pipe;
 import chardev;
 import scheduler;
@@ -227,9 +226,7 @@ export bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
         }
     }
 
-    auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
-
-    if (!add_irq_handler(irq, local_apic_id, serial_isr_func, pptr)) {
+    if (!add_irq_handler(irq, serial_isr_func, pptr)) {
         print("add_irq_handler failed\n");
         return false;
     }

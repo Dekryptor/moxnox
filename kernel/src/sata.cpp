@@ -32,10 +32,6 @@ import spinlock;
 import handle;
 import object_ref;
 
-#ifndef __aarch64__
-import apic;
-#endif
-
 #include "sata.h"
 
 using namespace std;
@@ -715,9 +711,7 @@ static bool init_sata(const pci_device& dev) {
         msi.message_control = msi.message_control | 1; // enable
 #ifndef __aarch64__
     } else if (dev.irq.has_value()) {
-        auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
-
-        if (!add_irq_handler(*dev.irq, local_apic_id, sata_isr_func2, sc)) {
+        if (!add_irq_handler(*dev.irq, sata_isr_func2, sc)) {
             print("add_irq_handler failed\n");
             return false;
         }
