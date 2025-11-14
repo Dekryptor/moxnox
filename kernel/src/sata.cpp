@@ -709,13 +709,11 @@ static bool init_sata(const pci_device& dev) {
             msi.v32.message_data = int_num;
 
         msi.message_control = msi.message_control | 1; // enable
-#ifndef __aarch64__
     } else if (dev.irq.has_value()) {
         if (!add_irq_handler(*dev.irq, sata_isr_func2, sc)) {
             print("add_irq_handler failed\n");
             return false;
         }
-#endif
     } else {
         print("init_sata: no MSI and no IRQ found\n");
         return false;
