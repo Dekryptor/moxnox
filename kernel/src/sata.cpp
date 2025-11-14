@@ -32,6 +32,10 @@ import spinlock;
 import handle;
 import object_ref;
 
+#ifndef __aarch64__
+import apic;
+#endif
+
 #include "sata.h"
 
 using namespace std;
@@ -575,6 +579,12 @@ static void sata_isr_func(void* ctx) {
 }
 #endif
 
+static bool sata_isr_func2(void* ctx) {
+    ((sata_card*)ctx)->isr();
+
+    return true; // FIXME
+}
+
 static bool wait_until(unsigned int ms, const invocable auto& func) {
     auto tim_ref = create_timer(true);
     if (!tim_ref) {
@@ -637,11 +647,6 @@ static bool init_sata(const pci_device& dev) {
 
     // FIXME - also support MSI-X?
 
-    if (dev.msi.empty()) {
-        print("MSI not available for SATA device\n");
-        return false;
-    }
-
     if (abarmem.empty()) {
         print("ABAR not set for SATA device\n");
         return false;
@@ -662,51 +667,65 @@ static bool init_sata(const pci_device& dev) {
 
     // FIXME - BIOS handoff?
 
+    if (!dev.msi.empty()) {
 #ifdef __aarch64__
-    auto int_num = allocate_msi_irq();
-    if (int_num == 0) {
-        print("allocate_msi_irq failed\n");
-        return false;
-    }
+        auto int_num = allocate_msi_irq();
+        if (int_num == 0) {
+            print("allocate_msi_irq failed\n");
+            return false;
+        }
 
-    set_irq_edge_triggered(int_num, true);
+        set_irq_edge_triggered(int_num, true);
 
-    if (!add_irq_handler(int_num, sata_isr_func, sc)) {
-        free_msi_irq(int_num);
-        print("add_irq_handler failed\n");
-        return false;
-    }
+        if (!add_irq_handler(int_num, sata_isr_func, sc)) {
+            free_msi_irq(int_num);
+            print("add_irq_handler failed\n");
+            return false;
+        }
 
-    sc->irq_num = int_num;
+        sc->irq_num = int_num;
 #else
-    auto int_num = add_isr(sata_isr_func, sc);
-    if (int_num == 0) {
-        print("add_isr failed\n");
-        return false;
-    }
+        auto int_num = add_isr(sata_isr_func, sc);
+        if (int_num == 0) {
+            print("add_isr failed\n");
+            return false;
+        }
 #endif
 
-    sc->isr_registered = true;
+        sc->isr_registered = true;
 
-    auto& msi = *(volatile pci_msi*)dev.msi.data();
+        auto& msi = *(volatile pci_msi*)dev.msi.data();
 
 #ifdef __aarch64__
-    msi.message_address_low = msi_frame_setspi & 0xffffffff;
+        msi.message_address_low = msi_frame_setspi & 0xffffffff;
 #else
-    msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+        msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
 #endif
 
-    if (msi.message_control & 0x80) { // 64-bit
+        if (msi.message_control & 0x80) { // 64-bit
 #ifdef __aarch64__
-        msi.v64.message_address_high = msi_frame_setspi >> 32;
+            msi.v64.message_address_high = msi_frame_setspi >> 32;
 #else
-        msi.v64.message_address_high = 0;
+            msi.v64.message_address_high = 0;
 #endif
-        msi.v64.message_data = int_num;
-    } else
-        msi.v32.message_data = int_num;
+            msi.v64.message_data = int_num;
+        } else
+            msi.v32.message_data = int_num;
 
-    msi.message_control = msi.message_control | 1; // enable
+        msi.message_control = msi.message_control | 1; // enable
+#ifndef __aarch64__
+    } else if (dev.irq.has_value()) {
+        auto local_apic_id = *(volatile uint32_t*)&local_apic[0x20];
+
+        if (!add_irq_handler(*dev.irq, local_apic_id, sata_isr_func2, sc)) {
+            print("add_irq_handler failed\n");
+            return false;
+        }
+#endif
+    } else {
+        print("init_sata: no MSI and no IRQ found\n");
+        return false;
+    }
 
     sc->abar->ghc.ae = 1; // enable ACPI
 
@@ -840,6 +859,7 @@ sata_card::~sata_card() {
     if (!isr_registered)
         return;
 
+    // FIXME
 #ifdef __aarch64__
     remove_irq_handler(irq_num, sata_isr_func, this);
     free_msi_irq(irq_num);
