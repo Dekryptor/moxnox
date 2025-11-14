@@ -36,6 +36,7 @@ import disable_interrupts;
 import cpu_block;
 import spinlock;
 import loaderblock;
+import cmdline;
 
 using namespace std;
 
@@ -121,6 +122,8 @@ struct irq_handler_info {
 };
 
 static list_entry irqs = { &irqs, &irqs };
+
+export bool msi_supported = false;
 
 #ifndef __aarch64__
 
@@ -1040,6 +1043,16 @@ static bool init_interrupts_global() {
 
     GICD_CTLR.value = ctlr.value;
 
+    bool nomsi = false;
+    loop_through_cmdline([&](string_view s) {
+        if (s == "nomsi") {
+            nomsi = true;
+            return false;
+        }
+
+        return true;
+    });
+
     if (gic_ver > 2) {
         auto gicr_pair = find_gicr();
         if (!gicr_pair.has_value()) {
@@ -1081,45 +1094,47 @@ static bool init_interrupts_global() {
 
         enable_irq(HALT_SGI);
     } else { // gic_ver == 2
-        auto msi_frame_pa = find_msi_frame_address();
+        if (!nomsi) {
+            auto msi_frame_pa = find_msi_frame_address();
 
-        if (msi_frame_pa.has_value()) {
-            {
-                auto va = allocate_va<true>(1);
-                if (!va) {
-                    print("allocate_va failed\n");
-                    return false;
+            if (msi_frame_pa.has_value()) {
+                {
+                    auto va = allocate_va<true>(1);
+                    if (!va) {
+                        print("allocate_va failed\n");
+                        return false;
+                    }
+
+                    if (!map_page<true>(*msi_frame_pa, va, mapping_type::no_cache)) {
+                        print("map_page failed\n");
+                        free_va(va, 1);
+                        return false;
+                    }
+
+                    msi_frame = va;
                 }
 
-                if (!map_page<true>(*msi_frame_pa, va, mapping_type::no_cache)) {
-                    print("map_page failed\n");
-                    free_va(va, 1);
-                    return false;
+                msi_frame_setspi = *msi_frame_pa + MSI_SETSPI_NS;
+
+                ARM64_GICv2m_MSI_TYPER t;
+
+                t.value = *(volatile uint32_t*)(msi_frame + MSI_TYPER);
+
+                msi_base_spi = t.base_spi;
+
+                auto num_spis = t.num_spis;
+                auto ptr = msi_alloc;
+
+                while (num_spis >= 8) {
+                    *ptr = 0xff;
+
+                    ptr++;
+                    num_spis -= 8;
                 }
 
-                msi_frame = va;
+                if (num_spis != 0)
+                    *ptr = (uint8_t)((1 << num_spis) - 1);
             }
-
-            msi_frame_setspi = *msi_frame_pa + MSI_SETSPI_NS;
-
-            ARM64_GICv2m_MSI_TYPER t;
-
-            t.value = *(volatile uint32_t*)(msi_frame + MSI_TYPER);
-
-            msi_base_spi = t.base_spi;
-
-            auto num_spis = t.num_spis;
-            auto ptr = msi_alloc;
-
-            while (num_spis >= 8) {
-                *ptr = 0xff;
-
-                ptr++;
-                num_spis -= 8;
-            }
-
-            if (num_spis != 0)
-                *ptr = (uint8_t)((1 << num_spis) - 1);
         }
     }
 
@@ -1178,6 +1193,18 @@ export bool init_interrupts() {
 
     if (!setup_gdt(tss))
         return false;
+
+    bool nomsi = false;
+    loop_through_cmdline([&](string_view s) {
+        if (s == "nomsi") {
+            nomsi = true;
+            return false;
+        }
+
+        return true;
+    });
+
+    msi_supported = !nomsi;
 
     return true;
 }

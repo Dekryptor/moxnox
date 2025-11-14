@@ -651,7 +651,7 @@ static bool init_sata(const pci_device& dev) {
 
     // FIXME - BIOS handoff?
 
-    if (!dev.msi.empty()) {
+    if (!dev.msi.empty() && msi_supported) {
 #ifdef __aarch64__
         auto int_num = allocate_msi_irq();
         if (int_num == 0) {
