@@ -199,7 +199,6 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
-#ifdef __aarch64__
 static bool virtio_pci_isr_func(void* ctx) {
     auto& vq = *(virt_queue*)ctx;
 
@@ -207,13 +206,6 @@ static bool virtio_pci_isr_func(void* ctx) {
 
     return true;
 }
-#else
-static void virtio_pci_isr_func(void* ctx) {
-    auto& vq = *(virt_queue*)ctx;
-
-    vq.isr();
-}
-#endif
 
 bool virtio_pci_device::add_virtqueue(uint16_t num) {
     common->queue_select = num;

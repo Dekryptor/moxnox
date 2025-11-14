@@ -563,19 +563,7 @@ void sata_card::isr() {
     }
 }
 
-#ifdef __aarch64__
 static bool sata_isr_func(void* ctx) {
-    ((sata_card*)ctx)->isr();
-
-    return true;
-}
-#else
-static void sata_isr_func(void* ctx) {
-    ((sata_card*)ctx)->isr();
-}
-#endif
-
-static bool sata_isr_func2(void* ctx) {
     ((sata_card*)ctx)->isr();
 
     return true; // FIXME
@@ -710,7 +698,7 @@ static bool init_sata(const pci_device& dev) {
 
         msi.message_control = msi.message_control | 1; // enable
     } else if (dev.irq.has_value()) {
-        if (!add_irq_handler(*dev.irq, sata_isr_func2, sc)) {
+        if (!add_irq_handler(*dev.irq, sata_isr_func, sc)) {
             print("add_irq_handler failed\n");
             return false;
         }

@@ -302,17 +302,11 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
-#ifdef __aarch64__
 static bool xhci_isr_func(void* ctx) {
     ((xhci*)ctx)->isr();
 
     return true;
 }
-#else
-static void xhci_isr_func(void* ctx) {
-    ((xhci*)ctx)->isr();
-}
-#endif
 
 xhci_queue::~xhci_queue() {
     if (ring) {

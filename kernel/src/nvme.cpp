@@ -45,11 +45,7 @@ struct nvme_request {
     object_ref event;
 };
 
-#ifdef __aarch64__
 static bool nvme_isr_func(void* ctx);
-#else
-static void nvme_isr_func(void* ctx);
-#endif
 
 class nvme_queue {
 public:
@@ -165,17 +161,11 @@ static module_init module_init_nvme([]() {
     insert_tail_list(pci_classes, mod_pci_class.le);
 });
 
-#ifdef __aarch64__
 static bool nvme_isr_func(void* ctx) {
     ((nvme_queue*)ctx)->isr();
 
     return true;
 }
-#else
-static void nvme_isr_func(void* ctx) {
-    ((nvme_queue*)ctx)->isr();
-}
-#endif
 
 nvme_controller::nvme_controller(const pci_device& dev) {
     auto bar = dev.bar[0];

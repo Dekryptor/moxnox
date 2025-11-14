@@ -82,7 +82,7 @@ typedef struct {
 
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
 
-using isr_func_type = void (*)(void*);
+using isr_func_type = bool (*)(void*);
 
 static const uint8_t MIN_DYNAMIC_INTERRUPT = 0x30;
 
@@ -272,7 +272,7 @@ export void remove_isr(isr_func_type isr_func, void* ctx) {
     }
 }
 
-static void irq_handler(void* ctx) {
+static bool irq_handler(void* ctx) {
     auto& i = *(irq*)ctx;
 
     {
@@ -282,9 +282,11 @@ static void irq_handler(void* ctx) {
             auto& h = containing_record<irq_handler_info>(le);
 
             if (h.func(h.ctx))
-                return;
+                return true;
         }
     }
+
+    return false;
 }
 
 static irq* find_irq(uint32_t number, uint32_t apic_id) {
