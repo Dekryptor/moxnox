@@ -73,7 +73,7 @@ public:
     nt_status read(span<uint8_t> msg, uint64_t& read_bytes);
     nt_status write(span<const uint8_t> msg);
     nt_status indirect(span<uint8_t> s, uint64_t& read_bytes);
-    void isr();
+    bool isr();
 
     virtq<QUEUE_SIZE>* queue;
     uint64_t queue_pa;
@@ -100,6 +100,7 @@ public:
                       uint16_t num_queues);
     ~virtio_pci_device();
     void finalize();
+    bool isr();
 
     virtio_pci_device(const virtio_pci_device&) = delete;
 
@@ -107,6 +108,7 @@ public:
     bool initialized = false;
     list_entry virtqueues = { &virtqueues, &virtqueues };
     virtio_pci_cap* device_cfg = nullptr;
+    volatile uint8_t* isr_status = nullptr;
     uint64_t negotiated_features = 0;
 
 private:
@@ -199,12 +201,35 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
     *((volatile uint32_t*)addr + 1) = (uint32_t)(val >> 32);
 }
 
-static bool virtio_pci_isr_func(void* ctx) {
+static bool virtio_pci_msix_isr_func(void* ctx) {
     auto& vq = *(virt_queue*)ctx;
 
-    vq.isr();
+    return vq.isr();
+}
+
+bool virtio_pci_device::isr() {
+    auto status = *isr_status;
+
+    if (status == 0)
+        return false;
+
+    if (status & 1) {
+        for (auto le = virtqueues.next; le != &virtqueues; le = le->next) {
+            auto& vq = containing_record<virt_queue>(le);
+
+            vq.isr();
+        }
+    }
+
+    // FIXME - what about config changes?
 
     return true;
+}
+
+static bool virtio_pci_isr_func(void* ctx) {
+    auto& v = *(virtio_pci_device*)ctx;
+
+    return v.isr();
 }
 
 bool virtio_pci_device::add_virtqueue(uint16_t num) {
@@ -264,55 +289,58 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
     write_volatile64(&common->queue_driver, pa + ((uintptr_t)&queue.available - (uintptr_t)&queue));
     write_volatile64(&common->queue_device, pa + ((uintptr_t)&queue.used - (uintptr_t)&queue));
 
-    uint16_t msix_vector = num;
-
     common->queue_notify_off = num;
-    common->queue_msix_vector = msix_vector;
 
-    if (common->queue_msix_vector != msix_vector) {
-        print("virtio_pci_device::add_virtqueue: setting MSI-X vector failed\n");
-        delete vq;
-        return false;
-    }
+    if (msi_supported && dev.msix) {
+        uint16_t msix_vector = num;
+
+        common->queue_msix_vector = msix_vector;
+
+        if (common->queue_msix_vector != msix_vector) {
+            print("virtio_pci_device::add_virtqueue: setting MSI-X vector failed\n");
+            delete vq;
+            return false;
+        }
 
 #ifdef __aarch64__
-    // FIXME - free interrupt number
-    auto int_num = allocate_msi_irq();
-    if (int_num == 0) {
-        print("allocate_msi_irq failed\n");
-        delete vq;
-        return false;
-    }
+        // FIXME - free interrupt number
+        auto int_num = allocate_msi_irq();
+        if (int_num == 0) {
+            print("allocate_msi_irq failed\n");
+            delete vq;
+            return false;
+        }
 
-    set_irq_edge_triggered(int_num, true);
+        set_irq_edge_triggered(int_num, true);
 
-    if (!add_irq_handler(int_num, virtio_pci_isr_func, vq)) {
-        free_msi_irq(int_num);
-        print("add_irq_handler failed\n");
-        delete vq;
-        return false;
-    }
+        if (!add_irq_handler(int_num, virtio_pci_msix_isr_func, vq)) {
+            free_msi_irq(int_num);
+            print("add_irq_handler failed\n");
+            delete vq;
+            return false;
+        }
 #else
-    // FIXME - free interrupt number
-    auto int_num = add_isr(virtio_pci_isr_func, vq);
-    if (int_num == 0) {
-        print("add_isr failed\n");
-        delete vq;
-        return false;
-    }
+        // FIXME - free interrupt number
+        auto int_num = add_isr(virtio_pci_msix_isr_func, vq);
+        if (int_num == 0) {
+            print("add_isr failed\n");
+            delete vq;
+            return false;
+        }
 #endif
 
-    auto vec = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+        auto vec = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
 
-    vec[msix_vector].message_data = int_num;
+        vec[msix_vector].message_data = int_num;
 #ifdef __aarch64__
-    vec[msix_vector].message_address_high = msi_frame_setspi >> 32;
-    vec[msix_vector].message_address_low = msi_frame_setspi & 0xffffffff;
+        vec[msix_vector].message_address_high = msi_frame_setspi >> 32;
+        vec[msix_vector].message_address_low = msi_frame_setspi & 0xffffffff;
 #else
-    vec[msix_vector].message_address_high = 0;
-    vec[msix_vector].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+        vec[msix_vector].message_address_high = 0;
+        vec[msix_vector].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
 #endif
-    vec[msix_vector].vector_control &= ~(uint32_t)1; // unmask
+        vec[msix_vector].vector_control &= ~(uint32_t)1; // unmask
+    }
 
     common->queue_enable = 1;
 
@@ -527,23 +555,52 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
 
 virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_features,
                                      uint16_t num_queues) : dev(dev) {
+    bool msi;
     virtio_pci_cap* common_cfg = nullptr;
+    virtio_pci_cap* isr_cfg = nullptr;
 
-    if (!dev.msix) {
-        print("MSI-X not supported for virtio device\n");
-        return;
+    if (!dev.irq.has_value()) {
+        if (!dev.msix) {
+            print("virtio_pci_device: MSI-X not supported, and no IRQ number\n");
+            return;
+        } else if (!msi_supported) {
+            print("virtio_pci_device: no IRQ number, and MSI-X disabled or not supported\n");
+            return;
+        }
     }
+
+    msi = msi_supported && dev.msix;
+
+    // FIXME - config_msix_vector
 
     for (auto le = dev.vendor_specific_caps.next; le != &dev.vendor_specific_caps; le = le->next) {
         auto& vs = containing_record<vendor_specific_cap>(le);
         auto& cap = *(virtio_pci_cap*)vs.ptr;
 
-        if (cap.cfg_type == VIRTIO_PCI_CAP::COMMON_CFG && !common_cfg)
-            common_cfg = &cap;
-        else if (cap.cfg_type == VIRTIO_PCI_CAP::DEVICE_CFG && !device_cfg)
-            device_cfg = &cap;
-        else if (cap.cfg_type == VIRTIO_PCI_CAP::NOTIFY_CFG && !notify_cfg)
-            notify_cfg = reinterpret_cast<virtio_pci_notify_cap*>(&cap);
+        switch (cap.cfg_type) {
+            case VIRTIO_PCI_CAP::COMMON_CFG:
+                if (!common_cfg)
+                    common_cfg = &cap;
+                break;
+
+            case VIRTIO_PCI_CAP::DEVICE_CFG:
+                if (!device_cfg)
+                    device_cfg = &cap;
+                break;
+
+            case VIRTIO_PCI_CAP::NOTIFY_CFG:
+                if (!notify_cfg)
+                    notify_cfg = reinterpret_cast<virtio_pci_notify_cap*>(&cap);
+                break;
+
+            case VIRTIO_PCI_CAP::ISR_CFG:
+                if (!isr_cfg)
+                    isr_cfg = &cap;
+                break;
+
+            default:
+                break;
+        }
     }
 
     if (!common_cfg) {
@@ -558,6 +615,11 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
 
     if (!notify_cfg) {
         print("virtio_pci_device: no NOTIFY_CFG capability found\n");
+        return;
+    }
+
+    if (!msi && !isr_cfg) {
+        print("virtio_pci_device: no ISR_CFG capability found, and not using MSI\n");
         return;
     }
 
@@ -582,8 +644,15 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
         return;
     }
 
-    // Qemu's MSI-X won't work unless old-fashioned IRQs disabled
-    dev.header->command |= PCI_COMMAND_INTX_DISABLE;
+    if (msi) {
+        // Qemu's MSI-X won't work unless old-fashioned IRQs disabled
+        dev.header->command |= PCI_COMMAND_INTX_DISABLE;
+    } else {
+        if (!check_cap(dev, *isr_cfg) || isr_cfg->length == 0)
+            return;
+
+        isr_status = dev.bar[isr_cfg->bar].data() + isr_cfg->offset;
+    }
 
     common = (volatile virtio_pci_common_cfg*)(dev.bar[common_cfg->bar].data() + common_cfg->offset);
 
@@ -615,8 +684,15 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
         return;
     }
 
-    // enable MSI-X
-    dev.msix->message_control |= 0x8000;
+    if (msi) {
+        // enable MSI-X
+        dev.msix->message_control |= 0x8000;
+    } else {
+        if (!add_irq_handler(*dev.irq, virtio_pci_isr_func, this)) {
+            print("add_irq_handler failed\n");
+            return;
+        }
+    }
 
     for (uint16_t i = 0; i < num_queues; i++) {
         if (!add_virtqueue(i))
@@ -648,8 +724,9 @@ virt_queue::~virt_queue() {
     free_folio(queue_pa);
 }
 
-void virt_queue::isr() {
+bool virt_queue::isr() {
     bool holding_sync_lock = false;
+    bool handled = false;
 
     if (interrupts_disabled()) {
         auto& cb = *get_cpu_block();
@@ -664,6 +741,8 @@ void virt_queue::isr() {
     while (old_used_idx != idx) {
         lengths[queue->used.ring[old_used_idx].id] = queue->used.ring[old_used_idx].len;
 
+        handled = true;
+
         auto& e = static_cast<event&>(events[queue->used.ring[old_used_idx].id].get());
 
         if (holding_sync_lock)
@@ -675,6 +754,8 @@ void virt_queue::isr() {
         if (old_used_idx == QUEUE_SIZE)
             old_used_idx = 0;
     }
+
+    return handled;
 }
 
 virtio_pci_device::~virtio_pci_device() {
