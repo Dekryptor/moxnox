@@ -67,6 +67,7 @@ struct xhci_int_regs {
 
 static_assert(sizeof(xhci_int_regs) == 0x20);
 
+static const uint32_t XHCI_IMAN_IP = 0x00000001;
 static const uint32_t XHCI_IMAN_IE = 0x00000002;
 
 static const uint32_t XHCI_ERDP_EHB = 0x00000008;

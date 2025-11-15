@@ -147,7 +147,7 @@ public:
     xhci(const pci_device& dev);
     ~xhci();
     void init_ports();
-    void isr();
+    bool isr();
     void port_status_change_thread();
     uint8_t enable_slot(uint8_t slot_type);
     bool disable_slot(uint8_t slot_id);
@@ -303,9 +303,7 @@ static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
 }
 
 static bool xhci_isr_func(void* ctx) {
-    ((xhci*)ctx)->isr();
-
-    return true;
+    return ((xhci*)ctx)->isr();
 }
 
 xhci_queue::~xhci_queue() {
@@ -449,9 +447,14 @@ bool xhci::init_scratchpad() {
 }
 
 xhci::xhci(const pci_device& dev) : dev(dev) {
-    if (!dev.msix && dev.msi.empty()) {
-        print("init_xhci: no MSI or MSI-X capability\n");
-        return;
+    if (!dev.irq.has_value()) {
+        if (!dev.msix && dev.msi.empty()) {
+            print("init_xhci: no MSI or MSI-X capability, and no IRQ number\n");
+            return;
+        } else if (!msi_supported) {
+            print("init_xhci: no IRQ number, and MSI disabled or not supported\n");
+            return;
+        }
     }
 
     if (dev.bar[0].size() < sizeof(xhci_cap_regs)) {
@@ -643,66 +646,73 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
         ((xhci*)ctx)->port_status_change_thread();
     }, this);
 
+    if (msi_supported && (dev.msix || !dev.msi.empty())) {
 #ifdef __aarch64__
-    // FIXME - free interrupt number in destructor
-    auto int_num = allocate_msi_irq();
-    if (int_num == 0) {
-        print("allocate_msi_irq failed\n");
-        return;
-    }
+        // FIXME - free interrupt number in destructor
+        auto int_num = allocate_msi_irq();
+        if (int_num == 0) {
+            print("allocate_msi_irq failed\n");
+            return;
+        }
 
-    set_irq_edge_triggered(int_num, true);
+        set_irq_edge_triggered(int_num, true);
 
-    if (!add_irq_handler(int_num, xhci_isr_func, this)) {
-        free_msi_irq(int_num);
-        print("add_irq_handler failed\n");
-        return;
-    }
+        if (!add_irq_handler(int_num, xhci_isr_func, this)) {
+            free_msi_irq(int_num);
+            print("add_irq_handler failed\n");
+            return;
+        }
 #else
-    // FIXME - free interrupt number in destructor
-    auto int_num = add_isr(xhci_isr_func, this);
-    if (int_num == 0) {
-        print("add_isr failed\n");
-        return;
-    }
+        // FIXME - free interrupt number in destructor
+        auto int_num = add_isr(xhci_isr_func, this);
+        if (int_num == 0) {
+            print("add_isr failed\n");
+            return;
+        }
 #endif
 
-    if (dev.msix) {
-        // enable MSI-X
-        dev.msix->message_control |= 0x8000;
+        if (dev.msix) {
+            // enable MSI-X
+            dev.msix->message_control |= 0x8000;
 
-        // set up interrupt
-        auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+            // set up interrupt
+            auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
 
-        vec.message_data = int_num;
+            vec.message_data = int_num;
 #ifdef __aarch64__
-        vec.message_address_high = msi_frame_setspi >> 32;
-        vec.message_address_low = msi_frame_setspi & 0xffffffff;
+            vec.message_address_high = msi_frame_setspi >> 32;
+            vec.message_address_low = msi_frame_setspi & 0xffffffff;
 #else
-        vec.message_address_high = 0;
-        vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+            vec.message_address_high = 0;
+            vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
 #endif
-        vec.vector_control &= ~(uint32_t)1; // unmask
+            vec.vector_control &= ~(uint32_t)1; // unmask
+        } else {
+            auto& msi = *(volatile pci_msi*)dev.msi.data();
+
+#ifdef __aarch64__
+            msi.message_address_low = msi_frame_setspi & 0xffffffff;
+#else
+            msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
+
+            if (msi.message_control & 0x80) { // 64-bit
+#ifdef __aarch64__
+                msi.v64.message_address_high = msi_frame_setspi >> 32;
+#else
+                msi.v64.message_address_high = 0;
+#endif
+                msi.v64.message_data = int_num;
+            } else
+                msi.v32.message_data = int_num;
+
+            msi.message_control = msi.message_control | 1; // enable
+        }
     } else {
-        auto& msi = *(volatile pci_msi*)dev.msi.data();
-
-#ifdef __aarch64__
-        msi.message_address_low = msi_frame_setspi & 0xffffffff;
-#else
-        msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
-#endif
-
-        if (msi.message_control & 0x80) { // 64-bit
-#ifdef __aarch64__
-            msi.v64.message_address_high = msi_frame_setspi >> 32;
-#else
-            msi.v64.message_address_high = 0;
-#endif
-            msi.v64.message_data = int_num;
-        } else
-            msi.v32.message_data = int_num;
-
-        msi.message_control = msi.message_control | 1; // enable
+        if (!add_irq_handler(*dev.irq, xhci_isr_func, this)) {
+            print("add_irq_handler failed\n");
+            return;
+        }
     }
 
     int_reg.IMAN |= XHCI_IMAN_IE;
@@ -743,6 +753,8 @@ xhci::~xhci() {
         }
         free(scratchpad_array);
     }
+
+    // FIXME - free IRQ handlers etc.
 }
 
 bool xhci::reset_port(uint8_t port_id) {
@@ -2611,7 +2623,8 @@ bool usb_device::set_interface(uint16_t interface, uint16_t alternate) {
     return true;
 }
 
-void xhci::isr() {
+bool xhci::isr() {
+    bool handled = false;
     volatile auto& run_regs = *(xhci_run_regs*)(dev.bar[0].data() + rtsoff);
     volatile auto& int_reg = run_regs.int_regs[0];
 
@@ -2662,6 +2675,8 @@ void xhci::isr() {
                 break;
         }
 
+        handled = true;
+
         event_ring_offset++;
 
         if (event_ring_offset == EVENT_RING_SIZE) {
@@ -2670,7 +2685,13 @@ void xhci::isr() {
         }
     }
 
+    if (!handled)
+        return false;
+
+    int_reg.IMAN |= XHCI_IMAN_IP;
     write_volatile64(&int_reg.ERDP, (event_ring_pa + (event_ring_offset * sizeof(xhci_trb_common))) | XHCI_ERDP_EHB);
+
+    return true;
 }
 
 void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
