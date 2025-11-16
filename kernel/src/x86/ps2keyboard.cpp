@@ -365,7 +365,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         return;
     }
 
-    if (!add_irq_handler(irq, keyboard_isr_func, nullptr)) {
+    if (!add_irq_handler(irq, false, keyboard_isr_func, nullptr)) {
         print("add_irq_handler failed\n");
         return;
     }

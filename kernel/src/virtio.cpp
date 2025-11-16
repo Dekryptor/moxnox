@@ -311,9 +311,7 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
             return false;
         }
 
-        set_irq_edge_triggered(int_num, true);
-
-        if (!add_irq_handler(int_num, virtio_pci_msix_isr_func, vq)) {
+        if (!add_irq_handler(int_num, false, virtio_pci_msix_isr_func, vq)) {
             free_msi_irq(int_num);
             print("add_irq_handler failed\n");
             delete vq;
@@ -688,7 +686,7 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
         // enable MSI-X
         dev.msix->message_control |= 0x8000;
     } else {
-        if (!add_irq_handler(*dev.irq, virtio_pci_isr_func, this)) {
+        if (!add_irq_handler(*dev.irq, false, virtio_pci_isr_func, this)) {
             print("add_irq_handler failed\n");
             return;
         }
@@ -1053,7 +1051,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs_v2& regs,
                 return false;
             }
 
-            if (!add_irq_handler(irq, virtio_mmio_isr_func, v)) {
+            if (!add_irq_handler(irq, false, virtio_mmio_isr_func, v)) {
                 print("add_irq_handler failed\n");
                 delete v;
                 return false;

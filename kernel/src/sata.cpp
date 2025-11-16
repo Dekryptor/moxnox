@@ -659,9 +659,7 @@ static bool init_sata(const pci_device& dev) {
             return false;
         }
 
-        set_irq_edge_triggered(int_num, true);
-
-        if (!add_irq_handler(int_num, sata_isr_func, sc)) {
+        if (!add_irq_handler(int_num, false, sata_isr_func, sc)) {
             free_msi_irq(int_num);
             print("add_irq_handler failed\n");
             return false;
@@ -698,7 +696,7 @@ static bool init_sata(const pci_device& dev) {
 
         msi.message_control = msi.message_control | 1; // enable
     } else if (dev.irq.has_value()) {
-        if (!add_irq_handler(*dev.irq, sata_isr_func, sc)) {
+        if (!add_irq_handler(*dev.irq, false, sata_isr_func, sc)) {
             print("add_irq_handler failed\n");
             return false;
         }

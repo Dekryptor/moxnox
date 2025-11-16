@@ -249,9 +249,7 @@ nvme_controller::nvme_controller(const pci_device& dev) {
             return;
         }
 
-        set_irq_edge_triggered(int_num, true);
-
-        if (!add_irq_handler(int_num, nvme_msix_isr_func, &admin_queue)) {
+        if (!add_irq_handler(int_num, false, nvme_msix_isr_func, &admin_queue)) {
             free_msi_irq(int_num);
             print("add_irq_handler failed\n");
             return;
@@ -278,7 +276,7 @@ nvme_controller::nvme_controller(const pci_device& dev) {
 #endif
         vec.vector_control &= ~(uint32_t)1; // unmask
     } else {
-        if (!add_irq_handler(*dev.irq, nvme_isr_func, this)) {
+        if (!add_irq_handler(*dev.irq, true, nvme_isr_func, this)) {
             print("add_irq_handler failed\n");
             return;
         }
@@ -876,9 +874,7 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
         return false;
     }
 
-    set_irq_edge_triggered(int_num, true);
-
-    if (!add_irq_handler(int_num, nvme_msix_isr_func, &io_queue)) {
+    if (!add_irq_handler(int_num, false, nvme_msix_isr_func, &io_queue)) {
         free_msi_irq(int_num);
         print("add_irq_handler failed\n");
         // FIXME - delete CQ and SQ

@@ -226,7 +226,7 @@ export bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
         }
     }
 
-    if (!add_irq_handler(irq, serial_isr_func, pptr)) {
+    if (!add_irq_handler(irq, false, serial_isr_func, pptr)) {
         print("add_irq_handler failed\n");
         return false;
     }

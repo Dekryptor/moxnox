@@ -420,7 +420,7 @@ static bool init_pl011(uint64_t mem_start, uint64_t mem_length,
 
     send_pipe.base_address = pptr->base_address;
 
-    if (!add_irq_handler(irq, pl011_irq_handler, pptr)) {
+    if (!add_irq_handler(irq, true, pl011_irq_handler, pptr)) {
         print("add_irq_handler failed\n");
         return false;
     }

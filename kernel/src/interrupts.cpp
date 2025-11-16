@@ -109,6 +109,7 @@ static spinlock irq_lock;
 struct irq {
     list_entry le;
     uint32_t number;
+    bool level;
     spinlock lock;
     list_entry handlers = { &handlers, &handlers };
 };
@@ -290,16 +291,30 @@ static bool irq_handler(void* ctx) {
     return false;
 }
 
-static irq* find_irq(uint32_t number, uint32_t apic_id) {
+static irq* find_irq(uint32_t number, uint32_t apic_id, bool level) {
+    bool wrong_trigger = false;
+
     {
         lock_guard lock(irq_lock);
 
         for (auto le = irqs.next; le != &irqs; le = le->next) {
             auto& i = containing_record<irq>(le);
 
-            if (i.number == number)
+            if (i.number == number) {
+                if (!!level != !!i.level) {
+                    wrong_trigger = true;
+                    break;
+                }
+
                 return &i;
+            }
         }
+    }
+
+    if (wrong_trigger) {
+        print("find_irq: trying to add {}-triggered IRQ {} but {}-triggered handler already set up",
+              level ? "level" : "edge", number, level ? "edge" : "level");
+        return nullptr;
     }
 
     ACPI_TABLE_HEADER* tbl;
@@ -322,9 +337,12 @@ static irq* find_irq(uint32_t number, uint32_t apic_id) {
     ACPI_MADT_IO_APIC* ioapic = nullptr;
     uint8_t vec = 0;
 
+    // FIXME - double-dipping on spinlock
+
     auto i = new irq;
 
     i->number = number;
+    i->level = level;
 
     do {
         lock_guard lock(irq_lock);
@@ -348,7 +366,7 @@ static irq* find_irq(uint32_t number, uint32_t apic_id) {
             *IOREGWIN = val;
         };
 
-        write_reg(0x10 + ((gsi - ioapic->GlobalIrqBase) * 2), vec);
+        write_reg(0x10 + ((gsi - ioapic->GlobalIrqBase) * 2), (level ? 0x8000 : 0) | vec);
         write_reg(0x11 + ((gsi - ioapic->GlobalIrqBase) * 2), apic_id);
 
         insert_tail_list(irqs, i->le);
@@ -396,21 +414,36 @@ export void enable_irq(uint32_t number) {
     }
 }
 
-static irq* find_irq(uint32_t number) {
+static irq* find_irq(uint32_t number, bool level) {
+    bool wrong_trigger = false;
+
     {
         lock_guard lock(irq_lock);
 
         for (auto le = irqs.next; le != &irqs; le = le->next) {
             auto& i = containing_record<irq>(le);
 
-            if (i.number == number)
+            if (i.number == number) {
+                if (!!level != !!i.level) {
+                    wrong_trigger = true;
+                    break;
+                }
+
                 return &i;
+            }
         }
+    }
+
+    if (wrong_trigger) {
+        print("find_irq: trying to add {}-triggered IRQ {} but {}-triggered handler already set up",
+              level ? "level" : "edge", number, level ? "edge" : "level");
+        return nullptr;
     }
 
     auto i = new irq;
 
     i->number = number;
+    i->level = level;
 
     {
         lock_guard lock(irq_lock);
@@ -432,8 +465,18 @@ static irq* find_irq(uint32_t number) {
     return i;
 }
 
-export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
-    auto irq = find_irq(number);
+static void set_irq_level_triggered(uint32_t number, bool level) {
+    auto& GICD_ICFGR = *(volatile uint32_t*)(gicd + 0xc00 + ((number / 16) * 4));
+
+    if (level)
+        GICD_ICFGR &= ~(uint32_t)(1 << ((2 * (number % 16)) + 1));
+    else
+        GICD_ICFGR |= 1 << ((2 * (number % 16)) + 1);
+}
+
+export bool add_irq_handler(uint32_t number, bool level, irq_func_type func,
+                            void* ctx) {
+    auto irq = find_irq(number, level);
     if (!irq)
         return false;
 
@@ -444,23 +487,27 @@ export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
     info->func = func;
     info->ctx = ctx;
 
+    // FIXME - double-dipping on spinlock
+
     {
         lock_guard lock(irq->lock);
         insert_tail_list(irq->handlers, info->le);
     }
 
     enable_irq(number);
+    set_irq_level_triggered(number, level);
 
     return true;
 }
 
 #else
 
-export bool add_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
+export bool add_irq_handler(uint32_t number, bool level, irq_func_type func,
+                            void* ctx) {
     // FIXME - allow IRQs to be spread around CPUs
     auto apic_id = *(volatile uint32_t*)&local_apic[0x20];
 
-    auto irq = find_irq(number, apic_id);
+    auto irq = find_irq(number, apic_id, level);
     if (!irq)
         return false;
 
@@ -984,15 +1031,6 @@ static optional<uint64_t> find_msi_frame_address() {
     }
 
     return msi_frame_pa;
-}
-
-export void set_irq_edge_triggered(uint32_t number, bool edge) {
-    auto& GICD_ICFGR = *(volatile uint32_t*)(gicd + 0xc00 + ((number / 16) * 4));
-
-    if (edge)
-        GICD_ICFGR |= 1 << ((2 * (number % 16)) + 1);
-    else
-        GICD_ICFGR &= ~(uint32_t)(1 << ((2 * (number % 16)) + 1));
 }
 
 static bool init_interrupts_global() {

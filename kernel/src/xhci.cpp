@@ -655,9 +655,7 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
             return;
         }
 
-        set_irq_edge_triggered(int_num, true);
-
-        if (!add_irq_handler(int_num, xhci_isr_func, this)) {
+        if (!add_irq_handler(int_num, false, xhci_isr_func, this)) {
             free_msi_irq(int_num);
             print("add_irq_handler failed\n");
             return;
@@ -709,7 +707,7 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
             msi.message_control = msi.message_control | 1; // enable
         }
     } else {
-        if (!add_irq_handler(*dev.irq, xhci_isr_func, this)) {
+        if (!add_irq_handler(*dev.irq, false, xhci_isr_func, this)) {
             print("add_irq_handler failed\n");
             return;
         }
