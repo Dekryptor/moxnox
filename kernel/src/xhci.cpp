@@ -647,65 +647,10 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
     }, this);
 
     if (msi_supported && (dev.msix || !dev.msi.empty())) {
-#ifdef __aarch64__
         // FIXME - free interrupt number in destructor
-        auto int_num = allocate_msi_irq();
-        if (int_num == 0) {
-            print("allocate_msi_irq failed\n");
+        auto int_num = setup_msi(dev, dev.msix, xhci_isr_func, this);
+        if (int_num == 0)
             return;
-        }
-
-        if (!add_irq_handler(int_num, false, xhci_isr_func, this)) {
-            free_msi_irq(int_num);
-            print("add_irq_handler failed\n");
-            return;
-        }
-#else
-        // FIXME - free interrupt number in destructor
-        auto int_num = add_isr(xhci_isr_func, this);
-        if (int_num == 0) {
-            print("add_isr failed\n");
-            return;
-        }
-#endif
-
-        if (dev.msix) {
-            // enable MSI-X
-            dev.msix->message_control |= 0x8000;
-
-            // set up interrupt
-            auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
-
-            vec.message_data = int_num;
-#ifdef __aarch64__
-            vec.message_address_high = msi_frame_setspi >> 32;
-            vec.message_address_low = msi_frame_setspi & 0xffffffff;
-#else
-            vec.message_address_high = 0;
-            vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
-#endif
-            vec.vector_control &= ~(uint32_t)1; // unmask
-        } else {
-            auto& msi = *(volatile pci_msi*)dev.msi.data();
-
-#ifdef __aarch64__
-            msi.message_address_low = msi_frame_setspi & 0xffffffff;
-#else
-            msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
-#endif
-
-            if (msi.message_control & 0x80) { // 64-bit
-#ifdef __aarch64__
-                msi.v64.message_address_high = msi_frame_setspi >> 32;
-#else
-                msi.v64.message_address_high = 0;
-#endif
-                msi.v64.message_data = int_num;
-            } else
-                msi.v32.message_data = int_num;
-
-            msi.message_control = msi.message_control | 1; // enable
-        }
     } else {
         if (!add_irq_handler(*dev.irq, true, xhci_isr_func, this)) {
             print("add_irq_handler failed\n");

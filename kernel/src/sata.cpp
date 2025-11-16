@@ -652,7 +652,8 @@ static bool init_sata(const pci_device& dev) {
     // FIXME - BIOS handoff?
 
     if (!dev.msi.empty() && msi_supported) {
-        auto int_num = setup_msi(dev, sata_isr_func, sc);
+        // FIXME - MSI-X?
+        auto int_num = setup_msi(dev, false, sata_isr_func, sc);
         if (int_num == 0)
             return false;
 
