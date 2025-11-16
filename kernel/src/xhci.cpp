@@ -187,6 +187,7 @@ private:
     list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
     uint64_t* scratchpad_array = nullptr;
     size_t scratchpad_array_size;
+    volatile xhci_cap_regs* cap_regs_ptr;
 };
 
 struct device_endpoint {
@@ -403,7 +404,7 @@ static void copy_by_uint32(volatile void* src, volatile void* dest, size_t size)
 }
 
 bool xhci::init_scratchpad() {
-    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    volatile auto& cap_regs = *cap_regs_ptr;
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
 
     xhci_hcsparams2 hcsparams2;
@@ -474,7 +475,9 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
         return;
     }
 
-    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    cap_regs_ptr = (xhci_cap_regs*)dev.bar[0].data();
+
+    volatile auto& cap_regs = *cap_regs_ptr;
 
     if (cap_regs.CAPLENGTH < 0x20) {
         print("init_xhci: CAPLENGTH was {}, expected at least {}\n",
@@ -712,7 +715,7 @@ xhci::~xhci() {
 }
 
 bool xhci::reset_port(uint8_t port_id) {
-    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    volatile auto& cap_regs = *cap_regs_ptr;
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
     volatile auto& p = *&op_regs.ports[port_id - 1];
     auto portsc = p.PORTSC;
@@ -755,7 +758,7 @@ bool xhci::reset_port(uint8_t port_id) {
 }
 
 void xhci::init_ports() {
-    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    volatile auto& cap_regs = *cap_regs_ptr;
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
 
     for (uint8_t i = 0; i < num_ports; i++) {
@@ -1709,7 +1712,7 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
 }
 
 uint8_t xhci::get_port_slot_type(uint8_t port_id) {
-    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    volatile auto& cap_regs = *cap_regs_ptr;
     auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
 
     // FIXME - make sure we don't overflow BAR
@@ -1935,7 +1938,7 @@ static void probe_interfaces(usb_device& d, usb_device_config& conf) {
 }
 
 uint8_t xhci::get_speed_num(uint8_t port_id, uint32_t psi_num) {
-    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    volatile auto& cap_regs = *cap_regs_ptr;
     auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
 
     // FIXME - make sure we don't overflow BAR
@@ -2028,7 +2031,7 @@ uint8_t xhci::get_speed_num(uint8_t port_id, uint32_t psi_num) {
 }
 
 pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
-    volatile auto& cap_regs = *(xhci_cap_regs*)dev.bar[0].data();
+    volatile auto& cap_regs = *cap_regs_ptr;
     auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
 
     // FIXME - make sure we don't overflow BAR
