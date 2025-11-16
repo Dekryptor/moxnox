@@ -517,8 +517,29 @@ export span<char> do_format_arg(span<char> sp, string_view,
             break;
     }
 
-    sp = do_format_arg(sp, "", ", Caching = ");
-    sp = do_format_arg(sp, ":x", arg.Info.Mem.Caching);
+    switch (arg.Info.Mem.Caching) {
+        case ACPI_NON_CACHEABLE_MEMORY:
+            sp = do_format_arg(sp, "", ", non-cacheable");
+            break;
+
+        case ACPI_CACHABLE_MEMORY:
+            sp = do_format_arg(sp, "", ", cacheable");
+            break;
+
+        case ACPI_WRITE_COMBINING_MEMORY:
+            sp = do_format_arg(sp, "", ", write-combining");
+            break;
+
+        case ACPI_PREFETCHABLE_MEMORY:
+            sp = do_format_arg(sp, "", ", prefetchable");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", ", Caching = ");
+            sp = do_format_arg(sp, ":x", arg.Info.Mem.Caching);
+            break;
+    }
+
     sp = do_format_arg(sp, "", ", RangeType = ");
     sp = do_format_arg(sp, ":x", arg.Info.Mem.RangeType);
     sp = do_format_arg(sp, "", ", Translation = ");
