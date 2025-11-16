@@ -179,7 +179,6 @@ private:
     unsigned int event_ring_offset = 0;
     bool event_ring_cycle = true;
     xhci_event_ring_segment* seg_table = nullptr;
-    uint8_t caplength;
     uint32_t rtsoff;
     object_ref port_status_change_event;
     object_ref port_status_change_thread_obj;
@@ -676,7 +675,6 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
 
     op_regs.USBCMD |= XHCI_USBCMD_INTE | XHCI_USBCMD_RS;
 
-    caplength = cap_regs.CAPLENGTH;
     rtsoff = cap_regs.RTSOFF;
 
     initialized = true;
@@ -2417,7 +2415,8 @@ void xhci::port_status_changed(uint8_t port_id) {
         return;
     }
 
-    volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)dev.bar[0].data() + caplength);
+    volatile auto& cap_regs = *cap_regs_ptr;
+    volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
     xhci_portsc portsc;
 
     copy_by_uint32(&op_regs.ports[port_id - 1].PORTSC, &portsc, sizeof(portsc));
