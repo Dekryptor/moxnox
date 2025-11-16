@@ -475,12 +475,12 @@ static void found_pl011(const acpi_device& d) {
                 break;
             }
 
-            case acpi_device_resource_type::address64: {
-                auto& r2 = static_cast<acpi_device_resource_address64&>(r);
+            case acpi_device_resource_type::address: {
+                auto& r2 = static_cast<acpi_device_resource_address&>(r);
 
                 if (!mem.has_value()) {
-                    mem = make_pair(r2.address64.Address.Minimum,
-                                    r2.address64.Address.AddressLength);
+                    mem = make_pair(r2.address.Address.Minimum,
+                                    r2.address.Address.AddressLength);
                 }
 
                 break;

@@ -753,40 +753,14 @@ static void found_pci_bus(const acpi_device& dev) {
         auto& r = containing_record<acpi_device_resource>(le);
 
         switch (r.type) {
-            case acpi_device_resource_type::address16: {
-                auto& r2 = static_cast<acpi_device_resource_address16&>(r);
+            case acpi_device_resource_type::address: {
+                auto& r2 = static_cast<acpi_device_resource_address&>(r);
 
-                if (r2.address16.Address.AddressLength > 0 &&
-                    r2.address16.ResourceType == ACPI_BUS_NUMBER_RANGE) {
-                    bus_start = r2.address16.Address.Minimum;
-                    bus_end = r2.address16.Address.Minimum +
-                              r2.address16.Address.AddressLength - 1;
-                }
-
-                break;
-            }
-
-            case acpi_device_resource_type::address32: {
-                auto& r2 = static_cast<acpi_device_resource_address32&>(r);
-
-                if (r2.address32.Address.AddressLength > 0 &&
-                    r2.address32.ResourceType == ACPI_BUS_NUMBER_RANGE) {
-                    bus_start = r2.address32.Address.Minimum;
-                    bus_end = r2.address32.Address.Minimum +
-                              r2.address32.Address.AddressLength - 1;
-                }
-
-                break;
-            }
-
-            case acpi_device_resource_type::address64: {
-                auto& r2 = static_cast<acpi_device_resource_address64&>(r);
-
-                if (r2.address64.Address.AddressLength > 0 &&
-                    r2.address64.ResourceType == ACPI_BUS_NUMBER_RANGE) {
-                    bus_start = r2.address64.Address.Minimum;
-                    bus_end = r2.address64.Address.Minimum +
-                              r2.address64.Address.AddressLength - 1;
+                if (r2.address.Address.AddressLength > 0 &&
+                    r2.address.ResourceType == ACPI_BUS_NUMBER_RANGE) {
+                    bus_start = r2.address.Address.Minimum;
+                    bus_end = r2.address.Address.Minimum +
+                              r2.address.Address.AddressLength - 1;
                 }
 
                 break;

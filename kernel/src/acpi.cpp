@@ -72,9 +72,7 @@ export enum class acpi_device_resource_type {
     io,
     irq,
     extended_irq,
-    address16,
-    address32,
-    address64,
+    address,
     fixed_memory32,
     dma,
     gpio,
@@ -101,16 +99,8 @@ export struct acpi_device_resource_extended_irq : acpi_device_resource {
     ACPI_RESOURCE_EXTENDED_IRQ extended_irq;
 };
 
-export struct acpi_device_resource_address16 : acpi_device_resource {
-    ACPI_RESOURCE_ADDRESS16 address16;
-};
-
-export struct acpi_device_resource_address32 : acpi_device_resource {
-    ACPI_RESOURCE_ADDRESS32 address32;
-};
-
-export struct acpi_device_resource_address64 : acpi_device_resource {
-    ACPI_RESOURCE_ADDRESS64 address64;
+export struct acpi_device_resource_address : acpi_device_resource {
+    ACPI_RESOURCE_ADDRESS64 address;
 };
 
 export struct acpi_device_resource_fixed_memory32 : acpi_device_resource {
@@ -272,12 +262,8 @@ export span<char> do_format_arg(span<char> sp, string_view,
             return do_format_arg(sp, "", "irq");
         case extended_irq:
             return do_format_arg(sp, "", "extended_irq");
-        case address16:
-            return do_format_arg(sp, "", "address16");
-        case address32:
-            return do_format_arg(sp, "", "address32");
-        case address64:
-            return do_format_arg(sp, "", "address64");
+        case address:
+            return do_format_arg(sp, "", "address");
         case fixed_memory32:
             return do_format_arg(sp, "", "fixed_memory32");
         case dma:
@@ -693,41 +679,24 @@ static ACPI_STATUS find_device_resources_cb(ACPI_RESOURCE* res, void* ctx) {
             break;
         }
 
-        case ACPI_RESOURCE_TYPE_ADDRESS16: {
-            auto r = new acpi_device_resource_address16;
-            if (!r) {
-                print("out of memory\n");
-                return AE_OK;
-            }
-
-            r->type = acpi_device_resource_type::address16;
-            memcpy(&r->address16, &res->Data.Address16, sizeof(ACPI_RESOURCE_ADDRESS16));
-            insert_tail_list(d.resources, r->le);
-            break;
-        }
-
-        case ACPI_RESOURCE_TYPE_ADDRESS32: {
-            auto r = new acpi_device_resource_address32;
-            if (!r) {
-                print("out of memory\n");
-                return AE_OK;
-            }
-
-            r->type = acpi_device_resource_type::address32;
-            memcpy(&r->address32, &res->Data.Address32, sizeof(ACPI_RESOURCE_ADDRESS32));
-            insert_tail_list(d.resources, r->le);
-            break;
-        }
-
+        case ACPI_RESOURCE_TYPE_ADDRESS16:
+        case ACPI_RESOURCE_TYPE_ADDRESS32:
         case ACPI_RESOURCE_TYPE_ADDRESS64: {
-            auto r = new acpi_device_resource_address64;
+            auto r = new acpi_device_resource_address;
             if (!r) {
                 print("out of memory\n");
                 return AE_OK;
             }
 
-            r->type = acpi_device_resource_type::address64;
-            memcpy(&r->address64, &res->Data.Address64, sizeof(ACPI_RESOURCE_ADDRESS64));
+            r->type = acpi_device_resource_type::address;
+
+            auto status = AcpiResourceToAddress64(res, &r->address);
+            if (ACPI_FAILURE(status)) {
+                print("AcpiResourceToAddress64 returned {}\n", (acpi_status)status);
+                delete r;
+                return status;
+            }
+
             insert_tail_list(d.resources, r->le);
             break;
         }
