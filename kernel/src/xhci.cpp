@@ -707,7 +707,7 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
             msi.message_control = msi.message_control | 1; // enable
         }
     } else {
-        if (!add_irq_handler(*dev.irq, false, xhci_isr_func, this)) {
+        if (!add_irq_handler(*dev.irq, true, xhci_isr_func, this)) {
             print("add_irq_handler failed\n");
             return;
         }
