@@ -920,3 +920,40 @@ export uint16_t setup_msi(const pci_device& dev, bool msix, irq_func_type func,
 
     return int_num;
 }
+
+export uint16_t add_msix_entry(const pci_device& dev, irq_func_type func,
+                               void* ctx) {
+    auto vecs = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+
+#ifdef __aarch64__
+    auto int_num = allocate_msi_irq();
+    if (int_num == 0) {
+        print("allocate_msi_irq failed\n");
+        return 0;
+    }
+
+    if (!add_irq_handler(int_num, false, func, ctx)) {
+        free_msi_irq(int_num);
+        print("add_irq_handler failed\n");
+        return 0;
+    }
+#else
+    auto int_num = add_isr(func, ctx);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return false;
+    }
+#endif
+
+    vecs[1].message_data = int_num;
+#ifdef __aarch64__
+    vecs[1].message_address_high = msi_frame_setspi >> 32;
+    vecs[1].message_address_low = msi_frame_setspi & 0xffffffff;
+#else
+    vecs[1].message_address_high = 0;
+    vecs[1].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
+    vecs[1].vector_control &= ~(uint32_t)1; // unmask
+
+    return int_num;
+}

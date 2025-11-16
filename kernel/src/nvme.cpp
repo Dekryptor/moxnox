@@ -240,41 +240,14 @@ nvme_controller::nvme_controller(const pci_device& dev) {
 
     if (msi) {
         // set up admin queue interrupt
-        auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+        auto int_num = setup_msi(dev, true, nvme_msix_isr_func, &admin_queue);
+        if (int_num == 0)
+            return;
 
 #ifdef __aarch64__
-        auto int_num = allocate_msi_irq();
-        if (int_num == 0) {
-            print("allocate_msi_irq failed\n");
-            return;
-        }
-
-        if (!add_irq_handler(int_num, false, nvme_msix_isr_func, &admin_queue)) {
-            free_msi_irq(int_num);
-            print("add_irq_handler failed\n");
-            return;
-        }
-
         admin_queue.irq_num = int_num;
-#else
-        auto int_num = add_isr(nvme_msix_isr_func, &admin_queue);
-        if (int_num == 0) {
-            print("add_isr failed\n");
-            return;
-        }
 #endif
-
         admin_queue.isr_registered = true;
-
-        vec.message_data = int_num;
-#ifdef __aarch64__
-        vec.message_address_high = msi_frame_setspi >> 32;
-        vec.message_address_low = msi_frame_setspi & 0xffffffff;
-#else
-        vec.message_address_high = 0;
-        vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
-#endif
-        vec.vector_control &= ~(uint32_t)1; // unmask
     } else {
         if (!add_irq_handler(*dev.irq, true, nvme_isr_func, this)) {
             print("add_irq_handler failed\n");
@@ -864,46 +837,17 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
     io_queue.cq = phys_address(cq);
     io_queue.sq = phys_address(sq);
 
-    // set up interrupt
-
-    auto vecs = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+    // FIXME - free interrupt when we go away
+    auto int_num = add_msix_entry(dev, nvme_msix_isr_func, &io_queue);
+    if (int_num == 0) {
+        // FIXME - delete CQ and SQ
+        return false;
+    }
 
 #ifdef __aarch64__
-    auto int_num = allocate_msi_irq();
-    if (int_num == 0) {
-        print("allocate_msi_irq failed\n");
-        // FIXME - delete CQ and SQ
-        return false;
-    }
-
-    if (!add_irq_handler(int_num, false, nvme_msix_isr_func, &io_queue)) {
-        free_msi_irq(int_num);
-        print("add_irq_handler failed\n");
-        // FIXME - delete CQ and SQ
-        return false;
-    }
-
     io_queue.irq_num = int_num;
-#else
-    auto int_num = add_isr(nvme_msix_isr_func, &io_queue);
-    if (int_num == 0) {
-        print("add_isr failed\n");
-        // FIXME - delete CQ and SQ
-        return false;
-    }
 #endif
-
     io_queue.isr_registered = true;
-
-    vecs[1].message_data = int_num;
-#ifdef __aarch64__
-    vecs[1].message_address_high = msi_frame_setspi >> 32;
-    vecs[1].message_address_low = msi_frame_setspi & 0xffffffff;
-#else
-    vecs[1].message_address_high = 0;
-    vecs[1].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
-#endif
-    vecs[1].vector_control &= ~(uint32_t)1; // unmask
 
     return true;
 }
