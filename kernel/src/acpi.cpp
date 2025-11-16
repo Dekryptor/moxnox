@@ -28,6 +28,7 @@ import rwsem;
 import spinlock;
 import config;
 import loaderblock;
+import efi;
 
 using namespace std;
 
@@ -511,10 +512,13 @@ export void init_acpi_early() {
 static void power_button_pressed_thread() {
     // FIXME - should be calling NtShutdownSystem (why does it not work?)
 
-    // FIXME - use EFI functions if available
-    AcpiEnterSleepStatePrep(5);
-    disable_interrupts();
-    AcpiEnterSleepState(5);
+    if (ResetSystem)
+        ResetSystem(EFI_RESET_TYPE::Shutdown, (EFI_STATUS)0, 0, nullptr);
+    else {
+        AcpiEnterSleepStatePrep(5);
+        disable_interrupts();
+        AcpiEnterSleepState(5);
+    }
 
     print("power off\n");
 }
