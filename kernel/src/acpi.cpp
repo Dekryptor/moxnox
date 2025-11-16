@@ -46,9 +46,7 @@ struct acpi_irq_num {
 };
 
 static rwsem irq_handlers_lock;
-#ifndef __aarch64__
 static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
-#endif
 
 export struct acpi_device {
     list_entry le;
@@ -473,7 +471,6 @@ static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
 }
 
-#ifndef __aarch64__
 static bool acpi_isr_func(void* ctx) {
     auto& n = *(acpi_irq_num*)ctx;
 
@@ -488,7 +485,6 @@ static bool acpi_isr_func(void* ctx) {
 
     return false;
 }
-#endif
 
 export void init_acpi_early() {
     ACPI_STATUS Status;
@@ -513,13 +509,12 @@ export void init_acpi_early() {
 }
 
 static void power_button_pressed_thread() {
-#ifndef __aarch64__ // FIXME
     // FIXME - should be calling NtShutdownSystem (why does it not work?)
 
+    // FIXME - use EFI functions if available
     AcpiEnterSleepStatePrep(5);
     disable_interrupts();
     AcpiEnterSleepState(5);
-#endif
 
     print("power off\n");
 }
@@ -1343,7 +1338,6 @@ extern "C"
 ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
                                           ACPI_OSD_HANDLER ServiceRoutine,
                                           void* Context) {
-#ifndef __aarch64__ // FIXME
     auto h = new acpi_irq_handler;
     if (!h)
         return AE_NO_MEMORY;
@@ -1379,7 +1373,6 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
 
         return AE_ERROR;
     }
-#endif
 
     return AE_OK;
 }
@@ -1387,7 +1380,6 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
 extern "C"
 ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber,
                                          ACPI_OSD_HANDLER ServiceRoutine) {
-#ifndef __aarch64__ // FIXME
     lock_guard lock(irq_handlers_lock);
 
     for (auto le = irq_handlers.next; le != &irq_handlers; le = le->next) {
@@ -1410,7 +1402,6 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber,
             return AE_NOT_FOUND;
         }
     }
-#endif
 
     return AE_NOT_FOUND;
 }
