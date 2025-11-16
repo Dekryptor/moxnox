@@ -386,6 +386,7 @@ export span<char> do_format_arg(span<char> sp, string_view,
             sp = do_format_arg(sp, ":x", arg.WakeCapable);
             break;
     }
+
     sp = do_format_arg(sp, "", ", InterruptCount = ");
     sp = do_format_arg(sp, ":x", arg.InterruptCount);
     sp = do_format_arg(sp, "", ", ResourceSource = (");
@@ -396,6 +397,120 @@ export span<char> do_format_arg(span<char> sp, string_view,
     sp = do_format_arg(sp, "", arg.Interrupt);
 
     // FIXME - multiple interrupts
+
+    return sp;
+}
+
+template<>
+consteval bool format_spec_valid<ACPI_RESOURCE_ADDRESS64>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                const ACPI_RESOURCE_ADDRESS64& arg) {
+    switch (arg.ProducerConsumer) {
+        case ACPI_MEMORY_RANGE:
+            sp = do_format_arg(sp, "", "Memory range");
+            break;
+
+        case ACPI_IO_RANGE:
+            sp = do_format_arg(sp, "", "I/O range");
+            break;
+
+        case ACPI_BUS_NUMBER_RANGE:
+            sp = do_format_arg(sp, "", "Bus number range");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", "ResourceType = ");
+            sp = do_format_arg(sp, ":x", arg.ResourceType);
+            break;
+    }
+
+    switch (arg.ProducerConsumer) {
+        case ACPI_PRODUCER:
+            sp = do_format_arg(sp, "", ", Producer");
+            break;
+
+        case ACPI_CONSUMER:
+            sp = do_format_arg(sp, "", ", Consumer");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", ", ProducerConsumer = ");
+            sp = do_format_arg(sp, ":x", arg.ProducerConsumer);
+            break;
+    }
+
+    switch (arg.Decode) {
+        case ACPI_POS_DECODE:
+            sp = do_format_arg(sp, "", ", PosDecode");
+            break;
+
+        case ACPI_SUB_DECODE:
+            sp = do_format_arg(sp, "", ", SubDecode");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", ", Decode = ");
+            sp = do_format_arg(sp, ":x", arg.Decode);
+            break;
+    }
+
+    switch (arg.MinAddressFixed) {
+        case ACPI_ADDRESS_NOT_FIXED:
+            sp = do_format_arg(sp, "", ", min address not fixed");
+            break;
+
+        case ACPI_ADDRESS_FIXED:
+            sp = do_format_arg(sp, "", ", min address fixed");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", ", MinAddressFixed = ");
+            sp = do_format_arg(sp, ":x", arg.MinAddressFixed);
+            break;
+    }
+
+    switch (arg.MaxAddressFixed) {
+        case ACPI_ADDRESS_NOT_FIXED:
+            sp = do_format_arg(sp, "", ", max address not fixed");
+            break;
+
+        case ACPI_ADDRESS_FIXED:
+            sp = do_format_arg(sp, "", ", max address fixed");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", ", MaxAddressFixed = ");
+            sp = do_format_arg(sp, ":x", arg.MaxAddressFixed);
+            break;
+    }
+
+    sp = do_format_arg(sp, "", ", Info = (WriteProtect = ");
+    sp = do_format_arg(sp, ":x", arg.Info.Mem.WriteProtect);
+    sp = do_format_arg(sp, "", ", Caching = ");
+    sp = do_format_arg(sp, ":x", arg.Info.Mem.Caching);
+    sp = do_format_arg(sp, "", ", RangeType = ");
+    sp = do_format_arg(sp, ":x", arg.Info.Mem.RangeType);
+    sp = do_format_arg(sp, "", ", Translation = ");
+    sp = do_format_arg(sp, ":x", arg.Info.Mem.Translation);
+    sp = do_format_arg(sp, "", "), Granularity = ");
+    sp = do_format_arg(sp, ":x", arg.Address.Granularity);
+    sp = do_format_arg(sp, "", ", Minimum = ");
+    sp = do_format_arg(sp, ":x", arg.Address.Minimum);
+    sp = do_format_arg(sp, "", ", Maximum = ");
+    sp = do_format_arg(sp, ":x", arg.Address.Maximum);
+    sp = do_format_arg(sp, "", ", TranslationOffset = ");
+    sp = do_format_arg(sp, ":x", arg.Address.TranslationOffset);
+    sp = do_format_arg(sp, "", ", AddressLength = ");
+    sp = do_format_arg(sp, ":x", arg.Address.AddressLength);
+
+    sp = do_format_arg(sp, "", ", ResourceSource = (");
+    sp = do_format_arg(sp, ":x", arg.ResourceSource.Index);
+    sp = do_format_arg(sp, "", ", ");
+    sp = do_format_arg(sp, "", string_view(arg.ResourceSource.StringPtr, arg.ResourceSource.StringLength));
+    sp = do_format_arg(sp, "", ")");
 
     return sp;
 }

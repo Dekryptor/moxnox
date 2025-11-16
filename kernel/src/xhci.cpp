@@ -2766,12 +2766,16 @@ static void found_xhci_acpi(const acpi_device& d) {
         auto& r = containing_record<acpi_device_resource>(le);
 
         switch (r.type) {
-            case acpi_device_resource_type::fixed_memory32:
-                print("resource: fixed_memory32 ({})\n", ((acpi_device_resource_fixed_memory32&)r).fixed_memory32);
-            break;
-
             case acpi_device_resource_type::extended_irq:
                 print("resource: extended_irq ({})\n", ((acpi_device_resource_extended_irq&)r).extended_irq);
+            break;
+
+            case acpi_device_resource_type::address:
+                print("resource: address ({})\n", ((acpi_device_resource_address&)r).address);
+                break;
+
+            case acpi_device_resource_type::fixed_memory32:
+                print("resource: fixed_memory32 ({})\n", ((acpi_device_resource_fixed_memory32&)r).fixed_memory32);
             break;
 
             default:
