@@ -652,49 +652,14 @@ static bool init_sata(const pci_device& dev) {
     // FIXME - BIOS handoff?
 
     if (!dev.msi.empty() && msi_supported) {
-#ifdef __aarch64__
-        auto int_num = allocate_msi_irq();
-        if (int_num == 0) {
-            print("allocate_msi_irq failed\n");
+        auto int_num = setup_msi(dev, sata_isr_func, sc);
+        if (int_num == 0)
             return false;
-        }
-
-        if (!add_irq_handler(int_num, false, sata_isr_func, sc)) {
-            free_msi_irq(int_num);
-            print("add_irq_handler failed\n");
-            return false;
-        }
-
-        sc->msi_irq = int_num;
-#else
-        auto int_num = add_isr(sata_isr_func, sc);
-        if (int_num == 0) {
-            print("add_isr failed\n");
-            return false;
-        }
-#endif
 
         sc->isr_registered = true;
-
-        auto& msi = *(volatile pci_msi*)dev.msi.data();
-
 #ifdef __aarch64__
-        msi.message_address_low = msi_frame_setspi & 0xffffffff;
-#else
-        msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+        sc->msi_irq = int_num;
 #endif
-
-        if (msi.message_control & 0x80) { // 64-bit
-#ifdef __aarch64__
-            msi.v64.message_address_high = msi_frame_setspi >> 32;
-#else
-            msi.v64.message_address_high = 0;
-#endif
-            msi.v64.message_data = int_num;
-        } else
-            msi.v32.message_data = int_num;
-
-        msi.message_control = msi.message_control | 1; // enable
     } else if (dev.irq.has_value()) {
         if (!add_irq_handler(*dev.irq, true, sata_isr_func, sc)) {
             print("add_irq_handler failed\n");

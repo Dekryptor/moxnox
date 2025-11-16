@@ -114,7 +114,7 @@ struct irq {
     list_entry handlers = { &handlers, &handlers };
 };
 
-using irq_func_type = bool (*)(void*);
+export using irq_func_type = bool (*)(void*);
 
 struct irq_handler_info {
     list_entry le;

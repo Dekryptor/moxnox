@@ -19,6 +19,7 @@ import object_ref;
 import scheduler;
 import acpi;
 import module_init;
+import interrupts;
 
 using namespace std;
 
@@ -855,4 +856,48 @@ static void found_pci_bus(const acpi_device& dev) {
     }
 
     vfree(routing.data(), routing_pages << PAGE_SHIFT);
+}
+
+export uint16_t setup_msi(const pci_device& dev, irq_func_type func, void* ctx) {
+#ifdef __aarch64__
+    auto int_num = allocate_msi_irq();
+    if (int_num == 0) {
+        print("allocate_msi_irq failed\n");
+        return 0;
+    }
+
+    if (!add_irq_handler(int_num, false, func, ctx)) {
+        free_msi_irq(int_num);
+        print("add_irq_handler failed\n");
+        return 0;
+    }
+#else
+    auto int_num = add_isr(func, ctx);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return 0;
+    }
+#endif
+
+    auto& msi = *(volatile pci_msi*)dev.msi.data();
+
+#ifdef __aarch64__
+    msi.message_address_low = msi_frame_setspi & 0xffffffff;
+#else
+    msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
+
+    if (msi.message_control & 0x80) { // 64-bit
+#ifdef __aarch64__
+        msi.v64.message_address_high = msi_frame_setspi >> 32;
+#else
+        msi.v64.message_address_high = 0;
+#endif
+        msi.v64.message_data = int_num;
+    } else
+        msi.v32.message_data = int_num;
+
+    msi.message_control = msi.message_control | 1; // enable
+
+    return int_num;
 }
