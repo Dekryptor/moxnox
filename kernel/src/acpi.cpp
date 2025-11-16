@@ -290,8 +290,21 @@ consteval bool format_spec_valid<ACPI_RESOURCE_FIXED_MEMORY32>(string_view fmt) 
 
 export span<char> do_format_arg(span<char> sp, string_view,
                                 const ACPI_RESOURCE_FIXED_MEMORY32& arg) {
-    sp = do_format_arg(sp, "", "WriteProtect = ");
-    sp = do_format_arg(sp, ":x", arg.WriteProtect);
+    switch (arg.WriteProtect) {
+        case ACPI_READ_ONLY_MEMORY:
+            sp = do_format_arg(sp, "", "read-only");
+            break;
+
+        case ACPI_READ_WRITE_MEMORY:
+            sp = do_format_arg(sp, "", "read-write");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", "WriteProtect = ");
+            sp = do_format_arg(sp, ":x", arg.WriteProtect);
+            break;
+    }
+
     sp = do_format_arg(sp, "", ", Address = ");
     sp = do_format_arg(sp, ":x", arg.Address);
     sp = do_format_arg(sp, "", ", AddressLength = ");
@@ -487,8 +500,23 @@ export span<char> do_format_arg(span<char> sp, string_view,
             break;
     }
 
-    sp = do_format_arg(sp, "", ", Info = (WriteProtect = ");
-    sp = do_format_arg(sp, ":x", arg.Info.Mem.WriteProtect);
+    sp = do_format_arg(sp, "", ", Info = (");
+
+    switch (arg.Info.Mem.WriteProtect) {
+        case ACPI_READ_ONLY_MEMORY:
+            sp = do_format_arg(sp, "", "read-only");
+            break;
+
+        case ACPI_READ_WRITE_MEMORY:
+            sp = do_format_arg(sp, "", "read-write");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", "WriteProtect = ");
+            sp = do_format_arg(sp, ":x", arg.Info.Mem.WriteProtect);
+            break;
+    }
+
     sp = do_format_arg(sp, "", ", Caching = ");
     sp = do_format_arg(sp, ":x", arg.Info.Mem.Caching);
     sp = do_format_arg(sp, "", ", RangeType = ");
