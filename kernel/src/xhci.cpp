@@ -2770,6 +2770,10 @@ static void found_xhci_acpi(const acpi_device& d) {
                 print("resource: fixed_memory32 ({})\n", ((acpi_device_resource_fixed_memory32&)r).fixed_memory32);
             break;
 
+            case acpi_device_resource_type::extended_irq:
+                print("resource: extended_irq ({})\n", ((acpi_device_resource_extended_irq&)r).extended_irq);
+            break;
+
             default:
                 print("resource: {}\n", r.type);
                 break;

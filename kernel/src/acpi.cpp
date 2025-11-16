@@ -301,6 +301,106 @@ export span<char> do_format_arg(span<char> sp, string_view,
 }
 
 template<>
+consteval bool format_spec_valid<ACPI_RESOURCE_EXTENDED_IRQ>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                const ACPI_RESOURCE_EXTENDED_IRQ& arg) {
+
+    switch (arg.ProducerConsumer) {
+        case ACPI_PRODUCER:
+            sp = do_format_arg(sp, "", "Producer");
+            break;
+
+        case ACPI_CONSUMER:
+            sp = do_format_arg(sp, "", "Consumer");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", "ProducerConsumer = ");
+            sp = do_format_arg(sp, ":x", arg.ProducerConsumer);
+            break;
+    }
+
+    switch (arg.Triggering) {
+        case ACPI_LEVEL_SENSITIVE:
+            sp = do_format_arg(sp, "", ", Level-sensitive");
+            break;
+
+        case ACPI_EDGE_SENSITIVE:
+            sp = do_format_arg(sp, "", ", Edge-sensitive");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", ", Triggering = ");
+            sp = do_format_arg(sp, ":x", arg.Triggering);
+            break;
+    }
+
+    switch (arg.Polarity) {
+        case ACPI_ACTIVE_HIGH:
+            sp = do_format_arg(sp, "", ", Active high");
+            break;
+
+        case ACPI_ACTIVE_LOW:
+            sp = do_format_arg(sp, "", ", Active low");
+            break;
+
+        case ACPI_ACTIVE_BOTH:
+            sp = do_format_arg(sp, "", ", Active both");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", ", Polarity = ");
+            sp = do_format_arg(sp, ":x", arg.Polarity);
+            break;
+    }
+
+    switch (arg.Shareable) {
+        case ACPI_EXCLUSIVE:
+            sp = do_format_arg(sp, "", ", Exclusive");
+            break;
+
+        case ACPI_SHARED:
+            sp = do_format_arg(sp, "", ", Shared");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", ", Shareable = ");
+            sp = do_format_arg(sp, ":x", arg.Shareable);
+            break;
+    }
+
+    switch (arg.WakeCapable) {
+        case ACPI_NOT_WAKE_CAPABLE:
+            sp = do_format_arg(sp, "", ", Not wake-capable");
+            break;
+
+        case ACPI_WAKE_CAPABLE:
+            sp = do_format_arg(sp, "", ", Wake-capable");
+            break;
+
+        default:
+            sp = do_format_arg(sp, "", ", WakeCapable = ");
+            sp = do_format_arg(sp, ":x", arg.WakeCapable);
+            break;
+    }
+    sp = do_format_arg(sp, "", ", InterruptCount = ");
+    sp = do_format_arg(sp, ":x", arg.InterruptCount);
+    sp = do_format_arg(sp, "", ", ResourceSource = (");
+    sp = do_format_arg(sp, ":x", arg.ResourceSource.Index);
+    sp = do_format_arg(sp, "", ", ");
+    sp = do_format_arg(sp, "", string_view(arg.ResourceSource.StringPtr, arg.ResourceSource.StringLength));
+    sp = do_format_arg(sp, "", "), Interrupt = ");
+    sp = do_format_arg(sp, "", arg.Interrupt);
+
+    // FIXME - multiple interrupts
+
+    return sp;
+}
+
+template<>
 consteval bool format_spec_valid<acpi_status>(string_view fmt) {
     return fmt.empty();
 }
