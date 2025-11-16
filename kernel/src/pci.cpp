@@ -921,8 +921,8 @@ export uint16_t setup_msi(const pci_device& dev, bool msix, irq_func_type func,
     return int_num;
 }
 
-export uint16_t add_msix_entry(const pci_device& dev, irq_func_type func,
-                               void* ctx) {
+export uint16_t add_msix_entry(const pci_device& dev, uint16_t vec,
+                               irq_func_type func, void* ctx) {
     auto vecs = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
 
 #ifdef __aarch64__
@@ -945,15 +945,15 @@ export uint16_t add_msix_entry(const pci_device& dev, irq_func_type func,
     }
 #endif
 
-    vecs[1].message_data = int_num;
+    vecs[vec].message_data = int_num;
 #ifdef __aarch64__
-    vecs[1].message_address_high = msi_frame_setspi >> 32;
-    vecs[1].message_address_low = msi_frame_setspi & 0xffffffff;
+    vecs[vec].message_address_high = msi_frame_setspi >> 32;
+    vecs[vec].message_address_low = msi_frame_setspi & 0xffffffff;
 #else
-    vecs[1].message_address_high = 0;
-    vecs[1].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+    vecs[vec].message_address_high = 0;
+    vecs[vec].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
 #endif
-    vecs[1].vector_control &= ~(uint32_t)1; // unmask
+    vecs[vec].vector_control &= ~(uint32_t)1; // unmask
 
     return int_num;
 }

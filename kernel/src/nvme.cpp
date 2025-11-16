@@ -838,7 +838,7 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
     io_queue.sq = phys_address(sq);
 
     // FIXME - free interrupt when we go away
-    auto int_num = add_msix_entry(dev, nvme_msix_isr_func, &io_queue);
+    auto int_num = add_msix_entry(dev, 1, nvme_msix_isr_func, &io_queue);
     if (int_num == 0) {
         // FIXME - delete CQ and SQ
         return false;

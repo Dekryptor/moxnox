@@ -302,42 +302,14 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
             return false;
         }
 
-#ifdef __aarch64__
         // FIXME - free interrupt number
-        auto int_num = allocate_msi_irq();
+
+        auto int_num = add_msix_entry(dev, msix_vector,
+                                      virtio_pci_msix_isr_func, vq);
         if (int_num == 0) {
-            print("allocate_msi_irq failed\n");
             delete vq;
             return false;
         }
-
-        if (!add_irq_handler(int_num, false, virtio_pci_msix_isr_func, vq)) {
-            free_msi_irq(int_num);
-            print("add_irq_handler failed\n");
-            delete vq;
-            return false;
-        }
-#else
-        // FIXME - free interrupt number
-        auto int_num = add_isr(virtio_pci_msix_isr_func, vq);
-        if (int_num == 0) {
-            print("add_isr failed\n");
-            delete vq;
-            return false;
-        }
-#endif
-
-        auto vec = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
-
-        vec[msix_vector].message_data = int_num;
-#ifdef __aarch64__
-        vec[msix_vector].message_address_high = msi_frame_setspi >> 32;
-        vec[msix_vector].message_address_low = msi_frame_setspi & 0xffffffff;
-#else
-        vec[msix_vector].message_address_high = 0;
-        vec[msix_vector].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
-#endif
-        vec[msix_vector].vector_control &= ~(uint32_t)1; // unmask
     }
 
     common->queue_enable = 1;
