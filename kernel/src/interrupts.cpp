@@ -202,8 +202,6 @@ static uint32_t get_irq_gsi(span<const uint8_t> madt, uint32_t irq) {
 
             if (ent.Bus == 0 && ent.SourceIrq == irq)
                 return ent.GlobalIrq;
-
-            break;
         }
 
         data = data.subspan(h.Length);
