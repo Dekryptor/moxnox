@@ -686,7 +686,7 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
         // enable MSI-X
         dev.msix->message_control |= 0x8000;
     } else {
-        if (!add_irq_handler(*dev.irq, false, virtio_pci_isr_func, this)) {
+        if (!add_irq_handler(*dev.irq, true, virtio_pci_isr_func, this)) {
             print("add_irq_handler failed\n");
             return;
         }
