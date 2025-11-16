@@ -229,7 +229,7 @@ nvme_controller::nvme_controller(const pci_device& dev) {
     bool msi = msi_supported && dev.msix;
 
     if (msi) {
-        // enable MSI-X
+        // enable MSI-X (FIXME - why does this need to be done here, when setup_msi does it too?)
         dev.msix->message_control |= 0x8000;
     }
 
