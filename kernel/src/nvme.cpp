@@ -721,44 +721,46 @@ bool nvme_queue::isr() {
 
     auto old_cq_head = cq_head;
 
-    lock_guard lock(sq_lock);
+    {
+        lock_guard lock(sq_lock);
 
-    while (cq_head != sq_tail) {
-        auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * cqe_size));
+        while (cq_head != sq_tail) {
+            auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * cqe_size));
 
-        if (comp.p != exp_cq_p)
-            break;
+            if (comp.p != exp_cq_p)
+                break;
 
-        if (comp.cid >= QUEUE_SIZE)
-            bsod_format("NVMe completion for unknown cid {:x}\n", (uint16_t)comp.cid);
+            if (comp.cid >= QUEUE_SIZE)
+                bsod_format("NVMe completion for unknown cid {:x}\n", (uint16_t)comp.cid);
 
-        memcpy(&reqs[comp.cid]->cqe, &comp, sizeof(reqs[comp.cid]->cqe));
+            memcpy(&reqs[comp.cid]->cqe, &comp, sizeof(reqs[comp.cid]->cqe));
 
-        cq_head++;
+            cq_head++;
 
-        if (cq_head == QUEUE_SIZE) {
-            cq_head = 0;
-            exp_cq_p = exp_cq_p == 1 ? 0 : 1;
+            if (cq_head == QUEUE_SIZE) {
+                cq_head = 0;
+                exp_cq_p = exp_cq_p == 1 ? 0 : 1;
+            }
         }
-    }
 
-    if (cq_head == old_cq_head)
-        return false;
+        if (cq_head == old_cq_head)
+            return false;
 
-    while (old_cq_head != cq_head) {
-        auto& comp = *(nvme_completion*)((uint8_t*)cq + (old_cq_head * cqe_size));
+        while (old_cq_head != cq_head) {
+            auto& comp = *(nvme_completion*)((uint8_t*)cq + (old_cq_head * cqe_size));
 
-        auto& req = *reqs[comp.cid];
-        reqs[comp.cid] = nullptr;
+            auto& req = *reqs[comp.cid];
+            reqs[comp.cid] = nullptr;
 
-        release_slot((uint8_t)comp.cid);
+            release_slot((uint8_t)comp.cid);
 
-        set_event(static_cast<::event&>(req.event.get()));
+            set_event(static_cast<::event&>(req.event.get()));
 
-        old_cq_head++;
+            old_cq_head++;
 
-        if (old_cq_head == QUEUE_SIZE)
-            old_cq_head = 0;
+            if (old_cq_head == QUEUE_SIZE)
+                old_cq_head = 0;
+        }
     }
 
     barrier();
