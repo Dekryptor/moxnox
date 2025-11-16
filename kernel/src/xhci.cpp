@@ -179,7 +179,6 @@ private:
     unsigned int event_ring_offset = 0;
     bool event_ring_cycle = true;
     xhci_event_ring_segment* seg_table = nullptr;
-    uint32_t rtsoff;
     object_ref port_status_change_event;
     object_ref port_status_change_thread_obj;
     spinlock port_status_change_lock;
@@ -674,8 +673,6 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
     int_reg.IMAN |= XHCI_IMAN_IE;
 
     op_regs.USBCMD |= XHCI_USBCMD_INTE | XHCI_USBCMD_RS;
-
-    rtsoff = cap_regs.RTSOFF;
 
     initialized = true;
 }
@@ -2581,7 +2578,8 @@ bool usb_device::set_interface(uint16_t interface, uint16_t alternate) {
 
 bool xhci::isr() {
     bool handled = false;
-    volatile auto& run_regs = *(xhci_run_regs*)(dev.bar[0].data() + rtsoff);
+    volatile auto& cap_regs = *cap_regs_ptr;
+    volatile auto& run_regs = *(xhci_run_regs*)((uint8_t*)&cap_regs + cap_regs.RTSOFF);
     volatile auto& int_reg = run_regs.int_regs[0];
 
     while (true) {
