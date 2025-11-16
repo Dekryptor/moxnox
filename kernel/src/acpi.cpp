@@ -284,6 +284,23 @@ export span<char> do_format_arg(span<char> sp, string_view,
 }
 
 template<>
+consteval bool format_spec_valid<ACPI_RESOURCE_FIXED_MEMORY32>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                const ACPI_RESOURCE_FIXED_MEMORY32& arg) {
+    sp = do_format_arg(sp, "", "WriteProtect = ");
+    sp = do_format_arg(sp, ":x", arg.WriteProtect);
+    sp = do_format_arg(sp, "", ", Address = ");
+    sp = do_format_arg(sp, ":x", arg.Address);
+    sp = do_format_arg(sp, "", ", AddressLength = ");
+    sp = do_format_arg(sp, ":x", arg.AddressLength);
+
+    return sp;
+}
+
+template<>
 consteval bool format_spec_valid<acpi_status>(string_view fmt) {
     return fmt.empty();
 }

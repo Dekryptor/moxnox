@@ -2765,6 +2765,14 @@ static void found_xhci_acpi(const acpi_device& d) {
     for (auto le = d.resources.next; le != &d.resources; le = le->next) {
         auto& r = containing_record<acpi_device_resource>(le);
 
-        print("resource: {}\n", r.type);
+        switch (r.type) {
+            case acpi_device_resource_type::fixed_memory32:
+                print("resource: fixed_memory32 ({})\n", ((acpi_device_resource_fixed_memory32&)r).fixed_memory32);
+            break;
+
+            default:
+                print("resource: {}\n", r.type);
+                break;
+        }
     }
 }
