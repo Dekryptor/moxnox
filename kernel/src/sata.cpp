@@ -696,7 +696,7 @@ static bool init_sata(const pci_device& dev) {
 
         msi.message_control = msi.message_control | 1; // enable
     } else if (dev.irq.has_value()) {
-        if (!add_irq_handler(*dev.irq, false, sata_isr_func, sc)) {
+        if (!add_irq_handler(*dev.irq, true, sata_isr_func, sc)) {
             print("add_irq_handler failed\n");
             return false;
         }
