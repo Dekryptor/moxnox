@@ -257,6 +257,47 @@ export list_entry pnp_hids = { &pnp_hids, &pnp_hids };
 export bool acpi_early_init_done = false;
 
 template<>
+consteval bool format_spec_valid<acpi_device_resource_type>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                acpi_device_resource_type arg) {
+    switch (arg) {
+        using enum acpi_device_resource_type;
+
+        case io:
+            return do_format_arg(sp, "", "io");
+        case irq:
+            return do_format_arg(sp, "", "irq");
+        case extended_irq:
+            return do_format_arg(sp, "", "extended_irq");
+        case address16:
+            return do_format_arg(sp, "", "address16");
+        case address32:
+            return do_format_arg(sp, "", "address32");
+        case address64:
+            return do_format_arg(sp, "", "address64");
+        case fixed_memory32:
+            return do_format_arg(sp, "", "fixed_memory32");
+        case dma:
+            return do_format_arg(sp, "", "dma");
+        case gpio:
+            return do_format_arg(sp, "", "gpio");
+        case i2c_serial_bus:
+            return do_format_arg(sp, "", "i2c_serial_bus");
+        case spi_serial_bus:
+            return do_format_arg(sp, "", "spi_serial_bus");
+        case uart_serial_bus:
+            return do_format_arg(sp, "", "uart_serial_bus");
+        case csi2_serial_bus:
+            return do_format_arg(sp, "", "csi2_serial_bus");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
 consteval bool format_spec_valid<acpi_status>(string_view fmt) {
     return fmt.empty();
 }
