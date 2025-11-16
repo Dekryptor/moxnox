@@ -31,6 +31,7 @@ import object_ref;
 import scheduler;
 import list;
 import spinlock;
+import acpi;
 
 using namespace std;
 
@@ -288,13 +289,23 @@ export struct usb_recognizer {
 export list_entry usb_interfaces = { &usb_interfaces, &usb_interfaces };
 
 static bool init_xhci(const pci_device& dev);
+static void found_xhci_acpi(const acpi_device& d);
 
 static pci_class_recognizer mod_pci_class = {
     {}, pci_class::serial_bus, (uint8_t)pci_serial_bus::usb, true, init_xhci
 };
 
+static acpi_recognizer mod_pnp_hids[] = {
+    { {}, "PNP0D10", found_xhci_acpi, nullptr },
+    { {}, "PNP0D15", found_xhci_acpi, nullptr }
+};
+
 static module_init module_init_xhci([]() {
     insert_tail_list(pci_classes, mod_pci_class.le);
+
+    for (unsigned int i = 0; i < sizeof(mod_pnp_hids) / sizeof(*mod_pnp_hids); i++) {
+        insert_tail_list(pnp_hids, mod_pnp_hids[i].le);
+    }
 });
 
 static void write_volatile64(volatile uint64_t* addr, uint64_t val) {
@@ -2746,4 +2757,14 @@ static bool init_xhci(const pci_device& dev) {
     // FIXME - add to list of xhci controllers?
 
     return true;
+}
+
+static void found_xhci_acpi(const acpi_device& d) {
+    print("FIXME - found_xhci_acpi\n"); // FIXME
+
+    for (auto le = d.resources.next; le != &d.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        print("resource: {}\n", r.type);
+    }
 }
