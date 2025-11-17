@@ -574,11 +574,15 @@ bool xhci::init(span<volatile uint8_t> mmio) {
     memset(dcbaa, 0, (num_slots + 1) * sizeof(uint64_t));
     dcbaa[0] = va_to_pa_phys(scratchpad_array);
 
+    flush_cache((uintptr_t)dcbaa);
+
     write_volatile64(&op_regs.DCBAAP, va_to_pa_phys(dcbaa));
 
     uint32_t dboff = cap_regs.DBOFF;
 
     command_queue.initialize(COMMAND_RING_SIZE, (uint32_t*)(mmio.data() + dboff), 0);
+
+    flush_cache((uintptr_t)command_queue.ring);
 
     write_volatile64(&op_regs.CRCR, command_queue.ring_pa | 1);
 
@@ -615,6 +619,9 @@ bool xhci::init(span<volatile uint8_t> mmio) {
     seg_table->size = EVENT_RING_SIZE;
 
     volatile auto& int_reg = run_regs.int_regs[0];
+
+    flush_cache((uintptr_t)event_ring);
+    flush_cache((uintptr_t)seg_table);
 
     int_reg.ERSTSZ = (int_reg.ERSTSZ & 0xffff0000) | 1;
     write_volatile64(&int_reg.ERDP, va_to_pa_phys(event_ring));

@@ -2961,3 +2961,19 @@ export void protect_kernel_pages() {
         }
     }
 }
+
+#ifdef __aarch64__
+export void inline __attribute((always_inline)) flush_cache(uintptr_t va) {
+    __asm __volatile(
+        "dc cvac, %x[res]\n"
+        "dsb sy\n"
+        "isb\n"
+        :
+        : [res] "r" (va)
+    );
+}
+#else
+export void inline __attribute((always_inline)) flush_cache(uintptr_t) {
+    // FIXME
+}
+#endif
