@@ -2659,6 +2659,7 @@ void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
         cycle_bit = !cycle_bit;
     }
 
+    flush_cache((uintptr_t)&trb);
     barrier();
 
     if (ring_bell)
