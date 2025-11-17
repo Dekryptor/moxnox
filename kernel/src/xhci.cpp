@@ -147,6 +147,7 @@ class xhci {
 public:
     xhci(const pci_device& dev);
     ~xhci();
+    bool init(span<volatile uint8_t> mmio);
     void init_ports();
     bool isr();
     void port_status_change_thread();
@@ -456,31 +457,15 @@ bool xhci::init_scratchpad() {
     return true;
 }
 
-xhci::xhci(const pci_device& dev) {
-    if (!dev.irq.has_value()) {
-        if (!dev.msix && dev.msi.empty()) {
-            print("init_xhci: no MSI or MSI-X capability, and no IRQ number\n");
-            return;
-        } else if (!msi_supported) {
-            print("init_xhci: no IRQ number, and MSI disabled or not supported\n");
-            return;
-        }
-    }
-
-    if (dev.bar[0].size() < sizeof(xhci_cap_regs)) {
-        print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
-              dev.bar[0].size(), sizeof(xhci_cap_regs));
-        return;
-    }
-
-    cap_regs_ptr = (xhci_cap_regs*)dev.bar[0].data();
+bool xhci::init(span<volatile uint8_t> mmio) {
+    cap_regs_ptr = (xhci_cap_regs*)mmio.data();
 
     volatile auto& cap_regs = *cap_regs_ptr;
 
     if (cap_regs.CAPLENGTH < 0x20) {
         print("init_xhci: CAPLENGTH was {}, expected at least {}\n",
               cap_regs.CAPLENGTH, 0x20);
-        return;
+        return false;
     }
 
     large_contexts = cap_regs.HCCPARAMS1 & XHCI_HCCPARAMS1_CSZ;
@@ -494,7 +479,7 @@ xhci::xhci(const pci_device& dev) {
 
     if (num_ports == 0) {
         print("xhci::xhci: num_ports was 0\n");
-        return;
+        return false;
     }
 
     root_hub.num_ports = num_ports;
@@ -502,20 +487,20 @@ xhci::xhci(const pci_device& dev) {
     root_hub.children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
     if (!root_hub.children) {
         print("malloc failed\n");
-        return;
+        return false;
     }
 
     memset(root_hub.children, 0, sizeof(usb_device*) * num_ports);
 
-    if (dev.bar[0].size() < cap_regs.CAPLENGTH + offsetof(xhci_op_regs, ports) + (num_ports * sizeof(xhci_port_regs))) {
-        print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
-              dev.bar[0].size(), cap_regs.CAPLENGTH + sizeof(xhci_op_regs) + (num_ports * sizeof(xhci_port_regs)));
-        return;
+    if (mmio.size() < cap_regs.CAPLENGTH + offsetof(xhci_op_regs, ports) + (num_ports * sizeof(xhci_port_regs))) {
+        print("init_xhci: MMIO region was {} bytes, expected at least {}\n",
+              mmio.size(), cap_regs.CAPLENGTH + sizeof(xhci_op_regs) + (num_ports * sizeof(xhci_port_regs)));
+        return false;
     }
 
     if (!init_scratchpad()) {
         print("xhci::init_scratchpad failed\n");
-        return;
+        return false;
     }
 
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
@@ -524,7 +509,7 @@ xhci::xhci(const pci_device& dev) {
         auto tim_ref = create_timer(true);
         if (!tim_ref) {
             print("xhci::xhci: create_timer failed\n");
-            return;
+            return false;
         }
 
         auto& tim = static_cast<timer&>(tim_ref.get());
@@ -532,7 +517,7 @@ xhci::xhci(const pci_device& dev) {
         auto status = tim.set(-ONE_MS_TICKS, nullptr, nullptr, false, 1, nullptr);
         if (!success(status)) {
             print("xhci::xhci: timer::set returned {}\n", status);
-            return;
+            return false;
         }
 
         op_regs.USBCMD &= ~XHCI_USBCMD_RS; // unset run bit
@@ -552,7 +537,7 @@ xhci::xhci(const pci_device& dev) {
         auto tim_ref = create_timer(true);
         if (!tim_ref) {
             print("xhci::xhci: create_timer failed\n");
-            return;
+            return false;
         }
 
         auto& tim = static_cast<timer&>(tim_ref.get());
@@ -560,7 +545,7 @@ xhci::xhci(const pci_device& dev) {
         auto status = tim.set(-ONE_MS_TICKS, nullptr, nullptr, false, 1, nullptr);
         if (!success(status)) {
             print("xhci::xhci: timer::set returned {}\n", status);
-            return;
+            return false;
         }
 
         // wait for reset to complete
@@ -576,13 +561,13 @@ xhci::xhci(const pci_device& dev) {
 
     if (!reset_done) {
         print("init_xhci: timed out resetting controller\n");
-        return;
+        return false;
     }
 
     dcbaa = (uint64_t*)malloc((num_slots + 1) * sizeof(uint64_t));
     if (!dcbaa) {
         print("malloc failed\n");
-        return;
+        return false;
     }
 
     memset(dcbaa, 0, (num_slots + 1) * sizeof(uint64_t));
@@ -592,16 +577,16 @@ xhci::xhci(const pci_device& dev) {
 
     uint32_t dboff = cap_regs.DBOFF;
 
-    command_queue.initialize(COMMAND_RING_SIZE, (uint32_t*)(dev.bar[0].data() + dboff), 0);
+    command_queue.initialize(COMMAND_RING_SIZE, (uint32_t*)(mmio.data() + dboff), 0);
 
     write_volatile64(&op_regs.CRCR, command_queue.ring_pa | 1);
 
     op_regs.CONFIG = (op_regs.CONFIG & ~(uint32_t)0xff) | num_slots;
 
-    if (dev.bar[0].size() < cap_regs.RTSOFF + offsetof(xhci_run_regs, int_regs) + sizeof(xhci_int_regs)) {
-        print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
-              dev.bar[0].size(), cap_regs.RTSOFF + offsetof(xhci_run_regs, int_regs) + sizeof(xhci_int_regs));
-        return;
+    if (mmio.size() < cap_regs.RTSOFF + offsetof(xhci_run_regs, int_regs) + sizeof(xhci_int_regs)) {
+        print("init_xhci: MMIO region was {} bytes, expected at least {}\n",
+              mmio.size(), cap_regs.RTSOFF + offsetof(xhci_run_regs, int_regs) + sizeof(xhci_int_regs));
+        return false;
     }
 
     volatile auto& run_regs = *(xhci_run_regs*)((uint8_t*)&cap_regs + cap_regs.RTSOFF);
@@ -612,14 +597,14 @@ xhci::xhci(const pci_device& dev) {
     event_ring_pa = allocate_folio(event_ring_order);
     if (!event_ring_pa) {
         print("allocate folio failed\n");
-        return;
+        return false;
     }
 
     auto va = allocate_va(1 << event_ring_order);
     if (!va) {
         print("allocate_va failed\n");
         free_folio(event_ring_pa);
-        return;
+        return false;
     }
 
     if (!map_folio(event_ring_pa, va, mapping_type::no_cache)) {
@@ -628,7 +613,7 @@ xhci::xhci(const pci_device& dev) {
         free_va(va, 1 << event_ring_order);
         free_folio(event_ring_pa);
 
-        return;
+        return false;
     }
 
     event_ring = (xhci_trb_common*)va;
@@ -637,7 +622,7 @@ xhci::xhci(const pci_device& dev) {
     seg_table = (xhci_event_ring_segment*)malloc_aligned(sizeof(xhci_event_ring_segment), 64);
     if (!seg_table) {
         print("malloc failed\n");
-        return;
+        return false;
     }
 
     memset(seg_table, 0, sizeof(xhci_event_ring_segment));
@@ -658,6 +643,28 @@ xhci::xhci(const pci_device& dev) {
         ((xhci*)ctx)->port_status_change_thread();
     }, this);
 
+    return true;
+}
+
+xhci::xhci(const pci_device& dev) {
+    if (!dev.irq.has_value()) {
+        if (!dev.msix && dev.msi.empty()) {
+            print("init_xhci: no MSI or MSI-X capability, and no IRQ number\n");
+            return;
+        } else if (!msi_supported) {
+            print("init_xhci: no IRQ number, and MSI disabled or not supported\n");
+            return;
+        }
+    }
+
+    if (dev.bar[0].size() < sizeof(xhci_cap_regs)) {
+        print("init_xhci: BAR0 was {} bytes, expected at least {}\n",
+              dev.bar[0].size(), sizeof(xhci_cap_regs));
+        return;
+    }
+
+    init(dev.bar[0]);
+
     if (msi_supported && (dev.msix || !dev.msi.empty())) {
         // FIXME - free interrupt number in destructor
         auto int_num = setup_msi(dev, dev.msix, xhci_isr_func, this);
@@ -669,6 +676,11 @@ xhci::xhci(const pci_device& dev) {
             return;
         }
     }
+
+    volatile auto& cap_regs = *cap_regs_ptr;
+    volatile auto& run_regs = *(xhci_run_regs*)((uint8_t*)&cap_regs + cap_regs.RTSOFF);
+    volatile auto& int_reg = run_regs.int_regs[0];
+    volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
 
     int_reg.IMAN |= XHCI_IMAN_IE;
 
