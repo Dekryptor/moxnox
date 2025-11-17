@@ -147,7 +147,7 @@ public:
 class xhci {
 public:
     xhci(const pci_device& dev);
-    xhci(span<volatile uint8_t> mmio, uint32_t irq);
+    xhci(span<volatile uint8_t> mmio, uint32_t irq, bool level_sensitive);
     ~xhci();
     bool init(span<volatile uint8_t> mmio);
     void init_ports();
@@ -691,7 +691,7 @@ xhci::xhci(const pci_device& dev) {
     initialized = true;
 }
 
-xhci::xhci(span<volatile uint8_t> mmio, uint32_t irq) {
+xhci::xhci(span<volatile uint8_t> mmio, uint32_t irq, bool level_sensitive) {
     if (mmio.size() < sizeof(xhci_cap_regs)) {
         print("xhci::xhci: MMIO was {} bytes, expected at least {}\n",
               mmio.size(), sizeof(xhci_cap_regs));
@@ -700,7 +700,7 @@ xhci::xhci(span<volatile uint8_t> mmio, uint32_t irq) {
 
     init(mmio);
 
-    if (!add_irq_handler(irq, true, xhci_isr_func, this)) {
+    if (!add_irq_handler(irq, level_sensitive, xhci_isr_func, this)) {
         print("add_irq_handler failed\n");
         return;
     }
@@ -2916,7 +2916,7 @@ static void found_xhci_acpi(const acpi_device& d) {
     auto mmio = span<volatile uint8_t>((volatile uint8_t*)(va + (address->first & (PAGE_SIZE - 1))),
                                        address->second);
 
-    auto x = new xhci(mmio, *irq);
+    auto x = new xhci(mmio, *irq, level_sensitive);
     if (!x || !x->initialized) {
         if (!x)
             print("new failed\n");
