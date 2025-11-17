@@ -1734,11 +1734,14 @@ void AcpiOsStall(UINT32 /*Microseconds*/) {
     print("FIXME - AcpiOsStall\n");
 }
 
+#ifdef __aarch64__
+extern "C"
+ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS, UINT32*, UINT32) {
+    return AE_NOT_IMPLEMENTED;
+}
+#else
 extern "C"
 ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32* Value, UINT32 Width) {
-#ifdef __aarch64__ // FIXME?
-    return AE_NOT_IMPLEMENTED;
-#else
     if (Width == 32)
         *Value = inl((uint16_t)Address);
     else if (Width == 16)
@@ -1749,14 +1752,17 @@ ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32* Value, UINT32 Width)
         return AE_BAD_PARAMETER;
 
     return AE_OK;
-#endif
 }
+#endif
 
+#ifdef __aarch64__
+extern "C"
+ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS, UINT32, UINT32) {
+    return AE_NOT_IMPLEMENTED;
+}
+#else
 extern "C"
 ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width) {
-#ifdef __aarch64__ // FIXME?
-    return AE_NOT_IMPLEMENTED;
-#else
     if (Width == 32)
         outl((uint16_t)Address, Value);
     else if (Width == 16)
@@ -1767,8 +1773,8 @@ ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width)
         return AE_BAD_PARAMETER;
 
     return AE_OK;
-#endif
 }
+#endif
 
 extern "C"
 ACPI_STATUS AcpiOsReadMemory(ACPI_PHYSICAL_ADDRESS /*Address*/, UINT64* /*Value*/,
