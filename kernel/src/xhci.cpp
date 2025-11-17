@@ -2879,10 +2879,6 @@ static void found_xhci_acpi(const acpi_device& d) {
         return;
     }
 
-    print("FIXME - found_xhci_acpi (address {:x},{:x}, IRQ {} {})\n",
-          address->first, address->second, *irq,
-          level_sensitive ? "level-sensitive" : "edge-sensitive");
-
     // map address range
 
     auto pa_start = address->first & ~(PAGE_SIZE - 1);
