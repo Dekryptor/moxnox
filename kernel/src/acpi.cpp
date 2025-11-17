@@ -1779,11 +1779,36 @@ ACPI_STATUS AcpiOsReadMemory(ACPI_PHYSICAL_ADDRESS /*Address*/, UINT64* /*Value*
 }
 
 extern "C"
-ACPI_STATUS AcpiOsWriteMemory(ACPI_PHYSICAL_ADDRESS /*Address*/, UINT64 /*Value*/,
-                              UINT32 /*Width*/) {
-    print("FIXME - AcpiOsWriteMemory\n");
+ACPI_STATUS AcpiOsWriteMemory(ACPI_PHYSICAL_ADDRESS Address, UINT64 Value,
+                              UINT32 Width) {
+    if (Width != 8 && Width != 16 && Width != 32 && Width != 64)
+        return AE_ERROR;
 
-    return AE_ERROR;
+    auto ptr = AcpiOsMapMemory(Address, Width / 8);
+    if (!ptr)
+        return AE_ERROR;
+
+    switch (Width) {
+        case 8:
+            *(uint8_t*)ptr = (uint8_t)Value;
+            break;
+
+        case 16:
+            *(uint16_t*)ptr = (uint16_t)Value;
+            break;
+
+        case 32:
+            *(uint32_t*)ptr = (uint32_t)Value;
+            break;
+
+        case 64:
+            *(uint64_t*)ptr = Value;
+            break;
+    }
+
+    AcpiOsUnmapMemory(ptr, Width / 8);
+
+    return AE_OK;
 }
 
 export constexpr uint64_t pci_pa(const ACPI_MCFG_ALLOCATION& item, uint8_t bus, uint8_t device, uint8_t function) {
