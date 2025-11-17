@@ -156,7 +156,6 @@ public:
     uint8_t get_speed_num(uint8_t port_id, uint32_t psi_num);
 
     bool initialized = false;
-    const pci_device& dev;
     uint64_t* dcbaa = nullptr;
     xhci_queue command_queue{nullptr};
     spinlock devices_lock;
@@ -457,7 +456,7 @@ bool xhci::init_scratchpad() {
     return true;
 }
 
-xhci::xhci(const pci_device& dev) : dev(dev) {
+xhci::xhci(const pci_device& dev) {
     if (!dev.irq.has_value()) {
         if (!dev.msix && dev.msi.empty()) {
             print("init_xhci: no MSI or MSI-X capability, and no IRQ number\n");
@@ -2048,7 +2047,7 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
         0x00144137  // superspeed+ gen2 x2
     };
 
-    volatile auto* ptr = (uint32_t*)(dev.bar[0].data() + (xecp << 2));
+    volatile auto* ptr = (uint32_t*)((uint8_t*)&cap_regs + (xecp << 2));
 
     while (true) {
         xhci_extended_capability cap;
