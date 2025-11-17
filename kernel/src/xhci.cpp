@@ -11,6 +11,7 @@ module;
 #include <span>
 #include "xhci.h"
 #include "tick_rate.h"
+#include "acpica.h"
 
 export module xhci;
 
@@ -2778,27 +2779,78 @@ static bool init_xhci(const pci_device& dev) {
 }
 
 static void found_xhci_acpi(const acpi_device& d) {
-    print("FIXME - found_xhci_acpi\n"); // FIXME
+    optional<pair<uint64_t, uint64_t>> address;
+    optional<uint32_t> irq;
+    bool level_sensitive;
 
     for (auto le = d.resources.next; le != &d.resources; le = le->next) {
         auto& r = containing_record<acpi_device_resource>(le);
 
         switch (r.type) {
-            case acpi_device_resource_type::extended_irq:
-                print("resource: extended_irq ({})\n", ((acpi_device_resource_extended_irq&)r).extended_irq);
-            break;
+            case acpi_device_resource_type::extended_irq: {
+                auto& i = ((acpi_device_resource_extended_irq&)r).extended_irq;
 
-            case acpi_device_resource_type::address:
-                print("resource: address ({})\n", ((acpi_device_resource_address&)r).address);
+                if (irq.has_value()) {
+                    print("found_xhci_acpi: multiple IRQs provided\n");
+                    return;
+                }
+
+                // FIXME - check entry only covers one IRQ?
+
+                irq = i.Interrupt;
+                level_sensitive = i.Triggering == ACPI_LEVEL_SENSITIVE;
+
                 break;
+            }
 
-            case acpi_device_resource_type::fixed_memory32:
-                print("resource: fixed_memory32 ({})\n", ((acpi_device_resource_fixed_memory32&)r).fixed_memory32);
-            break;
+            case acpi_device_resource_type::address: {
+                auto& a = ((acpi_device_resource_address&)r).address;
+
+                // FIXME - check memory is read-write?
+
+                if (address.has_value()) {
+                    print("found_xhci_acpi: multiple address ranges provided\n");
+                    return;
+                }
+
+                address = make_pair(a.Address.Minimum, a.Address.AddressLength);
+                break;
+            }
+
+            case acpi_device_resource_type::fixed_memory32: {
+                auto& m = ((acpi_device_resource_fixed_memory32&)r).fixed_memory32;
+
+                // FIXME - check memory is read-write?
+
+                if (address.has_value()) {
+                    print("found_xhci_acpi: multiple address ranges provided\n");
+                    return;
+                }
+
+                address = make_pair(m.Address, m.AddressLength);
+                break;
+            }
 
             default:
                 print("resource: {}\n", r.type);
                 break;
         }
     }
+
+    if (!address.has_value()) {
+        print("found_xhci_acpi: no memory address found\n");
+        return;
+    }
+
+    if (!irq.has_value()) {
+        print("found_xhci_acpi: no IRQ found\n");
+        return;
+    }
+
+    print("FIXME - found_xhci_acpi (address {:x},{:x}, IRQ {} {})\n",
+          address->first, address->second, *irq,
+          level_sensitive ? "level-sensitive" : "edge-sensitive");
+
+    // FIXME - map address range
+    // FIXME - initialize xhci
 }
