@@ -1957,7 +1957,7 @@ uint8_t xhci::get_speed_num(uint8_t port_id, uint32_t psi_num) {
 
     psi_num &= 0xfffffff0;
 
-    volatile auto* ptr = (uint32_t*)(dev.bar[0].data() + (xecp << 2));
+    volatile auto* ptr = (uint32_t*)((uint8_t*)&cap_regs + (xecp << 2));
 
     while (true) {
         xhci_extended_capability cap;
