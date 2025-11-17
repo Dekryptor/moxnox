@@ -173,6 +173,8 @@ private:
     bool reset_port(uint8_t port_id);
     bool init_scratchpad();
 
+    friend usb_device;
+
     uint8_t num_slots, num_ports;
     xhci_trb_common* event_ring = nullptr;
     uint64_t event_ring_pa;
@@ -1109,7 +1111,10 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
         memset(&context, 0, sizeof(context));
         context.control.add_context = 3; // slot and EP0
 
-        ep0_queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))), 1);
+        volatile auto& cap_regs = *controller.cap_regs_ptr;
+        volatile auto dbs = (uint32_t*)((uint8_t*)&cap_regs + cap_regs.DBOFF);
+
+        ep0_queue.initialize(ENDPOINT_RING_SIZE, &dbs[slot], 1);
         if (!ep0_queue.initialized) {
             print("xhci_queue::initialize failed\n");
             return false;
