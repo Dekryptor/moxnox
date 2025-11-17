@@ -2817,15 +2817,13 @@ static void found_xhci_acpi(const acpi_device& d) {
             case acpi_device_resource_type::extended_irq: {
                 auto& i = ((acpi_device_resource_extended_irq&)r).extended_irq;
 
-                if (irq.has_value()) {
-                    print("found_xhci_acpi: multiple IRQs provided\n");
-                    return;
+                // FIXME - what are we supposed to do if multiple IRQs?
+
+                if (!irq.has_value()) {
+                    // FIXME - check entry only covers one IRQ?
+                    irq = i.Interrupt;
+                    level_sensitive = i.Triggering == ACPI_LEVEL_SENSITIVE;
                 }
-
-                // FIXME - check entry only covers one IRQ?
-
-                irq = i.Interrupt;
-                level_sensitive = i.Triggering == ACPI_LEVEL_SENSITIVE;
 
                 break;
             }
