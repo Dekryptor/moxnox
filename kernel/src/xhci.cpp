@@ -1719,7 +1719,7 @@ uint8_t xhci::get_port_slot_type(uint8_t port_id) {
 
     // FIXME - make sure we don't overflow BAR
 
-    volatile auto* ptr = (uint32_t*)(dev.bar[0].data() + (xecp << 2));
+    volatile auto* ptr = (uint32_t*)((uint8_t*)&cap_regs + (xecp << 2));
 
     while (true) {
         xhci_extended_capability cap;
