@@ -2972,8 +2972,22 @@ export void inline __attribute((always_inline)) flush_cache(uintptr_t va) {
         : [res] "r" (va)
     );
 }
+
+export void inline __attribute((always_inline)) flush_cache_invalidate(uintptr_t va) {
+    __asm __volatile(
+        "dc civac, %x[res]\n"
+        "dsb sy\n"
+        "isb\n"
+        :
+        : [res] "r" (va)
+    );
+}
 #else
 export void inline __attribute((always_inline)) flush_cache(uintptr_t) {
+    // FIXME
+}
+
+export void inline __attribute((always_inline)) flush_cache_invalidate(uintptr_t) {
     // FIXME
 }
 #endif

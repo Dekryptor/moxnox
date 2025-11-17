@@ -2578,6 +2578,8 @@ bool xhci::isr() {
     while (true) {
         auto& ev = event_ring[event_ring_offset];
 
+        flush_cache_invalidate((uintptr_t)&ev);
+
         if (!!ev.cycle != !!event_ring_cycle)
             break;
 
