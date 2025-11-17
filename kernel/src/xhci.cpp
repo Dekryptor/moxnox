@@ -147,6 +147,7 @@ public:
 class xhci {
 public:
     xhci(const pci_device& dev);
+    xhci(span<volatile uint8_t> mmio, uint32_t irq);
     ~xhci();
     bool init(span<volatile uint8_t> mmio);
     void init_ports();
@@ -676,6 +677,32 @@ xhci::xhci(const pci_device& dev) {
             print("add_irq_handler failed\n");
             return;
         }
+    }
+
+    volatile auto& cap_regs = *cap_regs_ptr;
+    volatile auto& run_regs = *(xhci_run_regs*)((uint8_t*)&cap_regs + cap_regs.RTSOFF);
+    volatile auto& int_reg = run_regs.int_regs[0];
+    volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
+
+    int_reg.IMAN |= XHCI_IMAN_IE;
+
+    op_regs.USBCMD |= XHCI_USBCMD_INTE | XHCI_USBCMD_RS;
+
+    initialized = true;
+}
+
+xhci::xhci(span<volatile uint8_t> mmio, uint32_t irq) {
+    if (mmio.size() < sizeof(xhci_cap_regs)) {
+        print("xhci::xhci: MMIO was {} bytes, expected at least {}\n",
+              mmio.size(), sizeof(xhci_cap_regs));
+        return;
+    }
+
+    init(mmio);
+
+    if (!add_irq_handler(irq, true, xhci_isr_func, this)) {
+        print("add_irq_handler failed\n");
+        return;
     }
 
     volatile auto& cap_regs = *cap_regs_ptr;
@@ -2847,10 +2874,62 @@ static void found_xhci_acpi(const acpi_device& d) {
         return;
     }
 
+    if (address->second == 0) {
+        print("found_xhci_acpi: memory address range has length of zero\n");
+        return;
+    }
+
     print("FIXME - found_xhci_acpi (address {:x},{:x}, IRQ {} {})\n",
           address->first, address->second, *irq,
           level_sensitive ? "level-sensitive" : "edge-sensitive");
 
-    // FIXME - map address range
-    // FIXME - initialize xhci
+    // map address range
+
+    auto pa_start = address->first & ~(PAGE_SIZE - 1);
+    auto pa_end = address->first + address->second;
+
+    if (pa_end & (PAGE_SIZE - 1))
+        pa_end = (pa_end & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
+
+    auto num_pages = (uint32_t)((pa_end - pa_start) >> PAGE_SHIFT);
+
+    auto va = allocate_va(num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return;
+    }
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (!map_page(pa_start + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT),
+                      mapping_type::no_cache)) {
+            print("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, num_pages);
+            return;
+        }
+    }
+
+    auto mmio = span<volatile uint8_t>((volatile uint8_t*)(va + (address->first & (PAGE_SIZE - 1))),
+                                       address->second);
+
+    auto x = new xhci(mmio, *irq);
+    if (!x || !x->initialized) {
+        if (!x)
+            print("new failed\n");
+
+        for (unsigned int i = 0; i < num_pages; i++) {
+            unmap_page(va + (i << PAGE_SHIFT));
+        }
+
+        free_va(va, num_pages);
+        return;
+    }
+
+    x->init_ports();
+
+    // FIXME - add to list of xhci controllers?
 }
