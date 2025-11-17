@@ -157,7 +157,6 @@ public:
 
     bool initialized = false;
     const pci_device& dev;
-    uint32_t dboff;
     uint64_t* dcbaa = nullptr;
     xhci_queue command_queue{nullptr};
     spinlock devices_lock;
@@ -592,7 +591,7 @@ xhci::xhci(const pci_device& dev) : dev(dev) {
 
     write_volatile64(&op_regs.DCBAAP, va_to_pa_phys(dcbaa));
 
-    dboff = cap_regs.DBOFF;
+    uint32_t dboff = cap_regs.DBOFF;
 
     command_queue.initialize(COMMAND_RING_SIZE, (uint32_t*)(dev.bar[0].data() + dboff), 0);
 
@@ -1447,7 +1446,10 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
                 dep->num = ep_desc.endpoint_number;
                 dep->dir = ep_desc.direction;
 
-                dep->queue.initialize(ENDPOINT_RING_SIZE, (uint32_t*)(controller.dev.bar[0].data() + controller.dboff + (slot * sizeof(uint32_t))),
+                volatile auto& cap_regs = *controller.cap_regs_ptr;
+                volatile auto dbs = (uint32_t*)((uint8_t*)&cap_regs + cap_regs.DBOFF);
+
+                dep->queue.initialize(ENDPOINT_RING_SIZE, &dbs[slot],
                                       ep_index + 1);
                 if (!dep->queue.initialized) {
                     print("xhci_queue::initialize failed\n");
