@@ -88,7 +88,6 @@ public:
     void break_waits();
 
     xhci_trb_common* ring = nullptr;
-    uint64_t ring_pa;
     bool initialized = false;
     uint16_t size;
     xhci_request** reqs = nullptr;
@@ -319,21 +318,8 @@ static bool xhci_isr_func(void* ctx) {
 }
 
 xhci_queue::~xhci_queue() {
-    if (ring) {
-        auto size_bytes = (size + 1) * sizeof(xhci_trb_common);
-
-        auto order = bytes_to_folio_order(size_bytes);
-
-        auto va = (uintptr_t)ring;
-
-        for (unsigned int i = 0; i < (unsigned int)1 << order; i++) {
-            unmap_page(va + (i << PAGE_SHIFT));
-        }
-
-        free_va(va, 1 << order);
-
-        free_folio(ring_pa);
-    }
+    if (ring)
+        free(ring);
 
     if (reqs)
         free(reqs);
@@ -343,31 +329,11 @@ void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
                             uint32_t doorbell_val) {
     auto size_bytes = (size + 1) * sizeof(xhci_trb_common);
 
-    auto order = bytes_to_folio_order(size_bytes);
-
-    ring_pa = allocate_folio(bytes_to_folio_order(size_bytes));
-    if (!ring_pa) {
-        print("allocate folio failed\n");
+    ring = (xhci_trb_common*)malloc(size_bytes);
+    if (!ring) {
+        print("malloc failed\n");
         return;
     }
-
-    auto va = allocate_va(1 << order);
-    if (!va) {
-        print("allocate_va failed\n");
-        free_folio(ring_pa);
-        return;
-    }
-
-    if (!map_folio(ring_pa, va, mapping_type::no_cache)) {
-        print("map_folio failed\n");
-
-        free_va(va, 1 << order);
-        free_folio(ring_pa);
-
-        return;
-    }
-
-    ring = (xhci_trb_common*)va;
 
     memset(ring, 0, size_bytes);
 
@@ -380,7 +346,7 @@ void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
     memset(reqs, 0, sizeof(xhci_request*) * size);
 
     auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
-    cmd_link.ring_segment_pointer = ring_pa;
+    cmd_link.ring_segment_pointer = va_to_pa_phys(ring);
     cmd_link.toggle_cycle = 1;
     cmd_link.trb_type = (uint16_t)xhci_trb_type::link;
 
@@ -584,7 +550,7 @@ bool xhci::init(span<volatile uint8_t> mmio) {
 
     flush_cache((uintptr_t)command_queue.ring);
 
-    write_volatile64(&op_regs.CRCR, command_queue.ring_pa | 1);
+    write_volatile64(&op_regs.CRCR, va_to_pa_phys(command_queue.ring) | 1);
 
     op_regs.CONFIG = (op_regs.CONFIG & ~(uint32_t)0xff) | num_slots;
 
@@ -784,10 +750,12 @@ void xhci::init_ports() {
 }
 
 void xhci::isr_command_completion(xhci_trb_command_completion& comp) {
-    if (comp.command_trb_pointer < command_queue.ring_pa || comp.command_trb_pointer >= command_queue.ring_pa + (command_queue.size * sizeof(xhci_trb_common)))
+    auto ring_pa = va_to_pa_phys(command_queue.ring);
+
+    if (comp.command_trb_pointer < ring_pa || comp.command_trb_pointer >= ring_pa + (command_queue.size * sizeof(xhci_trb_common)))
         return;
 
-    size_t index = (size_t)(comp.command_trb_pointer - command_queue.ring_pa) / sizeof(xhci_trb_common);
+    size_t index = (size_t)(comp.command_trb_pointer - ring_pa) / sizeof(xhci_trb_common);
     auto& req = *command_queue.reqs[index];
 
     memcpy(&req.comp, &comp, sizeof(comp));
@@ -1173,7 +1141,7 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
 
         context.ep[0].ep_type = (uint8_t)XHCI_EP_TYPE::CONTROL;
         context.ep[0].max_packet_size = max_packet_size;
-        context.ep[0].tr_dequeue_pointer = ep0_queue.ring_pa | XHCI_EP_DCS;
+        context.ep[0].tr_dequeue_pointer = va_to_pa_phys(ep0_queue.ring) | XHCI_EP_DCS;
         context.ep[0].cerr = 3;
 
         // some devices need an address_device with BSR set first
@@ -1513,7 +1481,7 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
 
             ep.interval = find_interval(ep_desc, speed_class);
             ep.max_packet_size = ep_desc.wMaxPacketSize;
-            ep.tr_dequeue_pointer = dep->queue.ring_pa | XHCI_EP_DCS;
+            ep.tr_dequeue_pointer = va_to_pa_phys(dep->queue.ring) | XHCI_EP_DCS;
             ep.cerr = 3;
 
             controller.command_queue.submit(req, true);
@@ -2543,6 +2511,8 @@ void xhci::isr_port_status_change(xhci_trb_port_status_change& psc) {
 }
 
 void xhci_queue::isr_transfer_event(const xhci_trb_transfer_event& ev) {
+    auto ring_pa = va_to_pa_phys(ring);
+
     if (ev.trb_pointer < ring_pa || ev.trb_pointer >= ring_pa + (size * sizeof(xhci_trb_common)))
         return;
 
