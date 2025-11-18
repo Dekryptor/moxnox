@@ -121,7 +121,7 @@ list_entry boot_pages = { &boot_pages, &boot_pages };
 
 export uint8_t attr_index_normal;
 static uint8_t attr_index_uncached, attr_index_write_through;
-static uintptr_t cache_line_shift;
+uintptr_t cache_line_shift;
 
 #else
 
