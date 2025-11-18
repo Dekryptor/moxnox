@@ -743,7 +743,9 @@ bool xhci::reset_port(uint8_t port_id) {
     }
 
     for (unsigned int j = 0; j < 500; j++) {
-        if (p.PORTSC & XHCI_PORTSC_PED) {
+        portsc.value = p.PORTSC;
+
+        if (portsc.PED) {
             port_enabled = true;
             break;
         }
