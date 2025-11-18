@@ -996,6 +996,46 @@ span<char> do_format_arg(span<char> sp, string_view, enum usb_class_code arg) {
     }
 }
 
+template<>
+consteval bool format_spec_valid<enum xhci_portsc_pls>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, enum xhci_portsc_pls arg) {
+    switch (arg) {
+        using enum xhci_portsc_pls;
+
+        case U0:
+            return do_format_arg(sp, "", "U0");
+        case U1:
+            return do_format_arg(sp, "", "U1");
+        case U2:
+            return do_format_arg(sp, "", "U2");
+        case U3:
+            return do_format_arg(sp, "", "U3");
+        case DISABLED:
+            return do_format_arg(sp, "", "DISABLED");
+        case RX_DETECT:
+            return do_format_arg(sp, "", "RX_DETECT");
+        case INACTIVE:
+            return do_format_arg(sp, "", "INACTIVE");
+        case POLLING:
+            return do_format_arg(sp, "", "POLLING");
+        case RECOVERY:
+            return do_format_arg(sp, "", "RECOVERY");
+        case HOT_RESET:
+            return do_format_arg(sp, "", "HOT_RESET");
+        case COMPILANCE_MODE:
+            return do_format_arg(sp, "", "COMPILANCE_MODE");
+        case TEST_MODE:
+            return do_format_arg(sp, "", "TEST_MODE");
+        case RESUME:
+            return do_format_arg(sp, "", "RESUME");
+        default:
+            return do_format_arg(sp, "", (uint32_t)arg);
+    }
+}
+
 #if 0
 static string_view psie_to_string(uint8_t psie) {
     switch (psie) {

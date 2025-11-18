@@ -507,6 +507,22 @@ struct xhci_hcsparams2 {
 
 static_assert(sizeof(xhci_hcsparams2) == 0x4);
 
+enum class xhci_portsc_pls : uint32_t {
+    U0 = 0,
+    U1 = 1,
+    U2 = 2,
+    U3 = 3,
+    DISABLED = 4,
+    RX_DETECT = 5,
+    INACTIVE = 6,
+    POLLING = 7,
+    RECOVERY = 8,
+    HOT_RESET = 9,
+    COMPILANCE_MODE = 10,
+    TEST_MODE = 11,
+    RESUME = 15,
+};
+
 union xhci_portsc {
     struct {
         uint32_t CCS : 1;
@@ -514,7 +530,7 @@ union xhci_portsc {
         uint32_t : 1;
         uint32_t OCA : 1;
         uint32_t PR : 1;
-        uint32_t PLS : 4;
+        enum xhci_portsc_pls PLS : 4;
         uint32_t PP : 1;
         uint32_t port_speed : 4;
         uint32_t PIC : 2;
