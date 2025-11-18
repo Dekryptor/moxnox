@@ -764,9 +764,11 @@ void xhci::init_ports() {
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
 
     for (uint8_t i = 0; i < num_ports; i++) {
-        auto portsc = op_regs.ports[i].PORTSC;
+        xhci_portsc portsc;
 
-        if (!(portsc & XHCI_PORTSC_CCS)) // ignore if no device connected
+        portsc.value = op_regs.ports[i].PORTSC;
+
+        if (!(portsc.CCS)) // ignore if no device connected
             continue;
 
         reset_port(i + 1);
