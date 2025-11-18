@@ -697,13 +697,34 @@ bool xhci::reset_port(uint8_t port_id) {
     volatile auto& cap_regs = *cap_regs_ptr;
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
     volatile auto& p = *&op_regs.ports[port_id - 1];
-    auto portsc = p.PORTSC;
+    xhci_portsc portsc;
 
-    // reset port
-    portsc &= XHCI_PORTSC_PP | XHCI_PORTSC_PIC;
-    portsc |= XHCI_PORTSC_PR;
+    portsc.value = p.PORTSC;
 
-    p.PORTSC = portsc;
+    {
+        xhci_portsc portsc_write;
+
+        portsc_write.value = 0;
+
+        portsc_write.PLS = portsc.PLS;
+        portsc_write.PP = portsc.PP;
+        portsc_write.PIC = portsc.PIC;
+        portsc_write.WCE = portsc.WCE;
+        portsc_write.WDE = portsc.WDE;
+        portsc_write.WOE = portsc.WOE;
+
+        portsc_write.PR = 1;
+
+        p.PORTSC = portsc_write.value;
+
+#if 0
+        xhci_portsc new_portsc;
+
+        new_portsc.value = p.PORTSC;
+
+        print("writing {:08x} to PORTSC ({:08x} -> {:08x})\n", portsc_write.value, portsc.value, new_portsc.value);
+#endif
+    }
 
     bool port_enabled = false;
 
