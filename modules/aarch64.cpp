@@ -334,6 +334,16 @@ export union ARM64_ICC_SGI1R {
 
 static_assert(sizeof(ARM64_ICC_SGI1R) == 8);
 
+export union ARM64_CCSIDR_EL1 {
+    struct {
+        uint64_t LineSize : 3;
+        uint64_t Associativity : 10;
+        uint64_t NumSets : 15;
+        uint64_t : 36;
+    };
+    uint64_t value;
+} __attribute((packed));
+
 export template<>
 consteval bool format_spec_valid<ARM64_SCTLR_EL1>(string_view fmt) {
     return fmt.empty();
@@ -653,6 +663,18 @@ export uint64_t inline ttbr1_el1_load() {
 
     __asm __volatile (
         "mrs %x[res], ttbr1_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+export uint64_t inline ccsidr_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], ccsidr_el1"
         : [res] "=r" (ret)
     );
 

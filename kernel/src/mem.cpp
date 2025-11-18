@@ -121,6 +121,7 @@ list_entry boot_pages = { &boot_pages, &boot_pages };
 
 export uint8_t attr_index_normal;
 static uint8_t attr_index_uncached, attr_index_write_through;
+static unsigned int cache_line_size;
 
 #else
 
@@ -1425,6 +1426,14 @@ export bool init_memory(const loader_block& lb) {
 
 #ifdef __aarch64__
     check_mair();
+
+    {
+        ARM64_CCSIDR_EL1 ccsidr;
+
+        ccsidr.value = ccsidr_el1_load();
+
+        cache_line_size = 1 << (ccsidr.LineSize + 4);
+    }
 #else
     init_pat();
 
