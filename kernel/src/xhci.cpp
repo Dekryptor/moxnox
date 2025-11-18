@@ -1246,6 +1246,17 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
         uint16_t actual_max_packet_size = dd.bMaxPacketSize0;
         free(buf);
 
+        if (actual_max_packet_size == 0) {
+            print("usb_device::usb_device: device reported max packet size of 0\n");
+
+            {
+                lock_guard lock(controller.devices_lock);
+                remove_entry_list(le);
+            }
+
+            return;
+        }
+
         if (actual_max_packet_size != max_packet_size) {
             if (!change_ep0_max_packet_size(actual_max_packet_size)) {
                 print("usb_device::change_ep0_max_packet_size failed\n");
