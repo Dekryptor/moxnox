@@ -2547,9 +2547,10 @@ void xhci::port_status_changed(uint8_t port_id) {
 
     volatile auto& cap_regs = *cap_regs_ptr;
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
+    volatile auto& p = op_regs.ports[port_id - 1];
     xhci_portsc portsc;
 
-    portsc.value = op_regs.ports[port_id - 1].PORTSC;
+    portsc.value = p.PORTSC;
 
     // clear status bits
 
@@ -2568,12 +2569,12 @@ void xhci::port_status_changed(uint8_t port_id) {
         portsc_write.PP = 1;
         portsc_write.PRC = 1;
 
-        op_regs.ports[port_id - 1].PORTSC = portsc_write.value;
+        p.PORTSC = portsc_write.value;
 
 #if 0
         xhci_portsc new_portsc;
 
-        new_portsc.value = op_regs.ports[port_id - 1].PORTSC;
+        new_portsc.value = p.PORTSC;
 
         print("xhci::port_status_changed: writing {:08x} to PORTSC ({:08x} -> {:08x})\n",
               portsc_write.value, portsc.value, new_portsc.value);
@@ -2591,12 +2592,68 @@ void xhci::port_status_changed(uint8_t port_id) {
     if (root_hub.children[port_id - 1])
         return;
 
-    // USB2 ports have to be reset before their speeds are valid
-    if (!portsc.PRC) {
-        if (!reset_port(port_id))
-            return;
+    switch (portsc.PLS) {
+        case xhci_portsc_pls::U0:
+            // USB 3 port, no reset needed
+        break;
 
-        portsc.value = op_regs.ports[port_id - 1].PORTSC;
+        case xhci_portsc_pls::POLLING: {
+            xhci_portsc portsc_write;
+
+            portsc_write.value = 0;
+
+            portsc_write.PLS = portsc.PLS;
+            portsc_write.PP = portsc.PP;
+            portsc_write.PIC = portsc.PIC;
+            portsc_write.WCE = portsc.WCE;
+            portsc_write.WDE = portsc.WDE;
+            portsc_write.WOE = portsc.WOE;
+
+            portsc_write.PR = 1;
+
+            p.PORTSC = portsc_write.value;
+
+            break;
+        }
+
+        default:
+            print("xhci::port_status_changed: unexpected PLS value {}\n",
+                  portsc.PLS);
+            return;
+    }
+
+    // see seabios commit c01b41c5
+
+    portsc.value = p.PORTSC;
+
+    if (!portsc.PED) {
+        auto tim_ref = create_timer(true);
+        if (!tim_ref) {
+            print("xhci::port_status_changed: create_timer failed\n");
+            return;
+        }
+
+        auto& tim = static_cast<timer&>(tim_ref.get());
+
+        auto status = tim.set(-ONE_MS_TICKS, nullptr, nullptr, false, 1, nullptr);
+        if (!success(status)) {
+            print("xhci::port_status_changed: timer::set returned {}\n", status);
+            return;
+        }
+
+        for (unsigned int i = 0; i < 500; i++) {
+            portsc.value = p.PORTSC;
+
+            if (portsc.PED)
+                break;
+
+            wait_for_object(tim, true); // wait 1ms
+        }
+    }
+
+    if (!portsc.PED) {
+        print("xhci::port_status_changed: timeout waiting for port reset\n");
+        return;
     }
 
     auto slot = enable_slot(get_port_slot_type(port_id));
