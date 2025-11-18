@@ -28,10 +28,6 @@ struct xhci_port_regs {
 
 static_assert(sizeof(xhci_port_regs) == 0x10);
 
-static const uint32_t XHCI_PORTSC_PP = 0x00000200;
-static const uint32_t XHCI_PORTSC_CSC = 0x00020000;
-static const uint32_t XHCI_PORTSC_PRC = 0x00200000;
-
 struct xhci_op_regs {
     uint32_t USBCMD;
     uint32_t USBSTS;

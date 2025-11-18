@@ -2498,7 +2498,33 @@ void xhci::port_status_changed(uint8_t port_id) {
     portsc.value = op_regs.ports[port_id - 1].PORTSC;
 
     // clear status bits
-    op_regs.ports[port_id - 1].PORTSC = XHCI_PORTSC_CSC | XHCI_PORTSC_PP | XHCI_PORTSC_PRC;
+
+    {
+        xhci_portsc portsc_write;
+
+        portsc_write.value = 0;
+
+        portsc_write.PLS = portsc.PLS;
+        portsc_write.PIC = portsc.PIC;
+        portsc_write.WCE = portsc.WCE;
+        portsc_write.WDE = portsc.WDE;
+        portsc_write.WOE = portsc.WOE;
+
+        portsc_write.CSC = 1;
+        portsc_write.PP = 1;
+        portsc_write.PRC = 1;
+
+        op_regs.ports[port_id - 1].PORTSC = portsc_write.value;
+
+#if 0
+        xhci_portsc new_portsc;
+
+        new_portsc.value = op_regs.ports[port_id - 1].PORTSC;
+
+        print("xhci::port_status_changed: writing {:08x} to PORTSC ({:08x} -> {:08x})\n",
+              portsc_write.value, portsc.value, new_portsc.value);
+#endif
+    }
 
     bool device_present = portsc.CCS;
 
@@ -2516,8 +2542,7 @@ void xhci::port_status_changed(uint8_t port_id) {
         if (!reset_port(port_id))
             return;
 
-        copy_by_uint32(&portsc, &op_regs.ports[port_id - 1].PORTSC,
-                       sizeof(portsc));
+        portsc.value = op_regs.ports[port_id - 1].PORTSC;
     }
 
     auto slot = enable_slot(get_port_slot_type(port_id));
