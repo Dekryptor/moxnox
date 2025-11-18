@@ -121,7 +121,7 @@ list_entry boot_pages = { &boot_pages, &boot_pages };
 
 export uint8_t attr_index_normal;
 static uint8_t attr_index_uncached, attr_index_write_through;
-static unsigned int cache_line_size;
+static uintptr_t cache_line_shift;
 
 #else
 
@@ -1432,7 +1432,7 @@ export bool init_memory(const loader_block& lb) {
 
         ccsidr.value = ccsidr_el1_load();
 
-        cache_line_size = 1 << (ccsidr.LineSize + 4);
+        cache_line_shift = ccsidr.LineSize + 4;
     }
 #else
     init_pat();
@@ -2972,20 +2972,40 @@ export void protect_kernel_pages() {
 }
 
 #ifdef __aarch64__
-export void inline __attribute((always_inline)) flush_cache(uintptr_t va,
+export void inline __attribute((always_inline)) flush_cache(span<uint8_t> va,
                                                             bool invalidate) {
+    uint64_t cache_line_size = 1 << cache_line_shift;
+
+    auto start = (uint64_t)va.data();
+    auto len = va.size();
+
+    if (start & (cache_line_size - 1)) {
+        len += start & (cache_line_size - 1);
+        start &= ~(cache_line_size - 1);
+    }
+
+    auto num = (len + cache_line_size - 1) >> cache_line_shift;
+
     if (invalidate) {
-        __asm __volatile(
-            "dc civac, %x[res]\n"
-            :
-            : [res] "r" (va)
-        );
+        for (unsigned int i = 0; i < num; i++) {
+            __asm __volatile(
+                "dc civac, %x[res]\n"
+                :
+                : [res] "r" (start)
+            );
+
+            start += cache_line_size;
+        }
     } else {
-        __asm __volatile(
-            "dc cvac, %x[res]\n"
-            :
-            : [res] "r" (va)
-        );
+        for (unsigned int i = 0; i < num; i++) {
+            __asm __volatile(
+                "dc cvac, %x[res]\n"
+                :
+                : [res] "r" (start)
+            );
+
+            start += cache_line_size;
+        }
     }
 
     __asm __volatile (
@@ -2994,7 +3014,7 @@ export void inline __attribute((always_inline)) flush_cache(uintptr_t va,
     );
 }
 #else
-export void inline __attribute((always_inline)) flush_cache(uintptr_t, bool) {
+export void inline __attribute((always_inline)) flush_cache(span<uint8_t>, bool) {
     // FIXME
 }
 #endif
