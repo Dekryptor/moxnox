@@ -1104,6 +1104,9 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
             return false;
         }
 
+        flush_cache(span((uint8_t*)ep0_queue.ring, (ENDPOINT_RING_SIZE + 1) * sizeof(xhci_trb_common)),
+                    false);
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
         context.slot.speed = speed;
@@ -1144,6 +1147,9 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
         context.ep[0].max_packet_size = max_packet_size;
         context.ep[0].tr_dequeue_pointer = va_to_pa_phys(ep0_queue.ring) | XHCI_EP_DCS;
         context.ep[0].cerr = 3;
+
+        flush_cache(span((uint8_t*)&context, sizeof(xhci_input_context<LARGE>)),
+                    false);
 
         // some devices need an address_device with BSR set first
         for (unsigned int i = 0; i < 2; i++) {
