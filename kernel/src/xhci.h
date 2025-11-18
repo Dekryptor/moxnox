@@ -515,31 +515,34 @@ struct xhci_hcsparams2 {
 
 static_assert(sizeof(xhci_hcsparams2) == 0x4);
 
-struct xhci_portsc {
-    uint16_t CCS : 1;
-    uint16_t PED : 1;
-    uint16_t reserved1 : 1;
-    uint16_t OCA : 1;
-    uint16_t PR : 1;
-    uint16_t PLS : 4;
-    uint16_t PP : 1;
-    uint16_t port_speed : 4;
-    uint16_t PIC : 2;
-    uint8_t LWS : 1;
-    uint8_t CSC : 1;
-    uint8_t PEC : 1;
-    uint8_t WRC : 1;
-    uint8_t OCC : 1;
-    uint8_t PRC : 1;
-    uint8_t PLC : 1;
-    uint8_t CEC : 1;
-    uint8_t CAS : 1;
-    uint8_t WCE : 1;
-    uint8_t WDE : 1;
-    uint8_t WOE : 1;
-    uint8_t reserved2 : 2;
-    uint8_t DR : 1;
-    uint8_t WPR : 1;
+union xhci_portsc {
+    struct {
+        uint32_t CCS : 1;
+        uint32_t PED : 1;
+        uint32_t : 1;
+        uint32_t OCA : 1;
+        uint32_t PR : 1;
+        uint32_t PLS : 4;
+        uint32_t PP : 1;
+        uint32_t port_speed : 4;
+        uint32_t PIC : 2;
+        uint32_t LWS : 1;
+        uint32_t CSC : 1;
+        uint32_t PEC : 1;
+        uint32_t WRC : 1;
+        uint32_t OCC : 1;
+        uint32_t PRC : 1;
+        uint32_t PLC : 1;
+        uint32_t CEC : 1;
+        uint32_t CAS : 1;
+        uint32_t WCE : 1;
+        uint32_t WDE : 1;
+        uint32_t WOE : 1;
+        uint32_t : 2;
+        uint32_t DR : 1;
+        uint32_t WPR : 1;
+    };
+    uint32_t value;
 } __attribute((packed));
 
-static_assert(sizeof(xhci_portsc) == 0x4);
+static_assert(sizeof(xhci_portsc) == sizeof(uint32_t));

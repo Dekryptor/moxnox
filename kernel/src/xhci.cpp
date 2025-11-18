@@ -2470,7 +2470,7 @@ void xhci::port_status_changed(uint8_t port_id) {
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
     xhci_portsc portsc;
 
-    copy_by_uint32(&portsc, &op_regs.ports[port_id - 1].PORTSC, sizeof(portsc));
+    portsc.value = op_regs.ports[port_id - 1].PORTSC;
 
     // clear status bits
     op_regs.ports[port_id - 1].PORTSC = XHCI_PORTSC_CSC | XHCI_PORTSC_PP | XHCI_PORTSC_PRC;
