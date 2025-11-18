@@ -357,7 +357,7 @@ void xhci_queue::initialize(uint16_t size, volatile uint32_t* doorbell,
     initialized = true;
 }
 
-static void copy_by_uint32(volatile void* src, volatile void* dest, size_t size) {
+static void copy_by_uint32(volatile void* dest, volatile void* src, size_t size) {
     auto src2 = (volatile uint32_t*)src;
     auto dest2 = (volatile uint32_t*)dest;
 
@@ -375,7 +375,7 @@ bool xhci::init_scratchpad() {
 
     xhci_hcsparams2 hcsparams2;
 
-    copy_by_uint32(&cap_regs.HCSPARAMS2, &hcsparams2, sizeof(hcsparams2));
+    copy_by_uint32(&hcsparams2, &cap_regs.HCSPARAMS2, sizeof(hcsparams2));
 
     uint16_t max_scratchpad_buffers = (uint16_t)(hcsparams2.max_scratchpad_buffers_high << 5) | hcsparams2.max_scratchpad_buffers_low;
 
@@ -439,7 +439,7 @@ bool xhci::init(span<volatile uint8_t> mmio) {
 
     xhci_hcsparams1 hcsparams1;
 
-    copy_by_uint32(&cap_regs.HCSPARAMS1, &hcsparams1, sizeof(hcsparams1));
+    copy_by_uint32(&hcsparams1, &cap_regs.HCSPARAMS1, sizeof(hcsparams1));
 
     num_slots = hcsparams1.max_slots;
     num_ports = hcsparams1.max_ports;
@@ -1777,7 +1777,7 @@ uint8_t xhci::get_port_slot_type(uint8_t port_id) {
             xhci_supported_protocol prot;
 
             // Qemu insists that we read 32 bits at a time
-            copy_by_uint32(ptr, &prot, sizeof(prot));
+            copy_by_uint32(&prot, ptr, sizeof(prot));
 
             if (port_id >= prot.port_offset && port_id < prot.port_offset + prot.port_count)
                 return prot.slot_type;
@@ -2015,7 +2015,7 @@ uint8_t xhci::get_speed_num(uint8_t port_id, uint32_t psi_num) {
             xhci_supported_protocol prot;
 
             // Qemu insists that we read 32 bits at a time
-            copy_by_uint32(ptr, &prot, sizeof(prot));
+            copy_by_uint32(&prot, ptr, sizeof(prot));
 
             // FIXME - check name string
 
@@ -2024,7 +2024,7 @@ uint8_t xhci::get_speed_num(uint8_t port_id, uint32_t psi_num) {
                 for (unsigned int i = 0; i < prot.psic; i++) {
                     uint32_t num;
 
-                    copy_by_uint32(ptr2, &num, sizeof(num));
+                    copy_by_uint32(&num, ptr2, sizeof(num));
                     ptr2++;
 
                     if ((num & 0xfffffff0) == psi_num) {
@@ -2106,7 +2106,7 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
             xhci_supported_protocol prot;
 
             // Qemu insists that we read 32 bits at a time
-            copy_by_uint32(ptr, &prot, sizeof(prot));
+            copy_by_uint32(&prot, ptr, sizeof(prot));
 
             // FIXME - check name string
 
@@ -2117,7 +2117,7 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
                 for (unsigned int i = 0; i < prot.psic; i++) {
                     xhci_psi psi;
 
-                    copy_by_uint32(ptr2, &psi, sizeof(psi));
+                    copy_by_uint32(&psi, ptr2, sizeof(psi));
                     ptr2++;
 
                     if (psi.psiv == speed) {
@@ -2470,7 +2470,7 @@ void xhci::port_status_changed(uint8_t port_id) {
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
     xhci_portsc portsc;
 
-    copy_by_uint32(&op_regs.ports[port_id - 1].PORTSC, &portsc, sizeof(portsc));
+    copy_by_uint32(&portsc, &op_regs.ports[port_id - 1].PORTSC, sizeof(portsc));
 
     // clear status bits
     op_regs.ports[port_id - 1].PORTSC = XHCI_PORTSC_CSC | XHCI_PORTSC_PP | XHCI_PORTSC_PRC;
@@ -2491,7 +2491,7 @@ void xhci::port_status_changed(uint8_t port_id) {
         if (!reset_port(port_id))
             return;
 
-        copy_by_uint32(&op_regs.ports[port_id - 1].PORTSC, &portsc,
+        copy_by_uint32(&portsc, &op_regs.ports[port_id - 1].PORTSC,
                        sizeof(portsc));
     }
 
