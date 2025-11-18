@@ -2771,7 +2771,7 @@ bool xhci::isr() {
 }
 
 void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
-    auto& trb = *(xhci_trb_common*)((uint8_t*)ring + (index * sizeof(xhci_trb_common)));
+    auto& trb = ring[index];
 
     req.trb.cycle = cycle_bit ? 1 : 0;
     memcpy(&trb, &req.trb, sizeof(trb));
@@ -2786,7 +2786,7 @@ void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
         cycle_bit = !cycle_bit;
     }
 
-    flush_cache(span((uint8_t*)&trb, sizeof(xhci_trb_common)), false);
+    flush_cache(span((uint8_t*)&trb, sizeof(trb)), false);
     barrier();
 
     if (ring_bell)
