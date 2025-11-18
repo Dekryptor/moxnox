@@ -2972,31 +2972,29 @@ export void protect_kernel_pages() {
 }
 
 #ifdef __aarch64__
-export void inline __attribute((always_inline)) flush_cache(uintptr_t va) {
-    __asm __volatile(
-        "dc cvac, %x[res]\n"
-        "dsb sy\n"
-        "isb\n"
-        :
-        : [res] "r" (va)
-    );
-}
+export void inline __attribute((always_inline)) flush_cache(uintptr_t va,
+                                                            bool invalidate) {
+    if (invalidate) {
+        __asm __volatile(
+            "dc civac, %x[res]\n"
+            :
+            : [res] "r" (va)
+        );
+    } else {
+        __asm __volatile(
+            "dc cvac, %x[res]\n"
+            :
+            : [res] "r" (va)
+        );
+    }
 
-export void inline __attribute((always_inline)) flush_cache_invalidate(uintptr_t va) {
-    __asm __volatile(
-        "dc civac, %x[res]\n"
+    __asm __volatile (
         "dsb sy\n"
         "isb\n"
-        :
-        : [res] "r" (va)
     );
 }
 #else
-export void inline __attribute((always_inline)) flush_cache(uintptr_t) {
-    // FIXME
-}
-
-export void inline __attribute((always_inline)) flush_cache_invalidate(uintptr_t) {
+export void inline __attribute((always_inline)) flush_cache(uintptr_t, bool) {
     // FIXME
 }
 #endif

@@ -540,7 +540,7 @@ bool xhci::init(span<volatile uint8_t> mmio) {
     memset(dcbaa, 0, (num_slots + 1) * sizeof(uint64_t));
     dcbaa[0] = va_to_pa_phys(scratchpad_array);
 
-    flush_cache((uintptr_t)dcbaa);
+    flush_cache((uintptr_t)dcbaa, false);
 
     write_volatile64(&op_regs.DCBAAP, va_to_pa_phys(dcbaa));
 
@@ -548,7 +548,7 @@ bool xhci::init(span<volatile uint8_t> mmio) {
 
     command_queue.initialize(COMMAND_RING_SIZE, (uint32_t*)(mmio.data() + dboff), 0);
 
-    flush_cache((uintptr_t)command_queue.ring);
+    flush_cache((uintptr_t)command_queue.ring, false);
 
     write_volatile64(&op_regs.CRCR, va_to_pa_phys(command_queue.ring) | 1);
 
@@ -586,8 +586,8 @@ bool xhci::init(span<volatile uint8_t> mmio) {
 
     volatile auto& int_reg = run_regs.int_regs[0];
 
-    flush_cache((uintptr_t)event_ring);
-    flush_cache((uintptr_t)seg_table);
+    flush_cache((uintptr_t)event_ring, false);
+    flush_cache((uintptr_t)seg_table, false);
 
     int_reg.ERSTSZ = (int_reg.ERSTSZ & 0xffff0000) | 1;
     write_volatile64(&int_reg.ERDP, va_to_pa_phys(event_ring));
@@ -2578,7 +2578,7 @@ bool xhci::isr() {
     while (true) {
         auto& ev = event_ring[event_ring_offset];
 
-        flush_cache_invalidate((uintptr_t)&ev);
+        flush_cache((uintptr_t)&ev, true);
 
         if (!!ev.cycle != !!event_ring_cycle)
             break;
@@ -2659,7 +2659,7 @@ void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
         cycle_bit = !cycle_bit;
     }
 
-    flush_cache((uintptr_t)&trb);
+    flush_cache((uintptr_t)&trb, false);
     barrier();
 
     if (ring_bell)
