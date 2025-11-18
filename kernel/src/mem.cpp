@@ -121,9 +121,11 @@ list_entry boot_pages = { &boot_pages, &boot_pages };
 
 export uint8_t attr_index_normal;
 static uint8_t attr_index_uncached, attr_index_write_through;
-uintptr_t cache_line_shift;
+export uintptr_t cache_line_shift;
 
 #else
+
+export uintptr_t cache_line_shift = 6; // 64 bytes
 
 uint8_t MAXPHYADDR = 36;
 
@@ -2989,7 +2991,7 @@ export void inline __attribute((always_inline)) flush_cache(span<uint8_t> va,
     if (invalidate) {
         for (unsigned int i = 0; i < num; i++) {
             __asm __volatile(
-                "dc civac, %x[res]\n"
+                "dc ivac, %x[res]\n"
                 :
                 : [res] "r" (start)
             );

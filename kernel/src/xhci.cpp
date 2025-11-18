@@ -1521,10 +1521,37 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
     return &dep->queue;
 }
 
+static bool is_cache_line_aligned(span<uint8_t> buf) {
+    if (buf.size() & ((1 << cache_line_shift) - 1))
+        return false;
+
+    if ((uintptr_t)buf.data() & ((1 << cache_line_shift) - 1))
+        return false;
+
+    return true;
+}
+
 bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                                   enum usb_request bRequest, uint16_t wValue,
                                   uint16_t wIndex) {
     xhci_request req_setup, req_data, req_status;
+    uint8_t* bounce = nullptr;
+
+    if (!buf.empty() && bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST &&
+        !is_cache_line_aligned(buf)) {
+        size_t bounce_size = buf.size();
+
+        if (bounce_size & ((1 << cache_line_shift) - 1)) {
+            bounce_size &= ~(((uint64_t)1 << cache_line_shift) - 1);
+            bounce_size += 1 << cache_line_shift;
+        }
+
+        bounce = (uint8_t*)malloc(bounce_size);
+        if (!bounce) {
+            print("malloc failed\n");
+            return false;
+        }
+    }
 
     req_setup.event = create_event(false);
     req_status.event = create_event(false);
@@ -1559,7 +1586,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
 
         memset(&s, 0, sizeof(s));
 
-        s.data_buffer = va_to_pa_phys(buf.data());
+        s.data_buffer = va_to_pa_phys(bounce ? bounce : buf.data());
         s.trb_transfer_length = (uint16_t)buf.size();
         s.trb_type = (uint16_t)xhci_trb_type::data_stage;
         s.dir = bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST ? 1 : 0;
@@ -1575,6 +1602,9 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         s.dir = (buf.empty() || !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)) ? 1 : 0;
     }
 
+    if (!buf.empty() && !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST))
+        flush_cache(buf, false);
+
     {
         lock_guard lock(submit_lock);
 
@@ -1588,17 +1618,43 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
 
     auto status = wait_for_object(req_status.event.get(), false, USB_TIMEOUT);
 
-    if (dev && dev->dead)
+    if (!buf.empty() && bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST) {
+        if (bounce)
+            flush_cache(span(bounce, buf.size()), true);
+        else
+            flush_cache(buf, true);
+    }
+
+    if (dev && dev->dead) {
+        if (bounce)
+            free(bounce);
+
         return false;
+    }
 
     if (status == nt_status::TIMEOUT) {
         print("xhci_queue::control_transfer: request timed out ({})\n", (enum TRB_CODE)req_setup.ev.completion_code);
+
+        if (bounce)
+            free(bounce);
+
         return false;
     }
 
     if ((enum TRB_CODE)req_status.ev.completion_code != TRB_CODE::SUCCESS) {
         print("xhci_queue::control_transfer: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
+
+        if (bounce)
+            free(bounce);
+
         return false;
+    }
+
+    if (bounce) {
+        if (bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)
+            memcpy(buf.data(), bounce, buf.size());
+
+        free(bounce);
     }
 
     return true;
