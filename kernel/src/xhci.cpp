@@ -1343,15 +1343,18 @@ bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
 
         context->ep[0].max_packet_size = max_packet_size;
 
-        controller.command_queue.submit(req, true);
-
-        wait_for_object(req.event.get(), false);
+        flush_cache(span((uint8_t*)context, sizeof(xhci_input_context<LARGE>)),
+                    false);
     };
 
     if (controller.large_contexts)
         func.template operator()<true>();
     else
         func.template operator()<false>();
+
+    controller.command_queue.submit(req, true);
+
+    wait_for_object(req.event.get(), false);
 
     if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
         print("usb_device::change_ep0_max_packet_size: controller returned error {}\n", (enum TRB_CODE)req.comp.completion_code);
