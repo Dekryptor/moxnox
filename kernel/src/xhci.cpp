@@ -2613,7 +2613,7 @@ void xhci::port_status_changed(uint8_t port_id) {
 
             p.PORTSC = portsc_write.value;
 
-            break;
+            return;
         }
 
         default:
@@ -2621,8 +2621,6 @@ void xhci::port_status_changed(uint8_t port_id) {
                   portsc.PLS);
             return;
     }
-
-    // see seabios commit c01b41c5
 
     portsc.value = p.PORTSC;
 
