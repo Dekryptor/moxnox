@@ -1190,10 +1190,10 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
 
         switch (speed_class) {
             case usb_speed_class::low_speed:
-            case usb_speed_class::full_speed:
                 max_packet_size = 8;
                 break;
 
+            case usb_speed_class::full_speed:
             case usb_speed_class::high_speed:
                 max_packet_size = 64;
                 break;
@@ -1258,7 +1258,7 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
 
     // if Full Speed, update EP0 with actual max packet size
     if (speed_class == usb_speed_class::full_speed) {
-        auto buf = (uint8_t*)malloc(8);
+        auto buf = (uint8_t*)malloc(1024);
         if (!buf) {
             print("malloc failed\n");
 
@@ -1270,7 +1270,7 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
             return;
         }
 
-        if (!get_descriptor(span(buf, 8), usb_descriptor::DEVICE, 0)) {
+        if (!get_descriptor(span(buf, 1024), usb_descriptor::DEVICE, 0)) {
             print("usb_device::get_descriptor failed\n");
             free(buf);
 
