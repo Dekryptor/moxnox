@@ -9,7 +9,6 @@ module;
 #include "rangelock.h"
 #include "thread.h"
 #include "process.h"
-#include "mapping.h"
 #include "section2.h"
 #include "assert.h"
 
@@ -43,6 +42,7 @@ import cpu_block;
 import ntdll;
 import pe;
 import file;
+import mapping;
 
 #ifdef __aarch64__
 import aarch64;

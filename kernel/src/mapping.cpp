@@ -1,12 +1,18 @@
-#pragma once
+module;
 
 #include <atomic>
 
+export module mapping;
+
 import nt;
+import list;
 
-class process;
-class section;
+using namespace std;
 
+extern "C++" class process;
+extern "C++" class section;
+
+export extern "C++"
 class mapping {
 public:
     mapping(process& proc, section& sect);
@@ -36,6 +42,6 @@ public:
     section& sect;
 
 private:
-    std::atomic<unsigned int> refcount = 1;
+    atomic<unsigned int> refcount = 1;
 };
 

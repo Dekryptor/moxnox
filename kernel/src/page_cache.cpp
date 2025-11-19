@@ -3,9 +3,9 @@ module;
 #include <span>
 #include <mutex>
 #include <algorithm>
+#include <atomic>
 #include <string.h>
 #include "rangelock.h"
-#include "mapping.h"
 #include "assert.h"
 
 export module page_cache;
@@ -18,6 +18,8 @@ import list;
 import rangelock;
 import rbtree;
 import spinlock;
+import mapping;
+import nt;
 
 using namespace std;
 
