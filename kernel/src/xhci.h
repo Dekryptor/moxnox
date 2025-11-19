@@ -40,7 +40,7 @@ struct xhci_op_regs {
     uint32_t CONFIG;
     uint8_t reserved3[964];
     xhci_port_regs ports[256];
-} __attribute((packed));
+};
 
 static_assert(sizeof(xhci_op_regs) == 0x1400);
 
