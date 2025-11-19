@@ -2401,7 +2401,11 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
 
         memset(devctx, 0, sizeof(*devctx));
 
+        flush_cache(span((uint8_t*)devctx, sizeof(*devctx)), false);
+
         controller.dcbaa[slot] = va_to_pa_phys(devctx);
+
+        flush_cache(span((uint8_t*)&controller.dcbaa[slot], sizeof(uint64_t)), false);
 
         acquire();
 
