@@ -91,6 +91,7 @@ public:
     bool initialized = false;
     uint16_t size;
     xhci_request** reqs = nullptr;
+    bool dir;
 
 private:
     void submit_holding_lock(xhci_request& req, bool ring_bell);
@@ -1530,6 +1531,8 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
                     return false;
                 }
 
+                dep->queue.dir = ep_desc.direction;
+
                 new_dep = true;
             }
 
@@ -1816,15 +1819,36 @@ bool usb_device::get_status(uint8_t bmRequestType, span<uint8_t> buf,
 
 size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
     xhci_request req;
+    uint8_t* bounce = nullptr;
 
     // FIXME - can set IDT flag on short OUT transfers
+
+    if (!is_cache_line_aligned(buf)) {
+        size_t bounce_size = buf.size();
+
+        if (bounce_size & ((1 << cache_line_shift) - 1)) {
+            bounce_size &= ~(((uint64_t)1 << cache_line_shift) - 1);
+            bounce_size += 1 << cache_line_shift;
+        }
+
+        bounce = (uint8_t*)malloc(bounce_size);
+        if (!bounce) {
+            print("malloc failed\n");
+            return false;
+        }
+
+        if (!dir) {
+            memcpy(bounce, buf.data(), buf.size());
+            flush_cache(span(bounce, buf.size()), false);
+        }
+    }
 
     {
         auto& s = *reinterpret_cast<xhci_trb_normal*>(&req.trb);
 
         memset(&s, 0, sizeof(s));
 
-        s.data_buffer = va_to_pa_phys(buf.data());
+        s.data_buffer = va_to_pa_phys(bounce ? bounce : buf.data());
         s.trb_transfer_length = (uint16_t)buf.size();
 
         s.ioc = 1;
@@ -1835,14 +1859,34 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
 
     wait_for_object(req.event.get(), false);
 
-    if (dev && dev->dead)
+    if (dev && dev->dead) {
+        if (bounce)
+            free(bounce);
+
         return 0;
+    }
 
     auto code = (enum TRB_CODE)req.ev.completion_code;
 
     if (code != TRB_CODE::SUCCESS && code != TRB_CODE::SHORT_PACKET) {
         print("xhci_queue::normal_transfer: controller returned error {}\n", code);
+
+        if (bounce)
+            free(bounce);
+
         return 0;
+    }
+
+    if (bounce) {
+        if (dir) {
+            flush_cache(span(bounce, buf.size()), true);
+            memcpy(buf.data(), bounce, buf.size());
+        }
+
+        free(bounce);
+    } else {
+        if (dir)
+            flush_cache(buf, true);
     }
 
     return buf.size() - req.ev.trb_transfer_length;
