@@ -1240,6 +1240,9 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
             }
         }
 
+        flush_cache(span((uint8_t*)&context, sizeof(xhci_input_context<LARGE>)),
+                    true);
+
         return true;
     };
 
@@ -1569,6 +1572,12 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
             ep.max_packet_size = ep_desc.wMaxPacketSize;
             ep.tr_dequeue_pointer = va_to_pa_phys(dep->queue.ring) | XHCI_EP_DCS;
             ep.cerr = 3;
+
+            flush_cache(span((uint8_t*)&context, sizeof(xhci_input_context<LARGE>)),
+                        false);
+
+            flush_cache(span((uint8_t*)dep->queue.ring, (ENDPOINT_RING_SIZE + 1) * sizeof(xhci_trb_common)),
+                        false);
 
             controller.command_queue.submit(req, true);
 
