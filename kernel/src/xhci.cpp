@@ -277,7 +277,7 @@ export struct usb_device_config {
 
     list_entry le;
     list_entry interfaces = { &interfaces, &interfaces };
-    uint8_t* data[1];
+    uint8_t data[1];
 };
 
 export struct usb_recognizer {
@@ -2433,12 +2433,19 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
             return;
     }
 
-    if (!d->get_descriptor(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)),
-                          usb_descriptor::DEVICE, 0)) {
+    memset(&d->device_descriptor, 0, sizeof(d->device_descriptor));
+
+    auto buf = (uint8_t*)malloc(1024);
+    auto sp = span(buf, 1024);
+
+    if (!d->get_descriptor(sp, usb_descriptor::DEVICE, 0)) {
         print("usb_device::get_descriptor failed\n");
         d->release();
+        free(buf);
         return;
     }
+
+    memcpy(&d->device_descriptor, buf, sizeof(d->device_descriptor));
 
     print("found USB device {:04x}:{:04x}\n", d->device_descriptor.idVendor,
           d->device_descriptor.idProduct);
@@ -2450,46 +2457,49 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
     if (d->device_descriptor.bNumConfigurations == 0) {
         print("usb_hub::device_found: device had no configurations\n");
         d->release();
+        free(buf);
         return;
     }
 
     for (uint8_t i = 0; i < d->device_descriptor.bNumConfigurations; i++) {
-        auto cd = new usb_configuration_descriptor;
+        usb_configuration_descriptor cd;
 
-        if (!d->get_descriptor(span((uint8_t*)cd, sizeof(*cd)),
-                               usb_descriptor::CONFIGURATION, i)) {
+        if (!d->get_descriptor(sp, usb_descriptor::CONFIGURATION, i)) {
             print("usb_device::get_descriptor failed\n");
-            delete cd;
             d->release();
+            free(buf);
             return;
         }
 
-        if (cd->wTotalLength < sizeof(*cd)) {
+        memcpy(&cd, buf, sizeof(cd));
+
+        if (cd.wTotalLength < sizeof(cd)) {
             print("usb_hub::device_found: config descriptor was {} bytes, expected at least {}\n",
-                  cd->wTotalLength, sizeof(*cd));
-            delete cd;
+                  cd.wTotalLength, sizeof(cd));
             d->release();
+            free(buf);
             return;
         }
 
         usb_device_config* conf;
-        auto cd_len = cd->wTotalLength;
+        auto cd_len = cd.wTotalLength;
         auto conf_size = offsetof(usb_device_config, data) + cd_len;
-
-        delete cd;
+        auto conf_order = bytes_to_folio_order(conf_size);
 
         if (conf_size < PAGE_SIZE) {
             conf = (usb_device_config*)malloc(conf_size);
             if (!conf) {
                 print("malloc failed\n");
                 d->release();
+                free(buf);
                 return;
             }
         } else {
-            auto f = allocate_folio(bytes_to_folio_order(conf_size));
+            auto f = allocate_folio(conf_order);
             if (!f) {
                 print("allocate_folio failed\n");
                 d->release();
+                free(buf);
                 return;
             }
 
@@ -2498,7 +2508,9 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
 
         new (conf) usb_device_config;
 
-        if (!d->get_descriptor(span((uint8_t*)&conf->data, cd_len),
+        auto f2 = allocate_folio(conf_order);
+
+        if (!d->get_descriptor(span((uint8_t*)phys_address(f2), 1 << (conf_order + PAGE_SHIFT)),
                                usb_descriptor::CONFIGURATION, i)) {
             print("usb_device::get_descriptor failed\n");
             conf->~usb_device_config();
@@ -2509,14 +2521,20 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
                 free_folio(phys_memory_pfn(conf) << PAGE_SHIFT);
 
             d->release();
+            free(buf);
+            free_folio(f2);
             return;
         }
+
+        memcpy(&conf->data, phys_address(f2), cd_len);
+        free_folio(f2);
 
         insert_tail_list(d->configs, conf->le);
 
         if (!parse_usb_config(*conf)) {
             print("parse_usb_config failed\n");
             d->release();
+            free(buf);
             return;
         }
 
@@ -2524,6 +2542,8 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
         print_usb_config(span((uint8_t*)conf->data, cd_len));
 #endif
     }
+
+    free(buf);
 
     // FIXME - support multiple configurations?
 
