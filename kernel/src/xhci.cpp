@@ -2956,6 +2956,8 @@ void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
         cmd_link.cycle = cycle_bit ? 1 : 0;
 
         cycle_bit = !cycle_bit;
+
+        flush_cache(span((uint8_t*)&cmd_link, sizeof(cmd_link)), false);
     }
 
     flush_cache(span((uint8_t*)&trb, sizeof(trb)), false);
