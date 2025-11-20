@@ -367,7 +367,7 @@ static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
     }
 }
 
-static uint64_t setup_identity_map() {
+static uint64_t setup_identity_map(uintptr_t ap_trampoline_phys) {
     // allocate two pages
     auto pa = allocate_folio(1);
     if (!pa) {
@@ -381,25 +381,29 @@ static uint64_t setup_identity_map() {
     memset(pte0.data(), 0, pte0.size_bytes());
     memset(pte1.data(), 0, pte1.size_bytes());
 
-    pte0[0].valid = 1;
-    pte0[0].table_entry = 1;
-    pte0[0].AttrIndex = 0;
-    pte0[0].AP = 0; // no access from userspace
-    pte0[0].SH = 3; // inner shareable
-    pte0[0].AF = 1;
-    pte0[0].pfn = (pa + PAGE_SIZE) >> PAGE_SHIFT;
+    // FIXME - fix for non-standard page sizes
 
-    static const uint64_t SZ_1G = 0x40000000;
+    // identity-map gigabyte in which ap_trampoline_phys lives
 
-    for (unsigned int i = 0; i < pte1.size(); i++) {
-        pte1[i].valid = 1;
-        pte1[i].table_entry = 0;
-        pte1[i].AttrIndex = attr_index_normal;
-        pte1[i].AP = 0; // no access from userspace
-        pte1[i].SH = 3; // inner shareable
-        pte1[i].AF = 1;
-        pte1[i].pfn = ((uint64_t)i * SZ_1G) >> PAGE_SHIFT;
-    }
+    auto& p0 = pte0[(ap_trampoline_phys & 0xff8000000000) >> 39];
+
+    p0.valid = 1;
+    p0.table_entry = 1;
+    p0.AttrIndex = 0;
+    p0.AP = 0; // no access from userspace
+    p0.SH = 3; // inner shareable
+    p0.AF = 1;
+    p0.pfn = (pa + PAGE_SIZE) >> PAGE_SHIFT;
+
+    auto& p1 = pte1[(ap_trampoline_phys & 0x7fc0000000) >> 30];
+
+    p1.valid = 1;
+    p1.table_entry = 0;
+    p1.AttrIndex = attr_index_normal;
+    p1.AP = 0; // no access from userspace
+    p1.SH = 3; // inner shareable
+    p1.AF = 1;
+    p1.pfn = (ap_trampoline_phys & 0xffffc0000000) >> PAGE_SHIFT;
 
     return pa;
 }
@@ -503,7 +507,9 @@ export bool init_smp() {
         }
     }
 
-    auto identity_map = setup_identity_map();
+    auto ap_trampoline_phys = va_to_pa_lookup((uint64_t)&ap_trampoline);
+
+    auto identity_map = setup_identity_map(ap_trampoline_phys);
     if (!identity_map)
         return false;
 
@@ -554,8 +560,6 @@ export bool init_smp() {
     }
 
     ap_left.store(ap_count, memory_order_release);
-
-    auto ap_trampoline_phys = va_to_pa_lookup((uint64_t)&ap_trampoline);
 
     for (unsigned int i = 1; i < num_cpus; i++) {
         start_cpu(cpu_ids[i], ap_trampoline_phys, boot_info[i - 1].stack,
