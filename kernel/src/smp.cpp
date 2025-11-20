@@ -518,17 +518,15 @@ export bool init_smp() {
     using_gicv2 = get_cpu_block()->gicc != 0;
     enable_preempt();
 
+    auto stack_folio = allocate_folio(bytes_to_folio_order(PAGE_SIZE * ap_count));
+    if (!stack_folio) {
+        print("allocate folio failed\n");
+        return false;
+    }
+
     auto boot_info = (info*)malloc(sizeof(info) * ap_count);
     for (unsigned int i = 0; i < ap_count; i++) {
-        boot_info[i].stack = allocate_page();
-        if (!boot_info[i].stack) {
-            print("allocate_page failed\n");
-            for (unsigned int j = 0; j < i; j++) {
-                free_folio(boot_info[j].stack);
-            }
-            free(boot_info);
-            return false;
-        }
+        boot_info[i].stack = stack_folio + (i << PAGE_SHIFT);
 
         boot_info[i].cpu_block = (cpu_block*)init_cpu_block(i + 1);
 
@@ -537,9 +535,7 @@ export bool init_smp() {
 
             // FIXME - should free other cpu_blocks instead (or just bsod)
 
-            for (unsigned int j = 0; j < i; j++) {
-                free_folio(boot_info[j].stack);
-            }
+            free_folio(stack_folio);
             free(boot_info);
             return false;
         }
@@ -570,9 +566,7 @@ export bool init_smp() {
         __asm("yield");
     }
 
-    for (unsigned int i = 0; i < ap_count; i++) {
-        free_folio(boot_info[i].stack);
-    }
+    free_folio(stack_folio);
     free(boot_info);
 
     free_folio(identity_map);
