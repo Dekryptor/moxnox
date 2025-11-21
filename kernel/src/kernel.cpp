@@ -44,6 +44,7 @@ import cpu_block;
 import pci;
 import loaderblock;
 import efi;
+import debug;
 
 using namespace std;
 
@@ -201,6 +202,8 @@ void main_thread(void* ctx) {
     find_acpi_devices();
 
     init_pci(true);
+
+    init_debug();
 
 #ifdef __aarch64__
     if (!init_console(lb_fb))
