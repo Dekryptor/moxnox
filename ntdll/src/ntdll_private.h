@@ -20,10 +20,6 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
-// string.cpp
-size_t utf8_to_utf16_len(std::string_view sv);
-void utf8_to_utf16(std::span<char16_t> buf, std::string_view sv);
-
 struct ci_char_traits : public std::char_traits<char16_t> {
     static bool eq(char16_t c1, char16_t c2) {
         return toupper(c1) == toupper(c2);

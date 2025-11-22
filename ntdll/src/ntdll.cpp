@@ -9,6 +9,7 @@ using namespace std;
 import print;
 import format;
 import pe;
+import unicode;
 
 extern uint8_t __image_base__;
 
