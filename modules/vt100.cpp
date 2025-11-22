@@ -39,86 +39,84 @@ void print_chars(T& t, span<const char32_t> c) {
 }
 
 template<typename T>
-void do_print2(T& t, char c) {
-    if (utf8_chars != 0) {
-        if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-            char32_t s[2];
+void do_print2(T& t, span<const char> s) {
+    for (auto c : s) {
+        if (utf8_chars != 0) {
+            if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
+                char32_t s[2];
 
-            s[0] = 0xfffd;
-            s[1] = (char32_t)c;
+                s[0] = 0xfffd;
+                s[1] = (char32_t)c;
 
-            print_chars(t, s);
-            utf8_chars = 0;
-            return;
-        }
-
-        utf8_buf[utf8_chars] = (uint8_t)c;
-        utf8_chars++;
-
-        if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
-            if ((utf8_buf[1] & 0xc0) != 0x80) {
-                print_char(t, 0xfffd);
+                print_chars(t, s);
                 utf8_chars = 0;
-                return;
+                continue;
             }
 
-            auto c = (char32_t)(((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f));
+            utf8_buf[utf8_chars] = (uint8_t)c;
+            utf8_chars++;
 
-            print_char(t, c);
-            utf8_chars = 0;
-        } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
-            if (utf8_chars == 2) {
+            if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
                     print_char(t, 0xfffd);
                     utf8_chars = 0;
-                }
-            } else {
-                if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char(t, 0xfffd);
-                    utf8_chars = 0;
-                    return;
+                    continue;
                 }
 
-                auto c = (char32_t)(((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f));
+                auto c = (char32_t)(((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f));
 
                 print_char(t, c);
                 utf8_chars = 0;
+            } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
+                if (utf8_chars == 2) {
+                    if ((utf8_buf[1] & 0xc0) != 0x80) {
+                        print_char(t, 0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else {
+                    if ((utf8_buf[2] & 0xc0) != 0x80) {
+                        print_char(t, 0xfffd);
+                        utf8_chars = 0;
+                        continue;
+                    }
+
+                    auto c = (char32_t)(((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f));
+
+                    print_char(t, c);
+                    utf8_chars = 0;
+                }
+            } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
+                if (utf8_chars == 2) {
+                    if ((utf8_buf[1] & 0xc0) != 0x80) {
+                        print_char(t, 0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else if (utf8_chars == 3) {
+                    if ((utf8_buf[2] & 0xc0) != 0x80) {
+                        print_char(t, 0xfffd);
+                        utf8_chars = 0;
+                    }
+                } else {
+                    if ((utf8_buf[3] & 0xc0) != 0x80) {
+                        print_char(t, 0xfffd);
+                        utf8_chars = 0;
+                        continue;
+                    }
+
+                    auto c = (char32_t)(((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f));
+
+                    print_char(t, c);
+                    utf8_chars = 0;
+                }
             }
-        } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
-            if (utf8_chars == 2) {
-                if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char(t, 0xfffd);
-                    utf8_chars = 0;
-                }
-            } else if (utf8_chars == 3) {
-                if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    print_char(t, 0xfffd);
-                    utf8_chars = 0;
-                }
-            } else {
-                if ((utf8_buf[3] & 0xc0) != 0x80) {
-                    print_char(t, 0xfffd);
-                    utf8_chars = 0;
-                    return;
-                }
-
-                auto c = (char32_t)(((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f));
-
-                print_char(t, c);
-                utf8_chars = 0;
-            }
-        }
-
-        return;
+        } else if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
+            utf8_buf[0] = (uint8_t)c;
+            utf8_chars = 1;
+        } else if (c & 0x80)
+            print_char(t, 0xfffd);
+        else
+            print_char(t, (char32_t)c);
     }
-
-    if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
-        utf8_buf[0] = (uint8_t)c;
-        utf8_chars = 1;
-    } else if (c & 0x80)
-        print_char(t, 0xfffd);
-    else
-        print_char(t, (char32_t)c);
 }
 
 template<typename T>
@@ -516,7 +514,11 @@ export template<typename T>
 void do_print(T& t, string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
-            do_print2(t, 0x1b);
+            char buf[1];
+
+            buf[0] = 0x1b;
+
+            do_print2(t, span(buf, 1));
             escape_buffer_len = 0;
         } else {
             if (escape_buffer_len == 1) {
@@ -531,10 +533,7 @@ void do_print(T& t, string_view s) {
 
             while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
                 if (escape_buffer_len == sizeof(escape_buffer)) {
-                    for (size_t i = 0; i < escape_buffer_len; i++) {
-                        do_print2(t, escape_buffer[i]);
-                    }
-
+                    do_print2(t, span(escape_buffer, escape_buffer_len));
                     escape_buffer_len = 0;
                     goto loop;
                 }
@@ -561,17 +560,14 @@ void do_print(T& t, string_view s) {
                 if (s.empty())
                     return;
             } else {
-                for (size_t i = 0; i < escape_buffer_len; i++) {
-                    do_print2(t, escape_buffer[i]);
-                }
-
+                do_print2(t, span(escape_buffer, escape_buffer_len));
                 escape_buffer_len = 0;
             }
         }
     }
 
 loop:
-    for (; !s.empty(); s = string_view(s.data() + 1, s.size() - 1)) {
+    while (!s.empty()) {
         auto c = s.front();
 
         if (c == 0x1b) {
@@ -593,41 +589,49 @@ loop:
 
                 if (s.size() == param_bytes + 2) {
                     if (param_bytes + 2 > sizeof(escape_buffer)) {
-                        for (size_t i = 0; i < escape_buffer_len; i++) {
-                            do_print2(t, escape_buffer[i]);
-                        }
+                        do_print2(t, span(escape_buffer, escape_buffer_len));
                         escape_buffer_len = 0;
 
-                        for (size_t i = 0; i < s.size(); i++) {
-                            do_print2(t, s[i]);
-                        }
-
-                        return;
+                        do_print2(t, span(s.data(), s.size()));
+                    } else {
+                        memcpy(escape_buffer, s.data(), param_bytes + 2);
+                        escape_buffer_len = param_bytes + 2;
                     }
 
-                    memcpy(escape_buffer, s.data(), param_bytes + 2);
-                    escape_buffer_len = param_bytes + 2;
                     return;
                 }
 
                 if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
                     // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
-                    if (param_bytes + 3 > sizeof(escape_buffer)) {
-                        for (size_t i = 0; i < param_bytes + 3; i++) {
-                            do_print2(t, s[i]);
-                        }
-                    } else {
+                    if (param_bytes + 3 > sizeof(escape_buffer))
+                        do_print2(t, span(s.data(), param_bytes + 3));
+                    else {
                         // FIXME - print literally if not ENABLE_PROCESSED_OUTPUT
                         handle_escape_sequence(t, string_view(s.data(), param_bytes + 3));
                     }
 
-                    s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
+                    s = string_view(s.data() + param_bytes + 3, s.size() - param_bytes - 3);
                     continue;
                 }
             }
-        }
 
-        do_print2(t, c);
+            char buf[1];
+
+            buf[0] = c;
+
+            do_print2(t, span(buf, 1));
+            s = string_view(s.data() + 1, s.size() - 1);
+        } else {
+            auto esc = s.find_first_of(0x1b);
+
+            if (esc == string_view::npos) {
+                do_print2(t, s);
+                break;
+            } else {
+                do_print2(t, string_view(s.data(), esc));
+                s = string_view(s.data() + esc, s.size() - esc);
+            }
+        }
     }
 
     t.move_cursor();
