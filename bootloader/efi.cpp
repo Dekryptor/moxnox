@@ -304,36 +304,6 @@ size_t strlen(const char* s) {
     return i;
 }
 
-extern "C"
-void* memmove(void* dest, const void* src, size_t n) {
-    auto orig_dest = dest;
-
-    if (dest <= src) {
-        while (n > 0) {
-            *(uint8_t*)dest = *(uint8_t*)src;
-
-            dest = (uint8_t*)dest + 1;
-            src = (uint8_t*)src + 1;
-
-            n--;
-        }
-    } else {
-        dest = (uint8_t*)dest + n - 1;
-        src = (uint8_t*)src + n - 1;
-
-        while (n > 0) {
-            *(uint8_t*)dest = *(uint8_t*)src;
-
-            dest = (uint8_t*)dest - 1;
-            src = (uint8_t*)src - 1;
-
-            n--;
-        }
-    }
-
-    return orig_dest;
-}
-
 static void print_error(const char* func, EFI_STATUS Status) {
     print("{} returned {}\n", func, error_string(Status));
 }
