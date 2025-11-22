@@ -57,28 +57,3 @@ void* memcpy(void* dest, const void* src, size_t n) {
     return orig_dest;
 }
 #endif
-
-extern "C"
-long int strtol(const char* nptr, char** endptr, int base) {
-    long int val;
-
-    while (*nptr == ' ' || *nptr == '\t') {
-        nptr++;
-    }
-
-    val = 0;
-
-    while (true) {
-        if (*nptr >= '0' && *nptr <= '9') {
-            val *= base;
-            val += *nptr - '0';
-        } else {
-            if (endptr)
-                *endptr = (char*)nptr;
-
-            return val;
-        }
-
-        nptr++;
-    }
-}

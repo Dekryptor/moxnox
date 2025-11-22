@@ -165,29 +165,3 @@ void utf8_to_utf16(span<char16_t> buf, string_view sv) {
             return;
     }
 }
-
-template<typename T>
-static T strto(const char* nptr, char** endptr, int base) {
-    while (*nptr == ' ' || *nptr == '\t') {
-        nptr++;
-    }
-
-    unsigned long ret;
-
-    auto fcr = from_chars(nptr, nptr + strlen(nptr), ret, base);
-
-    if (endptr)
-        *endptr = (char*)fcr.ptr;
-
-    return (T)ret;
-}
-
-extern "C"
-long strtol(const char* nptr, char** endptr, int base) {
-    return strto<long>(nptr, endptr, base);
-}
-
-extern "C"
-unsigned long strtoul(const char* nptr, char** endptr, int base) {
-    return strto<unsigned long>(nptr, endptr, base);
-}
