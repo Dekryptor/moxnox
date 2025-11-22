@@ -166,15 +166,6 @@ void utf8_to_utf16(span<char16_t> buf, string_view sv) {
     }
 }
 
-int toupper(int c) {
-    // FIXME
-
-    if (c >= 'a' && c <= 'z')
-        return c - 'a' + 'A';
-
-    return c;
-}
-
 extern "C"
 int strcmp(const char* s1, const char* s2) {
     size_t i = 0;

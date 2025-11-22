@@ -59,52 +59,6 @@ void* memcpy(void* dest, const void* src, size_t n) {
 #endif
 
 extern "C"
-int tolower(int c) {
-    if (c >= 'A' && c <= 'Z')
-        return c - 'A' + 'a';
-    else
-        return c;
-}
-
-extern "C"
-int isprint(int ch) {
-    return ch >= ' ' && ch <= '~' ? 1 : 0;
-}
-
-extern "C"
-int isxdigit(int ch) {
-    if (ch >= '0' && ch <= '9')
-        return 1;
-    else if (ch >= 'a' && ch <= 'f')
-        return 1;
-    else if (ch >= 'A' && ch <= 'F')
-        return 1;
-    else
-        return 0;
-}
-
-extern "C"
-int isdigit(int ch) {
-    return ch >= '0' && ch <= '9' ? 1 : 0;
-}
-
-extern "C"
-int isspace(int ch) {
-    switch (ch) {
-        case ' ':
-        case '\f':
-        case '\n':
-        case '\r':
-        case '\t':
-        case '\v':
-            return 1;
-
-        default:
-            return 0;
-    }
-}
-
-extern "C"
 char* strcat(char* dest, const char* src) {
     auto orig_dest = dest;
 
@@ -138,14 +92,6 @@ char* strncpy(char* dst, const char* src, size_t dsize) {
     }
 
     return orig_dst;
-}
-
-extern "C"
-int toupper(int c) {
-    if (c >= 'a' && c <= 'z')
-        return c - 'a' + 'A';
-    else
-        return c;
 }
 
 extern "C"
