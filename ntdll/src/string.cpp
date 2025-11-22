@@ -191,15 +191,3 @@ extern "C"
 unsigned long strtoul(const char* nptr, char** endptr, int base) {
     return strto<unsigned long>(nptr, endptr, base);
 }
-
-extern "C"
-char* strchr(const char* s, int c) {
-    while (*s) {
-        if (*s == c)
-            return (char*)s;
-
-        s++;
-    }
-
-    return nullptr;
-}
