@@ -22,6 +22,7 @@ import list;
 import disable_interrupts;
 import cpu_block;
 import handle;
+import crt;
 
 using namespace std;
 

@@ -31,6 +31,7 @@ import scheduler;
 import spinlock;
 import handle;
 import object_ref;
+import crt;
 
 #include "sata.h"
 

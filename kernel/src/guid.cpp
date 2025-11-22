@@ -1,9 +1,10 @@
 module;
 
 #include <stdint.h>
-#include <string.h>
 
 export module guid;
+
+import crt;
 
 export struct guid {
     uint32_t data1;

@@ -2,12 +2,12 @@ module;
 
 #include <span>
 #include <string_view>
-#include <string.h>
 #include <stdint.h>
 
 export module cpio;
 
 import print;
+import crt;
 
 using namespace std;
 

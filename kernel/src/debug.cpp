@@ -1,7 +1,6 @@
 module;
 
 #include <string_view>
-#include <string.h>
 #include <stdint.h>
 #include <span>
 
@@ -16,6 +15,7 @@ import objects;
 import bsod;
 import thread;
 import visit;
+import crt;
 
 using namespace std;
 

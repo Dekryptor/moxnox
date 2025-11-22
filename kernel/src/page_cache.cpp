@@ -4,7 +4,6 @@ module;
 #include <mutex>
 #include <algorithm>
 #include <atomic>
-#include <string.h>
 #include "rangelock.h"
 #include "assert.h"
 
