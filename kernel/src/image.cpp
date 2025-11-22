@@ -1,7 +1,6 @@
 module;
 
 #include <stdint.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <span>
@@ -13,6 +12,7 @@ import bsod;
 import section;
 import mem;
 import kernel_images;
+import crt;
 
 using namespace std;
 
