@@ -14,41 +14,35 @@ char escape_buffer[50];
 size_t escape_buffer_len = 0;
 
 template<typename T>
-void print_char(T& t, char32_t c) {
-    if (c == '\n')
-        t.print_char('\n', false);
-    else if (c == '\b') {
-        if (t.cursor_x == 0 && t.cursor_y == 0)
-            return;
-
-        t.print_char('\b', false);
-    } else {
-        if (c < 0x20)
-            return;
-
-        t.print_char(c, false);
-    }
-
-    t.cursor_changed();
-}
-
-template<typename T>
-void print_chars(T& t, span<const char32_t> c) {
-    t.print_chars(c, false);
+void print_chars(T& t, span<const char32_t> s) {
+    t.print_chars(s, false);
     t.cursor_changed();
 }
 
 template<typename T>
 void do_print2(T& t, span<const char> s) {
-    for (auto c : s) {
+    char32_t buf[100];
+    span<char32_t> sp(buf);
+
+    for (size_t i = 0; i < s.size(); i++) {
+        auto c = s[i];
+
+        if (sp.empty()) {
+            print_chars(t, buf);
+            sp = buf;
+        }
+
         if (utf8_chars != 0) {
             if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-                char32_t s[2];
+                if (sp.size() < 2) {
+                    print_chars(t, span(buf, (sizeof(buf) / sizeof(buf[0])) - sp.size()));
+                    sp = buf;
+                }
 
-                s[0] = 0xfffd;
-                s[1] = (char32_t)c;
+                sp[0] = 0xfffd;
+                sp[1] = (char32_t)c;
+                sp = span(sp.data() + 2, sp.size() - 2);
 
-                print_chars(t, s);
                 utf8_chars = 0;
                 continue;
             }
@@ -58,65 +52,89 @@ void do_print2(T& t, span<const char> s) {
 
             if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    print_char(t, 0xfffd);
+                    sp[0] = 0xfffd;
+                    sp = span(sp.data() + 1, sp.size() - 1);
+
                     utf8_chars = 0;
                     continue;
                 }
 
-                auto c = (char32_t)(((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f));
+                auto c2 = (char32_t)(((utf8_buf[0] & 0x1f) << 6) | (utf8_buf[1] & 0x3f));
 
-                print_char(t, c);
+                sp[0] = c2;
+                sp = span(sp.data() + 1, sp.size() - 1);
+
                 utf8_chars = 0;
             } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
                 if (utf8_chars == 2) {
                     if ((utf8_buf[1] & 0xc0) != 0x80) {
-                        print_char(t, 0xfffd);
+                        sp[0] = 0xfffd;
+                        sp = span(sp.data() + 1, sp.size() - 1);
+
                         utf8_chars = 0;
                     }
                 } else {
                     if ((utf8_buf[2] & 0xc0) != 0x80) {
-                        print_char(t, 0xfffd);
+                        sp[0] = 0xfffd;
+                        sp = span(sp.data() + 1, sp.size() - 1);
+
                         utf8_chars = 0;
                         continue;
                     }
 
-                    auto c = (char32_t)(((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f));
+                    auto c2 = (char32_t)(((utf8_buf[0] & 0xf) << 12) | ((utf8_buf[1] & 0x3f) << 6) | (utf8_buf[2] & 0x3f));
 
-                    print_char(t, c);
+                    sp[0] = c2;
+                    sp = span(sp.data() + 1, sp.size() - 1);
+
                     utf8_chars = 0;
                 }
             } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
                 if (utf8_chars == 2) {
                     if ((utf8_buf[1] & 0xc0) != 0x80) {
-                        print_char(t, 0xfffd);
+                        sp[0] = 0xfffd;
+                        sp = span(sp.data() + 1, sp.size() - 1);
+
                         utf8_chars = 0;
                     }
                 } else if (utf8_chars == 3) {
                     if ((utf8_buf[2] & 0xc0) != 0x80) {
-                        print_char(t, 0xfffd);
+                        sp[0] = 0xfffd;
+                        sp = span(sp.data() + 1, sp.size() - 1);
+
                         utf8_chars = 0;
                     }
                 } else {
                     if ((utf8_buf[3] & 0xc0) != 0x80) {
-                        print_char(t, 0xfffd);
+                        sp[0] = 0xfffd;
+                        sp = span(sp.data() + 1, sp.size() - 1);
+
                         utf8_chars = 0;
                         continue;
                     }
 
-                    auto c = (char32_t)(((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f));
+                    auto c2 = (char32_t)(((utf8_buf[0] & 0x7) << 18) | ((utf8_buf[1] & 0x3f) << 12) | ((utf8_buf[2] & 0x3f) << 6) | (utf8_buf[3] & 0x3f));
 
-                    print_char(t, c);
+                    sp[0] = c2;
+                    sp = span(sp.data() + 1, sp.size() - 1);
+
                     utf8_chars = 0;
                 }
             }
         } else if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
             utf8_buf[0] = (uint8_t)c;
             utf8_chars = 1;
-        } else if (c & 0x80)
-            print_char(t, 0xfffd);
-        else
-            print_char(t, (char32_t)c);
+        } else if (c & 0x80) {
+            sp[0] = 0xfffd;
+            sp = span(sp.data() + 1, sp.size() - 1);
+        } else {
+            sp[0] = (char32_t)c;
+            sp = span(sp.data() + 1, sp.size() - 1);
+        }
     }
+
+    if (sp.size() < (sizeof(buf) / sizeof(buf[0])))
+        print_chars(t, span(buf, (sizeof(buf) / sizeof(buf[0])) - sp.size()));
 }
 
 template<typename T>
