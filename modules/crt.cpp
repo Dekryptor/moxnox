@@ -1,6 +1,7 @@
 module;
 
 #include <stdint.h>
+#include <string.h>
 
 export module crt;
 
@@ -246,4 +247,18 @@ int isspace(int ch) {
         default:
             return 0;
     }
+}
+
+export
+extern "C"
+char* strcat(char* dest, const char* src) {
+    auto orig_dest = dest;
+
+    while (dest[0] != 0) {
+        dest++;
+    }
+
+    memcpy(dest, src, strlen(src) + 1);
+
+    return orig_dest;
 }

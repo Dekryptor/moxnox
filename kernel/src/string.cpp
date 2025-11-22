@@ -59,19 +59,6 @@ void* memcpy(void* dest, const void* src, size_t n) {
 #endif
 
 extern "C"
-char* strcat(char* dest, const char* src) {
-    auto orig_dest = dest;
-
-    while (dest[0] != 0) {
-        dest++;
-    }
-
-    memcpy(dest, src, strlen(src) + 1);
-
-    return orig_dest;
-}
-
-extern "C"
 char* strncpy(char* dst, const char* src, size_t dsize) {
     char* orig_dst = dst;
 
