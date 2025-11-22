@@ -23,7 +23,6 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
 extern "C" int toupper(int c);
 size_t utf8_to_utf16_len(std::string_view sv);
 void utf8_to_utf16(std::span<char16_t> buf, std::string_view sv);
-std::span<char> sp_itoa_hex(std::span<char> dest, uint64_t num, unsigned int padding = 0);
 
 struct ci_char_traits : public std::char_traits<char16_t> {
     static bool eq(char16_t c1, char16_t c2) {
