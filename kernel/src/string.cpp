@@ -3,11 +3,11 @@ module;
 #include <stdint.h>
 #include <string_view>
 #include <span>
-#include <string.h>
 
 export module string;
 
 import mem;
+import crt;
 
 using namespace std;
 
@@ -138,17 +138,6 @@ char* strncpy(char* dst, const char* src, size_t dsize) {
     }
 
     return orig_dst;
-}
-
-extern "C"
-size_t strlen(const char* s) {
-    size_t i = 0;
-
-    while (s[i] != 0) {
-        i++;
-    }
-
-    return i;
 }
 
 extern "C"

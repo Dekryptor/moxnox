@@ -133,3 +133,15 @@ void* memmove(void* dest, const void* src, size_t n) {
 
     return orig_dest;
 }
+
+export
+extern "C"
+size_t strlen(const char* s) {
+    size_t i = 0;
+
+    while (s[i] != 0) {
+        i++;
+    }
+
+    return i;
+}

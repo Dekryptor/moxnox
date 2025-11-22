@@ -1,18 +1,9 @@
 #include "ntdll_private.h"
 #include <charconv>
 
+import crt;
+
 using namespace std;
-
-extern "C"
-size_t strlen(const char* s) {
-    size_t i = 0;
-
-    while (s[i] != 0) {
-        i++;
-    }
-
-    return i;
-}
 
 void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
     if (buf.empty())

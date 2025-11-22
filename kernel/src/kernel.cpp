@@ -3,7 +3,6 @@
 #include <string_view>
 #include <optional>
 #include <version.h>
-#include <string.h>
 #include "context_offsets.h"
 #include "process.h"
 #include "timer-asm.h"
@@ -45,6 +44,7 @@ import pci;
 import loaderblock;
 import efi;
 import debug;
+import crt;
 
 using namespace std;
 

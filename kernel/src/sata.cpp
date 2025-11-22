@@ -5,7 +5,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include <atomic>
-#include <string.h>
 #include "tick_rate.h"
 
 export module sata;

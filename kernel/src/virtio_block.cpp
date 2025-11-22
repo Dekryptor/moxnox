@@ -5,7 +5,6 @@ module;
 #include <span>
 #include <string_view>
 #include <mutex>
-#include <string.h>
 
 export module virtio_block;
 
@@ -23,6 +22,7 @@ import module_init;
 import page_cache;
 import handle;
 import object_ref;
+import crt;
 
 using namespace std;
 

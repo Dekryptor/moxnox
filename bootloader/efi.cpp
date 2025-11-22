@@ -293,17 +293,6 @@ void* memcpy(void* dest, const void* src, size_t n) {
     return orig_dest;
 }
 
-extern "C"
-size_t strlen(const char* s) {
-    size_t i = 0;
-
-    while (s[i] != 0) {
-        i++;
-    }
-
-    return i;
-}
-
 static void print_error(const char* func, EFI_STATUS Status) {
     print("{} returned {}\n", func, error_string(Status));
 }
