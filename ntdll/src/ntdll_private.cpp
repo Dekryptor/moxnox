@@ -1,22 +1,20 @@
-#pragma once
+module;
 
 #include <stdint.h>
 #include <string_view>
 #include <span>
 
+export module ntdll_private;
+
 import ntdll;
 import crt;
 
-#ifndef __aarch64__
-#define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
-#else
-#define FORCE_ALIGN_ARG_POINTER
-#endif
+export {
 
-static const size_t PAGE_SIZE = 4096;
-static const uint64_t PAGE_SHIFT = 12;
+const size_t PAGE_SIZE = 4096;
+const uint64_t PAGE_SHIFT = 12;
 
-static constexpr uint32_t bytes_to_pages(size_t bytes) {
+constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
@@ -82,3 +80,5 @@ struct ldr_entry {
     uint64_t offset_debug_line_str;
     uint64_t size_debug_line_str;
 };
+
+}

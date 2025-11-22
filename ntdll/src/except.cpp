@@ -1,7 +1,9 @@
-#include "ntdll_private.h"
 #include "list.h"
 #include <stdlib.h>
+#include <stdint.h>
 #include <optional>
+#include <string_view>
+#include <span>
 #include "exception_record_offsets.h"
 
 import format;
@@ -11,6 +13,9 @@ import unwind;
 import unicode;
 import pe;
 import kernelbase;
+import ntdll;
+import ntdll_private;
+import crt;
 
 using namespace std;
 

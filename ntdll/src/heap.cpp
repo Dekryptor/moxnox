@@ -1,8 +1,13 @@
-#include "ntdll_private.h"
+#include <stdint.h>
+#include <new>
+#include <algorithm>
 
 import nt;
 import print;
 import list;
+import ntdll;
+import ntdll_private;
+import crt;
 
 using namespace std;
 

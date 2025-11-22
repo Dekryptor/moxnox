@@ -1,7 +1,9 @@
-#include "ntdll_private.h"
 #include "list.h"
 #include <optional>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string_view>
+#include <span>
 
 using namespace std;
 
@@ -9,6 +11,9 @@ import print;
 import format;
 import pe;
 import unicode;
+import ntdll;
+import ntdll_private;
+import crt;
 
 extern uint8_t __image_base__;
 
@@ -16,6 +21,12 @@ static_assert(sizeof(PEB_LDR_DATA) == 0x58);
 static_assert(sizeof(LDR_DATA_TABLE_ENTRY) == 0x88);
 
 using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
+
+#ifndef __aarch64__
+#define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
+#else
+#define FORCE_ALIGN_ARG_POINTER
+#endif
 
 static PEB_LDR_DATA ldr_data; // zero-initialized
 static bool initialized = false;
