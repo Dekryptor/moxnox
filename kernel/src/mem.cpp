@@ -2229,21 +2229,6 @@ bool map_folio(uint64_t pa, uint64_t va, enum mapping_type type) {
 
 export
 extern "C"
-void* memchr(const void* ptr, int ch, size_t count) {
-    auto p = (uint8_t*)ptr;
-
-    for (size_t i = 0; i < count; i++) {
-        if (*p == ch)
-            return p;
-
-        p++;
-    }
-
-    return nullptr;
-}
-
-export
-extern "C"
 int strcmp(const char* s1, const char* s2) {
     size_t i = 0;
 

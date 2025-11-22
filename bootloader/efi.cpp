@@ -133,20 +133,6 @@ static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args..
     print_string(string_view(s, (size_t)(sp.data() - s)));
 }
 
-extern "C"
-void* memchr(const void* ptr, int ch, size_t count) {
-    auto p = (uint8_t*)ptr;
-
-    for (size_t i = 0; i < count; i++) {
-        if (*p == ch)
-            return p;
-
-        p++;
-    }
-
-    return nullptr;
-}
-
 static const char* error_string(EFI_STATUS Status) {
     switch (Status) {
         case EFI_SUCCESS:

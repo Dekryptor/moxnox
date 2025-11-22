@@ -10,7 +10,6 @@ enable_language(ASM)
 set(SRC_FILES src/ntdll.cpp
     src/ntdll.def
     src/string.cpp
-    src/mem.cpp
     src/heap.cpp
     src/except.cpp)
 
