@@ -1,5 +1,4 @@
 #include "ntdll_private.h"
-#include <string.h>
 
 import nt;
 import print;
