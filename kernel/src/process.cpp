@@ -43,6 +43,7 @@ import ntdll;
 import pe;
 import file;
 import mapping;
+import crt;
 
 #ifdef __aarch64__
 import aarch64;

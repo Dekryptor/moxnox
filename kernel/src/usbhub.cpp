@@ -19,6 +19,7 @@ import module_init;
 import thread;
 import scheduler;
 import list;
+import crt;
 
 using namespace std;
 

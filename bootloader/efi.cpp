@@ -3,13 +3,13 @@
 #include <span>
 #include <tuple>
 #include <algorithm>
-#include <string.h>
 
 using namespace std;
 
 import format;
 import pe;
 import loaderblock;
+import crt;
 
 #ifdef __aarch64__
 import aarch64;
@@ -302,35 +302,6 @@ size_t strlen(const char* s) {
     }
 
     return i;
-}
-
-extern "C"
-void* memset(void* s, int c, size_t n) {
-    void* orig_s = s;
-    uint32_t v;
-
-    v = 0;
-
-    for (unsigned int i = 0; i < sizeof(uint32_t); i++) {
-        v <<= 8;
-        v |= c & 0xff;
-    }
-
-    while (n >= sizeof(uint32_t)) {
-        *(uint32_t*)s = v;
-
-        s = (uint8_t*)s + sizeof(uint32_t);
-        n -= sizeof(uint32_t);
-    }
-
-    while (n > 0) {
-        *(uint8_t*)s = (uint8_t)c;
-
-        s = (uint8_t*)s + 1;
-        n--;
-    }
-
-    return orig_s;
 }
 
 extern "C"

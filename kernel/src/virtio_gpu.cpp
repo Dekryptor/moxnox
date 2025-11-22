@@ -28,6 +28,7 @@ import cmdline;
 import console;
 import handle;
 import object_ref;
+import crt;
 
 using namespace std;
 

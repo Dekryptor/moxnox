@@ -91,6 +91,10 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64") # FIXME - should actually be i
     target_sources(loaderblock_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/loaderblock.cpp)
     target_compile_options(loaderblock_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti)
     target_link_libraries(loaderblock_32bit format_32bit)
+
+    add_library(crt_kernel STATIC)
+    target_sources(crt_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/crt.cpp)
+    target_compile_options(crt_kernel PRIVATE ${KERNEL_CFLAGS})
 endif()
 
 add_library(format STATIC)
@@ -173,6 +177,10 @@ endif()
 add_library(kernelbase_mod STATIC)
 target_sources(kernelbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/kernelbase.cpp)
 target_compile_options(kernelbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+add_library(crt STATIC)
+target_sources(crt PUBLIC FILE_SET CXX_MODULES FILES modules/crt.cpp)
+target_compile_options(crt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)
