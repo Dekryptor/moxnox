@@ -55,7 +55,6 @@ void do_print2(T& t, char c) {
 
             print_char(t, c);
             utf8_chars = 0;
-            return;
         } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
             if (utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
@@ -74,8 +73,6 @@ void do_print2(T& t, char c) {
                 print_char(t, c);
                 utf8_chars = 0;
             }
-
-            return;
         } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
             if (utf8_chars == 2) {
                 if ((utf8_buf[1] & 0xc0) != 0x80) {
@@ -99,21 +96,18 @@ void do_print2(T& t, char c) {
                 print_char(t, c);
                 utf8_chars = 0;
             }
-
-            return;
         }
+
+        return;
     }
 
     if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
         utf8_buf[0] = (uint8_t)c;
         utf8_chars = 1;
-        return;
-    } else if (c & 0x80) {
+    } else if (c & 0x80)
         print_char(t, 0xfffd);
-        return;
-    }
-
-    print_char(t, (char32_t)c);
+    else
+        print_char(t, (char32_t)c);
 }
 
 template<typename T>
