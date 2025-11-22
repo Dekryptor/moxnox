@@ -1974,32 +1974,6 @@ static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa) {
     return EFI_SUCCESS;
 }
 
-extern "C"
-char* strstr(const char* haystack, const char* needle) {
-    size_t len = strlen(needle);
-
-    while (true) {
-        bool found = true;
-
-        for (size_t i = 0; i < len; i++) {
-            if (haystack[i] == 0)
-                return nullptr;
-
-            if (haystack[i] != needle[i]) {
-                found = false;
-                break;
-            }
-        }
-
-        if (found)
-            return (char*)haystack;
-
-        haystack++;
-    }
-
-    return nullptr;
-}
-
 static void parse_video_option(unsigned int& preferred_width,
                                unsigned int& preferred_height,
                                bool& novideo) {
