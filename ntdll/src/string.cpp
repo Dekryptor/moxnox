@@ -189,21 +189,6 @@ int strcmp(const char* s1, const char* s2) {
 }
 
 extern "C"
-char* strcpy(char* dest, const char* src) {
-    char* orig_dest = dest;
-
-    while (*src != 0) {
-        *dest = *src;
-        src++;
-        dest++;
-    }
-
-    *dest = 0;
-
-    return orig_dest;
-}
-
-extern "C"
 int strncmp(const char* s1, const char* s2, size_t n) {
     for (size_t i = 0; i < n; i++) {
         char c1 = s1[i];
@@ -247,29 +232,6 @@ long strtol(const char* nptr, char** endptr, int base) {
 extern "C"
 unsigned long strtoul(const char* nptr, char** endptr, int base) {
     return strto<unsigned long>(nptr, endptr, base);
-}
-
-extern "C"
-char* strncpy(char* dst, const char* src, size_t dsize) {
-    char* orig_dst = dst;
-
-    while (dsize > 0) {
-        if (*src == 0)
-            break;
-
-        *dst = *src;
-        dst++;
-        src++;
-        dsize--;
-    }
-
-    while (dsize > 0) {
-        *dst = 0;
-        dst++;
-        dsize--;
-    }
-
-    return orig_dst;
 }
 
 extern "C"

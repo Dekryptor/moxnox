@@ -262,3 +262,43 @@ char* strcat(char* dest, const char* src) {
 
     return orig_dest;
 }
+
+export
+extern "C"
+char* strncpy(char* dst, const char* src, size_t dsize) {
+    char* orig_dst = dst;
+
+    while (dsize > 0) {
+        if (*src == 0)
+            break;
+
+        *dst = *src;
+        dst++;
+        src++;
+        dsize--;
+    }
+
+    while (dsize > 0) {
+        *dst = 0;
+        dst++;
+        dsize--;
+    }
+
+    return orig_dst;
+}
+
+export
+extern "C"
+char* strcpy(char* dest, const char* src) {
+    char* orig_dest = dest;
+
+    while (*src != 0) {
+        *dest = *src;
+        src++;
+        dest++;
+    }
+
+    *dest = 0;
+
+    return orig_dest;
+}
