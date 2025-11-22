@@ -17,7 +17,6 @@ import cpio;
 import mem;
 import config;
 import list;
-import string;
 import unicode;
 import guid;
 import cmdline;

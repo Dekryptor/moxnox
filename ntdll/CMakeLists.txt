@@ -19,7 +19,6 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
 else()
     list(APPEND SRC_FILES
         src/syscalls-x86.S
-        src/mem.S
         src/continue-x86.S)
 endif()
 

@@ -10,7 +10,6 @@ enable_language(ASM)
 configure_file(src/font.S.in ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
 set(GLOBAL_MODULES src/cmdline.cpp
-    src/string.cpp
     src/mem.cpp
     src/config.cpp
     src/thread.cpp

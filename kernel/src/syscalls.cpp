@@ -15,7 +15,6 @@ export module syscalls;
 import nt;
 import format;
 import print;
-import string;
 import config;
 import visit;
 import unicode;

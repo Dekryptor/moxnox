@@ -19,7 +19,6 @@ import mem;
 import config;
 import bsod;
 import rangelock;
-import string;
 import unicode;
 import thread;
 import pe;

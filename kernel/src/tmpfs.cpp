@@ -15,7 +15,6 @@ import print;
 import mem;
 import config;
 import list;
-import string;
 import volume;
 import timer;
 import vfs;

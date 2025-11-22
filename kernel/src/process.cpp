@@ -24,7 +24,6 @@ import mem;
 import config;
 import list;
 import vfs;
-import string;
 import interrupts;
 import visit;
 import unicode;
