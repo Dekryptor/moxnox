@@ -10,6 +10,7 @@
 import pe;
 import loaderblock;
 import aarch64;
+import crt;
 
 using namespace std;
 
@@ -35,98 +36,6 @@ extern "C" uint8_t get_current_el();
 extern "C" void el2_to_el1();
 extern "C" void el3_to_el1();
 extern "C" void enable_paging(uint64_t ttbr0, uint64_t ttbr1);
-
-extern "C"
-size_t strlen(const char* s) {
-    size_t i = 0;
-
-    while (s[i] != 0) {
-        i++;
-    }
-
-    return i;
-}
-
-extern "C"
-void* memmove(void* dest, const void* src, size_t n) {
-    auto orig_dest = dest;
-
-    if (dest <= src) {
-        while (n > 0) {
-            *(uint8_t*)dest = *(uint8_t*)src;
-
-            dest = (uint8_t*)dest + 1;
-            src = (uint8_t*)src + 1;
-
-            n--;
-        }
-    } else {
-        dest = (uint8_t*)dest + n - 1;
-        src = (uint8_t*)src + n - 1;
-
-        while (n > 0) {
-            *(uint8_t*)dest = *(uint8_t*)src;
-
-            dest = (uint8_t*)dest - 1;
-            src = (uint8_t*)src - 1;
-
-            n--;
-        }
-    }
-
-    return orig_dest;
-}
-
-extern "C"
-int memcmp(const void* s1, const void* s2, size_t n) {
-    // FIXME - not completely accurate, as 1 or -1 is messed up by endianness
-
-    // FIXME - can only do one byte at a time because we're in aligned mode?
-
-    while (n > 0) {
-        uint8_t c1 = *(uint8_t*)s1;
-        uint8_t c2 = *(uint8_t*)s2;
-
-        if (c1 != c2)
-            return c1 > c2 ? 1 : -1;
-
-        s1 = (uint8_t*)s1 + 1;
-        s2 = (uint8_t*)s2 + 1;
-        n--;
-    }
-
-    return 0;
-}
-
-extern "C"
-void* memcpy(void* dest, const void* src, size_t n) {
-    void* orig_dest = dest;
-
-    while (n >= sizeof(uint8_t)) {
-        *(uint8_t*)dest = *(uint8_t*)src;
-
-        dest = (uint8_t*)dest + sizeof(uint8_t);
-        src = (uint8_t*)src + sizeof(uint8_t);
-
-        n -= sizeof(uint8_t);
-    }
-
-    return orig_dest;
-}
-
-extern "C"
-void* memset(void* s, int c, size_t n) {
-    void* orig_s = s;
-
-    while (n > 0) {
-        *(uint8_t*)s = (uint8_t)c;
-
-        s = (uint8_t*)s + 1;
-        n--;
-    }
-
-    return orig_s;
-}
 
 static const uint32_t PL011_UARTCR_UARTEN = 1 << 0;
 static const uint32_t PL011_UARTCR_TXE = 1 << 8;

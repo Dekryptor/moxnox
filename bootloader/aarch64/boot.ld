@@ -18,6 +18,7 @@ SECTIONS
         *pe.cpp.obj(.text)
         *loaderblock.cpp.obj(.text)
         *aarch64.cpp.obj(.text)
+        *crt.cpp.obj(.text)
     }
 
     . = ALIGN(4096);
