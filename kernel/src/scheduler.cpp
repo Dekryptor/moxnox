@@ -4,7 +4,6 @@ module;
 #include <optional>
 #include <functional>
 #include <atomic>
-#include <string.h>
 #include "thread.h"
 #include "assert.h"
 #include "tick_rate.h"
