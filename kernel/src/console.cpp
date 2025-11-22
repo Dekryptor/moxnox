@@ -227,6 +227,7 @@ struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
     void print_char(char32_t c, bool no_move);
+    void print_chars(span<const char32_t> s, bool no_move);
     void cursor_changed();
     void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
@@ -240,6 +241,7 @@ struct console_text {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
     void print_char(char32_t c, bool no_move);
+    void print_chars(span<const char32_t> s, bool no_move);
     void cursor_changed() { }
     void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
@@ -326,6 +328,24 @@ void console_text::print_char(char32_t c, bool no_move) {
                     cursor_y = console_rows - 1;
                 }
             }
+        }
+    }
+}
+
+void console_text::print_chars(span<const char32_t> s, bool no_move) {
+    for (auto c : s) {
+        if (c == '\n')
+            print_char('\n', no_move);
+        else if (c == '\b') {
+            if (cursor_x == 0 && cursor_y == 0)
+                continue;
+
+            print_char('\b', no_move);
+        } else {
+            if (c < 0x20)
+                continue;
+
+            print_char(c, no_move);
         }
     }
 }
@@ -550,6 +570,24 @@ void console_fb::print_char(char32_t c, bool no_move) {
                     cursor_y = console_rows - 1;
                 }
             }
+        }
+    }
+}
+
+void console_fb::print_chars(span<const char32_t> s, bool no_move) {
+    for (auto c : s) {
+        if (c == '\n')
+            print_char('\n', no_move);
+        else if (c == '\b') {
+            if (cursor_x == 0 && cursor_y == 0)
+                continue;
+
+            print_char('\b', no_move);
+        } else {
+            if (c < 0x20)
+                continue;
+
+            print_char(c, no_move);
         }
     }
 }

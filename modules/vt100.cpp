@@ -2,6 +2,7 @@ module;
 
 #include <stdint.h>
 #include <string_view>
+#include <span>
 
 export module vt100;
 
@@ -32,11 +33,21 @@ void print_char(T& t, char32_t c) {
 }
 
 template<typename T>
+void print_chars(T& t, span<const char32_t> c) {
+    t.print_chars(c, false);
+    t.cursor_changed();
+}
+
+template<typename T>
 void do_print2(T& t, char c) {
     if (utf8_chars != 0) {
         if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-            print_char(t, 0xfffd);
-            print_char(t, (char32_t)c);
+            char32_t s[2];
+
+            s[0] = 0xfffd;
+            s[1] = (char32_t)c;
+
+            print_chars(t, s);
             utf8_chars = 0;
             return;
         }
