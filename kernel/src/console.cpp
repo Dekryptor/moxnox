@@ -291,16 +291,16 @@ void console_text::console_overflow(unsigned int rows) {
 }
 
 void console_text::print_chars(span<const char32_t> s, bool no_move) {
+    auto orig_cursor_x = cursor_x;
+
     for (auto c : s) {
         if (c == '\n') {
-            if (!no_move) {
-                cursor_x = 0;
-                cursor_y++;
+            cursor_x = 0;
+            cursor_y++;
 
-                if (cursor_y == console_rows) {
-                    console_overflow();
-                    cursor_y = console_rows - 1;
-                }
+            if (cursor_y == console_rows) {
+                console_overflow();
+                cursor_y = console_rows - 1;
             }
         } else if (c == '\b') {
             if (cursor_x == 0 && cursor_y == 0)
@@ -321,21 +321,22 @@ void console_text::print_chars(span<const char32_t> s, bool no_move) {
             text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
                               bg_colour_text, fg_colour_text);
 
-            if (!no_move) {
-                cursor_x++;
+            cursor_x++;
 
-                if (cursor_x == console_cols) {
-                    cursor_x = 0;
-                    cursor_y++;
+            if (cursor_x == console_cols && !no_move) {
+                cursor_x = 0;
+                cursor_y++;
 
-                    if (cursor_y == console_rows) {
-                        console_overflow();
-                        cursor_y = console_rows - 1;
-                    }
+                if (cursor_y == console_rows) {
+                    console_overflow();
+                    cursor_y = console_rows - 1;
                 }
             }
         }
     }
+
+    if (no_move)
+        cursor_x = orig_cursor_x;
 }
 
 static void recalc_colours_text(bool fg) {
