@@ -1,6 +1,7 @@
 module;
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string_view>
 #include <span>
 
@@ -386,41 +387,64 @@ void erase_in_line(T& t, string_view s) {
 
     switch (param) {
         case 0: { // clear from cursor to end of line
-            auto orig_cursor_x = t.cursor_x;
+            if (t.cursor_x == t.console_cols)
+                return;
 
-            while (t.cursor_x < t.console_cols) {
-                t.print_char(' ');
-                t.cursor_x++;
+            auto buf = (char32_t*)malloc((t.console_cols - t.cursor_x) * sizeof(char32_t));
+            if (!buf)
+                return; // FIXME - print error somehow?
+
+            for (unsigned int i = 0; i < t.console_cols - t.cursor_x; i++) {
+                buf[i] = ' ';
             }
 
-            t.cursor_x = orig_cursor_x;
+            t.print_chars(span(buf, t.console_cols - t.cursor_x), true);
+
+            free(buf);
+
             break;
         }
 
         case 1: { // clear from beginning of line to cursor
             auto orig_cursor_x = t.cursor_x;
 
-            t.cursor_x = 0;
-            while (t.cursor_x < orig_cursor_x) {
-                t.print_char(' ');
-                t.cursor_x++;
+            if (t.cursor_x == 0)
+                return;
+
+            auto buf = (char32_t*)malloc(t.cursor_x * sizeof(char32_t));
+            if (!buf)
+                return; // FIXME - print error somehow?
+
+            for (unsigned int i = 0; i < t.cursor_x; i++) {
+                buf[i] = ' ';
             }
 
+            t.cursor_x = 0;
+            t.print_chars(span(buf, t.cursor_x), true);
             t.cursor_x = orig_cursor_x;
+
+            free(buf);
+
             break;
         }
 
         case 2: { // clear entire line
             auto orig_cursor_x = t.cursor_x;
 
-            t.cursor_x = 0;
+            auto buf = (char32_t*)malloc(t.console_cols * sizeof(char32_t));
+            if (!buf)
+                return; // FIXME - print error somehow?
 
-            while (t.cursor_x < t.console_cols) {
-                t.print_char(' ');
-                t.cursor_x++;
+            for (unsigned int i = 0; i < t.console_cols; i++) {
+                buf[i] = ' ';
             }
 
+            t.cursor_x = 0;
+            t.print_chars(span(buf, t.console_cols), true);
             t.cursor_x = orig_cursor_x;
+
+            free(buf);
+
             break;
         }
     }
