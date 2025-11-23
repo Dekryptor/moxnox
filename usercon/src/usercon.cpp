@@ -838,9 +838,15 @@ static void print_char2(console_fb& con, char32_t c, bool no_move) {
     } while (true);
 }
 
-void console_fb::print_chars(span<const char32_t> s, bool no_move) {
+static void print_chars2(console_fb& con, span<const char32_t> s, bool no_move) {
     for (auto c : s) {
-        if (c == '\n') {
+        print_char2(con, c, no_move);
+    }
+}
+
+void console_fb::print_chars(span<const char32_t> s, bool no_move) {
+    while (!s.empty()) {
+        if (s[0] == '\n') {
             console_overflow();
 
             if (!no_move) {
@@ -850,7 +856,9 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
                 if (cursor_y == console_rows)
                     cursor_y = console_rows - 1;
             }
-        } else if (c == '\b') {
+
+            s = span(s.data() + 1, s.size() - 1);
+        } else if (s[0] == '\b') {
             if (cursor_x > 0)
                 cursor_x--;
             else {
@@ -863,8 +871,22 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
 
             // FIXME - not if ENABLE_PROCESSED_OUTPUT disabled
             print_char2(*this, ' ', true);
-        } else
-            print_char2(*this, c, no_move);
+
+            s = span(s.data() + 1, s.size() - 1);
+        } else {
+            size_t end = s.size();
+
+            for (size_t i = 0; i < s.size(); i++) {
+                if (s[i] == '\n' || s[i] == '\b') {
+                    end = i;
+                    break;
+                }
+            }
+
+            print_chars2(*this, span(s.data(), end), no_move);
+
+            s = span(s.data() + end, s.size() - end);
+        }
     }
 }
 
