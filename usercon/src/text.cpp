@@ -78,6 +78,8 @@ struct console_text {
     HANDLE section = 0;
 };
 
+static_assert(vt100_console<console_text>);
+
 export console_text console_text_inst;
 
 static const unsigned int DEFAULT_BG_COLOUR_INDEX = 0;

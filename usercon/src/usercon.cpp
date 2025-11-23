@@ -110,6 +110,8 @@ struct console_fb {
     bool show_cursor = true;
 };
 
+static_assert(vt100_console<console_fb>);
+
 static console_fb console_fb_inst;
 
 static const uint32_t vt100_colours[] = {

@@ -14,14 +14,27 @@ unsigned int utf8_chars = 0;
 char escape_buffer[50];
 size_t escape_buffer_len = 0;
 
-template<typename T>
-void print_chars(T& t, span<const char32_t> s) {
+export template<typename T>
+concept vt100_console = requires(T t) {
+    requires unsigned_integral<decltype(t.cursor_x)>;
+    requires unsigned_integral<decltype(t.cursor_y)>;
+    requires unsigned_integral<decltype(t.console_rows)>;
+    requires unsigned_integral<decltype(t.console_cols)>;
+    { t.console_overflow((unsigned int)0) } -> same_as<void>;
+    { t.scroll_down((unsigned int)0) } -> same_as<void>;
+    { t.handle_sgr_part_num((unsigned int)0) } -> same_as<void>;
+    { t.cursor_changed() } -> same_as<void>;
+    { t.move_cursor() } -> same_as<void>;
+    { t.print_chars(span<const char32_t>(), false) } -> same_as<void>;
+    { t.enable_cursor(false) } -> same_as<void>;
+};
+
+void print_chars(vt100_console auto& t, span<const char32_t> s) {
     t.print_chars(s, false);
     t.cursor_changed();
 }
 
-template<typename T>
-void do_print2(T& t, span<const char> s) {
+void do_print2(vt100_console auto& t, span<const char> s) {
     char32_t buf[100];
     span<char32_t> sp(buf);
 
@@ -138,8 +151,7 @@ void do_print2(T& t, span<const char> s) {
         print_chars(t, span(buf, (sizeof(buf) / sizeof(buf[0])) - sp.size()));
 }
 
-template<typename T>
-void handle_sgr_part(string_view s) {
+void handle_sgr_part(vt100_console auto& t, string_view s) {
     while (!s.empty() && s.front() == '0') {
         s = string_view(s.data() + 1, s.size() - 1);
     }
@@ -154,11 +166,10 @@ void handle_sgr_part(string_view s) {
         num += (unsigned int)(c - '0');
     }
 
-    T::handle_sgr_part_num(num);
+    t.handle_sgr_part_num(num);
 }
 
-template<typename T>
-void handle_sgr(string_view s) {
+void handle_sgr(vt100_console auto& t, string_view s) {
     do {
         string_view p;
 
@@ -169,7 +180,7 @@ void handle_sgr(string_view s) {
         else
             p = string_view(s.data(), sc);
 
-        handle_sgr_part<T>(p);
+        handle_sgr_part(t, p);
 
         if (sc == string_view::npos)
             break;
@@ -178,8 +189,7 @@ void handle_sgr(string_view s) {
     } while (true);
 }
 
-template<typename T>
-void move_cursor(T& t, string_view s) {
+void move_cursor(vt100_console auto& t, string_view s) {
     unsigned int param = 1;
 
     if (s.size() > 1) {
@@ -253,8 +263,7 @@ void move_cursor(T& t, string_view s) {
     t.cursor_changed();
 }
 
-template<typename T>
-void scroll_up(T& t, string_view s) {
+void scroll_up(vt100_console auto& t, string_view s) {
     unsigned int rows = 1;
 
     if (!s.empty()) {
@@ -282,8 +291,7 @@ void scroll_up(T& t, string_view s) {
         t.cursor_y = t.console_rows - 1;
 }
 
-template<typename T>
-void set_cursor_position(T& t, string_view s) {
+void set_cursor_position(vt100_console auto& t, string_view s) {
     unsigned int x = 1, y = 1;
 
     if (!s.empty()) {
@@ -344,8 +352,7 @@ void set_cursor_position(T& t, string_view s) {
     t.cursor_changed();
 }
 
-template<typename T>
-void scroll_down(T& t, string_view s) {
+void scroll_down(vt100_console auto& t, string_view s) {
     unsigned int rows = 1;
 
     if (!s.empty()) {
@@ -369,8 +376,7 @@ void scroll_down(T& t, string_view s) {
     t.scroll_down(rows);
 }
 
-template<typename T>
-void erase_in_line(T& t, string_view s) {
+void erase_in_line(vt100_console auto& t, string_view s) {
     unsigned int param = 0;
 
     if (!s.empty()) {
@@ -450,8 +456,7 @@ void erase_in_line(T& t, string_view s) {
     }
 }
 
-template<typename T>
-void erase_in_display(T& t, string_view s) {
+void erase_in_display(vt100_console auto& t, string_view s) {
     unsigned int param = 0;
 
     if (!s.empty()) {
@@ -526,15 +531,14 @@ void erase_in_display(T& t, string_view s) {
     t.cursor_y = orig_cursor_y;
 }
 
-template<typename T>
-void handle_escape_sequence(T& t, string_view s) {
+void handle_escape_sequence(vt100_console auto& t, string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
 
         if ((s.back() >= 'A' && s.back() <= 'G') || s.back() == 'd')
             move_cursor(t, s);
         else if (s.back() == 'm')
-            handle_sgr<T>(string_view(s.data(), s.size() - 1));
+            handle_sgr(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'J')
             erase_in_display(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'K')
@@ -555,8 +559,7 @@ void handle_escape_sequence(T& t, string_view s) {
     }
 }
 
-export template<typename T>
-void do_print(T& t, string_view s) {
+export void do_print(vt100_console auto& t, string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && s[0] != '[') {
             char buf[1];

@@ -236,6 +236,12 @@ struct console_fb {
     unsigned int console_rows, console_cols;
 };
 
+static_assert(vt100_console<console_fb>);
+
+static console_fb console_fb_inst;
+
+#ifndef __aarch64__
+
 struct console_text {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
@@ -249,10 +255,10 @@ struct console_text {
     unsigned int console_rows, console_cols;
 };
 
-static console_fb console_fb_inst;
+static_assert(vt100_console<console_text>);
+
 static console_text console_text_inst;
 
-#ifndef __aarch64__
 static constexpr uint16_t text_console_val(uint8_t c, enum console_colour bg,
                                            enum console_colour fg) {
     return (uint16_t)(((uint16_t)bg << 12) | ((uint16_t)fg << 8) | c);
@@ -1066,9 +1072,13 @@ export bool init_console(const loader_block_framebuffer& fb)
         if (console_chardev.get().type != object_type::chardev)
             bsod_format("console option {} did not point to a character device", console_opt);
 
+#ifndef __aarch64__
         console_text_inst.console_cols = 80; // FIXME
         console_text_inst.console_rows = 25; // FIXME
         console_cols = console_text_inst.console_cols;
+#else
+        console_cols = 80;
+#endif
 
         console_type = console_type::other;
 
