@@ -99,7 +99,7 @@ static unsigned int num_lines = 0;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_chars(span<const char32_t> s, bool no_move);
+    void print_chars(span<const char32_t> s, bool no_move = false);
     void cursor_changed();
     void scroll_down(unsigned int rows);
     void enable_cursor(bool enable);

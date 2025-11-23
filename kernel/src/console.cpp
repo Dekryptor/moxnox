@@ -226,7 +226,7 @@ export enum console_type console_type;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_chars(span<const char32_t> s, bool no_move);
+    void print_chars(span<const char32_t> s, bool no_move = false);
     void cursor_changed();
     void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
@@ -247,7 +247,7 @@ static console_fb console_fb_inst;
 struct console_text {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_chars(span<const char32_t> s, bool no_move);
+    void print_chars(span<const char32_t> s);
     void cursor_changed() { }
     void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
@@ -300,9 +300,7 @@ void console_text::console_overflow(unsigned int rows) {
     }
 }
 
-void console_text::print_chars(span<const char32_t> s, bool no_move) {
-    auto orig_cursor_x = cursor_x;
-
+void console_text::print_chars(span<const char32_t> s) {
     for (auto c : s) {
         if (c == '\n') {
             cursor_x = 0;
@@ -333,7 +331,7 @@ void console_text::print_chars(span<const char32_t> s, bool no_move) {
 
             cursor_x++;
 
-            if (cursor_x == console_cols && !no_move) {
+            if (cursor_x == console_cols) {
                 cursor_x = 0;
                 cursor_y++;
 
@@ -344,9 +342,6 @@ void console_text::print_chars(span<const char32_t> s, bool no_move) {
             }
         }
     }
-
-    if (no_move)
-        cursor_x = orig_cursor_x;
 }
 
 static void recalc_colours_text(bool fg) {

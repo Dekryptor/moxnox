@@ -25,14 +25,14 @@ concept vt100_console = requires(T t) {
     { t.handle_sgr_part_num((unsigned int)0) } -> same_as<void>;
     { t.cursor_changed() } -> same_as<void>;
     { t.move_cursor() } -> same_as<void>;
-    { t.print_chars(span<const char32_t>(), false) } -> same_as<void>;
+    { t.print_chars(span<const char32_t>()) } -> same_as<void>;
     { t.enable_cursor(false) } -> same_as<void>;
     { t.erase_in_line((unsigned int)0) } -> same_as<void>;
     { t.erase_in_display((unsigned int)0) } -> same_as<void>;
 };
 
 void print_chars(vt100_console auto& t, span<const char32_t> s) {
-    t.print_chars(s, false);
+    t.print_chars(s);
     t.cursor_changed();
 }
 
