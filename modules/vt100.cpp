@@ -469,17 +469,29 @@ void erase_in_display(T& t, string_view s) {
     auto orig_cursor_x = t.cursor_x;
     auto orig_cursor_y = t.cursor_y;
 
+    auto buf = (char32_t*)malloc(t.console_cols * sizeof(char32_t));
+    if (!buf)
+        return; // FIXME - print error somehow?
+
+    for (unsigned int i = 0; i < t.console_cols; i++) {
+        buf[i] = ' ';
+    }
+
     switch (param) {
         case 0: // clear from cursor to end of screen
-            while (t.cursor_y < t.console_rows) {
-                while (t.cursor_x < t.console_cols) {
-                    t.print_char(' ');
-                    t.cursor_x++;
-                }
+            if (t.cursor_y == t.console_rows)
+                break;
 
-                t.cursor_x = 0;
+            t.print_chars(span(buf, t.console_cols - t.cursor_x), true);
+
+            t.cursor_x = 0;
+            t.cursor_y++;
+
+            while (t.cursor_y < t.console_rows) {
+                t.print_chars(span(buf, t.console_cols), true);
                 t.cursor_y++;
             }
+
             break;
 
         case 1: // clear from beginning of screen to cursor
@@ -487,37 +499,28 @@ void erase_in_display(T& t, string_view s) {
             t.cursor_y = 0;
 
             while (t.cursor_y < orig_cursor_y) {
-                while (t.cursor_x < t.console_cols) {
-                    t.print_char(' ');
-                    t.cursor_x++;
-                }
-
-                t.cursor_x = 0;
+                t.print_chars(span(buf, t.console_cols), true);
                 t.cursor_y++;
             }
 
-            while (t.cursor_x < orig_cursor_x) {
-                t.print_char(' ');
-                t.cursor_x++;
-            }
+            t.print_chars(span(buf, t.console_cols - orig_cursor_x), true);
 
             break;
 
         case 2: // clear entire screen
         case 3:
+            t.cursor_x = 0;
             t.cursor_y = 0;
-            while (t.cursor_y < t.console_rows) {
-                while (t.cursor_x < t.console_cols) {
-                    t.print_char(' ');
-                    t.cursor_x++;
-                }
 
-                t.cursor_x = 0;
+            while (t.cursor_y < t.console_rows) {
+                t.print_chars(span(buf, t.console_cols - t.cursor_x), true);
                 t.cursor_y++;
             }
 
             break;
     }
+
+    free(buf);
 
     t.cursor_x = orig_cursor_x;
     t.cursor_y = orig_cursor_y;
