@@ -226,7 +226,6 @@ export enum console_type console_type;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c);
     void print_chars(span<const char32_t> s, bool no_move);
     void cursor_changed();
     void scroll_down(unsigned int rows);
@@ -492,57 +491,20 @@ void console_fb::console_overflow(unsigned int rows) {
     }
 }
 
-void console_fb::print_char(char32_t c) {
-    if (c == '\n') {
-        if (console) {
-            auto glyph = FT_Get_Char_Index(face.face, ' ');
-
-            for (unsigned int i = cursor_x; i < console_cols; i++) {
-                if (console[(cursor_y * console_cols) + i].glyph != glyph)
-                    continue;
-
-                console[(cursor_y * console_cols) + i].glyph = glyph;
-                console[(cursor_y * console_cols) + i].changed = true;
-            }
-        }
-    } else if (c == '\b') {
-        if (cursor_x > 0)
-            cursor_x--;
-        else {
-            cursor_x = console_cols - 1;
-            cursor_y--;
-
-            if (cursor_x != console_cols - 1)
-                cursor_x++;
-        }
-
-        if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT) {
-            auto glyph = FT_Get_Char_Index(face.face, ' ');
-
-            if (console[(cursor_y * console_cols) + cursor_x].glyph != glyph) {
-                console[(cursor_y * console_cols) + cursor_x].glyph = glyph;
-                console[(cursor_y * console_cols) + cursor_x].changed = true;
-            }
-        }
-    } else {
-        if (console) {
-            auto& p = console[(cursor_y * console_cols) + cursor_x];
-
-            auto glyph = FT_Get_Char_Index(face.face, c);
-
-            p.glyph = glyph;
-            p.bg = bg_colour;
-            p.fg = fg_colour;
-            p.bold = bold;
-            p.changed = true;
-        }
-    }
-}
-
 void console_fb::print_chars(span<const char32_t> s, bool no_move) {
     for (auto c : s) {
         if (c == '\n') {
-            print_char('\n');
+            if (console) {
+                auto glyph = FT_Get_Char_Index(face.face, ' ');
+
+                for (unsigned int i = cursor_x; i < console_cols; i++) {
+                    if (console[(cursor_y * console_cols) + i].glyph != glyph)
+                        continue;
+
+                    console[(cursor_y * console_cols) + i].glyph = glyph;
+                    console[(cursor_y * console_cols) + i].changed = true;
+                }
+            }
 
             if (!no_move) {
                 cursor_x = 0;
@@ -557,12 +519,39 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
             if (cursor_x == 0 && cursor_y == 0)
                 continue;
 
-            print_char('\b');
+            if (cursor_x > 0)
+                cursor_x--;
+            else {
+                cursor_x = console_cols - 1;
+                cursor_y--;
+
+                if (cursor_x != console_cols - 1)
+                    cursor_x++;
+            }
+
+            if (console && console_output_mode & ENABLE_PROCESSED_OUTPUT) {
+                auto glyph = FT_Get_Char_Index(face.face, ' ');
+
+                if (console[(cursor_y * console_cols) + cursor_x].glyph != glyph) {
+                    console[(cursor_y * console_cols) + cursor_x].glyph = glyph;
+                    console[(cursor_y * console_cols) + cursor_x].changed = true;
+                }
+            }
         } else {
             if (c < 0x20)
                 continue;
 
-            print_char(c);
+            if (console) {
+                auto& p = console[(cursor_y * console_cols) + cursor_x];
+
+                auto glyph = FT_Get_Char_Index(face.face, c);
+
+                p.glyph = glyph;
+                p.bg = bg_colour;
+                p.fg = fg_colour;
+                p.bold = bold;
+                p.changed = true;
+            }
 
             if (!no_move) {
                 cursor_x++;
