@@ -99,7 +99,6 @@ static unsigned int num_lines = 0;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c, bool no_move = true);
     void print_chars(span<const char32_t> s, bool no_move);
     void cursor_changed();
     void scroll_down(unsigned int rows);
@@ -720,30 +719,14 @@ static void flush_framebuffer() {
     }
 }
 
-void console_fb::print_char(char32_t c, bool no_move) {
-    if (c == '\b') {
-        if (cursor_x > 0)
-            cursor_x--;
-        else {
-            cursor_x = console_cols - 1;
-            cursor_y--;
-
-            if (cursor_x != console_cols - 1)
-                cursor_x++;
-        }
-
-        // FIXME - not if ENABLE_PROCESSED_OUTPUT disabled
-        c = ' ';
-        no_move = true;
-    }
-
+static void print_char2(console_fb& con, char32_t c, bool no_move) {
     unsigned int text_pos;
 
     // FIXME - allow multiple characters at once?
 
     // get current position in string
 
-    auto orig_cursor_x = cursor_x;
+    auto orig_cursor_x = con.cursor_x;
 
     if (curline->len == 0)
         text_pos = 0;
@@ -759,8 +742,8 @@ void console_fb::print_char(char32_t c, bool no_move) {
         auto len = hb_buffer_get_length(buf.get());
         auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
 
-        if (len > cursor_x)
-            text_pos = info[cursor_x].cluster;
+        if (len > con.cursor_x)
+            text_pos = info[con.cursor_x].cluster;
         else
             text_pos = info[len - 1].cluster + 1; // FIXME?
     }
@@ -771,7 +754,7 @@ void console_fb::print_char(char32_t c, bool no_move) {
         curline->text[text_pos] = c;
 
         if (!no_move)
-            cursor_x = text_pos + 1;
+            con.cursor_x = text_pos + 1;
     } else {
         auto t = (char32_t*)malloc((curline->len + 1) * sizeof(char32_t));
         if (!t) {
@@ -791,7 +774,7 @@ void console_fb::print_char(char32_t c, bool no_move) {
         curline->len++;
 
         if (!no_move)
-            cursor_x = (unsigned int)curline->len;
+            con.cursor_x = (unsigned int)curline->len;
     }
 
     // lay out using harfbuzz
@@ -842,7 +825,7 @@ void console_fb::print_char(char32_t c, bool no_move) {
 
         auto oldline = curline;
 
-        console_overflow();
+        con.console_overflow();
 
         curline->text = t;
         curline->len = oldline->len - trunc;
@@ -867,9 +850,21 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
                 if (cursor_y == console_rows)
                     cursor_y = console_rows - 1;
             }
-        } else {
-            print_char(c, no_move);
-        }
+        } else if (c == '\b') {
+            if (cursor_x > 0)
+                cursor_x--;
+            else {
+                cursor_x = console_cols - 1;
+                cursor_y--;
+
+                if (cursor_x != console_cols - 1)
+                    cursor_x++;
+            }
+
+            // FIXME - not if ENABLE_PROCESSED_OUTPUT disabled
+            print_char2(*this, ' ', true);
+        } else
+            print_char2(*this, c, no_move);
     }
 }
 
