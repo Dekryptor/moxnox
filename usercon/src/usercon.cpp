@@ -839,9 +839,121 @@ static void print_char2(console_fb& con, char32_t c, bool no_move) {
 }
 
 static void print_chars2(console_fb& con, span<const char32_t> s, bool no_move) {
-    for (auto c : s) {
-        print_char2(con, c, no_move);
+    unsigned int text_pos;
+
+    // get current position in string
+
+    auto orig_cursor_x = con.cursor_x;
+
+    if (curline->len == 0)
+        text_pos = 0;
+    else {
+        unique_hb_buffer buf{hb_buffer_create()};
+
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
+                                 (int)curline->len, 0, -1);
+        hb_buffer_guess_segment_properties(buf.get());
+
+        hb_shape(font.hb_font, buf.get(), nullptr, 0);
+
+        auto len = hb_buffer_get_length(buf.get());
+        auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+
+        if (len > con.cursor_x)
+            text_pos = info[con.cursor_x].cluster;
+        else
+            text_pos = info[len - 1].cluster + 1; // FIXME?
     }
+
+    // append to existing buffer
+
+    if (text_pos + s.size() < curline->len) {
+        memcpy(&curline->text[text_pos], s.data(), s.size() * sizeof(char32_t));
+
+        if (!no_move)
+            con.cursor_x = (unsigned int)(text_pos + s.size());
+    } else {
+        auto t = (char32_t*)malloc((curline->len + s.size()) * sizeof(char32_t));
+        if (!t) {
+            print("malloc failed\n");
+            return;
+        }
+
+        if (curline->len != 0)
+            memcpy(t, curline->text, curline->len * sizeof(char32_t));
+
+        memcpy(t + curline->len, s.data(), s.size() * sizeof(char32_t));
+
+        if (curline->text)
+            free(curline->text);
+
+        curline->text = t;
+        curline->len += s.size();
+
+        if (!no_move)
+            con.cursor_x = (unsigned int)curline->len;
+    }
+
+    // lay out using harfbuzz
+
+    do {
+        // FIXME - keep HB buffer around?
+        // FIXME - cap how much data we send to hb_buffer_add_utf8?
+
+        unique_hb_buffer buf{hb_buffer_create()};
+
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
+                                (int)curline->len, 0, -1);
+        hb_buffer_guess_segment_properties(buf.get());
+
+        hb_shape(font.hb_font, buf.get(), nullptr, 0);
+
+        auto len = hb_buffer_get_length(buf.get());
+        auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+        auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
+
+        curline->num_cells = min(len, console_fb_inst.console_cols);
+        for (unsigned int i = 0; i < curline->num_cells; i++) {
+            curline->cells[i].pos = pos[i];
+            curline->cells[i].glyph = info[i].codepoint;
+
+            if (i >= orig_cursor_x) {
+                curline->cells[i].fg_colour = fg_colour;
+                curline->cells[i].bg_colour = bg_colour;
+                curline->cells[i].bold = bold ? 1 : 0;
+                curline->cells[i].italic = italic ? 1 : 0;
+            }
+        }
+
+        curline->changed = true;
+
+        if (len <= console_fb_inst.console_cols)
+            break;
+
+        auto trunc = info[console_fb_inst.console_cols].cluster;
+
+        auto t = (char32_t*)malloc((curline->len - trunc) * sizeof(char32_t));
+        if (!t) {
+            print("malloc failed\n");
+            return;
+        }
+
+        memcpy(t, curline->text + trunc, (curline->len - trunc) * sizeof(char32_t));
+
+        auto oldline = curline;
+
+        if (!no_move)
+            con.console_overflow();
+
+        curline->text = t;
+        curline->len = oldline->len - trunc;
+        curline->changed = true;
+
+        oldline->text = (char32_t*)realloc(oldline->text, trunc * sizeof(char32_t));
+        oldline->len = trunc;
+
+        orig_cursor_x = 0;
+    } while (true);
 }
 
 void console_fb::print_chars(span<const char32_t> s, bool no_move) {
