@@ -1020,7 +1020,7 @@ void console_fb::erase_in_line(unsigned int param) {
                 buf[i] = ' ';
             }
 
-            print_chars(span(buf, console_cols - cursor_x), true);
+            print_chars2(*this, span(buf, console_cols - cursor_x), true);
 
             free(buf);
 
@@ -1042,7 +1042,7 @@ void console_fb::erase_in_line(unsigned int param) {
             }
 
             cursor_x = 0;
-            print_chars(span(buf, cursor_x), true);
+            print_chars2(*this, span(buf, cursor_x), true);
             cursor_x = orig_cursor_x;
 
             free(buf);
@@ -1062,7 +1062,7 @@ void console_fb::erase_in_line(unsigned int param) {
             }
 
             cursor_x = 0;
-            print_chars(span(buf, console_cols), true);
+            print_chars2(*this, span(buf, console_cols), true);
             cursor_x = orig_cursor_x;
 
             free(buf);
