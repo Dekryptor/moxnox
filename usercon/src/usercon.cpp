@@ -99,7 +99,7 @@ static unsigned int num_lines = 0;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_chars(span<const char32_t> s, bool no_move = false);
+    void print_chars(span<const char32_t> s);
     void cursor_changed();
     void scroll_down(unsigned int rows);
     void enable_cursor(bool enable);
@@ -960,18 +960,16 @@ static void print_chars2(console_fb& con, span<const char32_t> s, bool no_move) 
     } while (true);
 }
 
-void console_fb::print_chars(span<const char32_t> s, bool no_move) {
+void console_fb::print_chars(span<const char32_t> s) {
     while (!s.empty()) {
         if (s[0] == '\n') {
             console_overflow();
 
-            if (!no_move) {
-                cursor_x = 0;
-                cursor_y++;
+            cursor_x = 0;
+            cursor_y++;
 
-                if (cursor_y == console_rows)
-                    cursor_y = console_rows - 1;
-            }
+            if (cursor_y == console_rows)
+                cursor_y = console_rows - 1;
 
             s = span(s.data() + 1, s.size() - 1);
         } else if (s[0] == '\b') {
@@ -999,7 +997,7 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
                 }
             }
 
-            print_chars2(*this, span(s.data(), end), no_move);
+            print_chars2(*this, span(s.data(), end), false);
 
             s = span(s.data() + end, s.size() - end);
         }
@@ -1089,13 +1087,13 @@ void console_fb::erase_in_display(unsigned int param) {
             if (cursor_y == console_rows)
                 break;
 
-            print_chars(span(buf, console_cols - cursor_x), true);
+            print_chars2(*this, span(buf, console_cols - cursor_x), true);
 
             cursor_x = 0;
             cursor_y++;
 
             while (cursor_y < console_rows) {
-                print_chars(span(buf, console_cols), true);
+                print_chars2(*this, span(buf, console_cols), true);
                 cursor_y++;
             }
 
@@ -1106,11 +1104,11 @@ void console_fb::erase_in_display(unsigned int param) {
             cursor_y = 0;
 
             while (cursor_y < orig_cursor_y) {
-                print_chars(span(buf, console_cols), true);
+                print_chars2(*this, span(buf, console_cols), true);
                 cursor_y++;
             }
 
-            print_chars(span(buf, console_cols - orig_cursor_x), true);
+            print_chars2(*this, span(buf, console_cols - orig_cursor_x), true);
 
             break;
 
@@ -1120,7 +1118,7 @@ void console_fb::erase_in_display(unsigned int param) {
             cursor_y = 0;
 
             while (cursor_y < console_rows) {
-                print_chars(span(buf, console_cols - cursor_x), true);
+                print_chars2(*this, span(buf, console_cols - cursor_x), true);
                 cursor_y++;
             }
 
