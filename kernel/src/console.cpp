@@ -226,7 +226,7 @@ export enum console_type console_type;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_chars(span<const char32_t> s, bool no_move = false);
+    void print_chars(span<const char32_t> s);
     void cursor_changed();
     void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
@@ -602,9 +602,7 @@ void console_fb::console_overflow(unsigned int rows) {
     }
 }
 
-void console_fb::print_chars(span<const char32_t> s, bool no_move) {
-    auto orig_cursor_x = cursor_x;
-
+void console_fb::print_chars(span<const char32_t> s) {
     for (auto c : s) {
         if (c == '\n') {
             if (console) {
@@ -666,7 +664,7 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
 
             cursor_x++;
 
-            if (cursor_x == console_cols && !no_move) {
+            if (cursor_x == console_cols) {
                 cursor_x = 0;
                 cursor_y++;
 
@@ -677,9 +675,6 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
             }
         }
     }
-
-    if (no_move)
-        cursor_x = orig_cursor_x;
 }
 
 void console_fb::cursor_changed() {
@@ -893,44 +888,59 @@ void console_fb::erase_in_line(unsigned int param) {
 }
 
 void console_fb::erase_in_display(unsigned int param) {
-    auto orig_cursor_x = cursor_x;
-    auto orig_cursor_y = cursor_y;
-
-    auto buf = (char32_t*)malloc(console_cols * sizeof(char32_t));
-    if (!buf)
-        return; // FIXME - print error somehow?
-
-    for (unsigned int i = 0; i < console_cols; i++) {
-        buf[i] = ' ';
-    }
+    auto glyph = FT_Get_Char_Index(face.face, ' ');
 
     switch (param) {
         case 0: // clear from cursor to end of screen
             if (cursor_y == console_rows)
                 break;
 
-            print_chars(span(buf, console_cols - cursor_x), true);
+            for (unsigned int x = cursor_x; x < console_cols; x++) {
+                auto& p = console[(cursor_y * console_cols) + x];
 
-            cursor_x = 0;
-            cursor_y++;
+                p.glyph = glyph;
+                p.bg = bg_colour;
+                p.fg = fg_colour;
+                p.bold = bold;
+                p.changed = true;
+            }
 
-            while (cursor_y < console_rows) {
-                print_chars(span(buf, console_cols), true);
-                cursor_y++;
+            for (unsigned int y = cursor_y + 1; y < console_rows; y++) {
+                for (unsigned int x = 0; x < console_cols; x++) {
+                    auto& p = console[(y * console_cols) + x];
+
+                    p.glyph = glyph;
+                    p.bg = bg_colour;
+                    p.fg = fg_colour;
+                    p.bold = bold;
+                    p.changed = true;
+                }
             }
 
             break;
 
         case 1: // clear from beginning of screen to cursor
-            cursor_x = 0;
-            cursor_y = 0;
+            for (unsigned int y = 0; y < cursor_y; y++) {
+                for (unsigned int x = 0; x < console_cols; x++) {
+                    auto& p = console[(y * console_cols) + x];
 
-            while (cursor_y < orig_cursor_y) {
-                print_chars(span(buf, console_cols), true);
-                cursor_y++;
+                    p.glyph = glyph;
+                    p.bg = bg_colour;
+                    p.fg = fg_colour;
+                    p.bold = bold;
+                    p.changed = true;
+                }
             }
 
-            print_chars(span(buf, console_cols - orig_cursor_x), true);
+            for (unsigned int x = 0; x < cursor_x; x++) {
+                auto& p = console[(cursor_y * console_cols) + x];
+
+                p.glyph = glyph;
+                p.bg = bg_colour;
+                p.fg = fg_colour;
+                p.bold = bold;
+                p.changed = true;
+            }
 
             break;
 
@@ -939,18 +949,20 @@ void console_fb::erase_in_display(unsigned int param) {
             cursor_x = 0;
             cursor_y = 0;
 
-            while (cursor_y < console_rows) {
-                print_chars(span(buf, console_cols - cursor_x), true);
-                cursor_y++;
+            for (unsigned int y = 0; y < console_rows; y++) {
+                for (unsigned int x = 0; x < console_cols; x++) {
+                    auto& p = console[(y * console_cols) + x];
+
+                    p.glyph = glyph;
+                    p.bg = bg_colour;
+                    p.fg = fg_colour;
+                    p.bold = bold;
+                    p.changed = true;
+                }
             }
 
             break;
     }
-
-    free(buf);
-
-    cursor_x = orig_cursor_x;
-    cursor_y = orig_cursor_y;
 }
 
 static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
