@@ -492,6 +492,8 @@ void console_fb::console_overflow(unsigned int rows) {
 }
 
 void console_fb::print_chars(span<const char32_t> s, bool no_move) {
+    auto orig_cursor_x = cursor_x;
+
     for (auto c : s) {
         if (c == '\n') {
             if (console) {
@@ -506,14 +508,12 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
                 }
             }
 
-            if (!no_move) {
-                cursor_x = 0;
-                cursor_y++;
+            cursor_x = 0;
+            cursor_y++;
 
-                if (cursor_y == console_rows) {
-                    console_overflow();
-                    cursor_y = console_rows - 1;
-                }
+            if (cursor_y == console_rows) {
+                console_overflow();
+                cursor_y = console_rows - 1;
             }
         } else if (c == '\b') {
             if (cursor_x == 0 && cursor_y == 0)
@@ -553,21 +553,22 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
                 p.changed = true;
             }
 
-            if (!no_move) {
-                cursor_x++;
+            cursor_x++;
 
-                if (cursor_x == console_cols) {
-                    cursor_x = 0;
-                    cursor_y++;
+            if (cursor_x == console_cols && !no_move) {
+                cursor_x = 0;
+                cursor_y++;
 
-                    if (cursor_y == console_rows) {
-                        console_overflow();
-                        cursor_y = console_rows - 1;
-                    }
+                if (cursor_y == console_rows) {
+                    console_overflow();
+                    cursor_y = console_rows - 1;
                 }
             }
         }
     }
+
+    if (no_move)
+        cursor_x = orig_cursor_x;
 }
 
 void console_fb::cursor_changed() {
