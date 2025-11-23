@@ -232,6 +232,7 @@ struct console_fb {
     static void enable_cursor(bool enable);
     void move_cursor() { }
     void erase_in_line(unsigned int param);
+    void erase_in_display(unsigned int param);
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
@@ -252,6 +253,7 @@ struct console_text {
     static void enable_cursor(bool enable);
     void move_cursor();
     void erase_in_line(unsigned int param);
+    void erase_in_display(unsigned int param) const;
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
@@ -532,6 +534,54 @@ void console_text::erase_in_line(unsigned int param) {
 
             break;
         }
+    }
+}
+
+void console_text::erase_in_display(unsigned int param) const {
+    switch (param) {
+        case 0: // clear from cursor to end of screen
+            if (cursor_y == console_rows)
+                break;
+
+            for (uint8_t x = (uint8_t)cursor_x; x < console_cols; x++) {
+                text_console_putc(x, (uint8_t)cursor_y, ' ', bg_colour_text,
+                                  fg_colour_text);
+            }
+
+            for (uint8_t y = (uint8_t)(cursor_y + 1); y < console_rows; y++) {
+                for (uint8_t x = 0; x < console_cols; x++) {
+                    text_console_putc(x, y, ' ', bg_colour_text,
+                                      fg_colour_text);
+                }
+            }
+
+            break;
+
+        case 1: // clear from beginning of screen to cursor
+            for (uint8_t y = 0; y < cursor_y; y++) {
+                for (uint8_t x = 0; x < console_cols; x++) {
+                    text_console_putc(x, y, ' ', bg_colour_text,
+                                      fg_colour_text);
+                }
+            }
+
+            for (uint8_t x = 0; x < cursor_x; x++) {
+                text_console_putc(x, (uint8_t)cursor_y, ' ', bg_colour_text,
+                                  fg_colour_text);
+            }
+
+            break;
+
+        case 2: // clear entire screen
+        case 3:
+            for (uint8_t y = 0; y < console_rows; y++) {
+                for (uint8_t x = 0; x < console_cols; x++) {
+                    text_console_putc(x, y, ' ', bg_colour_text,
+                                      fg_colour_text);
+                }
+            }
+
+            break;
     }
 }
 
@@ -850,6 +900,67 @@ void console_fb::erase_in_line(unsigned int param) {
             break;
         }
     }
+}
+
+void console_fb::erase_in_display(unsigned int param) {
+    auto orig_cursor_x = cursor_x;
+    auto orig_cursor_y = cursor_y;
+
+    auto buf = (char32_t*)malloc(console_cols * sizeof(char32_t));
+    if (!buf)
+        return; // FIXME - print error somehow?
+
+    for (unsigned int i = 0; i < console_cols; i++) {
+        buf[i] = ' ';
+    }
+
+    switch (param) {
+        case 0: // clear from cursor to end of screen
+            if (cursor_y == console_rows)
+                break;
+
+            print_chars(span(buf, console_cols - cursor_x), true);
+
+            cursor_x = 0;
+            cursor_y++;
+
+            while (cursor_y < console_rows) {
+                print_chars(span(buf, console_cols), true);
+                cursor_y++;
+            }
+
+            break;
+
+        case 1: // clear from beginning of screen to cursor
+            cursor_x = 0;
+            cursor_y = 0;
+
+            while (cursor_y < orig_cursor_y) {
+                print_chars(span(buf, console_cols), true);
+                cursor_y++;
+            }
+
+            print_chars(span(buf, console_cols - orig_cursor_x), true);
+
+            break;
+
+        case 2: // clear entire screen
+        case 3:
+            cursor_x = 0;
+            cursor_y = 0;
+
+            while (cursor_y < console_rows) {
+                print_chars(span(buf, console_cols - cursor_x), true);
+                cursor_y++;
+            }
+
+            break;
+    }
+
+    free(buf);
+
+    cursor_x = orig_cursor_x;
+    cursor_y = orig_cursor_y;
 }
 
 static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {

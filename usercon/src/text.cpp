@@ -66,6 +66,7 @@ struct console_text {
     void enable_cursor(bool enable);
     void move_cursor();
     void erase_in_line(unsigned int param);
+    void erase_in_display(unsigned int param) const;
 
     // FIXME - would need atexit
     // ~console_text() {
@@ -364,6 +365,54 @@ void console_text::erase_in_line(unsigned int param) {
 
             break;
         }
+    }
+}
+
+void console_text::erase_in_display(unsigned int param) const {
+    switch (param) {
+        case 0: // clear from cursor to end of screen
+            if (cursor_y == console_rows)
+                break;
+
+            for (uint8_t x = (uint8_t)cursor_x; x < console_cols; x++) {
+                text_console_putc(x, (uint8_t)cursor_y, ' ', bg_colour_text,
+                                  fg_colour_text);
+            }
+
+            for (uint8_t y = (uint8_t)(cursor_y + 1); y < console_rows; y++) {
+                for (uint8_t x = 0; x < console_cols; x++) {
+                    text_console_putc(x, y, ' ', bg_colour_text,
+                                      fg_colour_text);
+                }
+            }
+
+            break;
+
+        case 1: // clear from beginning of screen to cursor
+            for (uint8_t y = 0; y < cursor_y; y++) {
+                for (uint8_t x = 0; x < console_cols; x++) {
+                    text_console_putc(x, y, ' ', bg_colour_text,
+                                      fg_colour_text);
+                }
+            }
+
+            for (uint8_t x = 0; x < cursor_x; x++) {
+                text_console_putc(x, (uint8_t)cursor_y, ' ', bg_colour_text,
+                                  fg_colour_text);
+            }
+
+            break;
+
+        case 2: // clear entire screen
+        case 3:
+            for (uint8_t y = 0; y < console_rows; y++) {
+                for (uint8_t x = 0; x < console_cols; x++) {
+                    text_console_putc(x, y, ' ', bg_colour_text,
+                                      fg_colour_text);
+                }
+            }
+
+            break;
     }
 }
 

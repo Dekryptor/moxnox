@@ -28,6 +28,7 @@ concept vt100_console = requires(T t) {
     { t.print_chars(span<const char32_t>(), false) } -> same_as<void>;
     { t.enable_cursor(false) } -> same_as<void>;
     { t.erase_in_line((unsigned int)0) } -> same_as<void>;
+    { t.erase_in_display((unsigned int)0) } -> same_as<void>;
 };
 
 void print_chars(vt100_console auto& t, span<const char32_t> s) {
@@ -413,64 +414,10 @@ void erase_in_display(vt100_console auto& t, string_view s) {
         }
     }
 
-    auto orig_cursor_x = t.cursor_x;
-    auto orig_cursor_y = t.cursor_y;
+    if (param > 3)
+        return;
 
-    auto buf = (char32_t*)malloc(t.console_cols * sizeof(char32_t));
-    if (!buf)
-        return; // FIXME - print error somehow?
-
-    for (unsigned int i = 0; i < t.console_cols; i++) {
-        buf[i] = ' ';
-    }
-
-    switch (param) {
-        case 0: // clear from cursor to end of screen
-            if (t.cursor_y == t.console_rows)
-                break;
-
-            t.print_chars(span(buf, t.console_cols - t.cursor_x), true);
-
-            t.cursor_x = 0;
-            t.cursor_y++;
-
-            while (t.cursor_y < t.console_rows) {
-                t.print_chars(span(buf, t.console_cols), true);
-                t.cursor_y++;
-            }
-
-            break;
-
-        case 1: // clear from beginning of screen to cursor
-            t.cursor_x = 0;
-            t.cursor_y = 0;
-
-            while (t.cursor_y < orig_cursor_y) {
-                t.print_chars(span(buf, t.console_cols), true);
-                t.cursor_y++;
-            }
-
-            t.print_chars(span(buf, t.console_cols - orig_cursor_x), true);
-
-            break;
-
-        case 2: // clear entire screen
-        case 3:
-            t.cursor_x = 0;
-            t.cursor_y = 0;
-
-            while (t.cursor_y < t.console_rows) {
-                t.print_chars(span(buf, t.console_cols - t.cursor_x), true);
-                t.cursor_y++;
-            }
-
-            break;
-    }
-
-    free(buf);
-
-    t.cursor_x = orig_cursor_x;
-    t.cursor_y = orig_cursor_y;
+    t.erase_in_display(param);
 }
 
 void handle_escape_sequence(vt100_console auto& t, string_view s) {
