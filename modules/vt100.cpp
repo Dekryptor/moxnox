@@ -27,6 +27,7 @@ concept vt100_console = requires(T t) {
     { t.move_cursor() } -> same_as<void>;
     { t.print_chars(span<const char32_t>(), false) } -> same_as<void>;
     { t.enable_cursor(false) } -> same_as<void>;
+    { t.erase_in_line((unsigned int)0) } -> same_as<void>;
 };
 
 void print_chars(vt100_console auto& t, span<const char32_t> s) {
@@ -391,69 +392,10 @@ void erase_in_line(vt100_console auto& t, string_view s) {
         }
     }
 
-    switch (param) {
-        case 0: { // clear from cursor to end of line
-            if (t.cursor_x == t.console_cols)
-                return;
+    if (param > 2)
+        return;
 
-            auto buf = (char32_t*)malloc((t.console_cols - t.cursor_x) * sizeof(char32_t));
-            if (!buf)
-                return; // FIXME - print error somehow?
-
-            for (unsigned int i = 0; i < t.console_cols - t.cursor_x; i++) {
-                buf[i] = ' ';
-            }
-
-            t.print_chars(span(buf, t.console_cols - t.cursor_x), true);
-
-            free(buf);
-
-            break;
-        }
-
-        case 1: { // clear from beginning of line to cursor
-            auto orig_cursor_x = t.cursor_x;
-
-            if (t.cursor_x == 0)
-                return;
-
-            auto buf = (char32_t*)malloc(t.cursor_x * sizeof(char32_t));
-            if (!buf)
-                return; // FIXME - print error somehow?
-
-            for (unsigned int i = 0; i < t.cursor_x; i++) {
-                buf[i] = ' ';
-            }
-
-            t.cursor_x = 0;
-            t.print_chars(span(buf, t.cursor_x), true);
-            t.cursor_x = orig_cursor_x;
-
-            free(buf);
-
-            break;
-        }
-
-        case 2: { // clear entire line
-            auto orig_cursor_x = t.cursor_x;
-
-            auto buf = (char32_t*)malloc(t.console_cols * sizeof(char32_t));
-            if (!buf)
-                return; // FIXME - print error somehow?
-
-            for (unsigned int i = 0; i < t.console_cols; i++) {
-                buf[i] = ' ';
-            }
-
-            t.cursor_x = 0;
-            t.print_chars(span(buf, t.console_cols), true);
-            t.cursor_x = orig_cursor_x;
-
-            free(buf);
-
-            break;
-        }
-    }
+    t.erase_in_line(param);
 }
 
 void erase_in_display(vt100_console auto& t, string_view s) {

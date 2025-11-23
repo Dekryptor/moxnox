@@ -104,6 +104,7 @@ struct console_fb {
     void scroll_down(unsigned int rows);
     void enable_cursor(bool enable);
     void move_cursor() { }
+    void erase_in_line(unsigned int param);
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
@@ -1000,6 +1001,72 @@ void console_fb::print_chars(span<const char32_t> s, bool no_move) {
             print_chars2(*this, span(s.data(), end), no_move);
 
             s = span(s.data() + end, s.size() - end);
+        }
+    }
+}
+
+void console_fb::erase_in_line(unsigned int param) {
+    switch (param) {
+        case 0: { // clear from cursor to end of line
+            if (cursor_x == console_cols)
+                break;
+
+            auto buf = (char32_t*)malloc((console_cols - cursor_x) * sizeof(char32_t));
+            if (!buf)
+                return; // FIXME - print error somehow?
+
+            for (unsigned int i = 0; i < console_cols - cursor_x; i++) {
+                buf[i] = ' ';
+            }
+
+            print_chars(span(buf, console_cols - cursor_x), true);
+
+            free(buf);
+
+            break;
+        }
+
+        case 1: { // clear from beginning of line to cursor
+            auto orig_cursor_x = cursor_x;
+
+            if (cursor_x == 0)
+                break;
+
+            auto buf = (char32_t*)malloc(cursor_x * sizeof(char32_t));
+            if (!buf)
+                break; // FIXME - print error somehow?
+
+            for (unsigned int i = 0; i < cursor_x; i++) {
+                buf[i] = ' ';
+            }
+
+            cursor_x = 0;
+            print_chars(span(buf, cursor_x), true);
+            cursor_x = orig_cursor_x;
+
+            free(buf);
+
+            break;
+        }
+
+        case 2: { // clear entire line
+            auto orig_cursor_x = cursor_x;
+
+            auto buf = (char32_t*)malloc(console_cols * sizeof(char32_t));
+            if (!buf)
+                break; // FIXME - print error somehow?
+
+            for (unsigned int i = 0; i < console_cols; i++) {
+                buf[i] = ' ';
+            }
+
+            cursor_x = 0;
+            print_chars(span(buf, console_cols), true);
+            cursor_x = orig_cursor_x;
+
+            free(buf);
+
+            break;
         }
     }
 }

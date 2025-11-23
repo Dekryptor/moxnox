@@ -65,6 +65,7 @@ struct console_text {
     void scroll_down(unsigned int rows);
     void enable_cursor(bool enable);
     void move_cursor();
+    void erase_in_line(unsigned int param);
 
     // FIXME - would need atexit
     // ~console_text() {
@@ -307,6 +308,62 @@ void console_text::move_cursor() {
     if (!success(status)) {
         print("IOCTL_MOXNOX_CONSOLE_SET_CURSOR returned {}\n", status);
         return;
+    }
+}
+
+void console_text::erase_in_line(unsigned int param) {
+    switch (param) {
+        case 0: { // clear from cursor to end of line
+            if (cursor_x == console_cols)
+                break;
+
+            auto orig_cursor_x = cursor_x;
+
+            while (cursor_x < console_cols) {
+                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
+                                  bg_colour_text, fg_colour_text);
+                cursor_x++;
+            }
+
+            cursor_x = orig_cursor_x;
+
+            break;
+        }
+
+        case 1: { // clear from beginning of line to cursor
+            auto orig_cursor_x = cursor_x;
+
+            if (cursor_x == 0)
+                break;
+
+            cursor_x = 0;
+
+            while (cursor_x < orig_cursor_x) {
+                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
+                                  bg_colour_text, fg_colour_text);
+                cursor_x++;
+            }
+
+            cursor_x = orig_cursor_x;
+
+            break;
+        }
+
+        case 2: { // clear entire line
+            auto orig_cursor_x = cursor_x;
+
+            cursor_x = 0;
+
+            while (cursor_x < console_cols) {
+                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
+                                  bg_colour_text, fg_colour_text);
+                cursor_x++;
+            }
+
+            cursor_x = orig_cursor_x;
+
+            break;
+        }
     }
 }
 
