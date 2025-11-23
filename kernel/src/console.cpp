@@ -226,7 +226,7 @@ export enum console_type console_type;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c, bool no_move);
+    void print_char(char32_t c);
     void print_chars(span<const char32_t> s, bool no_move);
     void cursor_changed();
     void scroll_down(unsigned int rows);
@@ -240,7 +240,7 @@ struct console_fb {
 struct console_text {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c, bool no_move);
+    void print_char(char32_t c);
     void print_chars(span<const char32_t> s, bool no_move);
     void cursor_changed() { }
     void scroll_down(unsigned int rows);
@@ -292,17 +292,9 @@ void console_text::console_overflow(unsigned int rows) {
     }
 }
 
-void console_text::print_char(char32_t c, bool no_move) {
+void console_text::print_char(char32_t c) {
     if (c == '\n') {
-        if (!no_move) {
-            cursor_x = 0;
-            cursor_y++;
-
-            if (cursor_y == console_rows) {
-                console_overflow();
-                cursor_y = console_rows - 1;
-            }
-        }
+        // nop
     } else if (c == '\b') {
         if (cursor_x > 0) { // FIXME
             cursor_x--;
@@ -316,10 +308,13 @@ void console_text::print_char(char32_t c, bool no_move) {
         text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
                           bg_colour_text, fg_colour_text);
 
-        if (!no_move) {
-            cursor_x++;
+    }
+}
 
-            if (cursor_x == console_cols) {
+void console_text::print_chars(span<const char32_t> s, bool no_move) {
+    for (auto c : s) {
+        if (c == '\n') {
+            if (!no_move) {
                 cursor_x = 0;
                 cursor_y++;
 
@@ -328,24 +323,30 @@ void console_text::print_char(char32_t c, bool no_move) {
                     cursor_y = console_rows - 1;
                 }
             }
-        }
-    }
-}
-
-void console_text::print_chars(span<const char32_t> s, bool no_move) {
-    for (auto c : s) {
-        if (c == '\n')
-            print_char('\n', no_move);
-        else if (c == '\b') {
+        } else if (c == '\b') {
             if (cursor_x == 0 && cursor_y == 0)
                 continue;
 
-            print_char('\b', no_move);
+            print_char('\b');
         } else {
             if (c < 0x20)
                 continue;
 
-            print_char(c, no_move);
+            print_char(c);
+
+            if (!no_move) {
+                cursor_x++;
+
+                if (cursor_x == console_cols) {
+                    cursor_x = 0;
+                    cursor_y++;
+
+                    if (cursor_y == console_rows) {
+                        console_overflow();
+                        cursor_y = console_rows - 1;
+                    }
+                }
+            }
         }
     }
 }
@@ -503,7 +504,7 @@ void console_fb::console_overflow(unsigned int rows) {
     }
 }
 
-void console_fb::print_char(char32_t c, bool no_move) {
+void console_fb::print_char(char32_t c) {
     if (c == '\n') {
         if (console) {
             auto glyph = FT_Get_Char_Index(face.face, ' ');
@@ -514,16 +515,6 @@ void console_fb::print_char(char32_t c, bool no_move) {
 
                 console[(cursor_y * console_cols) + i].glyph = glyph;
                 console[(cursor_y * console_cols) + i].changed = true;
-            }
-        }
-
-        if (!no_move) {
-            cursor_x = 0;
-            cursor_y++;
-
-            if (cursor_y == console_rows) {
-                console_overflow();
-                cursor_y = console_rows - 1;
             }
         }
     } else if (c == '\b') {
@@ -557,11 +548,15 @@ void console_fb::print_char(char32_t c, bool no_move) {
             p.bold = bold;
             p.changed = true;
         }
+    }
+}
 
-        if (!no_move) {
-            cursor_x++;
+void console_fb::print_chars(span<const char32_t> s, bool no_move) {
+    for (auto c : s) {
+        if (c == '\n') {
+            print_char('\n');
 
-            if (cursor_x == console_cols) {
+            if (!no_move) {
                 cursor_x = 0;
                 cursor_y++;
 
@@ -570,24 +565,30 @@ void console_fb::print_char(char32_t c, bool no_move) {
                     cursor_y = console_rows - 1;
                 }
             }
-        }
-    }
-}
-
-void console_fb::print_chars(span<const char32_t> s, bool no_move) {
-    for (auto c : s) {
-        if (c == '\n')
-            print_char('\n', no_move);
-        else if (c == '\b') {
+        } else if (c == '\b') {
             if (cursor_x == 0 && cursor_y == 0)
                 continue;
 
-            print_char('\b', no_move);
+            print_char('\b');
         } else {
             if (c < 0x20)
                 continue;
 
-            print_char(c, no_move);
+            print_char(c);
+
+            if (!no_move) {
+                cursor_x++;
+
+                if (cursor_x == console_cols) {
+                    cursor_x = 0;
+                    cursor_y++;
+
+                    if (cursor_y == console_rows) {
+                        console_overflow();
+                        cursor_y = console_rows - 1;
+                    }
+                }
+            }
         }
     }
 }

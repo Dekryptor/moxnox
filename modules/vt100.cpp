@@ -389,7 +389,7 @@ void erase_in_line(T& t, string_view s) {
             auto orig_cursor_x = t.cursor_x;
 
             while (t.cursor_x < t.console_cols) {
-                t.print_char(' ', true);
+                t.print_char(' ');
                 t.cursor_x++;
             }
 
@@ -402,7 +402,7 @@ void erase_in_line(T& t, string_view s) {
 
             t.cursor_x = 0;
             while (t.cursor_x < orig_cursor_x) {
-                t.print_char(' ', true);
+                t.print_char(' ');
                 t.cursor_x++;
             }
 
@@ -416,7 +416,7 @@ void erase_in_line(T& t, string_view s) {
             t.cursor_x = 0;
 
             while (t.cursor_x < t.console_cols) {
-                t.print_char(' ', true);
+                t.print_char(' ');
                 t.cursor_x++;
             }
 
@@ -449,7 +449,7 @@ void erase_in_display(T& t, string_view s) {
         case 0: // clear from cursor to end of screen
             while (t.cursor_y < t.console_rows) {
                 while (t.cursor_x < t.console_cols) {
-                    t.print_char(' ', true);
+                    t.print_char(' ');
                     t.cursor_x++;
                 }
 
@@ -464,7 +464,7 @@ void erase_in_display(T& t, string_view s) {
 
             while (t.cursor_y < orig_cursor_y) {
                 while (t.cursor_x < t.console_cols) {
-                    t.print_char(' ', true);
+                    t.print_char(' ');
                     t.cursor_x++;
                 }
 
@@ -473,7 +473,7 @@ void erase_in_display(T& t, string_view s) {
             }
 
             while (t.cursor_x < orig_cursor_x) {
-                t.print_char(' ', true);
+                t.print_char(' ');
                 t.cursor_x++;
             }
 
@@ -484,7 +484,7 @@ void erase_in_display(T& t, string_view s) {
             t.cursor_y = 0;
             while (t.cursor_y < t.console_rows) {
                 while (t.cursor_x < t.console_cols) {
-                    t.print_char(' ', true);
+                    t.print_char(' ');
                     t.cursor_x++;
                 }
 

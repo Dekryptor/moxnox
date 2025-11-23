@@ -99,7 +99,7 @@ static unsigned int num_lines = 0;
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c, bool no_move);
+    void print_char(char32_t c, bool no_move = true);
     void print_chars(span<const char32_t> s, bool no_move);
     void cursor_changed();
     void scroll_down(unsigned int rows);
@@ -721,20 +721,6 @@ static void flush_framebuffer() {
 }
 
 void console_fb::print_char(char32_t c, bool no_move) {
-    if (c == '\n') {
-        console_overflow();
-
-        if (!no_move) {
-            cursor_x = 0;
-            cursor_y++;
-
-            if (cursor_y == console_rows)
-                cursor_y = console_rows - 1;
-        }
-
-        return;
-    }
-
     if (c == '\b') {
         if (cursor_x > 0)
             cursor_x--;
@@ -871,7 +857,19 @@ void console_fb::print_char(char32_t c, bool no_move) {
 
 void console_fb::print_chars(span<const char32_t> s, bool no_move) {
     for (auto c : s) {
-        print_char(c, no_move);
+        if (c == '\n') {
+            console_overflow();
+
+            if (!no_move) {
+                cursor_x = 0;
+                cursor_y++;
+
+                if (cursor_y == console_rows)
+                    cursor_y = console_rows - 1;
+            }
+        } else {
+            print_char(c, no_move);
+        }
     }
 }
 

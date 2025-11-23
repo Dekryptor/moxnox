@@ -60,7 +60,7 @@ static const enum console_colour vt100_bright_colours_text[] = {
 struct console_text {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
-    void print_char(char32_t c, bool no_move);
+    void print_char(char32_t c);
     void print_chars(span<const char32_t> s, bool no_move);
     void cursor_changed() { }
     void scroll_down(unsigned int rows);
@@ -233,17 +233,9 @@ void console_text::handle_sgr_part_num(unsigned int num) {
     }
 }
 
-void console_text::print_char(char32_t c, bool no_move) {
+void console_text::print_char(char32_t c) {
     if (c == '\n') {
-        if (!no_move) {
-            cursor_x = 0;
-            cursor_y++;
-
-            if (cursor_y == console_rows) {
-                console_overflow();
-                cursor_y = console_rows - 1;
-            }
-        }
+        // nop
     } else if (c == '\b') {
         if (cursor_x > 0) { // FIXME
             cursor_x--;
@@ -255,11 +247,13 @@ void console_text::print_char(char32_t c, bool no_move) {
     } else {
         text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
                           bg_colour_text, fg_colour_text);
+    }
+}
 
-        if (!no_move) {
-            cursor_x++;
-
-            if (cursor_x == console_cols) {
+void console_text::print_chars(span<const char32_t> s, bool no_move) {
+    for (auto c : s) {
+        if (c == '\n') {
+            if (!no_move) {
                 cursor_x = 0;
                 cursor_y++;
 
@@ -268,13 +262,25 @@ void console_text::print_char(char32_t c, bool no_move) {
                     cursor_y = console_rows - 1;
                 }
             }
-        }
-    }
-}
+        } else if (c == '\b') {
+            print_char('\b');
+        } else {
+            print_char(c);
 
-void console_text::print_chars(span<const char32_t> s, bool no_move) {
-    for (auto c : s) {
-        print_char(c, no_move);
+            if (!no_move) {
+                cursor_x++;
+
+                if (cursor_x == console_cols) {
+                    cursor_x = 0;
+                    cursor_y++;
+
+                    if (cursor_y == console_rows) {
+                        console_overflow();
+                        cursor_y = console_rows - 1;
+                    }
+                }
+            }
+        }
     }
 }
 
