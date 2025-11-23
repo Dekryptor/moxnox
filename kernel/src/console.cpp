@@ -833,67 +833,62 @@ void console_fb::scroll_down(unsigned int rows) {
 
 void console_fb::erase_in_line(unsigned int param) {
     switch (param) {
-        case 0: { // clear from cursor to end of line
+        case 0: // clear from cursor to end of line
             if (cursor_x == console_cols)
                 return;
 
-            auto buf = (char32_t*)malloc((console_cols - cursor_x) * sizeof(char32_t));
-            if (!buf)
-                return; // FIXME - print error somehow?
+            if (console) {
+                auto glyph = FT_Get_Char_Index(face.face, ' ');
 
-            for (unsigned int i = 0; i < console_cols - cursor_x; i++) {
-                buf[i] = ' ';
+                for (unsigned int x = cursor_x; x < console_cols; x++) {
+                    auto& p = console[(cursor_y * console_cols) + x];
+
+                    p.glyph = glyph;
+                    p.bg = bg_colour;
+                    p.fg = fg_colour;
+                    p.bold = bold;
+                    p.changed = true;
+                }
             }
 
-            print_chars(span(buf, console_cols - cursor_x), true);
+        break;
 
-            free(buf);
-
-            break;
-        }
-
-        case 1: { // clear from beginning of line to cursor
-            auto orig_cursor_x = cursor_x;
-
+        case 1: // clear from beginning of line to cursor
             if (cursor_x == 0)
                 return;
 
-            auto buf = (char32_t*)malloc(cursor_x * sizeof(char32_t));
-            if (!buf)
-                return; // FIXME - print error somehow?
+            if (console) {
+                auto glyph = FT_Get_Char_Index(face.face, ' ');
 
-            for (unsigned int i = 0; i < cursor_x; i++) {
-                buf[i] = ' ';
+                for (unsigned int x = 0; x < cursor_x; x++) {
+                    auto& p = console[(cursor_y * console_cols) + x];
+
+                    p.glyph = glyph;
+                    p.bg = bg_colour;
+                    p.fg = fg_colour;
+                    p.bold = bold;
+                    p.changed = true;
+                }
             }
 
-            cursor_x = 0;
-            print_chars(span(buf, cursor_x), true);
-            cursor_x = orig_cursor_x;
+        break;
 
-            free(buf);
+        case 2: // clear entire line
+            if (console) {
+                auto glyph = FT_Get_Char_Index(face.face, ' ');
 
-            break;
-        }
+                for (unsigned int x = 0; x < console_rows; x++) {
+                    auto& p = console[(cursor_y * console_cols) + x];
 
-        case 2: { // clear entire line
-            auto orig_cursor_x = cursor_x;
-
-            auto buf = (char32_t*)malloc(console_cols * sizeof(char32_t));
-            if (!buf)
-                return; // FIXME - print error somehow?
-
-            for (unsigned int i = 0; i < console_cols; i++) {
-                buf[i] = ' ';
+                    p.glyph = glyph;
+                    p.bg = bg_colour;
+                    p.fg = fg_colour;
+                    p.bold = bold;
+                    p.changed = true;
+                }
             }
 
-            cursor_x = 0;
-            print_chars(span(buf, console_cols), true);
-            cursor_x = orig_cursor_x;
-
-            free(buf);
-
-            break;
-        }
+        break;
     }
 }
 
