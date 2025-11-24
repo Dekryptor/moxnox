@@ -1400,6 +1400,11 @@ export bool init_console(const loader_block_framebuffer& fb)
     if (!create_kmsg())
         return false;
 
+#ifndef __aarch64__
+    if (console_type == console_type::text)
+        flush_early_print();
+#endif
+
     if (framebuffer.empty()) { // gets started later if we have framebuffer
         if (!add_kernel_thread(console_event_recv)) {
             print("add_kernel_thread failed\n");
