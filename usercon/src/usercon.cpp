@@ -987,11 +987,14 @@ void console_fb::print_chars(span<const char32_t> s) {
             print_char2(*this, ' ', true);
 
             s = span(s.data() + 1, s.size() - 1);
+        } else if (s[0] < ' ') {
+            // nop
+            s = span(s.data() + 1, s.size() - 1);
         } else {
             size_t end = s.size();
 
             for (size_t i = 0; i < s.size(); i++) {
-                if (s[i] == '\n' || s[i] == '\b') {
+                if (s[i] == '\n' || s[i] == '\b' || s[i] < ' ') {
                     end = i;
                     break;
                 }
