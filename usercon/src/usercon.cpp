@@ -337,6 +337,21 @@ void console_fb::handle_sgr_part_num(unsigned int num) {
 void console_fb::cursor_changed() {
     if (show_cursor)
         curline->changed = true;
+
+    unsigned int i = 0;
+    for (auto le = lines.next; le != &lines; le = le->next) {
+        if (i == cursor_y) {
+            auto& l = containing_record<console_line>(le);
+
+            curline = &l;
+            break;
+        }
+
+        i++;
+    }
+
+    if (show_cursor)
+        curline->changed = true;
 }
 
 void console_fb::scroll_down(unsigned int rows) {
