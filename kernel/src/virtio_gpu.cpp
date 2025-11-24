@@ -903,7 +903,8 @@ void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
         r.width = width;
         r.height = height;
 
-        if (!v->transfer_to_host(r, 0, flush_framebuffer_resource)) {
+        if (!v->transfer_to_host(r, ((r.y * fb_width) + r.x) * sizeof(uint32_t),
+                                 flush_framebuffer_resource)) {
             print("virtio_gpu::transfer_to_host failed\n");
             return;
         }
