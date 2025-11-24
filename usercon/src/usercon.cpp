@@ -1059,53 +1059,31 @@ void console_fb::erase_in_line(unsigned int param) {
                 curline->len = text_pos;
             }
 
-            // lay out using harfbuzz
-
-            // FIXME - keep HB buffer around?
-            // FIXME - cap how much data we send to hb_buffer_add_utf8?
-
-            unique_hb_buffer buf{hb_buffer_create()};
-
-            hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
-                                     (int)curline->len, 0, -1);
-            hb_buffer_guess_segment_properties(buf.get());
-
-            hb_shape(font.hb_font, buf.get(), nullptr, 0);
-
-            auto len = hb_buffer_get_length(buf.get());
-            auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
-            auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
-
-            curline->num_cells = len;
-            for (unsigned int i = 0; i < curline->num_cells; i++) {
-                curline->cells[i].pos = pos[i];
-                curline->cells[i].glyph = info[i].codepoint;
-            }
-
-            curline->changed = true;
-
             break;
         }
 
         case 1: { // clear from beginning of line to cursor
-            auto orig_cursor_x = cursor_x;
-
-            if (cursor_x == 0)
-                break;
-
-            auto buf = (char32_t*)malloc(cursor_x * sizeof(char32_t));
-            if (!buf)
-                break; // FIXME - print error somehow?
-
-            for (unsigned int i = 0; i < cursor_x; i++) {
-                buf[i] = ' ';
+            auto newlen = cursor_x + (curline->len - text_pos);
+            auto t = (char32_t*)malloc(newlen * sizeof(char32_t));
+            if (!t) {
+                print("malloc failed\n");
+                return;
             }
 
-            cursor_x = 0;
-            print_chars2(*this, span(buf, cursor_x), true);
-            cursor_x = orig_cursor_x;
+            for (unsigned int i = 0; i <= cursor_x; i++) {
+                t[i] = U' ';
+            }
 
-            free(buf);
+            if (text_pos < curline->len) {
+                memcpy(&t[cursor_x + 1], &curline->text[text_pos + 1],
+                       (curline->len - text_pos - 1) * sizeof(char32_t));
+            }
+
+            if (curline->text)
+                free(curline->text);
+
+            curline->text = t;
+            curline->len = newlen;
 
             break;
         }
@@ -1130,6 +1108,31 @@ void console_fb::erase_in_line(unsigned int param) {
             break;
         }
     }
+
+    // lay out using harfbuzz
+
+    // FIXME - keep HB buffer around?
+    // FIXME - cap how much data we send to hb_buffer_add_utf8?
+
+    unique_hb_buffer buf{hb_buffer_create()};
+
+    hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
+                                (int)curline->len, 0, -1);
+    hb_buffer_guess_segment_properties(buf.get());
+
+    hb_shape(font.hb_font, buf.get(), nullptr, 0);
+
+    auto len = hb_buffer_get_length(buf.get());
+    auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+    auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
+
+    curline->num_cells = len;
+    for (unsigned int i = 0; i < curline->num_cells; i++) {
+        curline->cells[i].pos = pos[i];
+        curline->cells[i].glyph = info[i].codepoint;
+    }
+
+    curline->changed = true;
 }
 
 void console_fb::erase_in_display(unsigned int param) {
