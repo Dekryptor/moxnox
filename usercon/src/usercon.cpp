@@ -1022,6 +1022,38 @@ void console_fb::print_chars(span<const char32_t> s) {
     }
 }
 
+static void redo_line(console_line& line) {
+    if (line.len == 0)
+        line.num_cells = 0;
+    else {
+        // lay out using harfbuzz
+
+        // FIXME - keep HB buffer around?
+        // FIXME - cap how much data we send to hb_buffer_add_utf8?
+
+        unique_hb_buffer buf{hb_buffer_create()};
+
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)line.text,
+                                 (int)line.len, 0, -1);
+
+        hb_buffer_guess_segment_properties(buf.get());
+
+        hb_shape(font.hb_font, buf.get(), nullptr, 0);
+
+        auto len = hb_buffer_get_length(buf.get());
+        auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+        auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
+
+        line.num_cells = len;
+        for (unsigned int i = 0; i < line.num_cells; i++) {
+            line.cells[i].pos = pos[i];
+            line.cells[i].glyph = info[i].codepoint;
+        }
+    }
+
+    line.changed = true;
+}
+
 void console_fb::erase_in_line(unsigned int param) {
     unsigned int text_pos;
 
@@ -1117,35 +1149,7 @@ void console_fb::erase_in_line(unsigned int param) {
         }
     }
 
-    if (curline->len == 0)
-        curline->num_cells = 0;
-    else {
-        // lay out using harfbuzz
-
-        // FIXME - keep HB buffer around?
-        // FIXME - cap how much data we send to hb_buffer_add_utf8?
-
-        unique_hb_buffer buf{hb_buffer_create()};
-
-        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
-                                 (int)curline->len, 0, -1);
-
-        hb_buffer_guess_segment_properties(buf.get());
-
-        hb_shape(font.hb_font, buf.get(), nullptr, 0);
-
-        auto len = hb_buffer_get_length(buf.get());
-        auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
-        auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
-
-        curline->num_cells = len;
-        for (unsigned int i = 0; i < curline->num_cells; i++) {
-            curline->cells[i].pos = pos[i];
-            curline->cells[i].glyph = info[i].codepoint;
-        }
-    }
-
-    curline->changed = true;
+    redo_line(*curline);
 }
 
 void console_fb::erase_in_display(unsigned int param) {
@@ -1161,21 +1165,23 @@ void console_fb::erase_in_display(unsigned int param) {
     }
 
     switch (param) {
-        case 0: // clear from cursor to end of screen
-            if (cursor_y == console_rows)
-                break;
+        case 0: { // clear from cursor to end of screen
+            erase_in_line(0);
 
-            print_chars2(*this, span(buf, console_cols - cursor_x), true);
+            for (auto le = curline->le.next; le != &lines; le = le->next) {
+                auto& l = containing_record<console_line>(le);
 
-            cursor_x = 0;
-            cursor_y++;
+                if (l.text)
+                    free(l.text);
 
-            while (cursor_y < console_rows) {
-                print_chars2(*this, span(buf, console_cols), true);
-                cursor_y++;
+                l.text = nullptr;
+                l.len = 0;
+
+                redo_line(l);
             }
 
             break;
+        }
 
         case 1: // clear from beginning of screen to cursor
             cursor_x = 0;
