@@ -1044,6 +1044,8 @@ static void redo_line(console_line& line) {
         auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
         auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
 
+        // FIXME - overwriting bold, italic, and colours
+
         line.num_cells = len;
         for (unsigned int i = 0; i < line.num_cells; i++) {
             line.cells[i].pos = pos[i];
@@ -1165,7 +1167,7 @@ void console_fb::erase_in_display(unsigned int param) {
     }
 
     switch (param) {
-        case 0: { // clear from cursor to end of screen
+        case 0: // clear from cursor to end of screen
             erase_in_line(0);
 
             for (auto le = curline->le.next; le != &lines; le = le->next) {
@@ -1181,18 +1183,21 @@ void console_fb::erase_in_display(unsigned int param) {
             }
 
             break;
-        }
 
         case 1: // clear from beginning of screen to cursor
-            cursor_x = 0;
-            cursor_y = 0;
+            erase_in_line(1);
 
-            while (cursor_y < orig_cursor_y) {
-                print_chars2(*this, span(buf, console_cols), true);
-                cursor_y++;
+            for (auto le = lines.next; le != &curline->le; le = le->next) {
+                auto& l = containing_record<console_line>(le);
+
+                if (l.text)
+                    free(l.text);
+
+                l.text = nullptr;
+                l.len = 0;
+
+                redo_line(l);
             }
-
-            print_chars2(*this, span(buf, console_cols - orig_cursor_x), true);
 
             break;
 
