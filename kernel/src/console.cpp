@@ -252,7 +252,7 @@ struct console_text {
     void scroll_down(unsigned int rows);
     static void enable_cursor(bool enable);
     void move_cursor();
-    void erase_in_line(unsigned int param);
+    void erase_in_line(unsigned int param) const;
     void erase_in_display(unsigned int param) const;
 
     unsigned int cursor_x, cursor_y;
@@ -476,56 +476,34 @@ void console_text::scroll_down(unsigned int rows) {
     }
 }
 
-void console_text::erase_in_line(unsigned int param) {
+void console_text::erase_in_line(unsigned int param) const {
     switch (param) {
         case 0: { // clear from cursor to end of line
             if (cursor_x == console_cols)
                 break;
 
-            auto orig_cursor_x = cursor_x;
-
-            while (cursor_x < console_cols) {
-                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
-                                  bg_colour_text, fg_colour_text);
-                cursor_x++;
+            for (uint8_t x = (uint8_t)cursor_x; x < console_cols; x++) {
+                text_console_putc(x, (uint8_t)cursor_y, ' ', bg_colour_text,
+                                  fg_colour_text);
             }
-
-            cursor_x = orig_cursor_x;
 
             break;
         }
 
         case 1: { // clear from beginning of line to cursor
-            auto orig_cursor_x = cursor_x;
-
-            if (cursor_x == 0)
-                break;
-
-            cursor_x = 0;
-
-            while (cursor_x < orig_cursor_x) {
-                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
-                                  bg_colour_text, fg_colour_text);
-                cursor_x++;
+            for (uint8_t x = 0; x <= cursor_x; x++) {
+                text_console_putc(x, (uint8_t)cursor_y, ' ', bg_colour_text,
+                                  fg_colour_text);
             }
-
-            cursor_x = orig_cursor_x;
 
             break;
         }
 
         case 2: { // clear entire line
-            auto orig_cursor_x = cursor_x;
-
-            cursor_x = 0;
-
-            while (cursor_x < console_cols) {
-                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
-                                  bg_colour_text, fg_colour_text);
-                cursor_x++;
+            for (uint8_t x = 0; x < console_cols; x++) {
+                text_console_putc(x, (uint8_t)cursor_y, ' ', bg_colour_text,
+                                  fg_colour_text);
             }
-
-            cursor_x = orig_cursor_x;
 
             break;
         }
