@@ -1206,7 +1206,7 @@ static void recv_data_fb(string_view s) {
 
         if (l.changed) {
             print_line(l, y);
-            l.changed = true;
+            l.changed = false;
         }
 
         y++;
