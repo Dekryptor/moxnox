@@ -322,10 +322,7 @@ void console_text::erase_in_line(unsigned int param) const {
         }
 
         case 1: { // clear from beginning of line to cursor
-            if (cursor_x == 0)
-                break;
-
-            for (uint8_t x = 0; x < cursor_x; x++) {
+            for (uint8_t x = 0; x <= cursor_x; x++) {
                 text_console_putc(x, (uint8_t)cursor_y, ' ', bg_colour_text,
                                   fg_colour_text);
             }
