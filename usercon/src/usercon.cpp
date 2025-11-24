@@ -1089,47 +1089,42 @@ void console_fb::erase_in_line(unsigned int param) {
         }
 
         case 2: { // clear entire line
-            auto orig_cursor_x = cursor_x;
+            if (curline->text)
+                free(curline->text);
 
-            auto buf = (char32_t*)malloc(console_cols * sizeof(char32_t));
-            if (!buf)
-                break; // FIXME - print error somehow?
-
-            for (unsigned int i = 0; i < console_cols; i++) {
-                buf[i] = ' ';
-            }
-
-            cursor_x = 0;
-            print_chars2(*this, span(buf, console_cols), true);
-            cursor_x = orig_cursor_x;
-
-            free(buf);
+            curline->text = nullptr;
+            curline->len = 0;
 
             break;
         }
     }
 
-    // lay out using harfbuzz
+    if (curline->len == 0)
+        curline->num_cells = 0;
+    else {
+        // lay out using harfbuzz
 
-    // FIXME - keep HB buffer around?
-    // FIXME - cap how much data we send to hb_buffer_add_utf8?
+        // FIXME - keep HB buffer around?
+        // FIXME - cap how much data we send to hb_buffer_add_utf8?
 
-    unique_hb_buffer buf{hb_buffer_create()};
+        unique_hb_buffer buf{hb_buffer_create()};
 
-    hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
-                                (int)curline->len, 0, -1);
-    hb_buffer_guess_segment_properties(buf.get());
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
+                                 (int)curline->len, 0, -1);
 
-    hb_shape(font.hb_font, buf.get(), nullptr, 0);
+        hb_buffer_guess_segment_properties(buf.get());
 
-    auto len = hb_buffer_get_length(buf.get());
-    auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
-    auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
+        hb_shape(font.hb_font, buf.get(), nullptr, 0);
 
-    curline->num_cells = len;
-    for (unsigned int i = 0; i < curline->num_cells; i++) {
-        curline->cells[i].pos = pos[i];
-        curline->cells[i].glyph = info[i].codepoint;
+        auto len = hb_buffer_get_length(buf.get());
+        auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+        auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
+
+        curline->num_cells = len;
+        for (unsigned int i = 0; i < curline->num_cells; i++) {
+            curline->cells[i].pos = pos[i];
+            curline->cells[i].glyph = info[i].codepoint;
+        }
     }
 
     curline->changed = true;
