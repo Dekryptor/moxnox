@@ -857,7 +857,7 @@ static void print_char2(console_fb& con, char32_t c, bool no_move) {
     } while (true);
 }
 
-static void print_chars2(console_fb& con, span<const char32_t> s, bool no_move) {
+static void print_chars2(console_fb& con, span<const char32_t> s) {
     unsigned int text_pos;
 
     // get current position in string
@@ -888,9 +888,7 @@ static void print_chars2(console_fb& con, span<const char32_t> s, bool no_move) 
 
     if (text_pos + s.size() < curline->len) {
         memcpy(&curline->text[text_pos], s.data(), s.size() * sizeof(char32_t));
-
-        if (!no_move)
-            con.cursor_x = (unsigned int)(text_pos + s.size());
+        con.cursor_x = (unsigned int)(text_pos + s.size());
     } else {
         auto t = (char32_t*)malloc((curline->len + s.size()) * sizeof(char32_t));
         if (!t) {
@@ -909,8 +907,7 @@ static void print_chars2(console_fb& con, span<const char32_t> s, bool no_move) 
         curline->text = t;
         curline->len += s.size();
 
-        if (!no_move)
-            con.cursor_x = (unsigned int)curline->len;
+        con.cursor_x = (unsigned int)curline->len;
     }
 
     // lay out using harfbuzz
@@ -961,8 +958,7 @@ static void print_chars2(console_fb& con, span<const char32_t> s, bool no_move) 
 
         auto oldline = curline;
 
-        if (!no_move)
-            con.console_overflow();
+        con.console_overflow();
 
         curline->text = t;
         curline->len = oldline->len - trunc;
@@ -1015,7 +1011,7 @@ void console_fb::print_chars(span<const char32_t> s) {
                 }
             }
 
-            print_chars2(*this, span(s.data(), end), false);
+            print_chars2(*this, span(s.data(), end));
 
             s = span(s.data() + end, s.size() - end);
         }
@@ -1155,17 +1151,6 @@ void console_fb::erase_in_line(unsigned int param) {
 }
 
 void console_fb::erase_in_display(unsigned int param) {
-    auto orig_cursor_x = cursor_x;
-    auto orig_cursor_y = cursor_y;
-
-    auto buf = (char32_t*)malloc(console_cols * sizeof(char32_t));
-    if (!buf)
-        return; // FIXME - print error somehow?
-
-    for (unsigned int i = 0; i < console_cols; i++) {
-        buf[i] = ' ';
-    }
-
     switch (param) {
         case 0: // clear from cursor to end of screen
             erase_in_line(0);
@@ -1203,21 +1188,20 @@ void console_fb::erase_in_display(unsigned int param) {
 
         case 2: // clear entire screen
         case 3:
-            cursor_x = 0;
-            cursor_y = 0;
+            for (auto le = lines.next; le != &lines; le = le->next) {
+                auto& l = containing_record<console_line>(le);
 
-            while (cursor_y < console_rows) {
-                print_chars2(*this, span(buf, console_cols - cursor_x), true);
-                cursor_y++;
+                if (l.text)
+                    free(l.text);
+
+                l.text = nullptr;
+                l.len = 0;
+
+                redo_line(l);
             }
 
             break;
     }
-
-    free(buf);
-
-    cursor_x = orig_cursor_x;
-    cursor_y = orig_cursor_y;
 }
 
 static void recv_data_fb(string_view s) {
