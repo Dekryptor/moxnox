@@ -120,7 +120,7 @@ list_entry boot_pages = { &boot_pages, &boot_pages };
 #ifdef __aarch64__
 
 export uint8_t attr_index_normal;
-static uint8_t attr_index_uncached, attr_index_write_through;
+static uint8_t attr_index_uncached, attr_index_write_combine;
 export uintptr_t cache_line_shift;
 
 #else
@@ -661,7 +661,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         if (type == mapping_type::no_cache)
             p3.AttrIndex = attr_index_uncached; // nGnRnE device memory
         else if (type == mapping_type::write_combine)
-            p3.AttrIndex = attr_index_write_through; // FIXME - does aarch64 support write combine?
+            p3.AttrIndex = attr_index_write_combine;
         else
             p3.AttrIndex = attr_index_normal; // normal memory
 
@@ -1292,7 +1292,7 @@ export bool copy_map_ptr(const loader_block& lb) {
 #ifdef __aarch64__
 static void check_mair() {
     uint64_t mair;
-    optional<uint8_t> normal, uncached, write_through;
+    optional<uint8_t> normal, uncached, write_combine;
 
     __asm __volatile (
         "mrs %x[res], mair_el1"
@@ -1306,8 +1306,8 @@ static void check_mair() {
             normal = i;
         else if (attr == 0x00 && !uncached.has_value())
             uncached = i;
-        else if (attr == 0xbb && !write_through.has_value())
-            write_through = i;
+        else if (attr == 0x44 && !write_combine.has_value())
+            write_combine = i;
     }
 
     if (!normal.has_value())
@@ -1317,12 +1317,12 @@ static void check_mair() {
         bsod_format("could not find MAIR index for uncached memory");
 
     // FIXME - surely we should be setting it in this case (though in which slot?)
-    if (!write_through.has_value())
-        bsod_format("could not find MAIR index for write through memory");
+    if (!write_combine.has_value())
+        bsod_format("could not find MAIR index for write-combine memory");
 
     attr_index_normal = *normal;
     attr_index_uncached = *uncached;
-    attr_index_write_through = *write_through;
+    attr_index_write_combine = *write_combine;
 }
 #endif
 
