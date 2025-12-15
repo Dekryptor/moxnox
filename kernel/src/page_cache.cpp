@@ -822,7 +822,7 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
         if (mapping_first_page >= page_num && mapping_last_page <= last_page) // whole mapping
             m.clear_write_bit(0, mapping_last_page - mapping_first_page + 1);
         else if (mapping_first_page < page_num && mapping_last_page > last_page) // middle of mapping
-            m.clear_write_bit(page_num - mapping_first_page, last_page - mapping_first_page + 1);
+            m.clear_write_bit(page_num - mapping_first_page, last_page - page_num + 1);
         else if (mapping_last_page >= page_num && mapping_last_page <= last_page) // end of mapping
             m.clear_write_bit(page_num - mapping_first_page, mapping_last_page - page_num + 1);
         else if (mapping_first_page >= page_num && mapping_first_page <= last_page) // beginning of mapping
