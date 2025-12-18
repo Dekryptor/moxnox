@@ -3653,7 +3653,7 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
             "dsb ish\n"
             "isb\n"
             :
-            : [res] "r" (va >> PAGE_SHIFT)
+            : [res] "r" ((va >> PAGE_SHIFT) + i)
         );
 #else
         pte.w = 0;
