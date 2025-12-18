@@ -770,6 +770,7 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
         } else {
             pte.reserved = reserve ? 1 : 0;
             pte.AttrIndex = attr_index_normal;
+            pte.SH = 3; // inner shareable
 
             switch (protect) {
                 case mapping_type::read_write:
