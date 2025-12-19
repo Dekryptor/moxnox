@@ -1693,8 +1693,12 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         s.dir = (buf.empty() || !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)) ? 1 : 0;
     }
 
-    if (!buf.empty() && !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST))
-        flush_cache(buf, false);
+    if (!buf.empty()) {
+        if (bounce)
+            flush_cache(span(bounce, buf.size()), false);
+        else
+            flush_cache(buf, false);
+    }
 
     {
         lock_guard lock(submit_lock);
