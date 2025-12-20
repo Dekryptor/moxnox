@@ -22,7 +22,7 @@ static_assert(sizeof(LDR_DATA_TABLE_ENTRY) == 0x88);
 
 using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 #define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
 #else
 #define FORCE_ALIGN_ARG_POINTER
@@ -729,7 +729,7 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
 
 #ifdef __aarch64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
-#else
+#elifdef __x86_64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
 #endif
 

@@ -111,7 +111,7 @@ optional<uint64_t> read_uint64_t(uint64_t addr) {
 static bool do_unwind_context(CONTEXT& context) {
 #ifdef __aarch64__
     auto ent = get_ldr_from_address(context.Pc);
-#else
+#elifdef __x86_64__
     auto ent = get_ldr_from_address(context.Rip);
 #endif
     if (!ent)
@@ -131,7 +131,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 
 #ifdef __aarch64__
         auto ent = get_ldr_from_address(context.Pc);
-#else
+#elifdef __x86_64__
         auto ent = get_ldr_from_address(context.Rip);
 #endif
         if (!ent)
@@ -265,7 +265,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         do {
 #ifdef __aarch64__
             uint64_t rip = context->Pc;
-#else
+#elifdef __x86_64__
             uint64_t rip = context->Rip;
 #endif
             print_rip(rip);
