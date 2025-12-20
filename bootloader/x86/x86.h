@@ -16,8 +16,3 @@
 #define EFER_SCE    (1 << 0)
 #define EFER_LME    (1 << 8)
 #define EFER_NX     (1 << 11)
-
-struct GDTIDT {
-    uint16_t Limit;
-    uint32_t Base;
-} __attribute__((packed));

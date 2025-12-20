@@ -44,6 +44,11 @@ export struct gdt_entry {
 
 static_assert(sizeof(gdt_entry) == 8);
 
+export struct GDTIDT {
+    uint16_t Limit;
+    uint32_t Base;
+} __attribute__((packed));
+
 export struct task_state_segment {
     uint32_t reserved1;
     uint64_t rsp0;
