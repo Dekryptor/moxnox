@@ -399,7 +399,7 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
         queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
 
         barrier();
-#ifndef __aarch64__
+#ifdef __x86_64__
         __asm __volatile("sfence" ::: "memory");
 #endif
 
@@ -451,7 +451,7 @@ nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
         queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
 
         barrier();
-#ifndef __aarch64__
+#ifdef __x86_64__
         __asm __volatile("sfence" ::: "memory");
 #endif
 
@@ -504,7 +504,7 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
         queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
 
         barrier();
-#ifndef __aarch64__
+#ifdef __x86_64__
         __asm __volatile("sfence" ::: "memory");
 #endif
 
