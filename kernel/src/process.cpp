@@ -12,10 +12,6 @@ module;
 #include "section2.h"
 #include "assert.h"
 
-#ifdef __x86_64__
-#include "x86/mem.h"
-#endif
-
 export module process;
 
 import print;
@@ -47,6 +43,7 @@ import crt;
 #ifdef __aarch64__
 import aarch64;
 #elifdef __x86_64__
+import x86;
 import apic;
 #endif
 

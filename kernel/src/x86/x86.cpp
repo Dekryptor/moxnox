@@ -1,10 +1,14 @@
-#pragma once
+module;
 
-#define SELFMAP_PDT             0xfffff6fb40000000
-#define SELFMAP_PDPT            0xfffff6fb7da00000
-#define SELFMAP_PML4            0xfffff6fb7dbed000
+#include <stdint.h>
 
-struct HARDWARE_PTE {
+export module x86;
+
+export const uint64_t SELFMAP_PDT = 0xfffff6fb40000000;
+export const uint64_t SELFMAP_PDPT = 0xfffff6fb7da00000;
+export const uint64_t SELFMAP_PML4 = 0xfffff6fb7dbed000;
+
+export struct HARDWARE_PTE {
     uint64_t p : 1;
     uint64_t w : 1;
     uint64_t u : 1;
@@ -23,7 +27,7 @@ struct HARDWARE_PTE {
 
 static_assert(sizeof(HARDWARE_PTE) == sizeof(uint64_t));
 
-struct gdt_entry {
+export struct gdt_entry {
     uint16_t LimitLow;
     uint16_t BaseLow;
     uint32_t BaseMid:8;
@@ -40,7 +44,7 @@ struct gdt_entry {
 
 static_assert(sizeof(gdt_entry) == 8);
 
-struct task_state_segment {
+export struct task_state_segment {
     uint32_t reserved1;
     uint64_t rsp0;
     uint64_t rsp1;
@@ -60,4 +64,4 @@ struct task_state_segment {
 
 static_assert(sizeof(task_state_segment) == 0x68);
 
-static const uint16_t TSS_SEGMENT = 0x18;
+export const uint16_t TSS_SEGMENT = 0x18;

@@ -9,10 +9,6 @@ module;
 #include <optional>
 #include "assert.h"
 
-#ifdef __x86_64__
-#include "x86/mem.h"
-#endif
-
 export module mem;
 
 import config;
@@ -26,6 +22,8 @@ import loaderblock;
 
 #ifdef __aarch64__
 import aarch64;
+#elifdef __x86_64__
+import x86;
 #endif
 
 extern "C" uint8_t __image_base__;

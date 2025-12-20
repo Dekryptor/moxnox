@@ -76,6 +76,7 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/x86/ps2keyboard.cpp
     src/x86/serial.cpp
     src/x86/apic.cpp
+    src/x86/x86.cpp
 )
 
 set(AARCH64_MODULES ${GLOBAL_MODULES}

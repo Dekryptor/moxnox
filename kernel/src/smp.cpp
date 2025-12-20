@@ -6,16 +6,13 @@ module;
 #include <span>
 #include <atomic>
 
-#ifdef __x86_64__
-#include "x86/mem.h"
-#endif
-
 export module smp;
 
 #ifdef __aarch64__
-import psci;
 import aarch64;
+import psci;
 #elifdef __x86_64__
+import x86;
 import apic;
 #endif
 
