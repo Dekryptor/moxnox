@@ -16,7 +16,7 @@ import smp;
 import efi;
 import loaderblock;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 import apic;
 #endif
 
@@ -60,7 +60,9 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
 
     disable_interrupts();
 
-#ifndef __aarch64__ // FIXME
+#ifdef __aarch64__
+    // FIXME
+#elifdef __x86_64__
     if (num_cpus > 1) {
         processors_left_to_halt = num_cpus - 1;
 
