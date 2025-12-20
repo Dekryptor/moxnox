@@ -111,14 +111,8 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     if (bsod_count.fetch_add(1) == 0)
         bsod_cpu = cb.cpu_no;
     else {
-        if (cb.cpu_no != bsod_cpu) {
-#ifdef __aarch64__
-            while (true) { } // FIXME
-#elifdef __x86_64__
-            __asm("call halt_isr");
-            __builtin_unreachable();
-#endif
-        }
+        if (cb.cpu_no != bsod_cpu)
+            halt_isr();
     }
 
     if (num_cpus > 1) {
@@ -209,11 +203,5 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     shutdown_pipes();
 
-#ifdef __aarch64__
     halt_isr();
-#elifdef __x86_64__
-    __asm("call halt_isr");
-#endif
-
-    __builtin_unreachable();
 }
