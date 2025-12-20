@@ -12,7 +12,7 @@ module;
 #include "section2.h"
 #include "assert.h"
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 #include "x86/mem.h"
 #endif
 
@@ -46,7 +46,7 @@ import crt;
 
 #ifdef __aarch64__
 import aarch64;
-#else
+#elifdef __x86_64__
 import apic;
 #endif
 
@@ -86,7 +86,7 @@ static atomic<uintptr_t> next_pid = 1;
 static spinlock process_list_lock;
 static rbtree_node<uintptr_t>* process_tree = nullptr;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 union page_fault_error_code {
     uint64_t value;
     struct {
@@ -108,7 +108,7 @@ static_assert(sizeof(page_fault_error_code) == 8);
 
 #ifdef __aarch64__
 using pte_type = ARM64_HARDWARE_PTE;
-#else
+#elifdef __x86_64__
 using pte_type = HARDWARE_PTE;
 #endif
 
@@ -411,7 +411,7 @@ export  object_ref create_process(string_view fn, string_view curdir,
 
 #ifdef __aarch64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
-#else
+#elifdef __x86_64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
 #endif
 
@@ -427,7 +427,7 @@ export  object_ref create_process(string_view fn, string_view curdir,
         p.release();
         return {};
     }
-#else
+#elifdef __x86_64__
     if (!p.allocate_cr3()) {
         print("process::allocate_cr3 failed\n");
         p.release();
@@ -546,7 +546,7 @@ export  object_ref create_process(string_view fn, string_view curdir,
 
 #ifdef __aarch64__
     entry_point_ctx_addr -= 0x10; // 0x10 for red zone
-#else
+#elifdef __x86_64__
     entry_point_ctx_addr -= 0x20; // 0x20 for MS ABI
 #endif
 
@@ -555,7 +555,7 @@ export  object_ref create_process(string_view fn, string_view curdir,
 #ifdef __aarch64__
     entry_point_context.Pc = p.img_addr + img.entry_point;
     entry_point_context.Sp = entry_point_ctx_addr + sizeof(CONTEXT);
-#else
+#elifdef __x86_64__
     entry_point_context.Rip = p.img_addr + img.entry_point;
     entry_point_context.Rsp = entry_point_ctx_addr + sizeof(CONTEXT);
 #endif
@@ -610,7 +610,7 @@ process::process() : sync_object(object_type::process, false) {
     initialized = true;
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static void free_page_tables(process& proc) {
     if (proc.cr3 == 0)
         return;
@@ -810,7 +810,7 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
 
     return true;
 }
-#else
+#elifdef __x86_64__
 static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
                                 enum mapping_type protect, bool cow,
                                 bool reserve) {
@@ -1136,7 +1136,7 @@ static ARM64_HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
 
     return &pt[0][(va & 0x1ff000) >> 12];
 }
-#else
+#elifdef __x86_64__
 static HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
     span<HARDWARE_PTE> pt[4];
 
@@ -1172,7 +1172,7 @@ const char* exception::what() const noexcept {
 }
 #endif
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static void send_tlb_ipi(uint8_t cpu_no) {
     tlb_cpus_left++;
 
@@ -1228,7 +1228,7 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
 #ifdef __aarch64__
     if (pte.AP != ARM64_PTE_AP_EL0RO)
         return false;
-#else
+#elifdef __x86_64__
     if (pte.w)
         return false;
 #endif
@@ -1333,7 +1333,7 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
         :
         : [res] "r" (address >> PAGE_SHIFT)
     );
-#else
+#elifdef __x86_64__
     pte.w = 1;
 #endif
 
@@ -1379,7 +1379,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
 
     return ret;
 }
-#else
+#elifdef __x86_64__
 extern "C++"
 bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     page_fault_error_code ec;
@@ -1428,7 +1428,7 @@ bool process::allocate_ttbr0() {
 
     return true;
 }
-#else
+#elifdef __x86_64__
 extern "C++"
 bool process::allocate_cr3() {
     auto kernel_cr3 = get_cpu_block()->kernel_cr3;
@@ -1995,7 +1995,7 @@ NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintpt
     return p->allocate_vm(base_address, zero_bits, region_size, allocation_type, prot);
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
@@ -2209,7 +2209,7 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
             pte->AF = 1;
             pte->valid = 1;
             pte->AttrIndex = attr_index_normal;
-#else
+#elifdef __x86_64__
             pte->pfn = p->pfn & 0x7ffffffffffff;
             pte->p = 1;
 #endif
@@ -2236,7 +2236,7 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
 
 #ifdef __aarch64__
         bool pte_valid = pte.valid;
-#else
+#elifdef __x86_64__
         bool pte_valid = pte.p;
 #endif
 
@@ -2308,7 +2308,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 #ifdef __aarch64__
         bool pte_valid = pte.valid;
         bool pte_writable = pte.AP == ARM64_PTE_AP_EL0RW;
-#else
+#elifdef __x86_64__
         bool pte_valid = pte.p;
         bool pte_writable = pte.w;
 #endif
@@ -2384,7 +2384,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 pte.AF = 1;
                 pte.valid = 1;
             }
-#else
+#elifdef __x86_64__
             pte.w = 1;
 
             if (!pte.p)
@@ -2465,13 +2465,13 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 pte.SH = 3; // inner shareable
                 pte.AF = 1;
                 pte.valid = 1;
-#else
+#elifdef __x86_64__
                 pte.w = 1;
                 pte.p = 1;
 #endif
 
 #ifndef __aarch64__
-                if (send_ipi)
+                if (send_ipi) // FIXME
                     send_page_tlb_ipi(proc, address);
 #endif
 
@@ -2546,7 +2546,7 @@ object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
     }
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static uint32_t get_page_protection(process& proc, uint64_t va) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
@@ -2612,7 +2612,9 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
 
             auto num_pages = min(pages, (uint32_t)((m->address + m->size - addr) >> PAGE_SHIFT));
 
-#ifndef __aarch64__
+#ifdef __aarch64__
+            // FIXME
+#elifdef __x86_64__
             if (first)
                 old_type = get_page_protection(proc, addr);
 #endif
@@ -2867,7 +2869,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
         p.release();
         return nt_status::INTERNAL_ERROR;
     }
-#else
+#elifdef __x86_64__
     if (!p.allocate_cr3()) {
         print("process::allocate_cr3 failed\n");
         p.release();
@@ -3336,7 +3338,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     }
 
     memcpy(&start_context, &thread_context, sizeof(CONTEXT));
-#ifndef __aarch64__
+#ifdef __x86_64__
     start_context.EFlags |= 0x202; // IF, reserved flag
     start_context.SegCs = user_CS;
     start_context.SegSs = user_DS;
@@ -3350,7 +3352,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
         memset(&start_context.V[0], 0, sizeof(start_context.V));
         start_context.Fpcr = 0;
         start_context.Fpsr = 0;
-#else
+#elifdef __x86_64__
         memset(&start_context.FltSave, 0, sizeof(start_context.FltSave));
 
         start_context.FltSave.MxCsr = 0x1f80;
@@ -3360,7 +3362,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
         start_context.ContextFlags |= CONTEXT_FLOATING_POINT;
     }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     start_context.MxCsr = start_context.FltSave.MxCsr;
 #endif
 
@@ -3436,7 +3438,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.X18 = (uintptr_t)t.teb;
 
     t.user_stack = (uintptr_t)img_info_addr - 0x10; // 0x10 for red zone
-#else
+#elifdef __x86_64__
     memset(&t.syscall_context, 0, sizeof(CONTEXT));
 
     t.context.EFlags |= 0x202; // IF, reserved flag
@@ -3467,7 +3469,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
 
 #ifdef __aarch64__
     t.syscall_stack = (uint8_t*)t.syscall_stack - 0x10; // 0x10 bytes for red zone
-#else
+#elifdef __x86_64__
     t.syscall_stack = (uint8_t*)t.syscall_stack - 0x20; // 0x20 bytes for MS ABI
 #endif
 
@@ -3603,7 +3605,7 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
 
 #ifdef __aarch64__
     pt[3] = span((pte_type*)phys_address(proc.ttbr0), 512);
-#else
+#elifdef __x86_64__
     pt[3] = span((pte_type*)phys_address(proc.cr3), 512);
 #endif
 
@@ -3656,7 +3658,7 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
             :
             : [res] "r" ((va >> PAGE_SHIFT) + i)
         );
-#else
+#elifdef __x86_64__
         pte.w = 0;
 #endif
     }

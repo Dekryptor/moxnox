@@ -36,7 +36,7 @@ public:
 #ifdef __aarch64__
     bool handle_page_fault(uintptr_t address, uint64_t esr_value);
     bool allocate_ttbr0();
-#else
+#elifdef __x86_64__
     bool handle_page_fault(uintptr_t address, uint64_t error_code);
     bool allocate_cr3();
 #endif
@@ -81,7 +81,7 @@ public:
     list_entry mappings = { &mappings, &mappings };
 #ifdef __aarch64__
     uint64_t ttbr0 = 0;
-#else
+#elifdef __x86_64__
     uint64_t cr3 = 0;
 #endif
     spinlock threads_lock;
@@ -107,6 +107,6 @@ static_assert(is_sync_object<process>);
 
 #ifdef __aarch64__
 static_assert(offsetof(process, ttbr0) == PROCESS_TTBR0);
-#else
+#elifdef __x86_64__
 static_assert(offsetof(process, cr3) == PROCESS_CR3);
 #endif
