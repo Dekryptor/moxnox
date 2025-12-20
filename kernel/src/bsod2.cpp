@@ -8,7 +8,7 @@
 
 #ifdef __aarch64__
 import aarch64;
-#else
+#elifdef __x86_64__
 import apic;
 #endif
 
@@ -78,7 +78,7 @@ optional<uint64_t> read_uint64_t(uint64_t addr) {
 static bool do_unwind_context(CONTEXT& context) {
 #ifdef __aarch64__
     auto img = get_kernel_image_from_address(context.Pc);
-#else
+#elifdef __x86_64__
     auto img = get_kernel_image_from_address(context.Rip);
 #endif
     if (!img)
@@ -93,7 +93,7 @@ static void print_stacktrace(const CONTEXT& context, chardev& p) {
     do {
 #ifdef __aarch64__
         print_rip(p, context2.Pc);
-#else
+#elifdef __x86_64__
         print_rip(p, context2.Rip);
 #endif
 
@@ -114,7 +114,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
         if (cb.cpu_no != bsod_cpu) {
 #ifdef __aarch64__
             while (true) { } // FIXME
-#else
+#elifdef __x86_64__
             __asm("call halt_isr");
             __builtin_unreachable();
 #endif
@@ -151,7 +151,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
         while (processors_left_to_halt.load(memory_order_acquire) > 0) {
             __asm("yield");
         }
-#else
+#elifdef __x86_64__
         processors_left_to_halt = num_cpus - 1;
 
         // send IPI to other cores to stop them
@@ -211,7 +211,7 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
 #ifdef __aarch64__
     halt_isr();
-#else
+#elifdef __x86_64__
     __asm("call halt_isr");
 #endif
 

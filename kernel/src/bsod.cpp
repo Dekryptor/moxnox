@@ -25,7 +25,7 @@ export bool in_bsod = false;
 bool do_unwind_context(CONTEXT& context) {
 #ifdef __aarch64__
     auto img = get_kernel_image_from_address(context.Pc);
-#else
+#elifdef __x86_64__
     auto img = get_kernel_image_from_address(context.Rip);
 #endif
     if (!img)
@@ -51,7 +51,7 @@ inline __attribute__((always_inline)) void capture_context(CONTEXT& ctx) {
         :
         : "x0"
     );
-#else
+#elifdef __x86_64__
     __asm __volatile(
         "mov %0, rsp\n"
         "\tmov %1, rbp\n"
