@@ -137,7 +137,7 @@ void scheduler() {
         if ((current_priority & 0xf0) != 0xf0)
             bsod_format("calling scheduler with GICC_PMR of {:x}\n", current_priority);
     }
-#else
+#elifdef __x86_64__
     uint64_t rflags = 0;
 
     __asm __volatile(
@@ -211,7 +211,7 @@ void scheduler() {
 
 #ifdef __aarch64__
             __asm("b scheduler_restore");
-#else
+#elifdef __x86_64__
             __asm("jmp scheduler_restore"); // iretq will re-enable interrupts
 #endif
         }
@@ -219,7 +219,7 @@ void scheduler() {
         enable_interrupts();
 #ifdef __aarch64__
         __asm __volatile("wfi");
-#else
+#elifdef __x86_64__
         __asm __volatile("hlt");
 #endif
         disable_interrupts();
@@ -244,7 +244,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
         if ((current_priority & 0xf0) != 0xf0)
             bsod_format("calling wait_for_object with GICC_PMR of {:x}\n", current_priority);
     }
-#else
+#elifdef __x86_64__
     uint64_t cr8 = 0;
 
     __asm __volatile(
@@ -326,7 +326,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
         :
         : "x0", "x1"
     );
-#else
+#elifdef __x86_64__
     yield(); // releases sync_lock
 #endif
 
@@ -488,7 +488,7 @@ export uintptr_t init_cpu_block(unsigned int cpu_no) {
 
     new (&cb) cpu_block;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     cb.self = &cb;
 #endif
     cb.current_thread = nullptr;
@@ -509,7 +509,7 @@ export uintptr_t init_cpu_block(unsigned int cpu_no) {
 
 #ifdef __aarch64__
     cb.scheduler_stack = (uint8_t*)cb.scheduler_stack - 0x10; // 0x10 for red zone
-#else
+#elifdef __x86_64__
     cb.scheduler_stack = (uint8_t*)cb.scheduler_stack - 0x20; // 0x20 for MS ABI
 #endif
 
@@ -529,7 +529,7 @@ export uintptr_t init_cpu_block(unsigned int cpu_no) {
             : "r" (&cb)
         );
     }
-#else
+#elifdef __x86_64__
     __asm __volatile (
         "mov rax, cr3"
         : "=a" (cb.kernel_cr3)
@@ -591,7 +591,7 @@ export nt_status wait_for_objects(span<object*> objects, bool wait_any,
         if ((current_priority & 0xf0) != 0xf0)
             bsod_format("calling wait_for_objects with GICC_PMR of {:x}\n", current_priority);
     }
-#else
+#elifdef __x86_64__
     uint64_t cr8 = 0;
 
     __asm __volatile(
