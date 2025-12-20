@@ -14,7 +14,7 @@ using namespace std;
 
 export struct cpu_block {
     atomic<uint64_t> disable_preempt = 0; // must be first
-#ifndef __aarch64__
+#ifdef __x86_64__
     cpu_block* self;
 #endif
     thread* current_thread;
@@ -26,7 +26,7 @@ export struct cpu_block {
     uintptr_t emergency_sp;
     uint64_t emergency_scratch[2];
     uint64_t gicc;
-#else
+#elifdef __x86_64__
     void* gdt;
     uint64_t kernel_cr3;
     uint64_t syscall_rax;
@@ -45,7 +45,7 @@ static_assert(offsetof(cpu_block, disable_preempt) == GS_DISABLE_PREEMPT);
 static_assert(offsetof(cpu_block, emergency_sp) == GS_EMERGENCY_SP);
 static_assert(offsetof(cpu_block, emergency_scratch) == GS_EMERGENCY_SCRATCH);
 static_assert(offsetof(cpu_block, gicc) == GS_GICC);
-#else
+#elifdef __x86_64__
 static_assert(offsetof(cpu_block, self) == GS_SELF);
 static_assert(offsetof(cpu_block, kernel_cr3) == GS_KERNEL_CR3);
 static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);
@@ -62,7 +62,7 @@ export inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
 
     return (cpu_block*)ret;
 }
-#else
+#elifdef __x86_64__
 export inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
 #ifdef __llvm__
     return (cpu_block*)*(uint8_t* __attribute__((address_space(256)))*)offsetof(cpu_block, self);
