@@ -13,7 +13,7 @@ module;
 
 export module console;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 import inout;
 #endif
 
@@ -46,7 +46,7 @@ using namespace std;
 
 export unsigned int console_cols; // FIXME
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 enum class console_colour : uint8_t {
     black = 0,
     blue = 1,
@@ -80,7 +80,7 @@ static unsigned int font_width, font_height, font_descender;
 static bool fb_console_started = false;
 static bool show_cursor = true;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static bool text_console_started = false;;
 #endif
 
@@ -170,7 +170,7 @@ static const uint32_t vt100_bright_colours[] = {
     0xffffff,
 };
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static const enum console_colour vt100_colours_text[] = {
     console_colour::black,
     console_colour::red,
@@ -201,7 +201,7 @@ static const uint32_t DEFAULT_FG_COLOUR = vt100_colours[DEFAULT_FG_COLOUR_INDEX]
 static uint32_t bg_colour_index = 0, fg_colour_index = 7;
 static bool bg_bright = false, fg_bright = false, bold = false;
 static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
-#ifndef __aarch64__
+#ifdef __x86_64__
 static const auto DEFAULT_BG_COLOUR_TEXT = console_colour::black;
 static const auto DEFAULT_FG_COLOUR_TEXT = console_colour::light_grey;
 static enum console_colour bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
@@ -213,7 +213,7 @@ export uint8_t edid[EDID_SIZE];
 export bool have_edid;
 
 export enum class console_type {
-#ifndef __aarch64__
+#ifdef __x86_64__
     text,
 #endif
     boot_framebuffer,
@@ -242,7 +242,7 @@ static_assert(vt100_console<console_fb>);
 
 static console_fb console_fb_inst;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 
 struct console_text {
     void console_overflow(unsigned int rows = 1);
@@ -1158,7 +1158,7 @@ export void very_early_print(string_view s) {
 }
 
 void early_print(string_view s) {
-#ifndef __aarch64__
+#ifdef __x86_64__
     if (console_type == console_type::text) {
         if (!text_console_started) {
             add_to_early_print_buf<false>(s);
@@ -1250,7 +1250,7 @@ static bool create_kmsg() {
     return true;
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 export bool init_console(const loader_block_framebuffer& fb,
                          const loader_block_text_console& tc)
 #else
@@ -1288,7 +1288,7 @@ export bool init_console(const loader_block_framebuffer& fb)
         if (console_chardev.get().type != object_type::chardev)
             bsod_format("console option {} did not point to a character device", console_opt);
 
-#ifndef __aarch64__
+#ifdef __x86_64__
         console_text_inst.console_cols = 80; // FIXME
         console_text_inst.console_rows = 25; // FIXME
         console_cols = console_text_inst.console_cols;
@@ -1306,7 +1306,7 @@ export bool init_console(const loader_block_framebuffer& fb)
         return true;
     }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     if (console_type == console_type::text) {
         console_text_inst.console_cols = tc.cols;
         console_text_inst.console_rows = tc.rows;
@@ -1377,7 +1377,7 @@ export bool init_console(const loader_block_framebuffer& fb)
 
             create_boot_framebuffer_section();
         }
-#ifndef __aarch64__
+#ifdef __x86_64__
     }
 #endif
 
@@ -1400,7 +1400,7 @@ export bool init_console(const loader_block_framebuffer& fb)
     if (!create_kmsg())
         return false;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     if (console_type == console_type::text)
         flush_early_print();
 #endif
