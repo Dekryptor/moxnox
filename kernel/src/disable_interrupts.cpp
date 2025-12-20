@@ -19,7 +19,7 @@ export inline __attribute__((always_inline)) void disable_interrupts() {
     __asm __volatile("msr DAIFSet, #0xf");
 }
 
-#else
+#elifdef __x86_64__
 
 export inline __attribute__((always_inline)) void enable_interrupts() {
     __asm __volatile("sti");
@@ -42,7 +42,7 @@ export inline __attribute__((always_inline)) void disable_preempt() {
         :
         : "x8"
     );
-#else
+#elifdef __x86_64__
     __asm __volatile(
         "inc QWORD PTR gs:%0\n"
         :
@@ -54,7 +54,7 @@ export inline __attribute__((always_inline)) void disable_preempt() {
 export inline __attribute__((always_inline)) void enable_preempt() {
 #ifdef __aarch64__
     get_cpu_block()->disable_preempt--;
-#else
+#elifdef __x86_64__
     __asm __volatile(
         "dec QWORD PTR gs:%0\n"
         :
@@ -73,7 +73,7 @@ export bool interrupts_disabled() {
     );
 
     return daif != 0;
-#else
+#elifdef __x86_64__
     uint64_t rflags = 0;
 
     __asm __volatile(
