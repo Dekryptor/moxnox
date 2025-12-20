@@ -55,7 +55,7 @@ static bool have_edid __attribute__((section (".data"))) = false;
 static ARM64_HARDWARE_PTE* ttbr1 __attribute__((section (".data")));
 static uint8_t attr_index_normal;
 
-#else
+#elifdef __x86_64__
 
 struct HARDWARE_PTE {
     uint64_t Valid:1;
@@ -330,7 +330,7 @@ static bool check_header(span<const uint8_t> payload, IMAGE_NT_HEADERS** nth) {
 
 #ifdef __aarch64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
-#else
+#elifdef __x86_64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
 #endif
 
@@ -943,7 +943,7 @@ static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
     return EFI_SUCCESS;
 }
 
-#else
+#elifdef __x86_64__
 
 static EFI_STATUS map_page(uint64_t va, uint64_t pa) {
     EFI_STATUS status;
@@ -1179,7 +1179,7 @@ static EFI_STATUS setup_paging() {
     return EFI_SUCCESS;
 }
 
-#else
+#elifdef __x86_64__
 
 static EFI_STATUS setup_paging(uint64_t& cr3) {
     EFI_STATUS status;
@@ -1514,7 +1514,7 @@ static EFI_STATUS find_initrd_file(EFI_LOADED_IMAGE_PROTOCOL* image) {
     return EFI_SUCCESS;
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 
 __attribute__((always_inline))
 static uint64_t inline __readcr0() {
@@ -1700,7 +1700,7 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
     __builtin_unreachable();
 }
 
-#else
+#elifdef __x86_64__
 
 __attribute__((noreturn))
 static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb) {
@@ -1774,7 +1774,7 @@ static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa) {
     lb.map_ptr = (uintptr_t)map;
     lb.num_map_entries = num_map_entries;
     lb.rsdp_pa = rsdp_pa;
-#ifndef __aarch64__
+#ifdef __x86_64__
     lb.text_mode = false;
 #endif
     lb.cmdline = (uintptr_t)cmdline;
@@ -2046,7 +2046,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
     EFI_LOADED_IMAGE_PROTOCOL* image;
     uint64_t entry_point, img_pa, rsdp_pa;
     size_t img_size;
-#ifndef __aarch64__
+#ifdef __x86_64__
     uint64_t cr3;
 #endif
 
@@ -2135,7 +2135,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
         print_error("setup_paging", Status);
         return Status;
     }
-#else
+#elifdef __x86_64__
     Status = setup_paging(cr3);
     if (EFI_ERROR(Status)) {
         print_error("setup_paging", Status);
@@ -2151,7 +2151,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_tab
 
 #ifdef __aarch64__
     start_kernel(entry_point, &lb);
-#else
+#elifdef __x86_64__
     start_kernel(entry_point, cr3, &lb);
 #endif
 
