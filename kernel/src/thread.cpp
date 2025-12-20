@@ -41,7 +41,7 @@ static_assert(offsetof(ARM64_NT_CONTEXT, Fpsr) == CONTEXT_FPSR);
 
 static_assert(sizeof(ARM64_NT_CONTEXT) == CONTEXT_SIZEOF);
 
-#else
+#elifdef __x86_64__
 
 static_assert(sizeof(AMD64_CONTEXT) == 0x4d0);
 
@@ -78,11 +78,6 @@ static const uint16_t kernel_DS = 0x10;
 #endif
 
 export uint16_t last_tid; // FIXME
-
-#ifndef __aarch64__
-// process.cpp
-extern section* ntdll;
-#endif
 
 export ::thread* get_current_thread() {
     disable_preempt();
@@ -420,7 +415,7 @@ export object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, vo
     t.syscall_stack = (void*)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x10);
 
     t.context.Cpsr = 0x5; // EL1 with SP_EL1
-#else
+#elifdef __x86_64__
     t.context.Rip = (uintptr_t)kernel_thread_start;
     t.context.Rcx = (uintptr_t)func;
     t.context.Rdx = (uintptr_t)param1;

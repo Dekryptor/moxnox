@@ -60,7 +60,7 @@ public:
 
     list_entry le;
     CONTEXT context;
-#ifndef __aarch64__
+#ifdef __x86_64__
     CONTEXT syscall_context;
 #endif
     enum thread_status status;
@@ -96,7 +96,7 @@ static_assert(offsetof(thread, wait_timeout) == THREAD_WAIT_TIMEOUT);
 
 #ifdef __aarch64__
 static_assert(offsetof(thread, user_stack) == THREAD_USER_STACK);
-#else
+#elifdef __x86_64__
 static_assert(offsetof(thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 static_assert(offsetof(thread, status) == THREAD_STATUS);
 static_assert(offsetof(thread, suspend_count) == THREAD_SUSPEND_COUNT);
