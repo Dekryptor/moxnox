@@ -8,6 +8,10 @@ export const uint64_t SELFMAP_PDT = 0xfffff6fb40000000;
 export const uint64_t SELFMAP_PDPT = 0xfffff6fb7da00000;
 export const uint64_t SELFMAP_PML4 = 0xfffff6fb7dbed000;
 
+export const uint64_t CR4_PAE = 1 << 5;
+export const uint64_t CR4_OSFXSR = 1 << 9;
+export const uint64_t CR4_OSXMMEXCPT = 1 << 10;
+
 export const uint32_t EFER_MSR = 0xc0000080;
 export const uint64_t EFER_SCE = 1 << 0;
 export const uint64_t EFER_LME = 1 << 8;

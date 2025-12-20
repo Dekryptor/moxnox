@@ -1613,8 +1613,7 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
     // set MP and WP bits on CR0
     __writecr0(__readcr0() | 0x10002);
 
-    // set OSFXSR and OSXMMEXCPT flags on CR4
-    __writecr4(__readcr4() | 0x600);
+    __writecr4(__readcr4() | CR4_OSXMMEXCPT | CR4_OSFXSR);
 
     // enable NX bit and System Call Extensions
     __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_NX | EFER_SCE);

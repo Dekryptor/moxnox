@@ -6,7 +6,3 @@
 #define CR0_MP      (1 << 1)
 #define CR0_WP      (1 << 16)
 #define CR0_PG      (1 << 31)
-
-#define CR4_PAE         (1 << 5)
-#define CR4_OSFXSR      (1 << 9)
-#define CR4_OSXMMEXCPT  (1 << 10)
