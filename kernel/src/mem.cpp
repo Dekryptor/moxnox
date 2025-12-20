@@ -9,7 +9,7 @@ module;
 #include <optional>
 #include "assert.h"
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 #include "x86/mem.h"
 #endif
 
@@ -30,7 +30,7 @@ import aarch64;
 
 extern "C" uint8_t __image_base__;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 // x86/mem.S
 export {
     extern "C" void memcpy_aligned(void* dest, const void* src, size_t n);
@@ -123,7 +123,7 @@ export uint8_t attr_index_normal;
 static uint8_t attr_index_uncached, attr_index_write_combine;
 export uintptr_t cache_line_shift;
 
-#else
+#elifdef __x86_64__
 
 export uintptr_t cache_line_shift = 6; // 64 bytes
 
@@ -367,7 +367,7 @@ static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa
 
     return true;
 }
-#else
+#elifdef __x86_64__
 static bool map_page_with_scratch(uint64_t va, uint64_t pa, uint64_t& scratch_pa,
                                   uint64_t& scratch_pages, bool use_huge_pages) {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
@@ -567,7 +567,7 @@ export uint64_t allocate_page(enum page_state state = page_state::used) {
     return allocate_folio(0, state);
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 __attribute__((always_inline))
 uint64_t inline __readcr3() {
     uint64_t ret;
@@ -693,7 +693,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         return func();
     }
 }
-#else
+#elifdef __x86_64__
 export template<bool = false>
 bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
     if (pa >= (uint64_t)1 << MAXPHYADDR) // out of range
@@ -985,7 +985,7 @@ export void mark_lower_half_writable() {
     );
 }
 
-#else
+#elifdef __x86_64__
 export void free_lower_half_mappings() {
     auto cr3 = __readcr3();
     auto pml4 = span((HARDWARE_PTE*)phys_address(cr3 & ~(PAGE_SIZE - 1)), 512);
@@ -1147,7 +1147,7 @@ static bool map_physical_memory(uint64_t num_pages) {
 
     return true;
 }
-#else
+#elifdef __x86_64__
 static bool map_physical_memory(uint64_t num_pages) {
     auto pml4 = span((HARDWARE_PTE*)SELFMAP_PML4, 512);
     auto& pml4_entry = pml4[(PHYS_MEMORY & 0xff8000000000) >> 39];
@@ -1216,7 +1216,7 @@ static bool load_initrd(void* data, uintptr_t size) {
     return true;
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static uint8_t get_maxphyaddr() {
     uint32_t eax, ebx, ecx, edx;
 
@@ -1347,7 +1347,7 @@ export bool init_memory(const loader_block& lb) {
 
         cache_line_shift = ccsidr.LineSize + 4;
     }
-#else
+#elifdef __x86_64__
     init_pat();
 
     MAXPHYADDR = get_maxphyaddr();
@@ -1530,7 +1530,7 @@ export bool init_memory(const loader_block& lb) {
     if (first_real_entry == 0)
         mark_mem_as_used(0, PAGE_SIZE);
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     if (lb.text_mode) {
         size_t bytes = lb.text_console.cols * lb.text_console.rows * sizeof(uint16_t);
 
@@ -1849,7 +1849,7 @@ export void unmap_page(uint64_t va) {
         : [res] "r" (va >> PAGE_SHIFT)
     );
 }
-#else
+#elifdef __x86_64__
 export void unmap_page(uint64_t va) {
     auto& level1 = *(HARDWARE_PTE*)phys_address((__readcr3() & 0xfffffffffffff000) | (((va & 0xff8000000000) >> 39) << 3));
     auto& level2 = *(HARDWARE_PTE*)phys_address((level1.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
@@ -1934,7 +1934,7 @@ export void protect_page(uint64_t va, enum mapping_type type) {
             break;
     }
 }
-#else
+#elifdef __x86_64__
 static void protect_page2(volatile HARDWARE_PTE& pt_entry, enum mapping_type type, bool ks) {
     lock_guard lock(protect_page_spinlock);
 
@@ -2056,7 +2056,7 @@ export bool init_vablock() {
             print("map_page failed\n");
             return false;
         }
-#else
+#elifdef __x86_64__
         if (!map_page(pa, va, mapping_type::read_write)) {
             print("map_page failed\n");
             return false;
@@ -2193,7 +2193,7 @@ export uint64_t va_to_pa_lookup(uint64_t va) {
 
     return (uint64_t)pt_entry.pfn << PAGE_SHIFT;
 }
-#else
+#elifdef __x86_64__
 export uint64_t va_to_pa_lookup(uint64_t va) {
     auto& level1 = *(HARDWARE_PTE*)phys_address((__readcr3() & 0xfffffffffffff000) | (((va & 0xff8000000000) >> 39) << 3));
     auto& level2 = *(HARDWARE_PTE*)phys_address((level1.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
@@ -2612,7 +2612,7 @@ export void inline __attribute__((always_inline)) barrier() {
         "dsb ish\n\t"
         "isb\n\t"
     );
-#else
+#elifdef __x86_64__
     __asm__ __volatile__ (
         ""
         :
@@ -2820,7 +2820,7 @@ export void inline __attribute((always_inline)) flush_cache(span<uint8_t> va,
         "isb\n"
     );
 }
-#else
+#elifdef __x86_64__
 export void inline __attribute((always_inline)) flush_cache(span<uint8_t>, bool) {
     // FIXME
 }
