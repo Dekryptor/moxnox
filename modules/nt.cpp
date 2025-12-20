@@ -496,6 +496,7 @@ struct TEB {
     void* ResourceRetValue;
 };
 
+#if defined(__x86_64__) || defined(__aarch64__)
 __inline __attribute((always_inline)) TEB* NtCurrentTeb() {
 #ifdef __aarch64__
     TEB* ret;
@@ -506,7 +507,7 @@ __inline __attribute((always_inline)) TEB* NtCurrentTeb() {
     );
 
     return ret;
-#else // x86
+#elifdef __x86_64__
 
 #ifdef __llvm__
     return (TEB*)*(uint8_t* __attribute__((address_space(256)))*)offsetof(TEB, NtTib.Self);
@@ -526,6 +527,7 @@ __inline __attribute((always_inline)) TEB* NtCurrentTeb() {
 
 #endif
 }
+#endif
 
 struct M128A {
     uint64_t Low;
@@ -688,7 +690,7 @@ struct ARM64_NT_CONTEXT {
 
 #ifdef __aarch64__
 using CONTEXT = ARM64_NT_CONTEXT;
-#else
+#elifdef __x86_64__
 using CONTEXT = AMD64_CONTEXT;
 #endif
 
@@ -1309,10 +1311,6 @@ NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE 
                               void* file_information, uint32_t length,
                               FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
                               const UNICODE_STRING* file_name, bool restart_scan);
-NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
-                        const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle,
-                        CLIENT_ID* client_id, const CONTEXT* thread_context,
-                        const INITIAL_TEB* initial_teb, bool create_suspended);
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count);
 NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable, const LARGE_INTEGER* time_out);
 NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
@@ -1333,7 +1331,6 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
                                    uint32_t* return_length);
 NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
                         void* section_information, size_t section_information_length, size_t* return_length);
-NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert);
 NTSTATUS NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMATION_CLASS thread_information_class,
                                   void* thread_information, uint32_t thread_information_length,
                                   uint32_t* return_length);
@@ -1371,8 +1368,17 @@ NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                          ACCESS_MASK desired_access, uint32_t handle_attributes,
                          uint32_t flags, HANDLE* new_thread_handle);
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count);
+
+#if defined(__x86_64__) || defined(__aarch64__)
+NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
+                        const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle,
+                        CLIENT_ID* client_id, const CONTEXT* thread_context,
+                        const INITIAL_TEB* initial_teb, bool create_suspended);
+NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert);
 NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context);
 NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context);
+#endif
+
 NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK desired_access,
                           ULONG handle_attributes, ULONG flags,
                           HANDLE* new_process_handle);
