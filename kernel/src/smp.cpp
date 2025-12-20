@@ -6,7 +6,7 @@ module;
 #include <span>
 #include <atomic>
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 #include "x86/mem.h"
 #endif
 
@@ -15,7 +15,7 @@ export module smp;
 #ifdef __aarch64__
 import psci;
 import aarch64;
-#else
+#elifdef __x86_64__
 import apic;
 #endif
 
@@ -42,7 +42,7 @@ extern "C" uint8_t vector_table_ap;
 
 export uint64_t* cpu_ids;
 
-#else
+#elifdef __x86_64__
 
 // in x86/smp.S
 extern "C" uint8_t ap_trampoline;
@@ -66,7 +66,7 @@ export unsigned int num_cpus;
 
 static atomic<unsigned int> ap_left;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static void start_ap(uint8_t i) {
     // FIXME - should we be disabling interrupts here?
 
@@ -125,7 +125,7 @@ export uint64_t current_cpu_id() {
 
     return mpidr & MPIDR_MASK;
 }
-#else
+#elifdef __x86_64__
 export uint8_t current_cpu_id() {
     uint32_t eax, ebx, ecx, edx;
 
@@ -139,7 +139,7 @@ export uint8_t current_cpu_id() {
 }
 #endif
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static void setup_ap_gdt(task_state_segment* tss) {
     auto& cb = *get_cpu_block();
 
@@ -284,7 +284,7 @@ static void __attribute__((noreturn)) ap_startup() {
 
     __builtin_unreachable();
 }
-#else
+#elifdef __x86_64__
 static void ap_startup() {
     // load IDT
     __asm __volatile (
@@ -454,7 +454,7 @@ export bool init_smp() {
             if ((ent.ArmMpidr & MPIDR_MASK) != bsp_id)
                 ap_count++;
         }
-#else
+#elifdef __x86_64__
         if (h.Type == ACPI_MADT_TYPE_LOCAL_APIC && h.Length >= sizeof(ACPI_MADT_LOCAL_APIC)) {
             auto& ent = *(ACPI_MADT_LOCAL_APIC*)data.data();
 
@@ -568,7 +568,7 @@ export bool init_smp() {
     free(boot_info);
 
     free_folio(identity_map);
-#else
+#elifdef __x86_64__
     struct info {
         uint8_t id;
         uint64_t stack_pa;
