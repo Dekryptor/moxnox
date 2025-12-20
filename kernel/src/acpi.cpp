@@ -1878,12 +1878,8 @@ ACPI_STATUS AcpiOsWritePciConfiguration(ACPI_PCI_ID* /*PciId*/, UINT32 /*Reg*/,
 
 extern "C"
 UINT64 AcpiOsGetTimer() {
-#ifdef __aarch64__ // FIXME
-    return 0;
-#else
     // convert to units of 100ns
     return (uint64_t)(system_time * 10000000 / SYSTEM_TIME_RESOLUTION);
-#endif
 }
 
 extern "C"
