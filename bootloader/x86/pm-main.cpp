@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <string_view>
 #include <span>
-#include "x86.h"
 
 import pe;
 import loaderblock;
@@ -10,6 +9,9 @@ import crt;
 import x86;
 
 using namespace std;
+
+static const unsigned int PAGE_SHIFT = 12;
+static const size_t PAGE_SIZE = 1 << PAGE_SHIFT;
 
 using pte_span = span<HARDWARE_PTE, PAGE_SIZE / sizeof(HARDWARE_PTE)>;
 

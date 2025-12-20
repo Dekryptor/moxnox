@@ -1610,8 +1610,7 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
 
     // FIXME - GDT?
 
-    // set MP and WP bits on CR0
-    __writecr0(__readcr0() | 0x10002);
+    __writecr0(__readcr0() | CR0_WP | CR0_MP);
 
     __writecr4(__readcr4() | CR4_OSXMMEXCPT | CR4_OSFXSR);
 
