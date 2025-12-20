@@ -22,7 +22,7 @@ import object_ref;
 import spinlock;
 import handle;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 import inout;
 import apic;
 #endif
@@ -73,7 +73,7 @@ export extern "C++" {
     uint64_t hardware_tick_rate;
 }
 
-#else
+#elifdef __x86_64__
 
 static const uint8_t timer_interrupt = 0x20;
 static const uint8_t timer_ap_interrupt = 0x24;
@@ -99,7 +99,7 @@ export extern "C" {
     uint64_t system_time_offset = 0;
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 
 export void init_lapic_timer(bool ap) {
     if (ap) {
@@ -188,7 +188,7 @@ export bool init_timer() {
     return true;
 }
 
-#else
+#elifdef __x86_64__
 
 export bool init_timer() {
     disable_interrupts();
