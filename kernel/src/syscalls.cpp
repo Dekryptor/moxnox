@@ -1585,7 +1585,7 @@ void maybe_yield() {
         : "i" (offsetof(cpu_block, scheduler_stack))
     );
 }
-#else
+#elifdef __x86_64__
 extern "C"
 void maybe_yield(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
