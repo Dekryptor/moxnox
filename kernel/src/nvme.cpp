@@ -70,7 +70,7 @@ public:
             remove_irq_handler(irq_num, nvme_msix_isr_func, this);
             free_msi_irq(irq_num);
         }
-#else
+#elifdef __x86_64__
         if (isr_registered)
             remove_isr(nvme_msix_isr_func, this);
 #endif
