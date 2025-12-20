@@ -44,17 +44,3 @@ struct GDTIDT {
 } __attribute__((packed));
 
 using pte_span = std::span<HARDWARE_PTE_PAE, PAGE_SIZE / sizeof(HARDWARE_PTE_PAE)>;
-
-enum class e820_mem_type : uint32_t {
-    free = 1,
-    reserved = 2,
-    acpi_reclaimable = 3,
-    acpi_nvs = 4,
-    bad = 5,
-};
-
-struct e820_entry {
-    uint64_t address;
-    uint64_t length;
-    enum e820_mem_type type;
-} __attribute__((packed));

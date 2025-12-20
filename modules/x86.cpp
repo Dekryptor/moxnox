@@ -65,3 +65,17 @@ export struct task_state_segment {
 static_assert(sizeof(task_state_segment) == 0x68);
 
 export const uint16_t TSS_SEGMENT = 0x18;
+
+export enum class e820_mem_type : uint32_t {
+    free = 1,
+    reserved = 2,
+    acpi_reclaimable = 3,
+    acpi_nvs = 4,
+    bad = 5,
+};
+
+export struct e820_entry {
+    uint64_t address;
+    uint64_t length;
+    enum e820_mem_type type;
+} __attribute__((packed));
