@@ -84,3 +84,86 @@ export struct e820_entry {
     uint64_t length;
     enum e820_mem_type type;
 } __attribute__((packed));
+
+export __attribute__((always_inline))
+uintptr_t inline __readcr0() {
+    uintptr_t ret;
+
+    __asm__ __volatile__ (
+        "mov\t%0, cr0"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+export __attribute__((always_inline))
+void inline __writecr0(uintptr_t v) {
+    __asm__ __volatile__ (
+        "mov\tcr0, %0"
+        :
+        : "r" (v)
+    );
+}
+
+export __attribute__((always_inline))
+void inline __writecr3(uintptr_t v) {
+    __asm__ __volatile__ (
+        "mov\tcr3, %0"
+        :
+        : "r" (v)
+    );
+}
+
+export __attribute__((always_inline))
+uintptr_t inline __readcr4() {
+    uintptr_t ret;
+
+    __asm__ __volatile__ (
+        "mov\t%0, cr4"
+        : "=r" (ret)
+    );
+
+    return ret;
+}
+
+export __attribute__((always_inline))
+void inline __writecr4(uintptr_t v) {
+    __asm__ __volatile__ (
+        "mov\tcr4, %0"
+        :
+        : "r" (v)
+    );
+}
+
+export __attribute__((always_inline))
+uint64_t inline __readmsr(uint32_t r) {
+    uint32_t high, low;
+
+    __asm__ __volatile__ (
+        "rdmsr"
+        : "=d" (high), "=a" (low)
+        : "c" (r)
+    );
+
+    return ((uint64_t)high << 32) | low;
+}
+
+export __attribute__((always_inline))
+void inline __writemsr(uint32_t r, uint64_t v) {
+    auto high = (uint32_t)(v >> 32);
+    uint32_t low = v & 0xffffffff;
+
+    __asm__ __volatile__ (
+        "wrmsr"
+        :
+        : "c" (r), "d" (high), "a" (low)
+    );
+}
+
+export __attribute__((always_inline))
+void inline _disable() {
+    __asm__ __volatile__ (
+        "cli"
+    );
+}
