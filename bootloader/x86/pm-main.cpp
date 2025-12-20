@@ -6,6 +6,7 @@
 import pe;
 import loaderblock;
 import crt;
+import x86;
 
 using namespace std;
 

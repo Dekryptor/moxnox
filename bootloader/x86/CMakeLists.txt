@@ -43,7 +43,7 @@ add_dependencies(boot kernel efistub)
 
 target_compile_options(boot PUBLIC -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti -masm=intel)
 target_link_options(boot PUBLIC -Wl,-T ${CMAKE_SOURCE_DIR}/bootloader/x86/boot.ld -nostartfiles -nostdlib ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
-target_link_libraries(boot pe_32bit loaderblock_32bit crt_32bit)
+target_link_libraries(boot pe_32bit loaderblock_32bit crt_32bit x86_32bit)
 set(CMAKE_EXE_LINKER_FLAGS "-static") # use binutils rather than llvm for linking
 
 # Clang likes to generate .refptr stubs, stop it doing this

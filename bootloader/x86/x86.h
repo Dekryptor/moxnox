@@ -43,21 +43,6 @@ struct GDTIDT {
     uint32_t Base;
 } __attribute__((packed));
 
-struct gdt_entry {
-    uint16_t LimitLow;
-    uint16_t BaseLow;
-    uint32_t BaseMid:8;
-    uint32_t Type:5;
-    uint32_t Dpl:2;
-    uint32_t Pres:1;
-    uint32_t LimitHi:4;
-    uint32_t Sys:1;
-    uint32_t Long:1;
-    uint32_t Default_Big:1;
-    uint32_t Granularity:1;
-    uint32_t BaseHi:8;
-} __attribute__((packed));
-
 using pte_span = std::span<HARDWARE_PTE_PAE, PAGE_SIZE / sizeof(HARDWARE_PTE_PAE)>;
 
 enum class e820_mem_type : uint32_t {
