@@ -810,7 +810,7 @@ sata_card::~sata_card() {
 #ifdef __aarch64__
         remove_irq_handler(msi_irq, sata_isr_func, this);
         free_msi_irq(msi_irq);
-#else
+#elifdef __x86_64__
         remove_isr(sata_isr_func, this);
 #endif
     } else if (dev.irq.has_value())
