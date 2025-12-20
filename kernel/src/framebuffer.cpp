@@ -18,7 +18,7 @@ import config;
 import spinlock;
 import handle;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 import inout;
 #endif
 
@@ -29,7 +29,7 @@ export uint32_t fb_width, fb_height, fb_pixels_per_scan_line, fb_dpi;
 export void(*flush_framebuffer)(unsigned int, unsigned int, unsigned int,
                                 unsigned int);
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 export span<uint16_t> text_console;
 export uint32_t text_console_cols, text_console_rows;
 static span<uint16_t> shadow_text_console;
@@ -51,7 +51,7 @@ public:
     }
 };
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 class text_console_cache : public custom_section_cache {
 public:
     NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
@@ -227,7 +227,7 @@ export void create_other_framebuffer_section() {
     }
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 nt_status text_console_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
                                               uint64_t& read_pages) {
     auto status = cache.pin(page_num, num_pages, nullptr);
