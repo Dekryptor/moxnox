@@ -76,7 +76,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
     src/x86/ps2keyboard.cpp
     src/x86/serial.cpp
     src/x86/apic.cpp
-    src/x86/x86.cpp
 )
 
 set(AARCH64_MODULES ${GLOBAL_MODULES}
@@ -108,7 +107,7 @@ else()
 
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AMD64_MODULES})
-    target_link_libraries(kernel format_kernel dwarf_kernel list_kernel unicode_kernel rbtree_kernel vt100_kernel cp437_kernel evdev_kernel unwind_kernel nt_kernel ntdll_kernel pe_kernel loaderblock crt_kernel)
+    target_link_libraries(kernel format_kernel dwarf_kernel list_kernel unicode_kernel rbtree_kernel vt100_kernel cp437_kernel evdev_kernel unwind_kernel nt_kernel ntdll_kernel pe_kernel loaderblock crt_kernel x86)
 endif()
 
 target_compile_options(kernel PRIVATE ${KERNEL_CFLAGS} -Wno-unused-const-variable)
