@@ -391,7 +391,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 #ifdef __aarch64__
     context.Pc = (uintptr_t)sii.TransferAddress;
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
-#else
+#elifdef __x86_64__
     context.Rip = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20; // 0x20 bytes for MS ABI
     context.EFlags = 0x200;
@@ -643,7 +643,7 @@ static void try_run_program(string_view program, string_view cmdline,
 
 #ifdef __aarch64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
-#else
+#elifdef __x86_64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
 #endif
 
@@ -658,12 +658,12 @@ static void try_run_program(string_view program, string_view cmdline,
 static void int3() {
 #ifdef __aarch64__
     __asm("brk #1337");
-#else
+#elifdef __x86_64__
     __asm("int 3");
 #endif
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static void int1() {
     __asm __volatile(
         "pushf\n"
@@ -680,7 +680,7 @@ static void general_protection_fault() {
 static void illegal_instruction() {
 #ifdef __aarch64__
     __asm("udf #1337");
-#else
+#elifdef __x86_64__
     __asm("ud2");
 #endif
 }
@@ -694,7 +694,7 @@ static void divide_by_zero() {
         :
         : "x0"
     );
-#else
+#elifdef __x86_64__
     __asm __volatile(
         "xor rax, rax\n"
         "idiv rax\n"
@@ -848,7 +848,7 @@ static void process_line(string_view sv, HANDLE server_handle,
         illegal_instruction(); // TESTING
     else if (cmd == "div")
         divide_by_zero(); // TESTING
-#ifndef __aarch64__
+#ifdef __x86_64__
     else if (cmd == "int1")
         int1(); // TESTING
     else if (cmd == "gpf")
