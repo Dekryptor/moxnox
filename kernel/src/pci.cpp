@@ -846,7 +846,7 @@ export uint16_t setup_msi(const pci_device& dev, bool msix, irq_func_type func,
         print("add_irq_handler failed\n");
         return 0;
     }
-#else
+#elifdef __x86_64__
     auto int_num = add_isr(func, ctx);
     if (int_num == 0) {
         print("add_isr failed\n");
@@ -865,7 +865,7 @@ export uint16_t setup_msi(const pci_device& dev, bool msix, irq_func_type func,
 #ifdef __aarch64__
         vec.message_address_high = msi_frame_setspi >> 32;
         vec.message_address_low = msi_frame_setspi & 0xffffffff;
-#else
+#elifdef __x86_64__
         vec.message_address_high = 0;
         vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
 #endif
@@ -875,14 +875,14 @@ export uint16_t setup_msi(const pci_device& dev, bool msix, irq_func_type func,
 
 #ifdef __aarch64__
         msi.message_address_low = msi_frame_setspi & 0xffffffff;
-#else
+#elifdef __x86_64__
         msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
 #endif
 
         if (msi.message_control & 0x80) { // 64-bit
 #ifdef __aarch64__
             msi.v64.message_address_high = msi_frame_setspi >> 32;
-#else
+#elifdef __x86_64__
             msi.v64.message_address_high = 0;
 #endif
             msi.v64.message_data = int_num;
@@ -911,7 +911,7 @@ export uint16_t add_msix_entry(const pci_device& dev, uint16_t vec,
         print("add_irq_handler failed\n");
         return 0;
     }
-#else
+#elifdef __x86_64__
     auto int_num = add_isr(func, ctx);
     if (int_num == 0) {
         print("add_isr failed\n");
@@ -923,7 +923,7 @@ export uint16_t add_msix_entry(const pci_device& dev, uint16_t vec,
 #ifdef __aarch64__
     vecs[vec].message_address_high = msi_frame_setspi >> 32;
     vecs[vec].message_address_low = msi_frame_setspi & 0xffffffff;
-#else
+#elifdef __x86_64__
     vecs[vec].message_address_high = 0;
     vecs[vec].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
 #endif
