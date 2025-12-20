@@ -316,10 +316,10 @@ void startup(loader_block* lb) {
         cmdline = string_view(cmdline_arr, len);
     }
 
-#ifdef __x86_64__
     if (lb->edid)
         copy_edid(lb);
 
+#ifdef __x86_64__
     if (lb->text_mode)
         console_type = console_type::text;
     else
