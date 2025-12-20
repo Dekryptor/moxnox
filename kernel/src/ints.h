@@ -5,7 +5,7 @@
 // aarch64/ints.S
 extern uint8_t vector_table_bsp;
 
-#else
+#elifdef __x86_64__
 
 // x86/ints.S
 extern "C" void page_fault_isr();

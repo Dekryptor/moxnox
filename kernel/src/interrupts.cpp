@@ -12,7 +12,7 @@ module;
 #include <span>
 #include "ints.h"
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 #include "x86/mem.h"
 #endif
 
@@ -20,7 +20,7 @@ export module interrupts;
 
 #ifdef __aarch64__
 import aarch64;
-#else
+#elifdef __x86_64__
 import apic;
 #endif
 
@@ -58,7 +58,7 @@ static uint8_t msi_alloc[128]; // initialized to 0
 
 export atomic<unsigned int> processors_left_to_halt;
 
-#else
+#elifdef __x86_64__
 
 // tlb.S
 extern "C" void invalidate_tlb_isr();
@@ -126,7 +126,7 @@ static list_entry irqs = { &irqs, &irqs };
 
 export bool msi_supported = false;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 
 extern "C" void dynamic_isr_30();
 extern "C" void dynamic_isr_31();
@@ -500,7 +500,7 @@ export bool add_irq_handler(uint32_t number, bool level, irq_func_type func,
     return true;
 }
 
-#else
+#elifdef __x86_64__
 
 export bool add_irq_handler(uint32_t number, bool level, irq_func_type func,
                             void* ctx) {
@@ -532,7 +532,7 @@ export void remove_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
     // FIXME
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 
 export bool init_apic() {
     // FIXME - can we assume that nothing's disabled the APIC? (Check EFI specs?)
@@ -1218,7 +1218,7 @@ export bool init_interrupts() {
     return true;
 }
 
-#else
+#elifdef __x86_64__
 export bool init_interrupts() {
     if (!setup_idt())
         return false;
@@ -1253,7 +1253,7 @@ static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
 
 #ifdef __aarch64__
     uintptr_t us_context = ctx.Sp - sizeof(CONTEXT) - 0x10; // 0x10 bytes for red zone
-#else
+#elifdef __x86_64__
     uintptr_t us_context = ctx.Rsp - sizeof(CONTEXT);
 #endif
 
@@ -1287,7 +1287,7 @@ static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
     ctx.X0 = us_er;
     ctx.X1 = us_context;
     ctx.Sp = us_er & ~(uint64_t)0xf;
-#else
+#elifdef __x86_64__
     disable_interrupts();
 
     auto& cb = *get_cpu_block();
@@ -1308,7 +1308,7 @@ static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
     return true;
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 extern "C"
 bool page_fault_user(uintptr_t address, uint64_t error_code) {
     auto& current_thread = *get_current_thread();
@@ -1600,9 +1600,7 @@ void single_step_user() {
     send_signal(er, ctx, nt_status::SINGLE_STEP);
 }
 
-#endif
-
-#ifdef __aarch64__
+#elifdef __aarch64__
 
 static void invalid_opcode_kernel() {
     auto& cb = *get_cpu_block();
