@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string_view>
+#include <span>
 #include "x86.h"
 
 import pe;
@@ -9,6 +10,8 @@ import crt;
 import x86;
 
 using namespace std;
+
+using pte_span = span<HARDWARE_PTE, PAGE_SIZE / sizeof(HARDWARE_PTE)>;
 
 struct vbe_mode_info {
     uint16_t mode_number;
@@ -215,45 +218,45 @@ static uint64_t get_page(enum mem_type type = mem_type::bootloader) {
 static void map_page(pte_span pt3, uint64_t phys, uint64_t virt) {
     auto& pt3_ent = pt3[(virt >> 39) & 0x1ff];
 
-    if (!pt3_ent.Valid) {
-        pt3_ent.Valid = 1;
-        pt3_ent.Write = 1;
-        pt3_ent.PageFrameNumber = get_page(mem_type::paging_table) >> PAGE_SHIFT;
+    if (!pt3_ent.p) {
+        pt3_ent.p = 1;
+        pt3_ent.w = 1;
+        pt3_ent.pfn = get_page(mem_type::paging_table) >> PAGE_SHIFT;
 
-        memset((void*)(uintptr_t)(pt3_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
+        memset((void*)(uintptr_t)(pt3_ent.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
     }
 
-    pte_span pt2((HARDWARE_PTE_PAE*)(uintptr_t)(pt3_ent.PageFrameNumber << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
+    pte_span pt2((HARDWARE_PTE*)(uintptr_t)(pt3_ent.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE));
 
     auto& pt2_ent = pt2[(virt >> 30) & 0x1ff];
 
-    if (!pt2_ent.Valid) {
-        pt2_ent.Valid = 1;
-        pt2_ent.Write = 1;
-        pt2_ent.PageFrameNumber = get_page(mem_type::paging_table) >> PAGE_SHIFT;
+    if (!pt2_ent.p) {
+        pt2_ent.p = 1;
+        pt2_ent.w = 1;
+        pt2_ent.pfn = get_page(mem_type::paging_table) >> PAGE_SHIFT;
 
-        memset((void*)(uintptr_t)(pt2_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
+        memset((void*)(uintptr_t)(pt2_ent.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
     }
 
-    pte_span pt1((HARDWARE_PTE_PAE*)(uintptr_t)(pt2_ent.PageFrameNumber << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
+    pte_span pt1((HARDWARE_PTE*)(uintptr_t)(pt2_ent.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE));
 
     auto& pt1_ent = pt1[(virt >> 21) & 0x1ff];
 
-    if (!pt1_ent.Valid) {
-        pt1_ent.Valid = 1;
-        pt1_ent.Write = 1;
-        pt1_ent.PageFrameNumber = get_page(mem_type::paging_table) >> PAGE_SHIFT;
+    if (!pt1_ent.p) {
+        pt1_ent.p = 1;
+        pt1_ent.w = 1;
+        pt1_ent.pfn = get_page(mem_type::paging_table) >> PAGE_SHIFT;
 
-        memset((void*)(uintptr_t)(pt1_ent.PageFrameNumber << PAGE_SHIFT), 0, PAGE_SIZE);
+        memset((void*)(uintptr_t)(pt1_ent.pfn << PAGE_SHIFT), 0, PAGE_SIZE);
     }
 
-    pte_span pt0((HARDWARE_PTE_PAE*)(uintptr_t)(pt1_ent.PageFrameNumber << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
+    pte_span pt0((HARDWARE_PTE*)(uintptr_t)(pt1_ent.pfn << PAGE_SHIFT), PAGE_SIZE / sizeof(HARDWARE_PTE));
 
     auto &pt0_ent = pt0[(virt >> 12) & 0x1ff];
 
-    pt0_ent.Valid = 1;
-    pt0_ent.Write = 1;
-    pt0_ent.PageFrameNumber = phys >> PAGE_SHIFT;
+    pt0_ent.p = 1;
+    pt0_ent.w = 1;
+    pt0_ent.pfn = phys >> PAGE_SHIFT;
 }
 
 static void map_acpi_table(pte_span pd, const ACPISDTHeader& rsdt) {
@@ -370,7 +373,7 @@ static void inline __writemsr(uint32_t r, uint64_t v) {
 }
 
 static void enable_paging() {
-    pte_span pd((HARDWARE_PTE_PAE*)(uintptr_t)get_page(mem_type::paging_table), PAGE_SIZE / sizeof(HARDWARE_PTE_PAE));
+    pte_span pd((HARDWARE_PTE*)(uintptr_t)get_page(mem_type::paging_table), PAGE_SIZE / sizeof(HARDWARE_PTE));
 
     memset(pd.data(), 0, pd.size_bytes());
 
@@ -401,9 +404,9 @@ static void enable_paging() {
     if (rsdt_address != 0)
         map_acpi(pd);
 
-    pd[(SELFMAP & 0xff8000000000) >> 39].PageFrameNumber = (uintptr_t)pd.data() >> PAGE_SHIFT;
-    pd[(SELFMAP & 0xff8000000000) >> 39].Valid = 1;
-    pd[(SELFMAP & 0xff8000000000) >> 39].Write = 1;
+    pd[(SELFMAP & 0xff8000000000) >> 39].pfn = (uintptr_t)pd.data() >> PAGE_SHIFT;
+    pd[(SELFMAP & 0xff8000000000) >> 39].p = 1;
+    pd[(SELFMAP & 0xff8000000000) >> 39].w = 1;
 
     // enable PAE, and set OXFSXR and OSXMMEXCPT bits on cr4
     __writecr4(__readcr4() | CR4_PAE | CR4_OSFXSR | CR4_OSXMMEXCPT);
