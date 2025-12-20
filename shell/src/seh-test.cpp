@@ -9,7 +9,7 @@ enum EXCEPTION_DISPOSITION handler2(EXCEPTION_RECORD* rec, void* /*frame*/,
 #ifdef __aarch64__
     print("rec->ExceptionCode = {:x}, context->Pc = {:x}\n",
           rec->ExceptionCode, context->Pc);
-#else
+#elifdef __x86_64__
     print("rec->ExceptionCode = {:x}, context->Rip = {:x}\n",
           rec->ExceptionCode, context->Rip);
 #endif
