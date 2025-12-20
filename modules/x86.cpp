@@ -8,6 +8,11 @@ export const uint64_t SELFMAP_PDT = 0xfffff6fb40000000;
 export const uint64_t SELFMAP_PDPT = 0xfffff6fb7da00000;
 export const uint64_t SELFMAP_PML4 = 0xfffff6fb7dbed000;
 
+export const uint32_t EFER_MSR = 0xc0000080;
+export const uint64_t EFER_SCE = 1 << 0;
+export const uint64_t EFER_LME = 1 << 8;
+export const uint64_t EFER_NX = 1 << 11;
+
 export struct HARDWARE_PTE {
     uint64_t p : 1;
     uint64_t w : 1;

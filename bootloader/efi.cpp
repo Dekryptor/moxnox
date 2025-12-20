@@ -1617,7 +1617,7 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
     __writecr4(__readcr4() | 0x600);
 
     // enable NX bit and System Call Extensions
-    __writemsr(0xc0000080, __readmsr(0xc0000080) | 0x801);
+    __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_NX | EFER_SCE);
 
     // set stack and jump to entry point
     __asm__ __volatile__ (
