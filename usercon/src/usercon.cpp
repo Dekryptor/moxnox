@@ -1165,7 +1165,7 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
 
 #ifdef __aarch64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
-#else
+#elifdef __x86_64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
 #endif
 
@@ -1341,7 +1341,7 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
 #ifdef __aarch64__
     context.Pc = (uintptr_t)sii.TransferAddress;
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
-#else
+#elifdef __x86_64__
     context.Rip = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20; // 0x20 bytes for MS ABI
     context.EFlags = 0x200;
@@ -1635,7 +1635,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
     } while (true);
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static int try_text_console() {
     text_console = init_text_console();
     if (text_console.empty()) {
@@ -1653,15 +1653,15 @@ static int do_console() {
     bool no_framebuffer = false;
 
     framebuffer = init_framebuffer(no_framebuffer);
-#ifdef __aarch64__
-    if (framebuffer.empty()) {
+#ifdef __x86_64__
+    if (no_framebuffer)
+        return try_text_console();
+    else if (framebuffer.empty()) {
         print("init_framebuffer failed\n");
         return 1;
     }
 #else
-    if (no_framebuffer)
-        return try_text_console();
-    else if (framebuffer.empty()) {
+    if (framebuffer.empty()) {
         print("init_framebuffer failed\n");
         return 1;
     }
