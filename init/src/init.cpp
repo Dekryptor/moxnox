@@ -273,7 +273,7 @@ static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh
 #ifdef __aarch64__
     context.Pc = (uintptr_t)sii.TransferAddress;
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
-#else
+#elifdef __x86_64__
     context.Rip = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20; // 0x20 for MS ABI
     context.EFlags = 0x200;
@@ -386,7 +386,7 @@ static void create_thread(void(*func)()) {
 #ifdef __aarch64__
     context.Pc = (uintptr_t)func;
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
-#else
+#elifdef __x86_64__
     context.Rip = (uintptr_t)func;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20; // 0x20 bytes for MS ABI
     context.EFlags = 0x200;
@@ -406,7 +406,7 @@ static void create_thread(void(*func)()) {
     NtClose(h);
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 #define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
 #else
 #define FORCE_ALIGN_ARG_POINTER
