@@ -80,7 +80,7 @@ static span<const uint8_t> find_pdata(void* img_addr) {
     return span<const uint8_t>();
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t rip) {
     rip -= (uintptr_t)img_addr;
 
@@ -1052,7 +1052,7 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
     return true;
 }
 
-#else
+#elifdef __x86_64__
 
 export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
                            uint32_t* handler_addr = nullptr) {
