@@ -9,7 +9,7 @@
 
 #ifdef __aarch64__
 import psci;
-#else
+#elifdef __x86_64__
 import serial;
 #endif
 
@@ -52,7 +52,7 @@ extern uint64_t __CTOR_LIST__;
 
 static char cmdline_arr[255];
 static loader_block_framebuffer lb_fb;
-#ifndef __aarch64__
+#ifdef __x86_64__
 static loader_block_text_console lb_tc;
 #endif
 
@@ -208,7 +208,7 @@ void main_thread(void* ctx) {
 #ifdef __aarch64__
     if (!init_console(lb_fb))
         bsod("init_console failed\n");
-#else
+#elifdef __x86_64__
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
 #endif
@@ -232,7 +232,7 @@ void main_thread(void* ctx) {
     if (!init_keyboard_pipe())
         print("init_keyboard_pipe failed\n");
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     // if no ACPI, look for serial port at its traditional address
     if (rsdp_pa == 0)
         init_serial(0x3f8, 4, "");
@@ -246,7 +246,7 @@ void main_thread(void* ctx) {
 
     init_pci(false);
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     init_syscalls();
 #endif
 
@@ -298,7 +298,7 @@ void startup(loader_block* lb) {
 
     // FIXME - should restart if anything fails before we can show error message
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     if (lb->text_mode)
         memcpy(&lb_tc, &lb->text_console, sizeof(lb_tc));
     else
@@ -316,7 +316,7 @@ void startup(loader_block* lb) {
         cmdline = string_view(cmdline_arr, len);
     }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     if (lb->edid)
         copy_edid(lb);
 
@@ -354,7 +354,7 @@ void startup(loader_block* lb) {
 #ifdef __aarch64__
     if (!init_cpu_block(0))
         goto hang;
-#else
+#elifdef __x86_64__
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
 #endif
@@ -364,7 +364,7 @@ void startup(loader_block* lb) {
     if (!init_interrupts())
         goto hang;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     if (!init_apic())
         goto hang;
 #endif
@@ -392,7 +392,7 @@ void startup(loader_block* lb) {
         :
         : "i" (offsetof(cpu_block, scheduler_stack))
     );
-#else
+#elifdef __x86_64__
     __asm __volatile ( // doesn't return
         "mov rsp, gs:%0\n"
         "jmp scheduler\n"
