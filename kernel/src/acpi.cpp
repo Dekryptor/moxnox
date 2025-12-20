@@ -9,7 +9,7 @@ module;
 
 export module acpi;
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 import inout;
 #endif
 
@@ -838,7 +838,7 @@ static uint32_t power_button_pressed(void*) {
     return 0;
 }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
 static void call_pic_func() {
     ACPI_OBJECT param;
     ACPI_OBJECT_LIST params;
@@ -887,7 +887,7 @@ export void init_acpi() {
         return;
     }
 
-#ifndef __aarch64__
+#ifdef __x86_64__
     call_pic_func();
 #endif
 }
@@ -1734,12 +1734,7 @@ void AcpiOsStall(UINT32 /*Microseconds*/) {
     print("FIXME - AcpiOsStall\n");
 }
 
-#ifdef __aarch64__
-extern "C"
-ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS, UINT32*, UINT32) {
-    return AE_NOT_IMPLEMENTED;
-}
-#else
+#ifdef __x86_64__
 extern "C"
 ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32* Value, UINT32 Width) {
     if (Width == 32)
@@ -1753,14 +1748,14 @@ ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32* Value, UINT32 Width)
 
     return AE_OK;
 }
-#endif
-
-#ifdef __aarch64__
+#else
 extern "C"
-ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS, UINT32, UINT32) {
+ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS, UINT32*, UINT32) {
     return AE_NOT_IMPLEMENTED;
 }
-#else
+#endif
+
+#ifdef __x86_64__
 extern "C"
 ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width) {
     if (Width == 32)
@@ -1773,6 +1768,11 @@ ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width)
         return AE_BAD_PARAMETER;
 
     return AE_OK;
+}
+#else
+extern "C"
+ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS, UINT32, UINT32) {
+    return AE_NOT_IMPLEMENTED;
 }
 #endif
 
