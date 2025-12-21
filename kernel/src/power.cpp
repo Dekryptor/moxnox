@@ -1,6 +1,7 @@
 module;
 
 #include <string_view>
+#include <atomic>
 #include "acpica.h"
 #include "ints.h"
 
@@ -16,7 +17,10 @@ import smp;
 import efi;
 import loaderblock;
 
-#ifdef __x86_64__
+#ifdef __aarch64__
+import aarch64;
+import cpu_block;
+#elifdef __x86_64__
 import apic;
 #endif
 
@@ -60,10 +64,39 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
 
     disable_interrupts();
 
-#ifdef __aarch64__
-    // FIXME
-#elifdef __x86_64__
     if (num_cpus > 1) {
+#ifdef __aarch64__
+        auto& cb = *get_cpu_block();
+
+        processors_left_to_halt = num_cpus - 1;
+
+        if (cb.gicc) { // GICv2
+            auto& GICD_SGIR = *(volatile uint32_t*)(gicd + 0xf00);
+            ARM64_GICD_SGIR sgir;
+
+            sgir.value = 0;
+            sgir.TargetListFilter = 1; // send IPI to everybody else
+            sgir.SGIINTID = HALT_SGI;
+
+            GICD_SGIR = sgir.value;
+        } else {
+            ARM64_ICC_SGI1R sgir;
+
+            sgir.value = 0;
+            sgir.IRM = 1;
+            sgir.INTID = HALT_SGI;
+
+            __asm __volatile (
+                "msr icc_sgi1r_el1, %x[res]"
+                :
+                : [res] "r" (sgir.value)
+            );
+        }
+
+        while (processors_left_to_halt.load(memory_order_acquire) > 0) {
+            __asm("yield");
+        }
+#elifdef __x86_64__
         processors_left_to_halt = num_cpus - 1;
 
         // send IPI to other cores to stop them
@@ -73,8 +106,8 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
         *icr1 = 0xc0000 | halt_interrupt;
 
         while (processors_left_to_halt > 0) { }
-    }
 #endif
+    }
 
     disable_preempt();
 
