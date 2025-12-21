@@ -11,6 +11,8 @@ include_directories(include)
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
+enable_language(ASM)
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     set(GENERAL_CFLAGS -gdwarf-5 $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++> -march=armv8.1-a)
     set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-rtti -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
@@ -92,7 +94,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64") # FIXME - should actually be i
     target_compile_options(loaderblock_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti)
     target_link_libraries(loaderblock_32bit format_32bit)
 
-    add_library(crt_kernel STATIC)
+    add_library(crt_kernel STATIC modules/crt.S)
     target_sources(crt_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/crt.cpp)
     target_compile_options(crt_kernel PRIVATE ${KERNEL_CFLAGS})
 
@@ -193,6 +195,10 @@ target_compile_options(kernelbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS
 add_library(crt STATIC)
 target_sources(crt PUBLIC FILE_SET CXX_MODULES FILES modules/crt.cpp)
 target_compile_options(crt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    target_sources(crt PUBLIC modules/crt.S)
+endif()
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)

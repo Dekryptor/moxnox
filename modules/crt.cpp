@@ -391,6 +391,9 @@ unsigned long strtoul(const char* nptr, char** endptr, int base) {
     return strto<unsigned long>(nptr, endptr, base);
 }
 
+#ifdef __x86_64__
+export extern "C" void* memcpy(void* dest, const void* src, size_t n);
+#else
 export
 extern "C"
 void* memcpy(void* dest, const void* src, size_t n) {
@@ -418,3 +421,4 @@ void* memcpy(void* dest, const void* src, size_t n) {
 
     return orig_dest;
 }
+#endif
