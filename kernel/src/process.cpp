@@ -2577,7 +2577,44 @@ object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
     }
 }
 
-#ifdef __x86_64__
+#ifdef __aarch64__
+static uint32_t get_page_protection(process& proc, uint64_t va) {
+    span<ARM64_HARDWARE_PTE> pt[4];
+    uint16_t index[4];
+
+    index[0] = (va & 0x1ff000) >> 12;
+    index[1] = (va & 0x3fe00000) >> 21;
+    index[2] = (va & 0x7fc0000000) >> 30;
+    index[3] = (va & 0xff8000000000) >> 39;
+
+    pt[3] = span((ARM64_HARDWARE_PTE*)phys_address(proc.ttbr0), 512);
+
+    for (uint8_t level = 3; level > 0; level--) {
+        if (!pt[level][index[level]].valid)
+            return PAGE_NOACCESS;
+
+        pt[level - 1] = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
+    }
+
+    auto& pte = pt[0][index[0]];
+
+    if (pte.UXN) {
+        if (pte.cow)
+            return PAGE_WRITECOPY;
+        else if (pte.allow_write)
+            return PAGE_READWRITE;
+        else
+            return PAGE_READONLY;
+    } else {
+        if (pte.cow)
+            return PAGE_EXECUTE_WRITECOPY;
+        else if (pte.allow_write)
+            return PAGE_EXECUTE_READWRITE;
+        else
+            return PAGE_EXECUTE_READ;
+    }
+}
+#elifdef __x86_64__
 static uint32_t get_page_protection(process& proc, uint64_t va) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
@@ -2643,12 +2680,8 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
 
             auto num_pages = min(pages, (uint32_t)((m->address + m->size - addr) >> PAGE_SHIFT));
 
-#ifdef __aarch64__
-            // FIXME
-#elifdef __x86_64__
             if (first)
                 old_type = get_page_protection(proc, addr);
-#endif
 
             if (m->sect.type != section_type::image) {
                 if (prot == mapping_type::read_write_execute ||
