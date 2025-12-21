@@ -607,7 +607,43 @@ process::process() : sync_object(object_type::process, false) {
     initialized = true;
 }
 
-#ifdef __x86_64__
+#ifdef __aarch64__
+static void free_page_tables(process& proc) {
+    if (proc.ttbr0 == 0)
+        return;
+
+    // FIXME - handle huge and gigantic pages
+
+    auto ps1 = span((ARM64_HARDWARE_PTE*)phys_address(proc.ttbr0), 512);
+
+    for (auto& p1 : ps1) {
+        if (!p1.valid)
+            continue;
+
+        auto ps2 = span((ARM64_HARDWARE_PTE*)phys_address(p1.pfn << PAGE_SHIFT), 512);
+
+        for (auto& p2 : ps2) {
+            if (!p2.valid)
+                continue;
+
+            auto ps3 = span((ARM64_HARDWARE_PTE*)phys_address(p2.pfn << PAGE_SHIFT), 512);
+
+            for (auto& p3 : ps3) {
+                if (!p3.valid)
+                    continue;
+
+                free_folio(p3.pfn << PAGE_SHIFT);
+            }
+
+            free_folio(p2.pfn << PAGE_SHIFT);
+        }
+
+        free_folio(p1.pfn << PAGE_SHIFT);
+    }
+
+    free_folio(proc.ttbr0);
+}
+#elifdef __x86_64__
 static void free_page_tables(process& proc) {
     if (proc.cr3 == 0)
         return;
@@ -673,9 +709,7 @@ process::~process() {
     if (img)
         img->get().release();
 
-#ifndef __aarch64__ // FIXME
     free_page_tables(*this);
-#endif
 }
 
 #ifdef __aarch64__
