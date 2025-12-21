@@ -55,8 +55,17 @@ void rangelock_req::lock() {
         bsod("calling rangelock_req::lock with interrupts disabled");
 
 #ifdef __aarch64__
-    // FIXME
-#else
+    {
+        disable_interrupts();
+
+        auto current_priority = get_interrupt_priority();
+
+        enable_interrupts();
+
+        if ((current_priority & 0xf0) != 0xf0)
+            bsod_format("calling rangelock_req::lock with GICC_PMR of {:x}\n", current_priority);
+    }
+#elifdef __x86_64__
     uint64_t cr8 = 0;
 
     __asm __volatile(

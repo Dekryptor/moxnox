@@ -88,3 +88,22 @@ export bool interrupts_disabled() {
     return !(rflags & 0x200); // IF flag not set
 #endif
 }
+
+#ifdef __aarch64__
+export uint32_t get_interrupt_priority() {
+    if (gic_ver == 2) {
+        auto& cb = *get_cpu_block();
+
+        return *(volatile uint32_t*)(cb.gicc + 0x4);
+    } else {
+        uint64_t val;
+
+        __asm __volatile (
+            "mrs %x[val], ICC_PMR_EL1\n"
+            : [val] "=r" (val)
+        );
+
+        return (uint32_t)val;
+    }
+}
+#endif
