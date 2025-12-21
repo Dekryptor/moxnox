@@ -1218,7 +1218,7 @@ static void send_tlb_ipi(uint8_t cpu_no) {
     while (*icr1 & (1 << 12)) { } // wait to clear
 }
 
-static void send_page_tlb_ipi(process& proc, uint64_t va) {
+static void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
     auto cpus = proc.running_cpus.load();
 
     if (cpus == 0)
@@ -1230,7 +1230,7 @@ static void send_page_tlb_ipi(process& proc, uint64_t va) {
         disable_preempt();
 
         tlb_va = va;
-        tlb_num_pages = 1;
+        tlb_num_pages = num_pages;
 
         tlb_cpus_left = 1;
 
@@ -1370,7 +1370,7 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
 
 #ifndef __aarch64__ // FIXME
     if (send_ipi)
-        send_page_tlb_ipi(p, address);
+        send_page_tlb_ipi(p, address, 1);
 #endif
 
     return true;
@@ -2503,7 +2503,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
 #ifndef __aarch64__
                 if (send_ipi) // FIXME
-                    send_page_tlb_ipi(proc, address);
+                    send_page_tlb_ipi(proc, address, 1);
 #endif
 
                 cache.unpin(sect_page_num, 1);
@@ -3727,37 +3727,9 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
 #endif
     }
 
-#ifndef __aarch64__ // FIXME
     // send IPIs to invalidate TLBs on other processors
-
-    auto cpus = proc.running_cpus.load();
-
-    if (cpus == 0)
-        return;
-
-    {
-        lock_guard lock(ipi_lock);
-
-        disable_preempt();
-
-        tlb_va = va;
-        tlb_num_pages = num_pages;
-
-        tlb_cpus_left = 1;
-
-        for (uint8_t i = 0; i < num_cpus; i++) {
-            if (!(cpus & 1 << i))
-                continue;
-
-            send_tlb_ipi(i);
-        }
-
-        tlb_cpus_left--;
-
-        while (tlb_cpus_left > 0) { }
-
-        enable_preempt();
-    }
+#ifndef __aarch64__ // FIXME
+    send_page_tlb_ipi(proc, va, num_pages);
 #endif
 }
 
