@@ -2090,7 +2090,7 @@ inline __attribute((always_inline)) uint64_t allocate_va_no_lock(uint32_t num_pa
             if (run_length == 0)
                 run_start = i * 64;
 
-            run_length += countl_one(mb[i]);
+            run_length += (uint64_t)countl_one(mb[i]);
 
             if (run_length >= num_pages) {
                 mark_vamem_as_used(run_start, num_pages);
@@ -2134,7 +2134,7 @@ inline __attribute((always_inline)) uint64_t allocate_va_no_lock(uint32_t num_pa
         if (val == 0xffffffffffffffff)
             continue;
 
-        auto t1 = countr_one(val);
+        auto t1 = (uint64_t)countr_one(val);
         run_length = t1;
         run_start = ((i + 1) * 64) - t1;
     }
