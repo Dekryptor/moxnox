@@ -13,7 +13,7 @@ add_library(moxnox STATIC IMPORTED GLOBAL)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(ARCH arm64)
-else()
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     set(ARCH "i386:x86-64")
 endif()
 

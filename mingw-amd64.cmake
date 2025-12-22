@@ -4,6 +4,7 @@
 #
 # the name of the target operating system
 SET(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR amd64)
 
 # which compilers to use for C and C++
 SET(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc)

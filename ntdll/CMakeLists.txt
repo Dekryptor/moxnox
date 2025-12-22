@@ -16,7 +16,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     list(APPEND SRC_FILES
         src/syscalls-aarch64.S
         src/continue-aarch64.S)
-else()
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     list(APPEND SRC_FILES
         src/syscalls-x86.S
         src/continue-x86.S)
