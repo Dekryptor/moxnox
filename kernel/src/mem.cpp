@@ -2463,7 +2463,7 @@ void ::allocator<N, P, S>::free(void* ptr) {
 }
 
 static constexpr uint8_t pages_to_max_folio_order(size_t p) {
-    return min((uint8_t)((8 * sizeof(p)) - countl_zero(p) - 1), MAX_FOLIO_ORDER);
+    return min((uint8_t)((8 * sizeof(p)) - (uint8_t)countl_zero(p) - 1), MAX_FOLIO_ORDER);
 }
 
 template<bool no_lock = false>
