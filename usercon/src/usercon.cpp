@@ -2011,8 +2011,13 @@ static void call_global_constructors() {
     }
 }
 
-extern "C"
-__attribute__((force_align_arg_pointer)) void startup() {
+#ifdef __x86_64__
+#define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
+#else
+#define FORCE_ALIGN_ARG_POINTER
+#endif
+
+extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     call_global_constructors();
 
     NtTerminateThread(NtCurrentThread(), (NTSTATUS)_main());

@@ -9,8 +9,13 @@ import ntdll;
 import shelllib;
 import unicode;
 
-extern "C"
-__attribute__((force_align_arg_pointer)) void startup() {
+#ifdef __x86_64__
+#define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
+#else
+#define FORCE_ALIGN_ARG_POINTER
+#endif
+
+extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     const auto& teb = *NtCurrentTeb();
     const auto& peb = *teb.ProcessEnvironmentBlock;
     const auto& params = *peb.ProcessParameters;
