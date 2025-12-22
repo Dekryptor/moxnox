@@ -4,22 +4,6 @@
 
 .equ PAGE_SIZE, 0x1000
 
-.bss
-
-.global tlb_va
-tlb_va:
-.space 8
-
-.global tlb_num_pages
-tlb_num_pages:
-.space 8
-
-.global tlb_cpus_left
-tlb_cpus_left:
-.space 4
-
-.text
-
 .global invalidate_tlb_isr
 invalidate_tlb_isr:
     push rax

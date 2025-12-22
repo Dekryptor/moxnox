@@ -57,9 +57,10 @@ struct handle_obj {
 
 static rwsem ipi_lock;
 
-// tlb.S
-extern "C" uint64_t tlb_va, tlb_num_pages;
-extern "C" atomic<uint32_t> tlb_cpus_left;
+extern "C++" {
+    uint64_t tlb_va, tlb_num_pages;
+    atomic<uint32_t> tlb_cpus_left;
+}
 
 static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
