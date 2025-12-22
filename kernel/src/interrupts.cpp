@@ -531,7 +531,7 @@ export bool add_irq_handler(uint32_t number, bool level, irq_func_type func,
 
 #endif
 
-export void remove_irq_handler(uint32_t number, irq_func_type func, void* ctx) {
+export void remove_irq_handler(uint32_t /*number*/, irq_func_type /*func*/, void* /*ctx*/) {
     // FIXME
 }
 
