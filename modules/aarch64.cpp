@@ -344,6 +344,25 @@ export union ARM64_CCSIDR_EL1 {
     uint64_t value;
 } __attribute((packed));
 
+static_assert(sizeof(ARM64_CCSIDR_EL1) == 8);
+
+export union ARM64_MPIDR {
+    struct {
+        uint64_t Aff0 : 8;
+        uint64_t Aff1 : 8;
+        uint64_t Aff2 : 8;
+        uint64_t MT : 1;
+        uint64_t : 5;
+        uint64_t U : 1;
+        uint64_t : 1;
+        uint64_t Aff3 : 8;
+        uint64_t : 24;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_MPIDR) == 8);
+
 export template<>
 consteval bool format_spec_valid<ARM64_SCTLR_EL1>(string_view fmt) {
     return fmt.empty();

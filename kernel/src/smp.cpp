@@ -244,6 +244,7 @@ static void __attribute__((noreturn)) ap_startup() {
         GICR_IGROUPR0 = 0xffffffff;
 
         enable_irq(HALT_SGI);
+        enable_irq(TLB_SGI);
 
         // enable group 1 interrupts
         __asm __volatile (

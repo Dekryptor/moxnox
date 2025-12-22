@@ -40,6 +40,7 @@ using namespace std;
 #ifdef __aarch64__
 
 export const uint8_t HALT_SGI = 0;
+export const uint8_t TLB_SGI = 1;
 
 static const unsigned int MSI_TYPER = 0x08;
 static const unsigned int MSI_SETSPI_NS = 0x40;
@@ -98,6 +99,11 @@ struct isr_func_info {
 static isr_func_info isr_funcs[0x20];
 
 #endif
+
+export extern "C++" {
+    uint64_t tlb_va, tlb_num_pages;
+    atomic<uint32_t> tlb_cpus_left;
+}
 
 export uintptr_t mn_signal;
 
@@ -1126,6 +1132,7 @@ static bool init_interrupts_global() {
         );
 
         enable_irq(HALT_SGI);
+        enable_irq(TLB_SGI);
     } else { // gic_ver == 2
         if (!nomsi) {
             auto msi_frame_pa = find_msi_frame_address();
@@ -1999,31 +2006,57 @@ export void __attribute__((noreturn)) halt_isr() {
     }
 }
 
+static void tlb_isr() {
+    for (unsigned int i = 0; i < tlb_num_pages; i++) {
+        __asm __volatile (
+            "tlbi vae1, %x[res]\n"
+            :
+            : [res] "r" ((tlb_va >> PAGE_SHIFT) + i)
+        );
+    }
+
+    __asm __volatile (
+        "dsb ish\n"
+        "isb\n"
+    );
+
+    tlb_cpus_left--;
+}
+
 extern "C"
 void handle_irq(uint32_t number) {
     ARM64_GICC_IAR iar;
 
     iar.value = number;
 
-    if (iar.InterruptID == HALT_SGI)
-        halt_isr();
+    switch (iar.InterruptID) {
+        case HALT_SGI:
+            halt_isr();
+            break;
 
-    {
-        lock_guard lock(irq_lock);
+        case TLB_SGI:
+            tlb_isr();
+            break;
 
-        for (auto le = irqs.next; le != &irqs; le = le->next) {
-            auto& i = containing_record<irq>(le);
+        default: {
+            lock_guard lock(irq_lock);
 
-            if (i.number != iar.InterruptID)
-                continue;
+            for (auto le = irqs.next; le != &irqs; le = le->next) {
+                auto& i = containing_record<irq>(le);
 
-            // FIXME - use refcounting so we can let go of irq_lock here(?)
+                if (i.number != iar.InterruptID)
+                    continue;
 
-            for (auto le2 = i.handlers.next; le2 != &i.handlers; le2 = le2->next) {
-                auto& h = containing_record<irq_handler_info>(le2);
+                // FIXME - use refcounting so we can let go of irq_lock here(?)
 
-                if (h.func(h.ctx))
-                    break;
+                for (auto le2 = i.handlers.next; le2 != &i.handlers; le2 = le2->next) {
+                    auto& h = containing_record<irq_handler_info>(le2);
+
+                    if (h.func(h.ctx))
+                        break;
+                }
+
+                break;
             }
 
             break;

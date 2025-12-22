@@ -57,11 +57,6 @@ struct handle_obj {
 
 static rwsem ipi_lock;
 
-extern "C++" {
-    uint64_t tlb_va, tlb_num_pages;
-    atomic<uint32_t> tlb_cpus_left;
-}
-
 static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
 extern "C++" {
@@ -1218,6 +1213,46 @@ static void send_tlb_ipi(uint8_t cpu_no) {
 
     while (*icr1 & (1 << 12)) { } // wait to clear
 }
+#elifdef __aarch64__
+static void send_tlb_ipi(uint8_t cpu_no) {
+    auto& cb = *get_cpu_block();
+
+    // FIXME - sending to multiple CPUs at once?
+
+    tlb_cpus_left++;
+
+    if (cb.gicc) { // GICv2
+        auto& GICD_SGIR = *(volatile uint32_t*)(gicd + 0xf00);
+        ARM64_GICD_SGIR sgir;
+
+        sgir.value = 0;
+        sgir.TargetListFilter = 0; // send IPI to specified CPU
+        sgir.CPUTargetList = 1 << cpu_ids[cpu_no];
+        sgir.SGIINTID = TLB_SGI;
+
+        GICD_SGIR = sgir.value;
+    } else {
+        ARM64_ICC_SGI1R sgir;
+        ARM64_MPIDR mpidr;
+
+        mpidr.value = cpu_ids[cpu_no];
+
+        sgir.value = 0;
+        sgir.IRM = 0; // only specified CPU
+        sgir.INTID = TLB_SGI;
+        sgir.Aff3 = mpidr.Aff3;
+        sgir.Aff2 = mpidr.Aff2;
+        sgir.Aff1 = mpidr.Aff1;
+        sgir.TargetList = 1 << mpidr.Aff0;
+
+        __asm __volatile (
+            "msr icc_sgi1r_el1, %x[res]"
+            :
+            : [res] "r" (sgir.value)
+        );
+    }
+}
+#endif
 
 static void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
     auto cpus = proc.running_cpus.load();
@@ -1230,12 +1265,17 @@ static void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
 
         disable_preempt();
 
+        auto& cb = *get_cpu_block();
+
         tlb_va = va;
         tlb_num_pages = num_pages;
 
         tlb_cpus_left = 1;
 
         for (uint8_t i = 0; i < num_cpus; i++) {
+            if (i == cb.cpu_no)
+                continue;
+
             if (!(cpus & 1 << i))
                 continue;
 
@@ -1244,12 +1284,15 @@ static void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
 
         tlb_cpus_left--;
 
-        while (tlb_cpus_left > 0) { }
+        while (tlb_cpus_left.load(memory_order_acquire) > 0) {
+#ifdef __aarch64__
+            __asm("yield");
+#endif
+        }
 
         enable_preempt();
     }
 }
-#endif
 
 static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
     rangelock_req rlr(p.rl, address >> PAGE_SHIFT, 1);
@@ -1367,12 +1410,12 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
     );
 #elifdef __x86_64__
     pte.w = 1;
+
+    // FIXME - invlpg
 #endif
 
-#ifndef __aarch64__ // FIXME
     if (send_ipi)
         send_page_tlb_ipi(p, address, 1);
-#endif
 
     return true;
 }
@@ -2502,10 +2545,8 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 pte.p = 1;
 #endif
 
-#ifndef __aarch64__
-                if (send_ipi) // FIXME
+                if (send_ipi)
                     send_page_tlb_ipi(proc, address, 1);
-#endif
 
                 cache.unpin(sect_page_num, 1);
 
@@ -3729,9 +3770,7 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     }
 
     // send IPIs to invalidate TLBs on other processors
-#ifndef __aarch64__ // FIXME
     send_page_tlb_ipi(proc, va, num_pages);
-#endif
 }
 
 extern "C++"
