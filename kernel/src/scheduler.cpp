@@ -463,7 +463,7 @@ export uintptr_t init_cpu_block(unsigned int cpu_no) {
         }
     }
 
-    memset(&cb, 0, sizeof(cb));
+    memset((void*)&cb, 0, sizeof(cb)); // avoid GCC warning
 
     new (&cb) cpu_block;
 
