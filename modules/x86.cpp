@@ -10,7 +10,7 @@ export const uint64_t SELFMAP_PML4 = 0xfffff6fb7dbed000;
 
 export const uint64_t CR0_MP = 1 << 1;
 export const uint64_t CR0_WP = 1 << 16;
-export const uint64_t CR0_PG = 1 << 31;
+export const uint64_t CR0_PG = (uint64_t)1 << 31;
 
 export const uint64_t CR4_PAE = 1 << 5;
 export const uint64_t CR4_OSFXSR = 1 << 9;
