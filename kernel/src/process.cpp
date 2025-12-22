@@ -1411,7 +1411,11 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
 #elifdef __x86_64__
     pte.w = 1;
 
-    // FIXME - invlpg
+    __asm __volatile (
+        "invlpg [%0]\n"
+        :
+        : "r" (address)
+    );
 #endif
 
     if (send_ipi)
