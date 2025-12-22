@@ -3770,6 +3770,12 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
         );
 #elifdef __x86_64__
         pte.w = 0;
+
+        __asm __volatile (
+            "invlpg [%0]\n"
+            :
+            : "r" (va + (i << PAGE_SHIFT))
+        );
 #endif
     }
 
