@@ -2469,6 +2469,8 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
             if (!pte.p)
                 pte.p = 1;
 #endif
+
+            // FIXME - invlpg / tlbi here?
         } else {
             uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
             page_cache_entry* p;
@@ -2548,6 +2550,8 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 pte.w = 1;
                 pte.p = 1;
 #endif
+
+                // FIXME - invlpg / tlbi here?
 
                 if (send_ipi)
                     send_page_tlb_ipi(proc, address, 1);
