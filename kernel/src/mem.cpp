@@ -1397,7 +1397,7 @@ export bool init_memory(const loader_block& lb) {
     num_memblock_pages = bytes_to_pages(num_memblock_bytes);
 
     if (use_huge_pages) {
-        static const auto PAGES_PER_HUGE_PAGE = 1 << (HUGE_PAGE_SHIFT - PAGE_SHIFT);
+        static const size_t PAGES_PER_HUGE_PAGE = 1 << (HUGE_PAGE_SHIFT - PAGE_SHIFT);
 
         // round up to next huge page size
         if (num_memblock_pages & (PAGES_PER_HUGE_PAGE - 1)) {
