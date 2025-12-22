@@ -2129,6 +2129,61 @@ static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
         pte.p = 0;
     }
 }
+#elifdef __aarch64__
+static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
+    span<ARM64_HARDWARE_PTE> pt[4];
+    uint16_t index[4];
+
+    index[0] = (va & 0x1ff000) >> 12;
+    index[1] = (va & 0x3fe00000) >> 21;
+    index[2] = (va & 0x7fc0000000) >> 30;
+    index[3] = (va & 0xff8000000000) >> 39;
+
+    pt[3] = span((ARM64_HARDWARE_PTE*)phys_address(proc.ttbr0), 512);
+
+    auto redo_level = [&](uint8_t level) {
+        pt[level - 1] = span((ARM64_HARDWARE_PTE*)phys_address((uint64_t)((pt[level][index[level]].pfn) << PAGE_SHIFT)), 512);
+    };
+
+    for (uint8_t level = 3; level > 0; level--) {
+        redo_level(level);
+    }
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        if (i != 0) {
+            index[0]++;
+
+            if (index[0] == 512) {
+                index[0] = 0;
+                index[1]++;
+
+                if (index[1] == 512) {
+                    index[1] = 0;
+                    index[2]++;
+
+                    if (index[2] == 512) {
+                        index[2] = 0;
+                        index[3]++;
+
+                        redo_level(3);
+                    }
+
+                    redo_level(2);
+                }
+
+                redo_level(1);
+            }
+        }
+
+        auto& pte = pt[0][index[0]];
+
+        // free COWed folios
+        if (pte.valid && pte.AP == ARM64_PTE_AP_EL0RW && pte.cow)
+            free_folio(pte.pfn << PAGE_SHIFT);
+
+        pte.valid = 0;
+    }
+}
 #endif
 
 extern "C++"
@@ -2236,9 +2291,7 @@ mapping::~mapping() {
 
     // FIXME - send IPI to unmap on other CPUs by clearing TLB
 
-#ifndef __aarch64__
     unmap_proc_pages(proc, address, size >> PAGE_SHIFT);
-#endif
 
     visit([&](auto* ptr) {
         auto& cache = *ptr;
