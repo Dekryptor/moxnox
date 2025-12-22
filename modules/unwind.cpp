@@ -397,7 +397,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
 #ifdef __aarch64__
 
-static bool unwind_context_packed(CONTEXT& context, void* img_addr, size_t img_size,
+static bool unwind_context_packed(CONTEXT& context,
                                   const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY& rf) {
     // FIXME - unwinding in prologue or epilogue
 
@@ -483,7 +483,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
     // FIXME - handle case when address in prologue or epilogue
 
     if (rt_func.Flag)
-        return unwind_context_packed(context, img_addr, img_size, rt_func);
+        return unwind_context_packed(context, rt_func);
 
     const auto& xdata = *(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA*)((uintptr_t)img_addr + rt_func.UnwindData);
 
