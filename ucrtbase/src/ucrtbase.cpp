@@ -90,7 +90,7 @@ void abort() {
 }
 
 extern "C" __declspec(dllexport)
-void _assert(const char* str, const char* file, unsigned int line) {
+void _assert(const char* /*str*/, const char* /*file*/, unsigned int /*line*/) {
     // FIXME - print message
     abort();
 }
