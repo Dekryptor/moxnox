@@ -35,11 +35,11 @@ SECTIONS
         *boot.S.obj(.rdata.*)
         *boot.cpp.obj(.rdata.*)
         *mem.S.obj(.rdata.*)
-        *payload.s.obj(.rdata.*)
+        *payload.S.obj(.rdata.*)
         *boot.S.obj(.data.*)
         *boot.cpp.obj(.data.*)
         *mem.S.obj(.data.*)
-        *payload.s.obj(.data.*)
+        *payload.S.obj(.data.*)
     }
 
     . = ALIGN(4096);
@@ -47,7 +47,7 @@ SECTIONS
     .payload : AT(payload) {
         efi_payload = ABSOLUTE(.);
         payload = .;
-        *payload.s.obj(.payload)
+        *payload.S.obj(.payload)
         . = ALIGN(4096);
         efi_payload_size = ABSOLUTE(.) - efi_payload;
     }

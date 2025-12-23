@@ -17,7 +17,7 @@ add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 set(CMAKE_C_LINK_EXECUTABLE "ld <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> <LINK_LIBRARIES> -o <TARGET>") # HACK
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.S.in ${CMAKE_CURRENT_BINARY_DIR}/payload.S)
 
 add_library(efistub SHARED ../efi.cpp)
 
@@ -39,7 +39,7 @@ add_custom_command(
 set(SRC_FILES boot.S
     boot.cpp
     mem.S
-    ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
+    ${CMAKE_CURRENT_BINARY_DIR}/payload.S)
 
 add_executable(boot ${SRC_FILES})
 add_dependencies(boot kernel efistub)
@@ -53,7 +53,7 @@ set(CMAKE_EXE_LINKER_FLAGS "-static") # use binutils rather than llvm for linkin
 # Clang likes to generate .refptr stubs, stop it doing this
 target_compile_options(boot PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-fno-auto-import>)
 
-set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/payload.s PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/kernel/kernel.exe)
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/payload.S PROPERTIES OBJECT_DEPENDS ${CMAKE_BINARY_DIR}/kernel/kernel.exe)
 set_source_files_properties(boot.S PROPERTIES OBJECT_DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj")
 
 set_property(TARGET boot PROPERTY LINKER_LANGUAGE C) # HACK
