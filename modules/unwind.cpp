@@ -412,7 +412,7 @@ static bool unwind_context_packed(CONTEXT& context,
     if (rf.H)
         savsz += 8 * sizeof(uint64_t);
 
-    savsz = (savsz + 0xf) & ~0xf;
+    savsz = (savsz + 0xf) & ~(size_t)0xf;
 
     size_t locsz = (rf.FrameSize * 16) - savsz;
 
@@ -583,7 +583,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                 // alloc_m
 
-                uint16_t x = ((codes[i] & 3) << 8) | codes[i + 1];
+                auto x = (uint16_t)(((codes[i] & 3) << 8) | codes[i + 1]);
 
                 context.Sp += x * 16;
 
@@ -597,7 +597,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                 // save_regp
 
-                uint8_t x = ((codes[i] & 3) << 2) | (codes[i + 1] >> 6);
+                auto x = (uint8_t)(((codes[i] & 3) << 2) | (codes[i + 1] >> 6));
                 uint8_t z = codes[i + 1] & 0x3f;
 
                 if (auto ret = read_uint64_t(context.Sp + (z * 8)); ret.has_value())
@@ -620,7 +620,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                 // save_regp_x
 
-                uint8_t x = ((codes[i] & 3) << 2) | (codes[i + 1] >> 6);
+                auto x = (uint8_t)(((codes[i] & 3) << 2) | (codes[i + 1] >> 6));
                 uint8_t z = codes[i + 1] & 0x3f;
 
                 if (auto ret = read_uint64_t(context.Sp); ret.has_value())
@@ -645,7 +645,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                 // save_reg
 
-                uint8_t x = ((codes[i] & 3) << 2) | (codes[i + 1] >> 6);
+                auto x = (uint8_t)(((codes[i] & 3) << 2) | (codes[i + 1] >> 6));
                 uint8_t z = codes[i + 1] & 0x3f;
 
                 if (auto ret = read_uint64_t(context.Sp + (z * 8)); ret.has_value())
@@ -661,7 +661,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                 if (i == codes.size() - 1)
                     return false;
 
-                uint8_t x = ((codes[i] & 1) << 3) | (codes[i + 1] >> 5);
+                auto x = (uint8_t)(((codes[i] & 1) << 3) | (codes[i + 1] >> 5));
                 uint8_t z = codes[i + 1] & 0x1f;
 
                 // save_reg_x
@@ -683,7 +683,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                 // save_lrpair
 
-                uint8_t x = ((codes[i] & 1) << 2) | (codes[i + 1] >> 6);
+                auto x = (uint8_t)(((codes[i] & 1) << 2) | (codes[i + 1] >> 6));
                 uint8_t z = codes[i + 1] & 0x3f;
 
                 if (auto ret = read_uint64_t(context.Sp + (z * 8)); ret.has_value())
@@ -706,7 +706,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                 // save_fregp
 
-                uint8_t x = ((codes[i] & 1) << 2) | (codes[i + 1] >> 6);
+                auto x = (uint8_t)(((codes[i] & 1) << 2) | (codes[i + 1] >> 6));
                 uint8_t z = codes[i + 1] & 0x3f;
 
                 if (auto ret = read_uint64_t(context.Sp + (z * 8)); ret.has_value())
@@ -729,7 +729,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                 // save_fregp_x
 
-                uint8_t x = ((codes[i] & 1) << 2) | (codes[i + 1] >> 6);
+                auto x = (uint8_t)(((codes[i] & 1) << 2) | (codes[i + 1] >> 6));
                 uint8_t z = codes[i + 1] & 0x3f;
 
                 if (auto ret = read_uint64_t(context.Sp); ret.has_value())
@@ -754,7 +754,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                 // save_freg
 
-                uint8_t x = ((codes[i] & 1) << 2) | (codes[i + 1] >> 6);
+                auto x = (uint8_t)(((codes[i] & 1) << 2) | (codes[i + 1] >> 6));
                 uint8_t z = codes[i + 1] & 0x3f;
 
                 if (auto ret = read_uint64_t(context.Sp + (z * 8)); ret.has_value())
@@ -801,7 +801,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
 
                 // alloc_l
 
-                auto size = (codes[i + 1] << 16) | (codes[i + 2] << 8) | codes[i + 3];
+                auto size = (uint64_t)((codes[i + 1] << 16) | (codes[i + 2] << 8) | codes[i + 3]);
 
                 context.Sp += size * 16;
 
@@ -874,8 +874,8 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                         if (i + next_chain == codes.size() - 1)
                             return false;
 
-                        uint8_t x = ((codes[i + next_chain] & 3) << 2) | (codes[i + next_chain + 1] >> 6);
-                        uint8_t z = (codes[i + next_chain + 1] & 0x3f) + (next_chain * 2);
+                        auto x = (uint8_t)(((codes[i + next_chain] & 3) << 2) | (codes[i + next_chain + 1] >> 6));
+                        auto z = (uint8_t)((codes[i + next_chain + 1] & 0x3f) + (next_chain * 2));
 
                         if ((next_chain * 2) + x >= 11)
                             return false;
@@ -897,7 +897,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                         if (i + next_chain == codes.size() - 1)
                             return false;
 
-                        uint8_t x = ((codes[i + next_chain] & 3) << 2) | (codes[i + next_chain + 1] >> 6);
+                        auto x = (uint8_t)(((codes[i + next_chain] & 3) << 2) | (codes[i + next_chain + 1] >> 6));
                         uint8_t z = codes[i + next_chain + 1] & 0x3f;
 
                         if ((next_chain * 2) + x >= 11)
@@ -922,8 +922,8 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                         if (i + next_chain == codes.size() - 1)
                             return false;
 
-                        uint8_t x = ((codes[i + next_chain] & 1) << 2) | (codes[i + next_chain + 1] >> 6);
-                        uint8_t z = (codes[i + next_chain + 1] & 0x3f) + (next_chain * 2);
+                        auto x = (uint8_t)(((codes[i + next_chain] & 1) << 2) | (codes[i + next_chain + 1] >> 6));
+                        auto z = (uint8_t)((codes[i + next_chain + 1] & 0x3f) + (next_chain * 2));
 
                         if ((next_chain * 2) + x >= 22)
                             return false;
@@ -945,7 +945,7 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
                         if (i + next_chain == codes.size() - 1)
                             return false;
 
-                        uint8_t x = ((codes[i + next_chain] & 1) << 2) | (codes[i + next_chain + 1] >> 6);
+                        auto x = (uint8_t)(((codes[i + next_chain] & 1) << 2) | (codes[i + next_chain + 1] >> 6));
                         uint8_t z = codes[i + next_chain + 1] & 0x3f;
 
                         if ((next_chain * 2) + x >= 22)
