@@ -502,6 +502,9 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 extern "C"
 NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
 #ifdef __aarch64__ // FIXME
+    (void)thread_handle;
+    (void)context;
+
     return nt_status::NOT_IMPLEMENTED;
 #else
     object_ref objrw;
