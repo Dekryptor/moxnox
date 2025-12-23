@@ -24,7 +24,12 @@ set(SRC_FILES src/shell.cpp)
 
 add_executable(shell ${SRC_FILES})
 
-target_compile_options(shell PRIVATE -fno-exceptions -masm=intel ${USERSPACE_CFLAGS})
+target_compile_options(shell PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+    target_compile_options(shell PRIVATE -masm=intel)
+endif()
+
 target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(shell shelllib unicode unique_handle signal cmdline list)
