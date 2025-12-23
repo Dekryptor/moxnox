@@ -34,7 +34,7 @@
 
 #define PROCESS_TTBR0 0x50
 
-#elifdef __x86_64__
+#elif defined(__x86_64__)
 
 #define GS_DISABLE_PREEMPT 0x0
 #define GS_SELF 0x8
