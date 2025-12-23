@@ -549,6 +549,9 @@ NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
 extern "C"
 NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
 #ifdef __aarch64__ // FIXME
+    (void)thread_handle;
+    (void)context;
+
     return nt_status::NOT_IMPLEMENTED;
 #else
     object_ref objrw;
