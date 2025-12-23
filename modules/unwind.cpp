@@ -477,7 +477,7 @@ static bool unwind_context_packed(CONTEXT& context,
     return true;
 }
 
-static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
+static bool unwind_context2(CONTEXT& context, void* img_addr,
                             const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY& rt_func,
                             uint32_t* handler_addr) {
     // FIXME - handle case when address in prologue or epilogue
@@ -1032,13 +1032,13 @@ static const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY* find_runtime_function(void* img
     return nullptr;
 }
 
-export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
+export bool unwind_context(CONTEXT& context, void* img_addr, size_t,
                            uint32_t* handler_addr = nullptr) {
     auto rt_func = find_runtime_function(img_addr, context.Pc);
 
     // rt_func should return nullptr for leaf functions that don't use stack
     if (rt_func) {
-        if (!unwind_context2(context, img_addr, img_size, *rt_func,
+        if (!unwind_context2(context, img_addr, *rt_func,
                              handler_addr)) {
             return false;
         }
