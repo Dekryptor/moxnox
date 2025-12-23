@@ -635,7 +635,7 @@ export bool init_smp() {
         : "=m" (bsp_gdt), "=m" (bsp_idt)
     );
 
-    ap_left.store(ap_count, memory_order_acq_rel);
+    ap_left.store(ap_count, memory_order_release);
 
     for (unsigned int i = 0; i < ap_count; i++) {
         if (boot_info[i].id > 63)
@@ -649,7 +649,7 @@ export bool init_smp() {
         }
     }
 
-    while (ap_left.load(memory_order_acq_rel) > 0) {
+    while (ap_left.load(memory_order_acquire) > 0) {
         __asm("pause");
     }
 
