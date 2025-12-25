@@ -493,7 +493,7 @@ void usb_device_hub::port_status_change(uint8_t port) {
 
             ports[port - 1].status = *new_status;
 
-            if (new_status->usb2.connection_changed) {
+            if (new_status->usb3.connection_changed) {
                 if (old_status.usb3.connection != new_status->usb3.connection) {
                     if (new_status->usb3.connection) {
                         acquire();
