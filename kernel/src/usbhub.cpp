@@ -508,13 +508,11 @@ void usb_device_hub::port_status_change(uint8_t port) {
                     } else
                         device_removed(port);
                 }
-
-                clear_port_feature(usb3_port_feature_selector::C_PORT_CONNECTION, port);
             }
-        } else {
-            if (new_status->usb3.connection_changed)
-                clear_port_feature(usb3_port_feature_selector::C_PORT_CONNECTION, port);
         }
+
+        if (new_status->usb3.connection_changed)
+            clear_port_feature(usb3_port_feature_selector::C_PORT_CONNECTION, port);
 
         if (new_status->usb3.over_current_changed)
             clear_port_feature(usb3_port_feature_selector::C_PORT_OVER_CURRENT, port);
@@ -548,13 +546,11 @@ void usb_device_hub::port_status_change(uint8_t port) {
                     } else
                         device_removed(port);
                 }
-
-                clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
             }
-        } else {
-            if (new_status->usb2.connection_changed)
-                clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
         }
+
+        if (new_status->usb2.connection_changed)
+            clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
 
         if (new_status->usb2.enable_changed)
             clear_port_feature(usb2_port_feature_selector::C_PORT_ENABLE, port);
