@@ -1123,6 +1123,76 @@ pair<usb_device*, uint8_t> usb_device::find_tt() {
     return { nullptr, 0 };
 }
 
+template<bool LARGE>
+TRB_CODE try_address_device(xhci_input_context<LARGE>& context, uint8_t slot,
+                            xhci& controller) {
+    // some devices need an address_device with BSR set first
+
+    {
+        xhci_request req;
+
+        auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.input_context_pointer = va_to_pa_phys(&context);
+        s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
+        s.slot_id = slot;
+        s.bsr = 1;
+
+        controller.command_queue.submit(req, true);
+
+        wait_for_object(req.event.get(), false);
+
+        if ((TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS)
+            return (TRB_CODE)req.comp.completion_code;
+    }
+
+    TRB_CODE code;
+
+    // follow Linux by waiting 200ms if address device fails, and trying again
+    for (unsigned int i = 0; i < 2; i++) {
+        if (i != 0) {
+            auto tim_ref = create_timer(false);
+            if (!tim_ref) {
+                print("try_address_device: create_timer failed\n");
+                return TRB_CODE::UNDEFINED_ERROR;
+            }
+
+            auto& tim = static_cast<timer&>(tim_ref.get());
+
+            auto status = tim.set(200 * -ONE_MS_TICKS, nullptr, nullptr, false, 1, nullptr);
+            if (!success(status)) {
+                print("try_address_device: timer::set returned {}\n", status);
+                return TRB_CODE::UNDEFINED_ERROR;
+            }
+
+            wait_for_object(tim, true);
+        }
+
+        xhci_request req;
+
+        auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.input_context_pointer = va_to_pa_phys(&context);
+        s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
+        s.slot_id = slot;
+
+        controller.command_queue.submit(req, true);
+
+        wait_for_object(req.event.get(), false);
+
+        code = (TRB_CODE)req.comp.completion_code;
+
+        if (code == TRB_CODE::SUCCESS)
+            break;
+    }
+
+    return code;
+}
+
 usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t slot,
                        uint8_t speed, uint8_t port, enum usb_speed_class speed_class) : controller(controller), parent(parent), devctx(devctx) {
     this->slot = slot;
@@ -1217,28 +1287,9 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
         flush_cache(span((uint8_t*)&context, sizeof(xhci_input_context<LARGE>)),
                     false);
 
-        // some devices need an address_device with BSR set first
-        for (unsigned int i = 0; i < 2; i++) {
-            xhci_request req;
-
-            auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
-
-            memset(&s, 0, sizeof(s));
-
-            s.input_context_pointer = va_to_pa_phys(&context);
-            s.trb_type = (uint16_t)xhci_trb_type::address_device_command;
-            s.slot_id = slot;
-            s.bsr = i == 0 ? 1 : 0;
-
-            controller.command_queue.submit(req, true);
-
-            wait_for_object(req.event.get(), false);
-
-            // FIXME - translate into nt_status?
-            if ((enum TRB_CODE)req.comp.completion_code != TRB_CODE::SUCCESS) {
-                print("usb_device::usb_device: controller returned error {} for address device\n", (enum TRB_CODE)req.comp.completion_code);
-                return false;
-            }
+        if (auto code = try_address_device(context, slot, controller); code != TRB_CODE::SUCCESS) {
+            print("usb_device::usb_device: controller returned error {} for address device\n", code);
+            return false;
         }
 
         flush_cache(span((uint8_t*)&context, sizeof(xhci_input_context<LARGE>)),
