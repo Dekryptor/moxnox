@@ -2,8 +2,14 @@ module;
 
 #include <stdint.h>
 #include <stddef.h>
+#include <span>
+#include <string_view>
 
 export module usb;
+
+import format;
+
+using namespace std;
 
 export enum class usb_speed_class {
     unknown,
@@ -13,6 +19,32 @@ export enum class usb_speed_class {
     super_speed,
     super_speed_plus
 };
+
+template<>
+consteval bool format_spec_valid<enum usb_speed_class>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, enum usb_speed_class arg) {
+    switch (arg) {
+        using enum usb_speed_class;
+
+        case unknown:
+            return do_format_arg(sp, "", "unknown");
+        case low_speed:
+            return do_format_arg(sp, "", "low_speed");
+        case full_speed:
+            return do_format_arg(sp, "", "full_speed");
+        case high_speed:
+            return do_format_arg(sp, "", "high_speed");
+        case super_speed:
+            return do_format_arg(sp, "", "super_speed");
+        case super_speed_plus:
+            return do_format_arg(sp, "", "super_speed_plus");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
 
 export enum class usb_class_code : uint8_t {
     per_interface = 0,
