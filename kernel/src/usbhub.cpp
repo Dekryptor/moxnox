@@ -90,6 +90,7 @@ enum class usbhub_request : uint8_t {
 struct usb_hub_port {
     port_status status;
     uint8_t slot;
+    bool awaiting_reset;
 };
 
 class usb_device_hub : public usb_hub {
@@ -306,64 +307,6 @@ void usb_device_hub::device_connected(uint8_t port) {
     auto& controller = d.controller;
     auto& p = ports[port - 1];
 
-    if (d.speed_class >= usb_speed_class::super_speed) {
-        if (!set_port_feature(usb3_port_feature_selector::PORT_RESET, port)) {
-            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
-            return;
-        }
-    } else {
-        if (!set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
-            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
-            return;
-        }
-    }
-
-    {
-        auto tim_ref = create_timer(true);
-        if (!tim_ref) {
-            print("usb_device_hub::device_connected: create_timer failed\n");
-            return;
-        }
-
-        auto& tim = static_cast<timer&>(tim_ref.get());
-
-        auto status = tim.set(-ONE_MS_TICKS * 10, nullptr, nullptr, false,
-                                10, nullptr);
-        if (!success(status)) {
-            print("usb_device_hub::device_connected: timer::set returned {}\n", status);
-            return;
-        }
-
-        for (unsigned int i = 0; i < PORT_RESET_DELAY; i += 10) {
-            if (!get_port_status(port, p.status)) {
-                print("usb_device_hub::get_port_status failed\n");
-                return;
-            }
-
-            if (d.speed_class >= usb_speed_class::super_speed) {
-                if (!p.status.usb3.reset)
-                    break;
-            } else {
-                if (!p.status.usb2.reset)
-                    break;
-            }
-
-            wait_for_object(tim, true);
-        }
-
-        if (d.speed_class >= usb_speed_class::super_speed) {
-            if (p.status.usb3.reset) {
-                print("usb_device_hub::device_connected: reset timed out\n");
-                return;
-            }
-        } else {
-            if (p.status.usb2.reset) {
-                print("usb_device_hub::device_connected: reset timed out\n");
-                return;
-            }
-        }
-    }
-
     // FIXME - can we rely on slot_type always being 0?
     auto slot = controller.enable_slot(0);
     if (slot == 0) {
@@ -493,21 +436,38 @@ void usb_device_hub::port_status_change(uint8_t port) {
 
             ports[port - 1].status = *new_status;
 
-            if (new_status->usb3.connection_changed) {
-                if (old_status.usb3.connection != new_status->usb3.connection) {
-                    if (new_status->usb3.connection) {
-                        acquire();
+            if (new_status->usb3.reset_changed && ports[port - 1].awaiting_reset) {
+                acquire();
 
-                        add_kernel_thread([](void* param1, void* param2) {
-                            auto hub = (usb_device_hub*)param1;
-                            auto port = (uint8_t)(uintptr_t)param2;
+                add_kernel_thread([](void* param1, void* param2) {
+                    auto hub = (usb_device_hub*)param1;
+                    auto port = (uint8_t)(uintptr_t)param2;
 
-                            hub->device_connected(port);
-                            hub->release();
-                        }, this, (void*)(uintptr_t)port);
-                    } else
-                        device_removed(port);
-                }
+                    hub->device_connected(port);
+                    hub->release();
+                }, this, (void*)(uintptr_t)port);
+            }
+
+            if (new_status->usb3.connection_changed &&
+                old_status.usb3.connection != new_status->usb3.connection) {
+                if (new_status->usb3.connection) {
+                    acquire();
+
+                    add_kernel_thread([](void* param1, void* param2) {
+                        auto hub = (usb_device_hub*)param1;
+                        auto port = (uint8_t)(uintptr_t)param2;
+
+                        hub->ports[port - 1].awaiting_reset = true;
+
+                        if (!hub->set_port_feature(usb3_port_feature_selector::PORT_RESET, port)) {
+                            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
+                            hub->ports[port - 1].awaiting_reset = false;
+                        }
+
+                        hub->release();
+                    }, this, (void*)(uintptr_t)port);
+                } else
+                    device_removed(port);
             }
         }
 
@@ -531,21 +491,38 @@ void usb_device_hub::port_status_change(uint8_t port) {
 
             ports[port - 1].status = *new_status;
 
-            if (new_status->usb2.connection_changed) {
-                if (old_status.usb2.connection != new_status->usb2.connection) {
-                    if (new_status->usb2.connection) {
-                        acquire();
+            if (new_status->usb2.reset_changed && ports[port - 1].awaiting_reset) {
+                acquire();
 
-                        add_kernel_thread([](void* param1, void* param2) {
-                            auto hub = (usb_device_hub*)param1;
-                            auto port = (uint8_t)(uintptr_t)param2;
+                add_kernel_thread([](void* param1, void* param2) {
+                    auto hub = (usb_device_hub*)param1;
+                    auto port = (uint8_t)(uintptr_t)param2;
 
-                            hub->device_connected(port);
-                            hub->release();
-                        }, this, (void*)(uintptr_t)port);
-                    } else
-                        device_removed(port);
-                }
+                    hub->device_connected(port);
+                    hub->release();
+                }, this, (void*)(uintptr_t)port);
+            }
+
+            if (new_status->usb2.connection_changed &&
+                old_status.usb2.connection != new_status->usb2.connection) {
+                if (new_status->usb2.connection) {
+                    acquire();
+
+                    add_kernel_thread([](void* param1, void* param2) {
+                        auto hub = (usb_device_hub*)param1;
+                        auto port = (uint8_t)(uintptr_t)param2;
+
+                        hub->ports[port - 1].awaiting_reset = true;
+
+                        if (!hub->set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
+                            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
+                            hub->ports[port - 1].awaiting_reset = false;
+                        }
+
+                        hub->release();
+                    }, this, (void*)(uintptr_t)port);
+                } else
+                    device_removed(port);
             }
         }
 
