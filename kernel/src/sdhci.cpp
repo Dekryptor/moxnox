@@ -52,6 +52,52 @@ struct sdhci_regs {
 
 static_assert(sizeof(sdhci_regs) == 0x100);
 
+union sdhci_capab {
+    struct {
+        uint32_t timeout_clock_frequency : 6;
+        uint32_t : 1;
+        uint32_t timeout_clock_unit : 1;
+        uint32_t base_clock_frequency : 8;
+        uint32_t max_block_length : 2;
+        uint32_t eight_bit_support : 1;
+        uint32_t adma2_support : 1;
+        uint32_t : 1;
+        uint32_t high_speed_support : 1;
+        uint32_t sdma_support : 1;
+        uint32_t suspend_support : 1;
+        uint32_t v33_support : 1;
+        uint32_t v30_support : 1;
+        uint32_t v18_support : 1;
+        uint32_t v4_64bit_system_address_support : 1;
+        uint32_t v3_64bit_system_address_support : 1;
+        uint32_t async_interrupt_support : 1;
+        uint32_t slot_type : 2;
+        uint32_t sdr50_support : 1;
+        uint32_t sdr104_support : 1;
+        uint32_t ddr50_support : 1;
+        uint32_t uhsii_support : 1;
+        uint32_t driver_type_a_support : 1;
+        uint32_t driver_type_c_support : 1;
+        uint32_t driver_type_d_support : 1;
+        uint32_t : 1;
+        uint32_t timer_count_for_retuning : 4;
+        uint32_t : 1;
+        uint32_t use_tuning_for_sdr50 : 1;
+        uint32_t retuning_modes : 2;
+        uint32_t clock_multiplier : 8;
+        uint32_t : 3;
+        uint32_t adma3_support : 1;
+        uint32_t v18_vdd2_support : 1;
+        uint32_t : 3;
+    };
+    struct {
+        uint32_t low;
+        uint32_t high;
+    };
+};
+
+static_assert(sizeof(sdhci_capab) == 0x8);
+
 static bool init_sdhci(const pci_device& dev);
 
 static pci_class_recognizer mod_pci_class = {
