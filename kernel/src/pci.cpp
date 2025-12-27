@@ -124,6 +124,15 @@ export enum class pci_serial_bus : uint8_t {
     canbus = 9
 };
 
+export enum class pci_base_system_peripheral : uint8_t {
+    pic = 0,
+    dma = 1,
+    timer = 2,
+    rtc = 3,
+    pci_hotplug = 4,
+    sdhci = 5
+};
+
 struct pci_header {
     uint16_t vendor_id;
     uint16_t device_id;
