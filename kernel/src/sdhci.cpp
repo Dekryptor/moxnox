@@ -98,6 +98,18 @@ union sdhci_capab {
 
 static_assert(sizeof(sdhci_capab) == 0x8);
 
+union sdhci_slot_info_reg {
+    struct {
+        uint8_t first_bar_num : 3;
+        uint8_t : 1;
+        uint8_t num_slots : 3;
+        uint8_t : 1;
+    };
+    uint8_t value;
+};
+
+static_assert(sizeof(sdhci_slot_info_reg) == 0x1);
+
 static bool init_sdhci(const pci_device& dev);
 
 static pci_class_recognizer mod_pci_class = {
@@ -127,20 +139,38 @@ static const char* spec_version_to_string(uint8_t ver) {
     }
 }
 
-static bool init_sdhci(const pci_device& dev) {
-    print("FIXME - init_sdhci\n"); // FIXME
+static void init_sdhci_slot(const pci_device& dev, uint8_t bar_num) {
+    print("FIXME - init_sdhci_slot\n"); // FIXME
 
-    if (dev.bar[0].size() < sizeof(sdhci_regs)) {
-        print("init_sdhci: BAR 0 was {} bytes, expected {}\n",
-              dev.bar[0].size(), sizeof(sdhci_regs));
-        return false;
+    if (dev.bar[bar_num].size() < sizeof(sdhci_regs)) {
+        print("init_sdhci_slot: BAR {} was {} bytes, expected {}\n",
+              bar_num, dev.bar[bar_num].size(), sizeof(sdhci_regs));
+        return;
     }
 
-    volatile auto& regs = *(sdhci_regs*)dev.bar[0].data();
+    volatile auto& regs = *(sdhci_regs*)dev.bar[bar_num].data();
 
     auto hcver = *(volatile uint16_t*)&regs.hcver;
 
     print("SDHCI version {}\n", spec_version_to_string((uint8_t)(hcver & 0xff)));
 
-    return false;
+    // FIXME
+}
+
+static bool init_sdhci(const pci_device& dev) {
+    sdhci_slot_info_reg slot_info_reg;
+
+    slot_info_reg.value = *(volatile uint8_t*)(dev.header + 0x40);
+
+    for (unsigned int i = 0; i < (unsigned int)(slot_info_reg.num_slots + 1); i++) {
+        if (slot_info_reg.first_bar_num + i >= dev.bar.size()) {
+            print("init_sdhci: slot {} would use invalid BAR {}\n",
+                  i, slot_info_reg.first_bar_num + i);
+            break;
+        }
+
+        init_sdhci_slot(dev, (uint8_t)(slot_info_reg.first_bar_num + i));
+    }
+
+    return true;
 }
