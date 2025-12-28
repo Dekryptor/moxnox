@@ -6,6 +6,7 @@ import pci;
 import module_init;
 import list;
 import print;
+import interrupts;
 
 export module sdhci;
 
@@ -110,6 +111,49 @@ union sdhci_slot_info_reg {
 
 static_assert(sizeof(sdhci_slot_info_reg) == 0x1);
 
+union sdhci_norint {
+    struct {
+        uint16_t command_complete : 1;
+        uint16_t transfer_complete : 1;
+        uint16_t block_gap_event : 1;
+        uint16_t dma_interrupt : 1;
+        uint16_t buffer_write_ready : 1;
+        uint16_t buffer_read_ready : 1;
+        uint16_t card_insertion : 1;
+        uint16_t card_removal : 1;
+        uint16_t card_interrupt : 1;
+        uint16_t int_a : 1;
+        uint16_t int_b : 1;
+        uint16_t int_c : 1;
+        uint16_t retuning_event : 1;
+        uint16_t fx_event : 1;
+        uint16_t : 2;
+    };
+    uint16_t value;
+};
+
+static_assert(sizeof(sdhci_norint) == 0x2);
+
+class sdhci_device {
+public:
+    sdhci_device(const pci_device& dev);
+    bool isr();
+
+    const pci_device& dev;
+    bool initialized = false;
+    list_entry slots = { &slots, &slots };
+};
+
+class sdhci_slot {
+public:
+    sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs);
+    bool isr();
+
+    sdhci_device& d;
+    volatile sdhci_regs& regs;
+    list_entry le;
+};
+
 static bool init_sdhci(const pci_device& dev);
 
 static pci_class_recognizer mod_pci_class = {
@@ -139,38 +183,144 @@ static const char* spec_version_to_string(uint8_t ver) {
     }
 }
 
-static void init_sdhci_slot(const pci_device& dev, uint8_t bar_num) {
-    print("FIXME - init_sdhci_slot\n"); // FIXME
+bool sdhci_slot::isr() {
+    sdhci_norint norintsts;
 
-    if (dev.bar[bar_num].size() < sizeof(sdhci_regs)) {
-        print("init_sdhci_slot: BAR {} was {} bytes, expected {}\n",
-              bar_num, dev.bar[bar_num].size(), sizeof(sdhci_regs));
-        return;
+    norintsts.value = regs.norintsts;
+
+    if (norintsts.card_removal) {
+        print("sdhci_slot::isr: card removal\n"); // FIXME
+
+        norintsts.value = 0;
+        norintsts.card_removal = 1;
+        regs.norintsts = norintsts.value;
+
+        return true;
     }
 
-    volatile auto& regs = *(sdhci_regs*)dev.bar[bar_num].data();
+    if (norintsts.card_insertion) {
+        print("sdhci_slot::isr: card insertion\n"); // FIXME
 
+        norintsts.value = 0;
+        norintsts.card_insertion = 1;
+        regs.norintsts = norintsts.value;
+
+        return true;
+    }
+
+    return false;
+}
+
+sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(regs) {
     auto hcver = *(volatile uint16_t*)&regs.hcver;
 
     print("SDHCI version {}\n", spec_version_to_string((uint8_t)(hcver & 0xff)));
 
-    // FIXME
+    // reset
+
+    regs.swrst = 1;
+
+    while (regs.swrst & 1) { } // FIXME - timeout
+
+    // enable interrupts
+
+    sdhci_norint norintstsen, norintsigen;
+
+    norintstsen.value = 0;
+
+    norintstsen.card_insertion = 1;
+    norintstsen.card_removal = 1;
+
+    regs.norintstsen = norintstsen.value;
+
+    norintsigen.value = 0;
+
+    norintsigen.card_insertion = 1;
+    norintsigen.card_removal = 1;
+
+    regs.norintsigen = norintsigen.value;
+
+    // FIXME - check prnsts, and call function if card present
 }
 
-static bool init_sdhci(const pci_device& dev) {
+static void init_sdhci_slot(sdhci_device& d, uint8_t bar_num) {
+    print("FIXME - init_sdhci_slot\n"); // FIXME
+
+    if (d.dev.bar[bar_num].size() < sizeof(sdhci_regs)) {
+        print("init_sdhci_slot: BAR {} was {} bytes, expected {}\n",
+              bar_num, d.dev.bar[bar_num].size(), sizeof(sdhci_regs));
+        return;
+    }
+
+    volatile auto& regs = *(sdhci_regs*)d.dev.bar[bar_num].data();
+
+    auto s = new sdhci_slot(d, regs);
+    if (!s) {
+        print("new failed\n");
+        return;
+    }
+
+    insert_tail_list(d.slots, s->le);
+}
+
+static bool sdhci_isr_func(void* ctx) {
+    auto& dev = *(sdhci_device*)ctx;
+
+    return dev.isr();
+}
+
+sdhci_device::sdhci_device(const pci_device& dev) : dev(dev) {
     sdhci_slot_info_reg slot_info_reg;
+
+    if (!dev.irq.has_value()) {
+        print("sdhci_device::sdhci_device: IRQ for PCI device not found\n");
+        return;
+    }
 
     slot_info_reg.value = *(volatile uint8_t*)(dev.header + 0x40);
 
     for (unsigned int i = 0; i < (unsigned int)(slot_info_reg.num_slots + 1); i++) {
         if (slot_info_reg.first_bar_num + i >= dev.bar.size()) {
-            print("init_sdhci: slot {} would use invalid BAR {}\n",
+            print("sdhci_device::sdhci_device: slot {} would use invalid BAR {}\n",
                   i, slot_info_reg.first_bar_num + i);
             break;
         }
 
-        init_sdhci_slot(dev, (uint8_t)(slot_info_reg.first_bar_num + i));
+        init_sdhci_slot(*this, (uint8_t)(slot_info_reg.first_bar_num + i));
     }
+
+    if (!add_irq_handler(*dev.irq, true, sdhci_isr_func, this)) {
+        print("sdhci_device::sdhci_device: add_irq_handler failed\n");
+        return;
+    }
+
+    initialized = true;
+}
+
+bool sdhci_device::isr() {
+    for (auto le = slots.next; le != &slots; le = le->next) {
+        auto& s = containing_record<sdhci_slot>(le);
+
+        if (s.isr())
+            return true;
+    }
+
+    return false;
+}
+
+static bool init_sdhci(const pci_device& dev) {
+    auto d = new sdhci_device(dev);
+    if (!d) {
+        print("new failed\n");
+        return false;
+    }
+
+    if (!d->initialized) {
+        print("sdhci_device::sdhci_device failed\n");
+        return false;
+    }
+
+    // FIXME - put in list somewhere?
 
     return true;
 }
