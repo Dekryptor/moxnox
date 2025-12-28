@@ -134,6 +134,37 @@ union sdhci_norint {
 
 static_assert(sizeof(sdhci_norint) == 0x2);
 
+union sdhci_prnsts {
+    struct {
+        uint32_t command_inhibit_cmd : 1;
+        uint32_t command_inhibit_dat : 1;
+        uint32_t dat_line_active : 1;
+        uint32_t retuning_request : 1;
+        uint32_t dat_line_signal_level : 4;
+        uint32_t write_transfer_active : 1;
+        uint32_t read_transfer_active : 1;
+        uint32_t buffer_write_enable : 1;
+        uint32_t buffer_read_enable : 1;
+        uint32_t : 4;
+        uint32_t card_inserted : 1;
+        uint32_t card_state_stable : 1;
+        uint32_t card_detect_pin_level : 1;
+        uint32_t write_protect_switch_pin_level : 1;
+        uint32_t dat_line_signal_level2 : 4;
+        uint32_t cmd_line_signal_level : 1;
+        uint32_t host_regulator_voltage_stable : 1;
+        uint32_t : 1;
+        uint32_t command_not_issued_by_error : 1;
+        uint32_t sub_command_status : 1;
+        uint32_t in_dormant_state : 1;
+        uint32_t lane_synchronization : 1;
+        uint32_t uhsii_if_detection : 1;
+    };
+    uint32_t value;
+};
+
+static_assert(sizeof(sdhci_prnsts) == 0x4);
+
 class sdhci_device {
 public:
     sdhci_device(const pci_device& dev);
@@ -240,7 +271,14 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     regs.norintsigen = norintsigen.value;
 
-    // FIXME - check prnsts, and call function if card present
+    // check present state
+
+    sdhci_prnsts prnsts;
+
+    prnsts.value = regs.prnsts;
+
+    if (prnsts.card_inserted)
+        print("FIXME - card insertion\n"); // FIXME
 }
 
 static void init_sdhci_slot(sdhci_device& d, uint8_t bar_num) {
