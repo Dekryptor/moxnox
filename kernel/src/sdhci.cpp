@@ -1,6 +1,7 @@
 module;
 
 #include <stdint.h>
+#include "tick_rate.h"
 
 import pci;
 import module_init;
@@ -11,10 +12,31 @@ import thread;
 import scheduler;
 import object_ref;
 import event;
+import timer;
+import config;
+import nt;
 
 export module sdhci;
 
 using namespace std;
+
+#define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
+
+union sdhci_clkcon {
+    struct {
+        uint16_t internal_clock_enable : 1;
+        uint16_t internal_clock_stable : 1;
+        uint16_t sd_clock_enable : 1;
+        uint16_t pll_enable : 1;
+        uint16_t : 1;
+        uint16_t clock_generator_select : 1;
+        uint16_t sdclk_frequency_select_upper : 2;
+        uint16_t sdclk_frequency_select : 8;
+    };
+    uint16_t value;
+};
+
+static_assert(sizeof(sdhci_clkcon) == 0x2);
 
 struct sdhci_regs {
     uint32_t sysad;
@@ -33,7 +55,7 @@ struct sdhci_regs {
     uint8_t pwrcon;
     uint8_t blkgap;
     uint8_t wakcon;
-    uint16_t clkcon;
+    sdhci_clkcon clkcon;
     uint8_t timeoutcon;
     uint8_t swrst;
     uint16_t norintsts;
@@ -186,6 +208,7 @@ public:
     void thread();
     void card_removal();
     void card_insertion();
+    bool set_clock(unsigned int freq);
 
     list_entry le;
     sdhci_device& d;
@@ -193,6 +216,8 @@ public:
     object_ref thread_event;
     bool card_removal_pending = false;
     bool card_insertion_pending = false;
+    unsigned int base_clock_frequency;
+    bool initialized = false;
 };
 
 static bool init_sdhci(const pci_device& dev);
@@ -260,10 +285,89 @@ void sdhci_slot::card_removal() {
     // FIXME
 }
 
+bool sdhci_slot::set_clock(unsigned int freq) {
+    unsigned int div;
+
+    // stop clock
+
+    while (true) {
+        sdhci_prnsts prnsts;
+
+        prnsts.value = regs.prnsts;
+
+        if (!prnsts.command_inhibit_cmd && !prnsts.command_inhibit_dat)
+            break;
+
+        // FIXME - wait 1ms?
+        // FIXME - timeout
+    }
+
+    regs.clkcon.value = 0;
+
+    // version 2 divisors must be power of 2
+    // FIXME - easier from v3 onward (see Linux's sdhci_calc_clk)
+
+    for (div = 1; div < 256; div <<= 1) {
+        if ((base_clock_frequency / div) <= freq)
+            break;
+    }
+
+    sdhci_clkcon clkcon;
+
+    clkcon.value = 0;
+
+    clkcon.sdclk_frequency_select = (uint8_t)(div >> 1);
+    clkcon.internal_clock_enable = 1;
+
+    regs.clkcon.value = clkcon.value;
+
+    // wait 150ms for regs.clkcon.internal_clock_stable to be 1
+
+    {
+        auto tim_ref = create_timer(true);
+        if (!tim_ref) {
+            print("sdhci_slot::set_clock: create_timer failed\n");
+            return false;
+        }
+
+        auto& tim = static_cast<timer&>(tim_ref.get());
+
+        auto status = tim.set(-ONE_MS_TICKS, nullptr, nullptr, false, 1, nullptr);
+        if (!success(status)) {
+            print("sdhci_slot::set_clock: timer::set returned {}\n", status);
+            return false;
+        }
+
+        bool done = false;
+        for (unsigned int i = 0; i < 150; i++) {
+            if (regs.clkcon.internal_clock_stable) {
+                done = true;
+                break;
+            }
+
+            wait_for_object(tim, true); // wait 1ms
+        }
+
+        if (!done) {
+            print("sdhci_slot::set_clock: timeout\n");
+            return false;
+        }
+    }
+
+    regs.clkcon.sd_clock_enable = 1;
+
+    return true;
+}
+
 void sdhci_slot::card_insertion() {
     print("FIXME - sdhci_slot::card_insertion\n");
 
     // FIXME
+
+    if (!set_clock(400000)) {
+        print("sdhci_slot::card_insertion: set_clock failed\n");
+        return;
+    }
 }
 
 void sdhci_slot::thread() {
@@ -315,6 +419,20 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     regs.norintsigen = norintsigen.value;
 
+    // get base clock frequency
+
+    sdhci_capab capab;
+
+    capab.low = regs.capab[0];
+    capab.high = regs.capab[1];
+
+    if (capab.base_clock_frequency == 0) {
+        print("sdhci_slot::sdhci_slot: base clock frequency was 0\n");
+        return;
+    }
+
+    base_clock_frequency = (unsigned int)capab.base_clock_frequency * 1000000;
+
     // start thread
 
     thread_event = create_event(true);
@@ -333,6 +451,8 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
         s.thread();
     }, this);
+
+    initialized = true;
 }
 
 static void init_sdhci_slot(sdhci_device& d, uint8_t bar_num) {
@@ -349,6 +469,12 @@ static void init_sdhci_slot(sdhci_device& d, uint8_t bar_num) {
     auto s = new sdhci_slot(d, regs);
     if (!s) {
         print("new failed\n");
+        return;
+    }
+
+    if (!s->initialized) {
+        print("sdhci_slot::sdhci_slot failed\n");
+        delete s;
         return;
     }
 
@@ -409,6 +535,7 @@ static bool init_sdhci(const pci_device& dev) {
 
     if (!d->initialized) {
         print("sdhci_device::sdhci_device failed\n");
+        delete d;
         return false;
     }
 
