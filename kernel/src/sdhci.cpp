@@ -835,6 +835,11 @@ void sdhci_slot::card_insertion() {
     }
 
     rca = (uint16_t)(regs.rspreg0 >> 16);
+
+    if (!set_clock(25000000)) {
+        print("sdhci_slot::card_insertion: set_clock failed\n");
+        return;
+    }
 }
 
 void sdhci_slot::thread() {
