@@ -61,6 +61,26 @@ union sdhci_norint {
 
 static_assert(sizeof(sdhci_norint) == 0x2);
 
+union sdhci_errint {
+    struct {
+        uint16_t command_timeout_error : 1;
+        uint16_t command_crc_error : 1;
+        uint16_t command_end_bit_error : 1;
+        uint16_t command_index_error : 1;
+        uint16_t data_timeout_error : 1;
+        uint16_t data_crc_error : 1;
+        uint16_t data_end_bit_error : 1;
+        uint16_t current_limit_error : 1;
+        uint16_t auto_cmd12_error : 1;
+        uint16_t adma_error : 1;
+        uint16_t : 2;
+        uint16_t vendor_specific_error : 4;
+    };
+    uint16_t value;
+};
+
+static_assert(sizeof(sdhci_errint) == 0x2);
+
 union sdhci_cmdreg {
     struct {
         uint16_t response_type_select : 2;
@@ -97,12 +117,12 @@ struct sdhci_regs {
     sdhci_clkcon clkcon;
     uint8_t timeoutcon;
     uint8_t swrst;
-    uint16_t norintsts;
-    uint16_t errintsts;
+    sdhci_norint norintsts;
+    sdhci_errint errintsts;
     sdhci_norint norintstsen;
-    uint16_t errintstsen;
+    sdhci_errint errintstsen;
     sdhci_norint norintsigen;
-    uint16_t errintsigen;
+    sdhci_errint errintsigen;
     uint16_t acmd12errsts;
     uint16_t hostctl2;
     uint32_t capab[2];
@@ -295,8 +315,8 @@ public:
     void card_removal();
     void card_insertion();
     bool set_clock(unsigned int freq);
-    void send_command(enum sd_cmd cmd, uint32_t arg);
-    void send_app_command(enum sd_app_cmd cmd, uint32_t arg);
+    bool send_command(enum sd_cmd cmd, uint32_t arg);
+    bool send_app_command(enum sd_app_cmd cmd, uint32_t arg);
 
     list_entry le;
     sdhci_device& d;
@@ -340,7 +360,7 @@ static const char* spec_version_to_string(uint8_t ver) {
 bool sdhci_slot::isr() {
     sdhci_norint norintsts;
 
-    norintsts.value = regs.norintsts;
+    norintsts.value = regs.norintsts.value;
 
     if (norintsts.card_removal) {
         card_removal_pending = true;
@@ -348,7 +368,7 @@ bool sdhci_slot::isr() {
 
         norintsts.value = 0;
         norintsts.card_removal = 1;
-        regs.norintsts = norintsts.value;
+        regs.norintsts.value = norintsts.value;
 
         return true;
     }
@@ -359,7 +379,7 @@ bool sdhci_slot::isr() {
 
         norintsts.value = 0;
         norintsts.card_insertion = 1;
-        regs.norintsts = norintsts.value;
+        regs.norintsts.value = norintsts.value;
 
         return true;
     }
@@ -369,7 +389,7 @@ bool sdhci_slot::isr() {
 
         norintsts.value = 0;
         norintsts.command_complete = 1;
-        regs.norintsts = norintsts.value;
+        regs.norintsts.value = norintsts.value;
 
         return true;
     }
@@ -457,7 +477,7 @@ bool sdhci_slot::set_clock(unsigned int freq) {
     return true;
 }
 
-void sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
+bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     // FIXME - do we need a mutex?
 
     reset_event(static_cast<event&>(command_complete_event.get()));
@@ -482,7 +502,7 @@ void sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 
         default:
             print("sdhci_slot::send_command: unhandled command type {}\n", (uint16_t)cmd);
-            return;
+            return false;
     }
 
     sdhci_cmdreg cmdreg;
@@ -537,11 +557,17 @@ void sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 
     regs.norintstsen.command_complete = 0;
 
+    if (regs.errintsts.command_timeout_error) {
+        regs.errintsts.command_timeout_error = 0;
+        return false;
+    }
+
     // FIXME - get response
-    // FIXME - handle errors
+
+    return true;
 }
 
-void sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
+bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
     // FIXME - do we need a mutex?
 
     send_command(sd_cmd::APP_CMD, 0); // FIXME - handle error
@@ -561,7 +587,7 @@ void sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
         default:
             print("sdhci_slot::send_app_command: unhandled command type {}\n",
                   (uint16_t)cmd);
-            return;
+            return false;
     }
 
     sdhci_cmdreg cmdreg;
@@ -616,8 +642,14 @@ void sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
 
     regs.norintstsen.command_complete = 0;
 
+    if (regs.errintsts.command_timeout_error) {
+        regs.errintsts.command_timeout_error = 0;
+        return false;
+    }
+
     // FIXME - get response
-    // FIXME - handle errors
+
+    return true;
 }
 
 void sdhci_slot::card_insertion() {
@@ -634,17 +666,26 @@ void sdhci_slot::card_insertion() {
     // FIXME - set timeout control
     // FIXME - bus width?
 
-    send_command(sd_cmd::GO_IDLE_STATE, 0);
+    if (!send_command(sd_cmd::GO_IDLE_STATE, 0)) {
+        print("sdhci_slot::card_insertion: GO_IDLE_STATE failed\n");
+        return;
+    }
 
     // FIXME - set power, and choose voltage to send to SEND_IF_COND?
 
-    send_command(sd_cmd::SEND_IF_COND, 0x1aa);
+    if (!send_command(sd_cmd::SEND_IF_COND, 0x1aa)) {
+        print("sdhci_slot::card_insertion: SEND_IF_COND failed\n");
+        return;
+    }
+
     // FIXME - check response (should match argument)
     // FIXME - specs say we should try SEND_IF_COND once more if it fails
     // FIXME - handle SEND_IF_COND failures (such as for early SD cards)
 
-    send_app_command(sd_app_cmd::SD_SEND_OP_COND, 0);
-    // FIXME - handle failure
+    if (!send_app_command(sd_app_cmd::SD_SEND_OP_COND, 0)) {
+        print("sdhci_slot::card_insertion: SD_SEND_OP_COND failed\n");
+        return;
+    }
 
     // FIXME - ACMD41 again (with voltage and HCS bit)
 }
@@ -698,6 +739,14 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     norintsigen.command_complete = 1;
 
     regs.norintsigen.value = norintsigen.value;
+
+    sdhci_errint errintstsen;
+
+    errintstsen.value = 0;
+
+    errintstsen.command_timeout_error = 1;
+
+    regs.errintstsen.value = errintstsen.value;
 
     // get base clock frequency
 
