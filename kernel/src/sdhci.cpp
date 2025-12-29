@@ -61,6 +61,22 @@ union sdhci_norint {
 
 static_assert(sizeof(sdhci_norint) == 0x2);
 
+union sdhci_cmdreg {
+    struct {
+        uint16_t response_type_select : 2;
+        uint16_t : 1;
+        uint16_t command_crc_check_enable : 1;
+        uint16_t command_index_check_enable : 1;
+        uint16_t data_present_select : 1;
+        uint16_t command_type : 2;
+        uint16_t command_index : 6;
+        uint16_t : 2;
+    };
+    uint16_t value;
+};
+
+static_assert(sizeof(sdhci_cmdreg) == 0x2);
+
 struct sdhci_regs {
     uint32_t sysad;
     uint16_t blksize;
@@ -234,6 +250,19 @@ enum class sd_cmd : uint16_t {
     GEN_CMD = 56,
     READ_EXTR_MULTI = 58,
     WRITE_EXTR_MULTI = 59,
+};
+
+enum class response_type {
+    none,
+    R1,
+    R1b,
+    R2,
+    R3,
+    R4,
+    R5,
+    R5b,
+    R6,
+    R7,
 };
 
 class sdhci_device {
@@ -421,8 +450,67 @@ void sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     reset_event(static_cast<event&>(command_complete_event.get()));
     regs.norintstsen.command_complete = 1;
 
+    response_type type;
+
+    switch (cmd) {
+        using enum sd_cmd;
+
+        case GO_IDLE_STATE:
+            type = response_type::none; // FIXME? docs say R1
+            break;
+
+        default:
+            print("sdhci_slot::send_command: unhandled command type {}\n", (uint16_t)cmd);
+            return;
+    }
+
+    sdhci_cmdreg cmdreg;
+
+    cmdreg.value = 0;
+
+    cmdreg.command_index = (uint16_t)cmd & 0x3f;
+
+    switch (type) {
+        using enum response_type;
+
+        case none:
+            cmdreg.response_type_select = 0;
+            cmdreg.command_index_check_enable = 0;
+            cmdreg.command_crc_check_enable = 0;
+        break;
+
+        case R2:
+            cmdreg.response_type_select = 1;
+            cmdreg.command_index_check_enable = 0;
+            cmdreg.command_crc_check_enable = 1;
+        break;
+
+        case R3:
+        case R4:
+            cmdreg.response_type_select = 2;
+            cmdreg.command_index_check_enable = 0;
+            cmdreg.command_crc_check_enable = 0;
+        break;
+
+        case R1:
+        case R5:
+        case R6:
+        case R7:
+            cmdreg.response_type_select = 2;
+            cmdreg.command_index_check_enable = 1;
+            cmdreg.command_crc_check_enable = 1;
+        break;
+
+        case R1b:
+        case R5b:
+            cmdreg.response_type_select = 3;
+            cmdreg.command_index_check_enable = 1;
+            cmdreg.command_crc_check_enable = 1;
+        break;
+    }
+
     regs.argument = arg;
-    regs.cmdreg = (uint16_t)cmd;
+    regs.cmdreg = cmdreg.value;
 
     wait_for_object(command_complete_event.get(), false); // FIXME - timeout (still clear norintstsen flag)
 
