@@ -7,6 +7,10 @@ import module_init;
 import list;
 import print;
 import interrupts;
+import thread;
+import scheduler;
+import object_ref;
+import event;
 
 export module sdhci;
 
@@ -179,10 +183,16 @@ class sdhci_slot {
 public:
     sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs);
     bool isr();
+    void thread();
+    void card_removal();
+    void card_insertion();
 
+    list_entry le;
     sdhci_device& d;
     volatile sdhci_regs& regs;
-    list_entry le;
+    object_ref thread_event;
+    bool card_removal_pending = false;
+    bool card_insertion_pending = false;
 };
 
 static bool init_sdhci(const pci_device& dev);
@@ -220,7 +230,8 @@ bool sdhci_slot::isr() {
     norintsts.value = regs.norintsts;
 
     if (norintsts.card_removal) {
-        print("sdhci_slot::isr: card removal\n"); // FIXME
+        card_removal_pending = true;
+        set_event(static_cast<event&>(thread_event.get()));
 
         norintsts.value = 0;
         norintsts.card_removal = 1;
@@ -230,7 +241,8 @@ bool sdhci_slot::isr() {
     }
 
     if (norintsts.card_insertion) {
-        print("sdhci_slot::isr: card insertion\n"); // FIXME
+        card_insertion_pending = true;
+        set_event(static_cast<event&>(thread_event.get()));
 
         norintsts.value = 0;
         norintsts.card_insertion = 1;
@@ -240,6 +252,38 @@ bool sdhci_slot::isr() {
     }
 
     return false;
+}
+
+void sdhci_slot::card_removal() {
+    print("FIXME - sdhci_slot::card_removal\n");
+
+    // FIXME
+}
+
+void sdhci_slot::card_insertion() {
+    print("FIXME - sdhci_slot::card_insertion\n");
+
+    // FIXME
+}
+
+void sdhci_slot::thread() {
+    // FIXME - stopping thread?
+
+    // FIXME - racy?
+
+    while (true) {
+        wait_for_object(thread_event.get(), false);
+
+        if (card_removal_pending) {
+            card_removal();
+            card_removal_pending = false;
+        }
+
+        if (card_insertion_pending) {
+            card_insertion();
+            card_insertion_pending = false;
+        }
+    }
 }
 
 sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(regs) {
@@ -271,14 +315,24 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     regs.norintsigen = norintsigen.value;
 
-    // check present state
+    // start thread
+
+    thread_event = create_event(true);
 
     sdhci_prnsts prnsts;
 
     prnsts.value = regs.prnsts;
 
-    if (prnsts.card_inserted)
-        print("FIXME - card insertion\n"); // FIXME
+    if (prnsts.card_inserted) {
+        card_insertion_pending = true;
+        set_event(static_cast<event&>(thread_event.get()));
+    }
+
+    add_kernel_thread([](void* ctx) {
+        auto& s = *(sdhci_slot*)ctx;
+
+        s.thread();
+    }, this);
 }
 
 static void init_sdhci_slot(sdhci_device& d, uint8_t bar_num) {
