@@ -38,6 +38,29 @@ union sdhci_clkcon {
 
 static_assert(sizeof(sdhci_clkcon) == 0x2);
 
+union sdhci_norint {
+    struct {
+        uint16_t command_complete : 1;
+        uint16_t transfer_complete : 1;
+        uint16_t block_gap_event : 1;
+        uint16_t dma_interrupt : 1;
+        uint16_t buffer_write_ready : 1;
+        uint16_t buffer_read_ready : 1;
+        uint16_t card_insertion : 1;
+        uint16_t card_removal : 1;
+        uint16_t card_interrupt : 1;
+        uint16_t int_a : 1;
+        uint16_t int_b : 1;
+        uint16_t int_c : 1;
+        uint16_t retuning_event : 1;
+        uint16_t fx_event : 1;
+        uint16_t : 2;
+    };
+    uint16_t value;
+};
+
+static_assert(sizeof(sdhci_norint) == 0x2);
+
 struct sdhci_regs {
     uint32_t sysad;
     uint16_t blksize;
@@ -60,9 +83,9 @@ struct sdhci_regs {
     uint8_t swrst;
     uint16_t norintsts;
     uint16_t errintsts;
-    uint16_t norintstsen;
+    sdhci_norint norintstsen;
     uint16_t errintstsen;
-    uint16_t norintsigen;
+    sdhci_norint norintsigen;
     uint16_t errintsigen;
     uint16_t acmd12errsts;
     uint16_t hostctl2;
@@ -136,29 +159,6 @@ union sdhci_slot_info_reg {
 };
 
 static_assert(sizeof(sdhci_slot_info_reg) == 0x1);
-
-union sdhci_norint {
-    struct {
-        uint16_t command_complete : 1;
-        uint16_t transfer_complete : 1;
-        uint16_t block_gap_event : 1;
-        uint16_t dma_interrupt : 1;
-        uint16_t buffer_write_ready : 1;
-        uint16_t buffer_read_ready : 1;
-        uint16_t card_insertion : 1;
-        uint16_t card_removal : 1;
-        uint16_t card_interrupt : 1;
-        uint16_t int_a : 1;
-        uint16_t int_b : 1;
-        uint16_t int_c : 1;
-        uint16_t retuning_event : 1;
-        uint16_t fx_event : 1;
-        uint16_t : 2;
-    };
-    uint16_t value;
-};
-
-static_assert(sizeof(sdhci_norint) == 0x2);
 
 union sdhci_prnsts {
     struct {
@@ -259,7 +259,7 @@ public:
     list_entry le;
     sdhci_device& d;
     volatile sdhci_regs& regs;
-    object_ref thread_event;
+    object_ref thread_event, command_complete_event;
     bool card_removal_pending = false;
     bool card_insertion_pending = false;
     unsigned int base_clock_frequency;
@@ -317,6 +317,16 @@ bool sdhci_slot::isr() {
 
         norintsts.value = 0;
         norintsts.card_insertion = 1;
+        regs.norintsts = norintsts.value;
+
+        return true;
+    }
+
+    if (norintsts.command_complete) {
+        set_event(static_cast<event&>(command_complete_event.get()));
+
+        norintsts.value = 0;
+        norintsts.command_complete = 1;
         regs.norintsts = norintsts.value;
 
         return true;
@@ -406,8 +416,17 @@ bool sdhci_slot::set_clock(unsigned int freq) {
 }
 
 void sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
+    // FIXME - do we need a mutex?
+
+    reset_event(static_cast<event&>(command_complete_event.get()));
+    regs.norintstsen.command_complete = 1;
+
     regs.argument = arg;
     regs.cmdreg = (uint16_t)cmd;
+
+    wait_for_object(command_complete_event.get(), false); // FIXME - timeout (still clear norintstsen flag)
+
+    regs.norintstsen.command_complete = 0;
 }
 
 void sdhci_slot::card_insertion() {
@@ -466,14 +485,15 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     norintstsen.card_insertion = 1;
     norintstsen.card_removal = 1;
 
-    regs.norintstsen = norintstsen.value;
+    regs.norintstsen.value = norintstsen.value;
 
     norintsigen.value = 0;
 
     norintsigen.card_insertion = 1;
     norintsigen.card_removal = 1;
+    norintsigen.command_complete = 1;
 
-    regs.norintsigen = norintsigen.value;
+    regs.norintsigen.value = norintsigen.value;
 
     // get base clock frequency
 
@@ -492,6 +512,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     // start thread
 
     thread_event = create_event(true);
+    command_complete_event = create_event(false);
 
     sdhci_prnsts prnsts;
 
