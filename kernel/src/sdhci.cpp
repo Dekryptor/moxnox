@@ -258,6 +258,27 @@ union sd_ocr {
 
 static_assert(sizeof(sd_ocr) == 0x4);
 
+union sd_cid {
+    struct {
+        uint16_t MDT : 12;
+        uint16_t : 4;
+        uint32_t PSN;
+        uint8_t PRV;
+        char PNM[5];
+        uint16_t OID;
+        uint8_t MID;
+        uint8_t padding;
+    } __attribute((packed));
+    struct {
+        uint32_t val1;
+        uint32_t val2;
+        uint32_t val3;
+        uint32_t val4;
+    };
+};
+
+static_assert(sizeof(sd_cid) == 0x10);
+
 enum class sd_cmd : uint16_t {
     GO_IDLE_STATE = 0,
     ALL_SEND_CID = 2,
@@ -357,6 +378,7 @@ public:
     bool card_insertion_pending = false;
     unsigned int base_clock_frequency;
     bool initialized = false;
+    sd_cid cid;
 };
 
 static bool init_sdhci(const pci_device& dev);
@@ -521,6 +543,10 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 
         case GO_IDLE_STATE:
             type = response_type::none;
+            break;
+
+        case ALL_SEND_CID:
+            type = response_type::R2;
             break;
 
         case SEND_IF_COND:
@@ -784,7 +810,18 @@ void sdhci_slot::card_insertion() {
     } else
         print("found standard-capacity legacy SD card\n");
 
-    // FIXME - CMD2
+    // get CID
+
+    if (!send_command(sd_cmd::ALL_SEND_CID, 0)) {
+        print("sdhci_slot::card_insertion: ALL_SEND_CID failed\n");
+        return;
+    }
+
+    cid.val1 = regs.rspreg0;
+    cid.val2 = regs.rspreg1;
+    cid.val3 = regs.rspreg2;
+    cid.val4 = regs.rspreg3;
+
     // FIXME - CMD3
 }
 
