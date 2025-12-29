@@ -252,6 +252,18 @@ enum class sd_cmd : uint16_t {
     WRITE_EXTR_MULTI = 59,
 };
 
+enum class sd_app_cmd : uint16_t {
+    SET_BUS_WIDTH = 6,
+    SD_STATUS = 13,
+    SEND_NUM_WR_BLOCKS = 22,
+    SET_WR_BLK_ERASE_COUNT = 23,
+    SD_SEND_OP_COND = 41,
+    SET_CLR_CARD_DETECT = 42,
+    SEND_SCR = 51,
+    SECURE_RECEIVE = 53,
+    SECURE_SEND = 54,
+};
+
 enum class response_type {
     none,
     R1,
@@ -284,6 +296,7 @@ public:
     void card_insertion();
     bool set_clock(unsigned int freq);
     void send_command(enum sd_cmd cmd, uint32_t arg);
+    void send_app_command(enum sd_app_cmd cmd, uint32_t arg);
 
     list_entry le;
     sdhci_device& d;
@@ -456,15 +469,98 @@ void sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
         using enum sd_cmd;
 
         case GO_IDLE_STATE:
-            type = response_type::none; // FIXME? docs say R1
+            type = response_type::none;
             break;
 
         case SEND_IF_COND:
             type = response_type::R7;
             break;
 
+        case APP_CMD:
+            type = response_type::R1;
+            break;
+
         default:
             print("sdhci_slot::send_command: unhandled command type {}\n", (uint16_t)cmd);
+            return;
+    }
+
+    sdhci_cmdreg cmdreg;
+
+    cmdreg.value = 0;
+
+    cmdreg.command_index = (uint16_t)cmd & 0x3f;
+
+    switch (type) {
+        using enum response_type;
+
+        case none:
+            cmdreg.response_type_select = 0;
+            cmdreg.command_index_check_enable = 0;
+            cmdreg.command_crc_check_enable = 0;
+        break;
+
+        case R2:
+            cmdreg.response_type_select = 1;
+            cmdreg.command_index_check_enable = 0;
+            cmdreg.command_crc_check_enable = 1;
+        break;
+
+        case R3:
+        case R4:
+            cmdreg.response_type_select = 2;
+            cmdreg.command_index_check_enable = 0;
+            cmdreg.command_crc_check_enable = 0;
+        break;
+
+        case R1:
+        case R5:
+        case R6:
+        case R7:
+            cmdreg.response_type_select = 2;
+            cmdreg.command_index_check_enable = 1;
+            cmdreg.command_crc_check_enable = 1;
+        break;
+
+        case R1b:
+        case R5b:
+            cmdreg.response_type_select = 3;
+            cmdreg.command_index_check_enable = 1;
+            cmdreg.command_crc_check_enable = 1;
+        break;
+    }
+
+    regs.argument = arg;
+    regs.cmdreg = cmdreg.value;
+
+    wait_for_object(command_complete_event.get(), false); // FIXME - timeout (still clear norintstsen flag)
+
+    regs.norintstsen.command_complete = 0;
+
+    // FIXME - get response
+    // FIXME - handle errors
+}
+
+void sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
+    // FIXME - do we need a mutex?
+
+    send_command(sd_cmd::APP_CMD, 0); // FIXME - handle error
+
+    reset_event(static_cast<event&>(command_complete_event.get()));
+    regs.norintstsen.command_complete = 1;
+
+    response_type type;
+
+    switch (cmd) {
+        using enum sd_app_cmd;
+
+        case SD_SEND_OP_COND:
+            type = response_type::R1;
+            break;
+
+        default:
+            print("sdhci_slot::send_app_command: unhandled command type {}\n",
+                  (uint16_t)cmd);
             return;
     }
 
@@ -543,7 +639,14 @@ void sdhci_slot::card_insertion() {
     // FIXME - set power, and choose voltage to send to SEND_IF_COND?
 
     send_command(sd_cmd::SEND_IF_COND, 0x1aa);
+    // FIXME - check response (should match argument)
+    // FIXME - specs say we should try SEND_IF_COND once more if it fails
     // FIXME - handle SEND_IF_COND failures (such as for early SD cards)
+
+    send_app_command(sd_app_cmd::SD_SEND_OP_COND, 0);
+    // FIXME - handle failure
+
+    // FIXME - ACMD41 again (with voltage and HCS bit)
 }
 
 void sdhci_slot::thread() {
