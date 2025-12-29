@@ -459,6 +459,10 @@ void sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
             type = response_type::none; // FIXME? docs say R1
             break;
 
+        case SEND_IF_COND:
+            type = response_type::R7;
+            break;
+
         default:
             print("sdhci_slot::send_command: unhandled command type {}\n", (uint16_t)cmd);
             return;
@@ -515,6 +519,9 @@ void sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     wait_for_object(command_complete_event.get(), false); // FIXME - timeout (still clear norintstsen flag)
 
     regs.norintstsen.command_complete = 0;
+
+    // FIXME - get response
+    // FIXME - handle errors
 }
 
 void sdhci_slot::card_insertion() {
@@ -529,8 +536,14 @@ void sdhci_slot::card_insertion() {
     }
 
     // FIXME - set timeout control
+    // FIXME - bus width?
 
     send_command(sd_cmd::GO_IDLE_STATE, 0);
+
+    // FIXME - set power, and choose voltage to send to SEND_IF_COND?
+
+    send_command(sd_cmd::SEND_IF_COND, 0x1aa);
+    // FIXME - handle SEND_IF_COND failures (such as for early SD cards)
 }
 
 void sdhci_slot::thread() {
