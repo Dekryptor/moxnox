@@ -227,6 +227,37 @@ union sdhci_prnsts {
 
 static_assert(sizeof(sdhci_prnsts) == 0x4);
 
+union acmd41_arg {
+    struct {
+        uint32_t voltage_window : 24;
+        uint32_t s18r : 1;
+        uint32_t : 3;
+        uint32_t xpc : 1;
+        uint32_t : 1;
+        uint32_t hcs : 1;
+        uint32_t : 1;
+    };
+    uint32_t value;
+};
+
+static_assert(sizeof(acmd41_arg) == 0x4);
+
+union sd_ocr {
+    struct {
+        uint32_t voltage_window : 24;
+        uint32_t s18a : 1;
+        uint32_t : 2;
+        uint32_t co2t : 1;
+        uint32_t : 1;
+        uint32_t uhsii_card_status : 1;
+        uint32_t ccs : 1;
+        uint32_t power_up_status : 1;
+    };
+    uint32_t value;
+};
+
+static_assert(sizeof(sd_ocr) == 0x4);
+
 enum class sd_cmd : uint16_t {
     GO_IDLE_STATE = 0,
     ALL_SEND_CID = 2,
@@ -673,21 +704,88 @@ void sdhci_slot::card_insertion() {
 
     // FIXME - set power, and choose voltage to send to SEND_IF_COND?
 
-    if (!send_command(sd_cmd::SEND_IF_COND, 0x1aa)) {
-        print("sdhci_slot::card_insertion: SEND_IF_COND failed\n");
-        return;
-    }
+    bool f8;
+
+    // FIXME - distinguish between errors and command getting ignored
+
+    // old-style SD cards ignore this command
+    if (send_command(sd_cmd::SEND_IF_COND, 0x1aa))
+        f8 = true;
+    else
+        f8 = false;
 
     // FIXME - check response (should match argument)
     // FIXME - specs say we should try SEND_IF_COND once more if it fails
-    // FIXME - handle SEND_IF_COND failures (such as for early SD cards)
+
+    // send ACMD41
 
     if (!send_app_command(sd_app_cmd::SD_SEND_OP_COND, 0)) {
         print("sdhci_slot::card_insertion: SD_SEND_OP_COND failed\n");
         return;
     }
 
-    // FIXME - ACMD41 again (with voltage and HCS bit)
+    sd_ocr ocr;
+
+    ocr.value = regs.rspreg0;
+
+    acmd41_arg arg;
+
+    arg.value = 0;
+
+    arg.voltage_window = ocr.voltage_window;
+    arg.hcs = f8 ? 1 : 0;
+
+    unsigned int times = 20;
+
+    while (true) {
+        // send ACMD41 again
+        if (!send_app_command(sd_app_cmd::SD_SEND_OP_COND, arg.value)) {
+            print("sdhci_slot::card_insertion: SD_SEND_OP_COND failed\n");
+            return;
+        }
+
+        ocr.value = regs.rspreg0;
+
+        if (ocr.power_up_status)
+            break;
+
+        if (times == 0) {
+            print("sdhci_slot::card_insertion: timed out doing SD_SEND_OP_COND\n");
+            return;
+        }
+
+        times--;
+
+        {
+            auto tim_ref = create_timer(false);
+            if (!tim_ref) {
+                print("sdhci_slot::card_insertion: create_timer failed\n");
+                return;
+            }
+
+            auto& tim = static_cast<timer&>(tim_ref.get());
+
+            auto status = tim.set(50 * -ONE_MS_TICKS, nullptr, nullptr,
+                                  false, 1, nullptr);
+            if (!success(status)) {
+                print("sdhci_slot::card_insertion: timer::set returned {}\n", status);
+                return;
+            }
+
+            wait_for_object(tim, true); // wait 50ms
+        }
+    }
+
+    if (f8) {
+        if (ocr.ccs)
+            print("found high-capacity V2.00 SD card\n");
+        else
+            print("found normal-capacity V2.00 SD card\n");
+    } else
+        print("found standard-capacity legacy SD card\n");
+
+    // FIXME - CMD2
+    // FIXME - CMD3
 }
 
 void sdhci_slot::thread() {
