@@ -379,6 +379,7 @@ public:
     unsigned int base_clock_frequency;
     bool initialized = false;
     sd_cid cid;
+    uint16_t rca;
 };
 
 static bool init_sdhci(const pci_device& dev);
@@ -547,6 +548,10 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 
         case ALL_SEND_CID:
             type = response_type::R2;
+            break;
+
+        case SEND_RELATIVE_ADDR:
+            type = response_type::R6;
             break;
 
         case SEND_IF_COND:
@@ -822,7 +827,14 @@ void sdhci_slot::card_insertion() {
     cid.val3 = regs.rspreg2;
     cid.val4 = regs.rspreg3;
 
-    // FIXME - CMD3
+    // get RCA
+
+    if (!send_command(sd_cmd::SEND_RELATIVE_ADDR, 0)) {
+        print("sdhci_slot::card_insertion: SEND_RELATIVE_ADDR failed\n");
+        return;
+    }
+
+    rca = (uint16_t)(regs.rspreg0 >> 16);
 }
 
 void sdhci_slot::thread() {
