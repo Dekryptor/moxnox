@@ -191,6 +191,51 @@ union sdhci_prnsts {
 
 static_assert(sizeof(sdhci_prnsts) == 0x4);
 
+enum class sd_cmd : uint16_t {
+    GO_IDLE_STATE = 0,
+    ALL_SEND_CID = 2,
+    SEND_RELATIVE_ADDR = 3,
+    SEND_DSR = 4,
+    SWITCH_FUNC = 6,
+    SELECT_CARD = 7,
+    SEND_IF_COND = 8,
+    SEND_CSD = 9,
+    SEND_CID = 10,
+    VOLTAGE_SWITCH = 11,
+    STOP_TRANSMISSION = 12,
+    SEND_STATUS = 13,
+    GO_INACTIVE_STATE = 15,
+    SET_BLOCKLEN = 16,
+    READ_SINGLE_BLOCK = 17,
+    READ_MULTIPLE_BLOCK = 18,
+    SEND_TUNING_BLOCK = 19,
+    SPEED_CLASS_CONTROL = 20,
+    ADDRESS_EXTENSION = 22,
+    SET_BLOCK_COUNT = 23,
+    WRITE_SINGLE_BLOCK = 24,
+    WRITE_MULTIPLE_BLOCK = 25,
+    PROGRAM_CSD = 27,
+    SET_WRITE_PROT = 28,
+    CLR_WRITE_PROT = 29,
+    SEND_WRITE_PROT = 30,
+    ERASE_WR_BLK_START = 32,
+    ERASE_WR_BLK_END = 33,
+    ERASE = 38,
+    SELECT_CARD_PARTITION = 39,
+    LOCK_UNLOCK = 42,
+    Q_MANAGEMENT = 43,
+    Q_TASK_INFO_A = 44,
+    Q_TASK_INFO_B = 45,
+    Q_RD_TASK = 46,
+    Q_WR_TASK = 47,
+    READ_EXTR_SINGLE = 48,
+    WRITE_EXTR_SINGLE = 49,
+    APP_CMD = 55,
+    GEN_CMD = 56,
+    READ_EXTR_MULTI = 58,
+    WRITE_EXTR_MULTI = 59,
+};
+
 class sdhci_device {
 public:
     sdhci_device(const pci_device& dev);
@@ -209,6 +254,7 @@ public:
     void card_removal();
     void card_insertion();
     bool set_clock(unsigned int freq);
+    void send_command(enum sd_cmd cmd, uint32_t arg);
 
     list_entry le;
     sdhci_device& d;
@@ -359,15 +405,25 @@ bool sdhci_slot::set_clock(unsigned int freq) {
     return true;
 }
 
+void sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
+    regs.argument = arg;
+    regs.cmdreg = (uint16_t)cmd;
+}
+
 void sdhci_slot::card_insertion() {
     print("FIXME - sdhci_slot::card_insertion\n");
 
-    // FIXME
+    // FIXME - check card is actually inserted
+    // FIXME - what do we do if we think there's a card already there?
 
     if (!set_clock(400000)) {
         print("sdhci_slot::card_insertion: set_clock failed\n");
         return;
     }
+
+    // FIXME - set timeout control
+
+    send_command(sd_cmd::GO_IDLE_STATE, 0);
 }
 
 void sdhci_slot::thread() {
