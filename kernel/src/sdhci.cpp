@@ -19,8 +19,6 @@ import format;
 
 export module sdhci;
 
-using namespace std;
-
 #define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
 union sdhci_clkcon {
