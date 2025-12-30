@@ -317,7 +317,39 @@ union sd_csd {
         __uint128_t : 6;
         __uint128_t csd_structure : 2;
         __uint128_t : 8;
-    } __attribute((packed));
+    } v1 __attribute((packed));
+    struct {
+        __uint128_t : 1;
+        __uint128_t wp_upc : 1;
+        __uint128_t file_format : 2;
+        __uint128_t tmp_write_protect : 1;
+        __uint128_t perm_write_protect : 1;
+        __uint128_t copy : 1;
+        __uint128_t file_format_grp : 1;
+        __uint128_t : 5;
+        __uint128_t write_bl_partial : 1;
+        __uint128_t write_bl_len : 4;
+        __uint128_t r2w_factor : 3;
+        __uint128_t : 2;
+        __uint128_t wp_grp_enable : 1;
+        __uint128_t wp_grp_size : 7;
+        __uint128_t sector_size : 7;
+        __uint128_t erase_blk_en : 1;
+        __uint128_t : 1;
+        __uint128_t c_size : 28;
+        __uint128_t dsr_imp : 1;
+        __uint128_t read_blk_misalign : 1;
+        __uint128_t write_blk_misalign : 1;
+        __uint128_t read_bl_partial : 1;
+        __uint128_t read_bl_len : 4;
+        __uint128_t ccc : 12;
+        __uint128_t tran_speed : 8;
+        __uint128_t nsac : 8;
+        __uint128_t taac : 8;
+        __uint128_t : 6;
+        __uint128_t csd_structure : 2;
+        __uint128_t : 8;
+    } v2 __attribute((packed));
     struct {
         uint32_t val1;
         uint32_t val2;
@@ -905,11 +937,23 @@ void sdhci_slot::card_insertion() {
     csd.val3 = regs.rspreg2;
     csd.val4 = regs.rspreg3;
 
-    if (csd.csd_structure == 0)
-        size = (csd.c_size + 1) << (csd.c_size_mult + 2 + csd.read_bl_len);
-    else {
-        print("sdhci_slot::card_insertion: unhandled CSD type {}\n", csd.csd_structure);
-        return;
+    switch (csd.v1.csd_structure) {
+        case 0:
+            size = (csd.v1.c_size + 1) << (csd.v1.c_size_mult + 2 + csd.v1.read_bl_len);
+            break;
+
+        case 1:
+            size = ((uint64_t)csd.v2.c_size & 0x3fffff) << 19; // units of 512 KB
+            break;
+
+        case 2:
+            size = (uint64_t)csd.v2.c_size << 19; // units of 512 KB
+            break;
+
+        default:
+            print("sdhci_slot::card_insertion: unhandled CSD type {}\n",
+                  csd.v1.csd_structure);
+            return;
     }
 
     print("size = {}\n", byte_size(size));
