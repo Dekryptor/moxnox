@@ -433,7 +433,6 @@ public:
     sdhci_device(const pci_device& dev);
     bool isr();
 
-    const pci_device& dev;
     bool initialized = false;
     list_entry slots = { &slots, &slots };
 };
@@ -463,10 +462,10 @@ public:
     uint64_t size;
 };
 
-static bool init_sdhci(const pci_device& dev);
+static bool init_sdhci_pci(const pci_device& dev);
 
 static pci_class_recognizer mod_pci_class = {
-    {}, pci_class::base_system_peripheral, (uint8_t)pci_base_system_peripheral::sdhci, true, init_sdhci
+    {}, pci_class::base_system_peripheral, (uint8_t)pci_base_system_peripheral::sdhci, true, init_sdhci_pci
 };
 
 static module_init module_init_xhci([]() {
@@ -1052,15 +1051,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     initialized = true;
 }
 
-static void init_sdhci_slot(sdhci_device& d, uint8_t bar_num) {
-    if (d.dev.bar[bar_num].size() < sizeof(sdhci_regs)) {
-        print("init_sdhci_slot: BAR {} was {} bytes, expected {}\n",
-              bar_num, d.dev.bar[bar_num].size(), sizeof(sdhci_regs));
-        return;
-    }
-
-    volatile auto& regs = *(sdhci_regs*)d.dev.bar[bar_num].data();
-
+static void init_sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) {
     auto s = new sdhci_slot(d, regs);
     if (!s) {
         print("new failed\n");
@@ -1082,7 +1073,7 @@ static bool sdhci_isr_func(void* ctx) {
     return dev.isr();
 }
 
-sdhci_device::sdhci_device(const pci_device& dev) : dev(dev) {
+sdhci_device::sdhci_device(const pci_device& dev) {
     sdhci_slot_info_reg slot_info_reg;
 
     if (!dev.irq.has_value()) {
@@ -1099,7 +1090,17 @@ sdhci_device::sdhci_device(const pci_device& dev) : dev(dev) {
             break;
         }
 
-        init_sdhci_slot(*this, (uint8_t)(slot_info_reg.first_bar_num + i));
+        auto bar_num = (uint8_t)(slot_info_reg.first_bar_num + i);
+
+        if (dev.bar[bar_num].size() < sizeof(sdhci_regs)) {
+            print("sdhci_device::sdhci_device: BAR {} was {} bytes, expected {}\n",
+                  bar_num, dev.bar[bar_num].size(), sizeof(sdhci_regs));
+            continue;
+        }
+
+        volatile auto& regs = *(sdhci_regs*)dev.bar[bar_num].data();
+
+        init_sdhci_slot(*this, regs);
     }
 
     if (!add_irq_handler(*dev.irq, true, sdhci_isr_func, this)) {
@@ -1121,7 +1122,7 @@ bool sdhci_device::isr() {
     return false;
 }
 
-static bool init_sdhci(const pci_device& dev) {
+static bool init_sdhci_pci(const pci_device& dev) {
     auto d = new sdhci_device(dev);
     if (!d) {
         print("new failed\n");
