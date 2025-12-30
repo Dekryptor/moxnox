@@ -925,7 +925,7 @@ void sdhci_slot::card_insertion() {
         return;
     }
 
-    if (!send_command(sd_cmd::SEND_CSD, rca << 16)) {
+    if (!send_command(sd_cmd::SEND_CSD, (uint32_t)(rca << 16))) {
         print("sdhci_slot::card_insertion: SEND_CSD failed\n");
         return;
     }
@@ -937,7 +937,7 @@ void sdhci_slot::card_insertion() {
 
     switch (csd.v1.csd_structure) {
         case 0:
-            size = (csd.v1.c_size + 1) << (csd.v1.c_size_mult + 2 + csd.v1.read_bl_len);
+            size = ((uint64_t)csd.v1.c_size + 1) << (csd.v1.c_size_mult + 2 + csd.v1.read_bl_len);
             break;
 
         case 1:
