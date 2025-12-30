@@ -16,6 +16,7 @@ import timer;
 import config;
 import nt;
 import format;
+import acpi;
 
 export module sdhci;
 
@@ -463,13 +464,19 @@ public:
 };
 
 static bool init_sdhci_pci(const pci_device& dev);
+static void found_sdhci_acpi(const acpi_device& dev);
 
 static pci_class_recognizer mod_pci_class = {
     {}, pci_class::base_system_peripheral, (uint8_t)pci_base_system_peripheral::sdhci, true, init_sdhci_pci
 };
 
-static module_init module_init_xhci([]() {
+static acpi_recognizer mod_pnp_hids = {
+    {}, "80860F16", found_sdhci_acpi, nullptr,
+};
+
+static module_init module_init_sdhci([]() {
     insert_tail_list(pci_classes, mod_pci_class.le);
+    insert_tail_list(pnp_hids, mod_pnp_hids.le);
 });
 
 static const char* spec_version_to_string(uint8_t ver) {
@@ -1138,4 +1145,8 @@ static bool init_sdhci_pci(const pci_device& dev) {
     // FIXME - put in list somewhere?
 
     return true;
+}
+
+static void found_sdhci_acpi(const acpi_device& dev) {
+    print("FIXME - found_sdhci_acpi\n"); // FIXME
 }
