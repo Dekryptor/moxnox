@@ -15,6 +15,7 @@ import event;
 import timer;
 import config;
 import nt;
+import format;
 
 export module sdhci;
 
@@ -279,6 +280,54 @@ union sd_cid {
 
 static_assert(sizeof(sd_cid) == 0x10);
 
+union sd_csd {
+    struct {
+        __uint128_t : 1;
+        __uint128_t wp_upc : 1;
+        __uint128_t file_format : 2;
+        __uint128_t tmp_write_protect : 1;
+        __uint128_t perm_write_protect : 1;
+        __uint128_t copy : 1;
+        __uint128_t file_format_grp : 1;
+        __uint128_t : 5;
+        __uint128_t write_bl_partial : 1;
+        __uint128_t write_bl_len : 4;
+        __uint128_t r2w_factor : 3;
+        __uint128_t : 2;
+        __uint128_t wp_grp_enable : 1;
+        __uint128_t wp_grp_size : 7;
+        __uint128_t sector_size : 7;
+        __uint128_t erase_blk_en : 1;
+        __uint128_t c_size_mult : 3;
+        __uint128_t vdd_w_curr_max : 3;
+        __uint128_t vdd_w_curr_min : 3;
+        __uint128_t vdd_r_curr_max : 3;
+        __uint128_t vdd_r_curr_min : 3;
+        __uint128_t c_size : 12;
+        __uint128_t : 2;
+        __uint128_t dsr_imp : 1;
+        __uint128_t read_blk_misalign : 1;
+        __uint128_t write_blk_misalign : 1;
+        __uint128_t read_bl_partial : 1;
+        __uint128_t read_bl_len : 4;
+        __uint128_t ccc : 12;
+        __uint128_t tran_speed : 8;
+        __uint128_t nsac : 8;
+        __uint128_t taac : 8;
+        __uint128_t : 6;
+        __uint128_t csd_structure : 2;
+        __uint128_t : 8;
+    } __attribute((packed));
+    struct {
+        uint32_t val1;
+        uint32_t val2;
+        uint32_t val3;
+        uint32_t val4;
+    };
+};
+
+static_assert(sizeof(sd_csd) == 0x10);
+
 enum class sd_cmd : uint16_t {
     GO_IDLE_STATE = 0,
     ALL_SEND_CID = 2,
@@ -380,6 +429,8 @@ public:
     bool initialized = false;
     sd_cid cid;
     uint16_t rca;
+    sd_csd csd;
+    uint64_t size;
 };
 
 static bool init_sdhci(const pci_device& dev);
@@ -556,6 +607,10 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 
         case SEND_IF_COND:
             type = response_type::R7;
+            break;
+
+        case SEND_CSD:
+            type = response_type::R2;
             break;
 
         case APP_CMD:
@@ -834,12 +889,32 @@ void sdhci_slot::card_insertion() {
         return;
     }
 
+    // FIXME - specs say we should repeat SEND_RELATIVE_ADDR if rca is 0
     rca = (uint16_t)(regs.rspreg0 >> 16);
 
     if (!set_clock(25000000)) {
         print("sdhci_slot::card_insertion: set_clock failed\n");
         return;
     }
+
+    if (!send_command(sd_cmd::SEND_CSD, rca << 16)) {
+        print("sdhci_slot::card_insertion: SEND_CSD failed\n");
+        return;
+    }
+
+    csd.val1 = regs.rspreg0;
+    csd.val2 = regs.rspreg1;
+    csd.val3 = regs.rspreg2;
+    csd.val4 = regs.rspreg3;
+
+    if (csd.csd_structure == 0)
+        size = (csd.c_size + 1) << (csd.c_size_mult + 2 + csd.read_bl_len);
+    else {
+        print("sdhci_slot::card_insertion: unhandled CSD type {}\n", csd.csd_structure);
+        return;
+    }
+
+    print("size = {}\n", byte_size(size));
 }
 
 void sdhci_slot::thread() {
