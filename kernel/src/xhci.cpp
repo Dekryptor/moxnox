@@ -3226,6 +3226,10 @@ static void found_xhci_acpi(const acpi_device& d) {
         }
 
         free_va(va, num_pages);
+
+        if (x)
+            delete x;
+
         return;
     }
 
