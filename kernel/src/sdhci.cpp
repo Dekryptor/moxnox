@@ -1,7 +1,10 @@
 module;
 
 #include <stdint.h>
+#include <optional>
+#include <span>
 #include "tick_rate.h"
+#include "acpica.h"
 
 import pci;
 import module_init;
@@ -17,8 +20,11 @@ import config;
 import nt;
 import format;
 import acpi;
+import mem;
 
 export module sdhci;
+
+using namespace std;
 
 #define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
@@ -432,6 +438,8 @@ enum class response_type {
 class sdhci_device {
 public:
     sdhci_device(const pci_device& dev);
+    sdhci_device(span<volatile uint8_t> mmio, uint32_t irq,
+                 bool level_sensitive);
     bool isr();
 
     bool initialized = false;
@@ -1058,20 +1066,22 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     initialized = true;
 }
 
-static void init_sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) {
+static bool init_sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) {
     auto s = new sdhci_slot(d, regs);
     if (!s) {
         print("new failed\n");
-        return;
+        return false;
     }
 
     if (!s->initialized) {
         print("sdhci_slot::sdhci_slot failed\n");
         delete s;
-        return;
+        return false;
     }
 
     insert_tail_list(d.slots, s->le);
+
+    return true;
 }
 
 static bool sdhci_isr_func(void* ctx) {
@@ -1107,10 +1117,34 @@ sdhci_device::sdhci_device(const pci_device& dev) {
 
         volatile auto& regs = *(sdhci_regs*)dev.bar[bar_num].data();
 
+        // FIXME - handle failure (what do we do if some slots fail and others don't?)
         init_sdhci_slot(*this, regs);
     }
 
     if (!add_irq_handler(*dev.irq, true, sdhci_isr_func, this)) {
+        print("sdhci_device::sdhci_device: add_irq_handler failed\n");
+        return;
+    }
+
+    initialized = true;
+}
+
+sdhci_device::sdhci_device(span<volatile uint8_t> mmio, uint32_t irq,
+                           bool level_sensitive) {
+    if (mmio.size() < sizeof(sdhci_regs)) {
+        print("sdhci_device::sdhci_device: MMIO range was {} bytes, expected {}\n",
+              mmio.size(), sizeof(sdhci_regs));
+        return;
+    }
+
+    volatile auto& regs = *(sdhci_regs*)mmio.data();
+
+    if (!init_sdhci_slot(*this, regs)) {
+        print("init_sdhci_slot failed\n");
+        return;
+    }
+
+    if (!add_irq_handler(irq, level_sensitive, sdhci_isr_func, this)) {
         print("sdhci_device::sdhci_device: add_irq_handler failed\n");
         return;
     }
@@ -1148,5 +1182,128 @@ static bool init_sdhci_pci(const pci_device& dev) {
 }
 
 static void found_sdhci_acpi(const acpi_device& dev) {
-    print("FIXME - found_sdhci_acpi\n"); // FIXME
+    optional<pair<uint64_t, uint64_t>> address;
+    optional<uint32_t> irq;
+    bool level_sensitive;
+
+    for (auto le = dev.resources.next; le != &dev.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        switch (r.type) {
+            case acpi_device_resource_type::extended_irq: {
+                auto& i = ((acpi_device_resource_extended_irq&)r).extended_irq;
+
+                // FIXME - what are we supposed to do if multiple IRQs?
+
+                if (!irq.has_value()) {
+                    // FIXME - check entry only covers one IRQ?
+                    irq = i.Interrupt;
+                    level_sensitive = i.Triggering == ACPI_LEVEL_SENSITIVE;
+                }
+
+                break;
+            }
+
+            case acpi_device_resource_type::address: {
+                auto& a = ((acpi_device_resource_address&)r).address;
+
+                // FIXME - check memory is read-write?
+
+                if (address.has_value()) {
+                    print("found_sdhci_acpi: multiple address ranges provided\n");
+                    return;
+                }
+
+                address = make_pair(a.Address.Minimum, a.Address.AddressLength);
+                break;
+            }
+
+            case acpi_device_resource_type::fixed_memory32: {
+                auto& m = ((acpi_device_resource_fixed_memory32&)r).fixed_memory32;
+
+                // FIXME - check memory is read-write?
+
+                if (address.has_value()) {
+                    print("found_sdhci_acpi: multiple address ranges provided\n");
+                    return;
+                }
+
+                address = make_pair(m.Address, m.AddressLength);
+                break;
+            }
+
+            default:
+                print("resource: {}\n", r.type);
+                break;
+        }
+    }
+
+    if (!address.has_value()) {
+        print("found_sdhci_acpi: no memory address found\n");
+        return;
+    }
+
+    if (!irq.has_value()) {
+        print("found_sdhci_acpi: no IRQ found\n");
+        return;
+    }
+
+    if (address->second == 0) {
+        print("found_sdhci_acpi: memory address range has length of zero\n");
+        return;
+    }
+
+    // map address range
+
+    auto pa_start = address->first & ~(PAGE_SIZE - 1);
+    auto pa_end = address->first + address->second;
+
+    if (pa_end & (PAGE_SIZE - 1))
+        pa_end = (pa_end & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
+
+    auto num_pages = (uint32_t)((pa_end - pa_start) >> PAGE_SHIFT);
+
+    auto va = allocate_va(num_pages);
+    if (!va) {
+        print("allocate_va failed\n");
+        return;
+    }
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        if (!map_page(pa_start + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT),
+                      mapping_type::no_cache)) {
+            print("map_page failed\n");
+
+            for (unsigned int j = 0; j < i; j++) {
+                unmap_page(va + (j << PAGE_SHIFT));
+            }
+
+            free_va(va, num_pages);
+            return;
+        }
+    }
+
+    auto mmio = span<volatile uint8_t>((volatile uint8_t*)(va + (address->first & (PAGE_SIZE - 1))),
+                                       address->second);
+
+    auto d = new sdhci_device(mmio, *irq, level_sensitive);
+    if (!d || !d->initialized) {
+        if (!d)
+            print("new failed\n");
+        else
+            print("sdhci_device::sdhci_device failed\n");
+
+        for (unsigned int i = 0; i < num_pages; i++) {
+            unmap_page(va + (i << PAGE_SHIFT));
+        }
+
+        free_va(va, num_pages);
+
+        if (d)
+            delete d;
+
+        return;
+    }
+
+    // FIXME - put in list somewhere?
 }
