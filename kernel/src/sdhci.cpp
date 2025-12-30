@@ -770,8 +770,6 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
 }
 
 void sdhci_slot::card_insertion() {
-    print("FIXME - sdhci_slot::card_insertion\n");
-
     // FIXME - check card is actually inserted
     // FIXME - what do we do if we think there's a card already there?
 
@@ -1013,8 +1011,6 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 }
 
 static void init_sdhci_slot(sdhci_device& d, uint8_t bar_num) {
-    print("FIXME - init_sdhci_slot\n"); // FIXME
-
     if (d.dev.bar[bar_num].size() < sizeof(sdhci_regs)) {
         print("init_sdhci_slot: BAR {} was {} bytes, expected {}\n",
               bar_num, d.dev.bar[bar_num].size(), sizeof(sdhci_regs));
