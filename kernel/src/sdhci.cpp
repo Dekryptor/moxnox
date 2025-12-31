@@ -262,6 +262,23 @@ union sdhci_hostctl {
 
 static_assert(sizeof(sdhci_hostctl) == 0x1);
 
+union sdhci_trnmod {
+    struct {
+        uint16_t dma_enable : 1;
+        uint16_t block_count_enable : 1;
+        uint16_t auto_cmd_enable : 2;
+        uint16_t data_transfer_direction_select : 1;
+        uint16_t multi_block_select : 1;
+        uint16_t response_type_r1r5 : 1;
+        uint16_t response_error_check_enable : 1;
+        uint16_t response_interrupt_disable : 1;
+        uint16_t : 7;
+    };
+    uint16_t value;
+};
+
+static_assert(sizeof(sdhci_trnmod) == 0x2);
+
 union sdhci_blksize {
     struct {
         uint16_t transfer_block_size : 12;
@@ -272,6 +289,20 @@ union sdhci_blksize {
 };
 
 static_assert(sizeof(sdhci_blksize) == 0x2);
+
+struct adma2_descriptor32 {
+    uint64_t valid : 1;
+    uint64_t end : 1;
+    uint64_t interrupt : 1;
+    uint64_t zero1 : 1;
+    uint64_t act1 : 1;
+    uint64_t act2 : 1;
+    uint64_t zero2 : 10;
+    uint64_t length : 16;
+    uint64_t address : 32;
+};
+
+static_assert(sizeof(adma2_descriptor32) == 0x8);
 
 union acmd41_arg {
     struct {
@@ -497,6 +528,7 @@ public:
     void set_power();
     bool send_command(enum sd_cmd cmd, uint32_t arg);
     bool send_app_command(enum sd_app_cmd cmd, uint32_t arg);
+    void read_block();
 
     list_entry le;
     sdhci_device& d;
@@ -828,6 +860,14 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
             type = response_type::R2;
             break;
 
+        case SET_BLOCKLEN:
+            type = response_type::R1;
+            break;
+
+        case READ_SINGLE_BLOCK:
+            type = response_type::R1;
+            break;
+
         case APP_CMD:
             type = response_type::R1;
             break;
@@ -881,6 +921,9 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
             cmdreg.command_crc_check_enable = 1;
         break;
     }
+
+    if (cmd == sd_cmd::READ_SINGLE_BLOCK)
+        cmdreg.data_present_select = 1;
 
     last_error.value = 0;
 
@@ -1002,6 +1045,113 @@ void sdhci_slot::set_power() {
     pwrcon.vdd1_voltage = 7; // 3.3V
 
     regs.pwrcon = pwrcon.value;
+}
+
+void sdhci_slot::read_block() {
+    bool dma64;
+
+    // FIXME - mutex
+
+    // FIXME - only if standard-capacity SD card
+    if (!send_command(sd_cmd::SET_BLOCKLEN, 512)) {
+        print("sdhci_slot::read_block: send_command failed for SET_BLOCKLEN\n");
+        return;
+    }
+
+    // dma64 = capab.v3_64bit_system_address_support;
+    dma64 = false; // FIXME
+
+    // FIXME - multiple blocks
+    // FIXME - might need bounce buffer if 64-bit DMA not supported
+
+    // prepare ADMA2 data structure
+
+    // FIXME - within first 4GB if necessary
+    auto adma_page = allocate_folio(0);
+    if (!adma_page) {
+        print("allocate_folio failed\n");
+        return;
+    }
+
+    if (!dma64 && adma_page >= (uint64_t)1 << 32) { // FIXME
+        print("sdhci_slot::read_block: adma_page not within first 4GB\n");
+        free_folio(adma_page);
+        return;
+    }
+
+    auto buf_page = allocate_folio(0);
+    if (!buf_page) {
+        print("allocate_folio failed\n");
+        free_folio(adma_page);
+        return;
+    }
+
+    memset(phys_address(buf_page), 0xcc, PAGE_SIZE); // FIXME
+
+    if (!dma64 && buf_page >= (uint64_t)1 << 32) { // FIXME
+        print("sdhci_slot::read_block: buf_pa not within first 4GB\n");
+        free_folio(adma_page);
+        free_folio(buf_page);
+        return;
+    }
+
+    if (dma64) {
+        // FIXME
+    } else {
+        auto descs = span((adma2_descriptor32*)phys_address(adma_page),
+                          PAGE_SIZE / sizeof(adma2_descriptor32));
+
+        descs[0].valid = 1;
+        descs[0].end = 1;
+        descs[0].interrupt = 0;
+        descs[0].zero1 = 0;
+        descs[0].act1 = 0;
+        descs[0].act2 = 1;
+        descs[0].zero2 = 0;
+        descs[0].length = 512;
+        descs[0].address = (uint32_t)buf_page;
+
+        flush_cache(span((uint8_t*)descs.data(), sizeof(adma2_descriptor32)),
+                    false);
+
+        regs.admasysaddr[0] = (uint32_t)adma_page;
+    }
+
+    // set transfer mode register
+
+    sdhci_trnmod trnmod;
+
+    trnmod.value = regs.trnmod;
+
+    trnmod.dma_enable = 1;
+    trnmod.data_transfer_direction_select = 1; // read
+    trnmod.multi_block_select = 0; // single
+
+    regs.trnmod = trnmod.value;
+
+    flush_cache(span((uint8_t*)phys_address(buf_page), 512), false);
+
+    // FIXME - address (bytes for standard-capacity SD card, blocks otherwise)
+    if (!send_command(sd_cmd::READ_SINGLE_BLOCK, 0)) {
+        print("sdhci_slot::read_block: send_command failed for READ_SINGLE_BLOCK\n");
+        flush_cache(span((uint8_t*)phys_address(buf_page), 512), true);
+        free_folio(adma_page);
+        free_folio(buf_page);
+        return;
+    }
+
+    flush_cache(span((uint8_t*)phys_address(buf_page), 512), true);
+
+    auto buf = (uint8_t*)phys_address(buf_page);
+    for (unsigned int i = 0; i < 512; i++) {
+        print("{:02x} ", buf[i]);
+
+        if ((i % 16) == 15)
+            print("\n");
+    }
+
+    free_folio(adma_page);
+    free_folio(buf_page);
 }
 
 void sdhci_slot::card_insertion() {
@@ -1167,6 +1317,8 @@ void sdhci_slot::card_insertion() {
         print("sdhci_slot::card_insertion: SELECT_CARD failed\n");
         return;
     }
+
+    read_block();
 }
 
 void sdhci_slot::thread() {
