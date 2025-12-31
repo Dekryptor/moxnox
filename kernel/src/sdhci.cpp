@@ -262,6 +262,17 @@ union sdhci_hostctl {
 
 static_assert(sizeof(sdhci_hostctl) == 0x1);
 
+union sdhci_blksize {
+    struct {
+        uint16_t transfer_block_size : 12;
+        uint16_t sdma_buffer_boundary : 3;
+        uint16_t : 1;
+    };
+    uint16_t value;
+};
+
+static_assert(sizeof(sdhci_blksize) == 0x2);
+
 union acmd41_arg {
     struct {
         uint32_t voltage_window : 24;
@@ -1245,6 +1256,15 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
         hostctl.dma_select = 2; // 32-bit ADMA2
 
     regs.hostctl = hostctl.value;
+
+    // set block size register
+
+    sdhci_blksize blksize;
+
+    blksize.value = regs.blksize;
+    blksize.transfer_block_size = 512;
+
+    regs.blksize = blksize.value;
 
     // start thread
 
