@@ -60,7 +60,8 @@ union sdhci_norint {
         uint16_t int_c : 1;
         uint16_t retuning_event : 1;
         uint16_t fx_event : 1;
-        uint16_t : 2;
+        uint16_t : 1;
+        uint16_t error_interrupt : 1;
     };
     uint16_t value;
 };
@@ -483,6 +484,7 @@ public:
     uint16_t rca;
     sd_csd csd;
     uint64_t size;
+    sdhci_errint last_error;
 };
 
 static bool init_sdhci_pci(const pci_device& dev);
@@ -554,6 +556,14 @@ bool sdhci_slot::isr() {
         norintsts.command_complete = 1;
         regs.norintsts.value = norintsts.value;
 
+        return true;
+    }
+
+    if (norintsts.error_interrupt) {
+        last_error.value = regs.errintsts.value;
+        regs.errintsts.value = last_error.value; // clear error interrupts
+
+        set_event(static_cast<event&>(command_complete_event.get()));
         return true;
     }
 
@@ -742,6 +752,8 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
         break;
     }
 
+    last_error.value = 0;
+
     regs.argument = arg;
     regs.cmdreg = cmdreg.value;
 
@@ -749,12 +761,11 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 
     regs.norintstsen.command_complete = 0;
 
-    if (regs.errintsts.command_timeout_error) {
-        regs.errintsts.command_timeout_error = 0;
+    if (last_error.value != 0) {
+        print("sdhci_slot::send_command: error (errintsts = {:04x})\n",
+              last_error.value);
         return false;
     }
-
-    // FIXME - get response
 
     return true;
 }
@@ -762,7 +773,8 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
     // FIXME - do we need a mutex?
 
-    send_command(sd_cmd::APP_CMD, 0); // FIXME - handle error
+    if (!send_command(sd_cmd::APP_CMD, 0))
+        return false;
 
     reset_event(static_cast<event&>(command_complete_event.get()));
     regs.norintstsen.command_complete = 1;
@@ -827,6 +839,8 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
         break;
     }
 
+    last_error.value = 0;
+
     regs.argument = arg;
     regs.cmdreg = cmdreg.value;
 
@@ -834,12 +848,11 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
 
     regs.norintstsen.command_complete = 0;
 
-    if (regs.errintsts.command_timeout_error) {
-        regs.errintsts.command_timeout_error = 0;
+    if (last_error.value != 0) {
+        print("sdhci_slot::send_app_command: error (errintsts = {:04x})\n",
+              last_error.value);
         return false;
     }
-
-    // FIXME - get response
 
     return true;
 }
@@ -1055,6 +1068,9 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     // enable interrupts
 
+    regs.norintsts.value = 0;
+    regs.errintsts.value = 0;
+
     sdhci_norint norintstsen, norintsigen;
 
     norintstsen.value = 0;
@@ -1072,13 +1088,8 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     regs.norintsigen.value = norintsigen.value;
 
-    sdhci_errint errintstsen;
-
-    errintstsen.value = 0;
-
-    errintstsen.command_timeout_error = 1;
-
-    regs.errintstsen.value = errintstsen.value;
+    regs.errintstsen.value = 0xffff;
+    regs.errintsigen.value = 0xffff;
 
     // get base clock frequency
 
