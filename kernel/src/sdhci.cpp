@@ -789,6 +789,10 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
             type = response_type::R6;
             break;
 
+        case SELECT_CARD:
+            type = response_type::R1b;
+            break;
+
         case SEND_IF_COND:
             type = response_type::R7;
             break;
@@ -1131,6 +1135,11 @@ void sdhci_slot::card_insertion() {
     }
 
     print("size = {}\n", byte_size(size));
+
+    if (!send_command(sd_cmd::SELECT_CARD, (uint32_t)(rca << 16))) {
+        print("sdhci_slot::card_insertion: SELECT_CARD failed\n");
+        return;
+    }
 }
 
 void sdhci_slot::thread() {
