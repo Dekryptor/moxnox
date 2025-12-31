@@ -785,7 +785,7 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
         using enum sd_app_cmd;
 
         case SD_SEND_OP_COND:
-            type = response_type::R1;
+            type = response_type::R3;
             break;
 
         default:
