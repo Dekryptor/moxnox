@@ -895,7 +895,6 @@ void sdhci_slot::card_insertion() {
         return;
     }
 
-
     bool f8;
 
     // FIXME - distinguish between errors and command getting ignored
