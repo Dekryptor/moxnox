@@ -247,6 +247,21 @@ union sdhci_prnsts {
 
 static_assert(sizeof(sdhci_prnsts) == 0x4);
 
+union sdhci_hostctl {
+    struct {
+        uint8_t led_control : 1;
+        uint8_t data_transfer_width : 1;
+        uint8_t high_speed_enable : 1;
+        uint8_t dma_select : 2;
+        uint8_t : 1;
+        uint8_t card_detect_test_level : 1;
+        uint8_t card_detect_signal_selection : 1;
+    };
+    uint8_t value;
+};
+
+static_assert(sizeof(sdhci_hostctl) == 0x1);
+
 union acmd41_arg {
     struct {
         uint32_t voltage_window : 24;
@@ -486,6 +501,7 @@ public:
     sd_csd csd;
     uint64_t size;
     sdhci_errint last_error;
+    sdhci_capab capab;
 };
 
 static bool init_sdhci_pci(const pci_device& dev);
@@ -1200,8 +1216,6 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     // get base clock frequency
 
-    sdhci_capab capab;
-
     capab.low = regs.capab[0];
     capab.high = regs.capab[1];
 
@@ -1211,6 +1225,26 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     }
 
     base_clock_frequency = (unsigned int)capab.base_clock_frequency * 1000000;
+
+    // check for ADMA2
+
+    if (!capab.adma2_support) {
+        print("sdhci_slot::sdhci_slot: controller does not support ADMA2\n");
+        return;
+    }
+
+    // enable ADMA2
+
+    sdhci_hostctl hostctl;
+
+    hostctl.value = regs.hostctl;
+
+    if (capab.v3_64bit_system_address_support)
+        hostctl.dma_select = 3; // 64-bit ADMA2
+    else
+        hostctl.dma_select = 2; // 32-bit ADMA2
+
+    regs.hostctl = hostctl.value;
 
     // start thread
 
