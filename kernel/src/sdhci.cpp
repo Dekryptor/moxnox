@@ -3,6 +3,7 @@ module;
 #include <stdint.h>
 #include <optional>
 #include <span>
+#include <string_view>
 #include "tick_rate.h"
 #include "acpica.h"
 
@@ -503,6 +504,104 @@ static module_init module_init_sdhci([]() {
     insert_tail_list(pnp_hids, mod_pnp_hids.le);
 });
 
+template<>
+consteval bool format_spec_valid<enum sd_cmd>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, enum sd_cmd c) {
+    switch (c) {
+        using enum sd_cmd;
+
+        case GO_IDLE_STATE:
+            return do_format_arg(sp, "", "GO_IDLE_STATE");
+        case ALL_SEND_CID:
+            return do_format_arg(sp, "", "ALL_SEND_CID");
+        case SEND_RELATIVE_ADDR:
+            return do_format_arg(sp, "", "SEND_RELATIVE_ADDR");
+        case SEND_DSR:
+            return do_format_arg(sp, "", "SEND_DSR");
+        case SWITCH_FUNC:
+            return do_format_arg(sp, "", "SWITCH_FUNC");
+        case SELECT_CARD:
+            return do_format_arg(sp, "", "SELECT_CARD");
+        case SEND_IF_COND:
+            return do_format_arg(sp, "", "SEND_IF_COND");
+        case SEND_CSD:
+            return do_format_arg(sp, "", "SEND_CSD");
+        case SEND_CID:
+            return do_format_arg(sp, "", "SEND_CID");
+        case VOLTAGE_SWITCH:
+            return do_format_arg(sp, "", "VOLTAGE_SWITCH");
+        case STOP_TRANSMISSION:
+            return do_format_arg(sp, "", "STOP_TRANSMISSION");
+        case SEND_STATUS:
+            return do_format_arg(sp, "", "SEND_STATUS");
+        case GO_INACTIVE_STATE:
+            return do_format_arg(sp, "", "GO_INACTIVE_STATE");
+        case SET_BLOCKLEN:
+            return do_format_arg(sp, "", "SET_BLOCKLEN");
+        case READ_SINGLE_BLOCK:
+            return do_format_arg(sp, "", "READ_SINGLE_BLOCK");
+        case READ_MULTIPLE_BLOCK:
+            return do_format_arg(sp, "", "READ_MULTIPLE_BLOCK");
+        case SEND_TUNING_BLOCK:
+            return do_format_arg(sp, "", "SEND_TUNING_BLOCK");
+        case SPEED_CLASS_CONTROL:
+            return do_format_arg(sp, "", "SPEED_CLASS_CONTROL");
+        case ADDRESS_EXTENSION:
+            return do_format_arg(sp, "", "ADDRESS_EXTENSION");
+        case SET_BLOCK_COUNT:
+            return do_format_arg(sp, "", "SET_BLOCK_COUNT");
+        case WRITE_SINGLE_BLOCK:
+            return do_format_arg(sp, "", "WRITE_SINGLE_BLOCK");
+        case WRITE_MULTIPLE_BLOCK:
+            return do_format_arg(sp, "", "WRITE_MULTIPLE_BLOCK");
+        case PROGRAM_CSD:
+            return do_format_arg(sp, "", "PROGRAM_CSD");
+        case SET_WRITE_PROT:
+            return do_format_arg(sp, "", "SET_WRITE_PROT");
+        case CLR_WRITE_PROT:
+            return do_format_arg(sp, "", "CLR_WRITE_PROT");
+        case SEND_WRITE_PROT:
+            return do_format_arg(sp, "", "SEND_WRITE_PROT");
+        case ERASE_WR_BLK_START:
+            return do_format_arg(sp, "", "ERASE_WR_BLK_START");
+        case ERASE_WR_BLK_END:
+            return do_format_arg(sp, "", "ERASE_WR_BLK_END");
+        case ERASE:
+            return do_format_arg(sp, "", "ERASE");
+        case SELECT_CARD_PARTITION:
+            return do_format_arg(sp, "", "SELECT_CARD_PARTITION");
+        case LOCK_UNLOCK:
+            return do_format_arg(sp, "", "LOCK_UNLOCK");
+        case Q_MANAGEMENT:
+            return do_format_arg(sp, "", "Q_MANAGEMENT");
+        case Q_TASK_INFO_A:
+            return do_format_arg(sp, "", "Q_TASK_INFO_A");
+        case Q_TASK_INFO_B:
+            return do_format_arg(sp, "", "Q_TASK_INFO_B");
+        case Q_RD_TASK:
+            return do_format_arg(sp, "", "Q_RD_TASK");
+        case Q_WR_TASK:
+            return do_format_arg(sp, "", "Q_WR_TASK");
+        case READ_EXTR_SINGLE:
+            return do_format_arg(sp, "", "READ_EXTR_SINGLE");
+        case WRITE_EXTR_SINGLE:
+            return do_format_arg(sp, "", "WRITE_EXTR_SINGLE");
+        case APP_CMD:
+            return do_format_arg(sp, "", "APP_CMD");
+        case GEN_CMD:
+            return do_format_arg(sp, "", "GEN_CMD");
+        case READ_EXTR_MULTI:
+            return do_format_arg(sp, "", "READ_EXTR_MULTI");
+        case WRITE_EXTR_MULTI:
+            return do_format_arg(sp, "", "WRITE_EXTR_MULTI");
+        default:
+            return do_format_arg(sp, "", (unsigned int)c);
+    }
+}
+
 static const char* spec_version_to_string(uint8_t ver) {
     switch (ver) {
         case 0:
@@ -703,7 +802,7 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
             break;
 
         default:
-            print("sdhci_slot::send_command: unhandled command type {}\n", (uint16_t)cmd);
+            print("sdhci_slot::send_command: unhandled command type {}\n", cmd);
             return false;
     }
 
