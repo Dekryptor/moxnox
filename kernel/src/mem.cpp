@@ -2816,10 +2816,20 @@ export void inline __attribute((always_inline)) flush_cache(span<uint8_t> va,
     __asm __volatile (
         "dsb sy\n"
         "isb\n"
+        :
+        :
+        : "memory"
     );
 }
 #elifdef __x86_64__
 export void inline __attribute((always_inline)) flush_cache(span<uint8_t>, bool) {
-    // FIXME
+    // FIXME?
+
+    __asm __volatile (
+        ""
+        :
+        :
+        : "memory"
+    );
 }
 #endif
