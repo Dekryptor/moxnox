@@ -190,6 +190,18 @@ union sdhci_capab {
 
 static_assert(sizeof(sdhci_capab) == 0x8);
 
+union sdhci_pwrcon {
+    struct {
+        uint8_t vdd1_power : 1;
+        uint8_t vdd1_voltage : 3;
+        uint8_t vdd2_power : 1;
+        uint8_t vdd2_voltage : 3;
+    };
+    uint8_t value;
+};
+
+static_assert(sizeof(sdhci_pwrcon) == 0x1);
+
 union sdhci_slot_info_reg {
     struct {
         uint8_t first_bar_num : 3;
@@ -454,6 +466,7 @@ public:
     void card_removal();
     void card_insertion();
     bool set_clock(unsigned int freq);
+    void set_power();
     bool send_command(enum sd_cmd cmd, uint32_t arg);
     bool send_app_command(enum sd_app_cmd cmd, uint32_t arg);
 
@@ -831,6 +844,23 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
     return true;
 }
 
+void sdhci_slot::set_power() {
+    sdhci_pwrcon pwrcon;
+
+    // FIXME - choose voltage, and also send this to SEND_IF_COND?
+    // FIXME - check capabilities to find which voltages are supported
+
+    // FIXME - UHS-II?
+
+    regs.pwrcon = 0;
+
+    pwrcon.value = 0;
+    pwrcon.vdd1_power = 1;
+    pwrcon.vdd1_voltage = 7; // 3.3V
+
+    regs.pwrcon = pwrcon.value;
+}
+
 void sdhci_slot::card_insertion() {
     // FIXME - check card is actually inserted
     // FIXME - what do we do if we think there's a card already there?
@@ -843,12 +873,13 @@ void sdhci_slot::card_insertion() {
     // FIXME - set timeout control
     // FIXME - bus width?
 
+    set_power();
+
     if (!send_command(sd_cmd::GO_IDLE_STATE, 0)) {
         print("sdhci_slot::card_insertion: GO_IDLE_STATE failed\n");
         return;
     }
 
-    // FIXME - set power, and choose voltage to send to SEND_IF_COND?
 
     bool f8;
 
