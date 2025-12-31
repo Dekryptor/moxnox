@@ -459,6 +459,7 @@ public:
 
     list_entry le;
     sdhci_device& d;
+    uint16_t hcver;
     volatile sdhci_regs& regs;
     object_ref thread_event, command_complete_event;
     bool card_removal_pending = false;
@@ -571,19 +572,36 @@ bool sdhci_slot::set_clock(unsigned int freq) {
 
     regs.clkcon.value = 0;
 
-    // version 2 divisors must be power of 2
-    // FIXME - easier from v3 onward (see Linux's sdhci_calc_clk)
-
-    for (div = 1; div < 256; div <<= 1) {
-        if ((base_clock_frequency / div) <= freq)
-            break;
-    }
-
     sdhci_clkcon clkcon;
 
     clkcon.value = 0;
 
-    clkcon.sdclk_frequency_select = (uint8_t)(div >> 1);
+    if ((hcver & 0xff) >= 2) { // SDHCI 3.00 or above
+        // FIXME - check for optional programmable clock mode
+
+        if (freq >= base_clock_frequency)
+            div = 0;
+        else {
+            // version 3 divisors must be multiple of 2
+            for (div = 1; div < 0x3ff; div++) {
+                if ((base_clock_frequency / (2 * div)) <= freq)
+                    break;
+            }
+        }
+
+        clkcon.sdclk_frequency_select = div & 0xff;
+        clkcon.sdclk_frequency_select_upper = (div & 0x300) >> 8;
+    } else {
+        // version 2 divisors must be power of 2
+
+        for (div = 1; div < 256; div <<= 1) {
+            if ((base_clock_frequency / div) <= freq)
+                break;
+        }
+
+        clkcon.sdclk_frequency_select = (uint8_t)(div >> 1);
+    }
+
     clkcon.internal_clock_enable = 1;
 
     regs.clkcon.value = clkcon.value;
@@ -992,7 +1010,7 @@ void sdhci_slot::thread() {
 }
 
 sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(regs) {
-    auto hcver = *(volatile uint16_t*)&regs.hcver;
+    hcver = *(volatile uint16_t*)&regs.hcver;
 
     print("SDHCI version {}\n", spec_version_to_string((uint8_t)(hcver & 0xff)));
 
