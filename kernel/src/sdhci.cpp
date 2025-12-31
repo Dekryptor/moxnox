@@ -865,12 +865,14 @@ void sdhci_slot::card_insertion() {
     // FIXME - check card is actually inserted
     // FIXME - what do we do if we think there's a card already there?
 
+    // set to max timeout (TMCLK x 2^27)
+    regs.timeoutcon = 0xe;
+
     if (!set_clock(400000)) {
         print("sdhci_slot::card_insertion: set_clock failed\n");
         return;
     }
 
-    // FIXME - set timeout control
     // FIXME - bus width?
 
     set_power();
