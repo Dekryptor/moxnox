@@ -887,6 +887,14 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
             type = response_type::R1;
             break;
 
+        case READ_MULTIPLE_BLOCK:
+            type = response_type::R1;
+            break;
+
+        case SET_BLOCK_COUNT:
+            type = response_type::R1;
+            break;
+
         case APP_CMD:
             type = response_type::R1;
             break;
@@ -941,8 +949,15 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
         break;
     }
 
-    if (cmd == sd_cmd::READ_SINGLE_BLOCK)
-        cmdreg.data_present_select = 1;
+    switch (cmd) {
+        case sd_cmd::READ_SINGLE_BLOCK:
+        case sd_cmd::READ_MULTIPLE_BLOCK:
+            cmdreg.data_present_select = 1;
+        break;
+
+        default:
+            break;
+    }
 
     last_error.value = 0;
 
@@ -1086,7 +1101,9 @@ void sdhci_slot::read_block(uint64_t address) {
         return;
     }
 
-    memset(phys_address(buf_page), 0xcc, PAGE_SIZE); // FIXME
+    auto buf = (uint8_t*)phys_address(buf_page);
+
+    memset(buf, 0xcc, PAGE_SIZE); // FIXME
 
     auto descs = span((adma2_descriptor64*)phys_address(adma_page),
                       PAGE_SIZE / sizeof(adma2_descriptor64));
@@ -1098,7 +1115,7 @@ void sdhci_slot::read_block(uint64_t address) {
     descs[0].act1 = 0;
     descs[0].act2 = 1;
     descs[0].zero2 = 0;
-    descs[0].length = BLOCK_SIZE;
+    descs[0].length = PAGE_SIZE; // FIXME - maximum of 65535, 0 means 65536
     descs[0].address = buf_page;
 
     flush_cache(span((uint8_t*)descs.data(), sizeof(adma2_descriptor64)),
@@ -1111,15 +1128,16 @@ void sdhci_slot::read_block(uint64_t address) {
 
     sdhci_trnmod trnmod;
 
-    trnmod.value = regs.trnmod;
-
+    trnmod.value = 0;
     trnmod.dma_enable = 1;
     trnmod.data_transfer_direction_select = 1; // read
-    trnmod.multi_block_select = 0; // single
+    trnmod.multi_block_select = 1; // multiple
+    trnmod.block_count_enable = 1;
 
     regs.trnmod = trnmod.value;
+    regs.blkcnt = PAGE_SIZE / BLOCK_SIZE;
 
-    flush_cache(span((uint8_t*)phys_address(buf_page), BLOCK_SIZE), false);
+    flush_cache(span(buf, BLOCK_SIZE), false);
 
     reset_event(static_cast<event&>(dma_interrupt_event.get()));
     regs.norintstsen.dma_interrupt = 1;
@@ -1131,10 +1149,19 @@ void sdhci_slot::read_block(uint64_t address) {
     else
         arg = (uint32_t)(address / BLOCK_SIZE);
 
-    // FIXME - address (bytes for standard-capacity SD card, blocks otherwise)
-    if (!send_command(sd_cmd::READ_SINGLE_BLOCK, arg)) {
-        print("sdhci_slot::read_block: send_command failed for READ_SINGLE_BLOCK\n");
-        flush_cache(span((uint8_t*)phys_address(buf_page), BLOCK_SIZE), true);
+    // FIXME - check card's SCR to make sure this is supported
+    if (!send_command(sd_cmd::SET_BLOCK_COUNT, PAGE_SIZE / BLOCK_SIZE)) {
+        print("sdhci_slot::read_block: send_command failed for SET_BLOCK_COUNT\n");
+        flush_cache(span(buf, PAGE_SIZE), true);
+        free_folio(adma_page);
+        free_folio(buf_page);
+        regs.norintstsen.dma_interrupt = 0;
+        return;
+    }
+
+    if (!send_command(sd_cmd::READ_MULTIPLE_BLOCK, arg)) {
+        print("sdhci_slot::read_block: send_command failed for READ_MULTIPLE_BLOCK\n");
+        flush_cache(span(buf, PAGE_SIZE), true);
         free_folio(adma_page);
         free_folio(buf_page);
         regs.norintstsen.dma_interrupt = 0;
@@ -1145,10 +1172,9 @@ void sdhci_slot::read_block(uint64_t address) {
 
     regs.norintstsen.dma_interrupt = 0;
 
-    flush_cache(span((uint8_t*)phys_address(buf_page), BLOCK_SIZE), true);
+    flush_cache(span(buf, PAGE_SIZE), true);
 
-    auto buf = (uint8_t*)phys_address(buf_page);
-    for (unsigned int i = 0; i < BLOCK_SIZE; i++) {
+    for (unsigned int i = 0; i < PAGE_SIZE; i++) {
         print("{:02x} ", buf[i]);
 
         if ((i % 16) == 15)
