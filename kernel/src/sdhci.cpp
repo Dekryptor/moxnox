@@ -1293,7 +1293,14 @@ void sdhci_slot::card_insertion() {
         return;
     }
 
-    // FIXME - bus width?
+    {
+        sdhci_hostctl hostctl;
+
+        hostctl.value = regs.hostctl;
+        hostctl.data_transfer_width = 0; // 1-bit mode
+
+        regs.hostctl = hostctl.value;
+    }
 
     set_power();
 
