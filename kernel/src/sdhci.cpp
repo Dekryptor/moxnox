@@ -1016,7 +1016,7 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
     // FIXME - do we need a mutex?
 
-    if (!send_command(sd_cmd::APP_CMD, rca << 16))
+    if (!send_command(sd_cmd::APP_CMD, (uint32_t)(rca << 16)))
         return false;
 
     reset_event(static_cast<event&>(command_complete_event.get()));
