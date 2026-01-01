@@ -290,19 +290,19 @@ union sdhci_blksize {
 
 static_assert(sizeof(sdhci_blksize) == 0x2);
 
-struct adma2_descriptor32 {
-    uint64_t valid : 1;
-    uint64_t end : 1;
-    uint64_t interrupt : 1;
-    uint64_t zero1 : 1;
-    uint64_t act1 : 1;
-    uint64_t act2 : 1;
-    uint64_t zero2 : 10;
-    uint64_t length : 16;
-    uint64_t address : 32;
-};
+struct adma2_descriptor64 {
+    uint32_t valid : 1;
+    uint32_t end : 1;
+    uint32_t interrupt : 1;
+    uint32_t zero1 : 1;
+    uint32_t act1 : 1;
+    uint32_t act2 : 1;
+    uint32_t zero2 : 10;
+    uint32_t length : 16;
+    uint64_t address;
+} __attribute((packed));
 
-static_assert(sizeof(adma2_descriptor32) == 0x8);
+static_assert(sizeof(adma2_descriptor64) == 0xc);
 
 union acmd41_arg {
     struct {
@@ -1058,8 +1058,6 @@ void sdhci_slot::set_power() {
 }
 
 void sdhci_slot::read_block() {
-    bool dma64;
-
     // FIXME - mutex
 
     // FIXME - only if standard-capacity SD card
@@ -1068,24 +1066,13 @@ void sdhci_slot::read_block() {
         return;
     }
 
-    // dma64 = capab.v3_64bit_system_address_support;
-    dma64 = false; // FIXME
-
     // FIXME - multiple blocks
-    // FIXME - might need bounce buffer if 64-bit DMA not supported
 
     // prepare ADMA2 data structure
 
-    // FIXME - within first 4GB if necessary
     auto adma_page = allocate_folio(0);
     if (!adma_page) {
         print("allocate_folio failed\n");
-        return;
-    }
-
-    if (!dma64 && adma_page >= (uint64_t)1 << 32) { // FIXME
-        print("sdhci_slot::read_block: adma_page not within first 4GB\n");
-        free_folio(adma_page);
         return;
     }
 
@@ -1098,34 +1085,24 @@ void sdhci_slot::read_block() {
 
     memset(phys_address(buf_page), 0xcc, PAGE_SIZE); // FIXME
 
-    if (!dma64 && buf_page >= (uint64_t)1 << 32) { // FIXME
-        print("sdhci_slot::read_block: buf_pa not within first 4GB\n");
-        free_folio(adma_page);
-        free_folio(buf_page);
-        return;
-    }
+    auto descs = span((adma2_descriptor64*)phys_address(adma_page),
+                      PAGE_SIZE / sizeof(adma2_descriptor64));
 
-    if (dma64) {
-        // FIXME
-    } else {
-        auto descs = span((adma2_descriptor32*)phys_address(adma_page),
-                          PAGE_SIZE / sizeof(adma2_descriptor32));
+    descs[0].valid = 1;
+    descs[0].end = 1;
+    descs[0].interrupt = 1;
+    descs[0].zero1 = 0;
+    descs[0].act1 = 0;
+    descs[0].act2 = 1;
+    descs[0].zero2 = 0;
+    descs[0].length = 512;
+    descs[0].address = buf_page;
 
-        descs[0].valid = 1;
-        descs[0].end = 1;
-        descs[0].interrupt = 1;
-        descs[0].zero1 = 0;
-        descs[0].act1 = 0;
-        descs[0].act2 = 1;
-        descs[0].zero2 = 0;
-        descs[0].length = 512;
-        descs[0].address = (uint32_t)buf_page;
+    flush_cache(span((uint8_t*)descs.data(), sizeof(adma2_descriptor64)),
+                false);
 
-        flush_cache(span((uint8_t*)descs.data(), sizeof(adma2_descriptor32)),
-                    false);
-
-        regs.admasysaddr[0] = (uint32_t)adma_page;
-    }
+    regs.admasysaddr[0] = (uint32_t)adma_page;
+    regs.admasysaddr[1] = (uint32_t)(adma_page >> 32);
 
     // set transfer mode register
 
@@ -1408,10 +1385,15 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     base_clock_frequency = (unsigned int)capab.base_clock_frequency * 1000000;
 
-    // check for ADMA2
+    // check for ADMA2 and 64-bit DMA
 
     if (!capab.adma2_support) {
         print("sdhci_slot::sdhci_slot: controller does not support ADMA2\n");
+        return;
+    }
+
+    if (!capab.v3_64bit_system_address_support) {
+        print("sdhci_slot::sdhci_slot: controller does not support 64-bit DMA\n");
         return;
     }
 
