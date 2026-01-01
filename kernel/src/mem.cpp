@@ -2791,6 +2791,13 @@ export void inline __attribute((always_inline)) flush_cache(span<uint8_t> va,
 
     auto num = (len + cache_line_size - 1) >> cache_line_shift;
 
+    __asm __volatile (
+        ""
+        :
+        :
+        : "memory"
+    );
+
     if (invalidate) {
         for (unsigned int i = 0; i < num; i++) {
             __asm __volatile(
