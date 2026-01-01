@@ -1187,7 +1187,7 @@ void sdhci_slot::read_block(uint64_t address) {
     regs.trnmod = trnmod.value;
     regs.blkcnt = PAGE_SIZE / BLOCK_SIZE;
 
-    flush_cache(span(buf, BLOCK_SIZE), false);
+    flush_cache(span(buf, PAGE_SIZE), false);
 
     reset_event(static_cast<event&>(dma_interrupt_event.get()));
     regs.norintstsen.dma_interrupt = 1;
