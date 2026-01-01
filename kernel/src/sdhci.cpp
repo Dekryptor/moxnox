@@ -349,7 +349,11 @@ struct sd_scr {
             uint32_t sd_spec4 : 1;
             uint32_t ex_security : 4;
             uint32_t sd_spec3 : 1;
-            uint32_t cmd_support : 5;
+            uint32_t cmd_speed_class_control : 1;
+            uint32_t cmd_set_block_count : 1;
+            uint32_t cmd_extension_register_single_block : 1;
+            uint32_t cmd_extension_register_multiblock : 1;
+            uint32_t cmd_secure_receive_and_send : 1;
             uint32_t : 1;
             uint32_t sd_specx2 : 2;
         };
@@ -1177,6 +1181,9 @@ void sdhci_slot::read_block(uint64_t address) {
     trnmod.multi_block_select = 1; // multiple
     trnmod.block_count_enable = 1;
 
+    // enable auto-CMD12 if we're not calling SET_BLOCK_COUNT
+    trnmod.auto_cmd12_enable = scr.cmd_set_block_count ? 0 : 1;
+
     regs.trnmod = trnmod.value;
     regs.blkcnt = PAGE_SIZE / BLOCK_SIZE;
 
@@ -1192,14 +1199,15 @@ void sdhci_slot::read_block(uint64_t address) {
     else
         arg = (uint32_t)(address / BLOCK_SIZE);
 
-    // FIXME - check card's SCR to make sure this is supported
-    if (!send_command(sd_cmd::SET_BLOCK_COUNT, PAGE_SIZE / BLOCK_SIZE)) {
-        print("sdhci_slot::read_block: send_command failed for SET_BLOCK_COUNT\n");
-        flush_cache(span(buf, PAGE_SIZE), true);
-        free_folio(adma_page);
-        free_folio(buf_page);
-        regs.norintstsen.dma_interrupt = 0;
-        return;
+    if (scr.cmd_set_block_count) {
+        if (!send_command(sd_cmd::SET_BLOCK_COUNT, PAGE_SIZE / BLOCK_SIZE)) {
+            print("sdhci_slot::read_block: send_command failed for SET_BLOCK_COUNT\n");
+            flush_cache(span(buf, PAGE_SIZE), true);
+            free_folio(adma_page);
+            free_folio(buf_page);
+            regs.norintstsen.dma_interrupt = 0;
+            return;
+        }
     }
 
     if (!send_command(sd_cmd::READ_MULTIPLE_BLOCK, arg)) {
