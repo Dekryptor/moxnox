@@ -337,6 +337,29 @@ union sd_ocr {
 
 static_assert(sizeof(sd_ocr) == 0x4);
 
+struct sd_scr {
+    union {
+        struct {
+            uint32_t sd_spec : 4;
+            uint32_t scr_structure : 4;
+            uint32_t sd_bus_widths : 4;
+            uint32_t sd_security : 3;
+            uint32_t data_stat_after_erase : 1;
+            uint32_t sd_specx1 : 2;
+            uint32_t sd_spec4 : 1;
+            uint32_t ex_security : 4;
+            uint32_t sd_spec3 : 1;
+            uint32_t cmd_support : 5;
+            uint32_t : 1;
+            uint32_t sd_specx2 : 2;
+        };
+        uint32_t high;
+    };
+    uint32_t low; // reserved for manufacturer usage
+};
+
+static_assert(sizeof(sd_scr) == 0x8);
+
 union sd_cid {
     struct {
         uint16_t MDT : 12;
@@ -537,12 +560,14 @@ public:
     bool send_command(enum sd_cmd cmd, uint32_t arg);
     bool send_app_command(enum sd_app_cmd cmd, uint32_t arg);
     void read_block(uint64_t address);
+    bool read_scr();
 
     list_entry le;
     sdhci_device& d;
     uint16_t hcver;
     volatile sdhci_regs& regs;
-    object_ref thread_event, command_complete_event, dma_interrupt_event;
+    object_ref thread_event, command_complete_event, dma_interrupt_event,
+               buffer_read_ready_event;
     bool card_removal_pending = false;
     bool card_insertion_pending = false;
     unsigned int base_clock_frequency;
@@ -554,6 +579,7 @@ public:
     sdhci_errint last_error;
     sdhci_capab capab;
     enum sdhci_card_type type = sdhci_card_type::none;
+    sd_scr scr;
 };
 
 static bool init_sdhci_pci(const pci_device& dev);
@@ -731,6 +757,16 @@ bool sdhci_slot::isr() {
 
         norintsts.value = 0;
         norintsts.dma_interrupt = 1;
+        regs.norintsts.value = norintsts.value;
+
+        return true;
+    }
+
+    if (norintsts.buffer_read_ready) {
+        set_event(static_cast<event&>(buffer_read_ready_event.get()));
+
+        norintsts.value = 0;
+        norintsts.buffer_read_ready = 1;
         regs.norintsts.value = norintsts.value;
 
         return true;
@@ -995,6 +1031,10 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
             type = response_type::R3;
             break;
 
+        case SEND_SCR:
+            type = response_type::R1;
+            break;
+
         default:
             print("sdhci_slot::send_app_command: unhandled command type {}\n",
                   (uint16_t)cmd);
@@ -1045,6 +1085,9 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
             cmdreg.command_crc_check_enable = 1;
         break;
     }
+
+    if (cmd == sd_app_cmd::SEND_SCR)
+        cmdreg.data_present_select = 1;
 
     last_error.value = 0;
 
@@ -1183,6 +1226,47 @@ void sdhci_slot::read_block(uint64_t address) {
 
     free_folio(adma_page);
     free_folio(buf_page);
+}
+
+bool sdhci_slot::read_scr() {
+    regs.blksize = sizeof(sd_scr);
+    regs.blkcnt = 1;
+
+    reset_event(static_cast<event&>(buffer_read_ready_event.get()));
+    regs.norintstsen.buffer_read_ready = 1;
+
+    sdhci_trnmod trnmod;
+
+    trnmod.value = 0;
+    trnmod.dma_enable = 0;
+    trnmod.data_transfer_direction_select = 1; // read
+    trnmod.multi_block_select = 0; // single
+
+    regs.trnmod = trnmod.value;
+
+    if (!send_app_command(sd_app_cmd::SEND_SCR, 0)) {
+        print("sdhci_slot::read_scr: send_app_command failed for SEND_SCR\n");
+        regs.norintstsen.buffer_read_ready = 0;
+        return false;
+    }
+
+    wait_for_object(buffer_read_ready_event.get(), false);
+
+    scr.high = regs.bdata;
+
+    wait_for_object(buffer_read_ready_event.get(), false);
+
+    scr.low = regs.bdata;
+
+    regs.norintstsen.buffer_read_ready = 0;
+
+    if (scr.scr_structure != 0) {
+        print("sdhci_slot::read_scr: SCR had scr_structure of {}, expected 0\n",
+              scr.scr_structure);
+        return false;
+    }
+
+    return true;
 }
 
 void sdhci_slot::card_insertion() {
@@ -1361,6 +1445,20 @@ void sdhci_slot::card_insertion() {
         }
     }
 
+    if (!read_scr()) {
+        print("sdhci_slot::card_insertion: read_scr failed\n");
+        return;
+    }
+
+    // set block size register
+
+    sdhci_blksize blksize;
+
+    blksize.value = regs.blksize;
+    blksize.transfer_block_size = BLOCK_SIZE;
+
+    regs.blksize = blksize.value;
+
     read_block(0x20110000);
 }
 
@@ -1415,6 +1513,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     norintsigen.card_removal = 1;
     norintsigen.command_complete = 1;
     norintsigen.dma_interrupt = 1;
+    norintsigen.buffer_read_ready = 1;
 
     regs.norintsigen.value = norintsigen.value;
 
@@ -1458,20 +1557,12 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     regs.hostctl = hostctl.value;
 
-    // set block size register
-
-    sdhci_blksize blksize;
-
-    blksize.value = regs.blksize;
-    blksize.transfer_block_size = BLOCK_SIZE;
-
-    regs.blksize = blksize.value;
-
     // start thread
 
     thread_event = create_event(true);
     command_complete_event = create_event(false);
     dma_interrupt_event = create_event(false);
+    buffer_read_ready_event = create_event(false);
 
     sdhci_prnsts prnsts;
 
