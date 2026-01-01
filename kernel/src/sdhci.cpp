@@ -536,7 +536,7 @@ public:
     void set_power();
     bool send_command(enum sd_cmd cmd, uint32_t arg);
     bool send_app_command(enum sd_app_cmd cmd, uint32_t arg);
-    void read_block();
+    void read_block(uint64_t address);
 
     list_entry le;
     sdhci_device& d;
@@ -1066,7 +1066,7 @@ void sdhci_slot::set_power() {
     regs.pwrcon = pwrcon.value;
 }
 
-void sdhci_slot::read_block() {
+void sdhci_slot::read_block(uint64_t address) {
     // FIXME - mutex
 
     // FIXME - multiple blocks
@@ -1124,8 +1124,15 @@ void sdhci_slot::read_block() {
     reset_event(static_cast<event&>(dma_interrupt_event.get()));
     regs.norintstsen.dma_interrupt = 1;
 
+    uint32_t arg;
+
+    if (type == sdhci_card_type::normal_capacity)
+        arg = (uint32_t)address;
+    else
+        arg = (uint32_t)(address / BLOCK_SIZE);
+
     // FIXME - address (bytes for standard-capacity SD card, blocks otherwise)
-    if (!send_command(sd_cmd::READ_SINGLE_BLOCK, 0)) {
+    if (!send_command(sd_cmd::READ_SINGLE_BLOCK, arg)) {
         print("sdhci_slot::read_block: send_command failed for READ_SINGLE_BLOCK\n");
         flush_cache(span((uint8_t*)phys_address(buf_page), BLOCK_SIZE), true);
         free_folio(adma_page);
@@ -1328,7 +1335,7 @@ void sdhci_slot::card_insertion() {
         }
     }
 
-    read_block();
+    read_block(0x20110000);
 }
 
 void sdhci_slot::thread() {
