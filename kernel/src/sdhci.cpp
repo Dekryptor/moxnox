@@ -534,7 +534,7 @@ public:
     sdhci_device& d;
     uint16_t hcver;
     volatile sdhci_regs& regs;
-    object_ref thread_event, command_complete_event;
+    object_ref thread_event, command_complete_event, dma_interrupt_event;
     bool card_removal_pending = false;
     bool card_insertion_pending = false;
     unsigned int base_clock_frequency;
@@ -712,6 +712,16 @@ bool sdhci_slot::isr() {
 
         norintsts.value = 0;
         norintsts.command_complete = 1;
+        regs.norintsts.value = norintsts.value;
+
+        return true;
+    }
+
+    if (norintsts.dma_interrupt) {
+        set_event(static_cast<event&>(dma_interrupt_event.get()));
+
+        norintsts.value = 0;
+        norintsts.dma_interrupt = 1;
         regs.norintsts.value = norintsts.value;
 
         return true;
@@ -1103,7 +1113,7 @@ void sdhci_slot::read_block() {
 
         descs[0].valid = 1;
         descs[0].end = 1;
-        descs[0].interrupt = 0;
+        descs[0].interrupt = 1;
         descs[0].zero1 = 0;
         descs[0].act1 = 0;
         descs[0].act2 = 1;
@@ -1131,14 +1141,22 @@ void sdhci_slot::read_block() {
 
     flush_cache(span((uint8_t*)phys_address(buf_page), 512), false);
 
+    reset_event(static_cast<event&>(dma_interrupt_event.get()));
+    regs.norintstsen.dma_interrupt = 1;
+
     // FIXME - address (bytes for standard-capacity SD card, blocks otherwise)
     if (!send_command(sd_cmd::READ_SINGLE_BLOCK, 0)) {
         print("sdhci_slot::read_block: send_command failed for READ_SINGLE_BLOCK\n");
         flush_cache(span((uint8_t*)phys_address(buf_page), 512), true);
         free_folio(adma_page);
         free_folio(buf_page);
+        regs.norintstsen.dma_interrupt = 0;
         return;
     }
+
+    wait_for_object(dma_interrupt_event.get(), false);
+
+    regs.norintstsen.dma_interrupt = 0;
 
     flush_cache(span((uint8_t*)phys_address(buf_page), 512), true);
 
@@ -1371,6 +1389,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     norintsigen.card_insertion = 1;
     norintsigen.card_removal = 1;
     norintsigen.command_complete = 1;
+    norintsigen.dma_interrupt = 1;
 
     regs.norintsigen.value = norintsigen.value;
 
@@ -1422,6 +1441,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     thread_event = create_event(true);
     command_complete_event = create_event(false);
+    dma_interrupt_event = create_event(false);
 
     sdhci_prnsts prnsts;
 
