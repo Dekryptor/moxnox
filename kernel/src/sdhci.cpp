@@ -4,6 +4,7 @@ module;
 #include <optional>
 #include <span>
 #include <string_view>
+#include <mutex>
 #include "tick_rate.h"
 #include "acpica.h"
 
@@ -22,6 +23,7 @@ import nt;
 import format;
 import acpi;
 import mem;
+import rwsem;
 
 export module sdhci;
 
@@ -584,6 +586,7 @@ public:
     sdhci_capab capab;
     enum sdhci_card_type type = sdhci_card_type::none;
     sd_scr scr;
+    rwsem lock;
 };
 
 static bool init_sdhci_pci(const pci_device& dev);
@@ -885,8 +888,6 @@ bool sdhci_slot::set_clock(unsigned int freq) {
 }
 
 bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
-    // FIXME - do we need a mutex?
-
     reset_event(static_cast<event&>(command_complete_event.get()));
     regs.norintstsen.command_complete = 1;
 
@@ -1018,8 +1019,6 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 }
 
 bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
-    // FIXME - do we need a mutex?
-
     if (!send_command(sd_cmd::APP_CMD, (uint32_t)(rca << 16)))
         return false;
 
@@ -1133,7 +1132,7 @@ void sdhci_slot::set_power() {
 }
 
 void sdhci_slot::read_block(uint64_t address) {
-    // FIXME - mutex
+    lock_guard lg(lock);
 
     // FIXME - multiple blocks
 
