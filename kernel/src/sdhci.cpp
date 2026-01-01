@@ -268,7 +268,7 @@ union sdhci_trnmod {
     struct {
         uint16_t dma_enable : 1;
         uint16_t block_count_enable : 1;
-        uint16_t auto_cmd_enable : 2;
+        uint16_t auto_cmd12_enable : 2;
         uint16_t data_transfer_direction_select : 1;
         uint16_t multi_block_select : 1;
         uint16_t response_type_r1r5 : 1;
