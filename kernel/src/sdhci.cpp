@@ -573,7 +573,7 @@ public:
     unsigned int base_clock_frequency;
     bool initialized = false;
     sd_cid cid;
-    uint16_t rca = 0;
+    uint16_t rca;
     sd_csd csd;
     uint64_t size;
     sdhci_errint last_error;
@@ -1304,6 +1304,8 @@ void sdhci_slot::card_insertion() {
     // FIXME - specs say we should try SEND_IF_COND once more if it fails
 
     // send ACMD41
+
+    rca = 0;
 
     if (!send_app_command(sd_app_cmd::SD_SEND_OP_COND, 0)) {
         print("sdhci_slot::card_insertion: SD_SEND_OP_COND failed\n");
