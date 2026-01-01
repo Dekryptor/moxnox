@@ -1031,6 +1031,10 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
     switch (cmd) {
         using enum sd_app_cmd;
 
+        case SET_BUS_WIDTH:
+            type = response_type::R1;
+            break;
+
         case SD_SEND_OP_COND:
             type = response_type::R3;
             break;
@@ -1450,7 +1454,7 @@ void sdhci_slot::card_insertion() {
 
     if (type == sdhci_card_type::normal_capacity) {
         if (!send_command(sd_cmd::SET_BLOCKLEN, BLOCK_SIZE)) {
-            print("sdhci_slot::read_block: send_command failed for SET_BLOCKLEN\n");
+            print("sdhci_slot::card_insertion: send_command failed for SET_BLOCKLEN\n");
             return;
         }
     }
@@ -1458,6 +1462,20 @@ void sdhci_slot::card_insertion() {
     if (!read_scr()) {
         print("sdhci_slot::card_insertion: read_scr failed\n");
         return;
+    }
+
+    if (scr.sd_bus_widths & 4) {
+        if (!send_app_command(sd_app_cmd::SET_BUS_WIDTH, 2)) {
+            print("sdhci_slot::card_insertion: send_app_command failed for SET_BUS_WIDTH\n");
+            return;
+        }
+
+        sdhci_hostctl hostctl;
+
+        hostctl.value = regs.hostctl;
+        hostctl.data_transfer_width = 1;
+
+        regs.hostctl = hostctl.value;
     }
 
     // set block size register
