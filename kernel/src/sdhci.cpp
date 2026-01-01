@@ -517,6 +517,12 @@ public:
     list_entry slots = { &slots, &slots };
 };
 
+enum class sdhci_card_type {
+    none,
+    normal_capacity,
+    high_capacity,
+};
+
 class sdhci_slot {
 public:
     sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs);
@@ -545,6 +551,7 @@ public:
     uint64_t size;
     sdhci_errint last_error;
     sdhci_capab capab;
+    enum sdhci_card_type type = sdhci_card_type::none;
 };
 
 static bool init_sdhci_pci(const pci_device& dev);
@@ -1060,12 +1067,6 @@ void sdhci_slot::set_power() {
 void sdhci_slot::read_block() {
     // FIXME - mutex
 
-    // FIXME - only if standard-capacity SD card
-    if (!send_command(sd_cmd::SET_BLOCKLEN, 512)) {
-        print("sdhci_slot::read_block: send_command failed for SET_BLOCKLEN\n");
-        return;
-    }
-
     // FIXME - multiple blocks
 
     // prepare ADMA2 data structure
@@ -1243,12 +1244,17 @@ void sdhci_slot::card_insertion() {
     }
 
     if (f8) {
-        if (ocr.ccs)
+        if (ocr.ccs) {
+            type = sdhci_card_type::high_capacity;
             print("found high-capacity V2.00 SD card\n");
-        else
+        } else {
+            type = sdhci_card_type::normal_capacity;
             print("found normal-capacity V2.00 SD card\n");
-    } else
+        }
+    } else {
+        type = sdhci_card_type::normal_capacity;
         print("found standard-capacity legacy SD card\n");
+    }
 
     // get CID
 
@@ -1311,6 +1317,13 @@ void sdhci_slot::card_insertion() {
     if (!send_command(sd_cmd::SELECT_CARD, (uint32_t)(rca << 16))) {
         print("sdhci_slot::card_insertion: SELECT_CARD failed\n");
         return;
+    }
+
+    if (type == sdhci_card_type::normal_capacity) {
+        if (!send_command(sd_cmd::SET_BLOCKLEN, 512)) {
+            print("sdhci_slot::read_block: send_command failed for SET_BLOCKLEN\n");
+            return;
+        }
     }
 
     read_block();
