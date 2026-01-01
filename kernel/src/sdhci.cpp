@@ -29,6 +29,8 @@ using namespace std;
 
 #define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
+static const size_t BLOCK_SIZE = 512;
+
 union sdhci_clkcon {
     struct {
         uint16_t internal_clock_enable : 1;
@@ -1096,7 +1098,7 @@ void sdhci_slot::read_block() {
     descs[0].act1 = 0;
     descs[0].act2 = 1;
     descs[0].zero2 = 0;
-    descs[0].length = 512;
+    descs[0].length = BLOCK_SIZE;
     descs[0].address = buf_page;
 
     flush_cache(span((uint8_t*)descs.data(), sizeof(adma2_descriptor64)),
@@ -1117,7 +1119,7 @@ void sdhci_slot::read_block() {
 
     regs.trnmod = trnmod.value;
 
-    flush_cache(span((uint8_t*)phys_address(buf_page), 512), false);
+    flush_cache(span((uint8_t*)phys_address(buf_page), BLOCK_SIZE), false);
 
     reset_event(static_cast<event&>(dma_interrupt_event.get()));
     regs.norintstsen.dma_interrupt = 1;
@@ -1125,7 +1127,7 @@ void sdhci_slot::read_block() {
     // FIXME - address (bytes for standard-capacity SD card, blocks otherwise)
     if (!send_command(sd_cmd::READ_SINGLE_BLOCK, 0)) {
         print("sdhci_slot::read_block: send_command failed for READ_SINGLE_BLOCK\n");
-        flush_cache(span((uint8_t*)phys_address(buf_page), 512), true);
+        flush_cache(span((uint8_t*)phys_address(buf_page), BLOCK_SIZE), true);
         free_folio(adma_page);
         free_folio(buf_page);
         regs.norintstsen.dma_interrupt = 0;
@@ -1136,10 +1138,10 @@ void sdhci_slot::read_block() {
 
     regs.norintstsen.dma_interrupt = 0;
 
-    flush_cache(span((uint8_t*)phys_address(buf_page), 512), true);
+    flush_cache(span((uint8_t*)phys_address(buf_page), BLOCK_SIZE), true);
 
     auto buf = (uint8_t*)phys_address(buf_page);
-    for (unsigned int i = 0; i < 512; i++) {
+    for (unsigned int i = 0; i < BLOCK_SIZE; i++) {
         print("{:02x} ", buf[i]);
 
         if ((i % 16) == 15)
@@ -1320,7 +1322,7 @@ void sdhci_slot::card_insertion() {
     }
 
     if (type == sdhci_card_type::normal_capacity) {
-        if (!send_command(sd_cmd::SET_BLOCKLEN, 512)) {
+        if (!send_command(sd_cmd::SET_BLOCKLEN, BLOCK_SIZE)) {
             print("sdhci_slot::read_block: send_command failed for SET_BLOCKLEN\n");
             return;
         }
@@ -1428,7 +1430,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     sdhci_blksize blksize;
 
     blksize.value = regs.blksize;
-    blksize.transfer_block_size = 512;
+    blksize.transfer_block_size = BLOCK_SIZE;
 
     regs.blksize = blksize.value;
 
