@@ -548,7 +548,7 @@ public:
     unsigned int base_clock_frequency;
     bool initialized = false;
     sd_cid cid;
-    uint16_t rca;
+    uint16_t rca = 0;
     sd_csd csd;
     uint64_t size;
     sdhci_errint last_error;
@@ -980,7 +980,7 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
     // FIXME - do we need a mutex?
 
-    if (!send_command(sd_cmd::APP_CMD, 0))
+    if (!send_command(sd_cmd::APP_CMD, rca << 16))
         return false;
 
     reset_event(static_cast<event&>(command_complete_event.get()));
