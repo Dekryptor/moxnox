@@ -1347,6 +1347,49 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
     return nt_status::MEDIA_WRITE_PROTECTED;
 }
 
+static const char* sd_card_version(sd_scr scr) {
+    switch (scr.sd_spec) {
+        case 0:
+            return "1.0";
+
+        case 1:
+            return "1.10";
+
+        case 2: {
+            if (scr.sd_spec3 == 0)
+                return "2.00";
+
+            unsigned int sd_specx = (unsigned int)(scr.sd_specx1 << 2) | scr.sd_specx2;
+
+            switch (sd_specx) {
+                case 0:
+                    return scr.sd_spec4 ? "4.XX" : "3.0X";
+
+                case 1:
+                    return "5.XX";
+
+                case 2:
+                    return "6.XX";
+
+                case 3:
+                    return "7.XX";
+
+                case 4:
+                    return "8.XX";
+
+                case 5:
+                    return "9.XX";
+
+                default:
+                    return "???";
+            }
+        }
+
+        default:
+            return "???";
+    }
+}
+
 void sdhci_slot::card_insertion() {
     // FIXME - check card is actually inserted
     // FIXME - what do we do if we think there's a card already there?
@@ -1590,9 +1633,9 @@ void sdhci_slot::card_insertion() {
     v.sector_size = BLOCK_SIZE;
     v.size = size;
 
-    // FIXME - include SD card spec version
-    print("found /dev/{}: block size {}, capacity {}\n", string_view(v.volume_name, v.volume_name_len),
-          byte_size(v.sector_size), byte_size(v.size));
+    print("found /dev/{}: block size {}, capacity {} (SD card version {})\n",
+          string_view(v.volume_name, v.volume_name_len),
+          byte_size(v.sector_size), byte_size(v.size), sd_card_version(scr));
 
     v.probe();
 }
