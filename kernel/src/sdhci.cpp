@@ -1425,8 +1425,13 @@ void sdhci_slot::card_insertion() {
     // old-style SD cards ignore this command
     if (send_command(sd_cmd::SEND_IF_COND, 0x1aa))
         f8 = true;
-    else
+    else {
         f8 = false;
+
+        // do software reset of the CMD line
+        regs.swrst |= 2;
+        while (regs.swrst & 2) { }
+    }
 
     // FIXME - check response (should match argument)
     // FIXME - specs say we should try SEND_IF_COND once more if it fails
