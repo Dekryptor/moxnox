@@ -5,6 +5,7 @@ module;
 #include <span>
 #include <string_view>
 #include <mutex>
+#include <atomic>
 #include "tick_rate.h"
 #include "acpica.h"
 
@@ -26,6 +27,7 @@ import mem;
 import rwsem;
 import volume;
 import page_cache;
+import handle;
 
 export module sdhci;
 
@@ -588,6 +590,7 @@ public:
     enum sdhci_card_type type = sdhci_card_type::none;
     sd_scr scr;
     rwsem lock;
+    unsigned int slot_num;
 };
 
 class sd_volume : public volume {
@@ -625,6 +628,8 @@ static module_init module_init_sdhci([]() {
     insert_tail_list(pci_classes, mod_pci_class.le);
     insert_tail_list(pnp_hids, mod_pnp_hids.le);
 });
+
+static atomic<unsigned int> num_sdhci_slots = 0;
 
 template<>
 consteval bool format_spec_valid<enum sd_cmd>(string_view fmt) {
@@ -1441,17 +1446,12 @@ void sdhci_slot::card_insertion() {
     }
 
     if (f8) {
-        if (ocr.ccs) {
+        if (ocr.ccs)
             type = sdhci_card_type::high_capacity;
-            print("found high-capacity V2.00 SD card\n");
-        } else {
+        else
             type = sdhci_card_type::normal_capacity;
-            print("found normal-capacity V2.00 SD card\n");
-        }
-    } else {
+    } else
         type = sdhci_card_type::normal_capacity;
-        print("found standard-capacity legacy SD card\n");
-    }
 
     // get CID
 
@@ -1509,8 +1509,6 @@ void sdhci_slot::card_insertion() {
             return;
     }
 
-    print("size = {}\n", byte_size(size));
-
     if (!send_command(sd_cmd::SELECT_CARD, (uint32_t)(rca << 16))) {
         print("sdhci_slot::card_insertion: SELECT_CARD failed\n");
         return;
@@ -1561,12 +1559,36 @@ void sdhci_slot::card_insertion() {
 
     auto& v = *pv;
 
-    // FIXME - name device
+    {
+        char s[50];
+        auto sp = span(s, sizeof(s));
+
+        sp = format(sp, "mmcblk{}", slot_num);
+
+        auto sv = string_view(s, (size_t)(sp.data() - s));
+
+        v.volume_name_len = sv.size();
+        v.volume_name = (char*)malloc(sv.size());
+        if (!v.volume_name) {
+            print("malloc failed\n");
+            return;
+        }
+
+        memcpy(v.volume_name, sv.data(), sv.size());
+
+        auto status = name_object(v, sv);
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
+            return;
+        }
+    }
 
     v.sector_size = BLOCK_SIZE;
     v.size = size;
 
-    // FIXME - print found device message
+    // FIXME - include SD card spec version
+    print("found /dev/{}: block size {}, capacity {}\n", string_view(v.volume_name, v.volume_name_len),
+          byte_size(v.sector_size), byte_size(v.size));
 
     v.probe();
 }
@@ -1665,6 +1687,8 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
         hostctl.dma_select = 2; // 32-bit ADMA2
 
     regs.hostctl = hostctl.value;
+
+    slot_num = num_sdhci_slots.fetch_add(1);
 
     // start thread
 
