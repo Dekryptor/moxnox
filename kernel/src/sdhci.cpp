@@ -604,7 +604,7 @@ public:
 
     nt_status flush() override;
     nt_status dio_read(uint64_t page_num, uint64_t num_pages,
-                       pfn_iterator& it, uint64_t& written_pages) override;
+                       pfn_iterator& it, uint64_t& read_pages) override;
     nt_status dio_write(uint64_t page_num, uint64_t num_pages,
                         pfn_iterator& it, uint64_t& written_pages,
                         bool fua) override;
@@ -1215,7 +1215,7 @@ static void flush_cache_from_descriptors(span<const adma2_descriptor64> descs,
 }
 
 nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
-                              pfn_iterator& it, uint64_t& written_pages) {
+                              pfn_iterator& it, uint64_t& read_pages) {
     uint64_t address = page_num << PAGE_SHIFT;
 
     // FIXME - handle dead volumes
@@ -1332,7 +1332,7 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
 
     free_folio(adma_page);
 
-    written_pages = num_pages;
+    read_pages = num_pages;
 
     return nt_status::SUCCESS;
 }
