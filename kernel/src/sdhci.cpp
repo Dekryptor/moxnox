@@ -576,7 +576,7 @@ public:
     uint16_t hcver;
     volatile sdhci_regs& regs;
     object_ref thread_event, command_complete_event, dma_interrupt_event,
-               buffer_read_ready_event;
+               buffer_read_ready_event, first_insertion_event;
     bool card_removal_pending = false;
     bool card_insertion_pending = false;
     unsigned int base_clock_frequency;
@@ -1656,6 +1656,7 @@ void sdhci_slot::thread() {
         if (card_insertion_pending) {
             card_insertion();
             card_insertion_pending = false;
+            set_event(static_cast<event&>(first_insertion_event.get()));
         }
     }
 }
@@ -1743,6 +1744,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     command_complete_event = create_event(false);
     dma_interrupt_event = create_event(false);
     buffer_read_ready_event = create_event(false);
+    first_insertion_event = create_event(false);
 
     sdhci_prnsts prnsts;
 
@@ -1777,6 +1779,9 @@ static bool init_sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) {
 
     insert_tail_list(d.slots, s->le);
 
+    if (s->card_insertion_pending)
+        wait_for_object(s->first_insertion_event.get(), false);
+
     return true;
 }
 
@@ -1795,6 +1800,11 @@ sdhci_device::sdhci_device(const pci_device& dev) {
     }
 
     slot_info_reg.value = *(volatile uint8_t*)(dev.header + 0x40);
+
+    if (!add_irq_handler(*dev.irq, true, sdhci_isr_func, this)) {
+        print("sdhci_device::sdhci_device: add_irq_handler failed\n");
+        return;
+    }
 
     for (unsigned int i = 0; i < (unsigned int)(slot_info_reg.num_slots + 1); i++) {
         if (slot_info_reg.first_bar_num + i >= dev.bar.size()) {
@@ -1817,11 +1827,6 @@ sdhci_device::sdhci_device(const pci_device& dev) {
         init_sdhci_slot(*this, regs);
     }
 
-    if (!add_irq_handler(*dev.irq, true, sdhci_isr_func, this)) {
-        print("sdhci_device::sdhci_device: add_irq_handler failed\n");
-        return;
-    }
-
     initialized = true;
 }
 
@@ -1835,13 +1840,14 @@ sdhci_device::sdhci_device(span<volatile uint8_t> mmio, uint32_t irq,
 
     volatile auto& regs = *(sdhci_regs*)mmio.data();
 
-    if (!init_sdhci_slot(*this, regs)) {
-        print("init_sdhci_slot failed\n");
+    if (!add_irq_handler(irq, level_sensitive, sdhci_isr_func, this)) {
+        print("sdhci_device::sdhci_device: add_irq_handler failed\n");
         return;
     }
 
-    if (!add_irq_handler(irq, level_sensitive, sdhci_isr_func, this)) {
-        print("sdhci_device::sdhci_device: add_irq_handler failed\n");
+    if (!init_sdhci_slot(*this, regs)) {
+        print("init_sdhci_slot failed\n");
+        // FIXME - remove irq handler
         return;
     }
 
