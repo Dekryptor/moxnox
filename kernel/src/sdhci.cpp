@@ -962,6 +962,14 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
             type = response_type::R1;
             break;
 
+        case WRITE_SINGLE_BLOCK:
+            type = response_type::R1;
+            break;
+
+        case WRITE_MULTIPLE_BLOCK:
+            type = response_type::R1;
+            break;
+
         case APP_CMD:
             type = response_type::R1;
             break;
@@ -1019,6 +1027,8 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     switch (cmd) {
         case sd_cmd::READ_SINGLE_BLOCK:
         case sd_cmd::READ_MULTIPLE_BLOCK:
+        case sd_cmd::WRITE_SINGLE_BLOCK:
+        case sd_cmd::WRITE_MULTIPLE_BLOCK:
             cmdreg.data_present_select = 1;
         break;
 
@@ -1338,13 +1348,123 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
 }
 
 nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
-                               pfn_iterator& /*it*/, uint64_t& /*written_pages*/,
+                               pfn_iterator& it, uint64_t& written_pages,
                                bool /*fua*/) {
-    print("FIXME: sd_volume::dio_write({:x}, {:x})\n", page_num, num_pages);
+    uint64_t address = page_num << PAGE_SHIFT;
 
-    // FIXME
+    // FIXME - handle dead volumes
+    // FIXME - what if volume not multiple of PAGE_SIZE?
 
-    return nt_status::MEDIA_WRITE_PROTECTED;
+    if (page_num >= size >> PAGE_SHIFT)
+        return nt_status::INVALID_PARAMETER;
+
+    num_pages = min(num_pages, (size >> PAGE_SHIFT) - page_num);
+
+    // limit to one page's worth of descriptors
+    static const size_t MAX_PAGES = PAGE_SIZE / sizeof(adma2_descriptor64);
+    static const size_t BLOCKS_PER_PAGE = PAGE_SIZE / BLOCK_SIZE;
+
+    // SDHCI can only handle 65535 blocks at once
+    static_assert(MAX_PAGES * BLOCKS_PER_PAGE < 0x10000);
+
+    num_pages = min(PAGE_SIZE / sizeof(adma2_descriptor64), num_pages);
+
+    lock_guard lg(slot.lock);
+
+    // prepare ADMA2 data structure
+
+    auto adma_page = allocate_folio(0);
+    if (!adma_page) {
+        print("allocate_folio failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto descs = span((adma2_descriptor64*)phys_address(adma_page),
+                      PAGE_SIZE / sizeof(adma2_descriptor64));
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        if (i != 0)
+            it++;
+
+        descs[i].valid = 1;
+
+        if (i == num_pages - 1) {
+            descs[i].end = 1;
+            descs[i].interrupt = 1;
+        } else {
+            descs[i].end = 0;
+            descs[i].interrupt = 0;
+        }
+
+        descs[i].zero1 = 0;
+        descs[i].act1 = 0;
+        descs[i].act2 = 1;
+        descs[i].zero2 = 0;
+        descs[i].length = PAGE_SIZE == 65536 ? 0 : PAGE_SIZE;
+        descs[i].address = *it;
+    }
+
+    ::flush_cache(span((uint8_t*)descs.data(), num_pages * sizeof(adma2_descriptor64)),
+                  false);
+
+    slot.regs.admasysaddr[0] = (uint32_t)adma_page;
+    slot.regs.admasysaddr[1] = (uint32_t)(adma_page >> 32);
+
+    // set transfer mode register
+
+    sdhci_trnmod trnmod;
+
+    trnmod.value = 0;
+    trnmod.dma_enable = 1;
+    trnmod.data_transfer_direction_select = 0; // write
+    trnmod.multi_block_select = 1; // multiple
+    trnmod.block_count_enable = 1;
+
+    // enable auto-CMD12 if we're not calling SET_BLOCK_COUNT
+    trnmod.auto_cmd12_enable = slot.scr.cmd_set_block_count ? 0 : 1;
+
+    auto num_blocks = (uint16_t)(num_pages * BLOCKS_PER_PAGE);
+
+    slot.regs.trnmod = trnmod.value;
+    slot.regs.blkcnt = num_blocks;
+
+    flush_cache_from_descriptors(span(descs.data(), num_pages), false);
+
+    reset_event(static_cast<event&>(slot.dma_interrupt_event.get()));
+    slot.regs.norintstsen.dma_interrupt = 1;
+
+    uint32_t arg;
+
+    if (slot.type == sdhci_card_type::normal_capacity)
+        arg = (uint32_t)address;
+    else
+        arg = (uint32_t)(address / BLOCK_SIZE);
+
+    if (slot.scr.cmd_set_block_count) {
+        if (!slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks)) {
+            print("sd_volume::dio_write: send_command failed for SET_BLOCK_COUNT\n");
+            free_folio(adma_page);
+            slot.regs.norintstsen.dma_interrupt = 0;
+            return nt_status::IO_DEVICE_ERROR; // FIXME
+        }
+    }
+
+    if (!slot.send_command(sd_cmd::WRITE_MULTIPLE_BLOCK, arg)) {
+        print("sd_volume::dio_write: send_command failed for WRITE_MULTIPLE_BLOCK\n");
+        free_folio(adma_page);
+        slot.regs.norintstsen.dma_interrupt = 0;
+        return nt_status::IO_DEVICE_ERROR; // FIXME
+    }
+
+    wait_for_object(slot.dma_interrupt_event.get(), false);
+
+    slot.regs.norintstsen.dma_interrupt = 0;
+
+    free_folio(adma_page);
+
+    written_pages = num_pages;
+
+    return nt_status::SUCCESS;
 }
 
 static const char* sd_card_version(sd_scr scr) {
