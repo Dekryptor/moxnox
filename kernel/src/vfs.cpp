@@ -150,8 +150,7 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
 
     // choose MN partition
 
-    auto le = fs_list.next;
-    while (le != &fs_list) {
+    for (auto le = fs_list.next; le != &fs_list; le = le->next) {
         auto& fs = containing_record<::filesystem>(le);
 
         if (fs.vol && fs.vol->type_guid == moxnox_partition_guid) {
@@ -162,8 +161,6 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
 
             ret = &fs;
         }
-
-        le = le->next;
     }
 
     if (!ret) {
