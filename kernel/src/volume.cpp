@@ -247,7 +247,7 @@ bool volume::check_for_partitions() {
 
         if (part.partition_type_guid != null_guid) {
             if (part.ending_lba <= part.starting_lba) {
-                print("invalid GPT entry, skipping\n");
+                print("invalid GPT entry {}, skipping\n", i);
                 ptr += size_of_partition_entry;
                 continue;
             }
