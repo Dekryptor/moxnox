@@ -1219,8 +1219,12 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
     uint64_t address = page_num << PAGE_SHIFT;
 
     // FIXME - handle dead volumes
-    // FIXME - handle reads beyond end of volume
     // FIXME - what if volume not multiple of PAGE_SIZE?
+
+    if (page_num >= size >> PAGE_SHIFT)
+        return nt_status::INVALID_PARAMETER;
+
+    num_pages = min(num_pages, (size >> PAGE_SHIFT) - page_num);
 
     // limit to one page's worth of descriptors
     static const size_t MAX_PAGES = PAGE_SIZE / sizeof(adma2_descriptor64);
