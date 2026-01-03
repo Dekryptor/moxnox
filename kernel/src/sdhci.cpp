@@ -1592,7 +1592,17 @@ static const char* sd_card_version(sd_scr scr) {
 void sdhci_slot::card_insertion() {
     nt_status status;
 
-    // FIXME - check card is actually inserted
+    // ignore if no card actually inserted
+
+    {
+        sdhci_prnsts prnsts;
+
+        prnsts.value = regs.prnsts;
+
+        if (!prnsts.card_inserted)
+            return;
+    }
+
     // FIXME - what do we do if we think there's a card already there?
 
     // set to max timeout (TMCLK x 2^27)
