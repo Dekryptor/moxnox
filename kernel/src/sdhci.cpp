@@ -567,9 +567,9 @@ public:
     void card_insertion();
     bool set_clock(unsigned int freq);
     void set_power();
-    bool send_command(enum sd_cmd cmd, uint32_t arg);
-    bool send_app_command(enum sd_app_cmd cmd, uint32_t arg);
-    bool read_scr();
+    nt_status send_command(enum sd_cmd cmd, uint32_t arg);
+    nt_status send_app_command(enum sd_app_cmd cmd, uint32_t arg);
+    nt_status read_scr();
 
     list_entry le;
     sdhci_device& d;
@@ -913,7 +913,7 @@ bool sdhci_slot::set_clock(unsigned int freq) {
     return true;
 }
 
-bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
+nt_status sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     reset_event(static_cast<event&>(command_complete_event.get()));
     regs.norintstsen.command_complete = 1;
 
@@ -976,7 +976,7 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 
         default:
             print("sdhci_slot::send_command: unhandled command type {}\n", cmd);
-            return false;
+            return nt_status::INTERNAL_ERROR;
     }
 
     sdhci_cmdreg cmdreg;
@@ -1048,15 +1048,18 @@ bool sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     if (last_error.value != 0) {
         print("sdhci_slot::send_command: error (errintsts = {:04x})\n",
               last_error.value);
-        return false;
+        return nt_status::IO_DEVICE_ERROR; // FIXME
     }
 
-    return true;
+    return nt_status::SUCCESS;
 }
 
-bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
-    if (!send_command(sd_cmd::APP_CMD, (uint32_t)(rca << 16)))
-        return false;
+nt_status sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
+    nt_status status;
+
+    status = send_command(sd_cmd::APP_CMD, (uint32_t)(rca << 16));
+    if (!success(status))
+        return status;
 
     reset_event(static_cast<event&>(command_complete_event.get()));
     regs.norintstsen.command_complete = 1;
@@ -1081,7 +1084,7 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
         default:
             print("sdhci_slot::send_app_command: unhandled command type {}\n",
                   (uint16_t)cmd);
-            return false;
+            return nt_status::INTERNAL_ERROR;
     }
 
     sdhci_cmdreg cmdreg;
@@ -1144,10 +1147,10 @@ bool sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
     if (last_error.value != 0) {
         print("sdhci_slot::send_app_command: error (errintsts = {:04x})\n",
               last_error.value);
-        return false;
+        return nt_status::IO_DEVICE_ERROR; // FIXME
     }
 
-    return true;
+    return nt_status::SUCCESS;
 }
 
 void sdhci_slot::set_power() {
@@ -1167,7 +1170,9 @@ void sdhci_slot::set_power() {
     regs.pwrcon = pwrcon.value;
 }
 
-bool sdhci_slot::read_scr() {
+nt_status sdhci_slot::read_scr() {
+    nt_status status;
+
     regs.blksize = sizeof(sd_scr);
     regs.blkcnt = 1;
 
@@ -1183,10 +1188,11 @@ bool sdhci_slot::read_scr() {
 
     regs.trnmod = trnmod.value;
 
-    if (!send_app_command(sd_app_cmd::SEND_SCR, 0)) {
-        print("sdhci_slot::read_scr: send_app_command failed for SEND_SCR\n");
+    status = send_app_command(sd_app_cmd::SEND_SCR, 0);
+    if (!success(status)) {
+        print("sdhci_slot::read_scr: SEND_SCR returned {}\n", status);
         regs.norintstsen.buffer_read_ready = 0;
-        return false;
+        return status;
     }
 
     wait_for_object(buffer_read_ready_event.get(), false);
@@ -1202,10 +1208,10 @@ bool sdhci_slot::read_scr() {
     if (scr.scr_structure != 0) {
         print("sdhci_slot::read_scr: SCR had scr_structure of {}, expected 0\n",
               scr.scr_structure);
-        return false;
+        return nt_status::IO_DEVICE_ERROR;
     }
 
-    return true;
+    return nt_status::SUCCESS;
 }
 
 nt_status sd_volume::flush() {
@@ -1226,6 +1232,7 @@ static void flush_cache_from_descriptors(span<const adma2_descriptor64> descs,
 
 nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
                               pfn_iterator& it, uint64_t& read_pages) {
+    nt_status status;
     uint64_t address = page_num << PAGE_SHIFT;
 
     // FIXME - handle dead volumes
@@ -1317,21 +1324,25 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
         arg = (uint32_t)(address / BLOCK_SIZE);
 
     if (slot.scr.cmd_set_block_count) {
-        if (!slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks)) {
-            print("sd_volume::dio_read: send_command failed for SET_BLOCK_COUNT\n");
+        status = slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks);
+        if (!success(status)) {
+            print("sd_volume::dio_read: SET_BLOCK_COUNT returned {}\n",
+                  status);
             flush_cache_from_descriptors(span(descs.data(), num_pages), true);
             free_folio(adma_page);
             slot.regs.norintstsen.dma_interrupt = 0;
-            return nt_status::IO_DEVICE_ERROR; // FIXME
+            return status;
         }
     }
 
-    if (!slot.send_command(sd_cmd::READ_MULTIPLE_BLOCK, arg)) {
-        print("sd_volume::dio_read: send_command failed for READ_MULTIPLE_BLOCK\n");
+    status = slot.send_command(sd_cmd::READ_MULTIPLE_BLOCK, arg);
+    if (!success(status)) {
+        print("sd_volume::dio_read: READ_MULTIPLE_BLOCK returned {}\n",
+              status);
         flush_cache_from_descriptors(span(descs.data(), num_pages), true);
         free_folio(adma_page);
         slot.regs.norintstsen.dma_interrupt = 0;
-        return nt_status::IO_DEVICE_ERROR; // FIXME
+        return status;
     }
 
     wait_for_object(slot.dma_interrupt_event.get(), false);
@@ -1350,6 +1361,7 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
 nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
                                pfn_iterator& it, uint64_t& written_pages,
                                bool /*fua*/) {
+    nt_status status;
     uint64_t address = page_num << PAGE_SHIFT;
 
     // FIXME - handle dead volumes
@@ -1441,19 +1453,23 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
         arg = (uint32_t)(address / BLOCK_SIZE);
 
     if (slot.scr.cmd_set_block_count) {
-        if (!slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks)) {
-            print("sd_volume::dio_write: send_command failed for SET_BLOCK_COUNT\n");
+        status = slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks);
+        if (!success(status)) {
+            print("sd_volume::dio_write: SET_BLOCK_COUNT returned {}\n",
+                  status);
             free_folio(adma_page);
             slot.regs.norintstsen.dma_interrupt = 0;
-            return nt_status::IO_DEVICE_ERROR; // FIXME
+            return status;
         }
     }
 
-    if (!slot.send_command(sd_cmd::WRITE_MULTIPLE_BLOCK, arg)) {
-        print("sd_volume::dio_write: send_command failed for WRITE_MULTIPLE_BLOCK\n");
+    status = slot.send_command(sd_cmd::WRITE_MULTIPLE_BLOCK, arg);
+    if (!success(status)) {
+        print("sd_volume::dio_write: WRITE_MULTIPLE_BLOCK returned {}\n",
+              status);
         free_folio(adma_page);
         slot.regs.norintstsen.dma_interrupt = 0;
-        return nt_status::IO_DEVICE_ERROR; // FIXME
+        return status;
     }
 
     wait_for_object(slot.dma_interrupt_event.get(), false);
@@ -1511,6 +1527,8 @@ static const char* sd_card_version(sd_scr scr) {
 }
 
 void sdhci_slot::card_insertion() {
+    nt_status status;
+
     // FIXME - check card is actually inserted
     // FIXME - what do we do if we think there's a card already there?
 
@@ -1533,8 +1551,10 @@ void sdhci_slot::card_insertion() {
 
     set_power();
 
-    if (!send_command(sd_cmd::GO_IDLE_STATE, 0)) {
-        print("sdhci_slot::card_insertion: GO_IDLE_STATE failed\n");
+    status = send_command(sd_cmd::GO_IDLE_STATE, 0);
+    if (!success(status)) {
+        print("sdhci_slot::card_insertion: GO_IDLE_STATE returned {}\n",
+              status);
         return;
     }
 
@@ -1543,7 +1563,8 @@ void sdhci_slot::card_insertion() {
     // FIXME - distinguish between errors and command getting ignored
 
     // old-style SD cards ignore this command
-    if (send_command(sd_cmd::SEND_IF_COND, 0x1aa))
+    status = send_command(sd_cmd::SEND_IF_COND, 0x1aa);
+    if (success(status))
         f8 = true;
     else {
         f8 = false;
@@ -1560,8 +1581,10 @@ void sdhci_slot::card_insertion() {
 
     rca = 0;
 
-    if (!send_app_command(sd_app_cmd::SD_SEND_OP_COND, 0)) {
-        print("sdhci_slot::card_insertion: SD_SEND_OP_COND failed\n");
+    status = send_app_command(sd_app_cmd::SD_SEND_OP_COND, 0);
+    if (!success(status)) {
+        print("sdhci_slot::card_insertion: SD_SEND_OP_COND returned {}\n",
+              status);
         return;
     }
 
@@ -1580,8 +1603,10 @@ void sdhci_slot::card_insertion() {
 
     while (true) {
         // send ACMD41 again
-        if (!send_app_command(sd_app_cmd::SD_SEND_OP_COND, arg.value)) {
-            print("sdhci_slot::card_insertion: SD_SEND_OP_COND failed\n");
+        status = send_app_command(sd_app_cmd::SD_SEND_OP_COND, arg.value);
+        if (!success(status)) {
+            print("sdhci_slot::card_insertion: SD_SEND_OP_COND returned {}\n",
+                  status);
             return;
         }
 
@@ -1627,8 +1652,10 @@ void sdhci_slot::card_insertion() {
 
     // get CID
 
-    if (!send_command(sd_cmd::ALL_SEND_CID, 0)) {
-        print("sdhci_slot::card_insertion: ALL_SEND_CID failed\n");
+    status = send_command(sd_cmd::ALL_SEND_CID, 0);
+    if (!success(status)) {
+        print("sdhci_slot::card_insertion: ALL_SEND_CID returned {}\n",
+              status);
         return;
     }
 
@@ -1639,8 +1666,10 @@ void sdhci_slot::card_insertion() {
 
     // get RCA
 
-    if (!send_command(sd_cmd::SEND_RELATIVE_ADDR, 0)) {
-        print("sdhci_slot::card_insertion: SEND_RELATIVE_ADDR failed\n");
+    status = send_command(sd_cmd::SEND_RELATIVE_ADDR, 0);
+    if (!success(status)) {
+        print("sdhci_slot::card_insertion: SEND_RELATIVE_ADDR returned {}\n",
+              status);
         return;
     }
 
@@ -1652,8 +1681,9 @@ void sdhci_slot::card_insertion() {
         return;
     }
 
-    if (!send_command(sd_cmd::SEND_CSD, (uint32_t)(rca << 16))) {
-        print("sdhci_slot::card_insertion: SEND_CSD failed\n");
+    status = send_command(sd_cmd::SEND_CSD, (uint32_t)(rca << 16));
+    if (!success(status)) {
+        print("sdhci_slot::card_insertion: SEND_CSD returned {}\n", status);
         return;
     }
 
@@ -1681,26 +1711,32 @@ void sdhci_slot::card_insertion() {
             return;
     }
 
-    if (!send_command(sd_cmd::SELECT_CARD, (uint32_t)(rca << 16))) {
-        print("sdhci_slot::card_insertion: SELECT_CARD failed\n");
+    status = send_command(sd_cmd::SELECT_CARD, (uint32_t)(rca << 16));
+    if (!success(status)) {
+        print("sdhci_slot::card_insertion: SELECT_CARD returned {}\n", status);
         return;
     }
 
     if (type == sdhci_card_type::normal_capacity) {
-        if (!send_command(sd_cmd::SET_BLOCKLEN, BLOCK_SIZE)) {
-            print("sdhci_slot::card_insertion: send_command failed for SET_BLOCKLEN\n");
+        status = send_command(sd_cmd::SET_BLOCKLEN, BLOCK_SIZE);
+        if (!success(status)) {
+            print("sdhci_slot::card_insertion: SET_BLOCKLEN returned {}\n",
+                  status);
             return;
         }
     }
 
-    if (!read_scr()) {
-        print("sdhci_slot::card_insertion: read_scr failed\n");
+    status = read_scr();
+    if (!success(status)) {
+        print("sdhci_slot::card_insertion: read_scr returned {}\n", status);
         return;
     }
 
     if (scr.sd_bus_widths & 4) {
-        if (!send_app_command(sd_app_cmd::SET_BUS_WIDTH, 2)) {
-            print("sdhci_slot::card_insertion: send_app_command failed for SET_BUS_WIDTH\n");
+        status = send_app_command(sd_app_cmd::SET_BUS_WIDTH, 2);
+        if (!success(status)) {
+            print("sdhci_slot::card_insertion: SET_BUS_WIDTH returned {}\n",
+                  status);
             return;
         }
 
