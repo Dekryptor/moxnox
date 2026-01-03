@@ -1098,11 +1098,8 @@ nt_status sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
 
     regs.norintstsen.command_complete = 0;
 
-    if (last_error.value != 0) {
-        print("sdhci_slot::send_command: error (errintsts = {:04x})\n",
-              last_error.value);
+    if (last_error.value != 0)
         return last_error_to_nt_status(last_error, acmd12errsts);
-    }
 
     return nt_status::SUCCESS;
 }
