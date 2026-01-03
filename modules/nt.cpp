@@ -63,6 +63,7 @@ enum class nt_status : uint32_t {
     IO_DEVICE_ERROR = 0xc0000185,
     NOT_FOUND = 0xc0000225,
     ILLEGAL_DLL_RELOCATION = 0xc0000269,
+    DEVICE_REMOVED = 0xc00002b6,
     SYSTEM_SHUTDOWN = 0xc00002eb
 };
 
