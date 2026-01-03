@@ -4377,8 +4377,11 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
         auto& th = *(btrfs_header*)p.data[0];
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
-        if (p.slots[0] >= th.nritems)
-            return nt_status::NOT_FOUND;
+        if (p.slots[0] >= th.nritems) {
+            if (!fs.move_path_back(p))
+                return nt_status::NOT_FOUND;
+            continue;
+        }
 
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
