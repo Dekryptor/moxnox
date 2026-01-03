@@ -25,6 +25,7 @@ import rwsem;
 import objects;
 import object_ref;
 import handle;
+import spinlock;
 
 #include "volume.h"
 
@@ -72,6 +73,8 @@ public:
     char* volume_name = nullptr;
     size_t volume_name_len = 0;
     page_cache<volume> cache{*this};
+    spinlock part_lock;
+    list_entry part_list = { &part_list, &part_list };
 
     rwsem mount_lock;
     optional<reference_wrapper<::filesystem>> filesystem;
@@ -104,6 +107,7 @@ public:
     volume& parent;
     uint64_t disk_offset_pages;
     uint64_t length_pages;
+    list_entry part_le;
 };
 
 static_assert(is_readable_object_with_offset<diskpart>);
@@ -372,9 +376,19 @@ diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, 
     this->partition_guid = partition_guid;
     this->type_guid = type_guid;
     this->size = size;
+
+    {
+        lock_guard lg(parent.part_lock);
+        insert_tail_list(parent.part_list, part_le);
+    }
 }
 
 diskpart::~diskpart() {
+    {
+        lock_guard lg(parent.part_lock);
+        remove_entry_list(part_le);
+    }
+
     parent.release();
 }
 
