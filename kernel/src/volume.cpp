@@ -84,7 +84,7 @@ static_assert(cacheable_flushable<volume>);
 
 static_assert(is_readable_object_with_offset<volume>);
 
-class diskpart : public volume {
+export class diskpart : public volume {
 public:
     diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length,
              const guid& partition_guid, const guid& type_guid);
