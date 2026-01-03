@@ -298,6 +298,22 @@ union sdhci_blksize {
 
 static_assert(sizeof(sdhci_blksize) == 0x2);
 
+union sdhci_acmd12errsts {
+    struct {
+        uint16_t not_executed : 1;
+        uint16_t timeout : 1;
+        uint16_t crc_error : 1;
+        uint16_t end_bit_error : 1;
+        uint16_t index_error : 1;
+        uint16_t : 2;
+        uint16_t command_not_issued_by_auto_cmd12 : 1;
+        uint16_t : 8;
+    };
+    uint16_t value;
+};
+
+static_assert(sizeof(sdhci_acmd12errsts) == 0x2);
+
 struct adma2_descriptor64 {
     uint32_t valid : 1;
     uint32_t end : 1;
@@ -586,6 +602,7 @@ public:
     sd_csd csd;
     uint64_t size;
     sdhci_errint last_error;
+    sdhci_acmd12errsts acmd12errsts;
     sdhci_capab capab;
     enum sdhci_card_type type = sdhci_card_type::none;
     sd_scr scr;
@@ -807,6 +824,10 @@ bool sdhci_slot::isr() {
 
     if (norintsts.error_interrupt) {
         last_error.value = regs.errintsts.value;
+
+        if (last_error.auto_cmd12_error)
+            acmd12errsts.value = regs.acmd12errsts;
+
         regs.errintsts.value = last_error.value; // clear error interrupts
 
         set_event(static_cast<event&>(command_complete_event.get()));
@@ -913,12 +934,23 @@ bool sdhci_slot::set_clock(unsigned int freq) {
     return true;
 }
 
-static nt_status last_error_to_nt_status(sdhci_errint err) {
+static nt_status last_error_to_nt_status(sdhci_errint err,
+                                         sdhci_acmd12errsts acmd12errsts) {
     if (err.command_timeout_error || err.data_timeout_error)
         return nt_status::IO_TIMEOUT;
 
     if (err.command_crc_error || err.data_crc_error)
         return nt_status::CRC_ERROR;
+
+    if (err.auto_cmd12_error) {
+        if (acmd12errsts.timeout)
+            return nt_status::IO_TIMEOUT;
+
+        if (acmd12errsts.crc_error)
+            return nt_status::CRC_ERROR;
+
+        return nt_status::IO_DEVICE_ERROR;
+    }
 
     return nt_status::IO_DEVICE_ERROR;
 }
@@ -1058,7 +1090,7 @@ nt_status sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     if (last_error.value != 0) {
         print("sdhci_slot::send_command: error (errintsts = {:04x})\n",
               last_error.value);
-        return last_error_to_nt_status(last_error);
+        return last_error_to_nt_status(last_error, acmd12errsts);
     }
 
     return nt_status::SUCCESS;
@@ -1157,7 +1189,7 @@ nt_status sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
     if (last_error.value != 0) {
         print("sdhci_slot::send_app_command: error (errintsts = {:04x})\n",
               last_error.value);
-        return last_error_to_nt_status(last_error);
+        return last_error_to_nt_status(last_error, acmd12errsts);
     }
 
     return nt_status::SUCCESS;
