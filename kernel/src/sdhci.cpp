@@ -1629,12 +1629,16 @@ void sdhci_slot::card_insertion() {
     status = send_command(sd_cmd::SEND_IF_COND, 0x1aa);
     if (success(status))
         f8 = true;
-    else {
+    else if (status == nt_status::IO_TIMEOUT) {
         f8 = false;
 
         // do software reset of the CMD line
         regs.swrst |= 2;
         while (regs.swrst & 2) { }
+    } else {
+        print("sdhci_slot::card_insertion: SEND_IF_COND returned {}\n",
+              status);
+        return;
     }
 
     // FIXME - check response (should match argument)
