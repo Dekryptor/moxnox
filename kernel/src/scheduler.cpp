@@ -6,7 +6,6 @@ module;
 #include <atomic>
 #include "thread.h"
 #include "assert.h"
-#include "tick_rate.h"
 #include "timer-asm.h"
 
 export module scheduler;

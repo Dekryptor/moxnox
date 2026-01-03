@@ -4,7 +4,6 @@ module;
 #include <string_view>
 #include <span>
 #include <mutex>
-#include "tick_rate.h"
 #include <ioctl.h>
 
 export module usbhid;
@@ -26,10 +25,11 @@ import list;
 import spinlock;
 import handle;
 import object_ref;
+import config;
 
 using namespace std;
 
-#define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
+#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
 static const int64_t REPEAT_DELAY_MS = 660;
 static const int64_t REPEAT_RATE_HZ = 25;

@@ -110,7 +110,7 @@ timer_isr:
     swapgs
     load_kernel_cr3
 0:
-    add QWORD PTR [rip+system_time], SYSTEM_TIME_RESOLUTION / TICK_RATE
+    add QWORD PTR [rip+system_time], _SYSTEM_TIME_RESOLUTION / _TICK_RATE
 
     push rax
     push rcx

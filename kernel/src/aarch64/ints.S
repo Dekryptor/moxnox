@@ -815,7 +815,7 @@ b	kernel_exception_entry
 		adrp	x0, system_time
 		add	x0, x0, :lo12:system_time
 		ldr	x1, [x0]
-		mov	x2, #(SYSTEM_TIME_RESOLUTION / TICK_RATE)
+		mov	x2, #(_SYSTEM_TIME_RESOLUTION / _TICK_RATE)
 		add	x1, x1, x2
 		str	x1, [x0]
 

@@ -6,7 +6,6 @@ module;
 #include <optional>
 #include <string_view>
 #include <mutex>
-#include "tick_rate.h"
 #include "assert.h"
 #include "btrfs.h"
 

@@ -2,7 +2,6 @@ module;
 
 #include <string_view>
 #include <atomic>
-#include "tick_rate.h"
 #include <span>
 #include <stdlib.h>
 
@@ -25,7 +24,7 @@ using namespace std;
 
 static const unsigned int PORT_RESET_DELAY = 800; // ms
 
-#define ONE_MS_TICKS (SYSTEM_TIME_RESOLUTION / 1000) // FIXME
+#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
 union port_status {
     struct {

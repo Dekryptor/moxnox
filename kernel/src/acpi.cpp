@@ -5,7 +5,6 @@ module;
 #include <atomic>
 #include <mutex>
 #include "acpica.h"
-#include "tick_rate.h"
 
 export module acpi;
 

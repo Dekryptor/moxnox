@@ -4,7 +4,6 @@ module;
 #include <atomic>
 #include <mutex>
 #include "context_offsets.h"
-#include "tick_rate.h"
 #include "scheduler.h"
 #include "acpica.h"
 #include "timer-asm.h"
@@ -21,6 +20,7 @@ import objects;
 import object_ref;
 import spinlock;
 import handle;
+import config;
 
 #ifdef __x86_64__
 import inout;
@@ -338,7 +338,7 @@ NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
         periodic = period != 0;
 
         if (periodic)
-            orig_ticks = (unsigned int)(period * TICK_RATE) / TIMER_PERIOD_RESOLUTION;
+            orig_ticks = (unsigned int)((uint32_t)period * TICK_RATE) / TIMER_PERIOD_RESOLUTION;
 
         if (!active) {
             insert_tail_list(active_timer_list, le);
