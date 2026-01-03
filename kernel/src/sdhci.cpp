@@ -913,6 +913,16 @@ bool sdhci_slot::set_clock(unsigned int freq) {
     return true;
 }
 
+static nt_status last_error_to_nt_status(sdhci_errint err) {
+    if (err.command_timeout_error || err.data_timeout_error)
+        return nt_status::IO_TIMEOUT;
+
+    if (err.command_crc_error || err.data_crc_error)
+        return nt_status::CRC_ERROR;
+
+    return nt_status::IO_DEVICE_ERROR;
+}
+
 nt_status sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     reset_event(static_cast<event&>(command_complete_event.get()));
     regs.norintstsen.command_complete = 1;
@@ -1048,7 +1058,7 @@ nt_status sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     if (last_error.value != 0) {
         print("sdhci_slot::send_command: error (errintsts = {:04x})\n",
               last_error.value);
-        return nt_status::IO_DEVICE_ERROR; // FIXME
+        return last_error_to_nt_status(last_error);
     }
 
     return nt_status::SUCCESS;
@@ -1147,7 +1157,7 @@ nt_status sdhci_slot::send_app_command(enum sd_app_cmd cmd, uint32_t arg) {
     if (last_error.value != 0) {
         print("sdhci_slot::send_app_command: error (errintsts = {:04x})\n",
               last_error.value);
-        return nt_status::IO_DEVICE_ERROR; // FIXME
+        return last_error_to_nt_status(last_error);
     }
 
     return nt_status::SUCCESS;
