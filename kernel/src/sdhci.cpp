@@ -592,7 +592,8 @@ public:
     uint16_t hcver;
     volatile sdhci_regs& regs;
     object_ref thread_event, command_complete_event, dma_interrupt_event,
-               buffer_read_ready_event, first_insertion_event;
+               buffer_read_ready_event, first_insertion_event,
+               transfer_complete_event;
     bool card_removal_pending = false;
     bool card_insertion_pending = false;
     unsigned int base_clock_frequency;
@@ -807,6 +808,16 @@ bool sdhci_slot::isr() {
 
         norintsts.value = 0;
         norintsts.dma_interrupt = 1;
+        regs.norintsts.value = norintsts.value;
+
+        return true;
+    }
+
+    if (norintsts.transfer_complete) {
+        set_event(static_cast<event&>(transfer_complete_event.get()));
+
+        norintsts.value = 0;
+        norintsts.transfer_complete = 1;
         regs.norintsts.value = norintsts.value;
 
         return true;
@@ -1364,6 +1375,8 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
 
         reset_event(static_cast<event&>(slot.dma_interrupt_event.get()));
         slot.regs.norintstsen.dma_interrupt = 1;
+        reset_event(static_cast<event&>(slot.transfer_complete_event.get()));
+        slot.regs.norintstsen.transfer_complete = 1;
 
         if (slot.scr.cmd_set_block_count) {
             status = slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks);
@@ -1373,6 +1386,7 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
                 flush_cache_from_descriptors(span(descs.data(), num_pages), true);
                 free_folio(adma_page);
                 slot.regs.norintstsen.dma_interrupt = 0;
+                slot.regs.norintstsen.transfer_complete = 0;
                 return status;
             }
         }
@@ -1384,12 +1398,15 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
             flush_cache_from_descriptors(span(descs.data(), num_pages), true);
             free_folio(adma_page);
             slot.regs.norintstsen.dma_interrupt = 0;
+            slot.regs.norintstsen.transfer_complete = 0;
             return status;
         }
 
         wait_for_object(slot.dma_interrupt_event.get(), false);
+        wait_for_object(slot.transfer_complete_event.get(), false);
 
         slot.regs.norintstsen.dma_interrupt = 0;
+        slot.regs.norintstsen.transfer_complete = 0;
     }
 
     flush_cache_from_descriptors(span(descs.data(), num_pages), true);
@@ -1493,6 +1510,8 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
 
         reset_event(static_cast<event&>(slot.dma_interrupt_event.get()));
         slot.regs.norintstsen.dma_interrupt = 1;
+        reset_event(static_cast<event&>(slot.transfer_complete_event.get()));
+        slot.regs.norintstsen.transfer_complete = 1;
 
         if (slot.scr.cmd_set_block_count) {
             status = slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks);
@@ -1501,6 +1520,7 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
                       status);
                 free_folio(adma_page);
                 slot.regs.norintstsen.dma_interrupt = 0;
+                slot.regs.norintstsen.transfer_complete = 0;
                 return status;
             }
         }
@@ -1511,12 +1531,15 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
                   status);
             free_folio(adma_page);
             slot.regs.norintstsen.dma_interrupt = 0;
+            slot.regs.norintstsen.transfer_complete = 0;
             return status;
         }
 
         wait_for_object(slot.dma_interrupt_event.get(), false);
+        wait_for_object(slot.transfer_complete_event.get(), false);
 
         slot.regs.norintstsen.dma_interrupt = 0;
+        slot.regs.norintstsen.transfer_complete = 0;
     }
 
     free_folio(adma_page);
@@ -1895,6 +1918,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     norintsigen.card_insertion = 1;
     norintsigen.card_removal = 1;
     norintsigen.command_complete = 1;
+    norintsigen.transfer_complete = 1;
     norintsigen.dma_interrupt = 1;
     norintsigen.buffer_read_ready = 1;
 
@@ -1949,6 +1973,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     dma_interrupt_event = create_event(false);
     buffer_read_ready_event = create_event(false);
     first_insertion_event = create_event(false);
+    transfer_complete_event = create_event(false);
 
     sdhci_prnsts prnsts;
 
