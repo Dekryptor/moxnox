@@ -198,6 +198,9 @@ void main_thread(void* ctx) {
 
     setup_folios();
 
+    if (!init_keyboard_pipe())
+        print("init_keyboard_pipe failed\n");
+
     init_acpi();
     find_acpi_devices();
 
@@ -228,9 +231,6 @@ void main_thread(void* ctx) {
 
     if (GetTime)
         get_time_from_efi();
-
-    if (!init_keyboard_pipe())
-        print("init_keyboard_pipe failed\n");
 
 #ifdef __x86_64__
     // if no ACPI, look for serial port at its traditional address
