@@ -1294,8 +1294,6 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
 
     num_pages = min(PAGE_SIZE / sizeof(adma2_descriptor64), num_pages);
 
-    lock_guard lg(slot.lock);
-
     // prepare ADMA2 data structure
 
     auto adma_page = allocate_folio(0);
@@ -1332,10 +1330,6 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
     ::flush_cache(span((uint8_t*)descs.data(), num_pages * sizeof(adma2_descriptor64)),
                   false);
 
-    slot.regs.admasysaddr[0] = (uint32_t)adma_page;
-    slot.regs.admasysaddr[1] = (uint32_t)(adma_page >> 32);
-
-    // set transfer mode register
 
     sdhci_trnmod trnmod;
 
@@ -1350,13 +1344,7 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
 
     auto num_blocks = (uint16_t)(num_pages * BLOCKS_PER_PAGE);
 
-    slot.regs.trnmod = trnmod.value;
-    slot.regs.blkcnt = num_blocks;
-
     flush_cache_from_descriptors(span(descs.data(), num_pages), false);
-
-    reset_event(static_cast<event&>(slot.dma_interrupt_event.get()));
-    slot.regs.norintstsen.dma_interrupt = 1;
 
     uint32_t arg;
 
@@ -1365,31 +1353,44 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
     else
         arg = (uint32_t)(address / BLOCK_SIZE);
 
-    if (slot.scr.cmd_set_block_count) {
-        status = slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks);
+    {
+        lock_guard lg(slot.lock);
+
+        slot.regs.admasysaddr[0] = (uint32_t)adma_page;
+        slot.regs.admasysaddr[1] = (uint32_t)(adma_page >> 32);
+
+        slot.regs.trnmod = trnmod.value;
+        slot.regs.blkcnt = num_blocks;
+
+        reset_event(static_cast<event&>(slot.dma_interrupt_event.get()));
+        slot.regs.norintstsen.dma_interrupt = 1;
+
+        if (slot.scr.cmd_set_block_count) {
+            status = slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks);
+            if (!success(status)) {
+                print("sd_volume::dio_read: SET_BLOCK_COUNT returned {}\n",
+                      status);
+                flush_cache_from_descriptors(span(descs.data(), num_pages), true);
+                free_folio(adma_page);
+                slot.regs.norintstsen.dma_interrupt = 0;
+                return status;
+            }
+        }
+
+        status = slot.send_command(sd_cmd::READ_MULTIPLE_BLOCK, arg);
         if (!success(status)) {
-            print("sd_volume::dio_read: SET_BLOCK_COUNT returned {}\n",
+            print("sd_volume::dio_read: READ_MULTIPLE_BLOCK returned {}\n",
                   status);
             flush_cache_from_descriptors(span(descs.data(), num_pages), true);
             free_folio(adma_page);
             slot.regs.norintstsen.dma_interrupt = 0;
             return status;
         }
-    }
 
-    status = slot.send_command(sd_cmd::READ_MULTIPLE_BLOCK, arg);
-    if (!success(status)) {
-        print("sd_volume::dio_read: READ_MULTIPLE_BLOCK returned {}\n",
-              status);
-        flush_cache_from_descriptors(span(descs.data(), num_pages), true);
-        free_folio(adma_page);
+        wait_for_object(slot.dma_interrupt_event.get(), false);
+
         slot.regs.norintstsen.dma_interrupt = 0;
-        return status;
     }
-
-    wait_for_object(slot.dma_interrupt_event.get(), false);
-
-    slot.regs.norintstsen.dma_interrupt = 0;
 
     flush_cache_from_descriptors(span(descs.data(), num_pages), true);
 
@@ -1423,8 +1424,6 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
 
     num_pages = min(PAGE_SIZE / sizeof(adma2_descriptor64), num_pages);
 
-    lock_guard lg(slot.lock);
-
     // prepare ADMA2 data structure
 
     auto adma_page = allocate_folio(0);
@@ -1461,11 +1460,6 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
     ::flush_cache(span((uint8_t*)descs.data(), num_pages * sizeof(adma2_descriptor64)),
                   false);
 
-    slot.regs.admasysaddr[0] = (uint32_t)adma_page;
-    slot.regs.admasysaddr[1] = (uint32_t)(adma_page >> 32);
-
-    // set transfer mode register
-
     sdhci_trnmod trnmod;
 
     trnmod.value = 0;
@@ -1479,13 +1473,7 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
 
     auto num_blocks = (uint16_t)(num_pages * BLOCKS_PER_PAGE);
 
-    slot.regs.trnmod = trnmod.value;
-    slot.regs.blkcnt = num_blocks;
-
     flush_cache_from_descriptors(span(descs.data(), num_pages), false);
-
-    reset_event(static_cast<event&>(slot.dma_interrupt_event.get()));
-    slot.regs.norintstsen.dma_interrupt = 1;
 
     uint32_t arg;
 
@@ -1494,29 +1482,42 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
     else
         arg = (uint32_t)(address / BLOCK_SIZE);
 
-    if (slot.scr.cmd_set_block_count) {
-        status = slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks);
+    {
+        lock_guard lg(slot.lock);
+
+        slot.regs.admasysaddr[0] = (uint32_t)adma_page;
+        slot.regs.admasysaddr[1] = (uint32_t)(adma_page >> 32);
+
+        slot.regs.trnmod = trnmod.value;
+        slot.regs.blkcnt = num_blocks;
+
+        reset_event(static_cast<event&>(slot.dma_interrupt_event.get()));
+        slot.regs.norintstsen.dma_interrupt = 1;
+
+        if (slot.scr.cmd_set_block_count) {
+            status = slot.send_command(sd_cmd::SET_BLOCK_COUNT, num_blocks);
+            if (!success(status)) {
+                print("sd_volume::dio_write: SET_BLOCK_COUNT returned {}\n",
+                      status);
+                free_folio(adma_page);
+                slot.regs.norintstsen.dma_interrupt = 0;
+                return status;
+            }
+        }
+
+        status = slot.send_command(sd_cmd::WRITE_MULTIPLE_BLOCK, arg);
         if (!success(status)) {
-            print("sd_volume::dio_write: SET_BLOCK_COUNT returned {}\n",
+            print("sd_volume::dio_write: WRITE_MULTIPLE_BLOCK returned {}\n",
                   status);
             free_folio(adma_page);
             slot.regs.norintstsen.dma_interrupt = 0;
             return status;
         }
-    }
 
-    status = slot.send_command(sd_cmd::WRITE_MULTIPLE_BLOCK, arg);
-    if (!success(status)) {
-        print("sd_volume::dio_write: WRITE_MULTIPLE_BLOCK returned {}\n",
-              status);
-        free_folio(adma_page);
+        wait_for_object(slot.dma_interrupt_event.get(), false);
+
         slot.regs.norintstsen.dma_interrupt = 0;
-        return status;
     }
-
-    wait_for_object(slot.dma_interrupt_event.get(), false);
-
-    slot.regs.norintstsen.dma_interrupt = 0;
 
     free_folio(adma_page);
 
