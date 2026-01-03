@@ -630,6 +630,8 @@ public:
                         pfn_iterator& it, uint64_t& written_pages,
                         bool fua) override;
 
+    bool dead = false;
+
 private:
     sdhci_slot& slot;
 };
@@ -852,8 +854,6 @@ bool sdhci_slot::isr() {
 }
 
 void sdhci_slot::card_removal() {
-    print("FIXME - sdhci_slot::card_removal\n");
-
     sd_volume* v;
 
     {
@@ -866,9 +866,18 @@ void sdhci_slot::card_removal() {
 
         v = vol;
         vol = nullptr;
+
+        if (v->dead) {
+            print("sdhci_slot::card_removal: sd_volume already dead\n");
+            return;
+        }
+
+        v->dead = true;
     }
 
-    // FIXME
+    remove_object_name(*v);
+
+    // FIXME - remove partitions
 
     v->release();
 }
@@ -1284,6 +1293,9 @@ nt_status sdhci_slot::read_scr() {
 }
 
 nt_status sd_volume::flush() {
+    if (dead)
+        return nt_status::DEVICE_REMOVED;
+
     // flush not supported for SD cards, do nothing
 
     // FIXME - eMMC does support flush
@@ -1304,7 +1316,9 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
     nt_status status;
     uint64_t address = page_num << PAGE_SHIFT;
 
-    // FIXME - handle dead volumes
+    if (dead)
+        return nt_status::DEVICE_REMOVED;
+
     // FIXME - what if volume not multiple of PAGE_SIZE?
 
     if (page_num >= size >> PAGE_SHIFT)
@@ -1440,7 +1454,9 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
     nt_status status;
     uint64_t address = page_num << PAGE_SHIFT;
 
-    // FIXME - handle dead volumes
+    if (dead)
+        return nt_status::DEVICE_REMOVED;
+
     // FIXME - what if volume not multiple of PAGE_SIZE?
 
     if (page_num >= size >> PAGE_SHIFT)
