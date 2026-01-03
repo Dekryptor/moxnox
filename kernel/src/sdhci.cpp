@@ -574,6 +574,8 @@ enum class sdhci_card_type {
     high_capacity,
 };
 
+class sd_volume;
+
 class sdhci_slot {
 public:
     sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs);
@@ -609,6 +611,7 @@ public:
     sd_scr scr;
     rwsem lock;
     unsigned int slot_num;
+    sd_volume* vol = nullptr;
 };
 
 class sd_volume : public volume {
@@ -851,7 +854,23 @@ bool sdhci_slot::isr() {
 void sdhci_slot::card_removal() {
     print("FIXME - sdhci_slot::card_removal\n");
 
+    sd_volume* v;
+
+    {
+        lock_guard lg(lock);
+
+        if (!vol) {
+            print("sdhci_slot::card_removal: no card present\n");
+            return;
+        }
+
+        v = vol;
+        vol = nullptr;
+    }
+
     // FIXME
+
+    v->release();
 }
 
 bool sdhci_slot::set_clock(unsigned int freq) {
@@ -1603,7 +1622,14 @@ void sdhci_slot::card_insertion() {
             return;
     }
 
-    // FIXME - what do we do if we think there's a card already there?
+    {
+        lock_guard lg(lock);
+
+        if (vol) {
+            print("sdhci_slot::card_insertion: card already present\n");
+            return;
+        }
+    }
 
     // set to max timeout (TMCLK x 2^27)
     regs.timeoutcon = 0xe;
@@ -1874,6 +1900,13 @@ void sdhci_slot::card_insertion() {
     print("found /dev/{}: block size {}, capacity {} (SD card version {})\n",
           string_view(v.volume_name, v.volume_name_len),
           byte_size(v.sector_size), byte_size(v.size), sd_card_version(scr));
+
+    {
+        lock_guard lg(lock);
+
+        v.acquire();
+        vol = &v;
+    }
 
     v.probe();
 }
