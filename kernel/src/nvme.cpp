@@ -847,17 +847,21 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
     io_queue.cq = phys_address(cq);
     io_queue.sq = phys_address(sq);
 
-    // FIXME - free interrupt when we go away
-    auto int_num = add_msix_entry(dev, 1, nvme_msix_isr_func, &io_queue);
-    if (int_num == 0) {
-        // FIXME - delete CQ and SQ
-        return false;
+    uint16_t int_num = 0;
+
+    if (msi_supported && dev.msix) {
+        // FIXME - free interrupt when we go away
+        int_num = add_msix_entry(dev, 1, nvme_msix_isr_func, &io_queue);
+        if (int_num == 0) {
+            // FIXME - delete CQ and SQ
+            return false;
+        }
     }
 
 #ifdef __aarch64__
     io_queue.irq_num = int_num;
 #endif
-    io_queue.isr_registered = true;
+    io_queue.isr_registered = int_num != 0;
 
     return true;
 }
