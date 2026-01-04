@@ -708,6 +708,8 @@ bool nvme_queue::isr() {
         while (cq_head != sq_tail) {
             auto& comp = *(nvme_completion*)((uint8_t*)cq + (cq_head * cqe_size));
 
+            flush_cache(span((uint8_t*)&comp, cqe_size), true);
+
             if (comp.p != exp_cq_p)
                 break;
 
