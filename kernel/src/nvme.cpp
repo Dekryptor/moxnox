@@ -404,6 +404,9 @@ bool nvme_controller::identify_controller(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
+    flush_cache(span((uint8_t*)phys_address(p), sizeof(nvme_identify_controller_data)),
+                false);
+
     queue.submit(req);
 
     wait_for_object(req.event.get(), false);
@@ -413,6 +416,9 @@ bool nvme_controller::identify_controller(nvme_queue& queue) {
         free_folio(p);
         return false;
     }
+
+    flush_cache(span((uint8_t*)phys_address(p), sizeof(nvme_identify_controller_data)),
+                true);
 
     controller_info = (nvme_identify_controller_data*)phys_address(p);
 
