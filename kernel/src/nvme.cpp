@@ -368,7 +368,7 @@ void nvme_queue::submit(nvme_request& req) {
 
         reqs[slot] = &req;
 
-        barrier();
+        flush_cache(span((uint8_t*)sq + (sq_tail * sqe_size), sqe_size), false);
 
         sq_tail++;
 
