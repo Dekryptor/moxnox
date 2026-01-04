@@ -450,7 +450,9 @@ struct nvme_namespace_req {
 };
 
 bool nvme_controller::identify_namespaces(nvme_queue& queue) {
-    auto p = allocate_folio(bytes_to_folio_order(MAX_NAMESPACES * sizeof(uint32_t)));
+    static const size_t p_size = MAX_NAMESPACES * sizeof(uint32_t);
+
+    auto p = allocate_folio(bytes_to_folio_order(p_size));
     if (!p) {
         print("allocate_folio failed\n");
         return false;
@@ -472,6 +474,8 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
     sqe.cnssid = 0;
     sqe.csi = 0;
 
+    flush_cache(span((uint8_t*)phys_address(p), p_size), false);
+
     queue.submit(req);
 
     wait_for_object(req.event.get(), false);
@@ -481,6 +485,8 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
         free_folio(p);
         return false;
     }
+
+    flush_cache(span((uint8_t*)phys_address(p), p_size), true);
 
     auto ns_list = (uint32_t*)phys_address(p);
     list_entry list = { &list, &list };
@@ -519,6 +525,9 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
         insert_tail_list(list, req2->le);
 
+        flush_cache(span((uint8_t*)phys_address(req2->p), sizeof(nvme_identify_namespace_data)),
+                    false);
+
         queue.submit(req2->req);
     }
 
@@ -530,6 +539,9 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
         remove_entry_list(req2.le);
 
         wait_for_object(req2.req.event.get(), false);
+
+        flush_cache(span((uint8_t*)phys_address(req2.p), sizeof(nvme_identify_namespace_data)),
+                    true);
 
         auto& nsinfo = *(nvme_identify_namespace_data*)phys_address(req2.p);
 
