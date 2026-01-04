@@ -372,9 +372,39 @@ static optional<uint32_t> search_routing(ACPI_HANDLE handle, uint8_t dev,
     return nullopt;
 }
 
+static optional<uint64_t> translate_pci_pa(const acpi_device& dev, uint64_t pa) {
+    // FIXME - return error if BAR would cross resource boundary?
+
+    for (auto le = dev.resources.next; le != &dev.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        switch (r.type) {
+            case acpi_device_resource_type::address: {
+                auto& r2 = static_cast<acpi_device_resource_address&>(r);
+
+                if (r2.address.ResourceType != ACPI_MEMORY_RANGE)
+                    break;
+
+                if (pa >= r2.address.Address.Minimum &&
+                    pa < r2.address.Address.Maximum)
+                    return pa + r2.address.Address.TranslationOffset;
+
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+
+    print("translate_pci_pa: unable to find resource for address {:x}\n", pa);
+
+    return nullopt;
+}
+
 static void device_found0(const volatile pci_header& h, uint16_t seg,
                           uint8_t bus, uint8_t dev, uint8_t func,
-                          ACPI_HANDLE handle, span<uint8_t> routing) {
+                          const acpi_device& acpi_dev, span<uint8_t> routing) {
     volatile auto& h0 = *(pci_header0*)&h;
     uint16_t vendor_id = h.vendor_id;
     uint16_t device_id = h.device_id;
@@ -464,7 +494,7 @@ static void device_found0(const volatile pci_header& h, uint16_t seg,
                 uint64_t end = orig + ~changed + 1;
 
                 if (type == 0) {
-                    auto pa = orig & 0xfffffff0;
+                    auto pa = (uint64_t)(orig & 0xfffffff0);
                     auto pages = bytes_to_pages(end - pa);
                     auto va = allocate_va(pages);
 
@@ -472,6 +502,11 @@ static void device_found0(const volatile pci_header& h, uint16_t seg,
                         print("allocate_va failed\n");
                         return;
                     }
+
+                    if (auto pa2 = translate_pci_pa(acpi_dev, pa); pa2.has_value())
+                        pa = *pa2;
+                    else
+                        return;
 
                     for (unsigned int j = 0; j < pages; j++) {
                         // FIXME - if prefetchable, map as write-through (or write-combine if framebuffer)?
@@ -503,6 +538,11 @@ static void device_found0(const volatile pci_header& h, uint16_t seg,
                         return;
                     }
 
+                    if (auto pa2 = translate_pci_pa(acpi_dev, pa); pa2.has_value())
+                        pa = *pa2;
+                    else
+                        return;
+
                     for (unsigned int j = 0; j < pages; j++) {
                         // FIXME - if prefetchable, map as write-through (or write-combine if framebuffer)?
                         if (!map_page(pa + (j << PAGE_SHIFT), va + (j << PAGE_SHIFT), mapping_type::no_cache)) {
@@ -520,7 +560,7 @@ static void device_found0(const volatile pci_header& h, uint16_t seg,
     }
 
     if (pci_dev.pin != 0 && !routing.empty()) {
-        auto irq = search_routing(handle, dev, pci_dev.pin, routing);
+        auto irq = search_routing(acpi_dev.handle, dev, pci_dev.pin, routing);
 
         if (!irq.has_value())
             print("no IRQ found for {:04x}:{:02x}:{:02x}:{:x}\n", seg,
@@ -574,7 +614,7 @@ static ACPI_STATUS find_routing(ACPI_HANDLE handle, span<uint8_t>& out) {
 
 static void device_found(volatile pci_header& h, uint16_t seg,
                          uint8_t bus, uint8_t dev, uint8_t func,
-                         ACPI_HANDLE handle, span<uint8_t> routing) {
+                         const acpi_device& acpi_dev, span<uint8_t> routing) {
     uint8_t header_type = h.header_type & 0x7f;
 
     if (header_type != 0)
@@ -582,11 +622,11 @@ static void device_found(volatile pci_header& h, uint16_t seg,
 
     h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
-    device_found0(h, seg, bus, dev, func, handle, routing);
+    device_found0(h, seg, bus, dev, func, acpi_dev, routing);
 }
 
-static void check_bus(uint8_t bus, ACPI_HANDLE handle, span<uint8_t> routing,
-                      const ACPI_MCFG_ALLOCATION& item) {
+static void check_bus(uint8_t bus, const acpi_device& acpi_dev,
+                      span<uint8_t> routing, const ACPI_MCFG_ALLOCATION& item) {
     // FIXME - handle VA leaks?
 
     for (uint8_t dev = 0; dev < 32; dev++) {
@@ -615,7 +655,7 @@ static void check_bus(uint8_t bus, ACPI_HANDLE handle, span<uint8_t> routing,
 
         bool multifunction = h.header_type & 0x80;
 
-        device_found(h, item.PciSegment, bus, dev, 0, handle, routing);
+        device_found(h, item.PciSegment, bus, dev, 0, acpi_dev, routing);
 
         if (multifunction) {
             for (uint8_t func = 1; func < 8; func++) {
@@ -642,8 +682,8 @@ static void check_bus(uint8_t bus, ACPI_HANDLE handle, span<uint8_t> routing,
                     continue;
                 }
 
-                device_found(h2, item.PciSegment, bus, dev, func, handle,
-                             routing);
+                device_found(h2, item.PciSegment, bus, dev, func,
+                             acpi_dev, routing);
             }
         }
     }
@@ -834,7 +874,7 @@ static void found_pci_bus(const acpi_device& dev) {
         auto end = min(*bus_end, it.EndBusNumber);
 
         for (unsigned int num = start; num <= end; num++) {
-            check_bus((uint8_t)num, dev.handle, routing, it);
+            check_bus((uint8_t)num, dev, routing, it);
         }
     }
 
