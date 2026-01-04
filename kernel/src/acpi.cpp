@@ -420,7 +420,7 @@ consteval bool format_spec_valid<ACPI_RESOURCE_ADDRESS64>(string_view fmt) {
 
 export span<char> do_format_arg(span<char> sp, string_view,
                                 const ACPI_RESOURCE_ADDRESS64& arg) {
-    switch (arg.ProducerConsumer) {
+    switch (arg.ResourceType) {
         case ACPI_MEMORY_RANGE:
             sp = do_format_arg(sp, "", "Memory range");
             break;
