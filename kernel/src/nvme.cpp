@@ -422,8 +422,9 @@ bool nvme_controller::identify_controller(nvme_queue& queue) {
 
     controller_info = (nvme_identify_controller_data*)phys_address(p);
 
-    if (controller_info->cntrltype != 1) {
-        print("not an I/O controller\n");
+    if (controller_info->cntrltype != 0 && controller_info->cntrltype != 1) {
+        print("nvme_controller::identify_controller: controller type was {}, expected 0 or 1\n",
+              controller_info->cntrltype);
         return false;
     }
 
