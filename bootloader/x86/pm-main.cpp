@@ -66,6 +66,7 @@ extern vbe_mode_info* ptr_vbe_modes;
 extern uint32_t pm_vbe_selected_mode;
 extern void* ptr_vbe_edid;
 extern bool* ptr_vbe_edid_valid;
+extern "C" const char* ptr_kernel_version;
 
 // pm.s
 extern "C" bool have_long_mode();
@@ -939,6 +940,8 @@ static void set_graphics_info() {
 
 extern "C"
 void protected_mode_main() {
+    auto ver = string_view(ptr_kernel_version);
+
     if (pm_vbe_selected_mode == 0xffff) {
         lb.text_mode = true;
         lb.text_console.cols = 80;
@@ -999,6 +1002,9 @@ void protected_mode_main() {
     lb.debug_line_size = debug_line_size;
     lb.debug_line_str_ptr = debug_line_str_ptr;
     lb.debug_line_str_size = debug_line_str_size;
+
+    memcpy(&lb.version, ver.data(), ver.size());
+    lb.version[ver.size()] = 0;
 
     // jump to entry point of image
 

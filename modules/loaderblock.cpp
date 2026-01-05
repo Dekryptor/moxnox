@@ -230,6 +230,8 @@ struct loader_block {
     uint64_t debug_line_size;
     uint64_t debug_line_str_ptr;
     uint64_t debug_line_str_size;
+    char version[32];
+    // pointers follow, different on 32- and 64-bit
     EFI_GET_TIME GetTime;
     EFI_SET_VIRTUAL_ADDRESS_MAP SetVirtualAddressMap;
     EFI_RESET_SYSTEM ResetSystem;

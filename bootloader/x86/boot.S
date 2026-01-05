@@ -774,6 +774,7 @@ call	vbe_choose_mode
 jmp     enter_protected_mode
 
 .section .rdata
+.global kernel_version
 kernel_version:
 .asciz	MOXNOX_VERSION_STRING
 
