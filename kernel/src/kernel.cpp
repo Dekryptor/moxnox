@@ -2,7 +2,6 @@
 #include <atomic>
 #include <string_view>
 #include <optional>
-#include <version.h>
 #include "context_offsets.h"
 #include "process.h"
 #include "timer-asm.h"
@@ -226,6 +225,10 @@ void main_thread(void* ctx) {
             bsod("map_uefi failed");
     }
 
+    decltype(lb.version) version;
+
+    memcpy(version, lb.version, sizeof(version));
+
     free_lower_half_mappings();
     free_bootloader_memory();
 
@@ -240,7 +243,8 @@ void main_thread(void* ctx) {
 
     print("found {} of memory\n", byte_size(num_ram_pages << PAGE_SHIFT));
 
-    print(MOXNOX_VERSION_STRING "\n");
+    if (version[0] != 0)
+        print("{}\n", version);
 
     keywait();
 
