@@ -224,6 +224,32 @@ static void print_error(const char* func, EFI_STATUS Status) {
     print("{} returned {}\n", func, error_string(Status));
 }
 
+static void find_version(uintptr_t image) {
+    const auto& dos = *(IMAGE_DOS_HEADER*)image;
+    const auto& pe = *(IMAGE_NT_HEADERS*)((uint8_t*)image + dos.e_lfanew);
+
+    auto sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&pe.OptionalHeader64 + pe.FileHeader.SizeOfOptionalHeader),
+                         pe.FileHeader.NumberOfSections);
+    const IMAGE_SECTION_HEADER* version_sect = nullptr;
+
+    for (const auto& sect : sections) {
+        if (!memcmp(sect.Name, ".version", sizeof(sect.Name))) {
+            version_sect = &sect;
+            break;
+        }
+    }
+
+    if (!version_sect) {
+        print_string("Could not find .version section.\n");
+        return;
+    }
+
+    string_view ver((char*)((uintptr_t)image + version_sect->VirtualAddress));
+
+    memcpy(&lb.version, ver.data(), ver.size());
+    lb.version[ver.size()] = 0;
+}
+
 static EFI_STATUS get_image_information(EFI_HANDLE image_handle,
                                         EFI_LOADED_IMAGE_PROTOCOL*& image) {
     EFI_STATUS Status;
@@ -258,6 +284,8 @@ static EFI_STATUS get_image_information(EFI_HANDLE image_handle,
         else
             cmdline[len] = 0;
     }
+
+    find_version((uintptr_t)image->ImageBase);
 
     return EFI_SUCCESS;
 }
