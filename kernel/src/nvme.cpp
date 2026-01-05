@@ -805,6 +805,9 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
         sqe.ien = 1;
         sqe.iv = (dev.msix && msi_supported) ? 1 : 0;
 
+        flush_cache(span((uint8_t*)phys_address(cq), (1 << controller_info->mincqes) * QUEUE_SIZE),
+                    false);
+
         queue.submit(req);
 
         wait_for_object(req.event.get(), false);
@@ -845,6 +848,9 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
         sqe.qprio = 0;
         sqe.cqid = 1;
         sqe.nvmsetid = 0;
+
+        flush_cache(span((uint8_t*)phys_address(sq), (1 << controller_info->minsqes) * QUEUE_SIZE),
+                    false);
 
         queue.submit(req);
 
