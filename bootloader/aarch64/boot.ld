@@ -79,12 +79,22 @@ SECTIONS
         efi_rdata_size = ABSOLUTE(.) - efi_rdata;
     }
 
-    efi_rdata_vma = 0x1000 + efi_text_size + efi_data_size;
-    efi_payload_vma = 0x1000 + efi_text_size + efi_data_size + efi_rdata_size;
+    . = ALIGN(4096);
 
-    size_of_image = efi_text_size + efi_data_size + efi_rdata_size + efi_payload_size + 0x1000;
+    .efi_version : {
+        efi_version = ABSOLUTE(.);
+        *boot.S.obj(.efi_version)
+        . = ALIGN(4096);
+        efi_version_size = ABSOLUTE(.) - efi_version;
+    }
+
+    efi_rdata_vma = 0x1000 + efi_text_size + efi_data_size;
+    efi_version_vma = 0x1000 + efi_text_size + efi_data_size + efi_rdata_size;
+    efi_payload_vma = 0x1000 + efi_text_size + efi_data_size + efi_rdata_size + efi_version_size;
+
+    size_of_image = efi_text_size + efi_data_size + efi_rdata_size + efi_version_size + efi_payload_size + 0x1000;
     efi_entry_point = efi_main - efi_text + 0x1000;
-    size_of_initialized_data = efi_data_size + efi_rdata_size + efi_payload_size;
+    size_of_initialized_data = efi_data_size + efi_rdata_size + efi_version_size + efi_payload_size;
 
     image_end = .;
     image_size_val = image_end - image_base;

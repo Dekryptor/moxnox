@@ -1,3 +1,5 @@
+#include <version.h>
+
 .section ".boot", "a"
 
 .set	section_align, 0x1000
@@ -20,7 +22,7 @@ pe_start:
 
 // IMAGE_FILE_HEADER
 .short	0xaa64 // Machine
-.short	4 // NumberOfSections
+.short	5 // NumberOfSections
 .long	0 // TimeDateStamp
 .long	0 // PointerToSymbolTable
 .long	0 // NumberOfSymbols
@@ -101,6 +103,18 @@ optional_header_end:
 .long	0x40000040 // Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
 
 // IMAGE_SECTION_HEADER
+.ascii	".version"
+.long	efi_version_size // VirtualSize
+.long	efi_version_vma // VirtualAddress
+.long	efi_version_size // SizeOfRawData
+.long	efi_version // PointerToRawData
+.long	0 // PointerToRelocations
+.long	0 // PointerToLinenumbers
+.short	0 // NumberOfRelocations
+.short	0 // NumberOfLinenumbers
+.long	0x40000040 // Characteristics (IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA)
+
+// IMAGE_SECTION_HEADER
 .ascii	".payload"
 .long	efi_payload_size // VirtualSize
 .long	efi_payload_vma // VirtualAddress
@@ -129,3 +143,6 @@ bl		start
 .global image_size
 image_size:
 .long	image_size_val
+
+.section ".efi_version"
+.asciz MOXNOX_VERSION_STRING
