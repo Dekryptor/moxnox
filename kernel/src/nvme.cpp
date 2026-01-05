@@ -825,6 +825,8 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
         return false;
     }
 
+    memset(phys_address(sq), 0, (1 << controller_info->minsqes) * QUEUE_SIZE);
+
     {
         nvme_request req;
 
