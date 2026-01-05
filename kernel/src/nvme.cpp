@@ -1027,10 +1027,14 @@ nt_status nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
 
     prp1 = *it;
 
+    ::flush_cache(span((uint8_t*)phys_address(prp1), PAGE_SIZE), false);
+
     if (num_pages <= 2) {
         if (num_pages == 2) {
             it++;
             prp2 = *it;
+
+            ::flush_cache(span((uint8_t*)phys_address(prp2), PAGE_SIZE), false);
         } else
             prp2 = 0;
     } else {
@@ -1045,8 +1049,14 @@ nt_status nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
         for (uint64_t i = 1; i < num_pages; i++) {
             it++;
             *ptr = *it;
+
+            ::flush_cache(span((uint8_t*)phys_address(*ptr), PAGE_SIZE), false);
+
             ptr++;
         }
+
+        ::flush_cache(span((uint8_t*)phys_address(prp2), (num_pages - 1) * sizeof(uint64_t)),
+                      false);
     }
 
     sqe.opc = NVME_IO_OPCODE_WRITE;
