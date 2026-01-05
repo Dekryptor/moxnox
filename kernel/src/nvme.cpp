@@ -907,10 +907,14 @@ nt_status nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
 
     prp1 = *it;
 
+    ::flush_cache(span((uint8_t*)phys_address(prp1), PAGE_SIZE), false);
+
     if (num_pages <= 2) {
         if (num_pages == 2) {
             it++;
             prp2 = *it;
+
+            ::flush_cache(span((uint8_t*)phys_address(prp2), PAGE_SIZE), false);
         } else
             prp2 = 0;
     } else {
@@ -925,8 +929,14 @@ nt_status nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
         for (uint64_t i = 1; i < num_pages; i++) {
             it++;
             *ptr = *it;
+
+            ::flush_cache(span((uint8_t*)phys_address(*ptr), PAGE_SIZE), false);
+
             ptr++;
         }
+
+        ::flush_cache(span((uint8_t*)phys_address(prp2), (num_pages - 1) * sizeof(uint64_t)),
+                      false);
     }
 
     sqe.opc = NVME_IO_OPCODE_READ;
@@ -953,8 +963,20 @@ nt_status nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
 
     wait_for_object(req.event.get(), false);
 
-    if (num_pages > 2)
+    ::flush_cache(span((uint8_t*)phys_address(prp1), PAGE_SIZE), true);
+
+    if (num_pages == 2)
+        ::flush_cache(span((uint8_t*)phys_address(prp2), PAGE_SIZE), true);
+    else if (num_pages > 2) {
+        auto ptr = (uint64_t*)phys_address(prp2);
+
+        for (uint64_t i = 1; i < num_pages; i++) {
+            ::flush_cache(span((uint8_t*)phys_address(*ptr), PAGE_SIZE), true);
+            ptr++;
+        }
+
         free_folio(prp2);
+    }
 
     if (req.cqe.status != 0) {
         print("NVMe read returned status {:x}\n", req.cqe.status);
