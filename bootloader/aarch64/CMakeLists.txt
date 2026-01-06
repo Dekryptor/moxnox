@@ -43,9 +43,11 @@ set(SRC_FILES boot.S
 
 add_executable(boot ${SRC_FILES})
 add_dependencies(boot kernel efistub)
+add_dependencies(boot always_check_git)
 
 target_compile_options(boot PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Wno-unused-const-variable -Werror=pointer-arith -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -fno-threadsafe-statics -fvisibility=hidden -fno-auto-import -mno-red-zone -mno-stack-arg-probe -gdwarf-5 -fno-asynchronous-unwind-tables -mstrict-align -march=armv8.1-a)
 target_compile_options(boot PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
+target_include_directories(boot PUBLIC ${CMAKE_BINARY_DIR}/git)
 target_link_options(boot PRIVATE -T ${CMAKE_SOURCE_DIR}/bootloader/aarch64/boot.ld ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
 target_link_libraries(boot pe loaderblock aarch64 crt)
 set(CMAKE_EXE_LINKER_FLAGS "-static") # use binutils rather than llvm for linking

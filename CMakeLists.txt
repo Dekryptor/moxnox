@@ -207,6 +207,9 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     target_link_libraries(aarch64 format)
 endif()
 
+include(check-git.cmake)
+check_git_setup()
+
 add_subdirectory(kernel)
 add_subdirectory(ntdll)
 add_subdirectory(init)

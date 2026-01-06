@@ -1,4 +1,4 @@
-#include <version.h>
+#include "git_version.h"
 
 .section ".boot", "a"
 
@@ -145,4 +145,5 @@ image_size:
 .long	image_size_val
 
 .section ".efi_version"
-.asciz MOXNOX_VERSION_STRING
+.ascii "Moxnox "
+.asciz GIT_HASH

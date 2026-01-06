@@ -1,4 +1,4 @@
-#include <version.h>
+#include "git_version.h"
 
 .intel_syntax noprefix
 .code16
@@ -24,6 +24,8 @@
 
 .equ MM_TEXT, 0
 .equ MM_DIRECT, 6
+
+#define MOXNOX_VERSION_STRING "Moxnox " GIT_HASH
 
 .section ".boot", "a"
 
