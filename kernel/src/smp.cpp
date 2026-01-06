@@ -359,9 +359,9 @@ static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
     }
 }
 
-static uint64_t setup_identity_map(uintptr_t ap_trampoline_phys) {
-    // allocate two pages
-    auto pa = allocate_folio(1);
+static uint64_t setup_identity_map(uintptr_t ap_trampoline_phys, uintptr_t stack) {
+    // allocate four pages
+    auto pa = allocate_folio(2);
     if (!pa) {
         print("allocate_folio failed\n");
         return 0;
@@ -375,7 +375,7 @@ static uint64_t setup_identity_map(uintptr_t ap_trampoline_phys) {
 
     // FIXME - fix for non-standard page sizes
 
-    // identity-map gigabyte in which ap_trampoline_phys lives
+    // identity-map gigabytes in which ap_trampoline_phys and stack live
 
     auto& p0 = pte0[(ap_trampoline_phys & 0xff8000000000) >> 39];
 
@@ -396,6 +396,37 @@ static uint64_t setup_identity_map(uintptr_t ap_trampoline_phys) {
     p1.SH = 3; // inner shareable
     p1.AF = 1;
     p1.pfn = (ap_trampoline_phys & 0xffffc0000000) >> PAGE_SHIFT;
+
+    // quit early if both in same gigabyte
+    if ((ap_trampoline_phys & 0xffffc0000000) == (stack & 0xffffc0000000))
+        return pa;
+
+    ARM64_HARDWARE_PTE* pte2;
+
+    if ((ap_trampoline_phys & 0xff8000000000) != (stack & 0xff8000000000)) {
+        auto& p2 = pte0[(stack & 0xff8000000000) >> 39];
+
+        p2.valid = 1;
+        p2.table_entry = 1;
+        p2.AttrIndex = 0;
+        p2.AP = 0; // no access from userspace
+        p2.SH = 3; // inner shareable
+        p2.AF = 1;
+        p2.pfn = (pa + (2 * PAGE_SIZE)) >> PAGE_SHIFT;
+
+        pte2 = (ARM64_HARDWARE_PTE*)phys_address(pa + (2 * PAGE_SIZE));
+    } else
+        pte2 = pte1.data();
+
+    auto& p3 = pte2[(stack & 0x7fc0000000) >> 30];
+
+    p3.valid = 1;
+    p3.table_entry = 0;
+    p3.AttrIndex = attr_index_normal;
+    p3.AP = 0; // no access from userspace
+    p3.SH = 3; // inner shareable
+    p3.AF = 1;
+    p3.pfn = (stack & 0xffffc0000000) >> PAGE_SHIFT;
 
     return pa;
 }
@@ -501,9 +532,17 @@ export bool init_smp() {
 
     auto ap_trampoline_phys = va_to_pa_lookup((uint64_t)&ap_trampoline);
 
-    auto identity_map = setup_identity_map(ap_trampoline_phys);
-    if (!identity_map)
+    auto stack_folio = allocate_folio(bytes_to_folio_order(PAGE_SIZE * ap_count));
+    if (!stack_folio) {
+        print("allocate folio failed\n");
         return false;
+    }
+
+    auto identity_map = setup_identity_map(ap_trampoline_phys, stack_folio);
+    if (!identity_map) {
+        free_folio(stack_folio);
+        return false;
+    }
 
     struct info {
         uint64_t stack;
@@ -515,12 +554,6 @@ export bool init_smp() {
     disable_preempt();
     using_gicv2 = get_cpu_block()->gicc != 0;
     enable_preempt();
-
-    auto stack_folio = allocate_folio(bytes_to_folio_order(PAGE_SIZE * ap_count));
-    if (!stack_folio) {
-        print("allocate folio failed\n");
-        return false;
-    }
 
     auto boot_info = (info*)malloc(sizeof(info) * ap_count);
     for (unsigned int i = 0; i < ap_count; i++) {
