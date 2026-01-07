@@ -28,7 +28,7 @@ import spinlock;
 import config;
 import loaderblock;
 import efi;
-import timepage;
+import kernel_time_page;
 
 using namespace std;
 

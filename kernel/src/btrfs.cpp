@@ -37,7 +37,7 @@ import inode;
 import spinlock;
 import objects;
 import crt;
-import timepage;
+import kernel_time_page;
 
 using namespace std;
 

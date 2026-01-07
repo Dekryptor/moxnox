@@ -13,7 +13,7 @@ import print;
 import module_init;
 import disable_interrupts;
 import efi;
-import timepage;
+import kernel_time_page;
 
 using namespace std;
 

@@ -13,7 +13,7 @@ import mem;
 import print;
 import timer;
 import format;
-import timepage;
+import kernel_time_page;
 
 using namespace std;
 

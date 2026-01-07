@@ -1,15 +1,7 @@
 #include <stdint.h>
 
 import nt;
-import pagesize;
-
-// FIXME - put these in module and share with kernel
-static uintptr_t TIME_PAGE_BASE = 0x7ffd0000;
-
-struct __attribute__((aligned(PAGE_SIZE))) time_page_struct {
-    volatile int64_t system_time;
-    uint64_t system_time_offset;
-};
+import timepage;
 
 extern "C"
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {

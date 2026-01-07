@@ -24,7 +24,7 @@ import page_cache;
 import file;
 import inode;
 import spinlock;
-import timepage;
+import kernel_time_page;
 
 using namespace std;
 

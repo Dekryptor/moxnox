@@ -39,7 +39,7 @@ import pe;
 import file;
 import mapping;
 import crt;
-import timepage;
+import kernel_time_page;
 
 #ifdef __aarch64__
 import aarch64;

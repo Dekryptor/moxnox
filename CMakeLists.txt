@@ -117,6 +117,11 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     add_library(pagesize_32bit STATIC)
     target_sources(pagesize_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/pagesize.cpp)
     target_compile_options(pagesize_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti)
+
+    add_library(timepage_kernel STATIC)
+    target_sources(timepage_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/timepage.cpp)
+    target_compile_options(timepage_kernel PRIVATE ${KERNEL_CFLAGS})
+    target_link_libraries(timepage_kernel pagesize_kernel)
 endif()
 
 add_library(format STATIC)
@@ -211,6 +216,11 @@ endif()
 add_library(pagesize STATIC)
 target_sources(pagesize PUBLIC FILE_SET CXX_MODULES FILES modules/pagesize.cpp)
 target_compile_options(pagesize PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+add_library(timepage STATIC)
+target_sources(timepage PUBLIC FILE_SET CXX_MODULES FILES modules/timepage.cpp)
+target_compile_options(timepage PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(timepage pagesize)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)

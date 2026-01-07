@@ -21,7 +21,7 @@ import object_ref;
 import spinlock;
 import handle;
 import config;
-import timepage;
+import kernel_time_page;
 
 #ifdef __x86_64__
 import inout;
