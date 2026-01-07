@@ -13,6 +13,7 @@ import mem;
 import print;
 import timer;
 import format;
+import timepage;
 
 using namespace std;
 
@@ -159,7 +160,7 @@ export void get_time_from_efi() {
 
     auto day_num = ymd_to_num(ymd);
 
-    system_time_offset = (uint64_t)((((day_num * 86400) + (now.Hour * 3600) + (now.Minute * 60) + now.Second) * 10000000) - system_time);
+    system_time_offset = (uint64_t)((((day_num * 86400) + (now.Hour * 3600) + (now.Minute * 60) + now.Second) * 10000000) - kernel_time_page.system_time);
 
     // FIXME - do something with timezone field
 }

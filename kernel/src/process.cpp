@@ -1682,8 +1682,6 @@ nt_status time_page_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
 }
 
 export void create_time_page() {
-    memset(&kernel_time_page, 0, PAGE_SIZE);
-
     time_page = new section;
     if (!time_page)
         bsod("create_time_page: new failed");

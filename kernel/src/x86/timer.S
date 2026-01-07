@@ -3,6 +3,7 @@
 #include "context.S"
 #include "../tick_rate.h"
 #include "../dwarf.S"
+#include "../context_offsets.h"
 
 .equ IA32_KERNEL_GS_BASE, 0xc0000102
 
@@ -110,7 +111,7 @@ timer_isr:
     swapgs
     load_kernel_cr3
 0:
-    add QWORD PTR [rip+system_time], _SYSTEM_TIME_RESOLUTION / _TICK_RATE
+    add QWORD PTR [rip+kernel_time_page+TIME_PAGE_SYSTEM_TIME], _SYSTEM_TIME_RESOLUTION / _TICK_RATE
 
     push rax
     push rcx

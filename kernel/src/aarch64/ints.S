@@ -812,8 +812,8 @@ b	kernel_exception_entry
 	.if \bsp
 		// system time
 
-		adrp	x0, system_time
-		add	x0, x0, :lo12:system_time
+		adrp	x0, kernel_time_page
+		add	x0, x0, TIME_PAGE_SYSTEM_TIME
 		ldr	x1, [x0]
 		mov	x2, #(_SYSTEM_TIME_RESOLUTION / _TICK_RATE)
 		add	x1, x1, x2

@@ -28,6 +28,7 @@ import spinlock;
 import config;
 import loaderblock;
 import efi;
+import timepage;
 
 using namespace std;
 
@@ -1878,7 +1879,7 @@ ACPI_STATUS AcpiOsWritePciConfiguration(ACPI_PCI_ID* /*PciId*/, UINT32 /*Reg*/,
 extern "C"
 UINT64 AcpiOsGetTimer() {
     // convert to units of 100ns
-    return (uint64_t)(system_time * 10000000 / SYSTEM_TIME_RESOLUTION);
+    return (uint64_t)(kernel_time_page.system_time * 10000000 / SYSTEM_TIME_RESOLUTION);
 }
 
 extern "C"

@@ -1,6 +1,8 @@
 module;
 
 #include <stdint.h>
+#include <stddef.h>
+#include "context_offsets.h"
 
 export module timepage;
 
@@ -9,13 +11,12 @@ import config;
 // FIXME - change this to 0x7ffe0000 and make format compatible with Windows
 export uintptr_t TIME_PAGE_BASE = 0x7ffd0000;
 
-union time_page_struct {
-    struct {
-        uint32_t num1;
-        uint32_t num2;
-        // FIXME
-    };
-    uint8_t buf[PAGE_SIZE];
+struct __attribute__((aligned(PAGE_SIZE))) time_page_struct {
+    volatile int64_t system_time;
 };
 
-export time_page_struct kernel_time_page __attribute__((section (".timepage")));
+static_assert(offsetof(time_page_struct, system_time) == TIME_PAGE_SYSTEM_TIME);
+
+export extern "C" {
+    time_page_struct kernel_time_page;
+}

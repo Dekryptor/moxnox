@@ -13,6 +13,7 @@ import print;
 import module_init;
 import disable_interrupts;
 import efi;
+import timepage;
 
 using namespace std;
 
@@ -109,7 +110,7 @@ static void init_rtc(uint16_t port) {
 
     auto day_num = ymd_to_num(ymd);
 
-    system_time_offset = (uint64_t)((((day_num * 86400) + (now.hour * 3600) + (now.minute * 60) + now.second) * 10000000) - system_time);
+    system_time_offset = (uint64_t)((((day_num * 86400) + (now.hour * 3600) + (now.minute * 60) + now.second) * 10000000) - kernel_time_page.system_time);
 }
 
 static void found_rtc(const acpi_device& d) {

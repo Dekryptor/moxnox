@@ -24,6 +24,7 @@ import page_cache;
 import file;
 import inode;
 import spinlock;
+import timepage;
 
 using namespace std;
 
@@ -95,7 +96,7 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
     root_dentry->inode = tmpfs_root_inode;
     root_dentry->name_len = 0;
 
-    auto cur_time = (uint64_t)system_time + system_time_offset;
+    auto cur_time = (uint64_t)kernel_time_page.system_time + system_time_offset;
 
     tmpfs_root_inode->atime = cur_time;
     tmpfs_root_inode->ctime = cur_time;
@@ -199,7 +200,7 @@ static nt_status open_child(tmpfs_inode& ino, string_view name, uint32_t create_
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    auto cur_time = (uint64_t)system_time + system_time_offset;
+    auto cur_time = (uint64_t)kernel_time_page.system_time + system_time_offset;
 
     new (c) dentry;
 

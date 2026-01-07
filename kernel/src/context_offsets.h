@@ -96,3 +96,5 @@
 #define APIC_EOI 0xb0
 
 #endif
+
+#define TIME_PAGE_SYSTEM_TIME 0
