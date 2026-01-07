@@ -2729,7 +2729,7 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
 }
 
 static btrfs_timespec get_btrfs_time() {
-    auto now = (uint64_t)kernel_time_page.system_time + system_time_offset;
+    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
     btrfs_timespec ret;
 
     ret.nsec = (uint32_t)((now % SYSTEM_TIME_RESOLUTION) * (1000000000 / SYSTEM_TIME_RESOLUTION));

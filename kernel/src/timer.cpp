@@ -94,9 +94,6 @@ static const unsigned int TIMER_PERIOD_RESOLUTION = 1000; // milliseconds
 
 export extern "C" {
     list_entry active_timer_list = { &active_timer_list, &active_timer_list };
-
-    // FIXME - this should be in a page that userspace can read directly
-    uint64_t system_time_offset = 0;
 }
 
 #ifdef __x86_64__
@@ -278,7 +275,7 @@ timer::~timer() {
 
 extern "C"
 NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
-    SystemTime->QuadPart = (int64_t)((uint64_t)kernel_time_page.system_time + system_time_offset);
+    SystemTime->QuadPart = (int64_t)((uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset);
 
     return nt_status::SUCCESS;
 }

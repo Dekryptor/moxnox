@@ -13,6 +13,7 @@ export uintptr_t TIME_PAGE_BASE = 0x7ffd0000;
 
 struct __attribute__((aligned(PAGE_SIZE))) time_page_struct {
     volatile int64_t system_time;
+    uint64_t system_time_offset;
 };
 
 static_assert(offsetof(time_page_struct, system_time) == TIME_PAGE_SYSTEM_TIME);
