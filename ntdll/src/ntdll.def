@@ -25,3 +25,4 @@ strncpy
 strtoul
 strchr
 LdrGetProcedureAddress
+NtQuerySystemTime

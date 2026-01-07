@@ -10,7 +10,8 @@ enable_language(ASM)
 set(SRC_FILES src/ntdll.cpp
     src/ntdll.def
     src/heap.cpp
-    src/except.cpp)
+    src/except.cpp
+    src/time.cpp)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     list(APPEND SRC_FILES

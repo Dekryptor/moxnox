@@ -124,7 +124,7 @@ do_syscall "NtQuerySemaphore", 0x107a
 do_syscall "NtQuerySymbolicLinkObject", 0x107b
 do_syscall "NtQuerySystemEnvironmentValue", 0x107c
 do_syscall "NtQuerySystemInformation", 0x107d
-do_syscall "NtQuerySystemTime", 0x107e
+# NtQuerySystemTime done in userspace
 do_syscall "NtQueryTimer", 0x107f
 do_syscall "NtQueryTimerResolution", 0x1080
 do_syscall "NtQueryValueKey", 0x1081

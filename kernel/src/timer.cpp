@@ -274,13 +274,6 @@ timer::~timer() {
 }
 
 extern "C"
-NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
-    SystemTime->QuadPart = (int64_t)((uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset);
-
-    return nt_status::SUCCESS;
-}
-
-extern "C"
 NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                        TIMER_TYPE timer_type) {
     auto t = get_current_thread();

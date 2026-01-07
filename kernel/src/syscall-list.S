@@ -128,7 +128,7 @@ syscall_stub "NtQuerySemaphore"
 syscall_stub "NtQuerySymbolicLinkObject"
 syscall_stub "NtQuerySystemEnvironmentValue"
 syscall_stub "NtQuerySystemInformation"
-syscall_func "NtQuerySystemTime", 1
+syscall_stub "NtQuerySystemTime" // done in userspace
 syscall_stub "NtQueryTimer"
 syscall_stub "NtQueryTimerResolution"
 syscall_stub "NtQueryValueKey"
