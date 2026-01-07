@@ -39,6 +39,7 @@ import pe;
 import file;
 import mapping;
 import crt;
+import timepage;
 
 #ifdef __aarch64__
 import aarch64;
@@ -105,20 +106,6 @@ using pte_type = ARM64_HARDWARE_PTE;
 #elifdef __x86_64__
 using pte_type = HARDWARE_PTE;
 #endif
-
-// FIXME - change this to 0x7ffe0000 and make format compatible with Windows
-export uintptr_t TIME_PAGE_BASE = 0x7ffd0000;
-
-union time_page_struct {
-    struct {
-        uint32_t num1;
-        uint32_t num2;
-        // FIXME
-    };
-    uint8_t buf[PAGE_SIZE];
-};
-
-time_page_struct kernel_time_page __attribute__((section (".timepage")));
 
 class time_page_cache : public custom_section_cache {
 public:

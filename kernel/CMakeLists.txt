@@ -70,6 +70,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/debug.cpp
     src/sdhci.cpp
     src/version.cpp
+    src/timepage.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
