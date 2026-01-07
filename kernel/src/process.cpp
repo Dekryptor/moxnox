@@ -109,7 +109,16 @@ using pte_type = HARDWARE_PTE;
 // FIXME - change this to 0x7ffe0000 and make format compatible with Windows
 export uintptr_t TIME_PAGE_BASE = 0x7ffd0000;
 
-static uint64_t time_page_pa;
+union time_page_struct {
+    struct {
+        uint32_t num1;
+        uint32_t num2;
+        // FIXME
+    };
+    uint8_t buf[PAGE_SIZE];
+};
+
+time_page_struct kernel_time_page __attribute__((section (".timepage")));
 
 class time_page_cache : public custom_section_cache {
 public:
@@ -1675,7 +1684,7 @@ nt_status time_page_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
     if (!p->pfn) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        p->pfn = time_page_pa >> PAGE_SHIFT;
+        p->pfn = va_to_pa_lookup((uintptr_t)&kernel_time_page) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
     }
 
@@ -1686,12 +1695,7 @@ nt_status time_page_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
 }
 
 export void create_time_page() {
-    time_page_pa = allocate_folio(0);
-    if (!time_page_pa)
-        bsod("create_time_page: allocate_folio failed");
-
-    auto time_page_va = (uint8_t*)phys_address(time_page_pa);
-    memset(time_page_va, 0, PAGE_SIZE);
+    memset(&kernel_time_page, 0, PAGE_SIZE);
 
     time_page = new section;
     if (!time_page)
