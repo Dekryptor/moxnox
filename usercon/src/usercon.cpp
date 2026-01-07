@@ -27,10 +27,12 @@ import evdev;
 import keyboard;
 import pe;
 import pagesize;
+import timepage;
 
 using namespace std;
 
-static const string_view welcome_message = "\nWelcome to \e[1mMoxnox\e[m\n\n";
+static const string_view welcome_message1 = "\nWelcome to \e[1mMoxnox\e[m (";
+static const string_view welcome_message2 = ")\n\n";
 
 extern uint64_t __CTOR_LIST__;
 
@@ -1369,6 +1371,17 @@ static void handle_ctrl_alt_delete(HANDLE client_handle) {
         print("failed to run reboot.exe\n");
 }
 
+static string_view get_os_version() {
+    const auto& time_page = *(time_page_struct*)TIME_PAGE_BASE;
+
+    auto sv = string_view(time_page.os_version);
+
+    if (auto sp = sv.find(' '); sp != string_view::npos)
+        sv = string_view(sv.data() + sp + 1, sv.size() - sp - 1);
+
+    return sv;
+}
+
 static void run_shell(u16string_view exe, u16string_view cmdline,
                       void (*recv_func)(string_view), void (*flush_func)()) {
     HANDLE h;
@@ -1484,7 +1497,9 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
             recv_func(string_view(s, iosb.Information));
     }
 
-    recv_func(welcome_message);
+    recv_func(welcome_message1);
+    recv_func(get_os_version());
+    recv_func(welcome_message2);
     flush_func();
 
     if (!run_program(exe, cmdline, proc, client_handle.get()))
@@ -1841,7 +1856,9 @@ static int do_serial_console() {
 
     client_handle.reset(h);
 
-    serial_print(welcome_message);
+    serial_print(welcome_message1);
+    serial_print(get_os_version());
+    serial_print(welcome_message2);
 
     if (!run_program(exe, cmdline, proc, client_handle.get()))
         return 1;
