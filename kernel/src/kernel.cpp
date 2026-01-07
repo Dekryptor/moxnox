@@ -44,6 +44,7 @@ import loaderblock;
 import efi;
 import debug;
 import crt;
+import version;
 
 using namespace std;
 
@@ -225,9 +226,8 @@ void main_thread(void* ctx) {
             bsod("map_uefi failed");
     }
 
-    decltype(lb.version) version;
-
-    memcpy(version, lb.version, sizeof(version));
+    memcpy(version_buf, lb.version, sizeof(lb.version));
+    version = string_view(version_buf);
 
     free_lower_half_mappings();
     free_bootloader_memory();

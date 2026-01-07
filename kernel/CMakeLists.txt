@@ -69,6 +69,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/mapping.cpp
     src/debug.cpp
     src/sdhci.cpp
+    src/version.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}

@@ -27,6 +27,7 @@ import smp;
 import unwind;
 import cpu_block;
 import mem;
+import version;
 
 using namespace std;
 
@@ -162,6 +163,8 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
     pa_spinlock.force_unlock();
 
     if (console_chardev) {
+        static const char header[] = "BSOD";
+
         auto& p = static_cast<chardev&>(console_chardev.get());
         uint64_t written;
 
@@ -175,11 +178,22 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
             written
         );
 
-        for (unsigned int i = 0; i < (console_cols / 2) - 2; i++) {
+        auto x_pos = (unsigned int)((console_cols - sizeof(header) + 1) / 2);
+
+        for (unsigned int i = 0; i < x_pos; i++) {
             p.write(" ", written);
         }
 
-        p.write("\e[1mBSOD\e[22m\n\n", written);
+        p.write("\e[1m", written);
+        p.write(header, written);
+        p.write("\e[22m", written);
+
+        for (unsigned int i = 0; i < console_cols - x_pos - sizeof(header) + 1 - version.size(); i++) {
+            p.write(" ", written);
+        }
+
+        p.write(version, written);
+        p.write("\n\n", written);
 
         p.write(msg, written);
         p.write("\n", written);
