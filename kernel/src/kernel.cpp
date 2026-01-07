@@ -279,6 +279,7 @@ void main_thread(void* ctx) {
         bsod("mount_root failed");
 
     load_ntdll();
+    create_time_page();
 
     auto init = create_init_process();
 

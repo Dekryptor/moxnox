@@ -61,6 +61,7 @@ static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 
 extern "C++" {
     section* ntdll = nullptr;
+    section* time_page = nullptr;
 }
 
 static uintptr_t mn_start_thread;
@@ -104,6 +105,9 @@ using pte_type = ARM64_HARDWARE_PTE;
 #elifdef __x86_64__
 using pte_type = HARDWARE_PTE;
 #endif
+
+// FIXME - change this to 0x7ffe0000 and make format compatible with Windows
+export uintptr_t TIME_PAGE_BASE = 0x7ffd0000;
 
 // FIXME - 32-bit processes
 
@@ -448,7 +452,7 @@ export object_ref create_process(string_view fn, string_view curdir,
     void* stackaddr = nullptr;
 
     if (auto status = p.allocate_vm(&stackaddr, 0, &stack_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write); !success(status)) {
-        print("process::map_section returned {}\n", status);
+        print("process::allocate_vm returned {}\n", status);
         p.release();
         return {};
     }
@@ -459,12 +463,17 @@ export object_ref create_process(string_view fn, string_view curdir,
                                  nullopt,  mapping_type::read_only, true,
                                  nullptr);
     if (!p.ntdll_addr) {
-        print("process::map_section failed\n");
+        print("process::map_section failed for ntdll\n");
         p.release();
         return {};
     }
 
-    // FIXME - map time page into process
+    if (!p.map_section(*time_page, TIME_PAGE_BASE, nullopt,
+                       mapping_type::read_only, false, nullptr)) {
+        print("process::map_section failed for time page\n");
+        p.release();
+        return {};
+    }
 
     handle_t stdinh = 0, stdouth = 0, stderrh = 0;
 
@@ -1616,6 +1625,20 @@ export void load_ntdll() {
     mn_signal = ntdll->find_export("mn_signal");
     if (!mn_signal)
         bsod("Could not find export mn_signal in ntdll.dll");
+}
+
+export void create_time_page() {
+    object_ref timepageh;
+
+    // FIXME
+
+    auto status = create_section(nullopt, false, PAGE_SIZE, PAGE_READONLY,
+                                 timepageh);
+    if (!success(status))
+        bsod_format("create_section returned {} for time page", status);
+
+    time_page = &static_cast<section&>(timepageh.get());
+    time_page->acquire();
 }
 
 static void free_handle(rbtree_node<handle_t>* tree) {
@@ -3063,7 +3086,12 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
         return nt_status::INTERNAL_ERROR;
     }
 
-    // FIXME - map time page into process
+    if (!p.map_section(*time_page, TIME_PAGE_BASE, nullopt,
+                       mapping_type::read_only, false, nullptr)) {
+        print("process::map_section failed for time page\n");
+        p.release();
+        return nt_status::INTERNAL_ERROR;
+    }
 
     if (!allocate_peb(p, 0, 0, 0, 0, "", string_view(img.name, img.namelen), u"")) {
         print("allocate_peb failed\n");
