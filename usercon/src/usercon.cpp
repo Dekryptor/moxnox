@@ -26,11 +26,9 @@ import cmdline;
 import evdev;
 import keyboard;
 import pe;
+import pagesize;
 
 using namespace std;
-
-static const size_t PAGE_SIZE = 4096;
-static const uint64_t PAGE_SHIFT = 12;
 
 static const string_view welcome_message = "\nWelcome to \e[1mMoxnox\e[m\n\n";
 

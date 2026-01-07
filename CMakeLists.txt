@@ -109,6 +109,14 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     add_library(x86_32bit STATIC)
     target_sources(x86_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/x86.cpp)
     target_compile_options(x86_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti)
+
+    add_library(pagesize_kernel STATIC)
+    target_sources(pagesize_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/pagesize.cpp)
+    target_compile_options(pagesize_kernel PRIVATE ${KERNEL_CFLAGS})
+
+    add_library(pagesize_32bit STATIC)
+    target_sources(pagesize_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/pagesize.cpp)
+    target_compile_options(pagesize_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti)
 endif()
 
 add_library(format STATIC)
@@ -199,6 +207,10 @@ target_compile_options(crt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_sources(crt PUBLIC modules/crt.S)
 endif()
+
+add_library(pagesize STATIC)
+target_sources(pagesize PUBLIC FILE_SET CXX_MODULES FILES modules/pagesize.cpp)
+target_compile_options(pagesize PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)

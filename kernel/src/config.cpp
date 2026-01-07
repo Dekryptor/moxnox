@@ -5,11 +5,7 @@ module;
 
 export module config;
 
-export constexpr unsigned int PAGE_SHIFT = 12;
-export constexpr size_t PAGE_SIZE = 1 << PAGE_SHIFT;
-
-export constexpr unsigned int HUGE_PAGE_SHIFT = 21;
-export constexpr size_t HUGE_PAGE_SIZE = 1 << HUGE_PAGE_SHIFT;
+export import pagesize;
 
 export constexpr unsigned int KERNEL_STACK_PAGES = 8; // 32KB
 export constexpr unsigned int KERNEL_GUARD_PAGES = 1;

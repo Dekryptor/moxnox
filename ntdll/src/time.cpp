@@ -1,7 +1,7 @@
 #include <stdint.h>
 
 import nt;
-import ntdll_private;
+import pagesize;
 
 // FIXME - put these in module and share with kernel
 static uintptr_t TIME_PAGE_BASE = 0x7ffd0000;

@@ -18,7 +18,7 @@ target_compile_options(usercon PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(usercon PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(usercon moxnox -lgcc)
-target_link_libraries(usercon format rbtree unique_handle list vt100 signal unicode cp437 cmdline evdev)
+target_link_libraries(usercon format rbtree unique_handle list vt100 signal unicode cp437 cmdline evdev pagesize)
 target_link_libraries(usercon harfbuzz)
 target_link_libraries(usercon freetype)
 

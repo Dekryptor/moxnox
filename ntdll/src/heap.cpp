@@ -8,6 +8,7 @@ import list;
 import ntdll;
 import ntdll_private;
 import crt;
+import pagesize;
 
 using namespace std;
 

@@ -14,6 +14,7 @@ import crt;
 
 using namespace std;
 
+// boot page size, not necessarily what kernel is going to be using
 static const uint64_t PAGE_SIZE = 4096;
 static const unsigned int PAGE_SHIFT = 12;
 

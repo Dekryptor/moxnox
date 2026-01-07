@@ -19,13 +19,11 @@ import signal;
 import list;
 import pe;
 import kernelbase;
+import pagesize;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;
 static unsigned int cursor_pos = 0;
-
-static const size_t PAGE_SIZE = 4096;
-static const uint64_t PAGE_SHIFT = 12;
 
 static char escape_buffer[50];
 static size_t escape_buffer_len = 0;

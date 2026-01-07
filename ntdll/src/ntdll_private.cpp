@@ -8,11 +8,9 @@ export module ntdll_private;
 
 import ntdll;
 import crt;
+import pagesize;
 
 export {
-
-const size_t PAGE_SIZE = 4096;
-const uint64_t PAGE_SHIFT = 12;
 
 constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);

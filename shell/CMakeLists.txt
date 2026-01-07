@@ -32,7 +32,7 @@ endif()
 
 target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(shell shelllib unicode unique_handle signal cmdline list)
+target_link_libraries(shell shelllib unicode unique_handle signal cmdline list pagesize)
 target_link_libraries(shell moxnox)
 target_link_libraries(shell format)
 
