@@ -40,6 +40,7 @@ import file;
 import mapping;
 import crt;
 import kernel_time_page;
+import version;
 
 #ifdef __aarch64__
 import aarch64;
@@ -1682,6 +1683,11 @@ nt_status time_page_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
 }
 
 export void create_time_page() {
+    assert(version.size() < sizeof(kernel_time_page.os_version));
+
+    memcpy(kernel_time_page.os_version, version.data(), version.size());
+    kernel_time_page.os_version[version.size()] = 0;
+
     time_page = new section;
     if (!time_page)
         bsod("create_time_page: new failed");
