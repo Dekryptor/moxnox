@@ -9,7 +9,7 @@ module;
 #include "rangelock.h"
 #include "thread.h"
 #include "process.h"
-#include "section2.h"
+#include "section.h"
 #include "assert.h"
 
 export module process;
@@ -108,6 +108,29 @@ using pte_type = HARDWARE_PTE;
 
 // FIXME - change this to 0x7ffe0000 and make format compatible with Windows
 export uintptr_t TIME_PAGE_BASE = 0x7ffd0000;
+
+static uint64_t time_page_pa;
+
+class time_page_cache : public custom_section_cache {
+public:
+    NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
+                             uint64_t& read_pages) override;
+
+    NTSTATUS flush_cache(uint64_t, uint64_t) override {
+        // shouldn't happen, always mapped readonly
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    NTSTATUS query_info(enum SECTION_INFORMATION_CLASS, span<uint8_t>,
+                        size_t*) override {
+        return nt_status::INVALID_INFO_CLASS;
+    }
+
+    nt_status ioctl(uint32_t, span<const uint8_t>, span<uint8_t>,
+                    uintptr_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+};
 
 // FIXME - 32-bit processes
 
@@ -1627,18 +1650,61 @@ export void load_ntdll() {
         bsod("Could not find export mn_signal in ntdll.dll");
 }
 
+nt_status time_page_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                           uint64_t& read_pages) {
+    if (page_num > 0 || num_pages == 0) {
+        read_pages = 0;
+        return nt_status::SUCCESS;
+    }
+
+    num_pages = 1;
+
+    auto status = cache.pin(page_num, num_pages, nullptr);
+    if (!success(status)) {
+        print("page_cache::pin returned {}\n", status);
+        return status;
+    }
+
+    page_cache_entry* p;
+
+    {
+        lock_guard lg(cache.cache_lock);
+        p = cache.find_page_cache_entry(page_num);
+    }
+
+    if (!p->pfn) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p->pfn = time_page_pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+    }
+
+    cache.unpin(page_num, num_pages);
+
+    read_pages = num_pages;
+    return nt_status::SUCCESS;
+}
+
 export void create_time_page() {
-    object_ref timepageh;
+    time_page_pa = allocate_folio(0);
+    if (!time_page_pa)
+        bsod("create_time_page: allocate_folio failed");
 
-    // FIXME
+    auto time_page_va = (uint8_t*)phys_address(time_page_pa);
+    memset(time_page_va, 0, PAGE_SIZE);
 
-    auto status = create_section(nullopt, false, PAGE_SIZE, PAGE_READONLY,
-                                 timepageh);
-    if (!success(status))
-        bsod_format("create_section returned {} for time page", status);
+    time_page = new section;
+    if (!time_page)
+        bsod("create_time_page: new failed");
 
-    time_page = &static_cast<section&>(timepageh.get());
-    time_page->acquire();
+    time_page->type = section_type::anonymous;
+    time_page->size = PAGE_SIZE;
+    time_page->num_pages = 1;
+    time_page->page_protection = PAGE_READONLY;
+
+    time_page->custom_cache = new time_page_cache;
+    if (!time_page->custom_cache)
+        bsod("create_time_page: new failed");
 }
 
 static void free_handle(rbtree_node<handle_t>* tree) {
