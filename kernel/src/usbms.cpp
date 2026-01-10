@@ -2,6 +2,8 @@ module;
 
 #include <stdint.h>
 #include <span>
+#include <bit>
+#include <string_view>
 
 export module usbms;
 
@@ -49,7 +51,7 @@ struct scsi_test_unit_ready {
 
 static_assert(sizeof(scsi_test_unit_ready) == 6);
 
-struct scsi_inquiry {
+struct scsi_inquiry_cmd {
     enum scsi_command cmd;
     uint8_t evpd : 1;
     uint8_t cmddt : 1;
@@ -59,7 +61,7 @@ struct scsi_inquiry {
     uint8_t control;
 } __attribute((packed));
 
-static_assert(sizeof(scsi_inquiry) == 6);
+static_assert(sizeof(scsi_inquiry_cmd) == 6);
 
 struct usbms_cbw {
     uint32_t dCBWSignature;
@@ -91,6 +93,40 @@ struct usbms_csw {
 static_assert(sizeof(usbms_csw) == 0xd);
 
 static const uint32_t USBMS_CSW_SIG = 0x53425355;
+
+struct scsi_inquiry {
+    uint8_t peripheral_device_type : 5;
+    uint8_t peripheral_qualifier : 3;
+    uint8_t : 7;
+    uint8_t rmb : 1;
+    uint8_t version;
+    uint8_t response_data_format : 4;
+    uint8_t hisup : 1;
+    uint8_t normaca : 1;
+    uint8_t : 2;
+    uint8_t additional_length;
+    uint8_t protect : 1;
+    uint8_t : 2;
+    uint8_t third_party_copy : 1;
+    uint8_t tpgs : 2;
+    uint8_t acc : 1;
+    uint8_t sccs : 1;
+    uint8_t : 4;
+    uint8_t multip : 1;
+    uint8_t vs1 : 1;
+    uint8_t encserv : 1;
+    uint8_t : 1;
+    uint8_t vs2 : 1;
+    uint8_t cmdque : 1;
+    uint8_t : 6;
+    char vendor_identification[8];
+    char product_identification[16];
+    char product_revision_level[4];
+    char drive_serial_number[8];
+    uint8_t vendor_unique[12];
+} __attribute((packed));
+
+static_assert(sizeof(scsi_inquiry) == 0x38);
 
 static bool found_usb_storage_device(usb_device& d,
                                      const usb_device_config& config,
@@ -309,8 +345,10 @@ static bool test_unit_ready(xhci_queue& in_queue, xhci_queue& out_queue,
 
 static bool inquiry(xhci_queue& in_queue, xhci_queue& out_queue,
                     uint8_t lun) {
-    scsi_inquiry msg;
-    uint8_t buf[36]; // FIXME
+    scsi_inquiry_cmd msg;
+    scsi_inquiry buf;
+
+    static const size_t MIN_INQUIRY_SIZE = 36;
 
     memset(&msg, 0, sizeof(msg));
     msg.cmd = scsi_command::INQUIRY;
@@ -318,11 +356,28 @@ static bool inquiry(xhci_queue& in_queue, xhci_queue& out_queue,
 
     auto recv_bytes = send_scsi_msg_in(in_queue, out_queue, lun,
                                        span((uint8_t*)&msg, sizeof(msg)),
-                                       span((uint8_t*)buf, sizeof(buf)));
+                                       span((uint8_t*)&buf, sizeof(buf)));
     if (recv_bytes == 0)
         return false;
 
-    print("inquiry: received {} bytes\n", recv_bytes);
+    if (recv_bytes < MIN_INQUIRY_SIZE) {
+        print("inquiry: received {} bytes, expected at least {}\n",
+              recv_bytes, MIN_INQUIRY_SIZE);
+        return false;
+    }
+
+    auto vendor = string_view(buf.vendor_identification, sizeof(buf.vendor_identification));
+    auto product = string_view(buf.product_identification, sizeof(buf.product_identification));
+
+    while (!vendor.empty() && vendor.back() == ' ') {
+        vendor = string_view(vendor.data(), vendor.size() - 1);
+    }
+
+    while (!product.empty() && product.back() == ' ') {
+        product = string_view(product.data(), product.size() - 1);
+    }
+
+    print("found device: {}, {}\n", vendor, product);
 
     return true;
 }
@@ -338,7 +393,6 @@ static void init_lun(usb_device& d, xhci_queue& in_queue,
     if (!inquiry(in_queue, out_queue, lun))
         return;
 
-    // FIXME - INQUIRY (0x12)
     // FIXME - PREVENT ALLOW MEDIUM REMOVAL?
     // FIXME - READ CAPACITY (0x25)
     // FIXME - actual I/O (READ [0x28] and WRITE [0x2a])
