@@ -43,7 +43,51 @@ static module_init module_init_usbms(init_usbms);
 static bool found_usb_mass_storage(usb_device& d,
                                    const usb_device_config& config,
                                    const usb_interface& interface) {
+    usb_endpoint* in_ep = nullptr;
+    usb_endpoint* out_ep = nullptr;
+
     print("FIXME - found_usb_mass_storage\n");
+
+    // find endpoint numbers
+
+    for (auto le = interface.endpoints.next; le != &interface.endpoints; le = le->next) {
+        auto& e = containing_record<usb_endpoint>(le);
+
+        // look for periodic bulk endpoints
+
+        if (e.desc.transfer_type != USB_ENDPOINT_TRANSFER_TYPE_BULK)
+            continue;
+
+        if (e.desc.usage_type != USB_ENDPOINT_USAGE_TYPE_PERIODIC)
+            continue;
+
+        if (e.desc.direction == USB_ENDPOINT_DIRECTION_IN) {
+            if (in_ep) {
+                print("found_usb_mass_storage: multiple potential IN endpoints found\n");
+                return false;
+            }
+
+            in_ep = &e;
+        } else {
+            if (out_ep) {
+                print("found_usb_mass_storage: multiple potential OUT endpoints found\n");
+                return false;
+            }
+
+            out_ep = &e;
+        }
+    }
+
+    if (!in_ep && !out_ep) {
+        print("found_usb_mass_storage: no potential endpoints found\n");
+        return false;
+    } else if (!in_ep) {
+        print("found_usb_mass_storage: no potential IN endpoint found\n");
+        return false;
+    } else if (!out_ep) {
+        print("found_usb_mass_storage: no potential OUT endpoint found\n");
+        return false;
+    }
 
     // FIXME
 
