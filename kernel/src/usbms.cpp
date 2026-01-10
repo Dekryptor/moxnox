@@ -1,6 +1,7 @@
 module;
 
 #include <stdint.h>
+#include <span>
 
 export module usbms;
 
@@ -9,6 +10,8 @@ import xhci;
 import list;
 import module_init;
 import print;
+
+using namespace std;
 
 enum class usb_subclass_mass_storage : uint8_t {
     rbc = 1,
@@ -26,6 +29,11 @@ enum class usb_protocol_mass_storage : uint8_t {
     uas = 0x62,
 };
 
+enum class usbms_request : uint8_t {
+    GET_MAX_LUN = 0xfe,
+    BULK_ONLY_MASS_STORAGE_RESET = 0xff,
+};
+
 static bool found_usb_storage_device(usb_device& d,
                                      const usb_device_config& config,
                                      const usb_interface& interface);
@@ -39,6 +47,14 @@ static void init_usbms() {
 }
 
 static module_init module_init_usbms(init_usbms);
+
+static bool usbms_get_max_lun(usb_device& d, uint8_t& max_lun,
+                              uint16_t interface) {
+    return d.ep0_queue.control_transfer(span<uint8_t>(&max_lun, 1),
+                                        USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_INTERFACE,
+                                        (enum usb_request)usbms_request::GET_MAX_LUN,
+                                        0, interface);
+}
 
 static bool found_usb_mass_storage(usb_device& d,
                                    const usb_device_config& config,
@@ -89,7 +105,21 @@ static bool found_usb_mass_storage(usb_device& d,
         return false;
     }
 
-    // FIXME
+    uint8_t max_lun;
+
+    if (!usbms_get_max_lun(d, max_lun, interface.desc.bInterfaceNumber)) {
+        print("found_usb_mass_storage: GET MAX LUN failed\n");
+        return false;
+    }
+
+    print("max_lun = {}\n", max_lun);
+
+    // FIXME - for each LUN:
+    // FIXME - TEST UNIT READY
+    // FIXME - INQUIRY
+    // FIXME - PREVENT ALLOW MEDIUM REMOVAL?
+    // FIXME - READ CAPACITY
+    // FIXME - actual I/O
 
     return false;
 }
