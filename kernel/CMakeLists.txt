@@ -71,6 +71,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/sdhci.cpp
     src/version.cpp
     src/kernel_time_page.cpp
+    src/usbms.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
