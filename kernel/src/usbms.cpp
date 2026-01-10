@@ -11,6 +11,7 @@ import list;
 import module_init;
 import print;
 import crt;
+import mem;
 
 using namespace std;
 
@@ -37,6 +38,7 @@ enum class usbms_request : uint8_t {
 
 enum class scsi_command : uint8_t {
     TEST_UNIT_READY = 0x00,
+    INQUIRY = 0x12,
 };
 
 struct scsi_test_unit_ready {
@@ -44,6 +46,20 @@ struct scsi_test_unit_ready {
     uint8_t reserved[4];
     uint8_t control;
 } __attribute((packed));
+
+static_assert(sizeof(scsi_test_unit_ready) == 6);
+
+struct scsi_inquiry {
+    enum scsi_command cmd;
+    uint8_t evpd : 1;
+    uint8_t cmddt : 1;
+    uint8_t : 6;
+    uint8_t page_code;
+    uint16_t allocation_length;
+    uint8_t control;
+} __attribute((packed));
+
+static_assert(sizeof(scsi_inquiry) == 6);
 
 struct usbms_cbw {
     uint32_t dCBWSignature;
@@ -98,11 +114,14 @@ static bool usbms_get_max_lun(usb_device& d, uint8_t& max_lun,
                                         0, interface);
 }
 
-static bool test_unit_ready(xhci_queue& in_queue, xhci_queue& out_queue,
-                            uint8_t lun) {
+static bool send_scsi_msg_no_data(xhci_queue& in_queue, xhci_queue& out_queue,
+                                  uint8_t lun, span<uint8_t> msg) {
     usbms_cbw cbw;
     usbms_csw csw;
 
+    // FIXME - mutex
+
+    // FIXME - translate into nt_status?
     // FIXME - handle stalls
 
     // prepare command
@@ -111,24 +130,22 @@ static bool test_unit_ready(xhci_queue& in_queue, xhci_queue& out_queue,
 
     cbw.dCBWSignature = USBMS_CBW_SIG;
     cbw.dCBWTag = 0; // FIXME
-    cbw.dCBWDataTransferLength = 0; // no data
+    cbw.dCBWDataTransferLength = 0;
     cbw.bmCBWFlags = 0;
     cbw.bCBWLUN = lun;
     cbw.bCBWCBLength = sizeof(cbw.msg);
 
-    auto& msg = *(scsi_test_unit_ready*)cbw.msg;
-
-    msg.cmd = scsi_command::TEST_UNIT_READY;
+    memcpy(&cbw.msg, msg.data(), msg.size());
 
     // send command
 
     auto sent_bytes = out_queue.normal_transfer(span((uint8_t*)&cbw, sizeof(cbw)));
 
     if (sent_bytes == 0) {
-        print("test_unit_ready: xhci_queue::normal_transfer failed for OUT endpoint\n");
+        print("send_scsi_msg_no_data: xhci_queue::normal_transfer failed for OUT endpoint\n");
         return false;
     } else if (sent_bytes != sizeof(cbw)) {
-        print("test_unit_ready: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
+        print("send_scsi_msg_no_data: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
               sent_bytes, sizeof(cbw));
         return false;
     }
@@ -138,45 +155,176 @@ static bool test_unit_ready(xhci_queue& in_queue, xhci_queue& out_queue,
     auto recv_bytes = in_queue.normal_transfer(span((uint8_t*)&csw, sizeof(csw)));
 
     if (recv_bytes == 0) {
-        print("test_unit_ready: xhci_queue::normal_transfer failed for IN endpoint\n");
+        print("send_scsi_msg_no_data: xhci_queue::normal_transfer failed for IN endpoint\n");
         return false;
     } else if (recv_bytes != sizeof(csw)) {
-        print("test_unit_ready: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+        print("send_scsi_msg_no_data: xhci_queue::normal_transfer received {} bytes, expected {}\n",
               recv_bytes, sizeof(csw));
         return false;
     }
 
     if (csw.dCSWSignature != USBMS_CSW_SIG) {
-        print("test_unit_ready: response had invalid signature\n");
+        print("send_scsi_msg_no_data: response had invalid signature ({:08x}, expected {:08x})\n",
+              csw.dCSWSignature, USBMS_CSW_SIG);
         return false;
     }
 
     if (csw.dCSWTag != cbw.dCBWTag) {
-        print("test_unit_ready: response had invalid tag\n");
+        print("send_scsi_msg_no_data: response had invalid tag ({:02x}, expected {:02x})\n",
+              csw.dCSWTag, cbw.dCBWTag);
         return false;
     }
 
-    // FIXME - for data messages, check dCSWDataResidue
-
-    print("received reply (bCSWStatus = {})\n", (uint8_t)csw.bCSWStatus);
+    print("received reply (bCSWStatus = {}, dCSWDataResidue = {})\n",
+          (uint8_t)csw.bCSWStatus, csw.dCSWDataResidue);
 
     switch (csw.bCSWStatus) {
         case csw_status::success:
             return true;
 
         case csw_status::failed:
-            print("test_unit_ready: command failed\n");
+            print("send_scsi_msg: command failed\n");
             return false;
 
         case csw_status::phase_error:
-            print("test_unit_ready: phase error\n");
+            print("send_scsi_msg: phase error\n");
             return false;
 
         default:
-            print("test_unit_ready: unrecognized error status {:02x}\n",
+            print("send_scsi_msg: unrecognized error status {:02x}\n",
                   (uint8_t)csw.bCSWStatus);
             return false;
     }
+}
+
+static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
+                               uint8_t lun, span<uint8_t> msg,
+                               span<uint8_t> buf) {
+    usbms_cbw cbw;
+    usbms_csw csw;
+
+    // FIXME - mutex
+
+    // FIXME - translate into nt_status?
+    // FIXME - handle stalls
+
+    // prepare command
+
+    memset(&cbw, 0, sizeof(cbw));
+
+    cbw.dCBWSignature = USBMS_CBW_SIG;
+    cbw.dCBWTag = 0; // FIXME
+    cbw.dCBWDataTransferLength = (uint32_t)buf.size();
+    cbw.bmCBWFlags = 0x80; // in
+    cbw.bCBWLUN = lun;
+    cbw.bCBWCBLength = sizeof(cbw.msg);
+
+    memcpy(&cbw.msg, msg.data(), msg.size());
+
+    // send command
+
+    auto sent_bytes = out_queue.normal_transfer(span((uint8_t*)&cbw, sizeof(cbw)));
+
+    if (sent_bytes == 0) {
+        print("send_scsi_msg_in: xhci_queue::normal_transfer failed for OUT endpoint\n");
+        return 0;
+    } else if (sent_bytes != sizeof(cbw)) {
+        print("send_scsi_msg_in: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
+              sent_bytes, sizeof(cbw));
+        return 0;
+    }
+
+    // wait for data
+
+    auto recv_bytes = in_queue.normal_transfer(span(buf.data(), buf.size()));
+
+    if (recv_bytes == 0) {
+        print("send_scsi_msg_in: xhci_queue::normal_transfer failed for IN endpoint\n");
+        return 0;
+    } else if (recv_bytes != buf.size()) {
+        print("send_scsi_msg_in: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+              recv_bytes, buf.size());
+        return 0;
+    }
+
+    print("recv_bytes = {}\n", recv_bytes);
+
+    recv_bytes = in_queue.normal_transfer(span((uint8_t*)&csw, sizeof(csw)));
+
+    if (recv_bytes == 0) {
+        print("send_scsi_msg_in: xhci_queue::normal_transfer failed for IN endpoint\n");
+        return 0;
+    } else if (recv_bytes != sizeof(csw)) {
+        print("send_scsi_msg_in: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+              recv_bytes, sizeof(csw));
+        return 0;
+    }
+
+    // wait for status
+
+    if (csw.dCSWSignature != USBMS_CSW_SIG) {
+        print("send_scsi_msg_in: response had invalid signature ({:08x}, expected {:08x})\n",
+              csw.dCSWSignature, USBMS_CSW_SIG);
+        return 0;
+    }
+
+    if (csw.dCSWTag != cbw.dCBWTag) {
+        print("send_scsi_msg_in: response had invalid tag ({:02x}, expected {:02x})\n",
+              csw.dCSWTag, cbw.dCBWTag);
+        return 0;
+    }
+
+    print("received reply (bCSWStatus = {}, dCSWDataResidue = {})\n",
+          (uint8_t)csw.bCSWStatus, csw.dCSWDataResidue);
+
+    switch (csw.bCSWStatus) {
+        case csw_status::success:
+            return buf.size() - csw.dCSWDataResidue;
+
+        case csw_status::failed:
+            print("send_scsi_msg_in: command failed\n");
+            return 0;
+
+        case csw_status::phase_error:
+            print("send_scsi_msg_in: phase error\n");
+            return 0;
+
+        default:
+            print("send_scsi_msg_in: unrecognized error status {:02x}\n",
+                  (uint8_t)csw.bCSWStatus);
+            return 0;
+    }
+}
+
+static bool test_unit_ready(xhci_queue& in_queue, xhci_queue& out_queue,
+                            uint8_t lun) {
+    scsi_test_unit_ready msg;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.cmd = scsi_command::TEST_UNIT_READY;
+
+    return send_scsi_msg_no_data(in_queue, out_queue, lun,
+                                 span((uint8_t*)&msg, sizeof(msg)));
+}
+
+static bool inquiry(xhci_queue& in_queue, xhci_queue& out_queue,
+                    uint8_t lun) {
+    scsi_inquiry msg;
+    uint8_t buf[36]; // FIXME
+
+    memset(&msg, 0, sizeof(msg));
+    msg.cmd = scsi_command::INQUIRY;
+    msg.allocation_length = byteswap((uint16_t)sizeof(buf));
+
+    auto recv_bytes = send_scsi_msg_in(in_queue, out_queue, lun,
+                                       span((uint8_t*)&msg, sizeof(msg)),
+                                       span((uint8_t*)buf, sizeof(buf)));
+    if (recv_bytes == 0)
+        return false;
+
+    print("inquiry: received {} bytes\n", recv_bytes);
+
+    return true;
 }
 
 static void init_lun(usb_device& d, xhci_queue& in_queue,
@@ -185,6 +333,9 @@ static void init_lun(usb_device& d, xhci_queue& in_queue,
 
     // FIXME - repeat if necessary?
     if (!test_unit_ready(in_queue, out_queue, lun))
+        return;
+
+    if (!inquiry(in_queue, out_queue, lun))
         return;
 
     // FIXME - INQUIRY (0x12)
