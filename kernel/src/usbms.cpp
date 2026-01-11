@@ -196,20 +196,12 @@ public:
             delete this;
     }
 
-    nt_status flush() override {
-        return nt_status::NOT_IMPLEMENTED;
-    }
-
-    nt_status dio_read(uint64_t /*page_num*/, uint64_t /*num_pages*/,
-                       pfn_iterator& /*it*/, uint64_t& /*read_pages*/) override {
-        return nt_status::NOT_IMPLEMENTED;
-    }
-
-    nt_status dio_write(uint64_t /*page_num*/, uint64_t /*num_pages*/,
-                        pfn_iterator& /*it*/, uint64_t& /*written_pages*/,
-                        bool /*fua*/) override {
-        return nt_status::NOT_IMPLEMENTED;
-    }
+    nt_status flush() override;
+    nt_status dio_read(uint64_t page_num, uint64_t num_pages,
+                       pfn_iterator& it, uint64_t& read_pages) override;
+    nt_status dio_write(uint64_t page_num, uint64_t num_pages,
+                        pfn_iterator& it, uint64_t& written_pages,
+                        bool fua) override;
 
     bool initialized = false;
 
@@ -557,6 +549,36 @@ usbms_volume::usbms_volume(usb_device& d, xhci_queue& in_queue,
     initialized = true;
 }
 
+nt_status usbms_volume::flush() {
+    // FIXME - SYNCHRONIZE CACHE (0x35/0x91)?
+
+    return nt_status::SUCCESS;
+}
+
+nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
+                                 pfn_iterator& /*it*/, uint64_t& /*read_pages*/) {
+    print("FIXME - usbms_volume::dio_read({:x}, {:x})\n", page_num, num_pages);
+
+    // FIXME
+
+    // FIXME - actual I/O (READ [0x28/0x88])
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
+nt_status usbms_volume::dio_write(uint64_t page_num, uint64_t num_pages,
+                                  pfn_iterator& /*it*/, uint64_t& /*written_pages*/,
+                                  bool fua) {
+    print("FIXME - usbms_volume::dio_write({:x}, {:x}, {})\n",
+          page_num, num_pages, fua ? "true" : "false");
+
+    // FIXME
+
+    // FIXME - actual I/O (WRITE [0x2a/0x8a])
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
 static void init_lun(usb_device& d, xhci_queue& in_queue,
                      xhci_queue& out_queue, uint8_t lun) {
     auto pv = new usbms_volume(d, in_queue, out_queue, lun);
@@ -574,8 +596,6 @@ static void init_lun(usb_device& d, xhci_queue& in_queue,
         print("init_lun: usbms_volume::usbms_volume failed\n");
         return;
     }
-
-    // FIXME - actual I/O (READ [0x28/0x88] and WRITE [0x2a/0x8a])
 
     // FIXME - give name
     // FIXME - print found message with name(?), block size, and size
