@@ -1151,23 +1151,8 @@ TRB_CODE try_address_device(xhci_input_context<LARGE>& context, uint8_t slot,
 
     // follow Linux by waiting 200ms if address device fails, and trying again
     for (unsigned int i = 0; i < 2; i++) {
-        if (i != 0) {
-            auto tim_ref = create_timer(false);
-            if (!tim_ref) {
-                print("try_address_device: create_timer failed\n");
-                return TRB_CODE::UNDEFINED_ERROR;
-            }
-
-            auto& tim = static_cast<timer&>(tim_ref.get());
-
-            auto status = tim.set(200 * -ONE_MS_TICKS, nullptr, nullptr, false, 1, nullptr);
-            if (!success(status)) {
-                print("try_address_device: timer::set returned {}\n", status);
-                return TRB_CODE::UNDEFINED_ERROR;
-            }
-
-            wait_for_object(tim, true);
-        }
+        if (i != 0)
+            msleep(200);
 
         xhci_request req;
 
