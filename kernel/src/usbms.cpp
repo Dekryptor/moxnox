@@ -722,13 +722,9 @@ nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
         return nt_status::SUCCESS;
     }
 
-    // FIXME - avoid copy
-
     // FIXME - READ16 (0x88) if big device
 
-    num_pages = 1; // FIXME
-
-    // FIXME - limit num_pages to something sensible
+    num_pages = min((uint64_t)dev.in_queue.size, num_pages);
 
     scsi_read10 msg;
 
@@ -741,9 +737,9 @@ nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
                                                span((uint8_t*)&msg, sizeof(msg)),
                                                it, num_pages);
 
-    if (recv_bytes != PAGE_SIZE) {
+    if (recv_bytes != num_pages << PAGE_SHIFT) {
         print("usbms_volume::dio_read: received {} bytes, expected {}\n",
-              recv_bytes, PAGE_SIZE);
+              recv_bytes, num_pages << PAGE_SHIFT);
         return nt_status::IO_DEVICE_ERROR;
     }
 
