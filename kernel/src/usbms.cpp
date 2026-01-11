@@ -227,6 +227,8 @@ public:
 
     bool send_scsi_msg_no_data(uint8_t lun, span<uint8_t> msg);
     size_t send_scsi_msg_in(uint8_t lun, span<uint8_t> msg, span<uint8_t> buf);
+    size_t send_scsi_msg_in_dio(uint8_t lun, span<uint8_t> msg,
+                                pfn_iterator& it, uint64_t num_pages);
 
     atomic<unsigned int> refcount = 1;
     usb_device& d;
@@ -472,6 +474,103 @@ size_t usbms_device::send_scsi_msg_in(uint8_t lun, span<uint8_t> msg,
     }
 }
 
+size_t usbms_device::send_scsi_msg_in_dio(uint8_t lun, span<uint8_t> msg,
+                                          pfn_iterator& it, uint64_t num_pages) {
+    usbms_cbw cbw;
+    usbms_csw csw;
+
+    lock_guard lg(lock);
+
+    // FIXME - translate into nt_status?
+    // FIXME - handle stalls
+
+    // prepare command
+
+    memset(&cbw, 0, sizeof(cbw));
+
+    cbw.dCBWSignature = USBMS_CBW_SIG;
+    cbw.dCBWTag = next_tag;
+    cbw.dCBWDataTransferLength = (uint32_t)(num_pages << PAGE_SHIFT);
+    cbw.bmCBWFlags = 0x80; // in
+    cbw.bCBWLUN = lun;
+    cbw.bCBWCBLength = sizeof(cbw.msg);
+
+    next_tag++;
+
+    memcpy(&cbw.msg, msg.data(), msg.size());
+
+    // send command
+
+    auto sent_bytes = out_queue.normal_transfer(span((uint8_t*)&cbw, sizeof(cbw)));
+
+    if (sent_bytes == 0) {
+        print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer failed for OUT endpoint\n");
+        return 0;
+    } else if (sent_bytes != sizeof(cbw)) {
+        print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
+              sent_bytes, sizeof(cbw));
+        return 0;
+    }
+
+    // wait for data
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        auto recv_bytes = in_queue.normal_transfer(span((uint8_t*)phys_address(*it), PAGE_SIZE));
+
+        if (recv_bytes == 0) {
+            print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer failed for IN endpoint\n");
+            return 0;
+        } else if (recv_bytes != PAGE_SIZE) {
+            print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+                  recv_bytes, PAGE_SIZE);
+            return 0;
+        }
+    }
+
+    auto recv_bytes = in_queue.normal_transfer(span((uint8_t*)&csw, sizeof(csw)));
+
+    if (recv_bytes == 0) {
+        print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer failed for IN endpoint\n");
+        return 0;
+    } else if (recv_bytes != sizeof(csw)) {
+        print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+              recv_bytes, sizeof(csw));
+        return 0;
+    }
+
+    // wait for status
+
+    if (csw.dCSWSignature != USBMS_CSW_SIG) {
+        print("usbms_device::send_scsi_msg_in_dio: response had invalid signature ({:08x}, expected {:08x})\n",
+              csw.dCSWSignature, USBMS_CSW_SIG);
+        return 0;
+    }
+
+    if (csw.dCSWTag != cbw.dCBWTag) {
+        print("usbms_device::send_scsi_msg_in_dio: response had invalid tag ({:02x}, expected {:02x})\n",
+              csw.dCSWTag, cbw.dCBWTag);
+        return 0;
+    }
+
+    switch (csw.bCSWStatus) {
+        case csw_status::success:
+            return (num_pages << PAGE_SHIFT) - csw.dCSWDataResidue;
+
+        case csw_status::failed:
+            print("usbms_device::send_scsi_msg_in_dio: command failed\n");
+            return 0;
+
+        case csw_status::phase_error:
+            print("usbms_device::send_scsi_msg_in_dio: phase error\n");
+            return 0;
+
+        default:
+            print("usbms_device::send_scsi_msg_in_dio: unrecognized error status {:02x}\n",
+                  (uint8_t)csw.bCSWStatus);
+            return 0;
+    }
+}
+
 bool usbms_volume::test_unit_ready() {
     scsi_test_unit_ready msg;
 
@@ -630,15 +729,9 @@ nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
 
     // FIXME - READ16 (0x88) if big device
 
-    auto page = allocate_folio(0);
-    if (!page)
-        return nt_status::INSUFFICIENT_RESOURCES;
-
     num_pages = 1; // FIXME
 
     // FIXME - limit num_pages to something sensible
-
-    auto buf = (uint8_t*)phys_address(page);
 
     scsi_read10 msg;
 
@@ -647,19 +740,15 @@ nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
     msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
     msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
 
-    auto recv_bytes = dev.send_scsi_msg_in(lun,
-                                           span((uint8_t*)&msg, sizeof(msg)),
-                                           span(buf, PAGE_SIZE));
+    auto recv_bytes = dev.send_scsi_msg_in_dio(lun,
+                                               span((uint8_t*)&msg, sizeof(msg)),
+                                               it, num_pages);
 
     if (recv_bytes != PAGE_SIZE) {
         print("usbms_volume::dio_read: received {} bytes, expected {}\n",
               recv_bytes, PAGE_SIZE);
-        free_folio(page);
         return nt_status::IO_DEVICE_ERROR;
     }
-
-    memcpy(phys_address(*it), buf, PAGE_SIZE);
-    free_folio(page);
 
     read_pages = num_pages;
 
