@@ -233,6 +233,7 @@ public:
     xhci_queue& in_queue;
     xhci_queue& out_queue;
     rwsem lock;
+    uint32_t next_tag = 0;
 };
 
 class usbms_volume : public volume {
@@ -309,11 +310,13 @@ bool usbms_device::send_scsi_msg_no_data(uint8_t lun, span<uint8_t> msg) {
     memset(&cbw, 0, sizeof(cbw));
 
     cbw.dCBWSignature = USBMS_CBW_SIG;
-    cbw.dCBWTag = 0; // FIXME
+    cbw.dCBWTag = next_tag;
     cbw.dCBWDataTransferLength = 0;
     cbw.bmCBWFlags = 0;
     cbw.bCBWLUN = lun;
     cbw.bCBWCBLength = sizeof(cbw.msg);
+
+    next_tag++;
 
     memcpy(&cbw.msg, msg.data(), msg.size());
 
@@ -389,11 +392,13 @@ size_t usbms_device::send_scsi_msg_in(uint8_t lun, span<uint8_t> msg,
     memset(&cbw, 0, sizeof(cbw));
 
     cbw.dCBWSignature = USBMS_CBW_SIG;
-    cbw.dCBWTag = 0; // FIXME
+    cbw.dCBWTag = next_tag;
     cbw.dCBWDataTransferLength = (uint32_t)buf.size();
     cbw.bmCBWFlags = 0x80; // in
     cbw.bCBWLUN = lun;
     cbw.bCBWCBLength = sizeof(cbw.msg);
+
+    next_tag++;
 
     memcpy(&cbw.msg, msg.data(), msg.size());
 
