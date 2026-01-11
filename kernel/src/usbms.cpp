@@ -208,6 +208,8 @@ public:
 
     bool initialized = false;
     unsigned int dev_num;
+    char model_number_buf[16];
+    string_view model_number;
 
 private:
     bool test_unit_ready();
@@ -452,18 +454,19 @@ bool usbms_volume::inquiry() {
         return false;
     }
 
+    memcpy(model_number_buf, buf.product_identification, sizeof(model_number_buf));
+
     auto vendor = string_view(buf.vendor_identification, sizeof(buf.vendor_identification));
-    auto product = string_view(buf.product_identification, sizeof(buf.product_identification));
+
+    model_number = string_view(model_number_buf, sizeof(model_number_buf));
 
     while (!vendor.empty() && vendor.back() == ' ') {
         vendor = string_view(vendor.data(), vendor.size() - 1);
     }
 
-    while (!product.empty() && product.back() == ' ') {
-        product = string_view(product.data(), product.size() - 1);
+    while (!model_number.empty() && model_number.back() == ' ') {
+        model_number = string_view(model_number.data(), model_number.size() - 1);
     }
-
-    print("found device: {}, {}\n", vendor, product);
 
     return true;
 }
@@ -638,9 +641,8 @@ static void init_lun(usb_device& d, xhci_queue& in_queue,
         }
     }
 
-    // FIXME - product name
-    print("found /dev/{}: block size {}, capacity {}\n",
-          string_view(v.volume_name, v.volume_name_len),
+    print("found /dev/{}: {}, block size {}, capacity {}\n",
+          string_view(v.volume_name, v.volume_name_len), v.model_number,
           byte_size(v.sector_size), byte_size(v.size));
 
     // FIXME - scan for partitions
