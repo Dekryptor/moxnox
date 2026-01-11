@@ -379,8 +379,6 @@ static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
         return 0;
     }
 
-    print("recv_bytes = {}\n", recv_bytes);
-
     recv_bytes = in_queue.normal_transfer(span((uint8_t*)&csw, sizeof(csw)));
 
     if (recv_bytes == 0) {
@@ -405,9 +403,6 @@ static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
               csw.dCSWTag, cbw.dCBWTag);
         return 0;
     }
-
-    print("received reply (bCSWStatus = {}, dCSWDataResidue = {})\n",
-          (uint8_t)csw.bCSWStatus, csw.dCSWDataResidue);
 
     switch (csw.bCSWStatus) {
         case csw_status::success:
