@@ -531,16 +531,22 @@ usbms_volume::usbms_volume(usb_device& d, xhci_queue& in_queue,
     // FIXME - mutex?
 
     // FIXME - repeat if necessary?
-    if (!test_unit_ready())
+    if (!test_unit_ready()) {
+        print("usbms_volume::usbms_volume: TEST_UNIT_READY failed\n");
         return;
+    }
 
-    if (!inquiry())
+    if (!inquiry()) {
+        print("usbms_volume::usbms_volume: INQUIRY failed\n");
         return;
+    }
 
     // FIXME - PREVENT ALLOW MEDIUM REMOVAL?
 
-    if (!read_capacity10())
+    if (!read_capacity10()) {
+        print("usbms_volume::usbms_volume: READ_CAPACITY10 failed\n");
         return;
+    }
 
     if ((size / sector_size) - 1 == 0xffffffff) {
         if (!read_capacity16()) {
