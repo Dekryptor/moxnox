@@ -223,6 +223,8 @@ public:
             delete this;
     }
 
+    bool send_scsi_msg_no_data(uint8_t lun, span<uint8_t> msg);
+
     atomic<unsigned int> refcount = 1;
     usb_device& d;
     xhci_queue& in_queue;
@@ -289,8 +291,7 @@ static bool usbms_get_max_lun(usb_device& d, uint8_t& max_lun,
                                         0, interface);
 }
 
-static bool send_scsi_msg_no_data(xhci_queue& in_queue, xhci_queue& out_queue,
-                                  uint8_t lun, span<uint8_t> msg) {
+bool usbms_device::send_scsi_msg_no_data(uint8_t lun, span<uint8_t> msg) {
     usbms_cbw cbw;
     usbms_csw csw;
 
@@ -317,10 +318,10 @@ static bool send_scsi_msg_no_data(xhci_queue& in_queue, xhci_queue& out_queue,
     auto sent_bytes = out_queue.normal_transfer(span((uint8_t*)&cbw, sizeof(cbw)));
 
     if (sent_bytes == 0) {
-        print("send_scsi_msg_no_data: xhci_queue::normal_transfer failed for OUT endpoint\n");
+        print("usbms_device::send_scsi_msg_no_data: xhci_queue::normal_transfer failed for OUT endpoint\n");
         return false;
     } else if (sent_bytes != sizeof(cbw)) {
-        print("send_scsi_msg_no_data: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
+        print("usbms_device::send_scsi_msg_no_data: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
               sent_bytes, sizeof(cbw));
         return false;
     }
@@ -330,10 +331,10 @@ static bool send_scsi_msg_no_data(xhci_queue& in_queue, xhci_queue& out_queue,
     auto recv_bytes = in_queue.normal_transfer(span((uint8_t*)&csw, sizeof(csw)));
 
     if (recv_bytes == 0) {
-        print("send_scsi_msg_no_data: xhci_queue::normal_transfer failed for IN endpoint\n");
+        print("usbms_device::send_scsi_msg_no_data: xhci_queue::normal_transfer failed for IN endpoint\n");
         return false;
     } else if (recv_bytes != sizeof(csw)) {
-        print("send_scsi_msg_no_data: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+        print("usbms_device::send_scsi_msg_no_data: xhci_queue::normal_transfer received {} bytes, expected {}\n",
               recv_bytes, sizeof(csw));
         return false;
     }
@@ -345,7 +346,7 @@ static bool send_scsi_msg_no_data(xhci_queue& in_queue, xhci_queue& out_queue,
     }
 
     if (csw.dCSWTag != cbw.dCBWTag) {
-        print("send_scsi_msg_no_data: response had invalid tag ({:02x}, expected {:02x})\n",
+        print("usbms_device::send_scsi_msg_no_data: response had invalid tag ({:02x}, expected {:02x})\n",
               csw.dCSWTag, cbw.dCBWTag);
         return false;
     }
@@ -355,15 +356,15 @@ static bool send_scsi_msg_no_data(xhci_queue& in_queue, xhci_queue& out_queue,
             return true;
 
         case csw_status::failed:
-            print("send_scsi_msg: command failed\n");
+            print("usbms_device::send_scsi_msg_no_data: command failed\n");
             return false;
 
         case csw_status::phase_error:
-            print("send_scsi_msg: phase error\n");
+            print("usbms_device::send_scsi_msg_no_data: phase error\n");
             return false;
 
         default:
-            print("send_scsi_msg: unrecognized error status {:02x}\n",
+            print("usbms_device::send_scsi_msg_no_data: unrecognized error status {:02x}\n",
                   (uint8_t)csw.bCSWStatus);
             return false;
     }
@@ -469,8 +470,7 @@ bool usbms_volume::test_unit_ready() {
     memset(&msg, 0, sizeof(msg));
     msg.cmd = scsi_command::TEST_UNIT_READY;
 
-    return send_scsi_msg_no_data(dev.in_queue, dev.out_queue, lun,
-                                 span((uint8_t*)&msg, sizeof(msg)));
+    return dev.send_scsi_msg_no_data(lun, span((uint8_t*)&msg, sizeof(msg)));
 }
 
 bool usbms_volume::inquiry() {
