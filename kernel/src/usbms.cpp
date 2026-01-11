@@ -514,20 +514,17 @@ size_t usbms_device::send_scsi_msg_in_dio(uint8_t lun, span<uint8_t> msg,
 
     // wait for data
 
-    for (uint64_t i = 0; i < num_pages; i++) {
-        auto recv_bytes = in_queue.normal_transfer(span((uint8_t*)phys_address(*it), PAGE_SIZE));
-
-        if (recv_bytes == 0) {
-            print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer failed for IN endpoint\n");
-            return 0;
-        } else if (recv_bytes != PAGE_SIZE) {
-            print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer received {} bytes, expected {}\n",
-                  recv_bytes, PAGE_SIZE);
-            return 0;
-        }
+    auto recv_bytes = in_queue.normal_transfer_dio(it, num_pages);
+    if (recv_bytes == 0) {
+        print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer failed for IN endpoint\n");
+        return 0;
+    } else if (recv_bytes != num_pages << PAGE_SHIFT) {
+        print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+                recv_bytes, num_pages << PAGE_SHIFT);
+        return 0;
     }
 
-    auto recv_bytes = in_queue.normal_transfer(span((uint8_t*)&csw, sizeof(csw)));
+    recv_bytes = in_queue.normal_transfer(span((uint8_t*)&csw, sizeof(csw)));
 
     if (recv_bytes == 0) {
         print("usbms_device::send_scsi_msg_in_dio: xhci_queue::normal_transfer failed for IN endpoint\n");

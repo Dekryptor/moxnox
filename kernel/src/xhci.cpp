@@ -11,6 +11,7 @@ module;
 #include <span>
 #include "xhci.h"
 #include "acpica.h"
+#include "assert.h"
 
 export module xhci;
 
@@ -32,6 +33,8 @@ import scheduler;
 import list;
 import spinlock;
 import acpi;
+import page_cache;
+import bsod;
 
 using namespace std;
 
@@ -81,6 +84,7 @@ public:
                           enum usb_request bRequest, uint16_t wValue,
                           uint16_t wIndex);
     size_t normal_transfer(span<uint8_t> buf);
+    size_t normal_transfer_dio(pfn_iterator& it, uint64_t num_pages);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
     void break_waits();
 
@@ -1927,6 +1931,71 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
     }
 
     return buf.size() - req.ev.trb_transfer_length;
+}
+
+size_t xhci_queue::normal_transfer_dio(pfn_iterator& it, uint64_t num_pages) {
+    assert(num_pages <= size);
+
+    auto reqs = new xhci_request[num_pages]{};
+    if (!reqs) {
+        print("new failed\n");
+        return 0;
+    }
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        auto& s = *reinterpret_cast<xhci_trb_normal*>(&reqs[i].trb);
+
+        s.data_buffer = *it;
+
+        flush_cache(span((uint8_t*)phys_address(s.data_buffer), PAGE_SIZE), false);
+
+        s.trb_transfer_length = PAGE_SIZE;
+        s.trb_type = (uint16_t)xhci_trb_type::normal;
+
+        if (i == num_pages - 1)
+            s.ioc = 1;
+        else
+            s.ch = 1;
+
+        if (i == num_pages - 1)
+            reqs[i].event = create_event(false);
+    }
+
+    {
+        lock_guard lock(submit_lock);
+
+        for (uint64_t i = 0; i < num_pages; i++) {
+            submit_holding_lock(reqs[i], i == num_pages - 1);
+        }
+    }
+
+    wait_for_object(reqs[num_pages - 1].event.get(), false);
+
+    if (dev && dev->dead) {
+        delete[] reqs;
+        return 0;
+    }
+
+    auto code = (enum TRB_CODE)reqs[num_pages - 1].ev.completion_code;
+
+    if (code != TRB_CODE::SUCCESS && code != TRB_CODE::SHORT_PACKET) {
+        print("xhci_queue::normal_transfer_dio: controller returned error {}\n", code);
+        delete[] reqs;
+        return 0;
+    }
+
+    if (dir) {
+        for (uint64_t i = 0; i < num_pages; i++) {
+            auto& s = *reinterpret_cast<xhci_trb_normal*>(&reqs[i].trb);
+
+            flush_cache(span((uint8_t*)phys_address(s.data_buffer), PAGE_SIZE),
+                        true);
+        }
+    }
+
+    delete[] reqs;
+
+    return num_pages << PAGE_SHIFT; // FIXME
 }
 
 uint8_t xhci::get_port_slot_type(uint8_t port_id) {
