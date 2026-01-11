@@ -1778,24 +1778,7 @@ void sdhci_slot::card_insertion() {
 
         times--;
 
-        {
-            auto tim_ref = create_timer(false);
-            if (!tim_ref) {
-                print("sdhci_slot::card_insertion: create_timer failed\n");
-                return;
-            }
-
-            auto& tim = static_cast<timer&>(tim_ref.get());
-
-            auto status = tim.set(50 * -ONE_MS_TICKS, nullptr, nullptr,
-                                  false, 1, nullptr);
-            if (!success(status)) {
-                print("sdhci_slot::card_insertion: timer::set returned {}\n", status);
-                return;
-            }
-
-            wait_for_object(tim, true); // wait 50ms
-        }
+        msleep(50);
     }
 
     if (f8) {
