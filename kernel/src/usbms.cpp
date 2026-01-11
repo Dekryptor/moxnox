@@ -15,6 +15,10 @@ import print;
 import format;
 import crt;
 import mem;
+import nt;
+import page_cache;
+import volume;
+import object_ref;
 
 using namespace std;
 
@@ -147,6 +151,48 @@ struct scsi_inquiry {
 } __attribute((packed));
 
 static_assert(sizeof(scsi_inquiry) == 0x38);
+
+class usbms_volume : public volume {
+public:
+    usbms_volume(usb_device& d, xhci_queue& in_queue,
+                 xhci_queue& out_queue, uint8_t lun);
+
+    virtual ~usbms_volume() override {
+        d.release();
+    }
+
+    void release() override {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    nt_status flush() override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    nt_status dio_read(uint64_t /*page_num*/, uint64_t /*num_pages*/,
+                       pfn_iterator& /*it*/, uint64_t& /*read_pages*/) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    nt_status dio_write(uint64_t /*page_num*/, uint64_t /*num_pages*/,
+                        pfn_iterator& /*it*/, uint64_t& /*written_pages*/,
+                        bool /*fua*/) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    bool initialized = false;
+
+private:
+    bool test_unit_ready();
+    bool inquiry();
+    bool read_capacity();
+
+    usb_device& d;
+    xhci_queue& in_queue;
+    xhci_queue& out_queue;
+    uint8_t lun;
+};
 
 static bool found_usb_storage_device(usb_device& d,
                                      const usb_device_config& config,
@@ -352,8 +398,7 @@ static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
     }
 }
 
-static bool test_unit_ready(xhci_queue& in_queue, xhci_queue& out_queue,
-                            uint8_t lun) {
+bool usbms_volume::test_unit_ready() {
     scsi_test_unit_ready msg;
 
     memset(&msg, 0, sizeof(msg));
@@ -363,8 +408,7 @@ static bool test_unit_ready(xhci_queue& in_queue, xhci_queue& out_queue,
                                  span((uint8_t*)&msg, sizeof(msg)));
 }
 
-static bool inquiry(xhci_queue& in_queue, xhci_queue& out_queue,
-                    uint8_t lun) {
+bool usbms_volume::inquiry() {
     scsi_inquiry_cmd msg;
     scsi_inquiry buf;
 
@@ -381,7 +425,7 @@ static bool inquiry(xhci_queue& in_queue, xhci_queue& out_queue,
         return false;
 
     if (recv_bytes < MIN_INQUIRY_SIZE) {
-        print("inquiry: received {} bytes, expected at least {}\n",
+        print("usbms_volume::inquiry: received {} bytes, expected at least {}\n",
               recv_bytes, MIN_INQUIRY_SIZE);
         return false;
     }
@@ -402,8 +446,7 @@ static bool inquiry(xhci_queue& in_queue, xhci_queue& out_queue,
     return true;
 }
 
-static bool read_capacity(xhci_queue& in_queue, xhci_queue& out_queue,
-                          uint8_t lun) {
+bool usbms_volume::read_capacity() {
     scsi_read_capacity10 msg;
     scsi_read_capacity10_resp buf;
 
@@ -415,7 +458,7 @@ static bool read_capacity(xhci_queue& in_queue, xhci_queue& out_queue,
                                        span((uint8_t*)&buf, sizeof(buf)));
 
     if (recv_bytes != sizeof(buf)) {
-        print("read_capacity: received {} bytes, expected {}\n",
+        print("usbms_volume::read_capacity: received {} bytes, expected {}\n",
               recv_bytes, sizeof(buf));
         return false;
     }
@@ -427,26 +470,49 @@ static bool read_capacity(xhci_queue& in_queue, xhci_queue& out_queue,
     return true;
 }
 
-static void init_lun(usb_device& d, xhci_queue& in_queue,
-                     xhci_queue& out_queue, uint8_t lun) {
+usbms_volume::usbms_volume(usb_device& d, xhci_queue& in_queue,
+                           xhci_queue& out_queue, uint8_t lun) :
+                           d(d), in_queue(in_queue), out_queue(out_queue), lun(lun) {
+    d.acquire();
+
     // FIXME - mutex?
 
     // FIXME - repeat if necessary?
-    if (!test_unit_ready(in_queue, out_queue, lun))
+    if (!test_unit_ready())
         return;
 
-    if (!inquiry(in_queue, out_queue, lun))
+    if (!inquiry())
         return;
 
     // FIXME - PREVENT ALLOW MEDIUM REMOVAL?
 
-    if (!read_capacity(in_queue, out_queue, lun))
+    if (!read_capacity())
         return;
 
     // FIXME - READ CAPACITY (0x9e) if last LBA == 0xffffffff
     // FIXME - actual I/O (READ [0x28/0x88] and WRITE [0x2a/0x8a])
 
-    // FIXME - add block device
+    initialized = true;
+}
+
+static void init_lun(usb_device& d, xhci_queue& in_queue,
+                     xhci_queue& out_queue, uint8_t lun) {
+    auto pv = new usbms_volume(d, in_queue, out_queue, lun);
+
+    if (!pv) {
+        print("init_lun: new failed\n");
+        return;
+    }
+
+    object_ref obj_ref{*pv};
+
+    auto& v = *pv;
+
+    if (!v.initialized) {
+        print("init_lun: usbms_volume::usbms_volume failed\n");
+        return;
+    }
+
     // FIXME - give name
     // FIXME - print found message with name(?), block size, and size
     // FIXME - scan for partitions
