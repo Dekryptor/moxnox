@@ -2463,25 +2463,7 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
     usb_device* d;
 
     // wait 100ms for device to come up
-
-    {
-        auto tim_ref = create_timer(false);
-        if (!tim_ref) {
-            print("usb_hub::device_found: create_timer failed\n");
-            return;
-        }
-
-        auto& tim = static_cast<timer&>(tim_ref.get());
-
-        auto status = tim.set(-ONE_MS_TICKS * 100, nullptr, nullptr, false,
-                              0, nullptr);
-        if (!success(status)) {
-            print("usb_hub::device_found: timer::set returned {}\n", status);
-            return;
-        }
-
-        wait_for_object(tim, true);
-    }
+    msleep(100);
 
     auto func = [&]<bool LARGE>() -> bool {
         auto devctx = new xhci_device_context<LARGE>;
