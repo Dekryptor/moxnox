@@ -47,6 +47,7 @@ enum class scsi_command : uint8_t {
     TEST_UNIT_READY = 0x00,
     INQUIRY = 0x12,
     READ_CAPACITY10 = 0x25,
+    READ_CAPACITY16 = 0x9e,
 };
 
 struct scsi_test_unit_ready {
@@ -86,6 +87,35 @@ struct scsi_read_capacity10_resp {
 } __attribute((packed));
 
 static_assert(sizeof(scsi_read_capacity10_resp) == 8);
+
+struct scsi_read_capacity16 {
+    enum scsi_command cmd;
+    uint8_t service_action : 5;
+    uint8_t : 3;
+    uint64_t lba;
+    uint32_t allocation_length;
+    uint8_t reserved;
+    uint8_t control;
+} __attribute((packed));
+
+static_assert(sizeof(scsi_read_capacity16) == 16);
+
+struct scsi_read_capacity16_resp {
+    uint64_t lba;
+    uint32_t block_length;
+    uint8_t prot_en : 1;
+    uint8_t p_type : 3;
+    uint8_t rc_basis : 2;
+    uint8_t : 2;
+    uint8_t logical_blocks_per_physical_block_exponent : 4;
+    uint8_t p_i_exponent : 4;
+    uint16_t lowest_aligned_lba : 14;
+    uint16_t lbprz : 1;
+    uint16_t lbpme : 1;
+    uint8_t reserved[16];
+} __attribute((packed));
+
+static_assert(sizeof(scsi_read_capacity16_resp) == 32);
 
 struct usbms_cbw {
     uint32_t dCBWSignature;
@@ -186,12 +216,14 @@ public:
 private:
     bool test_unit_ready();
     bool inquiry();
-    bool read_capacity();
+    bool read_capacity10();
+    bool read_capacity16();
 
     usb_device& d;
     xhci_queue& in_queue;
     xhci_queue& out_queue;
     uint8_t lun;
+    bool big = false;
 };
 
 static bool found_usb_storage_device(usb_device& d,
@@ -446,7 +478,7 @@ bool usbms_volume::inquiry() {
     return true;
 }
 
-bool usbms_volume::read_capacity() {
+bool usbms_volume::read_capacity10() {
     scsi_read_capacity10 msg;
     scsi_read_capacity10_resp buf;
 
@@ -458,14 +490,38 @@ bool usbms_volume::read_capacity() {
                                        span((uint8_t*)&buf, sizeof(buf)));
 
     if (recv_bytes != sizeof(buf)) {
-        print("usbms_volume::read_capacity: received {} bytes, expected {}\n",
+        print("usbms_volume::read_capacity10: received {} bytes, expected {}\n",
               recv_bytes, sizeof(buf));
         return false;
     }
 
-    auto block_size = byteswap(buf.block_length);
+    sector_size = byteswap(buf.block_length);
+    size = ((uint64_t)byteswap(buf.lba) + 1) * sector_size;
 
-    print("size = {}, block size = {}\n", byte_size((byteswap(buf.lba) + 1) * block_size), block_size);
+    return true;
+}
+
+bool usbms_volume::read_capacity16() {
+    scsi_read_capacity16 msg;
+    scsi_read_capacity16_resp buf;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.cmd = scsi_command::READ_CAPACITY16;
+    msg.allocation_length = byteswap((uint16_t)sizeof(buf));
+
+    auto recv_bytes = send_scsi_msg_in(in_queue, out_queue, lun,
+                                       span((uint8_t*)&msg, sizeof(msg)),
+                                       span((uint8_t*)&buf, sizeof(buf)));
+
+    if (recv_bytes != sizeof(buf)) {
+        print("usbms_volume::read_capacity16: received {} bytes, expected {}\n",
+              recv_bytes, sizeof(buf));
+        return false;
+    }
+
+    sector_size = byteswap(buf.block_length);
+    size = (byteswap(buf.lba) + 1) * sector_size;
+    big = true;
 
     return true;
 }
@@ -486,11 +542,17 @@ usbms_volume::usbms_volume(usb_device& d, xhci_queue& in_queue,
 
     // FIXME - PREVENT ALLOW MEDIUM REMOVAL?
 
-    if (!read_capacity())
+    if (!read_capacity10())
         return;
 
-    // FIXME - READ CAPACITY (0x9e) if last LBA == 0xffffffff
-    // FIXME - actual I/O (READ [0x28/0x88] and WRITE [0x2a/0x8a])
+    if ((size / sector_size) - 1 == 0xffffffff) {
+        if (!read_capacity16()) {
+            print("usbms_volume::usbms_volume: READ_CAPACITY16 failed, capping to {}\n",
+                byte_size(size));
+        }
+    }
+
+    print("size = {}, block size = {}\n", byte_size(size), sector_size);
 
     initialized = true;
 }
@@ -512,6 +574,8 @@ static void init_lun(usb_device& d, xhci_queue& in_queue,
         print("init_lun: usbms_volume::usbms_volume failed\n");
         return;
     }
+
+    // FIXME - actual I/O (READ [0x28/0x88] and WRITE [0x2a/0x8a])
 
     // FIXME - give name
     // FIXME - print found message with name(?), block size, and size
