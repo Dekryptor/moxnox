@@ -5,6 +5,7 @@ module;
 #include <bit>
 #include <string_view>
 #include <atomic>
+#include <mutex>
 
 export module usbms;
 
@@ -23,6 +24,7 @@ import object_ref;
 import handle;
 import timer;
 import config;
+import rwsem;
 
 using namespace std;
 
@@ -230,6 +232,7 @@ public:
     usb_device& d;
     xhci_queue& in_queue;
     xhci_queue& out_queue;
+    rwsem lock;
 };
 
 class usbms_volume : public volume {
@@ -296,7 +299,7 @@ bool usbms_device::send_scsi_msg_no_data(uint8_t lun, span<uint8_t> msg) {
     usbms_cbw cbw;
     usbms_csw csw;
 
-    // FIXME - mutex
+    lock_guard lg(lock);
 
     // FIXME - translate into nt_status?
     // FIXME - handle stalls
@@ -376,7 +379,7 @@ size_t usbms_device::send_scsi_msg_in(uint8_t lun, span<uint8_t> msg,
     usbms_cbw cbw;
     usbms_csw csw;
 
-    // FIXME - mutex
+    lock_guard lg(lock);
 
     // FIXME - translate into nt_status?
     // FIXME - handle stalls
