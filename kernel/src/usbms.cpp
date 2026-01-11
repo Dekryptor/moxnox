@@ -224,6 +224,7 @@ public:
     }
 
     bool send_scsi_msg_no_data(uint8_t lun, span<uint8_t> msg);
+    size_t send_scsi_msg_in(uint8_t lun, span<uint8_t> msg, span<uint8_t> buf);
 
     atomic<unsigned int> refcount = 1;
     usb_device& d;
@@ -370,9 +371,8 @@ bool usbms_device::send_scsi_msg_no_data(uint8_t lun, span<uint8_t> msg) {
     }
 }
 
-static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
-                               uint8_t lun, span<uint8_t> msg,
-                               span<uint8_t> buf) {
+size_t usbms_device::send_scsi_msg_in(uint8_t lun, span<uint8_t> msg,
+                                      span<uint8_t> buf) {
     usbms_cbw cbw;
     usbms_csw csw;
 
@@ -399,10 +399,10 @@ static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
     auto sent_bytes = out_queue.normal_transfer(span((uint8_t*)&cbw, sizeof(cbw)));
 
     if (sent_bytes == 0) {
-        print("send_scsi_msg_in: xhci_queue::normal_transfer failed for OUT endpoint\n");
+        print("usbms_device::send_scsi_msg_in: xhci_queue::normal_transfer failed for OUT endpoint\n");
         return 0;
     } else if (sent_bytes != sizeof(cbw)) {
-        print("send_scsi_msg_in: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
+        print("usbms_device::send_scsi_msg_in: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
               sent_bytes, sizeof(cbw));
         return 0;
     }
@@ -412,10 +412,10 @@ static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
     auto recv_bytes = in_queue.normal_transfer(span(buf.data(), buf.size()));
 
     if (recv_bytes == 0) {
-        print("send_scsi_msg_in: xhci_queue::normal_transfer failed for IN endpoint\n");
+        print("usbms_device::send_scsi_msg_in: xhci_queue::normal_transfer failed for IN endpoint\n");
         return 0;
     } else if (recv_bytes != buf.size()) {
-        print("send_scsi_msg_in: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+        print("usbms_device::send_scsi_msg_in: xhci_queue::normal_transfer received {} bytes, expected {}\n",
               recv_bytes, buf.size());
         return 0;
     }
@@ -423,10 +423,10 @@ static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
     recv_bytes = in_queue.normal_transfer(span((uint8_t*)&csw, sizeof(csw)));
 
     if (recv_bytes == 0) {
-        print("send_scsi_msg_in: xhci_queue::normal_transfer failed for IN endpoint\n");
+        print("usbms_device::send_scsi_msg_in: xhci_queue::normal_transfer failed for IN endpoint\n");
         return 0;
     } else if (recv_bytes != sizeof(csw)) {
-        print("send_scsi_msg_in: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+        print("usbms_device::send_scsi_msg_in: xhci_queue::normal_transfer received {} bytes, expected {}\n",
               recv_bytes, sizeof(csw));
         return 0;
     }
@@ -434,13 +434,13 @@ static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
     // wait for status
 
     if (csw.dCSWSignature != USBMS_CSW_SIG) {
-        print("send_scsi_msg_in: response had invalid signature ({:08x}, expected {:08x})\n",
+        print("usbms_device::send_scsi_msg_in: response had invalid signature ({:08x}, expected {:08x})\n",
               csw.dCSWSignature, USBMS_CSW_SIG);
         return 0;
     }
 
     if (csw.dCSWTag != cbw.dCBWTag) {
-        print("send_scsi_msg_in: response had invalid tag ({:02x}, expected {:02x})\n",
+        print("usbms_device::send_scsi_msg_in: response had invalid tag ({:02x}, expected {:02x})\n",
               csw.dCSWTag, cbw.dCBWTag);
         return 0;
     }
@@ -450,15 +450,15 @@ static size_t send_scsi_msg_in(xhci_queue& in_queue, xhci_queue& out_queue,
             return buf.size() - csw.dCSWDataResidue;
 
         case csw_status::failed:
-            print("send_scsi_msg_in: command failed\n");
+            print("usbms_device::send_scsi_msg_in: command failed\n");
             return 0;
 
         case csw_status::phase_error:
-            print("send_scsi_msg_in: phase error\n");
+            print("usbms_device::send_scsi_msg_in: phase error\n");
             return 0;
 
         default:
-            print("send_scsi_msg_in: unrecognized error status {:02x}\n",
+            print("usbms_device::send_scsi_msg_in: unrecognized error status {:02x}\n",
                   (uint8_t)csw.bCSWStatus);
             return 0;
     }
@@ -483,9 +483,9 @@ bool usbms_volume::inquiry() {
     msg.cmd = scsi_command::INQUIRY;
     msg.allocation_length = byteswap((uint16_t)sizeof(buf));
 
-    auto recv_bytes = send_scsi_msg_in(dev.in_queue, dev.out_queue, lun,
-                                       span((uint8_t*)&msg, sizeof(msg)),
-                                       span((uint8_t*)&buf, sizeof(buf)));
+    auto recv_bytes = dev.send_scsi_msg_in(lun,
+                                           span((uint8_t*)&msg, sizeof(msg)),
+                                           span((uint8_t*)&buf, sizeof(buf)));
     if (recv_bytes == 0)
         return false;
 
@@ -519,9 +519,9 @@ bool usbms_volume::read_capacity10() {
     memset(&msg, 0, sizeof(msg));
     msg.cmd = scsi_command::READ_CAPACITY10;
 
-    auto recv_bytes = send_scsi_msg_in(dev.in_queue, dev.out_queue, lun,
-                                       span((uint8_t*)&msg, sizeof(msg)),
-                                       span((uint8_t*)&buf, sizeof(buf)));
+    auto recv_bytes = dev.send_scsi_msg_in(lun,
+                                           span((uint8_t*)&msg, sizeof(msg)),
+                                           span((uint8_t*)&buf, sizeof(buf)));
 
     if (recv_bytes != sizeof(buf)) {
         print("usbms_volume::read_capacity10: received {} bytes, expected {}\n",
@@ -543,9 +543,9 @@ bool usbms_volume::read_capacity16() {
     msg.cmd = scsi_command::READ_CAPACITY16;
     msg.allocation_length = byteswap((uint16_t)sizeof(buf));
 
-    auto recv_bytes = send_scsi_msg_in(dev.in_queue, dev.out_queue, lun,
-                                       span((uint8_t*)&msg, sizeof(msg)),
-                                       span((uint8_t*)&buf, sizeof(buf)));
+    auto recv_bytes = dev.send_scsi_msg_in(lun,
+                                           span((uint8_t*)&msg, sizeof(msg)),
+                                           span((uint8_t*)&buf, sizeof(buf)));
 
     if (recv_bytes != sizeof(buf)) {
         print("usbms_volume::read_capacity16: received {} bytes, expected {}\n",
@@ -639,9 +639,9 @@ nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
     msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
     msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
 
-    auto recv_bytes = send_scsi_msg_in(dev.in_queue, dev.out_queue, lun,
-                                       span((uint8_t*)&msg, sizeof(msg)),
-                                       span(buf, PAGE_SIZE));
+    auto recv_bytes = dev.send_scsi_msg_in(lun,
+                                           span((uint8_t*)&msg, sizeof(msg)),
+                                           span(buf, PAGE_SIZE));
 
     if (recv_bytes != PAGE_SIZE) {
         print("usbms_volume::dio_read: received {} bytes, expected {}\n",
