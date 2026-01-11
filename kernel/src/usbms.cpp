@@ -203,13 +203,38 @@ struct scsi_inquiry {
 
 static_assert(sizeof(scsi_inquiry) == 0x38);
 
+class usbms_device {
+public:
+    usbms_device(usb_device& d, xhci_queue& in_queue,
+                 xhci_queue& out_queue) : d(d), in_queue(in_queue), out_queue(out_queue) {
+        d.acquire();
+    }
+
+    ~usbms_device() {
+        d.release();
+    }
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    atomic<unsigned int> refcount = 1;
+    usb_device& d;
+    xhci_queue& in_queue;
+    xhci_queue& out_queue;
+};
+
 class usbms_volume : public volume {
 public:
-    usbms_volume(usb_device& d, xhci_queue& in_queue,
-                 xhci_queue& out_queue, uint8_t lun);
+    usbms_volume(usbms_device& dev, uint8_t lun);
 
     virtual ~usbms_volume() override {
-        d.release();
+        dev.release();
     }
 
     void release() override {
@@ -235,9 +260,7 @@ private:
     bool read_capacity10();
     bool read_capacity16();
 
-    usb_device& d;
-    xhci_queue& in_queue;
-    xhci_queue& out_queue;
+    usbms_device& dev;
     uint8_t lun;
     bool big = false;
 };
@@ -446,7 +469,7 @@ bool usbms_volume::test_unit_ready() {
     memset(&msg, 0, sizeof(msg));
     msg.cmd = scsi_command::TEST_UNIT_READY;
 
-    return send_scsi_msg_no_data(in_queue, out_queue, lun,
+    return send_scsi_msg_no_data(dev.in_queue, dev.out_queue, lun,
                                  span((uint8_t*)&msg, sizeof(msg)));
 }
 
@@ -460,7 +483,7 @@ bool usbms_volume::inquiry() {
     msg.cmd = scsi_command::INQUIRY;
     msg.allocation_length = byteswap((uint16_t)sizeof(buf));
 
-    auto recv_bytes = send_scsi_msg_in(in_queue, out_queue, lun,
+    auto recv_bytes = send_scsi_msg_in(dev.in_queue, dev.out_queue, lun,
                                        span((uint8_t*)&msg, sizeof(msg)),
                                        span((uint8_t*)&buf, sizeof(buf)));
     if (recv_bytes == 0)
@@ -496,7 +519,7 @@ bool usbms_volume::read_capacity10() {
     memset(&msg, 0, sizeof(msg));
     msg.cmd = scsi_command::READ_CAPACITY10;
 
-    auto recv_bytes = send_scsi_msg_in(in_queue, out_queue, lun,
+    auto recv_bytes = send_scsi_msg_in(dev.in_queue, dev.out_queue, lun,
                                        span((uint8_t*)&msg, sizeof(msg)),
                                        span((uint8_t*)&buf, sizeof(buf)));
 
@@ -520,7 +543,7 @@ bool usbms_volume::read_capacity16() {
     msg.cmd = scsi_command::READ_CAPACITY16;
     msg.allocation_length = byteswap((uint16_t)sizeof(buf));
 
-    auto recv_bytes = send_scsi_msg_in(in_queue, out_queue, lun,
+    auto recv_bytes = send_scsi_msg_in(dev.in_queue, dev.out_queue, lun,
                                        span((uint8_t*)&msg, sizeof(msg)),
                                        span((uint8_t*)&buf, sizeof(buf)));
 
@@ -537,10 +560,8 @@ bool usbms_volume::read_capacity16() {
     return true;
 }
 
-usbms_volume::usbms_volume(usb_device& d, xhci_queue& in_queue,
-                           xhci_queue& out_queue, uint8_t lun) :
-                           d(d), in_queue(in_queue), out_queue(out_queue), lun(lun) {
-    d.acquire();
+usbms_volume::usbms_volume(usbms_device& dev, uint8_t lun) : dev(dev), lun(lun) {
+    dev.acquire();
 
     // FIXME - mutex?
 
@@ -618,7 +639,7 @@ nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
     msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
     msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
 
-    auto recv_bytes = send_scsi_msg_in(in_queue, out_queue, lun,
+    auto recv_bytes = send_scsi_msg_in(dev.in_queue, dev.out_queue, lun,
                                        span((uint8_t*)&msg, sizeof(msg)),
                                        span(buf, PAGE_SIZE));
 
@@ -650,9 +671,8 @@ nt_status usbms_volume::dio_write(uint64_t page_num, uint64_t num_pages,
     return nt_status::NOT_IMPLEMENTED;
 }
 
-static void init_lun(usb_device& d, xhci_queue& in_queue,
-                     xhci_queue& out_queue, uint8_t lun) {
-    auto pv = new usbms_volume(d, in_queue, out_queue, lun);
+static void init_lun(usbms_device& dev, uint8_t lun) {
+    auto pv = new usbms_volume(dev, lun);
 
     if (!pv) {
         print("init_lun: new failed\n");
@@ -777,9 +797,17 @@ static bool found_usb_mass_storage(usb_device& d,
         max_lun = 15;
     }
 
-    for (uint8_t i = 0; i <= max_lun; i++) {
-        init_lun(d, *in_queue, *out_queue, i);
+    auto dev = new usbms_device(d, *in_queue, *out_queue);
+    if (!dev) {
+        print("new failed\n");
+        return false;
     }
+
+    for (uint8_t i = 0; i <= max_lun; i++) {
+        init_lun(*dev, i);
+    }
+
+    dev->release();
 
     // FIXME - return false if all LUNs failed?
 
