@@ -715,8 +715,6 @@ nt_status usbms_volume::flush() {
 
 nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
                                  pfn_iterator& it, uint64_t& read_pages) {
-    print("FIXME - usbms_volume::dio_read({:x}, {:x})\n", page_num, num_pages);
-
     if (num_pages == 0) {
         read_pages = 0;
         return nt_status::SUCCESS;
