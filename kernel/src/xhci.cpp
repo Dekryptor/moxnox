@@ -1995,7 +1995,13 @@ size_t xhci_queue::normal_transfer_dio(pfn_iterator& it, uint64_t num_pages) {
 
     delete[] reqs;
 
-    return num_pages << PAGE_SHIFT; // FIXME
+    size_t transferred = 0;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        transferred += reqs[i].ev.trb_transfer_length;
+    }
+
+    return (num_pages << PAGE_SHIFT) - transferred;
 }
 
 uint8_t xhci::get_port_slot_type(uint8_t port_id) {
