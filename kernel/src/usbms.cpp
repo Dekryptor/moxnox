@@ -307,9 +307,6 @@ static bool send_scsi_msg_no_data(xhci_queue& in_queue, xhci_queue& out_queue,
         return false;
     }
 
-    print("received reply (bCSWStatus = {}, dCSWDataResidue = {})\n",
-          (uint8_t)csw.bCSWStatus, csw.dCSWDataResidue);
-
     switch (csw.bCSWStatus) {
         case csw_status::success:
             return true;
