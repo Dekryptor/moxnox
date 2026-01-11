@@ -4,6 +4,7 @@ module;
 #include <span>
 #include <bit>
 #include <string_view>
+#include <atomic>
 
 export module usbms;
 
@@ -19,6 +20,7 @@ import nt;
 import page_cache;
 import volume;
 import object_ref;
+import handle;
 
 using namespace std;
 
@@ -204,6 +206,7 @@ public:
                         bool fua) override;
 
     bool initialized = false;
+    unsigned int dev_num;
 
 private:
     bool test_unit_ready();
@@ -217,6 +220,8 @@ private:
     uint8_t lun;
     bool big = false;
 };
+
+static atomic<unsigned int> num_usbms_devices;
 
 static bool found_usb_storage_device(usb_device& d,
                                      const usb_device_config& config,
@@ -544,8 +549,6 @@ usbms_volume::usbms_volume(usb_device& d, xhci_queue& in_queue,
         }
     }
 
-    print("size = {}, block size = {}\n", byte_size(size), sector_size);
-
     initialized = true;
 }
 
@@ -599,6 +602,38 @@ static void init_lun(usb_device& d, xhci_queue& in_queue,
 
     // FIXME - give name
     // FIXME - print found message with name(?), block size, and size
+
+    v.dev_num = num_usbms_devices.fetch_add(1);
+
+    {
+        char s[50];
+        auto sp = span(s, sizeof(s));
+
+        sp = format(sp, "ums{}", v.dev_num);
+
+        auto sv = string_view(s, (size_t)(sp.data() - s));
+
+        v.volume_name_len = sv.size();
+        v.volume_name = (char*)malloc(sv.size());
+        if (!v.volume_name) {
+            print("malloc failed\n");
+            return;
+        }
+
+        memcpy(v.volume_name, sv.data(), sv.size());
+
+        auto status = name_object(v, sv);
+        if (!success(status)) {
+            print("name_object returned {}\n", status);
+            return;
+        }
+    }
+
+    // FIXME - product name
+    print("found /dev/{}: block size {}, capacity {}\n",
+          string_view(v.volume_name, v.volume_name_len),
+          byte_size(v.sector_size), byte_size(v.size));
+
     // FIXME - scan for partitions
 
     // FIXME - handle removals
@@ -608,8 +643,6 @@ static bool found_usb_mass_storage(usb_device& d,
                                    const usb_interface& interface) {
     usb_endpoint* in_ep = nullptr;
     usb_endpoint* out_ep = nullptr;
-
-    print("FIXME - found_usb_mass_storage\n");
 
     // find endpoint numbers
 
