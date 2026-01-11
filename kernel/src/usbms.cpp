@@ -12,6 +12,7 @@ import xhci;
 import list;
 import module_init;
 import print;
+import format;
 import crt;
 import mem;
 
@@ -41,6 +42,7 @@ enum class usbms_request : uint8_t {
 enum class scsi_command : uint8_t {
     TEST_UNIT_READY = 0x00,
     INQUIRY = 0x12,
+    READ_CAPACITY10 = 0x25,
 };
 
 struct scsi_test_unit_ready {
@@ -62,6 +64,24 @@ struct scsi_inquiry_cmd {
 } __attribute((packed));
 
 static_assert(sizeof(scsi_inquiry_cmd) == 6);
+
+struct scsi_read_capacity10 {
+    enum scsi_command cmd;
+    uint8_t reserved;
+    uint32_t lba;
+    uint16_t reserved2;
+    uint8_t reserved3;
+    uint8_t control;
+} __attribute((packed));
+
+static_assert(sizeof(scsi_read_capacity10) == 10);
+
+struct scsi_read_capacity10_resp {
+    uint32_t lba;
+    uint32_t block_length;
+} __attribute((packed));
+
+static_assert(sizeof(scsi_read_capacity10_resp) == 8);
 
 struct usbms_cbw {
     uint32_t dCBWSignature;
@@ -382,6 +402,31 @@ static bool inquiry(xhci_queue& in_queue, xhci_queue& out_queue,
     return true;
 }
 
+static bool read_capacity(xhci_queue& in_queue, xhci_queue& out_queue,
+                          uint8_t lun) {
+    scsi_read_capacity10 msg;
+    scsi_read_capacity10_resp buf;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.cmd = scsi_command::READ_CAPACITY10;
+
+    auto recv_bytes = send_scsi_msg_in(in_queue, out_queue, lun,
+                                       span((uint8_t*)&msg, sizeof(msg)),
+                                       span((uint8_t*)&buf, sizeof(buf)));
+
+    if (recv_bytes != sizeof(buf)) {
+        print("read_capacity: received {} bytes, expected {}\n",
+              recv_bytes, sizeof(buf));
+        return false;
+    }
+
+    auto block_size = byteswap(buf.block_length);
+
+    print("size = {}, block size = {}\n", byte_size((byteswap(buf.lba) + 1) * block_size), block_size);
+
+    return true;
+}
+
 static void init_lun(usb_device& d, xhci_queue& in_queue,
                      xhci_queue& out_queue, uint8_t lun) {
     // FIXME - mutex?
@@ -394,10 +439,15 @@ static void init_lun(usb_device& d, xhci_queue& in_queue,
         return;
 
     // FIXME - PREVENT ALLOW MEDIUM REMOVAL?
-    // FIXME - READ CAPACITY (0x25)
-    // FIXME - actual I/O (READ [0x28] and WRITE [0x2a])
+
+    if (!read_capacity(in_queue, out_queue, lun))
+        return;
+
+    // FIXME - READ CAPACITY (0x9e) if last LBA == 0xffffffff
+    // FIXME - actual I/O (READ [0x28/0x88] and WRITE [0x2a/0x8a])
 
     // FIXME - add block device
+    // FIXME - give name
     // FIXME - print found message with name(?), block size, and size
     // FIXME - scan for partitions
 
