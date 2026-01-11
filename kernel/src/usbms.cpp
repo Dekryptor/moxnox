@@ -22,6 +22,7 @@ import volume;
 import object_ref;
 import handle;
 import timer;
+import config;
 
 using namespace std;
 
@@ -50,6 +51,7 @@ enum class scsi_command : uint8_t {
     TEST_UNIT_READY = 0x00,
     INQUIRY = 0x12,
     READ_CAPACITY10 = 0x25,
+    READ10 = 0x28,
     READ_CAPACITY16 = 0x9e,
 };
 
@@ -119,6 +121,22 @@ struct scsi_read_capacity16_resp {
 } __attribute((packed));
 
 static_assert(sizeof(scsi_read_capacity16_resp) == 32);
+
+struct scsi_read10 {
+    enum scsi_command cmd;
+    uint8_t : 2;
+    uint8_t rarc : 1;
+    uint8_t fua : 1;
+    uint8_t dpo : 1;
+    uint8_t rdprotect : 3;
+    uint32_t lba;
+    uint8_t group_number : 5;
+    uint8_t : 3;
+    uint16_t transfer_length;
+    uint8_t control;
+} __attribute((packed));
+
+static_assert(sizeof(scsi_read10) == 10);
 
 struct usbms_cbw {
     uint32_t dCBWSignature;
@@ -571,14 +589,52 @@ nt_status usbms_volume::flush() {
 }
 
 nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
-                                 pfn_iterator& /*it*/, uint64_t& /*read_pages*/) {
+                                 pfn_iterator& it, uint64_t& read_pages) {
     print("FIXME - usbms_volume::dio_read({:x}, {:x})\n", page_num, num_pages);
 
-    // FIXME
+    if (num_pages == 0) {
+        read_pages = 0;
+        return nt_status::SUCCESS;
+    }
 
-    // FIXME - actual I/O (READ [0x28/0x88])
+    // FIXME - avoid copy
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - READ16 (0x88) if big device
+
+    auto page = allocate_folio(0);
+    if (!page)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    num_pages = 1; // FIXME
+
+    // FIXME - limit num_pages to something sensible
+
+    auto buf = (uint8_t*)phys_address(page);
+
+    scsi_read10 msg;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.cmd = scsi_command::READ10;
+    msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
+    msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
+
+    auto recv_bytes = send_scsi_msg_in(in_queue, out_queue, lun,
+                                       span((uint8_t*)&msg, sizeof(msg)),
+                                       span(buf, PAGE_SIZE));
+
+    if (recv_bytes != PAGE_SIZE) {
+        print("usbms_volume::dio_read: received {} bytes, expected {}\n",
+              recv_bytes, PAGE_SIZE);
+        free_folio(page);
+        return nt_status::IO_DEVICE_ERROR;
+    }
+
+    memcpy(phys_address(*it), buf, PAGE_SIZE);
+    free_folio(page);
+
+    read_pages = num_pages;
+
+    return nt_status::SUCCESS;
 }
 
 nt_status usbms_volume::dio_write(uint64_t page_num, uint64_t num_pages,
@@ -645,7 +701,7 @@ static void init_lun(usb_device& d, xhci_queue& in_queue,
           string_view(v.volume_name, v.volume_name_len), v.model_number,
           byte_size(v.sector_size), byte_size(v.size));
 
-    // FIXME - scan for partitions
+    v.probe();
 
     // FIXME - handle removals
 }
