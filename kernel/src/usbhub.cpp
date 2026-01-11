@@ -24,8 +24,6 @@ using namespace std;
 
 static const unsigned int PORT_RESET_DELAY = 800; // ms
 
-#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
-
 union port_status {
     struct {
         uint16_t connection : 1;
