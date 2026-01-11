@@ -1945,6 +1945,9 @@ size_t xhci_queue::normal_transfer_dio(pfn_iterator& it, uint64_t num_pages) {
     for (uint64_t i = 0; i < num_pages; i++) {
         auto& s = *reinterpret_cast<xhci_trb_normal*>(&reqs[i].trb);
 
+        if (i != 0)
+            it++;
+
         s.data_buffer = *it;
 
         flush_cache(span((uint8_t*)phys_address(s.data_buffer), PAGE_SIZE), false);
