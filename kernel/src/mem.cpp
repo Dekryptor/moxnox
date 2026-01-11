@@ -1668,6 +1668,12 @@ void* operator new(size_t count, align_val_t al) {
 
 export
 extern "C++"
+void* operator new[](size_t count) {
+    return malloc_aligned(count, 1);
+}
+
+export
+extern "C++"
 void operator delete(void* ptr) noexcept {
     free(ptr);
 }
@@ -1675,6 +1681,18 @@ void operator delete(void* ptr) noexcept {
 export
 extern "C++"
 void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
+}
+
+export
+extern "C++"
+void operator delete[](void* ptr) noexcept {
+    free(ptr);
+}
+
+export
+extern "C++"
+void operator delete[](void* ptr, size_t) noexcept {
     free(ptr);
 }
 
