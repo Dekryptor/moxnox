@@ -32,8 +32,6 @@ export module sdhci;
 
 using namespace std;
 
-#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
-
 static const size_t BLOCK_SIZE = 512;
 
 union sdhci_clkcon {

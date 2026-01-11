@@ -34,7 +34,7 @@ export extern "C++" {
 
 using namespace std;
 
-#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
+export const int ONE_MS_TICKS = (int)SYSTEM_TIME_RESOLUTION / 1000;
 
 export class timer : public sync_object {
 public:

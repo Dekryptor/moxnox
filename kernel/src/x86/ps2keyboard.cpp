@@ -50,8 +50,6 @@ static uint64_t keydown_extended1 = 0, keydown_extended2 = 0;
 static enum evdev_code repeat_key = evdev_code::KEY_RESERVED;
 static object_ref repeat_timer;
 
-#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
-
 static const int64_t REPEAT_DELAY_MS = 660;
 static const int64_t REPEAT_RATE_HZ = 25;
 

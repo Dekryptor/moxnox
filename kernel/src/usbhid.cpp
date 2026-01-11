@@ -29,8 +29,6 @@ import config;
 
 using namespace std;
 
-#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
-
 static const int64_t REPEAT_DELAY_MS = 660;
 static const int64_t REPEAT_RATE_HZ = 25;
 

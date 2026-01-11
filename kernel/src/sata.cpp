@@ -58,8 +58,6 @@ static constexpr uint32_t SATA_IS_DHRS = 1 << 0;
 
 static atomic<unsigned int> num_sata_devices = 0;
 
-#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
-
 static bool init_sata(const pci_device& dev);
 
 static pci_class_recognizer mod_pci_class = {

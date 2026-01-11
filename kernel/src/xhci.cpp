@@ -41,8 +41,6 @@ static const uint16_t ENDPOINT_RING_SIZE = 64;
 
 static const uint64_t USB_TIMEOUT = 5 * SYSTEM_TIME_RESOLUTION; // 5 seconds
 
-#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
-
 struct xhci_request {
     xhci_trb_common trb;
     union {
