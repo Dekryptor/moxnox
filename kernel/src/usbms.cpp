@@ -22,12 +22,8 @@ import volume;
 import object_ref;
 import handle;
 import timer;
-import config;
-import scheduler;
 
 using namespace std;
-
-#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
 
 enum class usb_subclass_mass_storage : uint8_t {
     rbc = 1,
@@ -526,25 +522,6 @@ bool usbms_volume::read_capacity16() {
     big = true;
 
     return true;
-}
-
-static void msleep(unsigned int ms) {
-    auto tim_ref = create_timer(true);
-    if (!tim_ref) {
-        print("msleep::set_clock: create_timer failed\n");
-        return;
-    }
-
-    auto& tim = static_cast<timer&>(tim_ref.get());
-
-    auto status = tim.set((int)ms * -ONE_MS_TICKS, nullptr, nullptr, false,
-                          1, nullptr);
-    if (!success(status)) {
-        print("msleep: timer::set returned {}\n", status);
-        return;
-    }
-
-    wait_for_object(tim, true);
 }
 
 usbms_volume::usbms_volume(usb_device& d, xhci_queue& in_queue,

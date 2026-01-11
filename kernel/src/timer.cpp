@@ -34,6 +34,8 @@ export extern "C++" {
 
 using namespace std;
 
+#define ONE_MS_TICKS ((int)SYSTEM_TIME_RESOLUTION / 1000) // FIXME
+
 export class timer : public sync_object {
 public:
     timer() : sync_object(object_type::timer, false) { }
@@ -413,4 +415,23 @@ NTSTATUS NtDelayExecution(bool /*alertable*/, const LARGE_INTEGER* delay_interva
         return status;
 
     return wait_for_object(t, true);
+}
+
+export void msleep(unsigned int ms) {
+    auto tim_ref = create_timer(true);
+    if (!tim_ref) {
+        print("msleep::set_clock: create_timer failed\n");
+        return;
+    }
+
+    auto& tim = static_cast<timer&>(tim_ref.get());
+
+    auto status = tim.set((int)ms * -ONE_MS_TICKS, nullptr, nullptr, false,
+                          1, nullptr);
+    if (!success(status)) {
+        print("msleep: timer::set returned {}\n", status);
+        return;
+    }
+
+    wait_for_object(tim, true);
 }
